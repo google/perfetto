@@ -51,8 +51,14 @@ struct OwnedView {
   uint32_t root = 0;
 };
 
+// The text SQLite sees for the name at `span`, after macro expansion. A name is
+// one token, so its text is a slice of the one layer it is in, which lives as
+// long as the statement.
 std::string_view Text(SyntaqliteParser* p, SyntaqliteTextSpan span) {
-  return base::TrimWhitespace(SyntaqliteSpanText(p, span));
+  uint32_t len = 0;
+  const char* text = syntaqlite_parser_span_expanded_text(p, &span, &len);
+  return text ? base::TrimWhitespace(std::string_view(text, len))
+              : std::string_view();
 }
 
 const SyntaqliteNode* Node(SyntaqliteParser* p, uint32_t id) {

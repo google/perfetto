@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -82,10 +83,7 @@ class PhysicalPlanTest : public ::testing::Test {
  protected:
   PhysicalPlanTest()
       : connection_(SqliteConnection::CreateConnectionToNewDatabase()),
-        catalog_(&pool_, connection_.get()) {
-    env_.connection = connection_.get();
-    env_.pool = &pool_;
-  }
+        catalog_(&pool_, connection_.get()) {}
 
   void Exec(const std::string& sql) {
     auto statement =
@@ -127,7 +125,19 @@ class PhysicalPlanTest : public ::testing::Test {
 
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
     ASSIGN_OR_RETURN(LogicalPlan plan, Compile(sql));
-    return Lower(plan, env_);
+    return LowerReadingSql(std::move(plan));
+  }
+
+  // Lowers `plan` to read each of its SQL sources as a dataframe, built up
+  // front as SQLite builds it where the pipeline is written.
+  base::StatusOr<std::unique_ptr<PhysicalPlan>> LowerReadingSql(
+      LogicalPlan plan) {
+    ASSIGN_OR_RETURN(auto dataframes,
+                     BuildSqlSources(connection_.get(), &pool_, plan));
+    LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
+    RETURN_IF_ERROR(
+        BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
+    return Lower(moved);
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -165,7 +175,6 @@ class PhysicalPlanTest : public ::testing::Test {
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
-  LowerEnvironment env_;
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
@@ -296,7 +305,7 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
   ColumnId id = logical.output.front().id;
   // Project and alias the same value twice, independently of the source names.
   logical.output = {{"total", total}, {"id", id}, {"again", total}};
-  auto plan = Lower(logical, env_);
+  auto plan = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Names(*plan), ElementsAre("total", "id", "again"));
   EXPECT_NE(plan->columns()[0].index, total);
   EXPECT_EQ(plan->columns()[0].index, plan->columns()[2].index);
@@ -342,7 +351,7 @@ TEST_F(PhysicalPlanTest, LogicalPlanRetainsColumnsBeforeLowering) {
   LogicalPlan plan =
       std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
   catalog_.RemoveTable("df");
-  auto physical = Lower(plan, env_);
+  auto physical = Lower(plan);
   auto rows = Run(*physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
@@ -351,7 +360,7 @@ TEST_F(PhysicalPlanTest, LogicalPlanRetainsColumnsBeforeLowering) {
 
 TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
   CreateTree();
-  Exec("INSERT INTO tree VALUES (4, 0, 'many')");
+  Exec("UPDATE tree SET self = 'many'");
   auto plan = Plan("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_THAT(Run(**plan, "total").status().message(), HasSubstr("'self'"));
@@ -359,7 +368,7 @@ TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
 
 TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   CreateTree();
-  Exec("INSERT INTO tree VALUES (4, 0, 'many')");
+  Exec("UPDATE tree SET self = 'many'");
   PerfettoSqlParser parser(macros_, catalog_,
                            /*pipelines_allowed=*/true);
   parser.Reset(SqlSource::FromExecuteQuery(
@@ -369,7 +378,7 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   // Neither the original input name nor its value is exposed in the result.
   logical.output = {{"id", logical.output.front().id},
                     {"renamed_total", logical.output.back().id}};
-  auto physical = Lower(logical, env_);
+  auto physical = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Run(*physical, "renamed_total").status().message(),
               HasSubstr("'self'"));
 }
@@ -405,7 +414,7 @@ TEST_F(PhysicalPlanTest, APlanReadBackReadsTablesAsTheyAreNow) {
                     {{1, 0, 2}, {0, std::nullopt, 1}});
   auto read = DeserializePlan(bytes, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  auto rows = Run(*Lower(*read, env_), "total");
+  auto rows = Run(*Lower(*read), "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 3), Pair(1, 2)));
 }

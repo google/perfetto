@@ -18,6 +18,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -29,17 +30,22 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -48,14 +54,33 @@ namespace {
 using core::exec::ColumnView;
 using core::exec::Variant;
 
-// The plan comes before the outputs: SQLite only says which of a table's
+// The pointer types of what __intrinsic_dataframe_agg and
+// __intrinsic_dataframes give.
+constexpr char kDataframePointerType[] = "PIPELINE_DATAFRAME";
+constexpr char kDataframesPointerType[] = "PIPELINE_DATAFRAMES";
+
+// Shared, so a cursor keeps the dataframes it loaded alive.
+using SharedDataframe = std::shared_ptr<const dataframe::Dataframe>;
+
+// What __intrinsic_dataframes gives: the dataframes, in the order the plan
+// numbers them, null for a relation with no rows.
+struct DataframeList {
+  std::vector<SharedDataframe> dataframes;
+};
+
+// The table function's arguments: the plan, then the list of dataframes it
+// reads. They come before the outputs: SQLite only says which of a table's
 // first 63 columns a query reads, and those are best spent on the outputs.
 constexpr int kPlanColumn = 0;
-constexpr int kFirstOutputColumn = 1;
+constexpr int kDataframesColumn = 1;
+constexpr int kFirstOutputColumn = 2;
+
+// idxNum: whether dataframes are given.
+constexpr int kHasDataframes = 1;
 
 std::string Schema() {
   // Public names (which may repeat) are applied by the outer SELECT.
-  std::vector<std::string> columns{"pipeline HIDDEN"};
+  std::vector<std::string> columns{"pipeline HIDDEN", "dataframes HIDDEN"};
   for (uint32_t i = 0; i < pipeline::kMaxPipelineColumns; ++i) {
     columns.push_back("c" + std::to_string(i));
   }
@@ -179,16 +204,34 @@ int CheckStatus(PipelineModule::Cursor* cursor) {
                      : sqlite::utils::SetError(cursor->pVtab, status);
 }
 
-// The slow path of Filter: loads the plan in `value` into `c`.
-PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c, sqlite3_value* value) {
-  if (sqlite3_value_type(value) != SQLITE_BLOB) {
+// The slow path of Filter: loads the plan in `value`, reading `args`, into
+// `c`.
+PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
+                            int idx_num,
+                            sqlite3_value** argv) {
+  if (sqlite3_value_type(argv[0]) != SQLITE_BLOB) {
     return sqlite::utils::SetError(c->pVtab,
                                    "__intrinsic_pipeline: expected a plan");
   }
+  // Only alive while Load runs: once bound, the plan shares ownership of each
+  // column it reads, so nothing needs to keep the dataframes alive.
+  std::vector<const dataframe::Dataframe*> inputs;
+  if (idx_num & kHasDataframes) {
+    const auto* list =
+        sqlite::value::Pointer<DataframeList>(argv[1], kDataframesPointerType);
+    if (!list) {
+      return sqlite::utils::SetError(
+          c->pVtab, "__intrinsic_pipeline: expected dataframes");
+    }
+    for (const SharedDataframe& input : list->dataframes) {
+      inputs.push_back(input.get());
+    }
+  }
   PipelineModule::Context* context = PipelineModule::GetVtab(c->pVtab)->context;
   auto plan = context->connection->LoadPipeline(
-      std::string_view(static_cast<const char*>(sqlite3_value_blob(value)),
-                       static_cast<size_t>(sqlite3_value_bytes(value))));
+      std::string_view(static_cast<const char*>(sqlite3_value_blob(argv[0])),
+                       static_cast<size_t>(sqlite3_value_bytes(argv[0]))),
+      inputs);
   if (!plan.ok()) {
     return sqlite::utils::SetError(c->pVtab, plan.status());
   }
@@ -206,6 +249,68 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c, sqlite3_value* value) {
 }
 
 }  // namespace
+
+void DataframesFunction::Step(sqlite3_context* ctx,
+                              int argc,
+                              sqlite3_value** argv) {
+  auto list = std::make_unique<DataframeList>();
+  list->dataframes.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; ++i) {
+    // A pointer reads as NULL, so only a NULL without one is no rows.
+    const auto* dataframe =
+        sqlite::value::Pointer<SharedDataframe>(argv[i], kDataframePointerType);
+    if (!dataframe && !sqlite::value::IsNull(argv[i])) {
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("%s: expected dataframes", kName));
+    }
+    list->dataframes.push_back(dataframe ? *dataframe : nullptr);
+  }
+  return sqlite::result::UniquePointer(ctx, std::move(list),
+                                       kDataframesPointerType);
+}
+
+void DataframeAgg::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc < 1) {
+    return sqlite::utils::SetError(
+        ctx, base::ErrStatus("%s: expected column names", kName));
+  }
+  AggCtx& agg = AggCtx::GetOrCreateContextForStep(ctx);
+  auto count = static_cast<uint32_t>(argc - 1);
+  if (!agg.builder) {
+    const char* text = sqlite::value::Text(argv[0]);
+    std::vector<std::string> names = base::SplitString(text ? text : "", ",");
+    if (names.size() != count) {
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("%s: expected %zu values, not %u", kName,
+                               names.size(), count));
+    }
+    dataframe::RuntimeDataframeBuilder::Options options;
+    options.emit_auto_id = false;
+    options.analyze = false;
+    agg.builder.emplace(std::move(names), GetUserData(ctx), options);
+  }
+  base::Status status = AddSqliteValuesRow(*agg.builder, argv + 1, count);
+  if (!status.ok()) {
+    return sqlite::utils::SetError(ctx, kName, status);
+  }
+}
+
+void DataframeAgg::Final(sqlite3_context* ctx) {
+  auto agg = AggCtx::GetContextOrNullForFinal(ctx);
+  if (!agg.get() || !agg.get()->builder) {
+    return sqlite::result::Null(ctx);
+  }
+  base::StatusOr<dataframe::Dataframe> dataframe =
+      std::move(*agg.get()->builder).Build();
+  if (!dataframe.ok()) {
+    return sqlite::utils::SetError(ctx, kName, dataframe.status());
+  }
+  return sqlite::result::UniquePointer(
+      ctx,
+      std::make_unique<SharedDataframe>(
+          std::make_shared<const dataframe::Dataframe>(std::move(*dataframe))),
+      kDataframePointerType);
+}
 
 int PipelineModule::Connect(sqlite3* db,
                             void* raw_ctx,
@@ -230,24 +335,38 @@ int PipelineModule::Disconnect(sqlite3_vtab* vtab) {
 
 int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
   int plan = -1;
+  int dataframes = -1;
   for (int i = 0; i < info->nConstraint; ++i) {
     const auto& constraint = info->aConstraint[i];
     if (constraint.op != SQLITE_INDEX_CONSTRAINT_EQ) {
       continue;
     }
+    // Without the plan and its arguments there is nothing to run.
     if (constraint.iColumn == kPlanColumn) {
-      // Without the plan there is nothing to run.
       if (!constraint.usable) {
         return SQLITE_CONSTRAINT;
       }
       plan = i;
     }
+    if (constraint.iColumn == kDataframesColumn) {
+      if (!constraint.usable) {
+        return SQLITE_CONSTRAINT;
+      }
+      dataframes = i;
+    }
   }
   if (plan == -1) {
     return SQLITE_CONSTRAINT;
   }
-  info->aConstraintUsage[plan].argvIndex = 1;
+  int argc = 0;
+  info->aConstraintUsage[plan].argvIndex = ++argc;
   info->aConstraintUsage[plan].omit = true;
+  info->idxNum = 0;
+  if (dataframes != -1) {
+    info->aConstraintUsage[dataframes].argvIndex = ++argc;
+    info->aConstraintUsage[dataframes].omit = true;
+    info->idxNum |= kHasDataframes;
+  }
   info->estimatedCost = 1e9;
   return SQLITE_OK;
 }
@@ -263,15 +382,15 @@ int PipelineModule::Close(sqlite3_vtab_cursor* cursor) {
 }
 
 int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
-                           int,
+                           int idx_num,
                            const char*,
-                           int argc,
+                           int,
                            sqlite3_value** argv) {
   Cursor* c = GetCursor(cursor);
-  PERFETTO_DCHECK(argc == 1);
-  // The plan is a constant, so it is loaded once per cursor.
+  // The plan and its dataframes are the same on every filter, so it is loaded
+  // once per cursor.
   if (PERFETTO_UNLIKELY(!c->plan)) {
-    if (int rc = Load(c, argv[0]); rc != SQLITE_OK) {
+    if (int rc = Load(c, idx_num, argv); rc != SQLITE_OK) {
       return rc;
     }
   }
