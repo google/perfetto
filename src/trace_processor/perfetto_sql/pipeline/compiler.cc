@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
@@ -37,6 +38,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace {
@@ -130,6 +132,10 @@ class Compiler {
   // The name a source's columns can be qualified with, if it has one.
   std::optional<std::string> SourceQualifier(
       const SyntaqlitePerfettoPipeSource&) const;
+  // Fails unless every column of a source has a name a pipeline can use.
+  // Crossing from SQL into a pipeline needs proper names, as creating a
+  // PERFETTO TABLE does.
+  base::Status CheckSourceNames(const op::Scan&, uint32_t at) const;
   op::Scan CompileDataframeSource(const dataframe::Dataframe&,
                                   std::string name);
   base::StatusOr<op::Scan> CompileSqlSource(uint32_t from);
@@ -233,6 +239,7 @@ base::Status Compiler::CompileIntersection(uint32_t node) {
     } else {
       ASSIGN_OR_RETURN(scan, CompileSqlSource(source_id));
     }
+    RETURN_IF_ERROR(CheckSourceNames(scan, source_id));
     std::optional<ColumnId> ts = FindScanColumn(scan, "ts");
     std::optional<ColumnId> dur = FindScanColumn(scan, "dur");
     if (!ts || !dur) {
@@ -279,6 +286,7 @@ base::Status Compiler::CompileSource(uint32_t from) {
   } else {
     ASSIGN_OR_RETURN(scan, CompileSqlSource(from));
   }
+  RETURN_IF_ERROR(CheckSourceNames(scan, from));
   for (const NamedColumn& column : scan.columns) {
     Append(column, from);
   }
@@ -315,6 +323,36 @@ std::optional<std::string> Compiler::SourceQualifier(
     return SpanText(p_, n.table_name);
   }
   return std::nullopt;
+}
+
+base::Status Compiler::CheckSourceNames(const op::Scan& scan,
+                                        uint32_t at) const {
+  // SQLite renames the second of two columns sharing a name `x` to `x:1`.
+  // Say so, rather than only that `x:1` is not a valid name.
+  for (size_t i = 0; i < scan.columns.size(); ++i) {
+    const std::string& name = scan.columns[i].name;
+    size_t colon = name.rfind(':');
+    if (colon == std::string::npos || colon + 1 == name.size() ||
+        name.find_first_not_of("0123456789", colon + 1) != std::string::npos) {
+      continue;
+    }
+    for (size_t j = 0; j < i; ++j) {
+      const std::string& first = scan.columns[j].name;
+      if (base::CaseInsensitiveEqual(first, name.substr(0, colon))) {
+        return Expected(at, "distinct column names, but there are two named '" +
+                                first + "', which SQLite renamed to '" + first +
+                                "' and '" + name + "'");
+      }
+    }
+  }
+  for (const NamedColumn& column : scan.columns) {
+    if (!sql_argument::IsValidColumnName(base::StringView(column.name))) {
+      return Expected(at, "every column to have a valid name, but '" +
+                              column.name +
+                              "' is not one: give it one with AS");
+    }
+  }
+  return base::OkStatus();
 }
 
 op::Scan Compiler::CompileDataframeSource(const dataframe::Dataframe& dataframe,
