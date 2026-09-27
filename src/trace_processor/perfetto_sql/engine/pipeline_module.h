@@ -25,10 +25,8 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
@@ -44,8 +42,6 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
   static constexpr auto kType = kEponymousOnly;
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
-  static constexpr char kName[] = "__intrinsic_pipeline";
-  static constexpr uint32_t kMaxColumns = 256;
 
   struct Context {
     StringPool* pool;
@@ -75,9 +71,6 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     // An output rowid lookup, applied after every tree fold.
     std::optional<int64_t> target_rowid;
   };
-
-  // SQL reading `plan`'s output under its own column names.
-  static base::StatusOr<std::string> SelectFrom(const pipeline::LogicalPlan&);
 
   static int Connect(sqlite3*,
                      void*,
