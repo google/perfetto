@@ -19,26 +19,21 @@
 
 #include <string_view>
 
-#include "perfetto/ext/base/status_or.h"
+#include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor::pipeline {
 
-// Lookup interface the compiler uses to resolve what a pipeline reads.
-class Catalog {
+// Lookup interface the compiler uses to resolve what a pipeline reads: the
+// relations semantic analysis can describe, and the dataframes a pipeline can
+// read directly.
+class Catalog : public perfetto_sql::analysis::Catalog {
  public:
-  virtual ~Catalog();
+  ~Catalog() override;
 
   // Dataframe registered as `name`, or null.
   virtual const dataframe::Dataframe* FindDataframe(
       std::string_view name) const = 0;
-
-  // Columns of the query `sql`, typed where they trace back to a dataframe
-  // column. Fails if SQLite cannot prepare the query, or if it reads a
-  // parameter, which nothing binds when a pipeline runs it.
-  virtual base::StatusOr<Schema> DescribeQuery(const SqlSource& sql) const = 0;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 
 #include <cstdint>
 #include <memory>
@@ -46,7 +47,6 @@ class PlanSerializationTest : public ::testing::Test {
   PlanSerializationTest()
       : connection_(SqliteConnection::CreateConnectionToNewDatabase()),
         catalog_(&pool_, connection_.get()) {
-    env_.connection = connection_.get();
     env_.pool = &pool_;
     AddTree();
     Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
@@ -69,12 +69,19 @@ class PlanSerializationTest : public ::testing::Test {
         {{3, 1, 40}, {1, 0, 20}, {2, 0, 30}, {0, std::nullopt, 10}});
   }
 
+  // The plan as it is written into SQL, with its SQL sources moved out into
+  // inputs. Their rows are collected for runs of it.
   LogicalPlan Compile(const std::string& sql) {
     PerfettoSqlParser parser(macros_, catalog_, /*pipelines_allowed=*/true);
     parser.Reset(SqlSource::FromExecuteQuery(sql));
     PERFETTO_CHECK(parser.Next());
-    return std::move(
+    LogicalPlan plan = std::move(
         std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+    auto inputs = CollectSqlInputs(connection_.get(), &pool_, plan);
+    PERFETTO_CHECK(inputs.ok());
+    inputs_ = std::move(*inputs);
+    env_.inputs = &inputs_;
+    return MoveSqlSourcesToInputs(std::move(plan)).plan;
   }
 
   base::StatusOr<LogicalPlan> RoundTrip(const LogicalPlan& plan) {
@@ -84,6 +91,7 @@ class PlanSerializationTest : public ::testing::Test {
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
+  exec::CollectedRowsScan::Inputs inputs_;
   LowerEnvironment env_;
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
@@ -140,6 +148,9 @@ TEST_F(PlanSerializationTest, CorruptPlansAreRefusedOrRun) {
         }
         // Whatever passes the checks must be safe to lower and run.
         auto physical = Lower(*read, env_);
+        if (!physical->CheckInputs(inputs_).ok()) {
+          continue;
+        }
         core::exec::RowCursor cursor(physical->source());
         for (bool row = cursor.Open(); row; row = cursor.Next()) {
         }

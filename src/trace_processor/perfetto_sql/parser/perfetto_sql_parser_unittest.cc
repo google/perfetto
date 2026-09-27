@@ -31,6 +31,7 @@
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_test_utils.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -615,7 +616,7 @@ TEST_F(PerfettoSqlParserTest, PipelineExpandsMacros) {
             "FROM (SELECT * FROM tree) |> TREE ACCUMULATE UP SUM(self) AS "
             "total");
   EXPECT_THAT(pipeline::LogicalPlanToString(pipeline->plan),
-              HasSubstr("Scan(sql SELECT * FROM (SELECT * FROM tree))"));
+              HasSubstr("Scan(sql (SELECT * FROM tree))"));
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAsPipeline) {
@@ -655,7 +656,7 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxErrors) {
 
 TEST_F(PerfettoSqlParserTest, PipelineCompileErrors) {
   EXPECT_THAT(ParsePipeline("FROM nope").status().message(),
-              HasSubstr("no such table: nope"));
+              HasSubstr("'nope' is not known"));
   EXPECT_THAT(ParsePipeline("FROM (SELECT id, self FROM tree) |> TREE "
                             "ACCUMULATE UP SUM(self) AS total")
                   .status()
@@ -863,27 +864,21 @@ TEST_F(PerfettoSqlParserTest, PipelineSkipsUnusedTreeAggregates) {
 }
 
 TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
-  // SQL sources only ask SQLite for the columns that are used.
-  auto plan = ParsePipeline(
+  // SQL sources only collect the columns that are used.
+  PerfettoSqlParser parser(macros_, catalog_, /*pipelines_allowed=*/true);
+  parser.Reset(SqlSource::FromExecuteQuery(
       "INTERVAL INTERSECTION OF (sql_spans AS a, (SELECT * FROM sql_spans) AS "
-      "b) |> SELECT ts, dur, b.utid");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_THAT(*plan,
-              HasSubstr("Scan(sql WITH __pipeline_source(c0, c1, c2, c3) AS "
-                        "(SELECT * FROM sql_spans AS a) SELECT c0 AS \"ts\", "
-                        "c1 AS \"dur\" FROM __pipeline_source) "
-                        "[#2 AS ts, #3 AS dur]"));
-  EXPECT_THAT(
-      *plan,
-      HasSubstr("Scan(sql WITH __pipeline_source(c0, c1, c2, c3) AS "
-                "(SELECT * FROM (SELECT * FROM sql_spans) AS b) SELECT c0 AS "
-                "\"ts\", c1 AS \"dur\", c3 AS \"utid\" FROM __pipeline_source) "
-                "[#6 AS ts, #7 AS dur, #9 AS utid]"));
-
-  // A source that uses every column is left alone.
-  plan = ParsePipeline("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_THAT(*plan, HasSubstr("Scan(sql SELECT * FROM tree)"));
+      "b) |> SELECT ts, dur, b.utid"));
+  ASSERT_TRUE(parser.Next()) << parser.status().message();
+  auto sql =
+      pipeline::SelectPipelineSql(std::get<Pipeline>(parser.statement()).plan);
+  ASSERT_TRUE(sql.ok()) << sql.status().message();
+  EXPECT_THAT(*sql, HasSubstr("(SELECT __intrinsic_rows('v:ts,v:dur', \"ts\", "
+                              "\"dur\") FROM sql_spans AS a)"));
+  EXPECT_THAT(*sql,
+              HasSubstr("(SELECT __intrinsic_rows('v:ts,v:dur,v:utid', \"ts\", "
+                        "\"dur\", \"utid\") FROM (SELECT * FROM sql_spans) AS "
+                        "b)"));
 }
 
 // The relational operators which reshape a pipeline's row: EXTEND, DROP,
@@ -1097,29 +1092,27 @@ TEST_F(PerfettoSqlParserSelectLikeTest, SourceNames) {
   Check({
       {"FROM (SELECT 1 AS x, count(*) AS n FROM tree) AS t |> SELECT *",
        "Output(#0 AS x, #1 AS n)"},
-      // SQLite names an unaliased expression after its text.
+      // An expression is only named by its alias.
       {"FROM (SELECT 1 AS x, 1 + 1 FROM tree) AS t |> SELECT x",
-       "expected every column to have a valid name, but '1 + 1' is not one: "
-       "give it one with AS"},
+       "expected every column to have a name, but column 2 has none: give it "
+       "one with AS"},
       {"FROM (SELECT 1 AS \"my col\") AS t", kInvalid},
       {"FROM (SELECT 1 AS \"1x\") AS t", kInvalid},
       // Without an earlier x, x:1 is simply not a valid name.
       {"FROM (SELECT 1 AS \"x:1\") AS t", kInvalid},
       {"INTERVAL INTERSECTION OF ((SELECT 0 AS ts, 10 AS dur, 1 + 1) AS a, "
        "(SELECT 5 AS ts, 10 AS dur) AS b)",
-       kInvalid},
+       "expected every column to have a name, but column 3 has none"},
   });
 }
 
-// SQLite renames the second of two columns sharing a name `x` to `x:1`. That
-// is reported as the duplicate it is, before the names are checked.
+// Names are compared as SQL compares them, ignoring case.
 TEST_F(PerfettoSqlParserSelectLikeTest, SourceDuplicateNames) {
   Check({
       {"FROM (SELECT 1 AS x, 2 AS x) AS t",
-       "expected distinct column names, but there are two named 'x', which "
-       "SQLite renamed to 'x' and 'x:1'"},
+       "expected distinct column names, but there are two named 'x'"},
       {"FROM (SELECT 1 AS x, 2 AS X) AS t",
-       "two named 'x', which SQLite renamed to 'x' and 'X:1'"},
+       "expected distinct column names, but there are two named 'x'"},
       {"INTERVAL INTERSECTION OF ("
        "(SELECT 0 AS ts, 10 AS dur, 1 AS x, 2 AS x) AS a, "
        "(SELECT 5 AS ts, 10 AS dur) AS b)",

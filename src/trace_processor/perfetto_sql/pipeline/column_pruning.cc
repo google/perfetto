@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -35,35 +34,6 @@ namespace {
 
 // The columns something downstream uses, indexed by column ID.
 using Needed = std::vector<bool>;
-
-// Narrows `sql` down to the columns at the positions in `keep`, which keep
-// their names from `kept`. We pick by position rather than name because a
-// query can return two columns with the same name. The scan checks the names
-// it reads back, so each column is given its name again.
-SqlSource SelectPositions(const SqlSource& sql,
-                          uint32_t count,
-                          const std::vector<uint32_t>& keep,
-                          const std::vector<NamedColumn>& kept) {
-  std::string names;
-  for (uint32_t i = 0; i < count; ++i) {
-    if (i) {
-      names += ", ";
-    }
-    names += "c" + std::to_string(i);
-  }
-  std::string selected;
-  for (uint32_t i = 0; i < keep.size(); ++i) {
-    if (i) {
-      selected += ", ";
-    }
-    selected += "c" + std::to_string(keep[i]) + " AS \"" +
-                base::ReplaceAll(kept[i].name, "\"", "\"\"") + "\"";
-  }
-  return sql.RewriteAllIgnoreExisting(
-      SqlSource::FromTraceProcessorImplementation(
-          "WITH __pipeline_source(" + names + ") AS (" + sql.sql() +
-          ") SELECT " + selected + " FROM __pipeline_source"));
-}
 
 void PruneScan(op::Scan& scan, const Needed& needed) {
   std::vector<uint32_t> keep;
@@ -79,7 +49,6 @@ void PruneScan(op::Scan& scan, const Needed& needed) {
   if (keep.empty()) {
     keep.push_back(0);
   }
-  auto count = static_cast<uint32_t>(scan.columns.size());
   std::vector<NamedColumn> columns;
   for (uint32_t i : keep) {
     columns.push_back(std::move(scan.columns[i]));
@@ -97,11 +66,9 @@ void PruneScan(op::Scan& scan, const Needed& needed) {
       dataframe.columns = std::move(kept);
       return;
     }
-    case Kind::GetTypeIndex<SqlSource>(): {
-      auto& sql = base::unchecked_get<SqlSource>(scan.source);
-      sql = SelectPositions(sql, count, keep, scan.columns);
+    case Kind::GetTypeIndex<SqlSource>():
+      // The SQL collecting the relation reads only the columns the scan keeps.
       return;
-    }
     default:
       PERFETTO_FATAL("Unknown scan source");
   }

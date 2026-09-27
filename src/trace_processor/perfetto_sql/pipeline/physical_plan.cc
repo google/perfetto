@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -37,7 +38,7 @@
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
-#include "src/trace_processor/perfetto_sql/exec/sql_scan.h"
+#include "src/trace_processor/perfetto_sql/exec/collected_rows.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -132,17 +133,13 @@ std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
       return std::make_unique<ex::DataframeScan>(source.columns,
                                                  source.row_count);
     }
-    case Kind::GetTypeIndex<SqlSource>(): {
-      Schema columns;
-      columns.reserve(scan.columns.size());
-      for (const NamedColumn& column : scan.columns) {
-        columns.push_back({column.name, plan_.columns[column.id].type});
-      }
-      return std::make_unique<exec::SqlScan>(
-          env_.connection, base::unchecked_get<SqlSource>(scan.source),
-          std::move(columns), env_.pool);
+    case Kind::GetTypeIndex<op::Scan::Input>(): {
+      return std::make_unique<exec::CollectedRowsScan>(
+          *env_.inputs,
+          base::unchecked_get<op::Scan::Input>(scan.source).index);
     }
     default:
+      // SQL is moved out into inputs before a plan is run.
       PERFETTO_FATAL("Unknown scan source");
   }
 }
@@ -273,10 +270,52 @@ std::unique_ptr<PhysicalPlan> Lowering::Finish() {
   for (const NamedColumn& column : plan_.output) {
     out_->columns_.push_back({column.name, Position(column.id)});
   }
+  for (const PlanNode& node : plan_.nodes) {
+    if (!node.Is<op::Scan>()) {
+      continue;
+    }
+    const auto& scan = node.Cast<op::Scan>();
+    if (!std::holds_alternative<op::Scan::Input>(scan.source)) {
+      continue;
+    }
+    uint32_t index = base::unchecked_get<op::Scan::Input>(scan.source).index;
+    if (out_->inputs_.size() <= index) {
+      out_->inputs_.resize(index + 1);
+    }
+    for (const NamedColumn& column : scan.columns) {
+      out_->inputs_[index].push_back(
+          {column.name, plan_.columns[column.id].type});
+    }
+  }
   return std::move(out_);
 }
 
 PhysicalPlan::PhysicalPlan() = default;
+
+base::Status PhysicalPlan::CheckInputs(
+    const exec::CollectedRowsScan::Inputs& inputs) const {
+  if (inputs.size() != inputs_.size()) {
+    return base::ErrStatus("expected %zu inputs, not %zu", inputs_.size(),
+                           inputs.size());
+  }
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    const exec::CollectedRows& rows = *inputs[i];
+    // Rows are described by the first one, so there is nothing to check when
+    // there are none.
+    if (rows.batch_count() == 0) {
+      continue;
+    }
+    const core::Schema& columns = rows.columns();
+    bool matches = columns.size() == inputs_[i].size();
+    for (size_t c = 0; matches && c < columns.size(); ++c) {
+      matches = columns[c].type == inputs_[i][c].type;
+    }
+    if (!matches) {
+      return base::ErrStatus("input %zu does not have the columns expected", i);
+    }
+  }
+  return base::OkStatus();
+}
 PhysicalPlan::~PhysicalPlan() = default;
 
 std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan,

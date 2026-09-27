@@ -856,7 +856,9 @@ class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
   std::string PipelineSql(const std::string& pipeline) {
     auto res = connection_->ExecuteUntilLastStatement(
         SqlSource::FromExecuteQuery(pipeline));
-    PERFETTO_CHECK(res.ok());
+    if (!res.ok()) {
+      PERFETTO_FATAL("%s", res.status().c_message());
+    }
     return res->stmt.sql();
   }
 
@@ -1176,17 +1178,25 @@ TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesInViewsAndFunctions) {
   EXPECT_THAT(*rows, testing::ElementsAre("20"));
 }
 
-// A pipeline runs its SQL sources itself, so nothing binds a function's
-// arguments there: reading one is refused when the pipeline is compiled, not
-// silently NULL.
-TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSourcesCannotReadArguments) {
-  EXPECT_THAT(
-      Rows("CREATE PERFETTO FUNCTION scaled(k LONG) RETURNS TABLE(total LONG) "
-           "AS SELECT total FROM (FROM (SELECT id, parent_id, self * $k AS "
+// A pipeline's SQL is evaluated where the pipeline is written, so it reads
+// the arguments of the function it is in like any other SQL there.
+TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSourcesReadArguments) {
+  ASSERT_TRUE(
+      Rows("CREATE PERFETTO FUNCTION scaled(k LONG) "
+           "RETURNS TABLE(id LONG, total LONG) "
+           "AS SELECT id, total FROM (FROM (SELECT id, parent_id, self * $k AS "
            "self FROM tree) |> TREE ACCUMULATE UP SUM(self) AS total)")
-          .status()
-          .message(),
-      testing::HasSubstr("Cannot read `$k`"));
+          .ok());
+  auto rows = Rows("SELECT id, total FROM scaled(2)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,200", "1,120", "2,60", "3,80"));
+
+  // Read again for each row of a join, with a different argument each time.
+  rows = Rows(
+      "SELECT k.v, s.total FROM (SELECT 1 AS v UNION ALL SELECT 2 "
+      "UNION ALL SELECT 1) k JOIN scaled(k.v) s WHERE s.id = 0");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::UnorderedElementsAre("1,100", "2,200", "1,100"));
 }
 
 // Macros and pipelines nest inside each other in every way: pipelines in
@@ -1239,9 +1249,9 @@ TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesAsIntersectionOperands) {
   EXPECT_THAT(*rows, testing::ElementsAre("12,3", "20,2"));
 }
 
-// SQLite reads the inner side of a join once per outer row. A pipeline read
-// again with the same plan is not run again each time: `random()` in its
-// source would otherwise give each read different rows.
+// SQLite reads the inner side of a join once per outer row. The relation a
+// pipeline reads is collected once, so every read sees the same rows even when
+// its SQL, like `random()`, would give different ones each time.
 TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesReadAgainAreNotRunAgain) {
   ASSERT_TRUE(Rows("CREATE TABLE picks(k); "
                    "INSERT INTO picks VALUES (1), (2), (3), (4), (5)")
@@ -1250,9 +1260,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest, PipelinesReadAgainAreNotRunAgain) {
       "SELECT count(DISTINCT p.r) FROM picks CROSS JOIN "
       "(FROM (SELECT 1 AS one, random() AS r)) p");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
-  // The second read runs the pipeline once more to keep its rows; every read
-  // after replays them.
-  EXPECT_THAT(*rows, testing::ElementsAre("2"));
+  EXPECT_THAT(*rows, testing::ElementsAre("1"));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, PipelineSubqueriesNeedPipelines) {

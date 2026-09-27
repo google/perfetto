@@ -14,8 +14,8 @@
 
 source_set("schema") {
   sources = [
-    "query_schema.cc",
-    "query_schema.h",
+    "sqlite_relations.cc",
+    "sqlite_relations.h",
     "type_mapping.h",
   ]
   deps = [

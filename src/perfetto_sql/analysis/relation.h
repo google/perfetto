@@ -50,7 +50,7 @@ using ColumnType = base::TypeSet<Id, Uint32, Int32, Int64, Double, String>;
 
 // A leaf relation whose columns can be used as lineage origins.
 struct LeafColumn {
-  std::string_view name;
+  std::string name;
   // Nothing when the catalog does not know how the column is stored.
   std::optional<ColumnType> type;
   // Left out of `*` and `table.*`, as SQLite does for HIDDEN columns, but
@@ -58,12 +58,11 @@ struct LeafColumn {
   bool hidden = false;
 };
 struct LeafRelation {
-  std::string_view name;
+  std::string name;
   std::vector<LeafColumn> columns;
 };
 
-// Supplies the schema objects referenced by parsed queries. Returned leaf
-// strings only need to remain valid for the duration of an Analyze call.
+// Supplies the schema objects referenced by parsed queries.
 class Catalog {
  public:
   virtual ~Catalog();
@@ -72,6 +71,11 @@ class Catalog {
       std::string_view name) const = 0;
   virtual std::optional<std::string> FindViewSql(
       std::string_view name) const = 0;
+  // The relation a node of the dialect's own stands for, such as a pipeline
+  // written as a subquery, when the host knows it.
+  virtual std::optional<LeafRelation> FindNodeRelation(SqlNode) const {
+    return std::nullopt;
+  }
 };
 
 struct ColumnOrigin {

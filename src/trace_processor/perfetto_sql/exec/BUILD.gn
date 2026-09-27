@@ -16,8 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
-    "sql_scan.cc",
-    "sql_scan.h",
+    "collected_rows.cc",
+    "collected_rows.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -33,7 +33,7 @@ source_set("exec") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "sql_scan_unittest.cc" ]
+  sources = [ "collected_rows_unittest.cc" ]
   deps = [
     ":exec",
     "../../../../gn:default_deps",
@@ -46,6 +46,5 @@ perfetto_unittest_source_set("unittests") {
     "../../core/exec:test_utils",
     "../../core/util",
     "../../sqlite",
-    "../schema",
   ]
 }

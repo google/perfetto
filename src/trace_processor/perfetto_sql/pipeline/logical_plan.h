@@ -67,11 +67,20 @@ struct ScanDataframe {
   uint32_t row_count = 0;
 };
 
+// A relation SQLite collects and hands to the pipeline as its `index`-th
+// input.
+struct ScanInput {
+  uint32_t index = 0;
+};
+
 // Reads all rows of a source. Always the first op.
 struct Scan {
   using Dataframe = ScanDataframe;
-  // Where a scan reads from: a dataframe directly, or a query run by SQLite.
-  using SourceKind = base::TypeSet<Dataframe, SqlSource>;
+  using Input = ScanInput;
+  // Where a scan reads from: a dataframe directly, or SQL. A plan names SQL by
+  // its text when compiled; before the plan runs, each SQL source is moved out
+  // into an input, which SQLite evaluates where the pipeline is written.
+  using SourceKind = base::TypeSet<Dataframe, SqlSource, Input>;
   internal::VariantOf<SourceKind>::type source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;

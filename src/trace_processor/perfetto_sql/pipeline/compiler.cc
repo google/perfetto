@@ -31,17 +31,22 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/perfetto_sql/analysis/relation.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace {
+
+namespace analysis = ::perfetto::perfetto_sql::analysis;
+using core::StorageType;
 
 // The name `span` spells. A quoted name escapes its closing quote by doubling
 // it, which the span, pointing into the source, still contains.
@@ -374,28 +379,16 @@ base::Status Compiler::CheckSourceNames(const std::vector<NamedColumn>& columns,
       }
     }
   }
-  // SQLite renames the second of two columns sharing a name `x` to `x:1`.
-  // Say so, rather than only that `x:1` is not a valid name.
   for (size_t i = 0; i < columns.size(); ++i) {
     const std::string& name = columns[i].name;
-    size_t colon = name.rfind(':');
-    if (colon == std::string::npos || colon + 1 == name.size() ||
-        name.find_first_not_of("0123456789", colon + 1) != std::string::npos) {
-      continue;
+    // An expression is only named by its alias.
+    if (name.empty()) {
+      return Expected(at, "every column to have a name, but column " +
+                              std::to_string(i + 1) +
+                              " has none: give it one with AS");
     }
-    for (size_t j = 0; j < i; ++j) {
-      const std::string& first = columns[j].name;
-      if (base::CaseInsensitiveEqual(first, name.substr(0, colon))) {
-        return Expected(at, "distinct column names, but there are two named '" +
-                                first + "', which SQLite renamed to '" + first +
-                                "' and '" + name + "'");
-      }
-    }
-  }
-  for (const NamedColumn& column : columns) {
-    if (!sql_argument::IsValidColumnName(base::StringView(column.name))) {
-      return Expected(at, "every column to have a valid name, but '" +
-                              column.name +
+    if (!sql_argument::IsValidColumnName(base::StringView(name))) {
+      return Expected(at, "every column to have a valid name, but '" + name +
                               "' is not one: give it one with AS");
     }
   }
@@ -422,19 +415,36 @@ op::Scan Compiler::CompileDataframeSource(const dataframe::Dataframe& dataframe,
 }
 
 base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
-  SqlSource sql = source_(from);
-  sql =
-      sql.RewriteAllIgnoreExisting(SqlSource::FromTraceProcessorImplementation(
-          "SELECT * FROM " + sql.sql()));
-  auto described = catalog_.DescribeQuery(sql);
-  if (!described.ok()) {
-    return base::ErrStatus("%s%s", Traceback(from).c_str(),
-                           described.status().c_message());
+  // The columns come from semantic analysis alone: the SQL is only run where
+  // the pipeline is written, which is the only place everything it reads is
+  // in scope.
+  const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, from);
+  analysis::RelationAnalyzer analyzer(catalog_);
+  base::StatusOr<analysis::RelationLineage> lineage =
+      syntaqlite_node_is_present(n->select)
+          ? analyzer.AnalyzeQuery({p_, n->select})
+          : analyzer.AnalyzeRelation(SpanText(p_, n->table_name));
+  if (!lineage.ok() || IsPresent(n->schema)) {
+    std::string reason =
+        lineage.ok() ? "a schema-qualified table" : lineage.status().message();
+    return Err(from, Error::kUnsupported,
+               "reading a relation whose columns cannot be worked out",
+               " (" + reason + ")");
   }
   op::Scan scan;
-  scan.source = std::move(sql);
-  for (ColumnSchema& column : *described) {
-    AddScanColumn(scan, std::move(column));
+  // The relation as written, which the SQL collecting it reads from.
+  scan.source = source_(from);
+  for (const analysis::ColumnLineage& column : lineage->columns()) {
+    std::optional<StorageType> type;
+    if (std::optional<analysis::ColumnType> traced = column.type()) {
+      type = sql_schema::ToStorageType(*traced);
+      // An Id's value is the row it sits at, which a query result has no
+      // rows to point at: it is read as the number it is.
+      if (type->Is<core::Id>()) {
+        type = StorageType{core::Uint32{}};
+      }
+    }
+    AddScanColumn(scan, {std::string(column.output_name), type});
   }
   return scan;
 }

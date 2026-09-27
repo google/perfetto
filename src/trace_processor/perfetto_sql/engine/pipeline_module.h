@@ -29,8 +29,11 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/memoize.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/perfetto_sql/exec/collected_rows.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
@@ -47,6 +50,24 @@ class PerfettoSqlConnection;
 //
 // The table has a fixed width: pipelines output into generic columns `c0`,
 // `c1`, ..., which the SQL reading them renames to the pipeline's own names.
+// `__intrinsic_rows(columns, value, ...)`: collects the rows of a relation for
+// a pipeline to read, as a pointer to a std::shared_ptr<const CollectedRows>
+// under exec::kCollectedRowsPointerType. `columns` says what each value is
+// (see pipeline::WriteCollectedColumns).
+struct CollectRows : sqlite::AggregateFunction<CollectRows> {
+  static constexpr const char* kName = pipeline::kCollectFunction;
+  static constexpr int kArgCount = -1;
+  using UserData = StringPool;
+
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
+    std::shared_ptr<exec::CollectedRows> rows;
+    base::Status status;
+  };
+
+  static void Step(sqlite3_context*, int argc, sqlite3_value** argv);
+  static void Final(sqlite3_context*);
+};
+
 struct PipelineModule : sqlite::Module<PipelineModule> {
   static constexpr auto kType = kEponymousOnly;
   static constexpr bool kSupportsWrites = false;
@@ -71,6 +92,9 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
     };
     // The serialized plan `plan` was loaded from.
     std::string serialized;
+    // The rows of the plan's inputs, which it reads on each run. Declared
+    // before the plan, which reads them.
+    exec::CollectedRowsScan::Inputs inputs;
     std::unique_ptr<pipeline::PhysicalPlan> plan;
     // Keeps what `plan` produced once the cursor is read again.
     std::unique_ptr<core::exec::Memoize> memoize;

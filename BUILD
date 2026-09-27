@@ -3829,8 +3829,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_exec_exec",
     srcs = [
-        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
-        "src/trace_processor/perfetto_sql/exec/sql_scan.h",
+        "src/trace_processor/perfetto_sql/exec/collected_rows.cc",
+        "src/trace_processor/perfetto_sql/exec/collected_rows.h",
     ],
 )
 
@@ -3901,8 +3901,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_schema_schema",
     srcs = [
-        "src/trace_processor/perfetto_sql/schema/query_schema.cc",
-        "src/trace_processor/perfetto_sql/schema/query_schema.h",
+        "src/trace_processor/perfetto_sql/schema/sqlite_relations.cc",
+        "src/trace_processor/perfetto_sql/schema/sqlite_relations.h",
         "src/trace_processor/perfetto_sql/schema/type_mapping.h",
     ],
 )

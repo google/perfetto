@@ -174,9 +174,11 @@ class PerfettoSqlConnection {
   base::StatusOr<SqliteConnection::PreparedStatement> PrepareSqliteStatement(
       SqlSource sql);
 
-  // Loads a plan written by pipeline::SerializePlan, ready to run.
+  // Loads a plan written by pipeline::SerializePlan, ready to run. Each run
+  // reads the rows of the plan's inputs from `inputs`, which must outlive it.
   base::StatusOr<std::unique_ptr<pipeline::PhysicalPlan>> LoadPipeline(
-      std::string_view serialized);
+      std::string_view serialized,
+      const exec::CollectedRowsScan::Inputs& inputs);
 
   // Registers a virtual table module with the given name.
   //

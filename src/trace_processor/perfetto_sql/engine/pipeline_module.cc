@@ -18,6 +18,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -51,14 +52,24 @@ namespace {
 using core::exec::ColumnView;
 using core::exec::Variant;
 
-// The text comes before the outputs: SQLite only says which of a table's first
-// 63 columns a query reads, and those are best spent on the outputs.
+// The table function's arguments: the plan, then the rows of its inputs. They
+// come before the outputs: SQLite only says which of a table's first 63
+// columns a query reads, and those are best spent on the outputs.
 constexpr int kTextColumn = 0;
-constexpr int kFirstOutputColumn = 1;
+constexpr int kFirstInputColumn = 1;
+constexpr int kFirstOutputColumn =
+    kFirstInputColumn + static_cast<int>(pipeline::kMaxPipelineInputs);
+
+// idxNum: whether an output rowid is looked up, and how many inputs are given.
+constexpr int kRowidLookup = 1;
+constexpr int kInputCountShift = 1;
 
 std::string Schema() {
   // Public names (which may repeat) are applied by the outer SELECT.
   std::vector<std::string> columns{"pipeline HIDDEN"};
+  for (uint32_t i = 0; i < pipeline::kMaxPipelineInputs; ++i) {
+    columns.push_back("i" + std::to_string(i) + " HIDDEN");
+  }
   for (uint32_t i = 0; i < pipeline::kMaxPipelineColumns; ++i) {
     columns.push_back("c" + std::to_string(i));
   }
@@ -168,6 +179,36 @@ void ResetPlan(PipelineModule::Cursor* c) {
   c->serialized.clear();
 }
 
+// Takes the rows SQLite collected for each input, or fails on an argument
+// which is not a collection of what the plan reads.
+int TakeInputs(PipelineModule::Cursor* c,
+               sqlite3_vtab* vtab,
+               sqlite3_value** values,
+               int count) {
+  exec::CollectedRowsScan::Inputs inputs;
+  for (int i = 0; i < count; ++i) {
+    const auto* rows =
+        static_cast<const std::shared_ptr<const exec::CollectedRows>*>(
+            sqlite3_value_pointer(values[i], exec::kCollectedRowsPointerType));
+    if (!rows) {
+      return sqlite::utils::SetError(
+          vtab, "__intrinsic_pipeline: expected collected rows");
+    }
+    inputs.push_back(*rows);
+  }
+  if (base::Status status = c->plan->CheckInputs(inputs); !status.ok()) {
+    return sqlite::utils::SetError(
+        vtab, base::ErrStatus("__intrinsic_pipeline: %s", status.c_message()));
+  }
+  // Different rows give different output, so nothing kept can be replayed.
+  if (inputs != c->inputs) {
+    c->rows.reset();
+    c->memoize.reset();
+    c->inputs = std::move(inputs);
+  }
+  return SQLITE_OK;
+}
+
 // Surfaces the executor's error, if any, once rows stop.
 int CheckStatus(PipelineModule::Cursor* cursor) {
   // status() walks every node so only check it once rows stop.
@@ -177,6 +218,50 @@ int CheckStatus(PipelineModule::Cursor* cursor) {
 }
 
 }  // namespace
+
+void CollectRows::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  AggCtx& agg = AggCtx::GetOrCreateContextForStep(ctx);
+  if (!agg.status.ok()) {
+    return;
+  }
+  if (!agg.rows) {
+    const auto* text =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    base::StatusOr<core::Schema> columns = pipeline::ReadCollectedColumns(
+        text ? std::string_view(text) : std::string_view());
+    if (columns.ok() && columns->size() != static_cast<size_t>(argc - 1)) {
+      columns = base::ErrStatus("%s: expected %zu values, not %d", kName,
+                                columns->size(), argc - 1);
+    }
+    if (!columns.ok()) {
+      agg.status = columns.status();
+      return sqlite::result::Error(ctx, agg.status.c_message());
+    }
+    agg.rows = std::make_shared<exec::CollectedRows>(std::move(*columns),
+                                                     GetUserData(ctx));
+  }
+  agg.status = agg.rows->Append(argv + 1);
+  if (!agg.status.ok()) {
+    return sqlite::result::Error(ctx, agg.status.c_message());
+  }
+}
+
+void CollectRows::Final(sqlite3_context* ctx) {
+  auto agg = AggCtx::GetContextOrNullForFinal(ctx);
+  std::shared_ptr<const exec::CollectedRows> rows;
+  if (agg.get() && agg.get()->rows) {
+    rows = std::move(agg.get()->rows);
+  } else {
+    // No rows, so nothing needs their columns.
+    rows =
+        std::make_shared<exec::CollectedRows>(core::Schema(), GetUserData(ctx));
+  }
+  return sqlite::result::UniquePointer(
+      ctx,
+      std::make_unique<std::shared_ptr<const exec::CollectedRows>>(
+          std::move(rows)),
+      exec::kCollectedRowsPointerType);
+}
 
 int PipelineModule::Connect(sqlite3* db,
                             void* raw_ctx,
@@ -201,15 +286,27 @@ int PipelineModule::Disconnect(sqlite3_vtab* vtab) {
 int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
   int text = -1;
   int rowid = -1;
+  // The constraint giving each input's rows, by position.
+  std::vector<int> inputs(pipeline::kMaxPipelineInputs, -1);
+  int input_count = 0;
   for (int i = 0; i < info->nConstraint; ++i) {
     const auto& constraint = info->aConstraint[i];
     if (constraint.op != SQLITE_INDEX_CONSTRAINT_EQ)
       continue;
+    // Without its plan and inputs there is nothing to run, so no plan which
+    // lacks them can be usable.
     if (constraint.iColumn == kTextColumn) {
-      // Without its text there is nothing to run, so no plan can be usable.
       if (!constraint.usable)
         return SQLITE_CONSTRAINT;
       text = i;
+    }
+    if (constraint.iColumn >= kFirstInputColumn &&
+        constraint.iColumn < kFirstOutputColumn) {
+      if (!constraint.usable)
+        return SQLITE_CONSTRAINT;
+      int position = constraint.iColumn - kFirstInputColumn;
+      inputs[static_cast<size_t>(position)] = i;
+      input_count = std::max(input_count, position + 1);
     }
     if (constraint.iColumn == -1 && constraint.usable)
       rowid = i;
@@ -218,10 +315,19 @@ int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
     return SQLITE_CONSTRAINT;
   info->aConstraintUsage[text].argvIndex = 1;
   info->aConstraintUsage[text].omit = true;
+  for (int position = 0; position < input_count; ++position) {
+    int i = inputs[static_cast<size_t>(position)];
+    // Arguments are given in order, so none can be missing before the last.
+    if (i == -1)
+      return SQLITE_CONSTRAINT;
+    info->aConstraintUsage[i].argvIndex = 2 + position;
+    info->aConstraintUsage[i].omit = true;
+  }
+  info->idxNum = input_count << kInputCountShift;
   if (rowid != -1) {
-    info->aConstraintUsage[rowid].argvIndex = 2;
+    info->aConstraintUsage[rowid].argvIndex = 2 + input_count;
     // SQLite rechecks comparisons, including non-integer RHS values.
-    info->idxNum = 1;
+    info->idxNum |= kRowidLookup;
     info->estimatedRows = 1;
   }
   // Output rowid constraints run after the fold. General predicates remain
@@ -246,7 +352,9 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
                            int argc,
                            sqlite3_value** argv) {
   Cursor* c = GetCursor(cursor);
-  PERFETTO_DCHECK(argc == (idx_num ? 2 : 1));
+  int input_count = idx_num >> kInputCountShift;
+  bool rowid_lookup = idx_num & kRowidLookup;
+  PERFETTO_DCHECK(argc == 1 + input_count + (rowid_lookup ? 1 : 0));
   if (sqlite3_value_type(argv[0]) != SQLITE_BLOB) {
     return sqlite::utils::SetError(cursor->pVtab,
                                    "__intrinsic_pipeline: expected a plan");
@@ -256,7 +364,7 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
       static_cast<size_t>(sqlite3_value_bytes(argv[0])));
   if (!c->plan || c->serialized != serialized) {
     Context* context = GetVtab(cursor->pVtab)->context;
-    auto plan = context->connection->LoadPipeline(serialized);
+    auto plan = context->connection->LoadPipeline(serialized, c->inputs);
     if (!plan.ok()) {
       return sqlite::utils::SetError(cursor->pVtab, plan.status());
     }
@@ -264,6 +372,10 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
     c->plan = std::move(*plan);
     c->serialized = serialized;
     c->pool = context->pool;
+  }
+  if (int rc = TakeInputs(c, cursor->pVtab, argv + 1, input_count);
+      rc != SQLITE_OK) {
+    return rc;
   }
   // SQLite reads the inner side of a join again for each outer row. The
   // second read of a plan keeps what it produces, and later reads replay it.
@@ -276,8 +388,9 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
   }
   c->rowid = 0;
   c->target_rowid.reset();
-  if (idx_num && sqlite3_value_type(argv[1]) == SQLITE_INTEGER) {
-    c->target_rowid = sqlite3_value_int64(argv[1]);
+  if (rowid_lookup &&
+      sqlite3_value_type(argv[1 + input_count]) == SQLITE_INTEGER) {
+    c->target_rowid = sqlite3_value_int64(argv[1 + input_count]);
     if (*c->target_rowid < 0) {
       c->eof = true;
       return SQLITE_OK;

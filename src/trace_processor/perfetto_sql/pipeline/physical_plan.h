@@ -22,22 +22,25 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
+#include "src/trace_processor/core/common/schema.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
+#include "src/trace_processor/perfetto_sql/exec/collected_rows.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
 namespace perfetto::trace_processor {
-class SqliteConnection;
 class StringPool;
 }  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::pipeline {
 
-// Connection state needed by lowering. The connection and pool must outlive
-// the plan. Dataframe columns have already been resolved by logical planning.
+// State needed by lowering, which must outlive the plan. Dataframe columns
+// have already been resolved by logical planning.
 struct LowerEnvironment {
-  SqliteConnection* connection = nullptr;
   StringPool* pool = nullptr;
+  // The rows each run reads for the plan's inputs.
+  const exec::CollectedRowsScan::Inputs* inputs = nullptr;
 };
 
 // A pipeline ready to run: the executor nodes plus which batch columns are
@@ -58,6 +61,11 @@ class PhysicalPlan {
 
   const core::exec::Source& source() const { return *pipeline_; }
   const std::vector<Column>& columns() const { return columns_; }
+  // Fails unless `inputs` are what a run of the plan reads: one for each of
+  // its inputs, each with the columns it reads from it. Anyone can write a
+  // plan and its inputs into SQL, so the two may not have been written
+  // together.
+  base::Status CheckInputs(const exec::CollectedRowsScan::Inputs&) const;
 
  private:
   friend class Lowering;
@@ -69,6 +77,7 @@ class PhysicalPlan {
   std::unique_ptr<core::exec::Source> input_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
+  std::vector<core::Schema> inputs_;
 };
 
 // Builds executor nodes from a logical plan. Establishes tree numbering, row

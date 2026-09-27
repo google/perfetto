@@ -30,13 +30,16 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
+#include "src/trace_processor/perfetto_sql/exec/collected_rows.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -83,7 +86,6 @@ class PhysicalPlanTest : public ::testing::Test {
   PhysicalPlanTest()
       : connection_(SqliteConnection::CreateConnectionToNewDatabase()),
         catalog_(&pool_, connection_.get()) {
-    env_.connection = connection_.get();
     env_.pool = &pool_;
   }
 
@@ -127,7 +129,22 @@ class PhysicalPlanTest : public ::testing::Test {
 
   base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
     ASSIGN_OR_RETURN(LogicalPlan plan, Compile(sql));
-    return Lower(plan, env_);
+    return LowerWithInputs(std::move(plan));
+  }
+
+  // Lowers `plan` to read its SQL sources' rows, collected up front.
+  base::StatusOr<std::unique_ptr<PhysicalPlan>> LowerWithInputs(
+      LogicalPlan plan) {
+    RETURN_IF_ERROR(CollectInputs(plan));
+    return Lower(MoveSqlSourcesToInputs(std::move(plan)).plan, env_);
+  }
+
+  // Collects the rows of `plan`'s SQL sources for it to read.
+  base::Status CollectInputs(const LogicalPlan& plan) {
+    ASSIGN_OR_RETURN(inputs_,
+                     CollectSqlInputs(connection_.get(), &pool_, plan));
+    env_.inputs = &inputs_;
+    return base::OkStatus();
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -165,6 +182,7 @@ class PhysicalPlanTest : public ::testing::Test {
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
+  exec::CollectedRowsScan::Inputs inputs_;
   LowerEnvironment env_;
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
@@ -296,7 +314,7 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
   ColumnId id = logical.output.front().id;
   // Project and alias the same value twice, independently of the source names.
   logical.output = {{"total", total}, {"id", id}, {"again", total}};
-  auto plan = Lower(logical, env_);
+  auto plan = std::move(*LowerWithInputs(std::move(logical)));
   EXPECT_THAT(Names(*plan), ElementsAre("total", "id", "again"));
   EXPECT_NE(plan->columns()[0].index, total);
   EXPECT_EQ(plan->columns()[0].index, plan->columns()[2].index);
@@ -369,7 +387,7 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   // Neither the original input name nor its value is exposed in the result.
   logical.output = {{"id", logical.output.front().id},
                     {"renamed_total", logical.output.back().id}};
-  auto physical = Lower(logical, env_);
+  auto physical = std::move(*LowerWithInputs(std::move(logical)));
   EXPECT_THAT(Run(*physical, "renamed_total").status().message(),
               HasSubstr("'self'"));
 }

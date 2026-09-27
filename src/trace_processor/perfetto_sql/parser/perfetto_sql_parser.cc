@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/perfetto_sql/analysis/relation.h"
 #include "src/perfetto_sql/intrinsic_macro_expansion.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -40,6 +41,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -113,6 +115,8 @@ base::StatusOr<PerfettoSqlParser::CreateFunction::Returns> BuildReturnType(
   }
   return result;
 }
+
+namespace analysis = ::perfetto::perfetto_sql::analysis;
 
 // ---------------------------------------------------------------------------
 // Rewrite tree -> SqlSource
@@ -402,6 +406,53 @@ class RewriteTree {
   std::vector<uint32_t> source_rooted_;
 };
 
+// The catalog, plus what the current statement's pipelines output: SQL which
+// reads a pipeline, such as another pipeline's source, is described by the
+// plan the pipeline compiled to.
+class StatementCatalog final : public pipeline::Catalog {
+ public:
+  explicit StatementCatalog(const pipeline::Catalog& catalog)
+      : catalog_(catalog) {}
+
+  // Forgets the pipelines of the previous statement.
+  void Reset() { pipelines_.Clear(); }
+
+  void AddPipeline(uint32_t node, const pipeline::LogicalPlan& plan) {
+    analysis::LeafRelation relation;
+    relation.name = "pipeline";
+    for (const pipeline::NamedColumn& column : plan.output) {
+      std::optional<core::StorageType> type = plan.columns[column.id].type;
+      relation.columns.push_back(
+          {column.name,
+           type ? std::make_optional(sql_schema::ToAnalysisType(*type))
+                : std::nullopt,
+           false});
+    }
+    pipelines_.Insert(node, std::move(relation));
+  }
+
+  std::optional<analysis::LeafRelation> FindLeafRelation(
+      std::string_view name) const override {
+    return catalog_.FindLeafRelation(name);
+  }
+  std::optional<std::string> FindViewSql(std::string_view name) const override {
+    return catalog_.FindViewSql(name);
+  }
+  std::optional<analysis::LeafRelation> FindNodeRelation(
+      analysis::SqlNode node) const override {
+    const analysis::LeafRelation* relation = pipelines_.Find(node.id);
+    return relation ? std::make_optional(*relation) : std::nullopt;
+  }
+  const dataframe::Dataframe* FindDataframe(
+      std::string_view name) const override {
+    return catalog_.FindDataframe(name);
+  }
+
+ private:
+  const pipeline::Catalog& catalog_;
+  base::FlatHashMap<uint32_t, analysis::LeafRelation> pipelines_;
+};
+
 SqlSource NodeSource(const RewriteTree& rb, uint32_t node_id) {
   auto s = rb.NodeSource(node_id);
   PERFETTO_CHECK(s.has_value());
@@ -442,10 +493,11 @@ base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
 // SQL is expected is replaced with.
 base::StatusOr<std::string> PipelineSql(SyntaqliteParser* p,
                                         const RewriteTree& rb,
-                                        const pipeline::Catalog* catalog,
+                                        StatementCatalog* catalog,
                                         uint32_t pipeline_id) {
   ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
                    CompilePipeline(p, rb, catalog, pipeline_id));
+  catalog->AddPipeline(pipeline_id, plan);
   base::StatusOr<std::string> sql = pipeline::SelectPipelineSql(plan);
   if (!sql.ok()) {
     return base::ErrStatus("%s%s",
@@ -692,7 +744,7 @@ struct PerfettoSqlParser::Impl {
        bool allowed)
       : source(SqlSource::FromTraceProcessorImplementation("")),
         macros(m),
-        catalog(&c),
+        statement_catalog(c),
         pipelines_allowed(allowed) {
     synq = syntaqlite_parser_create_perfetto(nullptr);
     PERFETTO_CHECK(synq != nullptr);
@@ -778,8 +830,8 @@ struct PerfettoSqlParser::Impl {
   // Replaces the pipeline at `node` with SQL reading it.
   int ExpandPipeline(SyntaqliteParser* parser, uint32_t node) {
     RewriteTree rb(parser, source, CurrentStatementDocOffset(parser), macros);
-    base::StatusOr<std::string> sql =
-        PipelineSql(parser, rb, pipelines_allowed ? catalog : nullptr, node);
+    base::StatusOr<std::string> sql = PipelineSql(
+        parser, rb, pipelines_allowed ? &statement_catalog : nullptr, node);
     if (!sql.ok()) {
       expansion_error = sql.status();
       return SYNTAQLITE_NODE_EXPAND_ERROR;
@@ -792,7 +844,7 @@ struct PerfettoSqlParser::Impl {
   SyntaqliteParser* synq;
   SqlSource source;
   const base::FlatHashMap<std::string, Macro>& macros;
-  const pipeline::Catalog* catalog;
+  StatementCatalog statement_catalog;
   // Whether the SQL being read may use a pipeline. Set per source, so one
   // parser serves both the standard library and user SQL.
   bool pipelines_allowed;
@@ -813,6 +865,7 @@ bool PerfettoSqlParser::Impl::Next(
 
   current_statement = std::nullopt;
   out_statement_sql = std::nullopt;
+  statement_catalog.Reset();
 
   const SqlSource& stmt = source;
   uint32_t root = 0;
@@ -853,9 +906,9 @@ bool PerfettoSqlParser::Impl::Next(
 
   const auto* node =
       static_cast<const SyntaqliteNode*>(syntaqlite_parser_node(synq, root));
-  auto result =
-      ParseStatement(synq, rb, stmt, stmt_doc_offset,
-                     pipelines_allowed ? catalog : nullptr, root, node);
+  auto result = ParseStatement(synq, rb, stmt, stmt_doc_offset,
+                               pipelines_allowed ? &statement_catalog : nullptr,
+                               root, node);
   if (!result.ok()) {
     status = result.status();
     return false;

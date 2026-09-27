@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -139,10 +140,11 @@ void WriteScan(Writer& w, const op::Scan& scan) {
       // Its columns are looked up again when read.
       w.Str(base::unchecked_get<op::Scan::Dataframe>(scan.source).name);
       break;
-    case Kind::GetTypeIndex<SqlSource>():
-      w.Str(base::unchecked_get<SqlSource>(scan.source).sql());
+    case Kind::GetTypeIndex<op::Scan::Input>():
+      w.U32(base::unchecked_get<op::Scan::Input>(scan.source).index);
       break;
     default:
+      // SQL is moved out into inputs before a plan is written.
       PERFETTO_FATAL("Unknown scan source");
   }
   w.Size(scan.columns.size());
@@ -213,8 +215,8 @@ op::Scan ReadScan(Reader& r) {
       scan.source = std::move(source);
       break;
     }
-    case Kind::GetTypeIndex<SqlSource>():
-      scan.source = SqlSource::FromTraceProcessorImplementation(r.Str());
+    case Kind::GetTypeIndex<op::Scan::Input>():
+      scan.source = op::Scan::Input{r.U32()};
       break;
     default:
       r.Fail();
@@ -294,7 +296,8 @@ base::Status Malformed() {
 
 // Checks a plan is one lowering can run as it would a compiled one: a tree
 // with children before their parents, whose nodes read only columns produced
-// below them, each column produced once and with the type it is declared as.
+// below them, each column produced once and with the type it is declared as,
+// reading its inputs 0 to n - 1 once each.
 class PlanChecker {
  public:
   explicit PlanChecker(const LogicalPlan& plan)
@@ -317,6 +320,12 @@ class PlanChecker {
     }
     for (const NamedColumn& column : plan_.output) {
       if (!Has(plan_.root, column.id)) {
+        return false;
+      }
+    }
+    std::sort(inputs_.begin(), inputs_.end());
+    for (uint32_t i = 0; i < inputs_.size(); ++i) {
+      if (inputs_[i] != i) {
         return false;
       }
     }
@@ -356,7 +365,11 @@ class PlanChecker {
     }
     // Dataframe columns are checked against the dataframe once it is found.
     // SQLite has no Ids: a query's integers are only ever read as integers.
-    bool from_sql = std::holds_alternative<SqlSource>(scan.source);
+    bool from_sql = std::holds_alternative<op::Scan::Input>(scan.source);
+    if (from_sql) {
+      inputs_.push_back(
+          base::unchecked_get<op::Scan::Input>(scan.source).index);
+    }
     for (const NamedColumn& column : scan.columns) {
       if (!Produce(i, column.id) ||
           (from_sql && Is<core::Id>(plan_.columns[column.id].type))) {
@@ -449,6 +462,8 @@ class PlanChecker {
   Columns produced_;
   std::vector<bool> has_parent_;
   std::vector<Columns> after_;
+  // The index of each input a scan reads.
+  std::vector<uint32_t> inputs_;
 };
 
 // Points each dataframe scan at the dataframe now registered under its name,

@@ -28,7 +28,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/perfetto_sql/schema/query_schema.h"
+#include "src/trace_processor/perfetto_sql/schema/sqlite_relations.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -77,10 +77,15 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
     std::string_view name) const {
   const dataframe::Dataframe* dataframe = connection_->GetDataframeOrNull(name);
   if (!dataframe) {
-    return std::nullopt;
+    // A view is expanded instead, so its columns are traced through it.
+    if (FindViewSql(name)) {
+      return std::nullopt;
+    }
+    return sql_schema::FindSqliteRelation(connection_->sqlite_connection(),
+                                          name);
   }
   analysis::LeafRelation relation;
-  relation.name = name;
+  relation.name = std::string(name);
   const std::vector<std::string>& columns = dataframe->column_names();
   relation.columns.reserve(columns.size());
   for (uint32_t i = 0; i < columns.size(); ++i) {
@@ -107,12 +112,6 @@ std::optional<std::string> ConnectionCatalog::FindViewSql(
 const dataframe::Dataframe* ConnectionCatalog::FindDataframe(
     std::string_view name) const {
   return connection_->GetDataframeOrNull(name);
-}
-
-base::StatusOr<pipeline::Schema> ConnectionCatalog::DescribeQuery(
-    const SqlSource& sql) const {
-  return sql_schema::DescribeQuery(connection_->sqlite_connection(), sql,
-                                   *this);
 }
 
 }  // namespace perfetto::trace_processor
