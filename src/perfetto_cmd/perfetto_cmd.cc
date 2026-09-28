@@ -1366,9 +1366,10 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     }
   }
 
-  // Preserve the legacy success exit status, including after write errors and
-  // readback timeouts. This flag also prevents later callbacks from using the
-  // output after finalization.
+  // Set this even after write errors or readback timeouts. It marks
+  // finalization complete, not whether all packets were written. Later
+  // callbacks use it to avoid accessing the destroyed writer or finalizing
+  // again.
   tracing_succeeded_ = true;
   task_runner_.Quit();
 }

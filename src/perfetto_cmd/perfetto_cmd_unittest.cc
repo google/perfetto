@@ -76,6 +76,12 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
     EXPECT_TRUE(cmd.tracing_succeeded_);
   }
 
+  static void ExpectTraceInProgress(const PerfettoCmd& cmd) {
+    EXPECT_TRUE(cmd.packet_writer_.has_value());
+    EXPECT_TRUE(cmd.trace_out_stream_);
+    EXPECT_FALSE(cmd.tracing_succeeded_);
+  }
+
   static void FinalizeTrace(PerfettoCmd* cmd) { cmd->FinalizeTraceAndExit(); }
   static void CheckTraceDataTimeout(PerfettoCmd* cmd) {
     cmd->CheckTraceDataTimeout();
@@ -114,6 +120,7 @@ TEST_F(PerfettoCmdlineUnitTest, WriteFailureIgnoresLaterTraceData) {
                                      "--time", "1s"})
                      .has_value());
     cmd.OnTraceData(std::vector<TracePacket>(1), true);
+    ExpectTraceInProgress(cmd);
     ASSERT_NO_FATAL_FAILURE(MakeOutputReadOnly(&cmd));
 
     // A read-only stream makes fwrite fail without a disk-space dependency.
@@ -128,6 +135,7 @@ TEST_F(PerfettoCmdlineUnitTest, WriteFailureIgnoresLaterTraceData) {
 
     std::string trace;
     ASSERT_TRUE(base::ReadFile(out_file.path(), &trace));
+    // An empty TracePacket still writes its tag and zero-length preamble.
     EXPECT_EQ(trace, std::string("\x0a\x00", 2));
   }
 }
@@ -138,10 +146,14 @@ TEST_F(PerfettoCmdlineUnitTest, TraceDataTimeoutIgnoresLaterReplies) {
   ASSERT_FALSE(
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s"})
           .has_value());
-  cmd.OnTraceData(std::vector<TracePacket>(1), true);
 
-  // No trace data arrives between the two timeout checks.
+  // Receiving data gives the readback another timeout interval to finish.
   CheckTraceDataTimeout(&cmd);
+  cmd.OnTraceData(std::vector<TracePacket>(1), true);
+  CheckTraceDataTimeout(&cmd);
+  ExpectTraceInProgress(cmd);
+
+  // No more data arrives before the next timeout check.
   CheckTraceDataTimeout(&cmd);
   ExpectTraceFinished(cmd);
 
@@ -163,6 +175,7 @@ TEST_F(PerfettoCmdlineUnitTest, FinalTraceDataIgnoresLaterReplies) {
           .has_value());
 
   cmd.OnTraceData(std::vector<TracePacket>(1), true);
+  ExpectTraceInProgress(cmd);
   cmd.OnTraceData(std::vector<TracePacket>(1), false);
   ExpectTraceFinished(cmd);
 
