@@ -160,13 +160,12 @@ export class PerfettoTestHelper {
     const target = locator ?? this.page;
 
     // Call the original expect with the combined masks.
-    await expect.soft(target).toHaveScreenshot(
-      this.screenshotName(screenshotName),
-      {
+    await expect
+      .soft(target)
+      .toHaveScreenshot(this.screenshotName(screenshotName), {
         ...screenshotOpts,
         mask: opts?.mask,
-      },
-    );
+      });
   }
 
   async toggleTrackGroup(locator: Locator) {
