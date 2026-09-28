@@ -231,10 +231,24 @@ tools/test_data upload
 Once finished you can commit and upload as part of your CL to cause the CI to
 use your new screenshots.
 
-NOTE: If you see a failing diff test you can see the pixel differences on the CI
-by using a link ending with `ui-test-artifacts/index.html`. Report located on
-that page contains changed screenshots as well as a command to accept the
-changes if these are desirable.
+NOTE: If screenshot tests fail on the CI, the job summary of the `ui` job links
+to two reports:
+
+- `ui-test-artifacts/screenshot-diffs/index.html` shows every failing
+  screenshot on a single page. Use the toolbar to switch all of them at once
+  between the Diff, Actual, Expected, Side by side and Slider views. Each card
+  links to the corresponding test in the full Playwright report.
+- `ui-test-artifacts/index.html` is the full Playwright report, with errors,
+  test steps and retries for each test.
+
+If the changes are desirable, accept them by running the command shown at the
+top of the screenshot diffs page from your checkout, then upload and commit the
+new screenshots:
+
+```
+tools/download_changed_screenshots.py <CI job id>
+tools/test_data upload
+```
 
 ## Android CTS tests
 
