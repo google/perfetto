@@ -15,8 +15,6 @@
 import {test, type Page, expect} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -26,132 +24,138 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 });
 
-test('omnibox query', async () => {
-  const omnibox = page.locator('input[ref=omnibox]');
-  await omnibox.focus();
-  await omnibox.fill('foo');
-  await omnibox.selectText();
-  await omnibox.press(':');
-  await pth.waitForPerfettoIdle();
-  await omnibox.fill(
-    'select id, ts, dur, name, track_id from slices limit 100',
-  );
-  await pth.waitForPerfettoIdle();
-  await omnibox.press('Enter');
+test('queries', async () => {
+  test.setTimeout(3 * 60_000);
 
-  await pth.waitForIdleAndScreenshot('query mode.png', {
-    mask: [page.locator('.pf-query-table .pf-header-bar')],
-    locator: page.locator('.pf-drawer-panel__drawer'),
-  });
-
-  // Click the anchor link in the first ID cell to select the slice.
-  const dataGrid = page.locator('.pf-data-grid');
-  await dataGrid.getByRole('cell').locator('.pf-anchor').first().click();
-  await pth.waitForPerfettoIdle();
-
-  // Verify the selection object contains the expected slice event.
-  const selection = await page.evaluate(() => {
-    const sel = self.app.trace!.selection.selection;
-    return {kind: sel.kind, eventId: 'eventId' in sel ? sel.eventId : null};
-  });
-  expect(selection.kind).toBe('track_event');
-  expect(selection.eventId).toBeGreaterThanOrEqual(0);
-
-  await pth.waitForIdleAndScreenshot('id click - timeline.png', {
-    locator: page.locator('.pf-drawer-panel__drawer'),
-  });
-
-  // Verify the current selection tab shows the selected slice.
-  await pth.switchToTab('Current Selection');
-  await pth.waitForIdleAndScreenshot('id click - current selection.png');
-
-  // Clear the omnibox
-  await omnibox.selectText();
-  for (let i = 0; i < 2; i++) {
-    await omnibox.press('Backspace');
+  await pth.step('omnibox query', async () => {
+    const omnibox = page.locator('input[ref=omnibox]');
+    await omnibox.focus();
+    await omnibox.fill('foo');
+    await omnibox.selectText();
+    await omnibox.press(':');
     await pth.waitForPerfettoIdle();
-  }
-  await pth.waitForIdleAndScreenshot('omnibox cleared.png', {
-    clip: {x: 0, y: 0, width: 1920, height: 100},
+    await omnibox.fill(
+      'select id, ts, dur, name, track_id from slices limit 100',
+    );
+    await pth.waitForPerfettoIdle();
+    await omnibox.press('Enter');
+
+    await pth.waitForIdleAndScreenshot('query mode.png', {
+      mask: [page.locator('.pf-query-table .pf-header-bar')],
+      locator: page.locator('.pf-drawer-panel__drawer'),
+    });
+
+    // Click the anchor link in the first ID cell to select the slice.
+    const dataGrid = page.locator('.pf-data-grid');
+    await dataGrid.getByRole('cell').locator('.pf-anchor').first().click();
+    await pth.waitForPerfettoIdle();
+
+    // Verify the selection object contains the expected slice event.
+    const selection = await page.evaluate(() => {
+      const sel = self.app.trace!.selection.selection;
+      return {kind: sel.kind, eventId: 'eventId' in sel ? sel.eventId : null};
+    });
+    expect(selection.kind).toBe('track_event');
+    expect(selection.eventId).toBeGreaterThanOrEqual(0);
+
+    await pth.waitForIdleAndScreenshot('id click - timeline.png', {
+      locator: page.locator('.pf-drawer-panel__drawer'),
+    });
+
+    // Verify the current selection tab shows the selected slice.
+    await pth.switchToTab('Current Selection');
+    await pth.waitForIdleAndScreenshot('id click - current selection.png');
+
+    // Clear the omnibox
+    await omnibox.selectText();
+    for (let i = 0; i < 2; i++) {
+      await omnibox.press('Backspace');
+      await pth.waitForPerfettoIdle();
+    }
+    await pth.waitForIdleAndScreenshot('omnibox cleared.png', {
+      clip: {x: 0, y: 0, width: 1920, height: 100},
+    });
   });
-});
 
-test('query page id link navigation', async () => {
-  await pth.navigate('#!/query');
-  await pth.waitForPerfettoIdle();
-  const textbox = page.locator('.pf-editor div[role=textbox]');
-  await textbox.focus();
-  await textbox.clear();
-  await textbox.fill('select id, ts, dur, name, track_id from slice limit 10');
-  await textbox.press('ControlOrMeta+Enter');
-  await textbox.blur();
-  await pth.waitForPerfettoIdle();
-
-  // Click the anchor link in the first ID cell.
-  const dataGrid = page.locator('.pf-data-grid');
-  await dataGrid.getByRole('cell').locator('.pf-anchor').first().click();
-  await pth.waitForPerfettoIdle();
-
-  // Verify we navigated to the timeline (viewer) page.
-  await expect(page).toHaveURL(/.*#!\/viewer/);
-
-  // Verify the selection object contains the expected slice event.
-  const selection = await page.evaluate(() => {
-    const sel = self.app.trace!.selection.selection;
-    return {kind: sel.kind, eventId: 'eventId' in sel ? sel.eventId : null};
-  });
-  expect(selection.kind).toBe('track_event');
-  expect(selection.eventId).toBeGreaterThanOrEqual(0);
-
-  await pth.waitForIdleAndScreenshot('query page id click - timeline.png');
-
-  // Verify the current selection tab shows the selected slice.
-  await pth.switchToTab('Current Selection');
-  await pth.waitForIdleAndScreenshot(
-    'query page id click - current selection.png',
-  );
-});
-
-test('query page', async () => {
-  await pth.navigate('#!/query');
-  await pth.waitForPerfettoIdle();
-  const textbox = page.locator('.pf-editor div[role=textbox]');
-  for (let i = 1; i <= 3; i++) {
+  await pth.step('query page id link navigation', async () => {
+    await pth.navigate('#!/query');
+    await pth.waitForPerfettoIdle();
+    const textbox = page.locator('.pf-editor div[role=textbox]');
     await textbox.focus();
     await textbox.clear();
-    await textbox.fill(`select id, ts, dur, name from slices limit ${i}`);
+    await textbox.fill(
+      'select id, ts, dur, name, track_id from slice limit 10',
+    );
     await textbox.press('ControlOrMeta+Enter');
     await textbox.blur();
-    await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
-      mask: [page.locator('.pf-data-grid__toolbar')],
-      locator: page.locator('.pf-query-page'),
+    await pth.waitForPerfettoIdle();
+
+    // Click the anchor link in the first ID cell.
+    const dataGrid = page.locator('.pf-data-grid');
+    await dataGrid.getByRole('cell').locator('.pf-anchor').first().click();
+    await pth.waitForPerfettoIdle();
+
+    // Verify we navigated to the timeline (viewer) page.
+    await expect(page).toHaveURL(/.*#!\/viewer/);
+
+    // Verify the selection object contains the expected slice event.
+    const selection = await page.evaluate(() => {
+      const sel = self.app.trace!.selection.selection;
+      return {kind: sel.kind, eventId: 'eventId' in sel ? sel.eventId : null};
     });
-  }
+    expect(selection.kind).toBe('track_event');
+    expect(selection.eventId).toBeGreaterThanOrEqual(0);
 
-  // Now test the query history.
-  page.locator('.pf-query-history .pf-query-history__item').nth(0).click();
-  await pth.waitForPerfettoIdle();
-  expect(await textbox.textContent()).toEqual(
-    'select id, ts, dur, name from slices limit 3',
-  );
+    await pth.waitForIdleAndScreenshot('query page id click - timeline.png');
 
-  page.locator('.pf-query-history .pf-query-history__item').nth(2).click();
-  await pth.waitForPerfettoIdle();
-  expect(await textbox.textContent()).toEqual(
-    'select id, ts, dur, name from slices limit 1',
-  );
-
-  // Double click on the 2nd one and expect the query is re-ran.
-  page
-    .locator('.pf-query-page .pf-query-history .pf-query-history__item')
-    .nth(1)
-    .dblclick();
-  await pth.waitForPerfettoIdle();
-
-  // Get all rows, but filter for *only* those that have a 'cell' inside to
-  // avoid counting the header row.
-  const dataRows = page.getByRole('row').filter({
-    has: page.getByRole('cell'),
+    // Verify the current selection tab shows the selected slice.
+    await pth.switchToTab('Current Selection');
+    await pth.waitForIdleAndScreenshot(
+      'query page id click - current selection.png',
+    );
   });
-  expect(await dataRows.count()).toEqual(2);
+
+  await pth.step('query page', async () => {
+    await pth.navigate('#!/query');
+    await pth.waitForPerfettoIdle();
+    const textbox = page.locator('.pf-editor div[role=textbox]');
+    for (let i = 1; i <= 3; i++) {
+      await textbox.focus();
+      await textbox.clear();
+      await textbox.fill(`select id, ts, dur, name from slices limit ${i}`);
+      await textbox.press('ControlOrMeta+Enter');
+      await textbox.blur();
+      await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
+        mask: [page.locator('.pf-data-grid__toolbar')],
+        locator: page.locator('.pf-query-page'),
+      });
+    }
+
+    // Now test the query history.
+    page.locator('.pf-query-history .pf-query-history__item').nth(0).click();
+    await pth.waitForPerfettoIdle();
+    expect(await textbox.textContent()).toEqual(
+      'select id, ts, dur, name from slices limit 3',
+    );
+
+    page.locator('.pf-query-history .pf-query-history__item').nth(2).click();
+    await pth.waitForPerfettoIdle();
+    expect(await textbox.textContent()).toEqual(
+      'select id, ts, dur, name from slices limit 1',
+    );
+
+    // Double click on the 2nd one and expect the query is re-ran.
+    page
+      .locator('.pf-query-page .pf-query-history .pf-query-history__item')
+      .nth(1)
+      .dblclick();
+    await pth.waitForPerfettoIdle();
+
+    // Get all rows, but filter for *only* those that have a 'cell' inside to
+    // avoid counting the header row.
+    const dataRows = page.getByRole('row').filter({
+      has: page.getByRole('cell'),
+    });
+    expect(await dataRows.count()).toEqual(2);
+  });
 });
