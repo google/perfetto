@@ -513,6 +513,7 @@ if (enable_perfetto_integration_tests) {
         "trace_database_integrationtest.cc",
       ]
       deps += [
+        ":export_json",
         ":lib",
         ":local_file_system",
         "../../gn:default_deps",

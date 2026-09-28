@@ -70,6 +70,9 @@ class TraceProcessorImpl : public TraceProcessor,
   base::Status Parse(TraceBlobView) override;
   void Flush() override;
   base::Status NotifyEndOfFile() override;
+  const TraceStorage* storage() const override {
+    return TraceProcessorStorageImpl::storage();
+  }
 
   // =================================================================
   // |        PerfettoSQL related functionality starts here          |

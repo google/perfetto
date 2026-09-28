@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/trace_processor/export_json.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
@@ -383,7 +384,24 @@ int64_t QueryLong(TraceProcessor* processor, const std::string& query) {
   PERFETTO_CHECK(it.Next());
   return it.Get(0).AsLong();
 }
+class StringOutputWriter final : public json::OutputWriter {
+ public:
+  base::Status AppendString(const std::string& string) override {
+    buffer += string;
+    return base::OkStatus();
+  }
+  std::string buffer;
+};
 }  // namespace
+
+TEST(TraceProcessorCustomConfigTest, ExportJsonWithParsedTrace) {
+  auto processor = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(ParseTraceString(processor.get(), kOverlappingCompleteEventsJson));
+
+  StringOutputWriter writer;
+  ASSERT_OK(json::ExportJson(processor.get(), &writer));
+  EXPECT_THAT(writer.buffer, HasSubstr("\"traceEvents\""));
+}
 
 TEST(TraceProcessorCustomConfigTest,
      OverlappingJsonEventsSpilledToOverflowTrack) {
