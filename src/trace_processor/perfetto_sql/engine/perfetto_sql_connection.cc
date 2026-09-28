@@ -1078,7 +1078,7 @@ PerfettoSqlConnection::LoadPipeline(
   ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
                    pipeline::DeserializePlan(serialized, *catalog_));
   RETURN_IF_ERROR(pipeline::BindDataframeArgs(plan, args, pool_));
-  return pipeline::Lower(plan);
+  return pipeline::Lower(plan, pool_);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(

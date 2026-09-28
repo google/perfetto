@@ -77,12 +77,15 @@ class ColumnView {
   // result into a pooled block if needed. Indices may repeat or reorder rows.
   void Slice(RowSelection selection, uint32_t count, SelectionPool& pool);
 
-  // Shares immutable physical indices; the caller must stop writing to rows.
+  // Shares the immutable physical indices `rows[first, first + count)`; the
+  // caller must stop writing to rows.
   void SetOwnedRows(std::shared_ptr<const FlexVector<uint32_t>> rows,
+                    uint32_t first,
                     uint32_t count) {
-    PERFETTO_DCHECK(rows && count <= rows->size());
-    selection_ = RowSelection::Indices(
-        Span<const uint32_t>(rows->data(), rows->data() + count));
+    PERFETTO_DCHECK(rows && first + count <= rows->size());
+    const uint32_t* begin = rows->data() + first;
+    selection_ =
+        RowSelection::Indices(Span<const uint32_t>(begin, begin + count));
     selection_owner_ = std::move(rows);
   }
 

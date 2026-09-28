@@ -137,7 +137,7 @@ class PhysicalPlanTest : public ::testing::Test {
     LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
     RETURN_IF_ERROR(
         BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
-    return Lower(moved);
+    return Lower(moved, &pool_);
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -351,7 +351,7 @@ TEST_F(PhysicalPlanTest, LogicalPlanRetainsColumnsBeforeLowering) {
   LogicalPlan plan =
       std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
   catalog_.RemoveTable("df");
-  auto physical = Lower(plan);
+  auto physical = Lower(plan, &pool_);
   auto rows = Run(*physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
@@ -414,7 +414,7 @@ TEST_F(PhysicalPlanTest, APlanReadBackReadsTablesAsTheyAreNow) {
                     {{1, 0, 2}, {0, std::nullopt, 1}});
   auto read = DeserializePlan(bytes, catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  auto rows = Run(*Lower(*read), "total");
+  auto rows = Run(*Lower(*read, &pool_), "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 3), Pair(1, 2)));
 }

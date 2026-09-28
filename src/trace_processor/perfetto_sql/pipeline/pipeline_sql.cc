@@ -16,16 +16,20 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -39,6 +43,65 @@ std::string QuoteIdentifier(const std::string& name) {
 
 std::string QuoteString(const std::string& text) {
   return "'" + base::ReplaceAll(text, "'", "''") + "'";
+}
+
+// `value` as SQL reads it back: exactly, and a float as a float.
+std::string ValueSql(const op::FilterValue& value) {
+  switch (value.index()) {
+    case base::variant_index<op::FilterValue, int64_t>():
+      return std::to_string(base::unchecked_get<int64_t>(value));
+    case base::variant_index<op::FilterValue, double>(): {
+      double d = base::unchecked_get<double>(value);
+      if (std::isinf(d)) {
+        // Too large for a double, which SQL reads as infinity.
+        return d > 0 ? "9e999" : "-9e999";
+      }
+      char buf[32];
+      snprintf(buf, sizeof(buf), "%.17g", d);
+      std::string text(buf);
+      if (text.find_first_of(".e") == std::string::npos) {
+        text += ".0";
+      }
+      return text;
+    }
+    case base::variant_index<op::FilterValue, std::string>():
+      return QuoteString(base::unchecked_get<std::string>(value));
+    default:
+      PERFETTO_FATAL("Unknown filter value");
+  }
+}
+
+// `condition` as SQL, testing the column called `column`.
+std::string ConditionSql(const op::FilterCondition& condition,
+                         const std::string& column) {
+  std::string out = QuoteIdentifier(column);
+  switch (condition.op.index()) {
+    case core::Op::GetTypeIndex<core::Eq>():
+      return out + " = " + ValueSql(condition.values[0]);
+    case core::Op::GetTypeIndex<core::Ne>():
+      return out + " != " + ValueSql(condition.values[0]);
+    case core::Op::GetTypeIndex<core::Lt>():
+      return out + " < " + ValueSql(condition.values[0]);
+    case core::Op::GetTypeIndex<core::Le>():
+      return out + " <= " + ValueSql(condition.values[0]);
+    case core::Op::GetTypeIndex<core::Gt>():
+      return out + " > " + ValueSql(condition.values[0]);
+    case core::Op::GetTypeIndex<core::Ge>():
+      return out + " >= " + ValueSql(condition.values[0]);
+    case core::Op::GetTypeIndex<core::IsNull>():
+      return out + " IS NULL";
+    case core::Op::GetTypeIndex<core::IsNotNull>():
+      return out + " IS NOT NULL";
+    case core::Op::GetTypeIndex<core::In>(): {
+      std::vector<std::string> values;
+      for (const op::FilterValue& value : condition.values) {
+        values.push_back(ValueSql(value));
+      }
+      return out + " IN (" + base::Join(values, ", ") + ")";
+    }
+    default:
+      PERFETTO_FATAL("Unknown filter operator");
+  }
 }
 
 }  // namespace
@@ -60,9 +123,25 @@ PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
       references.push_back(QuoteIdentifier(column.name));
     }
     const std::string& from = base::unchecked_get<SqlSource>(scan.source).sql();
-    out.args.push_back("SELECT " + std::string(kDataframeAggFunction) + "(" +
-                       QuoteString(base::Join(names, ",")) + ", " +
-                       base::Join(references, ", ") + ") FROM " + from);
+    std::string arg = "SELECT " + std::string(kDataframeAggFunction) + "(" +
+                      QuoteString(base::Join(names, ",")) + ", " +
+                      base::Join(references, ", ") + ") FROM " + from;
+    // SQLite applies the scan's filters as it reads the relation, so the
+    // dataframe only ever holds the rows kept. They mean the same there: the
+    // dataframe's filters compare values as SQL does.
+    std::vector<std::string> conditions;
+    for (const op::FilterCondition& condition : scan.filters) {
+      for (const NamedColumn& column : scan.columns) {
+        if (column.id == condition.column) {
+          conditions.push_back(ConditionSql(condition, column.name));
+        }
+      }
+    }
+    if (!conditions.empty()) {
+      arg += " WHERE " + base::Join(conditions, " AND ");
+    }
+    scan.filters.clear();
+    out.args.push_back(std::move(arg));
     scan.source =
         op::Scan::DataframeArg{static_cast<uint32_t>(out.args.size() - 1)};
   }

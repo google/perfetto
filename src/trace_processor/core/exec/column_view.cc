@@ -84,7 +84,7 @@ void ColumnView::Slice(RowSelection selection,
     for (uint32_t row = 0; row < count; ++row) {
       out[row] = base + rows[row];
     }
-    SetOwnedRows(std::move(block), count);
+    SetOwnedRows(std::move(block), 0, count);
     return;
   }
 
@@ -100,7 +100,7 @@ void ColumnView::Slice(RowSelection selection,
   for (uint32_t row = 0; row < count; ++row) {
     out[row] = indices[rows[row]];
   }
-  SetOwnedRows(std::move(block), count);
+  SetOwnedRows(std::move(block), 0, count);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -62,7 +63,8 @@ class PhysicalPlan {
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must already be resolved.
-std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan&);
+// `pool` holds the strings of the dataframes read and must outlive the plan.
+std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan&, StringPool* pool);
 
 }  // namespace perfetto::trace_processor::pipeline
 

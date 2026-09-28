@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 // Lays a batch's worth of a column which does not store one value per row back
@@ -46,9 +47,10 @@ class DataframeScan::Expander {
  public:
   virtual ~Expander();
 
-  // Appends an owned column containing rows [from, from + count), laid out
-  // densely from zero. Called with successive ranges starting at row zero.
-  virtual void Expand(uint32_t from, uint32_t count, RowBatch& out) = 0;
+  // Appends an owned column holding the `count` rows `rows` selects, laid out
+  // densely from zero. Rows only ever increase, across calls too, until a
+  // rewind.
+  virtual void Expand(RowSelection rows, uint32_t count, RowBatch& out) = 0;
 
   virtual void Rewind() = 0;
 };
@@ -63,14 +65,18 @@ class ExpanderImpl final : public DataframeScan::Expander {
   ExpanderImpl(StorageType type, const T* packed, const BitVector* bits)
       : type_(type), packed_(packed), bits_(bits) {}
 
-  void Expand(uint32_t from, uint32_t count, RowBatch& out) override {
-    PERFETTO_DCHECK(from == next_);
+  void Expand(RowSelection rows, uint32_t count, RowBatch& out) override {
     auto buffer = buffers_.Acquire();
     buffer->values.resize(kMaxBatchRows);
     buffer->validity.resize(kMaxBatchRows);
     buffer->validity.ClearAllBits();
     for (uint32_t row = 0; row < count; ++row) {
-      if (bits_->is_set(from + row)) {
+      uint32_t index = rows.GetIndex(row);
+      PERFETTO_DCHECK(index >= next_);
+      // Skipped rows still count towards the packed values they hold.
+      consumed_ += CountSetBits(next_, index);
+      next_ = index + 1;
+      if (bits_->is_set(index)) {
         if constexpr (std::is_same_v<T, uint32_t>) {
           buffer->values[row] =
               packed_ ? packed_[consumed_] : static_cast<uint32_t>(consumed_);
@@ -85,7 +91,6 @@ class ExpanderImpl final : public DataframeScan::Expander {
         buffer->values[row] = T{};
       }
     }
-    next_ = from + count;
     auto view =
         ColumnView::Reference(type_, buffer->values.data(), &buffer->validity);
     out.AddColumn(std::move(view), std::move(buffer));
@@ -97,6 +102,22 @@ class ExpanderImpl final : public DataframeScan::Expander {
   }
 
  private:
+  // The number of set bits in [from, to).
+  uint32_t CountSetBits(uint32_t from, uint32_t to) const {
+    uint32_t count = 0;
+    while (from < to) {
+      // Up to the end of `from`'s word, or to `to` if that comes first.
+      uint32_t end = std::min(to, (from / 64 + 1) * 64);
+      uint64_t below_end = end % 64 == 0
+                               ? bits_->count_set_bits_in_word(from)
+                               : bits_->count_set_bits_until_in_word(end);
+      count += static_cast<uint32_t>(below_end -
+                                     bits_->count_set_bits_until_in_word(from));
+      from = end;
+    }
+    return count;
+  }
+
   struct Buffer {
     FlexVector<T> values;
     BitVector validity;
@@ -140,8 +161,14 @@ void BuildColumn(const dataframe::Column& column,
 
 DataframeScan::DataframeScan(
     std::vector<std::shared_ptr<const dataframe::Column>> columns,
-    uint32_t row_count)
-    : columns_(std::move(columns)), row_count_(row_count) {}
+    uint32_t row_count,
+    std::shared_ptr<const FlexVector<uint32_t>> rows)
+    : columns_(std::move(columns)),
+      row_count_(row_count),
+      rows_(std::move(rows)) {
+  PERFETTO_DCHECK(!rows_ || rows_->size() == row_count_);
+  PERFETTO_DCHECK(!rows_ || std::is_sorted(rows_->begin(), rows_->end()));
+}
 
 DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;
@@ -203,15 +230,23 @@ bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
   uint32_t count = std::min(kMaxBatchRows, rows - s.emitted);
+  RowSelection selection =
+      rows_ ? RowSelection::Indices(Span<const uint32_t>(
+                  rows_->data() + s.emitted, rows_->data() + s.emitted + count))
+            : RowSelection::Range(s.emitted);
   out.Reset();
   for (uint32_t i = 0; i < s.columns.size(); ++i) {
     ColumnView view = s.columns[i];
     if (s.expanders[i]) {
       // Expanded values are laid out from zero, so the column sits in its own
       // index space rather than the dataframe's.
-      s.expanders[i]->Expand(s.emitted, count, out);
+      s.expanders[i]->Expand(selection, count, out);
     } else {
-      view.SetRange(s.emitted);
+      if (rows_) {
+        view.SetOwnedRows(rows_, s.emitted, count);
+      } else {
+        view.SetRange(s.emitted);
+      }
       out.AddColumn(std::move(view), columns_[i]);
     }
   }

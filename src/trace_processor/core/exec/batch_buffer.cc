@@ -62,7 +62,7 @@ base::Status BatchBuffer::Append(const RowBatch& in) {
       }
       for (uint32_t i = 0; i < in.size(); ++i)
         (*indices)[before + i] = b.selection().GetIndex(i);
-      a.SetOwnedRows(indices, total);
+      a.SetOwnedRows(indices, 0, total);
       batch_.SetColumn(c, a, batch_.owner(c));
     } else {
       auto& packed = column.packed;

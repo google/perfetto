@@ -437,7 +437,15 @@ node PerfettoPipeAs {
   fmt { "AS" space span(alias) }
 }
 
+// `WHERE condition`: keeps the rows the condition holds for.
+node PerfettoPipeWhere {
+  condition: index Expr
+
+  fmt { group { "WHERE" nest { line child(condition) } } }
+}
+
 abstract PerfettoPipeStage {
+  PerfettoPipeWhere
   PerfettoTreeAccumulate
   PerfettoPipeSelect
   PerfettoPipeExtend

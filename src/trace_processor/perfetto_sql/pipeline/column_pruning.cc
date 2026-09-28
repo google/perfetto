@@ -35,7 +35,11 @@ namespace {
 // The columns something downstream uses, indexed by column ID.
 using Needed = std::vector<bool>;
 
-void PruneScan(op::Scan& scan, const Needed& needed) {
+void PruneScan(op::Scan& scan, Needed& needed) {
+  // The scan's filters read their columns, used after it or not.
+  for (const op::FilterCondition& condition : scan.filters) {
+    needed[condition.column] = true;
+  }
   std::vector<uint32_t> keep;
   for (uint32_t i = 0; i < scan.columns.size(); ++i) {
     if (needed[scan.columns[i].id]) {
@@ -108,6 +112,17 @@ PlanNodeId PruneTreeAccumulate(LogicalPlan& plan,
   return id;
 }
 
+PlanNodeId PruneFilter(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
+  PlanNode& node = plan.nodes[id];
+  // A filter reads the columns it tests, whether or not they are used after.
+  for (const op::FilterCondition& condition :
+       node.Cast<op::Filter>().conditions) {
+    needed[condition.column] = true;
+  }
+  node.children[0] = PruneNode(plan, node.children[0], needed);
+  return id;
+}
+
 PlanNodeId PruneIntervalIntersect(LogicalPlan& plan,
                                   PlanNodeId id,
                                   Needed& needed) {
@@ -140,6 +155,8 @@ PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
     case base::variant_index<Op, op::Scan>():
       PruneScan(node.Cast<op::Scan>(), needed);
       return id;
+    case base::variant_index<Op, op::Filter>():
+      return PruneFilter(plan, id, needed);
     case base::variant_index<Op, op::TreeAccumulate>():
       return PruneTreeAccumulate(plan, id, needed);
     case base::variant_index<Op, op::IntervalIntersect>():

@@ -893,6 +893,78 @@ TEST_F(PerfettoSqlConnectionPipelineTest, AccumulateUpAndDown) {
                                    "2,0,30,NULL,30,40", "3,1,40,c,40,70"));
 }
 
+// WHERE keeps the rows every condition holds for, before or after other
+// stages. Values convert as they do when SQL filters a table, so a float or a
+// string compared with an integer column means what it does there.
+TEST_F(PerfettoSqlConnectionPipelineTest, WhereKeepsMatchingRows) {
+  struct Case {
+    const char* query;
+    std::vector<std::string> rows;
+  };
+  const Case kCases[] = {
+      {"FROM tree |> WHERE self >= 20 AND parent_id IS NOT NULL",
+       {"1,0,20,a", "2,0,30,NULL", "3,1,40,c"}},
+      {"FROM tree |> WHERE name IS NULL", {"2,0,30,NULL"}},
+      {"FROM tree |> WHERE id IN (3, 1, 7)", {"1,0,20,a", "3,1,40,c"}},
+      {"FROM tree |> WHERE name > 'b'", {"0,NULL,10,root", "3,1,40,c"}},
+      {"FROM tree |> WHERE self < 25.5", {"0,NULL,10,root", "1,0,20,a"}},
+      {"FROM tree |> WHERE self = 'x'", {}},
+      {"FROM tree |> WHERE self < -1", {}},
+      {"FROM tree |> TREE ACCUMULATE UP SUM(self) AS total "
+       "|> WHERE total > 50 |> SELECT id, total",
+       {"0,100", "1,60"}},
+  };
+  for (const Case& c : kCases) {
+    auto rows = Rows(c.query);
+    ASSERT_TRUE(rows.ok()) << c.query << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.query;
+  }
+  EXPECT_THAT(Rows("FROM tree |> WHERE nope = 1").status().message(),
+              testing::HasSubstr("no such column: 'nope'"));
+  EXPECT_THAT(Rows("FROM tree |> WHERE id = NULL").status().message(),
+              testing::HasSubstr("IS [NOT] NULL"));
+}
+
+// A WHERE on an intersection keeps the same rows wherever its conditions end
+// up: in an operand's scan, in every operand's for a PER column, or above.
+TEST_F(PerfettoSqlConnectionPipelineTest, WhereOnAnIntersection) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE a AS
+    SELECT 0 AS ts, 10 AS dur, 1 AS cpu, 7 AS x
+    UNION ALL SELECT 20, 10, 2, 8
+  )")
+                  .ok());
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE b AS
+    SELECT 5 AS ts, 10 AS dur, 1 AS cpu, 1 AS y
+    UNION ALL SELECT 25, 2, 2, 2
+  )")
+                  .ok());
+  const char kIntersect[] =
+      "INTERVAL INTERSECTION OF (a, b) PER cpu |> SELECT ts, dur, a.x, b.y";
+  auto all = Rows(kIntersect);
+  ASSERT_TRUE(all.ok()) << all.status().c_message();
+  EXPECT_THAT(*all, testing::UnorderedElementsAre("5,5,7,1", "25,2,8,2"));
+  struct Case {
+    const char* where;
+    std::vector<std::string> rows;
+  };
+  const Case kCases[] = {
+      {"a.x = 7", {"5,5,7,1"}},
+      {"b.y != 1", {"25,2,8,2"}},
+      {"cpu = 2", {"25,2,8,2"}},
+      {"dur > 3", {"5,5,7,1"}},
+      {"b.cpu IN (1, 2) AND a.x > 7 AND ts >= 25", {"25,2,8,2"}},
+  };
+  for (const Case& c : kCases) {
+    std::string query = "INTERVAL INTERSECTION OF (a, b) PER cpu |> WHERE " +
+                        std::string(c.where) + " |> SELECT ts, dur, a.x, b.y";
+    auto rows = Rows(query);
+    ASSERT_TRUE(rows.ok()) << c.where << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.where;
+  }
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromAnySql) {
   auto rows = Rows(R"(
     FROM (SELECT id, parent_id, self * 2 AS doubled FROM tree WHERE id < 10)
@@ -1010,10 +1082,10 @@ TEST_F(PerfettoSqlConnectionPipelineTest, Errors) {
                   .status()
                   .message(),
               testing::HasSubstr("'name'"));
-  EXPECT_THAT(Rows("CREATE PERFETTO TABLE t AS FROM tree |> WHERE id = 1")
+  EXPECT_THAT(Rows("CREATE PERFETTO TABLE t AS FROM tree |> ORDER BY id")
                   .status()
                   .message(),
-              testing::HasSubstr("syntax error near 'WHERE'"));
+              testing::HasSubstr("syntax error near 'ORDER'"));
   // Semantic analysis cannot yet describe every relation.
   EXPECT_THAT(Rows("FROM (VALUES (1, 2))").status().message(),
               testing::HasSubstr(

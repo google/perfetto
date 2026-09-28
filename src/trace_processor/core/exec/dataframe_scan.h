@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -42,13 +43,20 @@ namespace perfetto::trace_processor::core::exec {
 // bounded amount for the rest. Nothing is materialised ahead of being asked
 // for, so a query which reads one batch and stops does one batch of work.
 //
+// A scan can also read only some of the rows, listed in increasing order,
+// such as those a filter kept: the batches then select those rows of the
+// storage, still without copying it.
+//
 // The scan holds shared ownership of the columns rather than a pointer to the
 // dataframe, so it keeps working if the table is replaced. The dataframe must
 // have been finalized before its columns were captured.
 class DataframeScan : public Source {
  public:
+  // Reads rows [0, row_count), or, if `rows` is not null, the `row_count`
+  // rows it lists.
   DataframeScan(std::vector<std::shared_ptr<const dataframe::Column>> columns,
-                uint32_t row_count);
+                uint32_t row_count,
+                std::shared_ptr<const FlexVector<uint32_t>> rows);
   ~DataframeScan() override;
 
   std::unique_ptr<OperatorState> MakeState() const override;
@@ -70,6 +78,7 @@ class DataframeScan : public Source {
 
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
   uint32_t row_count_;
+  std::shared_ptr<const FlexVector<uint32_t>> rows_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

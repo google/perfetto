@@ -129,7 +129,7 @@ TEST(RowStoreTest, ReadsBackDenseWhateverArrived) {
   RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch.mutable_column(0).SetOwnedRows(test::OwnedRows({4, 0, 2}), 3);
+  batch.mutable_column(0).SetOwnedRows(test::OwnedRows({4, 0, 2}), 0, 3);
   batch.SetCardinality(3);
   ASSERT_TRUE(store.Append(batch).ok());
 

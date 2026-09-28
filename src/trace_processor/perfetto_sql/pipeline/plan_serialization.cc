@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,11 +32,14 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -54,6 +58,8 @@ class Writer {
  public:
   void U8(uint8_t value) { Append(&value, sizeof(value)); }
   void U32(uint32_t value) { Append(&value, sizeof(value)); }
+  void I64(int64_t value) { Append(&value, sizeof(value)); }
+  void F64(double value) { Append(&value, sizeof(value)); }
   void Size(size_t value) { U32(static_cast<uint32_t>(value)); }
   void Str(std::string_view value) {
     Size(value.size());
@@ -88,6 +94,16 @@ class Reader {
   }
   uint32_t U32() {
     uint32_t value = 0;
+    Read(&value, sizeof(value));
+    return value;
+  }
+  int64_t I64() {
+    int64_t value = 0;
+    Read(&value, sizeof(value));
+    return value;
+  }
+  double F64() {
+    double value = 0;
     Read(&value, sizeof(value));
     return value;
   }
@@ -163,16 +179,43 @@ std::optional<core::StorageType> ReadType(Reader& r) {
   }
 }
 
+core::Op ReadFilterOp(Reader& r) {
+  switch (r.U8()) {
+    case core::Op::GetTypeIndex<core::Eq>():
+      return core::Eq{};
+    case core::Op::GetTypeIndex<core::Ne>():
+      return core::Ne{};
+    case core::Op::GetTypeIndex<core::Lt>():
+      return core::Lt{};
+    case core::Op::GetTypeIndex<core::Le>():
+      return core::Le{};
+    case core::Op::GetTypeIndex<core::Gt>():
+      return core::Gt{};
+    case core::Op::GetTypeIndex<core::Ge>():
+      return core::Ge{};
+    case core::Op::GetTypeIndex<core::IsNull>():
+      return core::IsNull{};
+    case core::Op::GetTypeIndex<core::IsNotNull>():
+      return core::IsNotNull{};
+    case core::Op::GetTypeIndex<core::In>():
+      return core::In{};
+    default:
+      r.Fail();
+      return core::Eq{};
+  }
+}
+
 class PlanWriter {
  public:
   explicit PlanWriter(const LogicalPlan& plan) : plan_(plan) {}
 
   std::string Write() {
     // Pruning can leave nodes the root does not reach.
-    std::vector<const op::TreeAccumulate*> folds;
+    std::vector<const PlanNode*> stages;
     PlanNodeId id = plan_.root;
-    while (plan_.nodes[id].Is<op::TreeAccumulate>()) {
-      folds.push_back(&plan_.nodes[id].Cast<op::TreeAccumulate>());
+    while (plan_.nodes[id].Is<op::TreeAccumulate>() ||
+           plan_.nodes[id].Is<op::Filter>()) {
+      stages.push_back(&plan_.nodes[id]);
       id = plan_.nodes[id].children[0];
     }
     const PlanNode& source = plan_.nodes[id];
@@ -180,9 +223,15 @@ class PlanWriter {
     Available available = source.Is<op::Scan>()
                               ? WriteScan(source.Cast<op::Scan>())
                               : WriteIntervalIntersect(source);
-    w_.Size(folds.size());
-    for (auto it = folds.rbegin(); it != folds.rend(); ++it) {
-      WriteTreeAccumulate(**it, available);
+    w_.Size(stages.size());
+    for (auto it = stages.rbegin(); it != stages.rend(); ++it) {
+      const PlanNode& stage = **it;
+      w_.U8(static_cast<uint8_t>(stage.op.index()));
+      if (stage.Is<op::Filter>()) {
+        WriteConditions(stage.Cast<op::Filter>().conditions, available);
+      } else {
+        WriteTreeAccumulate(stage.Cast<op::TreeAccumulate>(), available);
+      }
     }
     w_.Size(plan_.output.size());
     for (const NamedColumn& column : plan_.output) {
@@ -213,7 +262,34 @@ class PlanWriter {
       WriteType(w_, plan_.columns[column.id].type);
       available.push_back(column.id);
     }
+    WriteConditions(scan.filters, available);
     return available;
+  }
+
+  void WriteConditions(const std::vector<op::FilterCondition>& conditions,
+                       const Available& available) {
+    w_.Size(conditions.size());
+    for (const op::FilterCondition& condition : conditions) {
+      w_.Position(available, condition.column);
+      w_.U8(static_cast<uint8_t>(condition.op.index()));
+      w_.Size(condition.values.size());
+      for (const op::FilterValue& value : condition.values) {
+        w_.U8(static_cast<uint8_t>(value.index()));
+        switch (value.index()) {
+          case base::variant_index<op::FilterValue, int64_t>():
+            w_.I64(base::unchecked_get<int64_t>(value));
+            break;
+          case base::variant_index<op::FilterValue, double>():
+            w_.F64(base::unchecked_get<double>(value));
+            break;
+          case base::variant_index<op::FilterValue, std::string>():
+            w_.Str(base::unchecked_get<std::string>(value));
+            break;
+          default:
+            PERFETTO_FATAL("Unknown filter value");
+        }
+      }
+    }
   }
 
   void WriteTreeAccumulate(const op::TreeAccumulate& acc,
@@ -280,9 +356,22 @@ class PlanReader {
         r_.Fail();
         return {};
     }
-    uint32_t folds = r_.Count();
-    for (uint32_t i = 0; i < folds && r_.ok(); ++i) {
-      plan_.AddNode(ReadTreeAccumulate(available), {plan_.root});
+    uint32_t stages = r_.Count();
+    for (uint32_t i = 0; i < stages && r_.ok(); ++i) {
+      switch (r_.U8()) {
+        case base::variant_index<Op, op::TreeAccumulate>():
+          plan_.AddNode(ReadTreeAccumulate(available), {plan_.root});
+          break;
+        case base::variant_index<Op, op::Filter>(): {
+          op::Filter filter;
+          filter.conditions = ReadConditions(available);
+          plan_.AddNode(std::move(filter), {plan_.root});
+          break;
+        }
+        default:
+          r_.Fail();
+          break;
+      }
     }
     // The table function declares only so many output columns.
     uint32_t outputs = r_.Count();
@@ -321,7 +410,39 @@ class PlanReader {
       column.id = plan_.AddColumn(column.name, ReadType(r_));
       available.push_back(column.id);
     }
+    scan.filters = ReadConditions(available);
     return available;
+  }
+
+  std::vector<op::FilterCondition> ReadConditions(const Available& available) {
+    std::vector<op::FilterCondition> conditions(r_.Count());
+    for (op::FilterCondition& condition : conditions) {
+      condition.column = r_.Position(available);
+      condition.op = ReadFilterOp(r_);
+      condition.values.resize(r_.Count());
+      // Comparisons read their first value.
+      if (condition.values.empty() && !condition.op.Is<core::In>() &&
+          !condition.op.Is<core::IsNull>() &&
+          !condition.op.Is<core::IsNotNull>()) {
+        r_.Fail();
+      }
+      for (op::FilterValue& value : condition.values) {
+        switch (r_.U8()) {
+          case 0:
+            value = r_.I64();
+            break;
+          case 1:
+            value = r_.F64();
+            break;
+          case 2:
+            value = r_.Str();
+            break;
+          default:
+            r_.Fail();
+        }
+      }
+    }
+    return conditions;
   }
 
   op::TreeAccumulate ReadTreeAccumulate(Available& available) {
@@ -388,8 +509,84 @@ std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
   return std::nullopt;
 }
 
+// Runs `scan`'s filters on `dataframe`, which the scan reads its columns from
+// by name, as a query on the dataframe runs them: its planner picks how, so an
+// index or a sorted column serves them. The scan then reads only those rows.
+void RunScanFilters(const dataframe::Dataframe& dataframe,
+                    const op::Scan& scan,
+                    op::Scan::Dataframe& source) {
+  if (scan.filters.empty()) {
+    return;
+  }
+  using Value = dataframe::TypedCursor::FilterValue;
+  std::vector<dataframe::FilterSpec> specs;
+  // The cursor reads the values in place, so they live until it has run.
+  std::vector<std::vector<Value>> values(scan.filters.size());
+  for (uint32_t i = 0; i < scan.filters.size(); ++i) {
+    const op::FilterCondition& condition = scan.filters[i];
+    auto column = std::find_if(
+        scan.columns.begin(), scan.columns.end(),
+        [&](const NamedColumn& c) { return c.id == condition.column; });
+    // Loading checked every scan column is in the dataframe.
+    uint32_t col = *FindScanColumn(dataframe, column->name);
+    specs.push_back({col, i, condition.op, std::nullopt});
+    for (const op::FilterValue& value : condition.values) {
+      switch (value.index()) {
+        case base::variant_index<op::FilterValue, int64_t>():
+          values[i].emplace_back(base::unchecked_get<int64_t>(value));
+          break;
+        case base::variant_index<op::FilterValue, double>():
+          values[i].emplace_back(base::unchecked_get<double>(value));
+          break;
+        case base::variant_index<op::FilterValue, std::string>():
+          values[i].emplace_back(
+              base::unchecked_get<std::string>(value).c_str());
+          break;
+        default:
+          PERFETTO_FATAL("Unknown filter value");
+      }
+    }
+  }
+  dataframe::TypedCursor cursor(&dataframe, std::move(specs), {});
+  for (uint32_t i = 0; i < scan.filters.size(); ++i) {
+    const std::vector<Value>& v = values[i];
+    if (scan.filters[i].op.Is<core::In>()) {
+      cursor.SetFilterValueListUnchecked(i, v.data(),
+                                         static_cast<uint32_t>(v.size()));
+    } else if (!v.empty()) {
+      switch (v[0].index()) {
+        case base::variant_index<Value, int64_t>():
+          cursor.SetFilterValueUnchecked(i, base::unchecked_get<int64_t>(v[0]));
+          break;
+        case base::variant_index<Value, double>():
+          cursor.SetFilterValueUnchecked(i, base::unchecked_get<double>(v[0]));
+          break;
+        case base::variant_index<Value, const char*>():
+          cursor.SetFilterValueUnchecked(
+              i, base::unchecked_get<const char*>(v[0]));
+          break;
+        default:
+          PERFETTO_FATAL("Unknown filter value");
+      }
+    }
+  }
+  core::FlexVector<uint32_t> rows;
+  for (cursor.ExecuteUnchecked(); !cursor.Eof(); cursor.Next()) {
+    rows.push_back(cursor.RowIndex());
+  }
+  // A scan's expanders walk a sparse column forward, so rows must increase,
+  // but an index lists them in its own order.
+  // TODO(lalitm): ask the dataframe for rows in storage order instead, so it
+  // can skip the sort when no index reordered them.
+  std::sort(rows.begin(), rows.end());
+  source.row_count = static_cast<uint32_t>(rows.size());
+  source.rows =
+      std::make_shared<const core::FlexVector<uint32_t>>(std::move(rows));
+}
+
 // Points each dataframe scan at the dataframe now registered under its name,
-// which must still have every column the plan reads, with the same type.
+// which must still have every column the plan reads, with the same type, and
+// runs its filters.
 base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
   for (PlanNode& node : plan.nodes) {
     if (!node.Is<op::Scan>()) {
@@ -417,6 +614,7 @@ base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
       source->columns.push_back(dataframe->shared_column(*i));
     }
     source->row_count = dataframe->row_count();
+    RunScanFilters(*dataframe, scan, *source);
   }
   return base::OkStatus();
 }
@@ -472,6 +670,7 @@ base::Status BindDataframeArgs(
       source.columns.push_back(dataframe->shared_column(*i));
     }
     source.row_count = dataframe->row_count();
+    RunScanFilters(*dataframe, scan, source);
     scan.source = std::move(source);
   }
   return base::OkStatus();

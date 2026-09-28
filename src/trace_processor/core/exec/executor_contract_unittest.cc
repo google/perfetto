@@ -143,8 +143,8 @@ TEST(ExecutorContractTest, ComposedSelectionsMatchScalarRows) {
       auto data =
           ColumnView::Reference(StorageType{Int64{}}, values.data(), &valid);
       auto selection = test::OwnedRows(physical);
-      ids.SetOwnedRows(selection, size);
-      data.SetOwnedRows(selection, size);
+      ids.SetOwnedRows(selection, 0, size);
+      data.SetOwnedRows(selection, 0, size);
       batch.AddColumn(ids);
       batch.AddColumn(data);
       batch.AddColumn(
@@ -223,7 +223,7 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   std::memcpy(values.data(), bits, sizeof(bits));
   std::vector<uint32_t> rows{1, 0, 1, 3};
   auto view = ColumnView::Reference(StorageType{Double{}}, values.data());
-  view.SetOwnedRows(test::OwnedRows(rows), 4);
+  view.SetOwnedRows(test::OwnedRows(rows), 0, 4);
   RowBatch input, output;
   input.AddColumn(view);
   input.SetCardinality(4);
@@ -657,7 +657,7 @@ TEST(ExecutorContractTest, DistinctSelectionSlotsReuseReleasedBuffers) {
     for (uint32_t r = 0; r < 8; ++r)
       (*indices)[r] = (r * 3 + c) % 8;
     auto view = ColumnView::Reference(StorageType{Int64{}}, values->data());
-    view.SetOwnedRows(indices, 8);
+    view.SetOwnedRows(indices, 0, 8);
     input.AddColumn(view, values);
   }
   input.SetCardinality(8);
