@@ -25,6 +25,8 @@ source_set("logical") {
     "column_pruning.h",
     "compiler.cc",
     "compiler.h",
+    "cost_estimation.cc",
+    "cost_estimation.h",
     "filter_pushdown.cc",
     "filter_pushdown.h",
     "logical_plan.h",
@@ -97,6 +99,7 @@ source_set("test_utils") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "cost_estimation_unittest.cc",
     "physical_plan_unittest.cc",
     "plan_serialization_unittest.cc",
   ]

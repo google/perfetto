@@ -19089,6 +19089,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
+        "src/trace_processor/perfetto_sql/pipeline/cost_estimation.cc",
         "src/trace_processor/perfetto_sql/pipeline/filter_pushdown.cc",
         "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
@@ -19120,6 +19121,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_unittests",
     srcs: [
+        "src/trace_processor/perfetto_sql/pipeline/cost_estimation_unittest.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan_unittest.cc",
         "src/trace_processor/perfetto_sql/pipeline/plan_serialization_unittest.cc",
     ],
