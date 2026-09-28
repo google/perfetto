@@ -173,7 +173,7 @@ Result Accumulate(const std::vector<int64_t>& parent,
   } else {
     ops.push_back(std::make_unique<TreeAccumulateDown>(spec));
   }
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   std::unique_ptr<OperatorState> state = pipeline.MakeState();
   RowBatch batch;
@@ -371,7 +371,7 @@ TEST(TreeAccumulateTest, RunningAgainStartsOver) {
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
   ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   std::unique_ptr<OperatorState> state = pipeline.MakeState();
   RowBatch batch;

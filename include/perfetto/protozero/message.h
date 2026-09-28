@@ -24,6 +24,7 @@
 #include <string>
 #include <type_traits>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
@@ -135,7 +136,8 @@ class PERFETTO_EXPORT_COMPONENT Message {
     uint8_t* pos = buffer;
 
     pos = proto_utils::WriteVarInt(proto_utils::MakeTagFixed<T>(field_id), pos);
-    memcpy(pos, &value, sizeof(T));
+    T le_value = perfetto::base::HostToLE(value);
+    memcpy(pos, &le_value, sizeof(T));
     pos += sizeof(T);
     // TODO: Optimize memcpy performance, see http://crbug.com/624311 .
     WriteToStream(buffer, pos);

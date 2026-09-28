@@ -113,7 +113,7 @@ class ProtoDescriptor {
 
   void AddField(FieldDescriptor descriptor) {
     PERFETTO_DCHECK(type_ == Type::kMessage);
-    fields_.emplace(descriptor.number(), std::move(descriptor));
+    fields_.insert_or_assign(descriptor.number(), std::move(descriptor));
   }
 
   void AddEnumValue(int32_t integer_representation,

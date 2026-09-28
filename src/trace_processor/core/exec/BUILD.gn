@@ -19,6 +19,8 @@ source_set("exec") {
   sources = [
     "assert_type.cc",
     "assert_type.h",
+    "batch_buffer.cc",
+    "batch_buffer.h",
     "breaker.cc",
     "breaker.h",
     "buffer_pool.h",
