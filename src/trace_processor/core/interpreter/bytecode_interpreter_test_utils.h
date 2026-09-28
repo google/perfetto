@@ -144,40 +144,45 @@ inline std::string OpToString(const Op& op) {
   }
 }
 
-inline std::string ResultToString(const CastFilterValueResult& res) {
-  if (res.validity == CastFilterValueResult::Validity::kValid) {
+inline std::string ResultToString(const filter::CastFilterValueResult& res) {
+  if (res.validity == filter::CastFilterValueResult::Validity::kValid) {
     switch (res.value.index()) {
-      case base::variant_index<CastFilterValueResult::Value,
-                               CastFilterValueResult::Id>(): {
+      case base::variant_index<filter::CastFilterValueResult::Value,
+                               filter::CastFilterValueResult::Id>(): {
         const auto& id =
-            base::unchecked_get<CastFilterValueResult::Id>(res.value);
+            base::unchecked_get<filter::CastFilterValueResult::Id>(res.value);
         return "Id_" + FixNegativeAndDecimalAndDouble(std::to_string(id.value));
       }
-      case base::variant_index<CastFilterValueResult::Value, uint32_t>(): {
+      case base::variant_index<filter::CastFilterValueResult::Value,
+                               uint32_t>(): {
         const auto& uint32 = base::unchecked_get<uint32_t>(res.value);
         return "Uint32_" +
                FixNegativeAndDecimalAndDouble(std::to_string(uint32));
       }
-      case base::variant_index<CastFilterValueResult::Value, int32_t>(): {
+      case base::variant_index<filter::CastFilterValueResult::Value,
+                               int32_t>(): {
         const auto& int32 = base::unchecked_get<int32_t>(res.value);
         return "Int32_" + FixNegativeAndDecimalAndDouble(std::to_string(int32));
       }
-      case base::variant_index<CastFilterValueResult::Value, int64_t>(): {
+      case base::variant_index<filter::CastFilterValueResult::Value,
+                               int64_t>(): {
         const auto& int64 = base::unchecked_get<int64_t>(res.value);
         return "Int64_" + FixNegativeAndDecimalAndDouble(std::to_string(int64));
       }
-      case base::variant_index<CastFilterValueResult::Value, double>(): {
+      case base::variant_index<filter::CastFilterValueResult::Value,
+                               double>(): {
         const auto& d = base::unchecked_get<double>(res.value);
         return "Double_" + FixNegativeAndDecimalAndDouble(std::to_string(d));
       }
-      case base::variant_index<CastFilterValueResult::Value, const char*>(): {
+      case base::variant_index<filter::CastFilterValueResult::Value,
+                               const char*>(): {
         return base::unchecked_get<const char*>(res.value);
       }
       default:
         PERFETTO_FATAL("Unknown filter value type");
     }
   }
-  return res.validity == CastFilterValueResult::Validity::kNoneMatch
+  return res.validity == filter::CastFilterValueResult::Validity::kNoneMatch
              ? "NoneMatch"
              : "AllMatch";
 }
