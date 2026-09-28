@@ -31,7 +31,7 @@ WHERE
   idle = -1;
 
 -- Slices where tasks ran without IRQ information
-CREATE PERFETTO TABLE _task_wo_irq_infos AS
+CREATE PERFETTO VIEW _task_wo_irq_infos AS
 SELECT ts, dur, cpu, utid
 FROM sched
 WHERE

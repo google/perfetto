@@ -84,13 +84,10 @@ GROUP BY
   region_id;
 
 -- Step 4: Classify gaps within active regions
-CREATE PERFETTO TABLE _all_gaps AS
-SELECT ts, dur FROM _gpu_active_task_count WHERE active_tasks = 0;
-
 CREATE PERFETTO TABLE _gaps_in_active_regions AS
 INTERVAL INTERSECTION OF (
   _ii_subquery!(_gpu_active_regions) AS region,
-  _ii_subquery!(_all_gaps) AS gap
+  (SELECT ts, dur FROM _gpu_active_task_count WHERE active_tasks = 0) AS gap
 )
 |> SELECT ts, dur, region.id AS region_id;
 
