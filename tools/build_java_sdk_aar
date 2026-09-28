@@ -1,0 +1,515 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+""" Builds and packages the Perfetto Java custom data source SDK as an AAR.
+
+Compiles the native JNI libraries for Android ABIs (arm64-v8a, armeabi-v7a,
+x86_64, x86) using Perfetto's GN and Ninja build system, compiles the Java SDK
+sources against android.jar and Dalvik optimization stubs, strips native
+libraries with llvm-strip, and packages them into an Android Archive (AAR)
+along with consumer Proguard rules and a Maven POM.
+"""
+
+import argparse
+import glob
+import hashlib
+import logging
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+import zipfile
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+ABI_CONFIGS = {
+    'arm64-v8a': {
+        'target_cpu': 'arm64',
+        'out_dir': 'out/android_arm64',
+    },
+    'armeabi-v7a': {
+        'target_cpu': 'arm',
+        'out_dir': 'out/android_arm',
+    },
+    'x86_64': {
+        'target_cpu': 'x64',
+        'out_dir': 'out/android_x64',
+    },
+    'x86': {
+        'target_cpu': 'x86',
+        'out_dir': 'out/android_x86',
+    },
+}
+
+ALL_ABIS = list(ABI_CONFIGS.keys())
+JNI_TARGET = 'src/java_datasource/jni:libperfetto_datasource_jni'
+
+
+def Die(msg):
+  logging.error(msg)
+  sys.exit(1)
+
+
+def Run(cmd, **kwargs):
+  logging.debug('+ %s', ' '.join(cmd))
+  return subprocess.run(cmd, check=True, **kwargs)
+
+
+def GetLatestVersion():
+  changelog = os.path.join(ROOT_DIR, 'CHANGELOG')
+  if os.path.exists(changelog):
+    with open(changelog, 'r', encoding='utf-8') as f:
+      for line in f:
+        m = re.match(r'^v(\d+\.\d+)\s.*$', line)
+        if m:
+          return m.group(1) + '.0'
+  return '1.0.0-SNAPSHOT'
+
+
+def FindAndroidJar(explicit_path=None):
+  if explicit_path:
+    if not os.path.isfile(explicit_path):
+      Die('Specified android.jar does not exist: %s' % explicit_path)
+    return explicit_path
+
+  # 1. Look in buildtools/android_sdk
+  candidates = glob.glob(
+      os.path.join(ROOT_DIR,
+                   'buildtools/android_sdk/platforms/android-*/android.jar'))
+  if candidates:
+    # Sort by platform version descending (e.g. android-35 > android-34)
+    def ApiKey(p):
+      m = re.search(r'android-(\d+)', p)
+      return int(m.group(1)) if m else 0
+
+    candidates.sort(key=ApiKey, reverse=True)
+    return candidates[0]
+
+  # 2. Look in ANDROID_HOME / ANDROID_SDK_ROOT
+  for env_var in ('ANDROID_HOME', 'ANDROID_SDK_ROOT'):
+    sdk_root = os.environ.get(env_var)
+    if sdk_root:
+      sdk_candidates = glob.glob(
+          os.path.join(sdk_root, 'platforms/android-*/android.jar'))
+      if sdk_candidates:
+        sdk_candidates.sort(reverse=True)
+        return sdk_candidates[0]
+
+  Die('android.jar not found. Run `tools/install-build-deps --android` or pass '
+      '--android-jar.')
+
+
+def FindJavac(explicit_path=None):
+  if explicit_path:
+    if not os.path.isfile(explicit_path):
+      Die('Specified javac not found: %s' % explicit_path)
+    return explicit_path
+
+  # Check JAVA_HOME
+  java_home = os.environ.get('JAVA_HOME')
+  if java_home:
+    cand = os.path.join(java_home, 'bin/javac')
+    if os.path.isfile(cand) and os.access(cand, os.X_OK):
+      return cand
+
+  # Check common Google prebuilt JDK path
+  prebuilt = '/usr/local/google/home/zezeozue/dev/main/prebuilts/jdk/jdk21/linux-x86/bin/javac'
+  if os.path.isfile(prebuilt) and os.access(prebuilt, os.X_OK):
+    return prebuilt
+
+  which = shutil.which('javac')
+  if which:
+    return which
+
+  Die('javac not found. Set JAVA_HOME or pass --javac.')
+
+
+def FindLlvmStrip():
+  candidates = [
+      os.path.join(ROOT_DIR, 'buildtools/linux64/clang/bin/llvm-strip'),
+      os.path.join(
+          ROOT_DIR,
+          'buildtools/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+      ),
+  ]
+  for cand in candidates:
+    if os.path.isfile(cand) and os.access(cand, os.X_OK):
+      return cand
+
+  which = shutil.which('llvm-strip') or shutil.which('strip')
+  if which:
+    return which
+  return None
+
+
+def BuildJniForAbi(abi, clean=False):
+  cfg = ABI_CONFIGS.get(abi)
+  if not cfg:
+    Die('Unknown ABI: %s. Supported: %s' % (abi, ', '.join(ALL_ABIS)))
+
+  out_dir = os.path.join(ROOT_DIR, cfg['out_dir'])
+  gn_bin = os.path.join(ROOT_DIR, 'tools/gn')
+  ninja_bin = os.path.join(ROOT_DIR, 'tools/ninja')
+
+  if clean and os.path.exists(out_dir):
+    logging.info('Cleaning %s...', out_dir)
+    shutil.rmtree(out_dir)
+
+  os.makedirs(out_dir, exist_ok=True)
+
+  gn_args = [
+      'target_os="android"',
+      'target_cpu="%s"' % cfg['target_cpu'],
+      'is_debug=false',
+      'enable_perfetto_android_java_sdk=true',
+      'skip_buildtools_check=true',
+  ]
+
+  logging.info('[%s] Running GN gen...', abi)
+  Run([gn_bin, 'gen', out_dir, '--args=' + ' '.join(gn_args)])
+
+  logging.info('[%s] Building %s with Ninja...', abi, JNI_TARGET)
+  Run([ninja_bin, '-C', out_dir, JNI_TARGET])
+
+  jni_so = os.path.join(out_dir, 'libperfetto_datasource_jni.so')
+  c_so = os.path.join(out_dir, 'libperfetto_c.so')
+
+  if not os.path.isfile(jni_so):
+    Die('[%s] Missing output: %s' % (abi, jni_so))
+  if not os.path.isfile(c_so):
+    Die('[%s] Missing output: %s' % (abi, c_so))
+
+  return jni_so, c_so
+
+
+def CompileJavaClasses(javac_bin, android_jar, classes_dir):
+  sdk_java_dir = os.path.join(ROOT_DIR,
+                              'src/java_datasource/java/main/dev/perfetto/sdk')
+  sdk_sources = sorted(glob.glob(os.path.join(sdk_java_dir, '*.java')))
+  if not sdk_sources:
+    Die('No Java sources found in %s' % sdk_java_dir)
+
+  stubs_java_dir = os.path.join(
+      ROOT_DIR,
+      'src/android_sdk/java/host_stubs/dalvik/annotation/optimization')
+  stubs_sources = sorted(glob.glob(os.path.join(stubs_java_dir, '*.java')))
+  if not stubs_sources:
+    Die('No Dalvik stub sources found in %s' % stubs_java_dir)
+
+  with tempfile.TemporaryDirectory() as tmp_stubs_dir:
+    logging.info('Compiling Dalvik stubs for javac classpath...')
+    Run([javac_bin, '-d', tmp_stubs_dir] + stubs_sources)
+
+    logging.info('Compiling %d Java SDK sources...', len(sdk_sources))
+    classpath = os.pathsep.join([tmp_stubs_dir, android_jar])
+    cmd = [
+        javac_bin,
+        '-d',
+        classes_dir,
+        '-cp',
+        classpath,
+        '-source',
+        '11',
+        '-target',
+        '11',
+    ] + sdk_sources
+    Run(cmd)
+
+
+def CreateDeterministicZip(zip_path, files_dict):
+  """Creates a zip file with deterministic timestamps for reproducible builds.
+
+  files_dict: mapping of archive_name -> file_path_on_disk or (bytes, is_bytes).
+  """
+  fixed_time = (2026, 1, 1, 0, 0, 0)
+  os.makedirs(os.path.dirname(os.path.abspath(zip_path)), exist_ok=True)
+  with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+    for arcname in sorted(files_dict.keys()):
+      val = files_dict[arcname]
+      zinfo = zipfile.ZipInfo(arcname, date_time=fixed_time)
+      zinfo.external_attr = 0o644 << 16
+      if isinstance(val, (bytes, bytearray)):
+        zf.writestr(zinfo, val)
+      elif isinstance(val, str) and not os.path.isfile(val):
+        zf.writestr(zinfo, val.encode('utf-8'))
+      else:
+        with open(val, 'rb') as f:
+          data = f.read()
+        zf.writestr(zinfo, data)
+
+
+def GeneratePom(group_id, artifact_id, version):
+  return f"""<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>{group_id}</groupId>
+  <artifactId>{artifact_id}</artifactId>
+  <version>{version}</version>
+  <packaging>aar</packaging>
+  <name>Perfetto Java Data Source SDK</name>
+  <description>High-performance zero-allocation Java custom data source SDK for Perfetto</description>
+  <url>https://perfetto.dev</url>
+  <licenses>
+    <license>
+      <name>The Apache Software License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>The Android Open Source Project</name>
+    </developer>
+  </developers>
+</project>
+"""
+
+
+def GenerateManifest(namespace, min_sdk):
+  return f"""<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="{namespace}">
+    <uses-sdk android:minSdkVersion="{min_sdk}" />
+</manifest>
+"""
+
+
+def ComputeHashes(file_path):
+  hashes = {
+      'md5': hashlib.md5(),
+      'sha1': hashlib.sha1(),
+      'sha256': hashlib.sha256(),
+  }
+  with open(file_path, 'rb') as f:
+    while True:
+      chunk = f.read(65536)
+      if not chunk:
+        break
+      for h in hashes.values():
+        h.update(chunk)
+  return {k: h.hexdigest() for k, h in hashes.items()}
+
+
+def PublishToMavenRepo(repo_dir, group_id, artifact_id, version, aar_path,
+                       pom_content):
+  group_path = group_id.replace('.', '/')
+  art_dir = os.path.join(repo_dir, group_path, artifact_id)
+  ver_dir = os.path.join(art_dir, version)
+  os.makedirs(ver_dir, exist_ok=True)
+
+  dest_aar = os.path.join(ver_dir, f'{artifact_id}-{version}.aar')
+  dest_pom = os.path.join(ver_dir, f'{artifact_id}-{version}.pom')
+
+  shutil.copy2(aar_path, dest_aar)
+  with open(dest_pom, 'w', encoding='utf-8') as f:
+    f.write(pom_content)
+
+  for target_file in (dest_aar, dest_pom):
+    hashes = ComputeHashes(target_file)
+    for algo, val in hashes.items():
+      with open(f'{target_file}.{algo}', 'w', encoding='utf-8') as f:
+        f.write(val)
+
+  # Update maven-metadata.xml
+  metadata_path = os.path.join(art_dir, 'maven-metadata.xml')
+  versions = [version]
+  if os.path.isfile(metadata_path):
+    try:
+      tree = ET.parse(metadata_path)
+      for v in tree.findall('./versioning/versions/version'):
+        if v.text and v.text not in versions:
+          versions.append(v.text)
+    except Exception:
+      pass
+
+  versions_xml = '\n      '.join(f'<version>{v}</version>' for v in versions)
+  metadata_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>{group_id}</groupId>
+  <artifactId>{artifact_id}</artifactId>
+  <versioning>
+    <latest>{version}</latest>
+    <release>{version}</release>
+    <versions>
+      {versions_xml}
+    </versions>
+  </versioning>
+</metadata>
+"""
+  with open(metadata_path, 'w', encoding='utf-8') as f:
+    f.write(metadata_content)
+
+  meta_hashes = ComputeHashes(metadata_path)
+  for algo, val in meta_hashes.items():
+    with open(f'{metadata_path}.{algo}', 'w', encoding='utf-8') as f:
+      f.write(val)
+
+  logging.info('Published to local Maven repository at %s', ver_dir)
+
+
+def main():
+  parser = argparse.ArgumentParser(
+      description='Builds the Perfetto Java SDK AAR')
+  parser.add_argument(
+      '--abis',
+      default=','.join(ALL_ABIS),
+      help='Comma-separated ABIs to include (default: %s)' % ','.join(ALL_ABIS))
+  parser.add_argument(
+      '--aar-out',
+      default=os.path.join(ROOT_DIR, 'out/perfetto-datasource.aar'),
+      help='Output path for .aar file')
+  parser.add_argument(
+      '--repo-dir',
+      help='Directory of local Maven repository to publish artifact to')
+  parser.add_argument(
+      '--version',
+      default=GetLatestVersion(),
+      help='Maven artifact version (default: CHANGELOG version or snapshot)')
+  parser.add_argument(
+      '--group-id',
+      default='dev.perfetto',
+      help='Maven group ID (default: dev.perfetto)')
+  parser.add_argument(
+      '--artifact-id',
+      default='perfetto-datasource',
+      help='Maven artifact ID (default: perfetto-datasource)')
+  parser.add_argument(
+      '--namespace',
+      default='dev.perfetto.sdk.datasource',
+      help='Package namespace for AndroidManifest (default: dev.perfetto.sdk.datasource)'
+  )
+  parser.add_argument(
+      '--min-sdk',
+      type=int,
+      default=21,
+      help='minSdkVersion in AndroidManifest (default: 21)')
+  parser.add_argument(
+      '--android-jar',
+      help='Path to android.jar (default: auto-detected from buildtools)')
+  parser.add_argument(
+      '--javac', help='Path to javac binary (default: auto-detected)')
+  parser.add_argument(
+      '--no-strip',
+      action='store_true',
+      help='Skip running llvm-strip on native shared libraries')
+  parser.add_argument(
+      '--clean',
+      action='store_true',
+      help='Clean GN output directories before building')
+  parser.add_argument(
+      '-v', '--verbose', action='store_true', help='Enable debug logging')
+  args = parser.parse_args()
+
+  log_level = logging.DEBUG if args.verbose else logging.INFO
+  logging.basicConfig(level=log_level, format='%(message)s')
+
+  requested_abis = [a.strip() for a in args.abis.split(',') if a.strip()]
+  for abi in requested_abis:
+    if abi not in ABI_CONFIGS:
+      Die('Invalid ABI: %s. Supported: %s' % (abi, ', '.join(ALL_ABIS)))
+
+  javac_bin = FindJavac(args.javac)
+  android_jar = FindAndroidJar(args.android_jar)
+  strip_bin = FindLlvmStrip() if not args.no_strip else None
+
+  logging.info('Using javac: %s', javac_bin)
+  logging.info('Using android.jar: %s', android_jar)
+  if strip_bin:
+    logging.info('Using llvm-strip: %s', strip_bin)
+  else:
+    logging.info('Stripping disabled or strip binary not found.')
+
+  with tempfile.TemporaryDirectory() as staging_dir:
+    # 1. Build native libraries for each ABI
+    jni_files = {}
+    for abi in requested_abis:
+      jni_so, c_so = BuildJniForAbi(abi, clean=args.clean)
+      abi_staging = os.path.join(staging_dir, 'jni', abi)
+      os.makedirs(abi_staging, exist_ok=True)
+      staged_jni = os.path.join(abi_staging, 'libperfetto_datasource_jni.so')
+      staged_c = os.path.join(abi_staging, 'libperfetto_c.so')
+      shutil.copy2(jni_so, staged_jni)
+      shutil.copy2(c_so, staged_c)
+
+      if strip_bin:
+        logging.info('[%s] Stripping native libraries...', abi)
+        Run([strip_bin, '--strip-unneeded', staged_jni])
+        Run([strip_bin, '--strip-unneeded', staged_c])
+
+      jni_files[f'jni/{abi}/libperfetto_datasource_jni.so'] = staged_jni
+      jni_files[f'jni/{abi}/libperfetto_c.so'] = staged_c
+
+    # 2. Compile Java SDK into classes.jar
+    classes_dir = os.path.join(staging_dir, 'classes')
+    os.makedirs(classes_dir, exist_ok=True)
+    CompileJavaClasses(javac_bin, android_jar, classes_dir)
+
+    classes_jar_files = {}
+    for root, _, files in os.walk(classes_dir):
+      for f in files:
+        full_path = os.path.join(root, f)
+        rel_path = os.path.relpath(full_path, classes_dir)
+        classes_jar_files[rel_path] = full_path
+
+    classes_jar_path = os.path.join(staging_dir, 'classes.jar')
+    CreateDeterministicZip(classes_jar_path, classes_jar_files)
+
+    # 3. AndroidManifest.xml
+    manifest_content = GenerateManifest(args.namespace, args.min_sdk)
+
+    # 4. Proguard consumer rules
+    rules_src = os.path.join(ROOT_DIR, 'src/java_datasource/consumer-rules.pro')
+    if os.path.isfile(rules_src):
+      with open(rules_src, 'r', encoding='utf-8') as f:
+        proguard_content = f.read()
+    else:
+      proguard_content = '-keepclasseswithmembernames class dev.perfetto.sdk.** { native <methods>; }\n'
+
+    # 5. Assemble AAR
+    aar_entries = {
+        'AndroidManifest.xml': manifest_content,
+        'classes.jar': classes_jar_path,
+        'proguard.txt': proguard_content,
+        'R.txt': '',
+    }
+    aar_entries.update(jni_files)
+
+    out_aar = os.path.abspath(args.aar_out)
+    logging.info('Packaging AAR to %s...', out_aar)
+    CreateDeterministicZip(out_aar, aar_entries)
+    aar_size = os.path.getsize(out_aar)
+    logging.info('Successfully created %s (%.2f MB)', out_aar,
+                 aar_size / (1024 * 1024))
+
+    # 6. Generate POM and optionally publish
+    pom_content = GeneratePom(args.group_id, args.artifact_id, args.version)
+    pom_out = os.path.splitext(out_aar)[0] + '.pom'
+    with open(pom_out, 'w', encoding='utf-8') as f:
+      f.write(pom_content)
+    logging.info('Generated POM to %s', pom_out)
+
+    if args.repo_dir:
+      PublishToMavenRepo(
+          os.path.abspath(args.repo_dir), args.group_id, args.artifact_id,
+          args.version, out_aar, pom_content)
+
+
+if __name__ == '__main__':
+  main()
