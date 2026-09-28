@@ -452,6 +452,9 @@ TEST_F(ExportJsonTest, StorageWithStatsFromGzipWrappedProto) {
       MachineId(kDefaultMachineId), inner_id, stats::traced_producers_connected,
       kProducers);
 
+  context_.storage->mutable_trace_file_table()->Finalize();
+  context_.storage->mutable_stats_table()->Finalize();
+
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
@@ -477,6 +480,8 @@ TEST_F(ExportJsonTest, StorageWithStatsFromMultipleNonContainerTracesFails) {
       {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
        context_.storage->InternString("proto"),
        /*processing_order=*/std::nullopt, /*is_container=*/0});
+
+  context_.storage->mutable_trace_file_table()->Finalize();
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");

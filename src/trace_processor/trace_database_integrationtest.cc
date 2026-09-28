@@ -264,6 +264,8 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
   Config config;
   config.enable_sql_file_access = true;
   auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->Parse(
+      TraceBlobView(TraceBlob::CopyFrom(R"({"traceEvents":[]})", 18))));
   ASSERT_OK(processor->NotifyEndOfFile());
   auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('" + path + "')");
   ASSERT_TRUE(it.Next());
