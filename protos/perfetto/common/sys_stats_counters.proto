@@ -20,7 +20,7 @@ package perfetto.protos;
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
 // the corresponding string definitions for the actual /proc files parser.
-
+//
 // Counter definitions for Linux's /proc/meminfo.
 enum MeminfoCounters {
   MEMINFO_UNSPECIFIED = 0;

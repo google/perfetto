@@ -45,6 +45,8 @@ message ProcessStats {
     optional string path = 2;
   }
 
+  // When adding a new field remember to update kProcMemCounterSize in
+  // the trace processor.
   message Process {
     optional int32 pid = 1;
 
@@ -59,8 +61,6 @@ message ProcessStats {
     optional uint64 vm_swap_kb = 7;
     optional uint64 vm_locked_kb = 8;
     optional uint64 vm_hwm_kb = 9;
-    // When adding a new field remember to update kProcMemCounterSize in
-    // the trace processor.
 
     optional int64 oom_score_adj = 10;
 

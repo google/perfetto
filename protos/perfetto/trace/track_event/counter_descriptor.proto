@@ -36,11 +36,11 @@ message CounterDescriptor {
   // Built-in counters, usually with special meaning in the client library,
   // trace processor, legacy JSON format, or UI. Trace processor will infer a
   // track name from the enum value if none is provided in TrackDescriptor.
+  //
+  // Thread-scoped counters. The thread's track should be specified via
+  // |parent_uuid| in the TrackDescriptor for such a counter.
   enum BuiltinCounterType {
     COUNTER_UNSPECIFIED = 0;
-
-    // Thread-scoped counters. The thread's track should be specified via
-    // |parent_uuid| in the TrackDescriptor for such a counter.
 
     // implies UNIT_TIME_NS.
     COUNTER_THREAD_TIME_NS = 1;
