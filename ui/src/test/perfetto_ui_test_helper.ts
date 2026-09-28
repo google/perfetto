@@ -14,10 +14,12 @@
 
 import {
   expect,
+  test,
   type Locator,
   type Page,
   type PageAssertionsToHaveScreenshotOptions,
 } from '@playwright/test';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type {IdleDetectorWindow} from '../frontend/idle_detector_interface';
@@ -25,10 +27,59 @@ import {ensureExists} from '../base/assert';
 import type {Size2D} from '../base/geom';
 import type {AppImpl} from '../core/app_impl';
 
+// Mirrors sanitizeForFilePath() in Playwright's fileUtils.js.
+function sanitizeForFilePath(s: string): string {
+  return s.replace(/[\x00-\x2C\x2E-\x2F\x3A-\x40\x5B-\x60\x7B-\x7F]+/g, '-');
+}
+
+// Mirrors trimLongString() in Playwright's util.js.
+function trimLongString(s: string, length = 100): string {
+  if (s.length <= length) return s;
+  const hash = crypto.createHash('sha1').update(s).digest('hex');
+  const middle = `-${hash.substring(0, 5)}-`;
+  const start = Math.floor((length - middle.length) / 2);
+  const end = length - middle.length - start;
+  return s.substring(0, start) + middle + s.slice(-end);
+}
+
 export class PerfettoTestHelper {
   private cachedSidebarSize?: Size2D;
+  private currentStepTitle?: string;
 
   constructor(readonly page: Page) {}
+
+  // Runs `body` as a Playwright step. Screenshots taken inside the step are
+  // stored under a folder named after the step title instead of the test
+  // title. This lets one test contain several steps, each with its own
+  // screenshot folder. A screenshot mismatch is a soft failure, so it doesn't
+  // stop the following steps from running.
+  async step(title: string, body: () => Promise<void>): Promise<void> {
+    await test.step(title, async () => {
+      this.currentStepTitle = title;
+      try {
+        await body();
+      } finally {
+        this.currentStepTitle = undefined;
+      }
+    });
+  }
+
+  // Returns the name to pass to toHaveScreenshot(). Combined with
+  // snapshotPathTemplate in playwright.config.ts, screenshots are stored at
+  // <file>/<test or step title>/<name>. Playwright doesn't sanitize array
+  // names, so this sanitizes the folder the same way Playwright sanitizes
+  // {testName}. Every screenshot must use this, otherwise it ends up directly
+  // under <file>/.
+  screenshotName(name: string): string[] {
+    const titlePath = test.info().titlePath.slice(1);
+    if (this.currentStepTitle !== undefined) {
+      titlePath[titlePath.length - 1] = this.currentStepTitle;
+    }
+    const folder = sanitizeForFilePath(trimLongString(titlePath.join(' ')));
+    const ext = path.extname(name);
+    const base = name.substring(0, name.length - ext.length);
+    return [folder, sanitizeForFilePath(base) + ext];
+  }
 
   resetFocus(): Promise<void> {
     return this.page.click('.pf-sidebar img.pf-sidebar__brand');
@@ -109,10 +160,13 @@ export class PerfettoTestHelper {
     const target = locator ?? this.page;
 
     // Call the original expect with the combined masks.
-    await expect.soft(target).toHaveScreenshot(screenshotName, {
-      ...screenshotOpts,
-      mask: opts?.mask,
-    });
+    await expect.soft(target).toHaveScreenshot(
+      this.screenshotName(screenshotName),
+      {
+        ...screenshotOpts,
+        mask: opts?.mask,
+      },
+    );
   }
 
   async toggleTrackGroup(locator: Locator) {
