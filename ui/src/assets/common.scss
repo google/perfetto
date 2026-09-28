@@ -116,3 +116,10 @@ button {
   cursor: pointer;
   outline: inherit;
 }
+
+// DO NOT SUBMIT: shifts every page to demo the single-page screenshot diff
+// viewer on CI.
+body {
+  box-sizing: border-box;
+  padding-left: 40px !important;
+}
