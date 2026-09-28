@@ -105,15 +105,15 @@ class Lowering {
 
 void Lowering::LowerNode(PlanNodeId id) {
   const PlanNode& node = plan_.nodes[id];
-  switch (node.kind()) {
-    case OpKind::GetTypeIndex<op::Scan>():
+  switch (node.op.index()) {
+    case base::variant_index<Op, op::Scan>():
       LowerScan(node.Cast<op::Scan>());
       return;
-    case OpKind::GetTypeIndex<op::TreeAccumulate>():
+    case base::variant_index<Op, op::TreeAccumulate>():
       LowerNode(node.children[0]);
       LowerTreeAccumulate(node.Cast<op::TreeAccumulate>());
       return;
-    case OpKind::GetTypeIndex<op::IntervalIntersect>():
+    case base::variant_index<Op, op::IntervalIntersect>():
       // Each operand runs as its own pipeline, so the intersection lowers
       // its children itself.
       LowerIntervalIntersect(node.Cast<op::IntervalIntersect>(), node.children);
@@ -124,15 +124,14 @@ void Lowering::LowerNode(PlanNodeId id) {
 }
 
 std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
-  using Kind = op::Scan::SourceKind;
   switch (scan.source.index()) {
-    case Kind::GetTypeIndex<op::Scan::Dataframe>(): {
+    case base::variant_index<op::Scan::Source, op::Scan::Dataframe>(): {
       const auto& source =
           base::unchecked_get<op::Scan::Dataframe>(scan.source);
       return std::make_unique<ex::DataframeScan>(source.columns,
                                                  source.row_count);
     }
-    case Kind::GetTypeIndex<SqlSource>(): {
+    case base::variant_index<op::Scan::Source, SqlSource>(): {
       Schema columns;
       columns.reserve(scan.columns.size());
       for (const NamedColumn& column : scan.columns) {

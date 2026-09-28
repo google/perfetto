@@ -58,13 +58,12 @@ std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
 
 std::string ScanString(const LogicalPlan& plan, const op::Scan& scan) {
   std::string out = "Scan(";
-  using Kind = op::Scan::SourceKind;
   switch (scan.source.index()) {
-    case Kind::GetTypeIndex<op::Scan::Dataframe>():
+    case base::variant_index<op::Scan::Source, op::Scan::Dataframe>():
       out +=
           "table " + base::unchecked_get<op::Scan::Dataframe>(scan.source).name;
       break;
-    case Kind::GetTypeIndex<SqlSource>():
+    case base::variant_index<op::Scan::Source, SqlSource>():
       out += "sql " + base::unchecked_get<SqlSource>(scan.source).sql();
       break;
     default:
@@ -122,13 +121,13 @@ std::string IntervalIntersectString(const LogicalPlan& plan,
 // Intersection operands are printed inline.
 std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
   const PlanNode& node = plan.nodes[id];
-  switch (node.kind()) {
-    case OpKind::GetTypeIndex<op::Scan>():
+  switch (node.op.index()) {
+    case base::variant_index<Op, op::Scan>():
       return ScanString(plan, node.Cast<op::Scan>()) + "\n";
-    case OpKind::GetTypeIndex<op::TreeAccumulate>():
+    case base::variant_index<Op, op::TreeAccumulate>():
       return SubtreeString(plan, node.children[0]) +
              TreeAccumulateString(plan, node.Cast<op::TreeAccumulate>()) + "\n";
-    case OpKind::GetTypeIndex<op::IntervalIntersect>():
+    case base::variant_index<Op, op::IntervalIntersect>():
       return IntervalIntersectString(plan, node) + "\n";
     default:
       PERFETTO_FATAL("Unknown operator");

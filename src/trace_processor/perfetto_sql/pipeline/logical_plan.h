@@ -25,7 +25,6 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/ext/base/type_set.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/schema.h"
 #include "src/trace_processor/core/dataframe/types.h"
@@ -45,17 +44,6 @@ struct NamedColumn {
   ColumnId id;
 };
 
-namespace internal {
-// The std::variant holding one value of each type in a TypeSet, in the same
-// order, so a switch over the TypeSet's indices can dispatch on the variant.
-template <typename>
-struct VariantOf;
-template <typename... Ts>
-struct VariantOf<base::TypeSet<Ts...>> {
-  using type = std::variant<Ts...>;
-};
-}  // namespace internal
-
 namespace op {
 
 // A dataframe read directly. Defined outside Scan because GCC only treats a
@@ -71,8 +59,8 @@ struct ScanDataframe {
 struct Scan {
   using Dataframe = ScanDataframe;
   // Where a scan reads from: a dataframe directly, or a query run by SQLite.
-  using SourceKind = base::TypeSet<Dataframe, SqlSource>;
-  internal::VariantOf<SourceKind>::type source;
+  using Source = std::variant<Dataframe, SqlSource>;
+  Source source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;
 };
@@ -117,13 +105,9 @@ struct IntervalIntersect {
 
 }  // namespace op
 
-// The kinds of operator a plan node can hold. Passes switch on a node's
-// kind() with one case per operator, using OpKind::GetTypeIndex<T>().
-using OpKind =
-    base::TypeSet<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
-
-// An operator, as one of the types in OpKind.
-using Op = internal::VariantOf<OpKind>::type;
+// The operator a plan node holds. Passes switch on `op.index()` with one case
+// per operator, using base::variant_index<Op, T>().
+using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
 
 // Stable within a plan.
 using PlanNodeId = uint32_t;
@@ -134,12 +118,9 @@ struct PlanNode {
   Op op;
   std::vector<PlanNodeId> children;
 
-  // The index in OpKind of the operator this node holds.
-  uint32_t kind() const { return static_cast<uint32_t>(op.index()); }
-
   template <typename T>
   bool Is() const {
-    return kind() == OpKind::GetTypeIndex<T>();
+    return std::holds_alternative<T>(op);
   }
 
   // Returns the operator as a T. The node must hold one.

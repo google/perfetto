@@ -86,9 +86,8 @@ void PruneScan(op::Scan& scan, const Needed& needed) {
   }
   scan.columns = std::move(columns);
 
-  using Kind = op::Scan::SourceKind;
   switch (scan.source.index()) {
-    case Kind::GetTypeIndex<op::Scan::Dataframe>(): {
+    case base::variant_index<op::Scan::Source, op::Scan::Dataframe>(): {
       auto& dataframe = base::unchecked_get<op::Scan::Dataframe>(scan.source);
       std::vector<std::shared_ptr<const dataframe::Column>> kept;
       for (uint32_t i : keep) {
@@ -97,7 +96,7 @@ void PruneScan(op::Scan& scan, const Needed& needed) {
       dataframe.columns = std::move(kept);
       return;
     }
-    case Kind::GetTypeIndex<SqlSource>(): {
+    case base::variant_index<op::Scan::Source, SqlSource>(): {
       auto& sql = base::unchecked_get<SqlSource>(scan.source);
       sql = SelectPositions(sql, count, keep, scan.columns);
       return;
@@ -169,13 +168,13 @@ PlanNodeId PruneIntervalIntersect(LogicalPlan& plan,
 
 PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
   PlanNode& node = plan.nodes[id];
-  switch (node.kind()) {
-    case OpKind::GetTypeIndex<op::Scan>():
+  switch (node.op.index()) {
+    case base::variant_index<Op, op::Scan>():
       PruneScan(node.Cast<op::Scan>(), needed);
       return id;
-    case OpKind::GetTypeIndex<op::TreeAccumulate>():
+    case base::variant_index<Op, op::TreeAccumulate>():
       return PruneTreeAccumulate(plan, id, needed);
-    case OpKind::GetTypeIndex<op::IntervalIntersect>():
+    case base::variant_index<Op, op::IntervalIntersect>():
       return PruneIntervalIntersect(plan, id, needed);
     default:
       PERFETTO_FATAL("Unknown operator");
