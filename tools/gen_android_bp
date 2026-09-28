@@ -1760,6 +1760,20 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       raise Error('Unknown dep %s (%s) for target %s' %
                   (dep_module.name, dep_module.type, module.name))
 
+  # libperfetto_libcore_jni is whole-static-linked into libjavacore, which
+  # ships inside com.android.art. A shared dependency on libperfetto_c would
+  # either bundle a duplicate ~1MB copy of the library into the APEX (which
+  # ART's NoSuperfluousFilesChecker rejects) or, if libperfetto_c grew Soong
+  # stubs, add a DT_NEEDED edge to /system. The latter is unsafe for a
+  # mainline module with min_sdk 31: platforms that predate
+  # /system/lib*/libperfetto_c.so would fail to load libjavacore at all.
+  # Link the C ABI statically instead. include/perfetto/public/abi/export.h
+  # documents static as the SDK's default linkage, and libjavacore's version
+  # script keeps the symbols from leaking back out.
+  if module.name == 'libperfetto_libcore_jni':
+    module.shared_libs.discard('libperfetto_c')
+    module.static_libs.add('libperfetto_c')
+
   return module
 
 
