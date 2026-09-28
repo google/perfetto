@@ -24,12 +24,6 @@
 #include "perfetto/protozero/message_arena.h"
 #include "perfetto/protozero/message_handle.h"
 
-#if !PERFETTO_IS_LITTLE_ENDIAN()
-// The memcpy() for float and double below needs to be adjusted if we want to
-// support big endian CPUs. There doesn't seem to be a compelling need today.
-#error Unimplemented for big endian archs.
-#endif
-
 namespace protozero {
 
 namespace {

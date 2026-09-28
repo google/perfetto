@@ -1393,6 +1393,7 @@ perfetto_filegroup(
     srcs = [
         "include/perfetto/base/build_config.h",
         "include/perfetto/base/compiler.h",
+        "include/perfetto/base/endian.h",
         "include/perfetto/base/export.h",
         "include/perfetto/base/flat_set.h",
         "include/perfetto/base/logging.h",
@@ -1432,7 +1433,6 @@ perfetto_filegroup(
         "include/perfetto/ext/base/crash_keys.h",
         "include/perfetto/ext/base/ctrl_c_handler.h",
         "include/perfetto/ext/base/dynamic_string_writer.h",
-        "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
         "include/perfetto/ext/base/flags.h",
