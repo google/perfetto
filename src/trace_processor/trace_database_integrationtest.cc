@@ -274,6 +274,28 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
   EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
 }
 
+TEST(TraceProcessorCustomConfigTest, ExportJsonAfterParsingTrace) {
+  base::TempFile file = base::TempFile::Create();
+  const std::string& path = file.path();
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->Parse(
+      TraceBlobView(TraceBlob::CopyFrom(R"({"traceEvents":[]})", 18))));
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('" + path + "')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
+}
+
 TEST(TraceProcessorCustomConfigTest,
      RpcImplicitResetPreservesSqlFileAccessGrant) {
   base::TempFile first_file = base::TempFile::Create();
