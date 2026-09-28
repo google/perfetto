@@ -13,20 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists, assertIsInstance} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {Memo} from '../../base/memo';
-import {maybeUndefined} from '../../base/utils';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
-import {TreeExplorerFetcher} from '../../components/tree_explorer_fetcher';
+import {
+  TreeExplorerFetcher,
+  type TreeExplorerQueryMetric,
+} from '../../components/tree_explorer_fetcher';
 import type {Trace} from '../../public/trace';
 import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
-import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyContext} from '../../widgets/hotkey_context';
-import {Select} from '../../widgets/select';
 import {Stack, StackAuto, StackFixed} from '../../widgets/stack';
 import {updateTreeExplorerState} from '../../widgets/tree_explorer';
+import {
+  getTreeExplorerMergeSelection,
+  stepTreeExplorerProfile,
+} from '../../widgets/tree_explorer_merge';
 import type {AggregateProfile, AggregateProfilesPageState} from './types';
 
 const HIDE_PAGE_EXPLANATION_KEY = 'hideAggregateProfilesPageExplanation';
@@ -35,24 +39,23 @@ const HIDE_VIEW_EXPLANATION_KEY = 'hideAggregateProfilesViewExplanation';
 export interface AggregateProfilesPageAttrs {
   readonly trace: Trace;
   readonly state: AggregateProfilesPageState;
+  // The profiles, in the order the page steps through them.
   readonly profiles: ReadonlyArray<AggregateProfile>;
+  // The metrics of the merge of all the profiles.
+  readonly mergedMetrics: ReadonlyArray<TreeExplorerQueryMetric>;
   readonly onStateChange: (state: AggregateProfilesPageState) => void;
 }
 
 export class AggregateProfilesPage implements m.ClassComponent<AggregateProfilesPageAttrs> {
-  // The fetcher (and so the virtual tables built for the metrics) is created
-  // for the profile it serves and disposed by the memo when the user switches
-  // profile, so at most one generation is alive at a time.
-  private readonly fetcherMemo = new Memo<TreeExplorerFetcher>();
+  // The fetchers (and so the virtual tables built for their metrics) of the
+  // merged tree, and of the profile shown on its own. The latter is created
+  // for the profile it serves and disposed by the memo when the user shows
+  // another profile, so at most one generation of it is alive at a time.
+  private readonly mergedFetcherMemo = new Memo<TreeExplorerFetcher>();
+  private readonly profileFetcherMemo = new Memo<TreeExplorerFetcher>();
 
   view({attrs}: m.CVnode<AggregateProfilesPageAttrs>): m.Children {
-    // Use the selected profile from the state or just use the first one if none
-    // supplied, or if we can't find a match.
-    const selectedProfile =
-      attrs.profiles.find((p) => p.id === attrs.state.selectedProfileId) ??
-      maybeUndefined(attrs.profiles[0]);
-
-    if (selectedProfile === undefined) {
+    if (attrs.profiles.length === 0) {
       return this.renderEmptyState();
     }
 
@@ -82,51 +85,45 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
         [
           this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY) &&
             m(StackFixed, this.renderPageExplanation()),
-          this.renderControlsRow(attrs, selectedProfile),
+          this.renderControlsRow(),
           this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY) &&
             m(StackFixed, this.renderViewExplanation()),
-          m(StackAuto, [this.renderFlamegraph(selectedProfile, attrs)]),
+          m(StackAuto, [this.renderFlamegraph(attrs)]),
         ],
       ),
     );
   }
 
   onremove(): void {
-    this.fetcherMemo.dispose();
+    this.mergedFetcherMemo.dispose();
+    this.profileFetcherMemo.dispose();
   }
 
+  // Steps through the profiles while they are shown one at a time, like the
+  // buttons next to the flamegraph do.
   private stepProfile(attrs: AggregateProfilesPageAttrs, step: number): void {
-    if (attrs.profiles.length < 2) return;
-    const cur = attrs.profiles.findIndex(
-      (p) => p.id === attrs.state.selectedProfileId,
+    const state = updateTreeExplorerState(
+      attrs.state.flamegraphState,
+      attrs.mergedMetrics,
     );
-    const next = Math.max(cur, 0) + step;
-    if (next >= 0 && next < attrs.profiles.length) {
-      this.selectProfile(attrs, attrs.profiles[next]);
+    const merge = stepTreeExplorerProfile(
+      attrs.profiles,
+      getTreeExplorerMergeSelection(state),
+      step,
+    );
+    if (merge !== undefined) {
+      attrs.onStateChange({
+        ...attrs.state,
+        flamegraphState: {...state, merge},
+      });
     }
   }
 
-  private selectProfile(
-    attrs: AggregateProfilesPageAttrs,
-    profile: AggregateProfile,
-  ): void {
-    attrs.onStateChange({
-      selectedProfileId: profile.id,
-      flamegraphState: updateTreeExplorerState(
-        attrs.state.flamegraphState,
-        profile.metrics,
-      ),
-    });
-  }
-
-  private renderFlamegraph(
-    selectedProfile: AggregateProfile,
-    attrs: AggregateProfilesPageAttrs,
-  ): m.Children {
-    const fetcher = this.fetcherMemo.use({
-      key: {profileId: selectedProfile.id},
-      compute: () =>
-        new TreeExplorerFetcher(attrs.trace, selectedProfile.metrics),
+  private renderFlamegraph(attrs: AggregateProfilesPageAttrs): m.Children {
+    const {trace, profiles, mergedMetrics} = attrs;
+    const fetcher = this.mergedFetcherMemo.use({
+      key: {},
+      compute: () => new TreeExplorerFetcher(trace, mergedMetrics),
     });
 
     return m(TreeExplorerPanel, {
@@ -137,6 +134,20 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
           ...attrs.state,
           flamegraphState: state,
         });
+      },
+      merge: {
+        profiles,
+        profileFetcher: (key) =>
+          this.profileFetcherMemo.use({
+            key: {key},
+            compute: () => {
+              const profile = profiles.find((p) => p.key === key);
+              return new TreeExplorerFetcher(
+                trace,
+                ensureExists(profile).metrics,
+              );
+            },
+          }),
       },
     });
   }
@@ -153,24 +164,18 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     localStorage.removeItem(key);
   }
 
-  // The page's controls: the profile selector on the left, the help buttons
-  // on the right. The view tabs are not here -- they live in the
-  // TreeExplorerPanel's own switcher.
-  private renderControlsRow(
-    attrs: AggregateProfilesPageAttrs,
-    selectedProfile: AggregateProfile,
-  ): m.Children {
+  // The page's controls: the help buttons on the right. The view tabs and
+  // the profile selector are not here -- they live in the
+  // TreeExplorerPanel's own tab bar.
+  private renderControlsRow(): m.Children {
     const showViewHelp = !this.shouldShowExplanation(HIDE_VIEW_EXPLANATION_KEY);
     const showPageHelp = this.shouldShowExplanation(HIDE_PAGE_EXPLANATION_KEY);
-    const showSelector = attrs.profiles.length > 1;
-    if (!showViewHelp && !showPageHelp && !showSelector) {
+    if (!showViewHelp && !showPageHelp) {
       return undefined;
     }
     return m(
       StackFixed,
       m(Stack, {orientation: 'horizontal', spacing: 'medium'}, [
-        showSelector &&
-          m(StackFixed, this.renderProfileSelector(attrs, selectedProfile)),
         m(StackAuto),
         showViewHelp &&
           m(
@@ -234,49 +239,6 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
          hierarchical data.`,
       ),
     );
-  }
-
-  private renderProfileSelector(
-    attrs: AggregateProfilesPageAttrs,
-    selectedProfile: AggregateProfile,
-  ): m.Children {
-    return m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
-      m(
-        'label',
-        {className: 'pf-aggregate-profiles-page__profile-label'},
-        'Profile:',
-      ),
-      m(
-        Select,
-        {
-          className: 'pf-aggregate-profiles-page__profile-select',
-          oninput: (e: Event) => {
-            assertIsInstance(e.target, HTMLSelectElement);
-            const newProfileId = e.target.value;
-            const newProfile = attrs.profiles.find(
-              (p) => p.id === newProfileId,
-            );
-            assertExists(newProfile); // Assume this profile actually exists
-            this.selectProfile(attrs, newProfile);
-          },
-        },
-        attrs.profiles.map((profile) =>
-          m(
-            'option',
-            {
-              value: profile.id,
-              selected: selectedProfile.id === profile.id,
-            },
-            profile.displayName,
-          ),
-        ),
-      ),
-      // The name is only in <option> text, which the mouse cannot select.
-      m(CopyToClipboardButton, {
-        textToCopy: () => selectedProfile.displayName,
-        tooltip: 'Copy profile name',
-      }),
-    ]);
   }
 
   private renderEmptyState(): m.Children {

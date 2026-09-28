@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,25 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@use "../../assets/theme" as *;
+.pf-tree-explorer-merge-controls {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 8px;
+  padding-right: 8px;
 
-.pf-aggregate-profiles-page {
-  overflow: auto;
-  padding: 0.25rem;
-
-  &__page-explanation,
-  &__view-explanation {
-    p {
-      margin: 0;
-    }
+  // Profile names are often long paths: the full name is in the tooltip.
+  &__select {
+    max-width: 240px;
+    text-overflow: ellipsis;
   }
 
-  &__progress {
-    margin-bottom: 8px;
+  &__stepper {
+    display: flex;
+    align-items: center;
+    gap: 2px;
   }
 
-  &__loading {
+  &__summary {
+    font-size: var(--pf-font-size-s);
     color: var(--pf-color-text-muted);
-    text-align: center;
+    white-space: nowrap;
+    user-select: none;
   }
 }

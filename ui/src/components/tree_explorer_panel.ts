@@ -31,11 +31,19 @@ import {
 } from '../widgets/tree_explorer';
 import type {TreeExplorerFetcher} from './tree_explorer_fetcher';
 import {
+  exportMergeSuffix,
+  renderTreeExplorerMergeControls,
+  resolveTreeExplorerMerge,
+  type TreeExplorerMerge,
+} from './tree_explorer_panel_merge';
+import {
   TreeExplorerFlatView,
   TreeExplorerTreeView,
   buildFlatExportString,
 } from './tree_explorer_table_views';
 import {Tabs} from '../widgets/tabs';
+
+export type {TreeExplorerMerge};
 
 export interface TreeExplorerPanelAttrs {
   // The fetcher supplying the tree, or undefined to show a pending state.
@@ -57,6 +65,12 @@ export interface TreeExplorerPanelAttrs {
   // Host-provided downloads shown alongside the built-in exports of the
   // displayed tree, for representations the panel cannot build itself.
   readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
+
+  // Opts into showing the profiles the tree merges one at a time: adds
+  // controls choosing (in `state.merge`) whether the views show the merged
+  // tree or one profile on its own. Has no effect with fewer than two
+  // profiles.
+  readonly merge?: TreeExplorerMerge;
 }
 
 // The batteries-included tree explorer: a tab bar switching between the
@@ -74,13 +88,17 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
   private highlightPattern = '';
 
   view({attrs}: m.CVnode<TreeExplorerPanelAttrs>): m.Children {
-    const {fetcher, state = createDefaultTreeExplorerState(fetcher.metrics)} =
-      attrs;
-    const metrics = fetcher?.metrics;
-    const data =
-      fetcher !== undefined && state !== undefined
-        ? fetcher.use({...state, view: effectiveView(state)}).data
-        : undefined;
+    const hostState =
+      attrs.state ?? createDefaultTreeExplorerState(attrs.fetcher.metrics);
+    const {merge, mergeSelection, fetcher, state, onStateChange} =
+      resolveTreeExplorerMerge(
+        attrs.fetcher,
+        hostState,
+        attrs.onStateChange,
+        attrs.merge,
+      );
+    const metrics = fetcher.metrics;
+    const data = fetcher.use({...state, view: effectiveView(state)}).data;
 
     const shownState = state ?? {
       view: {kind: 'TOP_DOWN' as const},
@@ -103,7 +121,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
           metrics: shownMetrics,
           state: shownState,
           data: data,
-          onStateChange: attrs.onStateChange,
+          onStateChange,
           addableMetrics: attrs.addableMetrics,
           onAddMetric: attrs.onAddMetric,
           highlightPattern: this.highlightPattern,
@@ -127,11 +145,11 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
                       );
                 },
           exportFileBaseName:
-            displayMode === 'flat'
+            (displayMode === 'flat'
               ? 'functions'
               : displayMode === 'tree'
                 ? 'call_tree'
-                : 'flamegraph',
+                : 'flamegraph') + exportMergeSuffix(merge, mergeSelection),
           extraDownloadItems: attrs.extraDownloadItems,
         }),
         children,
@@ -159,11 +177,16 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
         variant: 'underline',
         activeTabKey: displayMode,
         onTabChange: (key) => {
-          attrs.onStateChange({
+          onStateChange({
             ...shownState,
             displayMode: key as TreeExplorerDisplayMode,
           });
         },
+        rightContent: renderTreeExplorerMergeControls(
+          merge,
+          mergeSelection,
+          (selection) => attrs.onStateChange({...hostState, merge: selection}),
+        ),
         tabs: [
           {
             key: 'flamegraph',
@@ -175,7 +198,7 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
                 state,
                 data,
                 highlightRegex,
-                onStateChange: attrs.onStateChange,
+                onStateChange,
               }),
             ),
           },
