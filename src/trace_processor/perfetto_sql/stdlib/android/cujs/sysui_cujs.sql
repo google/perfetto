@@ -289,8 +289,15 @@ SELECT
   ts_end,
   dur,
   state,
-  -- upid is used as the ui_thread as it's the tid of the main thread.
-  upid AS ui_thread,
+  -- Latency CUJs use the main thread of the process as the UI thread. Note
+  -- that the upid of the process can not be used as a utid.
+  (
+    SELECT min(thread.utid)
+    FROM thread
+    WHERE
+      thread.upid = android_sysui_latency_cujs.upid
+      AND thread.is_main_thread
+  ) AS ui_thread,
   NULL AS layer_id,
   NULL AS begin_vsync,
   NULL AS end_vsync,

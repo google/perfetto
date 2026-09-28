@@ -132,3 +132,37 @@ class SystemUICujs(TestSuite):
         "animation",127000000,11000000,138000000,"CUJ_NAME","com.google.android.apps.nexuslauncher","jank"
         "DrawFrames",142000000,500000,142500000,"CUJ_NAME","com.google.android.apps.nexuslauncher","jank"
         """))
+
+  def test_android_jank_latency_cujs_latency_ui_thread(self):
+    # In this trace, the upid of SystemUI is not the utid of its main thread.
+    return DiffTestBlueprint(
+        trace=Path('latency_cuj_blocking_calls_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+        SELECT cuj.cuj_name, cuj.cuj_type, thread.tid AS ui_thread_tid
+        FROM android_jank_latency_cujs AS cuj
+        LEFT JOIN thread ON thread.utid = cuj.ui_thread;
+        """,
+        out=Csv("""
+        "cuj_name","cuj_type","ui_thread_tid"
+        "ACTION_EXPAND_PANEL","latency",1000
+        """))
+
+  def test_android_cuj_blocking_calls_latency_cuj_main_thread(self):
+    # Blocking calls on the main thread and on the RenderThread count for
+    # latency CUJs. Blocking calls on other threads do not count.
+    return DiffTestBlueprint(
+        trace=Path('latency_cuj_blocking_calls_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+        SELECT bc.name, bc.ts, bc.dur, bc.cuj_name, bc.cuj_type, thread.tid
+        FROM android_cuj_blocking_calls AS bc
+        JOIN thread USING (utid)
+        ORDER BY bc.ts;
+        """,
+        out=Csv("""
+        "name","ts","dur","cuj_name","cuj_type","tid"
+        "measure",12000000,2000000,"ACTION_EXPAND_PANEL","latency",1000
+        "layout",15000000,3000000,"ACTION_EXPAND_PANEL","latency",1000
+        "CreateGraphicsPipeline",19000000,1000000,"ACTION_EXPAND_PANEL","latency",1500
+        """))
