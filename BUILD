@@ -2532,8 +2532,11 @@ perfetto_filegroup(
     name = "src_trace_processor_core_common_common",
     srcs = [
         "src/trace_processor/core/common/duplicate_types.h",
+        "src/trace_processor/core/common/filter_kernels.h",
+        "src/trace_processor/core/common/filter_value_cast.h",
         "src/trace_processor/core/common/null_types.h",
         "src/trace_processor/core/common/op_types.h",
+        "src/trace_processor/core/common/row_estimate.h",
         "src/trace_processor/core/common/row_layout.h",
         "src/trace_processor/core/common/schema.h",
         "src/trace_processor/core/common/sort_types.h",

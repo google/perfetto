@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/row_estimate.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 
@@ -43,18 +44,7 @@ namespace perfetto::trace_processor::core::dataframe {
 // run an operation and belong to whatever lowers this plan.
 namespace logical {
 
-// The number of rows flowing into or out of an operation.
-struct RowEstimate {
-  // The most rows there can possibly be.
-  uint32_t max = 0;
-
-  // The number of rows the planner expects.
-  uint32_t estimated = 0;
-
-  bool operator==(const RowEstimate& o) const {
-    return max == o.max && estimated == o.estimated;
-  }
-};
+using core::RowEstimate;
 
 // How the planner chose to evaluate a filter. This is an annotation, not part
 // of the filter's meaning: dropping it leaves the predicate intact.
