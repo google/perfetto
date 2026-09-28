@@ -24,6 +24,9 @@ Unreleased:
       enabled, selecting a slice shows only the flows directly connected to it
       (one step) instead of following the entire flow chain. Useful for traces
       with dense flow graphs (e.g. build dependencies).
+    * Fix issue where horizontal two-finger scrolling to pan the timeline would
+      also trigger browser navigation gestures in Chrome under ChromeOS, Linux
+      and Windows.
   SDK:
     *
 
