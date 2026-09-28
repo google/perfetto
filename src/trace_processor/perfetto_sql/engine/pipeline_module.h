@@ -97,6 +97,9 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
       ResultFn result = nullptr;
     };
     std::unique_ptr<pipeline::PhysicalPlan> plan;
+    // The idxStr `plan` was loaded for, which SQLite keeps for as long as the
+    // statement.
+    const char* idx_str = nullptr;
     StringPool* pool = nullptr;
     std::unique_ptr<core::exec::RowCursor> rows;
     // By declared column.

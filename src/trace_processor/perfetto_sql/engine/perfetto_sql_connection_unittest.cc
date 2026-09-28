@@ -1298,6 +1298,68 @@ TEST_F(PerfettoSqlConnectionPipelineTest, RowsHaveNoRowid) {
               testing::HasSubstr("no rowid"));
 }
 
+// SQLite's constraints on a pipeline's output are pushed into its plan, as far
+// down as they keep the same rows, and mean what they would in SQLite.
+TEST_F(PerfettoSqlConnectionPipelineTest, OutputConstraintsArePushedIn) {
+  struct Case {
+    std::string where;
+    std::vector<std::string> rows;
+  };
+  std::string tree = From(PipelineSql("FROM tree"));
+  const Case kTreeCases[] = {
+      {"c0 = 1", {"1,0,20,a"}},
+      {"c0 != 1 AND c2 < 35", {"0,NULL,10,root", "2,0,30,NULL"}},
+      {"c2 > 25.5", {"2,0,30,NULL", "3,1,40,c"}},
+      {"c1 IS NULL", {"0,NULL,10,root"}},
+      {"c3 IS NOT NULL AND c3 >= 'b'", {"0,NULL,10,root", "3,1,40,c"}},
+      {"c0 = '1'", {}},
+      // An IN reaches the plan as one list, in which a null equals nothing.
+      {"c0 IN (3, 1, 7)", {"1,0,20,a", "3,1,40,c"}},
+      {"c0 IN (1, NULL)", {"1,0,20,a"}},
+      {"c3 IN ('a', 'c', 'z')", {"1,0,20,a", "3,1,40,c"}},
+      {"c0 IN (SELECT 2 UNION SELECT 0)", {"0,NULL,10,root", "2,0,30,NULL"}},
+  };
+  for (const Case& c : kTreeCases) {
+    auto rows = Rows("SELECT c0, c1, c2, c3" + tree + " WHERE " + c.where);
+    ASSERT_TRUE(rows.ok()) << c.where << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.where;
+  }
+
+  // Constraints stay above an accumulation, so the totals are unchanged.
+  std::string totals =
+      From(PipelineSql("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total"));
+  const Case kTotalCases[] = {
+      {"c4 > 50", {"0,100", "1,60"}},
+      {"c0 = 1", {"1,60"}},
+  };
+  for (const Case& c : kTotalCases) {
+    auto rows = Rows("SELECT c0, c4" + totals + " WHERE " + c.where);
+    ASSERT_TRUE(rows.ok()) << c.where << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.where;
+  }
+
+  // Joined, the value comes from each row of the other table in turn.
+  std::string join =
+      "SELECT p.c0, p.c4 FROM (SELECT 1 AS x UNION ALL SELECT 3) "
+      "AS s, " +
+      totals.substr(strlen(" FROM ")) + " AS p WHERE p.c0 = s.x";
+  auto joined = Rows(join);
+  ASSERT_TRUE(joined.ok()) << joined.status().c_message();
+  EXPECT_THAT(*joined, testing::UnorderedElementsAre("1,60", "3,40"));
+
+  // The plan run is the one the constraints were pushed into.
+  auto plan = Rows("EXPLAIN QUERY PLAN SELECT c0" + tree + " WHERE c0 = 1");
+  ASSERT_TRUE(plan.ok()) << plan.status().c_message();
+  EXPECT_THAT(*plan,
+              testing::Contains(testing::HasSubstr("VIRTUAL TABLE INDEX 3:")));
+  // An IN's list is passed whole, so the pipeline runs once for it.
+  auto in_plan =
+      Rows("EXPLAIN QUERY PLAN SELECT c0" + tree + " WHERE c0 IN (1, 3)");
+  ASSERT_TRUE(in_plan.ok()) << in_plan.status().c_message();
+  EXPECT_THAT(*in_plan,
+              testing::Contains(testing::HasSubstr("VIRTUAL TABLE INDEX 7:")));
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, ColumnReadersRefreshAcrossBatches) {
   ASSERT_TRUE(connection_
                   ->Execute(SqlSource::FromExecuteQuery(R"(

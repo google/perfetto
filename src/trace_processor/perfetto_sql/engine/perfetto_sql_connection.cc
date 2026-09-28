@@ -1081,6 +1081,11 @@ PerfettoSqlConnection::LoadPipeline(
   return pipeline::Lower(plan, pool_);
 }
 
+pipeline::PlanEstimate PerfettoSqlConnection::EstimatePipeline(
+    const pipeline::LogicalPlan& plan) {
+  return pipeline::EstimatePlan(plan, *catalog_);
+}
+
 base::Status PerfettoSqlConnection::ExecuteCreateView(
     const PerfettoSqlParser::CreateView& create_view) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "CREATE PERFETTO VIEW",
