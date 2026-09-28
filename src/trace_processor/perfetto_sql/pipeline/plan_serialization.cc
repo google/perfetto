@@ -38,7 +38,8 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/exec/dataframe_query_scan.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -285,6 +286,9 @@ class PlanWriter {
           case base::variant_index<op::FilterValue, std::string>():
             w_.Str(base::unchecked_get<std::string>(value));
             break;
+          case base::variant_index<op::FilterValue, op::FilterParam>():
+            w_.U32(base::unchecked_get<op::FilterParam>(value).index);
+            break;
           default:
             PERFETTO_FATAL("Unknown filter value");
         }
@@ -437,6 +441,9 @@ class PlanReader {
           case 2:
             value = r_.Str();
             break;
+          case 3:
+            value = op::FilterParam{r_.U32()};
+            break;
           default:
             r_.Fail();
         }
@@ -510,75 +517,48 @@ std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
 }
 
 // Runs `scan`'s filters on `dataframe`, which the scan reads its columns from
-// by name, as a query on the dataframe runs them: its planner picks how, so an
-// index or a sorted column serves them. The scan then reads only those rows.
+// by name, as a query on the dataframe runs them, so an index or a sorted
+// column serves them. The scan then reads only those rows. Filters comparing
+// with parameters can only run once the plan does, so the scan instead keeps
+// the dataframe to run them on then.
 void RunScanFilters(const dataframe::Dataframe& dataframe,
                     const op::Scan& scan,
                     op::Scan::Dataframe& source) {
   if (scan.filters.empty()) {
     return;
   }
-  using Value = dataframe::TypedCursor::FilterValue;
-  std::vector<dataframe::FilterSpec> specs;
-  // The cursor reads the values in place, so they live until it has run.
-  std::vector<std::vector<Value>> values(scan.filters.size());
-  for (uint32_t i = 0; i < scan.filters.size(); ++i) {
-    const op::FilterCondition& condition = scan.filters[i];
+  std::vector<core::exec::Filter::Condition> conditions;
+  for (const op::FilterCondition& condition : scan.filters) {
     auto column = std::find_if(
         scan.columns.begin(), scan.columns.end(),
         [&](const NamedColumn& c) { return c.id == condition.column; });
+    core::exec::Filter::Condition lowered;
     // Loading checked every scan column is in the dataframe.
-    uint32_t col = *FindScanColumn(dataframe, column->name);
-    specs.push_back({col, i, condition.op, std::nullopt});
+    lowered.column = *FindScanColumn(dataframe, column->name);
+    lowered.op = condition.op;
     for (const op::FilterValue& value : condition.values) {
       switch (value.index()) {
         case base::variant_index<op::FilterValue, int64_t>():
-          values[i].emplace_back(base::unchecked_get<int64_t>(value));
+          lowered.values.emplace_back(base::unchecked_get<int64_t>(value));
           break;
         case base::variant_index<op::FilterValue, double>():
-          values[i].emplace_back(base::unchecked_get<double>(value));
+          lowered.values.emplace_back(base::unchecked_get<double>(value));
           break;
         case base::variant_index<op::FilterValue, std::string>():
-          values[i].emplace_back(
-              base::unchecked_get<std::string>(value).c_str());
+          lowered.values.emplace_back(base::unchecked_get<std::string>(value));
           break;
+        case base::variant_index<op::FilterValue, op::FilterParam>():
+          // Only known once the plan runs, so the scan runs the filters then.
+          source.dataframe = &dataframe;
+          return;
         default:
           PERFETTO_FATAL("Unknown filter value");
       }
     }
+    conditions.push_back(std::move(lowered));
   }
-  dataframe::TypedCursor cursor(&dataframe, std::move(specs), {});
-  for (uint32_t i = 0; i < scan.filters.size(); ++i) {
-    const std::vector<Value>& v = values[i];
-    if (scan.filters[i].op.Is<core::In>()) {
-      cursor.SetFilterValueListUnchecked(i, v.data(),
-                                         static_cast<uint32_t>(v.size()));
-    } else if (!v.empty()) {
-      switch (v[0].index()) {
-        case base::variant_index<Value, int64_t>():
-          cursor.SetFilterValueUnchecked(i, base::unchecked_get<int64_t>(v[0]));
-          break;
-        case base::variant_index<Value, double>():
-          cursor.SetFilterValueUnchecked(i, base::unchecked_get<double>(v[0]));
-          break;
-        case base::variant_index<Value, const char*>():
-          cursor.SetFilterValueUnchecked(
-              i, base::unchecked_get<const char*>(v[0]));
-          break;
-        default:
-          PERFETTO_FATAL("Unknown filter value");
-      }
-    }
-  }
-  core::FlexVector<uint32_t> rows;
-  for (cursor.ExecuteUnchecked(); !cursor.Eof(); cursor.Next()) {
-    rows.push_back(cursor.RowIndex());
-  }
-  // A scan's expanders walk a sparse column forward, so rows must increase,
-  // but an index lists them in its own order.
-  // TODO(lalitm): ask the dataframe for rows in storage order instead, so it
-  // can skip the sort when no index reordered them.
-  std::sort(rows.begin(), rows.end());
+  core::FlexVector<uint32_t> rows =
+      core::exec::RunDataframeQuery(dataframe, conditions, {});
   source.row_count = static_cast<uint32_t>(rows.size());
   source.rows =
       std::make_shared<const core::FlexVector<uint32_t>>(std::move(rows));
@@ -670,7 +650,12 @@ base::Status BindDataframeArgs(
       source.columns.push_back(dataframe->shared_column(*i));
     }
     source.row_count = dataframe->row_count();
-    RunScanFilters(*dataframe, scan, source);
+    if (empty) {
+      // No rows to filter, and nothing to keep the empty dataframe for.
+      source.rows = std::make_shared<const core::FlexVector<uint32_t>>();
+    } else {
+      RunScanFilters(*dataframe, scan, source);
+    }
     scan.source = std::move(source);
   }
   return base::OkStatus();

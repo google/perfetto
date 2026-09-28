@@ -67,6 +67,8 @@ std::string ValueSql(const op::FilterValue& value) {
     case base::variant_index<op::FilterValue, std::string>():
       return QuoteString(base::unchecked_get<std::string>(value));
     default:
+      // SQL sources are moved into SQL when the plan is written, before any
+      // parameter is added.
       PERFETTO_FATAL("Unknown filter value");
   }
 }

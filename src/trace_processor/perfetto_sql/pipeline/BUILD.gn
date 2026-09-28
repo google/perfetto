@@ -43,6 +43,7 @@ source_set("logical") {
     "../../containers",
     "../../core/common",
     "../../core/dataframe",
+    "../../core/exec",
     "../../core/util",
     "../../sqlite",
     "../../util:sql_argument",

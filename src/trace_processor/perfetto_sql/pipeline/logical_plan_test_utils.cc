@@ -80,6 +80,10 @@ std::string ConditionsString(
         case base::variant_index<op::FilterValue, std::string>():
           out += " '" + base::unchecked_get<std::string>(value) + "'";
           break;
+        case base::variant_index<op::FilterValue, op::FilterParam>():
+          out += " ?" + std::to_string(
+                            base::unchecked_get<op::FilterParam>(value).index);
+          break;
         default:
           PERFETTO_FATAL("Unknown filter value");
       }

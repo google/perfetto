@@ -29,6 +29,8 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/dataframe_query_scan.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/test_utils.h"
@@ -206,6 +208,21 @@ TEST_F(DataframeScanTest, ReadsOnlyTheRowsListed) {
     read.insert(read.end(), values.begin(), values.end());
   }
   EXPECT_EQ(read, expected);
+}
+
+// A query scan finds its rows afresh each run, with the values its
+// parameters have then, as the dataframe's planner finds them.
+TEST_F(DataframeScanTest, AQueryScanRunsItsQueryEachRun) {
+  dataframe::Dataframe df =
+      Build({kBig + 5, kBig + 1, kBig + 7, kBig + 3}, {true, true, true, true});
+  Filter::Params params = {std::vector<Filter::Value>{kBig + 4}};
+  DataframeQueryScan scan(&df, {df.shared_column(0)}, {{0, Gt{}, {}, 0}},
+                          &params);
+  EXPECT_THAT(Drain(scan, 0), ElementsAre(kBig + 5, kBig + 7));
+  params[0] = std::vector<Filter::Value>{kBig + 6};
+  EXPECT_THAT(Drain(scan, 0), ElementsAre(kBig + 7));
+  params[0] = std::nullopt;
+  EXPECT_THAT(Drain(scan, 0), ElementsAre());
 }
 
 // The point of the operator: the batch reads the dataframe's own storage.

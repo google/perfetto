@@ -60,7 +60,7 @@ class FilterTest : public ::testing::Test {
 
   // The values of `n` in the rows every condition keeps.
   std::vector<int64_t> Kept(std::vector<Filter::Condition> conditions) {
-    Filter filter(std::move(conditions), &pool_);
+    Filter filter(std::move(conditions), &pool_, &params_);
     std::unique_ptr<OperatorState> state = filter.MakeState();
     RowBatch out;
     EXPECT_EQ(filter.Execute(batch_, out, *state), OpResult::kNeedMoreInput);
@@ -70,10 +70,11 @@ class FilterTest : public ::testing::Test {
   static Filter::Condition On(uint32_t column,
                               Op op,
                               std::vector<Filter::Value> values) {
-    return {column, op, std::move(values)};
+    return {column, op, std::move(values), std::nullopt};
   }
 
   StringPool pool_;
+  Filter::Params params_;
   int64_t numbers_[5] = {10, 20, 0, 40, 50};
   BitVector validity_ = BitVector::CreateWithSize(5);
   std::vector<StringPool::Id> strings_;
@@ -120,6 +121,18 @@ TEST_F(FilterTest, ConvertsValuesAsADataframeDoes) {
   EXPECT_THAT(Kept({On(0, Eq{}, {std::string("20")})}), ElementsAre());
   EXPECT_THAT(Kept({On(1, Gt{}, {int64_t{1}})}),
               ElementsAre(10, 20, 0, 40, 50));
+}
+
+// A condition can compare with a parameter's values, which change between
+// runs; a null parameter keeps nothing.
+TEST_F(FilterTest, ComparesWithParameters) {
+  Filter::Condition greater{0, Gt{}, {}, 0};
+  params_ = {std::vector<Filter::Value>{int64_t{20}}};
+  EXPECT_THAT(Kept({greater}), ElementsAre(40, 50));
+  params_[0] = std::vector<Filter::Value>{int64_t{40}};
+  EXPECT_THAT(Kept({greater}), ElementsAre(50));
+  params_[0] = std::nullopt;
+  EXPECT_THAT(Kept({greater}), ElementsAre());
 }
 
 }  // namespace

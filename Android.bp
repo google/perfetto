@@ -17830,6 +17830,7 @@ filegroup {
         "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/column_chunk.cc",
         "src/trace_processor/core/exec/column_view.cc",
+        "src/trace_processor/core/exec/dataframe_query_scan.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/filter.cc",
         "src/trace_processor/core/exec/interval_intersect.cc",

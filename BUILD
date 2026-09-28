@@ -2592,6 +2592,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/column_chunk.h",
         "src/trace_processor/core/exec/column_view.cc",
         "src/trace_processor/core/exec/column_view.h",
+        "src/trace_processor/core/exec/dataframe_query_scan.cc",
+        "src/trace_processor/core/exec/dataframe_query_scan.h",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/dataframe_scan.h",
         "src/trace_processor/core/exec/filter.cc",

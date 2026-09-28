@@ -167,7 +167,6 @@ DataframeScan::DataframeScan(
       row_count_(row_count),
       rows_(std::move(rows)) {
   PERFETTO_DCHECK(!rows_ || rows_->size() == row_count_);
-  PERFETTO_DCHECK(!rows_ || std::is_sorted(rows_->begin(), rows_->end()));
 }
 
 DataframeScan::~DataframeScan() = default;
@@ -210,11 +209,24 @@ std::unique_ptr<OperatorState> DataframeScan::MakeState() const {
                                   &state->expanders[i]);
     }
   }
+  state->rows_state = MakeRowsState();
+  StartRun(*state);
   return state;
 }
 
-void DataframeScan::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
+std::unique_ptr<OperatorState> DataframeScan::MakeRowsState() const {
+  return nullptr;
+}
+
+std::shared_ptr<const FlexVector<uint32_t>> DataframeScan::FindRows(
+    OperatorState*) const {
+  return rows_;
+}
+
+void DataframeScan::StartRun(State& s) const {
+  s.rows = FindRows(s.rows_state.get());
+  s.row_count = s.rows ? static_cast<uint32_t>(s.rows->size()) : row_count_;
+  PERFETTO_DCHECK(!s.rows || std::is_sorted(s.rows->begin(), s.rows->end()));
   s.emitted = 0;
   for (const std::unique_ptr<Expander>& expander : s.expanders) {
     if (expander) {
@@ -223,17 +235,21 @@ void DataframeScan::Rewind(OperatorState& state) const {
   }
 }
 
+void DataframeScan::Rewind(OperatorState& state) const {
+  StartRun(state.Cast<State>());
+}
+
 bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
-  uint32_t rows = row_count_;
-  if (s.emitted == rows) {
+  if (s.emitted == s.row_count) {
     return false;
   }
-  uint32_t count = std::min(kMaxBatchRows, rows - s.emitted);
+  uint32_t count = std::min(kMaxBatchRows, s.row_count - s.emitted);
+  const FlexVector<uint32_t>* rows = s.rows.get();
   RowSelection selection =
-      rows_ ? RowSelection::Indices(Span<const uint32_t>(
-                  rows_->data() + s.emitted, rows_->data() + s.emitted + count))
-            : RowSelection::Range(s.emitted);
+      rows ? RowSelection::Indices(Span<const uint32_t>(
+                 rows->data() + s.emitted, rows->data() + s.emitted + count))
+           : RowSelection::Range(s.emitted);
   out.Reset();
   for (uint32_t i = 0; i < s.columns.size(); ++i) {
     ColumnView view = s.columns[i];
@@ -242,8 +258,8 @@ bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
       // index space rather than the dataframe's.
       s.expanders[i]->Expand(selection, count, out);
     } else {
-      if (rows_) {
-        view.SetOwnedRows(rows_, s.emitted, count);
+      if (rows) {
+        view.SetOwnedRows(s.rows, s.emitted, count);
       } else {
         view.SetRange(s.emitted);
       }

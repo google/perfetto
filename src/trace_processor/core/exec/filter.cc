@@ -214,13 +214,13 @@ void CompareIn(const ColumnView& column,
 }
 
 template <typename T>
-void Compare(const Filter::Condition& condition,
+void Compare(Op op,
+             const std::vector<Filter::Value>& v,
              const ColumnView& column,
              const StringPool& pool,
              Rows& r,
              Filter::CastList& cast) {
-  const auto& v = condition.values;
-  switch (condition.op.index()) {
+  switch (op.index()) {
     case Op::GetTypeIndex<Eq>():
       return CompareOne<T, Eq>(column, v, pool, r);
     case Op::GetTypeIndex<Ne>():
@@ -242,14 +242,15 @@ void Compare(const Filter::Condition& condition,
 
 // Applies one condition to the rows kept so far. As a dataframe does, a
 // comparison first drops the nulls, which it can never be true of.
-void Apply(const Filter::Condition& condition,
+void Apply(Op op,
+           const std::vector<Filter::Value>& values,
            const ColumnView& column,
            const StringPool& pool,
            Rows& r,
            Filter::CastList& cast) {
   PERFETTO_DCHECK(column.kind() != ColumnView::Kind::kVariant);
-  if (condition.op.Is<IsNull>() || condition.op.Is<IsNotNull>()) {
-    KeepNulls(column, condition.op.Is<IsNull>(), r);
+  if (op.Is<IsNull>() || op.Is<IsNotNull>()) {
+    KeepNulls(column, op.Is<IsNull>(), r);
     return;
   }
   KeepNulls(column, /*nulls=*/false, r);
@@ -258,17 +259,17 @@ void Apply(const Filter::Condition& condition,
   }
   switch (column.type().index()) {
     case StorageType::GetTypeIndex<Id>():
-      return Compare<Id>(condition, column, pool, r, cast);
+      return Compare<Id>(op, values, column, pool, r, cast);
     case StorageType::GetTypeIndex<Uint32>():
-      return Compare<Uint32>(condition, column, pool, r, cast);
+      return Compare<Uint32>(op, values, column, pool, r, cast);
     case StorageType::GetTypeIndex<Int32>():
-      return Compare<Int32>(condition, column, pool, r, cast);
+      return Compare<Int32>(op, values, column, pool, r, cast);
     case StorageType::GetTypeIndex<Int64>():
-      return Compare<Int64>(condition, column, pool, r, cast);
+      return Compare<Int64>(op, values, column, pool, r, cast);
     case StorageType::GetTypeIndex<Double>():
-      return Compare<Double>(condition, column, pool, r, cast);
+      return Compare<Double>(op, values, column, pool, r, cast);
     case StorageType::GetTypeIndex<String>():
-      return Compare<String>(condition, column, pool, r, cast);
+      return Compare<String>(op, values, column, pool, r, cast);
     default:
       PERFETTO_FATAL("Unknown storage type");
   }
@@ -276,11 +277,22 @@ void Apply(const Filter::Condition& condition,
 
 }  // namespace
 
-Filter::Filter(std::vector<Condition> conditions, const StringPool* pool)
-    : conditions_(std::move(conditions)), pool_(pool) {}
+Filter::Filter(std::vector<Condition> conditions,
+               const StringPool* pool,
+               const Params* params)
+    : conditions_(std::move(conditions)), pool_(pool), params_(params) {}
 
 Filter::~Filter() = default;
 Filter::State::~State() = default;
+
+void Filter::Rewind(OperatorState& state) const {
+  State& s = state.Cast<State>();
+  for (uint32_t c = 0; c < conditions_.size(); ++c) {
+    if (conditions_[c].param) {
+      s.lists[c].fresh = false;
+    }
+  }
+}
 
 std::unique_ptr<OperatorState> Filter::MakeState() const {
   auto state = std::make_unique<State>();
@@ -302,7 +314,19 @@ OpResult Filter::Execute(const RowBatch& in,
     for (uint32_t i = 0; i < r.count; ++i) {
       r.storage[i] = column.selection().GetIndex(r.rows[i]);
     }
-    Apply(condition, column, *pool_, r, s.lists[c]);
+    const std::vector<Value>* values = &condition.values;
+    if (condition.param) {
+      const Param* param = *condition.param < params_->size()
+                               ? &(*params_)[*condition.param]
+                               : nullptr;
+      // No comparison is true of a null or of nothing.
+      if (!param || !*param || (*param)->empty()) {
+        r.count = 0;
+        break;
+      }
+      values = &**param;
+    }
+    Apply(condition.op, *values, column, *pool_, r, s.lists[c]);
     if (r.count == 0) {
       break;
     }

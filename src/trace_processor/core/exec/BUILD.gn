@@ -28,6 +28,8 @@ source_set("exec") {
     "column_chunk.h",
     "column_view.cc",
     "column_view.h",
+    "dataframe_query_scan.cc",
+    "dataframe_query_scan.h",
     "dataframe_scan.cc",
     "dataframe_scan.h",
     "filter.cc",

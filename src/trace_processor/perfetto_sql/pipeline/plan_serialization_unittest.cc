@@ -207,5 +207,31 @@ TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreRefused) {
   EXPECT_FALSE(RoundTrip(over_limit).ok());
 }
 
+// Anyone can write a parameter into a plan, so one not passed reads no rows.
+TEST_F(PlanSerializationTest, MissingParamsReadNoRows) {
+  for (const char* sql : {"FROM df |> WHERE self > 1",
+                          "FROM df |> TREE ACCUMULATE UP SUM(self) AS t "
+                          "|> WHERE t > 1"}) {
+    LogicalPlan plan = Compile(sql);
+    auto missing = [](std::vector<op::FilterCondition>& conditions) {
+      for (op::FilterCondition& condition : conditions) {
+        condition.values = {op::FilterParam{5}};
+      }
+    };
+    for (PlanNode& node : plan.nodes) {
+      if (node.Is<op::Scan>()) {
+        missing(node.Cast<op::Scan>().filters);
+      } else if (node.Is<op::Filter>()) {
+        missing(node.Cast<op::Filter>().conditions);
+      }
+    }
+    auto read = RoundTrip(plan);
+    ASSERT_TRUE(read.ok()) << sql;
+    auto physical = Lower(*read, &pool_);
+    core::exec::RowCursor cursor(physical->source());
+    EXPECT_FALSE(cursor.Open()) << sql;
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::pipeline

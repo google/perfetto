@@ -31,11 +31,14 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/filter_pushdown.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -140,6 +143,18 @@ class PhysicalPlanTest : public ::testing::Test {
     return Lower(moved, &pool_);
   }
 
+  // Loads `plan` filtered by `condition`, pushed down as a query's is.
+  std::unique_ptr<PhysicalPlan> LoadFiltered(LogicalPlan plan,
+                                             op::FilterCondition condition) {
+    op::Filter filter;
+    filter.conditions.push_back(std::move(condition));
+    plan.AddNode(std::move(filter), {plan.root});
+    PushDownFilters(plan);
+    auto read = DeserializePlan(SerializePlan(plan), catalog_);
+    PERFETTO_CHECK(read.ok());
+    return Lower(*read, &pool_);
+  }
+
   std::vector<std::string> Names(const PhysicalPlan& plan) {
     std::vector<std::string> names;
     for (const PhysicalPlan::Column& column : plan.columns()) {
@@ -150,7 +165,11 @@ class PhysicalPlanTest : public ::testing::Test {
 
   // Runs `plan` and returns (id, value) pairs sorted by id.
   using Rows = std::vector<std::pair<int64_t, std::optional<int64_t>>>;
-  base::StatusOr<Rows> Run(const PhysicalPlan& plan, const std::string& value) {
+  // Runs `plan` with a new cursor, or with `reused` as the pipeline module
+  // does across filters.
+  base::StatusOr<Rows> Run(const PhysicalPlan& plan,
+                           const std::string& value,
+                           RowCursor* reused = nullptr) {
     uint32_t id_column = 0;
     uint32_t value_column = 0;
     for (const PhysicalPlan::Column& column : plan.columns()) {
@@ -161,7 +180,8 @@ class PhysicalPlanTest : public ::testing::Test {
       }
     }
     Rows out;
-    RowCursor cursor(plan.source());
+    std::optional<RowCursor> owned;
+    RowCursor& cursor = reused ? *reused : owned.emplace(plan.source());
     for (bool row = cursor.Open(); row; row = cursor.Next()) {
       out.emplace_back(*IntAt(cursor, id_column), IntAt(cursor, value_column));
     }
@@ -417,6 +437,47 @@ TEST_F(PhysicalPlanTest, APlanReadBackReadsTablesAsTheyAreNow) {
   auto rows = Run(*Lower(*read, &pool_), "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 3), Pair(1, 2)));
+}
+
+// A plan's filters can compare with parameters, bound each time it runs, so
+// a plan is loaded once and run with different values. A filter left above a
+// fold reads them as it goes; one pushed into a scan runs the dataframe's
+// query as each run starts.
+TEST_F(PhysicalPlanTest, ParametersAreBoundEachRun) {
+  using Values = std::vector<core::exec::Filter::Value>;
+  CreateDataframeTree();
+  auto folded = Compile("FROM df |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(folded.ok()) << folded.status().message();
+  ColumnId total = folded->output.back().id;
+  auto above = LoadFiltered(std::move(*folded),
+                            {total, core::Gt{}, {op::FilterParam{0}}});
+  above->params() = {Values{int64_t{50}}};
+  EXPECT_THAT(*Run(*above, "total"), ElementsAre(Pair(0, 100), Pair(1, 60)));
+  above->params() = {Values{int64_t{60}}};
+  EXPECT_THAT(*Run(*above, "total"), ElementsAre(Pair(0, 100)));
+
+  auto in_list = Compile("FROM df |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(in_list.ok()) << in_list.status().message();
+  ColumnId in_total = in_list->output.back().id;
+  auto in = LoadFiltered(std::move(*in_list),
+                         {in_total, core::In{}, {op::FilterParam{0}}});
+  RowCursor cursor(in->source());
+  in->params() = {Values{int64_t{100}, int64_t{30}}};
+  EXPECT_THAT(*Run(*in, "total", &cursor),
+              ElementsAre(Pair(0, 100), Pair(2, 30)));
+  in->params() = {Values{int64_t{60}}};
+  EXPECT_THAT(*Run(*in, "total", &cursor), ElementsAre(Pair(1, 60)));
+
+  auto scan = Compile("FROM df");
+  ASSERT_TRUE(scan.ok()) << scan.status().message();
+  ColumnId self = scan->output.back().id;
+  auto pushed =
+      LoadFiltered(std::move(*scan), {self, core::Ge{}, {op::FilterParam{0}}});
+  pushed->params() = {Values{int64_t{30}}};
+  EXPECT_THAT(*Run(*pushed, "self"), ElementsAre(Pair(2, 30), Pair(3, 40)));
+  // No comparison is true of a null.
+  pushed->params() = {std::nullopt};
+  EXPECT_THAT(*Run(*pushed, "self"), ElementsAre());
 }
 
 }  // namespace

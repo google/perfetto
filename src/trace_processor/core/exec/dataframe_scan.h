@@ -32,10 +32,7 @@ namespace perfetto::trace_processor::core::exec {
 // Reads a dataframe's rows without going through SQL.
 //
 // The batches point straight at the dataframe's own storage, so a query which
-// reads a table and does nothing else to it copies nothing. Deciding whether a
-// query is one of those belongs to whoever builds the plan: a relation which
-// filters, joins, groups or computes has work for SQLite to do and goes to
-// SqlScan instead.
+// reads a table and does nothing else to it copies nothing.
 //
 // The exception is a column which does not store one value per row. Such a
 // column is expanded a batch at a time into a fixed-size buffer owned by the
@@ -67,14 +64,31 @@ class DataframeScan : public Source {
   // Defined in the .cc: an implementation detail with no callers outside it.
   class Expander;
 
+ protected:
+  // What a subclass keeps across runs to find their rows; null by default.
+  virtual std::unique_ptr<OperatorState> MakeRowsState() const;
+
+  // The rows a run reads, in increasing order, or null for every row. Found
+  // as each run starts, so a subclass's rows can depend on what changes
+  // between runs. `rows_state` is what MakeRowsState made.
+  virtual std::shared_ptr<const FlexVector<uint32_t>> FindRows(
+      OperatorState* rows_state) const;
+
  private:
   struct State : OperatorState {
     ~State() override;
     std::vector<ColumnView> columns;
     // One per column, null unless the column has to be expanded.
     std::vector<std::unique_ptr<Expander>> expanders;
+    // The rows this run reads, or null for all `row_count` rows.
+    std::shared_ptr<const FlexVector<uint32_t>> rows;
+    std::unique_ptr<OperatorState> rows_state;
+    uint32_t row_count = 0;
     uint32_t emitted = 0;
   };
+
+  // Starts a run over the rows FindRows gives.
+  void StartRun(State&) const;
 
   std::vector<std::shared_ptr<const dataframe::Column>> columns_;
   uint32_t row_count_;

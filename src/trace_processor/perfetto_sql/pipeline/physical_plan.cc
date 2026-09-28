@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -32,6 +33,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
+#include "src/trace_processor/core/exec/dataframe_query_scan.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
@@ -138,11 +140,38 @@ void Lowering::LowerNode(PlanNodeId id) {
   }
 }
 
+namespace {
+
+// The name the scan reads the column `id` by.
+const std::string& ColumnName(const op::Scan& scan, ColumnId id) {
+  auto it = std::find_if(scan.columns.begin(), scan.columns.end(),
+                         [id](const NamedColumn& c) { return c.id == id; });
+  PERFETTO_DCHECK(it != scan.columns.end());
+  return it->name;
+}
+
+}  // namespace
+
 std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
   switch (scan.source.index()) {
     case base::variant_index<op::Scan::Source, op::Scan::Dataframe>(): {
       const auto& source =
           base::unchecked_get<op::Scan::Dataframe>(scan.source);
+      if (source.dataframe) {
+        // Its filters compare with parameters, so run as each run starts.
+        std::vector<ex::Filter::Condition> conditions;
+        const std::vector<std::string>& names =
+            source.dataframe->column_names();
+        for (const op::FilterCondition& condition : scan.filters) {
+          const std::string& name = ColumnName(scan, condition.column);
+          auto it = std::find(names.begin(), names.end(), name);
+          conditions.push_back(LowerCondition(
+              condition, static_cast<uint32_t>(it - names.begin())));
+        }
+        return std::make_unique<ex::DataframeQueryScan>(
+            source.dataframe, source.columns, std::move(conditions),
+            &out_->params_);
+      }
       return std::make_unique<ex::DataframeScan>(source.columns,
                                                  source.row_count, source.rows);
     }
@@ -156,7 +185,7 @@ std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
 std::unique_ptr<ex::Operator> Lowering::UnrunScanFilters(
     const op::Scan& scan) const {
   const auto* source = std::get_if<op::Scan::Dataframe>(&scan.source);
-  if (scan.filters.empty() || (source && source->rows)) {
+  if (scan.filters.empty() || (source && (source->rows || source->dataframe))) {
     return nullptr;
   }
   std::vector<ex::Filter::Condition> conditions;
@@ -168,7 +197,8 @@ std::unique_ptr<ex::Operator> Lowering::UnrunScanFilters(
     }
     conditions.push_back(LowerCondition(condition, position));
   }
-  return std::make_unique<ex::Filter>(std::move(conditions), pool_);
+  return std::make_unique<ex::Filter>(std::move(conditions), pool_,
+                                      &out_->params_);
 }
 
 void Lowering::LowerScan(const op::Scan& scan) {
@@ -244,8 +274,8 @@ void Lowering::LowerFilter(const op::Filter& filter) {
   for (const op::FilterCondition& condition : filter.conditions) {
     conditions.push_back(LowerCondition(condition, Position(condition.column)));
   }
-  operators_.push_back(
-      std::make_unique<ex::Filter>(std::move(conditions), pool_));
+  operators_.push_back(std::make_unique<ex::Filter>(std::move(conditions),
+                                                    pool_, &out_->params_));
 }
 
 ex::Filter::Condition Lowering::LowerCondition(
@@ -265,6 +295,10 @@ ex::Filter::Condition Lowering::LowerCondition(
         break;
       case base::variant_index<op::FilterValue, std::string>():
         out.values.emplace_back(base::unchecked_get<std::string>(value));
+        break;
+      case base::variant_index<op::FilterValue, op::FilterParam>():
+        // A parameter's values are only known when the plan runs.
+        out.param = base::unchecked_get<op::FilterParam>(value).index;
         break;
       default:
         PERFETTO_FATAL("Unknown filter value");

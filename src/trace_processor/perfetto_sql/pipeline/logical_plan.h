@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/schema.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -48,8 +49,16 @@ struct NamedColumn {
 
 namespace op {
 
-// A value a filter compares a column with, as written in the pipeline.
-using FilterValue = std::variant<int64_t, double, std::string>;
+// A value only known when the plan runs: the `index`-th of the values the plan
+// is passed, as SQLite passes the value of a constraint on a pipeline's
+// output. Bound to that value when the plan is loaded, before anything runs.
+struct FilterParam {
+  uint32_t index = 0;
+};
+
+// A value a filter compares a column with: written in the pipeline, or passed
+// to it.
+using FilterValue = std::variant<int64_t, double, std::string, FilterParam>;
 
 // One condition a row must meet: `column op values`. The operator is =, !=,
 // <, <=, >, >= with one value, IS NULL or IS NOT NULL with none, or IN with
@@ -70,6 +79,10 @@ struct ScanDataframe {
   // The rows the scan's filters keep, in order, once the dataframe has run
   // them; null while they have not been run, or if there are none.
   std::shared_ptr<const core::FlexVector<uint32_t>> rows;
+  // The dataframe itself, when its filters compare with parameters and so run
+  // afresh each time the plan runs. It lives as long as the statement which
+  // runs the plan.
+  const dataframe::Dataframe* dataframe = nullptr;
 };
 
 // The dataframe the plan is passed as its `index`-th argument when it runs.

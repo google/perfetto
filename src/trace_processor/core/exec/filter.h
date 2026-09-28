@@ -20,6 +20,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -44,12 +45,21 @@ class Filter : public Operator {
  public:
   // A value a column is compared with, as SQL would pass it.
   using Value = std::variant<int64_t, double, std::string>;
+  // What a parameter holds when a plan runs: its values, one for most
+  // conditions and any number for an IN, or nullopt for SQL's NULL, which no
+  // comparison is true of.
+  using Param = std::optional<std::vector<Value>>;
+  // The values passed to a plan each time it runs, by index.
+  using Params = std::vector<Param>;
+
   struct Condition {
     uint32_t column = 0;
     // =, !=, <, <=, >, >= with one value, IS [NOT] NULL with none, or IN with
     // any number.
     Op op{Eq{}};
     std::vector<Value> values;
+    // If set, the values are this parameter's when the plan runs instead.
+    std::optional<uint32_t> param;
   };
   // A condition's IN list, cast once for all the batches of a run.
   struct CastList {
@@ -59,11 +69,16 @@ class Filter : public Operator {
     bool fresh = false;
   };
 
-  // `pool` holds the column's strings and must outlive the filter.
-  Filter(std::vector<Condition> conditions, const StringPool* pool);
+  // `pool` holds the column's strings and `params` the parameters' values for
+  // the run; both must outlive the filter.
+  Filter(std::vector<Condition> conditions,
+         const StringPool* pool,
+         const Params* params);
   ~Filter() override;
 
   std::unique_ptr<OperatorState> MakeState() const override;
+  // Parameters can change between runs.
+  void Rewind(OperatorState&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -81,6 +96,7 @@ class Filter : public Operator {
 
   std::vector<Condition> conditions_;
   const StringPool* pool_;
+  const Params* params_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
