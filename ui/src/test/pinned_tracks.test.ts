@@ -27,11 +27,11 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('pin actual timeline tracks', async () => {
-  const sfGroup = pth.locateTrack('/system/bin/surfaceflinger 598');
+  const sfGroup = pth.locateTrack('surfaceflinger 598');
   await sfGroup.scrollIntoViewIfNeeded();
   await pth.expandTrackGroup(sfGroup);
   const sfTrack = pth.locateTrack(
-    '/system/bin/surfaceflinger 598/Actual Timeline',
+    'surfaceflinger 598/Actual Timeline',
     sfGroup,
   );
   await pth.pinTrackUsingShellBtn(sfTrack);
