@@ -20,6 +20,13 @@ import unittest
 
 from test import api_integrationtest
 from test import bigtrace_api_integrationtest
+from test import bigtrace_server_api_unittest
+from test import bigtrace_server_archive_unittest
+from test import bigtrace_server_execution_unittest
+from test import bigtrace_server_manifest_unittest
+from test import bigtrace_server_query_unittest
+from test import bigtrace_server_robustness_unittest
+from test import bigtrace_server_snapshot_unittest
 from test import query_result_iterator_unittest
 from test import resolver_unittest
 from test import stdlib_unittest
@@ -54,6 +61,14 @@ def main():
   suite.addTests(loader.loadTestsFromModule(resolver_unittest))
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
   suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
+  suite.addTests(loader.loadTestsFromModule(bigtrace_server_api_unittest))
+  suite.addTests(loader.loadTestsFromModule(bigtrace_server_archive_unittest))
+  suite.addTests(loader.loadTestsFromModule(bigtrace_server_execution_unittest))
+  suite.addTests(loader.loadTestsFromModule(bigtrace_server_manifest_unittest))
+  suite.addTests(loader.loadTestsFromModule(bigtrace_server_query_unittest))
+  suite.addTests(
+      loader.loadTestsFromModule(bigtrace_server_robustness_unittest))
+  suite.addTests(loader.loadTestsFromModule(bigtrace_server_snapshot_unittest))
   if os.path.exists(os.environ["WORKER_PATH"]):
     suite.addTests(loader.loadTestsFromModule(bigtrace_api_integrationtest))
 

@@ -1,0 +1,148 @@
+{
+  "trace_dir": ".",
+  "experiments": [
+    {
+      "experiment_id": 101,
+      "experiment_name": "Profile-Guided Optimization (PGO)",
+      "control_id": 102,
+      "control_name": "Default Compiler Optimization",
+      "is_experiment_denied": false,
+      "is_control_denied": false
+    },
+    {
+      "experiment_id": 201,
+      "experiment_name": "ART JIT Zygote Preload Enabled",
+      "control_id": 202,
+      "control_name": "Standard Zygote Startup",
+      "is_experiment_denied": false,
+      "is_control_denied": false
+    },
+    {
+      "experiment_id": 301,
+      "experiment_name": "Kernel SchedTune Boost",
+      "control_id": 302,
+      "control_name": "Energy Aware Scheduling Baseline",
+      "is_experiment_denied": false,
+      "is_control_denied": false
+    }
+  ],
+  "presets": [
+    {
+      "id": "preset:app_startup_latency",
+      "category": "App Performance",
+      "name": "Application Startup Latency",
+      "description": "Measures activity resume and application bind duration",
+      "perfettoSql": "SELECT name, dur / 1e6 AS dur_ms, ts FROM slice WHERE name GLOB '*activity*' OR name GLOB '*bindApplication*' ORDER BY dur DESC;",
+      "icon": "speed"
+    },
+    {
+      "id": "preset:top_slices_by_duration",
+      "category": "Slices",
+      "name": "Top Slices by Total Duration",
+      "description": "Aggregates slices by name and sums their duration",
+      "perfettoSql": "SELECT name, count(1) AS count, sum(dur) / 1e6 AS total_dur_ms, avg(dur) / 1e6 AS avg_dur_ms FROM slice GROUP BY name ORDER BY total_dur_ms DESC LIMIT 50;",
+      "icon": "analytics"
+    },
+    {
+      "id": "preset:binder_transactions",
+      "category": "IPC",
+      "name": "Binder Transactions (>2ms)",
+      "description": "Binder transactions taking longer than 2ms",
+      "perfettoSql": "SELECT name, dur / 1e6 AS dur_ms FROM slice WHERE name GLOB '*binder*' AND dur > 2000000 ORDER BY dur DESC;",
+      "icon": "sync_alt"
+    }
+  ],
+  "traces": [
+    {
+      "file_path": "api24_startup_cold.perfetto-trace",
+      "file_name": "api24_startup_cold.perfetto-trace",
+      "trace_uuid": "c01d0001-0000-0000-0000-000000000001",
+      "device_name": "Pixel 6",
+      "os_version": "Android 7.0 (API 24)",
+      "build_id": "NRD90M.220624.014",
+      "test_name": "app_startup_cold",
+      "experiment_id": 101,
+      "control_id": 102,
+      "is_treatment": true,
+      "tag": "cold"
+    },
+    {
+      "file_path": "api24_startup_hot.perfetto-trace",
+      "file_name": "api24_startup_hot.perfetto-trace",
+      "trace_uuid": "c01d0001-0000-0000-0000-000000000002",
+      "device_name": "Pixel 6",
+      "os_version": "Android 7.0 (API 24)",
+      "build_id": "NRD90M.220624.014",
+      "test_name": "app_startup_hot",
+      "experiment_id": 101,
+      "control_id": 102,
+      "is_treatment": false,
+      "tag": "hot"
+    },
+    {
+      "file_path": "api24_startup_warm.perfetto-trace",
+      "file_name": "api24_startup_warm.perfetto-trace",
+      "trace_uuid": "c01d0001-0000-0000-0000-000000000003",
+      "device_name": "Pixel 6",
+      "os_version": "Android 7.0 (API 24)",
+      "build_id": "NRD90M.220624.014",
+      "test_name": "app_startup_warm",
+      "experiment_id": 101,
+      "control_id": 102,
+      "is_treatment": true,
+      "tag": "warm"
+    },
+    {
+      "file_path": "api31_startup_cold.perfetto-trace",
+      "file_name": "api31_startup_cold.perfetto-trace",
+      "trace_uuid": "c01d0002-0000-0000-0000-000000000001",
+      "device_name": "Pixel 7",
+      "os_version": "Android 12 (API 31)",
+      "build_id": "SP1A.210812.016",
+      "test_name": "app_startup_cold",
+      "experiment_id": 201,
+      "control_id": 202,
+      "is_treatment": true,
+      "tag": "cold"
+    },
+    {
+      "file_path": "api31_startup_hot.perfetto-trace",
+      "file_name": "api31_startup_hot.perfetto-trace",
+      "trace_uuid": "c01d0002-0000-0000-0000-000000000002",
+      "device_name": "Pixel 7",
+      "os_version": "Android 12 (API 31)",
+      "build_id": "SP1A.210812.016",
+      "test_name": "app_startup_hot",
+      "experiment_id": 201,
+      "control_id": 202,
+      "is_treatment": false,
+      "tag": "hot"
+    },
+    {
+      "file_path": "api31_startup_warm.perfetto-trace",
+      "file_name": "api31_startup_warm.perfetto-trace",
+      "trace_uuid": "c01d0002-0000-0000-0000-000000000003",
+      "device_name": "Pixel 7",
+      "os_version": "Android 12 (API 31)",
+      "build_id": "SP1A.210812.016",
+      "test_name": "app_startup_warm",
+      "experiment_id": 201,
+      "control_id": 202,
+      "is_treatment": true,
+      "tag": "warm"
+    },
+    {
+      "file_path": "api34_startup_cold.perfetto-trace",
+      "file_name": "api34_startup_cold.perfetto-trace",
+      "trace_uuid": "c01d0003-0000-0000-0000-000000000001",
+      "device_name": "Pixel 8",
+      "os_version": "Android 14 (API 34)",
+      "build_id": "UD1A.230803.022",
+      "test_name": "app_startup_cold",
+      "experiment_id": 301,
+      "control_id": 302,
+      "is_treatment": true,
+      "tag": "cold"
+    }
+  ]
+}
