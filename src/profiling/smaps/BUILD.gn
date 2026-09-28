@@ -28,12 +28,31 @@ source_set("smaps") {
   sources = [ "smaps.cc" ]
 }
 
+source_set("smaps_data_source") {
+  deps = [
+    ":smaps",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/tracing/core",
+    "../../../protos/perfetto/config/profiling:cpp",
+    "../../../protos/perfetto/trace:zero",
+    "../../../protos/perfetto/trace/profiling:zero",
+    "../../../src/base",
+    "../common:proc_utils",
+  ]
+  sources = [
+    "smaps_data_source.cc",
+    "smaps_data_source.h",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":smaps",
+    ":smaps_data_source",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/tracing/core",
     "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace:cpp",
@@ -43,5 +62,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../src/base",
     "../../protozero",
   ]
-  sources = [ "smaps_unittest.cc" ]
+  sources = [
+    "smaps_data_source_unittest.cc",
+    "smaps_unittest.cc",
+  ]
 }

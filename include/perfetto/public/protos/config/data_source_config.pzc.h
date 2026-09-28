@@ -59,6 +59,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PixelModemConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessSmapsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoVmConfig);
@@ -380,6 +381,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AndroidProcessStateConfig,
                   android_process_state_config,
                   145);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ProcessSmapsConfig,
+                  process_smaps_config,
+                  146);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_QnxConfig,

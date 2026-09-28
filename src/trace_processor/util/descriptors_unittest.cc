@@ -927,5 +927,67 @@ TEST(DescriptorsTest, EnumToScalarExtensionReDeclarationAllowed) {
   EXPECT_TRUE(status.ok()) << status.message();
 }
 
+// A trace's descriptor can annotate a field TP already knows (e.g. adding
+// is_pid to an out-of-tree proto); the annotation must apply after merging.
+TEST(DescriptorsTest, MergedFieldTakesIncomingOptions) {
+  constexpr uint32_t kIsPidOption = 73922;
+
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* options_file = fds1->add_file();
+  options_file->set_name("google/protobuf/descriptor.proto");
+  options_file->set_package("google.protobuf");
+  options_file->add_message_type()->set_name("FieldOptions");
+
+  auto* is_pid_file = fds1->add_file();
+  is_pid_file->set_name("field_options.proto");
+  is_pid_file->set_package("perfetto.protos");
+  auto* is_pid = is_pid_file->add_extension();
+  is_pid->set_name("is_pid");
+  is_pid->set_number(kIsPidOption);
+  is_pid->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  is_pid->set_type(FieldDescriptorProto::TYPE_BOOL);
+  is_pid->set_extendee(".google.protobuf.FieldOptions");
+
+  auto* base_file = fds1->add_file();
+  base_file->set_name("base.proto");
+  base_file->set_package("test");
+  auto* base_msg = base_file->add_message_type();
+  base_msg->set_name("Event");
+  auto* base_field = base_msg->add_field();
+  base_field->set_name("pid");
+  base_field->set_number(1);
+  base_field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  base_field->set_type(FieldDescriptorProto::TYPE_INT32);
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  auto event_idx = pool.FindDescriptorIdx(".test.Event");
+  ASSERT_TRUE(event_idx.has_value());
+  EXPECT_FALSE(pool.descriptors()[*event_idx].FindFieldByTag(1)->is_pid());
+
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* ext_file = fds2->add_file();
+  ext_file->set_name("ext.proto");
+  ext_file->set_package("test");
+  auto* ext_msg = ext_file->add_message_type();
+  ext_msg->set_name("Event");
+  auto* ext_field = ext_msg->add_field();
+  ext_field->set_name("pid");
+  ext_field->set_number(1);
+  ext_field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext_field->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext_field->set_options()->AppendVarInt(kIsPidOption, 1);
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_TRUE(pool.descriptors()[*event_idx].FindFieldByTag(1)->is_pid());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

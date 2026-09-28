@@ -193,7 +193,6 @@ message InitializeConnectionResponse {
 }
 
 // Arguments for rpc RegisterDataSource().
-
 message RegisterDataSourceRequest {
   optional protos.DataSourceDescriptor data_source_descriptor = 1;
 }
@@ -204,7 +203,6 @@ message RegisterDataSourceResponse {
 };
 
 // Arguments for rpc UpdateDataSource().
-
 message UpdateDataSourceRequest {
   // The new data_source_descriptor.{id, name} must match {id, name} of a
   // data source previously registered via RegisterDataSource().
@@ -214,7 +212,6 @@ message UpdateDataSourceRequest {
 message UpdateDataSourceResponse {};
 
 // Arguments for rpc UnregisterDataSource().
-
 message UnregisterDataSourceRequest {
   // The name of the data source to unregister, as previously passed in
   // |RegisterDataSourceRequest.name|.
@@ -224,7 +221,6 @@ message UnregisterDataSourceRequest {
 message UnregisterDataSourceResponse {}
 
 // Arguments for rpc RegisterTraceWriter().
-
 message RegisterTraceWriterRequest {
   // The ID of a producer's trace writer.
   optional uint32 trace_writer_id = 1;
@@ -236,7 +232,6 @@ message RegisterTraceWriterRequest {
 message RegisterTraceWriterResponse {}
 
 // Arguments for rpc UnregisterTraceWriter().
-
 message UnregisterTraceWriterRequest {
   // The ID of a producer's trace writer.
   optional uint32 trace_writer_id = 1;
@@ -247,11 +242,9 @@ message UnregisterTraceWriterResponse {}
 // Arguments for rpc CommitData().
 // See commit_data_request.proto for CommitDataRequest. That has its own file
 // because it is used also as input to generate C++ classes (xxx.gen.h).
-
 message CommitDataResponse {}
 
 // Arguments for rpc NotifyDataSourceStarted().
-
 message NotifyDataSourceStartedRequest {
   // ID of the data source that has successfully started.
   optional uint64 data_source_id = 1;
@@ -260,7 +253,6 @@ message NotifyDataSourceStartedRequest {
 message NotifyDataSourceStartedResponse {}
 
 // Arguments for rpc NotifyDataSourceStopped().
-
 message NotifyDataSourceStoppedRequest {
   // ID of the data source that has successfully stopped.
   optional uint64 data_source_id = 1;
@@ -269,7 +261,6 @@ message NotifyDataSourceStoppedRequest {
 message NotifyDataSourceStoppedResponse {}
 
 // Arguments for rpc ActivateTriggersRequest().
-
 message ActivateTriggersRequest {
   repeated string trigger_names = 1;
 }
@@ -277,7 +268,6 @@ message ActivateTriggersRequest {
 message ActivateTriggersResponse {}
 
 // Arguments for rpc GetAsyncCommand().
-
 message GetAsyncCommandRequest {}
 
 message GetAsyncCommandResponse {

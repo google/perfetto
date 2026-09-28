@@ -2460,7 +2460,54 @@ message HeapprofdConfig {
 
 // Begin of protos/perfetto/config/profiling/smaps_config.proto
 
-// Config for collecting /proc/pid/smaps.
+// Config for the "linux.smaps" data source, describes one-shot or periodic
+// /proc/pid/smaps collection.
+//
+// A valid config must specify at least one |target_cmdline|. Example:
+//
+// data_sources {
+//   config {
+//     name: "linux.smaps"
+//     process_smaps_config {
+//       scope {
+//         target_cmdline: "top"
+//         target_cmdline: "tmux"
+//       }
+//     }
+//   }
+// }
+message ProcessSmapsConfig {
+  // Which fields to record per process.
+  // If unset, defaults to {size, rss, anon, swap}, aggregated by path name.
+  optional SmapsConfig smaps_config = 1;
+
+  // Which processes to record. At least one field must be set.
+  message Scope {
+    // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
+    // comm string).
+    //
+    // This field can specify a single wildcard (*), and the profiler will
+    // attempt to match it in two possible ways:
+    // * if the pattern starts with a '/', then it is matched against the first
+    //   segment of the cmdline (i.e. argv0). For example "/bin/e*" would match
+    //   "/bin/echo".
+    // * otherwise the pattern is matched against the part of argv0
+    //   corresponding to the binary name (this is unrelated to /proc/pid/exe).
+    //   For example "echo" would match "/bin/echo".
+    //
+    // Implementation note: at most 511 characters of cmdline are considered.
+    repeated string target_cmdline = 1;
+  }
+  optional Scope scope = 2;
+
+  // How often to recapture the smaps, including re-evaluating which processes
+  // match the |scope|. May be overridden by the implementation (at the time of
+  // writing, [1s, 24hr] range).
+  // If zero or unset, each process is captured only once at start.
+  optional uint32 read_period_ms = 3;
+}
+
+// Describes what to record from /proc/pid/smaps.
 message SmapsConfig {
   enum VmaField {
     VMA_FIELD_UNKNOWN = 0;
@@ -4836,7 +4883,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 145
+// Next id: 147
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5094,6 +5141,9 @@ message DataSourceConfig {
   // Data source name: android.process_state
   optional AndroidProcessStateConfig android_process_state_config = 145
       [lazy = true];
+
+  // Data source name: linux.smaps
+  optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

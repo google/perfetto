@@ -85,11 +85,11 @@ function scopedIntervals(scope: Scope, area: AreaSelection): string {
   return `
     SELECT
       *,
-      min(ts + dur, ${area.end}) - max(ts, ${area.start}) AS clipped_dur
+      min(iif(dur < 0, ${area.end}, ts + dur), ${area.end}) - max(ts, ${area.start}) AS clipped_dur
     FROM _android_process_state_intervals
     WHERE (${terms.join(' OR ')})
       AND ts < ${area.end}
-      AND ts + dur > ${area.start}
+      AND (dur < 0 OR ts + dur > ${area.start})
   `;
 }
 
@@ -210,7 +210,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
               coalesce(prev_state, 'N/A') AS prev_state,
               prev_state_duration AS prev_dur,
               state AS cur_state,
-              dur AS cur_dur,
+              CASE WHEN dur >= 0 THEN dur END AS cur_dur,
               coalesce(reason, 'N/A') AS reason
             FROM _android_process_state_intervals
             WHERE (${terms.join(' OR ')})

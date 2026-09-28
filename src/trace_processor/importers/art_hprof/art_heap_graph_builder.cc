@@ -17,7 +17,7 @@
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 #include <algorithm>
 #include <cinttypes>
-#include "perfetto/ext/base/endian.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 

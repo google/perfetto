@@ -18,16 +18,26 @@
   flex-direction: column;
   overflow-y: hidden;
 
-  > .pf-flamegraph,
-  > .pf-tree-explorer__grid {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .pf-tree-explorer__loading {
-    flex: 1;
+  // Each display-mode tab hosts the filter bar and its view. The container
+  // fills the Tabs content area (a flex child, so height: 100% resolves
+  // against it) and lays its children out like the old flat column.
+  .pf-tree-explorer__container {
+    height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    overflow-y: hidden;
+
+    > .pf-flamegraph,
+    > .pf-tree-explorer__grid {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .pf-tree-explorer__loading {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
   }
 }

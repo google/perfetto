@@ -623,7 +623,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAsPipeline) {
   EXPECT_EQ(table->name, "foo");
   const auto* plan = std::get_if<pipeline::LogicalPlan>(&table->body);
   ASSERT_NE(plan, nullptr);
-  EXPECT_EQ(plan->ops.size(), 2u);
+  EXPECT_EQ(plan->nodes.size(), 2u);
 }
 
 // `|>` must be `|` immediately followed by `>`.

@@ -128,4 +128,39 @@
     flex: 1;
     overflow: auto;
   }
+
+  // The 'underline' variant: flat text tabs on a transparent bar with a
+  // primary underline on the active tab, matching the look of the
+  // (deprecated) TabStrip component.
+  &--underline {
+    .pf-tabs__tabs {
+      background-color: transparent;
+      border-bottom: none;
+      padding-inline: 0;
+    }
+
+    .pf-tabs__tab {
+      margin-top: 0;
+      margin-bottom: 0;
+      // A bit more padding than the card variant's 5px 7px: without the box
+      // border to delineate the handle, the tabs need more breathing room
+      // (and a bigger click target).
+      padding: 5px 10px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+
+      &--active {
+        background-color: transparent;
+        border-bottom-color: var(--pf-color-primary);
+        color: var(--pf-color-primary);
+
+        // The boxed variant suppresses the hover background on the active
+        // tab; the flat one keeps it, as TabStrip does.
+        &:hover {
+          background-color: color_hover(transparent);
+        }
+      }
+    }
+  }
 }

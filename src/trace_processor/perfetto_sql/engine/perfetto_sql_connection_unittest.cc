@@ -1114,7 +1114,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
     auto id = logical.AddColumn(name, core::Int64{});
     logical.output.push_back({name, id});
   }
-  logical.ops.emplace_back(pipeline::op::Scan{
+  pipeline::PlanNodeId scan = logical.AddNode(pipeline::op::Scan{
       SqlSource::FromExecuteQuery("SELECT id, parent_id, self FROM tree"),
       logical.output});
   auto total = logical.AddColumn("total", core::Int64{});
@@ -1124,7 +1124,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
   fold.parent_column = 1;
   fold.aggregates.push_back(
       {pipeline::op::TreeAccumulate::Function::kSum, 2, total});
-  logical.ops.emplace_back(std::move(fold));
+  logical.AddNode(std::move(fold), {scan});
   logical.output.push_back({"total", total});
   pipeline::LowerEnvironment env{connection_->sqlite_connection(), &pool_};
   // The root is last in child-first output. Filtering by its output rowid
