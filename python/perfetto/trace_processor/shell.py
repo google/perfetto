@@ -14,18 +14,21 @@
 # limitations under the License.
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
-import shutil
 from typing import List, Optional, Union
-from urllib import request, error
+from urllib import error, request
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.platform import PlatformDelegate
-from perfetto.trace_processor.process_tree import (create_kill_on_close_job,
-                                                   terminate_process_tree)
+from perfetto.trace_processor.process_tree import (
+    create_kill_on_close_job,
+    terminate_process_tree,
+)
 
 # Import TYPE_CHECKING to avoid circular imports
 from typing import TYPE_CHECKING
@@ -48,6 +51,7 @@ def load_shell(
     add_sql_packages: Optional[List[Union[str, 'SqlPackage']]] = None,
     fetch_latest_trace_processor: bool = False,
     enable_sql_file_access: bool = False,
+    cancel_event: Optional[threading.Event] = None,
 ):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
@@ -115,15 +119,22 @@ def load_shell(
       start_new_session=sys.platform != 'win32')
   job_handle = create_kill_on_close_job(p)
 
+  cancelled = False
   success = False
-  for _ in range(load_timeout + 1):
+  deadline = time.monotonic() + load_timeout
+  while True:
     try:
       if p.poll() is None:
         _ = request.urlretrieve(f'http://{url}/status')
         success = True
       break
     except (error.URLError, ConnectionError):
-      time.sleep(1)
+      if cancel_event and cancel_event.is_set():
+        cancelled = True
+        break
+      if time.monotonic() > deadline:
+        break
+      time.sleep(0.05)
 
   if not success:
     terminate_process_tree(p, job_handle)
@@ -133,6 +144,8 @@ def load_shell(
     stderr = temp_stderr.read().decode("utf-8")
     temp_stdout.close()
     temp_stderr.close()
+    if cancelled:
+      raise PerfettoException("Trace processor startup cancelled.")
     raise PerfettoException("Trace processor failed to start.\n"
                             f"stdout: {stdout}\nstderr: {stderr}\n"
                             "If this is a slow machine or network, try "
