@@ -512,8 +512,8 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     if (!opt_existing_idx.has_value() || !opt_new_idx.has_value()) {
       // A type isn't in the pool: normal for a trace recorded before an
       // out-of-tree migration renamed it. Can't compare structurally, but the
-      // tag and wire type already matched and the existing definition is kept,
-      // so the field still decodes. Tolerate rather than reject the trace.
+      // tag and wire type already matched, so the field still decodes.
+      // Tolerate rather than reject the trace.
       // TODO(b/524094370): harden this once OOT migrations stabilize.
       PERFETTO_DLOG(
           "Field %s re-introduced as %s (was %s): unresolved type, "
