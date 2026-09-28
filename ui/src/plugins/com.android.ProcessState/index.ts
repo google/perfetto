@@ -36,6 +36,8 @@ import {
 } from '../../trace_processor/query_result';
 import {sqliteString} from '../../base/string_utils';
 import {
+  ProcessExitsAggregator,
+  ProcessStartsAggregator,
   ProcessStateResidencyAggregator,
   ProcessStateTransitionsAggregator,
   processTrackUri,
@@ -104,6 +106,12 @@ export default class ProcessState implements PerfettoPlugin {
     );
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ProcessStateTransitionsAggregator(ctx)),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new ProcessStartsAggregator(ctx)),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new ProcessExitsAggregator(ctx)),
     );
 
     const group = new TrackNode({

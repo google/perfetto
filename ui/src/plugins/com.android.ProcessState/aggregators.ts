@@ -22,7 +22,8 @@ import {formatPercentValue} from '../../components/aggregation_panel';
 import {titleWithHelp} from '../../components/distribution_panel';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
-import type {CellRenderer} from '../../components/widgets/datagrid/datagrid_schema';
+import {renderCell} from '../../components/widgets/datagrid/datagrid';
+import type {ColumnDef} from '../../components/widgets/datagrid/datagrid_schema';
 import {Icons} from '../../base/semantic_icons';
 import {Duration, Time} from '../../base/time';
 import type {AreaSelection} from '../../public/selection';
@@ -93,15 +94,91 @@ function scopedIntervals(scope: Scope, area: AreaSelection): string {
   `;
 }
 
+// Restricts the interval table to transitions occurring within the selected
+// time range on the selected tracks. For state-counter tracks, includes both
+// transitions into and out of the selected states.
+function scopedTransitions(scope: Scope, area: AreaSelection): string {
+  const terms: string[] = [];
+  if (scope.upids.length > 0) {
+    terms.push(`upid IN (${scope.upids.join(',')})`);
+  }
+  if (scope.states.length > 0) {
+    const stateList = scope.states.map(sqliteString).join(',');
+    terms.push(`(state IN (${stateList}) OR prev_state IN (${stateList}))`);
+  }
+  return `
+    SELECT *
+    FROM _android_process_state_intervals
+    WHERE (${terms.join(' OR ')})
+      AND ts >= ${area.start}
+      AND ts < ${area.end}
+  `;
+}
+
 // Durations follow the user's time format and precision settings.
-function durationCellRenderer(trace: Trace): CellRenderer {
-  return (value) => {
-    // Averaging aggregates come back as floats.
-    const dur = typeof value === 'number' ? BigInt(Math.round(value)) : value;
-    if (typeof dur !== 'bigint') {
-      return 'N/A';
-    }
-    return m(DurationWidget, {trace, dur: Duration.fromRaw(dur)});
+function durationColumn(
+  trace: Trace,
+  title: string,
+  helpText?: string,
+): ColumnDef {
+  return {
+    title: helpText !== undefined ? titleWithHelp(title, helpText) : title,
+    titleString: helpText !== undefined ? title : undefined,
+    columnType: 'quantitative',
+    cellRenderer: (value) => {
+      // Averaging aggregates come back as floats.
+      const dur = typeof value === 'number' ? BigInt(Math.round(value)) : value;
+      if (typeof dur !== 'bigint') {
+        return renderCell(value);
+      }
+      return m(DurationWidget, {trace, dur: Duration.fromRaw(dur)});
+    },
+  };
+}
+
+function timestampColumn(trace: Trace, title: string): ColumnDef {
+  return {
+    title,
+    columnType: 'quantitative',
+    cellRenderer: (value) => {
+      if (typeof value === 'bigint') {
+        return m(Timestamp, {trace, ts: Time.fromRaw(value)});
+      }
+      return renderCell(value);
+    },
+  };
+}
+
+function sliceIdColumn(trace: Trace): ColumnDef {
+  return {
+    title: 'Slice ID',
+    columnType: 'identifier',
+    cellRenderer: (value) => {
+      if (typeof value !== 'string') {
+        return renderCell(value);
+      }
+      const {id, upid} = JSON.parse(value) as {id: number; upid: number};
+      return m(
+        Anchor,
+        {
+          title: 'Go to process state slice',
+          icon: Icons.UpdateSelection,
+          onclick: () => {
+            trace.selection.selectTrackEvent(processTrackUri(upid), id, {
+              scrollToSelection: true,
+              switchToCurrentSelectionTab: false,
+            });
+          },
+        },
+        String(id),
+      );
+    },
+    cellFormatter: (value) => {
+      if (typeof value === 'string') {
+        return String((JSON.parse(value) as {id: number}).id);
+      }
+      return String(value ?? '');
+    },
   };
 }
 
@@ -147,11 +224,7 @@ export class ProcessStateResidencyAggregator implements Aggregator {
         process_name: {title: 'Process', columnType: 'text'},
         pid: {title: 'PID', columnType: 'identifier'},
         state: {title: 'State', columnType: 'text'},
-        total_dur: {
-          title: 'Time in state',
-          columnType: 'quantitative',
-          cellRenderer: durationCellRenderer(this.trace),
-        },
+        total_dur: durationColumn(this.trace, 'Time in state'),
         occupancy: {
           title: '% of selection',
           columnType: 'quantitative',
@@ -175,7 +248,7 @@ export class ProcessStateResidencyAggregator implements Aggregator {
   }
 }
 
-/** Every state change in the selection, as a table. */
+/** Every live state change in the selection, as a table. */
 export class ProcessStateTransitionsAggregator implements Aggregator {
   readonly id = 'android_process_state_transitions';
 
@@ -187,35 +260,25 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
       return undefined;
     }
 
-    const terms: string[] = [];
-    if (scope.upids.length > 0) {
-      terms.push(`upid IN (${scope.upids.join(',')})`);
-    }
-    if (scope.states.length > 0) {
-      const stateList = scope.states.map(sqliteString).join(',');
-      terms.push(`(state IN (${stateList}) OR prev_state IN (${stateList}))`);
-    }
-
     return {
       getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         const table = await createPerfettoTable({
           engine,
           as: `
+            WITH scoped AS (${scopedTransitions(scope, area)})
             SELECT
               ts,
               json_object('id', id, 'upid', upid) AS slice_id,
               process_name,
               pid,
-              coalesce(prev_state, 'N/A') AS prev_state,
+              prev_state,
               prev_state_duration AS prev_dur,
               state AS cur_state,
               CASE WHEN dur >= 0 THEN dur END AS cur_dur,
-              coalesce(reason, 'N/A') AS reason
-            FROM _android_process_state_intervals
-            WHERE (${terms.join(' OR ')})
-              AND ts >= ${area.start}
-              AND ts < ${area.end}
+              reason
+            FROM scoped
+            WHERE state != 'NONEXISTENT' AND state != 'EXITED'
           `,
         });
         return createAggregationData(table);
@@ -226,72 +289,22 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
   private getGridConfig(): AggregatorGridConfig {
     return {
       schema: {
-        ts: {
-          title: 'Transition ts',
-          columnType: 'quantitative',
-          cellRenderer: (value: unknown) => {
-            if (typeof value === 'bigint') {
-              return m(Timestamp, {trace: this.trace, ts: Time.fromRaw(value)});
-            }
-            return String(value ?? '');
-          },
-        },
-        slice_id: {
-          title: 'Slice ID',
-          columnType: 'identifier',
-          cellRenderer: (value: unknown) => {
-            if (typeof value !== 'string') {
-              return String(value ?? '');
-            }
-            const {id, upid} = JSON.parse(value) as {id: number; upid: number};
-            return m(
-              Anchor,
-              {
-                title: 'Go to process state slice',
-                icon: Icons.UpdateSelection,
-                onclick: () => {
-                  this.trace.selection.selectTrackEvent(
-                    processTrackUri(upid),
-                    id,
-                    {
-                      scrollToSelection: true,
-                      switchToCurrentSelectionTab: false,
-                    },
-                  );
-                },
-              },
-              String(id),
-            );
-          },
-          cellFormatter: (value: unknown) => {
-            if (typeof value === 'string') {
-              return String((JSON.parse(value) as {id: number}).id);
-            }
-            return String(value ?? '');
-          },
-        },
+        ts: timestampColumn(this.trace, 'Transition ts'),
+        slice_id: sliceIdColumn(this.trace),
         process_name: {title: 'Process', columnType: 'text'},
         pid: {title: 'PID', columnType: 'identifier'},
         prev_state: {title: 'Previous state', columnType: 'text'},
-        prev_dur: {
-          title: titleWithHelp(
-            'Time in previous state',
-            'Total elapsed duration of the previous state interval, unclipped by the selection window.',
-          ),
-          titleString: 'Time in previous state',
-          columnType: 'quantitative',
-          cellRenderer: durationCellRenderer(this.trace),
-        },
+        prev_dur: durationColumn(
+          this.trace,
+          'Time in previous state',
+          'Total elapsed duration of the previous state interval, unclipped by the selection window.',
+        ),
         cur_state: {title: 'Current state', columnType: 'text'},
-        cur_dur: {
-          title: titleWithHelp(
-            'Time in current state',
-            'Total elapsed duration of the current state interval, unclipped by the selection window.',
-          ),
-          titleString: 'Time in current state',
-          columnType: 'quantitative',
-          cellRenderer: durationCellRenderer(this.trace),
-        },
+        cur_dur: durationColumn(
+          this.trace,
+          'Time in current state',
+          'Total elapsed duration of the current state interval, unclipped by the selection window.',
+        ),
         reason: {title: 'State change reason', columnType: 'text'},
       },
       initialColumns: [
@@ -310,5 +323,160 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
 
   getTabName() {
     return 'Process State Transitions';
+  }
+}
+
+/** Process starts in the selection, with hosting and delay metadata. */
+export class ProcessStartsAggregator implements Aggregator {
+  readonly id = 'android_process_starts';
+
+  constructor(private readonly trace: Trace) {}
+
+  probe(area: AreaSelection) {
+    const scope = probeScope(area);
+    if (scope === undefined) {
+      return undefined;
+    }
+
+    return {
+      getGridConfig: () => this.getGridConfig(),
+      prepareData: async (engine: Engine) => {
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            WITH scoped AS (${scopedTransitions(scope, area)})
+            SELECT
+              ts,
+              json_object('id', id, 'upid', upid) AS slice_id,
+              process_name,
+              pid,
+              prev_state,
+              hosting_type,
+              hosting_name,
+              trigger_type,
+              bind_application_delay_ms * 1000000 AS bind_application_delay,
+              process_start_delay_ms * 1000000 AS process_start_delay
+            FROM scoped
+            WHERE state = 'NONEXISTENT'
+          `,
+        });
+        return createAggregationData(table);
+      },
+    };
+  }
+
+  private getGridConfig(): AggregatorGridConfig {
+    return {
+      schema: {
+        ts: timestampColumn(this.trace, 'Start ts'),
+        slice_id: sliceIdColumn(this.trace),
+        process_name: {title: 'Process', columnType: 'text'},
+        pid: {title: 'PID', columnType: 'identifier'},
+        prev_state: {title: 'Previous state', columnType: 'text'},
+        hosting_type: {title: 'Hosting type', columnType: 'text'},
+        hosting_name: {title: 'Hosting name', columnType: 'text'},
+        trigger_type: {title: 'Trigger type', columnType: 'text'},
+        bind_application_delay: durationColumn(
+          this.trace,
+          'Bind application delay',
+        ),
+        process_start_delay: durationColumn(this.trace, 'Process start delay'),
+      },
+      initialColumns: [
+        {id: 'ts', field: 'ts', sort: 'ASC'},
+        {id: 'slice_id', field: 'slice_id'},
+        {id: 'process_name', field: 'process_name'},
+        {id: 'pid', field: 'pid'},
+        {id: 'prev_state', field: 'prev_state'},
+        {id: 'hosting_type', field: 'hosting_type'},
+        {id: 'hosting_name', field: 'hosting_name'},
+        {id: 'trigger_type', field: 'trigger_type'},
+        {
+          id: 'bind_application_delay',
+          field: 'bind_application_delay',
+          aggregate: 'AVG',
+        },
+        {
+          id: 'process_start_delay',
+          field: 'process_start_delay',
+          aggregate: 'AVG',
+        },
+      ],
+    };
+  }
+
+  getTabName() {
+    return 'Process Starts';
+  }
+}
+
+/** Process exits in the selection, with previous state and exit reasons. */
+export class ProcessExitsAggregator implements Aggregator {
+  readonly id = 'android_process_exits';
+
+  constructor(private readonly trace: Trace) {}
+
+  probe(area: AreaSelection) {
+    const scope = probeScope(area);
+    if (scope === undefined) {
+      return undefined;
+    }
+
+    return {
+      getGridConfig: () => this.getGridConfig(),
+      prepareData: async (engine: Engine) => {
+        const table = await createPerfettoTable({
+          engine,
+          as: `
+            WITH scoped AS (${scopedTransitions(scope, area)})
+            SELECT
+              ts,
+              json_object('id', id, 'upid', upid) AS slice_id,
+              process_name,
+              pid,
+              prev_state,
+              prev_state_duration AS prev_dur,
+              exit_reason,
+              exit_subreason
+            FROM scoped
+            WHERE state = 'EXITED'
+          `,
+        });
+        return createAggregationData(table);
+      },
+    };
+  }
+
+  private getGridConfig(): AggregatorGridConfig {
+    return {
+      schema: {
+        ts: timestampColumn(this.trace, 'Exit ts'),
+        slice_id: sliceIdColumn(this.trace),
+        process_name: {title: 'Process', columnType: 'text'},
+        pid: {title: 'PID', columnType: 'identifier'},
+        prev_state: {title: 'Previous state', columnType: 'text'},
+        prev_dur: durationColumn(
+          this.trace,
+          'Time in previous state',
+          'Total elapsed duration of the previous state interval, unclipped by the selection window.',
+        ),
+        exit_reason: {title: 'Exit reason', columnType: 'text'},
+        exit_subreason: {title: 'Exit subreason', columnType: 'text'},
+      },
+      initialColumns: [
+        {id: 'ts', field: 'ts', sort: 'ASC'},
+        {id: 'slice_id', field: 'slice_id'},
+        {id: 'process_name', field: 'process_name'},
+        {id: 'pid', field: 'pid'},
+        {id: 'prev_state', field: 'prev_state'},
+        {id: 'prev_dur', field: 'prev_dur', aggregate: 'AVG'},
+        {id: 'exit_reason', field: 'exit_reason'},
+        {id: 'exit_subreason', field: 'exit_subreason'},
+      ],
+    };
+  }
+
+  getTabName() {
+    return 'Process Exits';
   }
 }
