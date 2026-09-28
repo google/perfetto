@@ -51,10 +51,14 @@ export interface CujScopedMetricData {
  * Represents data for a Blocking Call metric
  * Eg.- perfetto_android_blocking_call-cuj-name-com.google.android.apps.nexuslauncher-name-TASKBAR_EXPAND-blocking_calls-name-animation-total_dur_ms-mean
  * Eg.- perfetto_android_blocking_call_per_frame-cuj-name-com.android.systemui-name-NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse-blocking_calls-name-input-mean_dur_per_frame_ns-max
+ * Eg.- perfetto_android_blocking_call-cuj-name-ACTION_SWITCH_DISPLAY_UNFOLD-blocking_calls-name-measure-total_dur_ms-mean
  */
 export interface BlockingCallMetricData {
-  /** Process name (e.g., com.google.android.apps.nexuslauncher) */
-  process: string;
+  /**
+   * Process name (e.g., com.google.android.apps.nexuslauncher). Undefined for
+   * keys that have no process segment (e.g., ACTION_SWITCH_DISPLAY_UNFOLD).
+   */
+  process?: string;
 
   /** Cuj interaction name (e.g., TASKBAR_EXPAND) */
   cujName: string;
@@ -132,12 +136,26 @@ export type MetricHandlerMatch = {
 };
 
 /**
+ * Short process names used in metric keys that must match exactly. They are
+ * checked before the substring matching in `expandProcessName`, as for example
+ * 'systemui_stl' contains 'systemui' but is a different process.
+ */
+const EXACT_PROCESS_NAME_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['systemui_stl', 'com.android.compose.animation.scene.demo.app'],
+  ['uibench', 'com.android.test.uibench'],
+]);
+
+/**
  * Expand process name for specific system processes
  *
  * @param {string} metricProcessName Name of the processes
  * @returns {string} Either the same or expanded name for abbreviated process names
  */
 export function expandProcessName(metricProcessName: string): string {
+  const exactAlias = EXACT_PROCESS_NAME_ALIASES.get(metricProcessName);
+  if (exactAlias !== undefined) {
+    return exactAlias;
+  }
   if (metricProcessName.includes('systemui')) {
     return 'com.android.systemui';
   } else if (metricProcessName.includes('launcher')) {

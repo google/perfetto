@@ -33,22 +33,28 @@ class BlockingCallMetricHandler implements MetricHandler {
    * Matches metric key for blocking call and per-frame blocking call metrics & return parsed data
    * if successful.
    *
+   * The '<process>-name-' segment is optional: keys emitted without the
+   * process inner message key field (e.g. the ACTION_SWITCH_DISPLAY_UNFOLD
+   * alerts) go straight from 'cuj-name-' to the CUJ name.
+   *
    * @param {string} metricKey The metric key to match.
    * @returns {BlockingCallMetricData | undefined} Parsed data or undefined if no match.
    */
   public match(metricKey: string): BlockingCallMetricData | undefined {
     const matcher =
-      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?<process>.*)-name-(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>.*)-(?<aggregation>(?:(?:total|max|min|avg|mean)_(?:dur|cnt)(?:_per_frame)?(?:_ms|_ns)?|cnt)(?:-[^-]+)?)$/;
+      /perfetto_android_blocking_call(?:_per_frame)?-cuj-name-(?:(?<process>.*)-name-)?(?<cujName>.*)-blocking_calls-name-(?<blockingCallName>.*)-(?<aggregation>(?:(?:total|max|min|avg|mean)_(?:dur|cnt)(?:_per_frame)?(?:_ms|_ns)?|cnt)(?:-[^-]+)?)$/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;
     }
     const metricData: BlockingCallMetricData = {
-      process: expandProcessName(match.groups.process),
       cujName: match.groups.cujName,
       blockingCallName: match.groups.blockingCallName,
       aggregation: match.groups.aggregation,
     };
+    if (match.groups.process !== undefined) {
+      metricData.process = expandProcessName(match.groups.process);
+    }
     return metricData;
   }
 
@@ -100,9 +106,14 @@ class BlockingCallMetricHandler implements MetricHandler {
     // 'drawLayer_[StatusBarIconView]'), whereas standardized slice names
     // in PerfettoSQL tables retain spaces ('drawLayer [StatusBarIconView]').
     const normalizedName = blockingCallName.replaceAll('_', ' ');
+    // Keys without a process segment skip the process filter. Results stay
+    // limited to the CUJ process, as both queried tables only keep blocking
+    // calls on the threads of the CUJ process.
+    const processFilter =
+      processName !== undefined ? `process_name = "${processName}" AND` : '';
     return `
-      process_name = "${processName}"
-      AND cuj_name = "${cuj}"
+      ${processFilter}
+      cuj_name = "${cuj}"
       AND name IN ("${blockingCallName}", "${normalizedName}")
     `;
   }
@@ -114,7 +125,8 @@ class BlockingCallMetricHandler implements MetricHandler {
       WHERE ${this.blockingCallWhereClause(metricData)}
     `;
 
-    const trackName = 'Blocking calls in ' + metricData.process;
+    const trackName =
+      'Blocking calls in ' + (metricData.process ?? metricData.cujName);
     return {
       data: {
         sqlSource: blockingCallDuringCujQuery,

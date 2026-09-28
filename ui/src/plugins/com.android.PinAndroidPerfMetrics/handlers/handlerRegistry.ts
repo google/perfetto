@@ -18,6 +18,7 @@ import {pinNotificationsBlockingCallHandlerInstance} from './pinNotificationsBlo
 import {pinCujScopedJankInstance} from './pinCujScoped';
 import {pinFullTraceJankInstance} from './fullTraceJankMetricHandler';
 import {pinCujInstance} from './pinCujMetricHandler';
+import {pinLatencyCujInstance} from './pinLatencyCujMetricHandler';
 import {pinHeapSizeMetricsInstance} from './pinHeapSizeMetricsHandler';
 import {pinBitmapMetricsInstance} from './pinBitmapMetricsHandler';
 import {pinDirtyMemoryMetricsInstance} from './pinDirtyMemoryMetricsHandler';
@@ -29,6 +30,7 @@ import {pinGlobalDmaHeapSizeMetricsInstance} from './pinGlobalDmaHeapSizeMetrics
 // TODO: b/337774166 - Add handlers for the metric name categories here
 export const METRIC_HANDLERS: MetricHandler[] = [
   pinCujInstance,
+  pinLatencyCujInstance,
   pinCujScopedJankInstance,
   pinBlockingCallHandlerInstance,
   pinNotificationsBlockingCallHandlerInstance,
