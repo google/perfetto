@@ -24,18 +24,16 @@ base::Status BatchBuffer::Append(const RowBatch& in) {
     return base::OkStatus();
   if (!batch_.size()) {
     batch_.CopyFrom(in);
-    buffers_.resize(in.column_count());
-    packed_.resize(in.column_count());
-    index_pools_.resize(in.column_count());
-    indices_.resize(in.column_count());
+    columns_.resize(in.column_count());
     for (uint32_t c = 0; c < in.column_count(); ++c) {
       if (in.owner(c))
         continue;
-      packed_[c] = buffers_[c].Acquire();
-      packed_[c]->CopyFrom(in.column(c), in.size(), 0);
+      auto& packed = columns_[c].packed;
+      packed = columns_[c].chunks.Acquire();
+      packed->CopyFrom(in.column(c), in.size(), 0);
       batch_.SetColumn(
-          c, packed_[c]->View(in.column(c), in.column(c).validity() != nullptr),
-          packed_[c]);
+          c, packed->View(in.column(c), in.column(c).validity() != nullptr),
+          packed);
     }
     return base::OkStatus();
   }
@@ -46,29 +44,35 @@ base::Status BatchBuffer::Append(const RowBatch& in) {
     if (!SameLogicalType(batch_.column(c), in.column(c)))
       return base::ErrStatus("batch buffer: column representation changed");
   }
+  // TODO(lalitm): columns filled by one source share a selection, so this
+  // builds the same indices once per column. Build them once per distinct
+  // selection instead, reusing how RowBatch shares composed selections.
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     auto a = batch_.column(c);
     const auto& b = in.column(c);
+    Column& column = columns_[c];
     if (a.kind() == b.kind() && a.data() == b.data() &&
         a.validity() == b.validity()) {
-      if (!indices_[c]) {
-        indices_[c] = index_pools_[c].Acquire();
-        indices_[c]->resize(kMaxBatchRows);
+      auto& indices = column.indices;
+      if (!indices) {
+        indices = column.index_pool.Acquire();
+        indices->resize(kMaxBatchRows);
         for (uint32_t i = 0; i < before; ++i)
-          (*indices_[c])[i] = a.selection().GetIndex(i);
+          (*indices)[i] = a.selection().GetIndex(i);
       }
       for (uint32_t i = 0; i < in.size(); ++i)
-        (*indices_[c])[before + i] = b.selection().GetIndex(i);
-      a.SetOwnedRows(indices_[c], total);
+        (*indices)[before + i] = b.selection().GetIndex(i);
+      a.SetOwnedRows(indices, total);
       batch_.SetColumn(c, a, batch_.owner(c));
     } else {
-      if (!packed_[c]) {
-        packed_[c] = buffers_[c].Acquire();
-        packed_[c]->CopyFrom(a, before, 0);
+      auto& packed = column.packed;
+      if (!packed) {
+        packed = column.chunks.Acquire();
+        packed->CopyFrom(a, before, 0);
       }
-      packed_[c]->CopyFrom(b, in.size(), before);
-      batch_.SetColumn(c, packed_[c]->View(a, a.validity() || b.validity()),
-                       packed_[c]);
+      packed->CopyFrom(b, in.size(), before);
+      batch_.SetColumn(c, packed->View(a, a.validity() || b.validity()),
+                       packed);
     }
   }
   batch_.SetCardinality(total);

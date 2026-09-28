@@ -50,8 +50,10 @@ class Pipeline : public Source {
  public:
   Pipeline(const Source&,
            std::vector<std::unique_ptr<Operator>>,
-           ExecutionOptions = {});
-  Pipeline(Source&&, std::vector<std::unique_ptr<Operator>>) = delete;
+           ExecutionOptions);
+  Pipeline(Source&&,
+           std::vector<std::unique_ptr<Operator>>,
+           ExecutionOptions) = delete;
   ~Pipeline() override;
 
   std::unique_ptr<OperatorState> MakeState() const override;
@@ -82,7 +84,7 @@ class Pipeline : public Source {
 
   bool Pull(uint32_t stage, RowBatch&, State&) const;
   bool Input(uint32_t boundary, RowBatch&, State&, BatchPreference) const;
-  bool Check(State&) const;
+  bool CanContinue(State&) const;
   void Stop(State&) const;
 
   ExecutionOptions options_;

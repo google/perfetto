@@ -52,7 +52,7 @@ void Pipeline::Stop(State& state) const {
   }
   state.stopped = true;
 }
-bool Pipeline::Check(State& state) const {
+bool Pipeline::CanContinue(State& state) const {
   if (!state.status.ok() || state.stopped)
     return false;
   if (options_.cancelled && options_.cancelled()) {
@@ -85,7 +85,7 @@ base::Status Pipeline::status(const OperatorState& state) const {
 // retains its input while a continuation is pending. Finish is only reached on
 // successful exhaustion of that prefix, never on failure/cancellation.
 bool Pipeline::Pull(uint32_t stage, RowBatch& out, State& s) const {
-  if (!Check(s))
+  if (!CanContinue(s))
     return false;
   out.Reset();
   if (stage == 0) {
@@ -102,7 +102,7 @@ bool Pipeline::Pull(uint32_t stage, RowBatch& out, State& s) const {
     return false;
   auto& op = *operators_[stage - 1];
   for (;;) {
-    if (!Check(s))
+    if (!CanContinue(s))
       return false;
     bool has_input = current.continuation;
     if (!has_input) {
@@ -139,7 +139,7 @@ bool Pipeline::Input(uint32_t boundary,
   bool combine = preference == BatchPreference::kThroughput &&
                  options_.limit == std::numeric_limits<uint64_t>::max();
   for (;;) {
-    if (!Check(s)) {
+    if (!CanContinue(s)) {
       out.Reset();
       return false;
     }

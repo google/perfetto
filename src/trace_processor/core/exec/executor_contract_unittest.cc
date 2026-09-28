@@ -411,7 +411,7 @@ TEST_P(ExecutorBoundaryContractTest, FilteringIsIndependentOfBatchBoundaries) {
   ContractSource source(std::move(chunks));
   std::vector<std::unique_ptr<Operator>> ops;
   ops.push_back(std::make_unique<ContractFilter>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
   RowCursor cursor(pipeline);
   for (uint32_t run = 0; run < 2; ++run) {
     std::vector<int64_t> actual;
@@ -428,7 +428,7 @@ INSTANTIATE_TEST_SUITE_P(BatchSizes,
 
 TEST(ExecutorContractTest, EmptySourceBatchesAreNotEofWithoutOperators) {
   ContractSource source({{}, {11}, {}, {22}, {}});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
   RowCursor cursor(pipeline);
   std::vector<int64_t> actual;
   for (bool more = cursor.Open(); more && !cursor.eof(); more = cursor.Next())
@@ -443,7 +443,7 @@ TEST(ExecutorContractTest, FirstSurvivorDoesNotTriggerLookahead) {
   auto* observed = filter.get();
   std::vector<std::unique_ptr<Operator>> ops;
   ops.push_back(std::move(filter));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
   {
     RowCursor cursor(pipeline);
     ASSERT_TRUE(cursor.Open());
@@ -462,7 +462,7 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   auto* observed = probe.get();
   std::vector<std::unique_ptr<Operator>> ops;
   ops.push_back(std::move(probe));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
   RowCursor cursor(pipeline);
   ASSERT_TRUE(cursor.Open());
   EXPECT_EQ(cursor.Value<int64_t>(0), 11);
@@ -505,7 +505,7 @@ TEST(ExecutorContractTest, OperatorFailureDoesNotFinalizeOrPullFollowingBatch) {
   std::vector<std::unique_ptr<Operator>> ops;
   ops.push_back(std::move(probe));
   ops.push_back(std::make_unique<ContractFailure>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
   RowCursor cursor(pipeline);
   EXPECT_FALSE(cursor.Open());
   EXPECT_FALSE(cursor.status().ok());

@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
 
+#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -41,16 +42,26 @@ class BatchBuffer {
   }
   void Clear() {
     batch_.Reset();
-    packed_.clear();
-    indices_.clear();
+    for (auto& column : columns_) {
+      column.packed.reset();
+      column.indices.reset();
+    }
   }
 
  private:
+  // The storage for one column. The pools outlive Clear() so their buffers
+  // are reused by the next batch.
+  struct Column {
+    BufferPool<ColumnChunk> chunks;
+    BufferPool<FlexVector<uint32_t>> index_pool;
+    // Values copied from different backing buffers into one.
+    std::shared_ptr<ColumnChunk> packed;
+    // Row indices into a backing buffer shared by every appended batch.
+    std::shared_ptr<FlexVector<uint32_t>> indices;
+  };
+
   RowBatch batch_;
-  std::vector<std::shared_ptr<ColumnChunk>> packed_;
-  std::vector<BufferPool<ColumnChunk>> buffers_;
-  std::vector<BufferPool<FlexVector<uint32_t>>> index_pools_;
-  std::vector<std::shared_ptr<FlexVector<uint32_t>>> indices_;
+  std::vector<Column> columns_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
