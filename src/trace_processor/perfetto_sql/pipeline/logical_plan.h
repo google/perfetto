@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/schema.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -57,8 +58,9 @@ struct ScanDataframe {
 // Reads all rows of a source. Always the first op.
 struct Scan {
   using Dataframe = ScanDataframe;
-  // A direct dataframe scan or `SELECT * FROM <clause>` executed by SQLite.
-  std::variant<Dataframe, SqlSource> source;
+  // Where a scan reads from: a dataframe directly, or a query run by SQLite.
+  using Source = std::variant<Dataframe, SqlSource>;
+  Source source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;
 };
@@ -103,6 +105,8 @@ struct IntervalIntersect {
 
 }  // namespace op
 
+// The operator a plan node holds. Passes switch on `op.index()` with one case
+// per operator, using base::variant_index<Op, T>().
 using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
 
 // Stable within a plan.
@@ -113,10 +117,27 @@ using PlanNodeId = uint32_t;
 struct PlanNode {
   Op op;
   std::vector<PlanNodeId> children;
+
+  template <typename T>
+  bool Is() const {
+    return std::holds_alternative<T>(op);
+  }
+
+  // Returns the operator as a T. The node must hold one.
+  template <typename T>
+  T& Cast() {
+    return base::unchecked_get<T>(op);
+  }
+  template <typename T>
+  const T& Cast() const {
+    return base::unchecked_get<T>(op);
+  }
 };
 
 // A tree of operators. Column types are stored once, indexed by ID; operators
 // name the values they consume and produce, independently of layout.
+//
+// The root is the last stage of the pipeline and the leaves are its sources.
 struct LogicalPlan {
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
