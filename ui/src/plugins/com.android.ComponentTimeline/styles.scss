@@ -1,0 +1,357 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@keyframes pf-comp-timeline-flash {
+  0% {
+    background: #fff4d6;
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.pf-comp-timeline {
+  --pf-ct-bg: #f4f5f7;
+  --pf-ct-card: #ffffff;
+  --pf-ct-ink: #16181d;
+  --pf-ct-mute: #667085;
+  --pf-ct-line: #e4e7ec;
+  --pf-ct-S: #e9a23b;
+  --pf-ct-R: #3b7ddd;
+  --pf-ct-C: #2fa36b;
+  --pf-ct-I: #a4acb7;
+  --pf-ct-K: #e04848;
+  --pf-ct-M: #344054;
+  --pf-ct-F: #98a2b3;
+  --pf-ct-W: #c7ccd4;
+
+  .pf-theme-provider--dark & {
+    --pf-ct-bg: #111418;
+    --pf-ct-card: #1c2127;
+    --pf-ct-ink: #f6f7f9;
+    --pf-ct-mute: #98a2b3;
+    --pf-ct-line: #2f363d;
+    --pf-ct-M: #d0d5dd;
+  }
+
+  font:
+    13px/1.4 Inter,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  background: var(--pf-ct-bg);
+  color: var(--pf-ct-ink);
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+
+  * {
+    box-sizing: border-box;
+  }
+
+  &__bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: color-mix(in srgb, var(--pf-ct-bg) 95%, transparent);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--pf-ct-line);
+    padding: 12px 24px 8px;
+  }
+
+  &--compact &__bar {
+    padding: 8px 16px 6px;
+  }
+
+  &__top {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: 17px;
+    margin: 0;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--pf-ct-ink);
+    margin-right: 4px;
+  }
+
+  &--compact &__title {
+    font-size: 14.5px;
+  }
+
+  &__selectors {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+
+    .pf-select {
+      max-width: 320px;
+    }
+
+    .pf-text-input {
+      width: 170px;
+    }
+  }
+
+  &__chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  &__barrow {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  &--compact &__barrow {
+    margin-top: 6px;
+    gap: 10px;
+  }
+
+  &__clock {
+    font:
+      600 26px/1 ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      monospace;
+    min-width: 185px;
+    font-variant-numeric: tabular-nums;
+
+    small {
+      display: block;
+      font:
+        11.5px Inter,
+        system-ui,
+        sans-serif;
+      color: var(--pf-ct-mute);
+      margin-top: 4px;
+    }
+  }
+
+  &--compact &__clock {
+    font-size: 20px;
+    min-width: 160px;
+  }
+
+  &__scrub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  &__slider {
+    flex: 1;
+    cursor: pointer;
+    margin: 0 4px;
+  }
+
+  &__frameno {
+    font:
+      600 11.5px/1 ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      monospace;
+    color: var(--pf-ct-mute);
+    font-variant-numeric: tabular-nums;
+    min-width: 96px;
+    text-align: right;
+    flex: none;
+  }
+
+  &__spark-wrap {
+    margin-top: 6px;
+  }
+
+  &__legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 11.5px;
+    color: var(--pf-ct-mute);
+    margin-top: 6px;
+    align-items: center;
+
+    span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+  }
+
+  &__dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    display: inline-block;
+    flex: none;
+  }
+
+  &__swatch-m {
+    width: 18px;
+    height: 4px;
+    background: var(--pf-ct-M);
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  &__swatch-f {
+    width: 18px;
+    height: 4px;
+    background: var(--pf-ct-F);
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  &__swatch-w {
+    width: 10px;
+    height: 4px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--pf-ct-W) 0 2px,
+      #dfe3e8 2px 4px
+    );
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  &__main {
+    padding: 12px 24px 40px;
+    flex: 1;
+  }
+
+  &--compact &__main {
+    padding: 10px 16px 24px;
+  }
+
+  &__cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+
+    @media (max-width: 1100px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__col.pf-card {
+    padding: 8px 12px 10px;
+  }
+
+  &__axis,
+  &__row {
+    display: grid;
+    grid-template-columns: 190px minmax(0, 1fr) 238px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &__axis {
+    font-size: 10.5px;
+    color: var(--pf-ct-mute);
+    padding-bottom: 3px;
+    border-bottom: 1px solid var(--pf-ct-line);
+    margin-bottom: 3px;
+  }
+
+  &__rows {
+    position: relative;
+  }
+
+  &__row {
+    height: 21px;
+    position: absolute;
+    left: 0;
+    right: 0;
+    transition: opacity 0.4s;
+    border-radius: 4px;
+    padding: 0 2px;
+
+    &:hover {
+      background: rgba(59, 125, 221, 0.06);
+    }
+
+    &--K .pf-comp-timeline__nm {
+      color: var(--pf-ct-K);
+    }
+
+    &--new .pf-comp-timeline__nm {
+      animation: pf-comp-timeline-flash 1.2s;
+    }
+  }
+
+  &__nm {
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    i {
+      font-style: normal;
+      color: var(--pf-ct-mute);
+      font-size: 10px;
+      margin-left: 3px;
+    }
+  }
+
+  &__val {
+    font-size: 10.5px;
+    color: var(--pf-ct-mute);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  &__foot {
+    font-size: 11.5px;
+    color: var(--pf-ct-mute);
+    margin-top: 10px;
+    line-height: 1.5;
+
+    code {
+      font:
+        11px ui-monospace,
+        Menlo,
+        monospace;
+      background: rgba(102, 112, 133, 0.14);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+  }
+}

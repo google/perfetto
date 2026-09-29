@@ -1,0 +1,94 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use "../assets/theme.scss" as *;
+
+@layer pf-widgets {
+  .pf-kpi-card-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .pf-kpi-card {
+    background: var(--pf-color-background, #ffffff);
+    border-radius: 9px;
+    padding: 5px 10px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+    border: 1px solid var(--pf-color-border, #e4e7ec);
+    min-width: 92px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    user-select: none;
+
+    &--wide {
+      min-width: 155px;
+    }
+
+    &--interactive {
+      cursor: pointer;
+      transition:
+        border-color 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.1s ease;
+
+      &:hover {
+        border-color: var(--pf-color-accent, #3b7ddd);
+        box-shadow: 0 2px 5px rgba(16, 24, 40, 0.12);
+      }
+    }
+
+    &--active {
+      border-color: var(--pf-color-text, #16181d);
+      box-shadow: 0 0 0 1px var(--pf-color-text, #16181d);
+    }
+
+    &__value {
+      font-size: 18px;
+      font-weight: 700;
+      display: block;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: var(--pf-color-text, #16181d);
+    }
+
+    &__caption {
+      font-size: 11px;
+      color: var(--pf-color-text-muted, #667085);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+
+    &__dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 3px;
+      display: inline-block;
+      flex: none;
+    }
+
+    &__swatch {
+      width: 18px;
+      height: 4px;
+      border-radius: 2px;
+      display: inline-block;
+      flex: none;
+    }
+  }
+}

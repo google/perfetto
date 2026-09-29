@@ -1,0 +1,129 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use "../assets/theme.scss" as *;
+
+@layer pf-widgets {
+  .pf-dual-metric-axis {
+    position: relative;
+    height: 26px;
+    font-size: 9.5px;
+    color: var(--pf-color-text-muted, #667085);
+    user-select: none;
+
+    &__row {
+      position: relative;
+      height: 13px;
+    }
+
+    &__tick {
+      position: absolute;
+      transform: translateX(-50%);
+      white-space: nowrap;
+
+      &:first-child {
+        transform: none;
+      }
+
+      &:nth-child(4) {
+        transform: translateX(-75%);
+      }
+
+      &:last-child {
+        transform: translateX(-100%);
+      }
+
+      &--bottom {
+        color: #344054;
+
+        .pf-theme-provider--dark & {
+          color: #98a2b3;
+        }
+      }
+    }
+  }
+
+  .pf-dual-metric-bar {
+    position: relative;
+    height: 17px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(25% - 1px),
+      var(--pf-dual-bar-grid, #eef0f3) calc(25% - 1px),
+      var(--pf-dual-bar-grid, #eef0f3) 25%
+    );
+    border-radius: 3px;
+    overflow: hidden;
+
+    .pf-theme-provider--dark & {
+      --pf-dual-bar-grid: rgba(255, 255, 255, 0.08);
+    }
+
+    &__fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 11px;
+      border-radius: 3px;
+      min-width: 4px;
+      transition:
+        width 0.45s cubic-bezier(0.3, 0.7, 0.3, 1),
+        background-color 0.35s;
+
+      &--over {
+        border-right: 3px solid var(--pf-color-text, #16181d);
+      }
+    }
+
+    &__secondary {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 4px;
+      border-radius: 2px;
+      background: #98a2b3;
+      transition: width 0.45s cubic-bezier(0.3, 0.7, 0.3, 1);
+    }
+
+    &__primary {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 4px;
+      border-radius: 2px 0 0 2px;
+      background: #344054;
+      transition: width 0.45s cubic-bezier(0.3, 0.7, 0.3, 1);
+
+      .pf-theme-provider--dark & {
+        background: #d0d5dd;
+      }
+    }
+
+    &__overflow {
+      position: absolute;
+      bottom: 0;
+      height: 4px;
+      border-radius: 2px;
+      background: repeating-linear-gradient(
+        90deg,
+        #c7ccd4 0 2px,
+        #dfe3e8 2px 4px
+      );
+      transition:
+        left 0.45s cubic-bezier(0.3, 0.7, 0.3, 1),
+        width 0.45s cubic-bezier(0.3, 0.7, 0.3, 1);
+    }
+  }
+}

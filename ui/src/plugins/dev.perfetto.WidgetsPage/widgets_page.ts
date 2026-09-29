@@ -38,6 +38,7 @@ import {renderGrid} from './demos/grid_demo';
 import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
+import {renderKpiCardDemo} from './demos/kpi_card_demo';
 import {renderMenu} from './demos/menu_demo';
 import {renderMiddleEllipsis} from './demos/middle_ellipsis_demo';
 import {renderModal} from './demos/modal_demo';
@@ -103,6 +104,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'grid', label: 'Grid', view: renderGrid},
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
   {id: 'icon', label: 'Icon', view: renderIcon},
+  {id: 'kpi-card', label: 'KpiCard & Sparkline', view: renderKpiCardDemo},
   {id: 'menu', label: 'Menu', view: renderMenu},
   {id: 'middleellipsis', label: 'MiddleEllipsis', view: renderMiddleEllipsis},
   {id: 'modal', label: 'Modal', view: renderModal},
