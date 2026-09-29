@@ -1917,6 +1917,10 @@ void FtraceParser::ParseSchedWaking(int64_t timestamp,
 void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::SchedProcessFreeFtraceEvent::Decoder ex(blob);
   uint32_t pid = static_cast<uint32_t>(ex.pid());
+  // Not gated by MachineDataClaimTracker on purpose: thread lifecycle is kept
+  // for every trace. A duplicate free from another trace of this machine
+  // usually finds no live thread and does nothing. Known rare exception: if an
+  // older thread with the same tid is still live, the duplicate ends it too.
   context_->process_tracker->EndThread(timestamp, pid);
 }
 
@@ -2743,6 +2747,19 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     // Skip these task_newtask events since they are kernel idle tasks.
     PERFETTO_DCHECK(source_tid == 1);
     PERFETTO_DCHECK(base::StartsWith(evt.comm().ToStdString(), "swapper"));
+    return;
+  }
+
+  // Two traces of the same machine can both contain this exact event. If the
+  // new thread already exists and started at this timestamp, this is such a
+  // duplicate: reuse the thread instead of starting a second one for the same
+  // tid (which would split it in two). The thread state is still gated by
+  // MachineDataClaimTracker inside PushNewTaskEvent.
+  if (auto existing = proc_tracker->GetThreadOrNull(new_tid);
+      existing &&
+      context_->storage->thread_table()[*existing].start_ts() == timestamp) {
+    ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+        timestamp, *existing, proc_tracker->GetOrCreateThread(source_tid));
     return;
   }
 

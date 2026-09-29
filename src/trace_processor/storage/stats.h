@@ -185,6 +185,20 @@ namespace perfetto::trace_processor::stats {
        "transition. Retry with a trace_processor version at least as new as "  \
        "the traced that recorded the trace; the raw state value is in the "    \
        "trace import logs."),                                                  \
+  F(machine_counter_claim_conflict,       kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "Machine-wide counter values (CPU/GPU frequency, CPU idle, CPU time "  \
+        "totals, entity state) from this trace were dropped because "          \
+        "another trace on the same machine already provided them. Merging "    \
+        "the same data source from multiple traces onto one machine is not "   \
+        "supported; if the traces are from different devices, give each its " \
+        "own machine in a trace manifest."),                                   \
+  F(machine_sched_claim_conflict,         kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "Scheduling events (sched_switch, sched_waking, ...) from this trace " \
+        "were dropped because another trace on the same machine already "      \
+        "provided scheduling data. Merging the same data source from "         \
+        "multiple traces onto one machine is not supported; if the traces "    \
+        "are from different devices, give each its own machine in a trace "    \
+        "manifest."),                                                          \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
        "CpuInfo contained CPU feature bits not known to this version of "      \

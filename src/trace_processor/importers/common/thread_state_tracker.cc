@@ -19,7 +19,9 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/base/compiler.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 
@@ -64,6 +66,11 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
                                          UniqueTid utid,
                                          UniqueTid waker_utid,
                                          std::optional<uint16_t> common_flags) {
+  if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepSched(
+          context_, MachineDataClaimTracker::SchedEventKind::kOther))) {
+    return;
+  }
+
   // If thread has not had a sched switch event, just open a runnable state.
   // There's no pending state to close.
   if (!HasPreviousRowNumbersForUtid(utid)) {
@@ -102,6 +109,11 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
 void ThreadStateTracker::PushNewTaskEvent(int64_t event_ts,
                                           UniqueTid utid,
                                           UniqueTid waker_utid) {
+  if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepSched(
+          context_, MachineDataClaimTracker::SchedEventKind::kOther))) {
+    return;
+  }
+
   // open a runnable state with a non-interrupt wakeup from the cloning thread.
   AddOpenState(event_ts, utid, runnable_string_id_, /*cpu=*/std::nullopt,
                waker_utid, /*common_flags=*/0);
@@ -111,6 +123,11 @@ void ThreadStateTracker::PushBlockedReason(
     UniqueTid utid,
     std::optional<bool> io_wait,
     std::optional<StringId> blocked_function) {
+  if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepSched(
+          context_, MachineDataClaimTracker::SchedEventKind::kOther))) {
+    return;
+  }
+
   // Return if there is no state, as there is are no previous rows available.
   if (!HasPreviousRowNumbersForUtid(utid))
     return;
