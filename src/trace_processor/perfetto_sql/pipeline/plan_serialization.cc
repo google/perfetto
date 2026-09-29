@@ -168,10 +168,11 @@ class PlanWriter {
 
   std::string Write() {
     // Pruning can leave nodes the root does not reach.
-    std::vector<const op::TreeAccumulate*> folds;
+    std::vector<const PlanNode*> stages;
     PlanNodeId id = plan_.root;
-    while (plan_.nodes[id].Is<op::TreeAccumulate>()) {
-      folds.push_back(&plan_.nodes[id].Cast<op::TreeAccumulate>());
+    while (plan_.nodes[id].Is<op::TreeAccumulate>() ||
+           plan_.nodes[id].Is<op::IntervalFlatten>()) {
+      stages.push_back(&plan_.nodes[id]);
       id = plan_.nodes[id].children[0];
     }
     const PlanNode& source = plan_.nodes[id];
@@ -179,9 +180,20 @@ class PlanWriter {
     Available available = source.Is<op::Scan>()
                               ? WriteScan(source.Cast<op::Scan>())
                               : WriteIntervalIntersect(source);
-    w_.Size(folds.size());
-    for (auto it = folds.rbegin(); it != folds.rend(); ++it) {
-      WriteTreeAccumulate(**it, available);
+    w_.Size(stages.size());
+    for (auto it = stages.rbegin(); it != stages.rend(); ++it) {
+      const PlanNode& stage = **it;
+      w_.U8(static_cast<uint8_t>(stage.op.index()));
+      switch (stage.op.index()) {
+        case base::variant_index<Op, op::TreeAccumulate>():
+          WriteTreeAccumulate(stage.Cast<op::TreeAccumulate>(), available);
+          break;
+        case base::variant_index<Op, op::IntervalFlatten>():
+          WriteIntervalFlatten(stage.Cast<op::IntervalFlatten>(), available);
+          break;
+        default:
+          PERFETTO_FATAL("Unknown stage");
+      }
     }
     w_.Size(plan_.output.size());
     for (const NamedColumn& column : plan_.output) {
@@ -228,6 +240,32 @@ class PlanWriter {
       outputs.push_back(agg.output);
     }
     available.insert(available.end(), outputs.begin(), outputs.end());
+  }
+
+  // Replaces `available` with the segment's columns.
+  void WriteIntervalFlatten(const op::IntervalFlatten& flatten,
+                            Available& available) {
+    w_.Position(available, flatten.ts);
+    w_.Position(available, flatten.dur);
+    w_.Size(flatten.keys.size());
+    for (ColumnId key : flatten.keys) {
+      w_.Position(available, key);
+    }
+    w_.Size(flatten.aggregates.size());
+    for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+      w_.U8(static_cast<uint8_t>(agg.function));
+      if (agg.function == op::IntervalFlatten::Function::kSum) {
+        w_.Position(available, agg.column);
+      }
+      w_.Str(plan_.columns[agg.output].name);
+    }
+    w_.Str(plan_.columns[flatten.out_ts].name);
+    w_.Str(plan_.columns[flatten.out_dur].name);
+    available = {flatten.out_ts, flatten.out_dur};
+    available.insert(available.end(), flatten.keys.begin(), flatten.keys.end());
+    for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+      available.push_back(agg.output);
+    }
   }
 
   Available WriteIntervalIntersect(const PlanNode& node) {
@@ -279,9 +317,19 @@ class PlanReader {
         r_.Fail();
         return {};
     }
-    uint32_t folds = r_.Count();
-    for (uint32_t i = 0; i < folds && r_.ok(); ++i) {
-      plan_.AddNode(ReadTreeAccumulate(available), {plan_.root});
+    uint32_t stages = r_.Count();
+    for (uint32_t i = 0; i < stages && r_.ok(); ++i) {
+      switch (r_.U8()) {
+        case base::variant_index<Op, op::TreeAccumulate>():
+          plan_.AddNode(ReadTreeAccumulate(available), {plan_.root});
+          break;
+        case base::variant_index<Op, op::IntervalFlatten>():
+          plan_.AddNode(ReadIntervalFlatten(available), {plan_.root});
+          break;
+        default:
+          r_.Fail();
+          break;
+      }
     }
     plan_.output.resize(r_.Count());
     for (NamedColumn& column : plan_.output) {
@@ -315,6 +363,40 @@ class PlanReader {
       available.push_back(column.id);
     }
     return available;
+  }
+
+  op::IntervalFlatten ReadIntervalFlatten(Available& available) {
+    op::IntervalFlatten flatten;
+    flatten.ts = r_.Position(available);
+    flatten.dur = r_.Position(available);
+    flatten.keys.resize(r_.Count());
+    for (ColumnId& key : flatten.keys) {
+      key = r_.Position(available);
+    }
+    flatten.aggregates.resize(r_.Count());
+    for (op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+      switch (r_.U8()) {
+        case static_cast<uint8_t>(op::IntervalFlatten::Function::kCount):
+          agg.function = op::IntervalFlatten::Function::kCount;
+          break;
+        case static_cast<uint8_t>(op::IntervalFlatten::Function::kSum):
+          agg.function = op::IntervalFlatten::Function::kSum;
+          agg.column = r_.Position(available);
+          break;
+        default:
+          r_.Fail();
+          break;
+      }
+      agg.output = plan_.AddColumn(r_.Str(), core::Int64{});
+    }
+    flatten.out_ts = plan_.AddColumn(r_.Str(), core::Int64{});
+    flatten.out_dur = plan_.AddColumn(r_.Str(), core::Int64{});
+    available = {flatten.out_ts, flatten.out_dur};
+    available.insert(available.end(), flatten.keys.begin(), flatten.keys.end());
+    for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+      available.push_back(agg.output);
+    }
+    return flatten;
   }
 
   op::TreeAccumulate ReadTreeAccumulate(Available& available) {

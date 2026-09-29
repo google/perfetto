@@ -33,6 +33,8 @@ source_set("exec") {
     "group_by.cc",
     "group_by.h",
     "interval_columns.h",
+    "interval_flatten.cc",
+    "interval_flatten.h",
     "interval_intersect.cc",
     "interval_intersect.h",
     "key_encoder.cc",

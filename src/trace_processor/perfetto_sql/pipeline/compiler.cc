@@ -164,6 +164,8 @@ class Compiler {
   base::StatusOr<op::Scan> CompileSqlSource(uint32_t from);
   void AddScanColumn(op::Scan&, ColumnSchema);
   base::Status CompileTreeAccumulate(uint32_t stage);
+  base::Status CompileIntervalFlatten(uint32_t stage);
+  bool IsCountStar(uint32_t expr) const;
   base::StatusOr<ColumnId> CompileSum(uint32_t agg_id, uint32_t expr);
   base::StatusOr<ColumnId> Resolve(const std::string& name, uint32_t at) const {
     return Resolve("", name, at);
@@ -435,6 +437,8 @@ base::Status Compiler::CompileStage(uint32_t stage) {
   switch (static_cast<int>(node->tag)) {
     case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE:
       return CompileTreeAccumulate(stage);
+    case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN:
+      return CompileIntervalFlatten(stage);
     case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT:
       return CompileSelect(stage);
     case SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND:
@@ -447,8 +451,6 @@ base::Status Compiler::CompileStage(uint32_t stage) {
       return CompileSet(stage);
     case SYNTAQLITE_NODE_PERFETTO_PIPE_AS:
       return CompileAs(stage);
-    case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN:
-      return Unsupported(stage, "INTERVAL FLATTEN");
     default:
       PERFETTO_FATAL("Unknown pipeline stage");
   }
@@ -669,6 +671,77 @@ base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {
     Append(std::move(column), node);
   }
   plan_.AddNode(std::move(acc), {plan_.root});
+  return base::OkStatus();
+}
+
+bool Compiler::IsCountStar(uint32_t expr) const {
+  const auto* node = Node<SyntaqliteNode>(p_, expr);
+  if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
+    return false;
+  }
+  const SyntaqliteFunctionCall& call = node->function_call;
+  return call.flags.bits.star && !call.flags.bits.distinct &&
+         !syntaqlite_node_is_present(call.filter_clause) &&
+         !syntaqlite_node_is_present(call.over_clause) &&
+         base::CaseInsensitiveEqual(SpanText(p_, call.func_name), "COUNT");
+}
+
+base::Status Compiler::CompileIntervalFlatten(uint32_t stage) {
+  scope_.op = "INTERVAL FLATTEN";
+  const auto* n = Node<SyntaqlitePerfettoIntervalFlatten>(p_, stage);
+
+  op::IntervalFlatten flatten;
+  ASSIGN_OR_RETURN(flatten.ts, Resolve("ts", stage));
+  ASSIGN_OR_RETURN(flatten.dur, Resolve("dur", stage));
+
+  std::vector<std::pair<NamedColumn, uint32_t>> keys;
+  if (syntaqlite_node_is_present(n->per)) {
+    const auto* per = Node<SyntaqlitePerfettoPerColumnList>(p_, n->per);
+    std::vector<std::string> seen;
+    for (uint32_t i = 0; i < syntaqlite_list_count(per); ++i) {
+      uint32_t col_id = syntaqlite_list_child_id(per, i);
+      std::string name =
+          SpanText(p_, Node<SyntaqlitePerfettoPerColumn>(p_, col_id)->name);
+      RETURN_IF_ERROR(CheckListedOnce(seen, name, col_id));
+      ASSIGN_OR_RETURN(ColumnId key, Resolve(name, col_id));
+      flatten.keys.push_back(key);
+      keys.push_back({NamedColumn{std::move(name), key}, col_id});
+    }
+  }
+
+  std::vector<std::pair<NamedColumn, uint32_t>> aggregates;
+  const auto* list = Node<SyntaqlitePerfettoAggregateList>(p_, n->aggregates);
+  for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
+    uint32_t agg_id = syntaqlite_list_child_id(list, i);
+    const auto* agg = Node<SyntaqlitePerfettoAggregate>(p_, agg_id);
+    op::IntervalFlatten::Aggregate aggregate;
+    if (IsCountStar(agg->expr)) {
+      aggregate.function = op::IntervalFlatten::Function::kCount;
+    } else {
+      aggregate.function = op::IntervalFlatten::Function::kSum;
+      ASSIGN_OR_RETURN(aggregate.column, CompileSum(agg_id, agg->expr));
+    }
+    std::string name = SpanText(p_, agg->name);
+    aggregate.output = plan_.AddColumn(name, core::Int64{});
+    flatten.aggregates.push_back(aggregate);
+    aggregates.push_back(
+        {NamedColumn{std::move(name), aggregate.output}, agg_id});
+  }
+
+  // The rows collapse, so the row is only what each segment holds.
+  flatten.out_ts = plan_.AddColumn("ts", core::Int64{});
+  flatten.out_dur = plan_.AddColumn("dur", core::Int64{});
+  scope_.row.clear();
+  scope_.aliases.clear();
+  Append({"ts", flatten.out_ts}, stage);
+  Append({"dur", flatten.out_dur}, stage);
+  for (auto& [column, node] : keys) {
+    Append(std::move(column), node);
+  }
+  for (auto& [column, node] : aggregates) {
+    Append(std::move(column), node);
+  }
+  plan_.AddNode(std::move(flatten), {plan_.root});
   return base::OkStatus();
 }
 

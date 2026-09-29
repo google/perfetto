@@ -112,11 +112,33 @@ struct IntervalIntersect {
   ColumnId dur = 0;
 };
 
+// `|> INTERVAL FLATTEN [PER cols] AGGREGATE agg AS name, ...`. Cuts the rows
+// at every start and end into disjoint segments, each collapsed into one row:
+// its bounds, the keys, then one column per aggregate.
+struct IntervalFlatten {
+  enum class Function : uint8_t { kCount, kSum };
+  struct Aggregate {
+    Function function = Function::kCount;
+    // Unused by COUNT(*).
+    ColumnId column = 0;
+    ColumnId output = 0;
+  };
+  ColumnId ts = 0;
+  ColumnId dur = 0;
+  std::vector<ColumnId> keys;
+  std::vector<Aggregate> aggregates;
+  ColumnId out_ts = 0;
+  ColumnId out_dur = 0;
+};
+
 }  // namespace op
 
 // The operator a plan node holds. Passes switch on `op.index()` with one case
 // per operator, using base::variant_index<Op, T>().
-using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
+using Op = std::variant<op::Scan,
+                        op::TreeAccumulate,
+                        op::IntervalIntersect,
+                        op::IntervalFlatten>;
 
 // Stable within a plan.
 using PlanNodeId = uint32_t;

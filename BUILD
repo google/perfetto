@@ -2588,6 +2588,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/group_by.cc",
         "src/trace_processor/core/exec/group_by.h",
         "src/trace_processor/core/exec/interval_columns.h",
+        "src/trace_processor/core/exec/interval_flatten.cc",
+        "src/trace_processor/core/exec/interval_flatten.h",
         "src/trace_processor/core/exec/interval_intersect.cc",
         "src/trace_processor/core/exec/interval_intersect.h",
         "src/trace_processor/core/exec/key_encoder.cc",
