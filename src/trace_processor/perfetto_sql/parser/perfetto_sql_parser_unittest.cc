@@ -1074,6 +1074,44 @@ TEST_F(PerfettoSqlParserSelectLikeTest, AfterIntersection) {
               HasSubstr("expected a different alias for each relation"));
 }
 
+// Crossing from SQL into a pipeline needs proper names, as creating a PERFETTO
+// TABLE does: every column of a source needs a valid column name, whether or
+// not the pipeline goes on to use it.
+TEST_F(PerfettoSqlParserSelectLikeTest, SourceNames) {
+  const char* kInvalid = "expected every column to have a valid name, but ";
+  Check({
+      {"FROM (SELECT 1 AS x, count(*) AS n FROM tree) AS t |> SELECT *",
+       "Output(#0 AS x, #1 AS n)"},
+      // SQLite names an unaliased expression after its text.
+      {"FROM (SELECT 1 AS x, 1 + 1 FROM tree) AS t |> SELECT x",
+       "expected every column to have a valid name, but '1 + 1' is not one: "
+       "give it one with AS"},
+      {"FROM (SELECT 1 AS \"my col\") AS t", kInvalid},
+      {"FROM (SELECT 1 AS \"1x\") AS t", kInvalid},
+      // Without an earlier x, x:1 is simply not a valid name.
+      {"FROM (SELECT 1 AS \"x:1\") AS t", kInvalid},
+      {"INTERVAL INTERSECTION OF ((SELECT 0 AS ts, 10 AS dur, 1 + 1) AS a, "
+       "(SELECT 5 AS ts, 10 AS dur) AS b)",
+       kInvalid},
+  });
+}
+
+// SQLite renames the second of two columns sharing a name `x` to `x:1`. That
+// is reported as the duplicate it is, before the names are checked.
+TEST_F(PerfettoSqlParserSelectLikeTest, SourceDuplicateNames) {
+  Check({
+      {"FROM (SELECT 1 AS x, 2 AS x) AS t",
+       "expected distinct column names, but there are two named 'x', which "
+       "SQLite renamed to 'x' and 'x:1'"},
+      {"FROM (SELECT 1 AS x, 2 AS X) AS t",
+       "two named 'x', which SQLite renamed to 'x' and 'X:1'"},
+      {"INTERVAL INTERSECTION OF ("
+       "(SELECT 0 AS ts, 10 AS dur, 1 AS x, 2 AS x) AS a, "
+       "(SELECT 5 AS ts, 10 AS dur) AS b)",
+       "expected distinct column names"},
+  });
+}
+
 #undef T
 #undef D
 #undef K
