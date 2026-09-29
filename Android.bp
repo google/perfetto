@@ -17770,6 +17770,18 @@ filegroup {
 // GN: //src/trace_processor/core/common:common
 filegroup {
     name: "perfetto_src_trace_processor_core_common_common",
+    srcs: [
+        "src/trace_processor/core/common/string_ranks.cc",
+    ],
+}
+
+// GN: //src/trace_processor/core/common:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_core_common_unittests",
+    srcs: [
+        "src/trace_processor/core/common/row_layout_unittest.cc",
+        "src/trace_processor/core/common/string_ranks_unittest.cc",
+    ],
 }
 
 // GN: //src/trace_processor/core/dataframe:dataframe
@@ -24437,6 +24449,7 @@ cc_test {
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_core_common_common",
+        ":perfetto_src_trace_processor_core_common_unittests",
         ":perfetto_src_trace_processor_core_dataframe_dataframe",
         ":perfetto_src_trace_processor_core_dataframe_unittests",
         ":perfetto_src_trace_processor_core_exec_exec",
