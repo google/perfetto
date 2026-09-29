@@ -183,7 +183,8 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     }
     out_->operand_inputs_.push_back(MakeSource(scan));
     out_->operand_pipelines_.push_back(std::make_unique<ex::Pipeline>(
-        *out_->operand_inputs_.back(), std::move(widen)));
+        *out_->operand_inputs_.back(), std::move(widen),
+        ex::ExecutionOptions()));
     lowered.source = out_->operand_pipelines_.back().get();
     operands.push_back(std::move(lowered));
 
@@ -251,8 +252,8 @@ void Lowering::LowerTreeAccumulate(const op::TreeAccumulate& acc) {
 }
 
 std::unique_ptr<PhysicalPlan> Lowering::Finish() {
-  out_->pipeline_ =
-      std::make_unique<ex::Pipeline>(*out_->input_, std::move(operators_));
+  out_->pipeline_ = std::make_unique<ex::Pipeline>(
+      *out_->input_, std::move(operators_), ex::ExecutionOptions());
   for (const NamedColumn& column : plan_.output) {
     out_->columns_.push_back({column.name, Position(column.id)});
   }

@@ -759,7 +759,24 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   return True
 
 
-def InstallNodeModules(force_clean=False):
+def PrintInstallFailureHint(what, public_flag, public_url):
+  lines = [f'{what} installation failed.']
+  if shutil.which('gpkg'):
+    # Give actionable instructions to Googlers on how to go/corp-airlock.
+    lines += [
+        'This is likely due to go/corp-airlock.',
+        'Run `gcert && gpkg setup` and try again, or',
+    ]
+  else:
+    lines += ['If your environment uses a custom package registry,']
+  lines += [f're-run with {public_flag} to use {public_url}']
+  width = max(len(l) for l in lines)
+  border = '+' + '-' * (width + 2) + '+'
+  body = '\n'.join(f'| {l.ljust(width)} |' for l in lines)
+  print(f'\033[33m{border}\n{body}\n{border}\033[0m', file=sys.stderr)
+
+
+def InstallNodeModules(force_clean=False, public_npm=False):
   if force_clean:
     node_modules = os.path.join(UI_DIR, 'node_modules')
     logging.info('Clearing %s', node_modules)
@@ -774,10 +791,14 @@ def InstallNodeModules(force_clean=False):
   env = os.environ.copy()
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
-  subprocess.check_call(
-      [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile'],
-      cwd=UI_DIR,
-      env=env)
+  cmd = [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile']
+  if public_npm:
+    cmd += ['--registry', 'https://registry.npmjs.org/']
+  if subprocess.call(cmd, cwd=UI_DIR, env=env) != 0:
+    if not public_npm:
+      PrintInstallFailureHint('pnpm', '--public-npm',
+                              'https://registry.npmjs.org/')
+    sys.exit(1)
   # pbjs has the bad habit of installing extra packages on its first
   # run. Run it here, so we avoid fetches while building.
   pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
@@ -886,16 +907,9 @@ def InstallPythonVenv(public_pypi=False):
   cmd += ['-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
   if subprocess.call(cmd) != 0:
-    if shutil.which("gpkg"):
-      # Give actionable instructions to Googlers on how to go/corp-airlock.
-      print(
-          '''\033[33m
-+---------------------------------------------------------+
-| venv installation failed, likely due to go/corp-airlock |
-| Run `gcert && gpkg setup` and try again                 |
-+---------------------------------------------------------+
-\033[0m''',
-          file=sys.stderr)
+    if not public_pypi:
+      PrintInstallFailureHint('venv', '--public-pypi',
+                              'https://pypi.org/simple/')
     sys.exit(1)
 
   with open(PYTHON_STATUS_FILE, 'w') as f:
@@ -957,6 +971,11 @@ def Main():
       '--public-pypi',
       action='store_true',
       help='Force pip to use the public PyPI index (https://pypi.org/simple/)')
+  parser.add_argument(
+      '--public-npm',
+      action='store_true',
+      help='Force pnpm to use the public npm registry (https://registry.npmjs.org/)'
+  )
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
@@ -1116,7 +1135,7 @@ def Main():
     if args.check_only:
       deps_updated |= not CheckNodeModules()
     else:
-      InstallNodeModules(force_clean=nodejs_updated)
+      InstallNodeModules(force_clean=nodejs_updated, public_npm=args.public_npm)
 
   if not args.no_dev_tools:
     # Check the python venv

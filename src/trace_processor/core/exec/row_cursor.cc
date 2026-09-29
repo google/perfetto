@@ -26,11 +26,14 @@ RowCursor::RowCursor(const Source& source)
 RowCursor::~RowCursor() = default;
 
 bool RowCursor::Pull() {
-  if (!source_.GetData(batch_, *state_)) {
-    index_ = 0;
-    size_ = 0;
-    return false;
-  }
+  do {
+    batch_.Reset();
+    if (!source_.GetData(batch_, *state_)) {
+      index_ = 0;
+      size_ = 0;
+      return false;
+    }
+  } while (batch_.size() == 0);
   index_ = 0;
   size_ = batch_.size();
   return true;

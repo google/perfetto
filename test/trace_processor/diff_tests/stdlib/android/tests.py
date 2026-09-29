@@ -2671,3 +2671,29 @@ class AndroidStdlib(TestSuite):
         3000,2000,200,"RECEIVER","CACHED_EMPTY",1000,11,"OOM_ADJ_REASON_BIND_SERVICE"
         5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))
+
+  def test_is_relevant_notifications_blocking_call(self):
+    # Must keep the same slices as android_sysui_notifications_blocking_calls
+    # (see test_android_sysui_notifications_blocking_calls).
+    return DiffTestBlueprint(
+        trace=Path(
+            '../../metrics/android/android_sysui_notifications_blocking_calls_metric.py'
+        ),
+        query="""
+        INCLUDE PERFETTO MODULE android.critical_blocking_calls;
+        SELECT s.name, s.dur
+        FROM slice AS s
+        JOIN thread_track ON s.track_id = thread_track.id
+        JOIN thread USING (utid)
+        WHERE thread.is_main_thread
+          AND _is_relevant_notifications_blocking_call(s.name, s.dur)
+        ORDER BY s.name;
+        """,
+        out=Csv("""
+        "name","dur"
+        "ExpNotRow#onMeasure(BigTextStyle)",10000000
+        "ExpNotRow#onMeasure(MessagingStyle)",10000000
+        "ImageFloatingTextView#onMeasure",10000000
+        "NotificationShadeWindowView#onMeasure",10000000
+        "NotificationStackScrollLayout#onMeasure",10000000
+        """))

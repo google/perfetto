@@ -278,24 +278,28 @@ SELECT
 FROM android_sysui_jank_cujs
 UNION ALL
 SELECT
-  cuj_id,
-  cuj_id AS id,
-  upid,
-  process_name,
-  cuj_slice_name,
-  cuj_name,
-  slice_id,
-  ts,
-  ts_end,
-  dur,
-  state,
-  -- upid is used as the ui_thread as it's the tid of the main thread.
-  upid AS ui_thread,
+  cuj.cuj_id,
+  cuj.cuj_id AS id,
+  cuj.upid,
+  cuj.process_name,
+  cuj.cuj_slice_name,
+  cuj.cuj_name,
+  cuj.slice_id,
+  cuj.ts,
+  cuj.ts_end,
+  cuj.dur,
+  cuj.state,
+  -- Latency CUJs use the main thread of the process as the UI thread. Note
+  -- that the upid of the process can not be used as a utid.
+  main_thread.utid AS ui_thread,
   NULL AS layer_id,
   NULL AS begin_vsync,
   NULL AS end_vsync,
   'latency' AS cuj_type
-FROM android_sysui_latency_cujs
+FROM android_sysui_latency_cujs AS cuj
+LEFT JOIN thread AS main_thread
+  ON main_thread.upid = cuj.upid
+  AND main_thread.is_main_thread
 ORDER BY
   cuj_id;
 
