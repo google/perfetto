@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {test, type Page} from '@playwright/test';
+import {expect, test, type Page} from '@playwright/test';
+import type {time} from '../base/time';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
 test.describe.configure({mode: 'serial'});
@@ -49,10 +50,12 @@ test('pin actual timeline tracks', async () => {
 
   // Select an event on the SF actual timeline which has a flow to/from an
   // event on the systemui actual timeline, so that the flows are rendered.
-  await page.evaluate(async () => {
+  const flow = await page.evaluate(async () => {
     const trace = self.app.trace!;
     const result = await trace.engine.query(`
-      select sf.id
+      select sf.id as id,
+             min(sf.ts, app.ts) as start_ts,
+             max(sf.ts + sf.dur, app.ts + app.dur) as end_ts
       from actual_frame_timeline_slice sf
       join flow f on f.slice_in = sf.id or f.slice_out = sf.id
       join actual_frame_timeline_slice app
@@ -62,9 +65,25 @@ test('pin actual timeline tracks', async () => {
       order by sf.ts
       limit 1
     `);
-    const id = result.iter({}).get('id') as number;
-    trace.selection.selectSqlEvent('slice', id);
+    const row = result.iter({});
+    return {
+      id: row.get('id') as number,
+      startTs: row.get('start_ts') as time,
+      endTs: row.get('end_ts') as time,
+    };
   });
+  expect(flow.id, 'no SF<->SystemUI flow found in trace').not.toBe(undefined);
+  await page.evaluate(async ({id, startTs, endTs}) => {
+    const trace = self.app.trace!;
+    await trace.selection.selectSqlEvent('slice', id);
+    // Zoom to the flow's time range, with 25% margin on each side, so that
+    // the selection and the flow are visible in the screenshot.
+    trace.timeline.panSpanIntoView(startTs, endTs, {
+      align: 'zoom',
+      margin: 0.25,
+      animation: 'step',
+    });
+  }, flow);
   await pth.waitForPerfettoIdle();
 
   await pth.waitForIdleAndScreenshot('pinned_actual_timelines.png', {
