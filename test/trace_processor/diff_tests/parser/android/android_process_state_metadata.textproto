@@ -1,12 +1,14 @@
-# Exercises android_process_state with dump_process_metadata enabled:
-# - Processes created from DUMP_REASON_START, with name and uid
+# Exercises android_framework_track_event and android_process_state with
+# dump_process_metadata enabled:
+# - Processes created from DUMP_REASON_START, with name, uid, and start_seq_id
 # - Pre-existing process in DUMP_REASON_START that dies mid-trace before
 #   DUMP_REASON_END
 # - State change and freezer event for a process known only from
 #   DUMP_REASON_START
 # - Process listed in DUMP_REASON_START whose process_start event arrives later
 # - Process started mid-trace via TrackEvent
-# - Trace-stop snapshot state and zero-suppression handling
+# - Trace-stop snapshot state, zero-suppression handling, and ignoring unknown
+#   PIDs present only in DUMP_REASON_END
 # - Trace-stop freezer dump for a process with no mid-trace events
 packet {
   clock_snapshot {

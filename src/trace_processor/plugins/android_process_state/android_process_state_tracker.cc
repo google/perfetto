@@ -122,26 +122,15 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
 void AndroidProcessStateTracker::ParseProcessStateDump(
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
-  const bool is_start_dump =
-      dump.dump_reason() == fb::AndroidProcessStateSnapshot::DUMP_REASON_START;
+  // The trace-start dump carries no state. It is handled by
+  // android_framework_track_event, which creates the processes it lists.
+  if (dump.dump_reason() ==
+      fb::AndroidProcessStateSnapshot::DUMP_REASON_START) {
+    return;
+  }
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
     if (!rec.has_pid()) {
-      continue;
-    }
-    // The trace-start dump lists the processes alive when the trace started.
-    // It is the only dump which creates processes, and it carries no state.
-    if (is_start_dump) {
-      UniquePid upid = context_->process_tracker->GetOrCreateProcess(rec.pid());
-      if (rec.has_process_name()) {
-        context_->process_tracker->UpdateProcessName(
-            upid, context_->storage->InternString(rec.process_name()),
-            ProcessNamePriority::kOther);
-      }
-      if (rec.has_uid()) {
-        context_->process_tracker->SetProcessUid(
-            upid, static_cast<uint32_t>(rec.uid()));
-      }
       continue;
     }
     std::optional<UniquePid> opt_upid =
@@ -156,9 +145,6 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
     // Note: android.util.proto.ProtoOutputStream ignores/omits 0 data points
     // during serialization on Android, so unset fields in the dump snapshot
     // represent 0.
-    //
-    // TODO: Consider setting process_name and uid on the core `process` table
-    // from dump records in a future update.
     v.proc_state = rec.has_proc_state()
                        ? static_cast<int32_t>(rec.proc_state())
                        : static_cast<int32_t>(

@@ -430,21 +430,22 @@ class AndroidParser(TestSuite):
           p.uid,
           p.android_user_id,
           t.start_seq_id,
-          p.start_ts,
+          t.fw_start_ts,
+          t.fw_end_ts,
           p.end_ts
         FROM process p
         LEFT JOIN __intrinsic_android_track_event_process t
           ON t.upid = p.upid
         WHERE p.pid > 0
-        ORDER BY p.pid, p.start_ts;
+        ORDER BY p.pid;
         """,
         out=Csv("""
-          "pid","name","uid","android_user_id","start_seq_id","start_ts","end_ts"
-          100,"com.example.appa",10001,0,1,"[NULL]","[NULL]"
-          200,"com.example.dumps_only",20001,0,"[NULL]","[NULL]","[NULL]"
-          300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]"
-          400,"com.example.pre_existing",40001,0,5,"[NULL]",3000000000
-          500,"com.example.started_late",50001,0,6,"[NULL]","[NULL]"
+          "pid","name","uid","android_user_id","start_seq_id","fw_start_ts","fw_end_ts","end_ts"
+          100,"com.example.appa",10001,0,1,1000000000,"[NULL]","[NULL]"
+          200,"com.example.dumps_only",20001,0,10,"[NULL]","[NULL]","[NULL]"
+          300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]","[NULL]"
+          400,"com.example.pre_existing",40001,0,5,"[NULL]",3000000000,3000000000
+          500,"com.example.started_late",50001,0,6,2000000000,"[NULL]","[NULL]"
         """))
 
   def test_android_process_state_metadata_freezer(self):

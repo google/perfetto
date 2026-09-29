@@ -26,10 +26,12 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_track_event.pbzero.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -40,11 +42,39 @@ namespace perfetto::trace_processor::android_framework_track_event {
 namespace {
 
 using FBTE = ::com::android::internal::pbzero::FrameworksBaseTrackEvent;
+using FBTP = ::com::android::internal::pbzero::FrameworksBaseTracePacket;
 using AndroidProcessStartEvent =
     ::com::android::internal::pbzero::AndroidProcessStartEvent;
 using AndroidBinderDiedEvent =
     ::com::android::internal::pbzero::AndroidBinderDiedEvent;
+using AndroidProcessStateSnapshot =
+    ::com::android::internal::pbzero::AndroidProcessStateSnapshot;
 using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
+
+// __intrinsic_android_track_event_process, with a single row per process.
+// Shared by Parser and StartDumpModule.
+class ProcessRows {
+ public:
+  explicit ProcessRows(StringPool* pool) : table_(pool) {}
+
+  AndroidTrackEventProcessTable& table() { return table_; }
+
+  // Returns the row for |upid|, inserting one if needed.
+  AndroidTrackEventProcessTable::RowReference GetOrInsertRow(UniquePid upid) {
+    auto it_and_ins =
+        upid_to_row_.Insert(upid, AndroidTrackEventProcessTable::Id{0});
+    if (it_and_ins.second) {
+      AndroidTrackEventProcessTable::Row row;
+      row.upid = upid;
+      *it_and_ins.first = table_.Insert(row).id;
+    }
+    return table_[*it_and_ins.first];
+  }
+
+ private:
+  AndroidTrackEventProcessTable table_;
+  base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
+};
 
 // Records AndroidProcessStartEvent and AndroidBinderDiedEvent into
 // __intrinsic_android_track_event_process.
@@ -52,10 +82,10 @@ class Parser : public TrackEventExtensionParser {
  public:
   Parser(TrackEventExtensionParserContext* extension_parser_context,
          TraceProcessorContext* context,
-         AndroidTrackEventProcessTable* table)
+         ProcessRows* rows)
       : TrackEventExtensionParser(extension_parser_context),
         trace_context_(context),
-        table_(table) {
+        rows_(rows) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
   }
@@ -94,17 +124,6 @@ class Parser : public TrackEventExtensionParser {
     }
   }
 
-  AndroidTrackEventProcessTable::RowReference GetOrInsertRow(UniquePid upid) {
-    auto it_and_ins =
-        upid_to_row_.Insert(upid, AndroidTrackEventProcessTable::Id{0});
-    if (it_and_ins.second) {
-      AndroidTrackEventProcessTable::Row row;
-      row.upid = upid;
-      *it_and_ins.first = table_->Insert(row).id;
-    }
-    return (*table_)[*it_and_ins.first];
-  }
-
   void HandleProcessStart(protozero::ConstBytes data, int64_t ts) {
     AndroidProcessStartEvent::Decoder evt(data);
     if (!evt.has_pid()) {
@@ -114,7 +133,7 @@ class Parser : public TrackEventExtensionParser {
         static_cast<uint32_t>(evt.pid()));
     SetProcessMetadata(upid, data);
 
-    auto row = GetOrInsertRow(upid);
+    auto row = rows_->GetOrInsertRow(upid);
     if (evt.has_start_seq_id()) {
       row.set_start_seq_id(evt.start_seq_id());
     }
@@ -169,7 +188,7 @@ class Parser : public TrackEventExtensionParser {
     if (!upid) {
       return;
     }
-    auto row = GetOrInsertRow(*upid);
+    auto row = rows_->GetOrInsertRow(*upid);
     row.set_fw_end_ts(ts);
     if (evt.has_start_seq_id()) {
       row.set_start_seq_id(evt.start_seq_id());
@@ -190,8 +209,55 @@ class Parser : public TrackEventExtensionParser {
   TraceProcessorContext* trace_context_;
   DescriptorPool::CachedDescriptor trigger_type_cache_;
   DescriptorPool::CachedDescriptor hosting_type_cache_;
-  AndroidTrackEventProcessTable* table_;
-  base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
+  ProcessRows* rows_;
+};
+
+// Handles the AndroidProcessStateSnapshot emitted at trace start
+// (DUMP_REASON_START). It lists the processes alive when the trace started, so
+// it creates them and records their start_seq_id.
+class StartDumpModule : public ProtoImporterModule {
+ public:
+  StartDumpModule(ProtoImporterModuleContext* module_context,
+                  TraceProcessorContext* context,
+                  ProcessRows* rows)
+      : ProtoImporterModule(module_context),
+        trace_context_(context),
+        rows_(rows) {
+    RegisterForField(FBTP::kAndroidProcessStateFieldNumber);
+  }
+  ~StartDumpModule() override = default;
+
+  void ParseField(const ParseFieldArgs& args) override {
+    AndroidProcessStateSnapshot::Decoder dump(
+        args.field.Cast<FBTP::kAndroidProcessState>());
+    if (dump.dump_reason() != AndroidProcessStateSnapshot::DUMP_REASON_START) {
+      return;
+    }
+    for (auto it = dump.record(); it; ++it) {
+      AndroidProcessStateSnapshot::Record::Decoder rec(*it);
+      if (!rec.has_pid() || rec.pid() <= 0) {
+        continue;
+      }
+      UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(rec.pid()));
+      if (rec.has_process_name()) {
+        trace_context_->process_tracker->UpdateProcessName(
+            upid, trace_context_->storage->InternString(rec.process_name()),
+            ProcessNamePriority::kOther);
+      }
+      if (rec.has_uid()) {
+        trace_context_->process_tracker->SetProcessUid(
+            upid, static_cast<uint32_t>(rec.uid()));
+      }
+      if (rec.has_start_seq_id()) {
+        rows_->GetOrInsertRow(upid).set_start_seq_id(rec.start_seq_id());
+      }
+    }
+  }
+
+ private:
+  TraceProcessorContext* trace_context_;
+  ProcessRows* rows_;
 };
 
 class AndroidFrameworkTrackEventPlugin
@@ -200,28 +266,37 @@ class AndroidFrameworkTrackEventPlugin
   ~AndroidFrameworkTrackEventPlugin() override;
 
   void RegisterDataframes(std::vector<PluginDataframe>& out) override {
-    EnsureTable();
-    out.push_back(
-        {&table_->dataframe(), AndroidTrackEventProcessTable::Name(), {}});
+    EnsureRows();
+    out.push_back({&rows_->table().dataframe(),
+                   AndroidTrackEventProcessTable::Name(),
+                   {}});
+  }
+
+  void RegisterProtoImporterModules(
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* trace_context) override {
+    EnsureRows();
+    module_context->modules.emplace_back(std::make_unique<StartDumpModule>(
+        module_context, trace_context, rows_.get()));
   }
 
   void RegisterTrackEventExtensions(
       TrackEventExtensionParserContext* ctx,
       TraceProcessorContext* trace_context) override {
-    EnsureTable();
+    EnsureRows();
     ctx->parsers.emplace_back(
-        std::make_unique<Parser>(ctx, trace_context, table_.get()));
+        std::make_unique<Parser>(ctx, trace_context, rows_.get()));
   }
 
  private:
-  void EnsureTable() {
-    if (!table_) {
-      table_ = std::make_unique<AndroidTrackEventProcessTable>(
+  void EnsureRows() {
+    if (!rows_) {
+      rows_ = std::make_unique<ProcessRows>(
           trace_context_->storage->mutable_string_pool());
     }
   }
 
-  std::unique_ptr<AndroidTrackEventProcessTable> table_;
+  std::unique_ptr<ProcessRows> rows_;
 };
 
 AndroidFrameworkTrackEventPlugin::~AndroidFrameworkTrackEventPlugin() = default;
