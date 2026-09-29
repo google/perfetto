@@ -66,6 +66,7 @@ void AndroidProcessStateTracker::UpdateInitialStateFromDelta(
 
 void AndroidProcessStateTracker::ParseProcessStateChange(
     int64_t ts,
+    std::optional<UniqueTid> utid,
     protozero::ConstBytes bytes) {
   fb::AndroidProcessStateChangedEvent::Decoder p(bytes);
   if (!p.has_pid()) {
@@ -96,6 +97,7 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   tables::AndroidProcessStateTable::Row row;
   row.upid = upid;
   row.ts = ts;
+  row.utid = utid;
   row.is_initial = 0;
   if (p.has_cur_proc_state()) {
     row.proc_state = InternEnum(context_, proc_state_cache_,
@@ -112,6 +114,9 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
     row.reason = InternEnum(context_, reason_cache_,
                             ".com.android.internal.OomChangeReasonEnum",
                             static_cast<int32_t>(p.reason()));
+  }
+  if (p.has_seq_id()) {
+    row.seq_id = p.seq_id();
   }
   process_state_table_->Insert(row);
 }

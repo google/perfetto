@@ -89,7 +89,7 @@ AndroidProcessStateExtensionParser::OnTrackEventField(
   switch (field.id()) {
     case fb::FrameworksBaseTrackEvent::kProcessStateChangedEventFieldNumber:
       tracker_->ParseProcessStateChange(
-          ts,
+          ts, event.has_utid() ? std::make_optional(event.utid) : std::nullopt,
           field
               .Cast<fb::FrameworksBaseTrackEvent::kProcessStateChangedEvent>());
       break;

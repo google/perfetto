@@ -24,6 +24,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from src.trace_processor.tables.metadata_tables import PROCESS_TABLE
+from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 
 ANDROID_PROCESS_STATE_TABLE = Table(
     python_module=__file__,
@@ -39,6 +40,8 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('oom_score', CppOptional(CppInt32())),
         C('capability_flags', CppOptional(CppInt32())),
         C('reason', CppOptional(CppString())),
+        C('seq_id', CppOptional(CppInt64())),
+        C('utid', CppOptional(CppTableId(THREAD_TABLE))),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -57,6 +60,10 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'Capability flags.',
             'reason':
                 'Reason for state change (if from track event).',
+            'seq_id':
+                'OomAdjuster pass sequence id (if from track event).',
+            'utid':
+                'Emitting thread UniqueTid (if from track event).',
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
         },
