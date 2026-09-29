@@ -85,7 +85,8 @@ std::optional<analysis::LeafRelation> ConnectionCatalog::FindLeafRelation(
   relation.columns.reserve(columns.size());
   for (uint32_t i = 0; i < columns.size(); ++i) {
     relation.columns.push_back(
-        {columns[i], sql_schema::ToAnalysisType(dataframe->column_type(i))});
+        {columns[i], sql_schema::ToAnalysisType(dataframe->column_type(i)),
+         dataframe::IsHiddenColumn(columns[i])});
   }
   return relation;
 }

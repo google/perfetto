@@ -273,10 +273,8 @@ op::Scan Compiler::CompileDataframeSource(const dataframe::Dataframe& dataframe,
   source.row_count = dataframe.row_count();
   const std::vector<std::string>& names = dataframe.column_names();
   for (uint32_t i = 0; i < names.size(); ++i) {
-    // TODO(lalitm): Share SQL column visibility metadata with DataframeModule
-    // instead of recognizing hidden columns by name here.
     // Hidden from SELECT * in SQLite, so hidden here too.
-    if (names[i] == "_auto_id") {
+    if (dataframe::IsHiddenColumn(names[i])) {
       continue;
     }
     AddScanColumn(scan, {names[i], dataframe.column_type(i)});

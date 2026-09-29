@@ -930,6 +930,23 @@ TEST_F(PerfettoSqlConnectionPipelineTest, ExpandsMacros) {
                                           "2,0,30,NULL,30"));
 }
 
+// A table has the same columns however a pipeline reads it: directly as a
+// dataframe, or through SQL, as SQLite's own `SELECT *` shows it. Its hidden
+// `_auto_id` is left out either way.
+TEST_F(PerfettoSqlConnectionPipelineTest, SourcesAgreeOnColumnNames) {
+  ASSERT_TRUE(connection_
+                  ->Execute(SqlSource::FromExecuteQuery(R"(
+    CREATE PERFETTO TABLE spans AS SELECT 0 AS ts, 10 AS dur, 'a' AS name;
+    CREATE PERFETTO VIEW spans_view AS SELECT * FROM spans;
+  )"))
+                  .ok());
+  std::vector<std::string> expected = {"ts", "dur", "name"};
+  EXPECT_EQ(ColumnNames("SELECT * FROM spans"), expected);
+  EXPECT_EQ(ColumnNames("FROM spans"), expected);
+  EXPECT_EQ(ColumnNames("FROM (SELECT * FROM spans)"), expected);
+  EXPECT_EQ(ColumnNames("FROM spans_view"), expected);
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, DuplicateOutputNames) {
   const char kQuery[] = "FROM tree |> TREE ACCUMULATE UP SUM(self) AS self";
   auto rows = Rows(kQuery);

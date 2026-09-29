@@ -53,6 +53,9 @@ struct LeafColumn {
   std::string_view name;
   // Nothing when the catalog does not know how the column is stored.
   std::optional<ColumnType> type;
+  // Left out of `*` and `table.*`, as SQLite does for HIDDEN columns, but
+  // still found by name.
+  bool hidden = false;
 };
 struct LeafRelation {
   std::string_view name;
