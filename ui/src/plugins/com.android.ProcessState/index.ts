@@ -36,11 +36,13 @@ import {
 } from '../../trace_processor/query_result';
 import {sqliteString} from '../../base/string_utils';
 import {
+  PassDetailsPanel,
   ProcessStateResidencyAggregator,
   ProcessStateTransitionsAggregator,
   processTrackUri,
   TAG_COUNT_TRACK,
   TAG_PROCESS_TRACK,
+  TAG_REASON_TRACK,
 } from './aggregators';
 
 const BASE_SCHEMA = {
@@ -57,6 +59,7 @@ const BASE_SCHEMA = {
   debuggable: NUM_NULL,
   state: STR,
   reason: STR_NULL,
+  seq_id: LONG_NULL,
 } as const;
 
 const NONEXISTENT_SCHEMA = {
@@ -75,6 +78,14 @@ const EXITED_SCHEMA = {
 } as const;
 
 const PROCESS_STATE_SCHEMA = {...NONEXISTENT_SCHEMA, ...EXITED_SCHEMA} as const;
+
+const PASS_SCHEMA = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  seq_id: LONG,
+  reason: STR_NULL,
+} as const;
 
 const SLATE = makeColorScheme(new HSLColor([210, 18, 48]));
 
@@ -111,6 +122,8 @@ export default class ProcessState implements PerfettoPlugin {
       isSummary: true,
     });
     group.addChildLast(await this.createConcurrencyTracks(ctx));
+    const byReason = await this.createReasonTracks(ctx);
+    if (byReason) group.addChildLast(byReason);
     group.addChildLast(await this.createProcessTracks(ctx));
     ctx.defaultWorkspace.addChildInOrder(group);
   }
@@ -166,6 +179,78 @@ export default class ProcessState implements PerfettoPlugin {
     }
 
     return summary;
+  }
+
+  // Root track with all passes combined, and one child track per OomAdjuster
+  // reason.
+  private async createReasonTracks(ctx: Trace): Promise<TrackNode | undefined> {
+    const passesSql = `
+      SELECT
+        seq_id AS id,
+        min(ts) AS ts,
+        max(ts) - min(ts) AS dur,
+        seq_id,
+        replace(reason, 'OOM_ADJ_REASON_', '') AS reason
+      FROM _android_process_state_intervals
+      WHERE seq_id IS NOT NULL
+      GROUP BY seq_id
+    `;
+    const reasons = await ctx.engine.query(`
+      SELECT DISTINCT replace(reason, 'OOM_ADJ_REASON_', '') AS reason
+      FROM _android_process_state_intervals
+      WHERE seq_id IS NOT NULL AND reason IS NOT NULL
+      ORDER BY reason
+    `);
+    if (reasons.numRows() === 0) return undefined;
+
+    const rootUri = `${ProcessState.id}#reason`;
+    ctx.tracks.registerTrack({
+      uri: rootUri,
+      renderer: SliceTrack.create({
+        trace: ctx,
+        uri: rootUri,
+        dataset: new SourceDataset({
+          schema: PASS_SCHEMA,
+          src: passesSql,
+        }),
+        sliceName: (row) => row.reason ?? 'N/A',
+        colorizer: (row) => getColorForSlice(row.reason ?? 'N/A'),
+        detailsPanel: (row) => new PassDetailsPanel(ctx, row),
+      }),
+      description:
+        'OomAdjuster passes that changed at least one process state, ' +
+        'named by the reason of the pass.',
+    });
+    const byReason = new TrackNode({
+      uri: rootUri,
+      name: 'By reason',
+      isSummary: true,
+    });
+
+    for (const it = reasons.iter({reason: STR}); it.valid(); it.next()) {
+      const {reason} = it;
+      const uri = `${ProcessState.id}#reason.${reason}`;
+      ctx.tracks.registerTrack({
+        uri,
+        renderer: SliceTrack.create({
+          trace: ctx,
+          uri,
+          dataset: new SourceDataset({
+            schema: PASS_SCHEMA,
+            src: passesSql,
+            filter: {col: 'reason', eq: reason},
+          }),
+          sliceName: () => reason,
+          colorizer: () => getColorForSlice(reason),
+          detailsPanel: (row) => new PassDetailsPanel(ctx, row),
+        }),
+        tags: {type: TAG_REASON_TRACK, reason},
+        description: `OomAdjuster passes with reason ${reason} that changed at least one process state.`,
+      });
+      byReason.addChildLast(new TrackNode({uri, name: reason}));
+    }
+
+    return byReason;
   }
 
   // One timeline per process. Ordered by uid so that the successive processes
