@@ -2528,9 +2528,12 @@ perfetto_filegroup(
         "src/trace_processor/core/common/duplicate_types.h",
         "src/trace_processor/core/common/null_types.h",
         "src/trace_processor/core/common/op_types.h",
+        "src/trace_processor/core/common/row_layout.h",
         "src/trace_processor/core/common/schema.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
+        "src/trace_processor/core/common/string_ranks.cc",
+        "src/trace_processor/core/common/string_ranks.h",
         "src/trace_processor/core/common/value_fetcher.h",
     ],
 )
