@@ -47,6 +47,26 @@ test('pin actual timeline tracks', async () => {
   await pth.pinTrackUsingShellBtn(sysuiTrack);
   await pth.waitForPerfettoIdle();
 
+  // Select an event on the SF actual timeline which has a flow to/from an
+  // event on the systemui actual timeline, so that the flows are rendered.
+  await page.evaluate(async () => {
+    const trace = self.app.trace!;
+    const result = await trace.engine.query(`
+      select sf.id
+      from actual_frame_timeline_slice sf
+      join flow f on f.slice_in = sf.id or f.slice_out = sf.id
+      join actual_frame_timeline_slice app
+        on app.id = iif(f.slice_in = sf.id, f.slice_out, f.slice_in)
+      where sf.upid = (select upid from process where pid = 598)
+        and app.upid = (select upid from process where pid = 25348)
+      order by sf.ts
+      limit 1
+    `);
+    const id = result.iter({}).get('id') as number;
+    trace.selection.selectSqlEvent('slice', id);
+  });
+  await pth.waitForPerfettoIdle();
+
   await pth.waitForIdleAndScreenshot('pinned_actual_timelines.png', {
     locator: page.locator('.pf-timeline-page__pinned-track-tree'),
   });
