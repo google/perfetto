@@ -32,6 +32,8 @@ source_set("exec") {
     "dataframe_scan.h",
     "group_by.cc",
     "group_by.h",
+    "interval_flatten.cc",
+    "interval_flatten.h",
     "interval_intersect.cc",
     "interval_intersect.h",
     "key_encoder.cc",
@@ -117,6 +119,7 @@ if (enable_perfetto_benchmarks) {
     testonly = true
     sources = [
       "breaker_benchmark.cc",
+      "interval_flatten_benchmark.cc",
       "interval_intersect_benchmark.cc",
       "key_encoder_benchmark.cc",
       "row_store_benchmark.cc",
