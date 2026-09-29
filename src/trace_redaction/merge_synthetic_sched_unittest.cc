@@ -232,11 +232,11 @@ TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsInMiddleCoalesced) {
   EXPECT_EQ(sched.switch_next_prio().at(0), 100);
   EXPECT_EQ(sched.switch_next_comm_index().at(0), 0u);
 
-  // Event 1: First Synth event preserved (with state 1, prio 0, comm 1)
+  // Event 1: First Synth event preserved (with state 1, prio 120, comm 1)
   EXPECT_EQ(sched.switch_timestamp().at(1), 20u);
   EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
   EXPECT_EQ(sched.switch_prev_state().at(1), 1);
-  EXPECT_EQ(sched.switch_next_prio().at(1), 0);
+  EXPECT_EQ(sched.switch_next_prio().at(1), 120);
   EXPECT_EQ(sched.switch_next_comm_index().at(1), 1u);
 
   // Event 2: TargetPidB with accumulated deltas 50 + 30 + 40 = 120
@@ -299,7 +299,8 @@ TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsAtEndCoalesced) {
   // End of synthetic chain preserved with accumulated delta (30 + 40 = 70)
   EXPECT_EQ(sched.switch_timestamp().at(2), 70u);
   EXPECT_EQ(sched.switch_next_pid().at(2), kSynthCpu0);
-  EXPECT_EQ(sched.switch_prev_state().at(2), 0);
+  EXPECT_EQ(sched.switch_prev_state().at(2), 3);
+  EXPECT_EQ(sched.switch_next_prio().at(2), 120);
 }
 
 TEST_F(MergeSyntheticSchedTest, AllSyntheticEventsBundleCoalesced) {
@@ -325,7 +326,8 @@ TEST_F(MergeSyntheticSchedTest, AllSyntheticEventsBundleCoalesced) {
   // End of synthetic chain preserved with accumulated delta (50 + 75 = 125)
   EXPECT_EQ(sched.switch_timestamp().at(1), 125u);
   EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
-  EXPECT_EQ(sched.switch_prev_state().at(1), 0);
+  EXPECT_EQ(sched.switch_prev_state().at(1), 3);
+  EXPECT_EQ(sched.switch_next_prio().at(1), 120);
 }
 
 TEST_F(MergeSyntheticSchedTest, NonSyntheticConsecutivePidsAreNotCoalesced) {
@@ -404,4 +406,46 @@ TEST_F(MergeSyntheticSchedTest,
   EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
 }
 
+TEST_F(MergeSyntheticSchedTest, TracingStartedBoundaryBreaksChain) {
+  context_.tracing_started_ts = 150;
+
+  AddSwitchEvent(100, kTargetPidA, 0, 100, 0); // abs: 100
+  AddSwitchEvent(40, kSynthCpu0, 1, 120, 1);   // abs: 140 (synth 1)
+  AddSwitchEvent(20, kSynthCpu0, 2, 120, 1);   // abs: 160 (synth 2, crosses boundary)
+  AddSwitchEvent(30, kSynthCpu0, 3, 120, 1);   // abs: 190 (synth 3)
+  AddSwitchEvent(50, kTargetPidB, 4, 100, 0);  // abs: 240
+
+  auto buffer = packet_.SerializeAsString();
+  ASSERT_OK(merge_.Transform(context_, &buffer));
+
+  protos::gen::TracePacket result;
+  ASSERT_TRUE(result.ParseFromString(buffer));
+  const auto& sched = result.ftrace_events().compact_sched();
+
+  ASSERT_EQ(sched.switch_timestamp_size(), 4);
+  ASSERT_EQ(sched.switch_next_pid_size(), 4);
+
+  // Event 0: TargetPidA
+  EXPECT_EQ(sched.switch_timestamp().at(0), 100u);
+  EXPECT_EQ(sched.switch_next_pid().at(0), kTargetPidA);
+
+  // Event 1: First Synth chain (started at 140, didn't accumulate more because boundary broken)
+  EXPECT_EQ(sched.switch_timestamp().at(1), 40u);
+  EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
+  EXPECT_EQ(sched.switch_prev_state().at(1), 1);
+  EXPECT_EQ(sched.switch_next_prio().at(1), 120);
+
+  // Event 2: New Synth chain started at 160, accumulated next 30 (160 -> 190)
+  EXPECT_EQ(sched.switch_timestamp().at(2), 20u);
+  EXPECT_EQ(sched.switch_next_pid().at(2), kSynthCpu0);
+  EXPECT_EQ(sched.switch_prev_state().at(2), 2);
+  EXPECT_EQ(sched.switch_next_prio().at(2), 120);
+
+  // Event 3: TargetPidB with accumulated deltas from the new chain (30 + 50) = 80
+  EXPECT_EQ(sched.switch_timestamp().at(3), 80u);
+  EXPECT_EQ(sched.switch_next_pid().at(3), kTargetPidB);
+  EXPECT_EQ(sched.switch_prev_state().at(3), 4);
+}
+
 }  // namespace perfetto::trace_redaction
+

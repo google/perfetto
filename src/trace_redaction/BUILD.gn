@@ -101,6 +101,7 @@ source_set("trace_redaction") {
     "../base",
     "../trace_processor/util:blob",
     "../trace_processor/util:clock",
+    "//protos/perfetto/trace/perfetto:zero",
   ]
 }
 
@@ -172,6 +173,7 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config:zero",
+    "../../protos/perfetto/trace/perfetto:cpp",
     "../../protos/perfetto/trace:minimal_cpp",
     "../../protos/perfetto/trace:non_minimal_cpp",
     "../../protos/perfetto/trace:zero",

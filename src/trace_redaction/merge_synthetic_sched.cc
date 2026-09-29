@@ -238,6 +238,8 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
   bool in_synthetic_chain = false;
   SchedSwitchEvent curr{};
 
+  uint64_t absolute_timestamp = 0;
+
   // Perform the consecutive synthetic thread switch events merging algorithm.
   // It will accumulate timestamp deltas of consecutive synthetic thread switch
   // events and merge them into the next non-synthetic thread switch event.
@@ -256,6 +258,7 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
   // After Merge:
   // TID1 (1 ns) -> TID2 (1 ns) -> STID (1 ns) -> TID3 (5 ns) -> TID4 (1 ns) ->
   // STID (1 ns)
+  std::optional<uint64_t> pending_boundary_ts = context.tracing_started_ts;
   while (it_ts && it_prev_state && it_pid && it_prio && it_comm) {
     curr.timestamp_delta = *it_ts;
     curr.prev_state = *it_prev_state;
@@ -263,10 +266,27 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
     curr.next_prio = *it_prio;
     curr.next_comm_index = *it_comm;
 
+    absolute_timestamp += curr.timestamp_delta;
     bool is_synthetic = curr.next_pid == synth_tid;
 
+    // Trace Processor drops events before `tracing_started_ts` and the first event after it (baseline).
+    // To prevent it from dropping the target app's first event, we break synthetic chains at this
+    // boundary to provide a sacrificial synthetic event for it to drop instead.
+    // We check this top-level to bypass the check once the boundary is crossed.
+    bool crossed_trace_started_boundary = false;
+    if (PERFETTO_UNLIKELY(pending_boundary_ts.has_value())) {
+      if (absolute_timestamp >= *pending_boundary_ts) {
+        uint64_t prev_timestamp = absolute_timestamp - curr.timestamp_delta;
+        if (prev_timestamp < *pending_boundary_ts) {
+          crossed_trace_started_boundary = true;
+        }
+        pending_boundary_ts.reset();
+      }
+    }
+
     if (in_synthetic_chain) {
-      if (is_synthetic) {
+      bool continue_chain = is_synthetic && !crossed_trace_started_boundary;
+      if (continue_chain) {
         // This is a consecutive synthetic switch event. Add its timestamp to
         // the accumulated delta.
         accumulated_delta += curr.timestamp_delta;
@@ -275,17 +295,16 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
         // Add accumulated delta to the event that broke the chain.
         curr.timestamp_delta += accumulated_delta;
 
-        // By design, we remove information about why a synthetic thread
-        // stopped running. This is because that information would be
-        // misleading for coalesced events and make it zero also improves
-        // compression and maintain consistency across all synthetic-sched
-        // slices.
-        curr.prev_state = 0;
-
         in_synthetic_chain = false;
         accumulated_delta = 0;
 
         emit_event(curr);
+
+        // If the chain was broken by a synthetic event crossing the tracing_started boundary,
+        // we immediately start a new synthetic chain with this event as the seed.
+        if (is_synthetic) {
+          in_synthetic_chain = true;
+        }
       }
     } else {
       // Non-synthetic events and start of synthetic event chains are
@@ -294,10 +313,6 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
       if (is_synthetic) {
         // This is the first synthetic switch event in a potential chain
         in_synthetic_chain = true;
-        // Override the synthetic threads priority to 0 as its not useful
-        // given we coalesce the switch events plus it makes the data more
-        // compressible.
-        curr.next_prio = 0;
       }
 
       emit_event(curr);
@@ -310,13 +325,11 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
     ++it_comm;
   }
 
-  // If the bundle ended while in a synthetic chain and at least one subsequent
-  // synthetic event was coalesced, emit the end of the chain so that both the
-  // start and end timestamps of the unclosed chain are preserved.
+  // If the bundle ended while in a synthetic chain, emit a final event to
+  // preserve the end timestamp of the unclosed chain. We use accumulated_delta > 0
+  // to avoid emitting zero-delta tails, which are harmless to drop.
   if (in_synthetic_chain && accumulated_delta > 0) {
     curr.timestamp_delta = accumulated_delta;
-    curr.prev_state = 0;
-    curr.next_prio = 0;
     emit_event(curr);
   }
 
