@@ -90,7 +90,9 @@ WITH
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
-      s.reason AS cur_reason
+      s.reason AS cur_reason,
+      s.seq_id,
+      s.utid
     FROM __intrinsic_android_process_state AS s
     JOIN process_lifetimes AS p USING (upid)
     UNION ALL
@@ -101,7 +103,9 @@ WITH
       0 AS is_initial,
       p.upid,
       'EXITED' AS cur_state,
-      NULL AS cur_reason
+      NULL AS cur_reason,
+      NULL AS seq_id,
+      NULL AS utid
     FROM process_lifetimes AS p
     WHERE
       p.death_ts IS NOT NULL
@@ -117,7 +121,9 @@ WITH
           e.upid
         ORDER BY e.ts, e.is_initial DESC
       ) AS prev_state,
-      e.cur_reason
+      e.cur_reason,
+      e.seq_id,
+      e.utid
     FROM all_events AS e
   ),
   state_changes AS (
@@ -136,7 +142,9 @@ WITH
       c.prev_state,
       c.ts
       - lag(c.ts) OVER (PARTITION BY c.upid ORDER BY c.ts, c.is_initial DESC) AS prev_state_duration,
-      c.cur_reason AS reason
+      c.cur_reason AS reason,
+      c.seq_id,
+      c.utid
     FROM raw_changes AS c
     WHERE
       c.prev_state IS NULL
@@ -170,6 +178,8 @@ SELECT
   c.prev_state_duration,
   coalesce(r.rank, 1000) AS state_rank,
   c.reason,
+  c.seq_id,
+  c.utid,
   iif(c.state = 'NONEXISTENT', fw.hosting_type, NULL) AS hosting_type,
   iif(c.state = 'NONEXISTENT', trim(fw.hosting_name, '{}'), NULL) AS hosting_name,
   iif(c.state = 'NONEXISTENT', fw.trigger_type, NULL) AS trigger_type,
