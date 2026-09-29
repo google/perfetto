@@ -723,6 +723,146 @@ TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgFixed) {
                                    ElementsAre(3.14, 42.1))))));
 }
 
+// --- C proto-group encoding tests ---
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupGeneratedMessages) {
+  protozero_test_protos_EveryField root, outer, inner, leaf;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  protozero_test_protos_EveryField_begin_field_nested(&root, &outer);
+  protozero_test_protos_EveryField_begin_field_nested(&outer, &inner);
+  protozero_test_protos_EveryField_begin_field_nested(&inner, &leaf);
+  protozero_test_protos_EveryField_set_field_int32(&leaf, 150);
+  protozero_test_protos_EveryField_end_field_nested(&root, &outer);
+  protozero_test_protos_EveryField_set_field_int32(&root, 42);
+  EXPECT_EQ(11u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(11u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0x73, 0x73, 0x73, 0x08, 0x96, 0x01,
+                                             0x04, 0x04, 0x04, 0x08, 0x2a}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupEmptyAndReset) {
+  PerfettoPbMsg root, child;
+  PerfettoPbMsgInitWithEncoding(&root, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  EXPECT_EQ(0u, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(0u, PerfettoPbMsgFinalize(&root));
+  EXPECT_TRUE(GetData().empty());
+  PerfettoPbMsgInitWithEncoding(&root, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&root));
+  PerfettoPbMsgInit(&root, &writer);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  EXPECT_EQ(5u, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0x0b, 0x04, 0x0a, 0x80, 0x80, 0x80, 0}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupHighFieldIdAndSiblings) {
+  PerfettoPbMsg root, child;
+  PerfettoPbMsgInitWithEncoding(&root, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbMsgBeginNested(&root, &child, 100);
+  PerfettoPbMsgAppendType0Field(&child, 1, 0);
+
+  // The child's size excludes its closing byte. PerfettoPbMsgEndNested()
+  // writes that byte, once.
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&child));
+  EXPECT_EQ(2u, PerfettoPbMsgFinalize(&child));
+  PerfettoPbMsgEndNested(&root);
+
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  PerfettoPbMsgAppendType0Field(&child, 2, 150);
+  PerfettoPbMsgEndNested(&root);
+  PerfettoPbMsgAppendType0Field(&root, 2, 42);
+  EXPECT_EQ(12u, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0xa3, 0x06, 0x08, 0, 0x04, 0x0b, 0x10, 0x96,
+                                  0x01, 0x04, 0x10, 0x2a}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupCloseAtChunkBoundary) {
+  PerfettoPbMsg root, child;
+  PerfettoPbMsgInitWithEncoding(&root, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  // The heap buffer hands out 4096-byte slices. The start tag, the field tag,
+  // the 2-byte length and the payload fill the first slice exactly.
+  constexpr size_t kSliceSize = 4096;
+  constexpr size_t kPreambleSize = 4;
+  const std::vector<uint8_t> payload(kSliceSize - kPreambleSize, 0x55);
+  PerfettoPbMsgAppendType2Field(&child, 2, payload.data(), payload.size());
+  ASSERT_EQ(0u, PerfettoStreamWriterAvailableBytes(&writer.writer));
+  EXPECT_EQ(nullptr, child.size_field);
+  const auto published = GetData();
+  ASSERT_EQ(kSliceSize, published.size());
+  EXPECT_EQ(kSliceSize + 1, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(kSliceSize + 1, PerfettoPbMsgFinalize(&root));
+  auto expected = std::vector<uint8_t>{0x0b, 0x12, 0xfc, 0x1f};
+  expected.insert(expected.end(), payload.begin(), payload.end());
+  EXPECT_EQ(expected, published);
+  expected.push_back(0x04);
+  EXPECT_EQ(expected, GetData());
+}
+
+// A complete string has its length up front, so it works in proto group mode.
+// An incremental string does not, so it aborts.
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalStringAborts) {
+  protozero_test_protos_EveryField root;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  protozero_test_protos_EveryField_set_cstr_field_string(&root, "a");
+  EXPECT_EQ(4u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a'}));
+
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbMsg payload;
+  // abort() prints no message, so the matcher is empty.
+  EXPECT_DEATH_IF_SUPPORTED(
+      protozero_test_protos_EveryField_begin_field_string(&root, &payload), "");
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalPackedAborts) {
+  protozero_test_protos_PackedRepeatedFields root;
+  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbPackedMsgInt32 payload;
+  // abort() prints no message, so the matcher is empty.
+  EXPECT_DEATH_IF_SUPPORTED(
+      protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
+                                                                   &payload),
+      "");
+}
+
+#ifndef NDEBUG
+// In C, a write to the parent does not end the open child. In proto group mode,
+// the parent writes the child's closing byte in PerfettoPbMsgEndNested(). A
+// parent write before that would land inside the child, so it asserts.
+TEST_F(SharedLibProtozeroSerializationTest,
+       ProtoGroupParentWriteBeforeEndNestedAsserts) {
+  PerfettoPbMsg root, child, sibling;
+  PerfettoPbMsgInitWithEncoding(&root, &writer,
+                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
+  PerfettoPbMsgBeginNested(&root, &child, 1);
+  PerfettoPbMsgAppendType0Field(&child, 2, 7);
+  PerfettoPbMsgFinalize(&child);
+
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgAppendType0Field(&root, 3, 1),
+                            "nested");
+  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgBeginNested(&root, &sibling, 4),
+                            "nested");
+
+  // After PerfettoPbMsgEndNested(), the parent can write again.
+  PerfettoPbMsgEndNested(&root);
+  PerfettoPbMsgAppendType0Field(&root, 3, 1);
+  EXPECT_EQ(6u, PerfettoPbMsgFinalize(&root));
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0x0b, 0x10, 0x07, 0x04, 0x18, 0x01}));
+}
+#endif
+
 class SharedLibDataSourceTest : public testing::Test {
  protected:
   void SetUp() override {
