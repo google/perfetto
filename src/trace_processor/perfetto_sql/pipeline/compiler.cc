@@ -35,6 +35,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -205,6 +206,7 @@ base::Status Compiler::CompileIntersection(uint32_t node) {
                               column.id) != operand.keys.end();
       bindings.push_back({column, source_id});
       qualified_only_.push_back(!(is_key && i == 0));
+      operand.carried.push_back(column.id);
     }
     children.push_back(plan_.AddNode(std::move(scan)));
     isect.operands.push_back(std::move(operand));
@@ -521,7 +523,9 @@ base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
           compiler.CompileStage(syntaqlite_list_child_id(stages, i)));
     }
   }
-  return compiler.Finish();
+  LogicalPlan plan = compiler.Finish();
+  PruneColumns(plan);
+  return plan;
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -60,11 +60,18 @@ class PerfettoSqlParserTest : public ::testing::Test {
         catalog_(&pool_, connection_.get()) {
     catalog_.AddTable("slice", {"id", "parent_id", "dur", "self", "depth"},
                       {{0, std::nullopt, 10, 10, 0}, {1, 0, 5, 5, 1}});
-    auto stmt = connection_->PrepareStatement(SqlSource::FromExecuteQuery(
-        "CREATE TABLE tree(id INTEGER, parent_id INTEGER, self INTEGER)"));
-    while (stmt.Step()) {
+    catalog_.AddTable("spans", {"ts", "dur", "cpu", "utid"},
+                      {{0, 10, 0, 1}, {5, 10, 1, 2}});
+    for (const char* sql :
+         {"CREATE TABLE tree(id INTEGER, parent_id INTEGER, self INTEGER)",
+          "CREATE TABLE sql_spans(ts INTEGER, dur INTEGER, cpu INTEGER, "
+          "utid INTEGER)"}) {
+      auto stmt =
+          connection_->PrepareStatement(SqlSource::FromExecuteQuery(sql));
+      while (stmt.Step()) {
+      }
+      PERFETTO_CHECK(stmt.status().ok());
     }
-    PERFETTO_CHECK(stmt.status().ok());
   }
 
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
@@ -775,6 +782,93 @@ TEST_F(PerfettoSqlParserTest, PipelineAggregatesReadOnlyTheirInput) {
   EXPECT_TRUE(ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS a "
                             "|> TREE ACCUMULATE UP SUM(a) AS b")
                   .ok());
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineReadsOnlyTheColumnsItNeeds) {
+  // Operands only read the columns the intersection itself needs.
+  auto plan = ParsePipeline(
+      "INTERVAL INTERSECTION OF (spans AS a, spans AS b) PER cpu "
+      "|> SELECT ts, dur");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("Scan(table spans) [#2:uint32 AS ts, "
+                               "#3:uint32 AS dur, #4:id AS cpu]"));
+  EXPECT_THAT(*plan, HasSubstr("Scan(table spans) [#6:uint32 AS ts, "
+                               "#7:uint32 AS dur, #8:id AS cpu]"));
+
+  // A selected column is read from the operand it comes from.
+  plan = ParsePipeline(
+      "INTERVAL INTERSECTION OF (spans AS a, spans AS b) |> SELECT b.utid");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("Scan(table spans) [#2:uint32 AS ts, "
+                               "#3:uint32 AS dur]"));
+  EXPECT_THAT(*plan, HasSubstr("Scan(table spans) [#6:uint32 AS ts, "
+                               "#7:uint32 AS dur, #9:uint32 AS utid]"));
+  // Only that column is passed on: the bounds are read, not carried.
+  EXPECT_THAT(*plan, HasSubstr("operand(ts=#2, dur=#3, carries=[])"));
+  EXPECT_THAT(*plan, HasSubstr("operand(ts=#6, dur=#7, carries=[#9])"));
+
+  // A tree fold keeps the columns it needs.
+  plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("Scan(table slice) [#0:id AS id, "
+                               "#1:uint32 AS parent_id, #3:uint32 AS self]"));
+
+  // Without a projection, every column is used.
+  plan = ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr(std::string("Scan(table slice) [") +
+                               kSliceColumns + "]"));
+}
+
+TEST_F(PerfettoSqlParserTest, PipelineSkipsUnusedTreeAggregates) {
+  // Aggregates nobody uses are not computed, nor are their inputs read.
+  auto plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS a, SUM(dur) AS b "
+      "|> SELECT a");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("TreeAccumulate(up, node=#0, parent=#1, "
+                               "SUM(#3) -> #5:int64)\n"));
+  EXPECT_THAT(*plan, HasSubstr("Scan(table slice) [#0:id AS id, "
+                               "#1:uint32 AS parent_id, #3:uint32 AS self]"));
+
+  // A fold with no aggregates left is skipped entirely.
+  plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(*plan, "Scan(table slice) [#0:id AS id]\nOutput(#0 AS id)\n");
+
+  // A fold whose result feeds a later one is kept.
+  plan = ParsePipeline(
+      "FROM slice |> TREE ACCUMULATE UP SUM(self) AS a "
+      "|> TREE ACCUMULATE DOWN SUM(a) AS b |> SELECT b");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("SUM(#3) -> #5:int64"));
+  EXPECT_THAT(*plan, HasSubstr("SUM(#5) -> #6:int64"));
+}
+
+TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
+  // SQL sources only ask SQLite for the columns that are used.
+  auto plan = ParsePipeline(
+      "INTERVAL INTERSECTION OF (sql_spans AS a, (SELECT * FROM sql_spans) AS "
+      "b) |> SELECT ts, dur, b.utid");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan,
+              HasSubstr("Scan(sql WITH __pipeline_source(c0, c1, c2, c3) AS "
+                        "(SELECT * FROM sql_spans AS a) SELECT c0 AS \"ts\", "
+                        "c1 AS \"dur\" FROM __pipeline_source) "
+                        "[#2 AS ts, #3 AS dur]"));
+  EXPECT_THAT(
+      *plan,
+      HasSubstr("Scan(sql WITH __pipeline_source(c0, c1, c2, c3) AS "
+                "(SELECT * FROM (SELECT * FROM sql_spans) AS b) SELECT c0 AS "
+                "\"ts\", c1 AS \"dur\", c3 AS \"utid\" FROM __pipeline_source) "
+                "[#6 AS ts, #7 AS dur, #9 AS utid]"));
+
+  // A source that uses every column is left alone.
+  plan = ParsePipeline("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_THAT(*plan, HasSubstr("Scan(sql SELECT * FROM tree)"));
 }
 
 TEST_F(PerfettoSqlParserTest, TakePipelineStatement) {
