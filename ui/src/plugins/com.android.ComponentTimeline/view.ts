@@ -29,7 +29,7 @@ import {
   type SparklineBandSeries,
   TimelineSparkline,
 } from '../../widgets/timeline_sparkline';
-import type {ComponentTimelineModel} from './model';
+import {type ComponentTimelineModel, formatBucketLabel} from './model';
 import {
   type ActiveBucketState,
   ALL_TARGETS_VALUE,
@@ -55,7 +55,14 @@ export interface ComponentTimelineViewAttrs {
 
 function fmtRelSec(ms: number, digits = 1): string {
   const sign = ms >= 0 ? '+' : '\u2212';
-  return `${sign}${(Math.abs(ms) / 1000).toFixed(digits)} s`;
+  const absSec = Math.abs(ms) / 1000;
+  if (absSec >= 3600) {
+    const h = Math.floor(absSec / 3600);
+    const m = Math.floor((absSec % 3600) / 60);
+    const s = (absSec % 60).toFixed(0).padStart(2, '0');
+    return `${sign}${h}h ${String(m).padStart(2, '0')}m ${s}s`;
+  }
+  return `${sign}${absSec.toFixed(digits)} s`;
 }
 
 function fmtMb(v: number): string {
@@ -121,7 +128,7 @@ export class ComponentTimelineView implements m.ClassComponent<ComponentTimeline
         m(
           EmptyState,
           {
-            title: 'Computing 100 ms component & process state timeline...',
+            title: 'Computing bucketed component & process state timeline...',
             fillHeight: true,
           },
           m(Spinner),
@@ -352,7 +359,7 @@ export class ComponentTimelineView implements m.ClassComponent<ComponentTimeline
             icon: 'chevron_left',
             compact: true,
             variant: ButtonVariant.Outlined,
-            title: 'Back one 100 ms frame (\u2190)',
+            title: `Back one ${formatBucketLabel(ds.bucketMs)} frame (\u2190)`,
             onclick: () => {
               model.stop();
               model.goToFrame(frame - 1);
@@ -372,7 +379,7 @@ export class ComponentTimelineView implements m.ClassComponent<ComponentTimeline
             icon: 'chevron_right',
             compact: true,
             variant: ButtonVariant.Outlined,
-            title: 'Forward one 100 ms frame (\u2192)',
+            title: `Forward one ${formatBucketLabel(ds.bucketMs)} frame (\u2192)`,
             onclick: () => {
               model.stop();
               model.goToFrame(frame + 1);
@@ -395,7 +402,7 @@ export class ComponentTimelineView implements m.ClassComponent<ComponentTimeline
         m(
           Select,
           {
-            title: 'Wall time per 100 ms frame',
+            title: `Wall time per ${formatBucketLabel(ds.bucketMs)} frame`,
             value: String(model.speedMs),
             onchange: (e: Event) => {
               const v = Number((e.target as HTMLSelectElement).value);
@@ -731,7 +738,7 @@ export class ComponentTimelineView implements m.ClassComponent<ComponentTimeline
         m('code', ds.t0Label),
         `. Trace covers ${fmtRelSec(-ds.preMs)} \u2026 ${fmtRelSec(ds.postMs)}. `,
         `One row per app process that matched this component (${ds.rows.length} processes, system_server excluded); rows alternate left / right in order of appearance. `,
-        'Top bar = CPU in the 100 ms bucket (black end cap = more than one core). ',
+        `Top bar = CPU in the ${formatBucketLabel(ds.bucketMs)} bucket (black end cap = more than one core). `,
         'Bottom bar = RSS from ',
         m('code', 'rss_stat'),
         ' (last value carried forward): dark = anon (private), light = file + shmem (largely shared with zygote / other apps), striped = swap. ',

@@ -40,19 +40,29 @@ import {
 import {
   categoryTrackUri,
   ComponentEventsAggregator,
+  ComponentOverlapAggregator,
   ComponentResidencyAggregator,
   concurrencyTrackUri,
   PLUGIN_ID,
   processCategoryTrackUri,
+  processOverlapTrackUri,
   processTargetTrackUri,
   processTrackUri,
+  selfIntersectTrackUri,
   TAG_CATEGORY_TRACK,
   TAG_CONCURRENCY_TRACK,
   TAG_PROCESS_CATEGORY_TRACK,
+  TAG_PROCESS_OVERLAP_TRACK,
   TAG_PROCESS_TARGET_TRACK,
   TAG_PROCESS_TRACK,
+  TAG_SELF_INTERSECT_TRACK,
+  TAG_TARGET_CONCURRENCY_TRACK,
   TAG_TARGET_TRACK,
+  TAG_TOTAL_OVERLAP_TRACK,
+  targetConcurrencyTrackUri,
   targetTrackUri,
+  totalOverlapChildTrackUri,
+  totalOverlapTrackUri,
 } from './aggregators';
 import {ComponentTimelineModel} from './model';
 import {formatShortTarget} from './types';
@@ -118,6 +128,16 @@ const PROC_STATE_FULL_SCHEMA = {
   ...PROC_STATE_EXITED_SCHEMA,
 } as const;
 
+const SELF_INTERSECT_SCHEMA = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  group_id: NUM,
+  overlap_count: NUM,
+  processes: STR,
+  components: STR,
+} as const;
+
 const SLATE = makeColorScheme(new HSLColor([210, 18, 48]));
 
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
@@ -150,9 +170,9 @@ const CATEGORY_ORDER: Readonly<Record<string, number>> = {
 export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   static readonly description =
-    'Interactive 100 ms bucketed Android component & process state timeline ' +
+    'Interactive bucketed Android component & process state timeline ' +
     '(Broadcasts, Services, Content Providers, Jobs, Activities, Process States, ' +
-    'CPU & RSS/Anon/Swap memory).';
+    'Intersecting Overlap Counter Tracks, CPU & RSS/Anon/Swap memory).';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     if (!(await this.isAndroidTrace(ctx))) {
@@ -204,6 +224,9 @@ export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
 
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ComponentResidencyAggregator(ctx)),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new ComponentOverlapAggregator(ctx)),
     );
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ComponentEventsAggregator(ctx)),
@@ -275,10 +298,120 @@ export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
   }
 
   private async createConcurrencyTracks(ctx: Trace): Promise<TrackNode> {
+    const totalUri = totalOverlapTrackUri();
+    ctx.tracks.registerTrack({
+      uri: totalUri,
+      renderer: CounterTrack.create({
+        trace: ctx,
+        uri: totalUri,
+        sqlSource: `
+          SELECT ts, concurrency AS value
+          FROM _android_component_total_overlap
+        `,
+      }),
+      tags: {type: TAG_TOTAL_OVERLAP_TRACK},
+      description:
+        'Total intersecting component executions active simultaneously across all processes and categories.',
+    });
+
     const summary = new TrackNode({
-      name: 'By component concurrency',
+      uri: totalUri,
+      name: 'By component concurrency & overlap',
       isSummary: true,
     });
+
+    const totalChildUri = totalOverlapChildTrackUri();
+    ctx.tracks.registerTrack({
+      uri: totalChildUri,
+      renderer: CounterTrack.create({
+        trace: ctx,
+        uri: totalChildUri,
+        sqlSource: `
+          SELECT ts, concurrency AS value
+          FROM _android_component_total_overlap
+        `,
+      }),
+      tags: {type: TAG_TOTAL_OVERLAP_TRACK},
+      description:
+        'Total intersecting component executions active simultaneously across all processes and categories.',
+    });
+    summary.addChildLast(
+      new TrackNode({
+        uri: totalChildUri,
+        name: 'Total Intersecting Overlap (All Components)',
+      }),
+    );
+
+    const selfIntersectCntRes = await ctx.engine.query(`
+      SELECT count() AS cnt FROM _android_component_self_intersect
+    `);
+    if (selfIntersectCntRes.firstRow({cnt: NUM}).cnt > 0) {
+      const siUri = selfIntersectTrackUri();
+      const siDataset = new SourceDataset({
+        schema: SELF_INTERSECT_SCHEMA,
+        src: '_android_component_self_intersect',
+      });
+      ctx.tracks.registerTrack({
+        uri: siUri,
+        renderer: SliceTrack.create({
+          trace: ctx,
+          uri: siUri,
+          dataset: siDataset,
+          sliceLayout: {sliceHeight: 14, titleSizePx: 10},
+          sliceName: (row) => `${row.overlap_count}x: ${row.components}`,
+          colorizer: (row) => getColorForSlice(`${row.overlap_count}x`),
+          detailsPanel: (row) =>
+            new SliceTrackDetailsPanel(ctx, siDataset, row),
+          rootTableName: '_android_component_self_intersect',
+        }),
+        tags: {type: TAG_SELF_INTERSECT_TRACK},
+        description:
+          'Atomic self-intersection intervals (via interval_self_intersect!) where >= 2 components execute simultaneously.',
+      });
+      summary.addChildLast(
+        new TrackNode({
+          uri: siUri,
+          name: 'Intersecting Overlap Segments (≥2 concurrent)',
+        }),
+      );
+    }
+
+    const targetConcRes = await ctx.engine.query(`
+      SELECT
+        category,
+        target,
+        cat_target_key,
+        max(concurrency) AS peak_overlap
+      FROM _android_component_target_concurrency
+      GROUP BY category, target, cat_target_key
+      HAVING peak_overlap > 0
+      ORDER BY category, peak_overlap DESC, min(ts) ASC
+    `);
+    const targetConcByCat = new Map<
+      string,
+      Array<{target: string; catTargetKey: string; peakOverlap: number}>
+    >();
+    for (
+      const it = targetConcRes.iter({
+        category: STR,
+        target: STR,
+        cat_target_key: STR,
+        peak_overlap: NUM,
+      });
+      it.valid();
+      it.next()
+    ) {
+      let list = targetConcByCat.get(it.category);
+      if (list === undefined) {
+        list = [];
+        targetConcByCat.set(it.category, list);
+      }
+      list.push({
+        target: it.target,
+        catTargetKey: it.cat_target_key,
+        peakOverlap: it.peak_overlap,
+      });
+    }
 
     const catsRes = await ctx.engine.query(`
       SELECT category
@@ -312,9 +445,46 @@ export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
           `,
         }),
         tags: {type: TAG_CONCURRENCY_TRACK, category: cat},
-        description: `Number of processes concurrently executing ${label}.`,
+        description: `Number of processes concurrently executing ${label}. Expand to see per-component overlap counter tracks.`,
       });
-      summary.addChildLast(new TrackNode({uri, name: `Active ${label}`}));
+      const catTargets = targetConcByCat.get(cat) ?? [];
+      const catConcNode = new TrackNode({
+        uri,
+        name: `Active ${label} (Overlap)`,
+        isSummary: catTargets.length > 0,
+      });
+
+      for (const tgt of catTargets) {
+        const tgtConcUri = targetConcurrencyTrackUri(cat, tgt.target);
+        ctx.tracks.registerTrack({
+          uri: tgtConcUri,
+          renderer: CounterTrack.create({
+            trace: ctx,
+            uri: tgtConcUri,
+            sqlSource: `
+              SELECT ts, concurrency AS value
+              FROM _android_component_target_concurrency
+              WHERE cat_target_key = ${sqliteString(tgt.catTargetKey)}
+            `,
+          }),
+          tags: {
+            type: TAG_TARGET_CONCURRENCY_TRACK,
+            category: cat,
+            target: tgt.target,
+          },
+          description: `Intersecting overlap count for ${tgt.target} (peak ${tgt.peakOverlap} concurrent).`,
+        });
+        const shortTarget = formatShortTarget(cat, tgt.target);
+        const tgtDisplayName =
+          shortTarget !== tgt.target
+            ? `${shortTarget} — ${tgt.target} (peak ${tgt.peakOverlap})`
+            : `${tgt.target} (peak ${tgt.peakOverlap})`;
+        catConcNode.addChildLast(
+          new TrackNode({uri: tgtConcUri, name: tgtDisplayName}),
+        );
+      }
+
+      summary.addChildLast(catConcNode);
     }
 
     return summary;
@@ -579,6 +749,21 @@ export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
       rssTrackByUpid.set(it.upid, it.track_id);
     }
 
+    const procConcRes = await ctx.engine.query(`
+      SELECT upid, max(concurrency) AS peak_overlap
+      FROM _android_component_process_concurrency
+      GROUP BY upid
+      HAVING peak_overlap > 0
+    `);
+    const peakOverlapByUpid = new Map<number, number>();
+    for (
+      const it = procConcRes.iter({upid: NUM, peak_overlap: NUM});
+      it.valid();
+      it.next()
+    ) {
+      peakOverlapByUpid.set(it.upid, it.peak_overlap);
+    }
+
     for (
       const it = procsRes.iter({
         upid: NUM,
@@ -624,7 +809,7 @@ export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
           rootTableName: '_android_component_timeline_events',
         }),
         tags: {type: TAG_PROCESS_TRACK, upid},
-        description: `All active component executions for ${procName} (${pid}). Expand to see per-component sub-tracks and process state.`,
+        description: `All active component executions for ${procName} (${pid}). Expand to see per-component sub-tracks, component overlap counter, and process state.`,
       });
 
       const procNode = new TrackNode({
@@ -643,34 +828,60 @@ export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
       });
 
       const rssTrackId = rssTrackByUpid.get(upid);
-      let addedRssSubTrack = false;
-      const addRssSubTrack = () => {
-        if (addedRssSubTrack || rssTrackId === undefined) return;
-        addedRssSubTrack = true;
-        const rssUri = `${PLUGIN_ID}#proc.${upid}.rss`;
-        ctx.tracks.registerTrack({
-          uri: rssUri,
-          renderer: CounterTrack.create({
-            trace: ctx,
+      const peakOverlap = peakOverlapByUpid.get(upid) ?? 0;
+      let addedProcessCounters = false;
+      const addProcessCounters = () => {
+        if (addedProcessCounters) return;
+        addedProcessCounters = true;
+        if (peakOverlap > 0) {
+          const ovUri = processOverlapTrackUri(upid);
+          ctx.tracks.registerTrack({
+            uri: ovUri,
+            renderer: CounterTrack.create({
+              trace: ctx,
+              uri: ovUri,
+              sqlSource: `
+                SELECT ts, concurrency AS value
+                FROM _android_component_process_concurrency
+                WHERE upid = ${upid}
+              `,
+            }),
+            tags: {type: TAG_PROCESS_OVERLAP_TRACK, upid},
+            description: `Intersecting component overlap count in ${procName} (${pid}) (peak ${peakOverlap} concurrent).`,
+          });
+          procNode.addChildLast(
+            new TrackNode({
+              uri: ovUri,
+              name: `Component Overlap (peak ${peakOverlap})`,
+            }),
+          );
+        }
+        if (rssTrackId !== undefined) {
+          const rssUri = `${PLUGIN_ID}#proc.${upid}.rss`;
+          ctx.tracks.registerTrack({
             uri: rssUri,
-            sqlSource: `
-              SELECT ts, round(value / 1048576.0, 1) AS value
-              FROM counter
-              WHERE track_id = ${rssTrackId}
-            `,
-            unit: 'MB',
-          }),
-          tags: {upid},
-          description: `Anon RSS memory (MB) for ${procName} (${pid}).`,
-        });
-        procNode.addChildLast(
-          new TrackNode({uri: rssUri, name: 'Anon RSS (MB)'}),
-        );
+            renderer: CounterTrack.create({
+              trace: ctx,
+              uri: rssUri,
+              sqlSource: `
+                SELECT ts, round(value / 1048576.0, 1) AS value
+                FROM counter
+                WHERE track_id = ${rssTrackId}
+              `,
+              unit: 'MB',
+            }),
+            tags: {upid},
+            description: `Anon RSS memory (MB) for ${procName} (${pid}).`,
+          });
+          procNode.addChildLast(
+            new TrackNode({uri: rssUri, name: 'Anon RSS (MB)'}),
+          );
+        }
       };
 
       for (const pc of procCats) {
         if (pc.category !== 'proc_state') {
-          addRssSubTrack();
+          addProcessCounters();
         }
         const subUri = processCategoryTrackUri(upid, pc.category);
         if (pc.category === 'proc_state' && hasFrameworkProcState) {
@@ -844,7 +1055,7 @@ export default class AndroidComponentTimelinePlugin implements PerfettoPlugin {
           procNode.addChildLast(catSubNode);
         }
       }
-      addRssSubTrack();
+      addProcessCounters();
 
       byProcessGroup.addChildLast(procNode);
     }

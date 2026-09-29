@@ -39,23 +39,34 @@ import {
   type TraceHeaderMetadata,
 } from './types';
 
-const BUCKET_NS = 100_000_000n;
-const BUCKET_MS = 100;
+const DEFAULT_BUCKET_MS = 100;
 const LINGER_MS = 5000;
 const IDLE_THRESHOLD_MS = 1.0;
-const CPU_SCALE_MS = 100;
 const DEFAULT_MEM_SCALE_MB = 500;
+const MAX_BUCKETS = 1200;
 
-interface RawInterval {
-  readonly startNs: bigint;
-  readonly endNs: bigint;
+const BUCKET_CANDIDATES_MS = [
+  100, 200, 500, 1000, 2000, 5000, 10000, 30000, 60000, 120000,
+] as const;
+
+export function chooseBucketMs(spanMs: number): number {
+  for (const cand of BUCKET_CANDIDATES_MS) {
+    if (Math.ceil(spanMs / cand) <= MAX_BUCKETS) {
+      return cand;
+    }
+  }
+  return Math.max(120000, Math.ceil(spanMs / MAX_BUCKETS / 1000) * 1000);
 }
 
-interface RawProcStateInterval {
-  readonly startNs: bigint;
-  readonly endNs: bigint;
-  readonly state: string;
-  readonly oomScore: number | null;
+export function formatBucketLabel(bucketMs: number): string {
+  if (bucketMs >= 60000 && bucketMs % 60000 === 0) {
+    return `${bucketMs / 60000} min`;
+  }
+  if (bucketMs >= 1000) {
+    const sec = bucketMs / 1000;
+    return Number.isInteger(sec) ? `${sec} s` : `${sec.toFixed(1)} s`;
+  }
+  return `${bucketMs} ms`;
 }
 
 export class ComponentTimelineModel {
@@ -119,6 +130,7 @@ export class ComponentTimelineModel {
         psCheck.ok && psCheck.value.firstRow({cnt: NUM}).cnt > 0;
 
       await engine.query(`
+        INCLUDE PERFETTO MODULE intervals.intersect;
         INCLUDE PERFETTO MODULE intervals.overlap;
         INCLUDE PERFETTO MODULE android.oom_adjuster;
         INCLUDE PERFETTO MODULE android.memory.lmk;
@@ -130,23 +142,19 @@ export class ComponentTimelineModel {
 
       const metaRes = await engine.query(`
         SELECT
-          COALESCE((SELECT min(ts) FROM sched WHERE dur > 0), trace_start()) AS min_sched_ns,
-          COALESCE((SELECT max(ts + dur) FROM sched WHERE dur > 0), trace_end()) AS max_sched_ns,
           trace_start() AS trace_start_ns,
           trace_end() AS trace_end_ns,
-          (SELECT count(DISTINCT ucpu) FROM sched WHERE ucpu IS NOT NULL) AS ncpu,
+          (SELECT count() FROM cpu) AS ncpu,
           (
             (SELECT count() FROM android_lmk_events) +
             (
               SELECT count()
               FROM slice
               WHERE name = 'process_died'
+                AND arg_set_id IS NOT NULL
                 AND (
                   extract_arg(arg_set_id, 'process_died_event.reason') = 'APP_EXIT_REASON_LOW_MEMORY'
                   OR extract_arg(arg_set_id, 'process_died_event.sub_reason') = 'APP_EXIT_SUBREASON_OOM_KILL'
-                )
-                AND COALESCE(extract_arg(arg_set_id, 'process_died_event.upid'), -1) NOT IN (
-                  SELECT upid FROM android_lmk_events WHERE upid IS NOT NULL
                 )
             )
           ) AS nlmk,
@@ -162,8 +170,6 @@ export class ComponentTimelineModel {
       `);
 
       const metaRow = metaRes.firstRow({
-        min_sched_ns: LONG,
-        max_sched_ns: LONG,
         trace_start_ns: LONG,
         trace_end_ns: LONG,
         ncpu: NUM,
@@ -173,18 +179,11 @@ export class ComponentTimelineModel {
         trace_trigger: STR_NULL,
       });
 
-      let windowStartNs =
-        metaRow.min_sched_ns - metaRow.trace_start_ns < 5_000_000_000n
-          ? metaRow.trace_start_ns
-          : metaRow.min_sched_ns;
+      const windowStartNs = metaRow.trace_start_ns;
       const windowEndNs =
-        metaRow.trace_end_ns - metaRow.max_sched_ns < 5_000_000_000n
+        metaRow.trace_end_ns > windowStartNs
           ? metaRow.trace_end_ns
-          : metaRow.max_sched_ns;
-
-      if (windowEndNs - windowStartNs > 120_000_000_000n) {
-        windowStartNs = windowEndNs - 120_000_000_000n;
-      }
+          : windowStartNs + 1_000_000_000n;
 
       let device = 'android';
       let build = 'trace';
@@ -282,28 +281,52 @@ export class ComponentTimelineModel {
     await engine.query(`
       DROP TABLE IF EXISTS _android_component_timeline_events;
       CREATE PERFETTO TABLE _android_component_timeline_events AS
-      WITH broadcast_raw AS (
-        -- FrameworksBaseTrackEvent.broadcast_event (field 2008, slice name 'broadcast_delivered')
+      WITH pid_to_upid AS (
+        SELECT pid, max(upid) AS upid
+        FROM process
+        WHERE pid IS NOT NULL AND pid > 0
+        GROUP BY pid
+      ),
+      fw_slices AS (
         SELECT
           s.id AS slice_id,
-          s.ts AS finish_ts,
+          s.ts,
           s.dur AS slice_dur,
           s.name AS raw_name,
+          s.arg_set_id
+        FROM slice s
+        WHERE s.arg_set_id IS NOT NULL
+          AND s.name IN (
+            'broadcast_delivered',
+            'self_broadcast_delivered',
+            'service_start',
+            'service_stop',
+            'service_binding',
+            'service_published',
+            'service_unbinding',
+            'service_connection_removed',
+            'service_restart_scheduled',
+            'fgs_start',
+            'fgs_stop',
+            'provider_published',
+            'provider_acquired',
+            'provider_released',
+            'provider_died'
+          )
+      ),
+      broadcast_raw AS (
+        SELECT
+          s.slice_id,
+          s.ts AS finish_ts,
+          s.slice_dur,
+          s.raw_name,
           extract_arg(s.arg_set_id, 'broadcast_event.action_name') AS target,
-          COALESCE(
-            extract_arg(s.arg_set_id, 'broadcast_event.receiver_upid'),
-            (
-              SELECT max(p2.upid)
-              FROM process p2
-              WHERE p2.pid = extract_arg(s.arg_set_id, 'broadcast_event.receiver_pid')
-                AND p2.pid IS NOT NULL
-            )
-          ) AS upid,
+          extract_arg(s.arg_set_id, 'broadcast_event.receiver_upid') AS arg_upid,
+          extract_arg(s.arg_set_id, 'broadcast_event.receiver_pid') AS arg_pid,
           COALESCE(extract_arg(s.arg_set_id, 'broadcast_event.receive_delay_ms'), 0) AS receive_delay_ms,
           COALESCE(extract_arg(s.arg_set_id, 'broadcast_event.finish_delay_ms'), 0) AS finish_delay_ms
-        FROM slice s
-        WHERE s.name = 'broadcast_delivered'
-          AND s.arg_set_id IS NOT NULL
+        FROM fw_slices s
+        WHERE s.raw_name = 'broadcast_delivered'
       ),
       broadcast_events AS (
         SELECT
@@ -328,7 +351,8 @@ export class ComponentTimelineModel {
           ) AS dur,
           b.raw_name
         FROM broadcast_raw b
-        JOIN process p USING (upid)
+        LEFT JOIN pid_to_upid pu ON pu.pid = b.arg_pid
+        JOIN process p ON p.upid = COALESCE(b.arg_upid, pu.upid)
         WHERE b.target IS NOT NULL
           AND p.name IS NOT NULL
           AND p.name != 'system_server'
@@ -337,29 +361,25 @@ export class ComponentTimelineModel {
 
         UNION ALL
 
-        -- FrameworksBaseTrackEvent.self_broadcast_event (field 2021, slice name 'self_broadcast_delivered')
         SELECT
-          s.id AS slice_id,
+          s.slice_id,
           'broadcast' AS category,
           extract_arg(s.arg_set_id, 'self_broadcast_event.action_name') AS target,
           p.upid,
           p.pid,
           p.name AS process_name,
           s.ts,
-          iif(s.dur > 0, s.dur, 100000000) AS dur,
-          s.name AS raw_name
-        FROM slice s
-        JOIN process p ON p.upid = COALESCE(
-          extract_arg(s.arg_set_id, 'self_broadcast_event.upid'),
-          (
-            SELECT max(p2.upid)
-            FROM process p2
-            WHERE p2.pid = extract_arg(s.arg_set_id, 'self_broadcast_event.pid')
-              AND p2.pid IS NOT NULL
+          iif(s.slice_dur > 0, s.slice_dur, 100000000) AS dur,
+          s.raw_name
+        FROM fw_slices s
+        LEFT JOIN pid_to_upid pu
+          ON pu.pid = extract_arg(s.arg_set_id, 'self_broadcast_event.pid')
+        JOIN process p
+          ON p.upid = COALESCE(
+            extract_arg(s.arg_set_id, 'self_broadcast_event.upid'),
+            pu.upid
           )
-        )
-        WHERE s.name = 'self_broadcast_delivered'
-          AND s.arg_set_id IS NOT NULL
+        WHERE s.raw_name = 'self_broadcast_delivered'
           AND extract_arg(s.arg_set_id, 'self_broadcast_event.action_name') IS NOT NULL
           AND p.name IS NOT NULL
           AND p.name != 'system_server'
@@ -367,12 +387,11 @@ export class ComponentTimelineModel {
           AND s.ts <= ${windowEndNs}
       ),
       service_raw AS (
-        -- FrameworksBaseTrackEvent.service_state_changed_event (2014) & fg_service_state_changed_event (2016)
         SELECT
-          s.id AS slice_id,
+          s.slice_id,
           s.ts,
-          s.dur AS slice_dur,
-          s.name AS raw_name,
+          s.slice_dur,
+          s.raw_name,
           COALESCE(
             extract_arg(s.arg_set_id, 'service_state_changed_event.component_name'),
             extract_arg(s.arg_set_id, 'fg_service_state_changed_event.component_name')
@@ -380,18 +399,15 @@ export class ComponentTimelineModel {
           COALESCE(
             extract_arg(s.arg_set_id, 'service_state_changed_event.upid'),
             extract_arg(s.arg_set_id, 'fg_service_state_changed_event.upid'),
-            (
-              SELECT max(p2.upid)
-              FROM process p2
-              WHERE p2.pid = COALESCE(
-                extract_arg(s.arg_set_id, 'service_state_changed_event.pid'),
-                extract_arg(s.arg_set_id, 'fg_service_state_changed_event.pid')
-              )
-                AND p2.pid IS NOT NULL
-            )
+            pu.upid
           ) AS upid
-        FROM slice s
-        WHERE s.name IN (
+        FROM fw_slices s
+        LEFT JOIN pid_to_upid pu
+          ON pu.pid = COALESCE(
+            extract_arg(s.arg_set_id, 'service_state_changed_event.pid'),
+            extract_arg(s.arg_set_id, 'fg_service_state_changed_event.pid')
+          )
+        WHERE s.raw_name IN (
           'service_start',
           'service_stop',
           'service_binding',
@@ -402,7 +418,6 @@ export class ComponentTimelineModel {
           'fgs_start',
           'fgs_stop'
         )
-          AND s.arg_set_id IS NOT NULL
       ),
       service_with_lead AS (
         SELECT
@@ -445,30 +460,25 @@ export class ComponentTimelineModel {
           AND swl.ts <= ${windowEndNs}
       ),
       provider_raw AS (
-        -- FrameworksBaseTrackEvent.provider_state_changed_event (2015)
         SELECT
-          s.id AS slice_id,
+          s.slice_id,
           s.ts,
-          s.dur AS slice_dur,
-          s.name AS raw_name,
+          s.slice_dur,
+          s.raw_name,
           extract_arg(s.arg_set_id, 'provider_state_changed_event.authority') AS target,
           COALESCE(
             extract_arg(s.arg_set_id, 'provider_state_changed_event.upid'),
-            (
-              SELECT max(p2.upid)
-              FROM process p2
-              WHERE p2.pid = extract_arg(s.arg_set_id, 'provider_state_changed_event.pid')
-                AND p2.pid IS NOT NULL
-            )
+            pu.upid
           ) AS upid
-        FROM slice s
-        WHERE s.name IN (
+        FROM fw_slices s
+        LEFT JOIN pid_to_upid pu
+          ON pu.pid = extract_arg(s.arg_set_id, 'provider_state_changed_event.pid')
+        WHERE s.raw_name IN (
           'provider_published',
           'provider_acquired',
           'provider_released',
           'provider_died'
         )
-          AND s.arg_set_id IS NOT NULL
       ),
       provider_with_lead AS (
         SELECT
@@ -505,7 +515,6 @@ export class ComponentTimelineModel {
           AND pwl.ts <= ${windowEndNs}
       ),
       job_states_lead AS (
-        -- FrameworksBaseTrackEvent.job_scheduler_job (2006) via __intrinsic_android_job_scheduler_track_events
         SELECT
           js.slice_id,
           js.ts,
@@ -579,20 +588,17 @@ export class ComponentTimelineModel {
         WHERE rn = 1
       ),
       activity_slices AS (
-        -- Activities do not have Perfetto SDK TrackEvents yet; use ATrace slices only for Activities
-        SELECT id, ts, dur, track_id, name FROM slice WHERE name GLOB 'performCreate:*'
-        UNION ALL
-        SELECT id, ts, dur, track_id, name FROM slice WHERE name GLOB 'performStart:*'
-        UNION ALL
-        SELECT id, ts, dur, track_id, name FROM slice WHERE name GLOB 'performResume:*'
-        UNION ALL
-        SELECT id, ts, dur, track_id, name FROM slice WHERE name GLOB 'performPause:*'
-        UNION ALL
-        SELECT id, ts, dur, track_id, name FROM slice WHERE name GLOB 'performStop:*'
-        UNION ALL
-        SELECT id, ts, dur, track_id, name FROM slice WHERE name GLOB 'performDestroy:*'
-        UNION ALL
-        SELECT id, ts, dur, track_id, name FROM slice WHERE name IN ('activityStart', 'activityResume', 'activityPause', 'activityStop', 'activityDestroy')
+        SELECT id, ts, dur, track_id, name
+        FROM slice
+        WHERE (
+          name GLOB 'performCreate:*'
+          OR name GLOB 'performStart:*'
+          OR name GLOB 'performResume:*'
+          OR name GLOB 'performPause:*'
+          OR name GLOB 'performStop:*'
+          OR name GLOB 'performDestroy:*'
+          OR name IN ('activityStart', 'activityResume', 'activityPause', 'activityStop', 'activityDestroy')
+        )
       ),
       activity_events AS (
         SELECT
@@ -661,12 +667,53 @@ export class ComponentTimelineModel {
       LEFT JOIN fw_proc_meta fw USING (upid)
       WHERE e.upid IS NOT NULL;
 
+      -- Merged non-overlapping component intervals per (upid, category, target)
+      -- via interval_merge_overlapping_partitioned!
+      DROP TABLE IF EXISTS _android_component_merged_intervals;
+      CREATE PERFETTO TABLE _android_component_merged_intervals AS
+      SELECT
+        row_number() OVER (ORDER BY m.ts, m.upid, m.category, m.target) AS id,
+        m.ts,
+        m.dur,
+        m.upid,
+        m.process_name,
+        m.category,
+        m.target
+      FROM interval_merge_overlapping_partitioned!(
+        (
+          SELECT ts, dur, upid, process_name, category, target
+          FROM _android_component_timeline_events
+          WHERE category != 'proc_state' AND dur > 0
+        ),
+        (upid, process_name, category, target)
+      ) AS m
+      WHERE m.dur > 0;
+
+      -- Total intersecting component overlap across all processes/categories
+      -- via intervals_overlap_count!
+      DROP TABLE IF EXISTS _android_component_total_overlap;
+      CREATE PERFETTO TABLE _android_component_total_overlap AS
+      WITH active_events AS (
+        SELECT ts, dur
+        FROM _android_component_timeline_events
+        WHERE category != 'proc_state' AND dur > 0
+      )
+      SELECT
+        c.ts,
+        coalesce(
+          lead(c.ts) OVER (ORDER BY c.ts) - c.ts,
+          max(trace_end() - c.ts, 0)
+        ) AS dur,
+        c.value AS concurrency
+      FROM intervals_overlap_count!(active_events, ts, dur) AS c;
+
+      -- Per-category intersecting component overlap via intervals_overlap_count_by_group!
       DROP TABLE IF EXISTS _android_component_concurrency;
       CREATE PERFETTO TABLE _android_component_concurrency AS
       WITH active_events AS (
         SELECT ts, dur, category
         FROM _android_component_timeline_events
-        WHERE category != 'proc_state'
+        WHERE category != 'proc_state' AND dur > 0
       )
       SELECT
         c.ts,
@@ -680,9 +727,94 @@ export class ComponentTimelineModel {
         active_events, ts, dur, category
       ) AS c;
 
+      -- Per-target intersecting component overlap via intervals_overlap_count_by_group!
+      DROP TABLE IF EXISTS _android_component_target_concurrency;
+      CREATE PERFETTO TABLE _android_component_target_concurrency AS
+      WITH active_events AS (
+        SELECT ts, dur, cat_target_key
+        FROM _android_component_timeline_events
+        WHERE category != 'proc_state' AND dur > 0
+      )
+      SELECT
+        c.ts,
+        coalesce(
+          lead(c.ts) OVER (PARTITION BY c.group_name ORDER BY c.ts) - c.ts,
+          max(trace_end() - c.ts, 0)
+        ) AS dur,
+        substr(c.group_name, 1, instr(c.group_name, ':') - 1) AS category,
+        substr(c.group_name, instr(c.group_name, ':') + 1) AS target,
+        c.group_name AS cat_target_key,
+        c.value AS concurrency
+      FROM intervals_overlap_count_by_group!(
+        active_events, ts, dur, cat_target_key
+      ) AS c;
+
+      -- Per-process intersecting component overlap via intervals_overlap_count_by_group!
+      DROP TABLE IF EXISTS _android_component_process_concurrency;
+      CREATE PERFETTO TABLE _android_component_process_concurrency AS
+      WITH active_events AS (
+        SELECT ts, dur, upid
+        FROM _android_component_timeline_events
+        WHERE category != 'proc_state' AND dur > 0
+      )
+      SELECT
+        c.ts,
+        coalesce(
+          lead(c.ts) OVER (PARTITION BY c.group_name ORDER BY c.ts) - c.ts,
+          max(trace_end() - c.ts, 0)
+        ) AS dur,
+        c.group_name AS upid,
+        c.value AS concurrency
+      FROM intervals_overlap_count_by_group!(
+        active_events, ts, dur, upid
+      ) AS c;
+
+      -- Atomic self-intersection segments where >= 2 components overlap simultaneously
+      -- via interval_self_intersect!
+      DROP TABLE IF EXISTS _android_component_self_intersect;
+      CREATE PERFETTO TABLE _android_component_self_intersect AS
+      WITH bounded_merged AS (
+        SELECT id, ts, dur, upid, process_name, category, target
+        FROM _android_component_merged_intervals
+        ORDER BY dur DESC, ts ASC
+        LIMIT 20000
+      ),
+      raw_si AS (
+        SELECT
+          si.ts,
+          si.dur,
+          si.group_id,
+          count() AS overlap_count,
+          count(DISTINCT m.upid) AS proc_count,
+          GROUP_CONCAT(DISTINCT m.process_name) AS processes,
+          GROUP_CONCAT(DISTINCT m.category || ':' || m.target) AS components
+        FROM interval_self_intersect!(bounded_merged) si
+        JOIN bounded_merged m ON m.id = si.id
+        WHERE si.interval_ends_at_ts = FALSE
+          AND si.dur > 0
+        GROUP BY si.group_id, si.ts, si.dur
+        HAVING overlap_count >= 2
+      )
+      SELECT
+        row_number() OVER (ORDER BY ts) AS id,
+        ts,
+        dur,
+        group_id,
+        overlap_count,
+        proc_count,
+        coalesce(processes, '') AS processes,
+        coalesce(components, '') AS components
+      FROM raw_si;
+
       DROP TABLE IF EXISTS _android_component_proc_lifecycle;
       CREATE PERFETTO TABLE _android_component_proc_lifecycle AS
-      WITH track_event_proc AS (
+      WITH pid_to_upid AS (
+        SELECT pid, max(upid) AS upid
+        FROM process
+        WHERE pid IS NOT NULL AND pid > 0
+        GROUP BY pid
+      ),
+      track_event_proc AS (
         SELECT
           upid,
           min(fw_start_ts) AS fw_start_ts,
@@ -695,12 +827,7 @@ export class ComponentTimelineModel {
         SELECT
           COALESCE(
             extract_arg(s.arg_set_id, 'process_died_event.upid'),
-            (
-              SELECT max(p2.upid)
-              FROM process p2
-              WHERE p2.pid = extract_arg(s.arg_set_id, 'process_died_event.pid')
-                AND p2.pid IS NOT NULL
-            )
+            pu.upid
           ) AS upid,
           min(s.ts) AS died_ts,
           max(
@@ -712,6 +839,8 @@ export class ComponentTimelineModel {
             )
           ) AS is_low_mem
         FROM slice s
+        LEFT JOIN pid_to_upid pu
+          ON pu.pid = extract_arg(s.arg_set_id, 'process_died_event.pid')
         WHERE s.name = 'process_died'
           AND s.arg_set_id IS NOT NULL
           AND s.ts >= ${windowStartNs}
@@ -1012,6 +1141,7 @@ export class ComponentTimelineModel {
   private describeDatasetLabels(
     category: ComponentCategory,
     target: string,
+    bucketMs: number,
   ): {
     title: string;
     t0Label: string;
@@ -1019,6 +1149,7 @@ export class ComponentTimelineModel {
     activeVerb: string;
     activeShort: string;
   } {
+    const bLabel = formatBucketLabel(bucketMs);
     const shortTarget =
       target === ALL_TARGETS_VALUE
         ? ''
@@ -1031,8 +1162,8 @@ export class ComponentTimelineModel {
         return {
           title:
             target === ALL_TARGETS_VALUE
-              ? 'All Broadcasts fan-out, 100 ms at a time'
-              : `${shortTarget} fan-out, 100 ms at a time`,
+              ? `All Broadcasts fan-out, ${bLabel} at a time`
+              : `${shortTarget} fan-out, ${bLabel} at a time`,
           t0Label:
             target === ALL_TARGETS_VALUE
               ? 'first broadcast dispatch'
@@ -1045,8 +1176,8 @@ export class ComponentTimelineModel {
         return {
           title:
             target === ALL_TARGETS_VALUE
-              ? 'Services timeline, 100 ms at a time'
-              : `Service ${shortTarget}, 100 ms at a time`,
+              ? `Services timeline, ${bLabel} at a time`
+              : `Service ${shortTarget}, ${bLabel} at a time`,
           t0Label:
             target === ALL_TARGETS_VALUE
               ? 'first service event'
@@ -1059,8 +1190,8 @@ export class ComponentTimelineModel {
         return {
           title:
             target === ALL_TARGETS_VALUE
-              ? 'Content Providers timeline, 100 ms at a time'
-              : `Provider ${shortTarget}, 100 ms at a time`,
+              ? `Content Providers timeline, ${bLabel} at a time`
+              : `Provider ${shortTarget}, ${bLabel} at a time`,
           t0Label:
             target === ALL_TARGETS_VALUE
               ? 'first content provider call'
@@ -1073,8 +1204,8 @@ export class ComponentTimelineModel {
         return {
           title:
             target === ALL_TARGETS_VALUE
-              ? 'JobScheduler timeline, 100 ms at a time'
-              : `Job ${shortTarget}, 100 ms at a time`,
+              ? `JobScheduler timeline, ${bLabel} at a time`
+              : `Job ${shortTarget}, ${bLabel} at a time`,
           t0Label:
             target === ALL_TARGETS_VALUE
               ? 'first job execution'
@@ -1087,8 +1218,8 @@ export class ComponentTimelineModel {
         return {
           title:
             target === ALL_TARGETS_VALUE
-              ? 'Activities lifecycle, 100 ms at a time'
-              : `Activity ${shortTarget}, 100 ms at a time`,
+              ? `Activities lifecycle, ${bLabel} at a time`
+              : `Activity ${shortTarget}, ${bLabel} at a time`,
           t0Label:
             target === ALL_TARGETS_VALUE
               ? 'first activity lifecycle slice'
@@ -1101,8 +1232,8 @@ export class ComponentTimelineModel {
         return {
           title:
             target === ALL_TARGETS_VALUE
-              ? 'Android Process States, 100 ms at a time'
-              : `Process State ${target}, 100 ms at a time`,
+              ? `Android Process States, ${bLabel} at a time`
+              : `Process State ${target}, ${bLabel} at a time`,
           t0Label:
             target === ALL_TARGETS_VALUE
               ? 'active trace start'
@@ -1117,7 +1248,7 @@ export class ComponentTimelineModel {
         };
       case 'all':
         return {
-          title: 'All Android Components, 100 ms at a time',
+          title: `All Android Components, ${bLabel} at a time`,
           t0Label: 'first component event',
           nounPlural: 'component apps',
           activeVerb: 'In Component',
@@ -1132,82 +1263,89 @@ export class ComponentTimelineModel {
   ): Promise<TimelineDataset> {
     const engine = this.trace.engine;
     const whereSql = this.getCategoryWhereSql(category, target);
-    const labels = this.describeDatasetLabels(category, target);
 
-    const eventsRes = await engine.query(`
+    const activeWhereExtra =
+      category === 'proc_state' && target === ALL_TARGETS_VALUE
+        ? `AND target NOT GLOB '*CACHED*' AND target NOT IN ('HOME', 'LAST_ACTIVITY', 'NONEXISTENT', 'EXITED')`
+        : '';
+
+    const procSummaryRes = await engine.query(`
       SELECT
         upid,
         pid,
         process_name,
-        ts,
-        dur,
-        target
+        min(ts) AS min_ts,
+        max(ts + dur) AS max_end_ts,
+        min(iif(1 = 1 ${activeWhereExtra}, ts, NULL)) AS first_active_ts,
+        max(iif(1 = 1 ${activeWhereExtra}, ts + dur, NULL)) AS last_active_end_ts
       FROM _android_component_timeline_events
       WHERE ${whereSql}
-      ORDER BY ts ASC, upid ASC
+      GROUP BY upid, pid, process_name
+      ORDER BY min_ts ASC, upid ASC
     `);
 
-    const intervalsByUpid = new Map<number, RawInterval[]>();
     const procMeta = new Map<
       number,
-      {pid: number; name: string; firstEventTs: bigint}
+      {
+        pid: number;
+        name: string;
+        firstEventTs: bigint;
+        lastEventEndTs: bigint;
+      }
     >();
     let minEventTs: bigint | null = null;
+    let maxEventEndTs: bigint | null = null;
 
     for (
-      const it = eventsRes.iter({
+      const it = procSummaryRes.iter({
         upid: NUM,
         pid: NUM,
         process_name: STR,
-        ts: LONG,
-        dur: LONG,
-        target: STR,
+        min_ts: LONG,
+        max_end_ts: LONG,
+        first_active_ts: LONG_NULL,
+        last_active_end_ts: LONG_NULL,
       });
       it.valid();
       it.next()
     ) {
-      const {upid, pid, process_name: name, ts, dur} = it;
-      if (
-        category === 'proc_state' &&
-        target === ALL_TARGETS_VALUE &&
-        classifyProcStateFamily(it.target, 'R') === 'CACHED'
-      ) {
-        if (!procMeta.has(upid)) {
-          procMeta.set(upid, {pid, name, firstEventTs: ts});
-          intervalsByUpid.set(upid, []);
+      const firstTs = it.first_active_ts ?? it.min_ts;
+      const lastEndTs = it.last_active_end_ts ?? it.max_end_ts;
+      if (it.first_active_ts !== null) {
+        if (minEventTs === null || firstTs < minEventTs) {
+          minEventTs = firstTs;
         }
-        continue;
-      }
-
-      if (minEventTs === null || ts < minEventTs) {
-        minEventTs = ts;
-      }
-      const existing = procMeta.get(upid);
-      if (existing === undefined) {
-        procMeta.set(upid, {pid, name, firstEventTs: ts});
-        intervalsByUpid.set(upid, [{startNs: ts, endNs: ts + dur}]);
-      } else {
-        if (ts < existing.firstEventTs) {
-          procMeta.set(upid, {pid, name, firstEventTs: ts});
+        if (maxEventEndTs === null || lastEndTs > maxEventEndTs) {
+          maxEventEndTs = lastEndTs;
         }
-        intervalsByUpid.get(upid)!.push({startNs: ts, endNs: ts + dur});
       }
+      procMeta.set(it.upid, {
+        pid: it.pid,
+        name: it.process_name,
+        firstEventTs: firstTs,
+        lastEventEndTs: lastEndTs,
+      });
     }
 
     if (procMeta.size === 0) {
+      const emptyLabels = this.describeDatasetLabels(
+        category,
+        target,
+        DEFAULT_BUCKET_MS,
+      );
       return {
         category,
         target,
-        ...labels,
+        ...emptyLabels,
         t0Ns: this.headerMeta.windowStartNs,
-        bucketMs: BUCKET_MS,
+        bucketMs: DEFAULT_BUCKET_MS,
         lingerMs: LINGER_MS,
         idleThresholdMs: IDLE_THRESHOLD_MS,
         b0: 0,
         nb: 1,
         preMs: 0,
         postMs: 0,
-        cpuScaleMs: CPU_SCALE_MS,
+        cpuScaleMs: DEFAULT_BUCKET_MS,
         memScaleMb: DEFAULT_MEM_SCALE_MB,
         nslots: 0,
         rows: [],
@@ -1356,44 +1494,129 @@ export class ComponentTimelineModel {
       0,
       Math.round(Number(t0Ns - this.headerMeta.windowStartNs) / 1e6),
     );
-    const postMs = Math.max(
-      BUCKET_MS,
-      Math.round(Number(this.headerMeta.windowEndNs - t0Ns) / 1e6),
-    );
     const effectivePreMs = Math.min(
       tracePreMs,
       Math.max(300, -minAppearMs + 100),
     );
-    const b0 = Math.min(0, -Math.ceil(effectivePreMs / BUCKET_MS));
-    const bLast = Math.max(0, Math.floor(postMs / BUCKET_MS));
-    const nb = Math.max(1, bLast - b0 + 1);
 
+    const maxEndNs = maxEventEndTs ?? this.headerMeta.windowEndNs;
+    const effectiveEndNs =
+      this.headerMeta.windowEndNs - maxEndNs <= 60_000_000_000n
+        ? this.headerMeta.windowEndNs
+        : maxEndNs + 15_000_000_000n < this.headerMeta.windowEndNs
+          ? maxEndNs + 15_000_000_000n
+          : this.headerMeta.windowEndNs;
+
+    const rawPostMs = Math.max(
+      DEFAULT_BUCKET_MS,
+      Math.round(Number(effectiveEndNs - t0Ns) / 1e6),
+    );
+    const totalSpanMs = effectivePreMs + rawPostMs;
+    const bucketMs = chooseBucketMs(totalSpanMs);
+    const bucketNs = BigInt(bucketMs) * 1_000_000n;
+    const labels = this.describeDatasetLabels(category, target, bucketMs);
+
+    const postMs = Math.max(bucketMs, rawPostMs);
+    const b0 = Math.min(0, -Math.ceil(effectivePreMs / bucketMs));
+    const bLast = Math.max(0, Math.floor(postMs / bucketMs));
+    const nb = Math.max(1, Math.min(4096, bLast - b0 + 1));
+
+    const bucket0StartNs = t0Ns + BigInt(b0) * bucketNs;
+    const bucketEndNs = bucket0StartNs + BigInt(nb) * bucketNs;
+
+    // Generate fixed-size buckets in SQL WITHOUT any recursive CTEs (using 12-bit cross-join)
+    await engine.query(`
+      DROP TABLE IF EXISTS _android_component_buckets;
+      CREATE PERFETTO TABLE _android_component_buckets AS
+      WITH b0(v) AS (VALUES (0), (1)),
+           b1(v) AS (SELECT a.v * 2 + b.v FROM b0 a CROSS JOIN b0 b),
+           b2(v) AS (SELECT a.v * 4 + b.v FROM b1 a CROSS JOIN b1 b),
+           b3(v) AS (SELECT a.v * 16 + b.v FROM b2 a CROSS JOIN b2 b),
+           b4(v) AS (SELECT a.v * 16 + b.v FROM b3 a CROSS JOIN b2 b)
+      SELECT
+        v + 1 AS id,
+        v AS b_idx,
+        ${bucket0StartNs} + v * ${bucketNs} AS ts,
+        ${bucketNs} AS dur
+      FROM b4
+      WHERE v < ${nb};
+    `);
+
+    // 1. Intersect merged component intervals with buckets via C++ _interval_intersect!
+    const activeByUpid = new Map<number, Uint8Array>();
+    for (const upid of upids) {
+      activeByUpid.set(upid, new Uint8Array(nb));
+    }
+
+    const compBucketsRes = await engine.query(`
+      WITH proc_comp AS (
+        SELECT
+          m.upid AS id,
+          m.ts,
+          m.dur
+        FROM interval_merge_overlapping_partitioned!(
+          (
+            SELECT ts, dur, upid
+            FROM _android_component_timeline_events
+            WHERE (${whereSql})
+              ${activeWhereExtra}
+              AND dur > 0
+              AND ts < ${bucketEndNs}
+              AND ts + dur > ${bucket0StartNs}
+          ),
+          (upid)
+        ) m
+        WHERE m.dur > 0
+      )
+      SELECT
+        ii.id_1 AS upid,
+        ii.id_0 - 1 AS b_idx
+      FROM _interval_intersect!((_android_component_buckets, proc_comp), ()) ii
+      WHERE ii.dur > 0
+      GROUP BY ii.id_1, b_idx
+    `);
+
+    for (
+      const it = compBucketsRes.iter({upid: NUM, b_idx: NUM});
+      it.valid();
+      it.next()
+    ) {
+      const arr = activeByUpid.get(it.upid);
+      if (arr !== undefined && it.b_idx >= 0 && it.b_idx < nb) {
+        arr[it.b_idx] = 1;
+      }
+    }
+
+    // 2. Intersect sched slices with buckets via C++ _interval_intersect!
     const cpuByUpid = new Map<number, Float64Array>();
     for (const upid of upids) {
       cpuByUpid.set(upid, new Float64Array(nb));
     }
 
-    const bucket0StartNs = t0Ns + BigInt(b0) * BUCKET_NS;
-    const bucketEndNs = bucket0StartNs + BigInt(nb) * BUCKET_NS;
-
-    const sameBucketCpuRes = await engine.query(`
+    const cpuBucketsRes = await engine.query(`
+      WITH proc_sched AS (
+        SELECT
+          t.upid AS id,
+          s.ts,
+          s.dur
+        FROM sched s
+        JOIN thread t USING (utid)
+        WHERE s.dur > 0
+          AND t.upid IN (${upidsSql})
+          AND s.ts < ${bucketEndNs}
+          AND s.ts + s.dur > ${bucket0StartNs}
+      )
       SELECT
-        t.upid,
-        CAST((s.ts - (${bucket0StartNs})) / 100000000 AS INT) AS b_idx,
-        SUM(s.dur) AS dur_ns
-      FROM sched s
-      JOIN thread t USING (utid)
-      WHERE s.dur > 0
-        AND t.upid IN (${upidsSql})
-        AND s.ts >= ${bucket0StartNs}
-        AND s.ts + s.dur <= ${bucketEndNs}
-        AND CAST((s.ts - (${bucket0StartNs})) / 100000000 AS INT) =
-            CAST((s.ts + s.dur - 1 - (${bucket0StartNs})) / 100000000 AS INT)
-      GROUP BY t.upid, b_idx
+        ii.id_1 AS upid,
+        ii.id_0 - 1 AS b_idx,
+        sum(ii.dur) AS dur_ns
+      FROM _interval_intersect!((_android_component_buckets, proc_sched), ()) ii
+      WHERE ii.dur > 0
+      GROUP BY ii.id_1, b_idx
     `);
 
     for (
-      const it = sameBucketCpuRes.iter({
+      const it = cpuBucketsRes.iter({
         upid: NUM,
         b_idx: NUM,
         dur_ns: LONG,
@@ -1403,62 +1626,25 @@ export class ComponentTimelineModel {
     ) {
       const arr = cpuByUpid.get(it.upid);
       if (arr !== undefined && it.b_idx >= 0 && it.b_idx < nb) {
-        arr[it.b_idx] += Number(it.dur_ns) / 1e6;
+        arr[it.b_idx] = Number(it.dur_ns) / 1e6;
       }
     }
 
-    const crossBucketCpuRes = await engine.query(`
-      SELECT
-        t.upid,
-        s.ts,
-        s.dur
-      FROM sched s
-      JOIN thread t USING (utid)
-      WHERE s.dur > 0
-        AND t.upid IN (${upidsSql})
-        AND s.ts + s.dur > ${bucket0StartNs}
-        AND s.ts < ${bucketEndNs}
-        AND CAST((s.ts - (${bucket0StartNs})) / 100000000 AS INT) !=
-            CAST((s.ts + s.dur - 1 - (${bucket0StartNs})) / 100000000 AS INT)
-    `);
-
-    for (
-      const it = crossBucketCpuRes.iter({
-        upid: NUM,
-        ts: LONG,
-        dur: LONG,
-      });
-      it.valid();
-      it.next()
-    ) {
-      const arr = cpuByUpid.get(it.upid);
-      if (arr === undefined) continue;
-      const startRelNs = Number(it.ts - bucket0StartNs);
-      const endRelNs = Number(it.ts + it.dur - bucket0StartNs);
-      const firstIdx = Math.max(0, Math.floor(startRelNs / 1e8));
-      const lastIdx = Math.min(nb - 1, Math.floor((endRelNs - 1) / 1e8));
-      for (let idx = firstIdx; idx <= lastIdx; idx++) {
-        const bLo = idx * 1e8;
-        const bHi = (idx + 1) * 1e8;
-        const overlapNs = Math.min(endRelNs, bHi) - Math.max(startRelNs, bLo);
-        if (overlapNs > 0) {
-          arr[idx] += overlapNs / 1e6;
-        }
-      }
-    }
-
+    // 3. Bucketed memory & oom_score_adj counter samples aggregated in SQL per bucket
     const countersRes = await engine.query(`
       SELECT
         pct.upid,
         pct.name,
-        c.ts,
+        max(0, min(${nb - 1}, CAST((c.ts - (${bucket0StartNs})) / ${bucketNs} AS INT))) AS b_idx,
         c.value
       FROM process_counter_track pct
       JOIN counter c ON c.track_id = pct.id
       WHERE pct.upid IN (${upidsSql})
         AND pct.name IN ('mem.rss.anon', 'mem.rss.file', 'mem.rss.shmem', 'mem.swap', 'oom_score_adj')
         AND c.ts <= ${bucketEndNs}
-      ORDER BY pct.upid, c.ts
+      GROUP BY pct.upid, pct.name, b_idx
+      HAVING c.ts = max(c.ts)
+      ORDER BY pct.upid, b_idx
     `);
 
     const memSamplesByUpid = new Map<
@@ -1469,97 +1655,140 @@ export class ComponentTimelineModel {
       const it = countersRes.iter({
         upid: NUM,
         name: STR,
-        ts: LONG,
+        b_idx: NUM,
         value: NUM,
       });
       it.valid();
       it.next()
     ) {
-      const rawIdx = Math.floor(Number(it.ts - bucket0StartNs) / 1e8);
-      const clampedIdx = Math.max(0, Math.min(nb - 1, rawIdx));
       let list = memSamplesByUpid.get(it.upid);
       if (list === undefined) {
         list = [];
         memSamplesByUpid.set(it.upid, list);
       }
-      list.push({bIdx: clampedIdx, name: it.name, value: it.value});
+      list.push({bIdx: it.b_idx, name: it.name, value: it.value});
     }
 
-    const procStateByUpid = new Map<number, RawProcStateInterval[]>();
+    // 4. Intersect process state & OOM intervals with buckets via C++ _interval_intersect!
+    const procStatesByUpid = new Map<number, Array<string | null>>();
+    const oomScoresByUpid = new Map<number, Array<number | null>>();
+    for (const upid of upids) {
+      procStatesByUpid.set(upid, new Array<string | null>(nb).fill(null));
+      oomScoresByUpid.set(upid, new Array<number | null>(nb).fill(null));
+    }
+
     if (this.headerMeta.hasFrameworkProcState) {
-      const psRes = await engine.query(`
-        SELECT
-          upid,
-          ts,
-          iif(dur < 0, ${bucketEndNs} - ts, dur) AS dur,
-          state
-        FROM _android_process_state_intervals
-        WHERE upid IN (${upidsSql})
-          AND state NOT IN ('NONEXISTENT', 'EXITED')
-          AND ts < ${bucketEndNs}
-          AND ts + iif(dur < 0, ${bucketEndNs} - ts, dur) > ${bucket0StartNs}
-        ORDER BY upid, ts
+      const psBucketsRes = await engine.query(`
+        WITH proc_ps AS (
+          SELECT
+            id,
+            ts,
+            iif(dur < 0, ${bucketEndNs} - ts, dur) AS dur
+          FROM _android_process_state_intervals
+          WHERE upid IN (${upidsSql})
+            AND state NOT IN ('NONEXISTENT', 'EXITED')
+            AND ts < ${bucketEndNs}
+            AND ts + iif(dur < 0, ${bucketEndNs} - ts, dur) > ${bucket0StartNs}
+        ),
+        ii_ps AS (
+          SELECT
+            psi.upid,
+            ii.id_0 - 1 AS b_idx,
+            psi.state,
+            sum(ii.dur) AS overlap_dur
+          FROM _interval_intersect!((_android_component_buckets, proc_ps), ()) ii
+          JOIN _android_process_state_intervals psi ON psi.id = ii.id_1
+          WHERE ii.dur > 0
+          GROUP BY psi.upid, b_idx, psi.state
+        ),
+        ranked_ps AS (
+          SELECT
+            upid,
+            b_idx,
+            state,
+            row_number() OVER (PARTITION BY upid, b_idx ORDER BY overlap_dur DESC) AS rn
+          FROM ii_ps
+        )
+        SELECT upid, b_idx, state
+        FROM ranked_ps
+        WHERE rn = 1
       `);
+
       for (
-        const it = psRes.iter({
+        const it = psBucketsRes.iter({
           upid: NUM,
-          ts: LONG,
-          dur: LONG,
+          b_idx: NUM,
           state: STR,
         });
         it.valid();
         it.next()
       ) {
-        let list = procStateByUpid.get(it.upid);
-        if (list === undefined) {
-          list = [];
-          procStateByUpid.set(it.upid, list);
+        const arr = procStatesByUpid.get(it.upid);
+        if (arr !== undefined && it.b_idx >= 0 && it.b_idx < nb) {
+          arr[it.b_idx] = it.state;
         }
-        list.push({
-          startNs: it.ts,
-          endNs: it.ts + it.dur,
-          state: it.state,
-          oomScore: null,
-        });
       }
-    }
+    } else {
+      const oomBucketsRes = await engine.query(`
+        WITH proc_oom AS (
+          SELECT
+            row_number() OVER (ORDER BY ts, upid) AS id,
+            upid,
+            ts,
+            dur,
+            bucket,
+            score
+          FROM android_oom_adj_intervals
+          WHERE upid IN (${upidsSql})
+            AND dur > 0
+            AND ts < ${bucketEndNs}
+            AND ts + dur > ${bucket0StartNs}
+        ),
+        ii_oom AS (
+          SELECT
+            po.upid,
+            ii.id_0 - 1 AS b_idx,
+            po.bucket AS state,
+            po.score AS oom_score,
+            sum(ii.dur) AS overlap_dur
+          FROM _interval_intersect!((_android_component_buckets, proc_oom), ()) ii
+          JOIN proc_oom po ON po.id = ii.id_1
+          WHERE ii.dur > 0
+          GROUP BY po.upid, b_idx, po.bucket, po.score
+        ),
+        ranked_oom AS (
+          SELECT
+            upid,
+            b_idx,
+            state,
+            oom_score,
+            row_number() OVER (PARTITION BY upid, b_idx ORDER BY overlap_dur DESC) AS rn
+          FROM ii_oom
+        )
+        SELECT upid, b_idx, state, oom_score
+        FROM ranked_oom
+        WHERE rn = 1
+      `);
 
-    const oomRes = await engine.query(`
-      SELECT
-        upid,
-        ts,
-        dur,
-        bucket,
-        score
-      FROM android_oom_adj_intervals
-      WHERE upid IN (${upidsSql})
-        AND ts < ${bucketEndNs}
-        AND ts + dur > ${bucket0StartNs}
-      ORDER BY upid, ts
-    `);
-    const oomIntervalsByUpid = new Map<number, RawProcStateInterval[]>();
-    for (
-      const it = oomRes.iter({
-        upid: NUM,
-        ts: LONG,
-        dur: LONG,
-        bucket: STR,
-        score: NUM,
-      });
-      it.valid();
-      it.next()
-    ) {
-      let list = oomIntervalsByUpid.get(it.upid);
-      if (list === undefined) {
-        list = [];
-        oomIntervalsByUpid.set(it.upid, list);
+      for (
+        const it = oomBucketsRes.iter({
+          upid: NUM,
+          b_idx: NUM,
+          state: STR,
+          oom_score: NUM_NULL,
+        });
+        it.valid();
+        it.next()
+      ) {
+        const psArr = procStatesByUpid.get(it.upid);
+        const oomArr = oomScoresByUpid.get(it.upid);
+        if (it.b_idx >= 0 && it.b_idx < nb) {
+          if (psArr !== undefined) psArr[it.b_idx] = it.state;
+          if (oomArr !== undefined && it.oom_score !== null) {
+            oomArr[it.b_idx] = it.oom_score;
+          }
+        }
       }
-      list.push({
-        startNs: it.ts,
-        endNs: it.ts + it.dur,
-        state: it.bucket,
-        oomScore: it.score,
-      });
     }
 
     let maxObservedMemMb = DEFAULT_MEM_SCALE_MB;
@@ -1567,15 +1796,15 @@ export class ComponentTimelineModel {
 
     for (const r of rawProcRows) {
       const cpuArr = cpuByUpid.get(r.upid) ?? new Float64Array(nb);
-      const compIntervals = intervalsByUpid.get(r.upid) ?? [];
-      const psIntervals =
-        procStateByUpid.get(r.upid) ?? oomIntervalsByUpid.get(r.upid) ?? [];
+      const activeArr = activeByUpid.get(r.upid) ?? new Uint8Array(nb);
+      const procStates =
+        procStatesByUpid.get(r.upid) ?? new Array<string | null>(nb).fill(null);
+      const oomScores =
+        oomScoresByUpid.get(r.upid) ?? new Array<number | null>(nb).fill(null);
 
       const rssMb = new Array<number | null>(nb).fill(null);
       const anonMb = new Array<number | null>(nb).fill(null);
       const swapMb = new Array<number>(nb).fill(0);
-      const oomScores = new Array<number | null>(nb).fill(null);
-      const procStates = new Array<string | null>(nb).fill(null);
 
       const samples = memSamplesByUpid.get(r.upid) ?? [];
       let sPtr = 0;
@@ -1619,34 +1848,21 @@ export class ComponentTimelineModel {
             maxObservedMemMb = Math.ceil((rssMb[f]! + swMb) / 100) * 100;
           }
         }
-        oomScores[f] = curOom;
+        if (oomScores[f] === null && curOom !== null) {
+          oomScores[f] = curOom;
+        }
       }
 
       const states = new Array<BucketState>(nb);
       const cpuMs = new Array<number>(nb);
 
-      let cPtr = 0;
-      let psPtr = 0;
-
       for (let f = 0; f < nb; f++) {
         const b = b0 + f;
-        const loMs = b * BUCKET_MS;
-        const hiMs = loMs + BUCKET_MS;
-        const loNs = t0Ns + BigInt(b) * BUCKET_NS;
-        const hiNs = loNs + BUCKET_NS;
+        const loMs = b * bucketMs;
+        const hiMs = loMs + bucketMs;
 
         const cVal = Math.round(cpuArr[f] * 10) / 10;
         cpuMs[f] = cVal;
-
-        while (psPtr < psIntervals.length && psIntervals[psPtr].endNs <= loNs) {
-          psPtr++;
-        }
-        if (psPtr < psIntervals.length && psIntervals[psPtr].startNs < hiNs) {
-          procStates[f] = psIntervals[psPtr].state;
-          if (psIntervals[psPtr].oomScore !== null) {
-            oomScores[f] = psIntervals[psPtr].oomScore;
-          }
-        }
 
         if (hiMs <= r.appearMs || (r.goneMs !== null && loMs >= r.goneMs)) {
           states[f] = '-';
@@ -1658,16 +1874,7 @@ export class ComponentTimelineModel {
           continue;
         }
 
-        while (
-          cPtr < compIntervals.length &&
-          compIntervals[cPtr].endNs <= loNs
-        ) {
-          cPtr++;
-        }
-        const inComp =
-          cPtr < compIntervals.length && compIntervals[cPtr].startNs < hiNs;
-
-        if (inComp) {
+        if (activeArr[f] === 1) {
           states[f] = 'R';
         } else if (hiMs <= r.firstEventMs) {
           states[f] = 'S';
@@ -1750,14 +1957,14 @@ export class ComponentTimelineModel {
       target,
       ...labels,
       t0Ns,
-      bucketMs: BUCKET_MS,
+      bucketMs,
       lingerMs: LINGER_MS,
       idleThresholdMs: IDLE_THRESHOLD_MS,
       b0,
       nb,
       preMs: effectivePreMs,
       postMs,
-      cpuScaleMs: CPU_SCALE_MS,
+      cpuScaleMs: bucketMs,
       memScaleMb: maxObservedMemMb,
       nslots,
       rows,
@@ -1776,8 +1983,9 @@ export class ComponentTimelineModel {
     this.updateShownUpidsForCurrentFrame();
     if (this.syncTimeline) {
       const bucketIndex = ds.b0 + this.frame;
-      const loNs = ds.t0Ns + BigInt(bucketIndex) * BUCKET_NS;
-      const midNs = loNs + BUCKET_NS / 2n;
+      const bucketNs = BigInt(ds.bucketMs) * 1_000_000n;
+      const loNs = ds.t0Ns + BigInt(bucketIndex) * bucketNs;
+      const midNs = loNs + bucketNs / 2n;
       this.trace.timeline.hoverCursorTimestamp = Time.fromRaw(midNs);
     }
     m.redraw();
@@ -1860,6 +2068,12 @@ export class ComponentTimelineModel {
         procNode.pin();
       }
     }
+    const overlapNode = ws.getTrackByUri(
+      `com.android.ComponentTimeline#proc.${upid}.overlap`,
+    );
+    if (overlapNode !== undefined && !overlapNode.isPinned) {
+      overlapNode.pin();
+    }
     const schedNode = ws.getTrackByUri(`/process_${upid}`);
     if (schedNode !== undefined && !schedNode.isPinned) {
       schedNode.pin();
@@ -1876,10 +2090,12 @@ export class ComponentTimelineModel {
   focusProcessInTimeline(row: ProcessTimelineRow): void {
     const ds = this.dataset;
     const bucketIdx = ds !== null ? ds.b0 + this.frame : 0;
+    const bucketNs =
+      ds !== null ? BigInt(ds.bucketMs) * 1_000_000n : 100_000_000n;
     const loNs =
-      ds !== null ? ds.t0Ns + BigInt(bucketIdx) * BUCKET_NS : row.firstEventTs;
-    const start = Time.fromRaw(loNs - 500_000_000n);
-    const end = Time.fromRaw(loNs + 1_500_000_000n);
+      ds !== null ? ds.t0Ns + BigInt(bucketIdx) * bucketNs : row.firstEventTs;
+    const start = Time.fromRaw(loNs - 5n * bucketNs);
+    const end = Time.fromRaw(loNs + 15n * bucketNs);
 
     this.pinProcessTracks(row.upid);
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {describe, expect, test} from 'vitest';
+import {chooseBucketMs, formatBucketLabel} from './model';
 import {
   classifyProcStateFamily,
   formatShortProcState,
@@ -126,5 +127,23 @@ describe('formatShortTarget', () => {
         'com.google.android.apps.nexuslauncher.NexusLauncherActivity',
       ),
     ).toBe('NexusLauncherActivity');
+  });
+});
+
+describe('chooseBucketMs and formatBucketLabel', () => {
+  test('uses 100 ms buckets for traces up to 120 s and scales up for multi-hour / 24h traces', () => {
+    expect(chooseBucketMs(25_000)).toBe(100);
+    expect(chooseBucketMs(120_000)).toBe(100);
+    expect(chooseBucketMs(240_000)).toBe(200);
+    expect(chooseBucketMs(3_600_000)).toBe(5000);
+    expect(chooseBucketMs(86_400_000)).toBe(120000);
+  });
+
+  test('formats bucket labels cleanly across ms, s, and min', () => {
+    expect(formatBucketLabel(100)).toBe('100 ms');
+    expect(formatBucketLabel(500)).toBe('500 ms');
+    expect(formatBucketLabel(1000)).toBe('1 s');
+    expect(formatBucketLabel(5000)).toBe('5 s');
+    expect(formatBucketLabel(120000)).toBe('2 min');
   });
 });
