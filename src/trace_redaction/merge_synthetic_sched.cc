@@ -77,6 +77,18 @@ base::Status MergeSyntheticSched::Transform(const Context& context,
     return base::OkStatus();
   }
 
+  // Optimization: pre-check if there are any mergeable events to avoid
+  // the expensive process of re-allocating a new packet that copies the
+  // old one when none are mergeable
+  bool has_mergeable_events = false;
+  RETURN_IF_ERROR(HasMergeableEvents(context, ftrace_decoder,
+                                     compact_sched_field,
+                                     &has_mergeable_events));
+
+  if (!has_mergeable_events) {
+    return base::OkStatus();
+  }
+
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 
   for (auto field = decoder.ReadField(); field.valid();
@@ -91,6 +103,62 @@ base::Status MergeSyntheticSched::Transform(const Context& context,
 
   packet->assign(message.SerializeAsString());
 
+  return base::OkStatus();
+}
+
+
+base::Status MergeSyntheticSched::HasMergeableEvents(
+    const Context& context,
+    protozero::ProtoDecoder& ftrace_decoder,
+    const protozero::Field& compact_sched_field,
+    bool* has_mergeable_events) const {
+  *has_mergeable_events = false;
+
+  auto cpu_field = ftrace_decoder.FindField(
+      protos::pbzero::FtraceEventBundle::kCpuFieldNumber);
+  if (PERFETTO_UNLIKELY(!cpu_field.valid())) {
+    return base::OkStatus();
+  }
+
+  int32_t cpu = cpu_field.as_int32();
+  int32_t synth_tid = 0;
+  if (cpu >= 0 &&
+      static_cast<size_t>(cpu) < context.synthetic_process->tids().size()) {
+    synth_tid = context.synthetic_process->RunningOn(cpu);
+  } else {
+    return base::ErrStatus(
+        "MergeSyntheticSched: cpu index out of bounds for synthetic process.");
+  }
+
+  protozero::ProtoDecoder comp_sched_decoder(compact_sched_field.as_bytes());
+  auto next_pid_field = comp_sched_decoder.FindField(
+      protos::pbzero::FtraceEventBundle::CompactSched::kSwitchNextPidFieldNumber);
+
+  if (PERFETTO_UNLIKELY(!next_pid_field.valid())) {
+    return base::OkStatus();
+  }
+
+  bool parse_error = false;
+  auto next_pid_it = ::protozero::PackedRepeatedFieldIterator<
+      ::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+      next_pid_field.data(), next_pid_field.size(), &parse_error);
+
+  bool found = false;
+  bool was_previous_synthetic = false;
+  for (; next_pid_it && !parse_error; ++next_pid_it) {
+    bool is_synthetic = *next_pid_it == synth_tid;
+    if (is_synthetic && was_previous_synthetic) {
+      found = true;
+      break;
+    }
+    was_previous_synthetic = is_synthetic;
+  }
+
+  if (PERFETTO_UNLIKELY(parse_error)) {
+    return base::OkStatus();
+  }
+
+  *has_mergeable_events = found;
   return base::OkStatus();
 }
 
@@ -130,8 +198,11 @@ base::Status MergeSyntheticSched::OnCompSched(
     int32_t cpu,
     protozero::ConstBytes comp_sched_bytes,
     protos::pbzero::FtraceEventBundle::CompactSched* message) const {
-  protos::pbzero::FtraceEventBundle::CompactSched::Decoder comp_sched(
-      comp_sched_bytes);
+  protozero::Field switch_timestamp;
+  protozero::Field switch_prev_state;
+  protozero::Field switch_next_pid;
+  protozero::Field switch_next_prio;
+  protozero::Field switch_next_comm_index;
 
   // Pass through all non-switch fields (intern_table, waking_*, etc.)
   protozero::ProtoDecoder decoder(comp_sched_bytes);
@@ -140,14 +211,23 @@ base::Status MergeSyntheticSched::OnCompSched(
     switch (field.id()) {
       case protos::pbzero::FtraceEventBundle::CompactSched::
           kSwitchTimestampFieldNumber:
+        switch_timestamp = field;
+        break;
       case protos::pbzero::FtraceEventBundle::CompactSched::
           kSwitchPrevStateFieldNumber:
+        switch_prev_state = field;
+        break;
       case protos::pbzero::FtraceEventBundle::CompactSched::
           kSwitchNextPidFieldNumber:
+        switch_next_pid = field;
+        break;
       case protos::pbzero::FtraceEventBundle::CompactSched::
           kSwitchNextPrioFieldNumber:
+        switch_next_prio = field;
+        break;
       case protos::pbzero::FtraceEventBundle::CompactSched::
           kSwitchNextCommIndexFieldNumber:
+        switch_next_comm_index = field;
         break;
       default:
         proto_util::AppendField(field, message);
@@ -156,11 +236,11 @@ base::Status MergeSyntheticSched::OnCompSched(
   }
 
   std::array<bool, 5> has_switch_fields = {
-      comp_sched.has_switch_timestamp(),
-      comp_sched.has_switch_prev_state(),
-      comp_sched.has_switch_next_pid(),
-      comp_sched.has_switch_next_prio(),
-      comp_sched.has_switch_next_comm_index(),
+      switch_timestamp.valid(),
+      switch_prev_state.valid(),
+      switch_next_pid.valid(),
+      switch_next_prio.valid(),
+      switch_next_comm_index.valid(),
   };
 
   // There are comp sched events that have no switch events, so we only
@@ -174,7 +254,10 @@ base::Status MergeSyntheticSched::OnCompSched(
           "FtraceEventBundle::CompactSched "
           "switch field.");
     }
-    RETURN_IF_ERROR(OnCompSchedSwitch(context, cpu, comp_sched, message));
+    RETURN_IF_ERROR(OnCompSchedSwitch(context, cpu, switch_timestamp,
+                                      switch_prev_state, switch_next_pid,
+                                      switch_next_prio, switch_next_comm_index,
+                                      message));
   }
 
   return base::OkStatus();
@@ -183,20 +266,28 @@ base::Status MergeSyntheticSched::OnCompSched(
 base::Status MergeSyntheticSched::OnCompSchedSwitch(
     const Context& context,
     int32_t cpu,
-    protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
+    const protozero::Field& switch_timestamp,
+    const protozero::Field& switch_prev_state,
+    const protozero::Field& switch_next_pid,
+    const protozero::Field& switch_next_prio,
+    const protozero::Field& switch_next_comm_index,
     protos::pbzero::FtraceEventBundle::CompactSched* message) const {
   PERFETTO_DCHECK(message);
 
-  std::array<bool, 5> parse_errors = {false, false, false, false, false};
+  bool parse_errors = false;
 
-  auto it_ts = comp_sched.switch_timestamp(&parse_errors.at(0));
-  auto it_prev_state = comp_sched.switch_prev_state(&parse_errors.at(1));
-  auto it_pid = comp_sched.switch_next_pid(&parse_errors.at(2));
-  auto it_prio = comp_sched.switch_next_prio(&parse_errors.at(3));
-  auto it_comm = comp_sched.switch_next_comm_index(&parse_errors.at(4));
+  auto it_ts = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(
+      switch_timestamp.data(), switch_timestamp.size(), &parse_errors);
+  auto it_prev_state = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, int64_t>(
+      switch_prev_state.data(), switch_prev_state.size(), &parse_errors);
+  auto it_pid = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+      switch_next_pid.data(), switch_next_pid.size(), &parse_errors);
+  auto it_prio = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+      switch_next_prio.data(), switch_next_prio.size(), &parse_errors);
+  auto it_comm = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint32_t>(
+      switch_next_comm_index.data(), switch_next_comm_index.size(), &parse_errors);
 
-  if (PERFETTO_UNLIKELY(
-          std::any_of(parse_errors.begin(), parse_errors.end(), IsTrue))) {
+  if (PERFETTO_UNLIKELY(parse_errors)) {
     return base::ErrStatus(
         "MergeSyntheticSched: error reading "
         "FtraceEventBundle::CompactSched.");
@@ -210,18 +301,18 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
     uint32_t next_comm_index = 0;
   };
 
-  protozero::PackedVarInt packed_ts;
-  protozero::PackedVarInt packed_prev_state;
-  protozero::PackedVarInt packed_next_pid;
-  protozero::PackedVarInt packed_next_prio;
-  protozero::PackedVarInt packed_next_comm_index;
+  auto packed_ts = std::make_unique<protozero::PackedVarInt>();
+  auto packed_prev_state = std::make_unique<protozero::PackedVarInt>();
+  auto packed_next_pid = std::make_unique<protozero::PackedVarInt>();
+  auto packed_next_prio = std::make_unique<protozero::PackedVarInt>();
+  auto packed_next_comm_index = std::make_unique<protozero::PackedVarInt>();
 
   auto emit_event = [&](const SchedSwitchEvent& evt) {
-    packed_ts.Append(evt.timestamp_delta);
-    packed_prev_state.Append(evt.prev_state);
-    packed_next_pid.Append(evt.next_pid);
-    packed_next_prio.Append(evt.next_prio);
-    packed_next_comm_index.Append(evt.next_comm_index);
+    packed_ts->Append(evt.timestamp_delta);
+    packed_prev_state->Append(evt.prev_state);
+    packed_next_pid->Append(evt.next_pid);
+    packed_next_prio->Append(evt.next_prio);
+    packed_next_comm_index->Append(evt.next_comm_index);
   };
 
   PERFETTO_DCHECK(context.synthetic_process);
@@ -340,12 +431,12 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
         "FtraceEventBundle::CompactSched switch arrays are not the same.");
   }
 
-  if (packed_ts.size() > 0) {
-    message->set_switch_timestamp(packed_ts);
-    message->set_switch_prev_state(packed_prev_state);
-    message->set_switch_next_pid(packed_next_pid);
-    message->set_switch_next_prio(packed_next_prio);
-    message->set_switch_next_comm_index(packed_next_comm_index);
+  if (packed_ts->size() > 0) {
+    message->set_switch_timestamp(*packed_ts);
+    message->set_switch_prev_state(*packed_prev_state);
+    message->set_switch_next_pid(*packed_next_pid);
+    message->set_switch_next_prio(*packed_next_prio);
+    message->set_switch_next_comm_index(*packed_next_comm_index);
   }
 
   return base::OkStatus();

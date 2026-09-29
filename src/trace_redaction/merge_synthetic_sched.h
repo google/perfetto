@@ -47,6 +47,11 @@ class MergeSyntheticSched : public TransformPrimitive {
                          std::string* packet) const override;
 
  private:
+  base::Status HasMergeableEvents(const Context& context,
+                                  protozero::ProtoDecoder& ftrace_decoder,
+                                  const protozero::Field& compact_sched_field,
+                                  bool* has_mergeable_events) const;
+
   base::Status OnFtraceEvents(const Context& context,
                               protozero::Field ftrace_events,
                               protos::pbzero::FtraceEventBundle* message) const;
@@ -60,7 +65,11 @@ class MergeSyntheticSched : public TransformPrimitive {
   base::Status OnCompSchedSwitch(
       const Context& context,
       int32_t cpu,
-      protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
+      const protozero::Field& switch_timestamp,
+      const protozero::Field& switch_prev_state,
+      const protozero::Field& switch_next_pid,
+      const protozero::Field& switch_next_prio,
+      const protozero::Field& switch_next_comm_index,
       protos::pbzero::FtraceEventBundle::CompactSched* message) const;
 };
 
