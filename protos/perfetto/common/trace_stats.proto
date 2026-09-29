@@ -83,7 +83,7 @@ message TraceStats {
 
     // Num. chunks discarded (i.e. loss of data). For SMB chunks, this can be
     // > 0 only when a buffer is configured with FillPolicy == DISCARD.
-    // TraceBufferV2 also counts proto-group batches rejected because their
+    // TraceBufferV2 also counts SMB v2 batches rejected because their
     // producer has a ProtoVM on this buffer.
     optional uint64 chunks_discarded = 18;
 
@@ -116,9 +116,10 @@ message TraceStats {
     optional uint64 readaheads_failed = 8;
 
     // Num. of violations of the SharedMemoryABI or the shared ring buffer ABI
-    // found while writing or reading the buffer. This includes proto-group
-    // packets that TraceBufferV2 cannot rewrite because they are malformed,
-    // and chunks whose writer ID already uses the other input format.
+    // found while writing or reading the buffer. This includes SMB v2 packets
+    // that TraceBufferV2 cannot rewrite because they are malformed or nest
+    // more than 128 groups. It also includes chunks whose writer ID already
+    // uses the other input format.
     // This is an indication of either a bug in the producer(s) or malicious
     // producer(s).
     optional uint64 abi_violations = 9;
@@ -136,11 +137,10 @@ message TraceStats {
     // to validate TraceBufferV2 against V1.
     reserved 21;
 
-    // TraceBufferV2 only. Num. proto-group packets dropped at read time
-    // because length-delimited protobuf cannot encode them: a nested message
-    // larger than 256 MiB (the four-byte length limit) or a packet larger than
-    // 4 GiB. The packet was valid. Loss is reported on the next packet of the
-    // same sequence.
+    // TraceBufferV2 only. Num. SMB v2 packets dropped at read time because
+    // they contain a nested message larger than 256 MiB, the limit of the
+    // four-byte length field. The packet can be valid. Loss is reported on the
+    // next packet of the same sequence.
     optional uint64 oversized_packets_dropped = 22;
   }
 

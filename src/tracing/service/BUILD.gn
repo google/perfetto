@@ -23,7 +23,7 @@ source_set("service") {
     "../../../include/perfetto/ext/tracing/core",
   ]
   deps = [
-    ":proto_rewriter",
+    ":proto_group_rewriter",
     "../../../gn:default_deps",
     "../../../include/perfetto/tracing",
     "../../../protos/perfetto/common:zero",
@@ -131,23 +131,28 @@ if (enable_perfetto_zstd) {
 
 # Pure conversion from tracing v2 internal group framing to length-delimited
 # protobuf. Runs at read time in the service on untrusted reassembled packets.
-source_set("proto_rewriter") {
+source_set("proto_group_rewriter") {
+  public_deps = [ "../../../include/perfetto/ext/tracing/core" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/protozero",
     "../../base",
   ]
   sources = [
-    "proto_rewriter.cc",
-    "proto_rewriter.h",
+    "proto_group_rewriter.cc",
+    "proto_group_rewriter.h",
   ]
 }
 
-perfetto_fuzzer_test("proto_rewriter_fuzzer") {
-  sources = [ "proto_rewriter_fuzzer.cc" ]
+perfetto_fuzzer_test("proto_group_rewriter_fuzzer") {
+  sources = [
+    "proto_group_rewriter_fuzzer.cc",
+    "proto_group_rewriter_reference_for_testing.h",
+  ]
   deps = [
-    ":proto_rewriter",
+    ":proto_group_rewriter",
     "../../../gn:default_deps",
+    "../../../include/perfetto/protozero",
     "../../base",
   ]
 }
@@ -155,7 +160,7 @@ perfetto_fuzzer_test("proto_rewriter_fuzzer") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
-    ":proto_rewriter",
+    ":proto_group_rewriter",
     ":service",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
@@ -192,7 +197,8 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
-    "proto_rewriter_unittest.cc",
+    "proto_group_rewriter_reference_for_testing.h",
+    "proto_group_rewriter_unittest.cc",
     "trace_buffer_v1_unittest.cc",
     "trace_buffer_v2_unittest.cc",
   ]
