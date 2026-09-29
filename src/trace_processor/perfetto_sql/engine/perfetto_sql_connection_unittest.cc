@@ -1175,6 +1175,33 @@ TEST_F(PerfettoSqlConnectionPipelineTest, NewDataframeArgsAreSafe) {
   EXPECT_EQ(rows->size(), 3u);
 }
 
+// Nulls agree with each other, as under GROUP BY.
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE a(ts INTEGER, dur INTEGER, name TEXT, n INTEGER);
+    CREATE TABLE b(ts INTEGER, dur INTEGER, name TEXT, n INTEGER);
+    INSERT INTO a VALUES (0, 10, 'x', 1), (0, 10, 'y', 2), (0, 10, NULL, 3);
+    INSERT INTO b VALUES (5, 10, 'x', 1), (5, 10, NULL, 2), (5, 10, 'z', 3);
+  )")
+                  .ok());
+  auto rows = Rows(R"(
+    INTERVAL INTERSECTION OF (a AS a, b AS b) PER name
+    |> SELECT ts, dur, name
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL", "5,5,x"));
+
+  // Keys must be the same type in every operand.
+  EXPECT_THAT(Rows(R"(
+    INTERVAL INTERSECTION OF (
+      a AS a, (SELECT ts, dur, n AS name FROM b) AS b
+    ) PER name
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("the same in every operand"));
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
   auto fork = connection_->Fork();
   auto first = connection_->ExecuteUntilLastStatement(
