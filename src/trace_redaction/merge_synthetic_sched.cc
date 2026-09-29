@@ -81,9 +81,8 @@ base::Status MergeSyntheticSched::Transform(const Context& context,
   // the expensive process of re-allocating a new packet that copies the
   // old one when none are mergeable
   bool has_mergeable_events = false;
-  RETURN_IF_ERROR(HasMergeableEvents(context, ftrace_decoder,
-                                     compact_sched_field,
-                                     &has_mergeable_events));
+  RETURN_IF_ERROR(HasMergeableEvents(
+      context, ftrace_decoder, compact_sched_field, &has_mergeable_events));
 
   if (!has_mergeable_events) {
     return base::OkStatus();
@@ -105,7 +104,6 @@ base::Status MergeSyntheticSched::Transform(const Context& context,
 
   return base::OkStatus();
 }
-
 
 base::Status MergeSyntheticSched::HasMergeableEvents(
     const Context& context,
@@ -131,8 +129,9 @@ base::Status MergeSyntheticSched::HasMergeableEvents(
   }
 
   protozero::ProtoDecoder comp_sched_decoder(compact_sched_field.as_bytes());
-  auto next_pid_field = comp_sched_decoder.FindField(
-      protos::pbzero::FtraceEventBundle::CompactSched::kSwitchNextPidFieldNumber);
+  auto next_pid_field =
+      comp_sched_decoder.FindField(protos::pbzero::FtraceEventBundle::
+                                       CompactSched::kSwitchNextPidFieldNumber);
 
   if (PERFETTO_UNLIKELY(!next_pid_field.valid())) {
     return base::OkStatus();
@@ -236,10 +235,8 @@ base::Status MergeSyntheticSched::OnCompSched(
   }
 
   std::array<bool, 5> has_switch_fields = {
-      switch_timestamp.valid(),
-      switch_prev_state.valid(),
-      switch_next_pid.valid(),
-      switch_next_prio.valid(),
+      switch_timestamp.valid(),       switch_prev_state.valid(),
+      switch_next_pid.valid(),        switch_next_prio.valid(),
       switch_next_comm_index.valid(),
   };
 
@@ -254,10 +251,9 @@ base::Status MergeSyntheticSched::OnCompSched(
           "FtraceEventBundle::CompactSched "
           "switch field.");
     }
-    RETURN_IF_ERROR(OnCompSchedSwitch(context, cpu, switch_timestamp,
-                                      switch_prev_state, switch_next_pid,
-                                      switch_next_prio, switch_next_comm_index,
-                                      message));
+    RETURN_IF_ERROR(OnCompSchedSwitch(
+        context, cpu, switch_timestamp, switch_prev_state, switch_next_pid,
+        switch_next_prio, switch_next_comm_index, message));
   }
 
   return base::OkStatus();
@@ -276,16 +272,22 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
 
   bool parse_errors = false;
 
-  auto it_ts = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(
+  auto it_ts = ::protozero::PackedRepeatedFieldIterator<
+      ::protozero::proto_utils::ProtoWireType::kVarInt, uint64_t>(
       switch_timestamp.data(), switch_timestamp.size(), &parse_errors);
-  auto it_prev_state = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, int64_t>(
+  auto it_prev_state = ::protozero::PackedRepeatedFieldIterator<
+      ::protozero::proto_utils::ProtoWireType::kVarInt, int64_t>(
       switch_prev_state.data(), switch_prev_state.size(), &parse_errors);
-  auto it_pid = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+  auto it_pid = ::protozero::PackedRepeatedFieldIterator<
+      ::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
       switch_next_pid.data(), switch_next_pid.size(), &parse_errors);
-  auto it_prio = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+  auto it_prio = ::protozero::PackedRepeatedFieldIterator<
+      ::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
       switch_next_prio.data(), switch_next_prio.size(), &parse_errors);
-  auto it_comm = ::protozero::PackedRepeatedFieldIterator<::protozero::proto_utils::ProtoWireType::kVarInt, uint32_t>(
-      switch_next_comm_index.data(), switch_next_comm_index.size(), &parse_errors);
+  auto it_comm = ::protozero::PackedRepeatedFieldIterator<
+      ::protozero::proto_utils::ProtoWireType::kVarInt, uint32_t>(
+      switch_next_comm_index.data(), switch_next_comm_index.size(),
+      &parse_errors);
 
   if (PERFETTO_UNLIKELY(parse_errors)) {
     return base::ErrStatus(
@@ -360,10 +362,11 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
     absolute_timestamp += curr.timestamp_delta;
     bool is_synthetic = curr.next_pid == synth_tid;
 
-    // Trace Processor drops events before `tracing_started_ts` and the first event after it (baseline).
-    // To prevent it from dropping the target app's first event, we break synthetic chains at this
-    // boundary to provide a sacrificial synthetic event for it to drop instead.
-    // We check this top-level to bypass the check once the boundary is crossed.
+    // Trace Processor drops events before `tracing_started_ts` and the first
+    // event after it (baseline). To prevent it from dropping the target app's
+    // first event, we break synthetic chains at this boundary to provide a
+    // sacrificial synthetic event for it to drop instead. We check this
+    // top-level to bypass the check once the boundary is crossed.
     bool crossed_trace_started_boundary = false;
     if (PERFETTO_UNLIKELY(pending_boundary_ts.has_value())) {
       if (absolute_timestamp >= *pending_boundary_ts) {
@@ -391,8 +394,9 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
 
         emit_event(curr);
 
-        // If the chain was broken by a synthetic event crossing the tracing_started boundary,
-        // we immediately start a new synthetic chain with this event as the seed.
+        // If the chain was broken by a synthetic event crossing the
+        // tracing_started boundary, we immediately start a new synthetic chain
+        // with this event as the seed.
         if (is_synthetic) {
           in_synthetic_chain = true;
         }
@@ -417,8 +421,8 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
   }
 
   // If the bundle ended while in a synthetic chain, emit a final event to
-  // preserve the end timestamp of the unclosed chain. We use accumulated_delta > 0
-  // to avoid emitting zero-delta tails, which are harmless to drop.
+  // preserve the end timestamp of the unclosed chain. We use accumulated_delta
+  // > 0 to avoid emitting zero-delta tails, which are harmless to drop.
   if (in_synthetic_chain && accumulated_delta > 0) {
     curr.timestamp_delta = accumulated_delta;
     emit_event(curr);
@@ -436,7 +440,8 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
     message->set_switch_prev_state(sched_switch_buffers_.packed_prev_state);
     message->set_switch_next_pid(sched_switch_buffers_.packed_next_pid);
     message->set_switch_next_prio(sched_switch_buffers_.packed_next_prio);
-    message->set_switch_next_comm_index(sched_switch_buffers_.packed_next_comm_index);
+    message->set_switch_next_comm_index(
+        sched_switch_buffers_.packed_next_comm_index);
   }
 
   return base::OkStatus();

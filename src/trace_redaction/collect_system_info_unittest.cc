@@ -111,4 +111,3 @@ TEST_F(CollectSystemInfoTest, ExtractsTracingStartedTimestamp) {
 }
 
 }  // namespace perfetto::trace_redaction
-
