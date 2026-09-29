@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/containers/interval_intersector.h"
 #include "src/trace_processor/containers/interval_tree.h"
@@ -239,17 +240,31 @@ base::Status Collect(const IntervalIntersectOperand& operand,
     for (size_t i = 1; i < group.intervals.size() && group.nonoverlapping;
          ++i) {
       group.nonoverlapping =
-          group.intervals[i - 1].end <= group.intervals[i].start;
+          !IsOverlapping(group.intervals[i - 1], group.intervals[i]);
     }
   }
   return base::OkStatus();
 }
 
-// Narrows the regions of one key down through every operand, smallest first
-// so the running set starts as small as it can.
+// Narrows the regions of one key. If every operand is non-overlapping, runs a
+// fast k-pointer sweep. Otherwise, narrows through operands pairwise, smallest
+// first so the running set starts as small as it can.
 void NarrowKey(const std::vector<const Group*>& groups,
                IntersectState::Scratch& scratch,
                Regions& out) {
+  if (std::all_of(groups.begin(), groups.end(),
+                  [](const Group* g) { return g->nonoverlapping; })) {
+    base::SmallVector<const std::vector<Interval>*, 16> tables;
+    for (const Group* group : groups) {
+      tables.emplace_back(&group->intervals);
+    }
+    IntervalIntersector::IntersectNonOverlapping(
+        tables, [&](uint64_t start, uint64_t end, const uint32_t* ids) {
+          out.Push(start, end, ids);
+        });
+    return;
+  }
+
   Regions& running = scratch.running;
   Regions& narrowed = scratch.narrowed;
   std::vector<uint32_t>& order = scratch.order;

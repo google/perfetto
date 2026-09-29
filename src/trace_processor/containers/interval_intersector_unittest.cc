@@ -36,6 +36,7 @@ inline bool operator==(const Interval& a, const Interval& b) {
 namespace {
 
 using Interval = Interval;
+using testing::ElementsAre;
 using testing::IsEmpty;
 using testing::UnorderedElementsAre;
 
@@ -242,6 +243,52 @@ TEST(IntervalIntersector, InstantIntervals) {
   overlaps.clear();
   intersector.FindOverlaps(10, 10, overlaps);
   EXPECT_THAT(overlaps, UnorderedElementsAre(0));
+}
+
+using Result = std::tuple<Ts, Ts, std::vector<uint32_t>>;
+
+std::vector<Result> IntersectAll(
+    const std::vector<const std::vector<Interval>*>& tables) {
+  std::vector<Result> results;
+  IntervalIntersector::IntersectNonOverlapping(
+      tables, [&](Ts start, Ts end, const uint32_t* ids) {
+        results.emplace_back(start, end,
+                             std::vector<uint32_t>(ids, ids + tables.size()));
+      });
+  return results;
+}
+
+TEST(IntervalIntersector, IntersectNonOverlapping_TwoTables) {
+  std::vector<Interval> t0 = {{0, 10, 0}, {20, 30, 1}};
+  std::vector<Interval> t1 = {{5, 25, 10}};
+
+  EXPECT_THAT(IntersectAll({&t0, &t1}),
+              ElementsAre(Result{5, 10, {0, 10}}, Result{20, 25, {1, 10}}));
+}
+
+TEST(IntervalIntersector, IntersectNonOverlapping_ThreeTables) {
+  std::vector<Interval> t0 = {{0, 100, 0}};
+  std::vector<Interval> t1 = {{10, 60, 1}, {70, 90, 2}};
+  std::vector<Interval> t2 = {{20, 50, 3}, {80, 85, 4}};
+
+  EXPECT_THAT(
+      IntersectAll({&t0, &t1, &t2}),
+      ElementsAre(Result{20, 50, {0, 1, 3}}, Result{80, 85, {0, 2, 4}}));
+}
+
+TEST(IntervalIntersector, IntersectNonOverlapping_Instants) {
+  std::vector<Interval> t0 = {{10, 10, 0}, {20, 30, 1}};
+  std::vector<Interval> t1 = {{0, 10, 2}, {10, 20, 3}, {25, 25, 4}};
+
+  EXPECT_THAT(IntersectAll({&t0, &t1}),
+              ElementsAre(Result{10, 10, {0, 3}}, Result{25, 25, {1, 4}}));
+}
+
+TEST(IntervalIntersector, IntersectNonOverlapping_EmptyTable) {
+  std::vector<Interval> t0 = {{0, 10, 0}};
+  std::vector<Interval> t1;
+
+  EXPECT_THAT(IntersectAll({&t0, &t1}), IsEmpty());
 }
 
 }  // namespace
