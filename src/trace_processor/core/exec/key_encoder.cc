@@ -26,36 +26,12 @@
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/layout_column.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
-namespace {
-
-template <typename T, typename Value>
-void Write(const ColumnView& column,
-           const RowLayout::Slot& slot,
-           uint32_t count,
-           uint8_t* rows,
-           Value value) {
-  RowSelection selection = column.selection();
-  const BitVector* validity = column.validity();
-  RowLayout::Write<T>(
-      slot, count,
-      [&](uint32_t row, T* out) {
-        uint32_t index = selection.GetIndex(row);
-        if (validity && !validity->is_set(index)) {
-          return false;
-        }
-        *out = value(index);
-        return true;
-      },
-      rows);
-}
-
-}  // namespace
-
 std::optional<uint32_t> KeyEncoder::Encode(
     const RowBatch& batch,
     const std::vector<uint32_t>& columns) {
@@ -118,31 +94,35 @@ std::optional<uint32_t> KeyEncoder::Encode(
     const ColumnView& column = batch.column(columns[k]);
     const RowLayout::Slot& slot = layout_.slot(k);
     if (column.kind() == ColumnView::Kind::kSequence) {
-      Write<int64_t>(column, slot, count, rows,
-                     [](uint32_t index) { return int64_t{index}; });
+      WriteLayoutColumn<int64_t>(column, slot, count, rows,
+                                 [](uint32_t index) { return int64_t{index}; });
       continue;
     }
     const void* data = column.data();
     switch (column.type().index()) {
       case StorageType::GetTypeIndex<Uint32>():
-        Write<int64_t>(column, slot, count, rows, [data](uint32_t index) {
-          return int64_t{static_cast<const uint32_t*>(data)[index]};
-        });
+        WriteLayoutColumn<int64_t>(
+            column, slot, count, rows, [data](uint32_t index) {
+              return int64_t{static_cast<const uint32_t*>(data)[index]};
+            });
         break;
       case StorageType::GetTypeIndex<Int32>():
-        Write<int64_t>(column, slot, count, rows, [data](uint32_t index) {
-          return int64_t{static_cast<const int32_t*>(data)[index]};
-        });
+        WriteLayoutColumn<int64_t>(
+            column, slot, count, rows, [data](uint32_t index) {
+              return int64_t{static_cast<const int32_t*>(data)[index]};
+            });
         break;
       case StorageType::GetTypeIndex<Int64>():
-        Write<int64_t>(column, slot, count, rows, [data](uint32_t index) {
-          return static_cast<const int64_t*>(data)[index];
-        });
+        WriteLayoutColumn<int64_t>(
+            column, slot, count, rows, [data](uint32_t index) {
+              return static_cast<const int64_t*>(data)[index];
+            });
         break;
       case StorageType::GetTypeIndex<Double>():
-        Write<double>(column, slot, count, rows, [data](uint32_t index) {
-          return static_cast<const double*>(data)[index];
-        });
+        WriteLayoutColumn<double>(
+            column, slot, count, rows, [data](uint32_t index) {
+              return static_cast<const double*>(data)[index];
+            });
         break;
       case StorageType::GetTypeIndex<String>(): {
         // Not nullable: the null id is 0.
