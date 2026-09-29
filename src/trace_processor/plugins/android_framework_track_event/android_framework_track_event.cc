@@ -169,7 +169,11 @@ class Parser : public TrackEventExtensionParser {
     if (!upid) {
       return;
     }
-    GetOrInsertRow(*upid).set_fw_end_ts(ts);
+    auto row = GetOrInsertRow(*upid);
+    row.set_fw_end_ts(ts);
+    if (evt.has_start_seq_id()) {
+      row.set_start_seq_id(evt.start_seq_id());
+    }
     trace_context_->process_tracker->EndThread(
         ts, static_cast<uint32_t>(evt.pid()));
   }

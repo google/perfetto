@@ -28,7 +28,7 @@ class TraceProcessorContext;
 
 namespace perfetto::trace_processor::android_process_state {
 
-// Receives the trace-stop AndroidProcessState and AndroidFreezerState dumps.
+// Receives the AndroidProcessState and AndroidFreezerState dumps.
 class AndroidProcessStateModule : public ProtoImporterModule {
  public:
   AndroidProcessStateModule(ProtoImporterModuleContext* module_context,

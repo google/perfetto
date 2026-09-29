@@ -113,15 +113,38 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
                             ".com.android.internal.OomChangeReasonEnum",
                             static_cast<int32_t>(p.reason()));
   }
+  if (p.has_seq_id()) {
+    row.seq_id = p.seq_id();
+  }
   process_state_table_->Insert(row);
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
+  const bool is_start_dump =
+      dump.dump_reason() == fb::AndroidProcessStateSnapshot::DUMP_REASON_START;
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
     if (!rec.has_pid()) {
+      continue;
+    }
+    // The trace-start dump lists the processes alive when the trace started.
+    // It is the only dump which creates processes, and it carries no state.
+    if (is_start_dump) {
+      UniquePid upid = context_->process_tracker->GetOrCreateProcess(rec.pid());
+      if (rec.has_process_name()) {
+        context_->process_tracker->UpdateProcessName(
+            upid, context_->storage->InternString(rec.process_name()),
+            ProcessNamePriority::kOther);
+      }
+      if (rec.has_uid()) {
+        context_->process_tracker->SetProcessUid(
+            upid, static_cast<uint32_t>(rec.uid()));
+      }
+      if (rec.has_start_seq_id()) {
+        start_seq_id_by_upid_[upid] = rec.start_seq_id();
+      }
       continue;
     }
     std::optional<UniquePid> opt_upid =
@@ -129,6 +152,9 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
             static_cast<uint32_t>(rec.pid()));
     if (!opt_upid) {
       continue;
+    }
+    if (rec.has_start_seq_id()) {
+      start_seq_id_by_upid_[*opt_upid] = rec.start_seq_id();
     }
     ProcessStateValues v;
     v.upid = *opt_upid;
@@ -249,6 +275,10 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
   row.upid = v.upid;
   row.ts = std::nullopt;
   row.is_initial = 1;
+  if (auto it = start_seq_id_by_upid_.find(v.upid);
+      it != start_seq_id_by_upid_.end()) {
+    row.start_seq_id = it->second;
+  }
   if (v.proc_state.has_value()) {
     row.proc_state =
         InternEnum(context_, proc_state_cache_,
