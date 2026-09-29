@@ -115,9 +115,6 @@ class AndroidProcessStateTracker {
   std::map<UniquePid, ProcessStateValues> process_dump_;
   // Map of upid -> final freezer state from the trace-stop dump snapshot.
   std::map<UniquePid, FreezerStateValues> freezer_dump_;
-  // Map of upid -> start seq id from the dump snapshots. Only used to populate
-  // the start_seq_id column, not to resolve processes.
-  std::map<UniquePid, int64_t> start_seq_id_by_upid_;
 };
 
 }  // namespace perfetto::trace_processor::android_process_state

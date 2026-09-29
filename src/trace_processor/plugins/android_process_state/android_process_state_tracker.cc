@@ -142,9 +142,6 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
         context_->process_tracker->SetProcessUid(
             upid, static_cast<uint32_t>(rec.uid()));
       }
-      if (rec.has_start_seq_id()) {
-        start_seq_id_by_upid_[upid] = rec.start_seq_id();
-      }
       continue;
     }
     std::optional<UniquePid> opt_upid =
@@ -152,9 +149,6 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
             static_cast<uint32_t>(rec.pid()));
     if (!opt_upid) {
       continue;
-    }
-    if (rec.has_start_seq_id()) {
-      start_seq_id_by_upid_[*opt_upid] = rec.start_seq_id();
     }
     ProcessStateValues v;
     v.upid = *opt_upid;
@@ -275,10 +269,6 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
   row.upid = v.upid;
   row.ts = std::nullopt;
   row.is_initial = 1;
-  if (auto it = start_seq_id_by_upid_.find(v.upid);
-      it != start_seq_id_by_upid_.end()) {
-    row.start_seq_id = it->second;
-  }
   if (v.proc_state.has_value()) {
     row.proc_state =
         InternEnum(context_, proc_state_cache_,

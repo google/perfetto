@@ -429,25 +429,22 @@ class AndroidParser(TestSuite):
           p.name,
           p.uid,
           p.android_user_id,
-          s.start_seq_id AS state_start_seq_id,
-          t.start_seq_id AS fw_start_seq_id,
+          t.start_seq_id,
           p.start_ts,
           p.end_ts
         FROM process p
-        LEFT JOIN __intrinsic_android_process_state s
-          ON s.upid = p.upid AND s.is_initial = 1
         LEFT JOIN __intrinsic_android_track_event_process t
           ON t.upid = p.upid
         WHERE p.pid > 0
         ORDER BY p.pid, p.start_ts;
         """,
         out=Csv("""
-          "pid","name","uid","android_user_id","state_start_seq_id","fw_start_seq_id","start_ts","end_ts"
-          100,"com.example.appa",10001,0,1,1,"[NULL]","[NULL]"
-          200,"com.example.dumps_only",20001,0,10,"[NULL]","[NULL]","[NULL]"
-          300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]","[NULL]"
-          400,"com.example.pre_existing",40001,0,5,5,"[NULL]",3000000000
-          500,"com.example.started_late",50001,0,6,6,"[NULL]","[NULL]"
+          "pid","name","uid","android_user_id","start_seq_id","start_ts","end_ts"
+          100,"com.example.appa",10001,0,1,"[NULL]","[NULL]"
+          200,"com.example.dumps_only",20001,0,"[NULL]","[NULL]","[NULL]"
+          300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]"
+          400,"com.example.pre_existing",40001,0,5,"[NULL]",3000000000
+          500,"com.example.started_late",50001,0,6,"[NULL]","[NULL]"
         """))
 
   def test_android_process_state_metadata_freezer(self):
@@ -477,18 +474,17 @@ class AndroidParser(TestSuite):
           t.capability_flags,
           t.reason,
           t.seq_id,
-          t.is_initial,
-          t.start_seq_id
+          t.is_initial
         FROM __intrinsic_android_process_state t
         JOIN process p USING (upid)
         ORDER BY p.pid, t.ts;
         """,
         out=Csv("""
-          "ts","pid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial","start_seq_id"
-          "[NULL]",100,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1,1
-          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]",1,10
-          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]",1,"[NULL]"
-          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1,5
-          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",7,0,"[NULL]"
-          "[NULL]",500,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1,6
+          "ts","pid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]",1
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
+          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",7,0
+          "[NULL]",500,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1
         """))
