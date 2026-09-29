@@ -22,7 +22,8 @@
 
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
-          TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND.
+          TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
+          AGGREGATE.
 
 // ---------- Helper nonterminals ----------
 
@@ -205,19 +206,19 @@ perfetto_pipe_source(A) ::= LP select(S) RP as(Z). {
 perfetto_tree_direction(A) ::= UP.   { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_UP; }
 perfetto_tree_direction(A) ::= DOWN. { A = SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN; }
 
-%type perfetto_tree_aggregate {uint32_t}
-perfetto_tree_aggregate(A) ::= expr(E) AS nm(N). {
-    A = synq_parse_perfetto_tree_aggregate(pCtx, E,
+%type perfetto_aggregate {uint32_t}
+perfetto_aggregate(A) ::= expr(E) AS nm(N). {
+    A = synq_parse_perfetto_aggregate(pCtx, E,
         synq_span_dequote(pCtx, N));
 }
 
-%type perfetto_tree_aggregate_list {uint32_t}
-perfetto_tree_aggregate_list(A) ::= perfetto_tree_aggregate(X). {
-    A = synq_parse_perfetto_tree_aggregate_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+%type perfetto_aggregate_list {uint32_t}
+perfetto_aggregate_list(A) ::= perfetto_aggregate(X). {
+    A = synq_parse_perfetto_aggregate_list(pCtx, SYNTAQLITE_NULL_NODE, X);
 }
-perfetto_tree_aggregate_list(A) ::= perfetto_tree_aggregate_list(L) COMMA
-                                    perfetto_tree_aggregate(X). {
-    A = synq_parse_perfetto_tree_aggregate_list(pCtx, L, X);
+perfetto_aggregate_list(A) ::= perfetto_aggregate_list(L) COMMA
+                                    perfetto_aggregate(X). {
+    A = synq_parse_perfetto_aggregate_list(pCtx, L, X);
 }
 
 // A column, optionally qualified: `column` or `alias.column`.
@@ -368,11 +369,15 @@ perfetto_pipe_stage(A) ::= RENAME perfetto_pipe_rename_list(L). {
 perfetto_pipe_stage(A) ::= SET perfetto_pipe_set_list(L). {
     A = synq_parse_perfetto_pipe_set(pCtx, L);
 }
+perfetto_pipe_stage(A) ::= INTERVAL FLATTEN perfetto_per(P)
+                           AGGREGATE perfetto_aggregate_list(L). {
+    A = synq_parse_perfetto_interval_flatten(pCtx, P, L);
+}
 perfetto_pipe_stage(A) ::= AS nm(N). {
     A = synq_parse_perfetto_pipe_as(pCtx, synq_span_dequote(pCtx, N));
 }
 perfetto_pipe_stage(A) ::= TREE ACCUMULATE perfetto_tree_direction(D)
-                           perfetto_tree_aggregate_list(L). {
+                           perfetto_aggregate_list(L). {
     A = synq_parse_perfetto_tree_accumulate(pCtx,
         (SyntaqlitePerfettoTreeDirection)D, L);
 }
