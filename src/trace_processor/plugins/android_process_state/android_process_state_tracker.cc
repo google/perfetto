@@ -124,11 +124,19 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
 
 void AndroidProcessStateTracker::TokenizeProcessStateDump(
     protozero::ConstBytes blob) {
+  if (android_process_tracker_->FrameworkIsProcessAuthority()) {
+    return;
+  }
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
+  if (dump.dump_reason() ==
+      fb::AndroidProcessStateSnapshot::DUMP_REASON_START) {
+    android_process_tracker_->SetFrameworkIsProcessAuthority();
+    return;
+  }
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
     if (rec.has_process_name()) {
-      android_process_tracker_->SetFrameworkIsProcessAuthority(true);
+      android_process_tracker_->SetFrameworkIsProcessAuthority();
       return;
     }
   }
@@ -137,33 +145,36 @@ void AndroidProcessStateTracker::TokenizeProcessStateDump(
 void AndroidProcessStateTracker::ParseProcessStateDump(
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
+  const bool is_start_dump =
+      dump.dump_reason() == fb::AndroidProcessStateSnapshot::DUMP_REASON_START;
+  // Normally already set by TokenizeProcessStateDump().
+  if (is_start_dump) {
+    android_process_tracker_->SetFrameworkIsProcessAuthority();
+  }
+  const bool framework_authority =
+      android_process_tracker_->FrameworkIsProcessAuthority();
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
     if (!rec.has_pid()) {
       continue;
     }
     std::optional<UniquePid> opt_upid;
-    if (android_process_tracker_->FrameworkIsProcessAuthority()) {
-      StringId name_id = rec.has_process_name()
-                             ? context_->storage->InternString(
-                                   base::StringView(rec.process_name()))
-                             : kNullStringId;
-      std::optional<int64_t> start_seq_id =
+    if (framework_authority) {
+      opt_upid = android_process_tracker_->GetOrStartProcess(
+          /*start_ts=*/std::nullopt, rec.pid(),
           rec.has_start_seq_id() ? std::make_optional(rec.start_seq_id())
-                                 : std::nullopt;
-      UniquePid upid = android_process_tracker_->GetOrStartProcess(
-          /*start_ts=*/std::nullopt, static_cast<uint32_t>(rec.pid()),
-          start_seq_id, name_id);
+                                 : std::nullopt,
+          rec.process_name());
       if (rec.has_uid()) {
         context_->process_tracker->SetProcessUid(
-            upid, static_cast<uint32_t>(rec.uid()));
+            *opt_upid, static_cast<uint32_t>(rec.uid()));
       }
-      opt_upid = upid;
     } else {
       opt_upid = context_->process_tracker->GetProcessOrNull(
           static_cast<uint32_t>(rec.pid()));
     }
-    if (!opt_upid) {
+    // START dumps carry only process metadata, no state.
+    if (!opt_upid || is_start_dump) {
       continue;
     }
     ProcessStateValues v;
@@ -213,10 +224,6 @@ void AndroidProcessStateTracker::ParseFreezerEvent(
   }
   row.is_initial = 0;
   freezer_state_table_->Insert(row);
-}
-
-void AndroidProcessStateTracker::SaveFreezerDump(TraceBlobView blob) {
-  pending_freezer_dumps_.push_back(std::move(blob));
 }
 
 void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
@@ -272,10 +279,6 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
 }
 
 void AndroidProcessStateTracker::Finalize() {
-  for (const TraceBlobView& dump : pending_freezer_dumps_) {
-    ParseFreezerDump(protozero::ConstBytes{dump.data(), dump.length()});
-  }
-  pending_freezer_dumps_.clear();
   for (const auto& [upid, v] : ComputeInitialProcessStates()) {
     EmitInitialProcessStateRow(v);
   }

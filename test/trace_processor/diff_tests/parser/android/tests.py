@@ -471,4 +471,84 @@ class AndroidParser(TestSuite):
           100,"com.example.appb",10002,0,2,5000000000,"[NULL]"
           200,"com.example.dump_only",20001,0,10,"[NULL]","[NULL]"
           300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]"
+          400,"com.example.pre_existing",40001,0,5,"[NULL]",3000000000
+          500,"com.example.started_late",50001,0,6,2000000000,"[NULL]"
+        """))
+
+  def test_android_process_state_metadata_freezer(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT t.ts, p.pid, t.unfreeze_reason, t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfreeze_reason","is_initial"
+          "[NULL]",200,"UFR_PING",1
+          2500000000,400,"UFR_BINDER_TXNS",0
+        """))
+
+  def test_android_process_state_metadata_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.reason,
+          t.seq_id,
+          t.is_initial,
+          t.start_seq_id
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        WHERE p.pid = 400
+        ORDER BY t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial","start_seq_id"
+          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1,5
+          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",7,0,"[NULL]"
+        """))
+
+  def test_android_framework_binder_died_unknown_seq(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_binder_died_unknown_seq.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          s.start_seq_id,
+          p.start_ts,
+          p.end_ts
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process s
+          ON s.upid = p.upid
+        WHERE p.pid > 0
+        ORDER BY p.pid, p.start_ts;
+        """,
+        out=Csv("""
+          "pid","name","start_seq_id","start_ts","end_ts"
+          100,"com.example.new",11,2000000000,"[NULL]"
+          200,"com.example.noseq",20,2000000000,4000000000
+        """))
+
+  def test_android_framework_binder_died_recycled_threads(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_binder_died_recycled.textproto'),
+        query="""
+        SELECT t.tid, p.name, t.end_ts
+        FROM thread t
+        JOIN process p USING (upid)
+        WHERE t.tid = 100
+        ORDER BY p.start_ts;
+        """,
+        out=Csv("""
+          "tid","name","end_ts"
+          100,"com.example.appa",6000000000
+          100,"com.example.appb",7000000000
         """))

@@ -1,0 +1,90 @@
+# Exercises binder_died for an incarnation the trace never saw start, with
+# framework process authority detected only from the trace-stop dump (no
+# DUMP_REASON_START, e.g. the START packet was overwritten in a ring buffer):
+# - pid 100 is owned by a known incarnation (seq 11). A death for an unknown
+#   incarnation (seq 10) must not end it.
+# - pid 200 is owned by an incarnation with no known seq. A death carrying a
+#   seq still ends it, since nothing proves it is a different incarnation.
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks { clock_id: 6 timestamp: 0 }
+    clocks { clock_id: 3 timestamp: 0 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+# pid 100 starts with seq 11.
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10011
+      pid: 100
+      process_name: "com.example.new"
+      start_seq_id: 11
+    }
+  }
+}
+# pid 200 starts without a seq.
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 10020
+      pid: 200
+      process_name: "com.example.noseq"
+    }
+  }
+}
+# Death for an unknown incarnation of pid 100 (seq 10): must be ignored.
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      uid: 10010
+      pid: 100
+      process_name: "com.example.old"
+      start_seq_id: 10
+    }
+  }
+}
+# Death for pid 200 carrying a seq: the owner has no seq, so it is ended.
+packet {
+  timestamp: 4000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      uid: 10020
+      pid: 200
+      process_name: "com.example.noseq"
+      start_seq_id: 20
+    }
+  }
+}
+# Trace-stop dump. process_name enables framework process authority.
+packet {
+  timestamp: 10000000000
+  [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+    dump_reason: DUMP_REASON_END
+    record {
+      pid: 100
+      uid: 10011
+      process_name: "com.example.new"
+      start_seq_id: 11
+      proc_state: 1002
+      oom_score: 100
+    }
+  }
+}

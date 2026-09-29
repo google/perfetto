@@ -1,7 +1,14 @@
 # Exercises android_process_state dump_process_metadata mode:
-# - Framework process authority mode detected via process_name in dump records
+# - Framework process authority mode detected via DUMP_REASON_START and
+#   process_name in dump records
+# - Pre-existing process in DUMP_REASON_START that dies mid-trace before
+#   DUMP_REASON_END
+# - State change and freezer event for a process known only from
+#   DUMP_REASON_START
+# - Process listed in DUMP_REASON_START whose process_start event arrives later
 # - Mid-trace PID recycling with start_seq_id via TrackEvent
 # - Trace-stop snapshot metadata enrichment and zero-suppression handling
+# - Trace-stop freezer dump for a process known only from the END dump
 packet {
   clock_snapshot {
     primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
@@ -10,6 +17,25 @@ packet {
   }
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
+}
+# Trace-start dump at timestamp 100000 (metadata only, no proc_state/oom_score).
+packet {
+  timestamp: 100000
+  [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+    dump_reason: DUMP_REASON_START
+    record {
+      pid: 400
+      uid: 40001
+      process_name: "com.example.pre_existing"
+      start_seq_id: 5
+    }
+    record {
+      pid: 500
+      uid: 50001
+      process_name: "com.example.started_late"
+      start_seq_id: 6
+    }
+  }
 }
 # Process 100: Initial process start (seq_id: 1).
 packet {
@@ -23,6 +49,74 @@ packet {
       pid: 100
       process_name: "com.example.appa"
       start_seq_id: 1
+    }
+  }
+}
+# Process 500: already listed in DUMP_REASON_START, but its process_start event
+# is emitted afterwards. It must resolve to the same process and set start_ts.
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      uid: 50001
+      pid: 500
+      process_name: "com.example.started_late"
+      start_seq_id: 6
+    }
+  }
+}
+# Process 400: known only from DUMP_REASON_START. Its state change must attach
+# to that process (not be dropped as unknown).
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "proc_state_change"
+    [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+      pid: 400
+      uid: 40001
+      prev_proc_state: PROCESS_STATE_TOP
+      cur_proc_state: PROCESS_STATE_IMPORTANT_FOREGROUND
+      prev_oom_score: 0
+      cur_oom_score: 200
+      prev_capability_flags: 1
+      cur_capability_flags: 0
+      reason: 3
+      seq_id: 7
+    }
+  }
+}
+# Process 400: freezer event, likewise resolved via the START dump.
+packet {
+  timestamp: 2500000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "freezer_event"
+    [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+      pid: 400
+      uid: 40001
+      unfrozen_dur_ms: 10
+      unfreeze_reason: UFR_BINDER_TXNS
+    }
+  }
+}
+# Process 400: Pre-existing process dies mid-trace before DUMP_REASON_END.
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      uid: 40001
+      pid: 400
+      process_name: "com.example.pre_existing"
+      start_seq_id: 5
     }
   }
 }
@@ -45,6 +139,7 @@ packet {
 packet {
   timestamp: 10000000000
   [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+    dump_reason: DUMP_REASON_END
     record {
       pid: 100
       uid: 10002
@@ -67,6 +162,26 @@ packet {
       process_name: "system_server"
       proc_state: 1000
       oom_score: -1000
+    }
+    record {
+      pid: 500
+      uid: 50001
+      process_name: "com.example.started_late"
+      start_seq_id: 6
+      proc_state: 1002
+      oom_score: 100
+    }
+  }
+}
+# Trace-stop freezer dump. The framework writes it right after the process
+# state dump with the same timestamp, so pid 200 (known only from the END dump)
+# already resolves when it is parsed.
+packet {
+  timestamp: 10000000000
+  [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+    record {
+      pid: 200
+      unfreeze_reason: UFR_PING
     }
   }
 }

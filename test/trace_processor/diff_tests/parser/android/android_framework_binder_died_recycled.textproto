@@ -76,7 +76,8 @@ packet {
   }
 }
 # Trace-stop dump with process_name metadata so TokenizePacket detects
-# framework process authority before mid-trace events are parsed.
+# framework process authority before mid-trace events are parsed. dump_reason
+# is deliberately unset, as in framework builds that predate it.
 packet {
   timestamp: 10000000000
   [com.android.internal.FrameworksBaseTracePacket.android_process_state] {

@@ -21,7 +21,7 @@
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
@@ -32,8 +32,8 @@ class TraceProcessorContext;
 //
 // Android recycles pids aggressively, so a pid on its own does not identify a
 // process. The framework stamps every process incarnation with a monotonic
-// "start sequence id" and repeats it on the death event and in the trace-stop
-// android.process_state snapshot. This class uses that id to decide when a pid
+// "start sequence id" and repeats it on the death event and in the
+// android.process_state snapshots. This class uses that id to decide when a pid
 // has been recycled, and to find the right process when a death event arrives
 // after the pid has already been handed to a new one.
 //
@@ -44,12 +44,9 @@ class AndroidProcessTracker {
   explicit AndroidProcessTracker(TraceProcessorContext* context)
       : context_(context) {}
 
-  // Set during the pre-sort TokenizePacket pass when an AndroidProcessState
-  // dump packet contains process_name metadata (dump_process_metadata = true).
-  // Importers read this during the sorted parse pass to decide whether to
-  // route process lookups through this class.
-  void SetFrameworkIsProcessAuthority(bool value) {
-    framework_is_process_authority_ = value;
+  // Set when an AndroidProcessState dump shows dump_process_metadata is on.
+  void SetFrameworkIsProcessAuthority() {
+    framework_is_process_authority_ = true;
   }
   bool FrameworkIsProcessAuthority() const {
     return framework_is_process_authority_;
@@ -62,32 +59,35 @@ class AndroidProcessTracker {
   // ProcessTracker::StartNewProcess() detaches the pid from the previous
   // incarnation on our behalf, and deliberately leaves it without an end_ts:
   // a new process starting tells us the old one is gone, but not when it
-  // died. That is recorded when the framework reports the death, which
-  // locates its process via FindProcess() and closes it with EndProcess().
+  // died. That is recorded by EndProcess().
   //
   // Note: android.util.proto.ProtoOutputStream omits zero-valued fields, so a
   // missing start_seq_id cannot be told apart from seq id 0. Records without
-  // one are treated as belonging to the same incarnation.
+  // one are treated as belonging to the same incarnation. An empty |name|
+  // means unknown.
   UniquePid GetOrStartProcess(std::optional<int64_t> start_ts,
                               int64_t pid,
                               std::optional<int64_t> start_seq_id,
-                              StringId name);
+                              base::StringView name);
 
-  // Records that |upid| ended at |ts|, even if its pid has since been handed
-  // to a newer incarnation. Unlike ProcessTracker::EndThread(), which works
-  // through the pid, this always ends the process it was given.
-  void EndProcess(int64_t ts, UniquePid upid);
+  // Ends the (|pid|, |start_seq_id|) incarnation at |ts|, even if its pid has
+  // since been recycled. Returns its upid, or nullopt if it was never seen.
+  std::optional<UniquePid> EndProcess(int64_t ts,
+                                      int64_t pid,
+                                      int64_t start_seq_id);
 
+  // Returns the start seq id of |upid|, if one has been seen.
+  std::optional<int64_t> GetStartSeqId(UniquePid upid) const;
+
+ private:
   // Returns the upid recorded for (|pid|, |start_seq_id|), if we have seen it.
   // Unlike ProcessTracker::GetProcessOrNull() this also finds incarnations
   // which no longer own the pid, which is what a death event arriving after a
   // recycle needs.
   std::optional<UniquePid> FindProcess(int64_t pid, int64_t start_seq_id) const;
 
-  // Returns the start seq id of |upid|, if one has been seen.
-  std::optional<int64_t> GetStartSeqId(UniquePid upid) const;
+  void RecordStartSeqId(UniquePid upid, int64_t start_seq_id);
 
- private:
   TraceProcessorContext* const context_;
 
   // start_seq_id -> upid. Entries are kept after a pid is recycled so that a

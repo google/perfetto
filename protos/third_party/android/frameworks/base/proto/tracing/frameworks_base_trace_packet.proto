@@ -107,8 +107,9 @@ message VideoFrameError {
   optional Reason reason = 2;
 }
 
-// Snapshot of all running process states written at trace stop.
-// See AndroidProcessStateChangedEvent in frameworks_base_track_event.proto
+// Snapshot of all running process states written at trace start, clone or
+// stop. See AndroidProcessStateChangedEvent in
+// frameworks_base_track_event.proto
 message AndroidProcessStateSnapshot {
   // A single process state entry.
   message Record {
@@ -130,6 +131,15 @@ message AndroidProcessStateSnapshot {
     optional int64 start_time_ms = 8;
   }
   repeated Record record = 1;
+
+  // Reason why the process state snapshot was emitted.
+  enum DumpReason {
+    DUMP_REASON_UNKNOWN = 0;
+    DUMP_REASON_START = 1;
+    DUMP_REASON_END = 2;
+    DUMP_REASON_CLONE = 3;
+  }
+  optional DumpReason dump_reason = 2;
 }
 
 // Snapshot of frozen process states written at trace stop.

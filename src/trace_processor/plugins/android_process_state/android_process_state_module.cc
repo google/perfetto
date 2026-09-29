@@ -60,13 +60,11 @@ void AndroidProcessStateModule::ParseField(const ParseFieldArgs& args) {
           args.field
               .Cast<fb::FrameworksBaseTracePacket::kAndroidProcessState>());
       break;
-    case fb::FrameworksBaseTracePacket::kAndroidFreezerStateFieldNumber: {
-      protozero::ConstBytes bytes =
+    case fb::FrameworksBaseTracePacket::kAndroidFreezerStateFieldNumber:
+      tracker_->ParseFreezerDump(
           args.field
-              .Cast<fb::FrameworksBaseTracePacket::kAndroidFreezerState>();
-      tracker_->SaveFreezerDump(args.data.packet.slice(bytes.data, bytes.size));
+              .Cast<fb::FrameworksBaseTracePacket::kAndroidFreezerState>());
       break;
-    }
     default:
       break;
   }

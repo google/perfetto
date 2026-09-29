@@ -27,6 +27,7 @@ namespace perfetto::trace_processor::android_process_state {
 
 class AndroidProcessState;
 
+// Returns the shared tracker. |plugin| must be the AndroidProcessState plugin.
 AndroidProcessTracker* EnsureAndroidProcessTracker(
     PluginBase* plugin,
     TraceProcessorContext* trace_context);
