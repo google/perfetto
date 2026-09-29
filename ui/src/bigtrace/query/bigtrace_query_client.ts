@@ -298,6 +298,22 @@ export class BigtraceQueryClient {
     };
   }
 
+  async fetchColumnValues(
+    uuid: string,
+    column: string,
+    search?: string,
+  ): Promise<ReadonlyArray<string>> {
+    const result = await this.requestJson<{values?: string[]}>(
+      `/query_executions/${uuid}:column_values`,
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({column_name: column, search_pattern: search}),
+      },
+    );
+    return result.values ?? [];
+  }
+
   async cancelQuery(uuid: string, signal?: AbortSignal): Promise<void> {
     await this.request(`/query_executions/${uuid}:cancel`, {
       method: 'POST',

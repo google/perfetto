@@ -19,7 +19,7 @@ import type {
 } from '../../components/widgets/datagrid/data_source';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row, SqlValue} from '../../trace_processor/query_result';
-import type {AsyncMemoResult} from '../../base/async_memo';
+import {AsyncMemo, type AsyncMemoResult} from '../../base/async_memo';
 import {
   type BigtraceQueryClient,
   BigtraceHttpError,
@@ -65,6 +65,7 @@ export class BigtraceAsyncDataSource implements DataSource {
   private schema?: ReadonlyArray<BigtraceColumnSchema>;
   // Owns debouncing and cancellation; see FetchScheduler.
   private readonly scheduler: FetchScheduler;
+  private readonly distinctValues = new AsyncMemo<readonly SqlValue[]>();
 
   get filteredTotalRows(): number | undefined {
     return this._filteredTotalRows;
@@ -195,6 +196,7 @@ export class BigtraceAsyncDataSource implements DataSource {
   // Re-fetch the currently-loaded window, superseding anything queued or in
   // flight — an explicit refresh shouldn't wait behind a scroll.
   async refresh(): Promise<void> {
+    this.distinctValues.invalidate();
     const offset = this.loadedOffset;
     const limit = this.loadedLimit > 0 ? this.loadedLimit : 100;
     await this.scheduler.runNow((controller) =>
@@ -289,11 +291,28 @@ export class BigtraceAsyncDataSource implements DataSource {
   }
 
   useDistinctValues(
-    _column: string | undefined,
+    column: string | undefined,
+    search = '',
   ): AsyncMemoResult<readonly SqlValue[]> {
-    // `data: []` (not `undefined`) avoids a permanent "Loading…" in the
-    // column-filter "Equals" submenu. Cell-context menu filtering still works.
-    return {data: [], isPending: false};
+    if (column === undefined) return {data: [], isPending: false};
+    return this.distinctValues.use({
+      // Refetch as the backend inserts rows.
+      key: {column, search, rows: this.getTotalRows()},
+      retainOn: ['rows'],
+      compute: async () => {
+        try {
+          return await this.queryClient.fetchColumnValues(
+            this.queryUuid,
+            column,
+            search,
+          );
+        } catch (e) {
+          // An empty picker beats an exception out of the grid's render.
+          console.error('[bigtrace] column_values failed:', e);
+          return [];
+        }
+      },
+    });
   }
 
   useParameterKeys(
