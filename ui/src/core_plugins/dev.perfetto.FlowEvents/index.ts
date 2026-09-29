@@ -56,17 +56,9 @@ export default class FlowEventsPlugin implements PerfettoPlugin {
     );
 
     trace.tracks.registerOverlay({
-      render(ctx, timescale, size, tracks) {
+      render(ctx, timescale, size, tracks, _theme, rootNode) {
         flows.updateFlows(trace.selection.selection);
-        renderFlows(
-          trace,
-          flows,
-          ctx,
-          size,
-          tracks,
-          trace.workspaces.currentWorkspace.tracks,
-          timescale,
-        );
+        renderFlows(trace, flows, ctx, size, tracks, rootNode, timescale);
       },
     });
 
