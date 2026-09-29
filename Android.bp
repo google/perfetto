@@ -25228,13 +25228,13 @@ cc_library_static {
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
-        "libpcre2",
         "libz",
         "libzstd",
     ],
     static_libs: [
         "libgmock",
         "libgtest",
+        "libpcre2",
         "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
