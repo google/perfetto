@@ -23,6 +23,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -51,6 +52,19 @@ class MergeSyntheticSched : public TransformPrimitive {
                                   protozero::ProtoDecoder& ftrace_decoder,
                                   const protozero::Field& compact_sched_field,
                                   bool* has_mergeable_events) const;
+
+
+  // Reusable scratchpad buffers for building the redacted CompactSched message.
+  // Instead of allocating on the function stack or allocating dynamically
+  // on the heap for every packet (which causes severe heap churn), these buffers
+  // are allocated once then reused during merging.
+  mutable struct {
+    protozero::PackedVarInt packed_ts;
+    protozero::PackedVarInt packed_prev_state;
+    protozero::PackedVarInt packed_next_pid;
+    protozero::PackedVarInt packed_next_prio;
+    protozero::PackedVarInt packed_next_comm_index;
+  } sched_switch_buffers_;
 
   base::Status OnFtraceEvents(const Context& context,
                               protozero::Field ftrace_events,

@@ -301,18 +301,18 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
     uint32_t next_comm_index = 0;
   };
 
-  auto packed_ts = std::make_unique<protozero::PackedVarInt>();
-  auto packed_prev_state = std::make_unique<protozero::PackedVarInt>();
-  auto packed_next_pid = std::make_unique<protozero::PackedVarInt>();
-  auto packed_next_prio = std::make_unique<protozero::PackedVarInt>();
-  auto packed_next_comm_index = std::make_unique<protozero::PackedVarInt>();
+  sched_switch_buffers_.packed_ts.Reset();
+  sched_switch_buffers_.packed_prev_state.Reset();
+  sched_switch_buffers_.packed_next_pid.Reset();
+  sched_switch_buffers_.packed_next_prio.Reset();
+  sched_switch_buffers_.packed_next_comm_index.Reset();
 
   auto emit_event = [&](const SchedSwitchEvent& evt) {
-    packed_ts->Append(evt.timestamp_delta);
-    packed_prev_state->Append(evt.prev_state);
-    packed_next_pid->Append(evt.next_pid);
-    packed_next_prio->Append(evt.next_prio);
-    packed_next_comm_index->Append(evt.next_comm_index);
+    sched_switch_buffers_.packed_ts.Append(evt.timestamp_delta);
+    sched_switch_buffers_.packed_prev_state.Append(evt.prev_state);
+    sched_switch_buffers_.packed_next_pid.Append(evt.next_pid);
+    sched_switch_buffers_.packed_next_prio.Append(evt.next_prio);
+    sched_switch_buffers_.packed_next_comm_index.Append(evt.next_comm_index);
   };
 
   PERFETTO_DCHECK(context.synthetic_process);
@@ -431,12 +431,12 @@ base::Status MergeSyntheticSched::OnCompSchedSwitch(
         "FtraceEventBundle::CompactSched switch arrays are not the same.");
   }
 
-  if (packed_ts->size() > 0) {
-    message->set_switch_timestamp(*packed_ts);
-    message->set_switch_prev_state(*packed_prev_state);
-    message->set_switch_next_pid(*packed_next_pid);
-    message->set_switch_next_prio(*packed_next_prio);
-    message->set_switch_next_comm_index(*packed_next_comm_index);
+  if (sched_switch_buffers_.packed_ts.size() > 0) {
+    message->set_switch_timestamp(sched_switch_buffers_.packed_ts);
+    message->set_switch_prev_state(sched_switch_buffers_.packed_prev_state);
+    message->set_switch_next_pid(sched_switch_buffers_.packed_next_pid);
+    message->set_switch_next_prio(sched_switch_buffers_.packed_next_prio);
+    message->set_switch_next_comm_index(sched_switch_buffers_.packed_next_comm_index);
   }
 
   return base::OkStatus();
