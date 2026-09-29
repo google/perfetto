@@ -4086,14 +4086,16 @@ class GpuCounterConfig(_message.Message):
     def __init__(self, counter_period_ns: _Optional[int] = ..., counter_ids: _Optional[_Iterable[int]] = ..., counter_names: _Optional[_Iterable[str]] = ..., instrumented_sampling: bool = ..., instrumented_sampling_config: _Optional[_Union[GpuCounterConfig.InstrumentedSamplingConfig, _Mapping]] = ..., fix_gpu_clock: bool = ...) -> None: ...
 
 class GpuRenderStagesConfig(_message.Message):
-    __slots__ = ("full_loadstore", "low_overhead", "trace_metrics")
+    __slots__ = ("full_loadstore", "low_overhead", "trace_metrics", "drawcall_stages")
     FULL_LOADSTORE_FIELD_NUMBER: _ClassVar[int]
     LOW_OVERHEAD_FIELD_NUMBER: _ClassVar[int]
     TRACE_METRICS_FIELD_NUMBER: _ClassVar[int]
+    DRAWCALL_STAGES_FIELD_NUMBER: _ClassVar[int]
     full_loadstore: bool
     low_overhead: bool
     trace_metrics: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, full_loadstore: bool = ..., low_overhead: bool = ..., trace_metrics: _Optional[_Iterable[str]] = ...) -> None: ...
+    drawcall_stages: bool
+    def __init__(self, full_loadstore: bool = ..., low_overhead: bool = ..., trace_metrics: _Optional[_Iterable[str]] = ..., drawcall_stages: bool = ...) -> None: ...
 
 class VulkanMemoryConfig(_message.Message):
     __slots__ = ("track_driver_memory_usage", "track_device_memory_usage")
