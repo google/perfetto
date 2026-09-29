@@ -131,6 +131,31 @@ class ColumnView {
   const BitVector* validity_ = nullptr;
 };
 
+// Reads a flat column's values through its selection and validity.
+template <typename T>
+class FlatColumnReader {
+ public:
+  explicit FlatColumnReader(const ColumnView& column)
+      : data_(static_cast<const T*>(column.data())),
+        selection_(column.selection()),
+        validity_(column.validity()) {}
+
+  // False if the row holds no value.
+  PERFETTO_ALWAYS_INLINE bool Read(uint32_t row, T* out) const {
+    uint32_t index = selection_.GetIndex(row);
+    if (validity_ && !validity_->is_set(index)) {
+      return false;
+    }
+    *out = data_[index];
+    return true;
+  }
+
+ private:
+  const T* data_;
+  RowSelection selection_;
+  const BitVector* validity_;
+};
+
 // Whether two batches' views of a column can be combined. An implicit Id and
 // a stored Uint32 hold the same values: gathering turns one into the other.
 inline bool SameLogicalType(const ColumnView& a, const ColumnView& b) {

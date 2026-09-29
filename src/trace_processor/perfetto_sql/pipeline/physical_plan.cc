@@ -169,8 +169,8 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
       }
       return at;
     };
-    // An operand is read through a pipeline of its own, which widens the
-    // columns the intersection reads to Int64 where they are not already.
+    // An operand is read through a pipeline of its own, which widens its
+    // bounds to Int64 where they are not already.
     std::vector<std::unique_ptr<ex::Operator>> widen;
     ex::IntervalIntersectOperand lowered;
     lowered.ts_column = position(operand.ts);
@@ -183,9 +183,6 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     }
     RequireInt64(operand.ts, lowered.ts_column, widen);
     RequireInt64(operand.dur, lowered.dur_column, widen);
-    for (uint32_t k = 0; k < operand.keys.size(); k++) {
-      RequireInt64(operand.keys[k], lowered.key_columns[k], widen);
-    }
     out_->operand_inputs_.push_back(MakeSource(scan));
     out_->operand_pipelines_.push_back(std::make_unique<ex::Pipeline>(
         *out_->operand_inputs_.back(), std::move(widen),

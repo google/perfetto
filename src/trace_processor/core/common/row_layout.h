@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <type_traits>
 #include <vector>
 
@@ -39,21 +40,26 @@ class RowLayout {
     bool nullable = false;
     bool descending = false;
   };
+  // Small enough to pass in one register: Write() takes it by value, so its
+  // fields stay in registers while row bytes are written.
   struct Slot {
-    uint32_t offset;
-    uint32_t stride;
+    uint16_t offset;
+    uint16_t stride;
     bool nullable;
     bool descending;
   };
+  static_assert(sizeof(Slot) <= 8);
 
   RowLayout() = default;
   explicit RowLayout(const std::vector<Column>& columns) {
     for (const Column& column : columns) {
-      slots_.push_back({stride_, 0, column.nullable, column.descending});
+      slots_.push_back({static_cast<uint16_t>(stride_), 0, column.nullable,
+                        column.descending});
       stride_ += (column.nullable ? 1u : 0u) + ValueSize(column.type);
     }
+    PERFETTO_CHECK(stride_ <= std::numeric_limits<uint16_t>::max());
     for (Slot& slot : slots_) {
-      slot.stride = stride_;
+      slot.stride = static_cast<uint16_t>(stride_);
     }
   }
 
@@ -63,10 +69,10 @@ class RowLayout {
 
   // `get(i, &value)` returns false if row i has no value.
   template <typename T, typename Get>
-  PERFETTO_ALWAYS_INLINE static void Write(const Slot& slot,
+  PERFETTO_ALWAYS_INLINE static void Write(Slot slot,
                                            uint32_t count,
                                            Get get,
-                                           uint8_t* rows) {
+                                           uint8_t* PERFETTO_RESTRICT rows) {
     // Any other type would be implicitly converted to one of these by
     // Encode, writing a value of a different size to its slot.
     static_assert(std::is_same_v<T, uint32_t> || std::is_same_v<T, int32_t> ||

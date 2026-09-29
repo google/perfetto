@@ -21,7 +21,9 @@
 #include <cstring>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -35,6 +37,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/key_encoder.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
@@ -85,27 +88,6 @@ struct Group {
   bool nonoverlapping = true;
 };
 
-// Reads one flat, non-null Int64 column of a batch.
-struct Int64Reader {
-  explicit Int64Reader(const ColumnView& column)
-      : data(static_cast<const int64_t*>(column.data())),
-        selection(column.selection()),
-        validity(column.validity()) {}
-
-  bool Read(uint32_t row, int64_t* out) const {
-    uint32_t index = selection.GetIndex(row);
-    if (validity && !validity->is_set(index)) {
-      return false;
-    }
-    *out = data[index];
-    return true;
-  }
-
-  const int64_t* data;
-  RowSelection selection;
-  const BitVector* validity;
-};
-
 base::Status ValidateOperand(const RowBatch& batch,
                              const IntervalIntersectOperand& operand,
                              uint32_t which) {
@@ -114,28 +96,12 @@ base::Status ValidateOperand(const RowBatch& batch,
     return column.kind() == ColumnView::Kind::kFlat &&
            column.type().Is<Int64>();
   };
-  bool ok = is_int64(operand.ts_column) && is_int64(operand.dur_column) &&
-            std::all_of(operand.key_columns.begin(), operand.key_columns.end(),
-                        is_int64);
+  bool ok = is_int64(operand.ts_column) && is_int64(operand.dur_column);
   return ok ? base::OkStatus()
             : base::ErrStatus(
-                  "INTERVAL INTERSECTION: operand %u's ts, dur and PER "
-                  "columns must be Int64",
+                  "INTERVAL INTERSECTION: operand %u's ts and dur columns "
+                  "must be Int64",
                   which + 1);
-}
-
-// A key column takes this many bytes: whether it holds a value, then the
-// value itself. Two rows which hold no value there agree on it, as they
-// would under GROUP BY.
-constexpr size_t kKeyColumnBytes = 1 + sizeof(int64_t);
-
-void WriteKeyColumn(std::string& key,
-                    uint32_t at,
-                    bool present,
-                    int64_t value) {
-  char* to = key.data() + at * kKeyColumnBytes;
-  to[0] = present ? 1 : 0;
-  memcpy(to + 1, &value, sizeof(value));
 }
 
 class IntersectState : public OperatorState {
@@ -144,9 +110,11 @@ class IntersectState : public OperatorState {
 
   std::vector<std::unique_ptr<OperatorState>> operand_states;
   std::vector<std::unique_ptr<RowStore>> stores;
+  // Shared by the operands, so their keys' types must agree.
+  KeyEncoder keys;
   // Per operand, its rows by key. A key with no entry in some operand covers
   // nothing, so only keys every operand has produce regions.
-  std::vector<base::FlatHashMap<std::string, Group>> groups;
+  std::vector<base::FlatHashMapV2<std::string, Group>> groups;
 
   bool computed = false;
   Regions regions;
@@ -181,17 +149,19 @@ base::Status Collect(const IntervalIntersectOperand& operand,
                      uint32_t which,
                      OperatorState& state,
                      RowStore& store,
-                     base::FlatHashMap<std::string, Group>& groups) {
+                     KeyEncoder& keys,
+                     base::FlatHashMapV2<std::string, Group>& groups) {
   RowBatch batch;
   RowBatch retained;
-  std::string key(operand.key_columns.size() * kKeyColumnBytes, '\0');
   while (operand.source->GetData(batch, state)) {
     RETURN_IF_ERROR(ValidateOperand(batch, operand, which));
-    Int64Reader ts(batch.column(operand.ts_column));
-    Int64Reader dur(batch.column(operand.dur_column));
-    std::vector<Int64Reader> keys;
-    for (uint32_t column : operand.key_columns) {
-      keys.emplace_back(batch.column(column));
+    FlatColumnReader<int64_t> ts(batch.column(operand.ts_column));
+    FlatColumnReader<int64_t> dur(batch.column(operand.dur_column));
+    if (std::optional<uint32_t> bad = keys.Encode(batch, operand.key_columns)) {
+      return base::ErrStatus(
+          "INTERVAL INTERSECTION: operand %u's PER column %u must hold one "
+          "type, the same in every operand",
+          which + 1, *bad + 1);
     }
     for (uint32_t row = 0; row < batch.size(); ++row) {
       int64_t start;
@@ -205,17 +175,14 @@ base::Status Collect(const IntervalIntersectOperand& operand,
             "below zero",
             which + 1);
       }
-      for (uint32_t i = 0; i < keys.size(); ++i) {
-        // Read before writing: argument evaluation order is unspecified, so
-        // passing both `Read(&value)` and `value` could copy it unread.
-        int64_t value = 0;
-        bool present = keys[i].Read(row, &value);
-        WriteKeyColumn(key, i, present, value);
+      std::string_view key = keys.Key(row);
+      Group* group = groups.Find(key);
+      if (!group) {
+        group = groups.Insert(std::string(key), Group{}).first;
       }
-      Group& group = groups[key];
-      group.intervals.push_back({static_cast<Ts>(start),
-                                 static_cast<Ts>(start + length),
-                                 store.size() + row});
+      group->intervals.push_back({static_cast<Ts>(start),
+                                  static_cast<Ts>(start + length),
+                                  store.size() + row});
     }
     retained.Reset();
     for (uint32_t column : operand.retained_columns) {
@@ -356,7 +323,7 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     s.scratch.narrowed.operands = count;
     for (uint32_t i = 0; i < count; ++i) {
       s.status = Collect(operands_[i], i, *s.operand_states[i], *s.stores[i],
-                         s.groups[i]);
+                         s.keys, s.groups[i]);
       if (!s.status.ok()) {
         return false;
       }
