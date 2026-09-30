@@ -25,6 +25,10 @@
 // This header contains macros that define types and accessors for protobuf
 // messages.
 //
+// In proto group mode, accessors support scalars, complete string/bytes/packed
+// values, nested messages and incremental PACKED fields. See
+// PerfettoPbMsgEncoding in pb_msg.h.
+//
 // Example usage:
 //
 // PERFETTO_PB_ENUM(perfetto_protos_BuiltinClock){
@@ -165,24 +169,21 @@
     PerfettoPbMsgEndNested(&msg->msg);                              \
   }
 
-#define PERFETTO_I_PB_FIELD_PACKED(PREFIX, PROTO, C_TYPE, NAME, NUM)           \
-  static inline void PERFETTO_I_PB_SETTER_NAME(PREFIX, NAME)(                  \
-      struct PROTO * msg, const void* data, size_t len) {                      \
-    PerfettoPbMsgAppendType2Field(                                             \
-        &msg->msg, NUM, PERFETTO_STATIC_CAST(const uint8_t*, data), len);      \
-  }                                                                            \
-  static inline void PERFETTO_I_PB_SETTER_BEGIN_NAME(PREFIX, NAME)(            \
-      struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {       \
-    if (msg->msg.encoding == PERFETTO_PB_MSG_ENCODING_PROTO_GROUP) {           \
-      PerfettoPbMsgBeginStaged(&msg->msg, &nested->msg, NUM, &nested->staged); \
-    } else {                                                                   \
-      PerfettoPbMsgBeginNested(&msg->msg, &nested->msg, NUM);                  \
-    }                                                                          \
-  }                                                                            \
-  static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(              \
-      struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {       \
-    (void)nested;                                                              \
-    PerfettoPbMsgEndNested(&msg->msg);                                         \
+#define PERFETTO_I_PB_FIELD_PACKED(PREFIX, PROTO, C_TYPE, NAME, NUM)      \
+  static inline void PERFETTO_I_PB_SETTER_NAME(PREFIX, NAME)(             \
+      struct PROTO * msg, const void* data, size_t len) {                 \
+    PerfettoPbMsgAppendType2Field(                                        \
+        &msg->msg, NUM, PERFETTO_STATIC_CAST(const uint8_t*, data), len); \
+  }                                                                       \
+  static inline void PERFETTO_I_PB_SETTER_BEGIN_NAME(PREFIX, NAME)(       \
+      struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
+    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, &nested->msg, NUM,  \
+                                           &nested->staged);              \
+  }                                                                       \
+  static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(         \
+      struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
+    (void)nested;                                                         \
+    PerfettoPbMsgEndNested(&msg->msg);                                    \
   }
 
 #define PERFETTO_I_PB_NUM_FIELD(PROTO, NAME, NUM) \

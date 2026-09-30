@@ -861,27 +861,6 @@ TEST_F(SharedLibProtozeroSerializationTest,
 // A staged value larger than the inline buffer moves to heap storage. The
 // output does not change.
 TEST_F(SharedLibProtozeroSerializationTest,
-       ProtoGroupStagedStringSpillsToHeap) {
-  protozero_test_protos_EveryField root;
-  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
-                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
-  // 5000 bytes: more than the inline buffer and more than one heap slice.
-  const std::vector<uint8_t> value(5000, 'x');
-  PerfettoPbMsg payload;
-  protozero_test_protos_EveryField_begin_field_string(&root, &payload);
-  // The first append fits inline. The second one moves the value to the heap.
-  PerfettoPbMsgAppendBytes(&payload, value.data(), 10);
-  PerfettoPbMsgAppendBytes(&payload, value.data() + 10, value.size() - 10);
-  protozero_test_protos_EveryField_end_field_string(&root, &payload);
-  PerfettoPbMsgFinalize(&root.msg);
-
-  // Field 500, then the length 5000 as a varint.
-  std::vector<uint8_t> expected{0xa2, 0x1f, 0x88, 0x27};
-  expected.insert(expected.end(), value.begin(), value.end());
-  EXPECT_EQ(GetData(), expected);
-}
-
-TEST_F(SharedLibProtozeroSerializationTest,
        ProtoGroupStagedPackedSpillsToHeap) {
   protozero_test_protos_PackedRepeatedFields root;
   PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
@@ -901,28 +880,6 @@ TEST_F(SharedLibProtozeroSerializationTest,
     expected.push_back(0x02);
   }
   EXPECT_EQ(GetData(), expected);
-}
-
-// A staged bytes value can hold a serialized message. The nested message
-// inside it uses length-delimited encoding.
-TEST_F(SharedLibProtozeroSerializationTest,
-       ProtoGroupStagedBytesWithNestedMessage) {
-  protozero_test_protos_EveryField root;
-  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
-                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
-  PerfettoPbMsg payload;
-  protozero_test_protos_EveryField_begin_field_bytes(&root, &payload);
-  PerfettoPbMsg child;
-  PerfettoPbMsgBeginNested(&payload, &child, 7);
-  PerfettoPbMsgAppendType0Field(&child, 1, 5);
-  PerfettoPbMsgEndNested(&payload);
-  protozero_test_protos_EveryField_end_field_bytes(&root, &payload);
-  PerfettoPbMsgFinalize(&root.msg);
-
-  // Field 505 with length 7. Inside: field 7 with a 4-byte redundant length
-  // of 2, then field 1 with the value 5.
-  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0xca, 0x1f, 7, 0x3a, 0x82, 0x80,
-                                             0x80, 0x00, 0x08, 0x05}));
 }
 
 class SharedLibDataSourceTest : public testing::Test {
