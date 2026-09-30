@@ -40,6 +40,9 @@ class ColumnView {
     kSequence,
     // `data()` is a Variant array and `type()` is meaningless.
     kVariant,
+    // SPIKE: `data()` holds values only for the rows `validity()` sets, in
+    // order; `prefix()` counts the set bits before each 64-bit word.
+    kSparse,
   };
 
   ColumnView() = default;
@@ -60,6 +63,31 @@ class ColumnView {
     view.validity_ = validity;
     return view;
   }
+
+  // SPIKE: a column storing values only for its non-null rows.
+  static ColumnView Sparse(StorageType type,
+                           const void* data,
+                           const BitVector* validity,
+                           const uint32_t* prefix) {
+    ColumnView view;
+    view.type_ = type;
+    view.kind_ = Kind::kSparse;
+    view.data_ = data;
+    view.validity_ = validity;
+    view.prefix_ = prefix;
+    return view;
+  }
+
+  // Where the value of physical row `index` sits in `data()`.
+  PERFETTO_ALWAYS_INLINE uint32_t StorageIndex(uint32_t index) const {
+    if (kind_ != Kind::kSparse) {
+      return index;
+    }
+    return prefix_[index / 64] +
+           static_cast<uint32_t>(
+               validity_->count_set_bits_until_in_word(index));
+  }
+  const uint32_t* prefix() const { return prefix_; }
 
   // A column carrying a type per row rather than one for the whole column.
   static ColumnView Variants(const Variant* data) {
@@ -86,10 +114,27 @@ class ColumnView {
     selection_owner_ = std::move(rows);
   }
 
+  // SPIKE: points this column at borrowed physical rows.
+  void SetIndices(Span<const uint32_t> rows) {
+    selection_ = RowSelection::Indices(rows);
+    if (selection_owner_) {
+      selection_owner_.reset();
+    }
+  }
+
+  // Points this column at `selection`, for a caller which knows it owns no
+  // selection: nothing is released, so nothing of the old one is read.
+  void PointAt(RowSelection selection) {
+    PERFETTO_DCHECK(!selection_owner_);
+    selection_ = selection;
+  }
+
   // Points this column at the run of physical rows starting at `offset`.
   void SetRange(uint32_t offset) {
     selection_ = RowSelection::Range(offset);
-    selection_owner_.reset();
+    if (selection_owner_) {
+      selection_owner_.reset();
+    }
   }
 
   // Takes over the selection `other` just composed. Columns sharing a
@@ -112,7 +157,7 @@ class ColumnView {
         return static_cast<T>(index);
       }
     }
-    return static_cast<const T*>(data_)[index];
+    return static_cast<const T*>(data_)[StorageIndex(index)];
   }
 
   // The values this column reads from, before its selection is applied.
@@ -129,6 +174,7 @@ class ColumnView {
   std::shared_ptr<const FlexVector<uint32_t>> selection_owner_;
   const void* data_ = nullptr;
   const BitVector* validity_ = nullptr;
+  const uint32_t* prefix_ = nullptr;
 };
 
 // Whether two batches' views of a column can be combined. An implicit Id and

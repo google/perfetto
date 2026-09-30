@@ -47,13 +47,13 @@ inline constexpr uint32_t kNoNode = std::numeric_limits<uint32_t>::max();
 //
 // A table scanned in row order with every parent an earlier row is the common
 // case: the ids are the numbers, so nothing is looked up or checked.
-class TreeNumberNodes : public Operator {
+class TreeNumberNodes : public Transform {
  public:
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
   ~TreeNumberNodes() override;
 
   std::unique_ptr<OperatorState> MakeState() const override;
-  OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
+  bool Process(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 

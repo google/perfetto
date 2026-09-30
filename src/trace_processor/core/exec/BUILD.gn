@@ -53,6 +53,8 @@ source_set("exec") {
     "row_store.h",
     "sort.cc",
     "sort.h",
+    "spike_rows.cc",
+    "spike_rows.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
     "tree_number_nodes.cc",
@@ -118,6 +120,7 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     sources = [
+      "interpreter_vs_pipeline_benchmark.cc",
       "tree_number_nodes_benchmark.cc",
       "tree_order_benchmark.cc",
     ]

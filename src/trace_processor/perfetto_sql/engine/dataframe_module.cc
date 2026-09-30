@@ -329,6 +329,8 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   }
   info->orderByConsumed = true;
 
+  // SPIKE v2: the specs before PlanQuery reorders them.
+  std::vector<dataframe::FilterSpec> logical_specs = filter_specs;
   SQLITE_ASSIGN_OR_RETURN(
       tab, auto plan,
       s->dataframe->PlanQuery(filter_specs, distinct_specs, sort_specs,
@@ -433,7 +435,18 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           }
         }
       });
-  info->idxStr = sqlite3_mprintf("%s", std::move(plan).Serialize().data());
+  std::string serialized(std::move(plan).Serialize().data());
+  if (pipeline_spike2::Enabled()) {
+    auto logical = s->dataframe->PlanQueryLogicalForTesting(
+        logical_specs, distinct_specs, sort_specs, limit_spec, info->colUsed);
+    if (logical.ok()) {
+      int id = pipeline_spike2::Register(*s->dataframe, std::move(*logical));
+      if (id >= 0) {
+        serialized = pipeline_spike2::Encode(id, serialized);
+      }
+    }
+  }
+  info->idxStr = sqlite3_mprintf("%s", serialized.c_str());
   return SQLITE_OK;
 }
 
@@ -453,9 +466,32 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
                             const char* idxStr,
                             int argc,
                             sqlite3_value** argv) {
+  // A plan run again in the executor needs none of what preparing a plan or
+  // the interpreter does, so it gets none of their frame either.
   auto* c = GetCursor(cur);
+  if (PERFETTO_LIKELY(idxStr == c->last_idx_str && c->spike)) {
+    c->use_spike = true;
+    c->spike->Execute(argv);
+    return SQLITE_OK;
+  }
+  return FilterSlow(cur, idxNum, idxStr, argc, argv);
+}
+
+PERFETTO_NO_INLINE int DataframeModule::FilterSlow(sqlite3_vtab_cursor* cur,
+                                                   int idxNum,
+                                                   const char* idxStr,
+                                                   int argc,
+                                                   sqlite3_value** argv) {
+  auto* c = GetCursor(cur);
+#if defined(SPIKE_AUDIT)
+  pipeline_spike2::AuditInterpreterRun(idxStr);
+#endif
+  std::optional<pipeline_spike2::ScopedTime> prepare;
   if (idxStr != c->last_idx_str) {
-    auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
+    prepare.emplace(pipeline_spike2::kPrepare);
+    int spike_id = -1;
+    const char* plan_str = pipeline_spike2::Decode(idxStr, &spike_id);
+    auto plan = dataframe::Dataframe::QueryPlan::Deserialize(plan_str);
     PERFETTO_TP_TRACE(
         metatrace::Category::QUERY_DETAILED, "DATAFRAME_FILTER_PREPARE",
         [&plan, idxNum](metatrace::Record* record) {
@@ -472,6 +508,21 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
     s->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
     c->id_col_idx = v->id_col_idx;
+    c->spike.reset();
+    if (spike_id >= 0) {
+      c->spike.emplace(*s->dataframe, spike_id);
+    }
+    // Counted per plan, not per run.
+    if (pipeline_spike2::Enabled()) {
+      pipeline_spike2::CountFilter(spike_id >= 0);
+    }
+  }
+  prepare.reset();
+  pipeline_spike2::ScopedTime execute(pipeline_spike2::kExecute);
+  c->use_spike = c->spike.has_value();
+  if (c->use_spike) {
+    c->spike->Execute(argv);
+    return SQLITE_OK;
   }
   // SQLite's API claims it will never pass more than 16 arguments
   // so assert that here as our std::array is fixed size.
@@ -485,19 +536,36 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
 }
 
 int DataframeModule::Next(sqlite3_vtab_cursor* cur) {
-  GetCursor(cur)->df_cursor.Next();
+  pipeline_spike2::ScopedTime timing(pipeline_spike2::kNext);
+  auto* c = GetCursor(cur);
+  if (c->use_spike) {
+    c->spike->Next();
+    return SQLITE_OK;
+  }
+  c->df_cursor.Next();
   return SQLITE_OK;
 }
 
 int DataframeModule::Eof(sqlite3_vtab_cursor* cur) {
-  return GetCursor(cur)->df_cursor.Eof();
+  pipeline_spike2::ScopedTime timing(pipeline_spike2::kEof);
+  auto* c = GetCursor(cur);
+  if (c->use_spike) {
+    return c->spike->Eof();
+  }
+  return c->df_cursor.Eof();
 }
 
 int DataframeModule::Column(sqlite3_vtab_cursor* cur,
                             sqlite3_context* ctx,
                             int raw_n) {
+  pipeline_spike2::ScopedTime timing(pipeline_spike2::kColumn);
+  auto* c = GetCursor(cur);
+  if (c->use_spike) {
+    c->spike->Column(ctx, static_cast<uint32_t>(raw_n));
+    return SQLITE_OK;
+  }
   SqliteResultCallback visitor{{}, ctx};
-  GetCursor(cur)->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
+  c->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
   return SQLITE_OK;
 }
 
@@ -518,7 +586,12 @@ struct RowidCallback : dataframe::CellCallback {
 };
 
 int DataframeModule::Rowid(sqlite3_vtab_cursor* cur, sqlite_int64* rowid) {
+  pipeline_spike2::ScopedTime timing(pipeline_spike2::kRowid);
   auto* c = GetCursor(cur);
+  if (c->use_spike) {
+    *rowid = c->spike->Rowid(c->id_col_idx);
+    return SQLITE_OK;
+  }
   RowidCallback callback{{}, rowid};
   c->df_cursor.Cell(c->id_col_idx, callback);
   return SQLITE_OK;

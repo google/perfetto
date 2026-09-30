@@ -24,6 +24,8 @@ source_set("engine") {
     "created_function.h",
     "dataframe_module.cc",
     "dataframe_module.h",
+    "dataframe_module_pipeline_spike2.cc",
+    "dataframe_module_pipeline_spike2.h",
     "perfetto_sql_connection.cc",
     "perfetto_sql_connection.h",
     "perfetto_sql_database.cc",

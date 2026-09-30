@@ -102,11 +102,16 @@ class Operator {
   // Resets `state` so the plan can be run again. An operator which carries
   // nothing between batches has nothing to do here.
   virtual void Rewind(OperatorState&) const {}
+  // Whether Rewind() has anything to do, so a plan skips those without.
+  virtual bool Rewinds() const { return true; }
 
   // Why Execute() returned kError.
   virtual base::Status status(const OperatorState&) const {
     return base::OkStatus();
   }
+
+  // This as a Transform, or null if it is not one.
+  virtual const class Transform* AsTransform() const { return nullptr; }
 
  protected:
   Operator() = default;
@@ -137,8 +142,56 @@ class Source {
     return base::OkStatus();
   }
 
+  // The next batch, or null when none are left. It is `scratch` filled by
+  // GetData() unless the source keeps a batch of its own, and stays valid,
+  // and the caller's to change, until the next call. A batch marked last() is
+  // known to be the final one.
+  virtual RowBatch* Next(RowBatch& scratch, OperatorState& state) const {
+    return GetData(scratch, state) ? &scratch : nullptr;
+  }
+
+  // Restarts and returns the first batch: Rewind() then Next() in one call.
+  virtual RowBatch* Open(RowBatch& scratch, OperatorState& state) const {
+    Rewind(state);
+    return Next(scratch, state);
+  }
+
  protected:
   Source() = default;
+};
+
+// An operator which changes the batch it is given in place: narrowing its
+// rows, or adding or replacing columns. It never holds rows back, so it runs
+// inside a pipeline without buffering.
+class Transform : public Operator {
+ public:
+  ~Transform() override;
+
+  // False on failure, with status() saying why.
+  virtual bool Process(RowBatch& batch, OperatorState& state) const = 0;
+
+  OpResult Execute(const RowBatch& in,
+                   RowBatch& out,
+                   OperatorState& state) const final {
+    out.CopyFrom(in);
+    return Process(out, state) ? OpResult::kNeedMoreInput : OpResult::kError;
+  }
+  const Transform* AsTransform() const final { return this; }
+
+  // Process() as a plain function, so a caller holding it calls it without
+  // dispatching; a transform can hand out one made for its configuration.
+  using ProcessFn = bool (*)(const Transform&, RowBatch&, OperatorState&);
+  virtual ProcessFn process_fn() const { return &Dispatch; }
+
+ protected:
+  Transform() = default;
+
+ private:
+  static bool Dispatch(const Transform& transform,
+                       RowBatch& batch,
+                       OperatorState& state) {
+    return transform.Process(batch, state);
+  }
 };
 
 }  // namespace perfetto::trace_processor::core::exec

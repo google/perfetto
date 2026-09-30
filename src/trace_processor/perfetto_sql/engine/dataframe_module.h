@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,6 +30,7 @@
 #include "src/trace_processor/core/dataframe/cursor.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module_pipeline_spike2.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -106,9 +108,13 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
+    // SPIKE: first, and the query inline, so what every call on a query the
+    // executor runs reads shares the cursor's first lines.
+    const char* last_idx_str = nullptr;
+    bool use_spike = false;
+    std::optional<pipeline_spike2::Query> spike;
     const dataframe::Dataframe* dataframe;
     DfCursor df_cursor;
-    const char* last_idx_str = nullptr;
     uint32_t id_col_idx = 0;
   };
 
@@ -138,6 +144,12 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
                     const char*,
                     int,
                     sqlite3_value**);
+  // Filter() for a plan it has not seen, or which the interpreter runs.
+  static int FilterSlow(sqlite3_vtab_cursor*,
+                        int,
+                        const char*,
+                        int,
+                        sqlite3_value**);
   static int Next(sqlite3_vtab_cursor*);
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);

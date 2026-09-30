@@ -184,6 +184,9 @@ struct BitVector {
   //
   // i: The index of the bit to check.
   // Returns true if the bit is set, false otherwise.
+  // SPIKE: the words, for readers holding them directly.
+  const uint64_t* words() const { return words_.data(); }
+
   PERFETTO_ALWAYS_INLINE bool is_set(uint64_t i) const {
     PERFETTO_DCHECK(i < size_);
     return (words_[i / 64ull] >> (i % 64ull)) & 1ull;

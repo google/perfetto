@@ -304,6 +304,9 @@ class Dataframe {
 
   // Returns the number of rows in the dataframe.
   uint32_t row_count() const { return row_count_; }
+  // SPIKE.
+  StringPool* string_pool() const { return string_pool_; }
+  const std::vector<Index>& indexes() const { return indexes_; }
 
   // Returns the number of columns in the dataframe.
   uint32_t column_count() const {

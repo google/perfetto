@@ -26,6 +26,7 @@
 namespace perfetto::trace_processor::core::exec {
 
 void RowBatch::Compose(RowSelection selection, uint32_t count) {
+  changes_ |= kComposed;
   selections_.Reset();
   compositions_.clear();
   for (uint32_t c = 0; c < columns_.size(); ++c) {

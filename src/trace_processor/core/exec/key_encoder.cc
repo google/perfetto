@@ -62,6 +62,7 @@ std::optional<uint32_t> KeyEncoder::Encode(
         }
         break;
       case ColumnView::Kind::kVariant:
+      case ColumnView::Kind::kSparse:
         break;
     }
     if (!kind || (kinds_[k] && *kinds_[k] != *kind)) {

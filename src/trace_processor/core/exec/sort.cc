@@ -53,6 +53,7 @@ std::optional<RowLayout::Type> LayoutType(const ColumnView& column) {
           return std::nullopt;
       }
     case ColumnView::Kind::kVariant:
+    case ColumnView::Kind::kSparse:
       return std::nullopt;
   }
   PERFETTO_FATAL("Unknown column kind");
