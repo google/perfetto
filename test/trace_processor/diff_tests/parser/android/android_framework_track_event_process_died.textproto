@@ -1,0 +1,264 @@
+# Exercises AndroidProcessDiedEvent handling in android_framework_track_event.
+# Death events are matched by start_seq_id first and cross-checked by pid:
+# - 100: pid reused after binder_died; the late process_died must go to the
+#   first process (seq 1), not the second (seq 3).
+# - 200: process_died before binder_died; only binder_died ends the process.
+# - 300: process_died without binder_died; reason recorded, process not ended.
+# - 400: known only from DUMP_REASON_START; process_died after binder_died is
+#   matched through the start_seq_id from the dump.
+# - 500: process_died with a pid that does not match its start_seq_id: dropped.
+# - 600: process_died without start_seq_id: matched by pid.
+# - 700: start_seq_id first seen on binder_died; the later process_died is
+#   matched through it.
+# - 901: a non-main thread of process 900; process_died for "pid 901" must not
+#   resolve to process 900.
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks { clock_id: 6 timestamp: 0 }
+    clocks { clock_id: 3 timestamp: 0 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+packet {
+  timestamp: 100000
+  [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+    dump_reason: DUMP_REASON_START
+    record {
+      pid: 400
+      uid: 40001
+      process_name: "com.example.pre_existing"
+      start_seq_id: 5
+    }
+  }
+}
+packet {
+  timestamp: 100000
+  trusted_packet_sequence_id: 1
+  track_descriptor { uuid: 6 thread { pid: 600 tid: 600 } }
+}
+packet {
+  timestamp: 100000
+  trusted_packet_sequence_id: 1
+  track_descriptor { uuid: 7 thread { pid: 700 tid: 700 } }
+}
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 100
+      start_seq_id: 1
+    }
+  }
+}
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 200
+      start_seq_id: 2
+    }
+  }
+}
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 300
+      start_seq_id: 4
+    }
+  }
+}
+packet {
+  timestamp: 1000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 500
+      start_seq_id: 6
+    }
+  }
+}
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 100
+      start_seq_id: 1
+    }
+  }
+}
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 200
+      start_seq_id: 2
+      reason: APP_EXIT_REASON_ANR
+    }
+  }
+}
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 300
+      start_seq_id: 4
+      reason: APP_EXIT_REASON_ANR
+    }
+  }
+}
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 400
+      start_seq_id: 5
+    }
+  }
+}
+packet {
+  timestamp: 2000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 700
+      start_seq_id: 7
+    }
+  }
+}
+# pid 100 is reused by a new process.
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_start"
+    [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+      pid: 100
+      start_seq_id: 3
+    }
+  }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "binder_died"
+    [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+      pid: 200
+      start_seq_id: 2
+    }
+  }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 400
+      start_seq_id: 5
+      reason: APP_EXIT_REASON_LOW_MEMORY
+    }
+  }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 999
+      start_seq_id: 6
+      reason: APP_EXIT_REASON_CRASH
+    }
+  }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 600
+      reason: APP_EXIT_REASON_SIGNALED
+    }
+  }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 700
+      start_seq_id: 7
+      reason: APP_EXIT_REASON_FREEZER
+    }
+  }
+}
+# Late process_died for the first pid-100 process (seq 1).
+packet {
+  timestamp: 4000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 100
+      start_seq_id: 1
+      reason: APP_EXIT_REASON_CRASH
+      sub_reason: APP_EXIT_SUBREASON_TOO_MANY_CACHED
+    }
+  }
+}
+# 901 is a non-main thread of process 900, not a process.
+packet {
+  timestamp: 100000
+  trusted_packet_sequence_id: 1
+  track_descriptor { uuid: 9 thread { pid: 900 tid: 901 } }
+}
+packet {
+  timestamp: 3000000000
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    name: "process_died"
+    [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+      pid: 901
+      reason: APP_EXIT_REASON_CRASH
+    }
+  }
+}
