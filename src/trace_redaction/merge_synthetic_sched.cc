@@ -142,13 +142,21 @@ base::Status MergeSyntheticSched::HasMergeableEvents(
       ::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
       next_pid_field.data(), next_pid_field.size(), &parse_error);
 
+  // We require a minimum number of mergeable events in the packet before
+  // we incur the expensive cost of rebuilding the CompactSched message.
+  constexpr int kMergeThreshold = 2;
+  int mergeable_count = 0;
+
   bool found = false;
   bool was_previous_synthetic = false;
   for (; next_pid_it && !parse_error; ++next_pid_it) {
     bool is_synthetic = *next_pid_it == synth_tid;
     if (is_synthetic && was_previous_synthetic) {
-      found = true;
-      break;
+      mergeable_count++;
+      if (mergeable_count >= kMergeThreshold) {
+        found = true;
+        break;
+      }
     }
     was_previous_synthetic = is_synthetic;
   }
