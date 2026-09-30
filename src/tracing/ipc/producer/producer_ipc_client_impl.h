@@ -52,6 +52,10 @@ class SharedMemoryArbiter;
 // actual IPC transport.
 // If create_socket_async is set, it will be called to create and connect to a
 // socket to the service. If unset, the producer will create and connect itself.
+//
+// TODO(sashwinbalaji): Check all paths through Disconnect(), OnDisconnect(),
+// and ScheduleDisconnect() again. Check for unnecessary steps, incorrect
+// cleanup or callback order, and object lifetime errors.
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
