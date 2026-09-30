@@ -2659,6 +2659,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/core/util/bit_vector.h",
         "src/trace_processor/core/util/flex_vector.h",
+        "src/trace_processor/core/util/heap.h",
         "src/trace_processor/core/util/ops.cc",
         "src/trace_processor/core/util/ops.h",
         "src/trace_processor/core/util/range.h",
