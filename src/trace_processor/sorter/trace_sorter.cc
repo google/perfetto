@@ -21,9 +21,13 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/bits.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/util/heap.h"
+#include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
@@ -91,12 +95,50 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
   }
   auto sort_begin = std::lower_bound(events_.begin(), sort_end, sort_min_ts_,
                                      &TimestampedEvent::Compare);
+  // Allocation ids grow in the order events are pushed, and those before
+  // `sort_end` are already in order, so sorting stably on the timestamp alone
+  // also orders ties by allocation id.
+  auto first = static_cast<size_t>(sort_begin - events_.begin());
+  std::vector<TimestampedEvent> events(events_.size() - first);
+  std::vector<TimestampedEvent> scratch(events.size());
+  // Calls `fn` on the parts of the queue holding them, which may wrap around.
+  auto for_each_part = [this, first, &events](auto fn) {
+    for (size_t at = 0; at < events.size();) {
+      size_t count;
+      TimestampedEvent* part = events_.contiguous_at(first + at, &count);
+      fn(part, at, count * sizeof(TimestampedEvent));
+      at += count;
+    }
+  };
+  for_each_part([&events](TimestampedEvent* part, size_t at, size_t bytes) {
+    memcpy(events.data() + at, part, bytes);
+  });
+  int64_t min_ts = sort_min_ts_;
+  auto key_bits = static_cast<uint32_t>(
+      64 - base::CountLeadZeros64(static_cast<uint64_t>(max_ts_ - min_ts)));
+  TimestampedEvent* sorted = core::StableSortByKey(
+      events.data(), events.data() + events.size(), scratch.data(), key_bits,
+      [min_ts](const TimestampedEvent& e) {
+        return static_cast<uint64_t>(e.ts - min_ts);
+      },
+      [](const TimestampedEvent& e) { return e.alloc_id(); });
   if (use_slow_sorting) {
-    std::sort(sort_begin, events_.end(),
-              TimestampedEvent::SlowOperatorLess{buffer});
-  } else {
-    std::sort(sort_begin, events_.end());
+    // Slow sorting also orders events with the same timestamp by their type.
+    TimestampedEvent::SlowOperatorLess less{buffer};
+    TimestampedEvent* end = sorted + events.size();
+    for (TimestampedEvent* it = sorted; it != end;) {
+      int64_t ts = it->ts;
+      TimestampedEvent* run_end = std::find_if(
+          it, end, [ts](const TimestampedEvent& e) { return e.ts != ts; });
+      if (run_end - it > 1) {
+        std::sort(it, run_end, less);
+      }
+      it = run_end;
+    }
   }
+  for_each_part([sorted](TimestampedEvent* part, size_t at, size_t bytes) {
+    memcpy(part, sorted + at, bytes);
+  });
   sort_start_idx_ = 0;
   sort_min_ts_ = 0;
 
@@ -123,46 +165,35 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
 //  q2              {min_ts: 12    max_ts: 40}
 //
 // We know that we can extract all events from q1 until we hit ts=10 without
-// looking at any other queue. After hitting ts=10, we need to re-look to all of
-// them to figure out the next min-event.
-// There are more suitable data structures to do this (e.g. keeping a min-heap
-// to avoid re-scanning all the queues all the times) but doesn't seem worth it.
-// With Android traces (that have 8 CPUs) this function accounts for ~1-3% cpu
-// time in a profiler.
+// looking at any other queue. After hitting ts=10, the next min-queue comes
+// from a heap: queues interleave finely, so this repeats every event or two,
+// and re-scanning all of them each time dominated extraction.
 void TraceSorter::SortAndExtractEventsUntilAllocId(
     BumpAllocator::AllocId limit_alloc_id) {
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
-  for (;;) {
-    size_t min_queue_idx = 0;  // The index of the queue with the min(ts).
-
-    // The top-2 min(ts) among all queues.
-    // queues_[min_queue_idx].events.timestamp == min_queue_ts[0].
-    int64_t min_queue_ts[2]{kTsMax, kTsMax};
-
-    // This loop identifies the queue which starts with the earliest event and
-    // also remembers the earliest event of the 2nd queue (in min_queue_ts[1]).
-    bool all_queues_empty = true;
-    for (size_t i = 0; i < queues_.size(); i++) {
-      auto& queue = queues_[i];
-      if (queue.events_.empty()) {
-        continue;
+  // A min-heap of the non-empty queues by their earliest event, ties broken
+  // by queue index, so equal timestamps come out in queue order.
+  auto later = [](const QueueHeapEntry& a, const QueueHeapEntry& b) {
+    return a.min_ts != b.min_ts ? a.min_ts > b.min_ts : a.queue > b.queue;
+  };
+  std::vector<QueueHeapEntry>& heap = queue_heap_;
+  auto rebuild_heap = [&] {
+    heap.clear();
+    for (uint32_t i = 0; i < queues_.size(); ++i) {
+      if (!queues_[i].events_.empty()) {
+        PERFETTO_DCHECK(queues_[i].max_ts_ <= append_max_ts_);
+        heap.push_back({queues_[i].min_ts_, i});
       }
-      PERFETTO_DCHECK(queue.max_ts_ <= append_max_ts_);
-
-      // Checking for |all_queues_empty| is necessary here as in fuzzer cases
-      // we can end up with |int64::max()| as the value here.
-      // See https://crbug.com/oss-fuzz/69164 for an example.
-      if (all_queues_empty || queue.min_ts_ < min_queue_ts[0]) {
-        min_queue_ts[1] = min_queue_ts[0];
-        min_queue_ts[0] = queue.min_ts_;
-        min_queue_idx = i;
-      } else if (queue.min_ts_ < min_queue_ts[1]) {
-        min_queue_ts[1] = queue.min_ts_;
-      }
-      all_queues_empty = false;
     }
-    if (all_queues_empty) {
-      break;
+    std::make_heap(heap.begin(), heap.end(), later);
+  };
+  rebuild_heap();
+  while (!heap.empty()) {
+    uint32_t min_queue_idx = heap[0].queue;
+    // The earliest event of any other queue.
+    int64_t next_queue_ts = kTsMax;
+    for (size_t child = 1; child <= 2 && child < heap.size(); ++child) {
+      next_queue_ts = std::min(next_queue_ts, heap[child].min_ts);
     }
 
     auto& queue = queues_[min_queue_idx];
@@ -172,18 +203,19 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     }
     PERFETTO_DCHECK(queue.min_ts_ == events.front().ts);
 
-    // Now that we identified the min-queue, extract all events from it until
-    // we hit either: (1) the min-ts of the 2nd queue or (2) the packet index
-    // limit, whichever comes first.
+    // Extract events from the min-queue until hitting either: (1) the
+    // earliest event of another queue or (2) the alloc id limit, whichever
+    // comes first.
+    uint64_t pushes = push_count_;
     size_t num_extracted = 0;
     for (auto& event : events) {
       if (event.alloc_id() >= limit_alloc_id) {
         break;
       }
 
-      if (event.ts > min_queue_ts[1]) {
-        // We should never hit this condition on the first extraction as by
-        // the algorithm above (event.ts =) min_queue_ts[0] <= min_queue[1].
+      if (event.ts > next_queue_ts) {
+        // We should never hit this condition on the first extraction as the
+        // min-queue's first event is no later than any other queue's.
         PERFETTO_DCHECK(num_extracted > 0);
         break;
       }
@@ -229,7 +261,26 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     } else {
       queue.min_ts_ = queue.events_.front().ts;
     }
-  }  // for(;;)
+
+    // Parsing pushed events, which may have moved the earliest event of any
+    // queue: start over.
+    if (PERFETTO_UNLIKELY(push_count_ != pushes)) {
+      rebuild_heap();
+      continue;
+    }
+    // The queue's earliest event only moved later, so it moves down from the
+    // top; an empty queue is replaced there by the last.
+    if (events.empty()) {
+      QueueHeapEntry last = heap.back();
+      heap.pop_back();
+      if (!heap.empty()) {
+        core::HeapSiftDown(heap.data(), heap.size(), last, later);
+      }
+    } else {
+      core::HeapSiftDown(heap.data(), heap.size(),
+                         QueueHeapEntry{queue.min_ts_, min_queue_idx}, later);
+    }
+  }
 }
 
 TraceSorter::UntypedSink::~UntypedSink() = default;

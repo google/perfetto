@@ -322,6 +322,16 @@ class CircularQueue {
 
   size_t capacity() const { return capacity_; }
 
+  // Returns the element at `idx` and sets `*count` to the number of elements
+  // from it on which are contiguous in memory, before the buffer wraps around.
+  T* contiguous_at(size_t idx, size_t* count) {
+    PERFETTO_DCHECK(idx < size());
+    T* first = Get(begin_ + idx);
+    *count = std::min(size() - idx,
+                      capacity_ - static_cast<size_t>(first - &entries_[0]));
+    return first;
+  }
+
 #if PERFETTO_DCHECK_IS_ON()
   uint32_t generation() const { return generation_; }
   void increment_generation() { ++generation_; }
