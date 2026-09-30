@@ -40,6 +40,7 @@
 #include "src/tracing/service/clock.h"
 #include "src/tracing/service/dependencies.h"
 #include "src/tracing/service/random.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
@@ -49,8 +50,6 @@ class MessageFilter;
 }
 
 namespace perfetto {
-
-class TraceBufferV2;
 
 namespace protos {
 namespace gen {
@@ -65,7 +64,6 @@ class Consumer;
 class Producer;
 class SharedMemory;
 class SharedMemoryArbiterImpl;
-class TraceBuffer;
 class TracePacket;
 
 namespace tracing_service {
@@ -176,13 +174,8 @@ class TracingServiceImpl : public TracingService {
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
       const std::string& machine_name = {},
-      bool supports_tracing_v2 = false) override;
-
-  // Returns the buffer with this ID if it is a TBv2 buffer, or nullptr.
-  // The ring buffer endpoint calls this on the service sequence after its
-  // permission check. buffers_ owns the result. The caller borrows it for the
-  // current call only.
-  TraceBufferV2* GetTraceBufferV2(BufferID);
+      const std::vector<ProtocolAbiVersion>& protocol_abi_versions = {
+          ProtocolAbiVersion::kV1}) override;
 
   // The endpoint reports discarded ring buffer chunks on the service
   // sequence. Adds them to chunks_discarded.
@@ -307,7 +300,11 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
-  TraceBuffer* GetBufferByID(BufferID);
+  // Returns nullptr if there is no buffer with this ID, or if |type| is set
+  // and does not match the buffer type.
+  TraceBuffer* GetBufferByID(
+      BufferID,
+      std::optional<TraceBuffer::BufType> type = std::nullopt);
   void FlushDataSourceInstances(
       TracingSession*,
       uint32_t timeout_ms,

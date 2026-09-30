@@ -347,7 +347,8 @@ TEST_F(ServiceRingBufferEndpointTest, DestructionCancelsRetry) {
   endpoint_->Drain();
   EXPECT_EQ(ReadPos(), 0u);
 
-  // The endpoint owns the mapping, so the writer view is invalid after this.
+  // The endpoint holds the only reference to the mapping, so the writer view is
+  // invalid after this.
   // The pending retry must not run. ASan reports it if it does.
   ring_buffer_.reset();
   endpoint_.reset();

@@ -17,29 +17,41 @@
 #ifndef SRC_TRACING_IPC_PRODUCER_PRODUCER_IPC_CLIENT_IMPL_FOR_TESTING_H_
 #define SRC_TRACING_IPC_PRODUCER_PRODUCER_IPC_CLIENT_IMPL_FOR_TESTING_H_
 
-#include <functional>
 #include <utility>
+#include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
 
 namespace perfetto::test {
 
-// Reaches private ProducerIPCClientImpl methods for integration tests.
+// Reaches private ProducerIPCClientImpl state for integration tests.
 class ProducerIPCClientTestPeer {
  public:
-  // Sends a ring buffer that the test built by hand. The test owns the
-  // descriptor and the mapping. The mapping must outlive all ring buffer
-  // views and writers that use it.
-  static void ShareRingBuffer(ProducerIPCClientImpl* client,
-                              int fd,
-                              uint32_t chunk_size_bytes,
-                              std::function<void(bool)> callback) {
-    client->ShareRingBuffer(fd, chunk_size_bytes, std::move(callback));
+  static const base::FlatSet<ProtocolAbiVersion>& protocol_abi_versions(
+      const ProducerIPCClientImpl* client) {
+    return client->protocol_abi_versions_;
   }
 
-  // Starts the disconnect that a protocol error in an IPC handler starts.
-  static void ScheduleDisconnect(ProducerIPCClientImpl* client) {
-    client->ScheduleDisconnect();
+  // Acts like an InitializeConnection reply to |offered_versions|.
+  static void OnConnectionInitialized(
+      ProducerIPCClientImpl* client,
+      const std::vector<ProtocolAbiVersion>& offered_versions,
+      const std::vector<ProtocolAbiVersion>& protocol_abi_versions,
+      bool use_shmem_emulation = false,
+      bool connection_succeeded = true) {
+    ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response;
+    if (connection_succeeded) {
+      response =
+          ipc::AsyncResult<protos::gen::InitializeConnectionResponse>::Create();
+      response->set_direct_smb_patching_supported(true);
+      response->set_use_shmem_emulation(use_shmem_emulation);
+      for (auto version : protocol_abi_versions) {
+        response->add_protocol_abi_versions(
+            static_cast<protos::gen::ProtocolAbiVersion>(version));
+      }
+    }
+    client->OnConnectionInitialized(offered_versions, std::move(response));
   }
 };
 

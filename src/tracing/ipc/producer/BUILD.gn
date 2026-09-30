@@ -36,7 +36,6 @@ source_set("producer") {
     "../../../base",
     "../../../base:version",
     "../../core",
-    "../../v2:abi",
   ]
   if (perfetto_component_type == "static_library") {
     deps += [ "../../../ipc:perfetto_ipc" ]

@@ -16,6 +16,7 @@
 
 #include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 #include <string.h>
@@ -35,7 +36,6 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/ipc/memfd.h"
-#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -159,10 +159,6 @@ void ProducerIPCClientImpl::Disconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!producer_port_)
     return;
-  // The port reset below runs pending callbacks. Clear these first, so that
-  // those callbacks do not use the port.
-  connected_ = false;
-  supports_tracing_v2_ = false;
   // Reset the producer port so that no further IPCs are received and IPC
   // callbacks are no longer executed. Also reset the IPC channel so that the
   // service is notified of the disconnection.
@@ -177,25 +173,25 @@ void ProducerIPCClientImpl::OnConnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   connected_ = true;
 
+  std::vector<ProtocolAbiVersion> offered_versions = {ProtocolAbiVersion::kV1};
+  // v2 shares the ring buffer through a sealed memfd.
+  if (HasMemfdSupport())
+    offered_versions.push_back(ProtocolAbiVersion::kV2);
+  protos::gen::InitializeConnectionRequest req;
+  for (auto version : offered_versions) {
+    req.add_supported_protocol_abi_versions(
+        static_cast<protos::gen::ProtocolAbiVersion>(version));
+  }
+
   // The IPC layer guarantees that any outstanding callback will be dropped on
   // the floor if producer_port_ is destroyed between the request and the reply.
   // Binding |this| is hence safe.
   ipc::Deferred<protos::gen::InitializeConnectionResponse> on_init;
   on_init.Bind(
-      [this](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
-        OnConnectionInitialized(
-            resp.success(),
-            resp.success() ? resp->using_shmem_provided_by_producer() : false,
-            resp.success() ? resp->direct_smb_patching_supported() : false,
-            resp.success() ? resp->use_shmem_emulation() : false,
-            resp.success() ? resp->ring_buffer_abi_version() : 0);
+      [this, offered_versions = std::move(offered_versions)](
+          ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
+        OnConnectionInitialized(offered_versions, std::move(resp));
       });
-  protos::gen::InitializeConnectionRequest req;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  if (HasMemfdSupport())
-    req.set_ring_buffer_abi_version(tracing_v2::kRingBufferAbiVersion);
-#endif
   req.set_producer_name(name_);
   req.set_shared_memory_size_hint_bytes(
       static_cast<uint32_t>(shared_memory_size_hint_bytes_));
@@ -251,7 +247,7 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
-  supports_tracing_v2_ = false;
+  protocol_abi_versions_.clear();
   data_sources_setup_.clear();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
@@ -261,49 +257,67 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
   // an IPC call, so the connection drop must take place over two phases.
 
   // First, synchronously drop the |producer_port_| so that no more IPC
-  // messages are handled. Until the task below runs, the other methods see a
-  // disconnected endpoint and do not use the port.
+  // messages are handled.
   producer_port_.reset();
-  connected_ = false;
-  supports_tracing_v2_ = false;
 
   // Then schedule an async task for performing the remainder of the
-  // disconnection operations outside the context of the IPC method handler:
-  // close the channel and tell the producer.
-  //
-  // The task does not call Disconnect(). Disconnect() returns early once
-  // |producer_port_| is null, so the producer never got OnDisconnect() and
-  // stayed half connected. A null |ipc_channel_| means that a disconnect
-  // already ran.
+  // disconnection operations outside the context of the IPC method handler.
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this]() {
-    if (!weak_this || !weak_this->ipc_channel_)
-      return;
-    weak_this->ipc_channel_.reset();
-    weak_this->OnDisconnect();  // Note: may delete |this|.
+    if (weak_this) {
+      weak_this->Disconnect();
+    }
   });
 }
 
 void ProducerIPCClientImpl::OnConnectionInitialized(
-    bool connection_succeeded,
-    bool using_shmem_provided_by_producer,
-    bool direct_smb_patching_supported,
-    bool use_shmem_emulation,
-    uint32_t ring_buffer_abi_version) {
+    const std::vector<ProtocolAbiVersion>& offered_versions,
+    ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // If connection_succeeded == false, the OnDisconnect() call will follow next
-  // and there we'll notify the |producer_|. TODO: add a test for this.
-  if (!connection_succeeded)
+  // The IPC proxy still uses the reply callback after this call. Keep it
+  // alive until the next task. Ignore service commands until then.
+  auto reject_connection = [this] {
+    protocol_abi_versions_.clear();
+    task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr()] {
+      if (weak_this && weak_this->connected_)
+        weak_this->Disconnect();
+    });
+  };
+  if (!response.success()) {
+    reject_connection();
     return;
-  supports_tracing_v2_ =
-      ring_buffer_abi_version == tracing_v2::kRingBufferAbiVersion;
-  is_shmem_provided_by_producer_ = using_shmem_provided_by_producer;
-  direct_smb_patching_supported_ = direct_smb_patching_supported;
+  }
+
+  // An old service sends no list. Its v1 reply still needs to match our offer.
+  base::FlatSet<ProtocolAbiVersion> common_versions;
+  if (response->protocol_abi_versions().empty())
+    common_versions.insert(ProtocolAbiVersion::kV1);
+  for (auto version : response->protocol_abi_versions())
+    common_versions.insert(static_cast<ProtocolAbiVersion>(version));
+
+  for (auto version : common_versions) {
+    if (std::find(offered_versions.begin(), offered_versions.end(), version) ==
+        offered_versions.end()) {
+      PERFETTO_ELOG(
+          "Service returned protocol version %u, which we did not offer",
+          static_cast<uint32_t>(version));
+      reject_connection();
+      return;
+    }
+    if (response->use_shmem_emulation() && version == ProtocolAbiVersion::kV2) {
+      PERFETTO_ELOG("Service returned protocol v2 with shmem emulation");
+      reject_connection();
+      return;
+    }
+  }
+  protocol_abi_versions_ = std::move(common_versions);
+  is_shmem_provided_by_producer_ = response->using_shmem_provided_by_producer();
+  direct_smb_patching_supported_ = response->direct_smb_patching_supported();
   // The tracing service may reject using shared memory and tell the client to
   // commit data over the socket. This can happen when the client connects to
   // the service via a relay service:
   // client <-Unix socket-> relay service <- vsock -> tracing service.
-  use_shmem_emulation_ = use_shmem_emulation;
+  use_shmem_emulation_ = response->use_shmem_emulation();
   producer_->OnConnect();
 
   // Bail out if the service failed to adopt our producer-allocated SMB.
@@ -318,6 +332,12 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
 void ProducerIPCClientImpl::OnServiceRequest(
     const protos::gen::GetAsyncCommandResponse& cmd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // A failed InitializeConnection queues a disconnect. Do not call the
+  // producer if a command arrives before that task runs.
+  if (protocol_abi_versions_.empty()) {
+    PERFETTO_DLOG("Ignoring service command before connection initialization");
+    return;
+  }
 
   // This message is sent only when connecting to a service running Android Q+.
   // See comment below in kStartDataSource.
@@ -372,20 +392,13 @@ void ProducerIPCClientImpl::OnServiceRequest(
     ipc_shared_memory =
         PosixSharedMemory::AttachToFd(std::move(shmem_fd),
                                       /*require_seals_if_supported=*/false);
-    if (!ipc_shared_memory) {
-      ScheduleDisconnect();
-      return;
-    }
 #else
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     if (shmem_fd) {
+      // TODO(primiano): handle mmap failure in case of OOM.
       ipc_shared_memory =
           PosixSharedMemory::AttachToFd(std::move(shmem_fd),
                                         /*require_seals_if_supported=*/false);
-      if (!ipc_shared_memory) {
-        ScheduleDisconnect();
-        return;
-      }
     }
 #endif
     if (use_shmem_emulation_) {
@@ -559,34 +572,45 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
   producer_port_->CommitData(req, std::move(async_response));
 }
 
-void ProducerIPCClientImpl::ShareRingBuffer(
-    int fd,
+void ProducerIPCClientImpl::AttachV2RingBuffer(
+    std::shared_ptr<SharedMemory> memory,
     uint32_t chunk_size_bytes,
     std::function<void(bool)> callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // ConnectionSupportsTracingV2() is false on platforms without memfd.
-  if (!ConnectionSupportsTracingV2() || !producer_port_ || fd < 0) {
+  // v2 needs memfd support, and a connection without it never agrees on v2
+  // (see OnConnect()). So on platforms without memfd, this returns here.
+  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2) ||
+      !producer_port_ || !memory) {
     callback(false);
     return;
   }
-  protos::gen::ShareRingBufferRequest req;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Not reached: see above. The #if only keeps the POSIX code below out of
+  // the Windows build.
+  callback(false);
+#else
+  protos::gen::AttachV2RingBufferRequest req;
   req.set_chunk_size_bytes(chunk_size_bytes);
-  ipc::Deferred<protos::gen::ShareRingBufferResponse> reply;
+  ipc::Deferred<protos::gen::AttachV2RingBufferResponse> reply;
   reply.Bind(
       [callback = std::move(callback)](
-          ipc::AsyncResult<protos::gen::ShareRingBufferResponse> result) {
-        callback(result && result->accepted());
+          ipc::AsyncResult<protos::gen::AttachV2RingBufferResponse> result) {
+        callback(result.success());
       });
-  producer_port_->ShareRingBuffer(req, std::move(reply), fd);
+  // The IPC layer sends the descriptor before this call returns. The service
+  // maps its own copy. This side keeps |memory| for its writers.
+  const int fd = static_cast<PosixSharedMemory*>(memory.get())->fd();
+  producer_port_->AttachV2RingBuffer(req, std::move(reply), fd);
+#endif
 }
 
-void ProducerIPCClientImpl::DrainRingBuffer() {
+void ProducerIPCClientImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!ConnectionSupportsTracingV2() || !producer_port_)
+  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2) || !producer_port_)
     return;
-  producer_port_->DrainRingBuffer(
-      protos::gen::DrainRingBufferRequest(),
-      ipc::Deferred<protos::gen::DrainRingBufferResponse>());
+  producer_port_->DrainV2RingBuffer(
+      protos::gen::DrainV2RingBufferRequest(),
+      ipc::Deferred<protos::gen::DrainV2RingBufferResponse>());
 }
 
 void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {

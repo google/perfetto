@@ -22,6 +22,7 @@
 #include <set>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/ipc/client.h"
@@ -81,10 +82,10 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
-  bool ConnectionSupportsTracingV2() const override {
-    return supports_tracing_v2_;
-  }
-  void DrainRingBuffer() override;
+  void AttachV2RingBuffer(std::shared_ptr<SharedMemory>,
+                          uint32_t chunk_size_bytes,
+                          std::function<void(bool)> callback) override;
+  void DrainV2RingBuffer() override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
@@ -104,27 +105,18 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
-  // Lets integration tests share a ring buffer that they built by hand.
+  // Lets integration tests read the common versions and fake an
+  // InitializeConnection reply.
   friend class test::ProducerIPCClientTestPeer;
 
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();
 
-  // Shares the producer's ring buffer with the service through the
-  // ShareRingBuffer IPC. Runs on the endpoint sequence.
-  // - Borrows |fd|. The caller keeps its mapping for the writers that use it.
-  // - |callback| receives true if the service attached the ring buffer.
-  void ShareRingBuffer(int fd,
-                       uint32_t chunk_size_bytes,
-                       std::function<void(bool)> callback);
-
   // Invoked soon after having established the connection with the service.
-  void OnConnectionInitialized(bool connection_succeeded,
-                               bool using_shmem_provided_by_producer,
-                               bool direct_smb_patching_supported,
-                               bool use_shmem_emulation,
-                               uint32_t ring_buffer_abi_version);
+  void OnConnectionInitialized(
+      const std::vector<ProtocolAbiVersion>& offered_versions,
+      ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response);
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
@@ -152,10 +144,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
-  // Connection capability agreed during InitializeConnection on this sequence.
-  // Disconnect() and ScheduleDisconnect() clear it before they reset
-  // producer_port_. So while it is true, producer_port_ exists.
-  bool supports_tracing_v2_ = false;
+  // The common versions returned by InitializeConnection. Empty until the
+  // reply arrives, and after disconnect. Used on the endpoint sequence.
+  base::FlatSet<ProtocolAbiVersion> protocol_abi_versions_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
   std::set<DataSourceInstanceID> data_sources_setup_;

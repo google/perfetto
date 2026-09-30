@@ -31,6 +31,7 @@
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/service/service_ring_buffer_endpoint.h"
+#include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "src/tracing/service/tracing_service_structs.h"
 
@@ -432,7 +433,7 @@ ProducerEndpointImpl::ProducerEndpointImpl(
     const std::string& sdk_version,
     bool in_process,
     bool smb_scraping_enabled,
-    bool supports_tracing_v2)
+    base::FlatSet<ProtocolAbiVersion> protocol_abi_versions)
     : id_(id),
       client_identity_(client_identity),
       service_(service),
@@ -442,7 +443,7 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
-      supports_tracing_v2_(supports_tracing_v2),
+      protocol_abi_versions_(std::move(protocol_abi_versions)),
       weak_runner_(task_runner) {}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
@@ -759,25 +760,26 @@ bool ProducerEndpointImpl::IsAndroidProcessFrozen() {
   return false;
 }
 
-void ProducerEndpointImpl::AttachRingBuffer(
-    std::unique_ptr<SharedMemory> memory,
+void ProducerEndpointImpl::AttachV2RingBuffer(
+    std::shared_ptr<SharedMemory> memory,
     uint32_t chunk_size_bytes,
     std::function<void(bool)> callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  const char* rejection = nullptr;
-  if (!ConnectionSupportsTracingV2()) {
-    rejection = "the connection has no tracing v2";
+  base::Status status;
+  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2)) {
+    status = base::ErrStatus("the connection has no tracing v2");
   } else if (ring_buffer_endpoint_) {
-    rejection = "a ring buffer is already attached";
+    status = base::ErrStatus("a ring buffer is already attached");
   } else if (!memory || memory->size() > TracingService::kMaxShmSize) {
-    rejection = "no mapping, or the mapping is too large";
-  } else if (!tracing_v2::NumChunksForRingBufferLayout(
-                 memory->start(), memory->size(), chunk_size_bytes)) {
-    rejection = "invalid ring buffer layout";
+    status = base::ErrStatus("no mapping, or the mapping is too large");
+  } else {
+    status = tracing_v2::NumChunksForRingBufferLayout(
+                 memory->start(), memory->size(), chunk_size_bytes)
+                 .status();
   }
-  if (rejection) {
+  if (!status.ok()) {
     PERFETTO_DLOG("Producer %" PRIu16 " \"%s\": ring buffer rejected: %s", id_,
-                  name_.c_str(), rejection);
+                  name_.c_str(), status.c_message());
     callback(false);
     return;
   }
@@ -786,11 +788,11 @@ void ProducerEndpointImpl::AttachRingBuffer(
           std::move(memory), chunk_size_bytes, id_, client_identity_, this,
           weak_runner_.task_runner());
   service_->UpdateMemoryGuardrail();
-  DrainRingBuffer();
+  DrainV2RingBuffer();
   callback(true);
 }
 
-void ProducerEndpointImpl::DrainRingBuffer() {
+void ProducerEndpointImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (ring_buffer_endpoint_)
     ring_buffer_endpoint_->Drain();
@@ -799,14 +801,17 @@ void ProducerEndpointImpl::DrainRingBuffer() {
 TraceBufferV2* ProducerEndpointImpl::GetRingBufferDestination(BufferID id) {
   if (!is_allowed_target_buffer(id))
     return nullptr;
-  return service_->GetTraceBufferV2(id);
+  // A ring buffer chunk names its target buffer in producer memory. The
+  // producer can name one of its v1 buffers, so check the type.
+  return static_cast<TraceBufferV2*>(
+      service_->GetBufferByID(id, TraceBuffer::BufType::kV2));
 }
 
 void ProducerEndpointImpl::ForEachRingBufferDestination(
     const std::function<void(TraceBufferV2&)>& callback) {
   for (BufferID id : allowed_target_buffers_) {
-    if (auto* buffer = service_->GetTraceBufferV2(id))
-      callback(*buffer);
+    if (auto* buffer = service_->GetBufferByID(id, TraceBuffer::BufType::kV2))
+      callback(*static_cast<TraceBufferV2*>(buffer));
   }
 }
 

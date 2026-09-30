@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -70,7 +71,7 @@ class ProducerEndpointImpl
                        const std::string& sdk_version,
                        bool in_process,
                        bool smb_scraping_enabled,
-                       bool supports_tracing_v2);
+                       base::FlatSet<ProtocolAbiVersion> protocol_abi_versions);
   ~ProducerEndpointImpl() override;
 
   // TracingService::ProducerEndpoint implementation.
@@ -119,21 +120,17 @@ class ProducerEndpointImpl
     return std::nullopt;
   }
 
-  // The transport queries the capability on the service sequence.
-  bool ConnectionSupportsTracingV2() const override {
-    return supports_tracing_v2_;
-  }
   // The transport passes the mapping on the service sequence. See the
   // ProducerEndpoint contract for acceptance, lifetime, and callback rules.
-  void AttachRingBuffer(std::unique_ptr<SharedMemory>,
-                        uint32_t chunk_size_bytes,
-                        std::function<void(bool)>) override;
+  void AttachV2RingBuffer(std::shared_ptr<SharedMemory>,
+                          uint32_t chunk_size_bytes,
+                          std::function<void(bool)>) override;
   // The transport or service requests a drain on the service sequence.
   // The call transfers no ownership and has no reply.
-  void DrainRingBuffer() override;
+  void DrainV2RingBuffer() override;
 
   // The service queries its memory guardrail on the service sequence.
-  // Returns zero without an accepted ring buffer. The endpoint keeps ownership.
+  // Returns zero without an accepted ring buffer.
   size_t ring_buffer_size_bytes() const {
     return ring_buffer_endpoint_ ? ring_buffer_endpoint_->size_bytes() : 0;
   }
@@ -198,9 +195,12 @@ class ProducerEndpointImpl
   // SharedMemoryArbiterImpl methods themselves are thread-safe.
   std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
 
-  // Immutable capability supplied by the transport at connection setup.
-  const bool supports_tracing_v2_;
-  // Owns the accepted ring buffer mapping and reader on the service sequence.
+  // The versions that both peers support. Fixed for the connection.
+  // The transport passes the common list to ConnectProducer(). In-process,
+  // the backend passes its supported versions. The default is v1 only.
+  const base::FlatSet<ProtocolAbiVersion> protocol_abi_versions_;
+  // Owns the reader of the accepted ring buffer, and shares its mapping, on the
+  // service sequence.
   // Destruction precedes the endpoint state that the delegate methods use.
   std::unique_ptr<tracing_v2::ServiceRingBufferEndpoint> ring_buffer_endpoint_;
   PERFETTO_THREAD_CHECKER(thread_checker_)

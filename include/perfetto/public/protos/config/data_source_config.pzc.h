@@ -157,6 +157,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   protovm_config,
                   12);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  VARINT,
+                  bool,
+                  supports_tracing_v2,
+                  147);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,
                   ftrace_config,
@@ -381,11 +386,6 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AndroidProcessStateConfig,
                   android_process_state_config,
                   145);
-PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
-                  VARINT,
-                  bool,
-                  supports_tracing_v2,
-                  146);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_ProcessSmapsConfig,

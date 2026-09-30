@@ -35,7 +35,7 @@ constexpr uint32_t kDrainRetryDelayMs = 1;
 ServiceRingBufferEndpoint::Delegate::~Delegate() = default;
 
 ServiceRingBufferEndpoint::ServiceRingBufferEndpoint(
-    std::unique_ptr<SharedMemory> memory,
+    std::shared_ptr<SharedMemory> memory,
     uint32_t chunk_size_bytes,
     ProducerID producer_id,
     ClientIdentity client_identity,
@@ -123,7 +123,7 @@ void ServiceRingBufferEndpoint::OnChunkRead(
   // the reader's scratch, then into a TBv2 chunk. The reader could pass the
   // decoded sizes and one payload range, so that TBv2 copies once. Measure
   // the drain cost in a profile first.
-  buffer->AppendProtoGroupFragments(
+  buffer->CopyChunkV2Untrusted(
       sequence, chunk.fragments, chunk.num_fragments,
       chunk.payload_flags & kFlagContinuesFromPrevChunk,
       chunk.payload_flags & kFlagContinuesOnNextChunk);
@@ -139,13 +139,13 @@ void ServiceRingBufferEndpoint::OnDataLoss(WriterID writer_id) {
 void ServiceRingBufferEndpoint::RecordWriterLoss(WriterID writer_id) {
   if (!writer_id || writer_id > kMaxWriterID)
     return;
-  // The destination of a lost chunk is unknown. RecordProtoGroupLoss() changes
+  // The destination of a lost chunk is unknown. RecordChunkV2DataLoss() changes
   // only a buffer that holds this writer's sequence.
   // - A writer has one destination, so at most one buffer matches.
   // - Before the writer's first stored chunk, no buffer matches.
   delegate_->ForEachRingBufferDestination(
       [this, writer_id](TraceBufferV2& buffer) {
-        buffer.RecordProtoGroupLoss(producer_id_, writer_id);
+        buffer.RecordChunkV2DataLoss(producer_id_, writer_id);
       });
 }
 

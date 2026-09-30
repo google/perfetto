@@ -44,14 +44,14 @@ class ServiceRingBufferEndpointTestPeer;
 //
 // It is not a trace buffer and never owns one. The producer side of the same
 // ring buffer is ProducerRingBufferEndpoint. For the IPC protocol between the
-// two sides, see rpc ShareRingBuffer in producer_port.proto.
+// two sides, see rpc AttachV2RingBuffer in producer_port.proto.
 //
 // Two processes map the same memfd:
 //
 //   producer process                   traced
 //   --------------------------------   --------------------------------
 //   ProducerRingBufferEndpoint         ServiceRingBufferEndpoint (this)
-//     owns the producer's mapping        owns the service's mapping
+//     keeps the producer's mapping       keeps the service's mapping
 //     writers publish chunks             one reader drains the chunks
 //
 // Both mappings show the same pages. Each side unmaps only its own mapping.
@@ -62,11 +62,12 @@ class ServiceRingBufferEndpointTestPeer;
 //
 // Ownership:
 //
-// "owns" is a unique_ptr or a member. "uses" is a raw pointer.
+// "owns" is a unique_ptr or a member. "shares" is a shared_ptr. "uses" is a
+// raw pointer.
 //
 //   ProducerEndpointImpl
 //     |-- owns --> ServiceRingBufferEndpoint (this class)
-//                    |-- owns --> SharedMemory: the service's mapping
+//                    |-- shares -> SharedMemory: the service's mapping
 //                    |-- owns --> SharedRingBuffer: the view
 //                    |-- owns --> SharedRingBufferReader
 //                    |-- uses --> Delegate (the ProducerEndpointImpl)
@@ -77,8 +78,8 @@ class ServiceRingBufferEndpointTestPeer;
 // - The last drain runs before destruction, in
 //   TracingServiceImpl::DisconnectProducer(). The destructor does not drain,
 //   because its owner, the delegate, is being destroyed at that point.
-// - Destruction cancels retry tasks, then destroys the reader, the view and
-//   the mapping, in that order.
+// - Destruction cancels retry tasks, destroys the reader and the view, then
+//   releases its reference to the mapping, in that order.
 class ServiceRingBufferEndpoint : public SharedRingBufferReader::Delegate {
  public:
   // Resolves authorized destinations and records discarded chunks.
@@ -109,11 +110,11 @@ class ServiceRingBufferEndpoint : public SharedRingBufferReader::Delegate {
     virtual void OnRingBufferChunksDiscarded(uint64_t count) = 0;
   };
 
-  // The endpoint transfers a validated mapping on the service sequence.
-  // The view borrows |memory|. The reader borrows the view and this object.
-  // |delegate| and |task_runner| remain borrowed for the lifetime of this
-  // object.
-  ServiceRingBufferEndpoint(std::unique_ptr<SharedMemory> memory,
+  // The caller passes a validated mapping on the service sequence. This object
+  // holds a reference to it. The view borrows |memory|. The reader borrows the
+  // view and this object. |delegate| and |task_runner| remain borrowed for the
+  // lifetime of this object.
+  ServiceRingBufferEndpoint(std::shared_ptr<SharedMemory> memory,
                             uint32_t chunk_size_bytes,
                             ProducerID,
                             ClientIdentity,
@@ -146,8 +147,8 @@ class ServiceRingBufferEndpoint : public SharedRingBufferReader::Delegate {
   //   when the ring buffer is full.
   void Drain();
 
-  // The service reads the owned mapping size for its memory guardrail.
-  // The call uses the service sequence and transfers no ownership.
+  // The service reads the mapping size for its memory guardrail, on the
+  // service sequence.
   size_t size_bytes() const { return memory_->size(); }
 
  private:
@@ -170,10 +171,9 @@ class ServiceRingBufferEndpoint : public SharedRingBufferReader::Delegate {
   // Borrowed endpoint delegate. The endpoint destroys this object first.
   Delegate* const delegate_;
 
-  // Sole owner of the service's mapping of the memfd. The producer owns its
-  // own mapping of the same memfd. Declared before both objects that borrow
-  // it.
-  std::unique_ptr<SharedMemory> memory_;
+  // Keeps the service's mapping alive. Declared before both objects that
+  // borrow it.
+  std::shared_ptr<SharedMemory> memory_;
 
   // Validated view of the mapping. The view does not initialize shared bytes.
   SharedRingBuffer ring_buffer_;

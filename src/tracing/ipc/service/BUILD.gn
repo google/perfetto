@@ -42,7 +42,6 @@ source_set("service") {
     "../../../base",
     "../../core",
     "../../service",
-    "../../v2:abi",
   ]
   if (perfetto_component_type == "static_library") {
     deps += [ "../../../ipc:perfetto_ipc" ]

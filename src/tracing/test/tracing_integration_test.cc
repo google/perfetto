@@ -16,9 +16,11 @@
 
 #include <cinttypes>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -43,8 +45,9 @@
 #include "src/tracing/ipc/posix_shared_memory.h"
 #endif
 
-#include "protos/perfetto/config/protovm/protovm_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/ipc/producer_port.gen.h"
+#include "protos/perfetto/ipc/producer_port.ipc.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -56,6 +59,7 @@ namespace perfetto {
 namespace {
 
 using testing::_;
+using testing::ElementsAre;
 using testing::InvokeWithoutArgs;
 using tracing_service::TracingServiceImpl;
 
@@ -242,28 +246,32 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
     return setups;
   }
 
-  void Share() {
+  void Attach() {
     memory_ = PosixSharedMemory::Create(sizeof(tracing_v2::RingBufferHeader) +
                                         16 * 256);
     ring_buffer_ = std::make_unique<tracing_v2::SharedRingBuffer>(
         static_cast<uint8_t*>(memory_->start()), memory_->size(), 256);
-    auto shared = task_runner_->CreateCheckpoint("ring_buffer_shared");
-    test::ProducerIPCClientTestPeer::ShareRingBuffer(
-        client(), memory_->fd(), 256, [shared](bool success) {
-          EXPECT_TRUE(success);
-          shared();
-        });
-    task_runner_->RunUntilCheckpoint("ring_buffer_shared");
+    auto attached = task_runner_->CreateCheckpoint("ring_buffer_attached");
+    producer_endpoint_->AttachV2RingBuffer(memory_, 256,
+                                           [attached](bool success) {
+                                             EXPECT_TRUE(success);
+                                             attached();
+                                           });
+    task_runner_->RunUntilCheckpoint("ring_buffer_attached");
   }
 
   ProducerIPCClientImpl* client() {
     return static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
   }
 
+  const base::FlatSet<ProtocolAbiVersion>& protocol_abi_versions() {
+    return test::ProducerIPCClientTestPeer::protocol_abi_versions(client());
+  }
+
   void Drain() {
     std::string name = "drain_" + std::to_string(next_checkpoint_++);
     auto drained = task_runner_->CreateCheckpoint(name);
-    producer_endpoint_->DrainRingBuffer();
+    producer_endpoint_->DrainV2RingBuffer();
     producer_endpoint_->Sync(drained);
     task_runner_->RunUntilCheckpoint(name);
   }
@@ -306,7 +314,7 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
     return std::string("\xa3\x38\x0a") + static_cast<char>(value.size()) +
            value + '\x04';
   }
-  std::unique_ptr<PosixSharedMemory> memory_;
+  std::shared_ptr<PosixSharedMemory> memory_;
   std::unique_ptr<tracing_v2::SharedRingBuffer> ring_buffer_;
   size_t next_checkpoint_ = 0;
 };
@@ -323,7 +331,7 @@ TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
   }
   auto setups = Start(config, 2);
   ASSERT_EQ(setups.size(), 2u);
-  Share();
+  Attach();
   auto first = tracing_v2::test::MakeWriter(
       ring_buffer_.get(), 1, static_cast<BufferID>(setups[0].target_buffer()));
   auto second = tracing_v2::test::MakeWriter(
@@ -371,7 +379,7 @@ TEST_F(RingBufferTransportIntegrationTest,
   ASSERT_EQ(setups.size(), 2u);
   EXPECT_FALSE(setups[0].supports_tracing_v2());
   EXPECT_TRUE(setups[1].supports_tracing_v2());
-  Share();
+  Attach();
 
   // The producer is allowed to write to the v1 buffer, but not through the
   // ring buffer. Buffer 0 is not a buffer of this producer.
@@ -397,7 +405,7 @@ TEST_F(RingBufferTransportIntegrationTest,
   config.add_data_sources()->mutable_config()->set_name("perfetto.test");
   auto setups = Start(config, 1);
   ASSERT_EQ(setups.size(), 1u);
-  Share();
+  Attach();
   {
     auto writer = tracing_v2::test::MakeWriter(
         ring_buffer_.get(), 1,
@@ -422,7 +430,7 @@ TEST_F(RingBufferTransportIntegrationTest, CorruptRingBufferKeepsConnection) {
   auto setups = Start(config, 1);
   ASSERT_EQ(setups.size(), 1u);
   const auto target = static_cast<BufferID>(setups[0].target_buffer());
-  Share();
+  Attach();
 
   auto writer = tracing_v2::test::MakeWriter(ring_buffer_.get(), 1, target);
   ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer, Packet("corrupt")));
@@ -447,25 +455,142 @@ TEST_F(RingBufferTransportIntegrationTest, CorruptRingBufferKeepsConnection) {
   EXPECT_EQ(stats.buffer_stats()[0].abi_violations(), 1u);
 }
 
-// A protocol error, such as an SMB that cannot be mapped, drops the
-// connection in two steps. The producer must get OnDisconnect(), and calls
-// between the two steps must not use the dropped port.
-TEST_F(RingBufferTransportIntegrationTest, ScheduledDisconnectCompletes) {
-  ASSERT_TRUE(producer_endpoint_->ConnectionSupportsTracingV2());
+// Each advertised version is independent. Keep all common versions, and do
+// not add v1 to a v2-only offer. An old producer lists none and gets v1.
+TEST_F(RingBufferTransportIntegrationTest, ServiceReturnsAllCommonVersions) {
+  EXPECT_THAT(protocol_abi_versions(),
+              ElementsAre(ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2));
+
+  // Returns the common list, or nullopt if the service rejects the request.
+  auto negotiate = [&](std::vector<protos::gen::ProtocolAbiVersion> offered)
+      -> std::optional<std::vector<protos::gen::ProtocolAbiVersion>> {
+    struct Listener : public ipc::ServiceProxy::EventListener {
+      std::function<void()> on_connect;
+      void OnConnect() override { on_connect(); }
+    } listener;
+    protos::gen::ProducerPortProxy port(&listener);
+    const std::string name = "raw_" + std::to_string(next_checkpoint_++);
+    listener.on_connect = task_runner_->CreateCheckpoint(name + "_connected");
+    auto ipc_client = ipc::Client::CreateInstance(
+        {kProducerSock.name(), /*sock_retry=*/false}, task_runner_.get());
+    ipc_client->BindService(port.GetWeakPtr());
+    task_runner_->RunUntilCheckpoint(name + "_connected");
+
+    protos::gen::InitializeConnectionRequest req;
+    req.set_producer_name(name);
+    for (auto version : offered)
+      req.add_supported_protocol_abi_versions(version);
+    std::optional<std::vector<protos::gen::ProtocolAbiVersion>> common;
+    auto replied = task_runner_->CreateCheckpoint(name + "_replied");
+    ipc::Deferred<protos::gen::InitializeConnectionResponse> reply;
+    reply.Bind(
+        [&](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
+          if (resp)
+            common = resp->protocol_abi_versions();
+          replied();
+        });
+    port.InitializeConnection(req, std::move(reply));
+    task_runner_->RunUntilCheckpoint(name + "_replied");
+    return common;
+  };
+  using protos::gen::PROTOCOL_ABI_VERSION_V1;
+  using protos::gen::PROTOCOL_ABI_VERSION_V2;
+  const auto kV3 = static_cast<protos::gen::ProtocolAbiVersion>(3);
+  using Versions = std::vector<protos::gen::ProtocolAbiVersion>;
+  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V1, PROTOCOL_ABI_VERSION_V2, kV3}),
+            (Versions{PROTOCOL_ABI_VERSION_V1, PROTOCOL_ABI_VERSION_V2}));
+  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V2}),
+            Versions{PROTOCOL_ABI_VERSION_V2});
+  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V1}),
+            Versions{PROTOCOL_ABI_VERSION_V1});
+  EXPECT_EQ(negotiate({}), Versions{PROTOCOL_ABI_VERSION_V1});
+  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V2, PROTOCOL_ABI_VERSION_V1,
+                       PROTOCOL_ABI_VERSION_V2}),
+            (Versions{PROTOCOL_ABI_VERSION_V1, PROTOCOL_ABI_VERSION_V2}));
+  EXPECT_EQ(negotiate({protos::gen::PROTOCOL_ABI_VERSION_UNSPECIFIED}),
+            std::nullopt);
+  EXPECT_EQ(negotiate({kV3, PROTOCOL_ABI_VERSION_V2}),
+            Versions{PROTOCOL_ABI_VERSION_V2});
+  EXPECT_EQ(negotiate({kV3}), std::nullopt);
+}
+
+// A reply must contain only offered versions.
+TEST_F(RingBufferTransportIntegrationTest,
+       DisconnectsIfServiceReturnsUnknownVersion) {
   auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
   EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
+      {ProtocolAbiVersion::kV2, static_cast<ProtocolAbiVersion>(3)});
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
 
-  test::ProducerIPCClientTestPeer::ScheduleDisconnect(client());
-  EXPECT_FALSE(producer_endpoint_->ConnectionSupportsTracingV2());
-  producer_endpoint_->DrainRingBuffer();
-  producer_endpoint_->NotifyDataSourceStarted(1);
+TEST_F(RingBufferTransportIntegrationTest,
+       DisconnectsIfServiceAddsV1ToV2OnlyOffer) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV2},
+      {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2});
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
 
+TEST_F(RingBufferTransportIntegrationTest, V2OnlyOfferRejectsLegacyService) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV2}, {});
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
+
+TEST_F(RingBufferTransportIntegrationTest, LegacyServicePermitsOnlyV1) {
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2}, {});
+  EXPECT_THAT(protocol_abi_versions(), ElementsAre(ProtocolAbiVersion::kV1));
+}
+
+TEST_F(RingBufferTransportIntegrationTest, ClientKeepsOnlyCommonVersions) {
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
+      {ProtocolAbiVersion::kV2, ProtocolAbiVersion::kV2});
+  EXPECT_THAT(protocol_abi_versions(), ElementsAre(ProtocolAbiVersion::kV2));
+}
+
+TEST_F(RingBufferTransportIntegrationTest, ClientAcceptsV2OnlyOffer) {
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV2}, {ProtocolAbiVersion::kV2});
+  EXPECT_THAT(protocol_abi_versions(), ElementsAre(ProtocolAbiVersion::kV2));
+}
+
+TEST_F(RingBufferTransportIntegrationTest, RejectsV2WithShmemEmulation) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
+      {ProtocolAbiVersion::kV2}, /*use_shmem_emulation=*/true);
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
+
+TEST_F(RingBufferTransportIntegrationTest, RejectedInitializationDisconnects) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV2}, {}, /*use_shmem_emulation=*/false,
+      /*connection_succeeded=*/false);
   task_runner_->RunUntilCheckpoint("producer_disconnected");
   producer_endpoint_.reset();
 }
 
 TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
-  ASSERT_TRUE(producer_endpoint_->ConnectionSupportsTracingV2());
+  ASSERT_THAT(protocol_abi_versions(),
+              ElementsAre(ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2));
   TraceConfig config;
   auto* buffer = config.add_buffers();
   buffer->set_size_kb(64);
@@ -484,7 +609,7 @@ TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
   consumer_endpoint_->EnableTracing(config);
   task_runner_->RunUntilCheckpoint("ring_buffer_started");
 
-  auto memory =
+  std::shared_ptr<PosixSharedMemory> memory =
       PosixSharedMemory::Create(sizeof(tracing_v2::RingBufferHeader) + 4 * 256);
   tracing_v2::SharedRingBuffer ring_buffer(
       static_cast<uint8_t*>(memory->start()), memory->size(), 256);
@@ -494,13 +619,12 @@ TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
                                               "\xa3\x38\x0a\x05"
                                               "early\x04"));
   writer.FinishCurrentChunk();
-  auto shared = task_runner_->CreateCheckpoint("ring_buffer_shared");
-  test::ProducerIPCClientTestPeer::ShareRingBuffer(client(), memory->fd(), 256,
-                                                   [shared](bool success) {
-                                                     EXPECT_TRUE(success);
-                                                     shared();
-                                                   });
-  task_runner_->RunUntilCheckpoint("ring_buffer_shared");
+  auto attached = task_runner_->CreateCheckpoint("ring_buffer_attached");
+  producer_endpoint_->AttachV2RingBuffer(memory, 256, [attached](bool success) {
+    EXPECT_TRUE(success);
+    attached();
+  });
+  task_runner_->RunUntilCheckpoint("ring_buffer_attached");
   EXPECT_EQ(tracing_v2::test::SharedRingBufferInternalsForTest::GetReadPos(
                 &ring_buffer),
             1u);
@@ -510,7 +634,7 @@ TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
                                               "later\x04"));
   writer.FinishCurrentChunk();
   auto drained = task_runner_->CreateCheckpoint("ring_buffer_drained");
-  producer_endpoint_->DrainRingBuffer();
+  producer_endpoint_->DrainV2RingBuffer();
   producer_endpoint_->Sync([&] {
     EXPECT_EQ(tracing_v2::test::SharedRingBufferInternalsForTest::GetReadPos(
                   &ring_buffer),
@@ -553,29 +677,30 @@ TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
 
 TEST_F(RingBufferTransportIntegrationTest,
        RejectsInvalidAndDuplicateRingBuffers) {
-  auto share = [&](size_t size, uint32_t chunk_size, bool accepted,
-                   const char* checkpoint) {
-    auto memory = PosixSharedMemory::Create(size);
+  auto attach = [&](size_t size, uint32_t chunk_size, bool accepted,
+                    const char* checkpoint) {
+    std::shared_ptr<PosixSharedMemory> memory = PosixSharedMemory::Create(size);
     auto done = task_runner_->CreateCheckpoint(checkpoint);
-    test::ProducerIPCClientTestPeer::ShareRingBuffer(
-        client(), memory->fd(), chunk_size, [=](bool result) {
-          EXPECT_EQ(result, accepted);
-          done();
-        });
+    producer_endpoint_->AttachV2RingBuffer(memory, chunk_size,
+                                           [=](bool result) {
+                                             EXPECT_EQ(result, accepted);
+                                             done();
+                                           });
     task_runner_->RunUntilCheckpoint(checkpoint);
   };
-  // An invalid layout does not persist state on the peer. A second share with
+  // An invalid layout does not persist state on the peer. A second attach with
   // a valid layout can still succeed.
-  share(4096, 256, false, "invalid_layout");
-  share(sizeof(tracing_v2::RingBufferHeader) + 1024, 256, true, "first_valid");
+  attach(4096, 256, false, "invalid_layout");
+  attach(sizeof(tracing_v2::RingBufferHeader) + 1024, 256, true, "first_valid");
   // The service attaches one ring buffer per producer. A later one is
   // rejected.
-  share(sizeof(tracing_v2::RingBufferHeader) + 1024, 256, false,
-        "duplicate_ring_buffer");
+  attach(sizeof(tracing_v2::RingBufferHeader) + 1024, 256, false,
+         "duplicate_ring_buffer");
   auto synced = task_runner_->CreateCheckpoint("still_connected");
   producer_endpoint_->Sync(synced);
   task_runner_->RunUntilCheckpoint("still_connected");
-  EXPECT_TRUE(producer_endpoint_->ConnectionSupportsTracingV2());
+  EXPECT_THAT(protocol_abi_versions(),
+              ElementsAre(ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2));
 }
 #endif
 

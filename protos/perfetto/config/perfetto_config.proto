@@ -5003,6 +5003,21 @@ message DataSourceConfig {
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
 
+  // Set by the service to indicate that this data source can write to its
+  // target buffer through the tracing v2 ring buffer. True only if:
+  // - v2 is in the connection's common ProtocolAbiVersion list, and
+  // - the target buffer is a TraceBufferV2.
+  // Absent means false. True permits v2 but does not select it. The producer
+  // can select v1 only if v1 is also in the common list. If no common version
+  // is permitted by the config and target buffer, the instance cannot run.
+  // One buffer can hold both formats. Each writer sequence uses one format.
+  //
+  // Not supported: a ProtoVM data source on the same buffer. The service does
+  // not check this. The buffer drops the ring buffer data of a producer with
+  // a ProtoVM on it and counts it in chunks_discarded.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool supports_tracing_v2 = 147;
+
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
   // Data source name: linux.inode_file_map
@@ -5152,19 +5167,6 @@ message DataSourceConfig {
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
-
-  // Set by the service to indicate that this data source can write to its
-  // target buffer through the tracing v2 ring buffer. True only if:
-  // - the producer connection agreed on the ring buffer ABI, and
-  // - the target buffer is a TraceBufferV2.
-  // Absent means false. True allows v2 but does not select it: the producer
-  // can still use v1 writers.
-  //
-  // Not supported: a ProtoVM data source on the same buffer. The service does
-  // not check this. The buffer drops the ring buffer data of a producer with
-  // a ProtoVM on it and counts it in chunks_discarded.
-  // DO NOT SET in consumer as this will be overridden by the service.
-  optional bool supports_tracing_v2 = 147;  
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that

@@ -386,18 +386,31 @@ class TracingServiceImplTest : public testing::Test {
   std::unique_ptr<TracingService> svc;
 };
 
-TEST_F(TracingServiceImplTest, RingBufferCapabilityIsOptIn) {
+// A producer connected with the default ProtocolAbiVersion v1 cannot attach
+// a ring buffer.
+TEST_F(TracingServiceImplTest, RingBufferNeedsProtocolAbiV2) {
   NiceMock<MockProducer> producer(&task_runner);
+  auto attach = [](TracingService::ProducerEndpoint* endpoint) {
+    std::optional<bool> accepted;
+    endpoint->AttachV2RingBuffer(
+        std::make_shared<InProcessSharedMemory>(
+            sizeof(tracing_v2::RingBufferHeader) + 4 * 256),
+        /*chunk_size_bytes=*/256, [&](bool result) { accepted = result; });
+    // The endpoint replies inline.
+    EXPECT_TRUE(accepted.has_value());
+    return accepted.value_or(false);
+  };
   auto legacy =
       svc->ConnectProducer(&producer, ClientIdentity(42, 1025), "legacy");
-  EXPECT_FALSE(legacy->ConnectionSupportsTracingV2());
+  EXPECT_FALSE(attach(legacy.get()));
   auto capable = svc->ConnectProducer(
       &producer, ClientIdentity(42, 1025), "ring_buffer",
       /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDefault,
       /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
-      /*sdk_version=*/{}, /*machine_name=*/{}, /*supports_tracing_v2=*/true);
-  EXPECT_TRUE(capable->ConnectionSupportsTracingV2());
+      /*sdk_version=*/{}, /*machine_name=*/{}, {ProtocolAbiVersion::kV2});
+  EXPECT_TRUE(attach(capable.get()));
+  task_runner.RunUntilIdle();
 }
 
 TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
@@ -407,12 +420,12 @@ TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
       /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDefault,
       /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
-      /*sdk_version=*/{}, /*machine_name=*/{}, /*supports_tracing_v2=*/true);
+      /*sdk_version=*/{}, /*machine_name=*/{}, {ProtocolAbiVersion::kV2});
   auto attach = [&](size_t size) {
     std::optional<bool> accepted;
-    endpoint->AttachRingBuffer(std::make_unique<InProcessSharedMemory>(size),
-                               /*chunk_size_bytes=*/256,
-                               [&](bool result) { accepted = result; });
+    endpoint->AttachV2RingBuffer(std::make_shared<InProcessSharedMemory>(size),
+                                 /*chunk_size_bytes=*/256,
+                                 [&](bool result) { accepted = result; });
     // The endpoint replies inline.
     EXPECT_TRUE(accepted.has_value());
     return accepted.value_or(false);
@@ -425,6 +438,61 @@ TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
   // One ring buffer per producer.
   EXPECT_FALSE(attach(sizeof(tracing_v2::RingBufferHeader) + 4 * 256));
   task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, RejectsEmptyProtocolVersionList) {
+  NiceMock<MockProducer> producer(&task_runner);
+  EXPECT_CALL(producer, OnConnect()).Times(0);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "no_common_version",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, /*protocol_abi_versions=*/{});
+  EXPECT_FALSE(endpoint);
+  task_runner.RunUntilIdle();
+}
+
+// A v2-only producer cannot write to a v1 target. This must not stop a
+// different instance of the same producer from using a v2 target.
+TEST_F(TracingServiceImplTest, V2OnlyProducerNeedsV2Destination) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "v2_only",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, {ProtocolAbiVersion::kV2});
+  ASSERT_TRUE(endpoint);
+  for (const char* name : {"v1_target", "v2_target"}) {
+    DataSourceDescriptor descriptor;
+    descriptor.set_name(name);
+    endpoint->RegisterDataSource(descriptor);
+  }
+
+  TraceConfig config;
+  config.add_buffers()->set_size_kb(128);
+  auto* v2_buffer = config.add_buffers();
+  v2_buffer->set_size_kb(128);
+  v2_buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  config.add_data_sources()->mutable_config()->set_name("v1_target");
+  auto* v2_source = config.add_data_sources()->mutable_config();
+  v2_source->set_name("v2_target");
+  v2_source->set_target_buffer(1);
+
+  EXPECT_CALL(producer, SetupDataSource(_, _))
+      .WillOnce([](DataSourceInstanceID, const DataSourceConfig& setup) {
+        EXPECT_EQ(setup.name(), "v2_target");
+        EXPECT_TRUE(setup.supports_tracing_v2());
+      });
+  EXPECT_CALL(producer, StartDataSource(_, _)).Times(1);
+  consumer->EnableTracing(config);
+  task_runner.RunUntilIdle();
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
 }
 
 // The consumer cannot set supports_tracing_v2. The service overwrites the
