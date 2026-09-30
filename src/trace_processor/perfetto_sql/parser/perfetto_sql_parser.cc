@@ -40,6 +40,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor {
@@ -247,10 +248,8 @@ class RewriteTree {
     // This is the only ApplyRewrites caller whose items aren't already in
     // `start` order: we concatenated literal body calls and $param segments,
     // each internally sorted but interleaved relative to each other.
-    std::sort(items.begin(), items.end(),
-              [](const RewriteItem& a, const RewriteItem& b) {
-                return a.start < b.start;
-              });
+    ColdSortByKey(items.begin(), items.end(),
+                  [](const RewriteItem& item) { return item.start; });
     return ApplyRewrites(m.sql, std::move(items));
   }
 

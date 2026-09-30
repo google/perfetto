@@ -65,6 +65,7 @@ source_set("exec") {
     "../../../base",
     "../../containers",
     "../../util:bump_allocator",
+    "../../util:cold_sort",
     "../common",
     "../dataframe",
     "../util",
