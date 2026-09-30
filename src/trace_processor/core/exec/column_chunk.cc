@@ -21,6 +21,7 @@
 
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -62,12 +63,16 @@ void ColumnChunk::CopyFrom(const ColumnView& view,
     CopyValues<StringPool::Id>(view, count, offset, *this);
   }
   validity.resize(kMaxBatchRows);
-  for (uint32_t i = 0; i < count; ++i) {
-    if (!view.validity() ||
-        view.validity()->is_set(view.selection().GetIndex(i))) {
-      validity.set(offset + i);
-    } else {
-      validity.clear(offset + i);
+  const BitVector* source = view.validity();
+  RowSelection selection = view.selection();
+  if (!source) {
+    validity.FillBits(offset, count, true);
+  } else if (selection.is_range()) {
+    validity.FillBits(offset, count, false);
+    validity.SetBitsFrom(offset, *source, selection.offset(), count);
+  } else {
+    for (uint32_t i = 0; i < count; ++i) {
+      validity.change(offset + i, source->is_set(selection.GetIndex(i)));
     }
   }
 }
