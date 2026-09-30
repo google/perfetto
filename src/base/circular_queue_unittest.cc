@@ -430,6 +430,25 @@ TEST(CircularQueueTest, ObjectLifetime) {
   }
 }
 
+TEST(CircularQueueTest, ContiguousAt) {
+  CircularQueue<int> queue(/*initial_capacity=*/8);
+  for (int i = 0; i < 6; i++)
+    queue.emplace_back(i);
+  queue.erase_front(4);
+  for (int i = 6; i < 10; i++)
+    queue.emplace_back(i);
+  // Holds 4..9 in slots 4..7 and then 0..1.
+  size_t count;
+  int* part = queue.contiguous_at(1, &count);
+  ASSERT_EQ(count, 3u);
+  EXPECT_EQ(part[0], 5);
+  EXPECT_EQ(part[2], 7);
+  part = queue.contiguous_at(4, &count);
+  ASSERT_EQ(count, 2u);
+  EXPECT_EQ(part[0], 8);
+  EXPECT_EQ(part[1], 9);
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
