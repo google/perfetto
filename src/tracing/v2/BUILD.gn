@@ -30,6 +30,7 @@ source_set("v2") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../base",
     "../core",
@@ -94,9 +95,13 @@ perfetto_unittest_source_set("unittests") {
     "shared_ring_buffer_writer_unittest.cc",
   ]
 
-  # The test uses TestTaskRunner and MockProducerEndpoint, which Windows and
+  # The tests use TestTaskRunner and MockProducerEndpoint, which Windows and
   # NaCl do not build.
   if (!is_win && !is_nacl) {
-    sources += [ "trace_writer_v2_impl_unittest.cc" ]
+    sources += [
+      "producer_ring_buffer_arbiter_unittest.cc",
+      "producer_ring_buffer_test_fixture.h",
+      "trace_writer_v2_impl_unittest.cc",
+    ]
   }
 }

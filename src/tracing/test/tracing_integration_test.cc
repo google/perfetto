@@ -15,6 +15,7 @@
  */
 
 #include <cinttypes>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -31,6 +32,7 @@
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
+#include "perfetto/protozero/message.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -464,6 +466,259 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
   std::unique_ptr<tracing_v2::SharedRingBuffer> ring_buffer_;
   size_t next_checkpoint_ = 0;
 };
+
+struct InstanceProtocolTestCase {
+  const char* name;
+  std::vector<ProtocolAbiVersion> common_versions;
+  uint32_t probability;
+  bool v2_destination;
+  std::optional<ProtocolAbiVersion> selected_version;
+};
+
+class InstanceProtocolIntegrationTest
+    : public RingBufferTransportIntegrationTest,
+      public testing::WithParamInterface<InstanceProtocolTestCase> {};
+
+TEST_P(InstanceProtocolIntegrationTest, InstanceWriterUsesCommonProtocol) {
+  const auto& param = GetParam();
+  // Change the client's accepted set before any writers exist. The service
+  // still accepts both formats, so it would expose an invalid v1 fallback.
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
+      param.common_versions);
+
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("perfetto.ring_buffer_endpoint");
+  producer_endpoint_->RegisterDataSource(descriptor);
+
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(64);
+  if (param.v2_destination)
+    buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* source = config.add_data_sources()->mutable_config();
+  source->set_name(descriptor.name());
+  source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      param.probability);
+  source->mutable_experimental_tracing_v2()->set_chunk_size_bytes(256);
+  const std::string payload(2000, 'r');
+  std::unique_ptr<TraceWriter> writer;
+  DataSourceInstanceID instance = 0;
+  BufferID target_buffer = 0;
+  auto started = task_runner_->CreateCheckpoint("instance_started");
+  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig& setup) {
+        instance = id;
+        target_buffer = static_cast<BufferID>(setup.target_buffer());
+        EXPECT_EQ(setup.supports_tracing_v2(), param.v2_destination);
+        EXPECT_NE(setup.target_buffer(), 0u);
+        writer = producer_endpoint_->CreateTraceWriter(
+            target_buffer, BufferExhaustedPolicy::kDrop, instance);
+        EXPECT_EQ(writer->writer_id() != 0, param.selected_version.has_value());
+        auto packet = writer->NewTracePacket();
+        if (param.selected_version) {
+          EXPECT_EQ(
+              packet->encoding() == protozero::Message::Encoding::kProtoGroup,
+              param.selected_version == ProtocolAbiVersion::kV2);
+        }
+        packet->set_for_testing()->set_str(payload);
+      });
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig&) {
+        EXPECT_EQ(id, instance);
+        started();
+      });
+  consumer_endpoint_->EnableTracing(config);
+  task_runner_->RunUntilCheckpoint("instance_started");
+
+  // The overload without an instance must also respect the common set.
+  const bool supports_v1 =
+      protocol_abi_versions().count(ProtocolAbiVersion::kV1);
+  auto legacy = producer_endpoint_->CreateTraceWriter(
+      target_buffer, BufferExhaustedPolicy::kDrop);
+  EXPECT_EQ(legacy->writer_id() != 0, supports_v1);
+  if (!supports_v1)
+    legacy->NewTracePacket()->set_for_testing()->set_str("forbidden v1");
+  legacy.reset();
+
+  auto written = task_runner_->CreateCheckpoint("instance_written");
+  writer->Flush(written);
+  task_runner_->RunUntilCheckpoint("instance_written");
+
+  EXPECT_CALL(producer_, Flush(_, _, _, _))
+      .WillOnce([&](FlushRequestID id, const DataSourceInstanceID* instances,
+                    size_t count, FlushFlags) {
+        ASSERT_EQ(count, 1u);
+        EXPECT_EQ(instances[0], instance);
+        writer->Flush();
+        producer_endpoint_->NotifyFlushComplete(id);
+      });
+  auto flushed = task_runner_->CreateCheckpoint("instance_flushed");
+  consumer_endpoint_->Flush(10000, [flushed](bool success) {
+    EXPECT_TRUE(success);
+    flushed();
+  });
+  task_runner_->RunUntilCheckpoint("instance_flushed");
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), param.selected_version ? 1u : 0u);
+  if (param.selected_version)
+    EXPECT_EQ(packets[0].for_testing().str(), payload);
+
+  writer.reset();
+  auto stopped = task_runner_->CreateCheckpoint("instance_stopped");
+  EXPECT_CALL(producer_, StopDataSource(instance));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(stopped));
+  consumer_endpoint_->DisableTracing();
+  task_runner_->RunUntilCheckpoint("instance_stopped");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    CommonVersions,
+    InstanceProtocolIntegrationTest,
+    testing::Values(InstanceProtocolTestCase{"BothSelectV2",
+                                             {ProtocolAbiVersion::kV1,
+                                              ProtocolAbiVersion::kV2},
+                                             100,
+                                             true,
+                                             ProtocolAbiVersion::kV2},
+                    InstanceProtocolTestCase{
+                        "BothSelectV1",
+                        {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
+                        0,
+                        true,
+                        ProtocolAbiVersion::kV1},
+                    InstanceProtocolTestCase{"V1Only",
+                                             {ProtocolAbiVersion::kV1},
+                                             100,
+                                             true,
+                                             ProtocolAbiVersion::kV1},
+                    InstanceProtocolTestCase{"V2OnlySelected",
+                                             {ProtocolAbiVersion::kV2},
+                                             100,
+                                             true,
+                                             ProtocolAbiVersion::kV2},
+                    InstanceProtocolTestCase{"V2OnlyNotSelected",
+                                             {ProtocolAbiVersion::kV2},
+                                             0,
+                                             true,
+                                             std::nullopt},
+                    InstanceProtocolTestCase{
+                        "BothWithV1Destination",
+                        {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
+                        100,
+                        false,
+                        ProtocolAbiVersion::kV1},
+                    InstanceProtocolTestCase{"V2OnlyWithV1Destination",
+                                             {ProtocolAbiVersion::kV2},
+                                             100,
+                                             false,
+                                             std::nullopt}),
+    [](const testing::TestParamInfo<InstanceProtocolTestCase>& info) {
+      return info.param.name;
+    });
+
+TEST_F(RingBufferTransportIntegrationTest, RejectionStopsV2WithoutFallback) {
+  // Attach the service's one ring buffer for this producer first. The
+  // automatic attach at setup then gets a rejection.
+  Attach();
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(64);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* source = config.add_data_sources()->mutable_config();
+  source->set_name("perfetto.test");
+  source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      100);
+
+  DataSourceInstanceID instance = 0;
+  BufferID target = 0;
+  std::unique_ptr<TraceWriter> early_writer;
+  auto started = task_runner_->CreateCheckpoint("rejected_instance_started");
+  auto early_flushed = task_runner_->CreateCheckpoint("rejected_early_flushed");
+  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig& setup) {
+        instance = id;
+        target = static_cast<BufferID>(setup.target_buffer());
+        early_writer = producer_endpoint_->CreateTraceWriter(
+            target, BufferExhaustedPolicy::kDrop, instance);
+        EXPECT_NE(early_writer->writer_id(), 0u);
+        early_writer->NewTracePacket()->set_for_testing()->set_str("early");
+        early_writer->Flush(early_flushed);
+      });
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce(InvokeWithoutArgs(started));
+  consumer_endpoint_->EnableTracing(config);
+  task_runner_->RunUntilCheckpoint("rejected_instance_started");
+  task_runner_->RunUntilCheckpoint("rejected_early_flushed");
+
+  // The attach request went out during setup. The service replies in order, so
+  // after this Sync() round trip the rejection has arrived.
+  auto synced = task_runner_->CreateCheckpoint("rejection_received");
+  producer_endpoint_->Sync(synced);
+  task_runner_->RunUntilCheckpoint("rejection_received");
+
+  // This writer keeps the rejected mapping. The service never reads it, so
+  // its packets never reach the trace.
+  early_writer->NewTracePacket()->set_for_testing()->set_str("after rejection");
+  // New writers of the instance are NullTraceWriters. There is no v1
+  // fallback.
+  auto writer = producer_endpoint_->CreateTraceWriter(
+      target, BufferExhaustedPolicy::kDrop, instance);
+  EXPECT_EQ(writer->writer_id(), 0u);
+  writer->NewTracePacket()->set_for_testing()->set_str("no fallback");
+
+  // The connection stays up, and v1 writers still work.
+  auto legacy = producer_endpoint_->CreateTraceWriter(
+      target, BufferExhaustedPolicy::kDrop);
+  legacy->NewTracePacket()->set_for_testing()->set_str("legacy");
+  auto committed = task_runner_->CreateCheckpoint("legacy_after_rejection");
+  legacy->Flush(committed);
+  task_runner_->RunUntilCheckpoint("legacy_after_rejection");
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].for_testing().str(), "legacy");
+  EXPECT_THAT(protocol_abi_versions(),
+              ElementsAre(ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2));
+}
+
+// Loss that the producer flags before its first chunk has no sequence to
+// mark. It is not a service discard either.
+TEST_F(RingBufferTransportIntegrationTest, LossBeforeFirstRouteIsNotDiscard) {
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(64);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  config.add_data_sources()->mutable_config()->set_name("perfetto.test");
+  auto setups = Start(config, 1);
+  ASSERT_EQ(setups.size(), 1u);
+  Attach();
+  auto writer = tracing_v2::test::MakeWriter(
+      ring_buffer_.get(), 1, static_cast<BufferID>(setups[0].target_buffer()));
+  // Publish only loss, before any fragment establishes a destination.
+  writer.BeginFragment(1, false);
+  writer.RecordDataLoss();
+  writer.FinishCurrentChunk();
+  Drain();
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer, Packet("first")));
+  writer.FinishCurrentChunk();
+  Drain();
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].for_testing().str(), "first");
+  EXPECT_FALSE(packets[0].previous_packet_dropped());
+  auto stats_read = task_runner_->CreateCheckpoint("loss_stats_read");
+  EXPECT_CALL(consumer_, OnTraceStats(true, _))
+      .WillOnce([&](bool, const TraceStats& stats) {
+        EXPECT_EQ(stats.chunks_discarded(), 0u);
+        stats_read();
+      });
+  consumer_endpoint_->GetTraceStats();
+  task_runner_->RunUntilCheckpoint("loss_stats_read");
+}
 
 TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
   TraceConfig config;

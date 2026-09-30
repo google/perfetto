@@ -80,6 +80,19 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
 }
 
 // static
+std::unique_ptr<PosixSharedMemory> PosixSharedMemory::CreateRingBuffer(
+    size_t size) {
+  auto fd =
+      CreateMemfd("perfetto_ring_buffer", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+  if (!fd || ftruncate(*fd, static_cast<off_t>(size)) != 0 ||
+      fcntl(*fd, F_ADD_SEALS, kFileSeals) != 0) {
+    PERFETTO_PLOG("Failed to create the tracing v2 ring buffer");
+    return nullptr;
+  }
+  return MapFD(std::move(fd), size);
+}
+
+// static
 std::unique_ptr<PosixSharedMemory> PosixSharedMemory::AttachToFd(
     base::ScopedFile fd,
     bool require_seals_if_supported,
