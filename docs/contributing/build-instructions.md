@@ -344,6 +344,13 @@ Enables [Thread Sanitizer](https://github.com/google/sanitizers/wiki/ThreadSanit
 
 Enables [Undefined Behavior Sanitizer](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
 
+`perfetto_cxx_standard = "c++20"`
+
+Selects the C++ language standard (default `"c++17"`). C++17 is the minimum
+required by Perfetto but newer standards are supported. This is useful, for
+example, when linking against system libraries (e.g. abseil via
+`perfetto_use_system_protobuf`) that were built with a newer standard.
+
 ### {#custom-toolchain} Using custom toolchains and CC / CXX / CFLAGS env vars
 
 When building Perfetto as part of some other build environment it might be
