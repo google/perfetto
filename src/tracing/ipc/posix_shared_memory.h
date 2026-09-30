@@ -47,6 +47,11 @@ class PosixSharedMemory : public SharedMemory {
 
   // Create a brand new SHM region.
   static std::unique_ptr<PosixSharedMemory> Create(size_t size);
+  // Creates a sealed memfd of |size| bytes for a tracing v2 ring buffer.
+  // Returns nullptr if the memfd cannot be created, sized or sealed.
+  // TODO(sashwinbalaji): MapFD() still CHECKs on a failed mmap(), until the
+  // v1 change lands: dev/sashwinbalaji/v1-01-posix-shmem-attach.
+  static std::unique_ptr<PosixSharedMemory> CreateRingBuffer(size_t size);
 
   // Mmaps a file descriptor to an existing SHM region. If
   // |require_seals_if_supported| is true and the system supports

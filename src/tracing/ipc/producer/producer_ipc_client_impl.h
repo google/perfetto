@@ -31,6 +31,7 @@
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include "protos/perfetto/ipc/producer_port.ipc.h"
 
@@ -53,6 +54,13 @@ class SharedMemoryArbiter;
 // actual IPC transport.
 // If create_socket_async is set, it will be called to create and connect to a
 // socket to the service. If unset, the producer will create and connect itself.
+//
+// Tracing v2: this endpoint owns the SMB arbiter and |ring_buffer_arbiter_|.
+// Ring buffer writers borrow both.
+// - Their WriterIDs come from the SMB arbiter. The arbiter's TryShutdown()
+//   fails while one exists. The owner must not destroy this endpoint before
+//   TryShutdown() succeeds.
+// - After a rejection, the ring buffer stays allocated for its writers.
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
@@ -90,6 +98,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -144,8 +155,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
-  // The common versions returned by InitializeConnection. Empty until the
-  // reply arrives, and after disconnect. Used on the endpoint sequence.
+  // Set by InitializeConnection before Producer::OnConnect(). Fixed after
+  // that, also after disconnect: writer threads read it during shutdown.
+  // Empty until initialization succeeds.
   base::FlatSet<ProtocolAbiVersion> protocol_abi_versions_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
@@ -159,6 +171,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool direct_smb_patching_supported_ = false;
   bool use_shmem_emulation_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
+
+  // Picks v1 or v2 for each data source instance, and owns the ring buffer.
+  tracing_v2::ProducerRingBufferArbiter ring_buffer_arbiter_;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

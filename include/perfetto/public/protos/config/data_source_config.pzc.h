@@ -42,6 +42,8 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumSamplingHeapProfilerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumStackSamplingProfilerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumSystemMetricsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidConfig);
+PERFETTO_PB_MSG_DECL(
+    perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DisplayVideoConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrozenFtraceConfig);
@@ -161,6 +163,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   bool,
                   supports_tracing_v2,
                   147);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config,
+                  experimental_tracing_v2,
+                  148);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,
@@ -406,5 +413,17 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_TestConfig,
                   for_testing,
                   1001);
+
+PERFETTO_PB_MSG(perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config,
+                  VARINT,
+                  uint32_t,
+                  use_v2_probability_percent,
+                  1);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config,
+                  VARINT,
+                  uint32_t,
+                  chunk_size_bytes,
+                  2);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_DATA_SOURCE_CONFIG_PZC_H_

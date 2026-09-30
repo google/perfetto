@@ -16,8 +16,11 @@
 
 #include "perfetto/tracing/internal/in_process_tracing_backend.h"
 
+#include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/futex.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -43,6 +46,20 @@ TracingBackend* InProcessTracingBackend::GetInstance() {
   return instance;
 }
 
+namespace {
+
+// A kStall ring buffer writer waits on a futex. Without one it would drop
+// packets instead, so use v1 there.
+std::vector<ProtocolAbiVersion> InProcessProtocolAbiVersions() {
+#if PERFETTO_HAS_FUTEX()
+  return {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2};
+#else
+  return {ProtocolAbiVersion::kV1};
+#endif
+}
+
+}  // namespace
+
 InProcessTracingBackend::InProcessTracingBackend() = default;
 InProcessTracingBackend::~InProcessTracingBackend() = default;
 
@@ -55,7 +72,9 @@ std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
                         args.producer_name, args.shmem_size_hint_bytes,
                         /*in_process=*/true,
                         TracingService::ProducerSMBScrapingMode::kEnabled,
-                        args.shmem_page_size_hint_bytes);
+                        args.shmem_page_size_hint_bytes, /*shm=*/nullptr,
+                        /*sdk_version=*/{}, /*machine_name=*/{},
+                        InProcessProtocolAbiVersions());
 }
 
 std::unique_ptr<ConsumerEndpoint> InProcessTracingBackend::ConnectConsumer(

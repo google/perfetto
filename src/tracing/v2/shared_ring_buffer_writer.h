@@ -92,7 +92,7 @@ class SharedRingBufferWriter {
   //   request is an IPC to the service. In-process, it is a direct call.
   // - Only the delegate knows if a reader exists yet.
   //
-  // ProducerRingBufferEndpoint implements it. It must outlive the writer.
+  // ProducerRingBufferArbiter implements it. It must outlive the writer.
   //
   // The writer calls it on two events:
   //

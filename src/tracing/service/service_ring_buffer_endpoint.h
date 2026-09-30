@@ -43,14 +43,14 @@ class ServiceRingBufferEndpointTestPeer;
 // ring buffer into authorized trace buffers.
 //
 // It is not a trace buffer and never owns one. The producer side of the same
-// ring buffer is ProducerRingBufferEndpoint. For the IPC protocol between the
+// ring buffer is ProducerRingBufferArbiter. For the IPC protocol between the
 // two sides, see rpc AttachV2RingBuffer in producer_port.proto.
 //
 // Two processes map the same memfd:
 //
 //   producer process                   traced
 //   --------------------------------   --------------------------------
-//   ProducerRingBufferEndpoint         ServiceRingBufferEndpoint (this)
+//   ProducerRingBufferArbiter          ServiceRingBufferEndpoint (this)
 //     keeps the producer's mapping       keeps the service's mapping
 //     writers publish chunks             one reader drains the chunks
 //

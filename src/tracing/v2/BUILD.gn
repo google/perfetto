@@ -15,7 +15,7 @@
 import("../../../gn/test.gni")
 
 # The tracing v2 producer-local shared ring buffer: its ABI, writer and reader,
-# and the TraceWriter and producer endpoint that serialize packets into it.
+# and the TraceWriter and producer arbiter that serialize packets into it.
 # It does not interpret fragment payloads.
 # Protocol and alternatives: RFC 0046,
 # https://github.com/google/perfetto/discussions/7120.
@@ -30,13 +30,14 @@ source_set("v2") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../base",
     "../core",
   ]
   sources = [
-    "producer_ring_buffer_endpoint.cc",
-    "producer_ring_buffer_endpoint.h",
+    "producer_ring_buffer_arbiter.cc",
+    "producer_ring_buffer_arbiter.h",
     "shared_ring_buffer.cc",
     "shared_ring_buffer.h",
     "shared_ring_buffer_reader.cc",
@@ -94,9 +95,13 @@ perfetto_unittest_source_set("unittests") {
     "shared_ring_buffer_writer_unittest.cc",
   ]
 
-  # The test uses TestTaskRunner and MockProducerEndpoint, which Windows and
+  # The tests use TestTaskRunner and MockProducerEndpoint, which Windows and
   # NaCl do not build.
   if (!is_win && !is_nacl) {
-    sources += [ "trace_writer_v2_impl_unittest.cc" ]
+    sources += [
+      "producer_ring_buffer_arbiter_unittest.cc",
+      "producer_ring_buffer_test_fixture.h",
+      "trace_writer_v2_impl_unittest.cc",
+    ]
   }
 }

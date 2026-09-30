@@ -24,7 +24,7 @@
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/tracing/v2/producer_ring_buffer_endpoint.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -38,16 +38,16 @@ constexpr uint32_t kMinFragmentPayloadSize =
 }  // namespace
 
 TraceWriterV2Impl::TraceWriterV2Impl(
-    ProducerRingBufferEndpoint* ring_buffer_endpoint,
+    ProducerRingBufferArbiter* ring_buffer_arbiter,
     WriterID id,
     BufferID target_buffer,
     BufferExhaustedPolicy policy)
-    : ring_buffer_endpoint_(ring_buffer_endpoint),
-      ring_buffer_writer_(ring_buffer_endpoint->ring_buffer(),
+    : ring_buffer_arbiter_(ring_buffer_arbiter),
+      ring_buffer_writer_(ring_buffer_arbiter->ring_buffer(),
                           id,
                           target_buffer,
                           policy,
-                          ring_buffer_endpoint),
+                          ring_buffer_arbiter),
       stream_writer_(this),
       cur_packet_(std::make_unique<
                   protozero::RootMessage<protos::pbzero::TracePacket>>()),
@@ -55,15 +55,15 @@ TraceWriterV2Impl::TraceWriterV2Impl(
 
 TraceWriterV2Impl::~TraceWriterV2Impl() {
   FinishTracePacket();
-  // Publish the last chunk before the ring buffer endpoint releases this
+  // Publish the last chunk before the ring buffer arbiter releases this
   // WriterID.
   // - Ring buffer reservations keep the order if another ring buffer writer
   //   reuses the ID.
   // - Reuse by an SMB writer is not ordered yet. See the TODO in
-  //   ProducerRingBufferEndpoint::OnWriterDestroyed().
+  //   ProducerRingBufferArbiter::OnWriterDestroyed().
   ring_buffer_writer_.FinishCurrentChunk();
   stream_writer_.Reset({nullptr, nullptr});
-  ring_buffer_endpoint_->OnWriterDestroyed(writer_id());
+  ring_buffer_arbiter_->OnWriterDestroyed(writer_id());
 }
 
 TraceWriter::TracePacketHandle TraceWriterV2Impl::NewTracePacket() {
@@ -111,11 +111,11 @@ void TraceWriterV2Impl::Flush(std::function<void()> callback) {
   EnsurePacketClosed();
 
   // A completed fragment leaves its chunk cached for later packets. Release
-  // that chunk before ring_buffer_endpoint_->Flush() so later packets use new
+  // that chunk before ring_buffer_arbiter_->Flush() so later packets use new
   // reservations.
   ring_buffer_writer_.FinishCurrentChunk();
   stream_writer_.Reset({nullptr, nullptr});
-  ring_buffer_endpoint_->Flush(std::move(callback));
+  ring_buffer_arbiter_->Flush(std::move(callback));
 }
 
 void TraceWriterV2Impl::OnMessageFinalized(protozero::Message*) {

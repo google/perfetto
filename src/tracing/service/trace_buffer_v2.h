@@ -525,7 +525,9 @@ class TraceBufferV2 : public TraceBuffer {
   //   than one TBChunk or than the whole buffer, or a writer ID whose sequence
   //   already holds SMB chunks. CopyChunkUntrusted() counts the same cases.
   // - Other rejections increment chunks_discarded: a full kDiscard buffer or
-  //   a producer with a ProtoVM on this buffer.
+  //   a producer with a ProtoVM on this buffer. The service rejects a config
+  //   with both, so only a producer that ignores its config hits the second
+  //   case.
   bool CopyChunkV2Untrusted(const PacketSequenceProperties& sequence,
                             const protozero::ConstBytes* fragments,
                             size_t num_fragments,

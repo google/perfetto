@@ -123,6 +123,8 @@ cc_binary {
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/profiling/memory/main.cc",
     ],
     shared_libs: [
@@ -431,6 +433,8 @@ cc_library_shared {
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
     ],
     shared_libs: [
         "liblog",
@@ -1644,6 +1648,8 @@ cc_binary {
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/perfetto_cmd/main.cc",
     ],
     shared_libs: [
@@ -23359,6 +23365,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_unittests",
     srcs: [
+        "src/tracing/v2/producer_ring_buffer_arbiter_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_abi_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_concurrency_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_reader_unittest.cc",
@@ -23372,7 +23379,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_v2",
     srcs: [
-        "src/tracing/v2/producer_ring_buffer_endpoint.cc",
+        "src/tracing/v2/producer_ring_buffer_arbiter.cc",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
         "src/tracing/v2/shared_ring_buffer_writer.cc",
@@ -27345,6 +27352,8 @@ cc_binary {
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/perfetto_cmd/trigger_perfetto_main.cc",
     ],
     shared_libs: [

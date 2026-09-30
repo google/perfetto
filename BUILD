@@ -7077,8 +7077,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_v2_v2",
     srcs = [
-        "src/tracing/v2/producer_ring_buffer_endpoint.cc",
-        "src/tracing/v2/producer_ring_buffer_endpoint.h",
+        "src/tracing/v2/producer_ring_buffer_arbiter.cc",
+        "src/tracing/v2/producer_ring_buffer_arbiter.h",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer.h",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
@@ -11755,6 +11755,8 @@ perfetto_cc_binary(
         ":src_tracing_ipc_consumer_consumer",
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
+        ":src_tracing_v2_abi",
+        ":src_tracing_v2_v2",
         "src/perfetto_cmd/main.cc",
     ],
     visibility = [

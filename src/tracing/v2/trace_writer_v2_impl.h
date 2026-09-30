@@ -33,7 +33,7 @@
 
 namespace perfetto::tracing_v2 {
 
-class ProducerRingBufferEndpoint;
+class ProducerRingBufferArbiter;
 
 // TraceWriter implementation backed by a tracing v2 shared ring buffer.
 //
@@ -52,15 +52,15 @@ class ProducerRingBufferEndpoint;
 //     | picks a free chunk,             | claims and publishes chunks
 //     | batches completed chunks        | lock-free. The bytes do not
 //     |                                 | go through
-//     |                                 | ProducerRingBufferEndpoint.
+//     |                                 | ProducerRingBufferArbiter.
 //     v                                 v
 //   [ SMB ]                           [ ring buffer ]
 //     ^                                 ^
 //     | copies the listed chunks        | copies all published chunks
 //     |                                 |
 //   service <-- CommitData IPC        service <-- DrainV2RingBuffer IPC
-//               from the arbiter:                 from
-//                                                 ProducerRingBufferEndpoint:
+//               from the SMB arbiter:             from
+//                                                 ProducerRingBufferArbiter:
 //               "chunks N, M are                  "read what is
 //               complete"                         published"
 //
@@ -84,9 +84,9 @@ class TraceWriterV2Impl : public TraceWriter,
                           public protozero::MessageFinalizationListener,
                           public protozero::ScatteredStreamWriter::Delegate {
  public:
-  // ProducerRingBufferEndpoint::CreateTraceWriter() creates each writer.
+  // ProducerRingBufferArbiter::MaybeCreateTraceWriter() creates each writer.
   //
-  // - |ring_buffer_endpoint|: packet bytes do not go through it. The writer
+  // - |ring_buffer_arbiter|: packet bytes do not go through it. The writer
   //   calls it only for jobs that need the endpoint thread or shared state:
   //   - NotifyReader(), IsReaderAttached(): it is the delegate of
   //     |ring_buffer_writer_|. See SharedRingBufferWriter::Delegate.
@@ -94,13 +94,13 @@ class TraceWriterV2Impl : public TraceWriter,
   //   - OnWriterDestroyed(): the destructor releases |id| through it.
   //   Its ring buffer receives the packets.
   // - |id|: the sequence ID of this writer. Reserved by
-  //   |ring_buffer_endpoint|. While this writer holds it,
-  //   |ring_buffer_endpoint| and its ring buffer stay alive.
+  //   |ring_buffer_arbiter|. While this writer holds it,
+  //   |ring_buffer_arbiter| and its ring buffer stay alive.
   // - |target_buffer|: the service buffer for the packets. Stored in each
   //   chunk header.
   // - |policy|: what the writer does when the ring buffer is full. See
   //   BufferExhaustedPolicy.
-  TraceWriterV2Impl(ProducerRingBufferEndpoint* ring_buffer_endpoint,
+  TraceWriterV2Impl(ProducerRingBufferArbiter* ring_buffer_arbiter,
                     WriterID id,
                     BufferID target_buffer,
                     BufferExhaustedPolicy policy);
@@ -151,7 +151,7 @@ class TraceWriterV2Impl : public TraceWriter,
 
   // Receives Flush() and OnWriterDestroyed(). Also the delegate of
   // |ring_buffer_writer_|. See the constructor.
-  ProducerRingBufferEndpoint* const ring_buffer_endpoint_;
+  ProducerRingBufferArbiter* const ring_buffer_arbiter_;
 
   // Claims chunks and publishes fragments in the ring buffer.
   SharedRingBufferWriter ring_buffer_writer_;
