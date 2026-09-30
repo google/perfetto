@@ -346,6 +346,8 @@ void ProducerIPCClientImpl::OnServiceRequest(
         base::ScopedFile(receive_shmem_fd_cb_fuchsia_()),
         /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
 #else
+    // The FD can be invalid, for example with a producer-provided SMB.
+    // |ipc_shared_memory| is then null. The checks below handle it.
     ipc_shared_memory = PosixSharedMemory::AttachToFd(
         ipc_channel_->TakeReceivedFD(),
         /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
