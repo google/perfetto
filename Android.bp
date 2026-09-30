@@ -3246,6 +3246,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -21609,6 +21610,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
@@ -22008,6 +22010,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:cold_sort
+filegroup {
+    name: "perfetto_src_trace_processor_util_cold_sort",
+    srcs: [
+        "src/trace_processor/util/cold_sort.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:compressor
 filegroup {
     name: "perfetto_src_trace_processor_util_compressor",
@@ -22291,6 +22301,7 @@ filegroup {
     name: "perfetto_src_trace_processor_util_unittests",
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
+        "src/trace_processor/util/cold_sort_unittest.cc",
         "src/trace_processor/util/concurrency_stress_test_util_unittest.cc",
         "src/trace_processor/util/descriptors_unittest.cc",
         "src/trace_processor/util/flatbuffer_reader_unittest.cc",
@@ -24655,6 +24666,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_concurrency_stress_test_util",
         ":perfetto_src_trace_processor_util_decompressor",
@@ -25777,6 +25789,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -26495,6 +26508,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",

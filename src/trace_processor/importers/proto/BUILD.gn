@@ -251,6 +251,7 @@ source_set("full") {
     "../../tables",
     "../../types",
     "../../util:build_id",
+    "../../util:cold_sort",
     "../../util:descriptors",
     "../../util:profiler_util",
     "../../util:proto_profiler",

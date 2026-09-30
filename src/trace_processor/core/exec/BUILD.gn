@@ -55,6 +55,7 @@ source_set("exec") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../../util:cold_sort",
     "../common",
     "../dataframe",
     "../util",

@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 #include "protos/perfetto/trace/android/cpu_per_uid_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -179,8 +180,8 @@ void AndroidCpuPerUidModule::OnEventsFullyExtracted() {
     rows.push_back(row);
   }
 
-  std::sort(rows.begin(), rows.end(),
-            [](auto& a, auto& b) { return a.track_id < b.track_id; });
+  ColdSort(rows.begin(), rows.end(),
+           [](auto& a, auto& b) { return a.track_id < b.track_id; });
 
   for (const auto& row : rows) {
     context_->storage->mutable_android_cpu_per_uid_track_table()->Insert(row);
