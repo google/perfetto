@@ -339,6 +339,9 @@ class AndroidParser(TestSuite):
           500,6,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
           600,"[NULL]","[NULL]","[NULL]","[NULL]","APP_EXIT_REASON_SIGNALED","[NULL]"
           700,7,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_FREEZER","[NULL]"
+          800,9,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          1100,10,1000000000,4000000000,2000000000,"[NULL]","[NULL]"
+          1100,11,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
         """))
 
   def test_android_framework_track_event_enum(self):

@@ -248,18 +248,28 @@ class Parser : public TrackEventExtensionParser {
       return;
     }
 
-    std::optional<UniquePid> upid =
-        trace_context_->process_tracker->GetProcessOrNull(evt.pid());
-    if (!upid) {
+    auto pid = static_cast<uint32_t>(evt.pid());
+    std::optional<int64_t> start_seq_id;
+    if (evt.has_start_seq_id()) {
+      start_seq_id = evt.start_seq_id();
+    }
+    // Ignores deaths for another process (e.g. an older process whose pid was
+    // reused before it was ended) instead of ending the current one.
+    auto row = FindDyingProcess(pid, start_seq_id);
+    if (!row) {
       return;
     }
-    auto row = table_->GetOrInsertRow(*upid);
-    row.set_fw_end_ts(ts);
-    if (evt.has_start_seq_id()) {
-      table_->SetStartSeqId(row, evt.start_seq_id());
+    // The first death wins: a duplicate or late event must not move it.
+    if (row->fw_end_ts().has_value()) {
+      return;
     }
-    trace_context_->process_tracker->EndThread(
-        ts, static_cast<uint32_t>(evt.pid()));
+    row->set_fw_end_ts(ts);
+    // A row matched by start_seq_id may belong to a process that has already
+    // ended some other way (e.g. sched_process_free) and whose pid has been
+    // reused: only end the pid if it still refers to this process.
+    if (trace_context_->process_tracker->GetProcessOrNull(pid) == row->upid()) {
+      trace_context_->process_tracker->EndThread(ts, pid);
+    }
   }
 
   // Records why a process died. Ending the process is left to
