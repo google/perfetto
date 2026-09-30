@@ -24,13 +24,17 @@ SOURCE_SET_HOST_CFLAGS = []
 if (jdk_include_path != "") {
   SOURCE_SET_INCLUDE_DIRS += [
     jdk_include_path,
-    "$jdk_include_path/linux",
-    "$jdk_include_path/darwin",
 
     # Stub <android/log.h> mapping ANDROID_LOG_* + __android_log_print to
     # stderr so the JNI sources compile cleanly without liblog on host.
     "host_stubs",
   ]
+  if (is_linux) {
+    SOURCE_SET_INCLUDE_DIRS += [ "$jdk_include_path/linux" ]
+  }
+  if (is_mac) {
+    SOURCE_SET_INCLUDE_DIRS += [ "$jdk_include_path/darwin" ]
+  }
 
   # The JNI sources are written against AOSP's warning profile; standalone
   # host (-Weverything) trips a handful of pedantic warnings that AOSP
