@@ -18,10 +18,14 @@ import argparse
 from collections import defaultdict
 import csv
 from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
 import io
 import subprocess
 import sys
 
+# Java and native reachable bytes are reported separately because they regress
+# for different reasons: native bytes (e.g. Bitmap pixel buffers registered
+# with NativeAllocationRegistry) can grow while the Java objects stay the same.
 HEAP_SUMMARY_QUERY = """
 INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
 
@@ -32,8 +36,8 @@ SELECT
   s.total_obj_count,
   s.total_heap_size + s.total_native_alloc_registry_size AS total_bytes,
   s.reachable_obj_count,
-  s.reachable_heap_size + s.reachable_native_alloc_registry_size
-    AS reachable_bytes
+  s.reachable_heap_size AS reachable_java_bytes,
+  s.reachable_native_alloc_registry_size AS reachable_native_bytes
 FROM android_heap_graph_stats AS s
 JOIN process AS p ON s.upid = p.id;
 """
@@ -51,7 +55,8 @@ SELECT
   type_name AS class_name,
   IIF(is_libcore_or_array, 'libcore_or_array', 'app_class') AS category,
   SUM(reachable_obj_count) AS obj_count,
-  SUM(reachable_size_bytes + reachable_native_size_bytes) AS self_bytes,
+  SUM(reachable_size_bytes) AS java_bytes,
+  SUM(reachable_native_size_bytes) AS native_bytes,
   SUM(dominated_size_bytes + dominated_native_size_bytes) AS dominated_bytes
 FROM android_heap_graph_class_aggregation
 GROUP BY upid, graph_sample_ts, class_name, category;
@@ -80,14 +85,16 @@ class HeapSummary:
   total_obj_count: int
   total_bytes: int
   reachable_obj_count: int
-  reachable_bytes: int
+  reachable_java_bytes: int
+  reachable_native_bytes: int
 
 
 @dataclass(frozen=True)
 class Metrics:
   """Counters of all reachable instances of one class."""
   obj_count: int = 0
-  self_bytes: int = 0
+  java_bytes: int = 0
+  native_bytes: int = 0
   dominated_bytes: int = 0
 
 
@@ -118,11 +125,24 @@ class Growth:
     return self.after.dominated_bytes - self.before.dominated_bytes
 
   @property
-  def self_bytes_delta(self) -> int:
-    return self.after.self_bytes - self.before.self_bytes
+  def java_bytes_delta(self) -> int:
+    return self.after.java_bytes - self.before.java_bytes
+
+  @property
+  def native_bytes_delta(self) -> int:
+    return self.after.native_bytes - self.before.native_bytes
 
   def has_grown(self) -> bool:
     return self.obj_count_delta > 0 or self.dominated_bytes_delta > 0
+
+  def is_added_or_removed(self) -> bool:
+    """True when the class exists in only one of the two dumps.
+
+    A class that drops to zero is invisible to the growth rankings, yet an
+    implementation swap (e.g. a library replacing its internal data structure)
+    shows up exactly as old classes going N -> 0 while new ones go 0 -> N.
+    """
+    return (self.before.obj_count == 0) != (self.after.obj_count == 0)
 
 
 def query(session: str, trace_processor: str, sql: str) -> list[dict[str, str]]:
@@ -152,7 +172,9 @@ def load_snapshots(session: str,
               row['process_name'],
               HeapSummary(
                   int(row['total_obj_count']), int(row['total_bytes']),
-                  int(row['reachable_obj_count']), int(row['reachable_bytes'])))
+                  int(row['reachable_obj_count']),
+                  int(row['reachable_java_bytes']),
+                  int(row['reachable_native_bytes'])))
       for row in query(session, trace_processor, HEAP_SUMMARY_QUERY)
   }
   if not snapshots:
@@ -161,7 +183,7 @@ def load_snapshots(session: str,
   for row in query(session, trace_processor, CLASS_AGGREGATION_QUERY):
     classes = snapshots[snapshot_id_of(row)].classes
     classes[row['category']][row['class_name']] = Metrics(
-        int(row['obj_count']), int(row['self_bytes']),
+        int(row['obj_count']), int(row['java_bytes']), int(row['native_bytes']),
         int(row['dominated_bytes']))
   return snapshots
 
@@ -188,15 +210,22 @@ def select_snapshot(snapshots: dict[SnapshotId, Snapshot], session: str,
   return matches[0]
 
 
-def class_growths(before: Snapshot, after: Snapshot,
-                  category: str) -> list[Growth]:
+def class_growths(before: Snapshot,
+                  after: Snapshot,
+                  category: str,
+                  class_globs: list[str] = ()) -> list[Growth]:
   before_classes = before.classes_of(category)
   after_classes = after.classes_of(category)
+  names = (
+      name for name in before_classes.keys() | after_classes.keys()
+      if not class_globs or any(fnmatchcase(name, g) for g in class_globs))
   growths = (
       Growth(name, before_classes.get(name, Metrics()),
-             after_classes.get(name, Metrics()))
-      for name in before_classes.keys() | after_classes.keys())
-  return [growth for growth in growths if growth.has_grown()]
+             after_classes.get(name, Metrics())) for name in names)
+  return [
+      growth for growth in growths
+      if growth.has_grown() or growth.is_added_or_removed()
+  ]
 
 
 def top_by_dominated_bytes(growths: list[Growth], limit: int) -> list[Growth]:
@@ -211,12 +240,21 @@ def top_by_instance_count(growths: list[Growth], limit: int) -> list[Growth]:
                 reverse=True)[:limit]
 
 
+def top_added_or_removed(growths: list[Growth], limit: int) -> list[Growth]:
+  return sorted((g for g in growths if g.is_added_or_removed()),
+                key=lambda g:
+                (abs(g.dominated_bytes_delta), abs(g.obj_count_delta)),
+                reverse=True)[:limit]
+
+
 def format_delta(before: int, after: int) -> str:
   delta = after - before
   if delta == 0:
     return f'{before:,} (unchanged)'
   if before == 0:
     return f'0 -> {after:,} (new)'
+  if after == 0:
+    return f'{before:,} -> 0 (removed)'
   return f'{before:,} -> {after:,} ({delta:+,}, {delta / before:+.1%})'
 
 
@@ -226,7 +264,10 @@ def print_summary(before: HeapSummary, after: HeapSummary) -> None:
       ('Total bytes', before.total_bytes, after.total_bytes),
       ('Reachable objects', before.reachable_obj_count,
        after.reachable_obj_count),
-      ('Reachable bytes', before.reachable_bytes, after.reachable_bytes),
+      ('Reachable Java heap bytes', before.reachable_java_bytes,
+       after.reachable_java_bytes),
+      ('Reachable native bytes', before.reachable_native_bytes,
+       after.reachable_native_bytes),
   )
   print('\n### Heap Summary\n')
   print('| Metric | Before -> after |')
@@ -241,14 +282,15 @@ def print_class_growths(title: str, growths: list[Growth]) -> None:
     print('_No growth._')
     return
   print('| Class | Objects (before -> after) |'
-        ' Dominated bytes (before -> after) | Self bytes delta |')
-  print('| :--- | :--- | :--- | :--- |')
+        ' Dominated bytes (before -> after) | Java self bytes delta |'
+        ' Native bytes delta |')
+  print('| :--- | :--- | :--- | :--- | :--- |')
   for growth in growths:
     print(
         f'| `{growth.name}` |'
         f' {format_delta(growth.before.obj_count, growth.after.obj_count)} |'
         f' {format_delta(growth.before.dominated_bytes, growth.after.dominated_bytes)} |'
-        f' {growth.self_bytes_delta:+,} |')
+        f' {growth.java_bytes_delta:+,} | {growth.native_bytes_delta:+,} |')
 
 
 def report(args: argparse.Namespace) -> None:
@@ -271,13 +313,19 @@ def report(args: argparse.Namespace) -> None:
   print(f'- **Before**: {describe(before_id, before)}')
   print(f'- **After**: {describe(after_id, after)}')
 
-  app_growths = class_growths(before, after, APP_CLASS)
+  app_growths = class_growths(before, after, APP_CLASS, args.class_glob)
   libcore_growths = class_growths(before, after, LIBCORE_OR_ARRAY)
+  scope = f' matching {", ".join(args.class_glob)}' if args.class_glob else ''
   print_summary(before.summary, after.summary)
-  print_class_growths('Top Application Classes by Dominated Bytes Growth',
-                      top_by_dominated_bytes(app_growths, TOP_APP_CLASSES))
-  print_class_growths('Top Application Classes by Instance Count Growth',
-                      top_by_instance_count(app_growths, TOP_APP_CLASSES))
+  print_class_growths(
+      f'Top Application Classes{scope} by Dominated Bytes Growth',
+      top_by_dominated_bytes(app_growths, args.top))
+  print_class_growths(
+      f'Top Application Classes{scope} by Instance Count Growth',
+      top_by_instance_count(app_growths, args.top))
+  print_class_growths(
+      f'Application Classes{scope} Added or Removed (0 -> N or N -> 0)',
+      top_added_or_removed(app_growths, args.top))
   print_class_growths(
       'Top Libcore / Array Classes by Dominated Bytes Growth',
       top_by_dominated_bytes(libcore_growths, TOP_LIBCORE_OR_ARRAY_CLASSES))
@@ -291,6 +339,17 @@ def parse_args() -> argparse.Namespace:
   parser.add_argument('--before-ts', type=int)
   parser.add_argument('--after-upid', type=int)
   parser.add_argument('--after-ts', type=int)
+  parser.add_argument(
+      '--top',
+      type=int,
+      default=TOP_APP_CLASSES,
+      help='Rows per application class table (default: %(default)s).')
+  parser.add_argument(
+      '--class-glob',
+      action='append',
+      default=[],
+      help=('Only list application classes matching this glob, e.g. '
+            '"com.example.*". Repeat to match any of several globs.'))
   parser.add_argument('--trace-processor', default='trace_processor')
   return parser.parse_args()
 
