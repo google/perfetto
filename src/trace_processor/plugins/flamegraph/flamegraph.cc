@@ -27,7 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -1533,23 +1532,21 @@ Layout ComputeLayout(const core::Tree& tree,
   }
 
   // Order all nodes by descending width, ties in input order. The key is the
-  // complemented big-endian IEEE representation, whose unsigned order matches
+  // complemented IEEE representation, whose unsigned order matches
   // descending width for the non-negative widths used here.
   core::Slab<uint64_t> keys = core::Slab<uint64_t>::Alloc(row_count);
   core::Slab<uint32_t> by_width = core::Slab<uint32_t>::Alloc(row_count);
   for (uint32_t node = 0; node < row_count; ++node) {
     uint64_t bits;
     memcpy(&bits, &width[node], sizeof(bits));
-    keys[node] = base::HostToBE64(~bits);
+    keys[node] = ~bits;
     by_width[node] = node;
   }
   core::Slab<uint32_t> scratch = core::Slab<uint32_t>::Alloc(row_count);
-  core::Slab<uint32_t> radix_counts = core::Slab<uint32_t>::Alloc(1u << 16);
-  const uint32_t* by_width_sorted = core::RadixSort(
-      by_width.begin(), by_width.end(), scratch.begin(), radix_counts.data(),
-      sizeof(uint64_t), [&](uint32_t node) {
-        return reinterpret_cast<const uint8_t*>(&keys[node]);
-      });
+  const uint32_t* by_width_sorted = core::StableSortByKey(
+      by_width.begin(), by_width.end(), scratch.begin(), 64,
+      [&](uint32_t node) { return keys[node]; },
+      [](uint32_t node) { return node; });
 
   // Distribute the width order into per-parent buckets. Roots go to one
   // strip per traversal direction, each starting at x = 0.
