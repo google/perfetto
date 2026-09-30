@@ -42,6 +42,7 @@ class RowCursor {
   // Rewinds and moves to the first row.
   bool Open() {
     source_.Rewind(*state_);
+    batch_ = nullptr;
     index_ = 0;
     size_ = 0;
     return Pull();
@@ -64,10 +65,10 @@ class RowCursor {
   template <typename T>
   PERFETTO_ALWAYS_INLINE T Value(uint32_t column) const {
     PERFETTO_DCHECK(index_ < size_);
-    return batch_.column(column).Value<T>(index_);
+    return batch_->column(column).Value<T>(index_);
   }
 
-  const RowBatch& batch() const { return batch_; }
+  const RowBatch& batch() const { return batch_ ? *batch_ : scratch_; }
   // Index of the current row in batch().
   uint32_t row() const { return index_; }
 
@@ -76,7 +77,9 @@ class RowCursor {
 
   const Source& source_;
   std::unique_ptr<OperatorState> state_;
-  RowBatch batch_;
+  RowBatch scratch_;
+  // The source's current batch, valid until the next pull.
+  RowBatch* batch_ = nullptr;
   uint32_t index_ = 0;
   uint32_t size_ = 0;
 };

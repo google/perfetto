@@ -54,7 +54,6 @@ class TreeNumberNodes : public Operator {
 
   std::unique_ptr<OperatorState> MakeState() const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
   // Whether every id seen so far was already its own node number.
@@ -81,7 +80,9 @@ class TreeNumberNodes : public Operator {
         FlexVector<uint32_t>::CreateWithSize(kMaxBatchRows);
   };
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
     // While the ids arriving are 0, 1, 2, ... they are already node numbers,
     // so the map stays empty.
     bool dense = true;

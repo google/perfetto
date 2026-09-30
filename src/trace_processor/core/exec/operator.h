@@ -48,6 +48,78 @@ class OperatorState {
   const T& Cast() const {
     return static_cast<const T&>(*this);
   }
+
+  // A state keeping data across the batches of a run is made with
+  // ResetEachRun, and Reset() before every run but the first.
+  virtual void Reset() {}
+  bool reset_each_run() const { return reset_each_run_; }
+
+ protected:
+  struct ResetEachRun {};
+  explicit OperatorState(ResetEachRun) : reset_each_run_(true) {}
+
+ private:
+  bool reset_each_run_ = false;
+};
+
+// Produces the batches a plan runs over.
+class Source {
+ public:
+  virtual ~Source();
+  Source(const Source&) = delete;
+  Source& operator=(const Source&) = delete;
+
+  // A source wrapping another source creates that source's state too, so one
+  // call builds the whole chain.
+  virtual std::unique_ptr<OperatorState> MakeState() const = 0;
+
+  // Fills `out` and returns true, or returns false when no batches are left.
+  // Owned columns remain valid while retained by a RowBatch. Unowned columns
+  // are borrowed until the next call; retaining consumers must materialize
+  // them. A successful empty batch is not exhaustion.
+  virtual bool GetData(RowBatch& out, OperatorState& state) const = 0;
+
+  // The next batch, or null when none are left: `scratch` filled by
+  // GetData(), unless the source has a batch of its own. Valid until the next
+  // call.
+  virtual RowBatch* Next(RowBatch& scratch, OperatorState& state) const {
+    return GetData(scratch, state) ? &scratch : nullptr;
+  }
+
+  // Restarts from the first batch.
+  virtual void Rewind(OperatorState& state) const = 0;
+
+  // After GetData() returns false, distinguishes exhaustion from failure.
+  virtual base::Status status(const OperatorState&) const {
+    return base::OkStatus();
+  }
+
+ protected:
+  Source() = default;
+};
+
+// A step changing the batch it is given in place. Unlike an Operator it never
+// holds rows back, so a pipeline runs it with nothing copied or buffered.
+class Transform {
+ public:
+  virtual ~Transform();
+  Transform(const Transform&) = delete;
+  Transform& operator=(const Transform&) = delete;
+
+  virtual std::unique_ptr<OperatorState> MakeState() const {
+    return std::make_unique<OperatorState>();
+  }
+
+  // False on failure, with status() saying why.
+  virtual bool Process(RowBatch& batch, OperatorState& state) const = 0;
+
+  // Why Process() returned false.
+  virtual base::Status status(const OperatorState&) const {
+    return base::OkStatus();
+  }
+
+ protected:
+  Transform() = default;
 };
 
 enum class BatchPreference : uint8_t { kLatency, kThroughput };
@@ -72,18 +144,22 @@ enum class OpResult : uint8_t {
 // Finish().
 class Operator {
  public:
+  // Fixed when the operator is built.
+  struct Traits {
+    // A preference, never permission to change row order. Downstream finite
+    // demand overrides throughput batching. Blocking remains intrinsic to an
+    // op.
+    BatchPreference preference = BatchPreference::kLatency;
+  };
+
   virtual ~Operator();
   Operator(const Operator&) = delete;
   Operator& operator=(const Operator&) = delete;
 
+  const Traits& traits() const { return traits_; }
+
   virtual std::unique_ptr<OperatorState> MakeState() const {
     return std::make_unique<OperatorState>();
-  }
-
-  // A preference, never permission to change row order. Downstream finite
-  // demand overrides throughput batching. Blocking remains intrinsic to an op.
-  virtual BatchPreference batch_preference() const {
-    return BatchPreference::kLatency;
   }
 
   virtual OpResult Execute(const RowBatch& in,
@@ -99,46 +175,17 @@ class Operator {
     return OpResult::kNeedMoreInput;
   }
 
-  // Resets `state` so the plan can be run again. An operator which carries
-  // nothing between batches has nothing to do here.
-  virtual void Rewind(OperatorState&) const {}
-
-  // Why Execute() returned kError.
+  // Why Execute() or Finish() returned kError.
   virtual base::Status status(const OperatorState&) const {
     return base::OkStatus();
   }
 
  protected:
   Operator() = default;
-};
+  explicit Operator(Traits traits) : traits_(traits) {}
 
-// Produces the batches a plan runs over.
-class Source {
- public:
-  virtual ~Source();
-  Source(const Source&) = delete;
-  Source& operator=(const Source&) = delete;
-
-  // A source wrapping another source creates that source's state too, so one
-  // call builds the whole chain.
-  virtual std::unique_ptr<OperatorState> MakeState() const = 0;
-
-  // Fills `out` and returns true, or returns false when no batches are left.
-  // Owned columns remain valid while retained by a RowBatch. Unowned columns
-  // are borrowed until the next call; retaining consumers must materialize
-  // them. A successful empty batch is not exhaustion.
-  virtual bool GetData(RowBatch& out, OperatorState& state) const = 0;
-
-  // Restarts from the first batch.
-  virtual void Rewind(OperatorState& state) const = 0;
-
-  // After GetData() returns false, distinguishes exhaustion from failure.
-  virtual base::Status status(const OperatorState&) const {
-    return base::OkStatus();
-  }
-
- protected:
-  Source() = default;
+ private:
+  Traits traits_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

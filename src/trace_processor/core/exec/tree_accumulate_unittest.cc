@@ -158,7 +158,7 @@ Result Accumulate(const std::vector<int64_t>& parent,
                   bool already_ordered = false) {
   RowSource source(parent, value, chunk_rows, std::move(order));
   // Ids become node numbers before anything else sees them.
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   if (!already_ordered) {
     if (up) {
@@ -239,7 +239,9 @@ TEST(TreeAccumulateTest, UpReportsIntegerOverflow) {
   RowBatch out;
   EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
-  op.Rewind(*state);
+  values[0] = 1;
+  state->Reset();
+  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
   EXPECT_TRUE(op.status(*state).ok());
 }
 
@@ -367,7 +369,7 @@ TEST(TreeAccumulateTest, TheChunkSizeDoesNotChangeTheAnswer) {
 TEST(TreeAccumulateTest, RunningAgainStartsOver) {
   RowSource source(Parents(), Values(), 2);
   TreeAccumulateSpec spec{3, 4, 2};
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
   ops.push_back(std::make_unique<TreeAccumulateUp>(spec));

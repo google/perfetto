@@ -172,8 +172,8 @@ base::Status AssertType::status(const OperatorState& state) const {
   return state.Cast<const State>().status;
 }
 
-void AssertType::Rewind(OperatorState& state) const {
-  state.Cast<State>().status = base::OkStatus();
+void AssertType::State::Reset() {
+  status = base::OkStatus();
 }
 
 bool AssertType::Widen(const ColumnView& column,

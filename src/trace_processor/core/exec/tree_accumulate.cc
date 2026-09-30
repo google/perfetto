@@ -38,7 +38,12 @@ namespace {
 // the totals computed for the current batch.
 class AccumulateState : public OperatorState {
  public:
+  AccumulateState() : OperatorState(ResetEachRun{}) {}
   ~AccumulateState() override;
+  void Reset() override {
+    by_node.clear();
+    status = base::OkStatus();
+  }
 
   std::vector<int64_t> by_node;
   std::vector<uint32_t> node_scratch;
@@ -139,17 +144,6 @@ std::unique_ptr<OperatorState> TreeAccumulateUp::MakeState() const {
 }
 std::unique_ptr<OperatorState> TreeAccumulateDown::MakeState() const {
   return std::make_unique<AccumulateState>();
-}
-
-void TreeAccumulateUp::Rewind(OperatorState& state) const {
-  AccumulateState& s = state.Cast<AccumulateState>();
-  s.by_node.clear();
-  s.status = base::OkStatus();
-}
-void TreeAccumulateDown::Rewind(OperatorState& state) const {
-  AccumulateState& s = state.Cast<AccumulateState>();
-  s.by_node.clear();
-  s.status = base::OkStatus();
 }
 
 base::Status TreeAccumulateUp::status(const OperatorState& state) const {
