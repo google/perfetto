@@ -101,8 +101,9 @@ void ProducerIPCService::InitializeConnection(
     base::ScopedFile shmem_fd = ipc::Service::TakeReceivedFD();
 
     if (shmem_fd) {
-      shmem = PosixSharedMemory::AttachToFd(
-          std::move(shmem_fd), /*require_seals_if_supported=*/true);
+      shmem = PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                            /*require_seals_if_supported=*/true,
+                                            TracingService::kMaxShmSize);
       if (!shmem) {
         PERFETTO_ELOG(
             "Couldn't map producer-provided SMB, falling back to "
