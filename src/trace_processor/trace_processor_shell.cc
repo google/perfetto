@@ -142,6 +142,8 @@ struct CommandLineOptions {
   bool allow_sql_file_access = false;
   std::string register_files_dir;
   std::string override_stdlib_path;
+  Config::DropDuplicateMachineData drop_duplicate_machine_data =
+      Config::DropDuplicateMachineData::kUnset;
 
   std::string pre_metrics_v1_path;
   std::string metric_v1_names;
@@ -521,6 +523,7 @@ enum LongOption {
   OPT_METRICS_OUTPUT,
   OPT_METRIC_EXTENSION,
 
+  OPT_DROP_DUPLICATE_MACHINE_DATA,
   OPT_HELP_CLASSIC,
 };
 
@@ -573,6 +576,8 @@ const option kLongOptions[] = {
     {"allow-sql-file-access", no_argument, nullptr, OPT_ALLOW_SQL_FILE_ACCESS},
     {"register-files-dir", required_argument, nullptr, OPT_REGISTER_FILES_DIR},
     {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
+    {"drop-duplicate-machine-data", required_argument, nullptr,
+     OPT_DROP_DUPLICATE_MACHINE_DATA},
 
     {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
     {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
@@ -752,6 +757,23 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_REGISTER_FILES_DIR) {
       command_line_options.register_files_dir = optarg;
+      continue;
+    }
+
+    if (option == OPT_DROP_DUPLICATE_MACHINE_DATA) {
+      if (strcmp(optarg, "on") == 0) {
+        command_line_options.drop_duplicate_machine_data =
+            Config::DropDuplicateMachineData::kOn;
+      } else if (strcmp(optarg, "off") == 0) {
+        command_line_options.drop_duplicate_machine_data =
+            Config::DropDuplicateMachineData::kOff;
+      } else {
+        PERFETTO_ELOG(
+            "Invalid value for --drop-duplicate-machine-data: %s (expected "
+            "'on' or 'off')",
+            optarg);
+        exit(1);
+      }
       continue;
     }
 
@@ -1091,6 +1113,13 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     if (!options.register_files_dir.empty()) {
       args.emplace_back("--register-files-dir");
       args.emplace_back(options.register_files_dir);
+    }
+    if (options.drop_duplicate_machine_data ==
+        Config::DropDuplicateMachineData::kOn) {
+      args.emplace_back("--drop-duplicate-machine-data=on");
+    } else if (options.drop_duplicate_machine_data ==
+               Config::DropDuplicateMachineData::kOff) {
+      args.emplace_back("--drop-duplicate-machine-data=off");
     }
     for (const auto& e : options.raw_metric_v1_extensions) {
       args.emplace_back("--metric-extension");
