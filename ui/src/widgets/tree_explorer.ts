@@ -31,6 +31,10 @@ import {parseUserFilterRegex} from './flamegraph_regex';
 export interface TreeExplorerActionContext {
   readonly properties: ReadonlyMap<string, string>;
   readonly node?: TreeExplorerNode;
+  // Names from the root down to (and including) the clicked node, i.e. the
+  // node's position in the tree. Present for node-level actions from the
+  // flamegraph; lets a drill target the exact box (path), not just its name.
+  readonly path?: ReadonlyArray<string>;
 }
 
 export interface TreeExplorerOptionalAction {
