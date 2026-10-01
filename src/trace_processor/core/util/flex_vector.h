@@ -172,16 +172,9 @@ class FlexVector {
   }
 
   // Resizes the vector to the specified size. If growing, new elements are
-  // uninitialized.
+  // uninitialized. Capacity grows as with reserve().
   void resize(uint64_t new_size) {
-    if (new_size > capacity()) {
-      Slab<T> new_slab =
-          Slab<T>::Alloc(base::AlignUp(new_size, kCapacityMultiple));
-      if (size_ > 0) {
-        memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
-      }
-      slab_ = std::move(new_slab);
-    }
+    reserve(new_size);
     size_ = new_size;
   }
 

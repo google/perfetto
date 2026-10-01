@@ -321,11 +321,6 @@ struct BitVector {
     memset(words_.data(), 0, words_.size() * sizeof(uint64_t));
   }
 
-  // Makes room for `new_size` bits without changing the size. Growth here is
-  // geometric where resize allocates exactly what was asked for, so anything
-  // filling a bit vector a chunk at a time has to come through here first.
-  void reserve(uint64_t new_size) { words_.reserve((new_size + 63) / 64); }
-
   // Resizes the vector to the specified size. If shrinking, bits past the new
   // size are cleared. If growing, new bits are set to the given value.
   void resize(uint64_t new_size, bool value = false) {
