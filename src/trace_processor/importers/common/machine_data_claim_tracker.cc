@@ -121,7 +121,7 @@ const char* MachineDataClaimTracker::KindToString(Kind kind) {
 }
 
 // static
-stats::KeyType MachineDataClaimTracker::StatForKind(Kind kind) {
+size_t MachineDataClaimTracker::StatForKind(Kind kind) {
   switch (kind) {
     case Kind::kSched:
       return stats::machine_sched_claim_conflict;
@@ -255,7 +255,7 @@ void MachineDataClaimTracker::RecordDrop(
     std::optional<TraceId> conflicting_trace) {
   Claims& claims = claims_[static_cast<size_t>(kind)];
   TraceId trace_id = context->trace_id();
-  stats::KeyType stat_key = StatForKind(kind);
+  size_t stat_key = StatForKind(kind);
   auto it = std::find_if(
       claims.drops.begin(), claims.drops.end(),
       [trace_id](const Drops& d) { return d.trace_id == trace_id; });

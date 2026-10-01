@@ -70,7 +70,7 @@ class MachineDataClaimTracker {
 
   static std::optional<Kind> KindForTracePacketField(uint32_t field_id);
   static const char* KindToString(Kind kind);
-  static stats::KeyType StatForKind(Kind kind);
+  static size_t StatForKind(Kind kind);
 
   static bool IsExclusive(Kind kind) { return kind == Kind::kCpuPerUid; }
 
