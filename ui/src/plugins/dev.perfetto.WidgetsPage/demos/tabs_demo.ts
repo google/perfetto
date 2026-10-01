@@ -17,7 +17,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Tabs, type TabsTab} from '../../../widgets/tabs';
 import {Button} from '../../../widgets/button';
 import {MenuItem} from '../../../widgets/menu';
-import {renderWidgetShowcase} from '../widgets_page_utils';
+import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {shortUuid} from '../../../base/uuid';
 
 interface TabEntry {
@@ -105,6 +105,7 @@ export function renderTabs(): m.Children {
           m(Tabs, {
             tabs,
             activeTabKey,
+            variant: opts.variant,
             reorderable: opts.reorderable,
             onTabChange: (key) => {
               activeTabKey = key;
@@ -176,6 +177,7 @@ export function renderTabs(): m.Children {
         menuItems: true,
         rightButton: false,
         lazy: false,
+        variant: new EnumOption('card', ['card', 'underline'] as const),
       },
     }),
   ];

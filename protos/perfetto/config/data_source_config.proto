@@ -58,6 +58,7 @@ import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
 import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/profiling/perf_event_config.proto";
+import "protos/perfetto/config/profiling/smaps_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
@@ -69,7 +70,16 @@ import "protos/perfetto/config/linux/journald_config.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 145
+//
+// Keep the lower IDs (up to 99) for fields that are *not* specific to
+// data-sources and needs to be processed by the traced daemon.
+//
+// All data source config fields must be marked as [lazy=true]. This prevents
+// the proto-to-cpp generator from recursing into those when generating the
+// cpp classes and polluting tracing/core with data-source-specific classes.
+// Instead they are treated as opaque strings containing raw proto bytes.
+//
+// Next id: 147
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -166,7 +176,7 @@ message DataSourceConfig {
   // overwritten packets (patches) using a ProtoVM instance with this config.
   // The ProtoVM program is specified at data source registration time through
   // the descriptor.
-
+  //
   // TODO(primiano): today when we enable a protovm_config, we actually accept
   // that if N producers advertise M different versions of the same program we
   // will create M instances of that program.
@@ -175,14 +185,6 @@ message DataSourceConfig {
   // Once the config store (b/482305876) exists we should move protovm programs
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
-
-  // Keep the lower IDs (up to 99) for fields that are *not* specific to
-  // data-sources and needs to be processed by the traced daemon.
-
-  // All data source config fields must be marked as [lazy=true]. This prevents
-  // the proto-to-cpp generator from recursing into those when generating the
-  // cpp classes and polluting tracing/core with data-source-specific classes.
-  // Instead they are treated as opaque strings containing raw proto bytes.
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
@@ -327,6 +329,9 @@ message DataSourceConfig {
   // Data source name: android.process_state
   optional AndroidProcessStateConfig android_process_state_config = 145
       [lazy = true];
+
+  // Data source name: linux.smaps
+  optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

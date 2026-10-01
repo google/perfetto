@@ -35,7 +35,6 @@ package perfetto.protos;
 // https://cs.chromium.org/chromium/src/cc/scheduler/scheduler.cc?q=Scheduler::AsPro
 //
 // All non-delta-timestamps are absolute CLOCK_MONOTONIC timestamps.
-
 enum ChromeCompositorSchedulerAction {
   CC_SCHEDULER_ACTION_UNSPECIFIED = 0;
   CC_SCHEDULER_ACTION_NONE = 1;

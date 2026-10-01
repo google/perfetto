@@ -63,12 +63,8 @@ const T* Flatten(const ColumnView& column,
     return data + selection.offset();
   }
   scratch->resize(count);
-  const uint32_t* rows = selection.data();
-  T* out = scratch->data();
-  for (uint32_t i = 0; i < count; ++i) {
-    out[i] = data[rows[i]];
-  }
-  return out;
+  selection.Gather(data, count, scratch->data());
+  return scratch->data();
 }
 
 const int64_t* FlattenValues(const ColumnView& column,

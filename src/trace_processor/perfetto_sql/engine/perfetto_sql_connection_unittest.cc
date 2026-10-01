@@ -930,6 +930,23 @@ TEST_F(PerfettoSqlConnectionPipelineTest, ExpandsMacros) {
                                           "2,0,30,NULL,30"));
 }
 
+// A table has the same columns however a pipeline reads it: directly as a
+// dataframe, or through SQL, as SQLite's own `SELECT *` shows it. Its hidden
+// `_auto_id` is left out either way.
+TEST_F(PerfettoSqlConnectionPipelineTest, SourcesAgreeOnColumnNames) {
+  ASSERT_TRUE(connection_
+                  ->Execute(SqlSource::FromExecuteQuery(R"(
+    CREATE PERFETTO TABLE spans AS SELECT 0 AS ts, 10 AS dur, 'a' AS name;
+    CREATE PERFETTO VIEW spans_view AS SELECT * FROM spans;
+  )"))
+                  .ok());
+  std::vector<std::string> expected = {"ts", "dur", "name"};
+  EXPECT_EQ(ColumnNames("SELECT * FROM spans"), expected);
+  EXPECT_EQ(ColumnNames("FROM spans"), expected);
+  EXPECT_EQ(ColumnNames("FROM (SELECT * FROM spans)"), expected);
+  EXPECT_EQ(ColumnNames("FROM spans_view"), expected);
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, DuplicateOutputNames) {
   const char kQuery[] = "FROM tree |> TREE ACCUMULATE UP SUM(self) AS self";
   auto rows = Rows(kQuery);
@@ -945,10 +962,13 @@ TEST_F(PerfettoSqlConnectionPipelineTest, DuplicateOutputNames) {
       testing::HasSubstr("column 'self' is ambiguous"));
 }
 
+// A source's columns need valid names, but a pipeline can give its own
+// columns any name, which must reach SQLite intact.
 TEST_F(PerfettoSqlConnectionPipelineTest, OutputNamesAreQuoted) {
-  EXPECT_THAT(ColumnNames(R"(FROM (SELECT 1 AS "", 2 AS "a""b"))"),
-              testing::ElementsAre("", "a\"b"));
-  auto rows = Rows(R"(FROM (SELECT 1 AS "", 2 AS "a""b"))");
+  const char* kSql =
+      R"(FROM (SELECT 1 AS x, 2 AS y) |> SELECT x AS "", y AS "a""b")";
+  EXPECT_THAT(ColumnNames(kSql), testing::ElementsAre("", "a\"b"));
+  auto rows = Rows(kSql);
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, testing::ElementsAre("1,2"));
 }
@@ -1114,7 +1134,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
     auto id = logical.AddColumn(name, core::Int64{});
     logical.output.push_back({name, id});
   }
-  logical.ops.emplace_back(pipeline::op::Scan{
+  pipeline::PlanNodeId scan = logical.AddNode(pipeline::op::Scan{
       SqlSource::FromExecuteQuery("SELECT id, parent_id, self FROM tree"),
       logical.output});
   auto total = logical.AddColumn("total", core::Int64{});
@@ -1124,7 +1144,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
   fold.parent_column = 1;
   fold.aggregates.push_back(
       {pipeline::op::TreeAccumulate::Function::kSum, 2, total});
-  logical.ops.emplace_back(std::move(fold));
+  logical.AddNode(std::move(fold), {scan});
   logical.output.push_back({"total", total});
   pipeline::LowerEnvironment env{connection_->sqlite_connection(), &pool_};
   // The root is last in child-first output. Filtering by its output rowid

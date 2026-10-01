@@ -16,6 +16,7 @@
 
 #include "src/perfetto_sql/analysis/relation.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -41,8 +42,11 @@ using ScopedParser = std::unique_ptr<SyntaqliteParser, ParserDeleter>;
 
 class TestCatalog : public Catalog {
  public:
-  void AddRelation(std::string name, std::vector<std::string> columns) {
-    relations_.Insert(std::move(name), TestLeafRelation{std::move(columns)});
+  void AddRelation(std::string name,
+                   std::vector<std::string> columns,
+                   std::vector<std::string> hidden = {}) {
+    relations_.Insert(std::move(name),
+                      TestLeafRelation{std::move(columns), std::move(hidden)});
   }
 
   void AddView(std::string name, std::string sql) {
@@ -61,7 +65,9 @@ class TestCatalog : public Catalog {
     result.name = name;
     result.columns.reserve(leaf->columns.size());
     for (const std::string& column : leaf->columns) {
-      result.columns.push_back({column, std::nullopt});
+      bool hidden = std::find(leaf->hidden.begin(), leaf->hidden.end(),
+                              column) != leaf->hidden.end();
+      result.columns.push_back({column, std::nullopt, hidden});
     }
     return result;
   }
@@ -75,6 +81,7 @@ class TestCatalog : public Catalog {
  private:
   struct TestLeafRelation {
     std::vector<std::string> columns;
+    std::vector<std::string> hidden;
   };
   struct ViewRelation {
     std::string sql;
@@ -157,6 +164,17 @@ TEST_F(RelationAnalyzerTest, ExpandsStars) {
   EXPECT_THAT(
       Select("SELECT * FROM slice"),
       testing::ElementsAre("id=slice.id", "ts=slice.ts", "name=slice.name"));
+}
+
+// As in SQLite, a hidden column is left out of stars but found by name.
+TEST_F(RelationAnalyzerTest, StarsSkipHiddenColumns) {
+  catalog_.AddRelation("frame", {"ts", "_auto_id"}, {"_auto_id"});
+  EXPECT_THAT(Select("SELECT * FROM frame"),
+              testing::ElementsAre("ts=frame.ts"));
+  EXPECT_THAT(Select("SELECT f.* FROM frame AS f"),
+              testing::ElementsAre("ts=frame.ts"));
+  EXPECT_THAT(Select("SELECT _auto_id, * FROM frame"),
+              testing::ElementsAre("_auto_id=frame._auto_id", "ts=frame.ts"));
 }
 
 TEST_F(RelationAnalyzerTest, ExplicitViewColumnNamesReplaceBodyNames) {

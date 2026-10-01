@@ -20,11 +20,13 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <type_traits>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/containers/interval_tree.h"
 
 namespace perfetto::trace_processor {
@@ -140,6 +142,74 @@ class IntervalIntersector {
     for (const auto& interval : intervals_) {
       handle_overlap(interval);
     }
+  }
+
+  // Intersects multiple sorted, non-overlapping interval sets using a
+  // k-pointer sweep algorithm in O(k*n) time and O(k) extra memory, where
+  // k is the number of tables and n is the total number of input intervals.
+  // Calls |cb(max_start, min_end, ids)| for each resulting overlap.
+  template <typename Tables, typename Callback>
+  static void IntersectNonOverlapping(const Tables& tables, Callback cb) {
+    size_t tables_count = tables.size();
+    if (tables_count == 0) {
+      return;
+    }
+
+    base::SmallVector<const Interval*, 16> cur;
+    base::SmallVector<Id, 16> ids;
+    for (size_t i = 0; i < tables_count; ++i) {
+      if (tables[i]->empty()) {
+        return;
+      }
+      cur.emplace_back(tables[i]->data());
+      ids.emplace_back(0u);
+    }
+
+    // Perfetto intervals have mixed boundary semantics: standard intervals
+    // [s, e) have an exclusive end, while zero-duration instants [t, t] have
+    // an inclusive end.
+    //
+    // Since timestamps are discrete integers, [s, e) covers integers up to
+    // e - 1. Converting ranges to their inclusive end (e - 1 for intervals,
+    // t for instants) allows us to work entirely with inclusive boundaries,
+    // turning the multi-way intersection and pointer sweep into standard
+    // arithmetic checks without complex branching or state variables.
+    auto inclusive_end = [](const Interval* in) {
+      PERFETTO_DCHECK(in->start <= in->end);
+      return in->start == in->end ? in->end : in->end - 1;
+    };
+
+    bool reached_end = false;
+    do {
+      Ts max_start = 0;
+      Ts min_end = std::numeric_limits<Ts>::max();
+      Ts min_inclusive_end = std::numeric_limits<Ts>::max();
+      for (size_t i = 0; i < tables_count; ++i) {
+        max_start = std::max(max_start, cur[i]->start);
+        min_end = std::min(min_end, cur[i]->end);
+        min_inclusive_end = std::min(min_inclusive_end, inclusive_end(cur[i]));
+      }
+
+      // All current intervals overlap, so emit their overlap
+      if (max_start <= min_inclusive_end) {
+        for (size_t i = 0; i < tables_count; ++i) {
+          ids[i] = cur[i]->id;
+        }
+        cb(max_start, min_end, ids.data());
+      }
+
+      // Advance table(s) whose interval ends first: Stop once any one table is
+      // exhausted, as no later interval will overlap all tables
+      for (size_t i = 0; i < tables_count; ++i) {
+        if (inclusive_end(cur[i]) == min_inclusive_end) {
+          ++cur[i];
+          if (cur[i] == tables[i]->data() + tables[i]->size()) {
+            reached_end = true;
+            break;
+          }
+        }
+      }
+    } while (!reached_end);
   }
 
   // Helper function to decide which intersector mode would be in given

@@ -124,6 +124,14 @@ struct BitVector {
     ++size_;
   }
 
+  // Appends 64 bits to a word-aligned vector, least significant bit first.
+  // Callers building a bitmap in words can resize the last partial word away.
+  PERFETTO_ALWAYS_INLINE void AppendWord(uint64_t word) {
+    PERFETTO_DCHECK(size_ % 64 == 0);
+    words_.push_back(word);
+    size_ += 64;
+  }
+
   // Adds n bits with the given value to the end of the vector.
   PERFETTO_ALWAYS_INLINE void push_back_multiple(bool bit, uint64_t count) {
     // TODO(lalitm): This is not the most efficient way to do this, but

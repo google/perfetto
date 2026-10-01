@@ -16740,10 +16740,19 @@ filegroup {
     ],
 }
 
+// GN: //src/profiling/smaps:smaps_data_source
+filegroup {
+    name: "perfetto_src_profiling_smaps_smaps_data_source",
+    srcs: [
+        "src/profiling/smaps/smaps_data_source.cc",
+    ],
+}
+
 // GN: //src/profiling/smaps:unittests
 filegroup {
     name: "perfetto_src_profiling_smaps_unittests",
     srcs: [
+        "src/profiling/smaps/smaps_data_source_unittest.cc",
         "src/profiling/smaps/smaps_unittest.cc",
     ],
 }
@@ -17797,9 +17806,12 @@ filegroup {
     name: "perfetto_src_trace_processor_core_exec_exec",
     srcs: [
         "src/trace_processor/core/exec/assert_type.cc",
+        "src/trace_processor/core/exec/batch_buffer.cc",
         "src/trace_processor/core/exec/breaker.cc",
+        "src/trace_processor/core/exec/column_chunk.cc",
         "src/trace_processor/core/exec/column_view.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
+        "src/trace_processor/core/exec/interval_intersect.cc",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/pipeline.cc",
         "src/trace_processor/core/exec/row_batch.cc",
@@ -17824,6 +17836,7 @@ filegroup {
         "src/trace_processor/core/exec/breaker_unittest.cc",
         "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
         "src/trace_processor/core/exec/executor_contract_unittest.cc",
+        "src/trace_processor/core/exec/interval_intersect_unittest.cc",
         "src/trace_processor/core/exec/operator_unittest.cc",
         "src/trace_processor/core/exec/row_batch_unittest.cc",
         "src/trace_processor/core/exec/row_store_unittest.cc",
@@ -19066,6 +19079,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_logical",
     srcs: [
         "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
+        "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
     ],
 }
@@ -24397,6 +24411,7 @@ cc_test {
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_unwinding",
         ":perfetto_src_profiling_smaps_smaps",
+        ":perfetto_src_profiling_smaps_smaps_data_source",
         ":perfetto_src_profiling_smaps_unittests",
         ":perfetto_src_proto_utils_pb_to_txt",
         ":perfetto_src_proto_utils_txt_to_pb",
@@ -25218,13 +25233,13 @@ cc_library_static {
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
-        "libpcre2",
         "libz",
         "libzstd",
     ],
     static_libs: [
         "libgmock",
         "libgtest",
+        "libpcre2",
         "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
@@ -26803,6 +26818,8 @@ cc_binary {
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_traced_perf_main",
         ":perfetto_src_profiling_perf_unwinding",
+        ":perfetto_src_profiling_smaps_smaps",
+        ":perfetto_src_profiling_smaps_smaps_data_source",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",

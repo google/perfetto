@@ -181,8 +181,7 @@ CREATE PERFETTO FUNCTION _is_relevant_notifications_blocking_call(
 RETURNS BOOL
 AS
 SELECT
-  $name = 'NotificationStackScrollLayout#onMeasure'
-  AND $dur > 0
+  $dur > 0
   AND ($name GLOB 'NotificationStackScrollLayout#onMeasure'
   OR $name GLOB 'NotificationToplineView#onMeasure'
   OR $name GLOB 'ExpNotRow#*'

@@ -522,7 +522,8 @@ def enable_pcre2(module):
   # symbols and the libpcre2 dep is suppressed for them.
   if '-DPERFETTO_REGEX_FORCE_STD' in module.cflags:
     return
-  if module.type == 'cc_binary_host':
+  # b/566975559: VTS devices may lack libpcre2.so for the test ABI.
+  if (module.type == 'cc_binary_host' or module.name == 'perfetto_vts_deps'):
     module.static_libs.add('libpcre2')
   elif module.host_supported:
     module.android.shared_libs.add('libpcre2')

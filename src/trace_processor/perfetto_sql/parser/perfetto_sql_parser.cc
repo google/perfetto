@@ -137,12 +137,12 @@ class MacroRewriteBuilder {
                       uint32_t stmt_doc_offset,
                       const base::FlatHashMap<std::string, Macro>& macros)
       : p_(p), stmt_(stmt), stmt_doc_offset_(stmt_doc_offset), macros_(macros) {
-    uint32_t total = syntaqlite_result_macro_count(p_);
+    uint32_t total = syntaqlite_result_rewrite_count(p_);
     no_macros_ = (total == 0);
     children_.resize(total);
     for (uint32_t i = 0; i < total; i++) {
-      auto r = syntaqlite_result_macro_rewrite_at(p_, i);
-      if (r.parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE) {
+      auto r = syntaqlite_result_rewrite_at(p_, i);
+      if (r.parent_idx == SYNTAQLITE_REWRITE_PARENT_SOURCE) {
         source_rooted_.push_back(i);
       } else {
         children_[r.parent_idx].push_back(i);
@@ -189,7 +189,7 @@ class MacroRewriteBuilder {
                                  uint32_t range_length) const {
     std::vector<RewriteItem> items;
     for (uint32_t idx : children) {
-      auto c = syntaqlite_result_macro_rewrite_at(p_, idx);
+      auto c = syntaqlite_result_rewrite_at(p_, idx);
       if (c.call_offset < range_offset)
         continue;
       if (c.call_offset + c.call_length > range_offset + range_length)
@@ -202,7 +202,7 @@ class MacroRewriteBuilder {
 
   // Recursive case: the expansion of a single macro rewrite.
   SqlSource BuildForRewrite(uint32_t idx) const {
-    auto r = syntaqlite_result_macro_rewrite_at(p_, idx);
+    auto r = syntaqlite_result_rewrite_at(p_, idx);
     std::string_view name(r.name, r.name_len);
     if (const Macro* m = macros_.Find(name); m)
       return BuildForUserMacro(idx, *m);
@@ -228,7 +228,7 @@ class MacroRewriteBuilder {
   SqlSource BuildForUserMacro(uint32_t idx, const Macro& m) const {
     std::vector<RewriteItem> items;
     for (uint32_t cidx : children_[idx]) {
-      auto c = syntaqlite_result_macro_rewrite_at(p_, cidx);
+      auto c = syntaqlite_result_rewrite_at(p_, cidx);
       if (c.body_call_length == SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL)
         continue;
       items.push_back({c.body_call_offset,
@@ -273,7 +273,7 @@ class MacroRewriteBuilder {
   }
 
   // Returns the SqlSource for the byte range [offset, offset+length) inside
-  // `parent`'s text (`parent` is either SYNTAQLITE_MACRO_PARENT_SOURCE or
+  // `parent`'s text (`parent` is either SYNTAQLITE_REWRITE_PARENT_SOURCE or
   // a rewrite index).
   //
   // If that range lies inside a `$param` substitution of `parent`, the arg
@@ -285,7 +285,7 @@ class MacroRewriteBuilder {
   SqlSource AuthoredSourceOf(uint32_t parent,
                              uint32_t offset,
                              uint32_t length) const {
-    if (parent == SYNTAQLITE_MACRO_PARENT_SOURCE)
+    if (parent == SYNTAQLITE_REWRITE_PARENT_SOURCE)
       return stmt_.Substr(offset + stmt_doc_offset_, length);
     uint32_t seg_count = syntaqlite_macro_rewrite_arg_segment_count(p_, parent);
     for (uint32_t i = 0; i < seg_count; i++) {
@@ -298,7 +298,7 @@ class MacroRewriteBuilder {
       }
     }
     // Literal text in `parent`'s body - not from any $param.
-    auto r = syntaqlite_result_macro_rewrite_at(p_, parent);
+    auto r = syntaqlite_result_rewrite_at(p_, parent);
     return SqlSource::FromMacroExpansion(
         std::string(r.expansion + offset, length),
         std::string(r.name, r.name_len));
@@ -331,7 +331,7 @@ class MacroRewriteBuilder {
   bool no_macros_ = true;
   // children_[parent_idx] = rewrite indices whose `parent_idx` equals that.
   std::vector<std::vector<uint32_t>> children_;
-  // Rewrites whose parent is SYNTAQLITE_MACRO_PARENT_SOURCE.
+  // Rewrites whose parent is SYNTAQLITE_REWRITE_PARENT_SOURCE.
   std::vector<uint32_t> source_rooted_;
 };
 

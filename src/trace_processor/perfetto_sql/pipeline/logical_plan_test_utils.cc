@@ -22,6 +22,7 @@
 #include <variant>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -55,53 +56,93 @@ std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   return out;
 }
 
-std::string OpString(const LogicalPlan& plan, const Op& op) {
-  struct Visitor {
-    const LogicalPlan& plan;
-    std::string operator()(const op::Scan& scan) const {
-      std::string out = "Scan(";
-      if (const auto* dataframe =
-              std::get_if<op::Scan::Dataframe>(&scan.source)) {
-        out += "table " + dataframe->name;
-      } else {
-        out += "sql " + std::get<SqlSource>(scan.source).sql();
-      }
-      out += ") [";
-      for (size_t i = 0; i < scan.columns.size(); ++i) {
-        if (i)
-          out += ", ";
-        out += ColumnString(plan, scan.columns[i].id) + " AS " +
-               scan.columns[i].name;
-      }
-      return out + "]";
+std::string ScanString(const LogicalPlan& plan, const op::Scan& scan) {
+  std::string out = "Scan(";
+  switch (scan.source.index()) {
+    case base::variant_index<op::Scan::Source, op::Scan::Dataframe>():
+      out +=
+          "table " + base::unchecked_get<op::Scan::Dataframe>(scan.source).name;
+      break;
+    case base::variant_index<op::Scan::Source, SqlSource>():
+      out += "sql " + base::unchecked_get<SqlSource>(scan.source).sql();
+      break;
+    default:
+      PERFETTO_FATAL("Unknown scan source");
+  }
+  out += ") [";
+  for (size_t i = 0; i < scan.columns.size(); ++i) {
+    if (i) {
+      out += ", ";
     }
-    std::string operator()(const op::TreeAccumulate& acc) const {
-      std::string out = "TreeAccumulate(";
-      out += acc.direction == op::TreeDirection::kUp ? "up" : "down";
-      out += ", node=#" + std::to_string(acc.node_column);
-      out += ", parent=#" + std::to_string(acc.parent_column);
-      for (const auto& agg : acc.aggregates) {
-        PERFETTO_DCHECK(agg.function == op::TreeAccumulate::Function::kSum);
-        out += ", SUM(#" + std::to_string(agg.column) + ") -> " +
-               ColumnString(plan, agg.output);
-      }
-      return out + ")";
+    out +=
+        ColumnString(plan, scan.columns[i].id) + " AS " + scan.columns[i].name;
+  }
+  return out + "]";
+}
+
+std::string TreeAccumulateString(const LogicalPlan& plan,
+                                 const op::TreeAccumulate& acc) {
+  std::string out = "TreeAccumulate(";
+  out += acc.direction == op::TreeDirection::kUp ? "up" : "down";
+  out += ", node=#" + std::to_string(acc.node_column);
+  out += ", parent=#" + std::to_string(acc.parent_column);
+  for (const auto& agg : acc.aggregates) {
+    PERFETTO_DCHECK(agg.function == op::TreeAccumulate::Function::kSum);
+    out += ", SUM(#" + std::to_string(agg.column) + ") -> " +
+           ColumnString(plan, agg.output);
+  }
+  return out + ")";
+}
+
+std::string IntervalIntersectString(const LogicalPlan& plan,
+                                    const PlanNode& node) {
+  const auto& ii = node.Cast<op::IntervalIntersect>();
+  std::string out = "IntervalIntersect(ts=#" + std::to_string(ii.ts) +
+                    ", dur=#" + std::to_string(ii.dur) + ")";
+  for (uint32_t i = 0; i < ii.operands.size(); i++) {
+    const op::IntervalIntersect::Operand& operand = ii.operands[i];
+    out += "\n  operand(ts=#" + std::to_string(operand.ts) + ", dur=#" +
+           std::to_string(operand.dur);
+    for (ColumnId key : operand.keys) {
+      out += ", key=#" + std::to_string(key);
     }
-  };
-  return std::visit(Visitor{plan}, op);
+    out += ", carries=[";
+    for (uint32_t c = 0; c < operand.carried.size(); c++) {
+      out += (c ? ", #" : "#") + std::to_string(operand.carried[c]);
+    }
+    out += "]";
+    out += ")\n    " +
+           ScanString(plan, plan.nodes[node.children[i]].Cast<op::Scan>());
+  }
+  return out;
+}
+
+// Prints sources first so a pipeline reads in the order it runs.
+// Intersection operands are printed inline.
+std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
+  const PlanNode& node = plan.nodes[id];
+  switch (node.op.index()) {
+    case base::variant_index<Op, op::Scan>():
+      return ScanString(plan, node.Cast<op::Scan>()) + "\n";
+    case base::variant_index<Op, op::TreeAccumulate>():
+      return SubtreeString(plan, node.children[0]) +
+             TreeAccumulateString(plan, node.Cast<op::TreeAccumulate>()) + "\n";
+    case base::variant_index<Op, op::IntervalIntersect>():
+      return IntervalIntersectString(plan, node) + "\n";
+    default:
+      PERFETTO_FATAL("Unknown operator");
+  }
 }
 
 }  // namespace
 
 std::string LogicalPlanToString(const LogicalPlan& plan) {
-  std::string out;
-  for (const Op& op : plan.ops) {
-    out += OpString(plan, op) + "\n";
-  }
+  std::string out = SubtreeString(plan, plan.root);
   out += "Output(";
   for (size_t i = 0; i < plan.output.size(); ++i) {
-    if (i)
+    if (i) {
       out += ", ";
+    }
     out +=
         "#" + std::to_string(plan.output[i].id) + " AS " + plan.output[i].name;
   }

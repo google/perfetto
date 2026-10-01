@@ -101,7 +101,7 @@ message Mapping {
   // exact_offset is the offset into the library file of this mapping.
   // start_offset is the offset into the library file of the first mapping
   // for that library. For native libraries (.so files) this should be 0.
-
+  //
   // This is not set on Android 10.
   optional uint64 exact_offset = 8;
 

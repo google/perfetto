@@ -75,6 +75,11 @@ export interface TabsAttrs {
   readonly newTabContent?: m.Children;
   // Content to render on the right side of the tab bar.
   readonly rightContent?: m.Children;
+  // Visual style of the tab bar. 'card' (the default) renders classic
+  // boxed tab handles on a secondary-background bar; 'underline' renders
+  // flat text tabs with a primary underline on the active tab, matching the
+  // look of the (deprecated) TabStrip component.
+  readonly variant?: 'card' | 'underline';
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -262,6 +267,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       onNewTab,
       newTabContent,
       rightContent,
+      variant = 'card',
       className,
     } = attrs;
 
@@ -275,7 +281,12 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
 
     return m(
       '.pf-tabs',
-      {className},
+      {
+        className: classNames(
+          className,
+          variant === 'underline' && 'pf-tabs--underline',
+        ),
+      },
       m(
         '.pf-tabs__tabs',
         tabs.map((tab, index) => {

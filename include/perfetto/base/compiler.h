@@ -113,7 +113,7 @@ extern "C" void __msan_unpoison(void const volatile*, size_t);
 #endif  // __clang__
 
 #if defined(__GNUC__) || defined(__clang__)
-#define PERFETTO_IS_LITTLE_ENDIAN() __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define PERFETTO_IS_LITTLE_ENDIAN() (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #else
 // Assume all MSVC targets are little endian.
 #define PERFETTO_IS_LITTLE_ENDIAN() 1

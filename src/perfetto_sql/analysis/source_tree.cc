@@ -275,9 +275,9 @@ void CollectStatementRefs(SyntaqliteParser* p, RawRefs& out) {
         break;
     }
   }
-  uint32_t rw_count = syntaqlite_result_macro_count(p);
+  uint32_t rw_count = syntaqlite_result_rewrite_count(p);
   for (uint32_t i = 0; i < rw_count; ++i) {
-    SyntaqliteMacroRewrite rw = syntaqlite_result_macro_rewrite_at(p, i);
+    SyntaqliteRewrite rw = syntaqlite_result_rewrite_at(p, i);
     if (rw.name && rw.name_len > 0)
       out.macro_invocations.Insert(std::string(rw.name, rw.name_len));
   }

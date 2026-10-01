@@ -15,6 +15,7 @@ cc_test {
   ],
   static_libs: [
     "libgmock",
+    "libpcre2",
     "perfetto_flags_c_lib",
     "perfetto_vts_deps",
   ],
@@ -24,7 +25,6 @@ cc_test {
   shared_libs: [
     "libandroid",
     "liblog",
-    "libpcre2",
   ],
   test_suites: [
     "vts",

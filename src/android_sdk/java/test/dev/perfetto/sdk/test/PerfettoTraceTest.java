@@ -1450,28 +1450,4 @@ public class PerfettoTraceTest {
     assertThat(PerfettoTrace.register(false)).isTrue();
     assertThat(PerfettoTrace.getAttempedSystemRegistration()).isTrue();
   }
-
-  @Test
-  public void testCategorySetupSafeWhenUnregistered() throws Exception {
-    java.lang.reflect.Field field = PerfettoTrace.class.getDeclaredField("sIsRegistered");
-    field.setAccessible(true);
-    boolean prev = (boolean) field.get(null);
-    field.set(null, false);
-    try {
-      Category unregCategory = new Category("unregistered_test_category");
-      assertThat(unregCategory.isEnabled()).isFalse();
-      assertThat(unregCategory.isRegistered()).isFalse();
-
-      // When sIsRegistered == false, register() hits the early return and stays unregistered
-      unregCategory.register();
-      assertThat(unregCategory.isRegistered()).isFalse();
-      assertThat(unregCategory.isEnabled()).isFalse();
-
-      // Unregistering should also be a safe no-op
-      unregCategory.unregister();
-      assertThat(unregCategory.isRegistered()).isFalse();
-    } finally {
-      field.set(null, prev);
-    }
-  }
 }

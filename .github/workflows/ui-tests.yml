@@ -83,7 +83,7 @@ jobs:
             if (uiBuildUrl && context.issue.number) {
               // Unique marker to identify our comment
               const marker = "<!-- perfetto-ui-build-comment -->";
-              const header = `${marker}\n### 🎨 Perfetto UI Builds\n`;
+              const header = `${marker}\n### 🎨 Perfetto UI Builds & Tests\n`;
 
               // Get commit info for the new entry
               const commitSha = context.sha.substring(0, 7);
@@ -133,6 +133,7 @@ jobs:
         run: ui/run-unittests --out out/ui --no-build
 
       - name: UI integrationtests
+        id: integrationtests
         shell: bash
         run: xvfb-run ui/run-integrationtests --out out/ui --no-docker --no-build
 
@@ -161,8 +162,13 @@ jobs:
           # of all copied files to stdout.
           gcloud storage cp --no-user-output-enabled --recursive "$UI_TEST_ARTIFACTS" "gs://$PERFETTO_GCS_DST/ui-test-artifacts"
 
+          # Exported only once the report has actually been uploaded, so the
+          # PR comment step below can't link to something that doesn't exist.
+          UI_TEST_REPORT_URL="https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/index.html"
+          echo "UI_TEST_REPORT_URL=$UI_TEST_REPORT_URL" >> $GITHUB_ENV
+
           echo "UI integration test report with screnshots:"
-          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/index.html"
+          echo "$UI_TEST_REPORT_URL"
           echo ""
           echo "To download locally the changed screenshots run:"
           echo "tools/download_changed_screenshots.py $PERFETTO_CI_JOB_ID"
@@ -181,6 +187,59 @@ jobs:
             echo "tools/download_changed_screenshots.py $PERFETTO_CI_JOB_ID"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment PR with UI test report link
+        # Only when the Playwright tests themselves failed. Using
+        # steps.integrationtests.outcome (rather than failure()) avoids posting
+        # a "tests failed" link when an unrelated later step, e.g. the format
+        # check, is the thing that failed.
+        if: ${{ always() &&
+          steps.integrationtests.outcome == 'failure' &&
+          env.UI_TEST_REPORT_URL != '' &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const reportUrl = process.env.UI_TEST_REPORT_URL;
+
+            if (reportUrl && context.issue.number) {
+              // Same marker as the UI build comment above: we append to that
+              // comment rather than creating a second one.
+              const marker = "<!-- perfetto-ui-build-comment -->";
+              const header = `${marker}\n### 🎨 Perfetto UI Builds & Tests\n`;
+
+              // Same bullet level as the build entry it follows.
+              const newEntry =
+                  `- ❌ **Playwright tests failed**: [test report](${reportUrl})`;
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+
+              const botComment = comments.find(c => c.body.includes(marker));
+
+              let body;
+              if (botComment) {
+                body = botComment.body + '\n' + newEntry;
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: body
+                });
+              } else {
+                body = header + '\n' + newEntry;
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: body
+                });
+              }
+            }
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'

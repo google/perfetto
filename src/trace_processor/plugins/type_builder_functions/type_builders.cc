@@ -382,18 +382,20 @@ struct IntervalTreeIntervalsAgg
     agg_ctx.last_interval_start = interval.start;
     interval.end = interval.start + static_cast<uint64_t>(dur);
 
+    // Appends |interval|, clearing |is_nonoverlapping| if it overlaps the
+    // previous interval. Intervals arrive sorted by start, so comparing with
+    // the previous one is enough.
+    auto push_interval = [&interval](perfetto_sql::Partition& p) {
+      if (p.is_nonoverlapping && !p.intervals.empty()) {
+        p.is_nonoverlapping = !IsOverlapping(p.intervals.back(), interval);
+      }
+      p.intervals.push_back(interval);
+    };
+
     // Fast path for no partitions.
     auto& parts = agg_ctx.partitions;
     if (argc == kMinArgCount) {
-      auto& part = parts.partitions_map[0];
-      part.intervals.push_back(interval);
-      if (part.is_nonoverlapping) {
-        if (interval.start < part.last_interval) {
-          part.is_nonoverlapping = false;
-        } else {
-          part.last_interval = interval.end;
-        }
-      }
+      push_interval(parts.partitions_map[0]);
       return;
     }
 
@@ -425,29 +427,11 @@ struct IntervalTreeIntervalsAgg
       j++;
     }
 
-    uint64_t key = h.digest();
-    auto* part = parts.partitions_map.Find(key);
-
-    // If we encountered this partition before we only have to push the interval
-    // into it.
-    if (part) {
-      part->intervals.push_back(interval);
-      if (part->is_nonoverlapping) {
-        if (interval.start < part->last_interval) {
-          part->is_nonoverlapping = false;
-        } else {
-          part->last_interval = interval.end;
-        }
-      }
-      return;
+    auto& part = parts.partitions_map[h.digest()];
+    if (part.intervals.empty()) {
+      part.sql_values = agg_ctx.tmp_vals;
     }
-
-    perfetto_sql::Partition new_partition;
-    new_partition.sql_values = agg_ctx.tmp_vals;
-    new_partition.last_interval = interval.end;
-    new_partition.intervals = {interval};
-
-    parts.partitions_map[key] = std::move(new_partition);
+    push_interval(part);
   }
 
   static void Final(sqlite3_context* ctx) {

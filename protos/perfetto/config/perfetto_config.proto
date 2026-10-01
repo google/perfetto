@@ -641,7 +641,6 @@ enum SemanticType {
 // Pefetto SQL by using the following query:
 ///
 //`SELECT * FROM metadata WHERE name GLOB 'trace_attribute.*';`
-
 message TraceAttributes {
   message Attribute {
     // The key
@@ -1475,6 +1474,9 @@ message V8Config {
 // Proto definition based on the struct _EVENT_TRACE_PROPERTIES definition
 // See: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/
 // ns-evntrace-event_trace_properties
+//
+// See the list of keywords for for individual providers.
+// https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 message EtwConfig {
   // The KernelFlag represent list of kernel flags that we are intrested in.
   // To get a more extensive list run 'xperf -providers k'.
@@ -1487,9 +1489,6 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1 [deprecated = true];
-
-  // See the list of keywords for for individual providers.
-  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 
   // Provides events relating to the scheduler.
   repeated string scheduler_provider_events = 2;
@@ -1886,7 +1885,7 @@ message GpuCounterConfig {
   // Selects which counters to sample. Use either counter_ids or counter_names,
   // not both. Counter IDs and names correspond to the ones described in
   // GpuCounterSpec in the data source descriptor.
-
+  //
   // List of counter IDs to be sampled.
   repeated uint32 counter_ids = 2;
 
@@ -2011,6 +2010,12 @@ message GpuRenderStagesConfig {
 
   // Trace metrics to capture for each render stage
   repeated string trace_metrics = 3;
+
+  // Enable per-draw-call slices, with real per-occurrence timestamps and metric
+  // values, on the gpu.renderstages data source. Disabled by default.
+  // When drawcall_stages is enabled, full_loadstore and low_overhead are
+  // ignored and their default values are used.
+  optional bool drawcall_stages = 4;
 }
 
 // End of protos/perfetto/config/gpu/gpu_renderstages_config.proto
@@ -2460,7 +2465,54 @@ message HeapprofdConfig {
 
 // Begin of protos/perfetto/config/profiling/smaps_config.proto
 
-// Config for collecting /proc/pid/smaps.
+// Config for the "linux.smaps" data source, describes one-shot or periodic
+// /proc/pid/smaps collection.
+//
+// A valid config must specify at least one |target_cmdline|. Example:
+//
+// data_sources {
+//   config {
+//     name: "linux.smaps"
+//     process_smaps_config {
+//       scope {
+//         target_cmdline: "top"
+//         target_cmdline: "tmux"
+//       }
+//     }
+//   }
+// }
+message ProcessSmapsConfig {
+  // Which fields to record per process.
+  // If unset, defaults to {size, rss, anon, swap}, aggregated by path name.
+  optional SmapsConfig smaps_config = 1;
+
+  // Which processes to record. At least one field must be set.
+  message Scope {
+    // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
+    // comm string).
+    //
+    // This field can specify a single wildcard (*), and the profiler will
+    // attempt to match it in two possible ways:
+    // * if the pattern starts with a '/', then it is matched against the first
+    //   segment of the cmdline (i.e. argv0). For example "/bin/e*" would match
+    //   "/bin/echo".
+    // * otherwise the pattern is matched against the part of argv0
+    //   corresponding to the binary name (this is unrelated to /proc/pid/exe).
+    //   For example "echo" would match "/bin/echo".
+    //
+    // Implementation note: at most 511 characters of cmdline are considered.
+    repeated string target_cmdline = 1;
+  }
+  optional Scope scope = 2;
+
+  // How often to recapture the smaps, including re-evaluating which processes
+  // match the |scope|. May be overridden by the implementation (at the time of
+  // writing, [1s, 24hr] range).
+  // If zero or unset, each process is captured only once at start.
+  optional uint32 read_period_ms = 3;
+}
+
+// Describes what to record from /proc/pid/smaps.
 message SmapsConfig {
   enum VmaField {
     VMA_FIELD_UNKNOWN = 0;
@@ -4357,7 +4409,7 @@ message StatsdPullAtomConfig {
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
 // the corresponding string definitions for the actual /proc files parser.
-
+//
 // Counter definitions for Linux's /proc/meminfo.
 enum MeminfoCounters {
   MEMINFO_UNSPECIFIED = 0;
@@ -4743,45 +4795,44 @@ message TestConfig {
 
 // Begin of protos/perfetto/config/track_event/track_event_config.proto
 
+// The following fields define the set of enabled trace categories. Each list
+// item is a glob.
+//
+// To determine if category is enabled, it is checked against the filters in
+// the following order:
+//
+//   1. Exact matches in enabled categories.
+//   2. Exact matches in enabled tags.
+//   3. Exact matches in disabled categories.
+//   4. Exact matches in disabled tags.
+//   5. Pattern matches in enabled categories.
+//   6. Pattern matches in enabled tags.
+//   7. Pattern matches in disabled categories.
+//   8. Pattern matches in disabled tags.
+//
+// If none of the steps produced a match:
+//  - In the C++ SDK (`perfetto::Category`), categories are enabled by
+//  default.
+//  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
+//
+// Examples:
+//
+//  - To enable all non-slow/debug categories:
+//
+//       enabled_categories: "*"
+//
+//  - To enable specific categories:
+//
+//       disabled_categories: "*"
+//       enabled_categories: "my_category"
+//       enabled_categories: "my_category2"
+//
+//  - To enable only categories with a specific tag:
+//
+//       disabled_tags: "*"
+//       enabled_tags: "my_tag"
+//
 message TrackEventConfig {
-  // The following fields define the set of enabled trace categories. Each list
-  // item is a glob.
-  //
-  // To determine if category is enabled, it is checked against the filters in
-  // the following order:
-  //
-  //   1. Exact matches in enabled categories.
-  //   2. Exact matches in enabled tags.
-  //   3. Exact matches in disabled categories.
-  //   4. Exact matches in disabled tags.
-  //   5. Pattern matches in enabled categories.
-  //   6. Pattern matches in enabled tags.
-  //   7. Pattern matches in disabled categories.
-  //   8. Pattern matches in disabled tags.
-  //
-  // If none of the steps produced a match:
-  //  - In the C++ SDK (`perfetto::Category`), categories are enabled by
-  //  default.
-  //  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
-  //
-  // Examples:
-  //
-  //  - To enable all non-slow/debug categories:
-  //
-  //       enabled_categories: "*"
-  //
-  //  - To enable specific categories:
-  //
-  //       disabled_categories: "*"
-  //       enabled_categories: "my_category"
-  //       enabled_categories: "my_category2"
-  //
-  //  - To enable only categories with a specific tag:
-  //
-  //       disabled_tags: "*"
-  //       enabled_tags: "my_tag"
-  //
-
   // Default: []
   repeated string disabled_categories = 1;
 
@@ -4836,7 +4887,16 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 145
+//
+// Keep the lower IDs (up to 99) for fields that are *not* specific to
+// data-sources and needs to be processed by the traced daemon.
+//
+// All data source config fields must be marked as [lazy=true]. This prevents
+// the proto-to-cpp generator from recursing into those when generating the
+// cpp classes and polluting tracing/core with data-source-specific classes.
+// Instead they are treated as opaque strings containing raw proto bytes.
+//
+// Next id: 147
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4933,7 +4993,7 @@ message DataSourceConfig {
   // overwritten packets (patches) using a ProtoVM instance with this config.
   // The ProtoVM program is specified at data source registration time through
   // the descriptor.
-
+  //
   // TODO(primiano): today when we enable a protovm_config, we actually accept
   // that if N producers advertise M different versions of the same program we
   // will create M instances of that program.
@@ -4942,14 +5002,6 @@ message DataSourceConfig {
   // Once the config store (b/482305876) exists we should move protovm programs
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
-
-  // Keep the lower IDs (up to 99) for fields that are *not* specific to
-  // data-sources and needs to be processed by the traced daemon.
-
-  // All data source config fields must be marked as [lazy=true]. This prevents
-  // the proto-to-cpp generator from recursing into those when generating the
-  // cpp classes and polluting tracing/core with data-source-specific classes.
-  // Instead they are treated as opaque strings containing raw proto bytes.
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
@@ -5094,6 +5146,9 @@ message DataSourceConfig {
   // Data source name: android.process_state
   optional AndroidProcessStateConfig android_process_state_config = 145
       [lazy = true];
+
+  // Data source name: linux.smaps
+  optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -5484,11 +5539,11 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 4;
-
+      //
       // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
       // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
+      CLONE_SNAPSHOT = 4;
     }
     optional TriggerMode trigger_mode = 1;
 
@@ -5629,12 +5684,11 @@ message TraceConfig {
   // incident. This field is read by perfetto_cmd, rather than the tracing
   // service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * all of |destination_package|, |destination_class| and |privacy_level|
+  //    must be set.
+  //  * |skip_incidentd| must be explicitly set to true.
   message IncidentReportConfig {
-    // In this message, either:
-    //  * all of |destination_package|, |destination_class| and |privacy_level|
-    //    must be set.
-    //  * |skip_incidentd| must be explicitly set to true.
-
     optional string destination_package = 1;
     optional string destination_class = 2;
     // Level of filtering in the requested incident. See |Destination| in
@@ -5693,6 +5747,15 @@ message TraceConfig {
   // Introduced in Android S, but it was broken (b/195065199). Reintroduced in
   // Android T with a different field number. Updated in Android U with a new
   // bytecode version which supports string filtering.
+  //
+  // The principles and terminology of string filtering is heavily inspired by
+  // iptables. A "rule" decide how strings should be filtered. Each rule
+  // contains a "policy" which indicates the algorithm to use for filtering.
+  // A "chain" is a list of rules which will be sequentially checked against
+  // each string.
+  //
+  // The first rule which applies to the string terminates filtering for that
+  // string. If no rules apply, the string is left unchanged.
   message TraceFilter {
     // =========================
     // Filter bytecode.
@@ -5708,15 +5771,6 @@ message TraceConfig {
     // =========================
     // String filtering
     // =========================
-
-    // The principles and terminology of string filtering is heavily inspired by
-    // iptables. A "rule" decide how strings should be filtered. Each rule
-    // contains a "policy" which indicates the algorithm to use for filtering.
-    // A "chain" is a list of rules which will be sequentially checked against
-    // each string.
-    //
-    // The first rule which applies to the string terminates filtering for that
-    // string. If no rules apply, the string is left unchanged.
 
     // A policy specifies which algorithm should be used for filtering the
     // string.
@@ -5867,11 +5921,10 @@ message TraceConfig {
   // Android framework. This field is read by perfetto_cmd, rather than the
   // tracing service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * |reporter_service_package| and |reporter_service_class| must be set.
+  //  * |skip_reporting| must be explicitly set to true.
   message AndroidReportConfig {
-    // In this message, either:
-    //  * |reporter_service_package| and |reporter_service_class| must be set.
-    //  * |skip_reporting| must be explicitly set to true.
-
     optional string reporter_service_package = 1;
     optional string reporter_service_class = 2;
 
@@ -6008,7 +6061,7 @@ message TraceConfig {
 
     // The following modes are intended for advanced usage and not recommended
     // for general use.
-
+    //
     // Do not flush buffers before periodic writes into the file.
     // Use this mode if you want to minimize the performance impact of flushes
     // and can tolerate potentially missing the most recent data in the trace

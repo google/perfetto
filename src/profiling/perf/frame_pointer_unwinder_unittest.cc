@@ -17,6 +17,12 @@
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
 #include <sys/mman.h>
+#include <unwindstack/MachineArm64.h>
+#include <unwindstack/MachineX86_64.h>
+#include <unwindstack/RegsArm.h>
+#include <unwindstack/RegsArm64.h>
+#include <unwindstack/RegsX86.h>
+#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
 
 #include "perfetto/base/logging.h"
@@ -27,86 +33,6 @@
 namespace perfetto {
 namespace profiling {
 namespace {
-
-class RegsFake : public unwindstack::Regs {
- public:
-  explicit RegsFake(uint16_t total_regs)
-      : unwindstack::Regs(
-            total_regs,
-            unwindstack::Regs::Location(unwindstack::Regs::LOCATION_UNKNOWN,
-                                        0)) {
-    fake_data_ = std::make_unique<uint64_t[]>(total_regs);
-  }
-  ~RegsFake() override = default;
-
-#if defined(UPDATED_REGS)
-  unwindstack::ArchEnum Arch() const override { return fake_arch_; }
-  const void* RawData() const override { return fake_data_.get(); }
-  void* RawData() override { return fake_data_.get(); }
-  uint64_t pc() const override { return fake_pc_; }
-  uint64_t sp() const override { return fake_sp_; }
-#else
-  unwindstack::ArchEnum Arch() { return fake_arch_; }
-  unwindstack::ArchEnum Arch() const { return fake_arch_; }
-  void* RawData() override { return fake_data_.get(); }
-  uint64_t pc() { return fake_pc_; }
-  uint64_t pc() const { return fake_pc_; }
-  uint64_t sp() { return fake_sp_; }
-  uint64_t sp() const { return fake_sp_; }
-#endif
-  void set_pc(uint64_t pc) override { fake_pc_ = pc; }
-  void set_sp(uint64_t sp) override { fake_sp_ = sp; }
-
-  void set_fp(uint64_t fp) {
-    switch (fake_arch_) {
-      case unwindstack::ARCH_ARM64:
-        fake_data_[unwindstack::Arm64Reg::ARM64_REG_R29] = fp;
-        break;
-      case unwindstack::ARCH_X86_64:
-        fake_data_[unwindstack::X86_64Reg::X86_64_REG_RBP] = fp;
-        break;
-      case unwindstack::ARCH_RISCV64:
-        fake_data_[unwindstack::Riscv64Reg::RISCV64_REG_S0] = fp;
-        break;
-      case unwindstack::ARCH_UNKNOWN:
-      case unwindstack::ARCH_ARM:
-      case unwindstack::ARCH_X86:
-          // not supported
-          ;
-    }
-  }
-
-  bool SetPcFromReturnAddress(unwindstack::Memory*) override { return false; }
-
-#if defined(UPDATED_REGS)
-  void IterateRegisters(
-      const std::function<void(const char*, uint64_t)>&) const override {}
-#else
-  void IterateRegisters(std::function<void(const char*, uint64_t)>) {}
-  void IterateRegisters(std::function<void(const char*, uint64_t)>) const {}
-#endif
-
-  bool StepIfSignalHandler(uint64_t,
-                           unwindstack::Elf*,
-                           unwindstack::Memory*) override {
-    return false;
-  }
-
-  void FakeSetArch(unwindstack::ArchEnum arch) { fake_arch_ = arch; }
-
-#if defined(UPDATED_REGS)
-  Regs* Clone() const override { return nullptr; }
-#else
-  Regs* Clone() { return nullptr; }
-  Regs* Clone() const { return nullptr; }
-#endif
-
- private:
-  unwindstack::ArchEnum fake_arch_ = unwindstack::ARCH_UNKNOWN;
-  uint64_t fake_pc_ = 0;
-  uint64_t fake_sp_ = 0;
-  std::unique_ptr<uint64_t[]> fake_data_;
-};
 
 class MemoryFake : public unwindstack::Memory {
  public:
@@ -175,75 +101,79 @@ class FramePointerUnwinderTest : public ::testing::Test {
   void SetUp() override {
     memory_fake_ = new MemoryFake;
     maps_.reset(new unwindstack::Maps);
-    regs_fake_ = std::make_unique<RegsFake>(64);
-    regs_fake_->FakeSetArch(unwindstack::ARCH_X86_64);
     process_memory_.reset(memory_fake_);
-
-    unwinder_ = std::make_unique<FramePointerUnwinder>(
-        kMaxFrames, maps_.get(), regs_fake_.get(), process_memory_, kStackSize);
   }
 
   MemoryFake* memory_fake_;
   std::unique_ptr<unwindstack::Maps> maps_;
-  std::unique_ptr<RegsFake> regs_fake_;
   std::shared_ptr<unwindstack::Memory> process_memory_;
-
-  std::unique_ptr<FramePointerUnwinder> unwinder_;
 };
 
 TEST_F(FramePointerUnwinderTest, UnwindUnsupportedArch) {
-  regs_fake_->FakeSetArch(unwindstack::ARCH_UNKNOWN);
-  unwinder_.reset(new FramePointerUnwinder(
-      kMaxFrames, maps_.get(), regs_fake_.get(), process_memory_, kStackSize));
-  unwinder_->Unwind();
-  EXPECT_EQ(unwinder_->LastErrorCode(),
+  unwindstack::RegsX86 regs_x86;
+  FramePointerUnwinder unwinder_x86(kMaxFrames, maps_.get(), &regs_x86,
+                                    process_memory_, kStackSize);
+  unwinder_x86.Unwind();
+  EXPECT_EQ(unwinder_x86.LastErrorCode(),
             unwindstack::ErrorCode::ERROR_UNSUPPORTED);
 
-  regs_fake_->FakeSetArch(unwindstack::ARCH_X86);
-  unwinder_.reset(new FramePointerUnwinder(
-      kMaxFrames, maps_.get(), regs_fake_.get(), process_memory_, kStackSize));
-  unwinder_->Unwind();
-  EXPECT_EQ(unwinder_->LastErrorCode(),
-            unwindstack::ErrorCode::ERROR_UNSUPPORTED);
-
-  regs_fake_->FakeSetArch(unwindstack::ARCH_ARM);
-  unwinder_.reset(new FramePointerUnwinder(
-      kMaxFrames, maps_.get(), regs_fake_.get(), process_memory_, kStackSize));
-  unwinder_->Unwind();
-  EXPECT_EQ(unwinder_->LastErrorCode(),
+  unwindstack::RegsArm regs_arm;
+  FramePointerUnwinder unwinder_arm(kMaxFrames, maps_.get(), &regs_arm,
+                                    process_memory_, kStackSize);
+  unwinder_arm.Unwind();
+  EXPECT_EQ(unwinder_arm.LastErrorCode(),
             unwindstack::ErrorCode::ERROR_UNSUPPORTED);
 }
 
 TEST_F(FramePointerUnwinderTest, UnwindInvalidMaps) {
   // Set up a valid stack frame
-  regs_fake_->set_pc(0x1000);
-  regs_fake_->set_sp(0x2000);
+  unwindstack::RegsX86_64 regs;
+  regs.set_pc(0x1000);
+  regs.set_sp(0x2000);
   memory_fake_->SetData64(0x2000, 0x3000);
   memory_fake_->SetData64(0x2008, 0x2000);
-  unwinder_->Unwind();
-  EXPECT_EQ(unwinder_->LastErrorCode(),
+
+  FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs, process_memory_,
+                                kStackSize);
+  unwinder.Unwind();
+  EXPECT_EQ(unwinder.LastErrorCode(),
             unwindstack::ErrorCode::ERROR_INVALID_MAP);
-  EXPECT_EQ(unwinder_->ConsumeFrames().size(), 0UL);
+  EXPECT_EQ(unwinder.ConsumeFrames().size(), 0UL);
 }
 
 TEST_F(FramePointerUnwinderTest, UnwindValidStack) {
-  regs_fake_->set_pc(0x1900);
-  regs_fake_->set_sp(0x1800);
-  regs_fake_->set_fp(0x2000);
-
   memory_fake_->SetData64(0x2000, 0x2200);  // mock next_fp
   memory_fake_->SetData64(0x2000 + sizeof(uint64_t),
                           0x2100);  // mock return_address(next_pc)
-
   memory_fake_->SetData64(0x2200, 0);
 
   maps_->Add(0x1000, 0x12000, 0, PROT_READ | PROT_WRITE, "libmock.so");
 
-  unwinder_.reset(new FramePointerUnwinder(
-      kMaxFrames, maps_.get(), regs_fake_.get(), process_memory_, kStackSize));
-  unwinder_->Unwind();
-  EXPECT_EQ(unwinder_->LastErrorCode(), unwindstack::ErrorCode::ERROR_NONE);
-  EXPECT_EQ(unwinder_->ConsumeFrames().size(), 2UL);
+  {
+    unwindstack::RegsX86_64 regs_x86_64;
+    regs_x86_64.set_pc(0x1900);
+    regs_x86_64.set_sp(0x1800);
+    regs_x86_64[unwindstack::X86_64_REG_RBP] = 0x2000;
+
+    FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs_x86_64,
+                                  process_memory_, kStackSize);
+    unwinder.Unwind();
+    EXPECT_EQ(unwinder.LastErrorCode(), unwindstack::ErrorCode::ERROR_NONE);
+    EXPECT_EQ(unwinder.ConsumeFrames().size(), 2UL);
+  }
+
+  {
+    unwindstack::RegsArm64 regs_arm64;
+    regs_arm64.set_pc(0x1900);
+    regs_arm64.set_sp(0x1800);
+    regs_arm64[unwindstack::ARM64_REG_R29] = 0x2000;
+
+    FramePointerUnwinder unwinder(kMaxFrames, maps_.get(), &regs_arm64,
+                                  process_memory_, kStackSize);
+    unwinder.Unwind();
+    EXPECT_EQ(unwinder.LastErrorCode(), unwindstack::ErrorCode::ERROR_NONE);
+    EXPECT_EQ(unwinder.ConsumeFrames().size(), 2UL);
+  }
 }
 
 }  // namespace

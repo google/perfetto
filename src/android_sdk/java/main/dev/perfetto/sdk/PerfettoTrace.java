@@ -51,7 +51,6 @@ public final class PerfettoTrace {
       new PerfettoNativeMemoryCleaner();
 
   private static final AtomicBoolean sAttemptedSystemRegistration = new AtomicBoolean(false);
-  private static volatile boolean sIsRegistered = false;
 
   /** For fetching the next flow event id in a process. */
   private static final AtomicInteger sFlowEventId = new AtomicInteger();
@@ -105,9 +104,6 @@ public final class PerfettoTrace {
 
     /** Create the native category object and register it. */
     public synchronized Category register() {
-      if (!sIsRegistered) {
-        return this;
-      }
       if (mPtr == 0) {
         long ptr = native_init(mName, mTags.toArray(new String[0]));
         sNativeMemoryCleaner.registerNativeAllocation(this, ptr, native_delete());
@@ -356,7 +352,6 @@ public final class PerfettoTrace {
       sAttemptedSystemRegistration.set(true);
     }
     native_register(isBackendInProcess);
-    sIsRegistered = true;
     return true;
   }
 

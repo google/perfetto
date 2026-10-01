@@ -38,6 +38,10 @@ bool IsValidName(base::StringView str) {
   return std::find_if(str.begin(), str.end(), pred) == str.end();
 }
 
+bool IsValidColumnName(base::StringView str) {
+  return IsValidName(str) && (std::isalpha(str.at(0)) || str.at(0) == '_');
+}
+
 std::optional<Type> ParseType(base::StringView str) {
   if (str.CaseInsensitiveEq("bool")) {
     return Type::kBool;

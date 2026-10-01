@@ -753,6 +753,7 @@ TRACE_FILE_TABLE = Table(
             'is_container',
             CppUint32(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     wrapping_sql_view=WrappingSqlView('trace_file'),

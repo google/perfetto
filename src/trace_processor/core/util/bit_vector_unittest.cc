@@ -31,6 +31,24 @@ TEST(BitVectorTest, DefaultConstructor) {
   EXPECT_EQ(bits.size(), 0u);
 }
 
+TEST(BitVectorTest, AppendWordsTrimAndReuse) {
+  BitVector bits;
+  for (uint64_t word : {uint64_t{0}, ~uint64_t{0}, uint64_t{1} << 63}) {
+    bits.clear();
+    bits.AppendWord(word);
+    bits.AppendWord(~word);
+    ASSERT_EQ(bits.size(), 128u);
+    for (uint32_t i = 0; i < 128; ++i)
+      EXPECT_EQ(bits.is_set(i),
+                static_cast<bool>(((i < 64 ? word : ~word) >> (i % 64)) & 1));
+    bits.resize(65);
+    bits.push_back(true);
+    EXPECT_EQ(bits.size(), 66u);
+    EXPECT_EQ(bits.is_set(64), !(word & 1));
+    EXPECT_TRUE(bits.is_set(65));
+  }
+}
+
 TEST(BitVectorTest, CreateWithSize) {
   {
     auto bits = BitVector::CreateWithSize(31);

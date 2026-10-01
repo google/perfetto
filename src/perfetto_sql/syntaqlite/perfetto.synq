@@ -326,8 +326,125 @@ node PerfettoTreeAccumulate {
   }
 }
 
+// A column a stage names, as `column` or `alias.column`, optionally renamed.
+node PerfettoPipeColumn {
+  qualifier: inline SyntaqliteTextSpan
+  name: inline SyntaqliteTextSpan
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    if_span(qualifier) { span(qualifier) "." }
+    span(name)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
+list PerfettoPipeColumnList {
+  PerfettoPipeColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// A bare column name, as listed by DROP or a star's EXCEPT.
+node PerfettoPipeName {
+  name: inline SyntaqliteTextSpan
+
+  fmt { span(name) }
+}
+
+list PerfettoPipeNameList {
+  PerfettoPipeName
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `*` or `alias.*`, optionally without some columns and with others replaced:
+// `* EXCEPT (a, b) REPLACE (c AS d)`.
+node PerfettoPipeStar {
+  qualifier: inline SyntaqliteTextSpan
+  except: index PerfettoPipeNameList
+  replace: index PerfettoPipeColumnList
+
+  fmt {
+    if_span(qualifier) { span(qualifier) "." }
+    "*"
+    if_set(except) { space "EXCEPT" space "(" child(except) ")" }
+    if_set(replace) { space "REPLACE" space "(" child(replace) ")" }
+  }
+}
+
+abstract PerfettoPipeSelectItem {
+  PerfettoPipeColumn
+  PerfettoPipeStar
+}
+
+list PerfettoPipeSelectItemList {
+  PerfettoPipeSelectItem
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `SELECT item, ...`: picks, orders and renames columns. A computed column
+// has no spelling here yet.
+node PerfettoPipeSelect {
+  columns: index PerfettoPipeSelectItemList
+
+  fmt { group { "SELECT" nest { line child(columns) } } }
+}
+
+// `EXTEND item, ...`: adds columns to the row.
+node PerfettoPipeExtend {
+  columns: index PerfettoPipeSelectItemList
+
+  fmt { group { "EXTEND" nest { line child(columns) } } }
+}
+
+// `DROP name, ...`: removes columns from the row.
+node PerfettoPipeDrop {
+  columns: index PerfettoPipeNameList
+
+  fmt { group { "DROP" nest { line child(columns) } } }
+}
+
+// `RENAME old AS new, ...`
+node PerfettoPipeRename {
+  columns: index PerfettoPipeColumnList
+
+  fmt { group { "RENAME" nest { line child(columns) } } }
+}
+
+// One assignment of a SET stage: `name = column`.
+node PerfettoPipeSetItem {
+  name: inline SyntaqliteTextSpan
+  value: index PerfettoPipeColumn
+
+  fmt { span(name) space "=" space child(value) }
+}
+
+list PerfettoPipeSetItemList {
+  PerfettoPipeSetItem
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `SET name = column, ...`: replaces the values of columns.
+node PerfettoPipeSet {
+  items: index PerfettoPipeSetItemList
+
+  fmt { group { "SET" nest { line child(items) } } }
+}
+
+// `AS alias`: gives the whole row a new table alias.
+node PerfettoPipeAs {
+  alias: inline SyntaqliteTextSpan
+
+  fmt { "AS" space span(alias) }
+}
+
 abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
+  PerfettoPipeSelect
+  PerfettoPipeExtend
+  PerfettoPipeDrop
+  PerfettoPipeRename
+  PerfettoPipeSet
+  PerfettoPipeAs
 }
 
 list PerfettoPipeStageList {
@@ -335,13 +452,51 @@ list PerfettoPipeStageList {
   fmt { for_each(sep: hardline "|>" space) { child(_item) } }
 }
 
-// A pipeline: FROM followed by `|>` stages.
+list PerfettoPipeSourceList {
+  PerfettoPipeSource
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// A column named after PER, which confines an operator to each group of
+// rows agreeing on it.
+node PerfettoPerColumn {
+  name: inline SyntaqliteTextSpan
+
+  fmt { span(name) }
+}
+
+list PerfettoPerColumnList {
+  PerfettoPerColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `INTERVAL INTERSECTION OF (rel AS a, rel AS b, ...) [PER cols]`: the
+// regions every operand covers, one row per region carrying all of their
+// columns.
+node PerfettoIntervalIntersection {
+  operands: index PerfettoPipeSourceList
+  per: index PerfettoPerColumnList
+
+  fmt {
+    group {
+      "INTERVAL" "INTERSECTION" "OF" space "("
+      nest { softline child(operands) }
+      softline ")"
+    }
+    if_set(per) { space "PER" space child(per) }
+  }
+}
+
+// A pipeline: a source followed by `|>` stages. Exactly one of `from` and
+// `intersection` names the source.
 node PerfettoPipeline {
   from: index PerfettoPipeSource
+  intersection: index PerfettoIntervalIntersection
   stages: index PerfettoPipeStageList
 
   fmt {
-    "FROM" space child(from)
+    if_set(from) { "FROM" space child(from) }
+    if_set(intersection) { child(intersection) }
     if_set(stages) { hardline "|>" space child(stages) }
   }
 }

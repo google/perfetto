@@ -874,7 +874,7 @@ SYNTAQLITE_API int32_t syntaqlite_parser_set_trace(SyntaqliteParser* p,
 // Enable macro fallback: when the dialect uses SYNQ_MACRO_STYLE_RUST and a
 // name!(args) call is encountered but the name is NOT in the macro registry,
 // consume the entire name!(args) as a single TK_ID token instead of raising
-// a parse error. A MacroRewrite is recorded so the formatter can emit the
+// a parse error. A Rewrite is recorded so the formatter can emit the
 // call verbatim. Default: off (0).
 // Returns SYNTAQLITE_OK on success, SYNTAQLITE_ERR_ALREADY_USED if the
 // parser has already been used, SYNTAQLITE_ERR_OMITTED if macros are
@@ -1048,26 +1048,37 @@ SYNTAQLITE_API const SyntaqliteComment* syntaqlite_node_trailing_comments(
     uint32_t node_id,
     uint32_t* count);
 
-// Sentinel value for `SyntaqliteMacroRewrite::parent_idx` meaning "this
+// Sentinel value for `SyntaqliteRewrite::parent_idx` meaning "this
 // rewrite applies directly to the authored source" (i.e. the rewrite is
-// not nested inside another macro's expansion).
-#define SYNTAQLITE_MACRO_PARENT_SOURCE UINT32_MAX
+// not nested inside another rewrite's expansion).
+#define SYNTAQLITE_REWRITE_PARENT_SOURCE UINT32_MAX
 
-// Sentinel value for `SyntaqliteMacroRewrite::body_call_offset` and
+// Sentinel value for `SyntaqliteRewrite::body_call_offset` and
 // `body_call_length` meaning "this call was tokenized from a $param
 // substitution — it has no position in the parent's authored body;
 // consumers should descend through the matching arg segment instead."
 #define SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL UINT32_MAX
 
-// A recorded macro invocation — enough information to reconstruct a
-// source-to-expanded rewrite tree (e.g. to drive Perfetto's
+// The kind of thing a rewrite replaced.
+typedef enum SyntaqliteRewriteKind {
+  // A `name!(...)` macro call, replaced by the macro's expansion.
+  SYNTAQLITE_REWRITE_MACRO_CALL = 0,
+  // A parsed node, replaced by text from the host's node expander (see
+  // `syntaqlite_parser_set_node_expander`).
+  SYNTAQLITE_REWRITE_NODE_EXPANSION = 1,
+} SyntaqliteRewriteKind;
+
+// A rewrite recorded during parsing: a range of text replaced by other text,
+// either a macro call or an expanded node (see `kind`).  Enough information
+// to reconstruct a source-to-expanded rewrite tree (e.g. to drive Perfetto's
 // SqlSource::Rewriter or an equivalent).
 //
-// Entries are reported in insertion order: outer macros appear before the
-// nested macros they contain, and macros at the same nesting level appear
-// in source order.
+// Entries are reported in insertion order. Macro calls come first: outer
+// calls before the calls nested in them, and calls at the same nesting level
+// in source order. Expanded nodes come after, innermost first, so a node's
+// rewrite comes after the rewrites of the macro calls written inside it.
 //
-// `parent_idx` is either SYNTAQLITE_MACRO_PARENT_SOURCE (the rewrite
+// `parent_idx` is either SYNTAQLITE_REWRITE_PARENT_SOURCE (the rewrite
 // replaces a range in the authored source) or the index of another entry
 // in this same flat list (the rewrite replaces a range in that entry's
 // `expansion` buffer).
@@ -1091,9 +1102,9 @@ SYNTAQLITE_API const SyntaqliteComment* syntaqlite_node_trailing_comments(
 // Pointers (`expansion`, `name`) are owned by the parser and remain valid
 // until the next `syntaqlite_parser_next`, `syntaqlite_parser_reset`, or
 // `syntaqlite_parser_destroy` call.
-typedef struct SyntaqliteMacroRewrite {
+typedef struct SyntaqliteRewrite {
   uint32_t parent_idx;
-  // Statement-relative when parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE,
+  // Statement-relative when parent_idx == SYNTAQLITE_REWRITE_PARENT_SOURCE,
   // otherwise relative to the parent entry's `expansion` buffer.
   SyntaqliteLayerOffset call_offset;
   SyntaqliteLength call_length;
@@ -1110,14 +1121,14 @@ typedef struct SyntaqliteMacroRewrite {
   // text (no meaningful body position) and consumers should descend
   // through the matching arg segment instead.
   //
-  // For top-level rewrites (parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE)
+  // For top-level rewrites (parent_idx == SYNTAQLITE_REWRITE_PARENT_SOURCE)
   // the parent is the authored source, so these equal call_offset /
   // call_length.
   SyntaqliteLayerOffset body_call_offset;
   SyntaqliteLength body_call_length;
   // The buffer the `call_offset` — and every arg offset returned by
   // syntaqlite_macro_rewrite_arg_at — indexes into.  For top-level
-  // rewrites (parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE) this is
+  // rewrites (parent_idx == SYNTAQLITE_REWRITE_PARENT_SOURCE) this is
   // the current statement source slice; for nested rewrites it is
   // the parent entry's `expansion` buffer.  Consumers can slice the
   // call text as `parent_buffer + call_offset` and the arg texts
@@ -1133,15 +1144,20 @@ typedef struct SyntaqliteMacroRewrite {
   // also a useful tell (0 for fallback), but this flag is the
   // authoritative signal.
   uint32_t is_fallback;
-} SyntaqliteMacroRewrite;
+  // A SyntaqliteRewriteKind. For node expansions, the call is the node's text
+  // and the expansion is the host's replacement; macro-specific fields other
+  // than `name` are zero. Macro calls inside the node are still recorded, but
+  // when rewrites are applied the outer one wins.
+  uint32_t kind;
+} SyntaqliteRewrite;
 
-// Number of macro rewrites recorded for the current statement.
-SYNTAQLITE_API uint32_t syntaqlite_result_macro_count(SyntaqliteParser* p);
+// Number of rewrites recorded for the current statement.
+SYNTAQLITE_API uint32_t syntaqlite_result_rewrite_count(SyntaqliteParser* p);
 
 // Returns the rewrite at `idx` (0-based).  Returns a zero-initialized
-// struct if `idx >= syntaqlite_result_macro_count(p)`.
-SYNTAQLITE_API SyntaqliteMacroRewrite
-syntaqlite_result_macro_rewrite_at(SyntaqliteParser* p, uint32_t idx);
+// struct if `idx >= syntaqlite_result_rewrite_count(p)`.
+SYNTAQLITE_API SyntaqliteRewrite
+syntaqlite_result_rewrite_at(SyntaqliteParser* p, uint32_t idx);
 
 // One $param substitution within a macro expansion.
 //
@@ -1154,7 +1170,7 @@ syntaqlite_result_macro_rewrite_at(SyntaqliteParser* p, uint32_t idx);
 //
 // `origin_parent_idx` + `origin_offset` + `origin_length` locate the
 // arg text where it was authored — either in the original source
-// (`origin_parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE`) or in another
+// (`origin_parent_idx == SYNTAQLITE_REWRITE_PARENT_SOURCE`) or in another
 // rewrite's `expansion` buffer (rewrite index).  Consumers walk the
 // chain of $param substitutions by recursing into the origin rewrite's
 // arg segments.
@@ -1402,6 +1418,34 @@ static inline int syntaqlite_span_is_macro_free(
 //
 // Requires `syntaqlite_parser_set_collect_node_extents(p, 1)` before the
 // first `reset()`.
+// Where a node was written: the layer containing it and the node's range in
+// that layer.
+//
+// The layer is the innermost one containing both the node's first and last
+// tokens. If some of the node's tokens come from macro calls in that layer, the
+// range covers those calls, so it's always a contiguous piece of the layer's
+// text.
+typedef struct SyntaqliteNodeSite {
+  // The rewrite whose expansion contains the node, or
+  // SYNTAQLITE_REWRITE_PARENT_SOURCE if the node is in the statement's own
+  // text.
+  uint32_t parent_idx;
+  // Uses the same coordinates as a rewrite's `call_offset`: relative to the
+  // statement for the source, otherwise relative to the parent's expansion.
+  SyntaqliteLayerOffset offset;
+  SyntaqliteLength length;
+} SyntaqliteNodeSite;
+
+// Looks up where `node_id` was written and stores it in `*out`. Returns 1 on
+// success, or 0 if node extents aren't being collected or the node has no
+// tokens.
+//
+// Requires `syntaqlite_parser_set_collect_node_extents(p, 1)` before the
+// first `reset()`.
+SYNTAQLITE_API int syntaqlite_parser_node_site(SyntaqliteParser* p,
+                                               uint32_t node_id,
+                                               SyntaqliteNodeSite* out);
+
 SYNTAQLITE_API int syntaqlite_node_is_macro_free(SyntaqliteParser* p,
                                                  uint32_t node_id);
 
@@ -1652,8 +1696,8 @@ SYNTAQLITE_API SyntaqliteDialect syntaqlite_sqlite_dialect(void);
 // done:
 //   syntaqlite_parser_destroy(p);
 //
-// Read accumulated macro rewrites via syntaqlite_result_macro_count() /
-// syntaqlite_result_macro_rewrite_at() after parsing.
+// Read accumulated rewrites via syntaqlite_result_rewrite_count() /
+// syntaqlite_result_rewrite_at() after parsing.
 
 
 
@@ -1726,6 +1770,50 @@ SYNTAQLITE_API int32_t
 syntaqlite_parser_set_macro_lookup(SyntaqliteParser* p,
                                    SyntaqliteMacroLookupFn fn,
                                    void* user_data);
+
+// ---------------------------------------------------------------------------
+// Node expansion
+// ---------------------------------------------------------------------------
+//
+// Macros replace text before it's parsed. Node expansion works the other way
+// around: some dialect syntax is parsed as normal, then the host compiles it
+// into SQL. The grammar marks which nodes this applies to and, once their
+// statement is parsed, the host's expander replaces each of them. The host
+// sees the whole statement while it does, such as the CTEs a node can read.
+//
+// The replacement is recorded as a rewrite (see
+// `syntaqlite_result_rewrite_at`), just like a macro call, so it also works
+// inside macro bodies and arguments. The replacement is never parsed: the AST
+// keeps the original node.
+
+// Return codes for SyntaqliteNodeExpandFn callbacks.
+#define SYNTAQLITE_NODE_EXPAND_OK 0
+#define SYNTAQLITE_NODE_EXPAND_ERROR (-1)
+
+// Called for each node the grammar marked, once the statement is parsed, so
+// the whole statement can be read; a node inside another is expanded first.
+// It should call `syntaqlite_node_expansion_set_result` and return
+// SYNTAQLITE_NODE_EXPAND_OK, or return SYNTAQLITE_NODE_EXPAND_ERROR to fail the
+// statement.
+typedef int (*SyntaqliteNodeExpandFn)(void* user_data,
+                                      SyntaqliteParser* parser,
+                                      uint32_t node_id);
+
+// Sets the callback which expands nodes the grammar marks. Needs node extents
+// (`syntaqlite_parser_set_collect_node_extents`), which place each node:
+// without them every expansion fails its statement. Returns SYNTAQLITE_OK on
+// success, or SYNTAQLITE_ERR_OMITTED if macros are compiled out, since node
+// expansion needs the same rewrite machinery.
+SYNTAQLITE_API int32_t
+syntaqlite_parser_set_node_expander(SyntaqliteParser* p,
+                                    SyntaqliteNodeExpandFn fn,
+                                    void* user_data);
+
+// Sets the text to replace the current node with. Only call this from inside
+// the expander callback.
+SYNTAQLITE_API void syntaqlite_node_expansion_set_result(SyntaqliteParser* p,
+                                                         const char* text,
+                                                         SyntaqliteLength len);
 
 // ---------------------------------------------------------------------------
 // Macro expansion result (called from inside the lookup callback)
@@ -2305,8 +2393,26 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE = 106,
     SYNTAQLITE_NODE_PERFETTO_TREE_AGGREGATE_LIST = 107,
     SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE = 108,
-    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 109,
-    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 110,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN = 109,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN_LIST = 110,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_NAME = 111,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_NAME_LIST = 112,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_STAR = 113,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM_LIST = 114,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT = 115,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND = 116,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_DROP = 117,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME = 118,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM = 119,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM_LIST = 120,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SET = 121,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_AS = 122,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST = 123,
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE_LIST = 124,
+    SYNTAQLITE_NODE_PERFETTO_PER_COLUMN = 125,
+    SYNTAQLITE_NODE_PERFETTO_PER_COLUMN_LIST = 126,
+    SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION = 127,
+    SYNTAQLITE_NODE_PERFETTO_PIPELINE = 128,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -3145,6 +3251,89 @@ typedef struct SyntaqlitePerfettoTreeAccumulate {
     uint32_t aggregates;
 } SyntaqlitePerfettoTreeAccumulate;
 
+typedef struct SyntaqlitePerfettoPipeColumn {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan qualifier;
+    SyntaqliteTextSpan name;
+    SyntaqliteTextSpan alias;
+} SyntaqlitePerfettoPipeColumn;
+
+// List of PerfettoPipeColumn
+typedef struct SyntaqlitePerfettoPipeColumnList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeColumnList;
+
+typedef struct SyntaqlitePerfettoPipeName {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan name;
+} SyntaqlitePerfettoPipeName;
+
+// List of PerfettoPipeName
+typedef struct SyntaqlitePerfettoPipeNameList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeNameList;
+
+typedef struct SyntaqlitePerfettoPipeStar {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan qualifier;
+    uint32_t except;
+    uint32_t replace;
+} SyntaqlitePerfettoPipeStar;
+
+// List of PerfettoPipeSelectItem
+typedef struct SyntaqlitePerfettoPipeSelectItemList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeSelectItemList;
+
+typedef struct SyntaqlitePerfettoPipeSelect {
+    SyntaqliteNodeTag tag;
+    uint32_t columns;
+} SyntaqlitePerfettoPipeSelect;
+
+typedef struct SyntaqlitePerfettoPipeExtend {
+    SyntaqliteNodeTag tag;
+    uint32_t columns;
+} SyntaqlitePerfettoPipeExtend;
+
+typedef struct SyntaqlitePerfettoPipeDrop {
+    SyntaqliteNodeTag tag;
+    uint32_t columns;
+} SyntaqlitePerfettoPipeDrop;
+
+typedef struct SyntaqlitePerfettoPipeRename {
+    SyntaqliteNodeTag tag;
+    uint32_t columns;
+} SyntaqlitePerfettoPipeRename;
+
+typedef struct SyntaqlitePerfettoPipeSetItem {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan name;
+    uint32_t value;
+} SyntaqlitePerfettoPipeSetItem;
+
+// List of PerfettoPipeSetItem
+typedef struct SyntaqlitePerfettoPipeSetItemList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeSetItemList;
+
+typedef struct SyntaqlitePerfettoPipeSet {
+    SyntaqliteNodeTag tag;
+    uint32_t items;
+} SyntaqlitePerfettoPipeSet;
+
+typedef struct SyntaqlitePerfettoPipeAs {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan alias;
+} SyntaqlitePerfettoPipeAs;
+
 // List of PerfettoPipeStage
 typedef struct SyntaqlitePerfettoPipeStageList {
     uint32_t tag;
@@ -3152,9 +3341,35 @@ typedef struct SyntaqlitePerfettoPipeStageList {
     uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
 } SyntaqlitePerfettoPipeStageList;
 
+// List of PerfettoPipeSource
+typedef struct SyntaqlitePerfettoPipeSourceList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPipeSourceList;
+
+typedef struct SyntaqlitePerfettoPerColumn {
+    SyntaqliteNodeTag tag;
+    SyntaqliteTextSpan name;
+} SyntaqlitePerfettoPerColumn;
+
+// List of PerfettoPerColumn
+typedef struct SyntaqlitePerfettoPerColumnList {
+    uint32_t tag;
+    uint32_t count;
+    uint32_t children[SYNTAQLITE_FLEXIBLE_ARRAY];
+} SyntaqlitePerfettoPerColumnList;
+
+typedef struct SyntaqlitePerfettoIntervalIntersection {
+    SyntaqliteNodeTag tag;
+    uint32_t operands;
+    uint32_t per;
+} SyntaqlitePerfettoIntervalIntersection;
+
 typedef struct SyntaqlitePerfettoPipeline {
     SyntaqliteNodeTag tag;
     uint32_t from;
+    uint32_t intersection;
     uint32_t stages;
 } SyntaqlitePerfettoPipeline;
 
@@ -3270,7 +3485,25 @@ typedef union SyntaqliteNode {
     SyntaqlitePerfettoTreeAggregate perfetto_tree_aggregate;
     SyntaqlitePerfettoTreeAggregateList perfetto_tree_aggregate_list;
     SyntaqlitePerfettoTreeAccumulate perfetto_tree_accumulate;
+    SyntaqlitePerfettoPipeColumn perfetto_pipe_column;
+    SyntaqlitePerfettoPipeColumnList perfetto_pipe_column_list;
+    SyntaqlitePerfettoPipeName perfetto_pipe_name;
+    SyntaqlitePerfettoPipeNameList perfetto_pipe_name_list;
+    SyntaqlitePerfettoPipeStar perfetto_pipe_star;
+    SyntaqlitePerfettoPipeSelectItemList perfetto_pipe_select_item_list;
+    SyntaqlitePerfettoPipeSelect perfetto_pipe_select;
+    SyntaqlitePerfettoPipeExtend perfetto_pipe_extend;
+    SyntaqlitePerfettoPipeDrop perfetto_pipe_drop;
+    SyntaqlitePerfettoPipeRename perfetto_pipe_rename;
+    SyntaqlitePerfettoPipeSetItem perfetto_pipe_set_item;
+    SyntaqlitePerfettoPipeSetItemList perfetto_pipe_set_item_list;
+    SyntaqlitePerfettoPipeSet perfetto_pipe_set;
+    SyntaqlitePerfettoPipeAs perfetto_pipe_as;
     SyntaqlitePerfettoPipeStageList perfetto_pipe_stage_list;
+    SyntaqlitePerfettoPipeSourceList perfetto_pipe_source_list;
+    SyntaqlitePerfettoPerColumn perfetto_per_column;
+    SyntaqlitePerfettoPerColumnList perfetto_per_column_list;
+    SyntaqlitePerfettoIntervalIntersection perfetto_interval_intersection;
     SyntaqlitePerfettoPipeline perfetto_pipeline;
 } SyntaqliteNode;
 
@@ -3760,22 +3993,82 @@ static inline const SyntaqliteJoinPrefix* syntaqlite_table_source_as_join_prefix
     return node->tag == SYNTAQLITE_NODE_JOIN_PREFIX ? &node->join_prefix : NULL;
 }
 
+// ============ Abstract Type: PerfettoPipeSelectItem ============
+
+typedef union SyntaqlitePerfettoPipeSelectItem {
+    SyntaqliteNodeTag tag;
+    SyntaqlitePerfettoPipeColumn perfetto_pipe_column;
+    SyntaqlitePerfettoPipeStar perfetto_pipe_star;
+} SyntaqlitePerfettoPipeSelectItem;
+
+static inline int syntaqlite_is_perfetto_pipe_select_item(SyntaqliteNodeTag tag) {
+    switch (tag) {
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_STAR: return 1;
+        default: return 0;
+    }
+}
+
+static inline const SyntaqlitePerfettoPipeColumn* syntaqlite_perfetto_pipe_select_item_as_perfetto_pipe_column(const SyntaqlitePerfettoPipeSelectItem* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN ? &node->perfetto_pipe_column : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeStar* syntaqlite_perfetto_pipe_select_item_as_perfetto_pipe_star(const SyntaqlitePerfettoPipeSelectItem* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_STAR ? &node->perfetto_pipe_star : NULL;
+}
+
 // ============ Abstract Type: PerfettoPipeStage ============
 
 typedef union SyntaqlitePerfettoPipeStage {
     SyntaqliteNodeTag tag;
     SyntaqlitePerfettoTreeAccumulate perfetto_tree_accumulate;
+    SyntaqlitePerfettoPipeSelect perfetto_pipe_select;
+    SyntaqlitePerfettoPipeExtend perfetto_pipe_extend;
+    SyntaqlitePerfettoPipeDrop perfetto_pipe_drop;
+    SyntaqlitePerfettoPipeRename perfetto_pipe_rename;
+    SyntaqlitePerfettoPipeSet perfetto_pipe_set;
+    SyntaqlitePerfettoPipeAs perfetto_pipe_as;
 } SyntaqlitePerfettoPipeStage;
 
 static inline int syntaqlite_is_perfetto_pipe_stage(SyntaqliteNodeTag tag) {
     switch (tag) {
         case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_DROP: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_SET: return 1;
+        case SYNTAQLITE_NODE_PERFETTO_PIPE_AS: return 1;
         default: return 0;
     }
 }
 
 static inline const SyntaqlitePerfettoTreeAccumulate* syntaqlite_perfetto_pipe_stage_as_perfetto_tree_accumulate(const SyntaqlitePerfettoPipeStage* node) {
     return node->tag == SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE ? &node->perfetto_tree_accumulate : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeSelect* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_select(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT ? &node->perfetto_pipe_select : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeExtend* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_extend(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND ? &node->perfetto_pipe_extend : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeDrop* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_drop(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_DROP ? &node->perfetto_pipe_drop : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeRename* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_rename(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME ? &node->perfetto_pipe_rename : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeSet* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_set(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_SET ? &node->perfetto_pipe_set : NULL;
+}
+
+static inline const SyntaqlitePerfettoPipeAs* syntaqlite_perfetto_pipe_stage_as_perfetto_pipe_as(const SyntaqlitePerfettoPipeStage* node) {
+    return node->tag == SYNTAQLITE_NODE_PERFETTO_PIPE_AS ? &node->perfetto_pipe_as : NULL;
 }
 
 #ifdef __cplusplus
@@ -4220,9 +4513,81 @@ template <> struct NodeTag<SyntaqlitePerfettoTreeAccumulate> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE;
 };
+template <> struct NodeTag<SyntaqlitePerfettoPipeColumn> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeColumnList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_COLUMN_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeName> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_NAME;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeNameList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_NAME_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeStar> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_STAR;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSelectItemList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT_ITEM_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSelect> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeExtend> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeDrop> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_DROP;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeRename> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSetItem> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSetItemList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SET_ITEM_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSet> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SET;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeAs> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_AS;
+};
 template <> struct NodeTag<SyntaqlitePerfettoPipeStageList> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPipeSourceList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPerColumn> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PER_COLUMN;
+};
+template <> struct NodeTag<SyntaqlitePerfettoPerColumnList> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_PER_COLUMN_LIST;
+};
+template <> struct NodeTag<SyntaqlitePerfettoIntervalIntersection> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION;
 };
 template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
   static constexpr bool kHasTag = true;
@@ -4437,6 +4802,10 @@ template <> struct NodeTag<SyntaqlitePerfettoPipeline> {
 #define SYNTAQLITE_TK_ACCUMULATE                     196
 #define SYNTAQLITE_TK_UP                             197
 #define SYNTAQLITE_TK_DOWN                           198
+#define SYNTAQLITE_TK_INTERVAL                       199
+#define SYNTAQLITE_TK_INTERSECTION                   200
+#define SYNTAQLITE_TK_PER                            201
+#define SYNTAQLITE_TK_EXTEND                         202
 
 /* syntaqlite extension: expected terminals for current parser state. */
 uint32_t SynqPerfettoParseExpectedTokens(void* parser, uint32_t* out_tokens, uint32_t out_cap);

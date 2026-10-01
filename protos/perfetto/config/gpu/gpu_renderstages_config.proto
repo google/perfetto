@@ -32,4 +32,10 @@ message GpuRenderStagesConfig {
 
   // Trace metrics to capture for each render stage
   repeated string trace_metrics = 3;
+
+  // Enable per-draw-call slices, with real per-occurrence timestamps and metric
+  // values, on the gpu.renderstages data source. Disabled by default.
+  // When drawcall_stages is enabled, full_loadstore and low_overhead are
+  // ignored and their default values are used.
+  optional bool drawcall_stages = 4;
 }

@@ -22,7 +22,7 @@
 
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
-          TREE ACCUMULATE UP DOWN.
+          TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND.
 
 // ---------- Helper nonterminals ----------
 
@@ -220,7 +220,157 @@ perfetto_tree_aggregate_list(A) ::= perfetto_tree_aggregate_list(L) COMMA
     A = synq_parse_perfetto_tree_aggregate_list(pCtx, L, X);
 }
 
+// A column, optionally qualified: `column` or `alias.column`.
+%type perfetto_pipe_column {uint32_t}
+perfetto_pipe_column(A) ::= nm(N). {
+    A = synq_parse_perfetto_pipe_column(pCtx, SYNQ_NO_SPAN,
+        synq_span_dequote(pCtx, N), SYNQ_NO_SPAN);
+}
+perfetto_pipe_column(A) ::= nm(Q) DOT nm(N). {
+    A = synq_parse_perfetto_pipe_column(pCtx, synq_span_dequote(pCtx, Q),
+        synq_span_dequote(pCtx, N), SYNQ_NO_SPAN);
+}
+
+// A column given a name: `column [AS] name`, optionally qualified.
+%type perfetto_pipe_named_column {uint32_t}
+perfetto_pipe_named_column(A) ::= nm(N) AS nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, SYNQ_NO_SPAN,
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+perfetto_pipe_named_column(A) ::= nm(N) nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, SYNQ_NO_SPAN,
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+perfetto_pipe_named_column(A) ::= nm(Q) DOT nm(N) AS nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, synq_span_dequote(pCtx, Q),
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+perfetto_pipe_named_column(A) ::= nm(Q) DOT nm(N) nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, synq_span_dequote(pCtx, Q),
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+
+// Bare column names, as listed by DROP and EXCEPT.
+%type perfetto_pipe_name_list {uint32_t}
+perfetto_pipe_name_list(A) ::= nm(N). {
+    A = synq_parse_perfetto_pipe_name_list(pCtx, SYNTAQLITE_NULL_NODE,
+        synq_parse_perfetto_pipe_name(pCtx, synq_span_dequote(pCtx, N)));
+}
+perfetto_pipe_name_list(A) ::= perfetto_pipe_name_list(L) COMMA nm(N). {
+    A = synq_parse_perfetto_pipe_name_list(pCtx, L,
+        synq_parse_perfetto_pipe_name(pCtx, synq_span_dequote(pCtx, N)));
+}
+
+// A star's REPLACE list: `column AS name, ...`, where AS is required.
+%type perfetto_pipe_replace_item {uint32_t}
+perfetto_pipe_replace_item(A) ::= nm(N) AS nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, SYNQ_NO_SPAN,
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+perfetto_pipe_replace_item(A) ::= nm(Q) DOT nm(N) AS nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, synq_span_dequote(pCtx, Q),
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+
+%type perfetto_pipe_replace_list {uint32_t}
+perfetto_pipe_replace_list(A) ::= perfetto_pipe_replace_item(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_replace_list(A) ::= perfetto_pipe_replace_list(L) COMMA
+                                  perfetto_pipe_replace_item(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, L, X);
+}
+
+%type perfetto_pipe_except {uint32_t}
+perfetto_pipe_except(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_pipe_except(A) ::= EXCEPT LP perfetto_pipe_name_list(L) RP. {
+    A = L;
+}
+
+%type perfetto_pipe_replace {uint32_t}
+perfetto_pipe_replace(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_pipe_replace(A) ::= REPLACE LP perfetto_pipe_replace_list(L) RP. {
+    A = L;
+}
+
+// One item of a SELECT or EXTEND stage: a column, optionally qualified and
+// named, or a star.
+%type perfetto_pipe_select_item {uint32_t}
+perfetto_pipe_select_item(A) ::= perfetto_pipe_column(X). { A = X; }
+perfetto_pipe_select_item(A) ::= perfetto_pipe_named_column(X). { A = X; }
+perfetto_pipe_select_item(A) ::= STAR perfetto_pipe_except(E)
+                                 perfetto_pipe_replace(R). {
+    A = synq_parse_perfetto_pipe_star(pCtx, SYNQ_NO_SPAN, E, R);
+}
+perfetto_pipe_select_item(A) ::= nm(Q) DOT STAR perfetto_pipe_except(E)
+                                 perfetto_pipe_replace(R). {
+    A = synq_parse_perfetto_pipe_star(pCtx, synq_span_dequote(pCtx, Q), E, R);
+}
+
+%type perfetto_pipe_select_list {uint32_t}
+perfetto_pipe_select_list(A) ::= perfetto_pipe_select_item(X). {
+    A = synq_parse_perfetto_pipe_select_item_list(pCtx, SYNTAQLITE_NULL_NODE,
+        X);
+}
+perfetto_pipe_select_list(A) ::= perfetto_pipe_select_list(L) COMMA
+                                 perfetto_pipe_select_item(X). {
+    A = synq_parse_perfetto_pipe_select_item_list(pCtx, L, X);
+}
+
+// RENAME's list: `old [AS] new, ...`, with bare names only.
+%type perfetto_pipe_rename_item {uint32_t}
+perfetto_pipe_rename_item(A) ::= nm(N) AS nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, SYNQ_NO_SPAN,
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+perfetto_pipe_rename_item(A) ::= nm(N) nm(R). {
+    A = synq_parse_perfetto_pipe_column(pCtx, SYNQ_NO_SPAN,
+        synq_span_dequote(pCtx, N), synq_span_dequote(pCtx, R));
+}
+
+%type perfetto_pipe_rename_list {uint32_t}
+perfetto_pipe_rename_list(A) ::= perfetto_pipe_rename_item(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_rename_list(A) ::= perfetto_pipe_rename_list(L) COMMA
+                                 perfetto_pipe_rename_item(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, L, X);
+}
+
+// SET's list: `name = column, ...`.
+%type perfetto_pipe_set_item {uint32_t}
+perfetto_pipe_set_item(A) ::= nm(N) EQ perfetto_pipe_column(V). {
+    A = synq_parse_perfetto_pipe_set_item(pCtx, synq_span_dequote(pCtx, N), V);
+}
+
+%type perfetto_pipe_set_list {uint32_t}
+perfetto_pipe_set_list(A) ::= perfetto_pipe_set_item(X). {
+    A = synq_parse_perfetto_pipe_set_item_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_set_list(A) ::= perfetto_pipe_set_list(L) COMMA
+                              perfetto_pipe_set_item(X). {
+    A = synq_parse_perfetto_pipe_set_item_list(pCtx, L, X);
+}
+
 %type perfetto_pipe_stage {uint32_t}
+perfetto_pipe_stage(A) ::= SELECT perfetto_pipe_select_list(L). {
+    A = synq_parse_perfetto_pipe_select(pCtx, L);
+}
+perfetto_pipe_stage(A) ::= EXTEND perfetto_pipe_select_list(L). {
+    A = synq_parse_perfetto_pipe_extend(pCtx, L);
+}
+perfetto_pipe_stage(A) ::= DROP perfetto_pipe_name_list(L). {
+    A = synq_parse_perfetto_pipe_drop(pCtx, L);
+}
+perfetto_pipe_stage(A) ::= RENAME perfetto_pipe_rename_list(L). {
+    A = synq_parse_perfetto_pipe_rename(pCtx, L);
+}
+perfetto_pipe_stage(A) ::= SET perfetto_pipe_set_list(L). {
+    A = synq_parse_perfetto_pipe_set(pCtx, L);
+}
+perfetto_pipe_stage(A) ::= AS nm(N). {
+    A = synq_parse_perfetto_pipe_as(pCtx, synq_span_dequote(pCtx, N));
+}
 perfetto_pipe_stage(A) ::= TREE ACCUMULATE perfetto_tree_direction(D)
                            perfetto_tree_aggregate_list(L). {
     A = synq_parse_perfetto_tree_accumulate(pCtx,
@@ -234,10 +384,42 @@ perfetto_pipe_stage_list(A) ::= perfetto_pipe_stage_list(L) perfetto_pipe
     A = synq_parse_perfetto_pipe_stage_list(pCtx, L, S);
 }
 
+// The operands of an interval source, each a relation with an alias.
+%type perfetto_pipe_source_list {uint32_t}
+perfetto_pipe_source_list(A) ::= perfetto_pipe_source(X). {
+    A = synq_parse_perfetto_pipe_source_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_source_list(A) ::= perfetto_pipe_source_list(L) COMMA
+                                 perfetto_pipe_source(X). {
+    A = synq_parse_perfetto_pipe_source_list(pCtx, L, X);
+}
+
+%type perfetto_per_col_list {uint32_t}
+perfetto_per_col_list(A) ::= nm(N). {
+    uint32_t col = synq_parse_perfetto_per_column(pCtx,
+        synq_span_dequote(pCtx, N));
+    A = synq_parse_perfetto_per_column_list(pCtx, SYNTAQLITE_NULL_NODE, col);
+}
+perfetto_per_col_list(A) ::= perfetto_per_col_list(L) COMMA nm(N). {
+    uint32_t col = synq_parse_perfetto_per_column(pCtx,
+        synq_span_dequote(pCtx, N));
+    A = synq_parse_perfetto_per_column_list(pCtx, L, col);
+}
+
+%type perfetto_per {uint32_t}
+perfetto_per(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_per(A) ::= PER perfetto_per_col_list(L). { A = L; }
+
 %type perfetto_pipeline {uint32_t}
 perfetto_pipeline(A) ::= FROM perfetto_pipe_source(F)
                          perfetto_pipe_stage_list(S). {
-    A = synq_parse_perfetto_pipeline(pCtx, F, S);
+    A = synq_parse_perfetto_pipeline(pCtx, F, SYNTAQLITE_NULL_NODE, S);
+}
+perfetto_pipeline(A) ::= INTERVAL INTERSECTION OF LP
+                         perfetto_pipe_source_list(L) RP perfetto_per(P)
+                         perfetto_pipe_stage_list(S). {
+    uint32_t src = synq_parse_perfetto_interval_intersection(pCtx, L, P);
+    A = synq_parse_perfetto_pipeline(pCtx, SYNTAQLITE_NULL_NODE, src, S);
 }
 
 cmd(A) ::= perfetto_pipeline(P). { A = P; }
