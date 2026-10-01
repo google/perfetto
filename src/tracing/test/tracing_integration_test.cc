@@ -37,6 +37,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/ipc/producer_port.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -51,6 +52,12 @@ class ProducerIPCClientTestPeer {
  public:
   static void ScheduleDisconnect(ProducerIPCClientImpl* client) {
     client->ScheduleDisconnect();
+  }
+
+  static void OnServiceRequest(
+      ProducerIPCClientImpl* client,
+      const protos::gen::GetAsyncCommandResponse& cmd) {
+    client->OnServiceRequest(cmd);
   }
 };
 
@@ -297,6 +304,29 @@ TEST_F(TracingIntegrationTest, DestroyEndpointWithScheduledDisconnect) {
       static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get()));
   producer_endpoint_.reset();
   task_runner_->RunUntilIdle();
+}
+
+TEST_F(TracingIntegrationTest, SetupTracingWithoutSmbDisconnects) {
+  auto* client = static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
+  ASSERT_EQ(client->shared_memory(), nullptr);
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnTracingSetup()).Times(0);
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce([&] {
+    EXPECT_EQ(client->GetClientForTesting(), nullptr);
+    producer_endpoint_.reset();
+    disconnected();
+  });
+
+  protos::gen::GetAsyncCommandResponse cmd;
+  cmd.mutable_setup_tracing()->set_shared_buffer_page_size_kb(4);
+  test::ProducerIPCClientTestPeer::OnServiceRequest(client, cmd);
+
+  // The handler must return before the disconnect destroys the endpoint.
+  ASSERT_TRUE(producer_endpoint_);
+  EXPECT_NE(client->GetClientForTesting(), nullptr);
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  task_runner_->RunUntilIdle();
+  EXPECT_FALSE(producer_endpoint_);
 }
 
 TEST_F(TracingIntegrationTest, WithIPCTransport) {
