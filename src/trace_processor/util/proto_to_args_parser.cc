@@ -17,6 +17,7 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -58,6 +59,15 @@ void AppendProtoType(std::string& target, const std::string& value) {
   if (!target.empty())
     target += '.';
   target += value;
+}
+
+// Appends "[index]" in place: this runs for every element of every array.
+void AppendArrayIndex(std::string& target, size_t index) {
+  char buf[24];
+  buf[0] = '[';
+  char* end = std::to_chars(buf + 1, buf + sizeof(buf) - 1, index).ptr;
+  *end++ = ']';
+  target.append(buf, static_cast<size_t>(end - buf));
 }
 
 bool IsFieldAllowed(const FieldDescriptor& field,
@@ -526,18 +536,10 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
 
   ScopedNestedKeyContext field_key_context(key_prefix_);
   AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
+  AppendProtoType(key_prefix_.key, field_descriptor->name());
   if (field_descriptor->is_repeated()) {
-    std::string prefix_part = field_descriptor->name();
     int& index = RepeatedFieldIndexFor(item.repeated_field_index, field.id());
-    std::string number = std::to_string(index);
-    prefix_part.reserve(prefix_part.length() + number.length() + 2);
-    prefix_part.append("[");
-    prefix_part.append(number);
-    prefix_part.append("]");
-    index++;
-    AppendProtoType(key_prefix_.key, prefix_part);
-  } else {
-    AppendProtoType(key_prefix_.key, field_descriptor->name());
+    AppendArrayIndex(key_prefix_.key, static_cast<size_t>(index++));
   }
 
   // kNoPath for dynamic DebugAnnotation subtrees, which intern keys directly.
@@ -642,24 +644,20 @@ base::Status ProtoToArgsParser::ParsePackedField(
         field_descriptor.name().c_str());
   }
 
-  // All elements share the same flat_key, so the node is resolved at most once.
+  // All elements share the same flat_key and field name, so the node is
+  // resolved at most once and only the index is rewritten per element.
+  ScopedNestedKeyContext key_context(key_prefix_);
+  AppendProtoType(key_prefix_.flat_key, field_descriptor.name());
+  AppendProtoType(key_prefix_.key, field_descriptor.name());
+  const size_t key_size = key_prefix_.key.size();
   uint32_t node = kNoPath;
   auto parse = [&](uint64_t new_value, PWT wire_type) {
     protozero::Field f;
     f.initialize(field.id(), static_cast<uint8_t>(wire_type), new_value, 0);
 
-    std::string prefix_part = field_descriptor.name();
     int& index = RepeatedFieldIndexFor(repeated_field_index, field.id());
-    std::string number = std::to_string(index);
-    prefix_part.reserve(prefix_part.length() + number.length() + 2);
-    prefix_part.append("[");
-    prefix_part.append(number);
-    prefix_part.append("]");
-    index++;
-
-    ScopedNestedKeyContext key_context(key_prefix_);
-    AppendProtoType(key_prefix_.flat_key, field_descriptor.name());
-    AppendProtoType(key_prefix_.key, prefix_part);
+    key_prefix_.key.resize(key_size);
+    AppendArrayIndex(key_prefix_.key, static_cast<size_t>(index++));
 
     if (parent_path != kNoPath) {
       if (node == kNoPath) {
@@ -819,7 +817,7 @@ base::Status ProtoToArgsParser::ParseSimpleField(
 ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterArray(
     size_t index) {
   ScopedNestedKeyContext context(key_prefix_);
-  key_prefix_.key += "[" + std::to_string(index) + "]";
+  AppendArrayIndex(key_prefix_.key, index);
   return context;
 }
 
