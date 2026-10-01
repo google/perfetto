@@ -23,7 +23,9 @@ export default defineConfig({
   timeout: 60_000,
   testDir: './src',
   snapshotDir: '../test/data/ui-screenshots',
-  snapshotPathTemplate: '{snapshotDir}/{testFileName}/{testName}/{arg}{ext}',
+  // {arg} is <test or step title>/<name>, as returned by
+  // PerfettoTestHelper.screenshotName(). All screenshots must use it.
+  snapshotPathTemplate: '{snapshotDir}/{testFileName}/{arg}{ext}',
   outputDir: `${outDir}/ui-test-results`,
   fullyParallel: false,
   retries: isCi ? 2 : 0, // Retry only in CI

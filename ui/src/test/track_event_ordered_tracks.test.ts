@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -26,38 +24,42 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('track_event_ordered.pb');
 });
 
-test('load trace', async () => {
-  await pth.waitForIdleAndScreenshot('loaded.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+test('track_event_ordered_tracks', async () => {
+  test.setTimeout(4 * 60_000);
+
+  await pth.step('load trace', async () => {
+    await pth.waitForIdleAndScreenshot('loaded.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
-});
 
-test('chronological order', async () => {
-  const chronologicalGrp = pth.locateTrack('Root Chronological');
-  await chronologicalGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(chronologicalGrp);
+  await pth.step('chronological order', async () => {
+    const chronologicalGrp = pth.locateTrack('Root Chronological');
+    await chronologicalGrp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(chronologicalGrp);
 
-  await pth.waitForIdleAndScreenshot('chronological.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+    await pth.waitForIdleAndScreenshot('chronological.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
-});
 
-test('explicit order', async () => {
-  const explicitGrp = pth.locateTrack('Root Explicit');
-  await explicitGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(explicitGrp);
+  await pth.step('explicit order', async () => {
+    const explicitGrp = pth.locateTrack('Root Explicit');
+    await explicitGrp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(explicitGrp);
 
-  await pth.waitForIdleAndScreenshot('explicit.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+    await pth.waitForIdleAndScreenshot('explicit.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
-});
 
-test('lexicographic tracks', async () => {
-  const lexicographicGrp = pth.locateTrack('Root Lexicographic');
-  await lexicographicGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(lexicographicGrp);
+  await pth.step('lexicographic tracks', async () => {
+    const lexicographicGrp = pth.locateTrack('Root Lexicographic');
+    await lexicographicGrp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(lexicographicGrp);
 
-  await pth.waitForIdleAndScreenshot('lexicographic.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+    await pth.waitForIdleAndScreenshot('lexicographic.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
 });
