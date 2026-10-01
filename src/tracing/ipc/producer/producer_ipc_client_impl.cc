@@ -156,14 +156,19 @@ ProducerIPCClientImpl::~ProducerIPCClientImpl() {
 
 void ProducerIPCClientImpl::Disconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!producer_port_)
+  // Disconnect() is complete when both the port and channel are gone.
+  // ScheduleDisconnect() drops only the port and leaves the channel open.
+  if (!producer_port_ && !ipc_channel_)
     return;
-  // Reset the producer port so that no further IPCs are received and IPC
-  // callbacks are no longer executed. Also reset the IPC channel so that the
-  // service is notified of the disconnection.
+
+  // Clear |connected_| so callbacks invoked during port destruction see a
+  // disconnected endpoint.
+  connected_ = false;
+  // Reset |producer_port_| to stop further IPC replies, then close
+  // |ipc_channel_| so the service sees the disconnection.
   producer_port_.reset();
   ipc_channel_.reset();
-  // Perform disconnect synchronously.
+  // Perform disconnect synchronously. This may delete |this|.
   OnDisconnect();
 }
 
@@ -248,8 +253,10 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
   // |ipc_channel| doesn't allow disconnection in the middle of handling
   // an IPC call, so the connection drop must take place over two phases.
 
-  // First, synchronously drop the |producer_port_| so that no more IPC
-  // messages are handled.
+  // First, clear |connected_| so pending Sync() callbacks see a disconnected
+  // endpoint when the port is destroyed. Then synchronously drop
+  // |producer_port_| so that no more IPC messages are handled.
+  connected_ = false;
   producer_port_.reset();
 
   // Then schedule an async task for performing the remainder of the
@@ -424,6 +431,7 @@ void ProducerIPCClientImpl::RegisterDataSource(
   if (!connected_) {
     PERFETTO_DLOG(
         "Cannot RegisterDataSource(), not connected to tracing service");
+    return;
   }
   protos::gen::RegisterDataSourceRequest req;
   *req.mutable_data_source_descriptor() = descriptor;
@@ -442,6 +450,7 @@ void ProducerIPCClientImpl::UpdateDataSource(
   if (!connected_) {
     PERFETTO_DLOG(
         "Cannot UpdateDataSource(), not connected to tracing service");
+    return;
   }
   protos::gen::UpdateDataSourceRequest req;
   *req.mutable_data_source_descriptor() = descriptor;
