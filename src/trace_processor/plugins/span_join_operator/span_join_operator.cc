@@ -33,6 +33,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -138,6 +139,35 @@ std::string EscapedSqliteValueAsString(sqlite3_value* value) {
   }
 }
 
+base::StatusOr<SqlValue::Type> ColumnType(
+    const sqlite::utils::SqliteColumn& column,
+    const std::string& table) {
+  const char* type = column.type.c_str();
+  if (base::CaseInsensitiveEqual(type, "STRING") ||
+      base::CaseInsensitiveEqual(type, "TEXT")) {
+    return SqlValue::Type::kString;
+  }
+  if (base::CaseInsensitiveEqual(type, "DOUBLE")) {
+    return SqlValue::Type::kDouble;
+  }
+  if (base::CaseInsensitiveEqual(type, "BIG INT") ||
+      base::CaseInsensitiveEqual(type, "BIGINT") ||
+      base::CaseInsensitiveEqual(type, "UNSIGNED INT") ||
+      base::CaseInsensitiveEqual(type, "INT") ||
+      base::CaseInsensitiveEqual(type, "BOOLEAN") ||
+      base::CaseInsensitiveEqual(type, "INTEGER")) {
+    return SqlValue::Type::kLong;
+  }
+  if (base::CaseInsensitiveEqual(type, "BLOB")) {
+    return SqlValue::Type::kBytes;
+  }
+  if (column.type.empty()) {
+    return SqlValue::Type::kNull;
+  }
+  return base::ErrStatus("Unknown column type '%s' on table %s", type,
+                         table.c_str());
+}
+
 }  // namespace
 
 void SpanJoinOperatorModule::Vtab::PopulateColumnLocatorMap(uint32_t offset) {
@@ -227,8 +257,19 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
   }
 
   std::vector<std::pair<SqlValue::Type, std::string>> cols;
-  RETURN_IF_ERROR(sqlite::utils::GetColumnsForTable(
-      connection->sqlite_connection()->db(), desc.name, cols));
+  // Table functions are named with their arguments.
+  std::string table = desc.name.substr(0, desc.name.find('('));
+  for (const auto& column : sqlite::utils::GetColumns(
+           connection->sqlite_connection()->db(), table)) {
+    if (!column.hidden) {
+      ASSIGN_OR_RETURN(SqlValue::Type type, ColumnType(column, desc.name));
+      cols.emplace_back(type, column.name);
+    }
+  }
+  if (cols.empty()) {
+    return base::ErrStatus("Unknown table or view name '%s'",
+                           desc.name.c_str());
+  }
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();

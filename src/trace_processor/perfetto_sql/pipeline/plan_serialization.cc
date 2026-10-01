@@ -31,7 +31,9 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
@@ -197,10 +199,11 @@ class PlanWriter {
       case base::variant_index<op::Scan::Source, op::Scan::Dataframe>():
         w_.Str(base::unchecked_get<op::Scan::Dataframe>(scan.source).name);
         break;
-      case base::variant_index<op::Scan::Source, SqlSource>():
-        w_.Str(base::unchecked_get<SqlSource>(scan.source).sql());
+      case base::variant_index<op::Scan::Source, op::Scan::DataframeArg>():
+        w_.U32(base::unchecked_get<op::Scan::DataframeArg>(scan.source).index);
         break;
       default:
+        // SQL is moved out into dataframe arguments before a plan is written.
         PERFETTO_FATAL("Unknown scan source");
     }
     w_.Size(scan.columns.size());
@@ -304,24 +307,18 @@ class PlanReader {
         scan.source = std::move(source);
         break;
       }
-      case base::variant_index<op::Scan::Source, SqlSource>():
-        scan.source = SqlSource::FromTraceProcessorImplementation(r_.Str());
+      case base::variant_index<op::Scan::Source, op::Scan::DataframeArg>():
+        scan.source = op::Scan::DataframeArg{r_.U32()};
         break;
       default:
         r_.Fail();
         return {};
     }
     scan.columns.resize(r_.Count());
-    bool from_sql = std::holds_alternative<SqlSource>(scan.source);
     Available available;
     for (NamedColumn& column : scan.columns) {
       column.name = r_.Str();
-      std::optional<core::StorageType> type = ReadType(r_);
-      // SqlScan cannot produce Ids.
-      if (from_sql && type && type->Is<core::Id>()) {
-        r_.Fail();
-      }
-      column.id = plan_.AddColumn(column.name, type);
+      column.id = plan_.AddColumn(column.name, ReadType(r_));
       available.push_back(column.id);
     }
     return available;
@@ -380,6 +377,17 @@ class PlanReader {
   LogicalPlan plan_;
 };
 
+std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
+                                       const std::string& name) {
+  const std::vector<std::string>& names = dataframe.column_names();
+  for (uint32_t i = 0; i < names.size(); ++i) {
+    if (names[i] == name && !dataframe::IsHiddenColumn(names[i])) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
 // Points each dataframe scan at the dataframe now registered under its name,
 // which must still have every column the plan reads, with the same type.
 base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
@@ -397,21 +405,16 @@ base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
       return base::ErrStatus("Pipeline: table '%s' no longer exists",
                              source->name.c_str());
     }
-    const std::vector<std::string>& names = dataframe->column_names();
     for (const NamedColumn& column : scan.columns) {
-      uint32_t i = 0;
-      while (i < names.size() &&
-             (names[i] != column.name || dataframe::IsHiddenColumn(names[i]))) {
-        ++i;
-      }
+      std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
       const std::optional<core::StorageType>& type =
           plan.columns[column.id].type;
-      if (i == names.size() || !type || !(*type == dataframe->column_type(i))) {
+      if (!i || !type || !(*type == dataframe->column_type(*i))) {
         return base::ErrStatus(
             "Pipeline: table '%s' has changed since the pipeline was written",
             source->name.c_str());
       }
-      source->columns.push_back(dataframe->shared_column(i));
+      source->columns.push_back(dataframe->shared_column(*i));
     }
     source->row_count = dataframe->row_count();
   }
@@ -422,6 +425,56 @@ base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
 
 std::string SerializePlan(const LogicalPlan& plan) {
   return PlanWriter(plan).Write();
+}
+
+base::Status BindDataframeArgs(
+    LogicalPlan& plan,
+    const std::vector<const dataframe::Dataframe*>& args,
+    StringPool* pool) {
+  for (PlanNode& node : plan.nodes) {
+    if (!node.Is<op::Scan>()) {
+      continue;
+    }
+    auto& scan = node.Cast<op::Scan>();
+    const auto* arg = std::get_if<op::Scan::DataframeArg>(&scan.source);
+    if (!arg) {
+      continue;
+    }
+    if (arg->index >= args.size()) {
+      return base::ErrStatus("Pipeline: no dataframe argument %u", arg->index);
+    }
+    // A relation with no rows is passed as null: read it as empty columns.
+    std::optional<dataframe::Dataframe> empty;
+    const dataframe::Dataframe* dataframe = args[arg->index];
+    if (!dataframe) {
+      std::vector<std::string> names;
+      for (const NamedColumn& column : scan.columns) {
+        names.push_back(column.name);
+      }
+      dataframe::AdhocDataframeBuilder::Options options;
+      options.emit_auto_id = false;
+      ASSIGN_OR_RETURN(empty, dataframe::AdhocDataframeBuilder(std::move(names),
+                                                               pool, options)
+                                  .Build());
+      dataframe = &*empty;
+    }
+    op::Scan::Dataframe source;
+    source.name = "dataframe argument " + std::to_string(arg->index);
+    for (const NamedColumn& column : scan.columns) {
+      std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
+      if (!i) {
+        return base::ErrStatus("Pipeline: %s has no column '%s'",
+                               source.name.c_str(), column.name.c_str());
+      }
+      // The dataframe was built after the plan was written, so it decides
+      // what each column holds.
+      plan.columns[column.id].type = dataframe->column_type(*i);
+      source.columns.push_back(dataframe->shared_column(*i));
+    }
+    source.row_count = dataframe->row_count();
+    scan.source = std::move(source);
+  }
+  return base::OkStatus();
 }
 
 base::StatusOr<LogicalPlan> DeserializePlan(std::string_view bytes,

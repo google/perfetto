@@ -20,8 +20,12 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
@@ -39,6 +43,16 @@ std::string SerializePlan(const LogicalPlan&);
 // could not have written is refused, as is a plan whose dataframes have since
 // changed.
 base::StatusOr<LogicalPlan> DeserializePlan(std::string_view, const Catalog&);
+
+// Points each scan of a dataframe argument at `args[i]`, the dataframe the
+// plan is passed as its i-th argument when it runs, and types the scan's
+// columns as the dataframe does. A null argument is a relation with no rows.
+// Anyone can pass dataframes to a plan in SQL, so each must have the columns
+// the plan reads from it.
+base::Status BindDataframeArgs(
+    LogicalPlan& plan,
+    const std::vector<const dataframe::Dataframe*>& args,
+    StringPool* pool);
 
 }  // namespace perfetto::trace_processor::pipeline
 
