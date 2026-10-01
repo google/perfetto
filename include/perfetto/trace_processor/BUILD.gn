@@ -23,6 +23,7 @@ source_set("trace_processor") {
   public_deps = [
     ":basic_types",
     ":io",
+    ":parser",
     ":storage",
   ]
 }
@@ -55,4 +56,20 @@ source_set("basic_types") {
     "status.h",
   ]
   public_deps = [ "../base" ]
+}
+
+source_set("parser_config") {
+  sources = [ "trace_parser_config.h" ]
+  public_deps = [ ":basic_types" ]
+}
+
+source_set("parser") {
+  sources = [
+    "trace_parser.h",
+    "trace_parser_sinks.h",
+  ]
+  public_deps = [
+    ":parser_config",
+    ":util",
+  ]
 }

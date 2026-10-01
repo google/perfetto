@@ -1,0 +1,4 @@
+ninja: Entering directory `out/mac_debug'
+[1/3] compile ../../src/trace_processor/streaming_tables_unittest.cc
+[2/3] link ./perfetto_trace_processor_unittests
+[3/3] link ./perfetto_unittests

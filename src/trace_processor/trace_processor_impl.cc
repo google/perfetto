@@ -431,6 +431,9 @@ TraceProcessorImpl::TraceProcessorImpl(
     for (auto& p : plugins_) {
       p->RegisterDataframes(plugin_dataframes_);
     }
+    for (const auto& df : plugin_dataframes_) {
+      context()->storage->ConfigureTableOutput(df.dataframe, df.name.c_str());
+    }
     for (auto& p : plugins_) {
       p->OnDataframesRegistered(plugin_dataframes_);
     }
@@ -631,6 +634,14 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
         PERFETTO_CHECK(it != col_names.end());
         col_idxs.push_back(
             static_cast<uint32_t>(std::distance(col_names.begin(), it)));
+      }
+      // Parser-only storage deliberately omits query-only columns. An index
+      // over an omitted column has no data to index.
+      if (df.dataframe->first_retained_row() != 0 ||
+          std::any_of(col_idxs.begin(), col_idxs.end(), [&](uint32_t col) {
+            return !df.dataframe->retains_column(col);
+          })) {
+        continue;
       }
       auto idx_or = df.dataframe->BuildIndex(col_idxs.data(),
                                              col_idxs.data() + col_idxs.size());
@@ -1162,7 +1173,6 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
   if (!result.status().ok()) {
     PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());
   }
-
   if (notify_eof_called) {
     IncludeAfterEofPrelude(connection.get());
   }
