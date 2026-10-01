@@ -37,6 +37,7 @@ import "protos/perfetto/config/android/protolog_config.proto";
 import "protos/perfetto/config/android/display_video_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_layers_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_transactions_config.proto";
+import "protos/perfetto/config/android/ui_hierarchy_config.proto";
 import "protos/perfetto/config/android/user_list_config.proto";
 import "protos/perfetto/config/android/windowmanager_config.proto";
 import "protos/perfetto/config/chrome/chrome_config.proto";
@@ -79,7 +80,7 @@ import "protos/perfetto/config/qnx/qnx_config.proto";
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 147
+// Next id: 148
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -332,6 +333,9 @@ message DataSourceConfig {
 
   // Data source name: linux.smaps
   optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
+
+  // Data source name: android.ui.hierarchy
+  optional UiHierarchyConfig ui_hierarchy_config = 147 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

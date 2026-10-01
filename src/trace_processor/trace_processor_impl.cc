@@ -145,6 +145,7 @@
 #include "src/trace_processor/plugins/trace_export/trace_export.h"
 #include "src/trace_processor/plugins/tree_functions/tree_functions.h"
 #include "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h"
+#include "src/trace_processor/plugins/ui_hierarchy_importer/ui_hierarchy_importer.h"
 #include "src/trace_processor/plugins/utils_functions/utils_functions.h"
 #include "src/trace_processor/plugins/video_frame_importer/video_frame_importer.h"
 #include "src/trace_processor/plugins/wattson/wattson.h"
@@ -399,6 +400,7 @@ TraceProcessorImpl::TraceProcessorImpl(
   tree_functions::RegisterPlugin();
   type_builder_functions::RegisterPlugin();
   utils_functions::RegisterPlugin();
+  ui_hierarchy_importer::RegisterPlugin();
   video_frame_importer::RegisterPlugin();
   wattson::RegisterPlugin();
   window_operator::RegisterPlugin();

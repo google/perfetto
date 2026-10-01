@@ -553,6 +553,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_tables",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_ui_hierarchy_importer",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
@@ -878,6 +880,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_tables",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_ui_hierarchy_importer",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
@@ -4126,6 +4130,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/surfaceflinger.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/suspend.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/ui_hierarchy.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/ui_hierarchy_analysis.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/user_list.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/version.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/wakeups.sql",
@@ -5353,6 +5359,33 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/plugins/type_builder_functions/type_builder_functions.h",
         "src/trace_processor/plugins/type_builder_functions/type_builders.cc",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/ui_hierarchy_importer:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_plugins_ui_hierarchy_importer_tables",
+    srcs = [
+        "src/trace_processor/plugins/ui_hierarchy_importer/tables.py",
+    ],
+    deps = [
+        ":src_trace_processor_tables_tables_python",
+    ],
+    outs = [
+        "src/trace_processor/plugins/ui_hierarchy_importer/all_tables_fwd.h",
+        "src/trace_processor/plugins/ui_hierarchy_importer/tables_fwd.h",
+        "src/trace_processor/plugins/ui_hierarchy_importer/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/ui_hierarchy_importer:ui_hierarchy_importer
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_ui_hierarchy_importer_ui_hierarchy_importer",
+    srcs = [
+        "src/trace_processor/plugins/ui_hierarchy_importer/ui_hierarchy_importer.cc",
+        "src/trace_processor/plugins/ui_hierarchy_importer/ui_hierarchy_importer.h",
+        "src/trace_processor/plugins/ui_hierarchy_importer/ui_hierarchy_module.cc",
+        "src/trace_processor/plugins/ui_hierarchy_importer/ui_hierarchy_module.h",
     ],
 )
 
@@ -8252,6 +8285,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/protolog_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
+        "protos/perfetto/config/android/ui_hierarchy_config.proto",
         "protos/perfetto/config/android/user_list_config.proto",
         "protos/perfetto/config/android/windowmanager_config.proto",
     ],
@@ -9218,6 +9252,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
         "protos/perfetto/trace/android/recovered_trace_info.proto",
+        "protos/perfetto/trace/android/ui_hierarchy.proto",
         "protos/perfetto/trace/android/user_list.proto",
     ],
     visibility = [
@@ -11935,6 +11970,8 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_tables",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_ui_hierarchy_importer",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",
@@ -12291,6 +12328,8 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_trace_export_trace_export",
         ":src_trace_processor_plugins_tree_functions_tree_functions",
         ":src_trace_processor_plugins_type_builder_functions_type_builder_functions",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_tables",
+        ":src_trace_processor_plugins_ui_hierarchy_importer_ui_hierarchy_importer",
         ":src_trace_processor_plugins_utils_functions_utils_functions",
         ":src_trace_processor_plugins_video_frame_importer_tables",
         ":src_trace_processor_plugins_video_frame_importer_video_frame_importer",

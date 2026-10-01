@@ -1,0 +1,109 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Config for the "android.ui.hierarchy" data source.
+//
+// This data source is emitted from inside app processes (e.g. by the AndroidX
+// ui-tracing-perfetto library) and captures the in-app UI tree: Views and
+// Jetpack Compose nodes, with screen-space bounds, semantics (text, role,
+// state, actions) and code location, for every window of the process.
+//
+// Unset/0 fields use the producer's default.
+message UiHierarchyConfig {
+  // How user-visible strings are captured.
+  enum TextMode {
+    // Same as TEXT_MODE_REDACT_SENSITIVE.
+    TEXT_MODE_UNSPECIFIED = 0;
+    // Capture all text, but mask sensitive fields (passwords, views marked
+    // content-sensitive) as "•••• (len=N)". Default.
+    TEXT_MODE_REDACT_SENSITIVE = 1;
+    // Capture no user-visible strings. Structure, bounds, roles and flags are
+    // still captured; text is replaced by its length.
+    TEXT_MODE_REDACT_ALL = 2;
+    // Capture everything, including passwords. The app can cap this (e.g.
+    // release builds default to TEXT_MODE_REDACT_SENSITIVE unless opted in);
+    // the effective mode is reported in the trace.
+    TEXT_MODE_INCLUDE_ALL = 3;
+  }
+
+  // Minimum interval between two captures of the same window. 0 (default) =
+  // capture every frame the window draws: no drawn state is ever missed.
+  // Captures skipped because of this (or because of producer backpressure)
+  // are reported via UiWindow.skipped_frames.
+  optional uint32 min_interval_ms = 1;
+
+  // Interval at which full snapshots (keyframes) are emitted. Between
+  // keyframes only deltas are emitted. Keyframes keep ring-buffer traces
+  // decodable. 0 = producer default (1000 ms).
+  optional uint32 keyframe_interval_ms = 2;
+
+  optional TextMode text_mode = 3;
+
+  // Don't emit plain Android View nodes (only Compose content).
+  optional bool disable_views = 4;
+
+  // Emit the composition tree (composable names, source locations,
+  // layout-only nodes) when the app has it available.
+  optional bool include_composition = 5;
+
+  // Emit modifiers / View properties as generic key/value pairs.
+  optional bool include_modifiers = 6;
+
+  // Emit text layout details (overflow, line count, font size, color).
+  optional bool include_text_layout = 7;
+
+  // Emit a UiHierarchyEvents stream with every recomposition scope
+  // (enter/exit), the state object that invalidated it, scope disposal and
+  // every snapshot state apply. Compose only.
+  optional bool include_recomposition_events = 8;
+
+  // Emit every composable function call (begin/end, name, source location,
+  // changed-parameter bits) via the Compose composition tracer. High volume.
+  // Requires the app not to strip composition tracing (isTraceInProgress) in
+  // release builds.
+  optional bool include_composable_calls = 9;
+
+  // With include_recomposition_events: also emit which state objects each
+  // scope reads (the full dependency graph). High volume.
+  optional bool include_state_reads = 10;
+
+  // The options below need the compose tracing hooks (compose runtime / ui /
+  // animation / foundation versions that ship them). Every event is recorded;
+  // nothing is sampled. Drops (buffer overflow) are reported explicitly.
+
+  // Frames, applyChanges, remember/forget (effects), side effects, and
+  // individual global state writes.
+  optional bool include_runtime_events = 11;
+  // Layout node insert / remove / move / attach / detach / modifier changes
+  // and semantics changes.
+  optional bool include_tree_events = 12;
+  // Measure / layout / draw invalidations.
+  optional bool include_invalidations = 13;
+  // Per-node measure / place / draw slices (high volume).
+  optional bool include_layout_passes = 14;
+  // Pointer, key and focus events.
+  optional bool include_input = 15;
+  // Animation start / every frame / end, and Transition state changes.
+  optional bool include_animations = 16;
+  // Scroll deltas and lazy layout item compose / dispose / prefetch.
+  optional bool include_foundation_events = 17;
+  // Convenience: enable everything above (and 8-10).
+  optional bool include_everything = 18;
+}

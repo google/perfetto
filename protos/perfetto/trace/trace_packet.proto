@@ -23,6 +23,7 @@ import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/protovm/vm_program.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/recovered_trace_info.proto";
+import "protos/perfetto/trace/android/ui_hierarchy.proto";
 import "protos/perfetto/trace/android/android_aflags.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
@@ -112,7 +113,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 139.
+// Next id: 141.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -294,6 +295,11 @@ message TracePacket {
     // Injected into TracePacket by perfetto post-reboot recovery to record
     // recovered trace metadata.
     RecoveredTraceInfo recovered_trace_info = 138;
+
+    // In-app UI tree (Views + Compose) from the "android.ui.hierarchy" data
+    // source.
+    UiHierarchySnapshot ui_hierarchy = 139;
+    UiHierarchyEvents ui_hierarchy_events = 140;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

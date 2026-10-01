@@ -280,6 +280,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "plugins/trace_export",
       "plugins/tree_functions",
       "plugins/type_builder_functions",
+      "plugins/ui_hierarchy_importer",
       "plugins/utils_functions",
       "plugins/video_frame_importer",
       "plugins/wattson",

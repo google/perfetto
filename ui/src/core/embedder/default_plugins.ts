@@ -45,6 +45,7 @@ export const defaultPlugins = [
   'com.android.PinAndroidPerfMetrics',
   'com.android.PinSysUITracks',
   'com.android.SysUIWorkspace',
+  'com.android.UiHierarchy',
   'com.android.WearLongBatteryTracing',
   'com.google.PixelCpmTrace',
   'com.google.PixelMemory',
