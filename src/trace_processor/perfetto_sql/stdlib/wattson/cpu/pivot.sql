@@ -29,34 +29,10 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
-CREATE PERFETTO TABLE _stats_cpu0 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 0;
-
-CREATE PERFETTO TABLE _stats_cpu1 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 1;
-
-CREATE PERFETTO TABLE _stats_cpu2 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 2;
-
-CREATE PERFETTO TABLE _stats_cpu3 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 3;
-
-CREATE PERFETTO TABLE _stats_cpu4 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 4;
-
-CREATE PERFETTO TABLE _stats_cpu5 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 5;
-
-CREATE PERFETTO TABLE _stats_cpu6 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 6;
-
-CREATE PERFETTO TABLE _stats_cpu7 AS
-SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 7;
-
 -- Per-interval CPU data, and the last generic table before going to device
 -- specific table calcs.
 --
--- Because `_stats_cpu0..7` pass `state_id` as their `id`, `_wattson_dsu_frequency`
+-- Because each CPU stream passes `state_id` as its `id`, `_wattson_dsu_frequency`
 -- passes `dsu_freq` as its `id`, and `_gapless_suspend_slices` passes
 -- `suspended` as its `id`, `interval_intersect` directly outputs those values
 -- in `base.id_0..10`. This eliminates 10 out of 11 table joins across 434K
@@ -91,14 +67,14 @@ SELECT
   base.id_7 AS state_id_7
 FROM _interval_intersect!(
   (
-    _stats_cpu0,
-    _stats_cpu1,
-    _stats_cpu2,
-    _stats_cpu3,
-    _stats_cpu4,
-    _stats_cpu5,
-    _stats_cpu6,
-    _stats_cpu7,
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 0),
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 1),
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 2),
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 3),
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 4),
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 5),
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 6),
+    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 7),
     (SELECT dsu_freq AS id, ts, dur FROM _wattson_dsu_frequency),
     _ii_subquery!(_arm_l3_rates),
     (SELECT suspended AS id, ts, dur FROM _gapless_suspend_slices)

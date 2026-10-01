@@ -264,6 +264,11 @@ class Dataframe {
   // If the dataframe is already finalized, this function does nothing.
   void Finalize();
 
+  // As Finalize, but without estimating how many distinct values each column
+  // holds, which only query planning uses. Cheaper, for a dataframe which is
+  // only ever scanned.
+  void FinalizeWithoutStatistics();
+
   // Makes a copy of the dataframe which has been finalized. Unfinalized
   // dataframes *cannot* be copied, so this function will assert if not
   // finalized.
@@ -450,6 +455,9 @@ class Dataframe {
             std::vector<std::shared_ptr<Column>> columns,
             uint32_t row_count,
             StringPool* string_pool);
+
+  // Finalize, estimating distinct counts only if `estimate_distinct`.
+  void FinalizeColumns(bool estimate_distinct);
 
   template <typename D, typename... Args, size_t... Is>
   PERFETTO_ALWAYS_INLINE void InsertUncheckedInternal(

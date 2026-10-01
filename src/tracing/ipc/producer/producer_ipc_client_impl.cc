@@ -30,6 +30,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -155,14 +156,19 @@ ProducerIPCClientImpl::~ProducerIPCClientImpl() {
 
 void ProducerIPCClientImpl::Disconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!producer_port_)
+  // Disconnect() is complete when both the port and channel are gone.
+  // ScheduleDisconnect() drops only the port and leaves the channel open.
+  if (!producer_port_ && !ipc_channel_)
     return;
-  // Reset the producer port so that no further IPCs are received and IPC
-  // callbacks are no longer executed. Also reset the IPC channel so that the
-  // service is notified of the disconnection.
+
+  // Clear |connected_| so callbacks invoked during port destruction see a
+  // disconnected endpoint.
+  connected_ = false;
+  // Reset |producer_port_| to stop further IPC replies, then close
+  // |ipc_channel_| so the service sees the disconnection.
   producer_port_.reset();
   ipc_channel_.reset();
-  // Perform disconnect synchronously.
+  // Perform disconnect synchronously. This may delete |this|.
   OnDisconnect();
 }
 
@@ -247,8 +253,10 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
   // |ipc_channel| doesn't allow disconnection in the middle of handling
   // an IPC call, so the connection drop must take place over two phases.
 
-  // First, synchronously drop the |producer_port_| so that no more IPC
-  // messages are handled.
+  // First, clear |connected_| so pending Sync() callbacks see a disconnected
+  // endpoint when the port is destroyed. Then synchronously drop
+  // |producer_port_| so that no more IPC messages are handled.
+  connected_ = false;
   producer_port_.reset();
 
   // Then schedule an async task for performing the remainder of the
@@ -334,27 +342,17 @@ void ProducerIPCClientImpl::OnServiceRequest(
     // FD, which is provided to this code via a blocking callback.
     PERFETTO_CHECK(receive_shmem_fd_cb_fuchsia_);
 
-    base::ScopedFile shmem_fd(receive_shmem_fd_cb_fuchsia_());
-    if (!shmem_fd) {
-      // Failure to get a shared memory buffer is a protocol violation and
-      // therefore we should drop the Protocol connection.
-      PERFETTO_ELOG("Could not get shared memory FD from embedder.");
-      ScheduleDisconnect();
-      return;
-    }
-
-    ipc_shared_memory =
-        PosixSharedMemory::AttachToFd(std::move(shmem_fd),
-                                      /*require_seals_if_supported=*/false);
+    ipc_shared_memory = PosixSharedMemory::AttachToFd(
+        base::ScopedFile(receive_shmem_fd_cb_fuchsia_()),
+        /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
 #else
-    base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
-    if (shmem_fd) {
-      // TODO(primiano): handle mmap failure in case of OOM.
-      ipc_shared_memory =
-          PosixSharedMemory::AttachToFd(std::move(shmem_fd),
-                                        /*require_seals_if_supported=*/false);
-    }
+    // The FD can be invalid, for example with a producer-provided SMB.
+    // |ipc_shared_memory| is then null. The checks below handle it.
+    ipc_shared_memory = PosixSharedMemory::AttachToFd(
+        ipc_channel_->TakeReceivedFD(),
+        /*require_seals_if_supported=*/false, TracingService::kMaxShmSize);
 #endif
+
     if (use_shmem_emulation_) {
       PERFETTO_CHECK(!ipc_shared_memory);
       // Need to create an emulated shmem buffer when the transport doesn't
@@ -362,6 +360,16 @@ void ProducerIPCClientImpl::OnServiceRequest(
       ipc_shared_memory = InProcessSharedMemory::Create(
           /*size=*/InProcessSharedMemory::kShmemEmulationSize);
     }
+
+    // No SMB from the service (none sent, or it failed to map), and none
+    // provided by the producer. The producer cannot trace without one.
+    // Drop the connection: the producer gets OnDisconnect() and can reconnect.
+    if (!ipc_shared_memory && !is_shmem_provided_by_producer_) {
+      PERFETTO_ELOG("No usable shared memory from the service, disconnecting.");
+      ScheduleDisconnect();
+      return;
+    }
+
     if (ipc_shared_memory) {
       auto shmem_mode = use_shmem_emulation_
                             ? SharedMemoryABI::ShmemMode::kShmemEmulation
@@ -423,6 +431,7 @@ void ProducerIPCClientImpl::RegisterDataSource(
   if (!connected_) {
     PERFETTO_DLOG(
         "Cannot RegisterDataSource(), not connected to tracing service");
+    return;
   }
   protos::gen::RegisterDataSourceRequest req;
   *req.mutable_data_source_descriptor() = descriptor;
@@ -441,6 +450,7 @@ void ProducerIPCClientImpl::UpdateDataSource(
   if (!connected_) {
     PERFETTO_DLOG(
         "Cannot UpdateDataSource(), not connected to tracing service");
+    return;
   }
   protos::gen::UpdateDataSourceRequest req;
   *req.mutable_data_source_descriptor() = descriptor;

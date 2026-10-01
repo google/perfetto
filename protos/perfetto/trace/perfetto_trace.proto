@@ -6759,6 +6759,7 @@ message PackagesList {
     optional bool debuggable = 3;
     optional bool profileable_from_shell = 4;
     optional int64 version_code = 5;
+    optional bool profileable = 6;
   }
 
   repeated PackageInfo packages = 1;

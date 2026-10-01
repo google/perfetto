@@ -470,7 +470,6 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
@@ -795,7 +794,6 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
@@ -2530,9 +2528,12 @@ perfetto_filegroup(
         "src/trace_processor/core/common/duplicate_types.h",
         "src/trace_processor/core/common/null_types.h",
         "src/trace_processor/core/common/op_types.h",
+        "src/trace_processor/core/common/row_layout.h",
         "src/trace_processor/core/common/schema.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
+        "src/trace_processor/core/common/string_ranks.cc",
+        "src/trace_processor/core/common/string_ranks.h",
         "src/trace_processor/core/common/value_fetcher.h",
     ],
 )
@@ -3825,15 +3826,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/exec:exec
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_exec_exec",
-    srcs = [
-        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
-        "src/trace_processor/perfetto_sql/exec/sql_scan.h",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/generator:generator
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_generator_generator",
@@ -3881,6 +3873,10 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
+        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
+        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h",
+        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
+        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
     ],
 )
 
@@ -3897,8 +3893,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_schema_schema",
     srcs = [
-        "src/trace_processor/perfetto_sql/schema/query_schema.cc",
-        "src/trace_processor/perfetto_sql/schema/query_schema.h",
         "src/trace_processor/perfetto_sql/schema/type_mapping.h",
     ],
 )
@@ -7125,6 +7119,7 @@ perfetto_android_library(
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrack.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
+        "src/android_sdk/java/main/dev/perfetto/sdk/TracingPolicy.java",
     ],
     manifest = "src/android_sdk/java/main/AndroidManifest.xml",
     deps = [
@@ -11852,7 +11847,6 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
@@ -12208,7 +12202,6 @@ perfetto_cc_binary(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",

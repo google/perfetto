@@ -1262,8 +1262,11 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   stats_.set_readaheads_failed(0);
   stats_.set_readaheads_succeeded(0);
 
-  // Finally copy over the SequenceState map.
+  // Finally copy over the SequenceState map and WriterStats map. WriterStats
+  // must be copied because EmitTraceProvenance() derives the producer->sequence
+  // mapping from it, until b/568173038 is addressed.
   sequences_ = src.sequences_;
+  writer_stats_ = src.writer_stats_;
 
   for (const auto& vm : src.protovms_) {
     auto vm_cloned = vm.CloneReadOnly();

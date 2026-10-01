@@ -3548,22 +3548,49 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_ProcessScoped) {
 
   TRACE_EVENT_INSTANT("foo", "E1", perfetto::Flow::ProcessScoped(1));
   TRACE_EVENT_INSTANT("foo", "E2", perfetto::TerminatingFlow::ProcessScoped(1));
+  TRACE_EVENT_INSTANT("foo", "E3",
+                      perfetto::Flow::ProcessScoped(1, "named_scope"));
+  TRACE_EVENT_INSTANT(
+      "foo", "E4", perfetto::TerminatingFlow::ProcessScoped(1, "named_scope"));
   TRACE_EVENT_INSTANT("foo", "Flush");
 
   std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
 
+  const uint64_t process_uuid = perfetto::ProcessTrack::Current().uuid;
+  EXPECT_NE(process_uuid, 0u);
+  const uint64_t expected_scoped_id =
+      1u ^ process_uuid ^ perfetto::internal::Fnv1a("named_scope");
+
   // Find typed arguments.
-  CheckTypedArguments(raw_trace, "E1",
-                      perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
-                      [](const perfetto::protos::gen::TrackEvent& track_event) {
-                        EXPECT_EQ(track_event.flow_ids_old_size(), 0);
-                        EXPECT_EQ(track_event.flow_ids_size(), 1);
-                      });
+  CheckTypedArguments(
+      raw_trace, "E1", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+      [process_uuid](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_EQ(track_event.flow_ids_old_size(), 0);
+        EXPECT_THAT(track_event.flow_ids(),
+                    testing::ElementsAre(1u ^ process_uuid));
+      });
   CheckTypedArguments(
       raw_trace, "E2", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
-      [](const perfetto::protos::gen::TrackEvent& track_event) {
+      [process_uuid](const perfetto::protos::gen::TrackEvent& track_event) {
         EXPECT_EQ(track_event.terminating_flow_ids_old_size(), 0);
-        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
+        EXPECT_THAT(track_event.terminating_flow_ids(),
+                    testing::ElementsAre(1u ^ process_uuid));
+      });
+  CheckTypedArguments(
+      raw_trace, "E3", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+      [expected_scoped_id](
+          const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_EQ(track_event.flow_ids_old_size(), 0);
+        EXPECT_THAT(track_event.flow_ids(),
+                    testing::ElementsAre(expected_scoped_id));
+      });
+  CheckTypedArguments(
+      raw_trace, "E4", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+      [expected_scoped_id](
+          const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_EQ(track_event.terminating_flow_ids_old_size(), 0);
+        EXPECT_THAT(track_event.terminating_flow_ids(),
+                    testing::ElementsAre(expected_scoped_id));
       });
 }
 

@@ -21,20 +21,16 @@
 #include <string>
 #include <string_view>
 
-#include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor {
 
 // Adapts a connection to semantic analysis and pipeline compilation. Each
 // dataframe is served as a typed leaf relation and as a dataframe.
-class ConnectionCatalog final : public perfetto_sql::analysis::Catalog,
-                                public pipeline::Catalog {
+class ConnectionCatalog final : public pipeline::Catalog {
  public:
   explicit ConnectionCatalog(PerfettoSqlConnection*);
 
@@ -44,8 +40,6 @@ class ConnectionCatalog final : public perfetto_sql::analysis::Catalog,
 
   const dataframe::Dataframe* FindDataframe(
       std::string_view name) const override;
-  base::StatusOr<pipeline::Schema> DescribeQuery(
-      const SqlSource& sql) const override;
 
  private:
   PerfettoSqlConnection* connection_;

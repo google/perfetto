@@ -31,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -137,68 +138,95 @@ base::StatusOr<uint32_t> PushPartition(
     dataframe::AdhocDataframeBuilder& builder,
     const std::vector<Partition*>& intervals_in_table) {
   size_t tables_count = intervals_in_table.size();
+  uint32_t rows_count = 0;
 
-  // Sort `tables_order` from the smallest to the biggest.
-  std::vector<uint32_t> tables_order(tables_count);
-  std::iota(tables_order.begin(), tables_order.end(), 0);
-  std::sort(tables_order.begin(), tables_order.end(),
-            [&intervals_in_table](const uint32_t idx_a, const uint32_t idx_b) {
-              return intervals_in_table[idx_a]->intervals.size() <
-                     intervals_in_table[idx_b]->intervals.size();
-            });
-  uint32_t idx_of_smallest_part = tables_order.front();
-  PERFETTO_DCHECK(!intervals_in_table[idx_of_smallest_part]->intervals.empty());
+  // Fast path: all tables are non-overlapping. Intersect them simultaneously
+  // with a k-pointer sweep.
+  if (std::all_of(intervals_in_table.begin(), intervals_in_table.end(),
+                  [](const Partition* p) { return p->is_nonoverlapping; })) {
+    base::SmallVector<const std::vector<Interval>*, 16> tables;
+    for (const Partition* p : intervals_in_table) {
+      tables.emplace_back(&p->intervals);
+    }
+    IntervalIntersector::IntersectNonOverlapping(
+        tables, [&](uint64_t start, uint64_t end, const uint32_t* ids) {
+          int64_t ts = static_cast<int64_t>(start);
+          builder.PushNonNullUnchecked(0, ts);
+          builder.PushNonNullUnchecked(1, static_cast<int64_t>(end) - ts);
+          for (uint32_t i = 0; i < tables_count; ++i) {
+            builder.PushNonNullUnchecked(i + kArgCols, ids[i]);
+          }
+          ++rows_count;
+        });
+  } else {
+    // Fallback: one or more tables contain overlapping intervals (e.g. nested
+    // slice stacks). Merges tables one by one with IntervalIntersector.
+    // Sort `tables_order` from the smallest to the biggest.
+    std::vector<uint32_t> tables_order(tables_count);
+    std::iota(tables_order.begin(), tables_order.end(), 0);
+    std::sort(
+        tables_order.begin(), tables_order.end(),
+        [&intervals_in_table](const uint32_t idx_a, const uint32_t idx_b) {
+          return intervals_in_table[idx_a]->intervals.size() <
+                 intervals_in_table[idx_b]->intervals.size();
+        });
+    uint32_t idx_of_smallest_part = tables_order.front();
+    PERFETTO_DCHECK(
+        !intervals_in_table[idx_of_smallest_part]->intervals.empty());
 
-  // Trivially translate intervals table with the smallest partition to
-  // `MultiIndexIntervals`.
-  std::vector<MultiIndexInterval> last_results;
-  last_results.reserve(intervals_in_table.back()->intervals.size());
-  for (const auto& interval :
-       intervals_in_table[idx_of_smallest_part]->intervals) {
-    MultiIndexInterval m_int;
-    m_int.start = interval.start;
-    m_int.end = interval.end;
-    m_int.idx_in_table[idx_of_smallest_part] = interval.id;
-    last_results.push_back(std::move(m_int));
-  }
-
-  // Create an interval tree on all tables except the smallest - the first one.
-  std::vector<MultiIndexInterval> overlaps_with_this_table;
-  overlaps_with_this_table.reserve(intervals_in_table.back()->intervals.size());
-  Intervals new_overlaps;
-  for (uint32_t i = 1; i < tables_count && !last_results.empty(); i++) {
-    overlaps_with_this_table.clear();
-    uint32_t table_idx = tables_order[i];
-
-    IntervalIntersector::Mode mode = IntervalIntersector::DecideMode(
-        intervals_in_table[table_idx]->is_nonoverlapping,
-        static_cast<uint32_t>(last_results.size()));
-    IntervalIntersector cur_intersector(
-        intervals_in_table[table_idx]->intervals, mode);
-    for (const auto& prev_result : last_results) {
-      new_overlaps.clear();
-      cur_intersector.FindOverlaps(prev_result.start, prev_result.end,
-                                   new_overlaps);
-      for (const auto& overlap : new_overlaps) {
-        MultiIndexInterval m_int = prev_result;
-        m_int.idx_in_table[table_idx] = overlap.id;
-        m_int.start = overlap.start;
-        m_int.end = overlap.end;
-        overlaps_with_this_table.push_back(std::move(m_int));
-      }
+    // Trivially translate intervals table with the smallest partition to
+    // `MultiIndexIntervals`.
+    std::vector<MultiIndexInterval> last_results;
+    last_results.reserve(intervals_in_table.back()->intervals.size());
+    for (const auto& interval :
+         intervals_in_table[idx_of_smallest_part]->intervals) {
+      MultiIndexInterval m_int;
+      m_int.start = interval.start;
+      m_int.end = interval.end;
+      m_int.idx_in_table[idx_of_smallest_part] = interval.id;
+      last_results.push_back(std::move(m_int));
     }
 
-    std::swap(last_results, overlaps_with_this_table);
-  }
+    // Create an interval tree on all tables except the smallest - the first
+    // one.
+    std::vector<MultiIndexInterval> overlaps_with_this_table;
+    overlaps_with_this_table.reserve(
+        intervals_in_table.back()->intervals.size());
+    Intervals new_overlaps;
+    for (uint32_t i = 1; i < tables_count && !last_results.empty(); i++) {
+      overlaps_with_this_table.clear();
+      uint32_t table_idx = tables_order[i];
 
-  auto rows_count = static_cast<uint32_t>(last_results.size());
-  for (uint32_t i = 0; i < rows_count; i++) {
-    const MultiIndexInterval& interval = last_results[i];
-    builder.PushNonNullUnchecked(0, static_cast<int64_t>(interval.start));
-    builder.PushNonNullUnchecked(1, static_cast<int64_t>(interval.end) -
-                                        static_cast<int64_t>(interval.start));
-    for (uint32_t j = 0; j < tables_count; j++) {
-      builder.PushNonNullUnchecked(j + kArgCols, interval.idx_in_table[j]);
+      IntervalIntersector::Mode mode = IntervalIntersector::DecideMode(
+          intervals_in_table[table_idx]->is_nonoverlapping,
+          static_cast<uint32_t>(last_results.size()));
+      IntervalIntersector cur_intersector(
+          intervals_in_table[table_idx]->intervals, mode);
+      for (const auto& prev_result : last_results) {
+        new_overlaps.clear();
+        cur_intersector.FindOverlaps(prev_result.start, prev_result.end,
+                                     new_overlaps);
+        for (const auto& overlap : new_overlaps) {
+          MultiIndexInterval m_int = prev_result;
+          m_int.idx_in_table[table_idx] = overlap.id;
+          m_int.start = overlap.start;
+          m_int.end = overlap.end;
+          overlaps_with_this_table.push_back(std::move(m_int));
+        }
+      }
+
+      std::swap(last_results, overlaps_with_this_table);
+    }
+
+    rows_count = static_cast<uint32_t>(last_results.size());
+    for (uint32_t i = 0; i < rows_count; i++) {
+      const MultiIndexInterval& interval = last_results[i];
+      builder.PushNonNullUnchecked(0, static_cast<int64_t>(interval.start));
+      builder.PushNonNullUnchecked(1, static_cast<int64_t>(interval.end) -
+                                          static_cast<int64_t>(interval.start));
+      for (uint32_t j = 0; j < tables_count; j++) {
+        builder.PushNonNullUnchecked(j + kArgCols, interval.idx_in_table[j]);
+      }
     }
   }
   for (uint32_t i = 0; i < intervals_in_table[0]->sql_values.size(); i++) {
@@ -230,7 +258,7 @@ base::StatusOr<uint32_t> PushPartition(
         PERFETTO_FATAL("Invalid partition type");
     }
   }
-  return static_cast<uint32_t>(last_results.size());
+  return rows_count;
 }
 
 struct IntervalIntersect : public sqlite::Function<IntervalIntersect> {
