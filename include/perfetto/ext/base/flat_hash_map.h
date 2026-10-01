@@ -96,6 +96,9 @@ struct HashEq<std::string> {
   bool operator()(const std::string& a, base::StringView b) const {
     return base::StringView(a) == b;
   }
+  bool operator()(const std::string& a, const char* b) const {
+    return std::string_view(a) == std::string_view(b);
+  }
 };
 
 // Specialization for double to prevent spurious -Wfloat-equal warnings.
@@ -108,14 +111,13 @@ struct HashEq<double> {
 
 // Helper to check if a lookup key type K is allowed.
 // Returns true if:
-// 1. K can be implicitly converted to Key, OR
-// 2. Hasher has is_transparent AND Hasher is invocable with K AND Key and K
-// are equality comparable
-template <typename K, typename Key, typename Hasher>
+// 1. Hasher is transparent, can hash K, and Eq can compare Key and K, OR
+// 2. Hasher is not transparent and K can be implicitly converted to Key.
+template <typename K, typename Key, typename Hasher, typename Eq>
 constexpr bool IsLookupKeyAllowed() {
   if constexpr (HasIsTransparent<Hasher>::value) {
     return std::is_invocable_v<Hasher, const K&> &&
-           std::is_invocable_v<std::equal_to<>, const Key&, const K&>;
+           std::is_invocable_v<Eq, const Key&, const K&>;
   } else if constexpr (std::is_convertible_v<K, Key>) {
     return true;
   } else {
@@ -279,13 +281,12 @@ class FlatHashMapV2 {
   // With a transparent Hasher, construct the stored Key only if the key is
   // absent. Hashing and equality must agree for K and Key.
   template <typename K = Key>
-  PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(K key, Value value) {
-    if constexpr (flat_hash_map_v2_internal::IsLookupKeyAllowed<K, Key,
-                                                                Hasher>() &&
-                  std::is_invocable_v<Eq, const Key&, const K&>) {
-      return InsertImpl(std::move(key), std::move(value));
+  PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(K&& key, Value value) {
+    if constexpr (flat_hash_map_v2_internal::IsLookupKeyAllowed<
+                      std::remove_reference_t<K>, Key, Hasher, Eq>()) {
+      return InsertImpl(std::forward<K>(key), std::move(value));
     } else {
-      return Insert(Key(std::move(key)), std::move(value));
+      return Insert(Key(std::forward<K>(key)), std::move(value));
     }
   }
 
@@ -468,10 +469,10 @@ class FlatHashMapV2 {
   PERFETTO_ALWAYS_INLINE FindResult
   FindSlotIgnoringTombstones(const K& key, size_t key_hash, uint8_t h2) const {
     static_assert(
-        flat_hash_map_v2_internal::IsLookupKeyAllowed<K, Key, Hasher>(),
+        flat_hash_map_v2_internal::IsLookupKeyAllowed<K, Key, Hasher, Eq>(),
         "Heterogeneous lookup requires Hasher to define is_transparent and "
-        "support hashing the lookup key type. For same-type lookup, Key and K "
-        "must match exactly.");
+        "support hashing the lookup key type, and Eq to compare Key and K. "
+        "Without a transparent Hasher, K must be convertible to Key.");
 
     if (PERFETTO_UNLIKELY(ctrl_ == nullptr)) {
       return {kNotFound, true};
@@ -561,7 +562,7 @@ class FlatHashMapV2 {
       insert_idx = FindFirstEmptyOrTombstone(key_hash);
       is_freeslot = ctrl_[insert_idx] != kTombstone;
     }
-    new (&slots_[insert_idx].key) Key(std::move(key));
+    new (&slots_[insert_idx].key) Key(std::forward<K>(key));
     new (&slots_[insert_idx].value) Value(std::move(value));
     SetCtrl(insert_idx, h2);
     size_++;
