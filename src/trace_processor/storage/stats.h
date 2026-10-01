@@ -185,6 +185,35 @@ namespace perfetto::trace_processor::stats {
        "transition. Retry with a trace_processor version at least as new as "  \
        "the traced that recorded the trace; the raw state value is in the "    \
        "trace import logs."),                                                  \
+  F(machine_sched_claim_conflict,         kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "Scheduling events (sched_switch, sched_waking, ...) from this trace " \
+        "were dropped because another trace on the same machine already "      \
+        "provided scheduling data for this time window."),                     \
+  F(machine_counter_claim_conflict,       kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "Machine-wide counter values from this trace were dropped because "    \
+        "another trace on the same machine already provided them for this "    \
+        "time window."),                                                       \
+  F(machine_ftrace_claim_conflict,        kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "Ftrace events from this trace were dropped because another trace on " \
+        "the same machine already provided ftrace data for this time window."), \
+  F(machine_sys_stats_claim_conflict,     kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "System stats (sys_stats) from this trace were dropped because "       \
+        "another trace on the same machine already provided them for this "    \
+        "time window."),                                                       \
+  F(machine_cpu_per_uid_claim_conflict,   kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "Per-UID CPU time data from this trace was dropped because another "   \
+        "trace on the same machine already claimed per-UID CPU time data."),   \
+  F(machine_android_power_claim_conflict, kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
+        "Android power data (battery, power rails, energy) from this trace "   \
+        "was dropped because another trace on the same machine already "       \
+        "provided power data for this time window."),                          \
+  F(machine_data_closed_at_trace_boundary, kSingle, kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+        "A scheduling slice, thread state or slice on a machine-wide track was " \
+        "still open when its trace's data for that machine ended, and a later " \
+        "trace of the same machine provides that kind of data afterwards. "     \
+        "Rather than leaving it unfinished (dur = -1) across the next trace's "  \
+        "data, it was closed at the end of its trace's data, so its duration "   \
+        "is a lower bound."),                                                  \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
        "CpuInfo contained CPU feature bits not known to this version of "      \
