@@ -1248,9 +1248,15 @@ void PerfettoCmd::OnTimeout() {
 }
 
 void PerfettoCmd::CheckTraceDataTimeout() {
+  // A timeout can still run after finalization. Ignore it to avoid finalizing
+  // the trace again or posting another timeout.
+  if (tracing_succeeded_)
+    return;
+
   if (trace_data_timeout_armed_) {
     PERFETTO_ELOG("Timed out while waiting for OnTraceData, aborting");
     FinalizeTraceAndExit();
+    return;
   }
   trace_data_timeout_armed_ = true;
   task_runner_.PostDelayedTask(
@@ -1259,12 +1265,23 @@ void PerfettoCmd::CheckTraceDataTimeout() {
 }
 
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
+  // - If WritePackets() fails, we call FinalizeTraceAndExit(), which:
+  //   - Resets the writer.
+  //   - Calls Quit() on the task runner.
+  // - Quit() does not stop the current IPC handler. Another buffered reply can
+  //   call OnTraceData() again, after the writer is gone.
+  // - FinalizeTraceAndExit() also sets |tracing_succeeded_| to true, so we use
+  //   that to ignore these later callbacks.
+  if (tracing_succeeded_)
+    return;
+
   trace_data_timeout_armed_ = false;
 
   PERFETTO_CHECK(packet_writer_.has_value());
   if (!packet_writer_->WritePackets(packets)) {
-    PERFETTO_ELOG("Failed to write packets");
+    PERFETTO_PLOG("Failed to write packets");
     FinalizeTraceAndExit();
+    return;
   }
 
   if (!has_more)
@@ -1321,6 +1338,11 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
 }
 
 void PerfettoCmd::FinalizeTraceAndExit() {
+  // Trace data and timeout callbacks can both reach this path. Report and close
+  // the output only once.
+  if (tracing_succeeded_)
+    return;
+
   LogUploadEvent(PerfettoStatsdAtom::kFinalizeTraceAndExit);
   packet_writer_.reset();
 
@@ -1344,6 +1366,10 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     }
   }
 
+  // Set this even after write errors or readback timeouts. It marks
+  // finalization complete, not whether all packets were written. Later
+  // callbacks use it to avoid accessing the destroyed writer or finalizing
+  // again.
   tracing_succeeded_ = true;
   task_runner_.Quit();
 }
