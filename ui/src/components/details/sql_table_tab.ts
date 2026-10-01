@@ -45,8 +45,7 @@ import {sqlColumnId, type SqlColumn} from '../widgets/sql/table/sql_column';
 import {buildSqlQuery} from '../widgets/sql/table/query_builder';
 import {uuidv4} from '../../base/uuid';
 import {StandardFilters} from '../widgets/sql/table/filters';
-import {type TabOption, TabStrip} from '../../widgets/tab_strip';
-import {Gate} from '../../base/mithril_utils';
+import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {isQuantitativeType} from '../../trace_processor/perfetto_sql_type';
 
 export interface AddSqlTableTabParams {
@@ -225,7 +224,7 @@ class SqlTableTab implements Tab {
   render() {
     const hasFilters = this.tableState.filters.get().length > 0;
 
-    const tabs: (TabOption & {content: m.Children})[] = [
+    const tabs: TabsTab[] = [
       {
         key: this.tableState.uuid,
         title: 'Table',
@@ -240,12 +239,7 @@ class SqlTableTab implements Tab {
       tabs.push({
         key: pivot.uuid,
         title: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
-        rightIcon: m(Button, {
-          icon: Icons.Close,
-          onclick: () => {
-            this.pivots = this.pivots.filter((p) => p.uuid !== pivot.uuid);
-          },
-        }),
+        closeButton: true,
         content: m(PivotTable, {
           state: pivot,
           getSelectableColumns: () => getSelectableColumns(this.tableState),
@@ -302,15 +296,7 @@ class SqlTableTab implements Tab {
       tabs.push({
         key: chart.uuid,
         title: `Bar chart: ${chart.columnName}`,
-        rightIcon: m(Button, {
-          icon: Icons.Close,
-          onclick: () => {
-            chart.loader?.dispose();
-            this.barCharts = this.barCharts.filter(
-              (c) => c.uuid !== chart.uuid,
-            );
-          },
-        }),
+        closeButton: true,
         content: m(BarChart, {
           data: result.data,
           orientation: 'horizontal',
@@ -352,15 +338,7 @@ class SqlTableTab implements Tab {
       tabs.push({
         key: histogram.uuid,
         title: `Histogram: ${histogram.columnName}`,
-        rightIcon: m(Button, {
-          icon: Icons.Close,
-          onclick: () => {
-            histogram.loader?.dispose();
-            this.histograms = this.histograms.filter(
-              (h) => h.uuid !== histogram.uuid,
-            );
-          },
-        }),
+        closeButton: true,
         content: m(HistogramSvg, {
           fillParent: true,
           data: result.data,
@@ -383,32 +361,30 @@ class SqlTableTab implements Tab {
         buttons: this.getTableButtons(),
         fillHeight: true,
       },
-      m(
-        '.pf-sql-table',
-        (hasFilters || tabs.length > 1) &&
-          m('.pf-sql-table__toolbar', [
-            hasFilters && renderFilters(this.tableState.filters),
-            tabs.length > 1 &&
-              m(TabStrip, {
-                tabs,
-                currentTabKey: this.selectedTab,
-                onTabChange: (key) => (this.selectedTab = key),
-              }),
-          ]),
-        m(
-          '.pf-sql-table__table',
-          tabs.map((tab) =>
-            m(
-              Gate,
-              {
-                open: tab.key == this.selectedTab,
-              },
-              tab.content,
-            ),
-          ),
-        ),
-      ),
+      m('.pf-sql-table', [
+        hasFilters &&
+          m('.pf-sql-table__toolbar', renderFilters(this.tableState.filters)),
+        m(Tabs, {
+          variant: 'underline',
+          activeTabKey: this.selectedTab,
+          onTabChange: (key) => {
+            this.selectedTab = key;
+          },
+          onTabClose: (key) => this.closeTab(key),
+          tabs,
+        }),
+      ]),
     );
+  }
+
+  // Closes the pivot / chart tab with the given key, disposing any loader.
+  private closeTab(key: string) {
+    this.pivots = this.pivots.filter((p) => p.uuid !== key);
+    for (const chart of [...this.barCharts, ...this.histograms]) {
+      if (chart.uuid === key) chart.loader?.dispose();
+    }
+    this.barCharts = this.barCharts.filter((c) => c.uuid !== key);
+    this.histograms = this.histograms.filter((h) => h.uuid !== key);
   }
 
   getTitle(): string {
