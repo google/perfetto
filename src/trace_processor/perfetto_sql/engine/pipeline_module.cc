@@ -37,9 +37,8 @@
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -57,7 +56,7 @@ constexpr int kFirstOutputColumn = 1;
 std::string Schema() {
   // Public names (which may repeat) are applied by the outer SELECT.
   std::vector<std::string> columns{"pipeline HIDDEN"};
-  for (uint32_t i = 0; i < PipelineModule::kMaxColumns; ++i) {
+  for (uint32_t i = 0; i < pipeline::kMaxPipelineColumns; ++i) {
     columns.push_back("c" + std::to_string(i));
   }
   return "CREATE TABLE x(" + base::Join(columns, ", ") + ")";
@@ -198,7 +197,7 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c, sqlite3_value* value) {
   c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
   // One reader per declared column, so Column only indexes: arguments read as
   // null, and columns past the plan's outputs fail.
-  c->columns.assign(kFirstOutputColumn + PipelineModule::kMaxColumns,
+  c->columns.assign(kFirstOutputColumn + pipeline::kMaxPipelineColumns,
                     {&c->no_view, &ResultNoColumn});
   for (int i = 0; i < kFirstOutputColumn; ++i) {
     c->columns[static_cast<uint32_t>(i)] = {&c->no_view, &ResultNull};
@@ -207,22 +206,6 @@ PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c, sqlite3_value* value) {
 }
 
 }  // namespace
-
-base::StatusOr<std::string> PipelineModule::SelectFrom(
-    const pipeline::LogicalPlan& plan) {
-  const std::vector<pipeline::NamedColumn>& output = plan.output;
-  if (output.size() > kMaxColumns) {
-    return base::ErrStatus("A pipeline can output at most %u columns, not %zu",
-                           kMaxColumns, output.size());
-  }
-  std::vector<std::string> columns;
-  for (uint32_t i = 0; i < output.size(); ++i) {
-    columns.push_back("c" + std::to_string(i) + " AS \"" +
-                      base::ReplaceAll(output[i].name, "\"", "\"\"") + "\"");
-  }
-  return "SELECT " + base::Join(columns, ", ") + " FROM " + kName + "(X'" +
-         base::ToHex(pipeline::SerializePlan(plan)) + "')";
-}
 
 int PipelineModule::Connect(sqlite3* db,
                             void* raw_ctx,

@@ -150,6 +150,7 @@ class RelationAnalyzer::Impl {
   void Begin() {
     preserves_rows_ = true;
     views_.clear();
+    leaves_.clear();
   }
 
   // The columns of the relation `name`. Its hidden columns, if any, are added
@@ -191,6 +192,9 @@ class RelationAnalyzer::Impl {
   // every OwnedView needs a stable address: growing a std::vector<OwnedView>
   // would move the elements and moving `sql` can relocate its bytes (SSO).
   std::vector<std::unique_ptr<OwnedView>> views_;
+  // Lineage string_views point into each leaf relation's strings, so they are
+  // kept at stable addresses for the same reason.
+  std::vector<std::unique_ptr<LeafRelation>> leaves_;
   bool preserves_rows_ = true;
 };
 
@@ -445,7 +449,9 @@ base::StatusOr<std::vector<ColumnLineage>> RelationAnalyzer::Impl::Relation(
     std::string_view name,
     int depth,
     std::vector<std::string_view>& hidden) {
-  if (std::optional<LeafRelation> relation = catalog_.FindLeafRelation(name)) {
+  if (std::optional<LeafRelation> found = catalog_.FindLeafRelation(name)) {
+    leaves_.push_back(std::make_unique<LeafRelation>(std::move(*found)));
+    const LeafRelation* relation = leaves_.back().get();
     std::vector<ColumnLineage> out;
     out.reserve(relation->columns.size());
     for (const LeafColumn& column : relation->columns) {

@@ -57,6 +57,7 @@
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -361,7 +362,7 @@ PerfettoSqlConnection::PerfettoSqlConnection(
     auto ctx = std::make_unique<PipelineModule::Context>();
     ctx->pool = pool_;
     ctx->connection = this;
-    RegisterVirtualTableModule<PipelineModule>(PipelineModule::kName,
+    RegisterVirtualTableModule<PipelineModule>(pipeline::kPipelineFunction,
                                                std::move(ctx));
   }
   database_->InitializeSharedSchema(connection_.get());
@@ -1051,7 +1052,7 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 base::StatusOr<SqliteConnection::PreparedStatement>
 PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
-  auto sql = PipelineModule::SelectFrom(plan);
+  auto sql = pipeline::SelectPipelineSql(plan);
   if (!sql.ok()) {
     return base::ErrStatus("%s%s", source.AsTraceback(0).c_str(),
                            sql.status().c_message());
