@@ -360,7 +360,7 @@ void MachineDataClaimTracker::CloseOpenSchedSlices() {
     if (!window) {
       continue;
     }
-    auto key = std::make_pair(window, r.cpu());
+    auto key = std::make_pair(window, r.utid());
     auto it = latest_open.find(key);
     if (it == latest_open.end() || (*sched)[it->second].ts() < r.ts()) {
       latest_open[key] = i;
