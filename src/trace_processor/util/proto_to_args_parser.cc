@@ -70,6 +70,16 @@ void AppendArrayIndex(std::string& target, size_t index) {
   target.append(buf, static_cast<size_t>(end - buf));
 }
 
+// True if ParseSimpleField emits |field| from the interned key ids alone,
+// without reading the key strings.
+bool IsPlainScalar(const FieldDescriptor& field) {
+  using FD = protos::pbzero::FieldDescriptorProto;
+  return !field.is_pid() && !field.is_tid() &&
+         !field.flags_enum_descriptor_idx() &&
+         field.type() != FD::TYPE_MESSAGE && field.type() != FD::TYPE_GROUP &&
+         field.type() >= FD::TYPE_DOUBLE && field.type() <= FD::TYPE_SINT64;
+}
+
 bool IsFieldAllowed(const FieldDescriptor& field,
                     const std::vector<uint32_t>* allowed_fields) {
   // If allowlist is not provided, reflect all fields. Otherwise, check if the
@@ -247,6 +257,22 @@ uint32_t ProtoToArgsParser::GetOrCreateElementNode(uint32_t parent,
   uint64_t key = PathEdgeKey(field_node, kElementEdge | index);
   uint32_t* idx = path_index_.Find(key);
   return idx ? *idx : CreateElementNode(key, field_node);
+}
+
+uint32_t ProtoToArgsParser::FindKeyedNode(uint32_t parent,
+                                          const FieldDescriptor& field,
+                                          uint32_t index) {
+  uint32_t* node = path_index_.Find(PathEdgeKey(parent, field.number()));
+  if (node && field.is_repeated()) {
+    node = index < kMaxElementIndex
+               ? path_index_.Find(PathEdgeKey(*node, kElementEdge | index))
+               : nullptr;
+  }
+  if (!node) {
+    return kNoPath;
+  }
+  const PathNode& n = path_nodes_[*node];
+  return n.has_array || n.override ? kNoPath : *node;
 }
 
 uint32_t ProtoToArgsParser::CreateElementNode(uint64_t key,
@@ -428,16 +454,12 @@ base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
 
 void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
                                            uint32_t descriptor_idx) {
-  using FD = protos::pbzero::FieldDescriptorProto;
   path_nodes_[node].flat_fields.Clear();
   path_nodes_[node].flat_generation = pool_.generation();
   path_nodes_[node].flat_eligible = false;
   const auto& descriptor = pool_.descriptors()[descriptor_idx];
   for (const auto& [id, field] : descriptor.fields()) {
-    if (field.is_repeated() || field.is_pid() || field.is_tid() ||
-        field.flags_enum_descriptor_idx() || field.type() == FD::TYPE_MESSAGE ||
-        field.type() == FD::TYPE_GROUP || field.type() < FD::TYPE_DOUBLE ||
-        field.type() > FD::TYPE_SINT64) {
+    if (field.is_repeated() || !IsPlainScalar(field)) {
       return;
     }
   }
@@ -571,13 +593,35 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
                             item.path, delegate);
   }
 
-  ScopedNestedKeyContext field_key_context(key_prefix_);
-  AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
-  AppendProtoType(key_prefix_.key, field_descriptor->name());
   uint32_t index = 0;
   if (field_descriptor->is_repeated()) {
     int& next = RepeatedFieldIndexFor(item.repeated_field_index, field.id());
     index = static_cast<uint32_t>(next++);
+  }
+
+  // A scalar or flat message whose node already holds its key is emitted from
+  // the node, without building the key strings.
+  if (item.path != kNoPath) {
+    uint32_t keyed = FindKeyedNode(item.path, *field_descriptor, index);
+    if (keyed != kNoPath) {
+      const PathNode& n = path_nodes_[keyed];
+      if (IsPlainScalar(*field_descriptor)) {
+        key_prefix_.flat_key_id = n.flat_key_id;
+        key_prefix_.key_id = n.key_id;
+        return ParseSimpleField(*field_descriptor, field, keyed, delegate);
+      }
+      if (n.flat_eligible && n.resolved_idx && is_length_delimited &&
+          TryRunFlatMessage(keyed, *n.resolved_idx, field.as_bytes(),
+                            delegate)) {
+        return base::OkStatus();
+      }
+    }
+  }
+
+  ScopedNestedKeyContext field_key_context(key_prefix_);
+  AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
+  AppendProtoType(key_prefix_.key, field_descriptor->name());
+  if (field_descriptor->is_repeated()) {
     AppendArrayIndex(key_prefix_.key, index);
   }
 
@@ -692,6 +736,7 @@ base::Status ProtoToArgsParser::ParsePackedField(
   AppendProtoType(key_prefix_.flat_key, field_descriptor.name());
   AppendProtoType(key_prefix_.key, field_descriptor.name());
   const size_t key_size = key_prefix_.key.size();
+  const bool plain_scalar = IsPlainScalar(field_descriptor);
   uint32_t node = kNoPath;
   auto parse = [&](uint64_t new_value, PWT wire_type) {
     protozero::Field f;
@@ -699,6 +744,16 @@ base::Status ProtoToArgsParser::ParsePackedField(
 
     int& next = RepeatedFieldIndexFor(repeated_field_index, field.id());
     auto index = static_cast<uint32_t>(next++);
+
+    // An element whose node already holds its key needs no key string.
+    if (plain_scalar && parent_path != kNoPath) {
+      uint32_t keyed = FindKeyedNode(parent_path, field_descriptor, index);
+      if (keyed != kNoPath) {
+        key_prefix_.flat_key_id = path_nodes_[keyed].flat_key_id;
+        key_prefix_.key_id = path_nodes_[keyed].key_id;
+        return ParseSimpleField(field_descriptor, f, keyed, delegate);
+      }
+    }
     key_prefix_.key.resize(key_size);
     AppendArrayIndex(key_prefix_.key, index);
 

@@ -463,6 +463,13 @@ class ProtoToArgsParser {
   PERFETTO_NO_INLINE uint32_t CreateElementNode(uint64_t key,
                                                 uint32_t field_node);
 
+  // Returns the existing node for |field| under |parent|, or for its element
+  // |index| if it is repeated, provided the node holds the field's key and has
+  // no override. Returns kNoPath otherwise.
+  uint32_t FindKeyedNode(uint32_t parent,
+                         const FieldDescriptor& field,
+                         uint32_t index);
+
   // Appends a node and records |key| -> its index. The one cold creation site,
   // shared by roots and children.
   PERFETTO_NO_INLINE uint32_t AppendPathNode(uint64_t key,

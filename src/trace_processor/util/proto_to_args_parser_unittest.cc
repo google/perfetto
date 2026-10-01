@@ -439,6 +439,75 @@ TEST_F(ProtoToArgsParserTest, OverrideAddedAfterArrayElementsWereParsed) {
                                            "replaced replaced 2"));
 }
 
+TEST_F(ProtoToArgsParserTest, MixedPackedAndUnpackedElementsKeepNumbering) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<protozero::Message> raw{kChunkSize, kChunkSize};
+    protozero::PackedVarInt packed;
+    packed.Append(int32_t{10 * i});
+    packed.Append(int32_t{20 * i});
+    raw->AppendBytes(EveryField::kRepeatedInt32FieldNumber, packed.data(),
+                     packed.size());
+    raw->AppendVarInt(EveryField::kRepeatedInt32FieldNumber, 30 * i);
+    auto binary_proto = raw.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  }
+  EXPECT_THAT(args(),
+              testing::ElementsAre("repeated_int32 repeated_int32[0] 10",
+                                   "repeated_int32 repeated_int32[1] 20",
+                                   "repeated_int32 repeated_int32[2] 30",
+                                   "repeated_int32 repeated_int32[0] 20",
+                                   "repeated_int32 repeated_int32[1] 40",
+                                   "repeated_int32 repeated_int32[2] 60"));
+}
+
+TEST_F(ProtoToArgsParserTest, OverrideAddedAfterKeysWereMemoized) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  auto parse = [&] {
+    protozero::HeapBuffered<protozero::Message> raw{kChunkSize, kChunkSize};
+    protozero::PackedVarInt packed;
+    packed.Append(int32_t{1});
+    packed.Append(int32_t{2});
+    raw->AppendBytes(EveryField::kRepeatedInt32FieldNumber, packed.data(),
+                     packed.size());
+    raw->AppendVarInt(EveryField::kFieldInt32FieldNumber, 3);
+    auto binary_proto = raw.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  };
+  // Twice, so the second parse emits from the memoized keys.
+  parse();
+  parse();
+  auto replace = [](const protozero::Field& field,
+                    ProtoToArgsParser::Delegate& writer) {
+    auto id = writer.InternString(base::StringView("replaced"));
+    writer.AddInteger(id, id, field.as_int32());
+    return base::OkStatus();
+  };
+  parser.AddParsingOverrideForField("repeated_int32", replace);
+  parser.AddParsingOverrideForField("field_int32", replace);
+  parse();
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "repeated_int32 repeated_int32[0] 1",
+          "repeated_int32 repeated_int32[1] 2", "field_int32 field_int32 3",
+          "repeated_int32 repeated_int32[0] 1",
+          "repeated_int32 repeated_int32[1] 2", "field_int32 field_int32 3",
+          "replaced replaced 1", "replaced replaced 2", "replaced replaced 3"));
+}
+
 TEST_F(ProtoToArgsParserTest, EnsureTestMessageProtoParses) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
