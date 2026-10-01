@@ -48,6 +48,7 @@ class GlobalArgsTracker;
 class GlobalMetadataTracker;
 class GlobalStatsTracker;
 class ImportLogsTracker;
+class MachineDataClaimTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -260,6 +261,9 @@ class TraceProcessorContext {
   // Shared by all traces on this machine. Owns tracks whose blueprint is
   // tracks::Scope::kMachine, so merged traces do not create duplicate rows.
   PerMachinePtr<TrackTracker> machine_track_tracker;
+
+  // Tracks per-time-window claims for machine-wide data across merged traces.
+  PerMachinePtr<MachineDataClaimTracker> machine_data_claim_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================
