@@ -3597,6 +3597,9 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
 
   PERFETTO_DLOG("Setting up data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
+  // TODO(sashwinbalaji): The SMB is created before v1 or v2 is selected, so a
+  // producer that only uses tracing v2 still gets one, just for WriterIDs.
+  // Create it only for v1 writers, and allocate v2 WriterIDs elsewhere.
   if (!producer->shared_memory()) {
     // Determine the SMB page size. Must be an integer multiple of 4k.
     // As for the SMB size below, the decision tree is as follows:

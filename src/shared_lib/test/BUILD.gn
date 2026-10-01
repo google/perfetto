@@ -55,6 +55,9 @@ if (enable_perfetto_integration_tests) {
       "../../base",
       "protos",
     ]
+    if (enable_perfetto_ipc) {
+      deps += [ "../../../test:test_helper" ]
+    }
     sources = [ "api_integrationtest.cc" ]
   }
 }

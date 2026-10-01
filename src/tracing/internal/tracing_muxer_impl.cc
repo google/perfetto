@@ -1389,6 +1389,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->interceptor = nullptr;
     internal_state->interceptor_id = 0;
     internal_state->will_notify_on_stop = rds.descriptor.will_notify_on_stop();
+    internal_state->supports_tracing_v2 = rds.params.supports_tracing_v2;
 
     if (cfg.has_interceptor_config()) {
       for (size_t j = 0; j < interceptors_.size(); j++) {
@@ -2396,8 +2397,17 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
     return service->MaybeSharedMemoryArbiter()->CreateStartupTraceWriter(
         startup_buffer_reservation);
   }
-  return service->CreateTraceWriter(data_source->buffer_id,
-                                    buffer_exhausted_policy);
+
+  // A data source that supports tracing v2 gets a writer for its instance:
+  // v2 if the instance selected it, otherwise v1 (or a NullTraceWriter).
+  if (data_source->supports_tracing_v2) {
+    return service->CreateTraceWriter(data_source->buffer_id,
+                                      buffer_exhausted_policy,
+                                      data_source->data_source_instance_id);
+  } else {
+    return service->CreateTraceWriter(data_source->buffer_id,
+                                      buffer_exhausted_policy);
+  }
 }
 
 // This is called via the public API Tracing::NewTrace().
