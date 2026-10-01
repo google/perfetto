@@ -51,11 +51,6 @@ template("perfetto_cpp_blob_header") {
     forward_variables_from(invoker, [ "testonly" ])
     script = invoker.script
     inputs = invoker.sources
-    if (!is_perfetto_build_generator) {
-      # Imported Python helpers are not tracked automatically by GN. The Bazel
-      # and Soong generators already declare this tool dependency separately.
-      inputs += [ "$perfetto_root_path/python/tools/cpp_blob_emitter.py" ]
-    }
     outputs = [ invoker.generated_header ]
 
     args = [
