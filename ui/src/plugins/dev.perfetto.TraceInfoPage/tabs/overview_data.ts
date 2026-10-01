@@ -28,25 +28,25 @@ import type {TabKey} from '../utils';
 
 export interface OverviewData {
   // Status counts
-  importErrors: number;
-  traceErrors: number;
-  dataLosses: number;
-  notices: number;
-  uiLoadingErrorCount: number;
+  readonly importErrors: number;
+  readonly traceErrors: number;
+  readonly dataLosses: number;
+  readonly notices: number;
+  readonly uiLoadingErrorCount: number;
   // Metrics
-  traceSizeBytes?: bigint;
-  traceTypes: string[];
-  uuid?: string;
-  durationNs?: duration;
-  schedDurationNs?: duration;
+  readonly traceSizeBytes?: bigint;
+  readonly traceTypes: readonly string[];
+  readonly uuid?: string;
+  readonly durationNs?: duration;
+  readonly schedDurationNs?: duration;
   // System information
-  androidBuildFingerprint?: string;
-  systemName?: string;
-  systemMachine?: string;
-  systemRelease?: string;
+  readonly androidBuildFingerprint?: string;
+  readonly systemName?: string;
+  readonly systemMachine?: string;
+  readonly systemRelease?: string;
   // Multi-trace/machine counts
-  traceCount: number;
-  machineCount: number;
+  readonly traceCount: number;
+  readonly machineCount: number;
 }
 
 export interface StatusCardConfig {

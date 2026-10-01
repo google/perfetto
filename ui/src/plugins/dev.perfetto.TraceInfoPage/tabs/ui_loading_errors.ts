@@ -19,7 +19,7 @@ import {Card} from '../../../widgets/card';
 import {GridLayout} from '../../../widgets/grid_layout';
 
 export interface UiLoadingErrorsData {
-  errors: ReadonlyArray<string>;
+  readonly errors: readonly string[];
 }
 
 export interface UiLoadingErrorsTabAttrs {
