@@ -18,9 +18,11 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -28,16 +30,22 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
+#include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -46,13 +54,36 @@ namespace {
 using core::exec::ColumnView;
 using core::exec::Variant;
 
-std::string CreateTableStmt(uint32_t column_count) {
+// The pointer types of what __intrinsic_dataframe_agg and
+// __intrinsic_dataframes give.
+constexpr char kDataframePointerType[] = "PIPELINE_DATAFRAME";
+constexpr char kDataframesPointerType[] = "PIPELINE_DATAFRAMES";
+
+// Shared, so a cursor keeps the dataframes it loaded alive.
+using SharedDataframe = std::shared_ptr<const dataframe::Dataframe>;
+
+// What __intrinsic_dataframes gives: the dataframes, in the order the plan
+// numbers them, null for a relation with no rows.
+struct DataframeList {
+  std::vector<SharedDataframe> dataframes;
+};
+
+// The table function's arguments: the plan, then the list of dataframes it
+// reads. They come before the outputs: SQLite only says which of a table's
+// first 63 columns a query reads, and those are best spent on the outputs.
+constexpr int kPlanColumn = 0;
+constexpr int kDataframesColumn = 1;
+constexpr int kFirstOutputColumn = 2;
+
+// idxNum: whether dataframes are given.
+constexpr int kHasDataframes = 1;
+
+std::string Schema() {
   // Public names (which may repeat) are applied by the outer SELECT.
-  std::vector<std::string> columns;
-  for (uint32_t i = 0; i < column_count; ++i) {
+  std::vector<std::string> columns{"pipeline HIDDEN", "dataframes HIDDEN"};
+  for (uint32_t i = 0; i < pipeline::kMaxPipelineColumns; ++i) {
     columns.push_back("c" + std::to_string(i));
   }
-  columns.emplace_back("plan HIDDEN");
   return "CREATE TABLE x(" + base::Join(columns, ", ") + ")";
 }
 
@@ -121,6 +152,20 @@ PipelineModule::Cursor::ResultFn FlatReader(const ColumnView& view) {
   return view.validity() ? &ResultFlat<T, true> : &ResultFlat<T, false>;
 }
 
+void ResultNull(sqlite3_context* ctx,
+                StringPool*,
+                const ColumnView&,
+                uint32_t) {
+  sqlite::result::Null(ctx);
+}
+
+void ResultNoColumn(sqlite3_context* ctx,
+                    StringPool*,
+                    const ColumnView&,
+                    uint32_t) {
+  sqlite::utils::SetError(ctx, "__intrinsic_pipeline: no such column");
+}
+
 PipelineModule::Cursor::ResultFn ReaderFor(const ColumnView& view) {
   if (view.kind() == ColumnView::Kind::kVariant) {
     return &ResultVariant;
@@ -144,10 +189,10 @@ PipelineModule::Cursor::ResultFn ReaderFor(const ColumnView& view) {
 
 // Refreshes per-column readers only when entering a new batch.
 void CacheColumnReaders(PipelineModule::Cursor* c) {
-  c->columns.clear();
-  for (const auto& column : c->plan->columns()) {
-    const auto& view = c->rows->batch().column(column.index);
-    c->columns.push_back({&view, ReaderFor(view)});
+  const auto& columns = c->plan->columns();
+  for (uint32_t i = 0; i < columns.size(); ++i) {
+    const auto& view = c->rows->batch().column(columns[i].index);
+    c->columns[kFirstOutputColumn + i] = {&view, ReaderFor(view)};
   }
 }
 
@@ -159,107 +204,128 @@ int CheckStatus(PipelineModule::Cursor* cursor) {
                      : sqlite::utils::SetError(cursor->pVtab, status);
 }
 
+// The slow path of Filter: loads the plan in `value`, reading `args`, into
+// `c`.
+PERFETTO_NO_INLINE int Load(PipelineModule::Cursor* c,
+                            int idx_num,
+                            sqlite3_value** argv) {
+  if (sqlite3_value_type(argv[0]) != SQLITE_BLOB) {
+    return sqlite::utils::SetError(c->pVtab,
+                                   "__intrinsic_pipeline: expected a plan");
+  }
+  // Only alive while Load runs: once bound, the plan shares ownership of each
+  // column it reads, so nothing needs to keep the dataframes alive.
+  std::vector<const dataframe::Dataframe*> inputs;
+  if (idx_num & kHasDataframes) {
+    const auto* list =
+        sqlite::value::Pointer<DataframeList>(argv[1], kDataframesPointerType);
+    if (!list) {
+      return sqlite::utils::SetError(
+          c->pVtab, "__intrinsic_pipeline: expected dataframes");
+    }
+    for (const SharedDataframe& input : list->dataframes) {
+      inputs.push_back(input.get());
+    }
+  }
+  PipelineModule::Context* context = PipelineModule::GetVtab(c->pVtab)->context;
+  auto plan = context->connection->LoadPipeline(
+      std::string_view(static_cast<const char*>(sqlite3_value_blob(argv[0])),
+                       static_cast<size_t>(sqlite3_value_bytes(argv[0]))),
+      inputs);
+  if (!plan.ok()) {
+    return sqlite::utils::SetError(c->pVtab, plan.status());
+  }
+  c->plan = std::move(*plan);
+  c->pool = context->pool;
+  c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
+  // One reader per declared column, so Column only indexes: arguments read as
+  // null, and columns past the plan's outputs fail.
+  c->columns.assign(kFirstOutputColumn + pipeline::kMaxPipelineColumns,
+                    {&c->no_view, &ResultNoColumn});
+  for (int i = 0; i < kFirstOutputColumn; ++i) {
+    c->columns[static_cast<uint32_t>(i)] = {&c->no_view, &ResultNull};
+  }
+  return SQLITE_OK;
+}
+
 }  // namespace
 
-PipelineModule::Invocation::~Invocation() {
-  context->retired_tables.push_back(std::move(table));
+void DataframesFunction::Step(sqlite3_context* ctx,
+                              int argc,
+                              sqlite3_value** argv) {
+  auto list = std::make_unique<DataframeList>();
+  list->dataframes.reserve(static_cast<size_t>(argc));
+  for (int i = 0; i < argc; ++i) {
+    // A pointer reads as NULL, so only a NULL without one is no rows.
+    const auto* dataframe =
+        sqlite::value::Pointer<SharedDataframe>(argv[i], kDataframePointerType);
+    if (!dataframe && !sqlite::value::IsNull(argv[i])) {
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("%s: expected dataframes", kName));
+    }
+    list->dataframes.push_back(dataframe ? *dataframe : nullptr);
+  }
+  return sqlite::result::UniquePointer(ctx, std::move(list),
+                                       kDataframesPointerType);
 }
 
-base::Status PipelineModule::Context::Cleanup(sqlite3* db) {
-  // Otherwise a rollback could resurrect a table after we removed its entry.
-  if (!sqlite3_get_autocommit(db))
-    return base::OkStatus();
-  while (!retired_tables.empty()) {
-    std::string sql = "DROP TABLE IF EXISTS temp." + retired_tables.back();
-    int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (rc == SQLITE_LOCKED || rc == SQLITE_BUSY)
-      return base::OkStatus();
-    if (rc != SQLITE_OK)
-      return base::ErrStatus("%s", sqlite3_errmsg(db));
-    retired_tables.pop_back();
+void DataframeAgg::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc < 1) {
+    return sqlite::utils::SetError(
+        ctx, base::ErrStatus("%s: expected column names", kName));
   }
-  return base::OkStatus();
+  AggCtx& agg = AggCtx::GetOrCreateContextForStep(ctx);
+  auto count = static_cast<uint32_t>(argc - 1);
+  if (!agg.builder) {
+    const char* text = sqlite::value::Text(argv[0]);
+    std::vector<std::string> names = base::SplitString(text ? text : "", ",");
+    if (names.size() != count) {
+      return sqlite::utils::SetError(
+          ctx, base::ErrStatus("%s: expected %zu values, not %u", kName,
+                               names.size(), count));
+    }
+    dataframe::RuntimeDataframeBuilder::Options options;
+    options.emit_auto_id = false;
+    options.analyze = false;
+    agg.builder.emplace(std::move(names), GetUserData(ctx), options);
+  }
+  base::Status status = AddSqliteValuesRow(*agg.builder, argv + 1, count);
+  if (!status.ok()) {
+    return sqlite::utils::SetError(ctx, kName, status);
+  }
 }
 
-base::StatusOr<SqliteConnection::PreparedStatement> PipelineModule::Prepare(
-    SqliteConnection* connection,
-    Context* context,
-    std::unique_ptr<pipeline::PhysicalPlan> plan,
-    const SqlSource& source) {
-  RETURN_IF_ERROR(context->Cleanup(connection->db()));
-  std::string table_name =
-      "__intrinsic_pipeline_" + std::to_string(context->next_table++);
-  std::string table = "temp." + table_name;
-  {
-    auto create = connection->PrepareStatement(
-        SqlSource::FromTraceProcessorImplementation(
-            "CREATE VIRTUAL TABLE " + table + " USING " + kName + "(" +
-            std::to_string(plan->columns().size()) + ")"));
-    RETURN_IF_ERROR(create.status());
-    create.Step();
-    RETURN_IF_ERROR(create.status());
+void DataframeAgg::Final(sqlite3_context* ctx) {
+  auto agg = AggCtx::GetContextOrNullForFinal(ctx);
+  if (!agg.get() || !agg.get()->builder) {
+    return sqlite::result::Null(ctx);
   }
-  auto invocation = std::make_unique<Invocation>();
-  invocation->context = context;
-  invocation->table = std::move(table_name);
-  invocation->plan = std::move(plan);
-  std::vector<std::string> columns;
-  for (size_t i = 0; i < invocation->plan->columns().size(); ++i) {
-    std::string name =
-        base::ReplaceAll(invocation->plan->columns()[i].name, "\"", "\"\"");
-    columns.push_back("c" + std::to_string(i) + " AS \"" + name + "\"");
+  base::StatusOr<dataframe::Dataframe> dataframe =
+      std::move(*agg.get()->builder).Build();
+  if (!dataframe.ok()) {
+    return sqlite::utils::SetError(ctx, kName, dataframe.status());
   }
-  auto stmt = connection->PrepareStatement(source.RewriteAllIgnoreExisting(
-      SqlSource::FromTraceProcessorImplementation(
-          "SELECT " + base::Join(columns, ", ") + " FROM " + table + "(?)")));
-  RETURN_IF_ERROR(stmt.status());
-  // Finalization retires the table, so it can be dropped straight after. A
-  // failure here leaves the table retired and is reported by the next Prepare.
-  stmt.SetOnFinalized([context, db = connection->db()] {
-    base::ignore_result(context->Cleanup(db));
-  });
-  // The hidden plan argument is consumed by xFilter. SQLite releases the plan
-  // on finalization (also if binding fails), without a generic KeepAlive hook.
-  int rc = sqlite3_bind_pointer(
-      stmt.sqlite_stmt(), 1, invocation.release(), kPlanPointerType,
-      [](void* p) { delete static_cast<Invocation*>(p); });
-  if (rc != SQLITE_OK)
-    return base::ErrStatus("%s", sqlite3_errmsg(connection->db()));
-  return std::move(stmt);
-}
-
-int PipelineModule::Create(sqlite3* db,
-                           void* raw_ctx,
-                           int argc,
-                           const char* const* argv,
-                           sqlite3_vtab** vtab,
-                           char** error) {
-  if (argc != 4 || std::string(argv[1]) != "temp") {
-    *error = sqlite3_mprintf("pipeline tables require TEMP and a column count");
-    return SQLITE_ERROR;
-  }
-  auto count = base::CStringToUInt32(argv[3]);
-  if (!count || *count == 0) {
-    *error = sqlite3_mprintf("invalid pipeline column count");
-    return SQLITE_ERROR;
-  }
-  std::string create_stmt = CreateTableStmt(*count);
-  if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK)
-    return r;
-  auto res = std::make_unique<Vtab>();
-  res->context = GetContext(raw_ctx);
-  res->column_count = *count;
-  *vtab = res.release();
-  return SQLITE_OK;
+  return sqlite::result::UniquePointer(
+      ctx,
+      std::make_unique<SharedDataframe>(
+          std::make_shared<const dataframe::Dataframe>(std::move(*dataframe))),
+      kDataframePointerType);
 }
 
 int PipelineModule::Connect(sqlite3* db,
                             void* raw_ctx,
-                            int argc,
-                            const char* const* argv,
+                            int,
+                            const char* const*,
                             sqlite3_vtab** vtab,
-                            char** error) {
-  return Create(db, raw_ctx, argc, argv, vtab, error);
+                            char**) {
+  std::string schema = Schema();
+  if (int r = sqlite3_declare_vtab(db, schema.c_str()); r != SQLITE_OK) {
+    return r;
+  }
+  auto res = std::make_unique<Vtab>();
+  res->context = GetContext(raw_ctx);
+  *vtab = res.release();
+  return SQLITE_OK;
 }
 
 int PipelineModule::Disconnect(sqlite3_vtab* vtab) {
@@ -267,35 +333,41 @@ int PipelineModule::Disconnect(sqlite3_vtab* vtab) {
   return SQLITE_OK;
 }
 
-int PipelineModule::Destroy(sqlite3_vtab* vtab) {
-  return Disconnect(vtab);
-}
-
-int PipelineModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
+int PipelineModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
   int plan = -1;
-  int rowid = -1;
+  int dataframes = -1;
   for (int i = 0; i < info->nConstraint; ++i) {
     const auto& constraint = info->aConstraint[i];
-    if (!constraint.usable || constraint.op != SQLITE_INDEX_CONSTRAINT_EQ)
+    if (constraint.op != SQLITE_INDEX_CONSTRAINT_EQ) {
       continue;
-    if (constraint.iColumn == static_cast<int>(GetVtab(tab)->column_count))
+    }
+    // Without the plan and its arguments there is nothing to run.
+    if (constraint.iColumn == kPlanColumn) {
+      if (!constraint.usable) {
+        return SQLITE_CONSTRAINT;
+      }
       plan = i;
-    if (constraint.iColumn == -1)
-      rowid = i;
+    }
+    if (constraint.iColumn == kDataframesColumn) {
+      if (!constraint.usable) {
+        return SQLITE_CONSTRAINT;
+      }
+      dataframes = i;
+    }
   }
-  if (plan == -1)
+  if (plan == -1) {
     return SQLITE_CONSTRAINT;
-  info->aConstraintUsage[plan].argvIndex = 1;
-  info->aConstraintUsage[plan].omit = true;
-  if (rowid != -1) {
-    info->aConstraintUsage[rowid].argvIndex = 2;
-    // SQLite rechecks comparisons, including non-integer RHS values.
-    info->idxNum = 1;
-    info->estimatedRows = 1;
   }
-  // Output rowid constraints run after the fold. General predicates remain
-  // with SQLite; moving them below accumulation could change ancestor totals.
-  info->estimatedCost = rowid == -1 ? 1e9 : 1e6;
+  int argc = 0;
+  info->aConstraintUsage[plan].argvIndex = ++argc;
+  info->aConstraintUsage[plan].omit = true;
+  info->idxNum = 0;
+  if (dataframes != -1) {
+    info->aConstraintUsage[dataframes].argvIndex = ++argc;
+    info->aConstraintUsage[dataframes].omit = true;
+    info->idxNum |= kHasDataframes;
+  }
+  info->estimatedCost = 1e9;
   return SQLITE_OK;
 }
 
@@ -312,37 +384,17 @@ int PipelineModule::Close(sqlite3_vtab_cursor* cursor) {
 int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
                            int idx_num,
                            const char*,
-                           int argc,
+                           int,
                            sqlite3_value** argv) {
   Cursor* c = GetCursor(cursor);
-  PERFETTO_DCHECK(argc == (idx_num ? 2 : 1));
-  auto* invocation = static_cast<Invocation*>(
-      sqlite3_value_pointer(argv[0], kPlanPointerType));
-  Vtab* vtab = GetVtab(cursor->pVtab);
-  if (!invocation || invocation->context != vtab->context ||
-      invocation->plan->columns().size() != vtab->column_count) {
-    return sqlite::utils::SetError(cursor->pVtab,
-                                   "pipeline requires a matching bound plan");
-  }
-  c->plan = invocation->plan.get();
-  c->pool = invocation->context->pool;
-  c->rows = std::make_unique<core::exec::RowCursor>(c->plan->source());
-  c->rowid = 0;
-  c->target_rowid.reset();
-  if (idx_num && sqlite3_value_type(argv[1]) == SQLITE_INTEGER) {
-    c->target_rowid = sqlite3_value_int64(argv[1]);
-    if (*c->target_rowid < 0) {
-      c->eof = true;
-      return SQLITE_OK;
+  // The plan and its dataframes are the same on every filter, so it is loaded
+  // once per cursor.
+  if (PERFETTO_UNLIKELY(!c->plan)) {
+    if (int rc = Load(c, idx_num, argv); rc != SQLITE_OK) {
+      return rc;
     }
   }
   c->eof = !c->rows->Open();
-  if (c->target_rowid) {
-    while (!c->eof && c->rowid < *c->target_rowid) {
-      ++c->rowid;
-      c->eof = !c->rows->Next();
-    }
-  }
   if (c->eof)
     return CheckStatus(c);
   CacheColumnReaders(c);
@@ -351,11 +403,6 @@ int PipelineModule::Filter(sqlite3_vtab_cursor* cursor,
 
 int PipelineModule::Next(sqlite3_vtab_cursor* cursor) {
   Cursor* c = GetCursor(cursor);
-  if (c->target_rowid) {
-    c->eof = true;
-    return SQLITE_OK;
-  }
-  ++c->rowid;
   c->eof = !c->rows->Next();
   if (c->eof)
     return CheckStatus(c);
@@ -370,21 +417,19 @@ int PipelineModule::Eof(sqlite3_vtab_cursor* cursor) {
 
 int PipelineModule::Column(sqlite3_vtab_cursor* cursor,
                            sqlite3_context* ctx,
-                           int raw_n) {
+                           int n) {
   Cursor* c = GetCursor(cursor);
-  // The hidden argument is a SQL NULL outside xFilter.
-  if (static_cast<uint32_t>(raw_n) == c->columns.size()) {
-    sqlite::result::Null(ctx);
-    return SQLITE_OK;
-  }
-  const auto& column = c->columns[static_cast<uint32_t>(raw_n)];
+  const auto& column = c->columns[static_cast<uint32_t>(n)];
   column.result(ctx, c->pool, *column.view, c->rows->row());
   return SQLITE_OK;
 }
 
-int PipelineModule::Rowid(sqlite3_vtab_cursor* cursor, sqlite_int64* rowid) {
-  *rowid = GetCursor(cursor)->rowid;
-  return SQLITE_OK;
+int PipelineModule::Rowid(sqlite3_vtab_cursor* cursor, sqlite_int64*) {
+  // A position in one run need not be the same row in another, filtered
+  // differently, so rows have no rowid rather than a misleading one.
+  return sqlite::utils::SetError(cursor->pVtab,
+                                 "__intrinsic_pipeline: a pipeline's rows have "
+                                 "no rowid");
 }
 
 }  // namespace perfetto::trace_processor

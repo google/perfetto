@@ -55,11 +55,20 @@ struct ScanDataframe {
   uint32_t row_count = 0;
 };
 
+// The dataframe the plan is passed as its `index`-th argument when it runs.
+// SQLite builds it from a relation the plan read from SQL.
+struct ScanDataframeArg {
+  uint32_t index = 0;
+};
+
 // Reads all rows of a source. Always the first op.
 struct Scan {
   using Dataframe = ScanDataframe;
-  // Where a scan reads from: a dataframe directly, or a query run by SQLite.
-  using Source = std::variant<Dataframe, SqlSource>;
+  using DataframeArg = ScanDataframeArg;
+  // Where a scan reads from: a dataframe, SQL, or a dataframe argument. SQL
+  // sources become dataframe arguments when the plan is written into SQL, and
+  // those are bound to dataframes when it is loaded.
+  using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
   Source source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;

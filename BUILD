@@ -183,6 +183,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_packet_compressor_common",
+        ":src_tracing_service_proto_group_rewriter",
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
@@ -470,13 +471,13 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
+        ":src_trace_processor_perfetto_sql_stdlib_stdlib",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -712,7 +713,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_stdlib_stdlib",
+               ":src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
                ":src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
                ":src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",
@@ -795,13 +796,13 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
+        ":src_trace_processor_perfetto_sql_stdlib_stdlib",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -1055,7 +1056,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_stdlib_stdlib",
+               ":src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
                ":src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
                ":src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",
@@ -1251,6 +1252,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_packet_compressor_common",
+        ":src_tracing_service_proto_group_rewriter",
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
@@ -1439,6 +1441,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/flat_hash_map.h",
         "include/perfetto/ext/base/flat_hash_map_v1.h",
         "include/perfetto/ext/base/fnv_hash.h",
+        "include/perfetto/ext/base/futex.h",
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",
         "include/perfetto/ext/base/hash.h",
@@ -1987,6 +1990,7 @@ perfetto_cc_library(
         "src/base/dynamic_string_writer.cc",
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
+        "src/base/futex.cc",
         "src/base/getopt_compat.cc",
         "src/base/intrusive_list.cc",
         "src/base/intrusive_tree.cc",
@@ -2530,9 +2534,12 @@ perfetto_filegroup(
         "src/trace_processor/core/common/duplicate_types.h",
         "src/trace_processor/core/common/null_types.h",
         "src/trace_processor/core/common/op_types.h",
+        "src/trace_processor/core/common/row_layout.h",
         "src/trace_processor/core/common/schema.h",
         "src/trace_processor/core/common/sort_types.h",
         "src/trace_processor/core/common/storage_types.h",
+        "src/trace_processor/core/common/string_ranks.cc",
+        "src/trace_processor/core/common/string_ranks.h",
         "src/trace_processor/core/common/value_fetcher.h",
     ],
 )
@@ -3825,15 +3832,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/exec:exec
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_exec_exec",
-    srcs = [
-        "src/trace_processor/perfetto_sql/exec/sql_scan.cc",
-        "src/trace_processor/perfetto_sql/exec/sql_scan.h",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/generator:generator
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_generator_generator",
@@ -3881,6 +3879,10 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
+        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
+        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h",
+        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
+        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
     ],
 )
 
@@ -3897,8 +3899,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_schema_schema",
     srcs = [
-        "src/trace_processor/perfetto_sql/schema/query_schema.cc",
-        "src/trace_processor/perfetto_sql/schema/query_schema.h",
         "src/trace_processor/perfetto_sql/schema/type_mapping.h",
     ],
 )
@@ -4504,9 +4504,9 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/stdlib:stdlib
+# GN target: //src/trace_processor/perfetto_sql/stdlib:amalgamated_stdlib
 perfetto_cpp_blob_header(
-    name = "src_trace_processor_perfetto_sql_stdlib_stdlib",
+    name = "src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
     script = ":gen_amalgamated_sql_py",
     deps = [
         ":src_trace_processor_perfetto_sql_stdlib_android_android",
@@ -4538,12 +4538,21 @@ perfetto_cpp_blob_header(
         ":src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
     ],
     outs = [
-        "src/trace_processor/perfetto_sql/stdlib/stdlib.h",
+        "src/trace_processor/perfetto_sql/stdlib/amalgamated_stdlib.h",
     ],
     args = [
         "--gen-dir=$(GENDIR)",
         "--namespace",
         "perfetto::trace_processor::stdlib",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib:stdlib
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_stdlib",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/stdlib.cc",
+        "src/trace_processor/perfetto_sql/stdlib/stdlib.h",
     ],
 )
 
@@ -6996,6 +7005,15 @@ perfetto_filegroup(
     name = "src_tracing_service_packet_compressor_common",
     srcs = [
         "src/tracing/service/packet_compressor_common.h",
+    ],
+)
+
+# GN target: //src/tracing/service:proto_group_rewriter
+perfetto_filegroup(
+    name = "src_tracing_service_proto_group_rewriter",
+    srcs = [
+        "src/tracing/service/proto_group_rewriter.cc",
+        "src/tracing/service/proto_group_rewriter.h",
     ],
 )
 
@@ -11579,6 +11597,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_service_packet_compressor_common",
+        ":src_tracing_service_proto_group_rewriter",
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
@@ -11853,13 +11872,13 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
+        ":src_trace_processor_perfetto_sql_stdlib_stdlib",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -12095,7 +12114,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_stdlib_stdlib",
+               ":src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
                ":src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
                ":src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",
@@ -12209,13 +12228,13 @@ perfetto_cc_binary(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
-        ":src_trace_processor_perfetto_sql_exec_exec",
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_pipeline_logical",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
+        ":src_trace_processor_perfetto_sql_stdlib_stdlib",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_plugins_ancestor_ancestor",
         ":src_trace_processor_plugins_ancestor_tables",
@@ -12440,7 +12459,7 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-               ":src_trace_processor_perfetto_sql_stdlib_stdlib",
+               ":src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
                ":src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
                ":src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
                ":src_trace_processor_plugins_wattson_gen_gpu_curves",

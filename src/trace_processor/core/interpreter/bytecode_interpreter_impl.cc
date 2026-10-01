@@ -32,18 +32,12 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/ops.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/util/glob.h"
 
 namespace perfetto::trace_processor::core::interpreter::ops {
 
 namespace {
-
-struct StringSortToken {
-  std::string_view str_view;
-  StringPool::Id id;
-};
 
 struct GlobComparator {
   bool operator()(StringPool::Id lhs, const util::GlobMatcher& m) const {
@@ -65,43 +59,7 @@ struct RegexComparator {
   const StringPool* pool;
 };
 
-struct StringSortKey {
-  std::string_view operator()(const StringSortToken& token) const {
-    return token.str_view;
-  }
-};
-
 }  // namespace
-
-void FinalizeRanksInMapImpl(
-    const StringPool* string_pool,
-    std::unique_ptr<base::FlatHashMap<StringPool::Id, uint32_t>>&
-        rank_map_ptr) {
-  PERFETTO_DCHECK(rank_map_ptr && rank_map_ptr.get());
-  auto& rank_map = *rank_map_ptr;
-
-  // Initially do *not* default initialize the array for performance.
-  std::unique_ptr<StringSortToken[]> ids_to_sort(
-      new StringSortToken[rank_map.size()]);
-  std::unique_ptr<StringSortToken[]> scratch(
-      new StringSortToken[rank_map.size()]);
-  uint32_t i = 0;
-  for (auto it = rank_map.GetIterator(); it; ++it) {
-    base::StringView str_view = string_pool->Get(it.key());
-    ids_to_sort[i++] = StringSortToken{
-        std::string_view(str_view.data(), str_view.size()),
-        it.key(),
-    };
-  }
-  auto* sorted =
-      core::MsdRadixSort(ids_to_sort.get(), ids_to_sort.get() + rank_map.size(),
-                         scratch.get(), StringSortKey{});
-  for (uint32_t rank = 0; rank < rank_map.size(); ++rank) {
-    auto* it = rank_map.Find(sorted[rank].id);
-    PERFETTO_DCHECK(it);
-    *it = rank;
-  }
-}
 
 uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
                                const StringPool::Id* data,
@@ -208,9 +166,8 @@ void InitRankMap(InterpreterState& state, const struct InitRankMap& bytecode) {
   if (rank_map) {
     rank_map->get()->Clear();
   } else {
-    state.WriteToRegister(
-        bytecode.arg<B::dest_register>(),
-        std::make_unique<base::FlatHashMap<StringPool::Id, uint32_t>>());
+    state.WriteToRegister(bytecode.arg<B::dest_register>(),
+                          std::make_unique<StringRanks>());
   }
 }
 
@@ -219,7 +176,8 @@ void FinalizeRanksInMap(InterpreterState& state,
   using B = struct FinalizeRanksInMap;
   StringIdToRankMap& rank_map_ptr =
       state.ReadFromRegister(bytecode.arg<B::update_register>());
-  FinalizeRanksInMapImpl(state.string_pool, rank_map_ptr);
+  PERFETTO_DCHECK(rank_map_ptr);
+  rank_map_ptr->Rank(*state.string_pool);
 }
 
 void Distinct(InterpreterState& state, const struct Distinct& bytecode) {
@@ -295,7 +253,7 @@ void CollectIdIntoRankMap(InterpreterState& state,
   const auto& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
   for (const uint32_t* it = source.b; it != source.e; ++it) {
-    rank_map.Insert(data[*it], 0);
+    rank_map.Add(data[*it]);
   }
 }
 

@@ -39,6 +39,10 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
+namespace test {
+class ProducerIPCClientTestPeer;
+}  // namespace test
+
 class Producer;
 class SharedMemoryArbiter;
 
@@ -48,6 +52,10 @@ class SharedMemoryArbiter;
 // actual IPC transport.
 // If create_socket_async is set, it will be called to create and connect to a
 // socket to the service. If unset, the producer will create and connect itself.
+//
+// TODO(sashwinbalaji): Check all paths through Disconnect(), OnDisconnect(),
+// and ScheduleDisconnect() again. Check for unnecessary steps, incorrect
+// cleanup or callback order, and object lifetime errors.
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
@@ -96,6 +104,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
+  // Defined in tracing_integration_test.cc.
+  friend class test::ProducerIPCClientTestPeer;
+
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();

@@ -849,6 +849,21 @@ class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
     return rows;
   }
 
+  // The SQL a pipeline statement is prepared as.
+  std::string PipelineSql(const std::string& pipeline) {
+    auto res = connection_->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(pipeline));
+    if (!res.ok()) {
+      PERFETTO_FATAL("%s", res.status().c_message());
+    }
+    return res->stmt.sql();
+  }
+
+  // The FROM clause of `sql`, from its leading space.
+  static std::string From(const std::string& sql) {
+    return sql.substr(sql.find(" FROM "));
+  }
+
   std::vector<std::string> ColumnNames(const std::string& sql) {
     auto res = connection_->ExecuteUntilLastStatement(
         SqlSource::FromExecuteQuery(sql));
@@ -886,6 +901,19 @@ TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromAnySql) {
   ASSERT_TRUE(rows.ok()) << rows.status().c_message();
   EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,20,200", "1,0,40,120",
                                           "2,0,60,60", "3,1,80,80"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromSqlWithCtes) {
+  auto rows = Rows(R"(
+    FROM (
+      WITH nodes AS (SELECT id, parent_id, self FROM tree)
+      SELECT * FROM nodes
+    )
+    |> TREE ACCUMULATE UP SUM(self) AS total
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,10,100", "1,0,20,60",
+                                          "2,0,30,30", "3,1,40,40"));
 }
 
 // Perfetto tables are dataframes and are scanned directly.
@@ -986,6 +1014,10 @@ TEST_F(PerfettoSqlConnectionPipelineTest, Errors) {
                   .status()
                   .message(),
               testing::HasSubstr("syntax error near 'WHERE'"));
+  // Semantic analysis cannot yet describe every relation.
+  EXPECT_THAT(Rows("FROM (VALUES (1, 2))").status().message(),
+              testing::HasSubstr(
+                  "reading a relation whose columns cannot be worked out"));
 }
 
 // Replacing a table mid-read must not affect a running pipeline.
@@ -1011,21 +1043,6 @@ TEST_F(PerfettoSqlConnectionPipelineTest, AReadTableCanBeReplaced) {
   EXPECT_EQ(rows, 4u);
 }
 
-// Finalization retires the TEMP table; the next execution drops it safely.
-TEST_F(PerfettoSqlConnectionPipelineTest, CompletedPipelineTablesAreDropped) {
-  ASSERT_TRUE(Rows("FROM tree").ok());
-  auto tables = Rows(
-      "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
-      "'__intrinsic_pipeline_*'");
-  ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
-  auto modules = Rows(
-      "SELECT name FROM pragma_module_list WHERE name GLOB "
-      "'__intrinsic_pipeline*'");
-  ASSERT_TRUE(modules.ok()) << modules.status().message();
-  EXPECT_THAT(*modules, testing::ElementsAre("__intrinsic_pipeline"));
-}
-
 TEST_F(PerfettoSqlConnectionPipelineTest,
        DifferentSchemasAndConcurrentStatements) {
   auto first =
@@ -1048,7 +1065,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
   EXPECT_EQ(rows, 4u);
   EXPECT_TRUE(second->stmt.status().ok());
   // The schema changed after preparing the first statement. Resetting and
-  // rerunning it must retain the bound plan through SQLite's reprepare path.
+  // rerunning it loads the pipeline again from its plan.
   ASSERT_EQ(sqlite3_reset(first->stmt.sqlite_stmt()), SQLITE_OK);
   rows = 0;
   while (first->stmt.Step())
@@ -1057,54 +1074,108 @@ TEST_F(PerfettoSqlConnectionPipelineTest,
   EXPECT_TRUE(first->stmt.status().ok());
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       CleanupRetriesWhileAnotherStatementIsActive) {
-  {
-    auto active = connection_->ExecuteUntilLastStatement(
-        SqlSource::FromExecuteQuery("FROM tree"));
-    ASSERT_TRUE(active.ok()) << active.status().message();
-    ASSERT_TRUE(Rows("FROM (SELECT 123 AS value)").ok());
-    // The finished pipeline can be retired even though the active statement
-    // prevents schema changes. Retrying cleanup must not interrupt either.
-    ASSERT_TRUE(Rows("SELECT 1").ok());
-    while (active->stmt.Step()) {
-    }
-    EXPECT_TRUE(active->stmt.status().ok());
-  }
-  auto tables = Rows(
-      "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
-      "'__intrinsic_pipeline_*'");
-  ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
+// SQL holding a pipeline's plan can be stored and run later, against the
+// tables as they are by then.
+TEST_F(PerfettoSqlConnectionPipelineTest, StoredPipelinesRunLater) {
+  std::string sql = PipelineSql(
+      "FROM tree |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");
+  ASSERT_TRUE(Rows("CREATE VIEW totals AS " + sql).ok());
+  auto rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
+
+  ASSERT_TRUE(Rows("DELETE FROM tree WHERE id = 3").ok());
+  rows = Rows("SELECT id, total FROM totals");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,60", "1,20", "2,30"));
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       CleanupAcrossRollbackAndExecutionFailure) {
-  ASSERT_TRUE(Rows("FROM tree").ok());
-  ASSERT_TRUE(Rows("BEGIN; FROM tree").ok());
-  ASSERT_TRUE(Rows("ROLLBACK").ok());
-  EXPECT_FALSE(Rows("FROM (SELECT 0 AS id, NULL AS parent_id, 'bad' AS value) "
-                    "|> TREE ACCUMULATE UP SUM(value) AS total")
-                   .ok());
-  auto tables = Rows(
-      "SELECT name FROM sqlite_temp_schema WHERE name GLOB "
-      "'__intrinsic_pipeline_*'");
-  ASSERT_TRUE(tables.ok()) << tables.status().message();
-  EXPECT_TRUE(tables->empty());
+TEST_F(PerfettoSqlConnectionPipelineTest, BadPlans) {
+  auto rows = Rows("SELECT c0 FROM __intrinsic_pipeline('FROM tree')");
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("expected a plan"));
+  rows = Rows("SELECT c0 FROM __intrinsic_pipeline(X'00')");
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("malformed plan"));
+  rows = Rows("SELECT c1" + From(PipelineSql("FROM (SELECT 1 AS x)")));
+  EXPECT_THAT(rows.status().message(), testing::HasSubstr("no such column"));
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       FailedCreateDoesNotRetireAnExistingTable) {
-  ASSERT_TRUE(Rows("CREATE TEMP TABLE __intrinsic_pipeline_0(value); "
-                   "INSERT INTO __intrinsic_pipeline_0 VALUES(123)")
-                  .ok());
-  EXPECT_FALSE(Rows("FROM tree").ok());
-  auto existing = Rows("SELECT value FROM temp.__intrinsic_pipeline_0");
-  ASSERT_TRUE(existing.ok()) << existing.status().message();
-  EXPECT_THAT(*existing, testing::ElementsAre("123"));
+// SQLite runs the SQL a pipeline reads as part of the statement the pipeline
+// is written in, and passes the pipeline a dataframe of its rows.
+TEST_F(PerfettoSqlConnectionPipelineTest, SqlSourcesAreDataframeArgs) {
+  std::string sql = PipelineSql(R"(
+    FROM (SELECT id, parent_id, self FROM tree)
+    |> TREE ACCUMULATE UP SUM(self) AS total
+  )");
+  EXPECT_THAT(
+      sql,
+      testing::HasSubstr(
+          R"((SELECT __intrinsic_dataframes((SELECT __intrinsic_dataframe_agg('id,parent_id,self', "id", "parent_id", "self") FROM (SELECT id, parent_id, self FROM tree)))))"));
+
+  // A relation with no rows too.
+  auto rows = Rows(R"(
+    FROM (SELECT id, parent_id, self FROM tree WHERE id > 10)
+    |> TREE ACCUMULATE UP SUM(self) AS total
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_TRUE(rows->empty());
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest, TemporaryTablesAreConnectionLocal) {
+// Anyone can write SQL running a plan, so the dataframes it is passed are
+// checked.
+TEST_F(PerfettoSqlConnectionPipelineTest, BadDataframeArgs) {
+  std::string sql = PipelineSql("FROM (SELECT 1 AS x)");
+  size_t start = sql.find("X'");
+  std::string plan = sql.substr(start, sql.find('\'', start + 2) + 1 - start);
+  auto run = [&](const std::string& args) {
+    return Rows("SELECT c0 FROM __intrinsic_pipeline(" + plan + args + ")")
+        .status();
+  };
+  EXPECT_THAT(run("").message(), testing::HasSubstr("no dataframe argument 0"));
+  EXPECT_THAT(run(", 1").message(), testing::HasSubstr("expected dataframes"));
+  EXPECT_THAT(run(", __intrinsic_dataframes(1)").message(),
+              testing::HasSubstr("expected dataframes"));
+  EXPECT_THAT(run(", __intrinsic_dataframes((SELECT "
+                  "__intrinsic_dataframe_agg('y', 1)))")
+                  .message(),
+              testing::HasSubstr("dataframe argument 0 has no column 'x'"));
+  EXPECT_THAT(run(", __intrinsic_dataframes("
+                  "(SELECT __intrinsic_dataframe_agg('x,y', 1)))")
+                  .message(),
+              testing::HasSubstr("expected 2 values, not 1"));
+  EXPECT_THAT(run(R"(, __intrinsic_dataframes(
+                (SELECT __intrinsic_dataframe_agg('x', v)
+                 FROM (SELECT 1 AS v UNION ALL SELECT 'a'))))")
+                  .message(),
+              testing::HasSubstr("column 'x' was inferred to be"));
+  EXPECT_THAT(run(", __intrinsic_dataframes("
+                  "(SELECT __intrinsic_dataframe_agg('x', X'00')))")
+                  .message(),
+              testing::HasSubstr("holds a blob"));
+  auto rows = Rows(
+      "SELECT c0 FROM __intrinsic_pipeline(" + plan +
+      ", __intrinsic_dataframes((SELECT __intrinsic_dataframe_agg('x', 7))))");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("7"));
+  // A relation with no rows is passed as NULL.
+  EXPECT_TRUE(run(", __intrinsic_dataframes(NULL)").ok());
+}
+
+// A cursor keeps the dataframes it loaded, so SQL passing it others later
+// cannot free them from under it.
+TEST_F(PerfettoSqlConnectionPipelineTest, NewDataframeArgsAreSafe) {
+  std::string sql = PipelineSql("FROM (SELECT 1 AS x)");
+  size_t start = sql.find("X'");
+  std::string plan = sql.substr(start, sql.find('\'', start + 2) + 1 - start);
+  auto rows =
+      Rows("SELECT v, (SELECT c0 FROM __intrinsic_pipeline(" + plan +
+           ", __intrinsic_dataframes((SELECT __intrinsic_dataframe_agg('x', y)"
+           " FROM (SELECT v AS y)))))"
+           " FROM (SELECT 1 AS v UNION ALL SELECT 2 UNION ALL SELECT 3)");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_EQ(rows->size(), 3u);
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
   auto fork = connection_->Fork();
   auto first = connection_->ExecuteUntilLastStatement(
       SqlSource::FromExecuteQuery("FROM (SELECT 123 AS value)"));
@@ -1118,55 +1189,14 @@ TEST_F(PerfettoSqlConnectionPipelineTest, TemporaryTablesAreConnectionLocal) {
   EXPECT_EQ(second->stats.column_count, 2u);
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest,
-       OutputConstraintsApplyAfterAccumulation) {
-  auto context = std::make_unique<PipelineModule::Context>();
-  context->pool = &pool_;
-  auto* ctx = context.get();
-  connection_->RegisterVirtualTableModule<PipelineModule>("test_pipeline",
-                                                          std::move(context));
-  ASSERT_TRUE(
-      Rows("CREATE VIRTUAL TABLE temp.test_output USING test_pipeline(4)")
-          .ok());
-
-  pipeline::LogicalPlan logical;
-  for (const char* name : {"id", "parent_id", "self"}) {
-    auto id = logical.AddColumn(name, core::Int64{});
-    logical.output.push_back({name, id});
-  }
-  pipeline::PlanNodeId scan = logical.AddNode(pipeline::op::Scan{
-      SqlSource::FromExecuteQuery("SELECT id, parent_id, self FROM tree"),
-      logical.output});
-  auto total = logical.AddColumn("total", core::Int64{});
-  pipeline::op::TreeAccumulate fold;
-  fold.direction = pipeline::op::TreeDirection::kUp;
-  fold.node_column = 0;
-  fold.parent_column = 1;
-  fold.aggregates.push_back(
-      {pipeline::op::TreeAccumulate::Function::kSum, 2, total});
-  logical.AddNode(std::move(fold), {scan});
-  logical.output.push_back({"total", total});
-  pipeline::LowerEnvironment env{connection_->sqlite_connection(), &pool_};
-  // The root is last in child-first output. Filtering by its output rowid
-  // must retain all descendants while calculating its total.
-  for (const char* rhs : {"3", "3.0", "'3'"}) {
-    auto stmt = connection_->sqlite_connection()->PrepareStatement(
-        SqlSource::FromExecuteQuery(
-            "SELECT c3 FROM temp.test_output(?) WHERE rowid = " +
-            std::string(rhs) + " AND c3 > 50"));
-    ASSERT_TRUE(stmt.status().ok()) << stmt.status().message();
-    PipelineModule::Invocation invocation{ctx, "unused",
-                                          pipeline::Lower(logical, env)};
-    ASSERT_EQ(sqlite3_bind_pointer(stmt.sqlite_stmt(), 1, &invocation,
-                                   PipelineModule::kPlanPointerType, nullptr),
-              SQLITE_OK);
-    ASSERT_TRUE(stmt.Step()) << stmt.status().message();
-    EXPECT_EQ(sqlite3_column_int64(stmt.sqlite_stmt(), 0), 100);
-    EXPECT_FALSE(stmt.Step());
-    EXPECT_TRUE(stmt.status().ok());
-    // Explicitly close cursors before the borrowed plan goes out of scope.
-    sqlite3_reset(stmt.sqlite_stmt());
-  }
+// A position in one run of a pipeline need not be the same row in another,
+// filtered differently, so its rows have no rowid rather than a misleading one.
+TEST_F(PerfettoSqlConnectionPipelineTest, RowsHaveNoRowid) {
+  std::string from = From(PipelineSql("FROM tree"));
+  EXPECT_THAT(Rows("SELECT rowid" + from).status().message(),
+              testing::HasSubstr("no rowid"));
+  EXPECT_THAT(Rows("SELECT c0" + from + " WHERE rowid = 1").status().message(),
+              testing::HasSubstr("no rowid"));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, ColumnReadersRefreshAcrossBatches) {
@@ -1205,14 +1235,17 @@ TEST_F(PerfettoSqlConnectionPipelineTest, ColumnReadersRefreshAcrossBatches) {
   }
   EXPECT_TRUE(res->stmt.status().ok());
   EXPECT_EQ(count, 5000u);
-  // A dynamically typed column must continue dispatching per value, including
-  // a type change in a later batch.
-  auto mixed = Rows(
-      "FROM (SELECT CASE WHEN id < 3000 THEN id ELSE 'last' END AS value FROM "
-      "values_table)");
-  ASSERT_TRUE(mixed.ok()) << mixed.status().message();
-  EXPECT_EQ(mixed->size(), 5000u);
-  EXPECT_EQ(std::count(mixed->begin(), mixed->end(), "last"), 2000);
+  // A pipeline reads SQL as a dataframe, whose columns each hold one type, so
+  // a column changing type part way through is refused.
+  EXPECT_THAT(Rows(R"(
+    FROM (
+      SELECT CASE WHEN id < 3000 THEN id ELSE 'last' END AS value
+      FROM values_table
+    )
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("column 'value' was inferred to be"));
 }
 
 }  // namespace

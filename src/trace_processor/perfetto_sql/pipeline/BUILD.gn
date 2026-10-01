@@ -26,15 +26,22 @@ source_set("logical") {
     "compiler.cc",
     "compiler.h",
     "logical_plan.h",
+    "pipeline_sql.cc",
+    "pipeline_sql.h",
+    "plan_serialization.cc",
+    "plan_serialization.h",
   ]
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../../perfetto_sql/analysis",
     "../../../perfetto_sql/syntaqlite",
+    "../../containers",
     "../../core/common",
     "../../core/dataframe",
     "../../sqlite",
     "../../util:sql_argument",
+    "../schema",
   ]
 }
 
@@ -47,12 +54,9 @@ source_set("plan") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
-    "../../containers",
     "../../core/common",
     "../../core/dataframe",
     "../../core/exec",
-    "../../sqlite",
-    "../exec",
   ]
 }
 
@@ -67,6 +71,7 @@ source_set("test_catalog") {
     "../../containers",
     "../../core/dataframe",
     "../../sqlite",
+    "../engine",
     "../schema",
   ]
 }
@@ -87,11 +92,15 @@ source_set("test_utils") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "physical_plan_unittest.cc" ]
+  sources = [
+    "physical_plan_unittest.cc",
+    "plan_serialization_unittest.cc",
+  ]
   deps = [
     ":logical",
     ":plan",
     ":test_catalog",
+    ":test_utils",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../base",
