@@ -22,6 +22,7 @@
 #include <set>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/ipc/client.h"
@@ -85,6 +86,10 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
+  void AttachV2RingBuffer(std::shared_ptr<SharedMemory>,
+                          uint32_t chunk_size_bytes,
+                          std::function<void(bool)> callback) override;
+  void DrainV2RingBuffer() override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
@@ -112,10 +117,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void ScheduleDisconnect();
 
   // Invoked soon after having established the connection with the service.
-  void OnConnectionInitialized(bool connection_succeeded,
-                               bool using_shmem_provided_by_producer,
-                               bool direct_smb_patching_supported,
-                               bool use_shmem_emulation);
+  void OnConnectionInitialized(
+      const std::vector<ProtocolAbiVersion>& offered_versions,
+      ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response);
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
@@ -143,6 +147,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
+  // The common versions returned by InitializeConnection. Empty until the
+  // reply arrives, and after disconnect.
+  base::FlatSet<ProtocolAbiVersion> protocol_abi_versions_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
   std::set<DataSourceInstanceID> data_sources_setup_;
