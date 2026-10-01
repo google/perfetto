@@ -20,11 +20,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <string_view>
+#include <utility>
 
 #include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
+#include "src/base/embedded_blob.h"
 
 namespace perfetto::trace_processor {
 
@@ -49,9 +50,8 @@ class SqlBundle {
     std::string_view sql_view() const { return sql; }
   };
 
-  SqlBundle(const uint8_t* data, size_t size) : data_(data), size_(size) {
-    PERFETTO_CHECK(size_ >= sizeof(uint32_t));
-  }
+  SqlBundle(const uint8_t* data, size_t size)
+      : SqlBundle(base::DecodedBlob(data, size)) {}
 
   // Decode the generated codec/size envelope. Compressed bundles own their
   // decoded storage; uncompressed bundles borrow the static input. Malformed
@@ -100,14 +100,15 @@ class SqlBundle {
   };
 
   Iterator begin() const {
-    return Iterator(data_ + sizeof(uint32_t), data_ + size_);
+    return Iterator(blob_.data() + sizeof(uint32_t), blob_.end());
   }
-  Iterator end() const { return Iterator(data_ + size_, data_ + size_); }
+  Iterator end() const { return Iterator(blob_.end(), blob_.end()); }
 
  private:
-  std::unique_ptr<uint8_t[]> owned_data_;
-  const uint8_t* data_;
-  size_t size_;
+  explicit SqlBundle(base::DecodedBlob blob) : blob_(std::move(blob)) {
+    PERFETTO_CHECK(blob_.size() >= sizeof(uint32_t));
+  }
+  base::DecodedBlob blob_;
 };
 
 }  // namespace perfetto::trace_processor

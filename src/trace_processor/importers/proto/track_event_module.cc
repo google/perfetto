@@ -43,18 +43,23 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
       track_event_tracker_(new TrackEventTracker(context)),
       tokenizer_(module_context, context, track_event_tracker_.get()),
       parser_(&extension_parser_context_, context, track_event_tracker_.get()) {
+  const auto track_event_descriptor = kTrackEventDescriptor.Decode();
+  const auto chrome_track_event_extension_descriptor =
+      kChromeTrackEventExtensionDescriptor.Decode();
+  const auto gpu_track_event_descriptor = kGpuTrackEventDescriptor.Decode();
+
   RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
   RegisterForField(TracePacket::kTrackDescriptorFieldNumber);
   RegisterForField(TracePacket::kThreadDescriptorFieldNumber);
   RegisterForField(TracePacket::kProcessDescriptorFieldNumber);
 
   context->descriptor_pool_->AddFromFileDescriptorSet(
-      kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
+      track_event_descriptor.data(), track_event_descriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
-      kChromeTrackEventExtensionDescriptor.data(),
-      kChromeTrackEventExtensionDescriptor.size());
+      chrome_track_event_extension_descriptor.data(),
+      chrome_track_event_extension_descriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
-      kGpuTrackEventDescriptor.data(), kGpuTrackEventDescriptor.size());
+      gpu_track_event_descriptor.data(), gpu_track_event_descriptor.size());
 }
 
 TrackEventModule::~TrackEventModule() = default;

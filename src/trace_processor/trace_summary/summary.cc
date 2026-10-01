@@ -897,6 +897,8 @@ base::Status Summarize(TraceProcessor* processor,
                        const std::vector<TraceSummarySpecBytes>& specs,
                        std::vector<uint8_t>* output,
                        const TraceSummaryOutputSpec& output_spec) {
+  const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
+
   std::vector<std::vector<uint8_t>> synthetic_protos;
   std::vector<TraceSummarySpec::Decoder> spec_decoders;
   for (uint32_t i = 0; i < specs.size(); ++i) {
@@ -909,7 +911,8 @@ base::Status Summarize(TraceProcessor* processor,
         ASSIGN_OR_RETURN(
             synthetic_protos.back(),
             protozero::TextToProto(
-                kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
+                trace_summary_descriptor.data(),
+                trace_summary_descriptor.size(),
                 ".perfetto.protos.TraceSummarySpec", "-",
                 std::string_view(reinterpret_cast<const char*>(specs[i].ptr),
                                  specs[i].size),

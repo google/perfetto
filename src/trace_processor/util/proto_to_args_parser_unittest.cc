@@ -189,10 +189,12 @@ class ProtoToArgsParserTest : public ::testing::Test,
 };
 
 TEST_F(ProtoToArgsParserTest, FlatMessageFallbackPreservesValues) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   DescriptorPool pool;
-  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                          kTestMessagesDescriptor.size()));
+  ASSERT_OK(pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                          test_messages_descriptor.size()));
   ProtoToArgsParser parser(pool, string_pool_);
   for (int i = 1; i <= 3; i++) {
     protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
@@ -215,10 +217,12 @@ TEST_F(ProtoToArgsParserTest, FlatMessageFallbackPreservesValues) {
 }
 
 TEST_F(ProtoToArgsParserTest, FlatMessageFallbackHandlesDifferentFields) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   DescriptorPool pool;
-  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                          kTestMessagesDescriptor.size()));
+  ASSERT_OK(pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                          test_messages_descriptor.size()));
   ProtoToArgsParser parser(pool, string_pool_);
   auto parse = [&](const std::vector<uint8_t>& binary_proto) {
     ASSERT_OK(parser.ParseMessage(
@@ -262,10 +266,12 @@ TEST_F(ProtoToArgsParserTest, FlatMessageFallbackHandlesDifferentFields) {
 }
 
 TEST_F(ProtoToArgsParserTest, FlatMessagesRespectAllowlistAndNesting) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   DescriptorPool pool;
-  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                          kTestMessagesDescriptor.size()));
+  ASSERT_OK(pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                          test_messages_descriptor.size()));
   ProtoToArgsParser parser(pool, string_pool_);
   std::vector<uint32_t> allowed = {EveryField::kFieldInt32FieldNumber};
   for (int i = 1; i <= 2; i++) {
@@ -294,15 +300,19 @@ TEST_F(ProtoToArgsParserTest, FlatMessagesRespectAllowlistAndNesting) {
 }
 
 TEST_F(ProtoToArgsParserTest, EnsureTestMessageProtoParses) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 }
 
 TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
   msg->set_field_int32(-1);
@@ -332,8 +342,8 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -369,6 +379,8 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
 }
 
 TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<protozero::Message> raw{kChunkSize, kChunkSize};
   protozero::PackedVarInt packed;
@@ -379,8 +391,8 @@ TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
   auto binary_proto = raw.SerializeAsArray();
 
   DescriptorPool pool;
-  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                          kTestMessagesDescriptor.size()));
+  ASSERT_OK(pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                          test_messages_descriptor.size()));
 
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_OK(parser.ParseMessage(
@@ -395,10 +407,12 @@ TEST_F(ProtoToArgsParserTest, PackedEncodingWithoutDescriptorPackedFlag) {
 // are the same, a submessage is parsed in full, and a field without a
 // descriptor counts as an unknown extension.
 TEST_F(ProtoToArgsParserTest, ParseMessageField) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   DescriptorPool pool;
-  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                          kTestMessagesDescriptor.size()));
+  ASSERT_OK(pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                          test_messages_descriptor.size()));
   ProtoToArgsParser parser(pool, string_pool_);
   uint32_t nested_a = *pool.FindDescriptorIdx(".protozero.test.protos.NestedA");
   uint32_t every_field =
@@ -452,6 +466,8 @@ TEST_F(ProtoToArgsParserTest, ParseMessageField) {
 }
 
 TEST_F(ProtoToArgsParserTest, NestedProto) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
   msg->set_super_nested()->set_value_c(3);
@@ -459,8 +475,8 @@ TEST_F(ProtoToArgsParserTest, NestedProto) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -476,6 +492,8 @@ TEST_F(ProtoToArgsParserTest, NestedProto) {
 }
 
 TEST_F(ProtoToArgsParserTest, CamelCaseFieldsProto) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<CamelCaseFields> msg{kChunkSize, kChunkSize};
   msg->set_barbaz(true);
@@ -485,8 +503,8 @@ TEST_F(ProtoToArgsParserTest, CamelCaseFieldsProto) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -503,6 +521,8 @@ TEST_F(ProtoToArgsParserTest, CamelCaseFieldsProto) {
 }
 
 TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
   msg->set_super_nested()->set_value_c(3);
@@ -510,8 +530,8 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -540,6 +560,8 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
 }
 
 TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
   msg->set_super_nested()->set_value_c(3);
@@ -547,8 +569,8 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -574,6 +596,8 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
 }
 
 TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   // The test proto, we will use |value_c| as the source_location iid.
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
@@ -597,8 +621,8 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   AddInternedSourceLocation(kIid, TraceBlobView(std::move(blob)));
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -633,6 +657,8 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
 }
 
 TEST_F(ProtoToArgsParserTest, EmptyMessage) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
   msg->set_super_nested();
@@ -640,8 +666,8 @@ TEST_F(ProtoToArgsParserTest, EmptyMessage) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -656,6 +682,8 @@ TEST_F(ProtoToArgsParserTest, EmptyMessage) {
 }
 
 TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
 
@@ -678,8 +706,8 @@ TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -706,6 +734,8 @@ TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
 }
 
 TEST_F(ProtoToArgsParserTest, PackedFields) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<PackedRepeatedFields> msg{kChunkSize, kChunkSize};
 
@@ -770,8 +800,8 @@ TEST_F(ProtoToArgsParserTest, PackedFields) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -819,6 +849,8 @@ TEST_F(ProtoToArgsParserTest, PackedFields) {
 }
 
 TEST_F(ProtoToArgsParserTest, AllowedFieldsOnlyTopLevel) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
   msg->set_super_nested()->set_value_c(42);
@@ -826,8 +858,8 @@ TEST_F(ProtoToArgsParserTest, AllowedFieldsOnlyTopLevel) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -848,6 +880,8 @@ TEST_F(ProtoToArgsParserTest, AllowedFieldsOnlyTopLevel) {
 }
 
 TEST_F(ProtoToArgsParserTest, AddsDefaultsNested) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
   msg->set_super_nested();
@@ -855,8 +889,8 @@ TEST_F(ProtoToArgsParserTest, AddsDefaultsNested) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -876,6 +910,8 @@ TEST_F(ProtoToArgsParserTest, AddsDefaultsNested) {
 }
 
 TEST_F(ProtoToArgsParserTest, AddsDefaults) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
   msg->set_field_int32(-1);
@@ -887,8 +923,8 @@ TEST_F(ProtoToArgsParserTest, AddsDefaults) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ProtoToArgsParser parser(pool, string_pool_);
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
@@ -1063,6 +1099,8 @@ class DebugAnnotationParserTest : public ::testing::Test,
 // nested inside an array which is nested inside a dict, flat keys and non-flat
 // keys are parsed correctly.
 TEST_F(DebugAnnotationParserTest, DeeplyNestedDictsAndArrays) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
 
   msg->set_name("root");
@@ -1075,8 +1113,8 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedDictsAndArrays) {
   array2->set_int_value(42);
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -1172,6 +1210,8 @@ TEST_F(DebugAnnotationParserTest, NestedArrays) {
 }
 
 TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
   msg->set_name("root");
 
@@ -1182,8 +1222,8 @@ TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
   msg->set_proto_value(message.SerializeAsString());
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
@@ -1201,6 +1241,8 @@ TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
 // DebugAnnotation (an arbitrarily deep cycle) is parsed iteratively without
 // consuming C++ stack per level.
 TEST_F(DebugAnnotationParserTest, DeeplyNestedProtoValueCycle) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   // Build N nested DebugAnnotation messages, each carrying the next as a
   // proto_value with proto_type_name = ".perfetto.protos.DebugAnnotation".
   // The innermost annotation has a leaf int_value so we can verify the cycle
@@ -1228,8 +1270,8 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedProtoValueCycle) {
   }
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 

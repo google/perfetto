@@ -40,7 +40,6 @@ import argparse
 import os
 import struct
 import sys
-import zlib
 
 # Allow `from python.tools import cpp_blob_emitter` to resolve when this
 # script is run directly. In Bazel the py_binary `deps` wire it up; in
@@ -110,15 +109,12 @@ def main():
       file_to_sql[relpath] = f.read()
 
   blob = pack_bundle(file_to_sql)
-  # Keep codec IDs in sync with SqlBundle::Decode: none=0, zlib=1, zstd=2.
-  codec = 1 if args.compression == 'zlib' else 0
-  payload = zlib.compress(blob, level=9) if codec else blob
-  encoded = struct.pack('<BI', codec, len(blob)) + payload
-  cpp_blob_emitter.emit_array(
-      encoded,
+  cpp_blob_emitter.emit_encoded_array(
+      blob,
       args.output,
       symbol=cpp_blob_emitter.derive_symbol(args.output),
       namespace=args.namespace,
+      compression=args.compression,
       include_guard=cpp_blob_emitter.derive_include_guard(
           args.output, args.gen_dir))
   return 0

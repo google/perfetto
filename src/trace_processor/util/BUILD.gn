@@ -33,9 +33,9 @@ source_set("sql_bundle") {
     "sql_bundle.h",
   ]
   deps = [
-    ":decompressor",
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
+    "../../base:embedded_blob",
   ]
 }
 
@@ -70,23 +70,11 @@ source_set("bump_allocator") {
 # directly for raw-deflate zip entries).
 source_set("decompressor") {
   sources = [
-    "decompressor.cc",
     "decompressor.h",
-    "gzip_decompressor.cc",
     "gzip_decompressor.h",
-    "zstd_decompressor.cc",
     "zstd_decompressor.h",
   ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/base",
-  ]
-  if (enable_perfetto_zlib) {
-    deps += [ "../../../gn:zlib" ]
-  }
-  if (enable_perfetto_zstd) {
-    deps += [ "../../../gn:zstd" ]
-  }
+  public_deps = [ "../../base:decompressor" ]
 }
 
 # One-shot compressors, the counterpart of ":decompressor". Kept separate so the

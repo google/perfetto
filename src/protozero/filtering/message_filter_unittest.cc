@@ -133,11 +133,14 @@ TEST(MessageFilterTest, EndToEnd) {
 }
 
 TEST(MessageFilterTest, Passthrough) {
+  const auto filter_util_test_messages_descriptor =
+      perfetto::kFilterUtilTestMessagesDescriptor.Decode();
+
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      perfetto::kFilterUtilTestMessagesDescriptor.data(),
-      perfetto::kFilterUtilTestMessagesDescriptor.size(),
-      "protozero.test.MsgFilterPassthroughRoot"));
+  ASSERT_TRUE(
+      filter.LoadFromDescriptorSet(filter_util_test_messages_descriptor.data(),
+                                   filter_util_test_messages_descriptor.size(),
+                                   "protozero.test.MsgFilterPassthroughRoot"));
   std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
 
@@ -262,11 +265,14 @@ TEST(MessageFilterTest, ChangeRoot) {
 }
 
 TEST(MessageFilterTest, StringFilter) {
+  const auto filter_util_test_messages_descriptor =
+      perfetto::kFilterUtilTestMessagesDescriptor.Decode();
+
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      perfetto::kFilterUtilTestMessagesDescriptor.data(),
-      perfetto::kFilterUtilTestMessagesDescriptor.size(),
-      "protozero.test.MsgFilterStringRoot"));
+  ASSERT_TRUE(
+      filter.LoadFromDescriptorSet(filter_util_test_messages_descriptor.data(),
+                                   filter_util_test_messages_descriptor.size(),
+                                   "protozero.test.MsgFilterStringRoot"));
   std::string bytecode = filter.GenerateFilterBytecode().bytecode;
   ASSERT_GT(bytecode.size(), 0u);
   PERFETTO_LOG(
@@ -903,11 +909,14 @@ TEST(MessageFilterTest, RealTracePassthrough) {
 
 // End-to-end test for semantic type support with different bytecode versions
 TEST(MessageFilterTest, SemanticTypeEndToEnd) {
+  const auto filter_util_test_messages_descriptor =
+      perfetto::kFilterUtilTestMessagesDescriptor.Decode();
+
   FilterUtil filter;
-  ASSERT_TRUE(filter.LoadFromDescriptorSet(
-      perfetto::kFilterUtilTestMessagesDescriptor.data(),
-      perfetto::kFilterUtilTestMessagesDescriptor.size(),
-      "protozero.test.MsgFilterSemanticTypeRoot"));
+  ASSERT_TRUE(
+      filter.LoadFromDescriptorSet(filter_util_test_messages_descriptor.data(),
+                                   filter_util_test_messages_descriptor.size(),
+                                   "protozero.test.MsgFilterSemanticTypeRoot"));
 
   // Test with v54 bytecode (semantic types inline)
   {

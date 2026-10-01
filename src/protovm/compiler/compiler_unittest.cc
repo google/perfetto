@@ -37,23 +37,27 @@ using namespace perfetto::trace_processor::protozero_to_text;
 class CompilerTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    const auto vm_program_descriptor = perfetto::kVmProgramDescriptor.Decode();
+
     pool_ = std::make_unique<DescriptorPool>();
-    auto status =
-        pool_->AddFromFileDescriptorSet(perfetto::kVmProgramDescriptor.data(),
-                                        perfetto::kVmProgramDescriptor.size());
+    auto status = pool_->AddFromFileDescriptorSet(vm_program_descriptor.data(),
+                                                  vm_program_descriptor.size());
     EXPECT_TRUE(status.ok());
   }
 
   void CheckCompilation(std::string_view config_textproto,
                         std::string_view expected_instructions_textproto) {
+    const auto trace_descriptor = perfetto::kTraceDescriptor.Decode();
+    const auto android_extension_descriptor =
+        perfetto::kAndroidExtensionDescriptor.Decode();
+
     Compiler compiler;
     std::string combined_descriptors =
+        std::string(reinterpret_cast<const char*>(trace_descriptor.data()),
+                    trace_descriptor.size()) +
         std::string(
-            reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
-            perfetto::kTraceDescriptor.size()) +
-        std::string(reinterpret_cast<const char*>(
-                        perfetto::kAndroidExtensionDescriptor.data()),
-                    perfetto::kAndroidExtensionDescriptor.size());
+            reinterpret_cast<const char*>(android_extension_descriptor.data()),
+            android_extension_descriptor.size());
     base::StatusOr<std::string> actual_instructions_binary =
         compiler.Compile(config_textproto, combined_descriptors);
     EXPECT_TRUE(actual_instructions_binary.ok())
@@ -71,10 +75,11 @@ class CompilerTest : public ::testing::Test {
 
  private:
   std::string NormalizeProgramTextProto(std::string_view textproto) {
+    const auto vm_program_descriptor = perfetto::kVmProgramDescriptor.Decode();
+
     auto status_or_binary = protozero::TextToProto(
-        perfetto::kVmProgramDescriptor.data(),
-        perfetto::kVmProgramDescriptor.size(), ".perfetto.protos.VmProgram",
-        "program.textproto", textproto);
+        vm_program_descriptor.data(), vm_program_descriptor.size(),
+        ".perfetto.protos.VmProgram", "program.textproto", textproto);
     EXPECT_TRUE(status_or_binary.ok()) << status_or_binary.status().message();
     return ProtozeroToText(*pool_, ".perfetto.protos.VmProgram",
                            protozero::ConstBytes{status_or_binary->data(),
@@ -553,6 +558,10 @@ TEST_F(CompilerTest, AbortLevelTranslation) {
 }
 
 TEST_F(CompilerTest, ErrorInvalidFieldName) {
+  const auto trace_descriptor = perfetto::kTraceDescriptor.Decode();
+  const auto android_extension_descriptor =
+      perfetto::kAndroidExtensionDescriptor.Decode();
+
   std::string config = R"(
     root_message: "perfetto.protos.TracePacket"
     commands {
@@ -568,12 +577,11 @@ TEST_F(CompilerTest, ErrorInvalidFieldName) {
 
   auto compiler = Compiler{};
   std::string combined_descriptors =
+      std::string(reinterpret_cast<const char*>(trace_descriptor.data()),
+                  trace_descriptor.size()) +
       std::string(
-          reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
-          perfetto::kTraceDescriptor.size()) +
-      std::string(reinterpret_cast<const char*>(
-                      perfetto::kAndroidExtensionDescriptor.data()),
-                  perfetto::kAndroidExtensionDescriptor.size());
+          reinterpret_cast<const char*>(android_extension_descriptor.data()),
+          android_extension_descriptor.size());
   auto status_or = compiler.Compile(config, combined_descriptors);
   EXPECT_FALSE(status_or.ok());
   EXPECT_THAT(

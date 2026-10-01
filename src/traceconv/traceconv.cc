@@ -145,15 +145,19 @@ uint64_t StringToUint64OrDie(const char* str) {
 }
 
 int TextToTrace(std::istream* input, std::ostream* output) {
+  const auto trace_descriptor = kTraceDescriptor.Decode();
+  const auto android_extension_descriptor =
+      kAndroidExtensionDescriptor.Decode();
+
   std::string trace_text(std::istreambuf_iterator<char>{*input},
                          std::istreambuf_iterator<char>{});
   std::vector<uint8_t> descriptors;
-  descriptors.reserve(kTraceDescriptor.size() +
-                      kAndroidExtensionDescriptor.size());
-  descriptors.insert(descriptors.end(), kTraceDescriptor.begin(),
-                     kTraceDescriptor.end());
-  descriptors.insert(descriptors.end(), kAndroidExtensionDescriptor.begin(),
-                     kAndroidExtensionDescriptor.end());
+  descriptors.reserve(trace_descriptor.size() +
+                      android_extension_descriptor.size());
+  descriptors.insert(descriptors.end(), trace_descriptor.begin(),
+                     trace_descriptor.end());
+  descriptors.insert(descriptors.end(), android_extension_descriptor.begin(),
+                     android_extension_descriptor.end());
   auto proto_status =
       protozero::TextToProto(descriptors.data(), descriptors.size(),
                              ".perfetto.protos.Trace", "trace", trace_text);

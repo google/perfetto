@@ -38,8 +38,10 @@ using testing::UnorderedElementsAre;
 using Query = ::perfetto::protos::gen::PerfettoSqlStructuredQuery;
 
 std::vector<uint8_t> ToProto(const std::string& input) {
+  const auto perfettosql_descriptor = kPerfettosqlDescriptor.Decode();
+
   base::StatusOr<std::vector<uint8_t>> output = protozero::TextToProto(
-      kPerfettosqlDescriptor.data(), kPerfettosqlDescriptor.size(),
+      perfettosql_descriptor.data(), perfettosql_descriptor.size(),
       ".perfetto.protos.PerfettoSqlStructuredQuery", "-", input);
   EXPECT_OK(output);
   if (!output.ok()) {

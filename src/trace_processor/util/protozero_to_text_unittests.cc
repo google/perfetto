@@ -47,14 +47,16 @@ using ::testing::Eq;
 using ::testing::StartsWith;
 
 TEST(ProtozeroToTextTest, CustomDescriptorPoolBasic) {
+  const auto track_event_descriptor = kTrackEventDescriptor.Decode();
+
   using perfetto::protos::pbzero::TrackEvent;
   protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
   msg->set_track_uuid(4);
   msg->set_timestamp_delta_us(3);
   auto binary_proto = msg.SerializeAsArray();
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(track_event_descriptor.data(),
+                                              track_event_descriptor.size());
   ASSERT_TRUE(status.ok());
   EXPECT_EQ("track_uuid: 4\ntimestamp_delta_us: 3",
             ProtozeroToText(pool, ".perfetto.protos.TrackEvent", binary_proto,
@@ -65,6 +67,8 @@ TEST(ProtozeroToTextTest, CustomDescriptorPoolBasic) {
 }
 
 TEST(ProtozeroToTextTest, CustomDescriptorPoolNestedMsg) {
+  const auto track_event_descriptor = kTrackEventDescriptor.Decode();
+
   using perfetto::protos::pbzero::TrackEvent;
   protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
   msg->set_track_uuid(4);
@@ -78,8 +82,8 @@ TEST(ProtozeroToTextTest, CustomDescriptorPoolNestedMsg) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(track_event_descriptor.data(),
+                                              track_event_descriptor.size());
   ASSERT_TRUE(status.ok());
 
   EXPECT_EQ(
@@ -106,6 +110,8 @@ timestamp_delta_us: 3)",
 }
 
 TEST(ProtozeroToTextTest, ExtensionWrapperScoped) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   using ::protozero::test::protos::pbzero::BrowserExtension;
   using ::protozero::test::protos::pbzero::RealFakeEvent;
   using ::protozero::test::protos::pbzero::SystemA;
@@ -117,8 +123,8 @@ TEST(ProtozeroToTextTest, ExtensionWrapperScoped) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   ASSERT_TRUE(status.ok());
 
   EXPECT_EQ(
@@ -135,8 +141,10 @@ TEST(ProtozeroToTextTest, ExtensionWrapperScoped) {
 class ProtozeroToTextTestMessageTest : public testing::Test {
  protected:
   void SetUp() override {
+    const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
     auto status = pool_.AddFromFileDescriptorSet(
-        kTestMessagesDescriptor.data(), kTestMessagesDescriptor.size());
+        test_messages_descriptor.data(), test_messages_descriptor.size());
     ASSERT_TRUE(status.ok());
   }
 

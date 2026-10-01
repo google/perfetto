@@ -69,10 +69,12 @@ MATCHER_P(HasSubstrIgnoringWhitespace,
 class TraceSummaryTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
+
     tp_ = TraceProcessor::CreateInstance(Config{});
     tp_->NotifyEndOfFile();
-    pool_.AddFromFileDescriptorSet(kTraceSummaryDescriptor.data(),
-                                   kTraceSummaryDescriptor.size());
+    pool_.AddFromFileDescriptorSet(trace_summary_descriptor.data(),
+                                   trace_summary_descriptor.size());
   }
 
   base::StatusOr<std::string> RunSummarize(const std::string& spec_str) {
