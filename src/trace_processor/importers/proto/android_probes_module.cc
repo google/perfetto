@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
@@ -143,6 +144,13 @@ ModuleResult AndroidProbesModule::TokenizePacket(
         actual_ts = *trace_ts;
       } else {
         actual_ts = args.ts;
+      }
+
+      if (context_->machine_data_claim_tracker &&
+          !context_->machine_data_claim_tracker->ShouldImport(
+              context_, MachineDataClaimTracker::Kind::kAndroidPower,
+              actual_ts)) {
+        continue;
       }
 
       TraceBlobView tbv =

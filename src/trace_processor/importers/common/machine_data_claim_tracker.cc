@@ -20,8 +20,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
@@ -342,43 +344,80 @@ void MachineDataClaimTracker::OnEventsFullyExtracted() {
 void MachineDataClaimTracker::CloseOpenSchedSlices() {
   const auto& threads = context_->storage->thread_table();
   auto* sched = context_->storage->mutable_sched_slice_table();
+  // Within each followed window and CPU, only close the latest open slice
+  // (the one at the trace boundary). Earlier dur == -1 rows are left alone.
+  std::map<std::pair<const Window*, uint32_t>, uint32_t> latest_open;
   for (uint32_t i = 0; i < sched->row_count(); ++i) {
     auto r = (*sched)[i];
     if (r.dur() != -1 ||
         threads[r.utid()].machine_id() != context_->machine_id()) {
       continue;
     }
-    auto dur = CloseAtWindowEnd(Kind::kSched, r.ts());
-    if (!dur) {
-      dur = CloseAtWindowEnd(Kind::kFtrace, r.ts());
+    const Window* window = FollowedWindowContaining(Kind::kSched, r.ts());
+    if (!window) {
+      window = FollowedWindowContaining(Kind::kFtrace, r.ts());
     }
-    if (dur) {
-      r.set_dur(*dur);
+    if (!window) {
+      continue;
     }
+    auto key = std::make_pair(window, r.cpu());
+    auto it = latest_open.find(key);
+    if (it == latest_open.end() || (*sched)[it->second].ts() < r.ts()) {
+      latest_open[key] = i;
+    }
+  }
+
+  for (const auto& [key, row_idx] : latest_open) {
+    auto r = (*sched)[row_idx];
+    const Window* window = key.first;
+    context_->global_stats_tracker->IncrementStats(
+        context_->machine_id(), window->trace_id,
+        stats::machine_data_closed_at_trace_boundary);
+    r.set_dur(window->max - r.ts());
   }
 }
 
 void MachineDataClaimTracker::CloseOpenThreadStates() {
   const auto& threads = context_->storage->thread_table();
   auto* states = context_->storage->mutable_thread_state_table();
+  // Within each followed window and utid, only close the latest open state
+  // (the one at the trace boundary). Earlier dur == -1 rows are left alone.
+  std::map<std::pair<const Window*, UniqueTid>, uint32_t> latest_open;
   for (uint32_t i = 0; i < states->row_count(); ++i) {
     auto r = (*states)[i];
     if (r.dur() != -1 ||
         threads[r.utid()].machine_id() != context_->machine_id()) {
       continue;
     }
-    auto dur = CloseAtWindowEnd(Kind::kSched, r.ts());
-    if (!dur) {
-      dur = CloseAtWindowEnd(Kind::kFtrace, r.ts());
+    const Window* window = FollowedWindowContaining(Kind::kSched, r.ts());
+    if (!window) {
+      window = FollowedWindowContaining(Kind::kFtrace, r.ts());
     }
-    if (dur) {
-      r.set_dur(*dur);
+    if (!window) {
+      continue;
     }
+    auto key = std::make_pair(window, r.utid());
+    auto it = latest_open.find(key);
+    if (it == latest_open.end() || (*states)[it->second].ts() < r.ts()) {
+      latest_open[key] = i;
+    }
+  }
+
+  for (const auto& [key, row_idx] : latest_open) {
+    auto r = (*states)[row_idx];
+    const Window* window = key.first;
+    context_->global_stats_tracker->IncrementStats(
+        context_->machine_id(), window->trace_id,
+        stats::machine_data_closed_at_trace_boundary);
+    r.set_dur(window->max - r.ts());
   }
 }
 
 void MachineDataClaimTracker::CloseOpenSlicesOnSharedTracks() {
   auto* slices = context_->storage->mutable_slice_table();
+  // Within each followed window and track, only close the latest open slice
+  // (the one at the trace boundary). Earlier dur == -1 rows are left alone.
+  std::map<std::pair<const Window*, TrackId>, uint32_t> latest_open;
   for (uint32_t i = 0; i < slices->row_count(); ++i) {
     auto r = (*slices)[i];
     if (r.dur() != -1) {
@@ -388,9 +427,24 @@ void MachineDataClaimTracker::CloseOpenSlicesOnSharedTracks() {
     if (!kind) {
       continue;
     }
-    if (auto dur = CloseAtWindowEnd(*kind, r.ts()); dur) {
-      r.set_dur(*dur);
+    const Window* window = FollowedWindowContaining(*kind, r.ts());
+    if (!window) {
+      continue;
     }
+    auto key = std::make_pair(window, r.track_id());
+    auto it = latest_open.find(key);
+    if (it == latest_open.end() || (*slices)[it->second].ts() < r.ts()) {
+      latest_open[key] = i;
+    }
+  }
+
+  for (const auto& [key, row_idx] : latest_open) {
+    auto r = (*slices)[row_idx];
+    const Window* window = key.first;
+    context_->global_stats_tracker->IncrementStats(
+        context_->machine_id(), window->trace_id,
+        stats::machine_data_closed_at_trace_boundary);
+    r.set_dur(window->max - r.ts());
   }
 }
 
