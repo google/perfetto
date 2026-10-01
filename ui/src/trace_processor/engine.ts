@@ -46,6 +46,7 @@ export interface TraceProcessorConfig {
   ftraceDropUntilAllCpusValid: boolean;
   extraParsingDescriptors?: ReadonlyArray<Uint8Array>;
   forceFullSort: boolean;
+  dropDuplicateMachineData?: 'manifest' | 'on' | 'off';
 }
 
 const QUERY_LOG_BUFFER_SIZE = 1024;
@@ -435,6 +436,7 @@ export abstract class EngineBase implements Engine, Disposable {
     ftraceDropUntilAllCpusValid,
     extraParsingDescriptors,
     forceFullSort,
+    dropDuplicateMachineData,
   }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
@@ -455,6 +457,16 @@ export abstract class EngineBase implements Engine, Disposable {
     args.parsingMode = tokenizeOnly
       ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
       : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
+    if (dropDuplicateMachineData === 'on') {
+      args.dropDuplicateMachineData =
+        protos.ResetTraceProcessorArgs.DropDuplicateMachineData.DROP_DUPLICATE_MACHINE_DATA_ON;
+    } else if (dropDuplicateMachineData === 'off') {
+      args.dropDuplicateMachineData =
+        protos.ResetTraceProcessorArgs.DropDuplicateMachineData.DROP_DUPLICATE_MACHINE_DATA_OFF;
+    } else {
+      args.dropDuplicateMachineData =
+        protos.ResetTraceProcessorArgs.DropDuplicateMachineData.DROP_DUPLICATE_MACHINE_DATA_UNSET;
+    }
     // If extraParsingDescriptors is defined, create a mutable copy for the
     // protobuf object; otherwise, pass an empty array.
     args.extraParsingDescriptors = extraParsingDescriptors

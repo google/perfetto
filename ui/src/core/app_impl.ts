@@ -65,6 +65,7 @@ export interface AppInitArgs {
   readonly analyticsSetting: Setting<boolean>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
   readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
+  readonly dropDuplicateMachineDataSetting: Setting<'manifest' | 'on' | 'off'>;
 }
 
 /**
@@ -136,6 +137,7 @@ export class AppImpl implements App {
   readonly timezoneOverride: Setting<string>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
   readonly enforceStartupCommandAllowlistSetting: Setting<boolean>;
+  readonly dropDuplicateMachineDataSetting: Setting<'manifest' | 'on' | 'off'>;
   private _isInternalUser?: boolean;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
@@ -147,6 +149,8 @@ export class AppImpl implements App {
     this.startupCommandsSetting = initArgs.startupCommandsSetting;
     this.enforceStartupCommandAllowlistSetting =
       initArgs.enforceStartupCommandAllowlistSetting;
+    this.dropDuplicateMachineDataSetting =
+      initArgs.dropDuplicateMachineDataSetting;
     this.settings = initArgs.settingsManager;
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;
