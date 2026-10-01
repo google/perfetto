@@ -366,6 +366,8 @@ export class TimeSelectionPanel {
         return Time.formatMilliseconds(time);
       case TimestampFormat.Microseconds:
         return Time.formatMicroseconds(time);
+      case TimestampFormat.Compact:
+        return Time.formatCompact(time);
       default:
         assertUnreachable(fmt);
     }
