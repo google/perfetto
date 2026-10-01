@@ -34,8 +34,12 @@ inline uint16_t ByteSwap16(uint16_t x) {
 inline uint32_t ByteSwap32(uint32_t x) {
   return _byteswap_ulong(x);
 }
-inline uint64_t ByteSwap64(uint64_t x) {
-  return _byteswap_uint64(x);
+// Unlike MSVC's intrinsic, this can also be evaluated in a constant expression.
+constexpr uint64_t ByteSwap64(uint64_t x) {
+  x = (x << 32) | (x >> 32);
+  x = ((x & 0x0000ffff0000ffffULL) << 16) | ((x & 0xffff0000ffff0000ULL) >> 16);
+  return ((x & 0x00ff00ff00ff00ffULL) << 8) |
+         ((x & 0xff00ff00ff00ff00ULL) >> 8);
 }
 #else
 inline uint16_t ByteSwap16(uint16_t x) {
@@ -44,7 +48,7 @@ inline uint16_t ByteSwap16(uint16_t x) {
 inline uint32_t ByteSwap32(uint32_t x) {
   return __builtin_bswap32(x);
 }
-inline uint64_t ByteSwap64(uint64_t x) {
+constexpr uint64_t ByteSwap64(uint64_t x) {
   return __builtin_bswap64(x);
 }
 #endif
@@ -56,7 +60,7 @@ inline uint16_t HostToLE16(uint16_t x) {
 inline uint32_t HostToLE32(uint32_t x) {
   return x;
 }
-inline uint64_t HostToLE64(uint64_t x) {
+constexpr uint64_t HostToLE64(uint64_t x) {
   return x;
 }
 inline uint16_t LE16ToHost(uint16_t x) {
@@ -133,7 +137,7 @@ inline uint16_t HostToLE16(uint16_t x) {
 inline uint32_t HostToLE32(uint32_t x) {
   return ByteSwap32(x);
 }
-inline uint64_t HostToLE64(uint64_t x) {
+constexpr uint64_t HostToLE64(uint64_t x) {
   return ByteSwap64(x);
 }
 inline uint16_t LE16ToHost(uint16_t x) {
