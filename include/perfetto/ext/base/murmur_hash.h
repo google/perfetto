@@ -366,10 +366,12 @@ struct MurmurHash {
   // Heterogeneous lookup support. Only allowed for types where it makes sense
   // (e.g. string-like types and convertible integral types).
   template <typename U>
-  auto operator()(const U& value) const
-      -> std::enable_if_t<murmur_internal::AllowsHeterogeneousLookup<T, U>(),
-                          uint64_t> {
-    return MurmurHashValue(value);
+  auto operator()(const U& value) const -> std::enable_if_t<
+      murmur_internal::AllowsHeterogeneousLookup<T, std::decay_t<const U>>(),
+      uint64_t> {
+    // Forwarding callers retain string literals as arrays. Hash them as
+    // C strings instead of converting them to an owning std::string.
+    return MurmurHashValue<std::decay_t<const U>>(value);
   }
 };
 
