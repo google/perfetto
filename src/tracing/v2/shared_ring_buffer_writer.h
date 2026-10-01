@@ -92,7 +92,7 @@ class SharedRingBufferWriter {
   // - Tracks whether a reader is attached, so writers know if they can wait
   //   for space.
   //
-  // ProducerRingBufferEndpoint implements it. It must outlive the writer.
+  // ProducerRingBufferArbiter implements it. It must outlive the writer.
   //
   // The writer calls it on two events:
   //

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_V2_PRODUCER_RING_BUFFER_ENDPOINT_H_
-#define SRC_TRACING_V2_PRODUCER_RING_BUFFER_ENDPOINT_H_
+#ifndef SRC_TRACING_V2_PRODUCER_RING_BUFFER_ARBITER_H_
+#define SRC_TRACING_V2_PRODUCER_RING_BUFFER_ARBITER_H_
 
 #include <stdint.h>
 
@@ -39,19 +39,20 @@ class SharedMemoryArbiter;
 namespace tracing_v2 {
 
 namespace test {
-class ProducerRingBufferEndpointTestPeer;
+class ProducerRingBufferArbiterTestPeer;
 }  // namespace test
 
-// The producer side of one tracing v2 ring buffer. The service has its own
-// side, which reads the ring buffer.
+// Coordinates producer writers sharing one tracing v2 ring buffer. The service
+// has its own reader for the ring buffer.
 //
 // SharedMemory holds the bytes, and SharedRingBuffer provides a view of them.
 // This class owns the view and shares ownership of the mapping.
 //
 // The producer's ProducerEndpoint (for example ProducerIPCClientImpl) creates
-// one for each ring buffer that it shares with the service. In this file,
-// "endpoint" alone means that ProducerEndpoint. For the path of packet bytes,
-// see TraceWriterV2Impl.
+// one arbiter for each ring buffer that it shares with the service. In this
+// file, "endpoint" means that ProducerEndpoint, and "SMB arbiter" means the
+// SharedMemoryArbiter used for v1 tracing. For the path of packet bytes, see
+// TraceWriterV2Impl.
 //
 // Why this class exists:
 //
@@ -91,7 +92,7 @@ class ProducerRingBufferEndpointTestPeer;
 // 1. After a publication, the writer asks for a drain if the ring buffer's
 //    outstanding positions reach the drain threshold:
 //
-//     writer                 endpoint                 service
+//     writer                  arbiter                 service
 //        |                       |                       |
 //        | NotifyReader(         |                       |
 //        |   kPositionsReady)    |                       |
@@ -107,7 +108,7 @@ class ProducerRingBufferEndpointTestPeer;
 //
 // 2. If the ring buffer is full, the writer asks for a drain, then waits:
 //
-//     writer                 endpoint                 service
+//     writer                  arbiter                 service
 //        |                       |                       |
 //        | NotifyReader(         |                       |
 //        |   kWriterStalled)     |                       |
@@ -126,7 +127,7 @@ class ProducerRingBufferEndpointTestPeer;
 //
 // 3. Flush(callback) asks for a drain, then runs |callback|:
 //
-//     writer                 endpoint                 service
+//     writer                  arbiter                 service
 //        |                       |                       |
 //        | Flush(callback)       |                       |
 //        |---------------------->| posts a drain task,   |
@@ -154,14 +155,14 @@ class ProducerRingBufferEndpointTestPeer;
 //
 //   endpoint (for example ProducerIPCClientImpl)
 //     |-- owns --> SharedMemoryArbiterImpl: the WriterID pool
-//     |-- owns --> ProducerRingBufferEndpoint (this class)
+//     |-- owns --> ProducerRingBufferArbiter (this class)
 //                    |-- shares -> SharedMemory: the ring buffer mapping
 //                    |-- owns --> SharedRingBuffer: the view
 //                    |-- uses --> endpoint, SharedMemoryArbiterImpl
 //
 //   data source (SDK)
 //     |-- owns --> TraceWriterV2Impl
-//                    |-- uses --> ProducerRingBufferEndpoint
+//                    |-- uses --> ProducerRingBufferArbiter
 //                    |-- holds -> a WriterID from SharedMemoryArbiterImpl
 //                    |-- owns --> SharedRingBufferWriter
 //                                   |-- uses --> SharedRingBuffer
@@ -171,7 +172,7 @@ class ProducerRingBufferEndpointTestPeer;
 // - While a writer holds a WriterID, TryShutdown() of the SMB arbiter fails.
 // - So the endpoint keeps the SMB arbiter, this object and the mapping.
 // - The writer releases its WriterID last, in OnWriterDestroyed().
-class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
+class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
  public:
   // Whether writers can rely on a service reader to free space.
   // - Only the endpoint thread changes the state, but writers can read it
@@ -215,7 +216,7 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
   // - Logs an error and returns null for a missing mapping, an invalid layout,
   //   or a mapping larger than kMaxShmSize.
   // - The other arguments are borrowed and must outlive this object.
-  static std::unique_ptr<ProducerRingBufferEndpoint> Create(
+  static std::unique_ptr<ProducerRingBufferArbiter> Create(
       base::TaskRunner*,
       ProducerEndpoint*,
       SharedMemoryArbiter*,
@@ -224,11 +225,11 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
 
   // The endpoint destroys this on its thread after all writers release their
   // IDs. Calls Disconnect().
-  ~ProducerRingBufferEndpoint() override;
+  ~ProducerRingBufferArbiter() override;
 
   // Writers keep a pointer to this object.
-  ProducerRingBufferEndpoint(const ProducerRingBufferEndpoint&) = delete;
-  ProducerRingBufferEndpoint& operator=(const ProducerRingBufferEndpoint&) =
+  ProducerRingBufferArbiter(const ProducerRingBufferArbiter&) = delete;
+  ProducerRingBufferArbiter& operator=(const ProducerRingBufferArbiter&) =
       delete;
 
   // Endpoint thread:
@@ -284,13 +285,13 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
   SharedRingBuffer* ring_buffer() const { return ring_buffer_.get(); }
 
  private:
-  friend class test::ProducerRingBufferEndpointTestPeer;
+  friend class test::ProducerRingBufferArbiterTestPeer;
 
-  ProducerRingBufferEndpoint(base::TaskRunner*,
-                             ProducerEndpoint*,
-                             SharedMemoryArbiter*,
-                             std::shared_ptr<SharedMemory> ring_buffer_memory,
-                             uint32_t chunk_size);
+  ProducerRingBufferArbiter(base::TaskRunner*,
+                            ProducerEndpoint*,
+                            SharedMemoryArbiter*,
+                            std::shared_ptr<SharedMemory> ring_buffer_memory,
+                            uint32_t chunk_size);
 
   // Runs on the endpoint thread. CHECKs that the transition is valid.
   void SetReaderState(ReaderState);
@@ -339,10 +340,10 @@ class ProducerRingBufferEndpoint : public SharedRingBufferWriter::Delegate {
 
   // Posted tasks use weak pointers to detect that this object is gone.
   // Any thread can copy them. Only the endpoint thread uses them.
-  base::WeakPtrFactory<ProducerRingBufferEndpoint> weak_factory_{this};
+  base::WeakPtrFactory<ProducerRingBufferArbiter> weak_factory_{this};
 };
 
 }  // namespace tracing_v2
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_V2_PRODUCER_RING_BUFFER_ENDPOINT_H_
+#endif  // SRC_TRACING_V2_PRODUCER_RING_BUFFER_ARBITER_H_
