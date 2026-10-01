@@ -404,7 +404,7 @@ base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
   base::StatusOr<analysis::RelationLineage> lineage =
       syntaqlite_node_is_present(n->select)
           ? analyzer.AnalyzeQuery({p_, n->select})
-          : analyzer.AnalyzeRelation(SpanText(p_, n->table_name));
+          : analyzer.AnalyzeRelation({p_, from}, SpanText(p_, n->table_name));
   if (!lineage.ok()) {
     return Err(from, Error::kUnsupported,
                "reading a relation whose columns cannot be worked out",
