@@ -276,34 +276,17 @@ class FlatHashMapV2 {
     return true;
   }
 
-  PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(Key key, Value value) {
-    size_t key_hash = Hasher{}(key);
-    uint8_t h2 = H2(key_hash);
-    FindResult res = FindSlotIgnoringTombstones<true>(key, key_hash, h2);
-    if (PERFETTO_UNLIKELY(!res.needs_insert)) {
-      return {&slots_[res.idx].value, false};
+  // With a transparent Hasher, construct the stored Key only if the key is
+  // absent. Hashing and equality must agree for K and Key.
+  template <typename K = Key>
+  PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(K key, Value value) {
+    if constexpr (flat_hash_map_v2_internal::IsLookupKeyAllowed<K, Key,
+                                                                Hasher>() &&
+                  std::is_invocable_v<Eq, const Key&, const K&>) {
+      return InsertImpl(std::move(key), std::move(value));
+    } else {
+      return Insert(Key(std::move(key)), std::move(value));
     }
-    if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
-      GrowAndRehash();
-      // After rehash, table has no tombstones. Find an empty slot directly
-      // instead of recursing (which would prevent inlining).
-      res.idx = FindFirstEmptyOrTombstone(key_hash);
-    }
-    PERFETTO_DCHECK(res.idx != kNotFound);
-    size_t insert_idx = res.idx;
-    bool is_freeslot = true;
-    if (PERFETTO_UNLIKELY(growth_info_.has_tombstones)) {
-      insert_idx = FindFirstEmptyOrTombstone(key_hash);
-      is_freeslot = ctrl_[insert_idx] != kTombstone;
-    }
-    new (&slots_[insert_idx].key) Key(std::move(key));
-    new (&slots_[insert_idx].value) Value(std::move(value));
-    SetCtrl(insert_idx, h2);
-    size_++;
-    if (is_freeslot) {
-      growth_info_.growth_left--;
-    }
-    return {&slots_[insert_idx].value, true};
   }
 
   Value& operator[](Key key) {
@@ -554,6 +537,38 @@ class FlatHashMapV2 {
       probe_size += Group::kSize;
       offset = (offset + probe_size) & cap_mask;
     }
+  }
+
+  template <typename K>
+  PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> InsertImpl(K&& key,
+                                                            Value&& value) {
+    size_t key_hash = Hasher{}(key);
+    uint8_t h2 = H2(key_hash);
+    FindResult res = FindSlotIgnoringTombstones<true>(key, key_hash, h2);
+    if (PERFETTO_UNLIKELY(!res.needs_insert)) {
+      return {&slots_[res.idx].value, false};
+    }
+    if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
+      GrowAndRehash();
+      // After rehash, table has no tombstones. Find an empty slot directly
+      // instead of recursing (which would prevent inlining).
+      res.idx = FindFirstEmptyOrTombstone(key_hash);
+    }
+    PERFETTO_DCHECK(res.idx != kNotFound);
+    size_t insert_idx = res.idx;
+    bool is_freeslot = true;
+    if (PERFETTO_UNLIKELY(growth_info_.has_tombstones)) {
+      insert_idx = FindFirstEmptyOrTombstone(key_hash);
+      is_freeslot = ctrl_[insert_idx] != kTombstone;
+    }
+    new (&slots_[insert_idx].key) Key(std::move(key));
+    new (&slots_[insert_idx].value) Value(std::move(value));
+    SetCtrl(insert_idx, h2);
+    size_++;
+    if (is_freeslot) {
+      growth_info_.growth_left--;
+    }
+    return {&slots_[insert_idx].value, true};
   }
 
   PERFETTO_NO_INLINE void GrowAndRehash() {

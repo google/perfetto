@@ -20,6 +20,8 @@
 #include <cstddef>
 #include <random>
 #include <set>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -81,14 +83,17 @@ TYPED_TEST_SUITE(FlatHashMapTest, ProbeTypes, /* trailing ',' for GCC*/);
 
 struct Key {
   static int instances;
+  static int constructions;
 
-  explicit Key(int v) : val(v) {}
+  explicit Key(int v) : val(v) { constructions++; }
   ~Key() { instances--; }
   Key(Key&& other) noexcept {
+    constructions++;
     val = other.val;
     other.val = -1;
   }
   bool operator==(const Key& other) const { return val == other.val; }
+  bool operator==(int other) const { return val == other; }
   int val = 0;
   int id = instances++;
 };
@@ -112,7 +117,75 @@ struct KeyHasher {
 };
 
 int Key::instances = 0;
+int Key::constructions = 0;
 int Value::instances = 0;
+
+TEST(FlatHashMapV2Test, HeterogeneousInsert) {
+  struct Hasher {
+    using is_transparent = void;
+    size_t operator()(const Key& key) const {
+      return static_cast<size_t>(key.val);
+    }
+    size_t operator()(int key) const { return static_cast<size_t>(key); }
+  };
+  struct Eq {
+    bool operator()(const Key& lhs, const Key& rhs) const {
+      return lhs.val == rhs.val;
+    }
+    bool operator()(const Key& lhs, int rhs) const { return lhs.val == rhs; }
+  };
+  FlatHashMapV2<Key, int, Hasher, Eq> map;
+  int constructions_before_insert = Key::constructions;
+  auto inserted = map.Insert(42, 100);
+  ASSERT_TRUE(inserted.second);
+  EXPECT_EQ(*inserted.first, 100);
+  EXPECT_EQ(Key::constructions, constructions_before_insert + 1);
+  // Key is explicitly constructible from int and records each construction.
+  // A duplicate insertion must not construct even a temporary Key.
+  int instances = Key::instances;
+  int constructions = Key::constructions;
+  auto duplicate = map.Insert(42, 200);
+  EXPECT_FALSE(duplicate.second);
+  EXPECT_EQ(duplicate.first, inserted.first);
+  EXPECT_EQ(*duplicate.first, 100);
+  EXPECT_EQ(Key::instances, instances);
+  EXPECT_EQ(Key::constructions, constructions);
+  auto it = map.GetIterator();
+  ASSERT_TRUE(it);
+  EXPECT_EQ(it.key().val, 42);
+  EXPECT_EQ(it.key().id, instances - 1);
+}
+
+TEST(FlatHashMapV2Test, HeterogeneousStringInsert) {
+  FlatHashMapV2<std::string, int, CaseInsensitiveHash, CaseInsensitiveEq> map;
+  for (int i = 0; i < 200; ++i) {
+    std::string key = "key" + std::to_string(i);
+    ASSERT_TRUE(map.Insert(std::string_view(key), i).second);
+  }
+  EXPECT_EQ(map.size(), 200u);
+  auto duplicate = map.Insert("KEY42", -1);
+  EXPECT_FALSE(duplicate.second);
+  EXPECT_EQ(*duplicate.first, 42);
+  ASSERT_TRUE(map.Erase("KEY42"));
+  auto inserted = map.Insert(std::string_view("KEY42"), 300);
+  ASSERT_TRUE(inserted.second);
+  EXPECT_EQ(*inserted.first, 300);
+  ASSERT_NE(map.Find("key42"), nullptr);
+  EXPECT_EQ(*map.Find("key42"), 300);
+  EXPECT_EQ(map.size(), 200u);
+}
+
+TEST(FlatHashMapV2Test, InsertConvertibleKey) {
+  FlatHashMapV2<std::string, int> map;
+  ASSERT_TRUE(map.Insert("key", 42).second);
+  auto duplicate = map.Insert(std::string_view("key"), 100);
+  EXPECT_FALSE(duplicate.second);
+  EXPECT_EQ(*duplicate.first, 42);
+  FlatHashMapV2<int, int> int_map;
+  ASSERT_TRUE(int_map.Insert(uint64_t{42}, 100).second);
+  ASSERT_NE(int_map.Find(42), nullptr);
+  EXPECT_EQ(*int_map.Find(42), 100);
+}
 
 TYPED_TEST(FlatHashMapTest, NonTrivialKeyValues) {
   typename TestFixture::template Map<Key, Value, KeyHasher,
