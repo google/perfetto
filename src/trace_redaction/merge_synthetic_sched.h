@@ -47,6 +47,11 @@ class MergeSyntheticSched : public TransformPrimitive {
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
 
+  // Set the minimum number of consecutive duplicate events required to trigger
+  // a merge operation. Default is 2.
+  void set_merge_threshold(int threshold) { merge_threshold_ = threshold; }
+  int merge_threshold() const { return merge_threshold_; }
+
  private:
   base::Status HasMergeableEvents(const Context& context,
                                   protozero::ProtoDecoder& ftrace_decoder,
@@ -64,6 +69,8 @@ class MergeSyntheticSched : public TransformPrimitive {
     protozero::PackedVarInt packed_next_prio;
     protozero::PackedVarInt packed_next_comm_index;
   } sched_switch_buffers_;
+
+  int merge_threshold_ = 2;
 
   base::Status OnFtraceEvents(const Context& context,
                               protozero::Field ftrace_events,

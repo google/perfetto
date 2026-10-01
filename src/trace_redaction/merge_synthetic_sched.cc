@@ -144,7 +144,6 @@ base::Status MergeSyntheticSched::HasMergeableEvents(
 
   // We require a minimum number of mergeable events in the packet before
   // we incur the expensive cost of rebuilding the CompactSched message.
-  constexpr int kMergeThreshold = 2;
   int mergeable_count = 0;
 
   bool found = false;
@@ -153,7 +152,7 @@ base::Status MergeSyntheticSched::HasMergeableEvents(
     bool is_synthetic = *next_pid_it == synth_tid;
     if (is_synthetic && was_previous_synthetic) {
       mergeable_count++;
-      if (mergeable_count >= kMergeThreshold) {
+      if (mergeable_count >= merge_threshold()) {
         found = true;
         break;
       }
