@@ -42,6 +42,13 @@ SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 // TODO(primiano): make pure virtual after various 3way patches.
 void Consumer::OnSessionCloned(const OnSessionClonedArgs&) {}
 
+// Endpoints without tracing v2 support reject ring buffers.
+void ProducerEndpoint::AttachV2RingBuffer(std::shared_ptr<SharedMemory>,
+                                          uint32_t,
+                                          std::function<void(bool)> callback) {
+  callback(false);
+}
+
 // Endpoints without tracing v2 support ignore drain requests.
 void ProducerEndpoint::DrainV2RingBuffer() {}
 

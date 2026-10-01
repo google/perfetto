@@ -15,6 +15,9 @@
  */
 
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
+
+#include <cinttypes>
+
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
@@ -27,6 +30,8 @@
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
+#include "src/tracing/service/service_ring_buffer_drainer.h"
+#include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "src/tracing/service/tracing_service_structs.h"
 
@@ -427,7 +432,8 @@ ProducerEndpointImpl::ProducerEndpointImpl(
     const std::string& machine_name,
     const std::string& sdk_version,
     bool in_process,
-    bool smb_scraping_enabled)
+    bool smb_scraping_enabled,
+    base::FlatSet<ProtocolAbiVersion> protocol_abi_versions)
     : id_(id),
       client_identity_(client_identity),
       service_(service),
@@ -437,6 +443,7 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
+      protocol_abi_versions_(std::move(protocol_abi_versions)),
       weak_runner_(task_runner) {}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
@@ -751,6 +758,67 @@ bool ProducerEndpointImpl::IsAndroidProcessFrozen() {
 
 #endif
   return false;
+}
+
+void ProducerEndpointImpl::AttachV2RingBuffer(
+    std::shared_ptr<SharedMemory> memory,
+    uint32_t chunk_size_bytes,
+    std::function<void(bool)> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  base::Status status;
+  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2)) {
+    status = base::ErrStatus("the connection has no tracing v2");
+  } else if (ring_buffer_drainer_) {
+    status = base::ErrStatus("a ring buffer is already attached");
+  } else if (!memory || memory->size() > TracingService::kMaxShmSize) {
+    status = base::ErrStatus("no mapping, or the mapping is too large");
+  } else {
+    status = tracing_v2::NumChunksForRingBufferLayout(
+                 memory->start(), memory->size(), chunk_size_bytes)
+                 .status();
+  }
+  if (!status.ok()) {
+    PERFETTO_DLOG("Producer %" PRIu16 " \"%s\": ring buffer rejected: %s", id_,
+                  name_.c_str(), status.c_message());
+    callback(false);
+    return;
+  }
+
+  ring_buffer_drainer_ = std::make_unique<tracing_v2::ServiceRingBufferDrainer>(
+      std::move(memory), chunk_size_bytes, id_, client_identity_, this,
+      weak_runner_.task_runner());
+  service_->UpdateMemoryGuardrail();
+  DrainV2RingBuffer();
+  callback(true);
+}
+
+void ProducerEndpointImpl::DrainV2RingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (ring_buffer_drainer_)
+    ring_buffer_drainer_->Drain();
+}
+
+TraceBufferV2* ProducerEndpointImpl::GetRingBufferDestination(BufferID id) {
+  if (!is_allowed_target_buffer(id))
+    return nullptr;
+
+  // The producer supplies |id| through shared memory. Check that the allowed
+  // destination is a TraceBufferV2 before casting.
+  return static_cast<TraceBufferV2*>(
+      service_->GetBufferByID(id, TraceBuffer::BufType::kV2));
+}
+
+void ProducerEndpointImpl::ForEachRingBufferDestination(
+    const std::function<void(TraceBufferV2&)>& callback) {
+  for (BufferID id : allowed_target_buffers_) {
+    if (auto* buffer = service_->GetBufferByID(id, TraceBuffer::BufType::kV2))
+      callback(*static_cast<TraceBufferV2*>(buffer));
+  }
+}
+
+void ProducerEndpointImpl::OnRingBufferChunksDiscarded(uint64_t count) {
+  service_->OnRingBufferChunksDiscarded(count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
