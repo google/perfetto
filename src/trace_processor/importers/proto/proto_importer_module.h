@@ -186,6 +186,9 @@ struct ProtoImporterModuleContext {
   void PushInlineSchedSwitch(uint32_t cpu, int64_t ts, InlineSchedSwitch data);
   void PushInlineSchedWaking(uint32_t cpu, int64_t ts, InlineSchedWaking data);
 
+  // The (machine, trace) context events are tokenized for.
+  TraceProcessorContext* context = nullptr;
+
   // The module at the index N is registered to handle field id N in
   // TracePacket.
   std::vector<std::vector<ProtoImporterModule*>> modules_by_field;

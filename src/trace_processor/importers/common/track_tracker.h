@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 
@@ -214,6 +215,9 @@ class TrackTracker {
     auto [it, inserted] = tracks_.Insert(hash, {});
     if (inserted) {
       *it = CreateTrack(bp, dims, name, args, unit);
+      if (bp.scope == tracks::Scope::kMachine) {
+        RegisterMachineTrackForClaims(*it, bp.type);
+      }
     }
     return *it;
   }
@@ -248,6 +252,8 @@ class TrackTracker {
   TraceProcessorContext* const context_;
   ArgsTracker args_tracker_;
   StringId description_key_id_;
+
+  void RegisterMachineTrackForClaims(TrackId id, std::string_view type);
 };
 
 }  // namespace perfetto::trace_processor

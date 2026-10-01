@@ -2746,6 +2746,18 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     return;
   }
 
+  // Two traces of the same machine can both contain this exact event. If the
+  // new thread already exists and started at this timestamp, this is such a
+  // duplicate: reuse the thread instead of starting a second one for the same
+  // tid (which would split it in two).
+  if (auto existing = proc_tracker->GetThreadOrNull(new_tid);
+      existing &&
+      context_->storage->thread_table()[*existing].start_ts() == timestamp) {
+    ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+        timestamp, *existing, proc_tracker->GetOrCreateThread(source_tid));
+    return;
+  }
+
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.

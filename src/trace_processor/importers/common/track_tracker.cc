@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -80,6 +81,13 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
     }
   }
   return id;
+}
+
+void TrackTracker::RegisterMachineTrackForClaims(TrackId id,
+                                                 std::string_view type) {
+  if (context_->machine_data_claim_tracker) {
+    context_->machine_data_claim_tracker->RegisterMachineTrack(id, type);
+  }
 }
 
 }  // namespace perfetto::trace_processor
