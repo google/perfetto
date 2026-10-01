@@ -624,6 +624,8 @@ perfetto_cc_library(
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_io",
+        ":include_perfetto_trace_processor_parser",
+        ":include_perfetto_trace_processor_parser_config",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -965,6 +967,8 @@ perfetto_cc_library(
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_io",
+        ":include_perfetto_trace_processor_parser",
+        ":include_perfetto_trace_processor_parser_config",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -1097,6 +1101,8 @@ perfetto_cc_library(
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_io",
+        ":include_perfetto_trace_processor_parser",
+        ":include_perfetto_trace_processor_parser_config",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -1768,6 +1774,23 @@ perfetto_filegroup(
     name = "include_perfetto_trace_processor_io",
     srcs = [
         "include/perfetto/trace_processor/io.h",
+    ],
+)
+
+# GN target: //include/perfetto/trace_processor:parser
+perfetto_filegroup(
+    name = "include_perfetto_trace_processor_parser",
+    srcs = [
+        "include/perfetto/trace_processor/trace_parser.h",
+        "include/perfetto/trace_processor/trace_parser_sinks.h",
+    ],
+)
+
+# GN target: //include/perfetto/trace_processor:parser_config
+perfetto_filegroup(
+    name = "include_perfetto_trace_processor_parser_config",
+    srcs = [
+        "include/perfetto/trace_processor/trace_parser_config.h",
     ],
 )
 
@@ -5944,6 +5967,7 @@ perfetto_filegroup(
         "src/trace_processor/types/task_state.h",
         "src/trace_processor/types/tcp_state.h",
         "src/trace_processor/types/trace_manifest_state.h",
+        "src/trace_processor/types/trace_parser_options.h",
         "src/trace_processor/types/trace_processor_context.h",
         "src/trace_processor/types/trace_processor_context_ptr.h",
         "src/trace_processor/types/variadic.h",
@@ -6037,6 +6061,8 @@ perfetto_cc_library(
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_io",
+        ":include_perfetto_trace_processor_parser",
+        ":include_perfetto_trace_processor_parser_config",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -12022,6 +12048,8 @@ perfetto_cc_library(
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_io",
+        ":include_perfetto_trace_processor_parser",
+        ":include_perfetto_trace_processor_parser_config",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",
@@ -12164,6 +12192,8 @@ perfetto_cc_binary(
         ":include_perfetto_public_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_io",
+        ":include_perfetto_trace_processor_parser",
+        ":include_perfetto_trace_processor_parser_config",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":include_perfetto_trace_processor_util",

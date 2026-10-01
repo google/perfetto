@@ -10,85 +10,125 @@ ROOT = Path(__file__).resolve().parent
 inventory = json.loads((ROOT / 'schema-inventory.json').read_text())
 journal = (ROOT / 'journal.txt').read_text()
 
+
 def result(log):
-    path = ROOT / log
-    if not path.exists():
-        return 'Pending'
-    text = path.read_text(errors='replace')
-    matches = re.findall(r'\[  PASSED  \] (\d+) tests\.', text)
-    failures = re.findall(r'\[  FAILED  \] (\d+) tests?', text)
-    if failures:
-        return f'{failures[-1]} failed — inspect log'
-    if matches:
-        return f'{matches[-1]} passed'
-    return 'Running / inspect log'
+  path = ROOT / log
+  if not path.exists():
+    return 'Pending'
+  text = path.read_text(errors='replace')
+  matches = re.findall(r'\[  PASSED  \] (\d+) tests\.', text)
+  failures = re.findall(r'\[  FAILED  \] (\d+) tests?', text)
+  if failures:
+    return f'{failures[-1]} failed — inspect log'
+  if matches:
+    return f'{matches[-1]} passed'
+  return 'Running / inspect log'
+
 
 validation = [
-    ("New parser API and streaming replays", "tests-parser-api-focused.log", result("tests-parser-api-focused.log")),
-    ("Unit suite after API migration", "tests-parser-api-all.log", result("tests-parser-api-all.log")),
-    ("Parser diffs after API migration", "diff-parser-api.log", result("diff-parser-api.log")),
-    ("Slice/args, flows and thread-counter replay", "tests-slice-args-focused.log", result("tests-slice-args-focused.log")),
-    ("Current full TP unit suite", "tests-slice-all.log", result("tests-slice-all.log")),
-    ("Current parser diffs", "diff-slice-final.log", result("diff-slice-final.log")),
-    ("Thread-state checkpoint", "tests-thread-state-all.log", result("tests-thread-state-all.log")),
-    ('Back-patches and independent frontiers', 'tests-backpatch-focused.log', result('tests-backpatch-focused.log')),
-    ('Unit suite after back-patching', 'tests-backpatch-all.log', result('tests-backpatch-all.log')),
-    ('Parser diffs after write-only annotation', 'diff-backpatch-parsers.log', result('diff-backpatch-parsers.log')),
-    ('Frontier advancement and callback replay', 'tests-frontier-final.log', result('tests-frontier-final.log')),
-    ('Unit suite after automatic advancement', 'tests-frontier-all.log', result('tests-frontier-all.log')),
-    ('Streaming storage, frontier and parser replays', 'tests-streaming-final.log', result('tests-streaming-final.log')),
-    ('Earlier unit checkpoint', 'tests-final-tp.log', result('tests-final-tp.log')),
-    ('Earlier parser checkpoint', 'diff-final-parsers.log', result('diff-final-parsers.log')),
-    ('Earlier TP checkpoint (replay tests excluded)', 'tests-existing-tp.log', result('tests-existing-tp.log')),
+    ("New parser API and streaming replays", "tests-parser-api-focused.log",
+     result("tests-parser-api-focused.log")),
+    ("Unit suite after API migration", "tests-parser-api-all.log",
+     result("tests-parser-api-all.log")),
+    ("Parser diffs after API migration", "diff-parser-api.log",
+     result("diff-parser-api.log")),
+    ("Slice/args, flows and thread-counter replay",
+     "tests-slice-args-focused.log", result("tests-slice-args-focused.log")),
+    ("Current full TP unit suite", "tests-slice-all.log",
+     result("tests-slice-all.log")),
+    ("Current parser diffs", "diff-slice-final.log",
+     result("diff-slice-final.log")),
+    ("Thread-state checkpoint", "tests-thread-state-all.log",
+     result("tests-thread-state-all.log")),
+    ('Back-patches and independent frontiers', 'tests-backpatch-focused.log',
+     result('tests-backpatch-focused.log')),
+    ('Unit suite after back-patching', 'tests-backpatch-all.log',
+     result('tests-backpatch-all.log')),
+    ('Parser diffs after write-only annotation', 'diff-backpatch-parsers.log',
+     result('diff-backpatch-parsers.log')),
+    ('Frontier advancement and callback replay', 'tests-frontier-final.log',
+     result('tests-frontier-final.log')),
+    ('Unit suite after automatic advancement', 'tests-frontier-all.log',
+     result('tests-frontier-all.log')),
+    ('Streaming storage, frontier and parser replays',
+     'tests-streaming-final.log', result('tests-streaming-final.log')),
+    ('Earlier unit checkpoint', 'tests-final-tp.log',
+     result('tests-final-tp.log')),
+    ('Earlier parser checkpoint', 'diff-final-parsers.log',
+     result('diff-final-parsers.log')),
+    ('Earlier TP checkpoint (replay tests excluded)', 'tests-existing-tp.log',
+     result('tests-existing-tp.log')),
     ('Earlier JSON checkpoint', 'diff-json.log', result('diff-json.log')),
-    ('Earlier core-parser checkpoint', 'diff-core-parsers.log', result('diff-core-parsers.log')),
+    ('Earlier core-parser checkpoint', 'diff-core-parsers.log',
+     result('diff-core-parsers.log')),
 ]
 benchmark_path = ROOT / 'benchmark-summary.json'
 performance = '<p>Measurements pending.</p>'
 if benchmark_path.exists():
-    benchmark = json.loads(benchmark_path.read_text())
-    performance = '<p>' + escape(benchmark['methodology']) + '</p>'
-    performance += '<table><thead><tr><th>Workload</th><th>Mode</th><th>CPU seconds</th><th>Peak RSS MiB</th><th>Storage frontier</th><th>Completion frontier</th></tr></thead><tbody>'
-    for row in benchmark['results']:
-        performance += f"<tr><td>{row['workload']}</td><td>{row['mode']}</td><td>{row['cpu_s']:.3f}</td><td>{row['peak_rss_mib']:.1f}</td><td>{row['sched_frontier']}</td><td>{row.get('completion_frontier', 0)}</td></tr>"
-    performance += '</tbody></table><p>' + escape(benchmark['baseline']) + '</p>'
-    performance += '<p><a href="benchmark-summary.json">Summary</a> · <a href="benchmark-runs.json">All runs</a> · <a href="benchmark.cc">Harness</a> · <a href="run-benchmarks.py">Runner</a> · <a href="generate-benchmark-input.py">Input generator</a></p>'
+  benchmark = json.loads(benchmark_path.read_text())
+  performance = '<p>' + escape(benchmark['methodology']) + '</p>'
+  performance += '<table><thead><tr><th>Workload</th><th>Mode</th><th>CPU seconds</th><th>Peak RSS MiB</th><th>Storage frontier</th><th>Completion frontier</th></tr></thead><tbody>'
+  for row in benchmark['results']:
+    performance += f"<tr><td>{row['workload']}</td><td>{row['mode']}</td><td>{row['cpu_s']:.3f}</td><td>{row['peak_rss_mib']:.1f}</td><td>{row['sched_frontier']}</td><td>{row.get('completion_frontier', 0)}</td></tr>"
+  performance += '</tbody></table><p>' + escape(benchmark['baseline']) + '</p>'
+  performance += '<p><a href="benchmark-summary.json">Summary</a> · <a href="benchmark-runs.json">All runs</a> · <a href="benchmark.cc">Harness</a> · <a href="run-benchmarks.py">Runner</a> · <a href="generate-benchmark-input.py">Input generator</a></p>'
 
 slice_performance = '<p>Slice measurements pending.</p>'
 if (ROOT / 'benchmark-slices-summary.json').exists():
-    data = json.loads((ROOT / 'benchmark-slices-summary.json').read_text())
-    slice_performance = '<h3>One million child slices under one long-lived parent</h3><p>TrackEvent input with two begin args and one end arg per child. Repeated: 64 distinct child arg sets; unique: three million args rows. Five fresh-process medians, same SQL-free binary and checksum sink as above.</p>'
-    slice_performance += '<table><thead><tr><th>Args</th><th>Mode</th><th>CPU seconds</th><th>Peak RSS MiB</th><th>Slice frontier</th><th>Args frontier</th></tr></thead><tbody>'
-    for row in data['results']:
-        slice_performance += f"<tr><td>{row['workload']}</td><td>{row['mode']}</td><td>{row['cpu_s']:.3f}</td><td>{row['peak_rss_mib']:.1f}</td><td>{row['slice_frontier']}</td><td>{row['arg_frontier']}</td></tr>"
-    slice_performance += '</tbody></table><p>Slice mode emits all slice and args cells without storing them. Slice storage advances past the still-open parent; args completion advances after complete immutable arg sets. Checksums match across sink/drop/slice. Unique-args RSS includes the unchanged global deduplication map and is not bounded.</p><p><a href="benchmark-slices-summary.json">Slice summary</a> · <a href="benchmark-slices-runs.json">All slice runs</a> · <a href="run-slice-benchmarks.py">Runner</a> · <a href="generate-slice-input.py">Generator</a></p>'
+  data = json.loads((ROOT / 'benchmark-slices-summary.json').read_text())
+  slice_performance = '<h3>One million child slices under one long-lived parent</h3><p>TrackEvent input with two begin args and one end arg per child. Repeated: 64 distinct child arg sets; unique: three million args rows. Five fresh-process medians, same SQL-free binary and checksum sink as above.</p>'
+  slice_performance += '<table><thead><tr><th>Args</th><th>Mode</th><th>CPU seconds</th><th>Peak RSS MiB</th><th>Slice frontier</th><th>Args frontier</th></tr></thead><tbody>'
+  for row in data['results']:
+    slice_performance += f"<tr><td>{row['workload']}</td><td>{row['mode']}</td><td>{row['cpu_s']:.3f}</td><td>{row['peak_rss_mib']:.1f}</td><td>{row['slice_frontier']}</td><td>{row['arg_frontier']}</td></tr>"
+  slice_performance += '</tbody></table><p>Slice mode emits all slice and args cells without storing them. Slice storage advances past the still-open parent; args completion advances after complete immutable arg sets. Checksums match across sink/drop/slice. Unique-args RSS includes the unchanged global deduplication map and is not bounded.</p><p><a href="benchmark-slices-summary.json">Slice summary</a> · <a href="benchmark-slices-runs.json">All slice runs</a> · <a href="run-slice-benchmarks.py">Runner</a> · <a href="generate-slice-input.py">Generator</a></p>'
 
 scaling = ''
-for filename, title in [('benchmark-scaling-summary.json', 'Scheduling scaling'), ('benchmark-slices-scaling-summary.json', 'Slice scaling')]:
-    path = ROOT / filename
-    if path.exists():
-        scaling += '<details><summary>' + title + '</summary><pre>' + escape(path.read_text()) + '</pre><a href="' + filename + '">Raw summary</a></details>'
+for filename, title in [
+    ('benchmark-scaling-summary.json', 'Scheduling scaling'),
+    ('benchmark-slices-scaling-summary.json', 'Slice scaling')
+]:
+  path = ROOT / filename
+  if path.exists():
+    scaling += '<details><summary>' + title + '</summary><pre>' + escape(
+        path.read_text(
+        )) + '</pre><a href="' + filename + '">Raw summary</a></details>'
 
 rows = ''.join('<tr><td>' + escape(name) + '</td><td>' + escape(status) +
                '</td><td><a href="' + log + '">Log</a></td></tr>'
                for name, log, status in validation)
 source_files = [
-    ('Public TraceParser entrypoint', '../include/perfetto/trace_processor/trace_parser.h'),
-    ('Parser-only configuration', '../include/perfetto/trace_processor/trace_parser_config.h'),
-    ('Parser lifecycle and importer registration', '../src/trace_processor/trace_parser_impl.cc'),
-    ('Slice working state and late patches', '../src/trace_processor/importers/common/slice_tracker.cc'),
-    ('Cached flow source timestamps', '../src/trace_processor/importers/common/flow_tracker.cc'),
-    ('Immutable args emission and exact deduplication', '../src/trace_processor/importers/common/global_args_tracker.h'),
-    ('Cached thread-state working state', '../src/trace_processor/importers/common/thread_state_tracker.cc'),
-    ('Config and early installation hook', '../include/perfetto/trace_processor/basic_types.h'),
-    ('Generated table sinks and retention masks', '../python/generators/trace_processor_table/serialize.py'),
-    ('Dataframe inserts, updates, omission and frontier', '../src/trace_processor/core/dataframe/dataframe.h'),
-    ('Physical compaction and query checks', '../src/trace_processor/core/dataframe/dataframe.cc'),
-    ('Ftrace scheduling frontier advancement', '../src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.cc'),
-    ('Core/plugin sink factory', '../src/trace_processor/storage/trace_storage.cc'),
-    ('SQL initialization and EOF adjustments', '../src/trace_processor/trace_processor_impl.cc'),
-    ('Parser replay tests', '../src/trace_processor/streaming_tables_unittest.cc'),
-    ('Storage and frontier tests', '../src/trace_processor/core/dataframe/dataframe_unittest.cc'),
+    ('Public TraceParser entrypoint',
+     '../include/perfetto/trace_processor/trace_parser.h'),
+    ('Parser-only configuration',
+     '../include/perfetto/trace_processor/trace_parser_config.h'),
+    ('Parser lifecycle and importer registration',
+     '../src/trace_processor/trace_parser_impl.cc'),
+    ('Slice working state and late patches',
+     '../src/trace_processor/importers/common/slice_tracker.cc'),
+    ('Cached flow source timestamps',
+     '../src/trace_processor/importers/common/flow_tracker.cc'),
+    ('Immutable args emission and exact deduplication',
+     '../src/trace_processor/importers/common/global_args_tracker.h'),
+    ('Cached thread-state working state',
+     '../src/trace_processor/importers/common/thread_state_tracker.cc'),
+    ('Config and early installation hook',
+     '../include/perfetto/trace_processor/basic_types.h'),
+    ('Generated table sinks and retention masks',
+     '../python/generators/trace_processor_table/serialize.py'),
+    ('Dataframe inserts, updates, omission and frontier',
+     '../src/trace_processor/core/dataframe/dataframe.h'),
+    ('Physical compaction and query checks',
+     '../src/trace_processor/core/dataframe/dataframe.cc'),
+    ('Ftrace scheduling frontier advancement',
+     '../src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.cc'),
+    ('Core/plugin sink factory',
+     '../src/trace_processor/storage/trace_storage.cc'),
+    ('SQL initialization and EOF adjustments',
+     '../src/trace_processor/trace_processor_impl.cc'),
+    ('Parser replay tests',
+     '../src/trace_processor/streaming_tables_unittest.cc'),
+    ('Storage and frontier tests',
+     '../src/trace_processor/core/dataframe/dataframe_unittest.cc'),
 ]
 links = ''.join('<li><a href="' + path + '">' + escape(name) + '</a></li>'
                 for name, path in source_files)
@@ -193,11 +233,15 @@ function showFrontier(){
 }
 document.getElementById('frontier-slider').addEventListener('input',showFrontier);showFrontier();
 </script></body></html>'''
-html = html.replace('GENERATED', escape(datetime.now(timezone.utc).isoformat(timespec='seconds')))
-html = html.replace('SLICE_PERFORMANCE', slice_performance).replace('SCALING', scaling)
+html = html.replace(
+    'GENERATED',
+    escape(datetime.now(timezone.utc).isoformat(timespec='seconds')))
+html = html.replace('SLICE_PERFORMANCE',
+                    slice_performance).replace('SCALING', scaling)
 html = html.replace('PERFORMANCE', performance)
 html = html.replace('VALIDATION_ROWS', rows).replace('SOURCE_LINKS', links)
 html = html.replace('JOURNAL', escape(journal))
-html = html.replace('INVENTORY_JSON', json.dumps(inventory).replace('<', '\\u003c'))
+html = html.replace('INVENTORY_JSON',
+                    json.dumps(inventory).replace('<', '\\u003c'))
 (ROOT / 'catch-up.html').write_text(html)
 print('Wrote', ROOT / 'catch-up.html')

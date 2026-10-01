@@ -16,7 +16,7 @@ input[type=search]{width:100%;padding:12px;border:1px solid var(--line);border-r
 </style></head><body><main>
 <h1>Parser streaming: morning catch-up</h1>
 <p>Implemented a general insert/update sink boundary, conservative column omission, and automatic frontier advancement for scheduling, thread-state, slices and args. The source remains in the shared workspace; no commit or PR was created.</p>
-<p class="muted">Report generated 2026-10-01T20:58:37+00:00 · Starting checkout: <code>4a4addaf02</code> · <a href="https://github.com/google/perfetto/pull/7719#issuecomment-5927793394">Original proposal</a></p>
+<p class="muted">Report generated 2026-10-01T21:39:01+00:00 · Starting checkout: <code>4a4addaf02</code> · <a href="https://github.com/google/perfetto/pull/7719#issuecomment-5927793394">Original proposal</a></p>
 <nav><a href="trace-parser-api.html">TraceParser API</a><a href="#outcome">Outcome</a><a href="#decisions">Decisions</a><a href="#frontier">Frontier prototype</a><a href="#performance">CPU/RSS</a><a href="#validation">Validation</a><a href="#inventory">Column audit</a><a href="#journal">Journal</a></nav>
 <section id="outcome"><h2>What is implemented</h2>
 <div class="cards"><div class="card"><strong>115</strong>core table schemas audited</div><div class="card"><strong>338 / 741</strong>explicit core columns eligible for omission</div><div class="card"><strong>8 KiB</strong>asserted allocation for a 1,024-row int64 window</div></div>
