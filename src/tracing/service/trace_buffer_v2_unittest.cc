@@ -39,6 +39,7 @@ using DataLossReason = protos::pbzero::TracePacket_DataLossReason;
 using ::testing::ContainerEq;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::UnorderedElementsAre;
 
 class TraceBufferV2Test : public testing::Test {
  public:
@@ -2340,6 +2341,25 @@ TEST_F(TraceBufferV2Test, Clone_CommitOnlyUsedSize) {
   std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
   ASSERT_EQ(snap->used_size(), trace_buffer()->used_size());
   ASSERT_TRUE(is_only_first_page_mapped(*snap));
+}
+
+TEST_F(TraceBufferV2Test, Clone_PreservesWriterStats) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(10, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(3), ChunkID(0))
+      .AddPacket(20, 'b')
+      .CopyIntoTraceBuffer();
+
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  trace_buffer_.reset();
+
+  std::vector<ProducerAndWriterID> keys;
+  for (auto it = snap->writer_stats().GetIterator(); it; ++it)
+    keys.push_back(it.key());
+  EXPECT_THAT(keys, UnorderedElementsAre(MkProducerAndWriterID(1, 1),
+                                         MkProducerAndWriterID(2, 3)));
 }
 
 TEST_F(TraceBufferV2Test, ChunkGaps_WithinSameReadCycle) {
