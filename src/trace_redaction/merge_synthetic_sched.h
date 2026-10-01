@@ -47,17 +47,7 @@ class MergeSyntheticSched : public TransformPrimitive {
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
 
-  // Set the minimum number of consecutive duplicate events required to trigger
-  // a merge operation. Default is 2.
-  void set_merge_threshold(int threshold) { merge_threshold_ = threshold; }
-  int merge_threshold() const { return merge_threshold_; }
-
  private:
-  base::Status HasMergeableEvents(const Context& context,
-                                  protozero::ProtoDecoder& ftrace_decoder,
-                                  const protozero::Field& compact_sched_field,
-                                  bool* has_mergeable_events) const;
-
   // Reusable scratchpad buffers for building the redacted CompactSched message.
   // Instead of allocating on the function stack or allocating dynamically
   // on the heap for every packet (which causes severe heap churn), these
@@ -69,8 +59,6 @@ class MergeSyntheticSched : public TransformPrimitive {
     protozero::PackedVarInt packed_next_prio;
     protozero::PackedVarInt packed_next_comm_index;
   } sched_switch_buffers_;
-
-  int merge_threshold_ = 2;
 
   base::Status OnFtraceEvents(const Context& context,
                               protozero::Field ftrace_events,

@@ -77,17 +77,6 @@ base::Status MergeSyntheticSched::Transform(const Context& context,
     return base::OkStatus();
   }
 
-  // Optimization: pre-check if there are any mergeable events to avoid
-  // the expensive process of re-allocating a new packet that copies the
-  // old one when none are mergeable
-  bool has_mergeable_events = false;
-  RETURN_IF_ERROR(HasMergeableEvents(
-      context, ftrace_decoder, compact_sched_field, &has_mergeable_events));
-
-  if (!has_mergeable_events) {
-    return base::OkStatus();
-  }
-
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 
   for (auto field = decoder.ReadField(); field.valid();
@@ -102,69 +91,6 @@ base::Status MergeSyntheticSched::Transform(const Context& context,
 
   packet->assign(message.SerializeAsString());
 
-  return base::OkStatus();
-}
-
-base::Status MergeSyntheticSched::HasMergeableEvents(
-    const Context& context,
-    protozero::ProtoDecoder& ftrace_decoder,
-    const protozero::Field& compact_sched_field,
-    bool* has_mergeable_events) const {
-  *has_mergeable_events = false;
-
-  auto cpu_field = ftrace_decoder.FindField(
-      protos::pbzero::FtraceEventBundle::kCpuFieldNumber);
-  if (PERFETTO_UNLIKELY(!cpu_field.valid())) {
-    return base::OkStatus();
-  }
-
-  int32_t cpu = cpu_field.as_int32();
-  int32_t synth_tid = 0;
-  if (cpu >= 0 &&
-      static_cast<size_t>(cpu) < context.synthetic_process->tids().size()) {
-    synth_tid = context.synthetic_process->RunningOn(cpu);
-  } else {
-    return base::ErrStatus(
-        "MergeSyntheticSched: cpu index out of bounds for synthetic process.");
-  }
-
-  protozero::ProtoDecoder comp_sched_decoder(compact_sched_field.as_bytes());
-  auto next_pid_field =
-      comp_sched_decoder.FindField(protos::pbzero::FtraceEventBundle::
-                                       CompactSched::kSwitchNextPidFieldNumber);
-
-  if (PERFETTO_UNLIKELY(!next_pid_field.valid())) {
-    return base::OkStatus();
-  }
-
-  bool parse_error = false;
-  auto next_pid_it = ::protozero::PackedRepeatedFieldIterator<
-      ::protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
-      next_pid_field.data(), next_pid_field.size(), &parse_error);
-
-  // We require a minimum number of mergeable events in the packet before
-  // we incur the expensive cost of rebuilding the CompactSched message.
-  int mergeable_count = 0;
-
-  bool found = false;
-  bool was_previous_synthetic = false;
-  for (; next_pid_it && !parse_error; ++next_pid_it) {
-    bool is_synthetic = *next_pid_it == synth_tid;
-    if (is_synthetic && was_previous_synthetic) {
-      mergeable_count++;
-      if (mergeable_count >= merge_threshold()) {
-        found = true;
-        break;
-      }
-    }
-    was_previous_synthetic = is_synthetic;
-  }
-
-  if (PERFETTO_UNLIKELY(parse_error)) {
-    return base::OkStatus();
-  }
-
-  *has_mergeable_events = found;
   return base::OkStatus();
 }
 

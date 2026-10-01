@@ -207,7 +207,6 @@ TEST_F(MergeSyntheticSchedTest, SingleSyntheticEventPreserved) {
 
 TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsInMiddleCoalesced) {
   // Set threshold to 0 so we always merge duplicates, even if there is only 1.
-  merge_.set_merge_threshold(0);
 
   AddSwitchEvent(10, kTargetPidA, 0, 100, 0);
   AddSwitchEvent(20, kSynthCpu0, 1, 120, 1);
@@ -252,7 +251,6 @@ TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsInMiddleCoalesced) {
 
 TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsAtStartCoalesced) {
   // Set threshold to 0 so we always merge duplicates, even if there is only 1.
-  merge_.set_merge_threshold(0);
 
   AddSwitchEvent(1000, kSynthCpu0, 1, 120, 1);
   AddSwitchEvent(25, kSynthCpu0, 2, 120, 1);  // duplicate
@@ -280,7 +278,6 @@ TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsAtStartCoalesced) {
 
 TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsAtEndCoalesced) {
   // Set threshold to 0 so we always merge duplicates, even if there is only 1.
-  merge_.set_merge_threshold(0);
 
   AddSwitchEvent(100, kTargetPidA, 0, 100, 0);
   AddSwitchEvent(20, kSynthCpu0, 1, 120, 1);
@@ -314,7 +311,6 @@ TEST_F(MergeSyntheticSchedTest, ConsecutiveSyntheticEventsAtEndCoalesced) {
 
 TEST_F(MergeSyntheticSchedTest, AllSyntheticEventsBundleCoalesced) {
   // Set threshold to 0 so we always merge duplicates, even if there is only 1.
-  merge_.set_merge_threshold(0);
 
   AddSwitchEvent(100, kSynthCpu0, 1, 120, 1);
   AddSwitchEvent(50, kSynthCpu0, 2, 120, 1);
@@ -365,7 +361,6 @@ TEST_F(MergeSyntheticSchedTest, NonSyntheticConsecutivePidsAreNotCoalesced) {
 
 TEST_F(MergeSyntheticSchedTest, MultipleSyntheticChainsCoalesced) {
   // Set threshold to 0 so we always merge duplicates, even if there is only 1.
-  merge_.set_merge_threshold(0);
 
   AddSwitchEvent(10, kSynthCpu0, 1, 120, 1);
   AddSwitchEvent(20, kSynthCpu0, 2, 120, 1);   // duplicate chain 1
@@ -423,7 +418,6 @@ TEST_F(MergeSyntheticSchedTest,
 
 TEST_F(MergeSyntheticSchedTest, TracingStartedBoundaryBreaksChain) {
   // Set threshold to 0 so we always merge duplicates, even if there is only 1.
-  merge_.set_merge_threshold(0);
 
   context_.tracing_started_ts = 150;
 
@@ -466,34 +460,6 @@ TEST_F(MergeSyntheticSchedTest, TracingStartedBoundaryBreaksChain) {
   EXPECT_EQ(sched.switch_timestamp().at(3), 80u);
   EXPECT_EQ(sched.switch_next_pid().at(3), kTargetPidB);
   EXPECT_EQ(sched.switch_prev_state().at(3), 4);
-}
-
-TEST_F(MergeSyntheticSchedTest, BelowThresholdAreNotCoalesced) {
-  // Explicitly set the threshold to 2 (requires 2 duplicates to merge).
-  // Here we only provide 1 duplicate.
-  merge_.set_merge_threshold(2);
-
-  AddSwitchEvent(1000, kSynthCpu0, 1, 120, 1);
-  AddSwitchEvent(25, kSynthCpu0, 2, 120, 1);  // 1 duplicate
-  AddSwitchEvent(50, kTargetPidB, 0, 100, 0);
-
-  auto buffer = packet_.SerializeAsString();
-  ASSERT_OK(merge_.Transform(context_, &buffer));
-
-  protos::gen::TracePacket result;
-  ASSERT_TRUE(result.ParseFromString(buffer));
-  const auto& sched = result.ftrace_events().compact_sched();
-
-  // The packet should remain untouched (size 3) because it didn't breach the
-  // threshold.
-  ASSERT_EQ(sched.switch_timestamp_size(), 3);
-  EXPECT_EQ(sched.switch_timestamp().at(0), 1000u);
-  EXPECT_EQ(sched.switch_timestamp().at(1), 25u);
-  EXPECT_EQ(sched.switch_timestamp().at(2), 50u);
-
-  EXPECT_EQ(sched.switch_next_pid().at(0), kSynthCpu0);
-  EXPECT_EQ(sched.switch_next_pid().at(1), kSynthCpu0);
-  EXPECT_EQ(sched.switch_next_pid().at(2), kTargetPidB);
 }
 
 }  // namespace perfetto::trace_redaction
