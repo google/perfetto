@@ -208,6 +208,7 @@ source_set("unittests") {
     "event_tracker_unittest.cc",
     "flow_tracker_unittest.cc",
     "global_stats_tracker_unittest.cc",
+    "machine_data_claim_tracker_unittest.cc",
     "process_track_translation_table_unittest.cc",
     "process_tracker_unittest.cc",
     "slice_tracker_unittest.cc",
