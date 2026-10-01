@@ -1047,6 +1047,96 @@ class TraceStorage {
     return mutable_table<tables::ProtoLogTable>();
   }
 
+  const tables::WattsonExternalDeviceInfoTable&
+  wattson_external_device_info_table() const {
+    return table<tables::WattsonExternalDeviceInfoTable>();
+  }
+  tables::WattsonExternalDeviceInfoTable*
+  mutable_wattson_external_device_info_table() {
+    return mutable_table<tables::WattsonExternalDeviceInfoTable>();
+  }
+
+  const tables::WattsonExternalCpuPolicyTable&
+  wattson_external_cpu_policy_table() const {
+    return table<tables::WattsonExternalCpuPolicyTable>();
+  }
+  tables::WattsonExternalCpuPolicyTable*
+  mutable_wattson_external_cpu_policy_table() {
+    return mutable_table<tables::WattsonExternalCpuPolicyTable>();
+  }
+
+  const tables::WattsonExternalDeepIdleOffsetTable&
+  wattson_external_deep_idle_offset_table() const {
+    return table<tables::WattsonExternalDeepIdleOffsetTable>();
+  }
+  tables::WattsonExternalDeepIdleOffsetTable*
+  mutable_wattson_external_deep_idle_offset_table() {
+    return mutable_table<tables::WattsonExternalDeepIdleOffsetTable>();
+  }
+
+  const tables::WattsonExternalIdleStateMapTable&
+  wattson_external_idle_state_map_table() const {
+    return table<tables::WattsonExternalIdleStateMapTable>();
+  }
+  tables::WattsonExternalIdleStateMapTable*
+  mutable_wattson_external_idle_state_map_table() {
+    return mutable_table<tables::WattsonExternalIdleStateMapTable>();
+  }
+
+  const tables::WattsonExternalVoteByFreqTable&
+  wattson_external_vote_by_freq_table() const {
+    return table<tables::WattsonExternalVoteByFreqTable>();
+  }
+  tables::WattsonExternalVoteByFreqTable*
+  mutable_wattson_external_vote_by_freq_table() {
+    return mutable_table<tables::WattsonExternalVoteByFreqTable>();
+  }
+
+  const tables::WattsonExternalCurvesCpu1DTable&
+  wattson_external_curves_cpu_1d_table() const {
+    return table<tables::WattsonExternalCurvesCpu1DTable>();
+  }
+  tables::WattsonExternalCurvesCpu1DTable*
+  mutable_wattson_external_curves_cpu_1d_table() {
+    return mutable_table<tables::WattsonExternalCurvesCpu1DTable>();
+  }
+
+  const tables::WattsonExternalCurvesCpu2DTable&
+  wattson_external_curves_cpu_2d_table() const {
+    return table<tables::WattsonExternalCurvesCpu2DTable>();
+  }
+  tables::WattsonExternalCurvesCpu2DTable*
+  mutable_wattson_external_curves_cpu_2d_table() {
+    return mutable_table<tables::WattsonExternalCurvesCpu2DTable>();
+  }
+
+  const tables::WattsonExternalCurvesL3Table& wattson_external_curves_l3_table()
+      const {
+    return table<tables::WattsonExternalCurvesL3Table>();
+  }
+  tables::WattsonExternalCurvesL3Table*
+  mutable_wattson_external_curves_l3_table() {
+    return mutable_table<tables::WattsonExternalCurvesL3Table>();
+  }
+
+  const tables::WattsonExternalCurvesGpuTable&
+  wattson_external_curves_gpu_table() const {
+    return table<tables::WattsonExternalCurvesGpuTable>();
+  }
+  tables::WattsonExternalCurvesGpuTable*
+  mutable_wattson_external_curves_gpu_table() {
+    return mutable_table<tables::WattsonExternalCurvesGpuTable>();
+  }
+
+  const tables::WattsonExternalCurvesTpuTable&
+  wattson_external_curves_tpu_table() const {
+    return table<tables::WattsonExternalCurvesTpuTable>();
+  }
+  tables::WattsonExternalCurvesTpuTable*
+  mutable_wattson_external_curves_tpu_table() {
+    return mutable_table<tables::WattsonExternalCurvesTpuTable>();
+  }
+
   const tables::WinscopeTraceRectTable& winscope_trace_rect_table() const {
     return table<tables::WinscopeTraceRectTable>();
   }

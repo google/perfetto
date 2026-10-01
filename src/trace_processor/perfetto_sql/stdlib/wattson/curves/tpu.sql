@@ -16,4 +16,20 @@
 -- Device specific TPU curves. The rows come from the wattson plugin
 -- (see src/trace_processor/plugins/wattson/).
 CREATE PERFETTO TABLE _tpu_device_curves AS
-SELECT * FROM __intrinsic_wattson_curves_tpu();
+SELECT
+  (SELECT device_name FROM __intrinsic_wattson_external_device_info LIMIT 1) AS device,
+  cluster,
+  requests,
+  freq,
+  active_mw AS active
+FROM __intrinsic_wattson_external_curves_tpu
+UNION ALL
+SELECT *
+FROM __intrinsic_wattson_curves_tpu()
+WHERE
+  device NOT IN (
+    SELECT device_name
+    FROM __intrinsic_wattson_external_device_info
+    WHERE
+      device_name IS NOT NULL
+  );
