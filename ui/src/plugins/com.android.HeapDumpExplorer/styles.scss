@@ -15,6 +15,19 @@
 // Styles for the Heapdump Explorer plugin.
 // The CSS reset is provided by Perfetto's global styles.
 
+// Wraps the page with the optional "now the default" hint above it; the page
+// takes the remaining height.
+.pf-hde-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  > .pf-hde-page {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
 .pf-hde-page {
   // Domain-specific badge tokens — no --pf-* equivalent.
   --pf-hde-badge-reachability: #d97706;
@@ -96,10 +109,6 @@
 }
 
 .pf-hde-default-changed-callout {
-  margin-bottom: 1rem;
-  align-items: center;
-  gap: 0.75rem;
-
   p {
     margin: 0;
     display: flex;
@@ -405,5 +414,13 @@
 
 .pf-hde-page__tabs {
   flex-grow: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pf-hde-page__content {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }

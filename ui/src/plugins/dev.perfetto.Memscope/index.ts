@@ -152,7 +152,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
 
     if (autoNavigated) {
       // Make this page appear before the heap dump explorer page.
-      trace.initialPage.suggest(pageRoot, 500);
+      trace.initialPage.suggest(pageRoot, 200);
     }
   }
 

@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Memo} from '../../../base/memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   RowCounter,
@@ -27,23 +27,21 @@ import {
   colHeader,
 } from '../components';
 import * as queries from '../queries';
-import {dumpFilterSql, type HeapDump} from '../queries';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
-import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {HdeAnchor} from '../nav';
+import {AsyncMemo} from '../../../base/async_memo';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
-  readonly clearNavParam: (key: string) => void;
-  readonly initialRootClass?: string;
+  readonly dump: queries.HeapDump;
+  readonly rootClass?: string;
 }
 
 const PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation';
 
-function buildQuery(activeDump: HeapDump): string {
+function buildQuery(dump: queries.HeapDump): string {
   return `
     SELECT
       type_name AS cls,
@@ -54,21 +52,19 @@ function buildQuery(activeDump: HeapDump): string {
       dominated_native_size_bytes AS retained_native,
       dominated_obj_count AS retained_count
     FROM android_heap_graph_class_aggregation a
-    WHERE a.reachable_obj_count > 0 AND ${dumpFilterSql(activeDump, 'a')}
+    WHERE a.reachable_obj_count > 0 AND ${queries.dumpFilterSql(dump, 'a')}
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: queries.HeapDump): ColumnSchema {
   return {
     cls: {
       title: 'Class',
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
         m(
-          Anchor,
-          {
-            onclick: () => navigate('objects', {cls: String(value)}),
-          },
+          HdeAnchor,
+          {dump, to: {view: 'objects', cls: String(value)}},
           String(value),
         ),
     },
@@ -111,66 +107,51 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function ClassesView({
-  attrs: {engine, activeDump},
+  attrs: {engine},
 }: m.Vnode<ClassesViewAttrs>): m.Component<ClassesViewAttrs> {
-  const query = buildQuery(activeDump);
-  const datasource = new SQLDataSource({
-    engine,
-    tableOrSubquery: query,
-    preamble: PREAMBLE,
-  });
-  let alive = true;
-  const counter = new RowCounter();
-  counter.init(engine, query, PREAMBLE);
-  let filters: Filter[] = [];
-
-  async function applyNavFilter(
-    engine: Engine,
-    activeDump: HeapDump,
-    root: string | undefined,
-    clearNavParam: (key: string) => void,
-  ) {
-    if (!root) return;
-    clearNavParam('rootClass');
-    const names = await queries.getSubclassNames(engine, activeDump, root);
-    if (!alive || names.length === 0) return;
-    filters = [{field: 'cls', op: 'in' as const, value: names}];
-    counter.onFiltersChanged(filters);
-    m.redraw();
-  }
+  const datasourceMemo = new Memo<SQLDataSource>();
+  const counter = new RowCounter(engine, PREAMBLE);
+  // Subclass names of the URL's root class, which the grid is filtered to.
+  const subclassesMemo = new AsyncMemo<string[]>();
 
   return {
-    oninit({attrs}) {
-      applyNavFilter(
-        attrs.engine,
-        attrs.activeDump,
-        attrs.initialRootClass,
-        attrs.clearNavParam,
-      ).catch(console.error);
-    },
-    onupdate({attrs}) {
-      applyNavFilter(
-        attrs.engine,
-        attrs.activeDump,
-        attrs.initialRootClass,
-        attrs.clearNavParam,
-      ).catch(console.error);
-    },
     onremove() {
-      alive = false;
-      datasource.dispose();
+      counter.dispose();
+      subclassesMemo.dispose();
+      datasourceMemo.dispose();
     },
-    view(vnode) {
-      const {navigate} = vnode.attrs;
+    view({attrs}) {
+      const {dump, rootClass} = attrs;
+      const query = buildQuery(dump);
+      const datasource = datasourceMemo.use({
+        key: {query},
+        compute: () =>
+          new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: PREAMBLE,
+          }),
+      });
+      const names = rootClass
+        ? subclassesMemo.use({
+            key: {upid: dump.upid, ts: dump.ts, rootClass},
+            compute: () =>
+              queries.getSubclassNames(engine, dump, rootClass),
+          }).data
+        : undefined;
+      const filters: Filter[] =
+        names !== undefined && names.length > 0
+          ? [{field: 'cls', op: 'in', value: names}]
+          : [];
 
       return m(
         DetailsShell,
         {
-          title: counter.heading('Classes'),
+          title: counter.heading('Classes', query, filters),
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(dump),
           data: datasource,
           fillHeight: true,
           initialColumns: [
@@ -184,10 +165,6 @@ export function ClassesView({
           ],
           filters,
           showExportButton: true,
-          onFiltersChanged: (f) => {
-            filters = [...f];
-            counter.onFiltersChanged(f);
-          },
         }),
       );
     },

@@ -26,6 +26,12 @@ import HeapProfilePlugin, {
 import {HeapDumpPage} from './heap_dump_page';
 import {HeapDumpExplorerSession} from './session';
 import {migrateHdeState} from './persisted_state';
+import * as queries from './queries';
+import {dumpKey, makeHref} from './nav';
+import {assertExists} from '../../base/assert';
+import {Callout} from '../../widgets/callout';
+import {Anchor} from '../../widgets/anchor';
+import {Box} from '../../widgets/box';
 
 const PLUGIN_ID = 'com.android.HeapDumpExplorer';
 
@@ -33,6 +39,7 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   static readonly dependencies = [HeapProfilePlugin];
   private static defaultFlamegraphSetting: Setting<boolean>;
+  private static hideDefaultChangedHintSetting: Setting<boolean>;
 
   static onActivate(app: App) {
     HeapDumpExplorerPlugin.defaultFlamegraphSetting = app.settings.register({
@@ -43,61 +50,88 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       schema: z.boolean(),
       defaultValue: false,
     });
+
+    HeapDumpExplorerPlugin.hideDefaultChangedHintSetting =
+      app.settings.register({
+        id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
+        name: 'Hide Heap Dump Explorer Explanation',
+        description:
+          'Hide the explanation about default changes in Heap Dump Explorer',
+        schema: z.boolean(),
+        defaultValue: false,
+      });
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const hideDefaultChangedHint = ctx.settings.register({
-      id: 'com.android.HideHeapDumpExplorerDefaultChangedHint',
-      name: 'Hide Heap Dump Explorer Explanation',
-      description:
-        'Hide the explanation about default changes in Heap Dump Explorer',
-      schema: z.boolean(),
-      defaultValue: false,
-    });
+    if (!(await traceHasHeapGraph(ctx))) return;
 
-    const defaultFlamegraph = HeapDumpExplorerPlugin.defaultFlamegraphSetting;
-
-    const res = await ctx.engine.query(
-      'SELECT count(*) AS cnt FROM heap_graph LIMIT 1',
-    );
-    if (res.iter({cnt: NUM}).cnt === 0) return;
-
-    // The core restores this store (phase 1) before plugins run, so the session
-    // reads any shared-link state straight from it.
+    // Persistent state: the current subpage and per-dump panel states.
     const store = ctx.mountStore(PLUGIN_ID, migrateHdeState);
 
+    const dumps = await queries.loadDumpsList(ctx.engine);
+
+    // Whether the trace has HPROF field values (string contents, array data,
+    // bitmap pixels), which some views need.
+    const hasFieldValues = await queries.traceHasFieldValues(ctx.engine);
+
+    // Shared by the views: trace-derived data plus per-dump panel state.
     const session = new HeapDumpExplorerSession(
       ctx,
-      ctx.engine,
-      hideDefaultChangedHint,
-      defaultFlamegraph,
       store,
+      dumps,
+      hasFieldValues,
     );
-    const restored = await session.loadDumps();
 
-    ctx.pages.registerPage({
-      route: '/heapdump',
-      render: (subpage) => m(HeapDumpPage, {session, subpage}),
-    });
-
-    if (restored) {
-      // Restored from a shared link: land on the saved tab (beats the
+    let autoNavigated = false;
+    const restoredSubpage = store.state.subpage;
+    if (restoredSubpage !== undefined) {
+      // Restored from a shared link: land on the saved subpage (beats the
       // default-open hint below).
-      const sub = session.navPath;
-      ctx.initialPage.suggest(sub ? `/heapdump/${sub}` : '/heapdump', 200);
+      ctx.initialPage.suggest(`/heapdump${restoredSubpage}`, 300);
     } else if (
       HeapProfilePlugin.openHeapDumpExplorerByDefaultFlag.get() &&
       !(await traceHasTimelineData(ctx))
     ) {
-      session.autoNavigated = true;
-      ctx.initialPage.suggest('/heapdump', 100);
+      autoNavigated = true;
+      // Open the first dump on the flamegraph or the overview, per the
+      // DefaultFlamegraph setting.
+      const firstDump = dumps.at(0);
+      assertExists(firstDump);
+      const view = HeapDumpExplorerPlugin.defaultFlamegraphSetting.get()
+        ? 'flamegraph'
+        : 'overview';
+      const initialRoute = `/heapdump/${dumpKey(firstDump)}/${view}`;
+      ctx.initialPage.suggest(initialRoute, 100);
     }
+
+    ctx.pages.registerPage({
+      route: '/heapdump',
+      render: (subpage) => {
+        // Keep the store's subpage in sync with the current URL.
+        store.edit((s) => {
+          s.subpage = subpage;
+        });
+        const hideHint = HeapDumpExplorerPlugin.hideDefaultChangedHintSetting;
+        return m(
+          '.pf-hde-root',
+          autoNavigated &&
+            !hideHint.get() &&
+            renderDefaultChangedHint(() => hideHint.set(true)),
+          m(HeapDumpPage, {session, subpage}),
+        );
+      },
+    });
 
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
-        session.openFlamegraph({pathHashes, isDominator, upid, ts}),
-      );
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) => {
+        ctx.navigate(
+          makeHref(
+            {upid, ts},
+            {view: 'flamegraph-objects', pathHashes, isDominator},
+          ),
+        );
+      });
 
     ctx.sidebar.addMenuItem({
       section: 'current_trace',
@@ -107,4 +141,36 @@ export default class HeapDumpExplorerPlugin implements PerfettoPlugin {
       icon: 'memory',
     });
   }
+}
+
+// Whether the trace contains any heap graph data.
+async function traceHasHeapGraph(trace: Trace): Promise<boolean> {
+  const res = await trace.engine.query(
+    'SELECT count(*) AS cnt FROM heap_graph LIMIT 1',
+  );
+  return res.iter({cnt: NUM}).cnt > 0;
+}
+
+// Explains that HDE opened by default (instead of the timeline), with a way
+// back.
+function renderDefaultChangedHint(onDismiss: () => void): m.Children {
+  return m(Box, [
+    m(
+      Callout,
+      {
+        className: 'pf-hde-default-changed-callout',
+        icon: 'info',
+        dismissible: true,
+        onDismiss,
+      },
+      m('p', [
+        m(
+          'span',
+          'Heapdump Explorer is now the default view for traces ' +
+            'with heap-graph data.',
+        ),
+        m(Anchor, {href: '#!/viewer'}, 'Back to Timeline'),
+      ]),
+    ),
+  ]);
 }
