@@ -697,7 +697,9 @@ class PerfettoManifestImporter
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
                 start.end());
-    return base::StartsWith(start, "{\"perfetto_manifest\"");
+    return base::StartsWith(start, "{\"perfetto_manifest\"") ||
+           (base::StartsWith(start, "{\"merge_options\"") &&
+            base::Contains(start, "\"perfetto_manifest\""));
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
