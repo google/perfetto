@@ -34,12 +34,8 @@ inline uint16_t ByteSwap16(uint16_t x) {
 inline uint32_t ByteSwap32(uint32_t x) {
   return _byteswap_ulong(x);
 }
-// Unlike MSVC's intrinsic, this can also be evaluated in a constant expression.
-constexpr uint64_t ByteSwap64(uint64_t x) {
-  x = (x << 32) | (x >> 32);
-  x = ((x & 0x0000ffff0000ffffULL) << 16) | ((x & 0xffff0000ffff0000ULL) >> 16);
-  return ((x & 0x00ff00ff00ff00ffULL) << 8) |
-         ((x & 0xff00ff00ff00ff00ULL) >> 8);
+inline uint64_t ByteSwap64(uint64_t x) {
+  return _byteswap_uint64(x);
 }
 #else
 inline uint16_t ByteSwap16(uint16_t x) {
