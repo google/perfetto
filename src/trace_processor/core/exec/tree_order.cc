@@ -243,11 +243,7 @@ TreeParentFirst::~TreeParentFirst() = default;
 TreeParentFirst::State::~State() = default;
 
 void TreeParentFirst::State::Nodes::Grow(uint32_t new_count) {
-  if (new_count <= count) {
-    return;
-  }
-  count = new_count;
-  auto size = static_cast<uint32_t>(first_waiting.size());
+  auto size = first_waiting.size();
   if (new_count <= size) {
     return;
   }
@@ -259,7 +255,6 @@ void TreeParentFirst::State::Nodes::Grow(uint32_t new_count) {
 }
 
 void TreeParentFirst::State::Nodes::Clear() {
-  count = 0;
   has_row.clear();
   out.clear();
   first_waiting.clear();
