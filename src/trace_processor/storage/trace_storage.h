@@ -279,6 +279,13 @@ class TraceStorage {
     return mutable_table<tables::SliceTable>();
   }
 
+  // Ids for slices a SliceSink receives instead of the slice table. One
+  // sequence per storage, so they stay unique across trace and machine
+  // contexts like the table's own ids, and continuing after the table's rows.
+  SliceId NextDetachedSliceId();
+  // One past the last detached id issued; 0 if none was.
+  uint32_t next_detached_slice_id() const { return next_detached_slice_id_; }
+
   const tables::TrackEventCallstacksTable& track_event_callstacks_table()
       const {
     return table<tables::TrackEventCallstacksTable>();
@@ -1162,6 +1169,8 @@ class TraceStorage {
 
   // One entry for each unique string in the trace.
   StringPool string_pool_;
+
+  uint32_t next_detached_slice_id_ = 0;
 
   VirtualTrackSlices virtual_track_slices_;
   SqlStats sql_stats_;
