@@ -34,6 +34,8 @@ namespace {
 using ::testing::UnorderedElementsAreArray;
 
 TEST(ProtoProfiler, TestMessage) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   protozero::HeapBuffered<protozero::test::protos::pbzero::NestedA> message;
   message->add_repeated_a()->set_value_b()->set_value_c(1);
   message->add_repeated_a()->set_value_b()->set_value_c(2);
@@ -41,8 +43,8 @@ TEST(ProtoProfiler, TestMessage) {
   const std::vector<uint8_t> bytes = message.SerializeAsArray();
 
   DescriptorPool pool;
-  pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                kTestMessagesDescriptor.size());
+  pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                test_messages_descriptor.size());
   SizeProfileComputer computer(&pool, ".protozero.test.protos.NestedA");
   computer.Reset(bytes.data(), bytes.size());
 
@@ -77,6 +79,8 @@ TEST(ProtoProfiler, TestMessage) {
 }
 
 TEST(ProtoProfiler, TestMessageSurvivesPoolDestruction) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   protozero::HeapBuffered<protozero::test::protos::pbzero::NestedA> message;
   message->add_repeated_a()->set_value_b()->set_value_c(1);
   message->add_repeated_a()->set_value_b()->set_value_c(2);
@@ -86,8 +90,8 @@ TEST(ProtoProfiler, TestMessageSurvivesPoolDestruction) {
   std::vector<std::pair<SizeProfileComputer::FieldPath, size_t>> samples;
   {
     DescriptorPool pool;
-    pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                  kTestMessagesDescriptor.size());
+    pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                  test_messages_descriptor.size());
     SizeProfileComputer computer(&pool, ".protozero.test.protos.NestedA");
     computer.Reset(bytes.data(), bytes.size());
 

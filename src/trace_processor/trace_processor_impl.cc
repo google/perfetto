@@ -335,6 +335,13 @@ TraceProcessorImpl::TraceProcessorImpl(
     const Config& cfg,
     TraceProcessor::PlatformInterface* platform)
     : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
+  const auto metrics_descriptor = kMetricsDescriptor.Decode();
+  const auto all_chrome_metrics_descriptor =
+      kAllChromeMetricsDescriptor.Decode();
+  const auto all_webview_metrics_descriptor =
+      kAllWebviewMetricsDescriptor.Decode();
+  const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
+
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that
@@ -507,18 +514,18 @@ TraceProcessorImpl::TraceProcessorImpl(
 
   // Add metrics to descriptor pool
   metrics_descriptor_pool_.AddFromFileDescriptorSet(
-      kMetricsDescriptor.data(), kMetricsDescriptor.size(), skip_prefixes);
+      metrics_descriptor.data(), metrics_descriptor.size(), skip_prefixes);
   metrics_descriptor_pool_.AddFromFileDescriptorSet(
-      kAllChromeMetricsDescriptor.data(), kAllChromeMetricsDescriptor.size(),
-      skip_prefixes);
+      all_chrome_metrics_descriptor.data(),
+      all_chrome_metrics_descriptor.size(), skip_prefixes);
   metrics_descriptor_pool_.AddFromFileDescriptorSet(
-      kAllWebviewMetricsDescriptor.data(), kAllWebviewMetricsDescriptor.size(),
-      skip_prefixes);
+      all_webview_metrics_descriptor.data(),
+      all_webview_metrics_descriptor.size(), skip_prefixes);
 
   // Add the summary descriptor to the summary pool.
   {
     base::Status status = context()->descriptor_pool_->AddFromFileDescriptorSet(
-        kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
+        trace_summary_descriptor.data(), trace_summary_descriptor.size());
     PERFETTO_CHECK(status.ok());
   }
 
@@ -1215,8 +1222,9 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
       ".perfetto.protos.TraceSummarySpec");
   if (!opt_idx) {
+    const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
     metrics_descriptor_pool_.AddFromFileDescriptorSet(
-        kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
+        trace_summary_descriptor.data(), trace_summary_descriptor.size());
   }
 
   // Auto-generate a unique id for table namespacing. The id is embedded in

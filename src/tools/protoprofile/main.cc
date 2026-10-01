@@ -191,6 +191,10 @@ int PrintUsage(int, const char** argv) {
 }
 
 int Main(int argc, const char** argv) {
+  const auto trace_descriptor = kTraceDescriptor.Decode();
+  const auto android_extension_descriptor =
+      kAndroidExtensionDescriptor.Decode();
+
   if (argc != 3)
     return PrintUsage(argc, argv);
 
@@ -239,15 +243,15 @@ int Main(int argc, const char** argv) {
   }
 
   trace_processor::DescriptorPool pool;
-  base::Status status = pool.AddFromFileDescriptorSet(kTraceDescriptor.data(),
-                                                      kTraceDescriptor.size());
+  base::Status status = pool.AddFromFileDescriptorSet(trace_descriptor.data(),
+                                                      trace_descriptor.size());
   if (!status.ok()) {
     PERFETTO_ELOG("Could not add Trace proto descriptor: %s",
                   status.c_message());
     return 1;
   }
-  status = pool.AddFromFileDescriptorSet(kAndroidExtensionDescriptor.data(),
-                                         kAndroidExtensionDescriptor.size());
+  status = pool.AddFromFileDescriptorSet(android_extension_descriptor.data(),
+                                         android_extension_descriptor.size());
   if (!status.ok()) {
     PERFETTO_ELOG("Could not add Android extensions proto descriptor: %s",
                   status.c_message());

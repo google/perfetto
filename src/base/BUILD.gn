@@ -23,6 +23,39 @@ import("../../gn/wasm.gni")
 _subprocess_supported =
     is_linux || is_chromeos || is_android || is_mac || is_win || is_freebsd
 
+source_set("decompressor") {
+  sources = [
+    "decompressor.cc",
+    "decompressor.h",
+    "gzip_decompressor.cc",
+    "gzip_decompressor.h",
+    "zstd_decompressor.cc",
+    "zstd_decompressor.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+  ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../gn:zlib" ]
+  }
+  if (enable_perfetto_zstd) {
+    deps += [ "../../gn:zstd" ]
+  }
+}
+
+source_set("embedded_blob") {
+  sources = [
+    "embedded_blob.cc",
+    "embedded_blob.h",
+  ]
+  deps = [
+    ":decompressor",
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+  ]
+}
+
 perfetto_component("base") {
   deps = [
     ":check_cpu_optimizations",

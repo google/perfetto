@@ -17,37 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_ZSTD_DECOMPRESSOR_H_
 #define SRC_TRACE_PROCESSOR_UTIL_ZSTD_DECOMPRESSOR_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-
+#include "src/base/zstd_decompressor.h"
 #include "src/trace_processor/util/decompressor.h"
-
-struct ZSTD_DCtx_s;
 
 namespace perfetto::trace_processor::util {
 
-// zstd Decompressor. Obtain one via CreateDecompressor().
-class ZstdDecompressor : public Decompressor {
- public:
-  ZstdDecompressor();
-
-  void Feed(const uint8_t* data, size_t size) final;
-  Result ExtractOutput(uint8_t* out, size_t out_capacity) final;
-  void Reset() final;
-  size_t AvailIn() const final;
-
- private:
-  struct Deleter {
-    void operator()(ZSTD_DCtx_s*) const;
-  };
-  std::unique_ptr<ZSTD_DCtx_s, Deleter> dstream_;
-  // Unused by the stub methods compiled when zstd is disabled in the build.
-  [[maybe_unused]] const uint8_t* in_data_ = nullptr;
-  [[maybe_unused]] size_t in_size_ = 0;
-  [[maybe_unused]] size_t in_pos_ = 0;
-  [[maybe_unused]] bool eof_ = false;
-};
+using base::ZstdDecompressor;
 
 }  // namespace perfetto::trace_processor::util
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/zstd_decompressor.h"
+#include "src/base/zstd_decompressor.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -29,7 +29,7 @@
 struct ZSTD_DCtx_s {};
 #endif
 
-namespace perfetto::trace_processor::util {
+namespace perfetto::base {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
@@ -110,4 +110,4 @@ void ZstdDecompressor::Deleter::operator()(ZSTD_DCtx_s*) const {}
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
-}  // namespace perfetto::trace_processor::util
+}  // namespace perfetto::base

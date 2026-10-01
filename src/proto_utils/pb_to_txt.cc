@@ -41,12 +41,17 @@ std::string PbToTxt(const uint8_t* desc_data,
 }  // namespace
 
 std::string TraceConfigPbToTxt(const void* data, size_t size) {
-  return PbToTxt(kConfigDescriptor.data(), kConfigDescriptor.size(),
+  const auto config_descriptor = kConfigDescriptor.Decode();
+
+  return PbToTxt(config_descriptor.data(), config_descriptor.size(),
                  ".perfetto.protos.TraceConfig", data, size);
 }
 
 std::string TraceSummarySpecPbToTxt(const void* data, size_t size) {
-  return PbToTxt(kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
+  const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
+
+  return PbToTxt(trace_summary_descriptor.data(),
+                 trace_summary_descriptor.size(),
                  ".perfetto.protos.TraceSummarySpec", data, size);
 }
 

@@ -82,6 +82,8 @@ bool IsTextproto(const std::string& path, const std::string& content) {
 // textproto to binary proto when necessary.
 base::Status LoadSpecIntoSummarizer(Summarizer* summarizer,
                                     const std::string& path) {
+  const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
+
   std::string content;
   if (!base::ReadFile(path, &content)) {
     return base::ErrStatus("Unable to read spec file %s", path.c_str());
@@ -92,8 +94,8 @@ base::Status LoadSpecIntoSummarizer(Summarizer* summarizer,
   std::vector<uint8_t> binary_proto;
   if (IsTextproto(path, content)) {
     ASSIGN_OR_RETURN(binary_proto,
-                     protozero::TextToProto(kTraceSummaryDescriptor.data(),
-                                            kTraceSummaryDescriptor.size(),
+                     protozero::TextToProto(trace_summary_descriptor.data(),
+                                            trace_summary_descriptor.size(),
                                             ".perfetto.protos.TraceSummarySpec",
                                             "-", std::string_view(content)));
     spec_data = binary_proto.data();
