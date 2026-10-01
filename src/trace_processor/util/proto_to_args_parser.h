@@ -381,6 +381,7 @@ class ProtoToArgsParser {
   struct FlatField {
     const FieldDescriptor* descriptor;
     uint32_t node;
+    StringPool::Id flat_key;
     StringPool::Id key;
   };
 
@@ -392,14 +393,20 @@ class ProtoToArgsParser {
     // Interned flat_key prefix up to and including this node's field.
     StringPool::Id flat_key_id = StringPool::Id::Null();
 
+    // Interned key prefix up to and including this node's field. Null for a
+    // root and when |has_array|.
+    StringPool::Id key_id = StringPool::Id::Null();
+
     // Pool index of a message/enum field's resolved type (an index, not a
     // pointer, as the pool can reallocate between parses). |resolved_done|
     // separates "not looked up" from "looked up, absent".
     bool resolved_done = false;
     std::optional<uint32_t> resolved_idx;
 
-    // True if this node or an ancestor is repeated, so |key| (with "[i]")
-    // differs from |flat_key| and is interned per occurrence.
+    // True if this node is shared by the elements of an array on its path, so
+    // |key| (with "[i]") differs between visits and is interned per
+    // occurrence. An element with its own node, and everything below it, has a
+    // fixed key instead.
     bool has_array = false;
 
     uint32_t flat_generation = 0;
@@ -426,15 +433,35 @@ class ProtoToArgsParser {
     return (static_cast<uint64_t>(parent) << 32) | discriminator;
   }
 
+  // Marks a |path_index_| edge from a repeated field's node to one of its
+  // elements. Field numbers never set this bit.
+  static constexpr uint32_t kElementEdge = 1u << 31;
+
+  // Elements get a node of their own, which memoizes their key, only below
+  // this index and while the tree is below this size. Past either limit they
+  // share the repeated field's node, which bounds the memory an array costs.
+  static constexpr uint32_t kMaxElementIndex = 256;
+  static constexpr size_t kMaxElementPathNodes = 1 << 14;
+
   // Returns |parent|'s child for |field_id|, creating it on first use. The hot
   // lookup stays inline; CreatePathChild outlines the cold create. The caller
-  // must have appended this field's name to key_prefix_.flat_key.
+  // must have appended this field's name to key_prefix_.flat_key and
+  // key_prefix_.key.
   uint32_t GetOrCreatePathChild(uint32_t parent,
                                 uint32_t field_id,
                                 bool is_repeated);
   PERFETTO_NO_INLINE uint32_t CreatePathChild(uint64_t key,
                                               uint32_t parent,
                                               bool is_repeated);
+
+  // Returns the node for element |index| of the repeated field |field_node|,
+  // a child of |parent|, or |field_node| itself if the element has no node of
+  // its own. The caller must have appended the element to key_prefix_.key.
+  uint32_t GetOrCreateElementNode(uint32_t parent,
+                                  uint32_t field_node,
+                                  uint32_t index);
+  PERFETTO_NO_INLINE uint32_t CreateElementNode(uint64_t key,
+                                                uint32_t field_node);
 
   // Appends a node and records |key| -> its index. The one cold creation site,
   // shared by roots and children.

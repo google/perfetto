@@ -293,6 +293,152 @@ TEST_F(ProtoToArgsParserTest, FlatMessagesRespectAllowlistAndNesting) {
                   "super_nested.value_c super_nested.value_c 2"));
 }
 
+TEST_F(ProtoToArgsParserTest, FlatMessagesUnderArrays) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+    msg->add_repeated_a()->set_value_b()->set_value_c(i);
+    msg->add_repeated_a()->set_value_b();
+    msg->add_repeated_a()->set_value_b()->set_value_c(i * 10);
+    msg->set_super_nested()->set_value_c(i * 100);
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.NestedA", nullptr, *this));
+  }
+  EXPECT_THAT(args(),
+              testing::ElementsAre(
+                  "repeated_a.value_b.value_c repeated_a[0].value_b.value_c 1",
+                  "repeated_a.value_b repeated_a[1].value_b [NULL]",
+                  "repeated_a.value_b.value_c repeated_a[2].value_b.value_c 10",
+                  "super_nested.value_c super_nested.value_c 100",
+                  "repeated_a.value_b.value_c repeated_a[0].value_b.value_c 2",
+                  "repeated_a.value_b repeated_a[1].value_b [NULL]",
+                  "repeated_a.value_b.value_c repeated_a[2].value_b.value_c 20",
+                  "super_nested.value_c super_nested.value_c 200"));
+}
+
+TEST_F(ProtoToArgsParserTest, NestedArrayKeysRepeatAcrossMessages) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  for (int i = 1; i <= 2; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    for (int j = 0; j < 2; j++) {
+      auto* nested = msg->add_field_nested();
+      nested->add_repeated_int32(i * 10 + j);
+      nested->add_repeated_int32(i * 100 + j);
+      nested->add_repeated_string("s");
+    }
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  }
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "field_nested.repeated_int32 field_nested[0].repeated_int32[0] 10",
+          "field_nested.repeated_int32 field_nested[0].repeated_int32[1] 100",
+          "field_nested.repeated_string field_nested[0].repeated_string[0] s",
+          "field_nested.repeated_int32 field_nested[1].repeated_int32[0] 11",
+          "field_nested.repeated_int32 field_nested[1].repeated_int32[1] 101",
+          "field_nested.repeated_string field_nested[1].repeated_string[0] s",
+          "field_nested.repeated_int32 field_nested[0].repeated_int32[0] 20",
+          "field_nested.repeated_int32 field_nested[0].repeated_int32[1] 200",
+          "field_nested.repeated_string field_nested[0].repeated_string[0] s",
+          "field_nested.repeated_int32 field_nested[1].repeated_int32[0] 21",
+          "field_nested.repeated_int32 field_nested[1].repeated_int32[1] 201",
+          "field_nested.repeated_string field_nested[1].repeated_string[0] "
+          "s"));
+}
+
+TEST_F(ProtoToArgsParserTest, ArrayLongerThanElementNodeLimit) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  std::vector<std::string> expected;
+  for (int i = 0; i < 2; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    for (int j = 0; j < 300; j++) {
+      msg->add_repeated_int32(i + j);
+      expected.push_back("repeated_int32 repeated_int32[" + std::to_string(j) +
+                         "] " + std::to_string(i + j));
+    }
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  }
+  EXPECT_EQ(args(), expected);
+}
+
+TEST_F(ProtoToArgsParserTest, ArraysBeyondElementNodeBudget) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  // 130 * 130 elements need more nodes than the parser keeps for elements.
+  std::vector<std::string> expected;
+  for (int i = 0; i < 2; i++) {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    for (int j = 0; j < 130; j++) {
+      auto* outer = msg->add_field_nested();
+      for (int k = 0; k < 130; k++) {
+        outer->add_field_nested()->set_field_int32(i + j + k);
+        expected.push_back(
+            "field_nested.field_nested.field_int32 field_nested[" +
+            std::to_string(j) + "].field_nested[" + std::to_string(k) +
+            "].field_int32 " + std::to_string(i + j + k));
+      }
+    }
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  }
+  EXPECT_EQ(args(), expected);
+}
+
+TEST_F(ProtoToArgsParserTest, OverrideAddedAfterArrayElementsWereParsed) {
+  using namespace protozero::test::protos::pbzero;
+  DescriptorPool pool;
+  ASSERT_OK(pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                          kTestMessagesDescriptor.size()));
+  ProtoToArgsParser parser(pool, string_pool_);
+  auto parse = [&] {
+    protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+    msg->add_repeated_int32(1);
+    msg->add_repeated_int32(2);
+    auto binary_proto = msg.SerializeAsArray();
+    ASSERT_OK(parser.ParseMessage(
+        protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+        ".protozero.test.protos.EveryField", nullptr, *this));
+  };
+  parse();
+  parser.AddParsingOverrideForField(
+      "repeated_int32",
+      [](const protozero::Field& field, ProtoToArgsParser::Delegate& writer) {
+        auto id = writer.InternString(base::StringView("replaced"));
+        writer.AddInteger(id, id, field.as_int32());
+        return base::OkStatus();
+      });
+  parse();
+  EXPECT_THAT(args(), testing::ElementsAre("repeated_int32 repeated_int32[0] 1",
+                                           "repeated_int32 repeated_int32[1] 2",
+                                           "replaced replaced 1",
+                                           "replaced replaced 2"));
+}
+
 TEST_F(ProtoToArgsParserTest, EnsureTestMessageProtoParses) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
