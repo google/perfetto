@@ -18953,7 +18953,7 @@ genrule {
         ":perfetto_src_trace_processor_metrics_sql_misc_sql",
         ":perfetto_src_trace_processor_metrics_sql_webview_webview",
     ],
-    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::sql_metrics $(in)",
+    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::sql_metrics --compression zlib $(in)",
     out: [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
     ],
@@ -19151,7 +19151,7 @@ genrule {
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_viz_viz",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
     ],
-    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::stdlib $(in)",
+    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::stdlib --compression zlib $(in)",
     out: [
         "src/trace_processor/perfetto_sql/stdlib/amalgamated_stdlib.h",
     ],
@@ -22210,6 +22210,9 @@ filegroup {
 // GN: //src/trace_processor/util:sql_bundle
 filegroup {
     name: "perfetto_src_trace_processor_util_sql_bundle",
+    srcs: [
+        "src/trace_processor/util/sql_bundle.cc",
+    ],
 }
 
 // GN: //src/trace_processor/util:sql_module_doc_parser

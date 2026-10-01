@@ -28,8 +28,12 @@ source_set("stdlib") {
 }
 
 source_set("sql_bundle") {
-  sources = [ "sql_bundle.h" ]
+  sources = [
+    "sql_bundle.cc",
+    "sql_bundle.h",
+  ]
   deps = [
+    ":decompressor",
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
   ]

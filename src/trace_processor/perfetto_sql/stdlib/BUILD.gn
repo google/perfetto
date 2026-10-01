@@ -60,6 +60,7 @@ source_set("stdlib") {
   deps = [
     ":amalgamated_stdlib",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
     "../../util:sql_bundle",
   ]
 }

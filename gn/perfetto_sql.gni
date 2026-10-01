@@ -57,6 +57,17 @@ template("perfetto_amalgamated_sql_header") {
       "--namespace",
       "perfetto::trace_processor::${invoker.namespace}",
     ]
+    if (enable_perfetto_zlib) {
+      extra_args += [
+        "--compression",
+        "zlib",
+      ]
+    } else {
+      extra_args += [
+        "--compression",
+        "none",
+      ]
+    }
     deps = [ ":${invoker_target}_generated_file" ] + invoker.deps
   }
 

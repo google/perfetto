@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string_view>
 
 #include "perfetto/base/endian.h"
@@ -56,6 +57,11 @@ class SqlBundle {
   template <size_t N>
   explicit SqlBundle(const std::array<uint8_t, N>& blob)
       : SqlBundle(blob.data(), blob.size()) {}
+
+  // Decode the generated codec/size envelope. Compressed bundles own their
+  // decoded storage; uncompressed bundles borrow the static input. Malformed
+  // generated data or an unavailable codec is a build error and is fatal.
+  static SqlBundle Decode(const uint8_t* data, size_t size);
 
   class Iterator {
    public:
@@ -104,6 +110,7 @@ class SqlBundle {
   Iterator end() const { return Iterator(data_ + size_, data_ + size_); }
 
  private:
+  std::unique_ptr<uint8_t[]> owned_data_;
   const uint8_t* data_;
   size_t size_;
 };

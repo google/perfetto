@@ -16,7 +16,10 @@
 C++ header of packed uint64_t words.
 
 The generated blob is consumed at runtime by `SqlBundle` (see
-`src/trace_processor/util/sql_bundle.h`). Wire format:
+`src/trace_processor/util/sql_bundle.h`). It starts with a codec byte
+(0 = none, 1 = zlib, 2 = zstd) and a little-endian uint32_t uncompressed size,
+followed by the encoded payload.
+Uncompressed payload wire format:
 
   uint32_t count;
   for (count) {
@@ -37,6 +40,7 @@ import argparse
 import os
 import struct
 import sys
+import zlib
 
 # Allow `from python.tools import cpp_blob_emitter` to resolve when this
 # script is run directly. In Bazel the py_binary `deps` wire it up; in
@@ -84,6 +88,7 @@ def main():
   parser.add_argument('--namespace', required=True)
   parser.add_argument('--gen-dir', default='')
   parser.add_argument('--root-dir', default=None)
+  parser.add_argument('--compression', choices=['none', 'zlib'], default='zlib')
   parser.add_argument('inputs', nargs='+')
   args = parser.parse_args()
 
@@ -105,8 +110,12 @@ def main():
       file_to_sql[relpath] = f.read()
 
   blob = pack_bundle(file_to_sql)
+  # Keep codec IDs in sync with SqlBundle::Decode: none=0, zlib=1, zstd=2.
+  codec = 1 if args.compression == 'zlib' else 0
+  payload = zlib.compress(blob, level=9) if codec else blob
+  encoded = struct.pack('<BI', codec, len(blob)) + payload
   cpp_blob_emitter.emit_array(
-      blob,
+      encoded,
       args.output,
       symbol=cpp_blob_emitter.derive_symbol(args.output),
       namespace=args.namespace,
