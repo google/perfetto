@@ -1289,6 +1289,322 @@ TEST(ExtensionProtoMergerTest, UnassociatedHelpersAreOmitted) {
   EXPECT_THAT(out, Not(HasSubstr("UnusedHelper")));
   EXPECT_THAT(out, Not(HasSubstr("OtherMessage")));
 }
+
+// Imports |file_name| from |dir| and converts it.
+ProtoFile ImportProtoFile(const std::string& dir,
+                          const std::string& file_name) {
+  protozero::MultiFileErrorCollectorImpl mfe;
+  google::protobuf::compiler::DiskSourceTree dst;
+  dst.MapPath("", dir);
+  google::protobuf::compiler::Importer importer(&dst, &mfe);
+  const auto* desc = importer.Import(file_name);
+  PERFETTO_CHECK(desc);
+  return ProtoFileFromDescriptor("", *desc);
+}
+
+// Returns the text of the top-level message |message_name| in |proto_text|.
+std::string FindMessageText(const std::string& proto_text,
+                            const std::string& message_name) {
+  size_t start_pos = proto_text.find("message " + message_name + " {");
+  PERFETTO_CHECK(start_pos != std::string::npos);
+  size_t end_pos = proto_text.find("\n}", start_pos);
+  PERFETTO_CHECK(end_pos != std::string::npos);
+  return proto_text.substr(start_pos, end_pos + 1 - start_pos);
+}
+
+// Single numbers, `a to b` and `a to max` ranges are written correctly.
+TEST(ProtoFileSerializerTest, ExtensionRangesAreSerialized) {
+  ProtoFile file;
+  ProtoFile::Message message{};
+  message.name = "OneofOptions";
+  ProtoFile::ExtensionsStatement statement;
+  statement.ranges = {
+      {100, 101},
+      {200, 300},
+      {1000, google::protobuf::FieldDescriptor::kMaxNumber + 1},
+  };
+  message.extensions_statements.push_back(statement);
+  file.messages.push_back(message);
+
+  std::string out = ProtoFileToDotProto(file);
+  EXPECT_THAT(out, HasSubstr("  extensions 100, 200 to 299, 1000 to max;\n"));
+}
+
+// Ranges are taken from the input, not from upstream.
+TEST(ProtoFileSerializerTest, MergeKeepsExtensionRangesOfInput) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message OneofOptions {
+      extensions 1000 to max;
+    }
+    message TracePacket {
+      optional int32 timestamp = 1;
+      optional int32 inlined_extension = 1000;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message OneofOptions {
+      extensions 1000 to max;
+    }
+    message TracePacket {
+      optional int32 timestamp = 1;
+      extensions 1000 to max;
+    }
+  )");
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      Allowlist{}, merged)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(FindMessageText(out, "OneofOptions"),
+              HasSubstr("extensions 1000 to max;"));
+  std::string trace_packet_text = FindMessageText(out, "TracePacket");
+  EXPECT_THAT(trace_packet_text, HasSubstr("int32 inlined_extension = 1000;"));
+  EXPECT_THAT(trace_packet_text, Not(HasSubstr("extensions")));
+}
+
+// Each `extensions` statement keeps its own comments, also in nested messages.
+TEST(ProtoFileSerializerTest, MergeKeepsExtensionsStatementComments) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Multi {
+      extensions 100 to 199;
+      extensions 500, 1000 to max;
+      message Inner {
+        extensions 100 to 199;
+      }
+    }
+    message Split {
+      optional int32 inlined = 1000;
+      extensions 1001 to max;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Multi {
+      // First statement.
+      extensions 100 to 199;
+
+      // Second statement.
+      extensions 500, 1000 to max;  // Trailing.
+
+      message Inner {
+        // Inner statement.
+        extensions 100 to 199;
+      }
+    }
+    message Split {
+      // Split statement.
+      extensions 1000 to max;
+    }
+  )");
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      Allowlist{}, merged)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  std::string multi_text = FindMessageText(out, "Multi");
+  EXPECT_THAT(multi_text, HasSubstr("  // First statement.\n"
+                                    "  extensions 100 to 199;\n"
+                                    "\n"
+                                    "  // Second statement.\n"
+                                    "  extensions 500, 1000 to max;\n"
+                                    "  // Trailing.\n"));
+  EXPECT_THAT(multi_text, HasSubstr("    // Inner statement.\n"
+                                    "    extensions 100 to 199;\n"));
+  // The input range was split, but upstream's comment is still found.
+  EXPECT_THAT(FindMessageText(out, "Split"),
+              HasSubstr("  // Split statement.\n"
+                        "  extensions 1001 to max;\n"));
+}
+
+// A message added through the allowlist keeps upstream's `extensions`.
+TEST(ProtoFileSerializerTest, MergeAddsExtensionsOfNewAllowlistedMessage) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Existing {
+      optional int32 a = 1;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Existing {
+      optional int32 a = 1;
+      message NewNested {
+        extensions 100 to 199;
+      }
+    }
+    message NewThing {
+      optional int32 b = 1;
+      // New ranges.
+      extensions 1000 to max;
+    }
+  )");
+
+  Allowlist allowlist;
+  allowlist.messages["NewThing"].fields = {1};
+  allowlist.messages["Existing"].nested_messages["NewNested"] = {};
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      allowlist, merged)
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(FindMessageText(out, "NewThing"),
+              HasSubstr("  // New ranges.\n"
+                        "  extensions 1000 to max;\n"));
+  EXPECT_THAT(FindMessageText(out, "Existing"),
+              HasSubstr("    extensions 100 to 199;\n"));
+}
+
+// A new upstream field inside an input range is cut out of that range.
+TEST(ProtoFileSerializerTest, MergeCutsNewFieldsOutOfInputRanges) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile input(temp_dir.path(), "input.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 a = 1;
+      extensions 1000 to max;
+    }
+  )");
+  TempProtoFile upstream(temp_dir.path(), "upstream.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message Root {
+      optional int32 a = 1;
+      optional int32 b = 1000;
+      oneof choice {
+        int32 c = 2000;
+      }
+    }
+  )");
+
+  Allowlist allowlist;
+  allowlist.messages["Root"].fields = {1000};
+  allowlist.messages["Root"].oneofs["choice"] = {2000};
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(ImportProtoFile(temp_dir.path(), "input.proto"),
+                      ImportProtoFile(temp_dir.path(), "upstream.proto"),
+                      allowlist, merged)
+          .ok());
+
+  std::string root_text = FindMessageText(ProtoFileToDotProto(merged), "Root");
+  EXPECT_THAT(root_text, HasSubstr("int32 b = 1000;"));
+  EXPECT_THAT(root_text, HasSubstr("int32 c = 2000;"));
+  EXPECT_THAT(root_text, HasSubstr("extensions 1001 to 1999, 2001 to max;\n"));
+}
+
+// Inlined extension field numbers are cut out of the ranges.
+TEST(ExtensionProtoMergerTest, InlinedExtensionsAreCutOutOfRanges) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile temp_base(temp_dir.path(), "base.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message TrackEvent {
+      optional string name = 1;
+      extensions 1000 to 2000;
+      extensions 3000 to 3999;
+      extensions 5000;
+      extensions 6000 to max;
+    }
+    message OneofOptions {
+      extensions 1000 to max;
+    }
+  )");
+  TempProtoFile temp_ext(temp_dir.path(), "ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "base.proto";
+
+    extend perfetto.protos.TrackEvent {
+      optional int32 in_middle = 1001;
+      optional int32 at_end = 3999;
+      optional int32 whole_range = 5000;
+    }
+  )");
+
+  std::string out;
+  base::Status status =
+      MergeExtensions("base.proto", temp_dir.path(), {"ext.proto"}, &out);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  std::string track_event_text = FindMessageText(out, "TrackEvent");
+  EXPECT_THAT(track_event_text, HasSubstr("optional int32 in_middle = 1001;"));
+  EXPECT_THAT(track_event_text, HasSubstr("extensions 1000, 1002 to 2000;\n"));
+  EXPECT_THAT(track_event_text, HasSubstr("extensions 3000 to 3998;\n"));
+  EXPECT_THAT(track_event_text, Not(HasSubstr("extensions 5000")));
+  EXPECT_THAT(track_event_text, HasSubstr("extensions 6000 to max;\n"));
+  EXPECT_THAT(FindMessageText(out, "OneofOptions"),
+              HasSubstr("extensions 1000 to max;"));
+}
+
+// A helper message that only declares `extensions` is still copied over.
+TEST(ExtensionProtoMergerTest, HelperWithOnlyExtensionsIsKept) {
+  base::TempDir temp_dir = base::TempDir::Create();
+  TempProtoFile temp_base(temp_dir.path(), "base.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+
+    message TrackEvent {
+      optional string name = 1;
+      extensions 1000 to max;
+    }
+  )");
+  TempProtoFile temp_ext(temp_dir.path(), "ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "base.proto";
+
+    message Helper {
+      extensions 100 to 199;
+    }
+    extend perfetto.protos.TrackEvent {
+      optional Helper helper = 2000;
+    }
+  )");
+
+  std::string out;
+  base::Status status =
+      MergeExtensions("base.proto", temp_dir.path(), {"ext.proto"}, &out);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  EXPECT_THAT(FindMessageText(out, "Helper"),
+              HasSubstr("extensions 100 to 199;\n"));
+}
+
 }  // namespace
 }  // namespace proto_merger
 }  // namespace perfetto

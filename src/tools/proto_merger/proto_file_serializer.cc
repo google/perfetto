@@ -62,6 +62,33 @@ std::string SerializeTrailingComments(const std::string& prefix,
   return SerializeComments(prefix, member.trailing_comments);
 }
 
+// Writes one `extensions` statement with its comments, e.g. `extensions 1;`.
+std::string SerializeExtensionsStatement(
+    const std::string& prefix,
+    const ProtoFile::ExtensionsStatement& statement) {
+  if (statement.ranges.empty())
+    return "";
+
+  std::vector<std::string> range_texts;
+  for (const auto& range : statement.ranges) {
+    int first_number = range.start_number;
+    int last_number = range.end_number - 1;
+    if (first_number == last_number) {
+      range_texts.push_back(std::to_string(first_number));
+    } else if (last_number >= google::protobuf::FieldDescriptor::kMaxNumber) {
+      range_texts.push_back(std::to_string(first_number) + " to max");
+    } else {
+      range_texts.push_back(std::to_string(first_number) + " to " +
+                            std::to_string(last_number));
+    }
+  }
+
+  std::string output = SerializeLeadingComments(prefix, statement);
+  output += prefix + "extensions " + base::Join(range_texts, ", ") + ";\n";
+  output += SerializeTrailingComments(prefix, statement);
+  return output;
+}
+
 std::string SerializeOptions(const std::vector<ProtoFile::Option>& options) {
   if (options.empty())
     return "";
@@ -189,6 +216,10 @@ std::string SerializeMessage(size_t indent,
   }
   for (const auto& field : message.fields) {
     output += SerializeField(indent, field, true, is_proto2);
+  }
+  for (const auto& statement : message.extensions_statements) {
+    output +=
+        SerializeExtensionsStatement(std::string(indent * 2, ' '), statement);
   }
 
   if (!message.deleted_enums.empty() || !message.deleted_fields.empty() ||
