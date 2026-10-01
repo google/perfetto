@@ -72,6 +72,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_SystemInfoConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SystemdJournaldConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TestConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_UiHierarchyConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8Config);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanMemoryConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_WindowManagerConfig);
@@ -386,6 +387,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_ProcessSmapsConfig,
                   process_smaps_config,
                   146);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_UiHierarchyConfig,
+                  ui_hierarchy_config,
+                  147);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_QnxConfig,

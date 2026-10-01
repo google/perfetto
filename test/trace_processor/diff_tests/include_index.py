@@ -63,6 +63,7 @@ from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
 from diff_tests.parser.android.tests_viewcapture import ViewCapture
+from diff_tests.parser.android.tests_ui_hierarchy import UiHierarchy
 from diff_tests.parser.android.tests_windowmanager import WindowManager
 from diff_tests.parser.art_hprof.tests import ArtHprofParser
 from diff_tests.parser.art_method.tests import ArtMethodParser
@@ -153,6 +154,7 @@ from diff_tests.stdlib.android.standby_bucket_tests import StandbyBucket
 from diff_tests.stdlib.android.freezer_tests import Freezer
 from diff_tests.stdlib.android.audio_tests import Audio
 from diff_tests.stdlib.android.codec_tests import Codec
+from diff_tests.stdlib.android.ui_hierarchy_tests import AndroidUiHierarchy
 
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
@@ -282,6 +284,7 @@ def fetch_all_diff_tests(
       ProtoLog,
       ProtoVmIncrementalTracing,
       ViewCapture,
+      UiHierarchy,
       WindowManager,
       TrackEvent,
       TranslatedArgs,
@@ -349,6 +352,7 @@ def fetch_all_diff_tests(
       Freezer,
       Audio,
       Codec,
+      AndroidUiHierarchy,
       ArgsFunctions,
       CpuClusters,
       Battery,

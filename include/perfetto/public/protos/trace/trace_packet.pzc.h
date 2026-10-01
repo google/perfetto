@@ -103,6 +103,8 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventRangeOfInterest);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TranslationTable);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Trigger);
+PERFETTO_PB_MSG_DECL(perfetto_protos_UiHierarchyEvents);
+PERFETTO_PB_MSG_DECL(perfetto_protos_UiHierarchySnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UiState);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8CodeMove);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8InternalCode);
@@ -577,6 +579,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_RecoveredTraceInfo,
                   recovered_trace_info,
                   138);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_UiHierarchySnapshot,
+                  ui_hierarchy,
+                  139);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_UiHierarchyEvents,
+                  ui_hierarchy_events,
+                  140);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

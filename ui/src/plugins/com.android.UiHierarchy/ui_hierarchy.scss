@@ -1,0 +1,669 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-uih-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--pf-color-text);
+  background: var(--pf-color-background);
+}
+
+.pf-uih-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background-secondary);
+  flex: 0 0 auto;
+
+  &__pos {
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__badge {
+    margin-left: 4px;
+  }
+
+  &__ts {
+    margin-left: auto;
+  }
+}
+
+.pf-uih-scrub {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--pf-color-accent);
+}
+
+// Display › Process › Window navigation.
+.pf-uih-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 60%;
+  white-space: nowrap;
+
+  &__process,
+  &__window {
+    min-width: 0;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__count {
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__current {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    padding: 0 4px;
+
+    .pf-icon {
+      font-size: 16px;
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  &__sep {
+    flex: none;
+    font-size: 16px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-uih-props-open {
+  margin-bottom: 8px;
+}
+
+// Links or items in a property value, one per line.
+.pf-uih-value-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.pf-uih-main {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pf-uih-viewer {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+
+  .pf-split-panel {
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+  }
+}
+
+// A run of consecutive open panes (see UiHierarchyViewer.renderPanes).
+.pf-uih-pane-run {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+}
+
+// A collapsed pane: a thin vertical strip, click to expand.
+.pf-uih-pane-strip {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 24px;
+  padding-top: 8px;
+  cursor: pointer;
+  color: var(--pf-color-text-muted);
+  border-left: 1px solid var(--pf-color-border);
+  border-right: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background-secondary);
+
+  &:hover {
+    color: var(--pf-color-text);
+  }
+
+  .pf-icon {
+    font-size: 14px;
+  }
+
+  &__label {
+    writing-mode: vertical-rl;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
+.pf-uih-pane-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.pf-uih-pane {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
+  background: var(--pf-color-background);
+  box-sizing: border-box;
+
+  .pf-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+
+    article {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 0;
+      min-height: 0;
+      overflow: auto;
+    }
+  }
+}
+
+.pf-uih-canvas-container {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 200px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pf-uih-rects {
+  position: absolute;
+  inset: 0;
+}
+
+.pf-uih-rects-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  outline: none;
+
+  &--dragging {
+    cursor: grabbing;
+  }
+
+  &:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--pf-color-accent);
+  }
+}
+
+.pf-uih-zoom-controls {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px var(--pf-color-box-shadow);
+
+  &__level {
+    min-width: 48px;
+    padding: 0 4px;
+    border: none;
+    background: none;
+    color: var(--pf-color-text);
+    font: inherit;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 2px;
+
+    &:hover {
+      background: var(--pf-color-background-secondary);
+    }
+  }
+}
+
+.pf-uih-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 380px;
+  padding: 8px 10px;
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--pf-color-text);
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px var(--pf-color-box-shadow);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  &__name {
+    font-weight: 600;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    gap: 8px;
+  }
+
+  &__key {
+    color: var(--pf-color-text-muted);
+  }
+
+  &__val {
+    overflow-wrap: anywhere;
+  }
+}
+
+.pf-uih-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0 8px 0;
+}
+
+.pf-uih-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+
+  input[type="range"] {
+    width: 80px;
+    accent-color: var(--pf-color-accent);
+  }
+}
+
+.pf-uih-empty {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--pf-color-text-muted);
+  font-size: 14px;
+}
+
+.pf-uih-muted {
+  color: var(--pf-color-text-muted);
+  font-size: 12px;
+  padding: 8px 0;
+}
+
+// Hierarchy pane --------------------------------------------------------------
+
+.pf-uih-hier-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  &__search {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+.pf-uih-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0;
+}
+
+.pf-uih-tree {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  font-size: 12px;
+
+  // Sized to the widest row (but at least the pane), so every row, and its
+  // hover/selection background, spans the full scrollable width.
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding-right: 8px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: var(--pf-color-background-secondary);
+    }
+
+    &--selected,
+    &--selected:hover {
+      background: color-mix(in srgb, var(--pf-color-accent) 16%, transparent);
+
+      .pf-uih-tree__name {
+        color: var(--pf-color-accent);
+        font-weight: 600;
+      }
+    }
+
+    // Hidden from the layout canvas: dim the row, keep the actions usable.
+    &--hidden > :not(.pf-uih-tree__actions) {
+      opacity: 0.4;
+    }
+  }
+
+  // Row actions appear on hover; a hidden row's eye stays visible.
+  &__actions {
+    display: flex;
+    flex: none;
+
+    .pf-button {
+      visibility: hidden;
+    }
+
+    .pf-button.pf-active,
+    .pf-uih-tree__row:hover & .pf-button {
+      visibility: visible;
+    }
+  }
+
+  &__indent {
+    flex: none;
+    margin-right: -6px; // Cancel the row gap at depth 0.
+  }
+
+  &__caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 2px;
+    color: var(--pf-color-text-muted);
+
+    &:hover {
+      color: var(--pf-color-text);
+      background: var(--pf-color-background-tertiary);
+    }
+
+    &--leaf,
+    &--leaf:hover {
+      background: none;
+    }
+
+    .pf-icon {
+      font-size: 18px;
+    }
+  }
+
+  &__kind {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+
+  &__name {
+    flex: none;
+  }
+
+  &__count {
+    flex: none;
+    padding: 0 5px;
+    line-height: 14px;
+    font-size: 10px;
+    color: var(--pf-color-text-muted);
+    border: 1px solid var(--pf-color-border);
+    border-radius: 7px;
+  }
+
+  // Free-form values are capped and ellipsized inside their own box; the
+  // full value is in the row tooltip and the properties pane.
+  &__text,
+  &__tag {
+    flex: none;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__text {
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__tag {
+    padding: 0 4px;
+    font-family: var(--pf-font-mono);
+    font-size: 10px;
+    line-height: 16px;
+    color: var(--pf-color-accent);
+    background: var(--pf-color-background-secondary);
+    border-radius: 2px;
+  }
+
+  &__meta {
+    flex: none;
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+  }
+
+  // Changes since the previous snapshot.
+  &__diff {
+    flex: none;
+    font-size: 10px;
+
+    &--added {
+      color: var(--pf-color-success);
+    }
+
+    &--changed {
+      color: var(--pf-color-warning);
+    }
+
+    &--removed {
+      color: var(--pf-color-danger);
+    }
+  }
+
+  &__row--removed {
+    cursor: default;
+
+    .pf-uih-tree__name {
+      text-decoration: line-through;
+      color: var(--pf-color-text-muted);
+    }
+  }
+}
+
+// A property value that changed: "old -> new".
+.pf-uih-diff {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+
+  &__old,
+  &__none {
+    color: var(--pf-color-text-muted);
+  }
+
+  &__old {
+    text-decoration: line-through;
+  }
+}
+
+// Properties pane -------------------------------------------------------------
+
+.pf-uih-props-header {
+  margin-bottom: 8px;
+
+  &__name {
+    font-size: 14px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-uih-pane .pf-callout {
+  margin-bottom: 8px;
+}
+
+.pf-uih-copyable {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+
+  &__text {
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+}
+
+.pf-uih-section-title {
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+
+.pf-uih-history {
+  &__item {
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 4px;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+
+    .pf-button {
+      margin-left: auto;
+    }
+  }
+
+  &__version {
+    font-weight: 600;
+  }
+
+  &__changes {
+    margin: 4px 0 0 16px;
+    padding: 0;
+    font-size: 11px;
+    font-family: var(--pf-font-mono);
+    overflow-wrap: anywhere;
+  }
+}
+
+// Used by the events track details panel.
+.pf-uih-props-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+
+  th {
+    text-align: left;
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--pf-color-border);
+    color: var(--pf-color-text-muted);
+    font-size: 11px;
+  }
+
+  td {
+    padding: 5px 6px;
+    border-bottom: 1px solid var(--pf-color-border);
+    vertical-align: top;
+  }
+}
+.pf-uih-code {
+  font-family: var(--pf-font-mono);
+  font-size: 11px;
+}
+
+.pf-uih-keyframe-badge,
+.pf-uih-delta-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.pf-uih-keyframe-badge {
+  background: var(--pf-color-primary);
+  color: var(--pf-color-text-on-primary);
+}
+
+.pf-uih-delta-badge {
+  background: var(--pf-color-success);
+  color: var(--pf-color-text-on-success);
+}

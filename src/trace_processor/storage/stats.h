@@ -646,6 +646,12 @@ namespace perfetto::trace_processor::stats {
   F(winscope_viewcapture_missing_interned_string_parse_errors,                 \
                                           kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "Failed to find interned ViewCapture string."),                          \
+  F(ui_hierarchy_missing_interned_string,                                      \
+                                          kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "Failed to find interned ui_hierarchy string."),                         \
+  F(ui_hierarchy_invalid_transform,                                            \
+                                          kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
+      "ui_hierarchy UiNode.transform did not have exactly 9 values."),        \
   F(winscope_windowmanager_parse_errors, kSingle,   kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "WindowManager state packet has unknown fields, which results "          \
       "in some arguments missing. You may need a newer version of trace "      \

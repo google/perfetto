@@ -1278,6 +1278,100 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/ui_hierarchy_config.proto
+
+// Config for the "android.ui.hierarchy" data source.
+//
+// This data source is emitted from inside app processes (e.g. by the AndroidX
+// ui-tracing-perfetto library) and captures the in-app UI tree: Views and
+// Jetpack Compose nodes, with screen-space bounds, semantics (text, role,
+// state, actions) and code location, for every window of the process.
+//
+// Unset/0 fields use the producer's default.
+message UiHierarchyConfig {
+  // How user-visible strings are captured.
+  enum TextMode {
+    // Same as TEXT_MODE_REDACT_SENSITIVE.
+    TEXT_MODE_UNSPECIFIED = 0;
+    // Capture all text, but mask sensitive fields (passwords, views marked
+    // content-sensitive) as "•••• (len=N)". Default.
+    TEXT_MODE_REDACT_SENSITIVE = 1;
+    // Capture no user-visible strings. Structure, bounds, roles and flags are
+    // still captured; text is replaced by its length.
+    TEXT_MODE_REDACT_ALL = 2;
+    // Capture everything, including passwords. The app can cap this (e.g.
+    // release builds default to TEXT_MODE_REDACT_SENSITIVE unless opted in);
+    // the effective mode is reported in the trace.
+    TEXT_MODE_INCLUDE_ALL = 3;
+  }
+
+  // Minimum interval between two captures of the same window. 0 (default) =
+  // capture every frame the window draws: no drawn state is ever missed.
+  // Captures skipped because of this (or because of producer backpressure)
+  // are reported via UiWindow.skipped_frames.
+  optional uint32 min_interval_ms = 1;
+
+  // Interval at which full snapshots (keyframes) are emitted. Between
+  // keyframes only deltas are emitted. Keyframes keep ring-buffer traces
+  // decodable. 0 = producer default (1000 ms).
+  optional uint32 keyframe_interval_ms = 2;
+
+  optional TextMode text_mode = 3;
+
+  // Don't emit plain Android View nodes (only Compose content).
+  optional bool disable_views = 4;
+
+  // Emit the composition tree (composable names, source locations,
+  // layout-only nodes) when the app has it available.
+  optional bool include_composition = 5;
+
+  // Emit modifiers / View properties as generic key/value pairs.
+  optional bool include_modifiers = 6;
+
+  // Emit text layout details (overflow, line count, font size, color).
+  optional bool include_text_layout = 7;
+
+  // Emit a UiHierarchyEvents stream with every recomposition scope
+  // (enter/exit), the state object that invalidated it, scope disposal and
+  // every snapshot state apply. Compose only.
+  optional bool include_recomposition_events = 8;
+
+  // Emit every composable function call (begin/end, name, source location,
+  // changed-parameter bits) via the Compose composition tracer. High volume.
+  // Requires the app not to strip composition tracing (isTraceInProgress) in
+  // release builds.
+  optional bool include_composable_calls = 9;
+
+  // With include_recomposition_events: also emit which state objects each
+  // scope reads (the full dependency graph). High volume.
+  optional bool include_state_reads = 10;
+
+  // The options below need the compose tracing hooks (compose runtime / ui /
+  // animation / foundation versions that ship them). Every event is recorded;
+  // nothing is sampled. Drops (buffer overflow) are reported explicitly.
+
+  // Frames, applyChanges, remember/forget (effects), side effects, and
+  // individual global state writes.
+  optional bool include_runtime_events = 11;
+  // Layout node insert / remove / move / attach / detach / modifier changes
+  // and semantics changes.
+  optional bool include_tree_events = 12;
+  // Measure / layout / draw invalidations.
+  optional bool include_invalidations = 13;
+  // Per-node measure / place / draw slices (high volume).
+  optional bool include_layout_passes = 14;
+  // Pointer, key and focus events.
+  optional bool include_input = 15;
+  // Animation start / every frame / end, and Transition state changes.
+  optional bool include_animations = 16;
+  // Scroll deltas and lazy layout item compose / dispose / prefetch.
+  optional bool include_foundation_events = 17;
+  // Convenience: enable everything above (and 8-10).
+  optional bool include_everything = 18;
+}
+
+// End of protos/perfetto/config/android/ui_hierarchy_config.proto
+
 // Begin of protos/perfetto/config/android/user_list_config.proto
 
 // Data source that lists details (such as version code) about users on an
@@ -4896,7 +4990,7 @@ message TrackEventConfig {
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 147
+// Next id: 148
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5149,6 +5243,9 @@ message DataSourceConfig {
 
   // Data source name: linux.smaps
   optional ProcessSmapsConfig process_smaps_config = 146 [lazy = true];
+
+  // Data source name: android.ui.hierarchy
+  optional UiHierarchyConfig ui_hierarchy_config = 147 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -6826,6 +6923,363 @@ message RecoveredTraceInfo {
 }
 
 // End of protos/perfetto/trace/android/recovered_trace_info.proto
+
+// Begin of protos/perfetto/trace/android/ui_hierarchy.proto
+
+// A capture of the in-app UI tree of one process, emitted by the
+// "android.ui.hierarchy" data source (see UiHierarchyConfig).
+//
+// Views and Jetpack Compose nodes are represented in a single tree per window.
+// All strings are interned (InternedData.ui_strings) on the packet sequence.
+//
+// Keyframes and deltas:
+//  - A keyframe (is_keyframe = true) contains the full tree of every window
+//    of the process. Windows not present in a keyframe no longer exist.
+//  - A delta contains, per changed window, only the added or changed nodes
+//    (always as full UiNode records) and the ids of removed nodes. Windows
+//    not mentioned in a delta are unchanged.
+//  - A delta always applies to the state resulting from the previous packet on
+//    the same sequence. Producers emit a keyframe whenever the incremental
+//    state is cleared, so readers can drop deltas until the next keyframe.
+message UiHierarchySnapshot {
+  // Choreographer vsync id of the frame this capture belongs to, if known.
+  // Joins with FrameTimeline, SurfaceFlinger and video frames.
+  optional int64 vsync_id = 1;
+
+  optional bool is_keyframe = 2;
+
+  repeated UiWindow windows = 3;
+
+  // Effective UiHierarchyConfig.TextMode used for this capture.
+  optional int32 effective_text_mode = 4;
+}
+
+message UiWindow {
+  // Stable id of the window root for the lifetime of the process.
+  optional int64 id = 1;
+
+  // Window title, e.g. "com.example/com.example.MainActivity", matching
+  // WindowManager / SurfaceFlinger naming when possible.
+  optional uint64 title_iid = 2;
+
+  optional int32 display_id = 3;
+
+  // Window bounds in screen coordinates (pixels).
+  optional int32 left = 4;
+  optional int32 top = 5;
+  optional int32 right = 6;
+  optional int32 bottom = 7;
+
+  optional bool has_focus = 8;
+
+  // Deltas only: the window was removed.
+  optional bool removed = 9;
+
+  // Keyframes: all nodes. Deltas: added or changed nodes.
+  repeated UiNode nodes = 10;
+
+  // Deltas only: nodes removed since the previous capture.
+  repeated int64 removed_node_ids = 11;
+  // Number of times this window has drawn since the data source started
+  // (monotonic, counts draws that were not captured too).
+  optional uint64 frame_number = 12;
+  // Draws of this window since its previous UiWindow message that were not
+  // captured (throttling or backpressure). 0 means no drawn state was missed.
+  optional uint32 skipped_frames = 13;
+  // Choreographer vsync id of the frame this window record was drawn in.
+  // Joins with FrameTimeline (actual_frame_timeline_slice / android_frames).
+  optional int64 vsync_id = 14;
+  // WindowManager.LayoutParams.type.
+  optional int32 window_type = 15;
+}
+
+message UiNode {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    // A regular android.view.View.
+    KIND_VIEW = 1;
+    // The Android View hosting Compose content (AndroidComposeView).
+    KIND_COMPOSE_VIEW = 2;
+    // A Compose node (LayoutNode / semantics node).
+    KIND_COMPOSE_NODE = 3;
+    // A composable function call (group) from the composition tree.
+    KIND_COMPOSABLE = 4;
+    // A non-semantics Compose LayoutNode with visual modifiers.
+    KIND_COMPOSE_LAYOUT = 5;
+  }
+
+  // Bitmask values for |flags|.
+  enum Flag {
+    FLAG_NONE = 0;
+    FLAG_VISIBLE = 1;
+    FLAG_ENABLED = 2;
+    FLAG_CLICKABLE = 4;
+    FLAG_LONG_CLICKABLE = 8;
+    FLAG_FOCUSABLE = 16;
+    FLAG_FOCUSED = 32;
+    FLAG_SELECTED = 64;
+    FLAG_CHECKABLE = 128;
+    FLAG_CHECKED = 256;
+    FLAG_EDITABLE = 512;
+    FLAG_PASSWORD = 1024;
+    FLAG_SCROLLABLE = 2048;
+    FLAG_HEADING = 4096;
+    FLAG_INVISIBLE_TO_USER = 8192;
+    FLAG_MERGES_DESCENDANTS = 16384;
+    FLAG_TEXT_OVERFLOW = 32768;
+    FLAG_CLIPS_CHILDREN = 65536;
+    FLAG_TEXT_REDACTED = 131072;
+    FLAG_ACCESSIBILITY_FOCUSED = 262144;
+    // View.GONE (takes no space; FLAG_VISIBLE unset also covers INVISIBLE).
+    FLAG_GONE = 524288;
+    // View.willNotDraw().
+    FLAG_WILL_NOT_DRAW = 1048576;
+  }
+
+  // Stable id within the window across captures (View uniqueDrawingId,
+  // Compose semantics id, ...).
+  optional int64 id = 1;
+  // 0 / unset for the window root.
+  optional int64 parent_id = 2;
+  // Position among siblings in drawing order.
+  optional int32 index = 3;
+
+  optional Kind kind = 4;
+
+  // View class name or composable / Compose node name.
+  optional uint64 name_iid = 5;
+  // Source location, e.g. "Cart.kt:42" (Compose, when available).
+  optional uint64 source_location_iid = 6;
+
+  // Geometry is recorded as the independent basis only: the node's placement
+  // relative to its parent and its size. Screen bounds are derived by the
+  // trace processor by composing transforms up the tree (so moving / scrolling
+  // a parent re-emits only the parent). Fields 7-10 (screen AABB) and 23-27
+  // (decomposed transforms) are intentionally not recorded.
+  reserved 7, 8, 9, 10, 20, 21, 23, 24, 25, 26, 27;
+
+  // Offset of this node's origin in its parent's coordinate space (px), i.e.
+  // the translation of the local->parent transform. For a window root: offset
+  // within the window.
+  optional float x = 35;
+  optional float y = 36;
+  // Measured / laid-out size (px), before transforms.
+  optional int32 width = 37;
+  optional int32 height = 38;
+  // Full local->parent 3x3 matrix (row-major, 9 floats), only when it is not a
+  // pure translation (scale, rotation, skew, perspective from View properties
+  // or graphicsLayer). When set, x/y are ignored.
+  repeated float transform = 39 [packed = true];
+
+  optional float alpha = 11;
+  optional uint64 flags = 12;
+
+  optional uint64 text_iid = 13;
+  optional uint64 content_description_iid = 14;
+  // Compose testTag or View resource entry name ("R.id.foo" -> "foo").
+  optional uint64 test_tag_iid = 15;
+  // Compose Role / accessibility class name.
+  optional uint64 role_iid = 16;
+  optional uint64 state_description_iid = 17;
+  // Available actions, e.g. "OnClick", "ScrollBy", "SetText".
+  repeated uint64 action_iids = 18;
+
+  // Any other properties (semantics properties, modifiers, View properties).
+  repeated UiProperty properties = 19;
+
+  optional float elevation = 22;
+
+  // Scroll offset in px (View scrollX/Y). State, not geometry: children
+  // offsets already include it.
+  optional int32 scroll_x = 28;
+  optional int32 scroll_y = 29;
+  // Lookahead (target) placement relative to the parent and size, while a
+  // LookaheadScope / shared-element transition animates towards it.
+  optional int32 lookahead_x = 30;
+  optional int32 lookahead_y = 31;
+  optional int32 lookahead_width = 32;
+  optional int32 lookahead_height = 33;
+  // System.identityHashCode of the View (matches ViewCapture / dumpsys).
+  optional int32 hashcode = 34;
+
+  // Drawn and clipped rect in window px: [left, top, right, bottom]. Empty
+  // (0, 0, 0, 0) when the node does not draw (not VISIBLE or fully clipped).
+  repeated int32 clip_bounds = 40 [packed = true];
+  // Window-global paint order (pre-order, children sorted by Z / zIndex).
+  optional int32 draw_order = 41;
+  // View.getZ() (elevation + translationZ) or Compose effective
+  // zIndex/elevation.
+  optional float z = 42;
+}
+
+message UiProperty {
+  optional uint64 name_iid = 1;
+  optional uint64 value_iid = 2;
+}
+
+// Stream of Compose runtime events that happen between frames, emitted by the
+// same producer as UiHierarchySnapshot (TracePacket.ui_hierarchy_events).
+// Events are batched; each carries an absolute timestamp in the packet's
+// clock domain.
+message UiHierarchyEvents {
+  repeated UiEvent events = 1;
+}
+
+message UiEvent {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    // A composition pass of one composition (slice).
+    TYPE_COMPOSITION = 1;
+    // A recompose scope executed (slice). scope_id, name_iid when known.
+    TYPE_SCOPE = 2;
+    // A scope was invalidated. state_id/value_iid = the invalidating state
+    // object (unset if invalidated via RecomposeScope.invalidate()).
+    TYPE_SCOPE_INVALIDATED = 3;
+    // A scope left the composition for good.
+    TYPE_SCOPE_DISPOSED = 4;
+    // A snapshot state object was changed by a snapshot apply.
+    TYPE_STATE_CHANGED = 5;
+    // A scope recorded a read of a state object.
+    TYPE_STATE_READ = 6;
+    // A composable function call (slice). name_iid = "fn (File.kt:line)".
+    TYPE_COMPOSABLE_CALL = 7;
+
+    // --- Runtime (requires compose runtime tracing hooks) ---
+    // A Recomposer frame (slice): withFrameNanos awaiters (animations) run,
+    // then recomposition, then applyChanges. frame_time_ns set.
+    TYPE_FRAME = 8;
+    // Applying recorded changes of one composition to the tree (slice).
+    TYPE_APPLY_CHANGES = 9;
+    // A RememberObserver entered the composition (onRemembered). name_iid =
+    // class (e.g. LaunchedEffectImpl, DisposableEffectImpl), scope_id =
+    // enclosing scope, object_id = identity.
+    TYPE_REMEMBERED = 10;
+    // A RememberObserver left the composition (onForgotten / onAbandoned;
+    // action = 1 for abandoned).
+    TYPE_FORGOTTEN = 11;
+    // A SideEffect ran.
+    TYPE_SIDE_EFFECT = 12;
+    // A single state write outside of any mutable snapshot (global write),
+    // delivered at write time, before apply. state_id/value_iid.
+    TYPE_STATE_WRITE = 13;
+
+    // Only independent facts are recorded; anything derivable from other
+    // events or from the per-frame snapshots is not (attach/detach follow from
+    // insert/remove, modifier/semantics/focus changes from snapshot diffs,
+    // transition frames from its child animation frames).
+    reserved 23, 24, 25, 34, 42, 54;
+
+    // --- UI tree (requires compose ui tracing hooks) ---
+    // node_id inserted into parent_id at index. name_iid = node kind.
+    TYPE_NODE_INSERTED = 20;
+    // node_id removed from parent_id (was at index).
+    TYPE_NODE_REMOVED = 21;
+    // node_id moved within parent_id from from_index to index.
+    TYPE_NODE_MOVED = 22;
+    // Invalidations requested on node_id. name_iid = reason when known.
+    TYPE_INVALIDATE_MEASURE = 26;
+    TYPE_INVALIDATE_LAYOUT = 27;
+    TYPE_INVALIDATE_DRAW = 28;
+    // Measure of node_id (slice). min/max constraints + resulting size.
+    TYPE_MEASURE = 29;
+    // Placement of node_id (slice). x/y = position in parent.
+    TYPE_PLACE = 30;
+    // Draw of node_id (slice).
+    TYPE_DRAW = 31;
+    // Owner-level measureAndLayout pass (slice). window_id set.
+    TYPE_MEASURE_AND_LAYOUT = 32;
+    // Owner-level draw pass (slice). window_id set.
+    TYPE_OWNER_DRAW = 33;
+
+    // --- Input (requires compose ui tracing hooks) ---
+    // A pointer event dispatched. action = PointerEventType, pointer_id,
+    // x/y in window px, node_id = first hit node, value_iid = hit path.
+    // consumed = whether any node consumed it.
+    TYPE_POINTER_INPUT = 40;
+    // A key event dispatched. action = key action, value_iid = key.
+    TYPE_KEY_INPUT = 41;
+
+    // --- Animation (requires compose animation tracing hooks) ---
+    // An animation started. object_id = animation id, name_iid = label,
+    // value_iid = "initial -> target", spec_iid = animation spec.
+    TYPE_ANIMATION_START = 50;
+    // One animation frame. object_id, value_iid = current value,
+    // play_time_ns. For Transition child animations parent_id = transition
+    // object_id.
+    TYPE_ANIMATION_FRAME = 51;
+    // An animation ended. action = AnimationEndReason (0 finished,
+    // 1 bounds reached, 2 cancelled/interrupted).
+    TYPE_ANIMATION_END = 52;
+    // A Transition changed target state. object_id = transition id,
+    // name_iid = label, value_iid = "current -> target".
+    TYPE_TRANSITION_STATE = 53;
+
+    // --- Foundation (requires compose foundation tracing hooks) ---
+    // A scroll delta dispatched on node_id. delta = requested,
+    // consumed_delta = consumed, action = source (drag, fling, wheel,
+    // programmatic, nested).
+    TYPE_SCROLL = 60;
+    // A lazy layout item was composed / disposed / prefetched. index,
+    // value_iid = key.
+    TYPE_LAZY_ITEM_COMPOSED = 61;
+    TYPE_LAZY_ITEM_DISPOSED = 62;
+    TYPE_LAZY_ITEM_PREFETCHED = 63;
+  }
+  optional Type type = 1;
+  optional int64 ts = 2;
+  // For slice types.
+  optional int64 dur = 3;
+  // Composable / scope name, or state object description.
+  optional uint64 name_iid = 4;
+  optional int64 scope_id = 5;
+  optional int64 state_id = 6;
+  // Value / description of the state object (subject to text_mode).
+  optional uint64 value_iid = 7;
+  // Nesting depth for TYPE_COMPOSABLE_CALL / TYPE_SCOPE.
+  optional uint32 depth = 8;
+  // Compose compiler $changed bits for TYPE_COMPOSABLE_CALL.
+  optional int64 dirty1 = 9;
+  optional int64 dirty2 = 10;
+  optional int64 composition_id = 11;
+  optional int32 tid = 12;
+
+  // Layout node id (== UiNode.id of the corresponding snapshot node, i.e.
+  // the LayoutNode semantics id).
+  optional int64 node_id = 13;
+  // Parent layout node id (tree events), or the parent Transition object_id
+  // (TYPE_ANIMATION_FRAME / START / END of a Transition child animation).
+  optional int64 parent_id = 14;
+  optional int32 index = 15;
+  optional int32 from_index = 16;
+  // Position (px). For TYPE_PLACE: in parent; for input: in window.
+  optional float x = 17;
+  optional float y = 18;
+  optional int32 width = 19;
+  optional int32 height = 20;
+  // Measure constraints for TYPE_MEASURE (max = -1 means unbounded).
+  optional int32 min_width = 21;
+  optional int32 max_width = 22;
+  optional int32 min_height = 23;
+  optional int32 max_height = 24;
+  // Identity of an animation / transition / remember observer.
+  optional int64 object_id = 25;
+  optional int64 frame_time_ns = 26;
+  optional int64 play_time_ns = 27;
+  optional int32 pointer_id = 28;
+  // Type-specific action / reason code (see Type docs).
+  optional int32 action = 29;
+  optional bool consumed = 30;
+  optional float delta = 31;
+  optional float consumed_delta = 32;
+  optional uint64 spec_iid = 33;
+  optional int32 window_id = 34;
+  // MotionEvent/KeyEvent id (API 29+ getId()); joins android_input_events.
+  optional int32 input_event_id = 35;
+  // Lookahead measure / place pass.
+  optional bool is_lookahead = 36;
+}
+
+// End of protos/perfetto/trace/android/ui_hierarchy.proto
 
 // Begin of protos/perfetto/trace/android/user_list.proto
 
@@ -15758,7 +16212,7 @@ message EventName {
 // Note: field IDs up to 15 should be used for frequent data only.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 51.
+// Next id: 53.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -15809,6 +16263,9 @@ message InternedData {
   repeated StackSample.CounterDescriptor stack_sample_counter_descriptors = 50;
   repeated StackSample.AsyncContextDescriptor
       stack_sample_async_context_descriptors = 51;
+
+  // Strings referenced by UiHierarchySnapshot (*_iid fields).
+  repeated InternedString ui_strings = 52;
 
   //
   // == UNSTABLE / CONTEXT-SPECIFIC FIELDS ==
@@ -18355,7 +18812,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 139.
+// Next id: 141.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18537,6 +18994,11 @@ message TracePacket {
     // Injected into TracePacket by perfetto post-reboot recovery to record
     // recovered trace metadata.
     RecoveredTraceInfo recovered_trace_info = 138;
+
+    // In-app UI tree (Views + Compose) from the "android.ui.hierarchy" data
+    // source.
+    UiHierarchySnapshot ui_hierarchy = 139;
+    UiHierarchyEvents ui_hierarchy_events = 140;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

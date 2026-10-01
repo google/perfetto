@@ -84,6 +84,7 @@
       - [Android Game Interventions](data-sources/android-game-intervention-list.md) {.tag-android}
       - [Android Aflags](data-sources/android-aflags.md) {.tag-android}
       - [Screen Recording](data-sources/video-frames.md) {.tag-android}
+      - [UI Hierarchy](data-sources/ui-hierarchy.md) {.tag-android}
 
   - [Tracing SDK](#)
 
@@ -129,6 +130,7 @@
 
     - [Merging traces from the command line](analysis/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Trace Summarization](analysis/trace-summary.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+    - [UI Hierarchy Analysis](analysis/ui-hierarchy.md) {.tag-android}
     - [Converting from Perfetto](quickstart/traceconv.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome}
 
   - [FAQ](faq.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}

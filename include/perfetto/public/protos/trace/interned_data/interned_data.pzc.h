@@ -138,6 +138,11 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   51);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
+                  perfetto_protos_InternedString,
+                  ui_strings,
+                  52);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
                   perfetto_protos_SourceLocation,
                   source_locations,
                   4);
