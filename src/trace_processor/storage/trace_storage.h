@@ -44,6 +44,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/types/destructible.h"
+#include "src/trace_processor/types/trace_parser_options.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
@@ -103,9 +104,32 @@ static constexpr uint32_t kDefaultMachineId = 0;
 // names for a given CPU).
 class TraceStorage {
  public:
-  explicit TraceStorage(const Config& = Config());
+  TraceStorage();
+  explicit TraceStorage(const TraceParserOptions&);
 
   virtual ~TraceStorage();
+
+  // The factory and sinks are embedder-owned. Install before parsing starts;
+  // sinks observe all inserts and later updates, including generic args writes.
+  using TableSinkFactory =
+      std::function<dataframe::Dataframe::Sink*(const char*)>;
+  void SetTableSinks(const TableSinkFactory&, bool drop_unread_columns = false);
+  // Applies the same policy to plugin-owned tables when they are registered.
+  void ConfigureTableOutput(dataframe::Dataframe*, const char* name);
+
+  // Publish an ftrace CPU's earliest incomplete sched row. Unique CPU IDs make
+  // these pins shared across machine contexts using this storage.
+  dataframe::Dataframe* FindDataframeForOutput(const char*);
+  void EnableFtraceStreaming();
+
+  void AdvanceFtraceSchedFrontier(uint32_t ucpu,
+                                  uint32_t row,
+                                  uint32_t batch_rows);
+
+  void AdvanceFtraceThreadStateStorageFrontier(uint32_t batch_rows);
+  void AdvanceSliceStorageFrontier(uint32_t batch_rows);
+  void AdvanceArgsStorageFrontier();
+  void AdvanceCounterStorageFrontier();
 
   class VirtualTrackSlices {
    public:
@@ -1139,6 +1163,8 @@ class TraceStorage {
   void set_has_android_video_frames() { has_android_video_frames_ = true; }
 
  private:
+  std::vector<bool> TableRetentionMask(dataframe::Dataframe*,
+                                       const char*) const;
   using StringHash = uint64_t;
 
   TraceStorage(const TraceStorage&) = delete;
@@ -1146,6 +1172,14 @@ class TraceStorage {
 
   // See has_android_video_frames().
   bool has_android_video_frames_ = false;
+  TableSinkFactory table_sink_factory_;
+  bool drop_unread_columns_ = false;
+  bool ftrace_sched_sink_only_ = false;
+  bool slice_args_sink_only_ = false;
+  bool counter_sink_only_ = false;
+  uint32_t streaming_batch_rows_ = 1024;
+  std::map<uint32_t, uint32_t> ftrace_sched_frontiers_;
+  uint32_t sched_frontier_last_check_ = 0;
 
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;

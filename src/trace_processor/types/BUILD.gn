@@ -23,6 +23,7 @@ source_set("types") {
     "task_state.h",
     "tcp_state.h",
     "trace_manifest_state.h",
+    "trace_parser_options.h",
     "trace_processor_context.h",
     "trace_processor_context_ptr.h",
     "variadic.h",

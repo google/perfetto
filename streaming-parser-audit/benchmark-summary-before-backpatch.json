@@ -1,0 +1,71 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "baseline": "Full storage, same release binary; not an unmodified-checkout overhead comparison",
+  "methodology": "5 fresh processes per mode/workload, alternating mode order; ru_utime+ru_stime, macOS ru_maxrss bytes; no SQL engine; globally ordered synthetic input; raw ftrace table disabled; 1MiB forced-sorter flushes; checksum sinks do not store output",
+  "results": [
+    {
+      "workload": "moving",
+      "mode": "full",
+      "cpu_s": 0.246553,
+      "wall_s": 0.2496527500000001,
+      "peak_rss_mib": 195.65625,
+      "sched_frontier": 0
+    },
+    {
+      "workload": "moving",
+      "mode": "sink",
+      "cpu_s": 0.37261,
+      "wall_s": 0.375773583,
+      "peak_rss_mib": 195.6875,
+      "sched_frontier": 0
+    },
+    {
+      "workload": "moving",
+      "mode": "drop",
+      "cpu_s": 0.373599,
+      "wall_s": 0.37652462500000006,
+      "peak_rss_mib": 187.703125,
+      "sched_frontier": 0
+    },
+    {
+      "workload": "moving",
+      "mode": "frontier",
+      "cpu_s": 0.371955,
+      "wall_s": 0.3747147080000004,
+      "peak_rss_mib": 152.484375,
+      "sched_frontier": 999420
+    },
+    {
+      "workload": "pinned",
+      "mode": "full",
+      "cpu_s": 0.24445,
+      "wall_s": 0.2475118329999999,
+      "peak_rss_mib": 195.75,
+      "sched_frontier": 0
+    },
+    {
+      "workload": "pinned",
+      "mode": "sink",
+      "cpu_s": 0.379187,
+      "wall_s": 0.382198583000001,
+      "peak_rss_mib": 195.8125,
+      "sched_frontier": 0
+    },
+    {
+      "workload": "pinned",
+      "mode": "drop",
+      "cpu_s": 0.37214,
+      "wall_s": 0.37530229199999976,
+      "peak_rss_mib": 191.796875,
+      "sched_frontier": 0
+    },
+    {
+      "workload": "pinned",
+      "mode": "frontier",
+      "cpu_s": 0.373834,
+      "wall_s": 0.3767883749999985,
+      "peak_rss_mib": 191.734375,
+      "sched_frontier": 0
+    }
+  ]
+}

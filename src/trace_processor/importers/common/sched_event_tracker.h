@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_TRACKER_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -52,17 +53,17 @@ class SchedEventTracker : public Destructible {
     auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
     auto row_and_id = sched->Insert(
         {ts, /* duration */ -1, next_utid, kNullStringId, next_prio, ucpu});
-    SchedId sched_id = row_and_id.id;
-    return (*sched)[sched_id].ToRowNumber().row_number();
+    return row_and_id.row_number.row_number();
   }
 
   PERFETTO_ALWAYS_INLINE
   void ClosePendingSlice(uint32_t pending_slice_idx,
                          int64_t ts,
-                         StringId prev_state) {
+                         StringId prev_state,
+                         std::optional<int64_t> start_ts = std::nullopt) {
     auto* slices = context_->storage->mutable_sched_slice_table();
     auto r = (*slices)[pending_slice_idx];
-    r.set_dur(ts - r.ts());
+    r.set_dur(ts - (start_ts ? *start_ts : r.ts()));
     r.set_end_state(prev_state);
   }
 

@@ -1,0 +1,64 @@
+[==========] Running 30 tests.
+[ RUN      ] JsonParser:args_ordered
+[       OK ] JsonParser:args_ordered (ingest: 145.14 ms query: 0.19 ms)
+[ RUN      ] JsonParser:invalid_string_ts_and_dur
+[       OK ] JsonParser:invalid_string_ts_and_dur (ingest: 125.83 ms query: 0.08 ms)
+[ RUN      ] JsonParser:json_extreme_vals
+[       OK ] JsonParser:json_extreme_vals (ingest: 146.92 ms query: 3.90 ms)
+[ RUN      ] JsonParser:json_async
+[       OK ] JsonParser:json_async (ingest: 155.56 ms query: 6.26 ms)
+[ RUN      ] JsonParser:json_counter_args
+[       OK ] JsonParser:json_counter_args (ingest: 186.76 ms query: 0.28 ms)
+[ RUN      ] JsonParser:json_all_slice_types
+[       OK ] JsonParser:json_all_slice_types (ingest: 151.66 ms query: 38.52 ms)
+[ RUN      ] JsonParser:json_flow
+[       OK ] JsonParser:json_flow (ingest: 178.54 ms query: 61.28 ms)
+[ RUN      ] JsonParser:json_id2
+[       OK ] JsonParser:json_id2 (ingest: 151.59 ms query: 52.06 ms)
+[ RUN      ] JsonParser:json_id2_global_int_id
+[       OK ] JsonParser:json_id2_global_int_id (ingest: 217.47 ms query: 0.23 ms)
+[ RUN      ] JsonParser:json_id2_local_int_id
+[       OK ] JsonParser:json_id2_local_int_id (ingest: 174.06 ms query: 0.20 ms)
+[ RUN      ] JsonParser:json_id2_global_string_id
+[       OK ] JsonParser:json_id2_global_string_id (ingest: 187.41 ms query: 0.19 ms)
+[ RUN      ] JsonParser:json_incomplete
+[       OK ] JsonParser:json_incomplete (ingest: 163.53 ms query: 0.19 ms)
+[ RUN      ] JsonParser:json_pid_tid_zero
+[       OK ] JsonParser:json_pid_tid_zero (ingest: 108.45 ms query: 0.23 ms)
+[ RUN      ] JsonParser:json_id2_local_string_id
+[       OK ] JsonParser:json_id2_local_string_id (ingest: 199.04 ms query: 0.34 ms)
+[ RUN      ] JsonParser:json_metadata
+[       OK ] JsonParser:json_metadata (ingest: 136.04 ms query: 27.45 ms)
+[ RUN      ] JsonParser:json_metadata_missing_or_invalid_ts
+[       OK ] JsonParser:json_metadata_missing_or_invalid_ts (ingest: 213.92 ms query: 0.26 ms)
+[ RUN      ] JsonParser:json_sort_index_hints
+[       OK ] JsonParser:json_sort_index_hints (ingest: 157.04 ms query: 0.31 ms)
+[ RUN      ] JsonParser:json_thread_state_sched
+[       OK ] JsonParser:json_thread_state_sched (ingest: 170.83 ms query: 1.16 ms)
+[ RUN      ] JsonParser:json_thread_state
+[       OK ] JsonParser:json_thread_state (ingest: 176.98 ms query: 0.29 ms)
+[ RUN      ] JsonParser:json_sort_index_ordering
+[       OK ] JsonParser:json_sort_index_ordering (ingest: 184.88 ms query: 0.37 ms)
+[ RUN      ] JsonParser:json_trailing_comma
+[       OK ] JsonParser:json_trailing_comma (ingest: 136.91 ms query: 0.10 ms)
+[ RUN      ] JsonParser:json_trace_metadata
+[       OK ] JsonParser:json_trace_metadata (ingest: 165.67 ms query: 0.41 ms)
+[ RUN      ] JsonParser:overlapping_complete_event_import_log
+[       OK ] JsonParser:overlapping_complete_event_import_log (ingest: 136.78 ms query: 3.62 ms)
+[ RUN      ] JsonParser:overlapping_complete_event_recovered
+[       OK ] JsonParser:overlapping_complete_event_recovered (ingest: 193.55 ms query: 0.21 ms)
+[ RUN      ] JsonParser:trailing_empty_event
+[       OK ] JsonParser:trailing_empty_event (ingest: 99.55 ms query: 0.15 ms)
+[ RUN      ] JsonParser:string_ts_and_dur
+[       OK ] JsonParser:string_ts_and_dur (ingest: 115.54 ms query: 0.21 ms)
+[ RUN      ] JsonParser:x_event_order
+[       OK ] JsonParser:x_event_order (ingest: 107.38 ms query: 0.12 ms)
+[ RUN      ] JsonParser:string_tts_and_tdur
+[       OK ] JsonParser:string_tts_and_tdur (ingest: 89.06 ms query: 0.12 ms)
+[ RUN      ] JsonParser:string_ts_trailing_chars
+[       OK ] JsonParser:string_ts_trailing_chars (ingest: 149.90 ms query: 0.08 ms)
+[ RUN      ] JsonParser:string_pid_tid
+[       OK ] JsonParser:string_pid_tid (ingest: 125.35 ms query: 0.22 ms)
+[==========] Name filter selected 30 tests out of 1663.
+[==========] 30 tests ran out of 30 total. (1577 ms total)
+[  PASSED  ] 30 tests.

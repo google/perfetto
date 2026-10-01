@@ -37,6 +37,7 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   explicit TraceProcessorStorageImpl(
       const Config&,
       TraceProcessor_PlatformInterface* = nullptr);
+  explicit TraceProcessorStorageImpl(const TraceParserOptions&);
   ~TraceProcessorStorageImpl() override;
 
   base::Status Parse(TraceBlobView) override;

@@ -56,6 +56,8 @@ struct TableInitParams {
   uint32_t column_count;
   const char* const* column_names;
   const dataframe::ColumnSpec* column_specs;
+  const bool* retained_columns;
+  const char* name;
 };
 
 template <class Variant, class T>
@@ -65,7 +67,7 @@ template <class T, class... Ts>
 struct table_init_params<std::variant<Ts...>, T> {
   static constexpr std::array<TableInitParams, sizeof...(Ts)> value = {
       {{decltype(Ts::kSpec)::kColumnCount, Ts::kSpec.column_names.data(),
-        Ts::kSpec.column_specs.data()}...}};
+        Ts::kSpec.column_specs.data(), Ts::kRetainedColumns, Ts::Name()}...}};
 };
 
 // Array of initialization parameters for all tables, in the same order as
@@ -80,17 +82,169 @@ static_assert(
 
 }  // namespace
 
-TraceStorage::TraceStorage(const Config&) {
+dataframe::Dataframe* TraceStorage::FindDataframeForOutput(const char* name) {
+  for (size_t i = 0; i < tables::kTableCount; ++i) {
+    if (strcmp(kTableInitParams[i].name, name) == 0)
+      return reinterpret_cast<dataframe::Dataframe*>(
+          &tables_storage_[i * sizeof(dataframe::Dataframe)]);
+  }
+  return nullptr;
+}
+
+void TraceStorage::EnableFtraceStreaming() {
+  if (ftrace_sched_sink_only_)
+    return;
+  ftrace_sched_sink_only_ = true;
+  for (const char* name :
+       {tables::SchedSliceTable::Name(), tables::ThreadStateTable::Name()}) {
+    auto* df = FindDataframeForOutput(name);
+    PERFETTO_CHECK(df && df->row_count() == 0);
+    df->ConfigureStreaming(
+        table_sink_factory_ ? table_sink_factory_(name) : nullptr,
+        TableRetentionMask(df, name));
+  }
+}
+
+void TraceStorage::AdvanceFtraceSchedFrontier(uint32_t ucpu,
+                                              uint32_t row,
+                                              uint32_t batch_rows) {
+  PERFETTO_CHECK(batch_rows > 0);
+  auto* table = mutable_sched_slice_table();
+  PERFETTO_CHECK(table->dataframe().streaming_configured());
+  auto [it, inserted] = ftrace_sched_frontiers_.emplace(ucpu, row);
+  PERFETTO_CHECK(inserted || row >= it->second);
+  it->second = row;
+  if (table->row_count() - sched_frontier_last_check_ < batch_rows)
+    return;
+  sched_frontier_last_check_ = table->row_count();
+  uint32_t frontier = table->row_count();
+  for (const auto& pin : ftrace_sched_frontiers_)
+    frontier = std::min(frontier, pin.second);
+  // CPU state supplies the start timestamp; no sched values need local reads.
+  // Completion still waits for every CPU, while storage can pass open rows.
+  table->DropRowsBefore(table->row_count());
+  table->dataframe().AdvanceCompletionFrontier(frontier);
+}
+
+void TraceStorage::AdvanceFtraceThreadStateStorageFrontier(
+    uint32_t batch_rows) {
+  PERFETTO_CHECK(batch_rows > 0);
+  auto* table = mutable_thread_state_table();
+  if (table->row_count() - table->dataframe().first_retained_row() >=
+      batch_rows)
+    table->DropRowsBefore(table->row_count());
+  // Sleeping threads and late blocked-reason patches keep completion separate.
+  // This prototype makes no premature completion promise for thread states.
+}
+
+void TraceStorage::AdvanceSliceStorageFrontier(uint32_t batch_rows) {
+  PERFETTO_CHECK(batch_rows > 0);
+  auto* table = mutable_slice_table();
+  if (table->row_count() - table->dataframe().first_retained_row() >=
+      batch_rows)
+    table->DropRowsBefore(table->row_count());
+}
+
+void TraceStorage::AdvanceArgsStorageFrontier() {
+  if (!slice_args_sink_only_)
+    return;
+  PERFETTO_CHECK(streaming_batch_rows_ > 0);
+  auto* table = mutable_arg_table();
+  auto& df = table->dataframe();
+  if (table->row_count() - df.first_retained_row() >= streaming_batch_rows_) {
+    table->DropRowsBefore(table->row_count());
+    // Arg rows are immutable after each arg set is inserted.
+    df.AdvanceCompletionFrontier(table->row_count());
+  }
+}
+
+void TraceStorage::AdvanceCounterStorageFrontier() {
+  if (!counter_sink_only_)
+    return;
+  auto* table = mutable_counter_table();
+  if (table->row_count() - table->dataframe().first_retained_row() >=
+      streaming_batch_rows_)
+    table->DropRowsBefore(table->row_count());
+  // Deferred track resolution and backwards-looking values can patch old rows.
+}
+
+TraceStorage::TraceStorage()
+    : TraceStorage([] {
+        TraceParserOptions config;
+        config.drop_unread_table_columns = false;
+        return config;
+      }()) {}
+
+TraceStorage::TraceStorage(const TraceParserOptions& config)
+    : drop_unread_columns_(config.drop_unread_table_columns),
+      ftrace_sched_sink_only_(config.experimental_ftrace_sched_frontier),
+      slice_args_sink_only_(config.experimental_slice_args_streaming),
+      counter_sink_only_(config.counter_sink_only),
+      streaming_batch_rows_(config.streaming_frontier_batch_rows) {
   // Initialize all tables using placement new in a simple loop.
   for (size_t i = 0; i < tables::kTableCount; ++i) {
     const auto& params = kTableInitParams[i];
-    new (&tables_storage_[i * sizeof(dataframe::Dataframe)])
+    auto* df = new (&tables_storage_[i * sizeof(dataframe::Dataframe)])
         dataframe::Dataframe(&string_pool_, params.column_count,
                              params.column_names, params.column_specs);
+    df->SetParserRetentionMask(params.retained_columns);
+    ConfigureTableOutput(df, params.name);
   }
   for (uint32_t i = 0; i < variadic_type_ids_.size(); ++i) {
     variadic_type_ids_[i] = InternString(Variadic::kTypeNames[i]);
   }
+  if (config.on_trace_storage_created) {
+    config.on_trace_storage_created(this);
+  }
+}
+
+std::vector<bool> TraceStorage::TableRetentionMask(dataframe::Dataframe* df,
+                                                   const char* name) const {
+  if (!drop_unread_columns_)
+    return {};
+  auto mask = df->ParserRetentionMask();
+  if (strcmp(name, tables::FtraceEventTable::Name()) == 0) {
+    // All C++ reads are annotated POST_FINALIZATION. TraceParser has no query
+    // or export finalization, so these records can be emitted without storage.
+    std::fill(mask.begin() + 1, mask.end(), false);
+  }
+  if (ftrace_sched_sink_only_ &&
+      (strcmp(name, tables::SchedSliceTable::Name()) == 0 ||
+       strcmp(name, tables::ThreadStateTable::Name()) == 0)) {
+    std::fill(mask.begin() + 1, mask.end(), false);
+  }
+  if (counter_sink_only_ && strcmp(name, tables::CounterTable::Name()) == 0)
+    std::fill(mask.begin() + 1, mask.end(), false);
+  if (slice_args_sink_only_ && (strcmp(name, tables::SliceTable::Name()) == 0 ||
+                                strcmp(name, tables::ArgTable::Name()) == 0)) {
+    std::fill(mask.begin() + 1, mask.end(), false);
+  }
+  return mask;
+}
+
+void TraceStorage::SetTableSinks(const TableSinkFactory& factory,
+                                 bool drop_unread_columns) {
+  table_sink_factory_ = factory;
+  drop_unread_columns_ = drop_unread_columns;
+  for (size_t i = 0; i < tables::kTableCount; ++i) {
+    const auto& params = kTableInitParams[i];
+    auto* df = reinterpret_cast<dataframe::Dataframe*>(
+        &tables_storage_[i * sizeof(dataframe::Dataframe)]);
+    df->ConfigureStreaming(
+        table_sink_factory_ ? table_sink_factory_(params.name) : nullptr,
+        TableRetentionMask(df, params.name));
+  }
+}
+
+void TraceStorage::ConfigureTableOutput(dataframe::Dataframe* df,
+                                        const char* name) {
+  if (df->streaming_configured() ||
+      (!table_sink_factory_ && !drop_unread_columns_)) {
+    return;
+  }
+  df->ConfigureStreaming(
+      table_sink_factory_ ? table_sink_factory_(name) : nullptr,
+      TableRetentionMask(df, name));
 }
 
 TraceStorage::~TraceStorage() {
