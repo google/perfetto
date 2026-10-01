@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/v2/producer_ring_buffer_endpoint.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include <utility>
 
@@ -27,7 +27,7 @@
 namespace perfetto::tracing_v2 {
 
 // static
-std::unique_ptr<ProducerRingBufferEndpoint> ProducerRingBufferEndpoint::Create(
+std::unique_ptr<ProducerRingBufferArbiter> ProducerRingBufferArbiter::Create(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
     SharedMemoryArbiter* shared_memory_arbiter,
@@ -51,13 +51,13 @@ std::unique_ptr<ProducerRingBufferEndpoint> ProducerRingBufferEndpoint::Create(
     return nullptr;
   }
 
-  return std::unique_ptr<ProducerRingBufferEndpoint>(
-      new ProducerRingBufferEndpoint(
-          task_runner, endpoint, shared_memory_arbiter,
-          std::move(ring_buffer_memory), chunk_size));
+  return std::unique_ptr<ProducerRingBufferArbiter>(
+      new ProducerRingBufferArbiter(task_runner, endpoint,
+                                    shared_memory_arbiter,
+                                    std::move(ring_buffer_memory), chunk_size));
 }
 
-ProducerRingBufferEndpoint::ProducerRingBufferEndpoint(
+ProducerRingBufferArbiter::ProducerRingBufferArbiter(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
     SharedMemoryArbiter* shared_memory_arbiter,
@@ -72,11 +72,11 @@ ProducerRingBufferEndpoint::ProducerRingBufferEndpoint(
           memory_->size(),
           chunk_size)) {}
 
-ProducerRingBufferEndpoint::~ProducerRingBufferEndpoint() {
+ProducerRingBufferArbiter::~ProducerRingBufferArbiter() {
   Disconnect();
 }
 
-void ProducerRingBufferEndpoint::OnReaderAttached() {
+void ProducerRingBufferArbiter::OnReaderAttached() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // The accept reply can arrive after Disconnect().
   if (reader_state_.load() == ReaderState::kDetached)
@@ -84,12 +84,12 @@ void ProducerRingBufferEndpoint::OnReaderAttached() {
   SetReaderState(ReaderState::kAttached);
 }
 
-void ProducerRingBufferEndpoint::Disconnect() {
+void ProducerRingBufferArbiter::Disconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   SetReaderState(ReaderState::kDetached);
 }
 
-std::unique_ptr<TraceWriter> ProducerRingBufferEndpoint::CreateTraceWriter(
+std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy policy) {
   if (PERFETTO_UNLIKELY(reader_state_.load() == ReaderState::kDetached))
@@ -104,7 +104,7 @@ std::unique_ptr<TraceWriter> ProducerRingBufferEndpoint::CreateTraceWriter(
                                              policy);
 }
 
-void ProducerRingBufferEndpoint::Flush(std::function<void()> callback) {
+void ProducerRingBufferArbiter::Flush(std::function<void()> callback) {
   // Set force=true to queue our own drain task before the callback. This
   // ensures the drain request is sent before the callback runs.
   //
@@ -118,7 +118,7 @@ void ProducerRingBufferEndpoint::Flush(std::function<void()> callback) {
     task_runner_->PostTask(std::move(callback));
 }
 
-void ProducerRingBufferEndpoint::OnWriterDestroyed(WriterID id) {
+void ProducerRingBufferArbiter::OnWriterDestroyed(WriterID id) {
   // TODO(sashwinbalaji): Verify the order of WriterID reuse between the ring
   // buffer and the SMB. The problem:
   // - The SMB arbiter can give this ID to a v1 writer at once.
@@ -131,7 +131,7 @@ void ProducerRingBufferEndpoint::OnWriterDestroyed(WriterID id) {
   shared_memory_arbiter_->ReleaseTracingV2WriterID(id);
 }
 
-void ProducerRingBufferEndpoint::NotifyReader(NotifyReason reason) {
+void ProducerRingBufferArbiter::NotifyReader(NotifyReason reason) {
   // A posted task cannot run while a writer on the endpoint thread is
   // stalled. So send the request directly.
   if (reason == NotifyReason::kWriterStalled &&
@@ -142,11 +142,11 @@ void ProducerRingBufferEndpoint::NotifyReader(NotifyReason reason) {
   PostDrainTask(/*force=*/false);
 }
 
-bool ProducerRingBufferEndpoint::IsReaderAttached() const {
+bool ProducerRingBufferArbiter::IsReaderAttached() const {
   return reader_state_.load() == ReaderState::kAttached;
 }
 
-void ProducerRingBufferEndpoint::SetReaderState(ReaderState next) {
+void ProducerRingBufferArbiter::SetReaderState(ReaderState next) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   const ReaderState current = reader_state_.load();
   PERFETTO_CHECK(
@@ -155,7 +155,7 @@ void ProducerRingBufferEndpoint::SetReaderState(ReaderState next) {
   reader_state_.store(next);
 }
 
-void ProducerRingBufferEndpoint::PostDrainTask(bool force) {
+void ProducerRingBufferArbiter::PostDrainTask(bool force) {
   // When |force| is false, notifications share a pending drain task.
   // Setting |drain_task_pending_| after publishing ensures that task covers
   // the new data. The atomic operations below act on |drain_task_pending_|:
@@ -181,7 +181,7 @@ void ProducerRingBufferEndpoint::PostDrainTask(bool force) {
   });
 }
 
-void ProducerRingBufferEndpoint::SendDrainRequest() {
+void ProducerRingBufferArbiter::SendDrainRequest() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // Let later publications queue another task before we send this request.
   drain_task_pending_.store(0);

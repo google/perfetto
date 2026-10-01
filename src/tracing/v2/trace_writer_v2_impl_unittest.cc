@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Tests TraceWriterV2Impl and ProducerRingBufferEndpoint together.
+// Tests TraceWriterV2Impl and ProducerRingBufferArbiter together.
 // - A mock endpoint plays the service. Its DrainV2RingBuffer() reads the ring
 //   buffer into a TraceBufferV2, as the service does.
 // - Packets are read back from TBv2 and parsed as ordinary TracePackets.
@@ -36,7 +36,7 @@
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/test/mock_producer_endpoint.h"
-#include "src/tracing/v2/producer_ring_buffer_endpoint.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
@@ -51,13 +51,13 @@ namespace perfetto::tracing_v2 {
 
 namespace test {
 
-// Reaches the merge flag of a ProducerRingBufferEndpoint.
-class ProducerRingBufferEndpointTestPeer {
+// Reaches the merge flag of a ProducerRingBufferArbiter.
+class ProducerRingBufferArbiterTestPeer {
  public:
   // Acts like a writer that set the merge flag in PostDrainTask() but did
   // not post its drain task yet.
-  static void SetDrainTaskPending(ProducerRingBufferEndpoint* endpoint) {
-    endpoint->drain_task_pending_.store(1);
+  static void SetDrainTaskPending(ProducerRingBufferArbiter* arbiter) {
+    arbiter->drain_task_pending_.store(1);
   }
 };
 
@@ -103,10 +103,10 @@ class TraceWriterV2ImplTest : public ::testing::Test,
   }
 
   void TearDown() override {
-    // The reader view borrows the mapping that the ring buffer endpoint owns.
+    // The reader view borrows the mapping that the ring buffer arbiter owns.
     reader_.reset();
     reader_ring_buffer_.reset();
-    ring_buffer_endpoint_.reset();
+    ring_buffer_arbiter_.reset();
   }
 
   static std::unique_ptr<SharedMemory> CreateRingBufferMemory(
@@ -115,35 +115,35 @@ class TraceWriterV2ImplTest : public ::testing::Test,
                                                    num_chunks * kChunkSize);
   }
 
-  // Creates the ring buffer endpoint with a ring buffer of |num_chunks|
+  // Creates the ring buffer arbiter with a ring buffer of |num_chunks|
   // chunks. It starts in kPending.
-  void CreateRingBufferEndpoint(uint32_t num_chunks) {
+  void CreateRingBufferArbiter(uint32_t num_chunks) {
     auto memory = CreateRingBufferMemory(num_chunks);
     // As the service does, the reader uses its own view of the mapping.
     reader_ring_buffer_ = std::make_unique<SharedRingBuffer>(
         static_cast<uint8_t*>(memory->start()), memory->size(), kChunkSize);
-    ring_buffer_endpoint_ = ProducerRingBufferEndpoint::Create(
+    ring_buffer_arbiter_ = ProducerRingBufferArbiter::Create(
         &task_runner_, &endpoint_, smb_arbiter_.get(), std::move(memory),
         kChunkSize);
-    ASSERT_TRUE(ring_buffer_endpoint_);
+    ASSERT_TRUE(ring_buffer_arbiter_);
     reader_ = std::make_unique<SharedRingBufferReader>(
         reader_ring_buffer_.get(), this);
   }
 
-  void CreateRingBufferEndpointWithReader(uint32_t num_chunks) {
-    CreateRingBufferEndpoint(num_chunks);
+  void CreateRingBufferArbiterWithReader(uint32_t num_chunks) {
+    CreateRingBufferArbiter(num_chunks);
     AttachReader();
   }
 
   // Acts like the service accepting the ring buffer.
   void AttachReader() {
     service_reader_attached_ = true;
-    ring_buffer_endpoint_->OnReaderAttached();
+    ring_buffer_arbiter_->OnReaderAttached();
   }
 
   std::unique_ptr<TraceWriter> CreateWriter(
       BufferExhaustedPolicy policy = BufferExhaustedPolicy::kDrop) {
-    return ring_buffer_endpoint_->CreateTraceWriter(kTargetBuffer, policy);
+    return ring_buffer_arbiter_->CreateTraceWriter(kTargetBuffer, policy);
   }
 
   static void WritePacket(TraceWriter* writer, const std::string& str) {
@@ -205,7 +205,7 @@ class TraceWriterV2ImplTest : public ::testing::Test,
   std::unique_ptr<SharedMemoryArbiter> smb_arbiter_;
   std::unique_ptr<TraceBufferV2> trace_buffer_ =
       TraceBufferV2::Create(64 * 1024);
-  std::unique_ptr<ProducerRingBufferEndpoint> ring_buffer_endpoint_;
+  std::unique_ptr<ProducerRingBufferArbiter> ring_buffer_arbiter_;
   std::unique_ptr<SharedRingBuffer> reader_ring_buffer_;
   std::unique_ptr<SharedRingBufferReader> reader_;
 
@@ -216,7 +216,7 @@ class TraceWriterV2ImplTest : public ::testing::Test,
 // --- Packet encoding ---
 
 TEST_F(TraceWriterV2ImplTest, PacketsRoundTripThroughTraceBuffer) {
-  CreateRingBufferEndpointWithReader(/*num_chunks=*/8);
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
   // 600 bytes need three 256-byte chunks, so the nested message crosses chunk
   // boundaries. A length-delimited message would need a patch here, which
   // TraceWriterV2Impl does not support. So this also checks the proto group
@@ -242,7 +242,7 @@ TEST_F(TraceWriterV2ImplTest, PacketsRoundTripThroughTraceBuffer) {
 // --- Buffer exhaustion ---
 
 TEST_F(TraceWriterV2ImplTest, DropWhenFullThenReportLoss) {
-  CreateRingBufferEndpointWithReader(/*num_chunks=*/4);
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
   auto writer = CreateWriter(BufferExhaustedPolicy::kDrop);
 
   // Nothing drains until the tasks run. Each 200-byte packet needs its own
@@ -269,7 +269,7 @@ TEST_F(TraceWriterV2ImplTest, DropWhenFullThenReportLoss) {
 }
 
 TEST_F(TraceWriterV2ImplTest, StalledWriterDrainsOnEndpointThread) {
-  CreateRingBufferEndpointWithReader(/*num_chunks=*/4);
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
   auto writer = CreateWriter(BufferExhaustedPolicy::kStall);
 
   // No task runs here. The writer runs on the endpoint thread, so each wait
@@ -287,7 +287,7 @@ TEST_F(TraceWriterV2ImplTest, StalledWriterDrainsOnEndpointThread) {
 }
 
 TEST_F(TraceWriterV2ImplTest, WriterDoesNotWaitBeforeReaderAttached) {
-  CreateRingBufferEndpoint(/*num_chunks=*/4);
+  CreateRingBufferArbiter(/*num_chunks=*/4);
   auto writer = CreateWriter(BufferExhaustedPolicy::kStall);
   const std::string payload(200, 'o');
   for (int i = 0; i < 8 && writer->drop_count() == 0; ++i)
@@ -299,8 +299,8 @@ TEST_F(TraceWriterV2ImplTest, WriterDoesNotWaitBeforeReaderAttached) {
 // --- Writer creation and WriterID lifetime ---
 
 TEST_F(TraceWriterV2ImplTest, NullTraceWriterAfterDisconnect) {
-  CreateRingBufferEndpoint(/*num_chunks=*/4);
-  ring_buffer_endpoint_->Disconnect();
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  ring_buffer_arbiter_->Disconnect();
   auto disconnected_writer = CreateWriter();
   ASSERT_TRUE(disconnected_writer);
   EXPECT_EQ(disconnected_writer->writer_id(), 0u);
@@ -308,7 +308,7 @@ TEST_F(TraceWriterV2ImplTest, NullTraceWriterAfterDisconnect) {
 }
 
 TEST_F(TraceWriterV2ImplTest, NoWriterIdAfterSmbArbiterShutdown) {
-  CreateRingBufferEndpoint(/*num_chunks=*/4);
+  CreateRingBufferArbiter(/*num_chunks=*/4);
   ASSERT_TRUE(smb_arbiter_->TryShutdown());
   auto writer = CreateWriter();
   ASSERT_TRUE(writer);
@@ -316,7 +316,7 @@ TEST_F(TraceWriterV2ImplTest, NoWriterIdAfterSmbArbiterShutdown) {
 }
 
 TEST_F(TraceWriterV2ImplTest, DestructionPublishesThenReleasesWriterId) {
-  CreateRingBufferEndpoint(/*num_chunks=*/4);
+  CreateRingBufferArbiter(/*num_chunks=*/4);
   auto writer = CreateWriter();
   EXPECT_NE(writer->writer_id(), 0u);
   WritePacket(writer.get(), "last");
@@ -340,7 +340,7 @@ TEST_F(TraceWriterV2ImplTest, DestructionPublishesThenReleasesWriterId) {
 // Publications below the threshold stay buffered. Once it is reached,
 // further notifications share the pending drain task.
 TEST_F(TraceWriterV2ImplTest, DrainRequestsAreCoalescedAtOccupancyThreshold) {
-  CreateRingBufferEndpointWithReader(/*num_chunks=*/8);
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
   auto writer = CreateWriter();
   // Two of these packets do not fit one 256-byte chunk.
   const std::string large(200, 'x');
@@ -357,7 +357,7 @@ TEST_F(TraceWriterV2ImplTest, DrainRequestsAreCoalescedAtOccupancyThreshold) {
 }
 
 TEST_F(TraceWriterV2ImplTest, FlushRunsCallbackAfterDrainRequest) {
-  CreateRingBufferEndpointWithReader(/*num_chunks=*/4);
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
   auto writer = CreateWriter();
   WritePacket(writer.get(), "flushed");
 
@@ -381,9 +381,9 @@ TEST_F(TraceWriterV2ImplTest, FlushRunsCallbackAfterDrainRequest) {
 // A writer set the merge flag but did not post its drain task yet. The flush
 // must still send a drain request before its callback runs.
 TEST_F(TraceWriterV2ImplTest, FlushDrainsWhileAnotherDrainIsNotPosted) {
-  CreateRingBufferEndpointWithReader(/*num_chunks=*/4);
-  test::ProducerRingBufferEndpointTestPeer::SetDrainTaskPending(
-      ring_buffer_endpoint_.get());
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
+  test::ProducerRingBufferArbiterTestPeer::SetDrainTaskPending(
+      ring_buffer_arbiter_.get());
   auto writer = CreateWriter();
   WritePacket(writer.get(), "flushed");
 
@@ -398,7 +398,7 @@ TEST_F(TraceWriterV2ImplTest, FlushDrainsWhileAnotherDrainIsNotPosted) {
 // attaches, the service ignores them. The data stays in the ring buffer.
 TEST_F(TraceWriterV2ImplTest, FlushBeforeReaderAttachedKeepsData) {
   // With 8 chunks, one packet does not reach the drain threshold.
-  CreateRingBufferEndpoint(/*num_chunks=*/8);
+  CreateRingBufferArbiter(/*num_chunks=*/8);
   auto writer = CreateWriter();
   WritePacket(writer.get(), "p");
   bool flushed = false;
@@ -415,22 +415,22 @@ TEST_F(TraceWriterV2ImplTest, FlushBeforeReaderAttachedKeepsData) {
 }
 
 TEST_F(TraceWriterV2ImplTest, FlushAfterDisconnectRunsCallback) {
-  CreateRingBufferEndpoint(/*num_chunks=*/4);
+  CreateRingBufferArbiter(/*num_chunks=*/4);
   auto writer = CreateWriter();
-  ring_buffer_endpoint_->Disconnect();
+  ring_buffer_arbiter_->Disconnect();
   bool flushed = false;
   writer->Flush([&] { flushed = true; });
   task_runner_.RunUntilIdle();
   EXPECT_TRUE(flushed);
 }
 
-TEST_F(TraceWriterV2ImplTest, FlushRunsIfEndpointIsDestroyedFirst) {
-  CreateRingBufferEndpoint(/*num_chunks=*/4);
+TEST_F(TraceWriterV2ImplTest, FlushRunsIfArbiterIsDestroyedFirst) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
   bool flushed = false;
-  ring_buffer_endpoint_->Flush([&] { flushed = true; });
+  ring_buffer_arbiter_->Flush([&] { flushed = true; });
   reader_.reset();
   reader_ring_buffer_.reset();
-  ring_buffer_endpoint_.reset();
+  ring_buffer_arbiter_.reset();
   task_runner_.RunUntilIdle();
   EXPECT_TRUE(flushed);
 }
@@ -439,9 +439,9 @@ TEST_F(TraceWriterV2ImplTest, FlushRunsIfEndpointIsDestroyedFirst) {
 
 TEST_F(TraceWriterV2ImplTest, CreateRejectsInvalidLayout) {
   auto create = [&](std::unique_ptr<SharedMemory> memory, uint32_t chunk_size) {
-    return ProducerRingBufferEndpoint::Create(&task_runner_, &endpoint_,
-                                              smb_arbiter_.get(),
-                                              std::move(memory), chunk_size);
+    return ProducerRingBufferArbiter::Create(&task_runner_, &endpoint_,
+                                             smb_arbiter_.get(),
+                                             std::move(memory), chunk_size);
   };
   EXPECT_FALSE(create(nullptr, kChunkSize));
   // 4096 bytes minus the header is not a whole number of chunks.

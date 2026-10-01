@@ -23357,7 +23357,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_v2_v2",
     srcs: [
-        "src/tracing/v2/producer_ring_buffer_endpoint.cc",
+        "src/tracing/v2/producer_ring_buffer_arbiter.cc",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
         "src/tracing/v2/shared_ring_buffer_writer.cc",
