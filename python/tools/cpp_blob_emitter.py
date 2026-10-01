@@ -12,11 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Emit a C++ header containing a blob packed into constexpr uint64_t words.
+"""Emit a C++ header containing a blob packed into uint64_t words.
 
 The generated object exposes data() and size() in bytes. Packing eight bytes
 per initializer reduces C++ parsing work without relying on long string
-literals. HostToLE64 preserves the input bytes on either endianness.
+literals. Big-endian targets convert the words in place during initialization
+using HostToLE64; little-endian targets need no runtime initialization.
 
 Importable from other build-time codegen tools, or runnable as a CLI:
   python3 cpp_blob_emitter.py \\
@@ -70,16 +71,16 @@ _HEADER_TEMPLATE = """/*
 
 #include "perfetto/base/endian.h"
 
-// Avoid a constexpr function call for every word on little-endian targets.
-#if PERFETTO_IS_LITTLE_ENDIAN()
-#define PERFETTO_INTERNAL_BLOB_WORD(x) x
-#else
-#define PERFETTO_INTERNAL_BLOB_WORD(x) ::perfetto::base::HostToLE64(x)
-#endif
-
 namespace {namespace} {{
 
 struct {symbol}Blob {{
+#if !PERFETTO_IS_LITTLE_ENDIAN()
+  {symbol}Blob() {{
+    for (auto& word : words)
+      word = ::perfetto::base::HostToLE64(word);
+  }}
+#endif
+
   const uint8_t* data() const {{
     return reinterpret_cast<const uint8_t*>(words.data());
   }}
@@ -87,16 +88,18 @@ struct {symbol}Blob {{
   const uint8_t* begin() const {{ return data(); }}
   const uint8_t* end() const {{ return {size} ? data() + {size} : data(); }}
 
-  std::array<uint64_t, {word_count}> words;
+  std::array<uint64_t, {word_count}> words{{{{
+{binary}
+  }}}};
 }};
 
-inline constexpr {symbol}Blob k{symbol}{{{{{{
-{binary}
-}}}}}};
+#if PERFETTO_IS_LITTLE_ENDIAN()
+inline constexpr {symbol}Blob k{symbol};
+#else
+inline const {symbol}Blob k{symbol};
+#endif
 
 }}  // namespace {namespace}
-
-#undef PERFETTO_INTERNAL_BLOB_WORD
 
 #endif  // {include_guard}
 """
@@ -105,8 +108,8 @@ inline constexpr {symbol}Blob k{symbol}{{{{{{
 def _format_word_literals(data):
   # Keep the original byte length separately: padding is storage, not payload.
   padded = data + b'\0' * (-len(data) % 8)
-  return '\n'.join(f'    PERFETTO_INTERNAL_BLOB_WORD(0x{word:016x}ULL),'
-                   for (word,) in struct.iter_unpack('<Q', padded))
+  return '\n'.join(
+      f'    0x{word:016x}ULL,' for (word,) in struct.iter_unpack('<Q', padded))
 
 
 def derive_symbol(output_path, suffix=''):

@@ -44,7 +44,7 @@ inline uint16_t ByteSwap16(uint16_t x) {
 inline uint32_t ByteSwap32(uint32_t x) {
   return __builtin_bswap32(x);
 }
-constexpr uint64_t ByteSwap64(uint64_t x) {
+inline uint64_t ByteSwap64(uint64_t x) {
   return __builtin_bswap64(x);
 }
 #endif
@@ -56,7 +56,7 @@ inline uint16_t HostToLE16(uint16_t x) {
 inline uint32_t HostToLE32(uint32_t x) {
   return x;
 }
-constexpr uint64_t HostToLE64(uint64_t x) {
+inline uint64_t HostToLE64(uint64_t x) {
   return x;
 }
 inline uint16_t LE16ToHost(uint16_t x) {
@@ -133,7 +133,7 @@ inline uint16_t HostToLE16(uint16_t x) {
 inline uint32_t HostToLE32(uint32_t x) {
   return ByteSwap32(x);
 }
-constexpr uint64_t HostToLE64(uint64_t x) {
+inline uint64_t HostToLE64(uint64_t x) {
   return ByteSwap64(x);
 }
 inline uint16_t LE16ToHost(uint16_t x) {

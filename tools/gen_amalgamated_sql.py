@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Pack a set of SQL files into a single binary blob and embed it as a
-C++ header of packed constexpr uint64_t words.
+C++ header of packed uint64_t words.
 
 The generated blob is consumed at runtime by `SqlBundle` (see
 `src/trace_processor/util/sql_bundle.h`). Wire format:
