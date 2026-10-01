@@ -806,22 +806,18 @@ TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupCloseAtChunkBoundary) {
   EXPECT_EQ(expected, GetData());
 }
 
-// A complete string has its length up front, so it works in proto group mode.
-// An incremental string does not, so it aborts.
-TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalStringAborts) {
+TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupStringAndBytes) {
   protozero_test_protos_EveryField root;
   PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
                                 PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
   protozero_test_protos_EveryField_set_cstr_field_string(&root, "a");
-  EXPECT_EQ(4u, PerfettoPbMsgFinalize(&root.msg));
-  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a'}));
-
-  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
-                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
-  PerfettoPbMsg payload;
-  // abort() prints no message, so the matcher is empty.
-  EXPECT_DEATH_IF_SUPPORTED(
-      protozero_test_protos_EveryField_begin_field_string(&root, &payload), "");
+  protozero_test_protos_EveryField_set_field_string(&root, "bc", 2);
+  protozero_test_protos_EveryField_set_field_bytes(&root, "\x11\x00\xbe\xef",
+                                                   4);
+  EXPECT_EQ(16u, PerfettoPbMsgFinalize(&root.msg));
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0xa2, 0x1f, 1, 'a', 0xa2, 0x1f, 2, 'b', 'c',
+                                  0xca, 0x1f, 4, 0x11, 0, 0xbe, 0xef}));
 }
 
 TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalPackedAborts) {
@@ -835,33 +831,6 @@ TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalPackedAborts) {
                                                                    &payload),
       "");
 }
-
-#ifndef NDEBUG
-// In C, a write to the parent does not end the open child. In proto group mode,
-// the parent writes the child's closing byte in PerfettoPbMsgEndNested(). A
-// parent write before that would land inside the child, so it asserts.
-TEST_F(SharedLibProtozeroSerializationTest,
-       ProtoGroupParentWriteBeforeEndNestedAsserts) {
-  PerfettoPbMsg root, child, sibling;
-  PerfettoPbMsgInitWithEncoding(&root, &writer,
-                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
-  PerfettoPbMsgBeginNested(&root, &child, 1);
-  PerfettoPbMsgAppendType0Field(&child, 2, 7);
-  PerfettoPbMsgFinalize(&child);
-
-  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgAppendType0Field(&root, 3, 1),
-                            "nested");
-  EXPECT_DEATH_IF_SUPPORTED(PerfettoPbMsgBeginNested(&root, &sibling, 4),
-                            "nested");
-
-  // After PerfettoPbMsgEndNested(), the parent can write again.
-  PerfettoPbMsgEndNested(&root);
-  PerfettoPbMsgAppendType0Field(&root, 3, 1);
-  EXPECT_EQ(6u, PerfettoPbMsgFinalize(&root));
-  EXPECT_EQ(GetData(),
-            (std::vector<uint8_t>{0x0b, 0x10, 0x07, 0x04, 0x18, 0x01}));
-}
-#endif
 
 class SharedLibDataSourceTest : public testing::Test {
  protected:

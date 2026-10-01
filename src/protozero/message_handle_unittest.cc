@@ -50,8 +50,27 @@ TEST(MessageHandleTest, ProtoGroupRootHandleNeedsNoRootType) {
     handle->BeginNestedMessage<Message>(1)->AppendVarInt(2, 7);
   }
   EXPECT_TRUE(root.is_finalized());
+  // 0x0b starts nested field 1. 0x10 identifies varint field 2, with value
+  // 0x07 (7). 0x04 ends the child. The root has no wrapper.
   EXPECT_EQ(buffer.StitchSlices(),
             (std::vector<uint8_t>{0x0b, 0x10, 0x07, 0x04}));
+}
+
+TEST(MessageHandleTest, ProtoGroupRootHandleWithoutNestedMessage) {
+  ScatteredHeapBuffer buffer;
+  ScatteredStreamWriter writer(&buffer);
+  buffer.set_writer(&writer);
+  RootMessage<Message> root;
+  root.Reset(&writer, Message::Encoding::kProtoGroup);
+  {
+    Message* as_plain_message = &root;
+    MessageHandle<Message> handle(as_plain_message);
+    handle->AppendVarInt(2, 7);
+  }
+  EXPECT_TRUE(root.is_finalized());
+  // 0x10 identifies varint field 2, with value 0x07 (7). The root has no
+  // group start tag, closing byte, or length field.
+  EXPECT_EQ(buffer.StitchSlices(), (std::vector<uint8_t>{0x10, 0x07}));
 }
 
 }  // namespace

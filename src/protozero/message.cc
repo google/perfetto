@@ -187,10 +187,10 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
     EndNestedMessage();
 
   // Write the proto preamble for the nested message.
-  const bool is_proto_group = encoding_ == Encoding::kProtoGroup;
-  const uint32_t tag = is_proto_group
-                           ? proto_utils::MakeTagStartGroup(field_id)
-                           : proto_utils::MakeTagLengthDelimited(field_id);
+  const bool is_length_delimited = encoding_ == Encoding::kLengthDelimited;
+  const uint32_t tag = is_length_delimited
+                           ? proto_utils::MakeTagLengthDelimited(field_id)
+                           : proto_utils::MakeTagStartGroup(field_id);
   uint8_t data[proto_utils::kMaxTagEncodedSize];
   uint8_t* data_end = proto_utils::WriteVarInt(tag, data);
   WriteToStream(data, data_end);
@@ -200,7 +200,7 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
 
   // A proto group child needs no length field. EndNestedMessage() ends it with
   // a closing byte.
-  if (!is_proto_group) {
+  if (is_length_delimited) {
     // The length of the nested message cannot be known upfront. So right now
     // just reserve the bytes to encode the size after the nested message is
     // done.

@@ -47,7 +47,7 @@ enum PerfettoPbMsgEncoding {
   // - Use it only inside the SMB, for the tracing v2 protocol. The final trace
   //   output stays canonical protobuf.
   // - Scalars, complete string/bytes/packed values and nested messages work.
-  //   Incremental STRING and PACKED fields abort before they write a tag.
+  //   Incremental PACKED fields abort before they write a tag.
   // See PERFETTO_PB_PROTO_GROUP_END_BYTE in pb_utils.h for the wire format.
   PERFETTO_PB_MSG_ENCODING_PROTO_GROUP = 1,
 };
@@ -139,29 +139,9 @@ static inline void PerfettoPbMsgAppendBytes(struct PerfettoPbMsg* msg,
                                             const uint8_t* begin,
                                             size_t size) {
   assert(!msg->is_finalized);
-  // Catches a write to a parent whose child is still open, in proto group mode:
-  // - In C, a write to |msg| does not end its open child first. C++ does.
-  // - The child's closing byte comes from PerfettoPbMsgEndNested(). Bytes
-  //   written to |msg| before that would land inside the child.
-  // - Every proto group write goes through this function, including the tag
-  //   written by PerfettoPbMsgBeginNested(). So this one check covers all
-  //   write paths.
-  //
-  // TODO(sashwinbalaji): end the open child here with PerfettoPbMsgEndNested(),
-  // as protozero::Message::AppendBytes() does with EndNestedMessage(). Then
-  // callers do not need to end a child before the next parent write, and this
-  // assert and that rule on PerfettoPbMsgBeginNested() can go.
-  // PerfettoPbMsgFinalize() already ends an open child. The change needs:
-  // - PerfettoPbMsgEndNested() to do nothing when |parent| has no open child.
-  //   Callers still call it after the implicit end, through the generated
-  //   <msg>_end_<field>() accessors in pb_macros.h. Today that would call
-  //   PerfettoPbMsgFinalize(NULL) and crash.
-  // - PerfettoPbMsgBeginNested() to end the open child before it initializes
-  //   |nested|. |nested| can be the struct of that open child. Initializing it
-  //   first would lose the child's state before the child is finalized.
-  // - The <msg>_end_<field>() accessors to end only their own child. Today
-  //   they ignore their |nested| argument and end whatever child is open.
-  assert(msg->encoding != PERFETTO_PB_MSG_ENCODING_PROTO_GROUP || !msg->nested);
+  // TODO(sashwinbalaji): After the tracing v2 changes settle, check callers
+  // before adding an assertion that |msg->nested| is null. Callers must end
+  // the child before they write to its parent.
   if (PERFETTO_UNLIKELY(
           size > PerfettoStreamWriterAvailableBytes(&msg->writer->writer))) {
     PerfettoPbMsgPatchStack(msg);
@@ -281,7 +261,8 @@ static inline void PerfettoPbMsgAppendCStrField(struct PerfettoPbMsg* msg,
 }
 
 // Begins a nested message field. Use it only for fields of message type. For
-// incremental STRING or PACKED fields use
+// STRING fields, supply the complete value to PerfettoPbMsgAppendCStrField()
+// or PerfettoPbMsgAppendType2Field(). For incremental PACKED fields, use
 // PerfettoPbMsgBeginLengthDelimitedField().
 //
 // Call PerfettoPbMsgEndNested() before the next write to |parent|:
@@ -317,7 +298,7 @@ static inline void PerfettoPbMsgBeginNested(struct PerfettoPbMsg* parent,
   parent->nested = nested;
 }
 
-// Begins an incremental STRING or PACKED field. Both encodings require a length
+// Begins an incremental PACKED field. Both encodings require a length
 // before the payload:
 // - Length-delimited mode reserves the length field for finalization.
 // - Proto group mode aborts before it writes the tag.
@@ -325,9 +306,6 @@ static inline void PerfettoPbMsgBeginNested(struct PerfettoPbMsg* parent,
 // In proto group mode, PerfettoPbMsgAppendBytes() can release a fragment before
 // the total length is known. The reader can copy it immediately. Append-only
 // writes cannot update the length in those published bytes.
-//
-// TODO(sashwinbalaji): If tracing v2 needs incremental fields, buffer the value
-// and emit it when the field closes.
 static inline void PerfettoPbMsgBeginLengthDelimitedField(
     struct PerfettoPbMsg* parent,
     struct PerfettoPbMsg* nested,

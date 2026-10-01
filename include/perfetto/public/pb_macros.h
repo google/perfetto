@@ -26,8 +26,8 @@
 // messages.
 //
 // In proto group mode, accessors support scalars, complete string/bytes/packed
-// values, and nested messages. Incremental STRING/PACKED begin/append/end
-// accessors abort. See PerfettoPbMsgEncoding in pb_msg.h.
+// values, and nested messages. Incremental PACKED begin/append/end accessors
+// abort. See PerfettoPbMsgEncoding in pb_msg.h.
 //
 // Example usage:
 //
@@ -123,15 +123,6 @@
       struct PROTO * msg, const void* data, size_t len) {                 \
     PerfettoPbMsgAppendType2Field(                                        \
         &msg->msg, NUM, PERFETTO_STATIC_CAST(const uint8_t*, data), len); \
-  }                                                                       \
-  static inline void PERFETTO_I_PB_SETTER_BEGIN_NAME(PREFIX, NAME)(       \
-      struct PROTO * msg, struct PerfettoPbMsg * nested) {                \
-    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, nested, NUM);       \
-  }                                                                       \
-  static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(         \
-      struct PROTO * msg, struct PerfettoPbMsg * nested) {                \
-    (void)nested;                                                         \
-    PerfettoPbMsgEndNested(&msg->msg);                                    \
   }
 
 #define PERFETTO_I_PB_FIELD_VARINT(PREFIX, PROTO, C_TYPE, NAME, NUM)      \
@@ -248,10 +239,6 @@
 //      * PROTO_set_NAME(struct PROTO*, const void*, size_t): Sets the value of
 //        the field by copying from a buffer at an address with the specified
 //        size.
-//      * PROTO_begin_NAME(struct PROTO*, struct PerfettoPbMsg* nested) and
-//        PROTO_end_NAME(struct PROTO*, struct PerfettoPbMsg* nested):
-//        Begins (and ends) a nested submessage to allow users to generate part
-//        of the length delimited buffer piece by piece.
 //   * `PACKED`: for packed repeated field types. `CTYPE` should be
 //     one of `PerfettoPbPacked*`. Generates multiple accessors:
 //      * PROTO_set_NAME(struct PROTO*, const void*, size_t): Sets the value of
