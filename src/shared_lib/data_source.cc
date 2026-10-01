@@ -34,6 +34,7 @@
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/data_source_abi.h"
 #include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/pb_msg.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/data_source.h"
@@ -88,6 +89,9 @@ struct PerfettoDsImpl {
       perfetto::BufferExhaustedPolicy::kDrop;
 
   bool buffer_exhausted_policy_configurable = false;
+
+  // Set by PerfettoDsSetSupportsTracingV2() before registration.
+  bool supports_tracing_v2 = false;
 
   DataSourceType cpp_type;
   std::atomic<bool> enabled{false};
@@ -375,6 +379,17 @@ bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
   return true;
 }
 
+bool PerfettoDsSetSupportsTracingV2(struct PerfettoDsImpl* ds_impl,
+                                    bool supports) {
+  if (ds_impl->IsRegistered()) {
+    return false;
+  }
+
+  ds_impl->supports_tracing_v2 = supports;
+
+  return true;
+}
+
 bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
                             PERFETTO_ATOMIC(bool) * *enabled_ptr,
                             const void* descriptor,
@@ -412,6 +427,7 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   perfetto::internal::DataSourceParams params;
   params.buffer_exhausted_policy_configurable =
       ds_impl->buffer_exhausted_policy_configurable;
+  params.supports_tracing_v2 = ds_impl->supports_tracing_v2;
   params.supports_multiple_instances = true;
   params.requires_callbacks_under_lock = false;
   params.default_buffer_exhausted_policy =
@@ -583,17 +599,39 @@ void PerfettoDsImplTraceIterateBreak(
   ds_impl->cpp_type.TraceEpilogue(tls);
 }
 
-struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+struct PerfettoDsPacketBeginResult PerfettoDsTracerImplPacketBeginWithEncoding(
     struct PerfettoDsTracerImpl* tracer) {
   auto* tls_inst =
       reinterpret_cast<DataSourceInstanceThreadLocalState*>(tracer);
 
   auto message_handle = tls_inst->trace_writer->NewTracePacket();
-  struct PerfettoStreamWriter ret;
+  struct PerfettoDsPacketBeginResult result{};
+
+  // Each writer sets the encoding of its packets: proto group for tracing v2,
+  // and length-delimited for v1.
+  // Read it now, because TakeStreamWriter() detaches the message.
+  result.encoding =
+      message_handle->encoding() == protozero::Message::Encoding::kProtoGroup
+          ? PERFETTO_PB_MSG_ENCODING_PROTO_GROUP
+          : PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED;
+
   protozero::ScatteredStreamWriter* sw = message_handle.TakeStreamWriter();
-  ret.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
-  perfetto::UpdateStreamWriter(*sw, &ret);
-  return ret;
+  result.writer.impl = reinterpret_cast<PerfettoStreamWriterImpl*>(sw);
+  perfetto::UpdateStreamWriter(*sw, &result.writer);
+  return result;
+}
+
+struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer) {
+  auto result = PerfettoDsTracerImplPacketBeginWithEncoding(tracer);
+  // This legacy function supports only v1 writers.
+  if (PERFETTO_UNLIKELY(result.encoding !=
+                        PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED)) {
+    PERFETTO_FATAL(
+        "PerfettoDsTracerImplPacketBegin() cannot write to a tracing v2 "
+        "writer. Use PerfettoDsTracerImplPacketBeginWithEncoding().");
+  }
+  return result.writer;
 }
 
 void PerfettoDsTracerImplPacketEnd(struct PerfettoDsTracerImpl* tracer,

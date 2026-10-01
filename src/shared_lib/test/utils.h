@@ -24,6 +24,7 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -86,6 +87,25 @@ class TracingSession {
       clear_period_ms_ = clear_period_ms;
       return *this;
     }
+    Builder& set_v2_probability(uint32_t probability) {
+      v2_probability_ = probability;
+      return *this;
+    }
+    // Adds a tracing v2 chunk size option. Needs set_v2_probability().
+    Builder& add_v2_chunk_size(uint32_t size_bytes) {
+      v2_chunk_sizes_.push_back(size_bytes);
+      return *this;
+    }
+    // Overrides the buffer mode. By default, ProtoVM and tracing v2 configs
+    // get a TRACE_BUFFER_V2 buffer.
+    Builder& set_trace_buffer_v2(bool trace_buffer_v2) {
+      trace_buffer_v2_ = trace_buffer_v2;
+      return *this;
+    }
+    Builder& set_backend(uint32_t backend) {
+      backend_ = backend;
+      return *this;
+    }
     Builder& enable_protovm_config() {
       enable_protovm_config_ = true;
       return *this;
@@ -100,6 +120,10 @@ class TracingSession {
     std::vector<std::string> disabled_categories_;
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
+    std::optional<uint32_t> v2_probability_;
+    std::vector<uint32_t> v2_chunk_sizes_;
+    std::optional<bool> trace_buffer_v2_;
+    uint32_t backend_ = PERFETTO_BACKEND_IN_PROCESS;
   };
 
   static TracingSession Adopt(struct PerfettoTracingSessionImpl*);

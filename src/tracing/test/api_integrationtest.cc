@@ -22,6 +22,7 @@
 #include <functional>
 #include <list>
 #include <mutex>
+#include <optional>
 #include <string_view>
 #include <thread>
 #include <unordered_set>
@@ -226,6 +227,7 @@ using ::testing::NiceMock;
 using ::testing::Not;
 using ::testing::Property;
 using ::testing::StrEq;
+using ::testing::UnorderedElementsAre;
 
 // ------------------------------
 // Declarations of helper classes
@@ -6332,11 +6334,16 @@ TEST_P(PerfettoApiTest, TracePacketInterception) {
   TestInterceptor::Register(desc, std::string("Constructor argument"));
 
   perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
-  cfg.add_buffers()->set_size_kb(1024);
+  auto* buffer = cfg.add_buffers();
+  buffer->set_size_kb(1024);
+  buffer->set_experimental_mode(
+      perfetto::TraceConfig::BufferConfig::TRACE_BUFFER_V2);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("track_event");
   ds_cfg->mutable_interceptor_config()->set_name("test_interceptor");
+  // Interception takes precedence even when the config requests tracing v2.
+  ds_cfg->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      100);
 
   auto* tracing_session = NewTrace(cfg);
   tracing_session->get()->StartBlocking();
@@ -6367,6 +6374,48 @@ TEST_P(PerfettoApiTest, TracePacketInterception) {
   EXPECT_THAT(TestInterceptor::instance->events, ElementsAre(long_title));
 
   tracing_session->get()->StopBlocking();
+}
+
+// A C++ data source that selects v2 writes proto group packets on every
+// thread, and the service turns its nested messages back into regular
+// protobuf.
+TEST_P(PerfettoApiTest, TracingV2NestedPacketsFromTwoThreads) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (GetParam() == perfetto::kSystemBackend)
+    GTEST_SKIP() << "Tracing v2 over IPC requires memfd support";
+#endif
+
+  perfetto::TraceConfig cfg;
+  auto* buffer = cfg.add_buffers();
+  buffer->set_size_kb(1024);
+  buffer->set_experimental_mode(
+      perfetto::TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("CustomDataSource");
+  ds_cfg->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      100);
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  auto write = [](const char* str) {
+    CustomDataSource::Trace([str](CustomDataSource::TraceContext ctx) {
+      auto packet = ctx.NewTracePacket();
+      EXPECT_EQ(packet->encoding(), protozero::Message::Encoding::kProtoGroup);
+      packet->set_for_testing()->set_payload()->add_str(str);
+    });
+  };
+  write("main thread");
+  std::thread thread([&write] { write("other thread"); });
+  thread.join();
+
+  std::vector<std::string> strs;
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  for (const auto& packet : trace.packet()) {
+    for (const auto& str : packet.for_testing().payload().str())
+      strs.push_back(str);
+  }
+  EXPECT_THAT(strs, UnorderedElementsAre("main thread", "other thread"));
 }
 
 void EmitConsoleEvents() {
@@ -7877,6 +7926,77 @@ TEST_P(PerfettoStartupTracingApiTest, NoEventInStartupTracing) {
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTraceSession(tracing_session->get());
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
+}
+
+// An adopted startup instance keeps v1, including writers created after adoption.
+// A new instance with the same config can select v2.
+TEST_P(PerfettoStartupTracingApiTest, AdoptedInstanceKeepsV1) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  GTEST_SKIP() << "Tracing v2 over IPC requires memfd support";
+#endif
+  using Encoding = protozero::Message::Encoding;
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "StartupEvent");
+
+  perfetto::TraceConfig cfg;
+  auto* buffer = cfg.add_buffers();
+  buffer->set_size_kb(1024);
+  buffer->set_experimental_mode(
+      perfetto::TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      100);
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("test");
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  // After this round trip, the muxer has bound the startup buffer, so new
+  // writers no longer get a startup writer.
+  perfetto::test::SyncProducers();
+
+  std::optional<Encoding> adopted;
+  TRACE_EVENT_INSTANT("test", "AdoptedEvent", [&](perfetto::EventContext ctx) {
+    adopted = ctx.event()->encoding();
+  });
+  std::optional<Encoding> other_thread;
+  std::thread thread([&other_thread] {
+    TRACE_EVENT_INSTANT("test", "OtherThreadEvent",
+                        [&](perfetto::EventContext ctx) {
+                          other_thread = ctx.event()->encoding();
+                        });
+  });
+  thread.join();
+  EXPECT_EQ(adopted, Encoding::kLengthDelimited);
+  EXPECT_EQ(other_thread, Encoding::kLengthDelimited);
+
+  // The events use two sequences, so read the interned names per sequence.
+  std::map<uint32_t, ParsedIncrementalState> incremental_states;
+  std::vector<std::string> events;
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  for (const auto& packet : trace.packet()) {
+    auto& state = incremental_states[packet.trusted_packet_sequence_id()];
+    state.ClearIfNeeded(packet);
+    state.Parse(packet);
+    if (packet.has_track_event())
+      events.push_back(state.GetEventName(packet.track_event()));
+  }
+  EXPECT_THAT(events, UnorderedElementsAre("StartupEvent", "AdoptedEvent",
+                                           "OtherThreadEvent"));
+
+  auto* new_session = NewTrace(cfg);
+  new_session->get()->StartBlocking();
+  std::optional<Encoding> new_instance;
+  TRACE_EVENT_INSTANT("test", "NewEvent", [&](perfetto::EventContext ctx) {
+    new_instance = ctx.event()->encoding();
+  });
+  EXPECT_EQ(new_instance, Encoding::kProtoGroup);
+  EXPECT_THAT(StopSessionAndReadSlicesFromTrace(new_session),
+              ElementsAre("I:test.NewEvent"));
 }
 
 class ConcurrentSessionTest : public ::testing::Test {

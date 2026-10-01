@@ -54,7 +54,9 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
     perfetto_protos_TraceConfig_begin_buffers(&cfg, &buffers);
 
     perfetto_protos_TraceConfig_BufferConfig_set_size_kb(&buffers, 1024);
-    if (enable_protovm_config_) {
+    // Default to TraceBufferV2 for ProtoVM and tracing v2, unless overridden.
+    if (trace_buffer_v2_.value_or(enable_protovm_config_ ||
+                                  v2_probability_.has_value())) {
       perfetto_protos_TraceConfig_BufferConfig_set_experimental_mode(
           &buffers, perfetto_protos_TraceConfig_BufferConfig_TRACE_BUFFER_V2);
     }
@@ -73,6 +75,25 @@ std::vector<uint8_t> TracingSession::Builder::BuildProtoConfig() {
 
       perfetto_protos_DataSourceConfig_set_cstr_name(&ds_cfg,
                                                      data_source_name_.c_str());
+      if (v2_probability_.has_value()) {
+        perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config experiment;
+        perfetto_protos_DataSourceConfig_begin_experimental_tracing_v2(
+            &ds_cfg, &experiment);
+        perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config_set_use_v2_probability_percent(
+            &experiment, *v2_probability_);
+        for (uint32_t size : v2_chunk_sizes_) {
+          perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config_ChunkSizeOption
+              option;
+          perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config_begin_chunk_size_options(
+              &experiment, &option);
+          perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config_ChunkSizeOption_set_size_bytes(
+              &option, size);
+          perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config_end_chunk_size_options(
+              &experiment, &option);
+        }
+        perfetto_protos_DataSourceConfig_end_experimental_tracing_v2(
+            &ds_cfg, &experiment);
+      }
       if (enable_protovm_config_) {
         struct perfetto_protos_ProtoVmConfig protovm_cfg;
         perfetto_protos_DataSourceConfig_begin_protovm_config(&ds_cfg,
@@ -122,7 +143,7 @@ TracingSession TracingSession::Builder::Build() {
   std::vector<uint8_t> config = BuildProtoConfig();
 
   struct PerfettoTracingSessionImpl* ts =
-      PerfettoTracingSessionCreate(PERFETTO_BACKEND_IN_PROCESS);
+      PerfettoTracingSessionCreate(backend_);
 
   PerfettoTracingSessionSetup(ts, config.data(), config.size());
 
