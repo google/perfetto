@@ -290,8 +290,9 @@ class FlatHashMapV2 {
     }
   }
 
-  Value& operator[](Key key) {
-    auto it_and_inserted = Insert(std::move(key), Value{});
+  template <typename K = Key>
+  Value& operator[](K&& key) {
+    auto it_and_inserted = Insert(std::forward<K>(key), Value{});
     return *it_and_inserted.first;
   }
 

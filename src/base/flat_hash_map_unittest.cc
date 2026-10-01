@@ -229,7 +229,7 @@ TEST(FlatHashMapV2Test, CStringInsertLookupAndErase) {
   EXPECT_EQ(map.Find("literal key"), nullptr);
 }
 
-TEST(FlatHashMapV2Test, InsertForwardsKey) {
+TEST(FlatHashMapV2Test, InsertAndSubscriptForwardKey) {
   struct Counts {
     int copies = 0;
     int moves = 0;
@@ -282,6 +282,50 @@ TEST(FlatHashMapV2Test, InsertForwardsKey) {
   EXPECT_EQ(const_lvalue.val, 3);
   EXPECT_EQ(counts.copies, 2);
   EXPECT_EQ(counts.moves, 1);
+
+  counts = {};
+  EXPECT_EQ(map[lvalue], 10);
+  EXPECT_EQ(map[std::move(lvalue)], 10);
+  EXPECT_EQ(lvalue.val, 1);
+  EXPECT_EQ(map[const_lvalue], 40);
+  EXPECT_EQ(counts.copies, 0);
+  EXPECT_EQ(counts.moves, 0);
+
+  TrackedKey new_lvalue(4, &counts);
+  EXPECT_EQ(map[new_lvalue], 0);
+  EXPECT_EQ(new_lvalue.val, 4);
+  EXPECT_EQ(counts.copies, 1);
+  EXPECT_EQ(counts.moves, 0);
+  map[new_lvalue] = 50;
+  EXPECT_EQ(map[new_lvalue], 50);
+  EXPECT_EQ(counts.copies, 1);
+  EXPECT_EQ(counts.moves, 0);
+
+  TrackedKey new_rvalue(5, &counts);
+  EXPECT_EQ(map[std::move(new_rvalue)], 0);
+  EXPECT_EQ(new_rvalue.val, -1);
+  EXPECT_EQ(counts.copies, 1);
+  EXPECT_EQ(counts.moves, 1);
+
+  const TrackedKey new_const_lvalue(6, &counts);
+  EXPECT_EQ(map[new_const_lvalue], 0);
+  EXPECT_EQ(new_const_lvalue.val, 6);
+  EXPECT_EQ(counts.copies, 2);
+  EXPECT_EQ(counts.moves, 1);
+}
+
+TEST(FlatHashMapV2Test, HeterogeneousSubscript) {
+  FlatHashMapV2<std::string, int> map;
+  EXPECT_EQ(map[std::string_view("key")], 0);
+  map[std::string_view("key")] = 42;
+  const char* key = "key";
+  EXPECT_EQ(map[key], 42);
+  EXPECT_EQ(map["key"], 42);
+  EXPECT_EQ(map.size(), 1u);
+  EXPECT_EQ(map["literal"], 0);
+  const char* other = "pointer";
+  EXPECT_EQ(map[other], 0);
+  EXPECT_EQ(map.size(), 3u);
 }
 
 TYPED_TEST(FlatHashMapTest, NonTrivialKeyValues) {
