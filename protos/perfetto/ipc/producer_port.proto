@@ -104,6 +104,11 @@ service ProducerPort {
   rpc UpdateDataSource(UpdateDataSourceRequest)
       returns (UpdateDataSourceResponse) {}
 
+  // ----------------------------------------------------
+  // All methods below are introduced in v59.
+  // They are experimental and subject to change.
+  // ----------------------------------------------------
+
   // Example tracing v2 flow over IPC. Time runs from top to bottom.
   // This connection supports both v1 and v2. Writers can publish before the
   // service replies to AttachV2RingBuffer.
@@ -113,8 +118,8 @@ service ProducerPort {
   //   producer (ProducerIPCClientImpl)           service (ProducerIPCService)
   //      |                                                  |
   //   1. | InitializeConnection                             |
-  //      |   supported_protocol_abi_versions = [V1, V2] --->| finds all
-  //      |<----------- protocol_abi_versions = [V1, V2]     | common versions
+  //      |   supported_protocol_abi_versions = V1|V2 ------>| finds all
+  //      |<------------- protocol_abi_versions = V1|V2      | common versions
   //      |                                                  |
   //   2. |<------------- SetupDataSource (GetAsyncCommand)  |
   //      |   DataSourceConfig.supports_tracing_v2 = true    |
@@ -157,7 +162,7 @@ service ProducerPort {
   // own mapping.
   //
   // The service rejects the request if:
-  // - v2 is not in the connection's common ABI list,
+  // - v2 is not in the connection's common ABI mask,
   // - the memfd is missing, unsealed, empty or larger than kMaxShmSize,
   // - the mapping size and chunk_size_bytes do not form a valid layout, or
   // - a ring buffer is already attached to this connection.
@@ -165,21 +170,22 @@ service ProducerPort {
   // A rejection leaves the connection and any existing attachment unchanged.
   // The service releases the mapping supplied by the rejected request.
   // If no ring buffer is attached, the producer can retry with a valid mapping.
-  //
-  // Introduced in v59.
   rpc AttachV2RingBuffer(AttachV2RingBufferRequest)
       returns (AttachV2RingBufferResponse) {}
 
   // The producer asks the service to read its tracing v2 ring buffer.
-  // Introduced in v59.
   rpc DrainV2RingBuffer(DrainV2RingBufferRequest)
       returns (DrainV2RingBufferResponse) {}
 }
 
 // A shared memory layout and the operations that send its data to the service.
-// The versions are independent: v2 does not imply v1. The producer lists its
-// versions in InitializeConnectionRequest. The service returns all common
-// versions. This exchange does not select a writer for an instance.
+// The versions are independent: v2 does not imply v1. The producer sends a
+// bitmask of its versions in InitializeConnectionRequest. The service returns
+// the bitmask of common versions. This exchange does not select a writer for
+// an instance.
+//
+// Each value is a single bit, so a uint32 mask holds a set of versions.
+// A new version must take the next unused bit: 4, then 8.
 //
 // Keep in sync with ProtocolAbiVersion in
 // include/perfetto/ext/tracing/core/tracing_service.h, which describes each
@@ -195,6 +201,7 @@ enum ProtocolAbiVersion {
 
   // Tracing v2: a ring buffer that the producer allocates, shared with
   // AttachV2RingBuffer and read on DrainV2RingBuffer.
+  // It is experimental and its ABI is not stable yet.
   // Design: RFC-0014, https://github.com/google/perfetto/discussions/4508.
   PROTOCOL_ABI_VERSION_V2 = 2;
 }
@@ -268,11 +275,11 @@ message InitializeConnectionRequest {
   // Introduced in v13.
   optional string shm_key_windows = 7;
 
-  // The protocol versions that the producer supports. The service returns
-  // those it supports too. Order and duplicates have no effect. The service
-  // ignores unknown values. Empty, as from an old producer, means v1 only.
+  // Bitmask of the ProtocolAbiVersion values that the producer supports.
+  // The service returns those it supports too, and ignores unknown bits.
+  // 0 or absent, as from an old producer, means v1 only.
   // Introduced in v59.
-  repeated ProtocolAbiVersion supported_protocol_abi_versions = 9;
+  optional uint32 supported_protocol_abi_versions = 9;
 }
 
 message InitializeConnectionResponse {
@@ -291,18 +298,22 @@ message InitializeConnectionResponse {
   // for remote connection from a VM guest.
   optional bool use_shmem_emulation = 3;
 
-  // All versions from supported_protocol_abi_versions that the service also
-  // supports on this connection. Order and duplicates have no effect.
+  // Bitmask of the versions in supported_protocol_abi_versions that the
+  // service also supports on this connection.
   // - No common version: the service rejects InitializeConnection.
-  // - Empty, as from an old service: v1 only, not an empty common set.
+  // - 0 or absent, as from an old service: v1 only, not an empty common set.
   // - A version that the producer did not offer: the producer disconnects.
   //   This includes an old service when the producer did not offer v1.
-  // The list stays fixed for the connection. It does not select a writer.
+  // The mask stays fixed for the connection. It does not select a writer.
   // Introduced in v59.
-  repeated ProtocolAbiVersion protocol_abi_versions = 4;
+  optional uint32 protocol_abi_versions = 4;
 }
 
 // Arguments for rpc AttachV2RingBuffer().
+// - The IPC layer sends the ring buffer's file descriptor, a sealed memfd,
+//   with this request. Without it, the service rejects the request.
+// - The service takes the ring buffer size from the memfd. The request has
+//   no size field.
 message AttachV2RingBufferRequest {
   // Bytes per chunk in the shared memory. The service rejects the ring buffer
   // if the size and this value give no valid layout.

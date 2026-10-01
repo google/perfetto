@@ -61,7 +61,6 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
-#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/task_runner.h"
@@ -381,23 +380,23 @@ TracingServiceImpl::~TracingServiceImpl() {
 }
 
 std::unique_ptr<TracingService::ProducerEndpoint>
-TracingServiceImpl::ConnectProducer(
-    Producer* producer,
-    const ClientIdentity& client_identity,
-    const std::string& producer_name,
-    size_t shared_memory_size_hint_bytes,
-    bool in_process,
-    ProducerSMBScrapingMode smb_scraping_mode,
-    size_t shared_memory_page_size_hint_bytes,
-    std::unique_ptr<SharedMemory> shm,
-    const std::string& sdk_version,
-    const std::string& machine_name,
-    const std::vector<ProtocolAbiVersion>& protocol_abi_versions) {
+TracingServiceImpl::ConnectProducer(Producer* producer,
+                                    const ClientIdentity& client_identity,
+                                    const std::string& producer_name,
+                                    size_t shared_memory_size_hint_bytes,
+                                    bool in_process,
+                                    ProducerSMBScrapingMode smb_scraping_mode,
+                                    size_t shared_memory_page_size_hint_bytes,
+                                    std::unique_ptr<SharedMemory> shm,
+                                    const std::string& sdk_version,
+                                    const std::string& machine_name,
+                                    uint32_t protocol_abi_versions) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
-  if (protocol_abi_versions.empty()) {
+  if (!protocol_abi_versions) {
     PERFETTO_ELOG(
-        "ConnectProducer: producer \"%s\" has no common protocol version",
+        "Failed to negotiate a valid tracing protocol version with the tracing "
+        "service: producer=\"%s\"",
         producer_name.c_str());
     return nullptr;
   }
@@ -428,14 +427,10 @@ TracingServiceImpl::ConnectProducer(
       break;
   }
 
-  base::FlatSet<ProtocolAbiVersion> common_versions;
-  for (auto version : protocol_abi_versions)
-    common_versions.insert(version);
-
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, client_identity, this, weak_runner_.task_runner(), producer,
       producer_name, machine_name, sdk_version, in_process,
-      smb_scraping_enabled, std::move(common_versions)));
+      smb_scraping_enabled, protocol_abi_versions));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
 
@@ -3487,9 +3482,9 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   PERFETTO_DCHECK(global_id);
 
   const bool supports_tracing_v2 =
-      producer->protocol_abi_versions_.count(ProtocolAbiVersion::kV2) &&
+      (producer->protocol_abi_versions_ & kProtocolAbiV2) &&
       GetBufferByID(global_id, TraceBuffer::BufType::kV2);
-  if (!producer->protocol_abi_versions_.count(ProtocolAbiVersion::kV1) &&
+  if (!(producer->protocol_abi_versions_ & kProtocolAbiV1) &&
       !supports_tracing_v2) {
     PERFETTO_ELOG(
         "Cannot set up data source \"%s\" on producer \"%s\": "

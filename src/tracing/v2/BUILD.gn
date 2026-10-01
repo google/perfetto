@@ -58,6 +58,13 @@ source_set("abi") {
     "../../../include/perfetto/protozero",
   ]
   sources = [ "shared_ring_buffer_abi.h" ]
+
+  # For HasMemfdSupport() in IpcSupportsTracingV2(). The in-process service
+  # also uses this target, so non-IPC builds (NaCl, Chromium on Windows) must
+  # build without src/tracing/ipc.
+  if (enable_perfetto_ipc) {
+    public_deps += [ "../ipc:common" ]
+  }
 }
 
 # Helpers that tests in other directories use to write and inspect a ring

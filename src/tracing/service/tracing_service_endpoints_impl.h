@@ -25,7 +25,6 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -71,7 +70,7 @@ class ProducerEndpointImpl
                        const std::string& sdk_version,
                        bool in_process,
                        bool smb_scraping_enabled,
-                       base::FlatSet<ProtocolAbiVersion> protocol_abi_versions);
+                       uint32_t protocol_abi_versions);
   ~ProducerEndpointImpl() override;
 
   // TracingService::ProducerEndpoint implementation.
@@ -121,7 +120,7 @@ class ProducerEndpointImpl
   }
 
   // TracingService::ProducerEndpoint implementation for tracing v2.
-  void AttachV2RingBuffer(std::shared_ptr<SharedMemory>,
+  void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
                           uint32_t chunk_size_bytes,
                           std::function<void(bool)>) override;
   void DrainV2RingBuffer() override;
@@ -134,7 +133,7 @@ class ProducerEndpointImpl
 
   // Mapping size for the memory guardrail. Zero if no ring buffer is attached.
   size_t ring_buffer_size_bytes() const {
-    return ring_buffer_drainer_ ? ring_buffer_drainer_->size_bytes() : 0;
+    return v2_ring_buffer_drainer_ ? v2_ring_buffer_drainer_->size_bytes() : 0;
   }
 
   bool IsShmemEmulated() { return shmem_abi_.use_shmem_emulation(); }
@@ -184,14 +183,15 @@ class ProducerEndpointImpl
   // SharedMemoryArbiterImpl methods themselves are thread-safe.
   std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
 
-  // Common versions supplied to ConnectProducer(). Fixed for the connection.
-  const base::FlatSet<ProtocolAbiVersion> protocol_abi_versions_;
+  // Bitmask of the common versions supplied to ConnectProducer(). Fixed for
+  // the connection.
+  const uint32_t protocol_abi_versions_;
 
-  // |ring_buffer_drainer_| owns the reader and keeps the ring buffer mapped.
+  // |v2_ring_buffer_drainer_| owns the reader and keeps the ring buffer mapped.
   // The reader's destination checks use |allowed_target_buffers_|.
-  // DisconnectProducer() runs the final drain through |ring_buffer_drainer_|
+  // DisconnectProducer() runs the final drain through |v2_ring_buffer_drainer_|
   // before |allowed_target_buffers_| is destroyed.
-  std::unique_ptr<tracing_v2::ServiceRingBufferDrainer> ring_buffer_drainer_;
+  std::unique_ptr<tracing_v2::ServiceRingBufferDrainer> v2_ring_buffer_drainer_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;
 };

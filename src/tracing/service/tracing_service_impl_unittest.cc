@@ -408,7 +408,7 @@ TEST_F(TracingServiceImplTest, RingBufferNeedsProtocolAbiV2) {
       /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDefault,
       /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
-      /*sdk_version=*/{}, /*machine_name=*/{}, {ProtocolAbiVersion::kV2});
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
   EXPECT_TRUE(attach(capable.get()));
   task_runner.RunUntilIdle();
 }
@@ -420,7 +420,7 @@ TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
       /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDefault,
       /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
-      /*sdk_version=*/{}, /*machine_name=*/{}, {ProtocolAbiVersion::kV2});
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
   auto attach = [&](size_t size) {
     std::optional<bool> accepted;
     endpoint->AttachV2RingBuffer(std::make_shared<InProcessSharedMemory>(size),
@@ -440,7 +440,7 @@ TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
   task_runner.RunUntilIdle();
 }
 
-TEST_F(TracingServiceImplTest, RejectsEmptyProtocolVersionList) {
+TEST_F(TracingServiceImplTest, RejectsEmptyProtocolVersionMask) {
   NiceMock<MockProducer> producer(&task_runner);
   EXPECT_CALL(producer, OnConnect()).Times(0);
   auto endpoint = svc->ConnectProducer(
@@ -448,7 +448,7 @@ TEST_F(TracingServiceImplTest, RejectsEmptyProtocolVersionList) {
       /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDefault,
       /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
-      /*sdk_version=*/{}, /*machine_name=*/{}, /*protocol_abi_versions=*/{});
+      /*sdk_version=*/{}, /*machine_name=*/{}, /*protocol_abi_versions=*/0);
   EXPECT_FALSE(endpoint);
   task_runner.RunUntilIdle();
 }
@@ -464,7 +464,7 @@ TEST_F(TracingServiceImplTest, V2OnlyProducerNeedsV2Destination) {
       /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDefault,
       /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
-      /*sdk_version=*/{}, /*machine_name=*/{}, {ProtocolAbiVersion::kV2});
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
   ASSERT_TRUE(endpoint);
   for (const char* name : {"v1_target", "v2_target"}) {
     DataSourceDescriptor descriptor;

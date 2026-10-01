@@ -16,11 +16,11 @@
 
 #include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
 
-#include <algorithm>
 #include <cinttypes>
 
 #include <string.h>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -36,7 +36,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
-#include "src/tracing/ipc/memfd.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -179,15 +179,10 @@ void ProducerIPCClientImpl::OnConnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   connected_ = true;
 
-  std::vector<ProtocolAbiVersion> offered_versions = {ProtocolAbiVersion::kV1};
-  // v2 shares the ring buffer through a sealed memfd.
-  if (HasMemfdSupport())
-    offered_versions.push_back(ProtocolAbiVersion::kV2);
+  uint32_t offered_versions = kProtocolAbiV1;
+  offered_versions |= tracing_v2::IpcSupportsTracingV2() ? kProtocolAbiV2 : 0u;
   protos::gen::InitializeConnectionRequest req;
-  for (auto version : offered_versions) {
-    req.add_supported_protocol_abi_versions(
-        static_cast<protos::gen::ProtocolAbiVersion>(version));
-  }
+  req.set_supported_protocol_abi_versions(offered_versions);
 
   // When this client is destroyed, the port calls pending callbacks with a
   // failure result. By then, members used by OnConnectionInitialized() have
@@ -195,8 +190,7 @@ void ProducerIPCClientImpl::OnConnect() {
   // case.
   ipc::Deferred<protos::gen::InitializeConnectionResponse> on_init;
   on_init.Bind(
-      [weak_this = weak_factory_.GetWeakPtr(),
-       offered_versions = std::move(offered_versions)](
+      [weak_this = weak_factory_.GetWeakPtr(), offered_versions](
           ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
         if (weak_this)
           weak_this->OnConnectionInitialized(offered_versions, std::move(resp));
@@ -256,7 +250,7 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
-  protocol_abi_versions_.clear();
+  protocol_abi_versions_ = 0;
   data_sources_setup_.clear();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
@@ -282,13 +276,12 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
 }
 
 void ProducerIPCClientImpl::OnConnectionInitialized(
-    const std::vector<ProtocolAbiVersion>& offered_versions,
+    uint32_t offered_versions,
     ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // The IPC proxy accesses this callback after it returns, so keep the port
-  // alive until the next task. Ignore service commands until then.
+  // alive until the next task.
   auto reject_connection = [this] {
-    protocol_abi_versions_.clear();
     task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr()] {
       if (weak_this && weak_this->connected_)
         weak_this->Disconnect();
@@ -300,33 +293,20 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
     return;
   }
 
-  base::FlatSet<ProtocolAbiVersion> negotiated_versions;
+  // An old service sends no versions. This means v1 only.
+  uint32_t versions = response->protocol_abi_versions();
+  if (!versions)
+    versions = kProtocolAbiV1;
 
-  // Treat an empty list from an old service as v1 only. Otherwise, use the
-  // versions returned by the service.
-  if (response->protocol_abi_versions().empty()) {
-    negotiated_versions.insert(ProtocolAbiVersion::kV1);
-  } else {
-    for (auto version : response->protocol_abi_versions())
-      negotiated_versions.insert(static_cast<ProtocolAbiVersion>(version));
+  // The service returns only versions that the producer offered. Log both
+  // masks if it does not.
+  if (versions & ~offered_versions) {
+    PERFETTO_ELOG("Unexpected protocol versions (advertised: %x, service: %x)",
+                  offered_versions, versions);
+    reject_connection();
+    return;
   }
-
-  for (auto version : negotiated_versions) {
-    if (std::find(offered_versions.begin(), offered_versions.end(), version) ==
-        offered_versions.end()) {
-      PERFETTO_ELOG(
-          "Service returned protocol version %u, which we did not offer",
-          static_cast<uint32_t>(version));
-      reject_connection();
-      return;
-    }
-    if (response->use_shmem_emulation() && version == ProtocolAbiVersion::kV2) {
-      PERFETTO_ELOG("Service returned protocol v2 with shmem emulation");
-      reject_connection();
-      return;
-    }
-  }
-  protocol_abi_versions_ = std::move(negotiated_versions);
+  protocol_abi_versions_ = versions;
   is_shmem_provided_by_producer_ = response->using_shmem_provided_by_producer();
   direct_smb_patching_supported_ = response->direct_smb_patching_supported();
   // The tracing service may reject using shared memory and tell the client to
@@ -348,12 +328,6 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
 void ProducerIPCClientImpl::OnServiceRequest(
     const protos::gen::GetAsyncCommandResponse& cmd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // A failed InitializeConnection queues a disconnect. Do not call the
-  // producer if a command arrives before that task runs.
-  if (protocol_abi_versions_.empty()) {
-    PERFETTO_DLOG("Ignoring service command before connection initialization");
-    return;
-  }
 
   // This message is sent only when connecting to a service running Android Q+.
   // See comment below in kStartDataSource.
@@ -591,22 +565,18 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
 }
 
 void ProducerIPCClientImpl::AttachV2RingBuffer(
-    std::shared_ptr<SharedMemory> memory,
+    const std::shared_ptr<SharedMemory>& memory,
     uint32_t chunk_size_bytes,
     std::function<void(bool)> callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
-  // OnConnect() offers v2 only on platforms with memfd support.
-  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2) ||
-      !producer_port_ || !memory) {
+  // OnConnect() offers v2 only if tracing_v2::IpcSupportsTracingV2().
+  if (!connected_ || !HasNegotiatedV2Abi() || !memory) {
     callback(false);
     return;
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // Windows cannot negotiate v2. Exclude the POSIX descriptor access below.
-  callback(false);
-#else
+#if PERFETTO_TRACING_V2_IPC()
   protos::gen::AttachV2RingBufferRequest req;
   req.set_chunk_size_bytes(chunk_size_bytes);
   ipc::Deferred<protos::gen::AttachV2RingBufferResponse> reply;
@@ -616,15 +586,21 @@ void ProducerIPCClientImpl::AttachV2RingBuffer(
         callback(result.success());
       });
   // The IPC layer sends the descriptor before this call returns. The service
-  // maps its own copy. This side keeps |memory| for its writers.
+  // maps it on its side.
+  //
+  // The producer that called this method owns |memory| and keeps it mapped for
+  // its writers.
   const int fd = static_cast<PosixSharedMemory*>(memory.get())->fd();
   producer_port_->AttachV2RingBuffer(req, std::move(reply), fd);
+#else
+  base::ignore_result(chunk_size_bytes);
+  callback(false);
 #endif
 }
 
 void ProducerIPCClientImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2) || !producer_port_)
+  if (!connected_ || !HasNegotiatedV2Abi())
     return;
   producer_port_->DrainV2RingBuffer(
       protos::gen::DrainV2RingBufferRequest(),

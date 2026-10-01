@@ -43,7 +43,7 @@ SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 void Consumer::OnSessionCloned(const OnSessionClonedArgs&) {}
 
 // Endpoints without tracing v2 support reject ring buffers.
-void ProducerEndpoint::AttachV2RingBuffer(std::shared_ptr<SharedMemory>,
+void ProducerEndpoint::AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
                                           uint32_t,
                                           std::function<void(bool)> callback) {
   callback(false);

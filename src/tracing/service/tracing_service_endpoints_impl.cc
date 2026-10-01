@@ -433,7 +433,7 @@ ProducerEndpointImpl::ProducerEndpointImpl(
     const std::string& sdk_version,
     bool in_process,
     bool smb_scraping_enabled,
-    base::FlatSet<ProtocolAbiVersion> protocol_abi_versions)
+    uint32_t protocol_abi_versions)
     : id_(id),
       client_identity_(client_identity),
       service_(service),
@@ -443,7 +443,7 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
-      protocol_abi_versions_(std::move(protocol_abi_versions)),
+      protocol_abi_versions_(protocol_abi_versions),
       weak_runner_(task_runner) {}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
@@ -761,15 +761,15 @@ bool ProducerEndpointImpl::IsAndroidProcessFrozen() {
 }
 
 void ProducerEndpointImpl::AttachV2RingBuffer(
-    std::shared_ptr<SharedMemory> memory,
+    const std::shared_ptr<SharedMemory>& memory,
     uint32_t chunk_size_bytes,
     std::function<void(bool)> callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   base::Status status;
-  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2)) {
+  if (!(protocol_abi_versions_ & kProtocolAbiV2)) {
     status = base::ErrStatus("the connection has no tracing v2");
-  } else if (ring_buffer_drainer_) {
+  } else if (v2_ring_buffer_drainer_) {
     status = base::ErrStatus("a ring buffer is already attached");
   } else if (!memory || memory->size() > TracingService::kMaxShmSize) {
     status = base::ErrStatus("no mapping, or the mapping is too large");
@@ -785,9 +785,10 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
     return;
   }
 
-  ring_buffer_drainer_ = std::make_unique<tracing_v2::ServiceRingBufferDrainer>(
-      std::move(memory), chunk_size_bytes, id_, client_identity_, this,
-      weak_runner_.task_runner());
+  v2_ring_buffer_drainer_ =
+      std::make_unique<tracing_v2::ServiceRingBufferDrainer>(
+          memory, chunk_size_bytes, id_, client_identity_, this,
+          weak_runner_.task_runner());
   service_->UpdateMemoryGuardrail();
   DrainV2RingBuffer();
   callback(true);
@@ -795,8 +796,8 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
 
 void ProducerEndpointImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (ring_buffer_drainer_)
-    ring_buffer_drainer_->Drain();
+  if (v2_ring_buffer_drainer_)
+    v2_ring_buffer_drainer_->Drain();
 }
 
 TraceBufferV2* ProducerEndpointImpl::GetRingBufferDestination(BufferID id) {

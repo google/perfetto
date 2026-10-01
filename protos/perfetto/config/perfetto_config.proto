@@ -5005,10 +5005,10 @@ message DataSourceConfig {
 
   // Set by the service to indicate that this data source can write to its
   // target buffer through the tracing v2 ring buffer. True only if:
-  // - v2 is in the connection's common ProtocolAbiVersion list, and
+  // - v2 is in the connection's common ProtocolAbiVersion mask, and
   // - the target buffer is a TraceBufferV2.
   // Absent means false. True permits v2 but does not select it. The producer
-  // can select v1 only if v1 is also in the common list. If no common version
+  // can select v1 only if v1 is also in the common mask. If no common version
   // is permitted by the config and target buffer, the instance cannot run.
   // One buffer can hold both formats. Each writer sequence uses one format.
   //

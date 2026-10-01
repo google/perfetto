@@ -18,7 +18,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -71,28 +70,21 @@ class ProducerIPCClientTestPeer {
     client->OnServiceRequest(cmd);
   }
 
-  static const base::FlatSet<ProtocolAbiVersion>& protocol_abi_versions(
-      const ProducerIPCClientImpl* client) {
+  static uint32_t protocol_abi_versions(const ProducerIPCClientImpl* client) {
     return client->protocol_abi_versions_;
   }
 
   // Acts like an InitializeConnection reply to |offered_versions|.
-  static void OnConnectionInitialized(
-      ProducerIPCClientImpl* client,
-      const std::vector<ProtocolAbiVersion>& offered_versions,
-      const std::vector<ProtocolAbiVersion>& protocol_abi_versions,
-      bool use_shmem_emulation = false,
-      bool connection_succeeded = true) {
+  static void OnConnectionInitialized(ProducerIPCClientImpl* client,
+                                      uint32_t offered_versions,
+                                      uint32_t protocol_abi_versions,
+                                      bool connection_succeeded = true) {
     ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response;
     if (connection_succeeded) {
       response =
           ipc::AsyncResult<protos::gen::InitializeConnectionResponse>::Create();
       response->set_direct_smb_patching_supported(true);
-      response->set_use_shmem_emulation(use_shmem_emulation);
-      for (auto version : protocol_abi_versions) {
-        response->add_protocol_abi_versions(
-            static_cast<protos::gen::ProtocolAbiVersion>(version));
-      }
+      response->set_protocol_abi_versions(protocol_abi_versions);
     }
     client->OnConnectionInitialized(offered_versions, std::move(response));
   }
@@ -103,7 +95,6 @@ class ProducerIPCClientTestPeer {
 namespace {
 
 using testing::_;
-using testing::ElementsAre;
 using testing::InvokeWithoutArgs;
 using tracing_service::TracingServiceImpl;
 
@@ -410,7 +401,7 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
     return static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
   }
 
-  const base::FlatSet<ProtocolAbiVersion>& protocol_abi_versions() {
+  uint32_t protocol_abi_versions() {
     return test::ProducerIPCClientTestPeer::protocol_abi_versions(client());
   }
 
@@ -602,14 +593,12 @@ TEST_F(RingBufferTransportIntegrationTest, CorruptRingBufferKeepsConnection) {
 }
 
 // Each advertised version is independent. Keep all common versions, and do
-// not add v1 to a v2-only offer. An old producer lists none and gets v1.
+// not add v1 to a v2-only offer. An old producer sends 0 and gets v1.
 TEST_F(RingBufferTransportIntegrationTest, ServiceReturnsAllCommonVersions) {
-  EXPECT_THAT(protocol_abi_versions(),
-              ElementsAre(ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2));
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
 
-  // Returns the common list, or nullopt if the service rejects the request.
-  auto negotiate = [&](std::vector<protos::gen::ProtocolAbiVersion> offered)
-      -> std::optional<std::vector<protos::gen::ProtocolAbiVersion>> {
+  // Returns the common mask, or nullopt if the service rejects the request.
+  auto negotiate = [&](uint32_t offered) -> std::optional<uint32_t> {
     struct Listener : public ipc::ServiceProxy::EventListener {
       std::function<void()> on_connect;
       void OnConnect() override { on_connect(); }
@@ -624,9 +613,8 @@ TEST_F(RingBufferTransportIntegrationTest, ServiceReturnsAllCommonVersions) {
 
     protos::gen::InitializeConnectionRequest req;
     req.set_producer_name(name);
-    for (auto version : offered)
-      req.add_supported_protocol_abi_versions(version);
-    std::optional<std::vector<protos::gen::ProtocolAbiVersion>> common;
+    req.set_supported_protocol_abi_versions(offered);
+    std::optional<uint32_t> common;
     auto replied = task_runner_->CreateCheckpoint(name + "_replied");
     ipc::Deferred<protos::gen::InitializeConnectionResponse> reply;
     reply.Bind(
@@ -639,25 +627,15 @@ TEST_F(RingBufferTransportIntegrationTest, ServiceReturnsAllCommonVersions) {
     task_runner_->RunUntilCheckpoint(name + "_replied");
     return common;
   };
-  using protos::gen::PROTOCOL_ABI_VERSION_V1;
-  using protos::gen::PROTOCOL_ABI_VERSION_V2;
-  const auto kV3 = static_cast<protos::gen::ProtocolAbiVersion>(3);
-  using Versions = std::vector<protos::gen::ProtocolAbiVersion>;
-  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V1, PROTOCOL_ABI_VERSION_V2, kV3}),
-            (Versions{PROTOCOL_ABI_VERSION_V1, PROTOCOL_ABI_VERSION_V2}));
-  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V2}),
-            Versions{PROTOCOL_ABI_VERSION_V2});
-  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V1}),
-            Versions{PROTOCOL_ABI_VERSION_V1});
-  EXPECT_EQ(negotiate({}), Versions{PROTOCOL_ABI_VERSION_V1});
-  EXPECT_EQ(negotiate({PROTOCOL_ABI_VERSION_V2, PROTOCOL_ABI_VERSION_V1,
-                       PROTOCOL_ABI_VERSION_V2}),
-            (Versions{PROTOCOL_ABI_VERSION_V1, PROTOCOL_ABI_VERSION_V2}));
-  EXPECT_EQ(negotiate({protos::gen::PROTOCOL_ABI_VERSION_UNSPECIFIED}),
-            std::nullopt);
-  EXPECT_EQ(negotiate({kV3, PROTOCOL_ABI_VERSION_V2}),
-            Versions{PROTOCOL_ABI_VERSION_V2});
-  EXPECT_EQ(negotiate({kV3}), std::nullopt);
+  const uint32_t kV1 = kProtocolAbiV1;
+  const uint32_t kV2 = kProtocolAbiV2;
+  const uint32_t kUnknown = 1u << 2;
+  EXPECT_EQ(negotiate(kV1 | kV2 | kUnknown), kV1 | kV2);
+  EXPECT_EQ(negotiate(kV2), kV2);
+  EXPECT_EQ(negotiate(kV1), kV1);
+  EXPECT_EQ(negotiate(0), kV1);
+  EXPECT_EQ(negotiate(kUnknown | kV2), kV2);
+  EXPECT_EQ(negotiate(kUnknown), std::nullopt);
 }
 
 // A reply must contain only offered versions.
@@ -666,8 +644,7 @@ TEST_F(RingBufferTransportIntegrationTest,
   auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
   EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
   test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
-      {ProtocolAbiVersion::kV2, static_cast<ProtocolAbiVersion>(3)});
+      client(), kProtocolAbiV1 | kProtocolAbiV2, kProtocolAbiV2 | (1u << 2));
   task_runner_->RunUntilCheckpoint("producer_disconnected");
   producer_endpoint_.reset();
 }
@@ -677,8 +654,7 @@ TEST_F(RingBufferTransportIntegrationTest,
   auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
   EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
   test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV2},
-      {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2});
+      client(), kProtocolAbiV2, kProtocolAbiV1 | kProtocolAbiV2);
   task_runner_->RunUntilCheckpoint("producer_disconnected");
   producer_endpoint_.reset();
 }
@@ -686,8 +662,8 @@ TEST_F(RingBufferTransportIntegrationTest,
 TEST_F(RingBufferTransportIntegrationTest, V2OnlyOfferRejectsLegacyService) {
   auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
   EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
-  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV2}, {});
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(client(),
+                                                           kProtocolAbiV2, 0);
   task_runner_->RunUntilCheckpoint("producer_disconnected");
   producer_endpoint_.reset();
 }
@@ -695,48 +671,35 @@ TEST_F(RingBufferTransportIntegrationTest, V2OnlyOfferRejectsLegacyService) {
 TEST_F(RingBufferTransportIntegrationTest, LegacyServicePermitsOnlyV1) {
   EXPECT_CALL(producer_, OnConnect());
   test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2}, {});
-  EXPECT_THAT(protocol_abi_versions(), ElementsAre(ProtocolAbiVersion::kV1));
+      client(), kProtocolAbiV1 | kProtocolAbiV2, 0);
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1);
 }
 
 TEST_F(RingBufferTransportIntegrationTest, ClientKeepsOnlyCommonVersions) {
   EXPECT_CALL(producer_, OnConnect());
   test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
-      {ProtocolAbiVersion::kV2, ProtocolAbiVersion::kV2});
-  EXPECT_THAT(protocol_abi_versions(), ElementsAre(ProtocolAbiVersion::kV2));
+      client(), kProtocolAbiV1 | kProtocolAbiV2, kProtocolAbiV2);
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV2);
 }
 
 TEST_F(RingBufferTransportIntegrationTest, ClientAcceptsV2OnlyOffer) {
   EXPECT_CALL(producer_, OnConnect());
   test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV2}, {ProtocolAbiVersion::kV2});
-  EXPECT_THAT(protocol_abi_versions(), ElementsAre(ProtocolAbiVersion::kV2));
-}
-
-TEST_F(RingBufferTransportIntegrationTest, RejectsV2WithShmemEmulation) {
-  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
-  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
-  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2},
-      {ProtocolAbiVersion::kV2}, /*use_shmem_emulation=*/true);
-  task_runner_->RunUntilCheckpoint("producer_disconnected");
-  producer_endpoint_.reset();
+      client(), kProtocolAbiV2, kProtocolAbiV2);
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV2);
 }
 
 TEST_F(RingBufferTransportIntegrationTest, RejectedInitializationDisconnects) {
   auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
   EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
   test::ProducerIPCClientTestPeer::OnConnectionInitialized(
-      client(), {ProtocolAbiVersion::kV2}, {}, /*use_shmem_emulation=*/false,
-      /*connection_succeeded=*/false);
+      client(), kProtocolAbiV2, 0, /*connection_succeeded=*/false);
   task_runner_->RunUntilCheckpoint("producer_disconnected");
   producer_endpoint_.reset();
 }
 
 TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
-  ASSERT_THAT(protocol_abi_versions(),
-              ElementsAre(ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2));
+  ASSERT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
   TraceConfig config;
   auto* buffer = config.add_buffers();
   buffer->set_size_kb(64);
@@ -845,8 +808,7 @@ TEST_F(RingBufferTransportIntegrationTest,
   auto synced = task_runner_->CreateCheckpoint("still_connected");
   producer_endpoint_->Sync(synced);
   task_runner_->RunUntilCheckpoint("still_connected");
-  EXPECT_THAT(protocol_abi_versions(),
-              ElementsAre(ProtocolAbiVersion::kV1, ProtocolAbiVersion::kV2));
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
 }
 #endif
 

@@ -174,8 +174,7 @@ class TracingServiceImpl : public TracingService {
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
       const std::string& machine_name = {},
-      const std::vector<ProtocolAbiVersion>& protocol_abi_versions = {
-          ProtocolAbiVersion::kV1}) override;
+      uint32_t protocol_abi_versions = kProtocolAbiV1) override;
 
   // The endpoint reports discarded ring buffer chunks on the service
   // sequence. Adds them to chunks_discarded.
