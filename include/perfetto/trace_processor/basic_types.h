@@ -148,6 +148,15 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // passed trace packets. See the enum documentation for more details.
   SortingMode sorting_mode = SortingMode::kDefaultHeuristics;
 
+  // Policy for dropping duplicate machine-wide data when merging traces.
+  enum class DropDuplicateMachineData : uint8_t {
+    kUnset = 0,
+    kOff,
+    kOn,
+  };
+  DropDuplicateMachineData drop_duplicate_machine_data =
+      DropDuplicateMachineData::kUnset;
+
   // When set to false, this option makes the trace processor not include ftrace
   // events in the ftrace_event table; this makes converting events back to the
   // systrace text format impossible. On the other hand, it also saves ~50% of

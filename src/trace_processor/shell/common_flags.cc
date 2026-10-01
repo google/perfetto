@@ -166,6 +166,26 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
       "Allows SQL functions to access files visible to the shell process. Do "
       "not enable this for untrusted SQL.",
       &opts->allow_sql_file_access));
+  flags.push_back({
+      /*long_name=*/"drop-duplicate-machine-data",
+      /*short_name=*/'\0',
+      /*has_arg=*/true,
+      /*arg_name=*/"on|off",
+      /*help=*/"Drop duplicate machine data when merging traces (on|off).",
+      [opts](const char* v) {
+        if (strcmp(v, "on") == 0) {
+          opts->drop_duplicate_machine_data =
+              Config::DropDuplicateMachineData::kOn;
+        } else if (strcmp(v, "off") == 0) {
+          opts->drop_duplicate_machine_data =
+              Config::DropDuplicateMachineData::kOff;
+        } else {
+          PERFETTO_ELOG(
+              "Invalid value for --drop-duplicate-machine-data: %s (expected "
+              "'on' or 'off')",
+              v);
+        }
+      }});
   flags.push_back(
       BoolFlag("dev", '\0', "Enables local development features.", &opts->dev));
   flags.push_back({/*long_name=*/"dev-flag", /*short_name=*/'\0',
@@ -352,6 +372,7 @@ base::StatusOr<Config> BuildConfig(
       opts.crop_track_events
           ? DropTrackEventDataBefore::kTrackEventRangeOfInterest
           : DropTrackEventDataBefore::kNoDrop;
+  config.drop_duplicate_machine_data = opts.drop_duplicate_machine_data;
 
   for (const auto& ext : opts.metric_extensions) {
     config.skip_builtin_metric_paths.push_back(ext.virtual_path());
