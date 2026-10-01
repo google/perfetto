@@ -344,6 +344,12 @@ base::Status LoadMetricExtension(TraceProcessor* trace_processor,
 base::Status PopulateDescriptorPool(
     google::protobuf::DescriptorPool& pool,
     const std::vector<MetricExtension>& metric_extensions) {
+  const auto metrics_descriptor = kMetricsDescriptor.Decode();
+  const auto all_chrome_metrics_descriptor =
+      kAllChromeMetricsDescriptor.Decode();
+  const auto all_webview_metrics_descriptor =
+      kAllWebviewMetricsDescriptor.Decode();
+
   // TODO(b/182165266): There is code duplication here with trace_processor_impl
   // SetupMetrics. This will be removed when we switch the output formatter to
   // use internal DescriptorPool.
@@ -352,14 +358,15 @@ base::Status PopulateDescriptorPool(
   for (const auto& ext : metric_extensions) {
     skip_prefixes.push_back(kMetricProtoRoot + ext.virtual_path());
   }
-  ExtendPoolWithBinaryDescriptor(pool, kMetricsDescriptor.data(),
-                                 kMetricsDescriptor.size(), skip_prefixes);
-  ExtendPoolWithBinaryDescriptor(pool, kAllChromeMetricsDescriptor.data(),
-                                 kAllChromeMetricsDescriptor.size(),
+  ExtendPoolWithBinaryDescriptor(pool, metrics_descriptor.data(),
+                                 static_cast<int>(metrics_descriptor.size()),
                                  skip_prefixes);
-  ExtendPoolWithBinaryDescriptor(pool, kAllWebviewMetricsDescriptor.data(),
-                                 kAllWebviewMetricsDescriptor.size(),
-                                 skip_prefixes);
+  ExtendPoolWithBinaryDescriptor(
+      pool, all_chrome_metrics_descriptor.data(),
+      static_cast<int>(all_chrome_metrics_descriptor.size()), skip_prefixes);
+  ExtendPoolWithBinaryDescriptor(
+      pool, all_webview_metrics_descriptor.data(),
+      static_cast<int>(all_webview_metrics_descriptor.size()), skip_prefixes);
   return base::OkStatus();
 }
 

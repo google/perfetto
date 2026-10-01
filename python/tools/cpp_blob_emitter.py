@@ -19,7 +19,8 @@ accessors over constant-initialized storage. Each blob has its own view type.
 The header selects little- or big-endian uint64_t initializers at preprocessing
 time so the underlying bytes are identical on either architecture.
 This reduces C++ parsing work without long string literals, runtime conversion,
-or static constructors.
+or static constructors. Encoded blobs instead expose Decode(), which returns
+an owning byte buffer and releases its allocation when the caller is done.
 
 Importable from other build-time codegen tools, or runnable as a CLI:
   python3 cpp_blob_emitter.py \\
@@ -72,7 +73,7 @@ _HEADER_TEMPLATE = """/*
 #include <array>
 
 #include "perfetto/base/compiler.h"
-
+{decoder_include}
 namespace {namespace} {{
 
 inline constexpr std::array<uint64_t, {word_count}> k{symbol}Words{{{{
@@ -85,12 +86,7 @@ inline constexpr std::array<uint64_t, {word_count}> k{symbol}Words{{{{
 struct {symbol}View {{
   const uint64_t* words;
 
-  const uint8_t* data() const {{
-    return reinterpret_cast<const uint8_t*>(words);
-  }}
-  constexpr size_t size() const {{ return {size}; }}
-  const uint8_t* begin() const {{ return data(); }}
-  const uint8_t* end() const {{ return data() + size(); }}
+{accessors}
 }};
 inline constexpr {symbol}View k{symbol}{{k{symbol}Words.data()}};
 
@@ -98,6 +94,18 @@ inline constexpr {symbol}View k{symbol}{{k{symbol}Words.data()}};
 
 #endif  // {include_guard}
 """
+
+_VIEW_ACCESSORS = """  const uint8_t* data() const {{
+    return reinterpret_cast<const uint8_t*>(words);
+  }}
+  constexpr size_t size() const {{ return {size}; }}
+  const uint8_t* begin() const {{ return data(); }}
+  const uint8_t* end() const {{ return data() + size(); }}"""
+
+_DECODE_ACCESSORS = """  auto Decode() const {{
+    return ::perfetto::base::DecodedBlob::Decode(
+        reinterpret_cast<const uint8_t*>(words), {size});
+  }}"""
 
 
 def derive_symbol(output_path, suffix=''):
@@ -122,7 +130,13 @@ def derive_include_guard(output_path, gen_dir=''):
   return re.sub(r'[^A-Z0-9_]', '_', rel.upper()) + '_'
 
 
-def emit_array(data, output_path, *, symbol, namespace, include_guard):
+def emit_array(data,
+               output_path,
+               *,
+               symbol,
+               namespace,
+               include_guard,
+               decoder=False):
   """Write a header with native-endian words and a byte-view accessor."""
   # Padding is storage, not payload. Keep an addressable word for empty blobs.
   padded = data + b'\0' * (-len(data) % 8) if data else b'\0' * 8
@@ -140,7 +154,34 @@ def emit_array(data, output_path, *, symbol, namespace, include_guard):
             size=len(data),
             word_count=len(padded) // 8,
             little_binary=words('<'),
-            big_binary=words('>')))
+            big_binary=words('>'),
+            decoder_include=('#include "src/base/embedded_blob.h"\n'
+                             if decoder else ''),
+            accessors=(_DECODE_ACCESSORS
+                       if decoder else _VIEW_ACCESSORS).format(size=len(data))))
+
+
+def emit_encoded_array(data,
+                       output_path,
+                       *,
+                       symbol,
+                       namespace,
+                       include_guard,
+                       compression='zlib',
+                       decoder=False):
+  """Emit a self-describing blob that the generic embedded-blob decoder reads."""
+  # Keep codec IDs in sync with DecodedBlob::Decode: none=0, zlib=1, zstd=2.
+  assert compression in ('none', 'zlib')
+  codec = 1 if compression == 'zlib' else 0
+  payload = zlib.compress(data, level=9) if codec else data
+  encoded = struct.pack('<BI', codec, len(data)) + payload
+  emit_array(
+      encoded,
+      output_path,
+      symbol=symbol,
+      namespace=namespace,
+      include_guard=include_guard,
+      decoder=decoder)
 
 
 def emit_compressed_array(data,
@@ -191,6 +232,10 @@ def _main():
       '--compress',
       action='store_true',
       help='zlib-compress the bytes before embedding.')
+  parser.add_argument(
+      '--encoded',
+      action='store_true',
+      help='Emit a codec/size envelope and an owning Decode() accessor.')
   parser.add_argument('input', help='Path to bytes file.')
   args = parser.parse_args()
 
@@ -202,6 +247,16 @@ def _main():
 
   with open(args.input, 'rb') as f:
     data = f.read()
+  if args.encoded:
+    emit_encoded_array(
+        data,
+        args.output,
+        symbol=symbol,
+        namespace=args.namespace,
+        include_guard=include_guard,
+        decoder=True,
+        compression='zlib' if args.compress else 'none')
+    return 0
   emit = emit_compressed_array if args.compress else emit_array
   emit(
       data,

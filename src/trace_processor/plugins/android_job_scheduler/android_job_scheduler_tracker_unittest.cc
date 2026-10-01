@@ -45,10 +45,14 @@ namespace {
 class AndroidJobSchedulerTrackerTest : public ::testing::Test {
  public:
   AndroidJobSchedulerTrackerTest() {
+    const auto android_extension_descriptor =
+        kAndroidExtensionDescriptor.Decode();
+
     context.storage.reset(new TraceStorage());
     context.descriptor_pool_.reset(new DescriptorPool());
     context.descriptor_pool_->AddFromFileDescriptorSet(
-        kAndroidExtensionDescriptor.data(), kAndroidExtensionDescriptor.size());
+        android_extension_descriptor.data(),
+        android_extension_descriptor.size());
     context.global_args_tracker.reset(
         new GlobalArgsTracker(context.storage.get()));
     context.machine_tracker.reset(new MachineTracker(&context, 0));

@@ -49,11 +49,15 @@ namespace perfetto::trace_processor {
 
 void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
                                TraceProcessorContext* context) {
+  const auto trace_descriptor = kTraceDescriptor.Decode();
+  const auto android_extension_descriptor =
+      kAndroidExtensionDescriptor.Decode();
+
   // Content analyzer and metadata module both depend on these.
-  context->descriptor_pool_->AddFromFileDescriptorSet(kTraceDescriptor.data(),
-                                                      kTraceDescriptor.size());
+  context->descriptor_pool_->AddFromFileDescriptorSet(trace_descriptor.data(),
+                                                      trace_descriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
-      kAndroidExtensionDescriptor.data(), kAndroidExtensionDescriptor.size());
+      android_extension_descriptor.data(), android_extension_descriptor.size());
 
   module_context->modules.emplace_back(
       new AndroidCpuPerUidModule(module_context, context));

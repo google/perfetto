@@ -37,16 +37,20 @@ base::StatusOr<std::vector<uint8_t>> TraceConfigTxtToPb(
     const std::string& input,
     const std::string& file_name,
     bool allow_unknown_fields) {
-  return protozero::TextToProto(kConfigDescriptor.data(),
-                                kConfigDescriptor.size(), kConfigProtoName,
+  const auto config_descriptor = kConfigDescriptor.Decode();
+
+  return protozero::TextToProto(config_descriptor.data(),
+                                config_descriptor.size(), kConfigProtoName,
                                 file_name, input, allow_unknown_fields);
 }
 
 base::StatusOr<std::vector<uint8_t>> TraceSummarySpecTxtToPb(
     const std::string& input,
     const std::string& file_name) {
-  return protozero::TextToProto(kTraceSummaryDescriptor.data(),
-                                kTraceSummaryDescriptor.size(),
+  const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
+
+  return protozero::TextToProto(trace_summary_descriptor.data(),
+                                trace_summary_descriptor.size(),
                                 kTraceSummarySpecProtoName, file_name, input);
 }
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/decompressor.h"
+#include "src/base/decompressor.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -24,10 +24,10 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/util/gzip_decompressor.h"
-#include "src/trace_processor/util/zstd_decompressor.h"
+#include "src/base/gzip_decompressor.h"
+#include "src/base/zstd_decompressor.h"
 
-namespace perfetto::trace_processor::util {
+namespace perfetto::base {
 
 Decompressor::~Decompressor() = default;
 
@@ -126,4 +126,4 @@ std::optional<DecompressedBuffer> DecompressToBuffer(CompressionType type,
   return DecompressToBuffer(*decompressor, data, len, FrameMode::kAllFrames);
 }
 
-}  // namespace perfetto::trace_processor::util
+}  // namespace perfetto::base

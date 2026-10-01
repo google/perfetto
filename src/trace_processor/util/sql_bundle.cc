@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_STDLIB_STDLIB_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_STDLIB_STDLIB_H_
-
-#include <memory>
-
 #include "src/trace_processor/util/sql_bundle.h"
 
-namespace perfetto::trace_processor::stdlib {
+namespace perfetto::trace_processor {
 
-// The first request keeps no global ownership. A second request retains the
-// decoded bundle for subsequent processors and connection resets.
-std::shared_ptr<const SqlBundle> GetStdlibBundle();
+SqlBundle SqlBundle::Decode(const uint8_t* data, size_t size) {
+  return SqlBundle(base::DecodedBlob::Decode(data, size));
+}
 
-}  // namespace perfetto::trace_processor::stdlib
-
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_STDLIB_STDLIB_H_
+}  // namespace perfetto::trace_processor

@@ -1618,6 +1618,8 @@ cc_binary {
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
+        ":perfetto_src_base_decompressor",
+        ":perfetto_src_base_embedded_blob",
         ":perfetto_src_base_unix_socket",
         ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
@@ -1639,6 +1641,8 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libz",
+        "libzstd",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -1711,11 +1715,14 @@ cc_binary {
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
-        "perfetto_src_proto_utils_gen_cc_config_descriptor",
-        "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor",
+        "perfetto_src_proto_utils_gen_cc_config_descriptor_blob",
+        "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor_blob",
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+    cflags: [
+        "-DZLIB_IMPLEMENTATION",
     ],
     required: [
         "perfetto_persistent_cfg.pbtxt",
@@ -2021,6 +2028,7 @@ cc_library_static {
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
         ":perfetto_src_base_clock_snapshots",
+        ":perfetto_src_base_decompressor",
         ":perfetto_src_base_regex_regex",
         ":perfetto_src_base_test_support",
         ":perfetto_src_base_unix_socket",
@@ -3056,6 +3064,8 @@ cc_test {
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
         ":perfetto_src_base_clock_snapshots",
+        ":perfetto_src_base_decompressor",
+        ":perfetto_src_base_embedded_blob",
         ":perfetto_src_base_regex_regex",
         ":perfetto_src_base_test_support",
         ":perfetto_src_base_unix_socket",
@@ -3464,16 +3474,16 @@ cc_test {
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_protos_third_party_statsd_config_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
@@ -3500,7 +3510,7 @@ cc_test {
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
-        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
+        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
     ],
     defaults: [
         "perfetto_defaults",
@@ -16005,6 +16015,24 @@ filegroup {
     ],
 }
 
+// GN: //src/base:decompressor
+filegroup {
+    name: "perfetto_src_base_decompressor",
+    srcs: [
+        "src/base/decompressor.cc",
+        "src/base/gzip_decompressor.cc",
+        "src/base/zstd_decompressor.cc",
+    ],
+}
+
+// GN: //src/base:embedded_blob
+filegroup {
+    name: "perfetto_src_base_embedded_blob",
+    srcs: [
+        "src/base/embedded_blob.cc",
+    ],
+}
+
 // GN: //src/base/http:http
 filegroup {
     name: "perfetto_src_base_http_http",
@@ -16759,13 +16787,13 @@ filegroup {
     ],
 }
 
-// GN: //src/proto_utils:gen_cc_config_descriptor
+// GN: //src/proto_utils:gen_cc_config_descriptor_blob
 genrule {
-    name: "perfetto_src_proto_utils_gen_cc_config_descriptor",
+    name: "perfetto_src_proto_utils_gen_cc_config_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_config_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/proto_utils/config.descriptor.h",
     ],
@@ -16774,13 +16802,13 @@ genrule {
     ],
 }
 
-// GN: //src/proto_utils:gen_cc_trace_summary_descriptor
+// GN: //src/proto_utils:gen_cc_trace_summary_descriptor_blob
 genrule {
-    name: "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor",
+    name: "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_summary_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/proto_utils/trace_summary.descriptor.h",
     ],
@@ -16823,13 +16851,13 @@ filegroup {
     ],
 }
 
-// GN: //src/protovm/compiler:gen_cc_android_extension_descriptor
+// GN: //src/protovm/compiler:gen_cc_android_extension_descriptor_blob
 genrule {
-    name: "perfetto_src_protovm_compiler_gen_cc_android_extension_descriptor",
+    name: "perfetto_src_protovm_compiler_gen_cc_android_extension_descriptor_blob",
     srcs: [
         ":perfetto_protos_third_party_android_extension_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/protovm/compiler/android_extension.descriptor.h",
     ],
@@ -16838,13 +16866,13 @@ genrule {
     ],
 }
 
-// GN: //src/protovm/compiler:gen_cc_compile_config_descriptor
+// GN: //src/protovm/compiler:gen_cc_compile_config_descriptor_blob
 genrule {
-    name: "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor",
+    name: "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_protovm_compile_config_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/protovm/compiler/compile_config.descriptor.h",
     ],
@@ -16853,13 +16881,13 @@ genrule {
     ],
 }
 
-// GN: //src/protovm/compiler:gen_cc_trace_descriptor
+// GN: //src/protovm/compiler:gen_cc_trace_descriptor_blob
 genrule {
-    name: "perfetto_src_protovm_compiler_gen_cc_trace_descriptor",
+    name: "perfetto_src_protovm_compiler_gen_cc_trace_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/protovm/compiler/trace.descriptor.h",
     ],
@@ -16868,13 +16896,13 @@ genrule {
     ],
 }
 
-// GN: //src/protovm/compiler:gen_cc_vm_program_descriptor
+// GN: //src/protovm/compiler:gen_cc_vm_program_descriptor_blob
 genrule {
-    name: "perfetto_src_protovm_compiler_gen_cc_vm_program_descriptor",
+    name: "perfetto_src_protovm_compiler_gen_cc_vm_program_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_protovm_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/protovm/compiler/vm_program.descriptor.h",
     ],
@@ -17058,13 +17086,13 @@ genrule {
     ],
 }
 
-// GN: //src/protozero/filtering:gen_cc_filter_util_test_descriptor
+// GN: //src/protozero/filtering:gen_cc_filter_util_test_descriptor_blob
 genrule {
-    name: "perfetto_src_protozero_filtering_gen_cc_filter_util_test_descriptor",
+    name: "perfetto_src_protozero_filtering_gen_cc_filter_util_test_descriptor_blob",
     srcs: [
         ":perfetto_src_protozero_filtering_filter_util_test_messages_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/protozero/filtering/filter_util_test_messages.descriptor.h",
     ],
@@ -17965,13 +17993,13 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor:gen_cc_test_messages_descriptor
+// GN: //src/trace_processor:gen_cc_test_messages_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_gen_cc_test_messages_descriptor",
+    name: "perfetto_src_trace_processor_gen_cc_test_messages_descriptor_blob",
     srcs: [
         ":perfetto_src_protozero_testing_messages_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/test_messages.descriptor.h",
     ],
@@ -18434,13 +18462,13 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_android_extension_descriptor
+// GN: //src/trace_processor/importers/proto:gen_cc_android_extension_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
     srcs: [
         ":perfetto_protos_third_party_android_extension_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/importers/proto/android_extension.descriptor.h",
     ],
@@ -18449,13 +18477,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_chrome_track_event_descriptor
+// GN: //src/trace_processor/importers/proto:gen_cc_chrome_track_event_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
     srcs: [
         ":perfetto_protos_third_party_chromium_extension_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
     ],
@@ -18464,13 +18492,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_gpu_interned_data_descriptor
+// GN: //src/trace_processor/importers/proto:gen_cc_gpu_interned_data_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/importers/proto/gpu_interned_data.descriptor.h",
     ],
@@ -18479,13 +18507,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_gpu_track_event_descriptor
+// GN: //src/trace_processor/importers/proto:gen_cc_gpu_track_event_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/importers/proto/gpu_track_event.descriptor.h",
     ],
@@ -18494,13 +18522,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_statsd_atoms_descriptor
+// GN: //src/trace_processor/importers/proto:gen_cc_statsd_atoms_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
     srcs: [
         "src/trace_processor/importers/proto/atoms.descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/importers/proto/atoms.descriptor.h",
     ],
@@ -18509,13 +18537,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_trace_descriptor
+// GN: //src/trace_processor/importers/proto:gen_cc_trace_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/importers/proto/trace.descriptor.h",
     ],
@@ -18524,13 +18552,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/importers/proto:gen_cc_track_event_descriptor
+// GN: //src/trace_processor/importers/proto:gen_cc_track_event_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_track_event_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/importers/proto/track_event.descriptor.h",
     ],
@@ -18706,13 +18734,13 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/metrics:gen_cc_all_chrome_metrics_descriptor
+// GN: //src/trace_processor/metrics:gen_cc_all_chrome_metrics_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+    name: "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_metrics_chrome_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/metrics/all_chrome_metrics.descriptor.h",
     ],
@@ -18721,13 +18749,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/metrics:gen_cc_all_webview_metrics_descriptor
+// GN: //src/trace_processor/metrics:gen_cc_all_webview_metrics_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
+    name: "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_metrics_webview_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/metrics/all_webview_metrics.descriptor.h",
     ],
@@ -18736,13 +18764,13 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/metrics:gen_cc_metrics_descriptor
+// GN: //src/trace_processor/metrics:gen_cc_metrics_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+    name: "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_metrics_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/metrics/metrics.descriptor.h",
     ],
@@ -18953,7 +18981,7 @@ genrule {
         ":perfetto_src_trace_processor_metrics_sql_misc_sql",
         ":perfetto_src_trace_processor_metrics_sql_webview_webview",
     ],
-    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::sql_metrics $(in)",
+    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::sql_metrics --compression zlib $(in)",
     out: [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
     ],
@@ -19014,13 +19042,13 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/perfetto_sql/generator:gen_cc_perfetto_sql_descriptor
+// GN: //src/trace_processor/perfetto_sql/generator:gen_cc_perfetto_sql_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor",
+    name: "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_perfetto_sql_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/perfetto_sql/generator/perfettosql.descriptor.h",
     ],
@@ -19151,7 +19179,7 @@ genrule {
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_viz_viz",
         ":perfetto_src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
     ],
-    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::stdlib $(in)",
+    cmd: "$(location tools/gen_amalgamated_sql.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::stdlib --compression zlib $(in)",
     out: [
         "src/trace_processor/perfetto_sql/stdlib/amalgamated_stdlib.h",
     ],
@@ -21447,6 +21475,8 @@ cc_library_static {
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
         ":perfetto_src_base_clock_snapshots",
+        ":perfetto_src_base_decompressor",
+        ":perfetto_src_base_embedded_blob",
         ":perfetto_src_base_http_http",
         ":perfetto_src_base_regex_regex",
         ":perfetto_src_base_unix_socket",
@@ -21726,16 +21756,16 @@ cc_library_static {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
@@ -21762,9 +21792,9 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
-        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-        "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
-        "perfetto_src_traceconv_gen_cc_trace_descriptor",
+        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_trace_descriptor_blob",
     ],
     export_generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -21834,16 +21864,16 @@ cc_library_static {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
@@ -21870,9 +21900,9 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
-        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-        "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
-        "perfetto_src_traceconv_gen_cc_trace_descriptor",
+        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_trace_descriptor_blob",
     ],
     defaults: [
         "perfetto_defaults",
@@ -21919,13 +21949,13 @@ cc_library_static {
     },
 }
 
-// GN: //src/trace_processor/trace_summary:gen_cc_trace_summary_descriptor
+// GN: //src/trace_processor/trace_summary:gen_cc_trace_summary_descriptor_blob
 genrule {
-    name: "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
+    name: "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_summary_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/trace_processor/trace_summary/trace_summary.descriptor.h",
     ],
@@ -22030,11 +22060,6 @@ filegroup {
 // GN: //src/trace_processor/util:decompressor
 filegroup {
     name: "perfetto_src_trace_processor_util_decompressor",
-    srcs: [
-        "src/trace_processor/util/decompressor.cc",
-        "src/trace_processor/util/gzip_decompressor.cc",
-        "src/trace_processor/util/zstd_decompressor.cc",
-    ],
 }
 
 // GN: //src/trace_processor/util/deobfuscation:deobfuscator
@@ -22210,6 +22235,9 @@ filegroup {
 // GN: //src/trace_processor/util:sql_bundle
 filegroup {
     name: "perfetto_src_trace_processor_util_sql_bundle",
+    srcs: [
+        "src/trace_processor/util/sql_bundle.cc",
+    ],
 }
 
 // GN: //src/trace_processor/util:sql_module_doc_parser
@@ -22388,13 +22416,13 @@ filegroup {
     ],
 }
 
-// GN: //src/traceconv:gen_cc_android_extension_descriptor
+// GN: //src/traceconv:gen_cc_android_extension_descriptor_blob
 genrule {
-    name: "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
+    name: "perfetto_src_traceconv_gen_cc_android_extension_descriptor_blob",
     srcs: [
         ":perfetto_protos_third_party_android_extension_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/traceconv/android_extension.descriptor.h",
     ],
@@ -22403,13 +22431,13 @@ genrule {
     ],
 }
 
-// GN: //src/traceconv:gen_cc_trace_descriptor
+// GN: //src/traceconv:gen_cc_trace_descriptor_blob
 genrule {
-    name: "perfetto_src_traceconv_gen_cc_trace_descriptor",
+    name: "perfetto_src_traceconv_gen_cc_trace_descriptor_blob",
     srcs: [
         ":perfetto_protos_perfetto_trace_descriptor",
     ],
-    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor --encoded --compress $(in)",
     out: [
         "src/traceconv/trace.descriptor.h",
     ],
@@ -24362,6 +24390,8 @@ cc_test {
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
         ":perfetto_src_base_clock_snapshots",
+        ":perfetto_src_base_decompressor",
+        ":perfetto_src_base_embedded_blob",
         ":perfetto_src_base_http_http",
         ":perfetto_src_base_http_unittests",
         ":perfetto_src_base_regex_regex",
@@ -24964,14 +24994,14 @@ cc_test {
         "perfetto_src_ipc_test_messages_cpp_gen_headers",
         "perfetto_src_ipc_test_messages_ipc_gen_headers",
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
-        "perfetto_src_proto_utils_gen_cc_config_descriptor",
-        "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor",
-        "perfetto_src_protovm_compiler_gen_cc_android_extension_descriptor",
-        "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor",
-        "perfetto_src_protovm_compiler_gen_cc_trace_descriptor",
-        "perfetto_src_protovm_compiler_gen_cc_vm_program_descriptor",
+        "perfetto_src_proto_utils_gen_cc_config_descriptor_blob",
+        "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor_blob",
+        "perfetto_src_protovm_compiler_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor_blob",
+        "perfetto_src_protovm_compiler_gen_cc_trace_descriptor_blob",
+        "perfetto_src_protovm_compiler_gen_cc_vm_program_descriptor_blob",
         "perfetto_src_protovm_test_messages_lite_gen_headers",
-        "perfetto_src_protozero_filtering_gen_cc_filter_util_test_descriptor",
+        "perfetto_src_protozero_filtering_gen_cc_filter_util_test_descriptor_blob",
         "perfetto_src_protozero_testing_messages_cpp_gen_headers",
         "perfetto_src_protozero_testing_messages_lite_gen_headers",
         "perfetto_src_protozero_testing_messages_other_package_cpp_gen_headers",
@@ -24981,19 +25011,19 @@ cc_test {
         "perfetto_src_protozero_testing_messages_subpackage_lite_gen_headers",
         "perfetto_src_protozero_testing_messages_subpackage_zero_gen_headers",
         "perfetto_src_protozero_testing_messages_zero_gen_headers",
-        "perfetto_src_trace_processor_gen_cc_test_messages_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+        "perfetto_src_trace_processor_gen_cc_test_messages_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-        "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor",
+        "perfetto_src_trace_processor_perfetto_sql_generator_gen_cc_perfetto_sql_descriptor_blob",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
         "perfetto_src_trace_processor_plugins_android_framework_track_event_tables",
@@ -25019,9 +25049,9 @@ cc_test {
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
-        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-        "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
-        "perfetto_src_traceconv_gen_cc_trace_descriptor",
+        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_trace_descriptor_blob",
         "perfetto_src_traced_probes_ftrace_test_messages_cpp_gen_headers",
         "perfetto_src_traced_probes_ftrace_test_messages_lite_gen_headers",
         "perfetto_src_traced_probes_ftrace_test_messages_zero_gen_headers",
@@ -25456,6 +25486,8 @@ cc_binary_host {
         ":perfetto_protos_perfetto_trace_summary_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
+        ":perfetto_src_base_decompressor",
+        ":perfetto_src_base_embedded_blob",
         ":perfetto_src_protovm_compiler_compiler",
         ":perfetto_src_protozero_multifile_error_collector",
         ":perfetto_src_protozero_protozero",
@@ -25466,6 +25498,8 @@ cc_binary_host {
     static_libs: [
         "libprotobuf-cpp-full",
         "libprotoc",
+        "libz",
+        "libzstd",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -25476,8 +25510,8 @@ cc_binary_host {
         "perfetto_protos_perfetto_protovm_zero_gen_headers",
         "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
         "perfetto_protos_perfetto_trace_summary_zero_gen_headers",
-        "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+        "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
     ],
     defaults: [
         "perfetto_defaults",
@@ -25485,6 +25519,7 @@ cc_binary_host {
     cflags: [
         "-DGOOGLE_PROTOBUF_NO_RTTI",
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+        "-DZLIB_IMPLEMENTATION",
     ],
 }
 
@@ -25629,6 +25664,8 @@ cc_library_static {
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
         ":perfetto_src_base_clock_snapshots",
+        ":perfetto_src_base_decompressor",
+        ":perfetto_src_base_embedded_blob",
         ":perfetto_src_base_regex_regex",
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
@@ -25890,16 +25927,16 @@ cc_library_static {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
@@ -25926,7 +25963,7 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
-        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
+        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
     ],
     export_generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -25996,16 +26033,16 @@ cc_library_static {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
@@ -26032,7 +26069,7 @@ cc_library_static {
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
-        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
+        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
     ],
     defaults: [
         "perfetto_defaults",
@@ -26346,6 +26383,8 @@ cc_binary_host {
         ":perfetto_src_base_base",
         ":perfetto_src_base_check_cpu_optimizations",
         ":perfetto_src_base_clock_snapshots",
+        ":perfetto_src_base_decompressor",
+        ":perfetto_src_base_embedded_blob",
         ":perfetto_src_base_regex_regex",
         ":perfetto_src_base_version",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
@@ -26617,16 +26656,16 @@ cc_binary_host {
         "perfetto_protos_third_party_primes_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
-        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
-        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor_blob",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor_blob",
+        "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor_blob",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_amalgamated_stdlib",
         "perfetto_src_trace_processor_plugins_ancestor_tables",
@@ -26653,9 +26692,9 @@ cc_binary_host {
         "perfetto_src_trace_processor_plugins_winscope_proto_to_args_with_defaults_tables",
         "perfetto_src_trace_processor_plugins_winscope_surfaceflinger_hierarchy_paths_tables",
         "perfetto_src_trace_processor_tables_tables_python",
-        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-        "perfetto_src_traceconv_gen_cc_android_extension_descriptor",
-        "perfetto_src_traceconv_gen_cc_trace_descriptor",
+        "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_android_extension_descriptor_blob",
+        "perfetto_src_traceconv_gen_cc_trace_descriptor_blob",
     ],
     defaults: [
         "perfetto_defaults",

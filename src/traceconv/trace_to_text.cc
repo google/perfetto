@@ -54,10 +54,14 @@ class OnlineTraceToText {
  public:
   OnlineTraceToText(std::ostream* output, const TraceToTextOptions& options)
       : output_(output), skip_unknown_fields_(options.skip_unknown_fields) {
-    pool_.AddFromFileDescriptorSet(kTraceDescriptor.data(),
-                                   kTraceDescriptor.size());
-    pool_.AddFromFileDescriptorSet(kAndroidExtensionDescriptor.data(),
-                                   kAndroidExtensionDescriptor.size());
+    const auto trace_descriptor = kTraceDescriptor.Decode();
+    const auto android_extension_descriptor =
+        kAndroidExtensionDescriptor.Decode();
+
+    pool_.AddFromFileDescriptorSet(trace_descriptor.data(),
+                                   trace_descriptor.size());
+    pool_.AddFromFileDescriptorSet(android_extension_descriptor.data(),
+                                   android_extension_descriptor.size());
   }
   OnlineTraceToText(const OnlineTraceToText&) = delete;
   OnlineTraceToText& operator=(const OnlineTraceToText&) = delete;

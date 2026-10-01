@@ -48,12 +48,14 @@ using ::testing::Eq;
 using ::testing::StartsWith;
 
 TEST(ProtozeroToJsonTest, CustomDescriptorPoolEmpty) {
+  const auto track_event_descriptor = kTrackEventDescriptor.Decode();
+
   using perfetto::protos::pbzero::TrackEvent;
   protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
   auto binary_proto = msg.SerializeAsArray();
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(track_event_descriptor.data(),
+                                              track_event_descriptor.size());
   ASSERT_TRUE(status.ok());
   EXPECT_EQ("{}", ProtozeroToJson(pool, ".perfetto.protos.TrackEvent",
                                   binary_proto, kPretty));
@@ -62,14 +64,16 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolEmpty) {
 }
 
 TEST(ProtozeroToJsonTest, CustomDescriptorPoolBasic) {
+  const auto track_event_descriptor = kTrackEventDescriptor.Decode();
+
   using perfetto::protos::pbzero::TrackEvent;
   protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
   msg->set_track_uuid(4);
   msg->set_timestamp_delta_us(3);
   auto binary_proto = msg.SerializeAsArray();
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(track_event_descriptor.data(),
+                                              track_event_descriptor.size());
   ASSERT_TRUE(status.ok());
   EXPECT_EQ(R"({
   "track_uuid": 4,
@@ -83,6 +87,8 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolBasic) {
 }
 
 TEST(ProtozeroToJsonTest, CustomDescriptorPoolNestedMsg) {
+  const auto track_event_descriptor = kTrackEventDescriptor.Decode();
+
   using perfetto::protos::pbzero::TrackEvent;
   protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
   msg->set_track_uuid(4);
@@ -96,8 +102,8 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolNestedMsg) {
   auto binary_proto = msg.SerializeAsArray();
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
-                                              kTrackEventDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(track_event_descriptor.data(),
+                                              track_event_descriptor.size());
   ASSERT_TRUE(status.ok());
 
   EXPECT_EQ(R"({
@@ -126,6 +132,9 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolNestedMsg) {
 // is very tricky to point to on the non-standalone build.
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 TEST(ProtozeroToJsonTest, CustomDescriptorPoolAnnotations) {
+  const auto all_chrome_metrics_descriptor =
+      kAllChromeMetricsDescriptor.Decode();
+
   protozero::HeapBuffered<perfetto::protos::pbzero::TestChromeMetric> msg;
   msg->set_test_value(1);
   auto binary_proto = msg.SerializeAsString();
@@ -134,8 +143,9 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolAnnotations) {
       binary_proto.size()};
 
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(
-      kAllChromeMetricsDescriptor.data(), kAllChromeMetricsDescriptor.size());
+  auto status =
+      pool.AddFromFileDescriptorSet(all_chrome_metrics_descriptor.data(),
+                                    all_chrome_metrics_descriptor.size());
   ASSERT_TRUE(status.ok());
 
   EXPECT_EQ(R"({
@@ -158,8 +168,10 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolAnnotations) {
 class ProtozeroToJsonTestMessageTest : public testing::Test {
  protected:
   void SetUp() override {
+    const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
     auto status = pool_.AddFromFileDescriptorSet(
-        kTestMessagesDescriptor.data(), kTestMessagesDescriptor.size());
+        test_messages_descriptor.data(), test_messages_descriptor.size());
     ASSERT_TRUE(status.ok());
   }
 
