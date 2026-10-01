@@ -396,6 +396,39 @@ FROM (slice)
 WHERE id IN (123, 456)`);
 });
 
+test('union dataset does not merge datasets whose joins differ', () => {
+  // Mirrors the multi-track slice tracks created for grouped/split tracks:
+  // each track's dataset joins its own layout-depth table under the same
+  // 'depth' alias. Merging them would join every row through one table and
+  // silently drop the rows only present in the others.
+  const makeDepthDataset = (table: string, trackIds: number[]) =>
+    new SourceDataset({
+      src: 'slice',
+      schema: {id: NUM, depth: NUM},
+      select: {
+        id: 'id',
+        depth: {join: 'depth', expr: 'depth.depth'},
+      },
+      joins: {
+        depth: {from: `${table} USING (id)`, unique: true},
+      },
+      filter: {
+        col: 'track_id',
+        in: trackIds,
+      },
+    });
+
+  const dataset = UnionDataset.create([
+    makeDepthDataset('__depth_1', [1, 2]),
+    makeDepthDataset('__depth_2', [3, 4]),
+  ]);
+
+  const query = dataset.query();
+  expect(query).toContain('__depth_1');
+  expect(query).toContain('__depth_2');
+  expect(query).toContain('UNION ALL');
+});
+
 test('union dataset batches large numbers of unions', () => {
   const datasets = [];
   for (let i = 0; i < 800; i++) {
