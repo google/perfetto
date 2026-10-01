@@ -15,7 +15,7 @@
 import("perfetto.gni")
 
 # Runs a Python script that emits a C++ header containing a
-# blob packed into constexpr uint64_t words (typically by calling
+# blob packed into uint64_t words (typically by calling
 # `python/tools/cpp_blob_emitter.py`).
 #
 # The script is invoked as:
