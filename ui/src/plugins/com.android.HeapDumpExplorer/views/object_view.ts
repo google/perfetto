@@ -25,11 +25,9 @@ import type {
   ColumnSchema,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
-import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
-import {fmtSize, fmtHex} from '../format';
-import {downloadBlob} from '../download';
+import type {InstanceRow, InstanceDetail, PrimOrRef} from '../types';
+import {download} from '../../../base/download_utils';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -39,32 +37,26 @@ import {
   BitmapImage,
   COL_INFO,
   colHeader,
+  fmtSize,
+  fmtHex,
 } from '../components';
 import * as queries from '../queries';
-import type {HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {AsyncMemo} from '../../../base/async_memo';
-
-export interface ObjectParams {
-  readonly id: number;
-}
-
-// Open the flamegraph pivoted at the given path. Routed through the
-// session so flamegraph state has a single owner.
-export type OpenFlamegraphPivotedAt = (
-  pathHash: string,
-  label: string,
-  isDominator: boolean,
-) => void;
+import {type DumpRef, HdeAnchor} from '../nav';
+import type {HeapDumpExplorerSession} from '../session';
+import {
+  METRIC_DOMINATED_OBJECT_SIZE,
+  METRIC_OBJECT_SIZE,
+} from './flamegraph_view';
 
 interface ObjectViewAttrs {
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly heaps: ReadonlyArray<HeapInfo>;
-  readonly navigate: NavFn;
-  readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
-  readonly params: ObjectParams;
+  readonly activeDump: queries.HeapDump;
+  // Used to pivot the dump's flamegraph (see pivotFlamegraph).
+  readonly session: HeapDumpExplorerSession;
+  readonly id: number;
 }
 
 const JAVA_PRIM_SIZE: Record<string, number> = {
@@ -246,7 +238,7 @@ const SIZE_SCHEMA: ColumnSchema = {
   },
 };
 
-function makeInstanceSchema(navigate: NavFn): ColumnSchema {
+function makeInstanceSchema(dump: DumpRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -257,14 +249,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         const str = row.str != null ? String(row.str) : null;
         return m('span', [
-          m(
-            Anchor,
-            {
-              onclick: () =>
-                navigate('object', {id, label: str ? `"${str}"` : display}),
-            },
-            display,
-          ),
+          m(HdeAnchor, {dump, to: {view: 'object', id}}, display),
           str
             ? m(
                 'span',
@@ -338,7 +323,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeFieldSchema(navigate: NavFn): ColumnSchema {
+function makeFieldSchema(dump: DumpRef): ColumnSchema {
   return {
     name: {
       title: 'Name',
@@ -346,14 +331,8 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
       cellRenderer: (value: SqlValue, row) => {
         if (row.value_kind === 'ref' && row.ref_id !== null) {
           return m(
-            Anchor,
-            {
-              onclick: () =>
-                navigate('object', {
-                  id: Number(row.ref_id),
-                  label: String(row.value_display ?? ''),
-                }),
-            },
+            HdeAnchor,
+            {dump, to: {view: 'object', id: Number(row.ref_id)}},
             String(value),
           );
         }
@@ -376,7 +355,7 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
               display: String(value),
               str: row.ref_str != null ? String(row.ref_str) : null,
             },
-            navigate,
+            dump,
           });
         }
         return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
@@ -439,7 +418,7 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
+function makeArraySchema(dump: DumpRef, elemTypeName: string): ColumnSchema {
   return {
     idx: {
       title: 'Index',
@@ -461,7 +440,7 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
               display: String(value),
               str: row.ref_str != null ? String(row.ref_str) : null,
             },
-            navigate,
+            dump,
           });
         }
         return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
@@ -558,15 +537,15 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
       dataMemo.dispose();
     },
     view(vnode) {
-      const {navigate, params} = vnode.attrs;
+      const {activeDump: dump, id} = vnode.attrs;
 
       const {isPending, data: detail} = dataMemo.use({
-        key: params.id,
+        key: id,
         compute: async () => {
           const detail = await queries.getInstance(
             vnode.attrs.engine,
             vnode.attrs.activeDump,
-            params.id,
+            id,
           );
           // TODO: Show intermediate state using multiple asynmemos
           if (detail) await enrichDetail(vnode.attrs.engine, detail);
@@ -578,7 +557,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
         return m(
           DetailsShell,
           {
-            title: `Object ${fmtHex(params.id)}`,
+            title: `Object ${fmtHex(id)}`,
             fillHeight: true,
             className: 'pf-hde-tab--padded',
           },
@@ -590,14 +569,14 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
         return m(
           DetailsShell,
           {
-            title: `Object ${fmtHex(params.id)}`,
+            title: `Object ${fmtHex(id)}`,
             fillHeight: true,
             className: 'pf-hde-tab--padded',
           },
           m(
             'div',
             {class: 'pf-hde-error-text'},
-            'No object with id ' + fmtHex(params.id),
+            'No object with id ' + fmtHex(id),
           ),
         );
       }
@@ -607,19 +586,22 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
       const flamegraphAction = (isDominator: boolean) =>
         row.className
           ? m(
-              Anchor,
+              HdeAnchor,
               {
+                dump,
+                to: {view: 'flamegraph'},
                 title: isDominator
                   ? 'Open in Flamegraph pivoted on this dominator path'
                   : 'Open in Flamegraph pivoted on this shortest path',
-                onclick: () =>
-                  openInFlamegraph(
-                    vnode.attrs.engine,
+                onclick: () => {
+                  void pivotFlamegraph(
+                    vnode.attrs.session,
+                    dump,
                     row.id,
                     row.className,
                     isDominator,
-                    vnode.attrs.openFlamegraphPivotedAt,
-                  ),
+                  );
+                },
               },
               'View in Flamegraph',
             )
@@ -634,7 +616,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
         },
         m('div', {class: 'pf-hde-view-scroll pf-hde-view-stack'}, [
           m('div', {class: 'pf-hde-action-row'}, [
-            m(InstanceLink, {row, navigate}),
+            m(InstanceLink, {row, dump}),
           ]),
 
           detail.bitmap
@@ -662,10 +644,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                       onclick: () => {
                         if (detail.bitmap === null) return;
                         const ext = detail.bitmap.format;
-                        downloadBlob(
-                          `bitmap-${fmtHex(row.id)}.${ext}`,
-                          detail.bitmap.data,
-                        );
+                        void download({
+                          content: detail.bitmap.data,
+                          fileName: `bitmap-${fmtHex(row.id)}.${ext}`,
+                        });
                       },
                     },
                     'Download image',
@@ -698,7 +680,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                           {class: 'pf-hde-path-arrow'},
                           i === 0 ? '' : '\u2192',
                         ),
-                        m(InstanceLink, {row: pe.row, navigate}),
+                        m(InstanceLink, {row: pe.row, dump}),
                         pe.field
                           ? m('span', {class: 'pf-hde-path-field'}, pe.field)
                           : null,
@@ -733,7 +715,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                           {class: 'pf-hde-path-arrow'},
                           i === 0 ? '' : '\u2192',
                         ),
-                        m(InstanceLink, {row: pe.row, navigate}),
+                        m(InstanceLink, {row: pe.row, dump}),
                         pe.field
                           ? m('span', {class: 'pf-hde-path-field'}, pe.field)
                           : null,
@@ -752,7 +734,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                 detail.classObjRow
                   ? m(InstanceLink, {
                       row: detail.classObjRow,
-                      navigate,
+                      dump,
                     })
                   : '???',
               ),
@@ -835,7 +817,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             ? m(
                 Section,
                 {title: 'Class Hierarchy'},
-                renderClassHierarchy(detail.classHierarchy, navigate),
+                renderClassHierarchy(
+                  vnode.attrs.activeDump,
+                  detail.classHierarchy,
+                ),
               )
             : null,
 
@@ -843,7 +828,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             ? m(
                 Section,
                 {title: 'Static Fields'},
-                renderFieldsGrid(detail.staticFields, navigate),
+                renderFieldsGrid(detail.staticFields, dump),
               )
             : null,
 
@@ -852,7 +837,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                 Section,
                 {title: 'Fields'},
                 detail.instanceFields.length > 0
-                  ? renderFieldsGrid(detail.instanceFields, navigate)
+                  ? renderFieldsGrid(detail.instanceFields, dump)
                   : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
               )
             : null,
@@ -864,17 +849,17 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                 renderArrayGrid(
                   detail.arrayElems,
                   detail.elemTypeName ?? 'Object',
-                  navigate,
+                  dump,
                   detail.elemTypeName === 'byte'
                     ? () => {
                         queries
-                          .getRawArrayBlob(vnode.attrs.engine, params.id)
+                          .getRawArrayBlob(vnode.attrs.engine, id)
                           .then((blob) => {
                             if (blob !== null) {
-                              downloadBlob(
-                                `array-${fmtHex(params.id)}.bin`,
-                                blob,
-                              );
+                              void download({
+                                content: blob,
+                                fileName: `array-${fmtHex(id)}.bin`,
+                              });
                             }
                           })
                           .catch(console.error);
@@ -896,7 +881,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.reverseRefs.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(dump),
                   data: detail.reverseRefs.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -932,7 +917,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.dominated.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(dump),
                   data: detail.dominated.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -962,12 +947,12 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
   };
 }
 
-function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
+function renderFieldsGrid(fields: FieldRow[], dump: DumpRef): m.Children {
   if (fields.length === 0) {
     return m('div', {class: 'pf-hde-info-grid__label'}, 'No fields');
   }
   return m(DataGrid, {
-    schema: makeFieldSchema(navigate),
+    schema: makeFieldSchema(dump),
     data: fields.map(fieldRowToRow),
     initialColumns: [
       {id: 'type_name', field: 'type_name'},
@@ -991,7 +976,7 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
 function renderArrayGrid(
   elems: ArrayElemRow[],
   elemTypeName: string,
-  navigate: NavFn,
+  dump: DumpRef,
   onDownloadBytes?: () => void,
 ): m.Children {
   function copyTsv() {
@@ -1025,7 +1010,7 @@ function renderArrayGrid(
         ])
       : null,
     m(DataGrid, {
-      schema: makeArraySchema(navigate, elemTypeName),
+      schema: makeArraySchema(dump, elemTypeName),
       data: elems.map((e) => arrayElemToRow(e, elemTypeName)),
       initialColumns: [
         {id: 'idx', field: 'idx'},
@@ -1046,17 +1031,20 @@ function renderArrayGrid(
   ]);
 }
 
-// Look up the object's path_hash in the chosen tree (BFS or dominator)
-// and open the flamegraph pivoted on it with the matching metric. The
-// hash is tree-specific so the tree dictates both. No-op if the object
-// has no entry (e.g. unreachable garbage).
-async function openInFlamegraph(
-  engine: Engine,
+// Look up the object's path_hash in the chosen tree (BFS or dominator) and
+// pivot the dump's flamegraph on it with the matching metric. The hash is
+// tree-specific so the tree dictates both. The chip shows
+// `<class> (this instance)` since the raw hash regex is unreadable. No-op if
+// the object has no entry (e.g. unreachable garbage). Navigation to the
+// flamegraph is left to the link this runs from.
+async function pivotFlamegraph(
+  session: HeapDumpExplorerSession,
+  dump: DumpRef,
   id: number,
   cls: string,
   isDominator: boolean,
-  openFlamegraphPivotedAt: OpenFlamegraphPivotedAt,
 ): Promise<void> {
+  const engine = session.trace.engine;
   const moduleName = isDominator
     ? 'android.memory.heap_graph.dominator_class_tree'
     : 'android.memory.heap_graph.class_tree';
@@ -1070,7 +1058,19 @@ async function openInFlamegraph(
   );
   const it = res.iter({path_hash: STR});
   if (!it.valid()) return;
-  openFlamegraphPivotedAt(it.path_hash, shortClassName(cls), isDominator);
+  session.setFlamegraphPanelState(dump, {
+    selectedMetricId: isDominator
+      ? METRIC_DOMINATED_OBJECT_SIZE
+      : METRIC_OBJECT_SIZE,
+    addedMetricIds: [],
+    displayMode: 'flamegraph',
+    filters: [],
+    view: {
+      kind: 'PIVOT',
+      pivot: `/^${it.path_hash}$/`,
+      displayLabel: `${shortClassName(cls)} (this instance)`,
+    },
+  });
 }
 
 // `java.lang.Class<Foo>` has no useful subclasses in heap_graph_class; the
@@ -1083,21 +1083,21 @@ function subclassFilterTarget(className: string): string {
   return className;
 }
 
-function classFilterLink(className: string, navigate: NavFn): m.Child {
+function classFilterLink(dump: queries.HeapDump, className: string): m.Child {
   return m(
-    Anchor,
+    HdeAnchor,
     {
       title: 'Open subclasses of this class',
-      onclick: () =>
-        navigate('classes', {rootClass: subclassFilterTarget(className)}),
+      dump,
+      to: {view: 'classes', rootClass: subclassFilterTarget(className)},
     },
     className,
   );
 }
 
 function renderClassHierarchy(
+  dump: queries.HeapDump,
   hierarchy: string[],
-  navigate: NavFn,
 ): m.Children {
   const topDown = hierarchy.slice().reverse();
   return m(
@@ -1113,7 +1113,7 @@ function renderClassHierarchy(
         },
         [
           m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '→'),
-          classFilterLink(className, navigate),
+          classFilterLink(dump, className),
         ],
       ),
     ),

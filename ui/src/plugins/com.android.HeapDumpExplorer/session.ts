@@ -12,424 +12,52 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import type {Engine} from '../../trace_processor/engine';
-import type {Trace} from '../../public/trace';
-import type {Setting} from '../../public/settings';
 import type {Store} from '../../base/store';
-import {NUM} from '../../trace_processor/query_result';
-
-import {SQL_PREAMBLE} from './components';
-import {flamegraphQuery} from './views/flamegraph_objects_view';
-import * as queries from './queries';
-import {
-  type DefaultNavView,
-  type NavState,
-  type NavView,
-  stateToPath,
-  stateToSubpage,
-  subpageToState,
-} from './nav_state';
-import type {OverviewData} from './types';
+import type {Trace} from '../../public/trace';
 import type {TreeExplorerState} from '../../widgets/tree_explorer';
+import {type DumpRef, dumpKey} from './nav';
 import type {HdeState} from './persisted_state';
-import {
-  METRIC_DOMINATED_OBJECT_SIZE,
-  METRIC_OBJECT_SIZE,
-} from './views/flamegraph_view';
-import type {time} from '../../base/time';
+import type * as queries from './queries';
 
-interface FlamegraphSelection {
-  readonly pathHashes: string;
-  readonly isDominator: boolean;
-  readonly upid: number;
-  readonly ts: time;
-}
-
-// A flamegraph drill-down tab: identity plus the title's object count (null
-// until fetched).
-export interface FlamegraphTabView {
-  readonly pathHashes: string;
-  readonly isDominator: boolean;
-  readonly count: number | null;
-}
-
-const INSTANCE_LABEL_MAX = 30;
-
-function truncateInstanceLabel(label: string): string {
-  return label.length > INSTANCE_LABEL_MAX
-    ? label.slice(0, INSTANCE_LABEL_MAX) + '…'
-    : label;
-}
-
-// Count-cache key for a flamegraph tab.
-function countKey(pathHashes: string, isDominator: boolean): string {
-  return `${isDominator ? 'd' : 'n'}:${pathHashes}`;
-}
-
-// The persistent state lives in the mountStore'd `store`, which the core
-// serializes into permalinks and restores before the plugin loads. The session
-// is a thin controller over it: mutations are store edits, views render from
-// the store, restoration is automatic. Non-serializable trace-derived data (the
-// dumps, overview, per-tab counts) is cached here instead.
+// Trace-derived data plus per-dump panel state (persisted in the permalink
+// store). What's showing lives in the URL (see makeHref).
 export class HeapDumpExplorerSession {
-  private _navigateCallback?: (subpage: string) => void;
-
-  private _dumps: ReadonlyArray<queries.HeapDump> = [];
-  private _overview: OverviewData | null = null;
-  private readonly _counts = new Map<string, number>();
-
-  // Set when the plugin auto-redirected to HDE on load; gates the
-  // "default view changed" hint on the overview.
-  autoNavigated = false;
-
   constructor(
     readonly trace: Trace,
-    readonly engine: Engine,
-    readonly hideDefaultChangedHint: Setting<boolean>,
-    readonly defaultFlamegraph: Setting<boolean>,
     private readonly store: Store<HdeState>,
+    readonly dumps: readonly queries.HeapDump[],
+    // Whether the trace has HPROF field values (see traceHasFieldValues).
+    readonly hasFieldValues: boolean,
   ) {}
 
-  get defaultView(): DefaultNavView {
-    return this.defaultFlamegraph.get() ? 'flamegraph' : 'overview';
+  // The loaded dump with the given dumpKey(), if any.
+  findDump(key: string): queries.HeapDump | undefined {
+    return this.dumps.find((d) => dumpKey(d) === key);
   }
 
-  get dumps(): ReadonlyArray<queries.HeapDump> {
-    return this._dumps;
+  flamegraphPanelState(dump: DumpRef): TreeExplorerState | undefined {
+    return this.store.state.flamegraphPanelStates?.[dumpKey(dump)];
   }
 
-  get activeDump(): queries.HeapDump | null {
-    const ref = this.store.state.activeDump;
-    if (ref === undefined) return null;
-    return (
-      this._dumps.find((d) => d.upid === ref.upid && d.ts === BigInt(ref.ts)) ??
-      null
-    );
-  }
-
-  // Loads the dumps and reconciles them with the stored active dump. Returns
-  // true if a valid permalink was restored, otherwise resets to the first dump.
-  async loadDumps(): Promise<boolean> {
-    this._dumps = await queries.loadDumpsList(this.engine);
-    const ref = this.store.state.activeDump;
-    const restored =
-      ref !== undefined &&
-      this._dumps.some((d) => d.upid === ref.upid && d.ts === BigInt(ref.ts));
-    if (restored) {
-      for (const t of this.store.state.flamegraphTabs ?? []) {
-        this.loadCount(t.pathHashes, t.isDominator);
-      }
-    } else {
-      const first = this._dumps.length > 0 ? this._dumps[0] : undefined;
-      this.store.edit((s) => {
-        s.activeDump =
-          first === undefined
-            ? undefined
-            : {upid: first.upid, ts: first.ts.toString()};
-        s.nav = undefined;
-        s.flamegraphTabs = undefined;
-        s.instanceTabs = undefined;
-        s.flamegraphPanelState = undefined;
-        s.callstackPanelState = undefined;
-      });
-    }
-    return restored;
-  }
-
-  selectDump(d: queries.HeapDump): void {
-    if (this.activeDump === d) return;
-    this.switchToDump(d);
-    const view = this.nav.view;
-    if (view === 'object' || view === 'flamegraph-objects') {
-      this.navigate(this.defaultView);
-    }
-    m.redraw();
-  }
-
-  private switchToDump(d: queries.HeapDump): void {
-    this._overview = null;
-    this._counts.clear();
+  setFlamegraphPanelState(dump: DumpRef, state: TreeExplorerState): void {
     this.store.edit((s) => {
-      s.activeDump = {upid: d.upid, ts: d.ts.toString()};
-      s.flamegraphTabs = undefined;
-      s.instanceTabs = undefined;
-      s.flamegraphPanelState = undefined;
-      s.callstackPanelState = undefined;
+      s.flamegraphPanelStates = {
+        ...s.flamegraphPanelStates,
+        [dumpKey(dump)]: state,
+      };
     });
-    void this.loadOverview();
   }
 
-  get nav(): NavState {
-    return subpageToState(this.store.state.nav, this.defaultView);
+  callstackPanelState(dump: DumpRef): TreeExplorerState | undefined {
+    return this.store.state.callstackPanelStates?.[dumpKey(dump)];
   }
 
-  // The current nav as a route path (no query params).
-  get navPath(): string {
-    if (this.store.state.nav === undefined) {
-      return '';
-    }
-    return stateToPath(this.nav);
-  }
-
-  setNavigateCallback(cb: ((subpage: string) => void) | undefined): void {
-    this._navigateCallback = cb;
-  }
-
-  navigate(view: NavView, params: Record<string, unknown> = {}): void {
-    const sub = stateToSubpage({view, params} as NavState);
+  setCallstackPanelState(dump: DumpRef, state: TreeExplorerState): void {
     this.store.edit((s) => {
-      s.nav = sub;
+      s.callstackPanelStates = {
+        ...s.callstackPanelStates,
+        [dumpKey(dump)]: state,
+      };
     });
-    this._navigateCallback?.(sub);
-    m.redraw();
-  }
-
-  // Arrow property: passed by reference into Mithril attrs.
-  readonly navigateWithTabs = (
-    view: NavView,
-    params?: Record<string, unknown>,
-  ): void => {
-    if (view === 'object') {
-      this.openInstanceTab(
-        params?.id as number,
-        params?.label as string | undefined,
-      );
-    }
-    this.navigate(view, params);
-  };
-
-  readonly clearNavParam = (key: string): void => {
-    // A consumed nav param becomes a one-shot grid filter, so drop it from the
-    // nav — from both the store and the URL. Otherwise it re-applies on the next
-    // sync and clobbers the user's later manual filter edits. Query params are
-    // already gone (the router strips them), but path-encoded ones (e.g.
-    // objects_<class>) survive in the URL, so we must rewrite it here.
-    const nav = subpageToState(this.store.state.nav, this.defaultView);
-    delete (nav.params as Record<string, unknown>)[key];
-    const sub = stateToSubpage(nav);
-    this.store.edit((s) => {
-      s.nav = sub;
-    });
-    this._navigateCallback?.(sub);
-  };
-
-  // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
-  // change only. The router drops query params, so only the path round-trips.
-  syncFromSubpage(subpage: string | undefined): void {
-    const sub = subpage?.startsWith('/') ? subpage.slice(1) : subpage;
-    const incomingPath = (sub ?? '').split('?')[0];
-    if (incomingPath !== this.navPath) {
-      this.store.edit((s) => {
-        s.nav = sub
-          ? stateToSubpage(subpageToState(sub, this.defaultView))
-          : undefined;
-      });
-    }
-  }
-
-  get flamegraphTabs(): ReadonlyArray<FlamegraphTabView> {
-    return (this.store.state.flamegraphTabs ?? []).map((t) => ({
-      pathHashes: t.pathHashes,
-      isDominator: t.isDominator,
-      count: this._counts.get(countKey(t.pathHashes, t.isDominator)) ?? null,
-    }));
-  }
-
-  // The active flamegraph tab, derived from the nav (not stored), or null.
-  get activeFlamegraph(): {pathHashes: string; isDominator: boolean} | null {
-    const nav = this.nav;
-    if (
-      nav.view !== 'flamegraph-objects' ||
-      nav.params.pathHashes === undefined
-    ) {
-      return null;
-    }
-    return {
-      pathHashes: nav.params.pathHashes,
-      isDominator: nav.params.isDominator ?? false,
-    };
-  }
-
-  openFlamegraph(sel: FlamegraphSelection): void {
-    const target = this._dumps.find(
-      (d) => d.upid === sel.upid && d.ts === sel.ts,
-    );
-    if (target && target !== this.activeDump) {
-      this.switchToDump(target);
-    }
-    this.openFlamegraphTab(sel.pathHashes, sel.isDominator);
-    this.navigate('flamegraph-objects', {
-      pathHashes: sel.pathHashes,
-      isDominator: sel.isDominator,
-    });
-  }
-
-  // Adds the flamegraph tab for a selection in the active dump if not open.
-  private openFlamegraphTab(pathHashes: string, isDominator: boolean): void {
-    if (this.activeDump === null) return;
-    const tabs = this.store.state.flamegraphTabs ?? [];
-    if (
-      tabs.some(
-        (t) => t.pathHashes === pathHashes && t.isDominator === isDominator,
-      )
-    ) {
-      return;
-    }
-    this.store.edit((s) => {
-      s.flamegraphTabs = [
-        ...(s.flamegraphTabs ?? []),
-        {pathHashes, isDominator},
-      ];
-    });
-    this.loadCount(pathHashes, isDominator);
-  }
-
-  closeFlamegraph(pathHashes: string, isDominator: boolean): void {
-    const active = this.activeFlamegraph;
-    this.store.edit((s) => {
-      s.flamegraphTabs = (s.flamegraphTabs ?? []).filter(
-        (t) => !(t.pathHashes === pathHashes && t.isDominator === isDominator),
-      );
-    });
-    if (
-      active !== null &&
-      active.pathHashes === pathHashes &&
-      active.isDominator === isDominator
-    ) {
-      this.navigate(this.defaultView);
-    }
-  }
-
-  syncFlamegraphTabFromNav(): void {
-    const active = this.activeFlamegraph;
-    if (active === null) return;
-    const tabs = this.store.state.flamegraphTabs ?? [];
-    if (
-      !tabs.some(
-        (t) =>
-          t.pathHashes === active.pathHashes &&
-          t.isDominator === active.isDominator,
-      )
-    ) {
-      this.openFlamegraphTab(active.pathHashes, active.isDominator);
-    }
-  }
-
-  // Fetches the title's object count for one flamegraph tab. No-op if cached.
-  private loadCount(pathHashes: string, isDominator: boolean): void {
-    const key = countKey(pathHashes, isDominator);
-    if (this._counts.has(key)) return;
-    const q = flamegraphQuery(pathHashes, isDominator);
-    this.engine
-      .query(`${SQL_PREAMBLE}; SELECT COUNT(*) AS c FROM (${q})`)
-      .then((r) => {
-        this._counts.set(key, r.firstRow({c: NUM}).c);
-        m.redraw();
-      })
-      .catch(console.error);
-  }
-
-  get instanceTabs(): ReadonlyArray<{objId: number; label: string}> {
-    return this.store.state.instanceTabs ?? [];
-  }
-
-  // The active object's id, derived from the nav (not stored), or null.
-  get activeInstanceObjId(): number | null {
-    const nav = this.nav;
-    return nav.view === 'object' ? nav.params.id : null;
-  }
-
-  private openInstanceTab(objId: number, label?: string): void {
-    const tabs = this.store.state.instanceTabs ?? [];
-    if (tabs.some((t) => t.objId === objId)) return;
-    this.store.edit((s) => {
-      s.instanceTabs = [
-        ...(s.instanceTabs ?? []),
-        {objId, label: truncateInstanceLabel(label ?? 'Instance')},
-      ];
-    });
-  }
-
-  closeInstanceTab(objId: number): void {
-    const wasActive = this.activeInstanceObjId === objId;
-    this.store.edit((s) => {
-      s.instanceTabs = (s.instanceTabs ?? []).filter((t) => t.objId !== objId);
-    });
-    if (wasActive) this.navigate(this.defaultView);
-  }
-
-  syncInstanceTabFromNav(): void {
-    const nav = this.nav;
-    if (nav.view !== 'object') return;
-    const {id, label} = nav.params;
-    const tabs = this.store.state.instanceTabs ?? [];
-    if (!tabs.some((t) => t.objId === id)) this.openInstanceTab(id, label);
-  }
-
-  get flamegraphPanelState(): TreeExplorerState | undefined {
-    return this.store.state.flamegraphPanelState;
-  }
-
-  readonly setFlamegraphPanelState = (state: TreeExplorerState): void => {
-    this.store.edit((s) => {
-      s.flamegraphPanelState = state;
-    });
-  };
-
-  get callstackPanelState(): TreeExplorerState | undefined {
-    return this.store.state.callstackPanelState;
-  }
-
-  readonly setCallstackPanelState = (state: TreeExplorerState): void => {
-    this.store.edit((s) => {
-      s.callstackPanelState = state;
-    });
-  };
-
-  // Open the flamegraph pivoted at `pathHash`. The metric matches the tree the
-  // hash came from. The chip shows `<label> (this instance)` since the raw hash
-  // regex is unreadable.
-  readonly openFlamegraphPivotedAt = (
-    pathHash: string,
-    label: string,
-    isDominator: boolean,
-  ): void => {
-    this.setFlamegraphPanelState({
-      selectedMetricId: isDominator
-        ? METRIC_DOMINATED_OBJECT_SIZE
-        : METRIC_OBJECT_SIZE,
-      addedMetricIds: [],
-      displayMode: 'flamegraph',
-      filters: [],
-      view: {
-        kind: 'PIVOT',
-        pivot: `/^${pathHash}$/`,
-        displayLabel: `${label} (this instance)`,
-      },
-    });
-    this.navigate('flamegraph');
-  };
-
-  get cachedOverview(): OverviewData | null {
-    return this._overview;
-  }
-
-  // Pins the dump at fetch start; if the user switches dumps before the result
-  // arrives, the result is dropped instead of briefly showing the wrong dump.
-  async loadOverview(): Promise<void> {
-    if (this._overview !== null) return;
-    const dump = this.activeDump;
-    if (dump === null) return;
-    try {
-      const data = await queries.getOverview(this.engine, dump);
-      if (this.activeDump === dump) {
-        this._overview = data;
-      }
-    } catch (err) {
-      console.error('Failed to load overview:', err);
-    } finally {
-      m.redraw();
-    }
   }
 }

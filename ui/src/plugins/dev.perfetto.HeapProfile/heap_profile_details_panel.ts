@@ -750,16 +750,11 @@ function getHeapGraphNodeOptionalActions(
       category: 'DRILL',
       description:
         "Inspect this class's retained objects in the Heap Dump Explorer.",
-      execute: async ({properties, node}) => {
+      execute: async ({properties}) => {
         const pathHashes = properties.get('path_hash_stable');
         if (pathHashes === undefined) return;
 
         onNodeSelected?.(pathHashes, isDominator);
-
-        const name = node?.name;
-        const nameSuffix =
-          name !== undefined ? `_${encodeURIComponent(name)}` : '';
-        trace.navigate(`#!/heapdump/flamegraph_objects${nameSuffix}`);
       },
     },
   ];

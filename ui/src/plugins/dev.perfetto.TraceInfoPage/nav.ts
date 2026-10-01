@@ -12,14 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export function fmtSize(n: number): string {
-  if (n === 0) return '0';
-  if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GiB`;
-  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(1)} MiB`;
-  if (n >= 1024) return `${(n / 1024).toFixed(1)} KiB`;
-  return n.toLocaleString();
-}
+import {TabKey} from './utils';
 
-export function fmtHex(id: number): string {
-  return '0x' + id.toString(16).padStart(8, '0');
+export function tabHref(key: TabKey): string {
+  return `#!/info/${key}`;
 }

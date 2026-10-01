@@ -24,7 +24,6 @@ import {Intent} from '../../../widgets/common';
 import type {Trace} from '../../../public/trace';
 import {Time} from '../../../base/time';
 import {formatDuration} from '../../../components/time_utils';
-import type {TabKey} from '../utils';
 import {formatFileSize} from '../../../base/file_utils';
 import {
   type Diagnostic,
@@ -36,12 +35,12 @@ import {
   type StatusCardConfig,
   createStatusCards,
 } from './overview_data';
+import {tabHref} from '../nav';
 
 export interface OverviewTabAttrs {
-  trace: Trace;
-  data: OverviewData;
-  diagnostics: ReadonlyArray<Diagnostic>;
-  onTabChange(key: TabKey): void;
+  readonly trace: Trace;
+  readonly data: OverviewData;
+  readonly diagnostics: ReadonlyArray<Diagnostic>;
 }
 
 interface MetricCardConfig {
@@ -82,7 +81,7 @@ export class OverviewTab implements m.ClassComponent<OverviewTabAttrs> {
               dedupeDiagnosticsByKey(attrs.diagnostics).map((diagnostic) =>
                 m(DiagnosticCard, {
                   diagnostic,
-                  onclick: () => attrs.onTabChange('trace_doctor'),
+                  onclick: () => attrs.trace.navigate(tabHref('trace_doctor')),
                 }),
               ),
             ),
@@ -171,7 +170,10 @@ function renderStatusCard(
     Card,
     {
       className,
-      onclick: isClickable ? () => attrs.onTabChange(targetTab) : undefined,
+      interactive: isClickable,
+      onclick: isClickable
+        ? () => attrs.trace.navigate(tabHref(targetTab))
+        : undefined,
     },
     m(
       '.pf-trace-info-page__status-card-main',

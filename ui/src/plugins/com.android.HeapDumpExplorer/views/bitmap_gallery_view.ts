@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {AsyncMemo} from '../../../base/async_memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import type {Row} from '../../../trace_processor/query_result';
@@ -23,9 +24,7 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import type {BitmapListRow, InstanceDetail} from '../types';
-import {fmtSize, fmtHex} from '../format';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -33,12 +32,13 @@ import {
   renderPath,
   colHeader,
   COL_INFO,
+  fmtSize,
+  fmtHex,
 } from '../components';
 import type {PathEntry} from '../types';
 import * as queries from '../queries';
-import type {HeapDump} from '../queries';
-import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {type DumpRef, HdeAnchor} from '../nav';
 
 const SUMMARY_SCHEMA: ColumnSchema = {
   property: {title: 'Property', columnType: 'text'},
@@ -76,7 +76,7 @@ function bitmapRowToRow(r: BitmapListRow): Row {
   };
 }
 
-function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
+function makeBitmapListSchema(dump: DumpRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -85,17 +85,7 @@ function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
         const id = Number(value);
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-        return m(
-          Anchor,
-          {
-            onclick: () =>
-              navigate('object', {
-                id,
-                label: `Bitmap ${row.dimensions}`,
-              }),
-          },
-          display,
-        );
+        return m(HdeAnchor, {dump, to: {view: 'object', id}}, display);
       },
     },
     dimensions: {
@@ -205,8 +195,7 @@ const PATH_HEADING: Record<Exclude<PathMode, 'none'>, string> = {
 interface BitmapCardAttrs {
   readonly row: BitmapListRow;
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
+  readonly activeDump: queries.HeapDump;
   readonly pathMode: PathMode;
   readonly pathData?: PathEntry[] | null;
 }
@@ -215,7 +204,7 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
   let obs: IntersectionObserver | null = null;
   let bitmap: InstanceDetail['bitmap'] | null | 'loading' | 'error' = null;
 
-  function load(engine: Engine, activeDump: HeapDump, id: number) {
+  function load(engine: Engine, activeDump: queries.HeapDump, id: number) {
     if (bitmap !== null) return;
     bitmap = 'loading';
     queries
@@ -252,7 +241,7 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
       obs?.disconnect();
     },
     view(vnode) {
-      const {row, navigate} = vnode.attrs;
+      const {row, activeDump: dump} = vnode.attrs;
       const dpi = row.density > 0 ? row.density : 420;
       const scale = dpi / 160;
       const dpW = Math.round(row.width / scale);
@@ -330,17 +319,7 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
                 )
               : null,
           ),
-          m(
-            Anchor,
-            {
-              onclick: () =>
-                navigate('object', {
-                  id: row.row.id,
-                  label: `Bitmap ${row.width}\u00d7${row.height}`,
-                }),
-            },
-            'Details',
-          ),
+          m(HdeAnchor, {dump, to: {view: 'object', id: row.row.id}}, 'Details'),
         ),
         vnode.attrs.pathMode !== 'none' &&
           vnode.attrs.pathData !== undefined &&
@@ -354,7 +333,7 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
                 PATH_HEADING[vnode.attrs.pathMode],
               ),
               vnode.attrs.pathData.length > 0
-                ? renderPath(vnode.attrs.pathData, navigate)
+                ? renderPath(vnode.attrs.pathData, dump)
                 : m('span', {class: 'pf-hde-muted'}, 'No path to GC root.'),
             )
           : null,
@@ -365,94 +344,39 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
 
 interface BitmapGalleryViewAttrs {
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
-  readonly clearNavParam: (key: string) => void;
-  readonly hasFieldValues?: boolean;
+  readonly activeDump: queries.HeapDump;
+  readonly hasFieldValues: boolean;
   readonly filterKey?: string;
 }
 
 export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
-  let rows: BitmapListRow[] | null = null;
-  let alive = true;
+  const rowsMemo = new AsyncMemo<BitmapListRow[]>();
+  // Paths to GC root for the dump's bitmaps, in the chosen path mode.
+  const pathsMemo = new AsyncMemo<Map<number, PathEntry[]>>();
   let pathMode: PathMode = 'none';
-  const pathsFetched: Record<Exclude<PathMode, 'none'>, boolean> = {
-    shortest: false,
-    dominator: false,
-  };
-  const pathMaps: Record<
-    Exclude<PathMode, 'none'>,
-    Map<number, PathEntry[]>
-  > = {
-    shortest: new Map(),
-    dominator: new Map(),
-  };
-  let filters: Filter[] = [];
-
-  function fetchPaths(
-    engine: Engine,
-    bitmaps: BitmapListRow[],
-    mode: Exclude<PathMode, 'none'>,
-  ) {
-    const ids = bitmaps.map((b) => b.row.id);
-    if (ids.length === 0) return;
-    const fetcher =
-      mode === 'shortest'
-        ? queries.fetchShortestPaths
-        : queries.fetchDominatorPaths;
-    fetcher(engine, ids)
-      .then((paths) => {
-        if (!alive) return;
-        for (const id of ids) {
-          pathMaps[mode].set(id, paths.get(id) ?? []);
-        }
-        pathsFetched[mode] = true;
-        m.redraw();
-      })
-      .catch(console.error);
-  }
-
-  function applyNavFilter(
-    fk: string | undefined,
-    clearNavParam: (key: string) => void,
-  ) {
-    if (!fk) return;
-    filters = [{field: 'buffer_hash', op: '=' as const, value: fk}];
-    clearNavParam('filterKey');
-  }
 
   return {
-    oninit(vnode) {
-      applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
-      queries
-        .getBitmapList(vnode.attrs.engine, vnode.attrs.activeDump)
-        .then((r) => {
-          if (!alive) return;
-          rows = r;
-          m.redraw();
-          // Enrich with reachable sizes asynchronously.
-          queries
-            .enrichWithReachable(
-              vnode.attrs.engine,
-              r.map((b) => b.row),
-            )
-            .then(() => {
-              if (alive) m.redraw();
-            })
-            .catch(console.error);
-        })
-        .catch(console.error);
-    },
-    onupdate(vnode) {
-      applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
-    },
     onremove() {
-      alive = false;
+      rowsMemo.dispose();
+      pathsMemo.dispose();
     },
     view(vnode) {
-      const {engine, activeDump, navigate} = vnode.attrs;
+      const {engine, activeDump, filterKey} = vnode.attrs;
 
-      if (!rows) {
+      const {isPending, data: rows} = rowsMemo.use({
+        key: {upid: activeDump.upid, ts: activeDump.ts},
+        compute: async () => {
+          const r = await queries.getBitmapList(engine, activeDump);
+          // Enrich with reachable sizes asynchronously.
+          queries.enrichWithReachable(
+            engine,
+            r.map((b) => b.row),
+          );
+          return r;
+        },
+      });
+
+      if (isPending) {
         return m(
           DetailsShell,
           {title: 'Bitmaps', fillHeight: true, className: 'pf-hde-tab--padded'},
@@ -467,22 +391,40 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
       const withPixels = rows.filter((r) => r.hasPixelData);
       const withoutPixels = rows.filter((r) => !r.hasPixelData);
 
-      if (vnode.attrs.hasFieldValues === false || rows.length === 0) {
+      if (!vnode.attrs.hasFieldValues || rows.length === 0) {
         return m(
           DetailsShell,
           {title: 'Bitmaps', fillHeight: true, className: 'pf-hde-tab--padded'},
           m(EmptyState, {
             icon: 'image',
-            title:
-              vnode.attrs.hasFieldValues === false
-                ? 'Bitmap data requires an ART heap dump (.hprof)'
-                : 'No bitmap data available',
+            title: !vnode.attrs.hasFieldValues
+              ? 'Bitmap data requires an ART heap dump (.hprof)'
+              : 'No bitmap data available',
             fillHeight: true,
           }),
         );
       }
 
-      const bitmapSchema = makeBitmapListSchema(navigate);
+      const mode = pathMode;
+      const pathMap =
+        mode === 'none'
+          ? undefined
+          : pathsMemo.use({
+              key: {upid: activeDump.upid, ts: activeDump.ts, mode},
+              compute: () =>
+                (mode === 'shortest'
+                  ? queries.fetchShortestPaths
+                  : queries.fetchDominatorPaths)(
+                  engine,
+                  rows.map((b) => b.row.id),
+                ),
+            }).data;
+
+      const filters: Filter[] = filterKey
+        ? [{field: 'buffer_hash', op: '=', value: filterKey}]
+        : [];
+
+      const bitmapSchema = makeBitmapListSchema(activeDump);
       const bitmapColumns = [
         {id: 'id', field: 'id'},
         {id: 'cls', field: 'cls'},
@@ -503,9 +445,6 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         {id: 'source_id', field: 'source_id'},
         {id: 'buffer_hash', field: 'buffer_hash'},
       ];
-      const onFiltersChanged = (f: readonly Filter[]) => {
-        filters = [...f];
-      };
 
       return m(
         DetailsShell,
@@ -521,12 +460,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
               Select,
               {
                 onchange: (e: Event) => {
-                  const value = (e.target as HTMLSelectElement)
-                    .value as PathMode;
-                  pathMode = value;
-                  if (value !== 'none' && !pathsFetched[value]) {
-                    fetchPaths(engine, rows!, value);
-                  }
+                  pathMode = (e.target as HTMLSelectElement).value as PathMode;
                 },
               },
               [
@@ -581,12 +515,13 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                     row: r,
                     engine,
                     activeDump,
-                    navigate,
                     pathMode,
                     pathData:
-                      pathMode === 'none'
+                      mode === 'none'
                         ? undefined
-                        : (pathMaps[pathMode].get(r.row.id) ?? null),
+                        : pathMap === undefined
+                          ? null
+                          : (pathMap.get(r.row.id) ?? []),
                   }),
                 ),
               )
@@ -603,7 +538,6 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                   data: withPixels.map(bitmapRowToRow),
                   initialColumns: bitmapColumns,
                   filters,
-                  onFiltersChanged,
                   showExportButton: true,
                 }),
               ])
@@ -620,7 +554,6 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                   data: withoutPixels.map(bitmapRowToRow),
                   initialColumns: bitmapColumns,
                   filters,
-                  onFiltersChanged,
                   showExportButton: true,
                 }),
               ])

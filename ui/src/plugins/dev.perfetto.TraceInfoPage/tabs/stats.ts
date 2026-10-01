@@ -22,9 +22,9 @@ import {Tooltip} from '../../../widgets/tooltip';
 import {statsSpec, type StatsSectionRow} from '../utils';
 
 export interface StatsData {
-  allStats: StatsSectionRow[];
-  isMultiTrace: boolean;
-  isMultiMachine: boolean;
+  readonly allStats: readonly StatsSectionRow[];
+  readonly isMultiTrace: boolean;
+  readonly isMultiMachine: boolean;
 }
 
 export async function loadStatsData(engine: Engine): Promise<StatsData> {
@@ -122,7 +122,7 @@ export class StatsTab implements m.ClassComponent<StatsTabAttrs> {
 
 // Stats Section
 interface StatsSectionAttrs {
-  data: StatsSectionRow[];
+  data: readonly StatsSectionRow[];
   isMultiTrace: boolean;
   isMultiMachine: boolean;
 }

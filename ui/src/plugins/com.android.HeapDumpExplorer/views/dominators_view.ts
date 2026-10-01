@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Memo} from '../../../base/memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
-import {fmtHex} from '../format';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -28,18 +28,18 @@ import {
   RowCounter,
   COL_INFO,
   colHeader,
+  fmtHex,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
-import {Anchor} from '../../../widgets/anchor';
+import * as queries from '../queries';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {type DumpRef, HdeAnchor} from '../nav';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
+  readonly activeDump: queries.HeapDump;
 }
 
-function buildQuery(activeDump: HeapDump): string {
+function buildQuery(activeDump: queries.HeapDump): string {
   return `
     SELECT
       o.id,
@@ -59,11 +59,11 @@ function buildQuery(activeDump: HeapDump): string {
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
     WHERE d.idom_id IS NULL
-      AND ${dumpFilterSql(activeDump, 'o')}
+      AND ${queries.dumpFilterSql(activeDump, 'o')}
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -72,13 +72,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const id = Number(value);
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-        return m(
-          Anchor,
-          {
-            onclick: () => navigate('object', {id, label: display}),
-          },
-          display,
-        );
+        return m(HdeAnchor, {dump, to: {view: 'object', id}}, display);
       },
     },
     retained: {
@@ -145,32 +139,38 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function DominatorsView({
-  attrs: {engine, activeDump},
+  attrs: {engine},
 }: m.Vnode<DominatorsViewAttrs>): m.Component<DominatorsViewAttrs> {
-  const query = buildQuery(activeDump);
-  const datasource = new SQLDataSource({
-    engine,
-    tableOrSubquery: query,
-    preamble: SQL_PREAMBLE,
-  });
-  const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
+  const datasourceMemo = new Memo<SQLDataSource>();
+  const counter = new RowCounter(engine, SQL_PREAMBLE);
+  let filters: readonly Filter[] = [];
 
   return {
     onremove() {
-      datasource.dispose();
+      counter.dispose();
+      datasourceMemo.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {activeDump} = vnode.attrs;
+      const query = buildQuery(activeDump);
+      const datasource = datasourceMemo.use({
+        key: {query},
+        compute: () =>
+          new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: SQL_PREAMBLE,
+          }),
+      });
 
       return m(
         DetailsShell,
         {
-          title: counter.heading('Dominators'),
+          title: counter.heading('Dominators', query, filters),
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(activeDump),
           data: datasource,
           fillHeight: true,
           initialColumns: [
@@ -187,7 +187,9 @@ export function DominatorsView({
             {id: 'root_type', field: 'root_type'},
           ],
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            filters = f;
+          },
         }),
       );
     },
