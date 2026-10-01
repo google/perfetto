@@ -529,6 +529,7 @@ TraceProcessorImpl::TraceProcessorImpl(
       context(),
       context()->storage.get(),
       config_,
+      stdlib_,
       registered_sql_packages_,
       sql_metrics_,
       &metrics_descriptor_pool_,
@@ -550,8 +551,8 @@ TraceProcessorImpl::TraceProcessorImpl(
     // implicitly commits after each statement.
     PerfettoSqlConnection::Transaction txn(engine_.get());
     for (const auto& file_to_sql :
-         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics.data(),
-                   sql_metrics::kAmalgamatedSqlMetrics.size())) {
+         SqlBundle::Decode(sql_metrics::kAmalgamatedSqlMetrics.data(),
+                           sql_metrics::kAmalgamatedSqlMetrics.size())) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
       RegisterMetricImpl(file_to_sql.path, std::string(file_to_sql.sql_view()));
@@ -907,6 +908,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
       context(),
       context()->storage.get(),
       config_,
+      stdlib_,
       registered_sql_packages_,
       sql_metrics_,
       &metrics_descriptor_pool_,
@@ -1113,9 +1115,9 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     }
   }
 
-  // Stream stdlib straight from rodata into the connection. The bundle is
+  // Register stdlib from the shared decoded buffer. The bundle is
   // sorted by path so package entries are contiguous: flush whenever the
-  // package name changes. Bodies stay as string_views into kStdlib.
+  // package name changes. The processor retains the buffer backing the views.
   {
     auto flush = [&](const std::string& pkg,
                      sql_modules::RegisteredPackage rp) {
@@ -1126,7 +1128,8 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     };
     std::string current_pkg;
     std::optional<sql_modules::RegisteredPackage> rp;
-    for (const auto& f : stdlib::GetStdlibBundle()) {
+    args.stdlib = stdlib::GetStdlibBundle();
+    for (const auto& f : *args.stdlib) {
       std::string include_key = sql_modules::GetIncludeKey(f.path);
       std::string pkg = sql_modules::GetPackageName(include_key);
       if (pkg != current_pkg) {

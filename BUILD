@@ -3757,6 +3757,8 @@ perfetto_cpp_blob_header(
         "--gen-dir=$(GENDIR)",
         "--namespace",
         "perfetto::trace_processor::sql_metrics",
+        "--compression",
+        "zlib",
     ],
 )
 
@@ -4599,6 +4601,8 @@ perfetto_cpp_blob_header(
         "--gen-dir=$(GENDIR)",
         "--namespace",
         "perfetto::trace_processor::stdlib",
+        "--compression",
+        "zlib",
     ],
 )
 
@@ -6477,6 +6481,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_util_sql_bundle",
     srcs = [
+        "src/trace_processor/util/sql_bundle.cc",
         "src/trace_processor/util/sql_bundle.h",
     ],
 )
