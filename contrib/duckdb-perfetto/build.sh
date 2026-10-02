@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Builds out/duckdb_ext/perfetto.duckdb_extension.
+# Builds out/duckdb_ext/perfetto.duckdb_extension (and its unit tests).
 # Usage: contrib/duckdb-perfetto/build.sh [out_dir]
 
 set -euo pipefail
@@ -43,7 +43,7 @@ if [ ! -f "$OUT/args.gn" ]; then
   echo 'is_debug = false' > "$OUT/args.gn"
 fi
 tools/gn gen --check "$OUT" --root=. --dotfile=contrib/duckdb-perfetto/.gn
-tools/ninja -C "$OUT" perfetto_duckdb
+tools/ninja -C "$OUT" perfetto_duckdb perfetto_duckdb_unittests
 
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) PLATFORM=osx_arm64 ;;
