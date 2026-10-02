@@ -45,3 +45,7 @@ perfetto_benchmarks_targets = [
 if (enable_perfetto_heapprofd) {
   perfetto_benchmarks_targets += [ "src/profiling/memory:benchmarks" ]
 }
+
+if (enable_perfetto_traced_perf || enable_perfetto_heapprofd) {
+  perfetto_benchmarks_targets += [ "src/profiling/unwind:benchmarks" ]
+}

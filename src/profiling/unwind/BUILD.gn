@@ -30,3 +30,17 @@ source_set("unwind_core") {
     "unwind_types.h",
   ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":unwind_core",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+      "../../../src/base",
+      "libunwindstack",
+    ]
+    sources = [ "unwind_benchmark.cc" ]
+  }
+}
