@@ -178,6 +178,8 @@ void ArgsInserter::Commit() {
   if (args.empty()) {
     return;
   }
+  // A detached inserter's args must be taken, not committed.
+  PERFETTO_CHECK(df_);
   ArgSetId set_id =
       global_->AddArgSet(args.data(), 0, static_cast<uint32_t>(args.size()));
   WriteArgSetId(df_, col_, row_, set_id);

@@ -38,6 +38,57 @@ namespace perfetto::trace_processor {
 class ArgsTracker;
 class TraceProcessorContext;
 
+// Thread-time columns of a slice. Unset fields are left untouched.
+struct SliceThreadTiming {
+  std::optional<int64_t> ts;
+  std::optional<int64_t> dur;
+  std::optional<int64_t> instruction_count;
+  std::optional<int64_t> instruction_delta;
+};
+
+// Everything the slice table would hold for one slice, plus its args inline.
+struct FinalizedSlice {
+  SliceId id;
+  int64_t ts;
+  int64_t dur;  // -1 if the slice was still open at end of trace.
+  TrackId track_id;
+  StringId category;
+  StringId name;
+  uint32_t depth;
+  std::optional<SliceId> parent_id;
+  SliceThreadTiming thread;
+  ArgsInserter::CompactArgSet args;
+};
+
+// Receives each slice once it is final: after it has left the stack and after
+// the caller has patched the columns it sets once End() returns (thread_dur,
+// thread_instruction_delta, a rename). Delivery is deferred to the next
+// SliceTracker operation, or to FlushPendingSlices() at end of trace, for that
+// reason. A slice whose args need translation is final only once they are
+// translated at end of trace, so it is delivered then.
+//
+// Delivery order is pop order (children before parents, tracks interleaved),
+// not timestamp order; slices still open at end of trace follow the same
+// rule. The one exception: at end of trace, slices whose args awaited
+// translation arrive after all others. Callbacks must not call back into the
+// SliceTracker.
+class SliceSink {
+ public:
+  enum class Mode {
+    // The slice table is still built; the sink gets ids of final rows.
+    kAlongsideTable,
+    // No slice table rows and no global arg sets: the sink gets full records
+    // with their args. Ids come from a storage-wide sequence that continues
+    // after the slice table's rows. Switching back to writing the table once
+    // detached ids exist is fatal, as new rows would reuse those ids.
+    kInsteadOfTable,
+  };
+
+  virtual ~SliceSink();
+  virtual void OnSliceFinalized(SliceId) {}
+  virtual void OnSliceRecord(FinalizedSlice&&) {}
+};
+
 class SliceTracker {
  public:
   static constexpr uint32_t kMaxDepth = 512;
@@ -158,7 +209,8 @@ class SliceTracker {
 
   // Usually args should be added in the Begin or End args_callback but this
   // method is for the situation where new args need to be added to an
-  // in-progress slice.
+  // in-progress slice. Returns the slice's row number, or its id value when
+  // no table is written.
   template <typename ArgsCb>
   std::optional<uint32_t> AddArgs(TrackId track_id,
                                   StringId category,
@@ -175,16 +227,89 @@ class SliceTracker {
 
   void SetOnSliceBeginCallback(OnSliceBeginCallback callback);
 
+  // Not owned; must outlive this tracker or be cleared first. Meant to be set
+  // before the first slice (from on_slice_tracker_created). Clearing or
+  // replacing it mid-trace delivers queued records to the previous sink at
+  // once, translating their args early; kAlongsideTable slices still awaiting
+  // translation are announced at flush to whichever sink is set then. Whether
+  // the table is written can only change while no slice is open.
+  void SetSliceSink(SliceSink* sink,
+                    SliceSink::Mode mode = SliceSink::Mode::kAlongsideTable);
+
+  // False when slices go only to a kInsteadOfTable sink: their ids then have
+  // no slice table row, and nothing may read or write the table by id.
+  bool WritesTable() const {
+    return !sink_ || sink_mode_ == SliceSink::Mode::kAlongsideTable;
+  }
+
   std::optional<SliceId> GetTopmostSliceOnTrack(TrackId track_id) const;
+
+  // Renames |id| on |track_id|, which must still be open or be the slice
+  // returned by the most recent End. Returns false if it is neither and no
+  // table is written (the slice was already delivered under its old name).
+  bool SetName(TrackId track_id, SliceId id, StringId name);
+
+  struct SliceStart {
+    SliceId id;
+    int64_t ts;
+  };
+
+  using ThreadTiming = SliceThreadTiming;
+
+  // With a slice table the three calls below act on |id|'s row, so any id
+  // may be passed. Without one, |id| must be the slice each of them names.
+
+  // Sets thread timing on |id|, the slice returned by the most recent
+  // Begin/Scoped.
+  void SetThreadTiming(SliceId id, const ThreadTiming& timing);
+
+  // Thread timing recorded at the start of |id|, the slice returned by the
+  // most recent End.
+  std::optional<ThreadTiming> ThreadTimingOfRecentlyEnded(SliceId id) const;
+
+  // Sets thread_dur / thread_instruction_delta on |id|, the slice returned by
+  // the most recent End. A no-op when both are unset.
+  void SetThreadDeltas(SliceId id,
+                       std::optional<int64_t> thread_dur,
+                       std::optional<int64_t> instruction_delta);
+
+  // The topmost open slice on |track_id| and its start timestamp.
+  std::optional<SliceStart> GetTopmostOpenSlice(TrackId track_id) const;
+
+  // Start timestamp of |id| if it is the slice returned by the most recent
+  // Begin/Scoped or End. Callers attaching data to the slice they were just
+  // handed can use this instead of reading the slice table.
+  std::optional<int64_t> StartOfRecentSlice(SliceId id) const {
+    if (last_started_ && last_started_->id == id)
+      return last_started_->ts;
+    if (last_ended_ && last_ended_->id == id)
+      return last_ended_->ts;
+    return std::nullopt;
+  }
+
+  // Start timestamp of |id|: StartOfRecentSlice() if it has it, else the slice
+  // table. Fatal when neither can answer (no table is written).
+  int64_t StartTsOf(SliceId id) const;
 
  private:
   // Slices which have been opened but haven't been closed yet will be marked
   // with this duration placeholder.
   static constexpr int64_t kPendingDuration = -1;
 
-  // |args| is created lazily if the slice gets args, and committed on pop.
+  // Everything the stack logic needs about an open slice, so it never reads
+  // the slice table. |args| is created lazily if the slice gets args, and
+  // committed on pop.
   struct SliceInfo {
-    tables::SliceTable::RowNumber row;
+    std::optional<tables::SliceTable::RowNumber> row;  // Unset without table.
+    SliceId id;
+    int64_t ts;
+    int64_t dur;
+    TrackId track_id;
+    StringId category;
+    StringId name;
+    uint32_t depth;
+    std::optional<SliceId> parent_id;
+    ThreadTiming thread;
     std::optional<ArgsInserter> args;
   };
   using SlicesStack = std::vector<SliceInfo>;
@@ -308,10 +433,21 @@ class SliceTracker {
                                                        StringId category);
 
   void StackPop(TrackInfo& track_info);
-  void StackPush(TrackInfo& track_info,
-                 TrackId track_id,
-                 tables::SliceTable::RowNumber row_number,
-                 SliceId id);
+
+  // Delivers slices popped by the previous operation to |sink_|.
+  void DrainFinalized();
+
+  // Translates the args of |untranslated_records_| and delivers them.
+  void DeliverUntranslatedRecords();
+
+  // Moves |info| into a record for kInsteadOfTable delivery, queued for the
+  // next DrainFinalized() or, if its args need translation, for end of trace.
+  void QueueRecord(SliceInfo& info);
+
+  // The queued, undelivered record for |id|, if any.
+  FinalizedSlice* FindQueuedRecord(SliceId id);
+
+  void StackPush(TrackInfo& track_info, TrackId track_id, SliceInfo info);
 
   // Resolve a track once per event and thread the reference through the call;
   // the map is small and hot so a cross-call last-track cache measured as
@@ -326,8 +462,9 @@ class SliceTracker {
   ArgsInserter* GetArgsInserter(SliceInfo& slice_info, SliceId id);
 
   // Defers args needing translation to end-of-trace (taking ownership of the
-  // arg set), else no-op. Requires |slice_info.args| non-null.
-  void MaybeAddTranslatableArgs(SliceInfo& slice_info);
+  // arg set) and returns true, else no-op. Requires |slice_info.args|
+  // non-null and the table to be written.
+  bool MaybeAddTranslatableArgs(SliceInfo& slice_info);
 
   OnSliceBeginCallback on_slice_begin_callback_;
 
@@ -349,6 +486,20 @@ class SliceTracker {
 
   StackMap stacks_;
   std::vector<TranslatableArgs> translatable_args_;
+
+  SliceSink* sink_ = nullptr;
+  SliceSink::Mode sink_mode_ = SliceSink::Mode::kAlongsideTable;
+  std::vector<SliceId> finalized_;
+  std::vector<FinalizedSlice> finalized_records_;
+  // kInsteadOfTable records whose args await end-of-trace translation.
+  std::vector<FinalizedSlice> untranslated_records_;
+  bool draining_ = false;
+  std::optional<TrackId> last_ended_track_;
+
+  std::optional<SliceStart> last_started_;
+  std::optional<TrackId> last_started_track_;
+  std::optional<SliceStart> last_ended_;
+  ThreadTiming last_ended_thread_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -42,7 +42,6 @@ class GraphicsFrameEventParser {
   void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
 
  private:
-  using SliceRowNumber = tables::SliceTable::RowNumber;
   struct BufferEvent {
     int64_t acquire_ts = 0;
     int64_t queue_ts = 0;
@@ -50,7 +49,8 @@ class GraphicsFrameEventParser {
     bool is_most_recent_dequeue_ = false;
   };
   struct DequeueInfo {
-    tables::SliceTable::RowNumber slice_row;
+    SliceId slice_id;
+    TrackId track;
     int64_t timestamp;
   };
   struct QueueInfo {
@@ -78,11 +78,10 @@ class GraphicsFrameEventParser {
                         StringId layer_name_id,
                         StringId event_key);
 
-  std::optional<SliceRowNumber> InsertPhaseSlice(
-      int64_t timestamp,
-      const GraphicsFrameEventDecoder&,
-      TrackId track_id,
-      StringId layer_name_id);
+  std::optional<SliceId> InsertPhaseSlice(int64_t timestamp,
+                                          const GraphicsFrameEventDecoder&,
+                                          TrackId track_id,
+                                          StringId layer_name_id);
 
   TraceProcessorContext* const context_;
   const StringId unknown_event_name_id_;
