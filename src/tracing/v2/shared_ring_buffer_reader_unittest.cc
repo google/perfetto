@@ -38,6 +38,7 @@ using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
 using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
 using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
 using ConsumeResult = SharedRingBufferReader::ConsumeResult;
+using test::DefaultDrainThreshold;
 using test::GetNoopWriterDelegate;
 using test::MakeWriter;
 using test::WriteFragment;
@@ -341,7 +342,8 @@ TEST(SharedRingBufferReaderTest, DrainPublishesOnce) {
   for (uint32_t i = 0; i < 4; ++i) {
     writers.push_back(std::make_unique<SharedRingBufferWriter>(
         ring.get(), static_cast<WriterID>(10 + i), kBuffer,
-        BufferExhaustedPolicy::kDrop, GetNoopWriterDelegate()));
+        BufferExhaustedPolicy::kDrop, DefaultDrainThreshold(ring.get()),
+        GetNoopWriterDelegate()));
     ASSERT_TRUE(WriteFragment(writers.back().get(), "x"));
   }
   // The shared read_pos has not moved yet: ConsumeNextPosition() does not
@@ -366,7 +368,8 @@ TEST(SharedRingBufferReaderTest, DrainBudget) {
   for (uint32_t i = 0; i < 4; ++i) {
     writers.push_back(std::make_unique<SharedRingBufferWriter>(
         ring.get(), static_cast<WriterID>(10 + i), kBuffer,
-        BufferExhaustedPolicy::kDrop, GetNoopWriterDelegate()));
+        BufferExhaustedPolicy::kDrop, DefaultDrainThreshold(ring.get()),
+        GetNoopWriterDelegate()));
     ASSERT_TRUE(WriteFragment(writers.back().get(), "x"));
   }
 

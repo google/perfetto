@@ -152,12 +152,21 @@ inline SharedRingBufferWriter::Delegate* GetNoopWriterDelegate() {
   return &delegate.ref();
 }
 
+// The default drain threshold of |ring|, for tests that build a writer
+// directly.
+inline uint32_t DefaultDrainThreshold(const SharedRingBuffer* ring) {
+  return SharedRingBufferWriter::DrainThresholdForPercent(
+      ring->num_chunks(),
+      SharedRingBufferWriter::kDefaultDrainOccupancyPercent);
+}
+
 inline SharedRingBufferWriter MakeWriter(
     SharedRingBuffer* ring,
     WriterID id,
     BufferID buffer,
     BufferExhaustedPolicy policy = BufferExhaustedPolicy::kDrop) {
   return SharedRingBufferWriter(ring, id, buffer, policy,
+                                DefaultDrainThreshold(ring),
                                 GetNoopWriterDelegate());
 }
 

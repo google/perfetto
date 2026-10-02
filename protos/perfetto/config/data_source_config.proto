@@ -223,6 +223,15 @@ message DataSourceConfig {
     // is per instance. Move it to the producer level, or make the service
     // reject a mismatch.
     optional uint32 chunk_size_bytes = 2;
+    // When a writer of this instance asks the service to read the ring
+    // buffer. After each publication, the writer checks how many ring buffer
+    // positions wait for the reader:
+    // - 0 or absent: at least 25% of them.
+    // - 1 to 100: at least this percent of them, and at least one.
+    // - -1: always. One drain request for every publication.
+    // Flushes and full ring buffers still ask for a drain at once. The
+    // service rejects other values.
+    optional int32 drain_occupancy_percent = 3;
   }
   optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 

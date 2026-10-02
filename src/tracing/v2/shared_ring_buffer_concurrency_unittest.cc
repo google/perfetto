@@ -44,6 +44,7 @@ namespace {
 
 using Internals = test::SharedRingBufferInternalsForTest;
 using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
+using test::DefaultDrainThreshold;
 using test::GetNoopWriterDelegate;
 
 constexpr BufferID kBuffer = 5;
@@ -127,9 +128,9 @@ void RunStress(const StressParams& params, StressStats* stats) {
 
   for (uint32_t w = 0; w < params.num_writers; ++w) {
     writer_threads.emplace_back([&, w] {
-      SharedRingBufferWriter writer(ring.get(), static_cast<WriterID>(w + 1),
-                                    kBuffer, params.policy,
-                                    GetNoopWriterDelegate());
+      SharedRingBufferWriter writer(
+          ring.get(), static_cast<WriterID>(w + 1), kBuffer, params.policy,
+          DefaultDrainThreshold(ring.get()), GetNoopWriterDelegate());
       // A payload that varies in size so that chunk boundaries and reuse get
       // exercised rather than one fixed shape. The 255-fragment cap is out of
       // reach: every fragment costs at least nine bytes, so even the largest

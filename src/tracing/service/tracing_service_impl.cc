@@ -846,6 +846,11 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           tracing_v2_config.chunk_size_bytes(), tracing_v2::kMinChunkSize,
           tracing_v2::kMaxChunkSize, tracing_v2::kChunkAlignmentBytes);
     }
+    if (tracing_v2_config.drain_occupancy_percent() < -1 ||
+        tracing_v2_config.drain_occupancy_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.drain_occupancy_percent must be -1 to 100");
+    }
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
     size_t target_buffer = ds_config.target_buffer();

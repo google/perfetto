@@ -41,12 +41,14 @@ TraceWriterV2Impl::TraceWriterV2Impl(
     ProducerRingBufferArbiter* ring_buffer_arbiter,
     WriterID id,
     BufferID target_buffer,
-    BufferExhaustedPolicy policy)
+    BufferExhaustedPolicy policy,
+    uint32_t drain_threshold)
     : ring_buffer_arbiter_(ring_buffer_arbiter),
       ring_buffer_writer_(ring_buffer_arbiter->ring_buffer(),
                           id,
                           target_buffer,
                           policy,
+                          drain_threshold,
                           ring_buffer_arbiter),
       stream_writer_(this),
       cur_packet_(std::make_unique<

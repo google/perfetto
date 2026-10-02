@@ -712,6 +712,22 @@ TEST_F(TracingServiceImplTest, RejectsInvalidTracingV2Settings) {
   consumer->WaitForTracingDisabledWithError(IsEmpty());
 }
 
+TEST_F(TracingServiceImplTest, RejectsInvalidDrainOccupancyPercent) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  for (int32_t percent : {-2, 101}) {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* ds_config = config.add_data_sources()->mutable_config();
+    ds_config->set_name("data_source");
+    ds_config->mutable_experimental_tracing_v2()->set_drain_occupancy_percent(
+        percent);
+    consumer->EnableTracing(config);
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("drain_occupancy_percent"));
+  }
+}
+
 // The consumer cannot set supports_tracing_v2. The service overwrites the
 // field, also for a producer without tracing v2.
 TEST_F(TracingServiceImplTest, ServiceOverwritesSupportsTracingV2) {

@@ -425,5 +425,10 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config,
                   uint32_t,
                   chunk_size_bytes,
                   2);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig_ExperimentalTracingV2Config,
+                  VARINT,
+                  int32_t,
+                  drain_occupancy_percent,
+                  3);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_DATA_SOURCE_CONFIG_PZC_H_
