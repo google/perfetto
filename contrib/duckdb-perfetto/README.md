@@ -52,6 +52,17 @@ scanners) provides a read-only catalog with one schema, `main`:
 * **Lifetime.** The trace's lifetime is tied to the attached database:
   `DETACH t` frees it.
 * **Projection pushdown.** TP is only asked for the columns DuckDB needs.
+* **Filter pushdown** via `pushdown_complex_filter`. Column-vs-constant
+  comparisons (`= != < <= > >=`), `IS [NOT] NULL` and `IN (...)` on columns
+  become a PerfettoSQL `WHERE`, so TP's indexes and dataframe planner apply.
+  Anything else stays in DuckDB, so pushdown never changes results.
+  `EXPLAIN` shows what was pushed:
+
+  ```
+  PERFETTO_SCAN
+    Table: slice
+    PerfettoSQL Filters: "dur" > 1000000
+  ```
 
 ### Execution
 
@@ -98,7 +109,12 @@ duckdb -unsigned -c "LOAD '$PWD/out/duckdb_ext/perfetto.duckdb_extension'; ..."
 | `ATTACH` a 15 MB Android trace | 150 ms |
 | `CREATE TABLE AS FROM t.slice` (123k rows x 15 cols) | 42 ms |
 | `CREATE TABLE AS SELECT ts, dur FROM t.slice` (projection pushdown) | 6 ms |
+| `t.slice WHERE track_id = X`, filter pushed into TP | 0.19 ms |
+| same predicate, not pushable (`abs(track_id) = X`) | 5.3 ms |
+| 5-predicate filter on `t.slice`, pushed / not pushed | 0.33 / 15.1 ms |
 | `perfetto_query` over 16 copies of the trace (2M rows), 1 / 10 threads | 2.67 / 0.74 s |
+
+Pushed and non-pushed filters return identical results.
 
 ## Limitations
 
@@ -127,10 +143,9 @@ duckdb -unsigned -c "LOAD '$PWD/out/duckdb_ext/perfetto.duckdb_extension'; ..."
 
 ## Possible next steps
 
-1. **Filter pushdown** into TP for `t.<table>` scans.
-2. **Inline PerfettoSQL syntax**, so queries don't need string literals.
-3. **Static result types** from TP (see Limitations).
-4. **A columnar scan path.** Hand TP dataframe columns to DuckDB vectors
+1. **Inline PerfettoSQL syntax**, so queries don't need string literals.
+2. **Static result types** from TP (see Limitations).
+3. **A columnar scan path.** Hand TP dataframe columns to DuckDB vectors
    directly instead of iterating SQLite rows.
-5. **Distribution.** Publish via DuckDB community extensions, which needs a
+4. **Distribution.** Publish via DuckDB community extensions, which needs a
    CMake shim around the GN build.
