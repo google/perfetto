@@ -526,6 +526,7 @@ std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
     unwindstack::FrameData& frame = ret.emplace_back();
     frame.function_name = kernel_map->Lookup(ip);
     frame.map_info = kernel_map_info.ref();
+    frame.rel_pc = ip;
   }
   return ret;
 }
