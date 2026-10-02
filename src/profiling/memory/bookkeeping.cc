@@ -26,23 +26,23 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/common/callstack_trie.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
 
-void HeapTracker::RecordMalloc(
-    const std::vector<unwindstack::FrameData>& callstack,
-    const std::vector<std::string>& build_ids,
-    uint64_t address,
-    uint64_t sample_size,
-    uint64_t alloc_size,
-    uint64_t sequence_number,
-    uint64_t timestamp) {
+void HeapTracker::RecordMalloc(const std::vector<FrameData>& callstack,
+                               const std::vector<std::string>& build_ids,
+                               uint64_t address,
+                               uint64_t sample_size,
+                               uint64_t alloc_size,
+                               uint64_t sequence_number,
+                               uint64_t timestamp) {
   PERFETTO_CHECK(callstack.size() == build_ids.size());
   std::vector<Interned<Frame>> frames;
   frames.reserve(callstack.size());
   for (size_t i = 0; i < callstack.size(); ++i) {
-    const unwindstack::FrameData& loc = callstack[i];
+    const FrameData& loc = callstack[i];
     const std::string& build_id = build_ids[i];
     auto frame_it = frame_cache_.find(loc.pc);
     if (frame_it != frame_cache_.end()) {
@@ -136,9 +136,8 @@ void HeapTracker::CommitOperation(uint64_t sequence_number,
   //  be treated as a no-op.
 }
 
-uint64_t HeapTracker::GetSizeForTesting(
-    const std::vector<unwindstack::FrameData>& stack,
-    std::vector<std::string> build_ids) {
+uint64_t HeapTracker::GetSizeForTesting(const std::vector<FrameData>& stack,
+                                        std::vector<std::string> build_ids) {
   PERFETTO_DCHECK(!dump_at_max_mode_);
   GlobalCallstackTrie::Node* node =
       callsites_->CreateCallsite(stack, build_ids);
@@ -154,9 +153,8 @@ uint64_t HeapTracker::GetSizeForTesting(
   return alloc.value.totals.allocated - alloc.value.totals.freed;
 }
 
-uint64_t HeapTracker::GetMaxForTesting(
-    const std::vector<unwindstack::FrameData>& stack,
-    std::vector<std::string> build_ids) {
+uint64_t HeapTracker::GetMaxForTesting(const std::vector<FrameData>& stack,
+                                       std::vector<std::string> build_ids) {
   PERFETTO_DCHECK(dump_at_max_mode_);
   GlobalCallstackTrie::Node* node =
       callsites_->CreateCallsite(stack, build_ids);
@@ -173,7 +171,7 @@ uint64_t HeapTracker::GetMaxForTesting(
 }
 
 uint64_t HeapTracker::GetMaxCountForTesting(
-    const std::vector<unwindstack::FrameData>& stack,
+    const std::vector<FrameData>& stack,
     std::vector<std::string> build_ids) {
   PERFETTO_DCHECK(dump_at_max_mode_);
   GlobalCallstackTrie::Node* node =

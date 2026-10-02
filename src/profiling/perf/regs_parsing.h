@@ -18,26 +18,25 @@
 #define SRC_PROFILING_PERF_REGS_PARSING_H_
 
 #include <stdint.h>
-#include <unwindstack/Regs.h>
 
 #include <memory>
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
 
 // Returns a bitmask for sampling the userspace register set, used when
 // configuring perf events.
-uint64_t PerfUserRegsMaskForArch(unwindstack::ArchEnum arch);
+uint64_t PerfUserRegsMaskForArch(CpuArch arch);
 
-// Converts the raw sampled register bytes to libunwindstack's representation
+// Converts the raw sampled register bytes to CpuRegisters representation
 // (correct arch-dependent subclass). Advances |data| pointer to past the
 // register data. The unique_ptr can be empty, if there were no userspace
 // registers to sample (i.e. we've sampled a kernel thread).
-// TODO(rsavitski): come up with a better signature (also consider how much to
-// isolate libunwindstack types).
-std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data);
+// TODO(rsavitski): come up with a better signature
+std::unique_ptr<CpuRegisters> ReadPerfUserRegsData(const char** data);
 
 }  // namespace profiling
 }  // namespace perfetto

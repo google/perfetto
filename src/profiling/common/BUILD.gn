@@ -26,20 +26,8 @@ source_set("interner") {
 # Evaluate libunwindstack dependency only when building profilers. Otherwise
 # other targets in this file cannot be used outside of profiler builds.
 if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
-  source_set("unwind_support") {
-    public_deps = [ "../../../gn:libunwindstack" ]
-    deps = [
-      "../../../gn:default_deps",
-      "../../../src/base",
-    ]
-    sources = [
-      "unwind_support.cc",
-      "unwind_support.h",
-    ]
-  }
-
   source_set("callstack_trie") {
-    public_deps = [ ":unwind_support" ]
+    public_deps = [ "../unwind:unwind_core" ]
     deps = [
       ":interner",
       "../../../gn:default_deps",
