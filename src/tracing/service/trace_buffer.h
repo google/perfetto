@@ -112,6 +112,17 @@ class TraceBuffer {
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) = 0;
 
+  // Ends a read. A read can span several BeginRead() calls, for example when
+  // TracingServiceImpl reads a buffer in batches.
+  //
+  // EndRead() assumes that the caller no longer uses any packet of the read.
+  // This matters because the packets from ReadNextTracePacket() can point
+  // into the buffer.
+  //
+  // After EndRead(), the buffer can move its data to optimize itself. For
+  // example, TraceBufferV2 compacts itself (see TraceBufferV2::EndRead()).
+  virtual void EndRead() = 0;
+
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset, as if no Read() had been called.
   virtual std::unique_ptr<TraceBuffer> CloneReadOnly() const = 0;

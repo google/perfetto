@@ -345,6 +345,11 @@ class TracingServiceImpl : public TracingService {
                                        size_t threshold,
                                        bool* has_more);
 
+  // Tells the buffers of `*tracing_session` that a read has ended. Call it
+  // only when the packets from ReadBuffers() are no longer in use, as a buffer
+  // can rearrange the data that those packets point to once the read ends.
+  void EndReadBuffers(TracingSession* tracing_session);
+
   // If `*tracing_session` has a filter, applies it to `*packets`. Doesn't
   // change the number of `*packets`, only their content.
   void MaybeFilterPackets(TracingSession* tracing_session,

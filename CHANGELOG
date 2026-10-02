@@ -2,6 +2,8 @@ Unreleased:
   Tracing service and probes:
    * Changed compression logic to always emit clock snapshot, trace config and
    trace UUID uncompressed for metadata inspection by on-device tools.
+   * Added shift-left compaction to TraceBufferV2. It bounds the RSS of long
+     traces that are read periodically, such as write_into_file traces.
   Trace Processor:
    * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
      all_data_source_started_ns, ...) to trace time when primary_trace_clock

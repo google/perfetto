@@ -18,8 +18,10 @@
 
 #include <algorithm>
 #include <memory>
+#include <type_traits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -610,6 +612,8 @@ std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
   // efficiency.
   static_assert(sizeof(TBChunk) == 16);
   static_assert(alignof(TBChunk) == 4);
+  // CloneReadOnly() and EndRead() copy chunks as raw bytes.
+  static_assert(std::is_trivially_copyable_v<TBChunk>);
   std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
@@ -647,12 +651,123 @@ void TraceBufferV2::BeginRead() {
   ++read_generation_;
 }
 
+void TraceBufferV2::EndRead() {
+  TRACE_BUFFER_V2_DLOG("EndRead(), wr_=%zu", wr_);
+  chunk_seq_reader_.reset();
+  if (!PERFETTO_FLAGS(TBV2_SHIFT_LEFT_COMPACTION) ||
+      overwrite_policy_ != kOverwrite || read_only_) {
+    return;
+  }
+
+  // Each entry of a SequenceState::chunks list holds the offset of one live
+  // chunk. Collect a pointer to each entry. Sort the pointers by the offsets
+  // they point to:
+  // - The live chunks are then in address order. The loop below does not
+  //   walk the padding between them.
+  // - A move writes the new offset of its chunk through the pointer. So the
+  //   list entry stays correct.
+  std::vector<size_t*> chunk_offset_refs;
+  for (auto& seq_entry : sequences_) {
+    for (size_t& offset_ref : seq_entry.second.chunks)
+      chunk_offset_refs.emplace_back(&offset_ref);
+  }
+  std::sort(chunk_offset_refs.begin(), chunk_offset_refs.end(),
+            [](const size_t* lhs, const size_t* rhs) { return *lhs < *rhs; });
+
+  // Skip if live chunks are on both sides of wr_. The chunks at/after wr_ are
+  // older, so address order is not ring order.
+  //
+  // In this diagram and the ones below:
+  // - [C0], [D0], [C1], ... are live chunks of two sequences, C and D. The
+  //   number is the order of the chunk within its sequence.
+  // - "." is padding (read chunks).
+  // - "~" is unused space, past the new used_size_.
+  //
+  //   0                        wr_                      used_size_
+  //   |..[C1]..[D1]..[C2]......|..[C0]....[D0]..........|
+  //
+  // This needs a wrap, and an old chunk that the reads could not consume, so
+  // it is rare.
+  const bool chunks_on_both_sides = !chunk_offset_refs.empty() &&
+                                    *chunk_offset_refs.front() < wr_ &&
+                                    *chunk_offset_refs.back() >= wr_;
+  if (PERFETTO_UNLIKELY(chunks_on_both_sides))
+    return;
+
+  // All live chunks are on one side of wr_, so address order is ring order.
+  // Slide them left in address order. A chunk moves left or stays, and the
+  // chunks not yet moved are all on its right. So a move never overwrites a
+  // chunk that still has to move.
+  //
+  // All before wr_. This is the usual case:
+  //
+  //   0                        wr_                      used_size_
+  //   |.[C0].[D0]..[C1]..[C2]..|........................|
+  //
+  // All at/after wr_. This happens only after a wrap, once the reads consumed
+  // all the chunks written since the wrap:
+  //
+  //   0                        wr_                      used_size_
+  //   |........................|.[C0].[D0]..[C1]..[C2]..|
+  //
+  // After the slide:
+  //
+  //   0                dst                              used_size_
+  //   |[C0][D0][C1][C2]|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
+  size_t dst = 0;
+  size_t prev_chunk_end = 0;
+  for (size_t* offset_ref : chunk_offset_refs) {
+    const size_t src = *offset_ref;
+    TBChunk* chunk = GetTBChunkAt(src);
+    PERFETTO_DCHECK(!chunk->is_padding());
+    const size_t outer_size = chunk->outer_size();
+    PERFETTO_CHECK(src >= prev_chunk_end);
+    prev_chunk_end = src + outer_size;
+    if (dst != src) {
+      memmove(begin() + dst, chunk, outer_size);
+      *offset_ref = dst;
+      TBChunk* moved_chunk = GetTBChunkAtUnchecked(dst);
+      moved_chunk->checksum = TBChunk::Checksum(dst, moved_chunk->size);
+    }
+    dst += outer_size;
+  }
+
+  // Release the pages that the next writes are unlikely to need.
+  // used_size_ is where the writes since the last compaction reached. The
+  // next writes likely need about as much. So keep those pages, plus 1/4 of
+  // slack, and release the pages after them.
+  const size_t page_size = base::GetSysPageSize();
+  const size_t release_begin =
+      base::AlignUp(used_size_ + used_size_ / 4, page_size);
+  const size_t release_end = base::AlignDown(size_, page_size);
+  if (release_begin < release_end)
+    data_.AdviseDontNeed(begin() + release_begin, release_end - release_begin);
+
+  // Skip a memset of the bytes past the new used_size_:
+  // - Nothing reads them. Reads and overwrites stop at used_size_, and a write
+  //   initializes its bytes before used_size_ covers them.
+  // - The compaction costs time in proportion to the live bytes, but a memset
+  //   would cost time in proportion to the old used_size_, which can be the
+  //   whole buffer. So the memset would cost far more than the compaction.
+  TRACE_BUFFER_V2_DLOG("Compacted %zu -> %zu bytes", used_size_, dst);
+  wr_ = dst;
+  used_size_ = dst;
+  stats_.set_shift_left_compactions(stats_.shift_left_compactions() + 1);
+}
+
 bool TraceBufferV2::ReadNextTracePacket(
     TracePacket* out_packet,
     PacketSequenceProperties* sequence_properties,
     uint32_t* previous_packet_on_sequence_dropped) {
   *sequence_properties = {0, ClientIdentity(), 0};
   *previous_packet_on_sequence_dropped = 0;
+
+  // A buffer is empty (used_size_ == 0) when it is fresh, or after EndRead()
+  // finds no live chunk. Then there is nothing to read, and the bytes at
+  // offset 0 are unspecified, because they are past used_size_. So return
+  // early, before the loop below reads those bytes as a chunk.
+  if (PERFETTO_UNLIKELY(used_size_ == 0))
+    return false;
 
   // When reading back chunks, we visit the buffer in two layers
   // (see /docs/design-docs/trace-buffer.md):
@@ -667,10 +782,6 @@ bool TraceBufferV2::ReadNextTracePacket(
     // alive as long as we are iterating in sequence order, and is destroyed
     // before moving again in buffer order.
     if (!chunk_seq_reader_.has_value()) {
-      // Note: in the edge case when the buffer is completely empty, TBChunk
-      // is designed in a way such that GetTBChunkAt(0) returns an empty padding
-      // chunk with a valid (zero) checksum.
-      // This is so we don't need extra branches to deal with this rare case.
       TBChunk* chunk = GetTBChunkAt(rd_);
       if (!chunk->is_padding()) {
         // Starts the inner walk in sequence order.
@@ -1031,6 +1142,7 @@ void TraceBufferV2::CopyChunkUntrusted(
         stats_.chunks_committed_out_of_order() + 1);
   }
   chunk_list.InsertAfter(insert_pos, wr_);
+  has_data_ = true;
   if (chunk_list.size() == 1 && !seq_is_new) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1178,6 +1290,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   auto& chunk_list = seq.chunks;
   bool was_empty = chunk_list.empty();
   chunk_list.emplace_back(wr_);
+  has_data_ = true;
   if (was_empty) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1270,8 +1383,8 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   // This loop erases all the existing chunks in the clear range.
   for (size_t off = wr_, next_off = 0; off < clear_end; off = next_off) {
     if (PERFETTO_UNLIKELY(off >= used_size_)) {
-      // This happens only on the first round of writing, when there are no
-      // chunks in the buffer yet. There is nothing to delete here, easy.
+      // Nothing was written here yet: on the first round of writing, or after
+      // EndRead() shrank |used_size_|. There is nothing to delete.
       break;
     }
     TBChunk* chunk = GetTBChunkAt(off);
@@ -1489,6 +1602,7 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   data_.EnsureCommitted(src.used_size_);
   memcpy(data_.Get(), src.data_.Get(), src.used_size_);
   used_size_ = src.used_size_;
+  has_data_ = src.has_data_;
   wr_ = src.wr_;
 
   stats_ = src.stats_;

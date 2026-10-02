@@ -77,8 +77,6 @@ namespace internal {
 struct TBChunk {
   static constexpr size_t kMaxSize = std::numeric_limits<uint16_t>::max();
   static uint8_t Checksum(size_t off, size_t size) {
-    // Note: the checksum must be 0 for (off=0,size=0). See the comment in
-    // ReadNextTracePacket() about the edge case of the buffer completely empty.
     return ((off >> 24) ^ (off >> 16) ^ (off >> 8) ^ off ^ (size >> 8) ^ size) &
            0xFF;
   }
@@ -562,6 +560,15 @@ class TraceBufferV2 : public TraceBuffer {
   // Reads in the TraceBufferV2 are NOT idempotent.
   void BeginRead() override;
 
+  // Ends a read. If the tbv2_shift_left_compaction flag is on, it also
+  // compacts the buffer:
+  // - It moves the live chunks to the front of the buffer, in ring order.
+  // - It releases the pages that the next writes are unlikely to need.
+  //
+  // The moves change the bytes under the packet slices of earlier reads. So
+  // the caller must not use those packets after EndRead().
+  void EndRead() override;
+
   // Returns the next packet in the buffer, if any, and the producer/writer
   // identity supplied when the sequence was created.
   // Returns false if no packets can be read at this point.
@@ -615,7 +622,7 @@ class TraceBufferV2 : public TraceBuffer {
   }
   const TraceStats::BufferStats& stats() const override { return stats_; }
   const WriterStats& writer_stats() const override { return writer_stats_; }
-  bool has_data() const override { return used_size_ > 0; }
+  bool has_data() const override { return has_data_; }
   void set_read_only() override { read_only_ = true; }
   BufType buf_type() const override { return kV2; }
 
@@ -663,7 +670,8 @@ class TraceBufferV2 : public TraceBuffer {
     PERFETTO_DCHECK(off <= size_ - sizeof(TBChunk));
   }
 
-  // This should only be used when followed by a placement new.
+  // This should only be used when followed by a placement new, or by
+  // EndRead() to restamp the checksum of a moved chunk.
   TBChunk* GetTBChunkAtUnchecked(size_t off) {
     DcheckIsAlignedAndWithinBounds(off);
     return reinterpret_cast<TBChunk*>(begin() + off);
@@ -703,10 +711,18 @@ class TraceBufferV2 : public TraceBuffer {
   base::PagedMemory data_;
   size_t size_ = 0;  // Size in bytes of |data_|.
 
-  // High watermark. The number of bytes (<= |size_|) written into the buffer
-  // before the first wraparound. This increases as data is written into the
-  // buffer and then saturates at |size_|.
+  // High watermark of the written bytes (<= |size_|). This increases as data
+  // is written into the buffer, until the write cursor wraps around.
+  // EndRead() shrinks it to the live chunks.
+  // - Reads and overwrites stop here.
+  // - The contents of [used_size_, size_) are unspecified. Writes initialize
+  //   them before use.
   size_t used_size_ = 0;
+
+  // Set when the first chunk is written, and never cleared. EndRead() can
+  // reset |used_size_| to 0, so used_size_ > 0 cannot tell this.
+  // As in TraceBufferV1, clear_before_clone uses it to skip unused buffers.
+  bool has_data_ = false;
 
   size_t wr_ = 0;  // Write cursor (offset since start()).
   size_t rd_ = 0;  // Read cursor. Reset to wr_ on every BeginRead().

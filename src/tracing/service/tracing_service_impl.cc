@@ -2564,6 +2564,19 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
             return;
           ReadBuffersIntoConsumer(tsid, weak_consumer.get());
         });
+  } else {
+    // Post a task for EndReadBuffers(), which runs after OnTraceData()
+    // returns, because while OnTraceData() runs, the consumer can call the
+    // service and change its state.
+    //
+    // For example, it can free the session or, in rare cases, destroy the
+    // service. So the task checks that the service and the session still exist
+    // before it ends the read.
+    weak_runner_.PostTask([this, tsid] {
+      TracingSession* tracing_session = GetTracingSession(tsid);
+      if (tracing_session)
+        EndReadBuffers(tracing_session);
+    });
   }
 
   // Keep this as tail call, just in case the consumer re-enters.
@@ -2622,6 +2635,9 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
             DisableTracing(tsid);
           return;
         }
+
+        // WriteIntoFile() no longer uses the packets, so end the read.
+        EndReadBuffers(tracing_session);
 
         if (tracing_session->fflush_post_write) {
           // Ensure all data was written to the file.
@@ -2898,6 +2914,15 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
 
   return packets;
+}
+
+void TracingServiceImpl::EndReadBuffers(TracingSession* tracing_session) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (BufferID buf_id : tracing_session->buffers_index) {
+    auto tbuf_iter = buffers_.find(buf_id);
+    if (tbuf_iter != buffers_.end())
+      tbuf_iter->second->EndRead();
+  }
 }
 
 void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,

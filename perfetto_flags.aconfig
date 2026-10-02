@@ -43,3 +43,10 @@ flag {
   bug: "540573436"
   is_fixed_read_only: true
 }
+flag {
+  name: "tbv2_shift_left_compaction"
+  namespace: "perfetto"
+  description: "At the end of a read, moves the live TraceBufferV2 chunks to the front of the buffer and releases the unused pages. This bounds the resident memory of long streaming traces."
+  bug: "536851377"
+  is_fixed_read_only: true
+}

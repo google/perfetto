@@ -6287,7 +6287,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 23.
+  // Next id: 24.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6360,6 +6360,22 @@ message TraceStats {
 
     // Num. times the ring buffer wrapped around.
     optional uint64 write_wrap_count = 4;
+
+    // TraceBufferV2 only. Num. shift-left compactions. A compaction runs at
+    // the end of a read. It moves the chunks that are not fully read to the
+    // front of the buffer. Then it releases the pages that the next writes
+    // are unlikely to need.
+    //
+    // The next writes continue after the moved chunks. If the reads consume
+    // data as fast as the writes add it, the writes do not reach the end of
+    // the buffer. So:
+    // - |write_wrap_count| grows less often.
+    // - |chunks_overwritten| grows less often. An incomplete chunk, such as
+    //   one that waits for its next fragment, moves to the front. Without
+    //   compaction, the writes overwrite it after a wrap.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 shift_left_compactions = 23;
 
     // Num. out-of-band (OOB) patches that succeeded.
     optional uint64 patches_succeeded = 5;
