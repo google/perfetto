@@ -100,6 +100,28 @@ std::string TreeAccumulateString(const LogicalPlan& plan,
   return out + ")";
 }
 
+std::string IntervalFlattenString(const LogicalPlan& plan,
+                                  const op::IntervalFlatten& flatten) {
+  std::string out = "IntervalFlatten(ts=#" + std::to_string(flatten.ts) +
+                    ", dur=#" + std::to_string(flatten.dur);
+  for (ColumnId key : flatten.keys) {
+    out += ", key=#" + std::to_string(key);
+  }
+  for (const auto& agg : flatten.aggregates) {
+    switch (agg.function) {
+      case op::IntervalFlatten::Function::kCount:
+        out += ", COUNT(*)";
+        break;
+      case op::IntervalFlatten::Function::kSum:
+        out += ", SUM(#" + std::to_string(agg.column) + ")";
+        break;
+    }
+    out += " -> " + ColumnString(plan, agg.output);
+  }
+  return out + ") -> " + ColumnString(plan, flatten.out_ts) + ", " +
+         ColumnString(plan, flatten.out_dur);
+}
+
 std::string IntervalIntersectString(const LogicalPlan& plan,
                                     const PlanNode& node) {
   const auto& ii = node.Cast<op::IntervalIntersect>();
@@ -135,6 +157,10 @@ std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
              TreeAccumulateString(plan, node.Cast<op::TreeAccumulate>()) + "\n";
     case base::variant_index<Op, op::IntervalIntersect>():
       return IntervalIntersectString(plan, node) + "\n";
+    case base::variant_index<Op, op::IntervalFlatten>():
+      return SubtreeString(plan, node.children[0]) +
+             IntervalFlattenString(plan, node.Cast<op::IntervalFlatten>()) +
+             "\n";
     default:
       PERFETTO_FATAL("Unknown operator");
   }

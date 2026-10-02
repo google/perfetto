@@ -2593,6 +2593,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/dataframe_scan.h",
         "src/trace_processor/core/exec/group_by.cc",
         "src/trace_processor/core/exec/group_by.h",
+        "src/trace_processor/core/exec/interval_flatten.cc",
+        "src/trace_processor/core/exec/interval_flatten.h",
         "src/trace_processor/core/exec/interval_intersect.cc",
         "src/trace_processor/core/exec/interval_intersect.h",
         "src/trace_processor/core/exec/key_encoder.cc",
@@ -2672,6 +2674,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/core/util/bit_vector.h",
         "src/trace_processor/core/util/flex_vector.h",
+        "src/trace_processor/core/util/heap.h",
         "src/trace_processor/core/util/ops.cc",
         "src/trace_processor/core/util/ops.h",
         "src/trace_processor/core/util/range.h",

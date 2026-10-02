@@ -134,6 +134,33 @@ PlanNodeId PruneIntervalIntersect(LogicalPlan& plan,
   return id;
 }
 
+PlanNodeId PruneIntervalFlatten(LogicalPlan& plan,
+                                PlanNodeId id,
+                                Needed& needed) {
+  PlanNode& node = plan.nodes[id];
+  auto& flatten = node.Cast<op::IntervalFlatten>();
+  auto& aggregates = flatten.aggregates;
+  aggregates.erase(
+      std::remove_if(aggregates.begin(), aggregates.end(),
+                     [&](const op::IntervalFlatten::Aggregate& agg) {
+                       return !needed[agg.output];
+                     }),
+      aggregates.end());
+  // Unlike a fold, it stays with no aggregates left: its rows are segments.
+  needed[flatten.ts] = true;
+  needed[flatten.dur] = true;
+  for (ColumnId key : flatten.keys) {
+    needed[key] = true;
+  }
+  for (const op::IntervalFlatten::Aggregate& agg : aggregates) {
+    if (agg.function == op::IntervalFlatten::Function::kSum) {
+      needed[agg.column] = true;
+    }
+  }
+  node.children[0] = PruneNode(plan, node.children[0], needed);
+  return id;
+}
+
 PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
   PlanNode& node = plan.nodes[id];
   switch (node.op.index()) {
@@ -144,6 +171,8 @@ PlanNodeId PruneNode(LogicalPlan& plan, PlanNodeId id, Needed& needed) {
       return PruneTreeAccumulate(plan, id, needed);
     case base::variant_index<Op, op::IntervalIntersect>():
       return PruneIntervalIntersect(plan, id, needed);
+    case base::variant_index<Op, op::IntervalFlatten>():
+      return PruneIntervalFlatten(plan, id, needed);
     default:
       PERFETTO_FATAL("Unknown operator");
   }
