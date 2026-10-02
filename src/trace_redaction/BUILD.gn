@@ -184,3 +184,14 @@ perfetto_unittest_source_set("unittests") {
     "../trace_processor/util:blob",
   ]
 }
+
+if (enable_perfetto_unittests) {
+  executable("trace_redactor_unittests") {
+    testonly = true
+    deps = [
+      ":unittests",
+      "../../gn:default_deps",
+      "../../gn:gtest_main",
+    ]
+  }
+}

@@ -113,7 +113,7 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
     ASSERT_EQ(package.name(), kSomePackageName);
 
     ASSERT_TRUE(package.has_uid());
-    ASSERT_EQ(NormalizeUid(package.uid()), kSomePackageUid);
+    ASSERT_EQ(ToAppId(package.uid()), kSomePackageUid);
   }
 }
 

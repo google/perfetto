@@ -39,12 +39,18 @@ using TaskNewtaskFtraceEvent = protos::pbzero::TaskNewtaskFtraceEvent;
 void MarkOpen(uint64_t ts,
               const ProcessTree::Process::Decoder& process,
               ProcessThreadTimeline* timeline) {
-  auto uid = static_cast<uint64_t>(process.uid());
-
-  // See "trace_redaction_framework.h" for why uid must be normalized.
-  auto e = ProcessThreadTimeline::Event::Open(ts, process.pid(), process.ppid(),
-                                              NormalizeUid(uid));
-  timeline->Append(e);
+  if (process.has_uid()) {
+    auto uid = static_cast<uint64_t>(process.uid());
+    // Store full 64-bit UID directly so timeline strictly isolates User 0 from
+    // User 10.
+    auto e = ProcessThreadTimeline::Event::Open(ts, process.pid(),
+                                                process.ppid(), uid);
+    timeline->Append(e);
+  } else {
+    auto e =
+        ProcessThreadTimeline::Event::Open(ts, process.pid(), process.ppid());
+    timeline->Append(e);
+  }
 }
 
 void MarkOpen(uint64_t ts,

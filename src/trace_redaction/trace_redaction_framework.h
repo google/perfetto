@@ -36,11 +36,10 @@
 
 namespace perfetto::trace_redaction {
 
-// Multiple packages can share the same name. This is common when a device has
-// multiple users. When this happens, each instance shares the 5 least
-// significant digits.
-constexpr uint64_t NormalizeUid(uint64_t uid) {
-  return uid % 1000000;
+// Android appId helper: modulo 100,000 for package list metadata mapping.
+constexpr uint64_t kAndroidPerUserRange = 100000;
+constexpr uint64_t ToAppId(uint64_t uid) {
+  return uid % kAndroidPerUserRange;
 }
 
 class SystemInfo {
@@ -195,37 +194,24 @@ class Context {
   // The logic from before still hold, however, if the traced process was pid
   // 21388, it will be merged with the other threads.
   //
-  // To avoid this problem from happening, we normalize the uids and treat
-  // both instances as a single process:
+  // Processes reference their package using their per-user uid:
   //
   //    processes {
   //      pid: 18176
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  //      uid: 10113
+  //      uid: 10113 (User 0)
   //    }
   //    processes {
   //      pid: 21388
   //      ppid: 904
   //      cmdline: "com.google.android.gms.persistent"
-  // -    uid: 1010113
-  // +    uid: 10113
+  //      uid: 1010113 (User 10)
   //    }
   //
-  // It sounds like there would be a privacy concern, but because both processes
-  // are from the same app and are being collected from the same user, there
-  // are no new privacy issues by doing this.
-  //
-  // But where should the uids be normalized? The dividing line is the timeline
-  // interface, specifically, should the timeline know anything about uids
-  // (other than "it's a number").
-  //
-  // To avoid expanding the timeline's scope, the uid normalizations is done
-  // outside of the timeline. When a uid is passed into the timeline, it should
-  // be normalized (i.e. 5 != 100005). When the timeline is queried, the uid
-  // should be normalized. This increases the risk for error, but there are only
-  // two places where uids are set, writing the uid to the context and writing
-  // the uid to the timeline.
+  // To ensure multi-user profile isolation (e.g. personal vs work profiles),
+  // full 64-bit UIDs are preserved in the timeline so that processes from
+  // different users are strictly isolated.
   std::optional<uint64_t> package_uid;
 
   // Trace packets contain a "one of" entry called "data". This field can be
