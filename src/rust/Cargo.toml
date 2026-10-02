@@ -1,0 +1,3 @@
+[workspace]
+resolver = "2"
+members = ["perfetto-trace-processor", "perfetto-trace-processor-sys"]
