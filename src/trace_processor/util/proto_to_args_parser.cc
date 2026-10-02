@@ -31,6 +31,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -105,6 +106,11 @@ struct ProtoToArgsParser::WorkItem {
   // Node index in |path_nodes_|, or kNoPath for a dynamic DebugAnnotation
   // proto_value subtree.
   uint32_t path = kNoPath;
+
+  // Occurrence indices for every repeated field on the descriptor path to this
+  // message. Value ownership makes error unwinding and sibling restoration
+  // automatic.
+  RepeatedIndexTuple repeated_indices;
 };
 
 struct ProtoToArgsParser::DebugAnnotationWorkItem {
@@ -196,7 +202,9 @@ ProtoToArgsParser::Delegate::~Delegate() = default;
 // this translation unit.
 ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool,
                                      StringPool& string_pool)
-    : pool_(pool), string_pool_(string_pool) {
+    : pool_(pool),
+      string_pool_(string_pool),
+      descriptor_generation_(pool.generation()) {
   constexpr int kDefaultSize = 64;
   key_prefix_.key.reserve(kDefaultSize);
   key_prefix_.flat_key.reserve(kDefaultSize);
@@ -259,6 +267,75 @@ void ProtoToArgsParser::InternCurrentKey() {
 
 ProtoToArgsParser::~ProtoToArgsParser() = default;
 
+void ProtoToArgsParser::ResetDescriptorCaches(uint32_t generation) {
+  PERFETTO_DCHECK(work_stack_.empty());
+  descriptor_generation_ = generation;
+  path_nodes_.clear();
+  path_index_.Clear();
+  if (indexed_key_cache_) {
+    for (auto& entry : *indexed_key_cache_) {
+      entry.valid = false;
+    }
+  }
+}
+
+bool ProtoToArgsParser::CanCacheIndexedKey(const FieldDescriptor& descriptor,
+                                           uint32_t node) const {
+  using FD = protos::pbzero::FieldDescriptorProto;
+  if (node == kNoPath || add_defaults_ || !path_nodes_[node].has_array ||
+      path_nodes_[node].override || descriptor.is_pid() ||
+      descriptor.is_tid() || descriptor.flags_enum_descriptor_idx()) {
+    return false;
+  }
+  return descriptor.type() != FD::TYPE_MESSAGE &&
+         descriptor.type() != FD::TYPE_GROUP;
+}
+
+uint32_t ProtoToArgsParser::IndexedKeyCacheSlot(
+    uint32_t node,
+    const RepeatedIndexTuple& tuple) const {
+  uint64_t hash = base::MurmurHashCombine(descriptor_generation_, node,
+                                          tuple.depth, tuple.packed);
+  return static_cast<uint32_t>(hash) & (kIndexedKeyCacheSize - 1);
+}
+
+std::optional<StringPool::Id> ProtoToArgsParser::FindIndexedKey(
+    uint32_t node,
+    const RepeatedIndexTuple& tuple) const {
+  if (!tuple.cacheable) {
+    return std::nullopt;
+  }
+  if (!indexed_key_cache_) {
+    return std::nullopt;
+  }
+  const auto& entry = (*indexed_key_cache_)[IndexedKeyCacheSlot(node, tuple)];
+  if (!entry.valid || entry.descriptor_generation != descriptor_generation_ ||
+      entry.path_node != node || entry.tuple_depth != tuple.depth ||
+      entry.tuple != tuple.packed) {
+    return std::nullopt;
+  }
+  return entry.key;
+}
+
+void ProtoToArgsParser::CacheIndexedKey(uint32_t node,
+                                        const RepeatedIndexTuple& tuple,
+                                        StringPool::Id key) {
+  if (!tuple.cacheable) {
+    return;
+  }
+  if (!indexed_key_cache_) {
+    indexed_key_cache_ = std::make_unique<
+        std::array<IndexedKeyCacheEntry, kIndexedKeyCacheSize>>();
+  }
+  auto& entry = (*indexed_key_cache_)[IndexedKeyCacheSlot(node, tuple)];
+  entry.valid = true;
+  entry.descriptor_generation = descriptor_generation_;
+  entry.path_node = node;
+  entry.tuple = tuple.packed;
+  entry.tuple_depth = tuple.depth;
+  entry.key = key;
+}
+
 base::Status ProtoToArgsParser::ParseMessage(
     const protozero::ConstBytes& cb,
     const std::string& type,
@@ -266,6 +343,7 @@ base::Status ProtoToArgsParser::ParseMessage(
     Delegate& delegate,
     int* unknown_extensions,
     bool add_defaults) {
+  MaybeResetDescriptorCaches();
   // If the caller has opted into DebugAnnotation handling, top-level
   // DebugAnnotation parses go through the dedicated entry point which uses
   // DebugAnnotation parsing semantics rather than generic proto reflection.
@@ -295,7 +373,8 @@ base::Status ProtoToArgsParser::ParseMessage(
                                     {},
                                     ScopedNestedKeyContext(key_prefix_),
                                     true,
-                                    root_path});
+                                    root_path,
+                                    RepeatedIndexTuple{}});
   return RunWorkLoop(delegate);
 }
 
@@ -305,6 +384,7 @@ base::Status ProtoToArgsParser::ParseMessageField(
     Delegate& delegate,
     int* unknown_extensions,
     RepeatedFieldIndex* repeated_field_index) {
+  MaybeResetDescriptorCaches();
   PERFETTO_DCHECK(work_stack_.empty());
   PERFETTO_DCHECK(descriptor_idx < pool_.descriptors().size());
   allowed_fields_ = nullptr;
@@ -336,7 +416,8 @@ base::Status ProtoToArgsParser::ParseMessageField(
                                     {},
                                     ScopedNestedKeyContext(key_prefix_),
                                     false,
-                                    root_path});
+                                    root_path,
+                                    RepeatedIndexTuple{}});
   // The caller's index is lent to the root item for the field.
   if (repeated_field_index) {
     std::get<WorkItem>(work_stack_.back())
@@ -521,20 +602,49 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
       descriptor_type != FieldDescriptorProto::TYPE_BYTES;
   if (looks_packed) {
     return ParsePackedField(*field_descriptor, item.repeated_field_index, field,
-                            item.path, delegate);
+                            item.path, item.repeated_indices, delegate);
+  }
+
+  std::optional<uint32_t> repeated_index;
+  if (field_descriptor->is_repeated()) {
+    int& index = RepeatedFieldIndexFor(item.repeated_field_index, field.id());
+    repeated_index = static_cast<uint32_t>(index++);
+  }
+  std::optional<RepeatedIndexTuple> repeated_indices;
+  auto get_repeated_indices = [&]() -> RepeatedIndexTuple& {
+    if (!repeated_indices) {
+      repeated_indices.emplace(item.repeated_indices);
+      if (repeated_index) {
+        repeated_indices->Push(*repeated_index);
+      }
+    }
+    return *repeated_indices;
+  };
+
+  // On a warm descriptor path, an exact tuple-cache hit avoids constructing
+  // and interning the indexed key altogether. Text-consuming paths use the
+  // unchanged implementation below.
+  if (item.path != kNoPath) {
+    if (uint32_t* child = path_index_.Find(
+            PathEdgeKey(item.path, field_descriptor->number()));
+        child && CanCacheIndexedKey(*field_descriptor, *child)) {
+      if (auto key = FindIndexedKey(*child, get_repeated_indices())) {
+        key_prefix_.flat_key_id = path_nodes_[*child].flat_key_id;
+        key_prefix_.key_id = *key;
+        return ParseSimpleField(*field_descriptor, field, *child, delegate);
+      }
+    }
   }
 
   ScopedNestedKeyContext field_key_context(key_prefix_);
   AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
-  if (field_descriptor->is_repeated()) {
+  if (repeated_index) {
     std::string prefix_part = field_descriptor->name();
-    int& index = RepeatedFieldIndexFor(item.repeated_field_index, field.id());
-    std::string number = std::to_string(index);
+    std::string number = std::to_string(*repeated_index);
     prefix_part.reserve(prefix_part.length() + number.length() + 2);
     prefix_part.append("[");
     prefix_part.append(number);
     prefix_part.append("]");
-    index++;
     AppendProtoType(key_prefix_.key, prefix_part);
   } else {
     AppendProtoType(key_prefix_.key, field_descriptor->name());
@@ -582,7 +692,8 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
                                       {},
                                       std::move(field_key_context),
                                       true,
-                                      node});
+                                      node,
+                                      std::move(get_repeated_indices())});
     return base::OkStatus();
   }
   // Leaf scalar: reuse the cached flat_key id; only the per-occurrence key
@@ -594,6 +705,9 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
         n.has_array
             ? string_pool_.InternString(base::StringView(key_prefix_.key))
             : n.flat_key_id;
+    if (CanCacheIndexedKey(*field_descriptor, node)) {
+      CacheIndexedKey(node, get_repeated_indices(), key_prefix_.key_id);
+    }
   } else {
     InternCurrentKey();
   }
@@ -628,6 +742,7 @@ base::Status ProtoToArgsParser::ParsePackedField(
     RepeatedFieldIndex& repeated_field_index,
     protozero::Field field,
     uint32_t parent_path,
+    const RepeatedIndexTuple& parent_repeated_indices,
     Delegate& delegate) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   using PWT = protozero::proto_utils::ProtoWireType;
@@ -648,14 +763,33 @@ base::Status ProtoToArgsParser::ParsePackedField(
     protozero::Field f;
     f.initialize(field.id(), static_cast<uint8_t>(wire_type), new_value, 0);
 
-    std::string prefix_part = field_descriptor.name();
     int& index = RepeatedFieldIndexFor(repeated_field_index, field.id());
-    std::string number = std::to_string(index);
+    uint32_t repeated_index = static_cast<uint32_t>(index++);
+    RepeatedIndexTuple repeated_indices = parent_repeated_indices;
+    repeated_indices.Push(repeated_index);
+
+    if (parent_path != kNoPath) {
+      if (node == kNoPath) {
+        if (uint32_t* child = path_index_.Find(
+                PathEdgeKey(parent_path, field_descriptor.number()))) {
+          node = *child;
+        }
+      }
+      if (node != kNoPath && CanCacheIndexedKey(field_descriptor, node)) {
+        if (auto key = FindIndexedKey(node, repeated_indices)) {
+          key_prefix_.flat_key_id = path_nodes_[node].flat_key_id;
+          key_prefix_.key_id = *key;
+          return ParseSimpleField(field_descriptor, f, node, delegate);
+        }
+      }
+    }
+
+    std::string prefix_part = field_descriptor.name();
+    std::string number = std::to_string(repeated_index);
     prefix_part.reserve(prefix_part.length() + number.length() + 2);
     prefix_part.append("[");
     prefix_part.append(number);
     prefix_part.append("]");
-    index++;
 
     ScopedNestedKeyContext key_context(key_prefix_);
     AppendProtoType(key_prefix_.flat_key, field_descriptor.name());
@@ -680,7 +814,11 @@ base::Status ProtoToArgsParser::ParsePackedField(
         return *status;
       }
     }
-    return ParseSimpleField(field_descriptor, f, node, delegate);
+    auto status = ParseSimpleField(field_descriptor, f, node, delegate);
+    if (status.ok() && CanCacheIndexedKey(field_descriptor, node)) {
+      CacheIndexedKey(node, repeated_indices, key_prefix_.key_id);
+    }
+    return status;
   };
 
   const uint8_t* data = field.as_bytes().data;
@@ -719,13 +857,16 @@ base::Status ProtoToArgsParser::ParsePackedField(
 void ProtoToArgsParser::AddParsingOverrideForField(
     const std::string& field,
     ParsingOverrideForField func) {
+  PERFETTO_DCHECK(work_stack_.empty());
   field_overrides_[field] = std::move(func);
-  for (auto& node : path_nodes_) {
-    node.flat_generation = 0;
-    node.override = node.flat_key_id.is_null()
-                        ? nullptr
-                        : field_overrides_.Find(
-                              string_pool_.Get(node.flat_key_id).ToStdString());
+  // Path nodes cache pointers into `field_overrides_`, and indexed-key entries
+  // are derived from those nodes. Rebuild both after any override mutation.
+  path_nodes_.clear();
+  path_index_.Clear();
+  if (indexed_key_cache_) {
+    for (auto& entry : *indexed_key_cache_) {
+      entry.valid = false;
+    }
   }
 }
 
@@ -1040,6 +1181,7 @@ base::Status ParseDebugAnnotationName(
 
 base::Status ProtoToArgsParser::ParseDebugAnnotation(protozero::ConstBytes data,
                                                      Delegate& delegate) {
+  MaybeResetDescriptorCaches();
   PERFETTO_DCHECK(work_stack_.empty());
   RETURN_IF_ERROR(PushDebugAnnotation(data, delegate));
   return RunWorkLoop(delegate);
@@ -1174,7 +1316,9 @@ base::Status ProtoToArgsParser::StepDebugAnnotation(
                                       {},
                                       {},
                                       ScopedNestedKeyContext(key_prefix_),
-                                      true});
+                                      true,
+                                      kNoPath,
+                                      RepeatedIndexTuple{}});
     return base::OkStatus();
   } else if (item.decoder.has_nested_value() && !item.subtree_pushed) {
     item.subtree_pushed = true;

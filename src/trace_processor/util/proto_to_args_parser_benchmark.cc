@@ -132,6 +132,18 @@ std::string BuildMessage(int nested, int repeated) {
   return msg.SerializeAsString();
 }
 
+std::string BuildIndexedMessage(int inputs, int dimensions) {
+  protozero::HeapBuffered<EveryField> msg;
+  for (int input = 0; input < inputs; ++input) {
+    EveryField* child = msg->add_field_nested();
+    for (int dim = 0; dim < dimensions; ++dim) {
+      child->add_repeated_int32(dim);
+      child->add_repeated_fixed64(static_cast<uint64_t>(dim));
+    }
+  }
+  return msg.SerializeAsString();
+}
+
 void BM_ProtoToArgsParser(benchmark::State& state) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
@@ -163,6 +175,32 @@ BENCHMARK(BM_ProtoToArgsParser)
     ->Args({0, 16})  // scalars + repeated (array keys)
     ->Args({3, 4})   // nested recursion + arrays (track-event-like)
     ->Args({5, 8});  // deep + wide
+
+void BM_ProtoToArgsParserIndexedKeys(benchmark::State& state) {
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  PERFETTO_CHECK(status.ok());
+  std::string bytes = BuildIndexedMessage(static_cast<int>(state.range(0)),
+                                          static_cast<int>(state.range(1)));
+  protozero::ConstBytes cb{reinterpret_cast<const uint8_t*>(bytes.data()),
+                           bytes.size()};
+  StringPool string_pool;
+  ProtoToArgsParser parser(pool, string_pool);
+  BenchmarkDelegate delegate(&string_pool);
+  for (auto _ : state) {
+    auto s = parser.ParseMessage(cb, ".protozero.test.protos.EveryField",
+                                 nullptr, delegate);
+    benchmark::DoNotOptimize(s);
+  }
+  benchmark::DoNotOptimize(delegate.sink());
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
+}
+
+BENCHMARK(BM_ProtoToArgsParserIndexedKeys)
+    ->Args({4, 4})
+    ->Args({8, 4})
+    ->Args({16, 8});
 
 }  // namespace
 }  // namespace perfetto::trace_processor::util
