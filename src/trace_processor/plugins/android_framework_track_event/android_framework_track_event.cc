@@ -84,14 +84,17 @@ class AndroidTrackEventProcessTableHolder {
 
   // Returns the row currently holding |start_seq_id|, if any.
   std::optional<AndroidTrackEventProcessTable::RowReference>
-  FindRowByStartSeqId(int64_t start_seq_id) {
-    auto* id = start_seq_id_to_row_.Find(start_seq_id);
+  FindRowByStartSeqId(std::optional<int64_t> start_seq_id) {
+    if (!start_seq_id) {
+      return std::nullopt;
+    }
+    auto* id = start_seq_id_to_row_.Find(*start_seq_id);
     if (!id) {
       return std::nullopt;
     }
     auto row = table_[*id];
     // The row may since have been given a newer start_seq_id (same upid).
-    if (row.start_seq_id() != start_seq_id) {
+    if (row.start_seq_id() != *start_seq_id) {
       return std::nullopt;
     }
     return row;
@@ -213,17 +216,14 @@ class Parser : public TrackEventExtensionParser {
   // start_seq_id check comes first because AndroidProcessDiedEvent can arrive
   // up to ~15s after AndroidBinderDiedEvent, when the pid has already been
   // ended and possibly reused by another process.
-  std::optional<AndroidTrackEventProcessTable::RowReference> FindDyingProcess(
-      uint32_t pid,
-      std::optional<int64_t> start_seq_id) {
-    if (start_seq_id) {
-      if (auto row = table_->FindRowByStartSeqId(*start_seq_id)) {
-        auto process = trace_context_->storage->process_table()[row->upid()];
-        if (process.pid() != pid) {
-          return std::nullopt;
-        }
-        return row;
+  std::optional<AndroidTrackEventProcessTable::RowReference>
+  ResolveDyingProcess(uint32_t pid, std::optional<int64_t> start_seq_id) {
+    if (auto row = table_->FindRowByStartSeqId(*start_seq_id)) {
+      auto process = trace_context_->storage->process_table()[row->upid()];
+      if (process.pid() != pid) {
+        return std::nullopt;
       }
+      return row;
     }
     std::optional<UniquePid> upid =
         trace_context_->process_tracker->GetProcessOrNull(pid);
@@ -244,7 +244,7 @@ class Parser : public TrackEventExtensionParser {
 
   void HandleBinderDied(protozero::ConstBytes data, int64_t ts) {
     AndroidBinderDiedEvent::Decoder evt(data);
-    if (!evt.has_pid()) {
+    if (!evt.has_pid() || evt.pid() <= 0) {
       return;
     }
 
@@ -255,7 +255,7 @@ class Parser : public TrackEventExtensionParser {
     }
     // Ignores deaths for another process (e.g. an older process whose pid was
     // reused before it was ended) instead of ending the current one.
-    auto row = FindDyingProcess(pid, start_seq_id);
+    auto row = ResolveDyingProcess(pid, start_seq_id);
     if (!row) {
       return;
     }
@@ -276,14 +276,15 @@ class Parser : public TrackEventExtensionParser {
   // AndroidBinderDiedEvent, which arrives earlier.
   void HandleProcessDied(protozero::ConstBytes data) {
     AndroidProcessDiedEvent::Decoder evt(data);
-    if (!evt.has_pid()) {
+    if (!evt.has_pid() || evt.pid() <= 0) {
       return;
     }
     std::optional<int64_t> start_seq_id;
     if (evt.has_start_seq_id()) {
       start_seq_id = evt.start_seq_id();
     }
-    auto row = FindDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id);
+    auto row =
+        ResolveDyingProcess(static_cast<uint32_t>(evt.pid()), start_seq_id);
     if (!row) {
       return;
     }
