@@ -61,6 +61,17 @@
 #define PERFETTO_NORETURN __declspec(noreturn)
 #endif
 
+// Promises that what a pointer reaches is reached through nothing else in its
+// scope, so writes through it cannot change what other pointers read. Not
+// `__restrict`: the macOS SDK defines that away to nothing in C++.
+#if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_RESTRICT __restrict__
+#elif defined(_MSC_VER)
+#define PERFETTO_RESTRICT __restrict
+#else
+#define PERFETTO_RESTRICT
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __PRETTY_FUNCTION__
 #elif defined(_MSC_VER)

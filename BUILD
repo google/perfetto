@@ -2593,6 +2593,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/dataframe_scan.h",
         "src/trace_processor/core/exec/interval_intersect.cc",
         "src/trace_processor/core/exec/interval_intersect.h",
+        "src/trace_processor/core/exec/key_encoder.cc",
+        "src/trace_processor/core/exec/key_encoder.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
         "src/trace_processor/core/exec/pipeline.cc",
