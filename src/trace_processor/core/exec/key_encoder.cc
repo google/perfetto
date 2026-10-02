@@ -27,6 +27,7 @@
 #include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/layout_column.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -38,19 +39,8 @@ void WriteSequence(const ColumnView& column,
                    RowLayout::Slot slot,
                    uint32_t count,
                    uint8_t* rows) {
-  RowSelection selection = column.selection();
-  const BitVector* validity = column.validity();
-  RowLayout::Write<int64_t>(
-      slot, count,
-      [&](uint32_t row, int64_t* out) {
-        uint32_t index = selection.GetIndex(row);
-        if (validity && !validity->is_set(index)) {
-          return false;
-        }
-        *out = int64_t{index};
-        return true;
-      },
-      rows);
+  WriteLayoutColumn<int64_t>(column, slot, count, rows,
+                             [](uint32_t index) { return int64_t{index}; });
 }
 
 template <typename Stored>
@@ -58,28 +48,19 @@ void WriteInteger(const ColumnView& column,
                   RowLayout::Slot slot,
                   uint32_t count,
                   uint8_t* rows) {
-  FlatColumnReader<Stored> reader(column);
-  RowLayout::Write<int64_t>(
-      slot, count,
-      [&](uint32_t row, int64_t* out) {
-        Stored value;
-        if (!reader.Read(row, &value)) {
-          return false;
-        }
-        *out = int64_t{value};
-        return true;
-      },
-      rows);
+  const auto* data = static_cast<const Stored*>(column.data());
+  WriteLayoutColumn<int64_t>(column, slot, count, rows, [data](uint32_t index) {
+    return int64_t{data[index]};
+  });
 }
 
 void WriteDouble(const ColumnView& column,
                  RowLayout::Slot slot,
                  uint32_t count,
                  uint8_t* rows) {
-  FlatColumnReader<double> reader(column);
-  RowLayout::Write<double>(
-      slot, count,
-      [&](uint32_t row, double* out) { return reader.Read(row, out); }, rows);
+  const auto* data = static_cast<const double*>(column.data());
+  WriteLayoutColumn<double>(column, slot, count, rows,
+                            [data](uint32_t index) { return data[index]; });
 }
 
 // Not nullable: the null id is 0.
