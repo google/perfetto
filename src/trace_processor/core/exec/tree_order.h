@@ -121,7 +121,6 @@ class TreeParentFirst : public Operator {
 
     // What is known about each node number.
     struct Nodes {
-      uint32_t count = 0;
       BitVector has_row;
       // The node's row is out, or is on its way out in `letting_go`.
       BitVector out;

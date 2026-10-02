@@ -4224,6 +4224,8 @@ void TracingServiceImpl::EmitTraceProvenance(
     TraceBuffer* buf = GetBufferByID(buf_id);
     if (!buf)
       continue;
+    // TODO(b/568173038): derive sequences from the buffer's own sequence
+    // tracking instead of writer_stats() once TraceBufferV1 is gone.
     for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
       ProducerID producer_id;
       WriterID writer_id;

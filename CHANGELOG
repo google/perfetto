@@ -29,6 +29,9 @@ Unreleased:
       and Windows.
   SDK:
     *
+  Misc:
+    * Added the `perfetto_cxx_standard` GN arg (default "c++17") to allow
+      standalone builds to use a newer C++ standard (e.g. "c++20").
 
 v58.3 - 2026-08-27:
   Misc:
