@@ -18,8 +18,10 @@
 
 #include <algorithm>
 #include <memory>
+#include <type_traits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -93,6 +95,15 @@ constexpr size_t kKeepLastEmptySeq = 1024;
 
 // The threshold when we start scanning and deleting the oldest sequences.
 constexpr size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
+
+// MaybeCompact() runs only when at most 1/8 of |used_size_| is live, and at
+// most 4 MiB. See
+// https://perfetto.dev/docs/design-docs/trace-buffer#compaction-conditions
+constexpr size_t kCompactionMinUsedToLiveRatio = 8;
+constexpr size_t kCompactionMaxLiveChunkBytes = 4 * 1024 * 1024;
+
+// Case 3 of MaybeCompact() relies on this.
+static_assert(kCompactionMinUsedToLiveRatio >= 2);
 
 }  // namespace.
 
@@ -267,6 +278,7 @@ void ChunkSeqIterator::EraseCurrentChunk() {
   // to keep in sync the SequenceState.chunks with our list_idx_.
   PERFETTO_CHECK(list_idx_ == 0 && *chunk_list.begin() == chunk_off);
   chunk_list.pop_front();
+  buf_->live_chunk_bytes_ -= TBChunk::OuterSize(chunk_size);
   if (chunk_list.empty()) {
     seq_->age_for_gc = ++buf_->seq_age_;
     ++buf_->empty_sequences_;
@@ -610,13 +622,17 @@ std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
   // efficiency.
   static_assert(sizeof(TBChunk) == 16);
   static_assert(alignof(TBChunk) == 4);
+  // CloneReadOnly() and MaybeCompact() copy chunks as raw bytes.
+  static_assert(std::is_trivially_copyable_v<TBChunk>);
   std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
   return trace_buffer;
 }
 
-TraceBufferV2::TraceBufferV2(OverwritePolicy pol) : overwrite_policy_(pol) {}
+TraceBufferV2::TraceBufferV2(OverwritePolicy pol)
+    : overwrite_policy_(pol),
+      compaction_enabled_(PERFETTO_FLAGS(TBV2_SHIFT_LEFT_COMPACTION)) {}
 
 bool TraceBufferV2::Initialize(size_t size) {
   size = base::AlignUp(std::max(size, size_t(1)), 4096);
@@ -632,19 +648,217 @@ bool TraceBufferV2::Initialize(size_t size) {
   size_ = size;
   wr_ = 0;
   used_size_ = 0;
+  live_chunk_bytes_ = 0;
   stats_.set_buffer_size(size);
   return true;
 }
 
 void TraceBufferV2::BeginRead() {
+  TRACE_BUFFER_V2_DLOG("BeginRead(), wr_=%zu", wr_);
+  chunk_seq_reader_.reset();
+
+  // The start of a read pass is the only point where chunks can move: the
+  // caller has released the slices of the previous pass.
+  MaybeCompact();
+
   // Start the read at the first chunk after the write cursor. However, if
   // due to out-of-order commits there is another chunk in the same sequence
   // prior to that (even if it's physically after in the buffer) start there
   // to respect sequence FIFO-ness.
-  TRACE_BUFFER_V2_DLOG("BeginRead(), wr_=%zu", wr_);
   rd_ = wr_ == used_size_ ? 0 : wr_;
-  chunk_seq_reader_.reset();
   ++read_generation_;
+}
+
+// Called only by BeginRead(), after it resets the reader.
+//
+// There are three cases:
+// 1. No bytes are live: restore the padding chunk at offset 0.
+// 2. All live chunks are on one side of wr_: slide them left. Each chunk
+//    moves at most once.
+// 3. Live chunks are on both sides of wr_: pack them at the end, then copy
+//    them to the front in ring order. Each chunk moves at most twice.
+//
+// In the diagrams below:
+// - [A] is a live chunk and "." is padding (read chunks).
+// - "~" is unused space, past the new used_size_.
+// - used_size_ is the value before the compaction.
+// - Widths are schematic.
+void TraceBufferV2::MaybeCompact() {
+  // Validate eligibility.
+  if (!compaction_enabled_ || overwrite_policy_ != kOverwrite || read_only_)
+    return;
+  PERFETTO_CHECK(live_chunk_bytes_ <= used_size_);
+  if (live_chunk_bytes_ > used_size_ / kCompactionMinUsedToLiveRatio ||
+      live_chunk_bytes_ > kCompactionMaxLiveChunkBytes) {
+    return;
+  }
+
+  // Find whole pages inside [live_chunk_bytes_, used_size_).
+  // Round the start up so no released page contains part of a live chunk.
+  // Round the end down to stay within the used region.
+  const size_t page_size = base::GetSysPageSize();
+  const size_t release_begin = base::AlignUp(live_chunk_bytes_, page_size);
+  const size_t release_end = base::AlignDown(used_size_, page_size);
+  if (release_begin >= release_end)
+    return;
+
+  PERFETTO_DCHECK(live_chunk_bytes_ == CountLiveChunkBytesSlow());
+  TRACE_BUFFER_V2_DLOG("Compacting %zu -> %zu bytes", used_size_,
+                       live_chunk_bytes_);
+
+  // Each case below ends with finish_compaction(), once the chunks and their
+  // offsets are final.
+  //
+  // It does not clear the bytes past the new used_size_:
+  // - Nothing reads them. Reads and overwrites stop at used_size_, and a write
+  //   initializes its bytes before used_size_ covers them.
+  // - A memset would cost time in proportion to the old used_size_. The rest
+  //   of the compaction costs time in proportion to the live bytes.
+  auto finish_compaction = [&] {
+    wr_ = live_chunk_bytes_;
+    used_size_ = live_chunk_bytes_;
+    stats_.set_shift_left_compactions(stats_.shift_left_compactions() + 1);
+    data_.AdviseDontNeed(begin() + release_begin, release_end - release_begin);
+  };
+
+  // Case 1: no bytes are live. No chunk moves.
+  // ReadNextTracePacket() reads offset 0 even when the buffer is empty.
+  // Restore the empty padding chunk that a fresh buffer has there.
+  if (live_chunk_bytes_ == 0) {
+    new (begin()) TBChunk(0, 0);
+    return finish_compaction();
+  }
+
+  // Collect a pointer to each live chunk offset, that is to each element of
+  // the SequenceState::chunks lists. Sort the pointers by offset:
+  // - The live chunks are then in address order, without a walk over the
+  //   padding between them.
+  // - A move can update the offset of its chunk in place.
+  size_t num_chunks = 0;
+  for (const auto& seq_entry : sequences_)
+    num_chunks += seq_entry.second.chunks.size();
+  std::vector<size_t*> chunk_offset_refs;
+  chunk_offset_refs.reserve(num_chunks);
+  for (auto& seq_entry : sequences_) {
+    for (size_t& offset_ref : seq_entry.second.chunks)
+      chunk_offset_refs.emplace_back(&offset_ref);
+  }
+  std::sort(chunk_offset_refs.begin(), chunk_offset_refs.end(),
+            [](const size_t* lhs, const size_t* rhs) { return *lhs < *rhs; });
+  PERFETTO_CHECK(!chunk_offset_refs.empty());
+
+  // Case 2: all live chunks are on one side of wr_.
+  // Address order is then ring order, so the chunks slide left in address
+  // order. Each chunk moves left or stays, and the chunks still to move are on
+  // its right. So no move overwrites them.
+  //
+  //   0                        wr_                      used_size_
+  //   |..[A]...[B].............|........................|  All before wr_.
+  //   |........................|..[A]...[B].............|  All at/after wr_.
+  //
+  //   0      live_chunk_bytes_                          used_size_
+  //   |[A][B]|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|  After.
+  //
+  // This is the usual case. After a compaction, writes append from offset
+  // live_chunk_bytes_. The next compaction runs once the used bytes reach 8
+  // times the live bytes, normally long before the writes reach the end of
+  // the buffer. Without a wrap, wr_ == used_size_ and all live chunks are
+  // before wr_.
+  const bool all_live_on_one_side =
+      *chunk_offset_refs.front() >= wr_ || *chunk_offset_refs.back() < wr_;
+  if (PERFETTO_LIKELY(all_live_on_one_side)) {
+    size_t dst = 0;
+    size_t prev_chunk_end = 0;
+    for (size_t* offset_ref : chunk_offset_refs) {
+      const size_t src = *offset_ref;
+      TBChunk* chunk = GetTBChunkAt(src);
+      PERFETTO_DCHECK(!chunk->is_padding());
+      const size_t outer_size = chunk->outer_size();
+      PERFETTO_CHECK(src >= prev_chunk_end);
+      prev_chunk_end = src + outer_size;
+      if (dst != src) {
+        memmove(begin() + dst, chunk, outer_size);
+        *offset_ref = dst;
+        TBChunk* moved_chunk = GetTBChunkAtUnchecked(dst);
+        moved_chunk->checksum = TBChunk::Checksum(dst, moved_chunk->size);
+      }
+      dst += outer_size;
+    }
+    PERFETTO_CHECK(dst == live_chunk_bytes_);
+    return finish_compaction();
+  }
+
+  // Case 3: live chunks are on both sides of wr_, after a wrap.
+  // The chunks at/after wr_ are older than the chunks before it. So the ring
+  // order is old1, old2, new1, new2:
+  //
+  //   0                        wr_                      used_size_
+  //   |..[new1]..[new2]........|..[old1]..[old2]........|
+  //
+  // Sliding old1 to offset 0 could overwrite new1. So this takes two steps.
+  //
+  // Step 1: visit the chunks backward and pack them at the end of the used
+  // region, in address order. Each chunk moves right or stays, and the chunks
+  // still to move are on its left. So no move overwrites them.
+  //
+  //   0                       packed_begin              used_size_
+  //   |~~~~~~~~~~~~~~~~~~~~~~~|[new1][new2]|[old1][old2]|
+  //                                        packed_older_begin
+  size_t dst = used_size_;
+  size_t next_chunk_begin = used_size_;
+  size_t older_bytes = 0;
+  for (auto it = chunk_offset_refs.rbegin(); it != chunk_offset_refs.rend();
+       ++it) {
+    size_t* offset_ref = *it;
+    const size_t src = *offset_ref;
+    TBChunk* chunk = GetTBChunkAt(src);
+    PERFETTO_DCHECK(!chunk->is_padding());
+    const size_t outer_size = chunk->outer_size();
+    PERFETTO_CHECK(src + outer_size <= next_chunk_begin);
+    next_chunk_begin = src;
+    if (src >= wr_)
+      older_bytes += outer_size;
+    dst -= outer_size;
+    if (dst != src)
+      memmove(begin() + dst, chunk, outer_size);
+    *offset_ref = dst;
+  }
+  const size_t packed_begin = used_size_ - live_chunk_bytes_;
+  PERFETTO_CHECK(dst == packed_begin);
+  const size_t newer_bytes = live_chunk_bytes_ - older_bytes;
+  const size_t packed_older_begin = packed_begin + newer_bytes;
+
+  // Step 2: copy the old span to offset 0, then the new span after it.
+  //
+  //   0            older_bytes                          used_size_
+  //   |[old1][old2]|[new1][new2]|~~~~~~~~~~~~~~~~~~~~~~~|
+  //                             live_chunk_bytes_
+  //
+  // The copies use memcpy(). Their destination [0, live_chunk_bytes_) ends at
+  // or before packed_begin, where their sources start. The eligibility check
+  // above guarantees it:
+  //   live_chunk_bytes_ <= used_size_ / kCompactionMinUsedToLiveRatio
+  //                     <= used_size_ / 2
+  //                     <= used_size_ - live_chunk_bytes_ == packed_begin
+  PERFETTO_CHECK(live_chunk_bytes_ <= packed_begin);
+  memcpy(begin(), begin() + packed_older_begin, older_bytes);
+  memcpy(begin() + older_bytes, begin() + packed_begin, newer_bytes);
+
+  // Step 3: each offset in SequenceState::chunks still points to the packed
+  // copy of its chunk. Point it to the final copy, and restamp the checksum of
+  // the chunk, which hashes its offset.
+  for (size_t* offset_ref : chunk_offset_refs) {
+    if (*offset_ref >= packed_older_begin) {
+      // An old chunk. Its span moved from packed_older_begin to 0.
+      *offset_ref -= packed_older_begin;
+    } else {
+      // A new chunk. Its span moved from packed_begin to older_bytes.
+      *offset_ref = older_bytes + (*offset_ref - packed_begin);
+    }
+    TBChunk* chunk = GetTBChunkAtUnchecked(*offset_ref);
+    chunk->checksum = TBChunk::Checksum(*offset_ref, chunk->size);
+  }
+  finish_compaction();
 }
 
 bool TraceBufferV2::ReadNextTracePacket(
@@ -1031,6 +1245,8 @@ void TraceBufferV2::CopyChunkUntrusted(
         stats_.chunks_committed_out_of_order() + 1);
   }
   chunk_list.InsertAfter(insert_pos, wr_);
+  live_chunk_bytes_ += tbchunk_outer_size;
+  has_data_ = true;
   if (chunk_list.size() == 1 && !seq_is_new) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1178,6 +1394,8 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   auto& chunk_list = seq.chunks;
   bool was_empty = chunk_list.empty();
   chunk_list.emplace_back(wr_);
+  live_chunk_bytes_ += tbchunk_outer_size;
+  has_data_ = true;
   if (was_empty) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1265,8 +1483,8 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   // This loop erases all the existing chunks in the clear range.
   for (size_t off = wr_, next_off = 0; off < clear_end; off = next_off) {
     if (PERFETTO_UNLIKELY(off >= used_size_)) {
-      // This happens only on the first round of writing, when there are no
-      // chunks in the buffer yet. There is nothing to delete here, easy.
+      // Nothing was written here yet: on the first round of writing, or after
+      // MaybeCompact() shrank |used_size_|. There is nothing to delete.
       break;
     }
     TBChunk* chunk = GetTBChunkAt(off);
@@ -1484,6 +1702,8 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   data_.EnsureCommitted(src.used_size_);
   memcpy(data_.Get(), src.data_.Get(), src.used_size_);
   used_size_ = src.used_size_;
+  live_chunk_bytes_ = src.live_chunk_bytes_;
+  has_data_ = src.has_data_;
   wr_ = src.wr_;
 
   stats_ = src.stats_;
@@ -1517,6 +1737,17 @@ TraceBufferV2::Vm TraceBufferV2::Vm::CloneReadOnly() const {
   cloned_vm.producers = producers;
   cloned_vm.instance = instance->CloneReadOnly();
   return cloned_vm;
+}
+
+size_t TraceBufferV2::CountLiveChunkBytesSlow() {
+  size_t live_chunk_bytes = 0;
+  for (size_t off = 0; off < used_size_;) {
+    TBChunk* chunk = GetTBChunkAt(off);
+    if (!chunk->is_padding())
+      live_chunk_bytes += chunk->outer_size();
+    off += chunk->outer_size();
+  }
+  return live_chunk_bytes;
 }
 
 void TraceBufferV2::DumpForTesting() {

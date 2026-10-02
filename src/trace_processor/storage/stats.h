@@ -280,6 +280,10 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_patches_succeeded,         kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_readaheads_failed,         kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_readaheads_succeeded,      kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_shift_left_compactions,    kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "TraceBufferV2 only. Num. shift-left compactions at the start of a read "  \
+    "pass. Each one moves the remaining chunks to the front of the buffer "    \
+    "and releases the unused pages."),                                         \
   F(traced_buf_trace_writer_packet_loss,  kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "The tracing service observed packet loss for this buffer during this "  \
       "tracing session. This also counts packet loss that happened before "    \
