@@ -51,6 +51,7 @@ source_set("sqlite") {
     "../importers/ftrace:ftrace_descriptors",
     "../storage",
     "../types",
+    "../util:cold_sort",
     "../util:profile_builder",
   ]
   public_deps = [ "bindings" ]

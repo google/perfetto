@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -126,8 +127,8 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
 // been populated.
 base::Status NinjaLogParser::OnPushDataToSorter() {
   // Phase 1: Sort jobs and write slices directly to storage
-  std::sort(jobs_.begin(), jobs_.end(),
-            [](const Job& x, const Job& y) { return x.start_ms < y.start_ms; });
+  ColdSort(jobs_.begin(), jobs_.end(),
+           [](const Job& x, const Job& y) { return x.start_ms < y.start_ms; });
 
   // Now we need to work out the job parallelism. There's no direct indication
   // of that in the ninja logs, so it must be inferred by observing overlapping

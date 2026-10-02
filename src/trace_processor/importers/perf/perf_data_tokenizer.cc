@@ -68,6 +68,7 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -437,17 +438,17 @@ PerfDataTokenizer::ParseFeatureSections() {
     PERFETTO_CHECK(reader.Read(feature_sections_.back().second));
   }
 
-  std::sort(feature_sections_.begin(), feature_sections_.end(),
-            [](const std::pair<uint8_t, PerfFile::Section>& lhs,
-               const std::pair<uint8_t, PerfFile::Section>& rhs) {
-              if (lhs.second.offset == rhs.second.offset) {
-                // Some sections have 0 length and thus there can be offset
-                // collisions. To make sure we parse sections by increasing
-                // offset parse empty sections first.
-                return lhs.second.size > rhs.second.size;
-              }
-              return lhs.second.offset > rhs.second.offset;
-            });
+  ColdSort(feature_sections_.begin(), feature_sections_.end(),
+           [](const std::pair<uint8_t, PerfFile::Section>& lhs,
+              const std::pair<uint8_t, PerfFile::Section>& rhs) {
+             if (lhs.second.offset == rhs.second.offset) {
+               // Some sections have 0 length and thus there can be offset
+               // collisions. To make sure we parse sections by increasing
+               // offset parse empty sections first.
+               return lhs.second.size > rhs.second.size;
+             }
+             return lhs.second.offset > rhs.second.offset;
+           });
 
   buffer_.PopFrontUntil(feature_headers_section_.end());
   parsing_state_ = feature_sections_.empty() ? ParsingState::kDone

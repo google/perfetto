@@ -41,6 +41,7 @@
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -273,7 +274,7 @@ void NarrowKey(const std::vector<const Group*>& groups,
   auto count = static_cast<uint32_t>(groups.size());
   order.resize(count);
   std::iota(order.begin(), order.end(), 0u);
-  std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) {
+  ColdSort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) {
     return groups[a]->intervals.size() < groups[b]->intervals.size();
   });
 
