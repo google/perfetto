@@ -42,6 +42,17 @@ PERFETTO_SDK_EXPORT void PerfettoHeapBufferCopyInto(
     void* dst,
     size_t size);
 
+// Appends all bytes written to the heap buffer to `dst`.
+// - `src` is the writer that PerfettoHeapBufferCreate() set up for this
+//   buffer.
+// - The heap buffer keeps its bytes. Destroy it separately.
+// - `dst` can move to a new chunk during the copy. Patch any length field
+//   that `dst` still holds before the call.
+PERFETTO_SDK_EXPORT void PerfettoHeapBufferCopyIntoStreamWriter(
+    struct PerfettoHeapBuffer*,
+    struct PerfettoStreamWriter* src,
+    struct PerfettoStreamWriter* dst);
+
 // Destroys the heap buffer.
 PERFETTO_SDK_EXPORT void PerfettoHeapBufferDestroy(
     struct PerfettoHeapBuffer*,

@@ -26,8 +26,8 @@
 // messages.
 //
 // In proto group mode, accessors support scalars, complete string/bytes/packed
-// values, and nested messages. Incremental PACKED begin/append/end accessors
-// abort. See PerfettoPbMsgEncoding in pb_msg.h.
+// values, nested messages and incremental PACKED fields. See
+// PerfettoPbMsgEncoding in pb_msg.h.
 //
 // Example usage:
 //
@@ -177,9 +177,8 @@
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_BEGIN_NAME(PREFIX, NAME)(       \
       struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
-    struct PerfettoPbMsg* nested_msg =                                    \
-        PERFETTO_REINTERPRET_CAST(struct PerfettoPbMsg*, nested);         \
-    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, nested_msg, NUM);   \
+    PerfettoPbMsgBeginLengthDelimitedField(&msg->msg, &nested->msg, NUM,  \
+                                           &nested->staged);              \
   }                                                                       \
   static inline void PERFETTO_I_PB_SETTER_END_NAME(PREFIX, NAME)(         \
       struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {  \
