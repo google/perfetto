@@ -489,3 +489,314 @@ class AndroidParser(TestSuite):
           2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",7,0
           "[NULL]",500,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1
         """))
+
+  def test_android_pid_reuse(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes {
+              pid: 100
+              ppid: 1
+              cmdline: "/vendor/bin/hw/vendor.hal"
+              uid: 1000
+            }
+            processes {
+              pid: 200
+              ppid: 1
+              cmdline: "com.example.b"
+              uid: 10060
+            }
+          }
+        }
+        # HAL died unseen and an app took its pid: new process.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 100
+              uid: 10050
+              process_name: "com.example.a"
+            }
+          }
+        }
+        # Same uid: same process.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+              uid: 10060
+              process_name: "com.example.b"
+            }
+          }
+        }
+        # System uid app: bound and start events are the same process.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_bound"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 300
+              uid: 1000
+              process_name: "com.android.settings"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4100000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 300
+              uid: 1000
+              process_name: "com.android.settings"
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT p.pid, p.name, p.uid, p.end_ts, t.fw_start_ts
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process t USING (upid)
+        WHERE p.pid IN (100, 200, 300)
+        ORDER BY p.pid, p.upid;
+        """,
+        out=Csv("""
+          "pid","name","uid","end_ts","fw_start_ts"
+          100,"/vendor/bin/hw/vendor.hal",1000,2000000000,"[NULL]"
+          100,"com.example.a",10050,"[NULL]",2000000000
+          200,"com.example.b",10060,"[NULL]",3000000000
+          300,"com.android.settings",1000,"[NULL]",4000000000
+        """))
+
+  def test_android_process_died_exit_reason(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          process_tree {
+            processes { pid: 200 ppid: 1 cmdline: "com.example.b" uid: 10070 }
+            processes { pid: 300 ppid: 1 cmdline: "com.example.c" uid: 10080 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 100
+              uid: 10050
+              process_name: "com.example.a"
+              start_seq_id: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 100
+              uid: 10050
+              start_seq_id: 1
+            }
+          }
+        }
+        # Already running at trace start: seq comes from binder_died.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2500000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 200
+              uid: 10070
+              start_seq_id: 3
+            }
+          }
+        }
+        # pid 100 reused before its process_died arrives.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 100
+              uid: 10060
+              process_name: "com.example.d"
+              start_seq_id: 2
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+              pid: 100
+              uid: 10050
+              start_seq_id: 1
+              reason: APP_EXIT_REASON_CRASH
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4100000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+              pid: 200
+              uid: 10070
+              start_seq_id: 3
+              reason: APP_EXIT_REASON_LOW_MEMORY
+            }
+          }
+        }
+        # No binder_died: falls back to the live pid.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4200000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+              pid: 300
+              uid: 10080
+              start_seq_id: 4
+              reason: APP_EXIT_REASON_ANR
+            }
+          }
+        }
+        # Unknown seq and the live pid 100 has another uid: dropped.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4300000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+              pid: 100
+              uid: 10050
+              start_seq_id: 5
+              reason: APP_EXIT_REASON_SIGNALED
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT p.pid, p.uid, t.start_seq_id, t.exit_reason
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, p.upid;
+        """,
+        out=Csv("""
+          "pid","uid","start_seq_id","exit_reason"
+          100,10050,1,"APP_EXIT_REASON_CRASH"
+          100,10060,2,"[NULL]"
+          200,10070,3,"APP_EXIT_REASON_LOW_MEMORY"
+          300,10080,4,"APP_EXIT_REASON_ANR"
+        """))
+
+  def test_android_start_dump_seq_identity(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_START
+            record {
+              pid: 500
+              uid: 10090
+              process_name: "com.example.e"
+              start_seq_id: 7
+            }
+            record {
+              pid: 700
+              uid: 10095
+              process_name: "com.example.g"
+              start_seq_id: 9
+            }
+          }
+        }
+        # Same seq as the dump record: same process.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 500
+              uid: 10090
+              start_seq_id: 7
+            }
+          }
+        }
+        # pid reused by another app after the death.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 500
+              uid: 10091
+              process_name: "com.example.f"
+              start_seq_id: 8
+            }
+          }
+        }
+        # Same uid but a new seq with no death seen: still a new process.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000000000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 700
+              uid: 10095
+              process_name: "com.example.g"
+              start_seq_id: 12
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT p.pid, p.name, p.uid, p.end_ts, t.start_seq_id, t.fw_start_ts,
+          t.fw_end_ts
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, p.upid;
+        """,
+        out=Csv("""
+          "pid","name","uid","end_ts","start_seq_id","fw_start_ts","fw_end_ts"
+          500,"com.example.e",10090,2000000000,7,"[NULL]",2000000000
+          500,"com.example.f",10091,"[NULL]",8,3000000000,"[NULL]"
+          700,"com.example.g",10095,4000000000,9,"[NULL]","[NULL]"
+          700,"com.example.g",10095,"[NULL]",12,4000000000,"[NULL]"
+        """))
