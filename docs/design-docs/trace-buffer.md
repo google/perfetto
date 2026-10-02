@@ -101,6 +101,7 @@ Writer-side (Producer-side):
 Reader-side:
 
 * `BeginRead()`: called at readback time at the beginning of each read batch.
+  It can also compact the buffer (see [Compaction](#compaction-shift-left)).
 * `ReadNextTracePacket()`: called once for each packet until either there are
   no more packets in the buffer or TracingServiceImpl decided it has read
   enough data for the current task (to avoid saturating the IPC channel).
@@ -710,6 +711,124 @@ In order to deal with this we introduce a two layer walk in the readback code:
 In the code, the outer layer walk is implemented by
 `TraceBufferV2::ReadNextTracePacket()` while the inner walk is implemented by
 the `class ChunkSeqReader::ReadNextPacketInSeqOrder()`.
+
+### Compaction (shift left)
+
+A read turns consumed chunks into padding in place. The padding stays resident
+until the write cursor overwrites it. So a buffer that a reader drains often
+(for example with `write_into_file`) stays fully resident: the write cursor
+laps the whole buffer.
+
+When the `tbv2_shift_left_compaction` flag is on, `BeginRead()` can compact the
+buffer before the read pass starts:
+
+* It moves the live chunks to the front of the buffer, in ring order, and
+  releases the unused whole pages with `madvise()`.
+* It copies each live byte at most twice:
+  * Usually all live chunks are on one side of `wr_`. One copy slides each
+    chunk left.
+  * After a wrap, live chunks can be on both sides of `wr_`. A first copy
+    packs them at the end of the used region. A second copy moves them to the
+    front in ring order.
+* After it, `wr_` and `used_size_` equal the live bytes, and the read starts at
+  offset 0.
+* The start of a read pass is the only point where it can run. No slice from
+  the previous pass and no `ChunkSeqReader` points into the buffer then.
+
+The live chunks are the chunks in the `SequenceState::chunks` lists: the chunks
+that no read or overwrite has erased yet. This includes incomplete chunks and
+chunks that wait for a patch. `live_chunk_bytes_` holds their total size. It
+changes only where a chunk enters or leaves a list, so `BeginRead()` checks the
+conditions below without a scan.
+
+#### Compaction algorithm
+
+Each live chunk has exactly one reference: its offset in a
+`SequenceState::chunks` list. Sorting these offsets gives the live chunks in
+address order, without a walk over the padding between them. Sorting costs
+O(N log N) for N live chunks. Releasing pages costs time in proportion to the
+released range.
+
+`MaybeCompact()` handles three cases:
+
+1. No bytes are live. No chunk moves. `ReadNextTracePacket()` reads the chunk
+   header at offset 0 even when the buffer is empty. A fresh buffer has zeros
+   there, which read as an empty padding chunk. After earlier writes, offset 0
+   holds old bytes, so `MaybeCompact()` writes that padding chunk again.
+2. All live chunks are on one side of `wr_`. Address order is then ring order,
+   so the chunks slide left in address order. Each chunk moves at most once.
+   This is the usual case. After a compaction, writes append from the end of
+   the live bytes. The next compaction runs once the used bytes reach 8 times
+   the live bytes, normally long before the writes wrap.
+3. Live chunks are on both sides of `wr_`, after a wrap. The chunks after `wr_`
+   are older, so they come first in ring order. Sliding them to offset 0 could
+   overwrite the newer chunks there, so this case takes two steps:
+   1. Visit the chunks backward and pack them at the end of the used region,
+      in address order. Each move goes right or nowhere, and the chunks still
+      to visit are on its left, so no move overwrites them.
+   2. Copy the older span to offset 0, then the newer span after it. The 1/8
+      limit below keeps these copies clear of their sources.
+
+   Each chunk moves at most twice.
+
+In cases 2 and 3, `MaybeCompact()` also updates each offset in
+`SequenceState::chunks`, and restamps the checksum of each moved chunk. The
+checksum hashes the chunk offset.
+
+In all cases it then sets `wr_` and `used_size_` to the live bytes, and
+releases the unused whole pages with `AdviseDontNeed()` where the platform
+supports it. It does not clear the bytes past the new `used_size_`:
+
+* Nothing reads them. Reads and overwrites stop at `used_size_`, and a write
+  initializes its bytes before `used_size_` covers them.
+* A memset would cost time in proportion to the old `used_size_`. The rest of
+  the compaction costs time in proportion to the live bytes.
+
+#### Compaction conditions
+
+Compaction applies only to `RING_BUFFER` buffers that are not read-only
+clones. It runs only when all of these are true:
+
+* At most 1/8 of `used_size_` is live (`kCompactionMinUsedToLiveRatio`).
+* At most 4 MiB is live (`kCompactionMaxLiveChunkBytes`).
+* At least one whole page can be released.
+
+**The 1/8 limit.** Let L be the live bytes and U the used bytes. Compaction
+runs only when U >= r * L. This is how r = 8 was chosen:
+
+* r >= 2 is needed for correctness. In case 3, the packed chunks fill the last
+  L bytes of the used region, and the final copy fills the first L bytes.
+  These ranges must not overlap, so 2 * L <= U.
+* r >= 3 makes a compaction reclaim at least as much as it copies. It copies
+  each live byte at most twice (see above), so up to 2 * L bytes. It reclaims
+  U - L bytes, ignoring page rounding. With r = 3, both are 2 * L.
+* A larger r gives more per copied byte: a compaction reclaims at least
+  (r - 1) / 2 times the bytes it copies. With r = 8, that is 3.5 times.
+* A larger r also stops compaction sooner when chunks cannot be read.
+  Incomplete chunks and chunks that wait for a patch stay live. With r = 8,
+  compaction stops while they are more than 1/8 (12.5%) of the used bytes.
+
+r = 8 balances the last two points. It also stops the same chunks from moving
+on every read pass, even when a reader starts a pass every few packets. After
+a compaction U = L, so the next one waits until U >= 8 * L again. For example:
+
+* With no new writes, the reader must first consume 7/8 of the remaining data.
+* If S bytes stay unreadable, the writers must first add, and the reader
+  consume, 7 * S bytes of new data.
+
+**The 4 MiB cap.** Compaction runs on the service thread, inside `BeginRead()`.
+It copies each live byte at most twice, so the cap limits one compaction to
+8 MiB of copies. Sorting the references and releasing pages also take time, so
+this is not a strict latency bound.
+
+#### Side effects
+
+* While compaction keeps running, the buffer rarely laps. A chunk that never
+  completes (a fragment whose continuation never comes, or a chunk that is
+  never patched) stays until the buffer really fills. Without compaction, the
+  write cursor overwrites it after one lap.
+* `write_wrap_count` counts real laps only, which become rare.
+* The `shift_left_compactions` buffer stat counts the compactions.
 
 ## Benchmarks
 

@@ -6247,7 +6247,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 23.
+  // Next id: 24.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6320,6 +6320,13 @@ message TraceStats {
 
     // Num. times the ring buffer wrapped around.
     optional uint64 write_wrap_count = 4;
+
+    // TraceBufferV2 only. Num. shift-left compactions at the start of a read
+    // pass. Each one moves the remaining chunks to the front of the buffer and
+    // releases the unused pages. A buffer that compacts rarely wraps.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 shift_left_compactions = 23;
 
     // Num. out-of-band (OOB) patches that succeeded.
     optional uint64 patches_succeeded = 5;

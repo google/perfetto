@@ -555,6 +555,8 @@ class TraceBufferV2 : public TraceBuffer {
   // No other calls to any other method should be interleaved between
   // BeginRead() and ReadNextTracePacket().
   // Reads in the TraceBufferV2 are NOT idempotent.
+  // BeginRead() can compact the buffer (see MaybeCompact()). It moves chunks,
+  // so the slices from the previous read pass are no longer valid.
   void BeginRead() override;
 
   // Returns the next packet in the buffer, if any, and the producer/writer
@@ -610,7 +612,7 @@ class TraceBufferV2 : public TraceBuffer {
   }
   const TraceStats::BufferStats& stats() const override { return stats_; }
   const WriterStats& writer_stats() const override { return writer_stats_; }
-  bool has_data() const override { return used_size_ > 0; }
+  bool has_data() const override { return has_data_; }
   void set_read_only() override { read_only_ = true; }
   BufType buf_type() const override { return kV2; }
 
@@ -644,6 +646,15 @@ class TraceBufferV2 : public TraceBuffer {
   bool MakeSpaceToWrite(size_t size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
 
+  // Compacts the buffer if few of its bytes are live. Moves the live chunks to
+  // the front in ring order, then releases the unused whole pages.
+  // BeginRead() calls it.
+  void MaybeCompact();
+
+  // Sums the outer size of the non-padding chunks with a full scan.
+  // For DCHECKs and tests.
+  size_t CountLiveChunkBytesSlow();
+
   // Makes a reassembled SMB v2 packet length-delimited protobuf. A packet
   // without nested messages keeps its slices into the buffer, as an SMB
   // packet does. Otherwise the packet gets one owned slice. Returns false,
@@ -658,7 +669,8 @@ class TraceBufferV2 : public TraceBuffer {
     PERFETTO_DCHECK(off <= size_ - sizeof(TBChunk));
   }
 
-  // This should only be used when followed by a placement new.
+  // This should only be used when followed by a placement new, or by
+  // MaybeCompact() to restamp the checksum of a moved chunk.
   TBChunk* GetTBChunkAtUnchecked(size_t off) {
     DcheckIsAlignedAndWithinBounds(off);
     return reinterpret_cast<TBChunk*>(begin() + off);
@@ -698,10 +710,24 @@ class TraceBufferV2 : public TraceBuffer {
   base::PagedMemory data_;
   size_t size_ = 0;  // Size in bytes of |data_|.
 
-  // High watermark. The number of bytes (<= |size_|) written into the buffer
-  // before the first wraparound. This increases as data is written into the
-  // buffer and then saturates at |size_|.
+  // High watermark of the written bytes (<= |size_|). This increases as data
+  // is written into the buffer, until the write cursor wraps around.
+  // MaybeCompact() shrinks it to |live_chunk_bytes_|.
+  // - Reads and overwrites stop here.
+  // - The contents of [used_size_, size_) are unspecified. Writes initialize
+  //   them before use. The exception: when used_size_ is 0, offset 0 holds an
+  //   empty padding chunk, as in a fresh buffer.
   size_t used_size_ = 0;
+
+  // Sum of outer_size() of the chunks in the SequenceState::chunks lists, that
+  // is of all non-padding chunks. MaybeCompact() keeps only these bytes.
+  // Updated where a chunk enters or leaves a list.
+  size_t live_chunk_bytes_ = 0;
+
+  // Set when the first chunk is written, and never cleared. MaybeCompact() can
+  // reset |used_size_| to 0, so used_size_ > 0 cannot tell this.
+  // As in TraceBufferV1, clear_before_clone uses it to skip unused buffers.
+  bool has_data_ = false;
 
   size_t wr_ = 0;  // Write cursor (offset since start()).
   size_t rd_ = 0;  // Read cursor. Reset to wr_ on every BeginRead().
@@ -737,6 +763,12 @@ class TraceBufferV2 : public TraceBuffer {
   // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
   // a write fails because it would overwrite unread chunks.
   bool discard_writes_ = false;
+
+  // Experimental: whether BeginRead() can compact the buffer. The constructor
+  // sets it from the tbv2_shift_left_compaction flag, which rolls compaction
+  // out on Android first. Once it has soaked there, it becomes the default.
+  // Tests set it directly, so that they do not depend on the flag value.
+  bool compaction_enabled_ = false;
 
   // When true disable some DCHECKs that have been put in place to detect
   // bugs in the producers. This is for tests that feed malicious inputs and
