@@ -146,6 +146,15 @@ message HeapGraphObject {
   // `android.content.pm.ApplicationInfo.longVersionCode`: Used to identify
   // the dumped process version code (without the full package list)
   optional int64 application_info_long_version_code_field = 15;
+
+  // For bytecode/optimizer merged classes disambiguation.
+  // Represents a discriminator field (e.g. "$cid", "$cid2") and its value
+  // on an instance of a merged class.
+  message MergedClassDiscriminator {
+    optional string field_name = 1;
+    optional int32 value = 2;
+  }
+  repeated MergedClassDiscriminator merged_class_discriminators = 16;
 }
 
 // Next id: 11
