@@ -48,7 +48,7 @@ SCHED_SLICE_TABLE = Table(
         C(
             'end_state',
             CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access=CppAccess.LOW_PERF_WRITE,
         ),
         C('priority', CppInt32()),
         C('ucpu', CppTableId(CPU_TABLE)),

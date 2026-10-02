@@ -1,0 +1,173 @@
+Parser streaming implementation journal
+
+Authorized: generated table sinks; omit unread column storage; preserve existing storage for accessible columns; investigate retention frontiers; provide HTML catch-up.
+
+Initial decisions/findings:
+1. Sink delivers inserts and updates with stable IDs. Default configuration preserves full SQL storage.
+2. Tables share the exact Dataframe layout and are placement-constructed as Dataframes; keep new sink state within Dataframe.
+3. Generic ArgsInserter writes require sink interception below generated setters.
+4. Parser queries exist in heap graphs, deobfuscation, ETM; audit filter column annotations.
+5. Existing slabs/bitvectors have no prefix-drop API. Frontier eviction requires stable logical IDs and physical base offsets, including nullable storage handling.
+6. Journal originally targeted .codex, but that directory is read-only in this environment. Artifacts live in streaming-parser-audit instead.
+
+Status: information gathering; source code untouched.
+
+Access audit: heap-graph query filters require HeapGraphObjectTable.upid and HeapGraphReferenceTable.reference_set_id despite CppAccess.NONE. Both must be retained. Generated and cursor setters converge on Dataframe setter machinery; generic ArgsInserter setter path also needs interception. Prefix eviction must compact value arrays plus null bitmaps/popcounts with absolute IDs preserved.
+
+Schema inventory: 741 explicit non-alias columns; 402 have C++ access; 339 have NONE, before retaining query-only exceptions. This is a column count, not a memory-savings estimate.
+
+Prototype approach under investigation: generic insert/update transport in Dataframe, generated typed sink adapters for each table, generated retained-column masks, configuration before first insert. Query planning must reject dropped columns instead of attempting to scan undersized arrays. Existing query-only exceptions should have explicit retention metadata.
+
+User confirmed initial scope: insert/update sink, C++ and parser-query columns retained, others empty; frontier investigated separately and prototyped if feasible.
+
+Implementation decisions:
+- Shared sink transport lives inside Dataframe to preserve generated table layout compatibility. Generated nested Sink adapters deliver typed Row inserts; updates carry table-local column index and typed variant values.
+- Config has a construction-time internal TraceStorage hook so startup tracker inserts are captured too.
+- Query plans reject omitted projection/filter/sort/distinct columns. EOF skips SQL indexes which reference omitted columns.
+- Experimental DropRowsBefore compacts value arrays and null bitmaps, rebuilds sparse popcounts, preserves absolute IDs and rejects queries after eviction. It requires explicit proof from the caller; parsers do not automatically advance it yet.
+- ccache cache directory is outside writable roots. Builds use CCACHE_DISABLE=1; no escalation needed.
+- All slice, counter and args columns have C++ access; this initial conservative mask cannot drop those columns. 339 NONE columns overall do not imply large savings on slice-heavy traces.
+
+Validation in progress: debug build plus dataframe streaming/frontier tests and paired full-vs-empty JSON parsing sink replay.
+
+First validation: four DataframeStreamingTest cases passed (empty columns/IDs; typed+cursor+generic updates; dropped-column query rejection; prefix eviction across null bitmap word boundaries, sparse null mutations, dropping all rows and appending with stable IDs).
+
+Further findings: scheduling can omit priority and ucpu under existing annotations. Ftrace can omit common_flags. Profiler samples can omit source/unwind_error/session_id. These are concrete examples; slice/counter/args are fully retained.
+
+Callback contract refinement: update callbacks follow retained storage mutation, so callback reads observe the new value; dropped-column updates are still forwarded without materialization. Re-entrant mutations are rejected.
+
+EOF workaround: avoid building query indexes over omitted columns. This is required to exercise full importer registration via TraceProcessorImpl before the separate-library refactor.
+
+Validation checkpoint: 2,400 existing TP unit tests, all 30 JsonParser diff tests and all 86 selected scheduling/process/TrackEvent diff tests passed. These verify the default path, not streaming mode.
+
+Replay findings: JSON full-vs-empty sink replay passed. Synthetic scheduling fixture initially emitted no sched rows due to default ftrace drop policy; fixture now explicitly disables that policy in both modes. Skipping SQL prelude also requires skipping metric registration and SQL bounds population, since their helper tables are created by that prelude. The parser still uses an internal connection/plugin infrastructure; no separate library is claimed.
+
+Scope completion detail: plugin-owned generated tables carry the generated retention mask and get the same sink factory at dataframe registration. Runtime-schema dataframes retain all columns.
+
+Prefix prototype test: 131,072 rows with a batched 1,024-row retained window; asserts exactly 8 KiB of allocated int64 storage after finalization while total row_count stays 131,072. This demonstrates physical memory reclamation in a synthetic table, not bounded memory for whole trace ingestion.
+
+Limitations identified: prefix-evicted tables do not support query/cursor execution; no automatic importer frontier integration; EOF-derived bounds would need incremental accounting to include dropped events. StringPool and parser dictionaries remain retained, and sinks receive StringIds that must be resolved/copied or stored with the dictionary. Whole-format equivalence and CPU/RSS regression measurements remain separate from the current unit/synthetic tests.
+
+Final-check checkpoint: all 116 selected parser diff tests passed. Full TP suite had 2,404 passes and one synthetic protobuf replay fixture failure: ftrace events omitted the required pid field and were ignored in both baseline and streaming modes. Added pid to that fixture and rerunning it. No implementation failure was implicated by that result. JSON replay, generated sinks, plugin registration checks, six dataframe tests (including memory reclamation and invalid/reentrant access) passed.
+
+Corrected synthetic protobuf fixture: all nine new streaming/frontier/replay tests pass. Includes JSON and protobuf TrackEvent/ftrace scheduling record equivalence and plugin-owned sink registration. Full TP suite rerun pending. Final build targets perfetto_unittests and trace_processor_shell are up to date; format checks and git diff --check pass.
+
+Count clarification: the earlier 2,400-test checkpoint excluded StreamingTablesTest but included the then-four new DataframeStreamingTest cases. Final suite now has 2,405 tests, including nine new cases.
+
+FINAL 2026-10-01T09:50:44+00:00
+All 2,405 TP unit tests pass, including all nine new cases. All 116 selected parser diff tests pass. Debug binaries are rebuilt, formatting checks pass, and git diff --check passes. No commit, PR, external message, or deployment was made.
+
+Remaining work before production claims: measure default CPU/RSS overhead with matching baseline; broader real-trace streaming equivalence; move importer registration/finalization out of query-bearing library; introduce automatic reader frontier declarations and query support for offset storage; decide chunking/spilling policies and account for strings/sorter/EOF dependencies.
+
+2026-10-01T17:13:07+00:00 — Frontier advancement phase
+User explicitly excludes the query engine and requests CPU/RSS. Added an opt-in ftrace scheduling frontier: each unique CPU holds its latest pending row, shared TraceStorage takes the minimum across machines, checks every 1024 inserts and compacts only after at least 1024 rows become releasable. No blanket last-N guarantee: a stalled CPU pins the prefix. Other scheduling formats/mixed producers are outside this experimental contract.
+Added OnFrontierAdvance callback so sink consumers can flush provisional rows. Parser replay tests cover 12000 events with four moving CPUs and a fifth stalled CPU; initial 10 focused tests passed before adding callback assertions. SQL bounds aggregation is skipped when this experimental parser-only policy is enabled.
+Performance probe uses TraceProcessorStorageImpl plus full proto modules, without constructing TraceProcessorImpl or a SQL engine. It compares policy modes within the same release build rather than claiming original-checkout overhead. Initial probe crashed; investigating before collecting measurements. LLDB cannot launch in this sandbox, so the probe temporarily captures a native stack itself.
+
+2026-10-01T17:18:04+00:00 — Advancement and measurement completed
+10 focused tests pass with frontier callbacks; all 2406 trace-processor tests pass (2 previously disabled). GN regeneration with include checking found missing direct dependencies in the new replay tests and benchmark target; these are now explicit.
+Benchmark crash diagnosis: HeapGraphModule EOF processing unconditionally dereferenced HeapGraphTracker, normally initialized by TraceProcessorImpl. Instead of constructing unrelated full-processor state, the scheduling-only harness registers FtraceModuleImpl alongside default modules. No SQL engine is constructed; the temporary signal handler was removed.
+Five fresh-process release runs per mode and workload, alternating order, with 1000000 globally ordered sched_switch events, 1MiB parse/drain batches, raw ftrace table disabled. Full storage is the baseline within the same modified build, not an unmodified checkout. Sink callbacks calculate checksums without retaining output; checksum equality holds between sink/drop/frontier for both workloads.
+Moving CPUs: full 0.246553 CPU seconds / 195.65625 MiB peak RSS; sink 0.372610 / 195.6875; omit columns 0.373599 / 187.703125; frontier 0.371955 / 152.484375. Final sched frontier 999420, leaving 580 of 1000000 rows. Frontier saves about 19% RSS beyond omission, 22% versus full storage. CPU increase versus no-sink baseline includes checksum work. No measurable additional frontier cost in this short workload.
+Pinned CPU: omission 191.796875 MiB, frontier 191.734375 MiB; frontier remains 0. This confirms that a prefix frontier cannot promise a fixed last-N bound. Higher pinned-workload RSS partly reflects allocation thresholds and additional initial thread state; compare modes within each workload.
+Remaining work: pin tracking for thread_state and nested slices, coverage for compact/mixed/other scheduling producers, sink-cost isolation and representative production traces, library split, strings/dictionaries/sorter retention. Historical SQL bounds are deliberately out of scope for experimental frontier mode.
+
+2026-10-01T18:45:24+00:00 — Back-patching and parser-local CPU timestamps
+User authorized separate storage/completion frontiers and small changes to avoid table reads. Added LOW_PERF_WRITE/HIGH_PERF_WRITE schema annotations (setters without getters); generated retention masks omit write-only columns. Audited sched end_state and marked it LOW_PERF_WRITE: only setters occur in production C++ sources. Preserve existing physical layouts in full-storage mode.
+Dataframe DropRowsBefore now publishes OnStorageFrontierAdvance; explicit AdvanceCompletionFrontier independently publishes OnFrontierAdvance, keeping its no-more-updates promise. Typed and legacy setters forward evicted-row writes without recreating local data. Updates before completion and after finalization fail.
+Ftrace CPU pending state now stores start timestamps. Both ordinary and compact sched close paths pass the timestamp to SchedEventTracker, avoiding table reads. AddStartSlice returns the insert row number directly rather than fetching the ID from the table. Generic-kernel/ETW default close behavior remains available, so the experimental sink-only table mask remains explicitly ftrace-only.
+Experimental ftrace mode stores no sched cells, advances its storage frontier to the cumulative row count in batches, and tracks CPU pins only for completion. A stalled CPU can still delay consumer finalization, but cannot pin local sched storage. Added replay assertions that patches actually arrive below the storage frontier and never below completion.
+
+2026-10-01T18:51:31+00:00 — Back-patching validation and performance completed
+11 focused tests pass; all 2407 trace-processor unit tests pass (2 previously disabled); all 116 selected parser diff tests pass. The replay includes a CPU resuming after 11999 switches and successfully patching row 0 below storage frontier 11264, with no retained sched cell arrays.
+Two test-only issues were fixed during validation: the legacy nullable setter expects an explicitly typed optional rather than nullopt_t, and unfinalized storage inspection must use column() rather than shared_column(). No production workaround was needed.
+Repeated release measurements, five fresh processes per policy/workload, unchanged 1000000-event input and checksum sink. Checksums match across all sink modes. Moving CPUs: full 0.246178 CPU seconds / 195.578125 MiB peak RSS; sink 0.368330 / 195.734375; omission 0.365305 / 189.578125; back-patch frontier 0.358541 / 152.375. Storage frontier 999424; completion frontier 999420. All sched value/null arrays are empty even for the logical tail.
+Stalled CPU: omission 0.357413 / 190.84375 MiB; back-patch frontier 0.357452 / 150.890625 MiB. Storage frontier 999424 and completion frontier 0: the formerly pinned memory saving survives. CPU differences in this short synthetic run are not production regression claims. Earlier measurements are preserved in benchmark-*-before-backpatch.*.
+Full-storage behavior remains compatible with SQL, as verified by diff tests. The benchmark still constructs no SQL engine. The new write-only annotation makes sched.end_state eligible for omission across parsing modes; complete sink-only scheduling remains explicitly experimental and ftrace-only. Further scheduling producers, thread-state/slice retention, production-trace measurements and library separation remain follow-up work.
+
+2026-10-01T19:09:05+00:00 — Memory reduction: thread-state history
+ThreadStateTracker read only ts, state and implicit IDs from historical rows. Moved latest timestamp/state into RelatedRows alongside existing current/blocked row references. Waker IDs come directly from absolute row numbers. UpdatePendingState synchronizes the cached state; blocked-reason writes still target the previous blocked row across a runnable transition. Ordinary parsing follows the same state rules, with full table storage still available.
+Experimental ftrace mode now makes ThreadStateTable cells sink-only as well as sched cells. Thread-state storage frontier advances in 1024-row batches. Completion deliberately remains zero: sleeping threads and late blocked-reason patches have no audited completion policy yet. That does not pin local storage.
+Initial release check: ~13–14 MiB peak RSS for both million-event workloads, versus previous ~151–152 MiB. Checksums match prior results. Added direct paired replay covering long-evicted blocked rows, waker IDs pointing to evicted running rows, spurious wakes, cached-state changes, and late io_wait/blocked_function updates. All 22 focused tests pass.
+Prepared four-million-event traces to check scaling with fixed CPUs/thread identities. These temporary inputs live in /tmp/perfetto-streaming-scale and can be regenerated. This tests event-history retention, not bounded dictionaries under growing identity cardinality.
+
+2026-10-01T19:29:30.502550+00:00 — Thread-state final measurements
+All 2408 unit tests and 116 parser diffs passed at that checkpoint. Five fresh-process medians: million scheduling events use 13.59 MiB / 0.330 CPU seconds with streaming versus 195.61 MiB / 0.245 seconds full storage. Four million use 13.67 MiB / 1.322 seconds streaming versus 738.34 MiB / 0.964 seconds full. Fixed identities demonstrate flat event-history memory; dictionaries are not bounded by this result. Stalled CPU streaming uses 13.64 MiB and completion remains zero.
+
+2026-10-01T19:29:30.502613+00:00 — Slice and args prototype
+Added experimental_slice_args_streaming for JSON and TrackEvent. SliceTracker keeps timestamp, duration, name/category and thread counters in its active stack. Long-lived parents do not pin storage. Recently ended state supports immediate end-event patches. FlowTracker saves source timestamps with active flow IDs so flows do not read evicted slices. Default-mode getters still read tables because other importers can mutate names directly; those importers are outside this experimental scope.
+Slice/ArgTable masks omit every cell except virtual IDs. Slice storage advances every 1024 inserts; completion deliberately remains zero to permit deferred translations and importer end-event patches. Args rows are immutable: their storage and completion frontiers advance together after a complete arg set is inserted. ArgsTracker uses absolute IDs directly instead of fetching an old row.
+Preserved the global arg hash-to-ID map and EOF translation buffers: dropping those would change deduplication or translation semantics. Distinct argument sets can therefore still grow memory. Added repeated-vs-unique argument workloads to measure this explicitly. Synthetic million-child TrackEvent traces are 94–96 MB, include a long-lived parent, two begin args and an end arg per child, and fixed track/name dictionaries.
+All 36 focused tests and all 2409 TP unit tests pass. The new JSON replay compares 6000 nested children plus parent, late args/thread timing patches and a flow from the first child to the last after eviction. Parser diffs and million-slice benchmarks are next.
+
+2026-10-01T19:33:45.487143+00:00 — Slice/args validation and million-slice CPU/RSS
+All 37 focused tests and 2410 TP unit tests pass (2 pre-existing disabled). All 116 parser diff tests pass. Added protobuf replay with a thread-associated long-lived parent and 3000 children, explicitly checking parent thread timestamp, duration and instruction delta after eviction. Existing full-storage behavior remains compatible. Formatting and git diff checks pass.
+repeated args, full: median CPU 0.804608s, peak RSS 100.078125 MiB; slice frontier 0, arg frontier 0.
+repeated args, sink: median CPU 0.887223s, peak RSS 100.109375 MiB; slice frontier 0, arg frontier 0.
+repeated args, drop: median CPU 0.881738s, peak RSS 100.093750 MiB; slice frontier 0, arg frontier 0.
+repeated args, slice: median CPU 0.846658s, peak RSS 13.296875 MiB; slice frontier 999424, arg frontier 0.
+unique args, full: median CPU 0.897668s, peak RSS 287.500000 MiB; slice frontier 0, arg frontier 0.
+unique args, sink: median CPU 1.088154s, peak RSS 287.531250 MiB; slice frontier 0, arg frontier 0.
+unique args, drop: median CPU 1.098416s, peak RSS 287.531250 MiB; slice frontier 0, arg frontier 0.
+unique args, slice: median CPU 1.002506s, peak RSS 57.109375 MiB; slice frontier 999424, arg frontier 2998996.
+All sink/drop/slice event checksums match. This isolates storage policies in one modified release binary, not overhead relative to an unmodified checkout. Forced sorter drains are safe for this globally ordered synthetic input. Consumer buffering is excluded. Four-million-child repeated-args scaling is in progress.
+
+2026-10-01T19:34:55.468035+00:00 — Four-million-slice scaling completed
+1000000 child slices, full: median CPU 0.804608s, peak RSS 100.078125 MiB.
+4000000 child slices, full: median CPU 3.215917s, peak RSS 482.765625 MiB.
+1000000 child slices, slice: median CPU 0.846658s, peak RSS 13.296875 MiB.
+4000000 child slices, slice: median CPU 3.359000s, peak RSS 13.343750 MiB.
+Repeated args and fixed track/name identities: streaming remains 13.3 MiB from one to four million slices, while full storage grows from 100.1 to 482.8 MiB. The four-million sink-only checksum matches a separately run full-storage checksum sink. This is evidence that historical slice cells do not accumulate, even under one long-open parent. Unique arg deduplication, new strings/tracks/flows, deferred translations and arbitrary sorter disorder remain separate memory costs.
+Final artifacts: catch-up.html is standalone, with current decisions, source links, validation, CPU/RSS tables, scaling evidence, interactive storage/completion illustration and complete journal. No commit or external publication was made.
+
+2026-10-01T19:50:54.934123+00:00 — TraceParser architecture direction
+User requested TraceParser (parsing/output), TraceProcessor (parser + retained storage + SQL), and a possible later parser + storage composition with name undecided. Audited existing public interfaces, parser lifecycle, build targets and JSON export. Recorded concrete proposed API and staged migration in trace-parser-api.html; no public ABI or rename implemented in this turn.
+Current storage_minimal already avoids SQL but still links tables/storage. TraceProcessor inherits public TraceProcessorStorage and internally shares TraceProcessorStorageImpl. ExportJson downcasts the storage interface and reads historical tables, so its migration needs a consumer retaining/spooling required projections, not just a new Parse method.
+Major contract decisions recorded: separate parser configuration, install output at construction, no public TraceStorage exposure, Status-returning lifecycle with consumer error propagation, public schema/string dictionary contract, composition over a storage-named parser base. Completion prohibits updates but does not prohibit future references; arg dedup and flow endpoints make that distinction necessary. Preserve compatibility and avoid double full-table storage during migration.
+
+TraceParser implementation decisions (in progress)
+User authorized building the entrypoint and moving all newly introduced config options. Added trace_parser.h, trace_parser_config.h and a parser GN target. TraceParserImpl composes the existing parser core, rather than inheriting from the storage entrypoint: legacy Flush returns void, while the new API returns Status. Composition also gives the intended direction for parser + consumer designs.
+Moved omission, ftrace frontier, slice/args streaming, batch size and sink-installation hook out of TraceProcessor Config. Internal contexts carry parser_config separately and copy it across trace/machine forks. Legacy constructors and direct TraceStorage() retain full storage; TraceParser defaults to conservative omission. Removed streaming-specific SQL setup/bounds branches from TraceProcessor.
+The sketch temporarily reuses Config as parsing_config for existing format/clock/sorter settings, and keeps the source-build internal TraceStorage installation hook. No stable public sink schema or string ABI was invented here. JSON and protobuf/ftrace are registered by the new endpoint; JSON export itself is unchanged. New public-factory tests cover startup inserts, owned input, EOF lifecycle and sticky errors. Streaming replay tests now run without TraceProcessorImpl and are no longer gated on SQL builds.
+
+2026-10-01T20:10:48.040025+00:00 — TraceParser entrypoint completed and validated
+39 focused tests and all 2412 TP unit tests pass (2 pre-existing disabled); all 116 selected parser diffs pass. GN header dependency checks and C++/GN formatting checks pass. The parser dependency closure excludes SQLite and the query engine; the release probe also has no SQLite connection/query-engine symbols.
+Migrating replays required using unfinalized column() diagnostics rather than query-only shared_column(): TraceParser does not finalize/index tables for SQL at EOF. Plugin registration assertions were replaced by core-table assertions because this prototype registers JSON and protobuf/ftrace, not the full TraceProcessor plugin set. Existing TraceProcessor diff tests cover the unchanged full importer/query path.
+The release benchmark now uses only the public TraceParser factory/lifecycle, with a construction hook for sink installation and diagnostic counters. Repeated all CPU/RSS workloads through this endpoint; every per-workload sink checksum is identical to the pre-API implementation. Earlier runs were preserved with -before-parser-api filenames.
+benchmark-summary.json: {"workload": "moving", "mode": "full", "cpu_s": 0.242203, "wall_s": 0.24531445899999982, "peak_rss_mib": 195.734375, "sched_frontier": 0, "completion_frontier": 0}
+benchmark-summary.json: {"workload": "moving", "mode": "frontier", "cpu_s": 0.324772, "wall_s": 0.32616479200000015, "peak_rss_mib": 13.75, "sched_frontier": 999424, "completion_frontier": 999420}
+benchmark-summary.json: {"workload": "pinned", "mode": "full", "cpu_s": 0.242697, "wall_s": 0.24598133399999966, "peak_rss_mib": 195.890625, "sched_frontier": 0, "completion_frontier": 0}
+benchmark-summary.json: {"workload": "pinned", "mode": "frontier", "cpu_s": 0.327327, "wall_s": 0.328864832999999, "peak_rss_mib": 13.78125, "sched_frontier": 999424, "completion_frontier": 0}
+benchmark-slices-summary.json: {"workload": "repeated", "mode": "full", "cpu_s": 0.812148, "wall_s": 0.8144220419999995, "peak_rss_mib": 100.140625, "slice_rows": 1000001, "slice_frontier": 0, "arg_rows": 200, "arg_frontier": 0}
+benchmark-slices-summary.json: {"workload": "repeated", "mode": "slice", "cpu_s": 0.855975, "wall_s": 0.8574611249999968, "peak_rss_mib": 13.359375, "slice_rows": 1000001, "slice_frontier": 999424, "arg_rows": 200, "arg_frontier": 0}
+benchmark-slices-summary.json: {"workload": "unique", "mode": "full", "cpu_s": 0.908963, "wall_s": 0.913128167, "peak_rss_mib": 287.5625, "slice_rows": 1000001, "slice_frontier": 0, "arg_rows": 3000008, "arg_frontier": 0}
+benchmark-slices-summary.json: {"workload": "unique", "mode": "slice", "cpu_s": 1.013504, "wall_s": 1.0156252089999995, "peak_rss_mib": 57.09375, "slice_rows": 1000001, "slice_frontier": 999424, "arg_rows": 3000008, "arg_frontier": 2998996}
+benchmark-scaling-summary.json: {"rows": 1000000, "mode": "full", "cpu_s": 0.242203, "peak_rss_mib": 195.734375}
+benchmark-scaling-summary.json: {"rows": 4000000, "mode": "full", "cpu_s": 0.956579, "peak_rss_mib": 738.4375, "thread_state_rows": 7999996, "thread_state_ts_capacity_bytes": 70786048}
+benchmark-scaling-summary.json: {"rows": 1000000, "mode": "frontier", "cpu_s": 0.324772, "peak_rss_mib": 13.75}
+benchmark-scaling-summary.json: {"rows": 4000000, "mode": "frontier", "cpu_s": 1.302167, "peak_rss_mib": 13.734375, "thread_state_rows": 7999996, "thread_state_ts_capacity_bytes": 0}
+benchmark-slices-scaling-summary.json: {"count": 1000000, "mode": "full", "cpu_s": 0.812148, "peak_rss_mib": 100.140625}
+benchmark-slices-scaling-summary.json: {"count": 4000000, "mode": "full", "cpu_s": 3.257599, "peak_rss_mib": 482.84375, "slice_rows": 4000001, "slice_frontier": 0}
+benchmark-slices-scaling-summary.json: {"count": 1000000, "mode": "slice", "cpu_s": 0.855975, "peak_rss_mib": 13.359375}
+benchmark-slices-scaling-summary.json: {"count": 4000000, "mode": "slice", "cpu_s": 3.410128, "peak_rss_mib": 13.390625, "slice_rows": 4000001, "slice_frontier": 3999744}
+Remaining architecture work: extract common parsing options from legacy Config; replace the internal installation hook with public schema/string/output contracts including sink failure propagation; rename/extract the shared parser core; progressively detach retained storage from parser working tables; migrate JSON export and legacy storage callers. No compatibility-breaking retirement, JSON export rewrite, commit or external publication was performed.
+
+2026-10-01T20:15:30.026016+00:00 — Remove inherited API compatibility conveniences
+User clarified that TraceParser needs no TraceProcessor backward-compatibility functions. Removed Parse(unique_ptr<uint8_t[]>, size), its forwarding implementation, the overload-unhiding declaration and unused includes. TraceParser now accepts TraceBlobView only. Owned input remains supported by explicitly constructing a TraceBlob with TakeOwnership. Kept status-returning Flush and EOF because these perform real parser lifecycle operations. Legacy TraceProcessor/TraceProcessorStorage conveniences remain with their existing callers. Updated the lifecycle test; focused parser checks pending.
+Compatibility cleanup validated: all 9 StreamingTablesTest cases pass; parser API/lifecycle and long-evicted slice/args/scheduling replays remain covered. C++ formatting and git diff checks pass.
+
+2026-10-01T20:58:07.319616+00:00 — Public API cleanup and hand-written per-table sinks, including counters
+User requested no Flush and no implementation-detail configuration, then hand-written per-table sinks and counters. Removed public Flush and generic output. Public TraceParserConfig now exposes only parsing options; private TraceParserOptions owns retention, batch size and installation hooks. Added typed SliceSink, ArgSink, SchedSink, ThreadStateSink and CounterSink, named field patches, borrowed strings with parser-local IDs, frontier/reset/EOF callbacks and sticky consumer errors. Public factory enables audited policies automatically; proto detection activates ftrace streaming before rows arrive. Other table types still need public interfaces. No SQL target in parser dependency closure.
+Counter audit found EventTracker only reread implicit row ID; replaced that access with returned ID. All counter cells are now sink-only in TraceParser. Storage advances every 1024 inserts; completion stays zero because pending process-track resolution and GPU backward-value patches target old IDs. Test inserts 3000 counters, patches evicted row zero and resolves tracks after eviction. Legacy full-storage paths remain unchanged.
+Workaround: internal null StringPool IDs arrive as monostate, including sched.end_state before close. Typed string adapter initially assumed a nonnull StringPool::Id and crashed scheduling replay; now maps monostate to the public null string. Full replay tests pass.
+Removed benchmark manual Flush. Input generators use ordinary tracing-service producer-flush and read-completed notifications to trigger normal sorter advancement with its one-cycle lag. Historical tables used chunk drains and are labeled historical. New measurements use this normal protocol and typed public sinks; no public drain controls. Initial counter timings during build/generation contention were replaced with sequential fresh-process runs after independent work finished.
+Validation: 2414 unit tests, 116 selected JSON/sched/process/TrackEvent differential tests, GN header dependency checks passed. Sink checksum matches retained-output baseline for counters at 1M and 4M rows.
+Counter measurement: {"rows": 1000000, "mode": "full", "cpu_s": 0.151383, "peak_rss_mib": 59.84375, "counter_frontier": 0, "checksum": "0"}
+Counter measurement: {"rows": 1000000, "mode": "sink", "cpu_s": 0.16537, "peak_rss_mib": 59.859375, "counter_frontier": 0, "checksum": "2cb01e28ffbd8c76"}
+Counter measurement: {"rows": 1000000, "mode": "drop", "cpu_s": 0.164677, "peak_rss_mib": 59.703125, "counter_frontier": 0, "checksum": "2cb01e28ffbd8c76"}
+Counter measurement: {"rows": 1000000, "mode": "slice", "cpu_s": 0.168572, "peak_rss_mib": 14.0, "counter_frontier": 999424, "checksum": "2cb01e28ffbd8c76"}
+Counter measurement: {"rows": 4000000, "mode": "full", "cpu_s": 0.595178, "peak_rss_mib": 250.796875, "counter_frontier": 0, "checksum": "0"}
+Counter measurement: {"rows": 4000000, "mode": "sink", "cpu_s": 0.65324, "peak_rss_mib": 250.28125, "counter_frontier": 0, "checksum": "7a650f1053bfabf6"}
+Counter measurement: {"rows": 4000000, "mode": "slice", "cpu_s": 0.672939, "peak_rss_mib": 14.390625, "counter_frontier": 3999744, "checksum": "7a650f1053bfabf6"}
+Remaining limits: five public sinks do not yet export track/process/thread/flow metadata; parser dictionaries, strings, arg deduplication and pending work can grow. ExportJSON migration and clean extraction of the shared parser core remain unfinished.
+Final typed slice replay under natural sorter checkpoints: 1M children, repeated args, retained checksum sink CPU .897304s RSS101.921875MiB; typed public parser CPU .914182s RSS17.4375MiB. Checksums match. C++ formatting, HTML links and embedded JS syntax pass.

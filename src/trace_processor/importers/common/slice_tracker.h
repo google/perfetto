@@ -177,6 +177,13 @@ class SliceTracker {
 
   std::optional<SliceId> GetTopmostSliceOnTrack(TrackId track_id) const;
 
+  // Parser working values for thread-time patches and flow ordering.
+  void SetThreadTimestamp(SliceId, int64_t);
+  void SetThreadInstructionCount(SliceId, int64_t);
+  std::optional<int64_t> GetThreadTimestamp(SliceId);
+  std::optional<int64_t> GetThreadInstructionCount(SliceId);
+  int64_t GetSliceTimestamp(SliceId);
+
  private:
   // Slices which have been opened but haven't been closed yet will be marked
   // with this duration placeholder.
@@ -186,6 +193,12 @@ class SliceTracker {
   struct SliceInfo {
     tables::SliceTable::RowNumber row;
     std::optional<ArgsInserter> args;
+    int64_t ts;
+    int64_t dur;
+    StringId category;
+    StringId name;
+    std::optional<int64_t> thread_ts;
+    std::optional<int64_t> thread_instruction_count;
   };
   using SlicesStack = std::vector<SliceInfo>;
 
@@ -311,7 +324,11 @@ class SliceTracker {
   void StackPush(TrackInfo& track_info,
                  TrackId track_id,
                  tables::SliceTable::RowNumber row_number,
-                 SliceId id);
+                 SliceId id,
+                 int64_t ts,
+                 int64_t dur,
+                 StringId category,
+                 StringId name);
 
   // Resolve a track once per event and thread the reference through the call;
   // the map is small and hot so a cross-call last-track cache measured as
@@ -347,6 +364,19 @@ class SliceTracker {
   const StringId max_depth_parent_name_key_;
   const StringId max_depth_current_name_key_;
 
+  int64_t ReadTs(const SliceInfo&) const;
+  int64_t ReadDur(const SliceInfo&) const;
+  StringId ReadCategory(const SliceInfo&) const;
+  StringId ReadName(const SliceInfo&) const;
+  SliceInfo* FindActiveSlice(SliceId);
+  struct RecentSlice {
+    SliceId id;
+    int64_t ts;
+    std::optional<int64_t> thread_ts;
+    std::optional<int64_t> thread_instruction_count;
+  };
+  std::optional<RecentSlice> recent_slice_;
+  base::FlatHashMap<SliceId, TrackId> active_slice_tracks_;
   StackMap stacks_;
   std::vector<TranslatableArgs> translatable_args_;
 };

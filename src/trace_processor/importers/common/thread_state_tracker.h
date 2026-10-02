@@ -140,6 +140,9 @@ class ThreadStateTracker : public Destructible {
   struct RelatedRows {
     std::optional<tables::ThreadStateTable::RowNumber> last_blocked_row;
     tables::ThreadStateTable::RowNumber last_row;
+    // Parser working state belongs to the thread, not its historical rows.
+    int64_t last_ts;
+    StringId last_state;
   };
 
   std::vector<std::optional<RelatedRows>> prev_row_numbers_for_thread_;

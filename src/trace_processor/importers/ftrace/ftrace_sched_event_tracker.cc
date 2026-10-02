@@ -98,8 +98,9 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                       prev_state_string_id);
+      context_->sched_event_tracker->ClosePendingSlice(
+          pending_slice_idx, ts, prev_state_string_id,
+          pending_sched->pending_slice_start_ts);
     } else {
       // If the pids are not consistent, make a note of this.
       context_->stats_tracker->IncrementStats(
@@ -123,6 +124,14 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
 
   // Finally, update the info for the next sched switch on this CPU.
   pending_sched->pending_slice_storage_idx = new_slice_idx;
+  pending_sched->pending_slice_start_ts = ts;
+  if (PERFETTO_UNLIKELY(
+          context_->parser_config.experimental_ftrace_sched_frontier)) {
+    PERFETTO_CHECK(context_->parser_config.drop_unread_table_columns);
+    context_->storage->AdvanceFtraceSchedFrontier(
+        context_->cpu_tracker->GetOrCreateCpu(cpu).value, new_slice_idx,
+        context_->parser_config.streaming_frontier_batch_rows);
+  }
   pending_sched->last_pid = next_pid;
   pending_sched->last_utid = next_utid;
   pending_sched->last_prio = next_prio;
@@ -168,8 +177,9 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
     context_->stats_tracker->IncrementStats(stats::task_state_invalid);
   }
   if (pending_slice_idx != std::numeric_limits<uint32_t>::max()) {
-    context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                     prev_state_str_id);
+    context_->sched_event_tracker->ClosePendingSlice(
+        pending_slice_idx, ts, prev_state_str_id,
+        pending_sched->pending_slice_start_ts);
   }
 
   // Use the previous event's values to infer this event's "prev_*" fields.
@@ -204,6 +214,14 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
       cpu, ts, next_utid, next_prio);
   pending_sched->pending_slice_storage_idx = new_slice_idx;
+  pending_sched->pending_slice_start_ts = ts;
+  if (PERFETTO_UNLIKELY(
+          context_->parser_config.experimental_ftrace_sched_frontier)) {
+    PERFETTO_CHECK(context_->parser_config.drop_unread_table_columns);
+    context_->storage->AdvanceFtraceSchedFrontier(
+        context_->cpu_tracker->GetOrCreateCpu(cpu).value, new_slice_idx,
+        context_->parser_config.streaming_frontier_batch_rows);
+  }
 
   // Update the per-thread ThreadState table.
   ThreadStateTracker::GetOrCreate(context_)->PushSchedSwitchEvent(

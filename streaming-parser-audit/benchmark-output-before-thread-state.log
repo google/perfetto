@@ -1,0 +1,114 @@
+{"mode": "full", "cpu_s": 0.273972, "peak_rss_bytes": 204587008, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "moving", "repeat": 0, "wall_s": 0.617332334}
+{"mode": "sink", "cpu_s": 0.362508, "peak_rss_bytes": 205242368, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 0, "wall_s": 0.365621458}
+{"mode": "drop", "cpu_s": 0.378647, "peak_rss_bytes": 198819840, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 0, "wall_s": 0.381551792}
+{"mode": "frontier", "cpu_s": 0.35956, "peak_rss_bytes": 159776768, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 999420, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 0, "wall_s": 0.3622110839999999}
+{"mode": "frontier", "cpu_s": 0.367673, "peak_rss_bytes": 159711232, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 999420, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 1, "wall_s": 0.37042408399999993}
+{"mode": "drop", "cpu_s": 0.365305, "peak_rss_bytes": 198787072, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 1, "wall_s": 0.36838783300000033}
+{"mode": "sink", "cpu_s": 0.36833, "peak_rss_bytes": 205242368, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 1, "wall_s": 0.3713888340000002}
+{"mode": "full", "cpu_s": 0.246178, "peak_rss_bytes": 205062144, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "moving", "repeat": 1, "wall_s": 0.24929325000000002}
+{"mode": "full", "cpu_s": 0.246431, "peak_rss_bytes": 205094912, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "moving", "repeat": 2, "wall_s": 0.2494313749999999}
+{"mode": "sink", "cpu_s": 0.371921, "peak_rss_bytes": 205127680, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 2, "wall_s": 0.3750054999999999}
+{"mode": "drop", "cpu_s": 0.365824, "peak_rss_bytes": 198770688, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 2, "wall_s": 0.3687364169999996}
+{"mode": "frontier", "cpu_s": 0.358541, "peak_rss_bytes": 159744000, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 999420, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 2, "wall_s": 0.3612484999999994}
+{"mode": "frontier", "cpu_s": 0.354519, "peak_rss_bytes": 159858688, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 999420, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 3, "wall_s": 0.3571970000000002}
+{"mode": "drop", "cpu_s": 0.358818, "peak_rss_bytes": 198836224, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 3, "wall_s": 0.36178795799999985}
+{"mode": "sink", "cpu_s": 0.382334, "peak_rss_bytes": 205291520, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 3, "wall_s": 0.3853939999999998}
+{"mode": "full", "cpu_s": 0.245469, "peak_rss_bytes": 205078528, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "moving", "repeat": 3, "wall_s": 0.24848816699999965}
+{"mode": "full", "cpu_s": 0.240131, "peak_rss_bytes": 205144064, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "moving", "repeat": 4, "wall_s": 0.24321654199999987}
+{"mode": "sink", "cpu_s": 0.35902, "peak_rss_bytes": 205275136, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 4, "wall_s": 0.3620391249999999}
+{"mode": "drop", "cpu_s": 0.363348, "peak_rss_bytes": 198770688, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 4, "wall_s": 0.366259125}
+{"mode": "frontier", "cpu_s": 0.356561, "peak_rss_bytes": 159825920, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 999420, "inserts": 3004105, "updates": 5999995, "checksum": "deb6516ab697a6ff", "workload": "moving", "repeat": 4, "wall_s": 0.3590709580000002}
+{"mode": "full", "cpu_s": 0.249023, "peak_rss_bytes": 205291520, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "pinned", "repeat": 0, "wall_s": 0.2532230420000001}
+{"mode": "sink", "cpu_s": 0.359506, "peak_rss_bytes": 205340672, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 0, "wall_s": 0.36245875000000005}
+{"mode": "drop", "cpu_s": 0.360095, "peak_rss_bytes": 200196096, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 0, "wall_s": 0.36526316700000017}
+{"mode": "frontier", "cpu_s": 0.352372, "peak_rss_bytes": 158236672, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 0, "wall_s": 0.35482550000000046}
+{"mode": "frontier", "cpu_s": 0.361251, "peak_rss_bytes": 158220288, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 1, "wall_s": 0.36382274999999886}
+{"mode": "drop", "cpu_s": 0.354267, "peak_rss_bytes": 200048640, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 1, "wall_s": 0.3571209159999995}
+{"mode": "sink", "cpu_s": 0.362914, "peak_rss_bytes": 205307904, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 1, "wall_s": 0.36574579200000024}
+{"mode": "full", "cpu_s": 0.243026, "peak_rss_bytes": 205275136, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "pinned", "repeat": 1, "wall_s": 0.24588937499999908}
+{"mode": "full", "cpu_s": 0.240744, "peak_rss_bytes": 205291520, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "pinned", "repeat": 2, "wall_s": 0.24360862500000025}
+{"mode": "sink", "cpu_s": 0.373198, "peak_rss_bytes": 205504512, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 2, "wall_s": 0.37841037499999963}
+{"mode": "drop", "cpu_s": 0.361575, "peak_rss_bytes": 200114176, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 2, "wall_s": 0.36476299999999995}
+{"mode": "frontier", "cpu_s": 0.35381, "peak_rss_bytes": 158203904, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 2, "wall_s": 0.3563093750000004}
+{"mode": "frontier", "cpu_s": 0.36147, "peak_rss_bytes": 158220288, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 3, "wall_s": 0.36418824999999977}
+{"mode": "drop", "cpu_s": 0.356665, "peak_rss_bytes": 200146944, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 3, "wall_s": 0.3599867500000009}
+{"mode": "sink", "cpu_s": 0.362953, "peak_rss_bytes": 205340672, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 3, "wall_s": 0.36598912500000047}
+{"mode": "full", "cpu_s": 0.241929, "peak_rss_bytes": 205307904, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "pinned", "repeat": 3, "wall_s": 0.24490920799999927}
+{"mode": "full", "cpu_s": 0.241662, "peak_rss_bytes": 205291520, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 0, "updates": 0, "checksum": "0", "workload": "pinned", "repeat": 4, "wall_s": 0.24458858399999883}
+{"mode": "sink", "cpu_s": 0.365423, "peak_rss_bytes": 205307904, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 4, "wall_s": 0.3684389580000005}
+{"mode": "drop", "cpu_s": 0.357413, "peak_rss_bytes": 200032256, "sched_rows": 1000000, "sched_frontier": 0, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 4, "wall_s": 0.36021149999999835}
+{"mode": "frontier", "cpu_s": 0.357452, "peak_rss_bytes": 158236672, "sched_rows": 1000000, "sched_frontier": 999424, "completion_frontier": 0, "inserts": 3004105, "updates": 5999991, "checksum": "265f783be7859b92", "workload": "pinned", "repeat": 4, "wall_s": 0.36003183300000074}
+[
+  {
+    "workload": "moving",
+    "mode": "full",
+    "cpu_s": 0.246178,
+    "wall_s": 0.24929325000000002,
+    "peak_rss_mib": 195.578125,
+    "sched_frontier": 0,
+    "completion_frontier": 0
+  },
+  {
+    "workload": "moving",
+    "mode": "sink",
+    "cpu_s": 0.36833,
+    "wall_s": 0.3713888340000002,
+    "peak_rss_mib": 195.734375,
+    "sched_frontier": 0,
+    "completion_frontier": 0
+  },
+  {
+    "workload": "moving",
+    "mode": "drop",
+    "cpu_s": 0.365305,
+    "wall_s": 0.36838783300000033,
+    "peak_rss_mib": 189.578125,
+    "sched_frontier": 0,
+    "completion_frontier": 0
+  },
+  {
+    "workload": "moving",
+    "mode": "frontier",
+    "cpu_s": 0.358541,
+    "wall_s": 0.3612484999999994,
+    "peak_rss_mib": 152.375,
+    "sched_frontier": 999424,
+    "completion_frontier": 999420
+  },
+  {
+    "workload": "pinned",
+    "mode": "full",
+    "cpu_s": 0.241929,
+    "wall_s": 0.24490920799999927,
+    "peak_rss_mib": 195.78125,
+    "sched_frontier": 0,
+    "completion_frontier": 0
+  },
+  {
+    "workload": "pinned",
+    "mode": "sink",
+    "cpu_s": 0.362953,
+    "wall_s": 0.36598912500000047,
+    "peak_rss_mib": 195.828125,
+    "sched_frontier": 0,
+    "completion_frontier": 0
+  },
+  {
+    "workload": "pinned",
+    "mode": "drop",
+    "cpu_s": 0.357413,
+    "wall_s": 0.36021149999999835,
+    "peak_rss_mib": 190.84375,
+    "sched_frontier": 0,
+    "completion_frontier": 0
+  },
+  {
+    "workload": "pinned",
+    "mode": "frontier",
+    "cpu_s": 0.357452,
+    "wall_s": 0.36003183300000074,
+    "peak_rss_mib": 150.890625,
+    "sched_frontier": 999424,
+    "completion_frontier": 0
+  }
+]

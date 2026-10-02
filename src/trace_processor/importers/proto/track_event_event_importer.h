@@ -824,12 +824,13 @@ class TrackEventEventImporter {
         ts_, track_id, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (opt_slice_id.has_value()) {
-      auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
-        rr.set_thread_ts(*thread_timestamp_);
+        context_->slice_tracker->SetThreadTimestamp(*opt_slice_id,
+                                                    *thread_timestamp_);
       }
       if (thread_instruction_count_) {
-        rr.set_thread_instruction_count(*thread_instruction_count_);
+        context_->slice_tracker->SetThreadInstructionCount(
+            *opt_slice_id, *thread_instruction_count_);
       }
       MaybeParseFlowEvents(opt_slice_id.value());
       MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
@@ -854,14 +855,16 @@ class TrackEventEventImporter {
     auto* thread_slices = storage_->mutable_slice_table();
     tables::SliceTable::RowReference slice_ref =
         (*thread_slices)[*opt_slice_id];
-    std::optional<int64_t> tts = slice_ref.thread_ts();
+    std::optional<int64_t> tts =
+        context_->slice_tracker->GetThreadTimestamp(*opt_slice_id);
     if (tts && thread_timestamp_) {
       int64_t delta = *thread_timestamp_ - *tts;
       if (delta != 0) {
         slice_ref.set_thread_dur(delta);
       }
     }
-    std::optional<int64_t> tic = slice_ref.thread_instruction_count();
+    std::optional<int64_t> tic =
+        context_->slice_tracker->GetThreadInstructionCount(*opt_slice_id);
     if (tic && thread_instruction_count_) {
       slice_ref.set_thread_instruction_delta(
           *event_data_->thread_instruction_count - *tic);
@@ -886,11 +889,13 @@ class TrackEventEventImporter {
     if (opt_slice_id.has_value()) {
       auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
-        rr.set_thread_ts(*thread_timestamp_);
+        context_->slice_tracker->SetThreadTimestamp(*opt_slice_id,
+                                                    *thread_timestamp_);
         rr.set_thread_dur(legacy_event_.thread_duration_us() * 1000);
       }
       if (thread_instruction_count_) {
-        rr.set_thread_instruction_count(*thread_instruction_count_);
+        context_->slice_tracker->SetThreadInstructionCount(
+            *opt_slice_id, *thread_instruction_count_);
         rr.set_thread_instruction_delta(
             legacy_event_.thread_instruction_delta());
       }
@@ -1034,11 +1039,13 @@ class TrackEventEventImporter {
     if (utid_) {
       auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
       if (thread_timestamp_) {
-        rr.set_thread_ts(*thread_timestamp_);
+        context_->slice_tracker->SetThreadTimestamp(*opt_slice_id,
+                                                    *thread_timestamp_);
         rr.set_thread_dur(duration_ns);
       }
       if (thread_instruction_count_) {
-        rr.set_thread_instruction_count(*thread_instruction_count_);
+        context_->slice_tracker->SetThreadInstructionCount(
+            *opt_slice_id, *thread_instruction_count_);
         rr.set_thread_instruction_delta(tidelta);
       }
     }
