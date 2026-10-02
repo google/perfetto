@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -74,6 +75,47 @@ TEST(KeyEncoderTest, NullsAgreeHoweverTheyAreMarked) {
   EXPECT_EQ(by_validity[0], by_id[1]);
   // The null id is 0, so a string needs no null byte.
   EXPECT_EQ(by_id[0].size(), sizeof(uint32_t));
+}
+
+TEST(KeyEncoderTest, SelectedRowsKeepValuesAndNulls) {
+  BitVector validity = BitVector::CreateWithSize(3);
+  validity.set(0);
+  validity.set(2);
+  auto check = [](ColumnView column) {
+    auto original = Keys(column, 3);
+    ASSERT_TRUE(original.has_value());
+    EXPECT_NE((*original)[0], (*original)[1]);
+    EXPECT_NE((*original)[0], (*original)[2]);
+
+    column.SetRange(1);
+    auto ranged = Keys(column, 2);
+    ASSERT_TRUE(ranged.has_value());
+    EXPECT_EQ(*ranged,
+              (std::vector<std::string>{(*original)[1], (*original)[2]}));
+
+    // Compose reordered, repeated indices with the range. Validity must be
+    // checked at the physical row, not the logical row in this selection.
+    uint32_t indices[] = {1, 0, 1};
+    SelectionPool pool;
+    column.Slice(RowSelection::Indices(indices), 3, pool);
+    auto selected = Keys(column, 3);
+    ASSERT_TRUE(selected.has_value());
+    EXPECT_EQ(*selected, (std::vector<std::string>{
+                             (*original)[2], (*original)[1], (*original)[2]}));
+  };
+  int32_t i32[] = {-1, 99, 7};
+  uint32_t u32[] = {3, 99, 7};
+  int64_t i64[] = {-1, 99, 7};
+  double doubles[] = {1.5, 99.0, 7.5};
+  StringPool pool;
+  StringPool::Id strings[] = {pool.InternString("a"), pool.InternString("b"),
+                              pool.InternString("c")};
+  check(ColumnView::Reference(StorageType{Int32{}}, i32, &validity));
+  check(ColumnView::Reference(StorageType{Uint32{}}, u32, &validity));
+  check(ColumnView::Reference(StorageType{Int64{}}, i64, &validity));
+  check(ColumnView::Reference(StorageType{Double{}}, doubles, &validity));
+  check(ColumnView::Reference(StorageType{String{}}, strings, &validity));
+  check(ColumnView::Reference(StorageType{Id{}}, nullptr, &validity));
 }
 
 TEST(KeyEncoderTest, OnlyColumnsOfOneTypeAreKeys) {

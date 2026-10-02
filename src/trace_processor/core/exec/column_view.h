@@ -138,7 +138,10 @@ class FlatColumnReader {
   explicit FlatColumnReader(const ColumnView& column)
       : data_(static_cast<const T*>(column.data())),
         selection_(column.selection()),
-        validity_(column.validity()) {}
+        validity_(column.validity()) {
+    PERFETTO_DCHECK(column.kind() == ColumnView::Kind::kFlat);
+    PERFETTO_DCHECK(column.type().Is<typename TypeTagFor<T>::type>());
+  }
 
   // False if the row holds no value.
   PERFETTO_ALWAYS_INLINE bool Read(uint32_t row, T* out) const {

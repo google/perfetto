@@ -34,33 +34,23 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-template <typename T, typename Value>
-PERFETTO_ALWAYS_INLINE void Write(const ColumnView& column,
-                                  RowLayout::Slot slot,
-                                  uint32_t count,
-                                  uint8_t* rows,
-                                  Value value) {
-  RowSelection selection = column.selection();
-  const BitVector* validity = column.validity();
-  RowLayout::Write<T>(
-      slot, count,
-      [&](uint32_t row, T* out) {
-        uint32_t index = selection.GetIndex(row);
-        if (validity && !validity->is_set(index)) {
-          return false;
-        }
-        *out = value(index);
-        return true;
-      },
-      rows);
-}
-
 void WriteSequence(const ColumnView& column,
                    RowLayout::Slot slot,
                    uint32_t count,
                    uint8_t* rows) {
-  Write<int64_t>(column, slot, count, rows,
-                 [](uint32_t index) { return int64_t{index}; });
+  RowSelection selection = column.selection();
+  const BitVector* validity = column.validity();
+  RowLayout::Write<int64_t>(
+      slot, count,
+      [&](uint32_t row, int64_t* out) {
+        uint32_t index = selection.GetIndex(row);
+        if (validity && !validity->is_set(index)) {
+          return false;
+        }
+        *out = int64_t{index};
+        return true;
+      },
+      rows);
 }
 
 template <typename Stored>
@@ -68,18 +58,28 @@ void WriteInteger(const ColumnView& column,
                   RowLayout::Slot slot,
                   uint32_t count,
                   uint8_t* rows) {
-  const auto* data = static_cast<const Stored*>(column.data());
-  Write<int64_t>(column, slot, count, rows,
-                 [data](uint32_t index) { return int64_t{data[index]}; });
+  FlatColumnReader<Stored> reader(column);
+  RowLayout::Write<int64_t>(
+      slot, count,
+      [&](uint32_t row, int64_t* out) {
+        Stored value;
+        if (!reader.Read(row, &value)) {
+          return false;
+        }
+        *out = int64_t{value};
+        return true;
+      },
+      rows);
 }
 
 void WriteDouble(const ColumnView& column,
                  RowLayout::Slot slot,
                  uint32_t count,
                  uint8_t* rows) {
-  const auto* data = static_cast<const double*>(column.data());
-  Write<double>(column, slot, count, rows,
-                [data](uint32_t index) { return data[index]; });
+  FlatColumnReader<double> reader(column);
+  RowLayout::Write<double>(
+      slot, count,
+      [&](uint32_t row, double* out) { return reader.Read(row, out); }, rows);
 }
 
 // Not nullable: the null id is 0.
