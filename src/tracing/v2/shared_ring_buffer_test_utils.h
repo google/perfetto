@@ -143,7 +143,8 @@ class SharedRingBufferInternalsForTest {
 
 class NoopWriterDelegate : public SharedRingBufferWriter::Delegate {
  public:
-  void NotifyReader() override {}
+  bool IsReaderAttached() const override { return true; }
+  void NotifyReader(NotifyReason) override {}
 };
 
 inline SharedRingBufferWriter::Delegate* GetNoopWriterDelegate() {

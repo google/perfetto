@@ -97,6 +97,18 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
 
   virtual SharedMemory* shared_memory() const = 0;
 
+  // Requests a drain of the tracing v2 ring buffer, the equivalent of
+  // CommitData() for the v2 protocol.
+  //
+  // - Called on the producer endpoint sequence. The call has no reply.
+  // - Without an accepted ring buffer, the call does nothing.
+  // - The service processes requests from each producer in order. Flush relies
+  //   on the drain completing before later requests, such as
+  //   NotifyDataSourceStopped().
+  //
+  // See RFC 0046: https://github.com/google/perfetto/discussions/7120.
+  virtual void DrainV2RingBuffer();
+
   // Size of shared memory buffer pages. It's always a multiple of 4K.
   // See shared_memory_abi.h
   virtual size_t shared_buffer_page_size_kb() const = 0;

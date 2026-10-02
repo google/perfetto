@@ -39,11 +39,15 @@ namespace perfetto::tracing_v2 {
 //   to the same ring buffer concurrently.
 // - Keep the ring buffer's memory and SharedRingBuffer view alive until
 //   every writer is destroyed. The destructor still publishes its chunk.
-// - Reserving a write position and claiming its physical chunk are separate
-//   operations. A failed claim leaves a position that only the reader can
-//   consume.
-// - The writer notifies its delegate before waiting for the reader to make
-//   space.
+// - Getting a chunk takes two steps:
+//   1. Reserve a write position. This moves write_pos.
+//   2. Claim the chunk at that position: change its state from Free to
+//      BeingWritten.
+//   Step 2 can fail, for example if an older writer still holds the chunk.
+//   The reserved position then stays unused, and only the reader can move
+//   past it.
+// - Before each wait for space, the writer calls Delegate::NotifyReader()
+//   with kWriterStalled, so that the reader runs and frees space.
 // - Stalling uses a futex wait when available. Otherwise, it sleeps and retries
 //   with the same timeout and buffer-exhaustion policy.
 class SharedRingBufferWriter {
@@ -82,16 +86,71 @@ class SharedRingBufferWriter {
     uint8_t* end = nullptr;
   };
 
-  // Schedules reader work when the writer needs space. Must outlive the writer.
-  // NotifyReader() can run concurrently on different writers' threads,
-  // including during destruction. It must not reenter the calling writer.
+  // Connects the writer to the service reader:
+  // - Sends drain requests through IPC, or a direct call for an in-process
+  //   service.
+  // - Tracks whether a reader is attached, so writers know if they can wait
+  //   for space.
+  //
+  // ProducerRingBufferArbiter implements it. It must outlive the writer.
+  //
+  // The writer calls it on two events:
+  //
+  // 1. The writer publishes a fragment and the number of outstanding positions
+  //    reaches |drain_threshold_positions_|:
+  //
+  //      NotifyReader(kPositionsReady)
+  //
+  //    Below the threshold, data waits for a later publication to reach it,
+  //    an explicit flush, or a stalled writer to request a drain.
+  //
+  // 2. The writer needs a new chunk and cannot get one. The ring buffer is
+  //    full, or the chunks at its reserved positions are still in use:
+  //
+  //      Can the writer wait?
+  //      - The policy is kStall or kStallThenDrop, and
+  //      - IsReaderAttached() is true.
+  //        |
+  //        +-- no --> NotifyReader(kPositionsReady), if the writer
+  //        |          skipped positions.
+  //        |          Return without a chunk. The data is dropped.
+  //        |
+  //        +-- yes -> NotifyReader(kWriterStalled).
+  //                   Wait up to 100 ms for read_pos to move.
+  //                   Try again.
+  //
+  // Threads:
+  // - Writers call it concurrently, each from its own thread. This includes
+  //   calls from a writer's destructor.
+  // - A call must not reenter the calling writer.
   class Delegate {
    public:
     virtual ~Delegate();
 
-    // Schedules reader work after failed claims leave reservations unclaimed
-    // and before this writer waits for read_pos to advance.
-    virtual void NotifyReader() = 0;
+    // Why the writer calls NotifyReader(). The writer reports what happened.
+    // The delegate decides how to reach the reader.
+    enum class NotifyReason {
+      // Positions are ready for the reader to move past: a published
+      // fragment, or positions that the writer skipped. A hint. The delegate
+      // can merge calls or delay them.
+      kPositionsReady,
+      // The writer is stalled on a full ring buffer. It is about to block its
+      // thread until read_pos moves, for at most 100 ms (kMaxWaitMs).
+      // - The delegate must make the reader run, also when the caller is on
+      //   the thread that handles reader requests. A task posted to that
+      //   thread cannot run while the writer waits on it.
+      // - The writer calls this before each wait. It holds no chunk then.
+      kWriterStalled,
+    };
+
+    // Asks the reader to drain. See NotifyReason.
+    virtual void NotifyReader(NotifyReason) = 0;
+
+    // Returns true while a reader drains this ring buffer.
+    // If false, nothing frees space in a full ring buffer. So the writer
+    // drops data and does not wait, also under kStall. A wait would only end
+    // at the stall deadline, where kStall crashes.
+    virtual bool IsReaderAttached() const = 0;
   };
 
   SharedRingBufferWriter(SharedRingBuffer* ring,
@@ -165,6 +224,8 @@ class SharedRingBufferWriter {
   void RecordDataLoss() { data_loss_pending_ = true; }
 
   WriterID writer_id() const { return writer_id_; }
+  // Largest range that BeginFragment() can return.
+  uint32_t max_fragment_size() const { return max_fragment_size_; }
 
   // For diagnostics only. The protocol never reads these counters.
   // TODO(sashwinbalaji): Wire these counters into service statistics.
@@ -210,6 +271,8 @@ class SharedRingBufferWriter {
   const uint32_t chunk_size_;
   // MaxFragmentSizeForEmptyChunk(chunk_size_), computed once.
   const uint32_t max_fragment_size_;
+  // Minimum outstanding positions needed to request a drain on publication.
+  const uint32_t drain_threshold_positions_;
 
   // State cached for the chunk this writer currently owns.
   uint8_t* cur_chunk_ = nullptr;
