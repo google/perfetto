@@ -266,6 +266,13 @@ namespace perfetto::trace_processor::stats {
   F(traced_buf_chunks_written,            kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
   F(traced_buf_chunks_committed_out_of_order,                                  \
                                           kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,    ""), \
+  F(traced_buf_compactions,               kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "Number of completed TraceBufferV2 compactions, including those that "     \
+    "move no chunks and excluding calls that skip compaction, such as "        \
+    "calls on DISCARD or read-only buffers."),                                 \
+  F(traced_buf_compactions_skipped,       kIndexed, kInfo,     kTrace, Scope::kMachineAndTrace,         \
+    "Number of TraceBufferV2 compactions skipped because live chunks were "    \
+    "on both sides of the write cursor."),                                     \
   F(traced_buf_oversized_packets_dropped, kIndexed, kDataLoss, kTrace, Scope::kMachineAndTrace,         \
       "TraceBufferV2 only. Num. proto-group packets dropped at read time "     \
       "because length-delimited protobuf cannot encode them: a nested "        \
