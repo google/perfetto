@@ -35,6 +35,15 @@ export default defineConfig({
         open: 'never',
       },
     ],
+    // Must come after 'html': it writes inside the html report folder, which
+    // the html reporter wipes in its onEnd().
+    [
+      './src/test/screenshot_diff_reporter.ts',
+      {
+        outputFolder: `${outDir}/ui-test-artifacts/screenshot-diffs`,
+        htmlReportFolder: `${outDir}/ui-test-artifacts`,
+      },
+    ],
   ],
 
   expect: {
