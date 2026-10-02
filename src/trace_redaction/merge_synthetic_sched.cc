@@ -37,12 +37,6 @@
 
 namespace perfetto::trace_redaction {
 
-namespace {
-bool IsTrue(bool value) {
-  return value;
-}
-}  // namespace
-
 base::Status SyntheticProcessValidator::Validate(const Context& context) const {
   if (!context.synthetic_process) {
     return base::ErrStatus(
@@ -130,11 +124,11 @@ base::Status MergeSyntheticSched::OnCompSched(
     int32_t cpu,
     protozero::ConstBytes comp_sched_bytes,
     protos::pbzero::FtraceEventBundle::CompactSched* message) const {
-  protozero::Field switch_timestamp;
-  protozero::Field switch_prev_state;
-  protozero::Field switch_next_pid;
-  protozero::Field switch_next_prio;
-  protozero::Field switch_next_comm_index;
+  protozero::Field switch_timestamp{};
+  protozero::Field switch_prev_state{};
+  protozero::Field switch_next_pid{};
+  protozero::Field switch_next_prio{};
+  protozero::Field switch_next_comm_index{};
 
   // Pass through all non-switch fields (intern_table, waking_*, etc.)
   protozero::ProtoDecoder decoder(comp_sched_bytes);
@@ -167,23 +161,11 @@ base::Status MergeSyntheticSched::OnCompSched(
     }
   }
 
-  std::array<bool, 5> has_switch_fields = {
-      switch_timestamp.valid(),       switch_prev_state.valid(),
-      switch_next_pid.valid(),        switch_next_prio.valid(),
-      switch_next_comm_index.valid(),
-  };
-
   // There are comp sched events that have no switch events, so we only
   // process switch events if there are any.
-  if (std::any_of(has_switch_fields.begin(), has_switch_fields.end(), IsTrue)) {
-    // If there are any switch events, expect every switch field to be present.
-    if (PERFETTO_UNLIKELY(!std::all_of(has_switch_fields.begin(),
-                                       has_switch_fields.end(), IsTrue))) {
-      return base::ErrStatus(
-          "MergeSyntheticSched: missing required "
-          "FtraceEventBundle::CompactSched "
-          "switch field.");
-    }
+  bool has_switch_events =
+      switch_timestamp.valid() && switch_timestamp.size() > 0;
+  if (has_switch_events) {
     RETURN_IF_ERROR(OnCompSchedSwitch(
         context, cpu, switch_timestamp, switch_prev_state, switch_next_pid,
         switch_next_prio, switch_next_comm_index, message));
