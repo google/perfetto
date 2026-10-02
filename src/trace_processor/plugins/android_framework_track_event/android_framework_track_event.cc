@@ -31,9 +31,11 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_extension_parser.h"
 #include "src/trace_processor/plugins/android_framework_track_event/tables_py.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -135,6 +137,7 @@ class AndroidTrackEventProcessTableHolder {
         return *upid;
       }
     }
+    CheckStartSeen(context, seq);
     std::optional<UniquePid> upid =
         context->process_tracker->GetProcessOrNull(pid);
     if (!upid || !IsSameApp(context, *upid, uid, seq)) {
@@ -144,6 +147,21 @@ class AndroidTrackEventProcessTableHolder {
       SetStartSeqId(*upid, *seq);
     }
     return upid;
+  }
+
+  void OnStartDump() { start_dump_seen_ = true; }
+
+  // Counts |seq| as a missed app start if neither the START dump nor a
+  // process_start had it. Without a START dump, apps that were already running
+  // are expected to be unknown, so nothing is counted.
+  void CheckStartSeen(TraceProcessorContext* context,
+                      std::optional<int64_t> seq) {
+    if (!start_dump_seen_ || !seq || seq_to_upid_.Find(*seq)) {
+      return;
+    }
+    if (missed_seqs_.Insert(*seq, true).second) {
+      context->stats_tracker->IncrementStats(stats::android_app_start_missed);
+    }
   }
 
  private:
@@ -174,6 +192,8 @@ class AndroidTrackEventProcessTableHolder {
   AndroidTrackEventProcessTable table_;
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
   base::FlatHashMap<int64_t, UniquePid> seq_to_upid_;
+  base::FlatHashMap<int64_t, bool> missed_seqs_;
+  bool start_dump_seen_ = false;
 };
 
 // Records AndroidProcessStartEvent, AndroidBinderDiedEvent and
@@ -325,8 +345,8 @@ class Parser : public TrackEventExtensionParser {
   AndroidTrackEventProcessTableHolder* table_;
 };
 
-// Handles the AndroidProcessStateSnapshot emitted at trace start
-// (DUMP_REASON_START), which lists the apps alive when the trace started.
+// Handles AndroidProcessStateSnapshot. The START dump lists the apps alive when
+// the trace started; later dumps are only used to detect missed app starts.
 class StartDumpModule : public ProtoImporterModule {
  public:
   StartDumpModule(ProtoImporterModuleContext* module_context,
@@ -343,8 +363,14 @@ class StartDumpModule : public ProtoImporterModule {
     AndroidProcessStateSnapshot::Decoder dump(
         args.field.Cast<FBTP::kAndroidProcessState>());
     if (dump.dump_reason() != AndroidProcessStateSnapshot::DUMP_REASON_START) {
+      // Later dumps (END, CLONE) only check for apps whose start was missed.
+      for (auto it = dump.record(); it; ++it) {
+        AndroidProcessStateSnapshot::Record::Decoder rec(*it);
+        table_->CheckStartSeen(trace_context_, Seq(rec));
+      }
       return;
     }
+    table_->OnStartDump();
     for (auto it = dump.record(); it; ++it) {
       AndroidProcessStateSnapshot::Record::Decoder rec(*it);
       if (!rec.has_pid() || rec.pid() <= 0) {

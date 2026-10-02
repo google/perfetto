@@ -28,6 +28,12 @@ namespace perfetto::trace_processor::stats {
        "Errors occurred during the collection of Android aconfig flags by the "\
        "android.aflags data source. This typically happens if the aflags tool "\
        "fails or its output is malformed."),                                   \
+  F(android_app_start_missed,             kSingle,  kDataLoss, kTrace, Scope::kMachineAndTrace,         \
+       "Android app processes (by start_seq_id) whose start was never seen: "  \
+       "not in the trace-start process dump and no process_start or "          \
+       "process_bound event. Detected when the app dies or is in a later "     \
+       "process dump, and only counted if the trace has a trace-start dump. "  \
+       "Usually an app started just before track_event began."),               \
   F(android_br_parse_errors,              kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_num_failed,               kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \
   F(android_log_format_invalid,           kSingle,  kError,    kTrace, Scope::kMachineAndTrace,    ""), \

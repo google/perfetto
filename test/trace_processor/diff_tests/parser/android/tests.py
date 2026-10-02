@@ -800,3 +800,100 @@ class AndroidParser(TestSuite):
           700,"com.example.g",10095,4000000000,9,"[NULL]","[NULL]"
           700,"com.example.g",10095,"[NULL]",12,4000000000,"[NULL]"
         """))
+
+  def test_android_app_start_missed_stat(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        # Before the START dump: not counted.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 500
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 400
+              uid: 10080
+              start_seq_id: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 1000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_START
+            record { pid: 500 uid: 10090 start_seq_id: 7 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 600
+              uid: 10091
+              start_seq_id: 8
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 500
+              uid: 10090
+              start_seq_id: 7
+            }
+          }
+        }
+        # Start never seen: counted once for both death events.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 700
+              uid: 10092
+              start_seq_id: 10
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 5000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
+              pid: 700
+              uid: 10092
+              start_seq_id: 10
+            }
+          }
+        }
+        # Seqs 11 and 12 are new; 8 and 10 are already accounted for.
+        packet {
+          timestamp: 6000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_END
+            record { pid: 600 uid: 10091 start_seq_id: 8 }
+            record { pid: 800 uid: 10093 start_seq_id: 11 }
+            record { pid: 900 uid: 10094 start_seq_id: 12 }
+            record { pid: 700 uid: 10092 start_seq_id: 10 }
+          }
+        }
+        """),
+        query="""
+        SELECT name, value FROM stats WHERE name = 'android_app_start_missed';
+        """,
+        out=Csv("""
+          "name","value"
+          "android_app_start_missed",3
+        """))
