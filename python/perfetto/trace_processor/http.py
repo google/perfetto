@@ -26,6 +26,9 @@ class TraceProcessorHttp:
     self.protos = protos
     self.conn = http.client.HTTPConnection(url)
 
+  def close(self):
+    self.conn.close()
+
   def execute_query(self, query: str):
     args = self.protos.QueryArgs()
     args.sql_query = query

@@ -149,7 +149,9 @@ perfetto_py_library(
         "perfetto/trace_processor/platform.py",
         "perfetto/trace_processor/process_tree.py",
         "perfetto/trace_processor/protos.py",
+        "perfetto/trace_processor/rpc.py",
         "perfetto/trace_processor/shell.py",
+        "perfetto/trace_processor/unix.py",
     ],
     visibility = [
         "//visibility:public",

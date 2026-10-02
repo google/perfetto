@@ -23,6 +23,8 @@ from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.shell import load_shell
 from perfetto.trace_processor.process_tree import terminate_process_tree
+from perfetto.trace_processor.unix import TraceProcessorUnix
+from perfetto.trace_processor.unix import unix_socket_path_for
 from perfetto.trace_uri_resolver import registry
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
@@ -147,7 +149,8 @@ class TraceProcessor:
                addr: Optional[str] = None,
                config: TraceProcessorConfig = TraceProcessorConfig(),
                file_path: Optional[str] = None,
-               metadata: Optional[Dict[str, str]] = None):
+               metadata: Optional[Dict[str, str]] = None,
+               remote: Optional[str] = None):
     """Create a trace processor instance.
 
     Args:
@@ -171,19 +174,28 @@ class TraceProcessor:
 
         Custom resolvers can be provided to handle URIs via
         |config.resolver_registry|.
-      addr: address of a running trace processor instance. Useful to query an
-        already loaded trace.
+      addr (deprecated): address of a running trace processor instance. Use
+        |remote| instead of this field: specifying both will cause an
+        exception to be thrown.
       config: configuration options which customize functionality of trace
         processor and the Python binding.
       file_path (deprecated): path to a trace file to load. Use
         |trace| instead of this field: specifying both will cause
         an exception to be thrown.
+      remote: a running trace processor instance to connect to. Useful to
+        query an already loaded trace. Accepts the same values as the
+        `trace_processor --remote` flag: a session name started with
+        `trace_processor server unix --name <name>`, a Unix socket path, or the
+        host:port of an HTTP server.
     """
 
     if trace and file_path:
       raise TraceProcessorException(
           "trace and file_path cannot both be specified.")
-    if addr and config.enable_sql_file_access:
+    if addr and remote:
+      raise TraceProcessorException("addr and remote cannot both be specified.")
+    remote = remote or addr
+    if remote and config.enable_sql_file_access:
       raise TraceProcessorException(
           "enable_sql_file_access cannot grant file access to a remote Trace "
           "Processor; the server must be started with "
@@ -194,7 +206,11 @@ class TraceProcessor:
     self.protos = ProtoFactory(self.platform_delegate)
     self.resolver_registry = config.resolver_registry or \
       self.platform_delegate.default_resolver_registry()
-    self.http = self._create_tp_http(addr)
+    # Despite its name, |self.http| may hold a client that isn't HTTP-based
+    # (e.g. TraceProcessorUnix, which talks to a session over a Unix socket).
+    # The name is kept for backwards compatibility: external code reads
+    # |self.http| directly.
+    self.http = self._create_tp_client(remote)
 
     if trace or file_path:
       try:
@@ -331,14 +347,26 @@ class TraceProcessor:
     """
     return self._metadata
 
-  def _create_tp_http(self, addr: str) -> TraceProcessorHttp:
-    if addr:
+  def _create_tp_client(
+      self, remote: str) -> Union[TraceProcessorHttp, TraceProcessorUnix]:
+    if remote:
+      socket_path = unix_socket_path_for(remote)
+      if socket_path:
+        try:
+          return TraceProcessorUnix(socket_path, protos=self.protos)
+        except (FileNotFoundError, ConnectionRefusedError) as ex:
+          # No socket file, or a stale one left behind by a dead server.
+          raise TraceProcessorException(
+              f"No live trace processor session '{remote}' at {socket_path}. "
+              "Start one with: trace_processor server unix --name <name> "
+              "<trace>") from ex
+
       # Without a scheme (e.g. 'localhost:9123'), urlparse treats the host as
       # the scheme and the port as the path, so we'd connect to the wrong
       # address. Adding an explicit http:// makes parsing unambiguous.
-      p = urlparse(addr)
+      p = urlparse(remote)
       if p.scheme not in ('http', 'https'):
-        p = urlparse('http://' + addr)
+        p = urlparse('http://' + remote)
       return TraceProcessorHttp(p.netloc, protos=self.protos)
 
     (url, self.subprocess, self._tp_stdout, self._tp_stderr,
@@ -408,4 +436,4 @@ class TraceProcessor:
         self._tp_stderr = None
 
     if hasattr(self, 'http'):
-      self.http.conn.close()
+      self.http.close()

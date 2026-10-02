@@ -8,6 +8,11 @@ Unreleased:
      is not BOOTTIME. They were previously stored unconverted, which could
      also cause ftrace events to be dropped when preserve_ftrace_buffer is
      disabled.
+   * The Python `TraceProcessor` can now connect to a warm
+     `trace_processor server unix` session via the new `remote` parameter,
+     e.g. `TraceProcessor(remote='my-session')`. Only `query()` is supported
+     over Unix sockets for now. `remote` also accepts HTTP addresses, and
+     `addr` is deprecated in its favour.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.
