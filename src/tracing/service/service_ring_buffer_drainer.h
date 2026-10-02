@@ -111,6 +111,10 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   // Mapping size for the service's memory guardrail.
   size_t size_bytes() const { return memory_->size(); }
 
+  // The layout of the ring buffer, for TraceStats.
+  uint32_t chunk_size() const { return ring_buffer_.chunk_size(); }
+  uint32_t num_chunks() const { return ring_buffer_.num_chunks(); }
+
  private:
   friend class test::ServiceRingBufferDrainerTestPeer;
 

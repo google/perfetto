@@ -20,7 +20,7 @@ package perfetto.protos;
 
 // Statistics for the internals of the tracing service.
 //
-// Next id: 19.
+// Next id: 20.
 message TraceStats {
   // From TraceBuffer::Stats.
   //
@@ -248,4 +248,15 @@ message TraceStats {
     FINAL_FLUSH_FAILED = 2;
   }
   optional FinalFlushOutcome final_flush_outcome = 15;
+
+  // The tracing v2 ring buffer of a producer that set up a data source in
+  // this session. The entry stays after the producer disconnects.
+  message TracingV2ProducerStats {
+    optional uint32 producer_id = 1;
+    // Bytes per chunk: the ExperimentalTracingV2Config.chunk_size_options
+    // entry that the producer picked.
+    optional uint32 chunk_size_bytes = 2;
+    optional uint32 num_chunks = 3;
+  }
+  repeated TracingV2ProducerStats tracing_v2_producer_stats = 19;
 }

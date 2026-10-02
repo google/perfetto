@@ -178,6 +178,14 @@ struct TracingSession {
   // Outcome of the final Flush() done by FlushAndDisableTracing().
   protos::gen::TraceStats_FinalFlushOutcome final_flush_outcome{};
 
+  // The tracing v2 ring buffer layout of each producer that set up a data
+  // source in this session. See TraceStats.tracing_v2_producer_stats.
+  struct TracingV2ProducerLayout {
+    uint32_t chunk_size_bytes = 0;
+    uint32_t num_chunks = 0;
+  };
+  std::map<ProducerID, TracingV2ProducerLayout> tracing_v2_producers;
+
   // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().
   bool did_notify_all_data_source_started = false;
 

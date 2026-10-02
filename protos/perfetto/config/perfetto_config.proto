@@ -5032,14 +5032,28 @@ message DataSourceConfig {
     // Percent of instances that use v2. Range [0, 100], default 0. The
     // service rejects a larger value.
     optional uint32 use_v2_probability_percent = 1;
-    // Chunk size of the ring buffer in bytes, default 256. It must be in
-    // [256, 65536] and a multiple of 4. The service rejects other values.
-    // The first selected instance fixes it for the connection. The values of
-    // later instances are ignored.
-    // TODO(sashwinbalaji): the ring buffer is per connection, but this value
-    // is per instance. Move it to the producer level, or make the service
-    // reject a mismatch.
-    optional uint32 chunk_size_bytes = 2;
+    // Was chunk_size_bytes, a single size. See chunk_size_options.
+    reserved 2;
+
+    // One chunk size that the producer can pick for the ring buffer.
+    message ChunkSizeOption {
+      // Bytes per chunk. It must be in [256, 65536] and a multiple of 4. The
+      // service rejects other values.
+      optional uint32 size_bytes = 1;
+      // The chance of this option, relative to the others. Absent means 1.
+      // 0 means never.
+      optional uint32 weight = 2;
+    }
+    // The producer picks one option at random, by weight, when it creates
+    // the ring buffer. With no option, or all weights 0, it uses 256 bytes.
+    // TraceStats.tracing_v2_producer_stats records the size it picked.
+    //
+    // The first selected instance picks the size for the connection. The
+    // options of later instances are ignored.
+    // TODO(sashwinbalaji): the ring buffer is per connection, but these
+    // options are per instance. Move them to the producer level, or make the
+    // service reject a mismatch.
+    repeated ChunkSizeOption chunk_size_options = 4;
     // When a writer of this instance asks the service to read the ring
     // buffer. After each publication, the writer checks how many ring buffer
     // positions wait for the reader:

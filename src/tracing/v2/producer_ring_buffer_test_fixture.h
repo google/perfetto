@@ -126,7 +126,7 @@ class ProducerRingBufferTest : public ::testing::Test,
     config.set_supports_tracing_v2(true);
     auto* v2 = config.mutable_experimental_tracing_v2();
     v2->set_use_v2_probability_percent(probability_percent);
-    v2->set_chunk_size_bytes(kChunkSize);
+    v2->add_chunk_size_options()->set_size_bytes(kChunkSize);
     return config;
   }
 

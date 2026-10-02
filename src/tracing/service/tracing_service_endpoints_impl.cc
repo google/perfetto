@@ -845,6 +845,7 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
       std::move(memory), chunk_size_bytes, id_, client_identity_, this,
       weak_runner_.task_runner());
   service_->UpdateMemoryGuardrail();
+  service_->OnRingBufferAttached(this);
   DrainV2RingBuffer();
   callback(true);
 }

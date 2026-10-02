@@ -30,6 +30,31 @@
 
 namespace perfetto::tracing_v2 {
 
+uint32_t PickChunkSize(const std::vector<ChunkSizeOption>& options,
+                       uint64_t random) {
+  auto weight_of = [](const ChunkSizeOption& option) -> uint64_t {
+    if (!IsValidChunkSize(option.size_bytes()))
+      return 0;
+    return option.has_weight() ? option.weight() : 1;
+  };
+  // 64-bit, so that the sum of 32-bit weights cannot overflow.
+  uint64_t total_weight = 0;
+  for (const ChunkSizeOption& option : options)
+    total_weight += weight_of(option);
+  if (total_weight == 0)
+    return kMinChunkSize;
+  // Walk the options until the random point falls inside one.
+  uint64_t point = random % total_weight;
+  for (const ChunkSizeOption& option : options) {
+    const uint64_t weight = weight_of(option);
+    if (point < weight)
+      return option.size_bytes();
+    point -= weight;
+  }
+  PERFETTO_DCHECK(false);  // point < total_weight.
+  return kMinChunkSize;
+}
+
 ProducerRingBufferArbiter::ProducerRingBufferArbiter(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
@@ -89,11 +114,11 @@ void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(
     const DataSourceConfig& config,
     SharedMemoryArbiter* arbiter,
     size_t size_budget) {
-  // The service rejects an invalid chunk size, and maps at most kMaxShmSize.
+  // The service rejects invalid chunk sizes, and maps at most kMaxShmSize.
   const auto& experiment = config.experimental_tracing_v2();
-  const uint32_t chunk_size = experiment.has_chunk_size_bytes()
-                                  ? experiment.chunk_size_bytes()
-                                  : kMinChunkSize;
+  const uint32_t chunk_size =
+      PickChunkSize(experiment.chunk_size_options(),
+                    static_cast<uint64_t>(base::Uuidv4().lsb()));
   const std::optional<size_t> size = RingBufferSizeForBudget(
       std::min(size_budget ? size_budget : kDefaultSizeBudget,
                size_t{TracingService::kMaxShmSize}),

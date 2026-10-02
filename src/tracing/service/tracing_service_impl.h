@@ -181,6 +181,10 @@ class TracingServiceImpl : public TracingService {
   // sequence. Adds them to chunks_discarded.
   void OnRingBufferChunksDiscarded(uint64_t count);
 
+  // The endpoint accepted a ring buffer. Records its layout in the sessions
+  // that the producer writes into.
+  void OnRingBufferAttached(ProducerEndpointImpl*);
+
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
       uid_t) override;
@@ -299,6 +303,9 @@ class TracingServiceImpl : public TracingService {
                      ConsumerEndpoint::FlushCallback callback,
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
+  // Records the ring buffer layout of |producer| in |session|, if the
+  // producer has an accepted ring buffer.
+  void RecordTracingV2Producer(TracingSession*, const ProducerEndpointImpl&);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   // Returns nullptr if there is no buffer with this ID, or if |type| is set
   // and does not match the buffer type.

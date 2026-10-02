@@ -838,18 +838,17 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           "experimental_tracing_v2.use_v2_probability_percent must be at most "
           "100");
     }
-    if (tracing_v2_config.has_chunk_size_bytes() &&
-        !tracing_v2::IsValidChunkSize(tracing_v2_config.chunk_size_bytes())) {
-      return PERFETTO_SVC_ERR(
-          "experimental_tracing_v2.chunk_size_bytes %u is invalid: it must be "
-          "in [%u, %u] and a multiple of %u",
-          tracing_v2_config.chunk_size_bytes(), tracing_v2::kMinChunkSize,
-          tracing_v2::kMaxChunkSize, tracing_v2::kChunkAlignmentBytes);
-    }
     if (tracing_v2_config.drain_occupancy_percent() < -1 ||
         tracing_v2_config.drain_occupancy_percent() > 100) {
       return PERFETTO_SVC_ERR(
           "experimental_tracing_v2.drain_occupancy_percent must be -1 to 100");
+    }
+    for (const auto& option : tracing_v2_config.chunk_size_options()) {
+      if (!tracing_v2::IsValidChunkSize(option.size_bytes())) {
+        return PERFETTO_SVC_ERR(
+            "experimental_tracing_v2.chunk_size_options: invalid size %u",
+            option.size_bytes());
+      }
     }
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
@@ -3648,6 +3647,7 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
                                 /*provided_by_producer=*/false, shmem_mode);
   }
   producer->SetupDataSource(inst_id, ds_config);
+  RecordTracingV2Producer(tracing_session, *producer);
   return ds_instance;
 }
 
@@ -3846,6 +3846,29 @@ ProducerID TracingServiceImpl::GetNextProducerID() {
 void TracingServiceImpl::OnRingBufferChunksDiscarded(uint64_t count) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   chunks_discarded_ += count;
+}
+
+void TracingServiceImpl::OnRingBufferAttached(ProducerEndpointImpl* producer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (auto& [_, session] : tracing_sessions_)
+    RecordTracingV2Producer(&session, *producer);
+}
+
+void TracingServiceImpl::RecordTracingV2Producer(
+    TracingSession* session,
+    const ProducerEndpointImpl& producer) {
+  const auto* ring_buffer = producer.ring_buffer_drainer();
+  if (!ring_buffer)
+    return;
+  // Only sessions that the producer can write into.
+  const auto& buffers = session->buffers_index;
+  if (std::none_of(buffers.begin(), buffers.end(), [&](BufferID id) {
+        return producer.is_allowed_target_buffer(id);
+      })) {
+    return;
+  }
+  session->tracing_v2_producers[producer.id_] = {ring_buffer->chunk_size(),
+                                                 ring_buffer->num_chunks()};
 }
 
 TraceBuffer* TracingServiceImpl::GetBufferByID(
@@ -4163,6 +4186,13 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   trace_stats.set_flushes_succeeded(tracing_session->flushes_succeeded);
   trace_stats.set_flushes_failed(tracing_session->flushes_failed);
   trace_stats.set_final_flush_outcome(tracing_session->final_flush_outcome);
+  for (const auto& [producer_id, layout] :
+       tracing_session->tracing_v2_producers) {
+    auto* v2_stats = trace_stats.add_tracing_v2_producer_stats();
+    v2_stats->set_producer_id(producer_id);
+    v2_stats->set_chunk_size_bytes(layout.chunk_size_bytes);
+    v2_stats->set_num_chunks(layout.num_chunks);
+  }
 
   if (tracing_session->trace_filter) {
     auto* filt_stats = trace_stats.mutable_filter_stats();

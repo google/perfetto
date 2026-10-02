@@ -501,7 +501,9 @@ TEST_P(InstanceProtocolIntegrationTest, InstanceWriterUsesCommonProtocol) {
   source->set_name(descriptor.name());
   source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
       param.probability);
-  source->mutable_experimental_tracing_v2()->set_chunk_size_bytes(256);
+  source->mutable_experimental_tracing_v2()
+      ->add_chunk_size_options()
+      ->set_size_bytes(256);
   const std::string payload(2000, 'r');
   std::unique_ptr<TraceWriter> writer;
   DataSourceInstanceID instance = 0;
