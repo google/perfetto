@@ -16,7 +16,10 @@
 
 // Tests for ProducerRingBufferArbiter, the producer side of one tracing v2
 // ring buffer. They cover:
-// - Creation: the arbiter rejects a mapping with an invalid layout.
+// - Instance choice: v1 or v2 for each instance, from the protocol mask, the
+//   config and its probability.
+// - Ring buffer and attach: creation for the first v2 instance, final
+//   creation failures, and the attach replies.
 // - Writers: WriterIDs from the SMB arbiter, and NullTraceWriters after a
 //   disconnect.
 // - Drain requests: RequestDrain() merges requests into one task. On the
@@ -29,14 +32,10 @@
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
-#include <stdint.h>
-
-#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/v2/producer_ring_buffer_test.h"
 #include "test/gtest_and_gmock.h"
 
@@ -47,6 +46,11 @@ namespace test {
 // Gives tests access to the private state of ProducerRingBufferArbiter.
 class ProducerRingBufferArbiterTestPeer {
  public:
+  static ProducerRingBufferArbiter::ReaderState reader_state(
+      const ProducerRingBufferArbiter* arbiter) {
+    return arbiter->reader_state_.load();
+  }
+
   // Sets the merge flag of PostDrainTask() without posting the drain task.
   // This is the state of a writer that claimed the pending drain task but
   // did not post it yet. A test cannot stop a real writer in that window.
@@ -61,25 +65,167 @@ namespace {
 
 using ::testing::_;
 using DrainUrgency = ProducerRingBufferArbiter::DrainUrgency;
-using ProducerRingBufferArbiterTest = ProducerRingBufferTest;
+using ReaderState = ProducerRingBufferArbiter::ReaderState;
 
-// --- Creation ---
+class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
+ protected:
+  ReaderState reader_state() const {
+    return test::ProducerRingBufferArbiterTestPeer::reader_state(
+        arbiter_.get());
+  }
 
-TEST_F(ProducerRingBufferArbiterTest, CreateRejectsInvalidLayout) {
-  auto create = [&](std::unique_ptr<SharedMemory> memory, uint32_t chunk_size) {
-    return ProducerRingBufferArbiter::Create(&task_runner_, &endpoint_,
-                                             smb_arbiter_.get(),
-                                             std::move(memory), chunk_size);
-  };
-  EXPECT_FALSE(create(nullptr, kChunkSize));
-  // 4096 bytes minus the header is not a whole number of chunks.
-  EXPECT_FALSE(
-      create(std::make_unique<InProcessSharedMemory>(4096), kChunkSize));
-  // Three chunks is not a power of two.
-  EXPECT_FALSE(create(CreateRingBufferMemory(3), kChunkSize));
-  // Chunk size below the minimum.
-  EXPECT_FALSE(create(CreateRingBufferMemory(4), 8));
-  EXPECT_TRUE(create(CreateRingBufferMemory(4), kChunkSize));
+  // Writes one packet with |writer|, flushes, and returns true if the fake
+  // service read it from the ring buffer.
+  bool PacketReachesRingBuffer(TraceWriter* writer) {
+    WritePacket(writer, "probe");
+    writer->Flush();
+    task_runner_.RunUntilIdle();
+    const auto packets = ReadPackets();
+    return packets.size() == 1 &&
+           packets[0].packet.for_testing().str() == "probe";
+  }
+};
+
+// --- Choice of v1 or v2 per instance ---
+
+TEST_F(ProducerRingBufferArbiterTest, V1OnlyConnectionDoesNotSelectV2) {
+  protocol_abi_versions_ = kProtocolAbiV1;
+  // Even if the service permits v2 in the config, the common mask must too.
+  SetupInstance(kInstance, V2Config());
+  EXPECT_FALSE(CreateWriter());
+  EXPECT_EQ(num_allocations_, 0u);
+  EXPECT_EQ(num_attach_requests_, 0u);
+}
+
+TEST_F(ProducerRingBufferArbiterTest, V2OnlyConnectionCanSelectV2) {
+  protocol_abi_versions_ = kProtocolAbiV2;
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
+  auto writer = CreateWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_TRUE(PacketReachesRingBuffer(writer.get()));
+}
+
+TEST_F(ProducerRingBufferArbiterTest, InstanceUsesV1WithoutServiceSupport) {
+  DataSourceConfig config = V2Config();
+  config.set_supports_tracing_v2(false);
+  SetupInstance(kInstance, config);
+  EXPECT_FALSE(CreateWriter());
+  EXPECT_EQ(num_allocations_, 0u);
+  EXPECT_EQ(reader_state(), ReaderState::kNoRingBuffer);
+}
+
+TEST_F(ProducerRingBufferArbiterTest, InstanceUsesV1WithZeroProbability) {
+  SetupInstance(kInstance, V2Config(/*probability_percent=*/0));
+  EXPECT_FALSE(CreateWriter());
+  EXPECT_EQ(num_allocations_, 0u);
+}
+
+TEST_F(ProducerRingBufferArbiterTest, UnknownInstanceUsesV1) {
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
+  EXPECT_FALSE(CreateWriter(BufferExhaustedPolicy::kDrop, kInstance + 1));
+}
+
+TEST_F(ProducerRingBufferArbiterTest, StoppedInstanceUsesV1) {
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
+  arbiter_->OnInstanceStopped(kInstance);
+  EXPECT_FALSE(CreateWriter());
+}
+
+// --- The ring buffer and its attach request ---
+
+TEST_F(ProducerRingBufferArbiterTest, FirstV2InstanceAttachesRingBuffer) {
+  EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, kChunkSize, _));
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  EXPECT_EQ(num_allocations_, 1u);
+  EXPECT_EQ(service_memory_->size(), sizeof(RingBufferHeader) + BudgetFor(4));
+  EXPECT_FALSE(arbiter_->IsReaderAttached());
+
+  AttachReader();
+  EXPECT_EQ(reader_state(), ReaderState::kAttached);
+  EXPECT_TRUE(arbiter_->IsReaderAttached());
+
+  auto writer = CreateWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_NE(writer->writer_id(), 0u);
+  EXPECT_TRUE(PacketReachesRingBuffer(writer.get()));
+}
+
+TEST_F(ProducerRingBufferArbiterTest, InstancesShareOneRingBuffer) {
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
+  SetupInstance(kInstance + 1, V2Config());
+  EXPECT_EQ(num_allocations_, 1u);
+  EXPECT_EQ(num_attach_requests_, 1u);
+
+  auto writer = CreateWriter(BufferExhaustedPolicy::kDrop, kInstance + 1);
+  ASSERT_TRUE(writer);
+  EXPECT_TRUE(PacketReachesRingBuffer(writer.get()));
+}
+
+TEST_F(ProducerRingBufferArbiterTest, NoRingBufferIfNoLayoutFitsTheBudget) {
+  // The budget holds one chunk, below kMinChunksPerRing.
+  SetupInstance(kInstance, V2Config(), /*num_chunks=*/1);
+  EXPECT_EQ(num_allocations_, 0u);
+  EXPECT_EQ(reader_state(), ReaderState::kDetached);
+
+  auto writer = CreateWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_EQ(writer->writer_id(), 0u);
+}
+
+TEST_F(ProducerRingBufferArbiterTest, AllocationFailureIsFinal) {
+  fail_allocation_ = true;
+  SetupInstance(kInstance, V2Config());
+  EXPECT_EQ(num_allocations_, 1u);
+  EXPECT_EQ(num_attach_requests_, 0u);
+  EXPECT_EQ(reader_state(), ReaderState::kDetached);
+
+  // No v1 fallback for a v2 instance.
+  auto null_writer = CreateWriter();
+  ASSERT_TRUE(null_writer);
+  EXPECT_EQ(null_writer->writer_id(), 0u);
+
+  // A later v2 instance does not try again.
+  fail_allocation_ = false;
+  SetupInstance(kInstance + 1, V2Config());
+  EXPECT_EQ(num_allocations_, 1u);
+  auto later_writer = CreateWriter(BufferExhaustedPolicy::kDrop, kInstance + 1);
+  ASSERT_TRUE(later_writer);
+  EXPECT_EQ(later_writer->writer_id(), 0u);
+}
+
+TEST_F(ProducerRingBufferArbiterTest, RejectedAttachGivesNullTraceWriters) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  auto pending_writer = CreateWriter();
+  EXPECT_NE(pending_writer->writer_id(), 0u);
+
+  RejectAttach();
+  EXPECT_EQ(reader_state(), ReaderState::kDetached);
+  auto writer = CreateWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_EQ(writer->writer_id(), 0u);
+
+  // Existing writers keep the mapping.
+  // A later instance does not try again.
+  WritePacket(pending_writer.get(), "kept mapping");
+  SetupInstance(kInstance + 1, V2Config());
+  EXPECT_EQ(num_allocations_, 1u);
+  EXPECT_EQ(num_attach_requests_, 1u);
+}
+
+TEST_F(ProducerRingBufferArbiterTest, AttachReplyAfterDestructionIsIgnored) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  arbiter_.reset();
+  AttachReader();
+}
+
+TEST_F(ProducerRingBufferArbiterTest, DisconnectBeforeRingBufferIsFinal) {
+  arbiter_->Disconnect();
+  SetupInstance(kInstance, V2Config());
+  EXPECT_EQ(num_allocations_, 0u);
+  EXPECT_EQ(reader_state(), ReaderState::kDetached);
+  auto writer = CreateWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_EQ(writer->writer_id(), 0u);
 }
 
 // --- Writers ---
@@ -98,7 +244,7 @@ TEST_F(ProducerRingBufferArbiterTest, NullTraceWriterAfterDisconnect) {
 TEST_F(ProducerRingBufferArbiterTest, LateAttachReplyAfterDisconnectIsIgnored) {
   CreateRingBufferArbiter(/*num_chunks=*/4);
   arbiter_->Disconnect();
-  arbiter_->OnReaderAttached();
+  AttachReader();
   EXPECT_FALSE(arbiter_->IsReaderAttached());
   EXPECT_EQ(CreateWriter()->writer_id(), 0u);
 }

@@ -4923,7 +4923,7 @@ message TrackEventConfig {
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 148
+// Next id: 149
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5042,6 +5042,26 @@ message DataSourceConfig {
   // Not supported: a ProtoVM data source on the same buffer.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional bool supports_tracing_v2 = 147;
+
+  // Experimental.
+  // Lets the producer write this data source through the tracing v2 ring
+  // buffer, instead of the v1 shared memory buffer.
+  // - The producer decides once per instance, at setup.
+  // - Without a TRACE_BUFFER_V2 target buffer, or a producer that supports
+  //   v2, the instance uses v1.
+  // - The producer creates one ring buffer, for its first selected instance.
+  // - If the producer cannot create or attach the ring buffer, selected
+  //   instances discard their data and do not fall back to v1.
+  // - Data sources that do not support v2 keep writing through v1, also when
+  //   their instance is selected.
+  // - The service rejects a nonzero use_v2_probability_percent and a ProtoVM
+  //   data source on the same buffer.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2, from 0 (the default) to 100.
+    // The service rejects a larger value.
+    optional uint32 use_v2_probability_percent = 1;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];

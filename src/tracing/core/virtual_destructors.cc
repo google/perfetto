@@ -18,6 +18,7 @@
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 #include "protos/perfetto/common/tracing_service_state.gen.h"
@@ -51,5 +52,13 @@ void ProducerEndpoint::AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
 
 // Endpoints without tracing v2 support ignore drain requests.
 void ProducerEndpoint::DrainV2RingBuffer() {}
+
+// Endpoints without tracing v2 support create v1 writers only.
+std::unique_ptr<TraceWriter> ProducerEndpoint::CreateTraceWriter(
+    BufferID buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID) {
+  return CreateTraceWriter(buffer, policy);
+}
 
 }  // namespace perfetto

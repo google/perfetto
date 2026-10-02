@@ -30,6 +30,7 @@ source_set("v2") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../base",
     "../core",

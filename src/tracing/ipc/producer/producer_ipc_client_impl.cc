@@ -36,6 +36,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -49,6 +50,21 @@
 // the callbacks.
 
 namespace perfetto {
+
+namespace {
+
+// The AllocateV2RingBufferFn of |v2_ring_buffer_arbiter_|: a sealed memfd,
+// which the service maps on its side.
+std::shared_ptr<SharedMemory> AllocateIpcV2RingBuffer(size_t size) {
+#if PERFETTO_TRACING_V2_IPC()
+  return PosixSharedMemory::CreateV2RingBuffer(size);
+#else
+  base::ignore_result(size);
+  return nullptr;
+#endif
+}
+
+}  // namespace
 
 // static. (Declared in include/tracing/ipc/producer_ipc_client.h).
 std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
@@ -250,8 +266,9 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
-  protocol_abi_versions_ = 0;
   data_sources_setup_.clear();
+  if (v2_ring_buffer_arbiter_)
+    v2_ring_buffer_arbiter_->Disconnect();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
 
@@ -307,6 +324,13 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
     return;
   }
   protocol_abi_versions_ = versions;
+  // Writer threads read |v2_ring_buffer_arbiter_| without a lock, so create
+  // it here, before any data source exists, and never reset it.
+  if (HasNegotiatedV2Abi()) {
+    v2_ring_buffer_arbiter_ =
+        std::make_unique<tracing_v2::ProducerRingBufferArbiter>(
+            task_runner_, this, &AllocateIpcV2RingBuffer);
+  }
   is_shmem_provided_by_producer_ = response->using_shmem_provided_by_producer();
   direct_smb_patching_supported_ = response->direct_smb_patching_supported();
   // The tracing service may reject using shared memory and tell the client to
@@ -335,6 +359,12 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const auto& req = cmd.setup_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
     data_sources_setup_.insert(dsid);
+    // Pick the transport before the producer can create writers.
+    if (v2_ring_buffer_arbiter_) {
+      v2_ring_buffer_arbiter_->SetupInstance(dsid, req.config(),
+                                             protocol_abi_versions_,
+                                             shared_memory_size_hint_bytes_);
+    }
     producer_->SetupDataSource(dsid, req.config());
     return;
   }
@@ -622,6 +652,10 @@ void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
 
 void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // A data source can stop asynchronously and create writers until it reports
+  // the stop, so the arbiter forgets the instance only now.
+  if (v2_ring_buffer_arbiter_)
+    v2_ring_buffer_arbiter_->OnInstanceStopped(id);
   if (!connected_) {
     PERFETTO_DLOG(
         "Cannot NotifyDataSourceStopped(), not connected to tracing service");
@@ -671,8 +705,33 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferExhaustedPolicy buffer_exhausted_policy) {
   // This method can be called by different threads. |shared_memory_arbiter_| is
   // thread-safe but be aware of accessing any other state in this function.
+  // |protocol_abi_versions_| does not change after setup.
+  if (!(protocol_abi_versions_ & kProtocolAbiV1)) {
+    PERFETTO_ELOG(
+        "Cannot create a v1 trace writer: v1 is not in the common protocol "
+        "mask (%x)",
+        protocol_abi_versions_);
+    return std::make_unique<NullTraceWriter>();
+  }
   return shared_memory_arbiter_->CreateTraceWriter(target_buffer,
                                                    buffer_exhausted_policy);
+}
+
+std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
+    BufferID target_buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID id) {
+  // A v2 instance gets a ring buffer writer, or a NullTraceWriter if it
+  // cannot use the ring buffer.
+  // Any other instance gets the writer of the overload above: v1, or a
+  // NullTraceWriter if v1 is not in the common mask.
+  if (v2_ring_buffer_arbiter_) {
+    if (auto writer = v2_ring_buffer_arbiter_->MaybeCreateTraceWriter(
+            target_buffer, policy, id)) {
+      return writer;
+    }
+  }
+  return CreateTraceWriter(target_buffer, policy);
 }
 
 SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {

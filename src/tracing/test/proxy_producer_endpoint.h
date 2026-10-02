@@ -47,6 +47,9 @@ class ProxyProducerEndpoint : public ProducerEndpoint {
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;

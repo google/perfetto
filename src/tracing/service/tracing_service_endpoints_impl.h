@@ -37,6 +37,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 // This header contains the declarations for the 3 abtract classes
 // (ProducerEndpointImpl, ConsumerEndpointImpl, RelayEndpointImpl).
@@ -88,6 +89,9 @@ class ProducerEndpointImpl
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID,
       BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -186,6 +190,15 @@ class ProducerEndpointImpl
   // Bitmask of the common versions supplied to ConnectProducer(). Fixed for
   // the connection.
   const uint32_t protocol_abi_versions_;
+
+  // |v2_ring_buffer_arbiter_| owns the producer side of the ring buffer, and
+  // creates the ring buffer and the writers.
+  // - It exists only for an in-process producer with v2 in its common mask.
+  // - For an IPC producer, the arbiter lives in the producer process.
+  // - It attaches the ring buffer to this endpoint, so the drainer below uses
+  //   the same mapping.
+  std::unique_ptr<tracing_v2::ProducerRingBufferArbiter>
+      v2_ring_buffer_arbiter_;
 
   // |v2_ring_buffer_drainer_| owns the reader and keeps the ring buffer mapped.
   // The reader's destination checks use |allowed_target_buffers_|.
