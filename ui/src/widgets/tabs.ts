@@ -282,15 +282,8 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       this.activatedKeys.add(activeKey);
     }
 
-    return m(
-      '.pf-tabs',
-      {
-        className: classNames(
-          className,
-          variant === 'underline' && 'pf-tabs--underline',
-        ),
-      },
-      m(
+    const renderTabBar = () => {
+      return m(
         '.pf-tabs__tabs',
         tabs.map((tab, index) => {
           const isDragTarget = this.dropTargetKey === tab.key;
@@ -420,7 +413,18 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
             })),
         !isEmptyVnodes(rightContent) &&
           m('.pf-tabs__right-content', rightContent),
-      ),
+      );
+    };
+
+    return m(
+      '.pf-tabs',
+      {
+        className: classNames(
+          className,
+          variant === 'underline' && 'pf-tabs--underline',
+        ),
+      },
+      renderTabBar(),
       m(
         '.pf-tabs__content',
         tabs.map((tab) =>
