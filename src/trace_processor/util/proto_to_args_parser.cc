@@ -20,6 +20,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,6 +32,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -421,19 +423,188 @@ void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
   path_nodes_[node].flat_eligible = true;
 }
 
-bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
-                                          uint32_t descriptor_idx,
-                                          protozero::ConstBytes bytes,
+// Forwards every call to the wrapped delegate and records the ones a flat
+// message can produce. Any other call marks the recording unusable.
+class ProtoToArgsParser::FlatMemoRecorder : public ProtoToArgsParser::Delegate {
+ public:
+  FlatMemoRecorder(Delegate& inner, FlatMemoEntry* entry)
+      : inner_(inner), entry_(entry) {}
+  ~FlatMemoRecorder() override;
+
+  bool valid() const { return valid_; }
+
+  Id InternString(base::StringView str) override {
+    return inner_.InternString(str);
+  }
+  void AddInteger(Id flat_key, Id key, int64_t value) override {
+    inner_.AddInteger(flat_key, key, value);
+    Record(FlatMemoCall::Kind::kInt, flat_key, key).int_value = value;
+  }
+  void AddUnsignedInteger(Id flat_key, Id key, uint64_t value) override {
+    inner_.AddUnsignedInteger(flat_key, key, value);
+    Record(FlatMemoCall::Kind::kUint, flat_key, key).uint_value = value;
+  }
+  void AddString(Id flat_key,
+                 Id key,
+                 const protozero::ConstChars& value) override {
+    inner_.AddString(flat_key, key, value);
+    RecordBytes(FlatMemoCall::Kind::kString, flat_key, key, value.data,
+                value.size);
+  }
+  void AddString(Id flat_key, Id key, const std::string& value) override {
+    inner_.AddString(flat_key, key, value);
+    RecordBytes(FlatMemoCall::Kind::kString, flat_key, key, value.data(),
+                value.size());
+  }
+  void AddDouble(Id flat_key, Id key, double value) override {
+    inner_.AddDouble(flat_key, key, value);
+    Record(FlatMemoCall::Kind::kDouble, flat_key, key).double_value = value;
+  }
+  void AddPointer(Id flat_key, Id key, uint64_t value) override {
+    inner_.AddPointer(flat_key, key, value);
+    valid_ = false;
+  }
+  void AddBoolean(Id flat_key, Id key, bool value) override {
+    inner_.AddBoolean(flat_key, key, value);
+    Record(FlatMemoCall::Kind::kBool, flat_key, key).bool_value = value;
+  }
+  void AddUpid(Id flat_key, Id key, int64_t pid) override {
+    inner_.AddUpid(flat_key, key, pid);
+    valid_ = false;
+  }
+  void AddUtid(Id flat_key, Id key, int64_t tid) override {
+    inner_.AddUtid(flat_key, key, tid);
+    valid_ = false;
+  }
+  void AddBytes(Id flat_key,
+                Id key,
+                const protozero::ConstBytes& value) override {
+    inner_.AddBytes(flat_key, key, value);
+    RecordBytes(FlatMemoCall::Kind::kBytes, flat_key, key,
+                reinterpret_cast<const char*>(value.data), value.size);
+  }
+  bool AddJson(Id flat_key,
+               Id key,
+               const protozero::ConstChars& value) override {
+    valid_ = false;
+    return inner_.AddJson(flat_key, key, value);
+  }
+  void AddNull(Id flat_key, Id key) override {
+    inner_.AddNull(flat_key, key);
+    Record(FlatMemoCall::Kind::kNull, flat_key, key);
+  }
+  size_t GetArrayEntryIndex(const std::string& array_key) override {
+    valid_ = false;
+    return inner_.GetArrayEntryIndex(array_key);
+  }
+  size_t IncrementArrayEntryIndex(const std::string& array_key) override {
+    valid_ = false;
+    return inner_.IncrementArrayEntryIndex(array_key);
+  }
+  PacketSequenceStateGeneration* seq_state() override {
+    return inner_.seq_state();
+  }
+  int64_t packet_timestamp() override { return inner_.packet_timestamp(); }
+  bool ShouldAddDefaultArg(const Key& key) override {
+    return inner_.ShouldAddDefaultArg(key);
+  }
+
+ protected:
+  InternedMessageView* GetInternedMessageView(uint32_t, uint64_t) override {
+    // Unreachable: the protected accessor is only used through the base
+    // class template, which flat parsing never invokes.
+    valid_ = false;
+    return nullptr;
+  }
+
+ private:
+  FlatMemoCall& Record(FlatMemoCall::Kind kind, Id flat_key, Id key) {
+    entry_->calls.emplace_back();
+    FlatMemoCall& call = entry_->calls.back();
+    call.kind = kind;
+    call.flat_key = flat_key;
+    call.key = key;
+    call.str_offset = 0;
+    call.str_size = 0;
+    return call;
+  }
+  void RecordBytes(FlatMemoCall::Kind kind,
+                   Id flat_key,
+                   Id key,
+                   const char* data,
+                   size_t size) {
+    FlatMemoCall& call = Record(kind, flat_key, key);
+    call.str_offset = static_cast<uint32_t>(entry_->strings.size());
+    call.str_size = static_cast<uint32_t>(size);
+    entry_->strings.append(data, size);
+  }
+
+  Delegate& inner_;
+  FlatMemoEntry* entry_;
+  bool valid_ = true;
+};
+
+ProtoToArgsParser::FlatMemoRecorder::~FlatMemoRecorder() = default;
+
+ProtoToArgsParser::FlatMemoEntry* ProtoToArgsParser::FlatMemoSlotFor(
+    uint32_t node,
+    protozero::ConstBytes bytes,
+    uint64_t* out_hash) {
+  if (bytes.size > kFlatMemoMaxBytes) {
+    return nullptr;
+  }
+  if (flat_memo_.empty()) {
+    flat_memo_.resize(kFlatMemoSlots);
+  }
+  uint64_t hash = base::MurmurHashCombine(
+      node, std::string_view(reinterpret_cast<const char*>(bytes.data),
+                             bytes.size));
+  FlatMemoEntry* entry = &flat_memo_[hash & (kFlatMemoSlots - 1)];
+  *out_hash = hash;
+  return entry;
+}
+
+void ProtoToArgsParser::ReplayFlatMessage(const FlatMemoEntry& entry,
                                           Delegate& delegate) {
-  if (node == kNoPath || add_defaults_ || path_nodes_[node].has_array) {
-    return false;
+  if (unknown_extensions_) {
+    *unknown_extensions_ += entry.unknown_fields;
   }
-  if (path_nodes_[node].flat_generation != pool_.generation()) {
-    PrepareFlatMessage(node, descriptor_idx);
+  for (const FlatMemoCall& call : entry.calls) {
+    const char* str = entry.strings.data() + call.str_offset;
+    switch (call.kind) {
+      case FlatMemoCall::Kind::kInt:
+        delegate.AddInteger(call.flat_key, call.key, call.int_value);
+        break;
+      case FlatMemoCall::Kind::kUint:
+        delegate.AddUnsignedInteger(call.flat_key, call.key, call.uint_value);
+        break;
+      case FlatMemoCall::Kind::kDouble:
+        delegate.AddDouble(call.flat_key, call.key, call.double_value);
+        break;
+      case FlatMemoCall::Kind::kBool:
+        delegate.AddBoolean(call.flat_key, call.key, call.bool_value);
+        break;
+      case FlatMemoCall::Kind::kString:
+        delegate.AddString(call.flat_key, call.key,
+                           protozero::ConstChars{str, call.str_size});
+        break;
+      case FlatMemoCall::Kind::kBytes:
+        delegate.AddBytes(
+            call.flat_key, call.key,
+            protozero::ConstBytes{reinterpret_cast<const uint8_t*>(str),
+                                  call.str_size});
+        break;
+      case FlatMemoCall::Kind::kNull:
+        delegate.AddNull(call.flat_key, call.key);
+        break;
+    }
   }
-  if (!path_nodes_[node].flat_eligible) {
-    return false;
-  }
+}
+
+void ProtoToArgsParser::RunFlatMessage(uint32_t node,
+                                       protozero::ConstBytes bytes,
+                                       Delegate& delegate,
+                                       uint32_t* unknown_fields) {
   const auto& fields = path_nodes_[node].flat_fields;
   protozero::ProtoDecoder decoder(bytes);
   bool empty = true;
@@ -442,9 +613,7 @@ bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
     empty = false;
     auto* cached = fields.Find(field.id());
     if (!cached) {
-      if (unknown_extensions_) {
-        ++*unknown_extensions_;
-      }
+      ++*unknown_fields;
       continue;
     }
     key_prefix_.flat_key_id = cached->key;
@@ -461,6 +630,54 @@ bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
     } else {
       delegate.AddNull(key, key);
     }
+  }
+}
+
+bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
+                                          uint32_t descriptor_idx,
+                                          protozero::ConstBytes bytes,
+                                          Delegate& delegate) {
+  if (node == kNoPath || add_defaults_ || path_nodes_[node].has_array) {
+    return false;
+  }
+  if (path_nodes_[node].flat_generation != pool_.generation()) {
+    PrepareFlatMessage(node, descriptor_idx);
+  }
+  if (!path_nodes_[node].flat_eligible) {
+    return false;
+  }
+  uint64_t hash = 0;
+  FlatMemoEntry* memo = FlatMemoSlotFor(node, bytes, &hash);
+  if (!memo) {
+    uint32_t unknown_fields = 0;
+    RunFlatMessage(node, bytes, delegate, &unknown_fields);
+    if (unknown_extensions_) {
+      *unknown_extensions_ += unknown_fields;
+    }
+    return true;
+  }
+  const uint32_t generation = pool_.generation();
+  if (memo->hash == hash && memo->node == node &&
+      memo->generation == generation && memo->bytes.size() == bytes.size &&
+      memcmp(memo->bytes.data(), bytes.data, bytes.size) == 0) {
+    ReplayFlatMessage(*memo, delegate);
+    return true;
+  }
+  memo->hash = hash;
+  memo->node = node;
+  memo->generation = generation;
+  memo->unknown_fields = 0;
+  memo->bytes.assign(reinterpret_cast<const char*>(bytes.data), bytes.size);
+  memo->strings.clear();
+  memo->calls.clear();
+  FlatMemoRecorder recorder(delegate, memo);
+  RunFlatMessage(node, bytes, recorder, &memo->unknown_fields);
+  if (unknown_extensions_) {
+    *unknown_extensions_ += memo->unknown_fields;
+  }
+  if (!recorder.valid()) {
+    // Leave the slot unable to match: the recorded calls are incomplete.
+    memo->node = kNoPath;
   }
   return true;
 }
