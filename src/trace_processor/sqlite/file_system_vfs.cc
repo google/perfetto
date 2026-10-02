@@ -102,7 +102,7 @@ int Truncate(sqlite3_file* sqlite_file, sqlite3_int64 size) {
     return SQLITE_IOERR_TRUNCATE;
   }
   base::Status status =
-      ToOpenFile(sqlite_file)->file->Truncate(static_cast<uint64_t>(size));
+      ToOpenFile(sqlite_file)->file->SetSize(static_cast<uint64_t>(size));
   return status.ok() ? SQLITE_OK : SQLITE_IOERR_TRUNCATE;
 }
 

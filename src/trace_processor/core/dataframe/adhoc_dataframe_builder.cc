@@ -75,13 +75,13 @@ AdhocDataframeBuilder::AdhocDataframeBuilder(std::vector<std::string> names,
     if (!options.types.empty()) {
       switch (options.types[i]) {
         case ColumnType::kInt64:
-          state.storage = Storage{core::FlexVector<int64_t>()};
+          state.storage = Storage{Storage::Int64()};
           break;
         case ColumnType::kDouble:
-          state.storage = Storage{core::FlexVector<double>()};
+          state.storage = Storage{Storage::Double()};
           break;
         case ColumnType::kString:
-          state.storage = Storage{core::FlexVector<StringPool::Id>()};
+          state.storage = Storage{Storage::String()};
           break;
       }
     }
@@ -137,7 +137,7 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
     if (!state.storage) {
       non_null_row_count = 0;
       columns.emplace_back(std::make_shared<Column>(Column{
-          Storage{core::FlexVector<uint32_t>()},
+          Storage{Storage::Uint32()},
           CreateNullStorageFromBitvector(std::move(state.null_overlay),
                                          state.nullability_type),
           Unsorted{},
@@ -266,7 +266,7 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
 }
 
 Storage AdhocDataframeBuilder::CreateIntegerStorage(
-    core::FlexVector<int64_t> data,
+    ColumnVector<int64_t> data,
     const IntegerColumnSummary& summary) {
   // TODO(lalitm): `!summary.is_nullable` is an unnecesarily strong condition
   // but we impose it as query planning assumes that id columns never have an
@@ -354,7 +354,7 @@ SpecializedStorage AdhocDataframeBuilder::GetSpecializedStorage(
 }
 
 SpecializedStorage::SmallValueEq AdhocDataframeBuilder::BuildSmallValueEq(
-    const core::FlexVector<uint32_t>& data) {
+    const ColumnVector<uint32_t>& data) {
   SpecializedStorage::SmallValueEq offset_bv{
       core::BitVector::CreateWithSize(data.empty() ? 0 : data.back() + 1,
                                       false),

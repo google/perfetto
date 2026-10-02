@@ -592,6 +592,24 @@ class Dataframe {
     static constexpr bool is_sparse_null_supporting_get_until_finalization =
         std::is_same_v<N, SparseNullWithPopcountUntilFinalization>;
     const auto& storage = col.storage.unchecked_get<T>();
+    if constexpr (is_sparse_null_supporting_get_always ||
+                  is_sparse_null_supporting_get_until_finalization) {
+      // Arrow imports retain nullable fixed-width values in their native dense
+      // layout. Preserve the generated sparse typed API for explicit C++
+      // callers while using the runtime physical layout to locate the value.
+      if (col.null_storage.nullability().Is<DenseNull>()) {
+        using Ret = decltype(GetCellUncheckedFromStorage(storage, {}));
+        const auto& dense = col.null_storage.unchecked_get<DenseNull>();
+        if (dense.bit_vector.is_set(row)) {
+          auto result = GetCellUncheckedFromStorage(storage, row);
+          if constexpr (std::is_same_v<T, String>) {
+            PERFETTO_DCHECK(!result.is_null());
+          }
+          return std::make_optional(result);
+        }
+        return static_cast<std::optional<Ret>>(std::nullopt);
+      }
+    }
     const auto& nulls = col.null_storage.unchecked_get<N>();
     // See kStringNullLegacy above.
     if constexpr (std::is_same_v<N, NonNull>) {
