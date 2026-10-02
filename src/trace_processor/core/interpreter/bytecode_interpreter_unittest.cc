@@ -2280,10 +2280,10 @@ TEST_F(BytecodeInterpreterTest, FinalizeRanksInMap_Simple) {
   StringPool::Id banana_id = spool_.InternString("banana");
   StringPool::Id cherry_id = spool_.InternString("cherry");
 
-  auto map = std::make_unique<base::FlatHashMap<StringPool::Id, uint32_t>>();
-  map->Insert(banana_id, 0);
-  map->Insert(cherry_id, 0);
-  map->Insert(apple_id, 0);
+  auto map = std::make_unique<StringRanks>();
+  map->Add(banana_id);
+  map->Add(cherry_id);
+  map->Add(apple_id);
 
   std::string bytecode_str =
       "FinalizeRanksInMap: [update_register=Register(0)]";

@@ -64,7 +64,7 @@ ANDROID_TRACK_EVENT_PROCESS_TABLE = Table(
           cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
     tabledoc=TableDoc(
-        doc='Per-process lifecycle from Android framework TrackEvents.',
+        doc='Per-process lifecycle from Android framework TrackEvents and trace-start dumps.',
         group='Android',
         columns={
             'upid':

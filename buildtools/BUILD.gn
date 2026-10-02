@@ -1385,7 +1385,7 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:rtti_cflags",
-      "//gn/standalone:c++17",
+      "//gn/standalone:cxx_standard",
     ]
     configs += [
       ":libc++config",
@@ -1506,7 +1506,7 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:rtti_cflags",
-      "//gn/standalone:c++17",
+      "//gn/standalone:cxx_standard",
     ]
     if ((is_android || is_mac) && !custom_libcxx_is_static) {
       # Use libc++_perfetto to avoid conflicting with system libc++

@@ -32,10 +32,12 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
+#include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/config/trace_config.gen.h"
+#include "protos/perfetto/ipc/producer_port.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -44,6 +46,23 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
+namespace test {
+
+class ProducerIPCClientTestPeer {
+ public:
+  static void ScheduleDisconnect(ProducerIPCClientImpl* client) {
+    client->ScheduleDisconnect();
+  }
+
+  static void OnServiceRequest(
+      ProducerIPCClientImpl* client,
+      const protos::gen::GetAsyncCommandResponse& cmd) {
+    client->OnServiceRequest(cmd);
+  }
+};
+
+}  // namespace test
+
 namespace {
 
 using testing::_;
@@ -176,14 +195,16 @@ class TracingIntegrationTest : public ::testing::Test {
 
     auto on_producer_disconnect =
         task_runner_->CreateCheckpoint("on_producer_disconnect");
-    EXPECT_CALL(producer_, OnDisconnect()).WillOnce(on_producer_disconnect);
+    if (producer_endpoint_)
+      EXPECT_CALL(producer_, OnDisconnect()).WillOnce(on_producer_disconnect);
 
     auto on_consumer_disconnect =
         task_runner_->CreateCheckpoint("on_consumer_disconnect");
     EXPECT_CALL(consumer_, OnDisconnect()).WillOnce(on_consumer_disconnect);
 
     svc_.reset();
-    task_runner_->RunUntilCheckpoint("on_producer_disconnect");
+    if (producer_endpoint_)
+      task_runner_->RunUntilCheckpoint("on_producer_disconnect");
     task_runner_->RunUntilCheckpoint("on_consumer_disconnect");
 
     ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&producer_));
@@ -205,6 +226,108 @@ class TracingIntegrationTest : public ::testing::Test {
   std::unique_ptr<TracingService::ConsumerEndpoint> consumer_endpoint_;
   MockConsumer consumer_;
 };
+
+// A protocol error in an IPC handler drops the connection in two steps. The
+// producer must get OnDisconnect(), and calls between the two steps must not
+// use the dropped port.
+TEST_F(TracingIntegrationTest, ScheduledDisconnectCompletes) {
+  auto* client = static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+
+  test::ProducerIPCClientTestPeer::ScheduleDisconnect(client);
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("perfetto.test");
+  producer_endpoint_->RegisterDataSource(descriptor);
+  producer_endpoint_->UpdateDataSource(descriptor);
+  producer_endpoint_->NotifyDataSourceStarted(1);
+
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  task_runner_->RunUntilIdle();
+  EXPECT_EQ(client->GetClientForTesting(), nullptr);
+  producer_endpoint_.reset();
+}
+
+TEST_F(TracingIntegrationTest, DisconnectCompletesScheduledDisconnect) {
+  auto* client = static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
+  bool disconnected = false;
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce([&] { disconnected = true; });
+
+  test::ProducerIPCClientTestPeer::ScheduleDisconnect(client);
+  EXPECT_FALSE(disconnected);
+  producer_endpoint_->Disconnect();
+  EXPECT_TRUE(disconnected);
+  EXPECT_EQ(client->GetClientForTesting(), nullptr);
+
+  producer_endpoint_->Disconnect();
+  task_runner_->RunUntilIdle();
+  producer_endpoint_.reset();
+}
+
+TEST_F(TracingIntegrationTest, ScheduledDisconnectRejectsPendingSync) {
+  auto* client = static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+
+  bool sync_called = false;
+  producer_endpoint_->Sync([&] {
+    sync_called = true;
+    producer_endpoint_->NotifyDataSourceStarted(1);
+  });
+  EXPECT_FALSE(sync_called);
+
+  // Destroying the proxy rejects Sync() before the task runner resumes.
+  test::ProducerIPCClientTestPeer::ScheduleDisconnect(client);
+  EXPECT_TRUE(sync_called);
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
+
+TEST_F(TracingIntegrationTest, DisconnectRejectsPendingSync) {
+  EXPECT_CALL(producer_, OnDisconnect()).Times(1);
+  bool sync_called = false;
+  producer_endpoint_->Sync([&] {
+    sync_called = true;
+    producer_endpoint_->NotifyDataSourceStarted(1);
+  });
+  EXPECT_FALSE(sync_called);
+
+  producer_endpoint_->Disconnect();
+  EXPECT_TRUE(sync_called);
+  task_runner_->RunUntilIdle();
+  producer_endpoint_.reset();
+}
+
+TEST_F(TracingIntegrationTest, DestroyEndpointWithScheduledDisconnect) {
+  EXPECT_CALL(producer_, OnDisconnect()).Times(0);
+  test::ProducerIPCClientTestPeer::ScheduleDisconnect(
+      static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get()));
+  producer_endpoint_.reset();
+  task_runner_->RunUntilIdle();
+}
+
+TEST_F(TracingIntegrationTest, SetupTracingWithoutSmbDisconnects) {
+  auto* client = static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
+  ASSERT_EQ(client->shared_memory(), nullptr);
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnTracingSetup()).Times(0);
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce([&] {
+    EXPECT_EQ(client->GetClientForTesting(), nullptr);
+    producer_endpoint_.reset();
+    disconnected();
+  });
+
+  protos::gen::GetAsyncCommandResponse cmd;
+  cmd.mutable_setup_tracing()->set_shared_buffer_page_size_kb(4);
+  test::ProducerIPCClientTestPeer::OnServiceRequest(client, cmd);
+
+  // The handler must return before the disconnect destroys the endpoint.
+  ASSERT_TRUE(producer_endpoint_);
+  EXPECT_NE(client->GetClientForTesting(), nullptr);
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  task_runner_->RunUntilIdle();
+  EXPECT_FALSE(producer_endpoint_);
+}
 
 TEST_F(TracingIntegrationTest, WithIPCTransport) {
   // Start tracing.

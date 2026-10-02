@@ -5713,18 +5713,20 @@ class KernelWakelockData(_message.Message):
 class PackagesList(_message.Message):
     __slots__ = ("packages", "parse_error", "read_error")
     class PackageInfo(_message.Message):
-        __slots__ = ("name", "uid", "debuggable", "profileable_from_shell", "version_code")
+        __slots__ = ("name", "uid", "debuggable", "profileable_from_shell", "version_code", "profileable")
         NAME_FIELD_NUMBER: _ClassVar[int]
         UID_FIELD_NUMBER: _ClassVar[int]
         DEBUGGABLE_FIELD_NUMBER: _ClassVar[int]
         PROFILEABLE_FROM_SHELL_FIELD_NUMBER: _ClassVar[int]
         VERSION_CODE_FIELD_NUMBER: _ClassVar[int]
+        PROFILEABLE_FIELD_NUMBER: _ClassVar[int]
         name: str
         uid: int
         debuggable: bool
         profileable_from_shell: bool
         version_code: int
-        def __init__(self, name: _Optional[str] = ..., uid: _Optional[int] = ..., debuggable: bool = ..., profileable_from_shell: bool = ..., version_code: _Optional[int] = ...) -> None: ...
+        profileable: bool
+        def __init__(self, name: _Optional[str] = ..., uid: _Optional[int] = ..., debuggable: bool = ..., profileable_from_shell: bool = ..., version_code: _Optional[int] = ..., profileable: bool = ...) -> None: ...
     PACKAGES_FIELD_NUMBER: _ClassVar[int]
     PARSE_ERROR_FIELD_NUMBER: _ClassVar[int]
     READ_ERROR_FIELD_NUMBER: _ClassVar[int]

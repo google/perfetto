@@ -9143,8 +9143,26 @@ TEST_F(TracingServiceImplTest, ProtoVmWithSessionClone) {
   consumer2->CloneSession(1);
   producer->ExpectFlush(writer.get());
   task_runner.RunUntilCheckpoint("clone_done");
-  ExpectProtoVmPackets(consumer2->ReadBuffers(), {"patch1"},
+  std::vector<protos::gen::TracePacket> cloned_packets =
+      consumer2->ReadBuffers();
+  ExpectProtoVmPackets(cloned_packets, {"patch1"},
                        {"patch2", "patch3", "patch4"});
+
+  // TraceProcessor needs the provenance to route patches to the cloned VM.
+  auto provenance = std::find_if(cloned_packets.cbegin(), cloned_packets.cend(),
+                                 [](const protos::gen::TracePacket& p) {
+                                   return p.has_trace_provenance();
+                                 });
+  ASSERT_NE(provenance, cloned_packets.cend());
+  EXPECT_THAT(
+      provenance->trace_provenance().buffers(),
+      ElementsAre(Property(
+          &protos::gen::TraceProvenance::Buffer::sequences,
+          ElementsAre(AllOf(
+              Property(&protos::gen::TraceProvenance::Sequence::id,
+                       Not(Eq(0u))),
+              Property(&protos::gen::TraceProvenance::Sequence::producer_id,
+                       Not(Eq(0))))))));
 
   // Write more patches into the original session and trigger overwrite of
   // patch2

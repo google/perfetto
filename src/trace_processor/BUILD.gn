@@ -446,6 +446,7 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":top_level_unittests",
     "containers:unittests",
+    "core/common:unittests",
     "core/dataframe:unittests",
     "core/exec:unittests",
     "core/interpreter:unittests",
@@ -473,7 +474,6 @@ perfetto_unittest_source_set("unittests") {
     deps += [
       "../perfetto_sql/analysis:unittests",
       "perfetto_sql/engine:unittests",
-      "perfetto_sql/exec:unittests",
       "perfetto_sql/parser:unittests",
       "perfetto_sql/pipeline:unittests",
       "perfetto_sql/tokenizer:unittests",
