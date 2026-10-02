@@ -83,6 +83,8 @@ export interface TabsAttrs {
   // flat text tabs with a primary underline on the active tab, matching the
   // look of the (deprecated) TabStrip component.
   readonly variant?: 'card' | 'underline';
+  // When true, hides the tab bar and renders only the active tab's content.
+  readonly hideTabBar?: boolean;
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -271,6 +273,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       newTabContent,
       rightContent,
       variant = 'card',
+      hideTabBar,
       className,
     } = attrs;
 
@@ -424,7 +427,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
           variant === 'underline' && 'pf-tabs--underline',
         ),
       },
-      renderTabBar(),
+      !hideTabBar && renderTabBar(),
       m(
         '.pf-tabs__content',
         tabs.map((tab) =>
