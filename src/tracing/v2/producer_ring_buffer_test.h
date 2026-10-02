@@ -1,0 +1,225 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_TRACING_V2_PRODUCER_RING_BUFFER_TEST_H_
+#define SRC_TRACING_V2_PRODUCER_RING_BUFFER_TEST_H_
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/ext/tracing/core/client_identity.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/protozero/field.h"
+#include "src/base/test/test_task_runner.h"
+#include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/service/trace_buffer_v2.h"
+#include "src/tracing/test/mock_producer_endpoint.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
+#include "src/tracing/v2/shared_ring_buffer.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
+#include "src/tracing/v2/shared_ring_buffer_reader.h"
+#include "test/gtest_and_gmock.h"
+
+#include "protos/perfetto/trace/test_event.gen.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
+namespace perfetto::tracing_v2 {
+
+// Base fixture for the tests of the tracing v2 producer side. It runs a real
+// producer against a fake service, on one thread.
+//
+// Used by:
+// - ProducerRingBufferArbiterTest, in producer_ring_buffer_arbiter_unittest.cc.
+// - TraceWriterV2ImplTest, in trace_writer_v2_impl_unittest.cc.
+//
+// The producer side is the code under test:
+// - CreateRingBufferArbiter() creates a ProducerRingBufferArbiter on a new
+//   ring buffer.
+// - CreateWriter() creates a TraceWriterV2Impl from that arbiter.
+//
+// The fake service side reads back what the writers published:
+// - |endpoint_| is a mock ProducerEndpoint. Its DrainV2RingBuffer() calls
+//   Drain(), but only after AttachReader(), as the service does after it
+//   accepts the ring buffer.
+// - Drain() reads the ring buffer with a SharedRingBufferReader, through its
+//   own view of the mapping. This fixture is that reader's delegate.
+//   OnChunkRead() and OnDataLoss() copy the chunks into |trace_buffer_|, as
+//   the service does.
+// - ReadPackets() reads the packets back from |trace_buffer_|.
+//
+// Posted tasks, such as drain requests, run only when a test calls
+// task_runner_.RunUntilIdle(). So each test controls when the service reads.
+class ProducerRingBufferTest : public ::testing::Test,
+                               public SharedRingBufferReader::Delegate {
+ protected:
+  static constexpr uint32_t kChunkSize = 256;
+  static constexpr BufferID kTargetBuffer = 7;
+  static constexpr ProducerID kProducerId = 1;
+  static constexpr size_t kSmbPageSize = 4096;
+  static constexpr size_t kSmbSize = 4 * kSmbPageSize;
+
+  // A packet read back from the trace buffer.
+  struct ReadPacket {
+    protos::gen::TracePacket packet;
+    // Nonzero if data was lost before this packet on its sequence.
+    uint32_t previous_dropped = 0;
+  };
+
+  void SetUp() override {
+    using ::testing::_;
+    ON_CALL(endpoint_, CommitData(_, _))
+        .WillByDefault([](const CommitDataRequest&,
+                          ProducerEndpoint::CommitDataCallback callback) {
+          if (callback)
+            callback();
+        });
+    // Like the service, drain only after the reader is attached.
+    ON_CALL(endpoint_, DrainV2RingBuffer()).WillByDefault([this] {
+      ++num_drain_requests_;
+      if (service_reader_attached_)
+        Drain();
+    });
+    smb_arbiter_ = SharedMemoryArbiter::CreateInstance(
+        &smb_, kSmbPageSize, SharedMemoryABI::ShmemMode::kDefault, &endpoint_,
+        &task_runner_);
+  }
+
+  void TearDown() override {
+    // The reader view borrows the mapping that the ring buffer arbiter owns.
+    reader_.reset();
+    reader_ring_buffer_.reset();
+    arbiter_.reset();
+  }
+
+  static std::unique_ptr<SharedMemory> CreateRingBufferMemory(
+      uint32_t num_chunks) {
+    return std::make_unique<InProcessSharedMemory>(sizeof(RingBufferHeader) +
+                                                   num_chunks * kChunkSize);
+  }
+
+  // Creates the ring buffer arbiter with a ring buffer of |num_chunks|
+  // chunks. It starts in kPending.
+  void CreateRingBufferArbiter(uint32_t num_chunks) {
+    auto memory = CreateRingBufferMemory(num_chunks);
+    // As the service does, the reader uses its own view of the mapping.
+    reader_ring_buffer_ = std::make_unique<SharedRingBuffer>(
+        static_cast<uint8_t*>(memory->start()), memory->size(), kChunkSize);
+    arbiter_ = ProducerRingBufferArbiter::Create(&task_runner_, &endpoint_,
+                                                 smb_arbiter_.get(),
+                                                 std::move(memory), kChunkSize);
+    ASSERT_TRUE(arbiter_);
+    reader_ = std::make_unique<SharedRingBufferReader>(
+        reader_ring_buffer_.get(), this);
+  }
+
+  void CreateRingBufferArbiterWithReader(uint32_t num_chunks) {
+    CreateRingBufferArbiter(num_chunks);
+    AttachReader();
+  }
+
+  // Acts like the service accepting the ring buffer.
+  void AttachReader() {
+    service_reader_attached_ = true;
+    arbiter_->OnReaderAttached();
+  }
+
+  std::unique_ptr<TraceWriter> CreateWriter(
+      BufferExhaustedPolicy policy = BufferExhaustedPolicy::kDrop) {
+    return arbiter_->CreateTraceWriter(kTargetBuffer, policy);
+  }
+
+  static void WritePacket(TraceWriter* writer, const std::string& str) {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str(str);
+  }
+
+  // Reads all published chunks into the trace buffer, as the service does.
+  void Drain() {
+    for (;;) {
+      const auto result = reader_->Drain(/*max_positions=*/64);
+      if (result.positions_consumed == 0)
+        return;
+    }
+  }
+
+  // Returns the test packets in the trace buffer. Reads consume them.
+  std::vector<ReadPacket> ReadPackets() {
+    std::vector<ReadPacket> result;
+    trace_buffer_->BeginRead();
+    for (;;) {
+      TracePacket packet;
+      TraceBuffer::PacketSequenceProperties sequence{};
+      uint32_t previous_dropped = 0;
+      if (!trace_buffer_->ReadNextTracePacket(&packet, &sequence,
+                                              &previous_dropped)) {
+        return result;
+      }
+      ReadPacket read;
+      EXPECT_TRUE(read.packet.ParseFromString(packet.GetRawBytesForTesting()));
+      read.previous_dropped = previous_dropped;
+      if (read.packet.has_for_testing())
+        result.push_back(std::move(read));
+    }
+  }
+
+  // SharedRingBufferReader::Delegate:
+  // The fake service's reader calls these during Drain().
+  void OnChunkRead(
+      const SharedRingBufferReader::ChunkContents& chunk) override {
+    std::vector<protozero::ConstBytes> fragments;
+    for (uint32_t i = 0; i < chunk.num_fragments; ++i)
+      fragments.push_back({chunk.fragments[i].data, chunk.fragments[i].size});
+    const TraceBuffer::PacketSequenceProperties sequence{
+        kProducerId, ClientIdentity(/*uid=*/0, /*pid=*/0), chunk.writer_id};
+    EXPECT_EQ(chunk.target_buffer, kTargetBuffer);
+    trace_buffer_->CopyChunkV2Untrusted(
+        sequence, fragments.data(), fragments.size(),
+        chunk.payload_flags & kFlagContinuesFromPrevChunk,
+        chunk.payload_flags & kFlagContinuesOnNextChunk);
+  }
+
+  void OnDataLoss(WriterID writer_id) override {
+    trace_buffer_->RecordChunkV2DataLoss(kProducerId, writer_id);
+  }
+
+  base::TestTaskRunner task_runner_;
+  ::testing::NiceMock<MockProducerEndpoint> endpoint_;
+  InProcessSharedMemory smb_{kSmbSize};
+  std::unique_ptr<SharedMemoryArbiter> smb_arbiter_;
+  std::unique_ptr<ProducerRingBufferArbiter> arbiter_;
+
+  // The fake service side.
+  std::unique_ptr<TraceBufferV2> trace_buffer_ =
+      TraceBufferV2::Create(64 * 1024);
+  std::unique_ptr<SharedRingBuffer> reader_ring_buffer_;
+  std::unique_ptr<SharedRingBufferReader> reader_;
+  bool service_reader_attached_ = false;
+
+  uint32_t num_drain_requests_ = 0;
+};
+
+}  // namespace perfetto::tracing_v2
+
+#endif  // SRC_TRACING_V2_PRODUCER_RING_BUFFER_TEST_H_

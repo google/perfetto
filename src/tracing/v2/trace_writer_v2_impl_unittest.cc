@@ -14,204 +14,30 @@
  * limitations under the License.
  */
 
-// Tests TraceWriterV2Impl and ProducerRingBufferArbiter together.
-// - A mock endpoint plays the service. Its DrainV2RingBuffer() reads the ring
-//   buffer into a TraceBufferV2, as the service does.
-// - Packets are read back from TBv2 and parsed as ordinary TracePackets.
+// Tests for TraceWriterV2Impl, the TraceWriter that writes packets into the
+// tracing v2 ring buffer. They cover what this class adds on top of
+// SharedRingBufferWriter:
+// - proto group encoding, also for packets that cross chunks,
+// - closing and publishing packets, also on Flush(),
+// - drop mode, loss reports and the drop_count() and written() counters,
+// - publishing the last chunk before the WriterID is released.
 
 #include "src/tracing/v2/trace_writer_v2_impl.h"
 
-#include <stdint.h>
-
-#include <memory>
+#include <cstdint>
 #include <string>
-#include <vector>
 
-#include "perfetto/ext/tracing/core/client_identity.h"
-#include "perfetto/ext/tracing/core/shared_memory_abi.h"
-#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
-#include "perfetto/ext/tracing/core/trace_packet.h"
-#include "perfetto/protozero/field.h"
-#include "src/base/test/test_task_runner.h"
-#include "src/tracing/core/in_process_shared_memory.h"
-#include "src/tracing/service/trace_buffer_v2.h"
-#include "src/tracing/test/mock_producer_endpoint.h"
-#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
-#include "src/tracing/v2/shared_ring_buffer.h"
-#include "src/tracing/v2/shared_ring_buffer_abi.h"
-#include "src/tracing/v2/shared_ring_buffer_reader.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
+#include "src/tracing/v2/producer_ring_buffer_test.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/test_event.gen.h"
-#include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::tracing_v2 {
-
-namespace test {
-
-// Reaches the merge flag of a ProducerRingBufferArbiter.
-class ProducerRingBufferArbiterTestPeer {
- public:
-  // Acts like a writer that set the merge flag in PostDrainTask() but did
-  // not post its drain task yet.
-  static void SetDrainTaskPending(ProducerRingBufferArbiter* arbiter) {
-    arbiter->drain_task_pending_.store(1);
-  }
-};
-
-}  // namespace test
-
 namespace {
 
-using ::testing::_;
-using ::testing::NiceMock;
-
-constexpr uint32_t kChunkSize = 256;
-constexpr BufferID kTargetBuffer = 7;
-constexpr ProducerID kProducerId = 1;
-constexpr size_t kSmbPageSize = 4096;
-constexpr size_t kSmbSize = 4 * kSmbPageSize;
-
-// A packet read back from the trace buffer.
-struct ReadPacket {
-  protos::gen::TracePacket packet;
-  // Nonzero if data was lost before this packet on its sequence.
-  uint32_t previous_dropped = 0;
-};
-
-class TraceWriterV2ImplTest : public ::testing::Test,
-                              public SharedRingBufferReader::Delegate {
- protected:
-  void SetUp() override {
-    ON_CALL(endpoint_, CommitData(_, _))
-        .WillByDefault([](const CommitDataRequest&,
-                          ProducerEndpoint::CommitDataCallback callback) {
-          if (callback)
-            callback();
-        });
-    // Like the service, drain only after the reader is attached.
-    ON_CALL(endpoint_, DrainV2RingBuffer()).WillByDefault([this] {
-      ++num_drain_requests_;
-      if (service_reader_attached_)
-        Drain();
-    });
-    smb_arbiter_ = SharedMemoryArbiter::CreateInstance(
-        &smb_, kSmbPageSize, SharedMemoryABI::ShmemMode::kDefault, &endpoint_,
-        &task_runner_);
-  }
-
-  void TearDown() override {
-    // The reader view borrows the mapping that the ring buffer arbiter owns.
-    reader_.reset();
-    reader_ring_buffer_.reset();
-    ring_buffer_arbiter_.reset();
-  }
-
-  static std::unique_ptr<SharedMemory> CreateRingBufferMemory(
-      uint32_t num_chunks) {
-    return std::make_unique<InProcessSharedMemory>(sizeof(RingBufferHeader) +
-                                                   num_chunks * kChunkSize);
-  }
-
-  // Creates the ring buffer arbiter with a ring buffer of |num_chunks|
-  // chunks. It starts in kPending.
-  void CreateRingBufferArbiter(uint32_t num_chunks) {
-    auto memory = CreateRingBufferMemory(num_chunks);
-    // As the service does, the reader uses its own view of the mapping.
-    reader_ring_buffer_ = std::make_unique<SharedRingBuffer>(
-        static_cast<uint8_t*>(memory->start()), memory->size(), kChunkSize);
-    ring_buffer_arbiter_ = ProducerRingBufferArbiter::Create(
-        &task_runner_, &endpoint_, smb_arbiter_.get(), std::move(memory),
-        kChunkSize);
-    ASSERT_TRUE(ring_buffer_arbiter_);
-    reader_ = std::make_unique<SharedRingBufferReader>(
-        reader_ring_buffer_.get(), this);
-  }
-
-  void CreateRingBufferArbiterWithReader(uint32_t num_chunks) {
-    CreateRingBufferArbiter(num_chunks);
-    AttachReader();
-  }
-
-  // Acts like the service accepting the ring buffer.
-  void AttachReader() {
-    service_reader_attached_ = true;
-    ring_buffer_arbiter_->OnReaderAttached();
-  }
-
-  std::unique_ptr<TraceWriter> CreateWriter(
-      BufferExhaustedPolicy policy = BufferExhaustedPolicy::kDrop) {
-    return ring_buffer_arbiter_->CreateTraceWriter(kTargetBuffer, policy);
-  }
-
-  static void WritePacket(TraceWriter* writer, const std::string& str) {
-    auto packet = writer->NewTracePacket();
-    packet->set_for_testing()->set_str(str);
-  }
-
-  // Reads all published chunks into the trace buffer, as the service does.
-  void Drain() {
-    for (;;) {
-      const auto result = reader_->Drain(/*max_positions=*/64);
-      if (result.positions_consumed == 0)
-        return;
-    }
-  }
-
-  // Returns the test packets in the trace buffer. Reads consume them.
-  std::vector<ReadPacket> ReadPackets() {
-    std::vector<ReadPacket> result;
-    trace_buffer_->BeginRead();
-    for (;;) {
-      TracePacket packet;
-      TraceBuffer::PacketSequenceProperties sequence{};
-      uint32_t previous_dropped = 0;
-      if (!trace_buffer_->ReadNextTracePacket(&packet, &sequence,
-                                              &previous_dropped)) {
-        return result;
-      }
-      ReadPacket read;
-      EXPECT_TRUE(read.packet.ParseFromString(packet.GetRawBytesForTesting()));
-      read.previous_dropped = previous_dropped;
-      if (read.packet.has_for_testing())
-        result.push_back(std::move(read));
-    }
-  }
-
-  // SharedRingBufferReader::Delegate:
-  void OnChunkRead(
-      const SharedRingBufferReader::ChunkContents& chunk) override {
-    std::vector<protozero::ConstBytes> fragments;
-    for (uint32_t i = 0; i < chunk.num_fragments; ++i)
-      fragments.push_back({chunk.fragments[i].data, chunk.fragments[i].size});
-    const TraceBuffer::PacketSequenceProperties sequence{
-        kProducerId, ClientIdentity(/*uid=*/0, /*pid=*/0), chunk.writer_id};
-    EXPECT_EQ(chunk.target_buffer, kTargetBuffer);
-    trace_buffer_->CopyChunkV2Untrusted(
-        sequence, fragments.data(), fragments.size(),
-        chunk.payload_flags & kFlagContinuesFromPrevChunk,
-        chunk.payload_flags & kFlagContinuesOnNextChunk);
-  }
-
-  void OnDataLoss(WriterID writer_id) override {
-    trace_buffer_->RecordChunkV2DataLoss(kProducerId, writer_id);
-  }
-
-  base::TestTaskRunner task_runner_;
-  NiceMock<MockProducerEndpoint> endpoint_;
-  InProcessSharedMemory smb_{kSmbSize};
-  std::unique_ptr<SharedMemoryArbiter> smb_arbiter_;
-  std::unique_ptr<TraceBufferV2> trace_buffer_ =
-      TraceBufferV2::Create(64 * 1024);
-  std::unique_ptr<ProducerRingBufferArbiter> ring_buffer_arbiter_;
-  std::unique_ptr<SharedRingBuffer> reader_ring_buffer_;
-  std::unique_ptr<SharedRingBufferReader> reader_;
-
-  bool service_reader_attached_ = false;
-  uint32_t num_drain_requests_ = 0;
-};
+using TraceWriterV2ImplTest = ProducerRingBufferTest;
 
 // --- Packet encoding ---
 
@@ -237,6 +63,85 @@ TEST_F(TraceWriterV2ImplTest, PacketsRoundTripThroughTraceBuffer) {
   EXPECT_EQ(packets[1].packet.for_testing().str(), large);
   EXPECT_FALSE(packets[1].packet.first_packet_on_sequence());
   EXPECT_EQ(packets[1].previous_dropped, 0u);
+}
+
+// --- Packet closing ---
+
+// A caller can finalize the message without the handle. The last fragment
+// then stays open. NewTracePacket() and Flush() must publish it.
+TEST_F(TraceWriterV2ImplTest, NextPacketOrFlushPublishesFinalizedPacket) {
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
+  auto writer = CreateWriter();
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str("closed by next packet");
+    packet->Finalize();
+  }
+  WritePacket(writer.get(), "next");
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str("closed by flush");
+    packet->Finalize();
+  }
+  writer->Flush();
+  task_runner_.RunUntilIdle();
+
+  // The writer is still alive, so its destructor did not publish the data.
+  const auto packets = ReadPackets();
+  ASSERT_EQ(packets.size(), 3u);
+  EXPECT_EQ(packets[0].packet.for_testing().str(), "closed by next packet");
+  EXPECT_EQ(packets[1].packet.for_testing().str(), "next");
+  EXPECT_EQ(packets[2].packet.for_testing().str(), "closed by flush");
+}
+
+// A raw stream caller writes without the message and then calls
+// FinishTracePacket(). That call must publish the bytes, also across chunks.
+TEST_F(TraceWriterV2ImplTest, FinishTracePacketPublishesRawStreamPacket) {
+  CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
+  // 600 bytes need three 256-byte chunks.
+  const std::string large(600, 'r');
+  protos::gen::TracePacket raw_packet;
+  raw_packet.mutable_for_testing()->set_str(large);
+  const std::string raw_bytes = raw_packet.SerializeAsString();
+
+  auto writer = CreateWriter();
+  {
+    auto packet = writer->NewTracePacket();
+    protozero::ScatteredStreamWriter* stream = packet.TakeStreamWriter();
+    stream->WriteBytes(reinterpret_cast<const uint8_t*>(raw_bytes.data()),
+                       raw_bytes.size());
+  }
+  writer->FinishTracePacket();
+  writer->Flush();
+  task_runner_.RunUntilIdle();
+
+  const auto packets = ReadPackets();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].packet.for_testing().str(), large);
+  EXPECT_EQ(writer->drop_count(), 0u);
+}
+
+// --- Flush ---
+
+// Flush() releases the cached chunk. The next packet must use a new
+// reservation, so a later flush can deliver it.
+TEST_F(TraceWriterV2ImplTest, FlushReleasesCachedChunk) {
+  // Without a reader, nothing moves the positions.
+  CreateRingBufferArbiter(/*num_chunks=*/8);
+  auto writer = CreateWriter();
+  WritePacket(writer.get(), "a");
+  WritePacket(writer.get(), "b");
+  EXPECT_EQ(reader_ring_buffer_->LoadWritePosRelaxed(), 1u);
+
+  writer->Flush();
+  task_runner_.RunUntilIdle();
+  WritePacket(writer.get(), "c");
+  EXPECT_EQ(reader_ring_buffer_->LoadWritePosRelaxed(), 2u);
+
+  writer.reset();
+  AttachReader();
+  Drain();
+  EXPECT_EQ(ReadPackets().size(), 3u);
 }
 
 // --- Buffer exhaustion ---
@@ -268,52 +173,56 @@ TEST_F(TraceWriterV2ImplTest, DropWhenFullThenReportLoss) {
   EXPECT_NE(packets[0].previous_dropped, 0u);
 }
 
-TEST_F(TraceWriterV2ImplTest, StalledWriterDrainsOnEndpointThread) {
-  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
-  auto writer = CreateWriter(BufferExhaustedPolicy::kStall);
+// --- Counters ---
 
-  // No task runs here. The writer runs on the endpoint thread, so each wait
-  // for space sends the drain request at once, through
-  // NotifyReader(kWriterStalled).
-  const std::string payload(200, 's');
-  for (int i = 0; i < 12; ++i)
+// Consecutive dropped packets count as one drop, as in TraceWriterImpl.
+// A new drop after a packet that fits counts again.
+TEST_F(TraceWriterV2ImplTest, DropCountCountsEachLossOnce) {
+  // Without a reader, kDrop does not wait and nothing frees space.
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  auto writer = CreateWriter(BufferExhaustedPolicy::kDrop);
+  // Each 200-byte packet needs its own chunk.
+  const std::string payload(200, 'd');
+  for (int i = 0; i < 4; ++i)
     WritePacket(writer.get(), payload);
   EXPECT_EQ(writer->drop_count(), 0u);
-  EXPECT_GT(num_drain_requests_, 0u);
-  writer.reset();
-  task_runner_.RunUntilIdle();
 
-  EXPECT_EQ(ReadPackets().size(), 12u);
-}
-
-TEST_F(TraceWriterV2ImplTest, WriterDoesNotWaitBeforeReaderAttached) {
-  CreateRingBufferArbiter(/*num_chunks=*/4);
-  auto writer = CreateWriter(BufferExhaustedPolicy::kStall);
-  const std::string payload(200, 'o');
-  for (int i = 0; i < 8 && writer->drop_count() == 0; ++i)
+  // The first packet loses its tail. The next two packets get no chunk.
+  for (int i = 0; i < 3; ++i)
     WritePacket(writer.get(), payload);
-  EXPECT_GT(writer->drop_count(), 0u);
-  EXPECT_EQ(num_drain_requests_, 0u);
+  EXPECT_EQ(writer->drop_count(), 1u);
+
+  // Free the ring buffer. The next packet fits and ends the drop.
+  AttachReader();
+  Drain();
+  WritePacket(writer.get(), "fits");
+  EXPECT_EQ(writer->drop_count(), 1u);
+
+  for (int i = 0; i < 8 && writer->drop_count() == 1; ++i)
+    WritePacket(writer.get(), payload);
+  EXPECT_EQ(writer->drop_count(), 2u);
 }
 
-// --- Writer creation and WriterID lifetime ---
-
-TEST_F(TraceWriterV2ImplTest, NullTraceWriterAfterDisconnect) {
-  CreateRingBufferArbiter(/*num_chunks=*/4);
-  ring_buffer_arbiter_->Disconnect();
-  auto disconnected_writer = CreateWriter();
-  ASSERT_TRUE(disconnected_writer);
-  EXPECT_EQ(disconnected_writer->writer_id(), 0u);
-  WritePacket(disconnected_writer.get(), "discarded");
-}
-
-TEST_F(TraceWriterV2ImplTest, NoWriterIdAfterSmbArbiterShutdown) {
-  CreateRingBufferArbiter(/*num_chunks=*/4);
-  ASSERT_TRUE(smb_arbiter_->TryShutdown());
+// written() counts the packet bytes in all fragments. It does not count
+// chunk headers or size entries.
+TEST_F(TraceWriterV2ImplTest, WrittenCountsPacketBytes) {
+  CreateRingBufferArbiter(/*num_chunks=*/8);
   auto writer = CreateWriter();
-  ASSERT_TRUE(writer);
-  EXPECT_EQ(writer->writer_id(), 0u);
+  WritePacket(writer.get(), "first");
+  const uint64_t written_before = writer->written();
+
+  // Finalize() returns the size of the packet. The packet crosses chunks.
+  uint32_t packet_size = 0;
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str(std::string(600, 'w'));
+    packet_size = packet->Finalize();
+  }
+  EXPECT_GT(packet_size, 600u);
+  EXPECT_EQ(writer->written() - written_before, packet_size);
 }
+
+// --- Destruction ---
 
 TEST_F(TraceWriterV2ImplTest, DestructionPublishesThenReleasesWriterId) {
   CreateRingBufferArbiter(/*num_chunks=*/4);
@@ -333,125 +242,6 @@ TEST_F(TraceWriterV2ImplTest, DestructionPublishesThenReleasesWriterId) {
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 1u);
   EXPECT_EQ(packets[0].packet.for_testing().str(), "last");
-}
-
-// --- Reader notifications and flush ---
-
-// Publications below the threshold stay buffered. Once it is reached,
-// further notifications share the pending drain task.
-TEST_F(TraceWriterV2ImplTest, DrainRequestsAreCoalescedAtOccupancyThreshold) {
-  CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
-  auto writer = CreateWriter();
-  // Two of these packets do not fit one 256-byte chunk.
-  const std::string large(200, 'x');
-
-  WritePacket(writer.get(), large);
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(num_drain_requests_, 0u);  // 1 of 8 positions waits.
-
-  WritePacket(writer.get(), large);  // 2 of 8: asks for a drain.
-  WritePacket(writer.get(), large);  // Merged into the pending task.
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(num_drain_requests_, 1u);
-  EXPECT_EQ(ReadPackets().size(), 3u);
-}
-
-TEST_F(TraceWriterV2ImplTest, FlushRunsCallbackAfterDrainRequest) {
-  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
-  auto writer = CreateWriter();
-  WritePacket(writer.get(), "flushed");
-
-  // No ack: the callback does not wait for CommitData.
-  EXPECT_CALL(endpoint_, CommitData(_, _)).Times(0);
-  std::vector<ReadPacket> packets_at_callback;
-  bool flushed = false;
-  writer->Flush([&] {
-    flushed = true;
-    packets_at_callback = ReadPackets();
-  });
-  EXPECT_FALSE(flushed);
-  task_runner_.RunUntilIdle();
-  EXPECT_TRUE(flushed);
-  // The test endpoint drains when it gets the request. So the data is in the
-  // trace buffer when the callback runs.
-  ASSERT_EQ(packets_at_callback.size(), 1u);
-  EXPECT_EQ(packets_at_callback[0].packet.for_testing().str(), "flushed");
-}
-
-// A writer set the merge flag but did not post its drain task yet. The flush
-// must still send a drain request before its callback runs.
-TEST_F(TraceWriterV2ImplTest, FlushDrainsWhileAnotherDrainIsNotPosted) {
-  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
-  test::ProducerRingBufferArbiterTestPeer::SetDrainTaskPending(
-      ring_buffer_arbiter_.get());
-  auto writer = CreateWriter();
-  WritePacket(writer.get(), "flushed");
-
-  std::vector<ReadPacket> packets_at_callback;
-  writer->Flush([&] { packets_at_callback = ReadPackets(); });
-  task_runner_.RunUntilIdle();
-  ASSERT_EQ(packets_at_callback.size(), 1u);
-  EXPECT_EQ(packets_at_callback[0].packet.for_testing().str(), "flushed");
-}
-
-// Drain requests do not depend on the reader state. Before the reader
-// attaches, the service ignores them. The data stays in the ring buffer.
-TEST_F(TraceWriterV2ImplTest, FlushBeforeReaderAttachedKeepsData) {
-  // With 8 chunks, one packet does not reach the drain threshold.
-  CreateRingBufferArbiter(/*num_chunks=*/8);
-  auto writer = CreateWriter();
-  WritePacket(writer.get(), "p");
-  bool flushed = false;
-  writer->Flush([&] { flushed = true; });
-  task_runner_.RunUntilIdle();
-  EXPECT_TRUE(flushed);
-  EXPECT_EQ(num_drain_requests_, 1u);
-  EXPECT_EQ(ReadPackets().size(), 0u);
-
-  AttachReader();
-  writer->Flush();
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(ReadPackets().size(), 1u);
-}
-
-TEST_F(TraceWriterV2ImplTest, FlushAfterDisconnectRunsCallback) {
-  CreateRingBufferArbiter(/*num_chunks=*/4);
-  auto writer = CreateWriter();
-  ring_buffer_arbiter_->Disconnect();
-  bool flushed = false;
-  writer->Flush([&] { flushed = true; });
-  task_runner_.RunUntilIdle();
-  EXPECT_TRUE(flushed);
-}
-
-TEST_F(TraceWriterV2ImplTest, FlushRunsIfArbiterIsDestroyedFirst) {
-  CreateRingBufferArbiter(/*num_chunks=*/4);
-  bool flushed = false;
-  ring_buffer_arbiter_->Flush([&] { flushed = true; });
-  reader_.reset();
-  reader_ring_buffer_.reset();
-  ring_buffer_arbiter_.reset();
-  task_runner_.RunUntilIdle();
-  EXPECT_TRUE(flushed);
-}
-
-// --- Creation ---
-
-TEST_F(TraceWriterV2ImplTest, CreateRejectsInvalidLayout) {
-  auto create = [&](std::unique_ptr<SharedMemory> memory, uint32_t chunk_size) {
-    return ProducerRingBufferArbiter::Create(&task_runner_, &endpoint_,
-                                             smb_arbiter_.get(),
-                                             std::move(memory), chunk_size);
-  };
-  EXPECT_FALSE(create(nullptr, kChunkSize));
-  // 4096 bytes minus the header is not a whole number of chunks.
-  EXPECT_FALSE(
-      create(std::make_unique<InProcessSharedMemory>(4096), kChunkSize));
-  // Three chunks is not a power of two.
-  EXPECT_FALSE(create(CreateRingBufferMemory(3), kChunkSize));
-  // Chunk size below the minimum.
-  EXPECT_FALSE(create(CreateRingBufferMemory(4), 8));
-  EXPECT_TRUE(create(CreateRingBufferMemory(4), kChunkSize));
 }
 
 }  // namespace
