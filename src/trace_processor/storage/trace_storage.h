@@ -392,6 +392,16 @@ class TraceStorage {
     return mutable_table<tables::AndroidInputEventDispatchTable>();
   }
 
+  const tables::AndroidJobSchedulerPendingReasonsTrackEventTable&
+  android_job_scheduler_pending_reasons_track_event_table() const {
+    return table<tables::AndroidJobSchedulerPendingReasonsTrackEventTable>();
+  }
+  tables::AndroidJobSchedulerPendingReasonsTrackEventTable*
+  mutable_android_job_scheduler_pending_reasons_track_event_table() {
+    return mutable_table<
+        tables::AndroidJobSchedulerPendingReasonsTrackEventTable>();
+  }
+
   const tables::AndroidJobSchedulerTrackEventTable&
   android_job_scheduler_track_event_table() const {
     return table<tables::AndroidJobSchedulerTrackEventTable>();
