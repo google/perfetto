@@ -12,58 +12,150 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-tab-strip {
+@use "../assets/theme" as *;
+
+.pf-tab-bar {
   display: flex;
   align-items: baseline;
+  background-color: var(--pf-color-background-secondary);
+  box-shadow: inset var(--pf-color-border) 0px -1px 0px 0px;
+  padding-inline: 3px;
+  overflow: hidden; // Don't let the tab shadow spill out onto the content
 
   &__tabs {
     display: flex;
-    overflow: hidden;
+    align-items: baseline;
     flex: 1;
+    min-width: 0;
+  }
+
+  &__left {
+    display: flex;
+    align-items: baseline;
+  }
+
+  &__right {
+    margin-left: auto;
+    display: flex;
+    align-items: baseline;
   }
 
   &__tab {
-    color: var(--pf-color-text-muted);
-    padding: 4px;
-    margin-top: 3px;
-    align-items: center;
-    cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     display: flex;
     align-items: baseline;
     gap: 2px;
+    font-family: var(--pf-font-compact);
+    padding: 5px;
+    margin-top: 2px;
+    cursor: pointer;
+    // TabBarLink renders an <a>: don't look like a text link.
+    text-decoration: none;
+
+    border-radius: 3px 3px 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-style: solid;
+    border-color: var(--pf-color-border-secondary);
+    border-width: 1px 1px 0 1px;
+    color: var(--pf-color-text-muted);
+
+    // Merge the borders of adjacent tabs.
+    & + & {
+      margin-left: -1px;
+    }
 
     &:hover {
-      background-color: color_hover(transparent);
+      background: color_hover(transparent);
+      color: var(--pf-color-text);
     }
 
-    &[active] {
-      color: var(--pf-color-primary);
-      border-bottom: solid 2px var(--pf-color-primary);
+    &-icon {
+      align-self: center;
+    }
+
+    &-title {
+      margin: 0px 4px;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    &--active {
       cursor: default;
+      background-color: var(--pf-color-background);
+      border-color: var(--pf-color-border);
+      box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
+      color: var(--pf-color-text);
+      z-index: 1;
+
+      // Don't change background on hover for active tab
+      &:hover {
+        background-color: var(--pf-color-background);
+      }
     }
 
-    &:nth-child(1) {
-      margin-left: 3px;
+    // Matches Button's disabled look.
+    &--disabled {
+      filter: opacity(50%);
+      cursor: not-allowed;
+
+      &:hover {
+        background: transparent;
+        color: var(--pf-color-text-muted);
+      }
+    }
+
+    // Menu button: only shown while the tab is hovered or the menu is open.
+    &-menu-btn {
+      visibility: hidden;
+
+      &.pf-active {
+        visibility: visible;
+      }
+    }
+
+    &:hover &-menu-btn {
+      visibility: visible;
+    }
+
+    &-rename-input {
+      border: none;
+      outline: none;
+      background: transparent;
+      font: inherit;
+      color: inherit;
+      padding: 0;
+      margin: 0 4px;
+      width: 100%;
     }
   }
 
-  &__tab-title {
-    margin: 0px 4px;
-    overflow: hidden;
-  }
+  // The 'underline' variant: flat text tabs on a transparent bar with a
+  // primary underline on the active tab.
+  &--underline {
+    background-color: transparent;
+    border-bottom: none;
+    padding-inline: 0;
 
-  &__tab-icon {
-    &--left {
-      margin-right: 4px;
-      align-self: center;
-    }
+    .pf-tab-bar__tab {
+      margin-top: 0;
+      margin-bottom: 0;
+      margin-left: 0;
+      padding: 5px 10px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
 
-    &--right {
-      margin-left: 4px;
-      align-self: center;
+      &--active {
+        background-color: transparent;
+        border-bottom-color: var(--pf-color-primary);
+        box-shadow: none;
+        color: var(--pf-color-primary);
+
+        &:hover {
+          background-color: color_hover(transparent);
+        }
+      }
     }
   }
 }

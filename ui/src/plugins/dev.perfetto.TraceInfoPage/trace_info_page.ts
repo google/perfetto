@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {Trace} from '../../public/trace';
-import {TabStrip, type TabOption} from '../../widgets/tab_strip';
+import {TabStrip, TabStripTab} from '../../widgets/tab_strip';
 import {EmptyState} from '../../widgets/empty_state';
 import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';
@@ -114,13 +114,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
             'High-level summary of trace health, metrics, and system information',
           ),
         ),
-        m(TabStrip, {
-          tabs: this.getTabs(),
-          currentTabKey: this.currentTab,
-          onTabChange: (key: string) => {
-            this.currentTab = isValidTabKey(key) ? key : 'overview';
-          },
-        }),
+        m(TabStrip, {variant: 'underline'}, this.getTabs()),
         this.renderCurrentTab(attrs.trace, this.currentTab),
       ),
     );
@@ -215,43 +209,40 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     m.redraw();
   }
 
-  private getTabs(): TabOption[] {
-    const tabs: TabOption[] = [{key: 'overview', title: 'Overview'}];
-    if ((this.tabData?.config?.configs?.length ?? 0) > 0) {
-      tabs.push({key: 'config', title: 'Trace Config'});
-    }
-    if ((this.tabData?.overview?.importErrors ?? 0) > 0) {
-      tabs.push({key: 'import_errors', title: 'Import Errors'});
-    }
-    if ((this.tabData?.traceErrors?.errors?.length ?? 0) > 0) {
-      tabs.push({key: 'trace_errors', title: 'Trace Errors'});
-    }
-    if ((this.tabData?.diagnostics?.length ?? 0) > 0) {
-      tabs.push({key: 'trace_doctor', title: 'Trace Doctor'});
-    }
-    if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
-      tabs.push({key: 'data_losses', title: 'Data Losses'});
-    }
-    if ((this.tabData?.notices?.categories?.length ?? 0) > 0) {
-      tabs.push({key: 'notices', title: 'Notices'});
-    }
-    if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
-      tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
-    }
-    if (hasAndroidData(this.tabData?.android)) {
-      tabs.push({key: 'android', title: 'Android'});
-    }
-    if ((this.tabData?.overview?.traceCount ?? 0) > 1) {
-      tabs.push({key: 'traces', title: 'Traces'});
-    }
-    if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
-      tabs.push({key: 'machines', title: 'Machines'});
-    }
-    if (hasMetadataData(this.tabData?.metadata)) {
-      tabs.push({key: 'metadata', title: 'Metadata'});
-    }
-    tabs.push({key: 'stats', title: 'Statistics'});
-    return tabs;
+  private getTabs(): m.Children {
+    const propsForTab = (key: TabKey) => {
+      return {
+        active: this.currentTab === key,
+        onclick: () => (this.currentTab = key),
+      };
+    };
+
+    return [
+      m(TabStripTab, propsForTab('overview'), 'Overview'),
+      (this.tabData?.config?.configs?.length ?? 0) > 0 &&
+        m(TabStripTab, propsForTab('config'), 'Trace Config'),
+      (this.tabData?.overview?.importErrors ?? 0) > 0 &&
+        m(TabStripTab, propsForTab('import_errors'), 'Import Errors'),
+      (this.tabData?.traceErrors?.errors?.length ?? 0) > 0 &&
+        m(TabStripTab, propsForTab('trace_errors'), 'Trace Errors'),
+      (this.tabData?.diagnostics?.length ?? 0) > 0 &&
+        m(TabStripTab, propsForTab('trace_doctor'), 'Trace Doctor'),
+      (this.tabData?.overview?.dataLosses ?? 0) > 0 &&
+        m(TabStripTab, propsForTab('data_losses'), 'Data Losses'),
+      (this.tabData?.notices?.categories?.length ?? 0) > 0 &&
+        m(TabStripTab, propsForTab('notices'), 'Notices'),
+      (this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0 &&
+        m(TabStripTab, propsForTab('ui_loading_errors'), 'UI Loading Errors'),
+      hasAndroidData(this.tabData?.android) &&
+        m(TabStripTab, propsForTab('android'), 'Android'),
+      (this.tabData?.overview?.traceCount ?? 0) > 1 &&
+        m(TabStripTab, propsForTab('traces'), 'Traces'),
+      (this.tabData?.machines?.machineCount ?? 0) > 1 &&
+        m(TabStripTab, propsForTab('machines'), 'Machines'),
+      hasMetadataData(this.tabData?.metadata) &&
+        m(TabStripTab, propsForTab('metadata'), 'Metadata'),
+      m(TabStripTab, propsForTab('stats'), 'Statistics'),
+    ];
   }
 }
 
