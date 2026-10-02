@@ -450,6 +450,8 @@ base::Status Compiler::CompileStage(uint32_t stage) {
       return CompileSet(stage);
     case SYNTAQLITE_NODE_PERFETTO_PIPE_AS:
       return CompileAs(stage);
+    case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FLATTEN:
+      return Unsupported(stage, "INTERVAL FLATTEN");
     default:
       PERFETTO_FATAL("Unknown pipeline stage");
   }
@@ -653,12 +655,11 @@ base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {
   ASSIGN_OR_RETURN(acc.parent_column, Resolve("parent_id", stage));
 
   std::vector<std::pair<NamedColumn, uint32_t>> output;
-  const auto* list =
-      Node<SyntaqlitePerfettoTreeAggregateList>(p_, n->aggregates);
+  const auto* list = Node<SyntaqlitePerfettoAggregateList>(p_, n->aggregates);
   uint32_t count = syntaqlite_list_count(list);
   for (uint32_t i = 0; i < count; i++) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
-    const auto* agg = Node<SyntaqlitePerfettoTreeAggregate>(p_, agg_id);
+    const auto* agg = Node<SyntaqlitePerfettoAggregate>(p_, agg_id);
     ASSIGN_OR_RETURN(ColumnId value, CompileSum(agg_id, agg->expr));
     std::string name = SpanText(p_, agg->name);
     ColumnId id = plan_.AddColumn(name, core::Int64{});
