@@ -49,6 +49,12 @@ public final class PerfettoTrackEventBuilder {
   private boolean mIsBuilt = false;
   private boolean mIsDebug = false;
 
+  // Set from initNewEvent() until emit(). Events nested in this one use
+  // mNextRoot instead.
+  private boolean mInUse = false;
+  private PerfettoTrackEventBuilder mNextRoot;
+  private int mRootDepth = 0;
+
   private PerfettoTrackEventBuilder mParent;
   private FieldContainer mCurrentContainer;
 
@@ -139,6 +145,9 @@ public final class PerfettoTrackEventBuilder {
   private static final PerfettoTrackEventBuilder NO_OP_BUILDER =
       new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false, /* parent= */ null);
 
+  // Caps builders per thread, as events that are never emitted keep theirs.
+  private static final int MAX_ROOT_BUILDERS = 8;
+
   public static final ThreadLocal<PerfettoTrackEventBuilder> sThreadLocalBuilder =
       ThreadLocal.withInitial(
           () -> new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null));
@@ -146,9 +155,30 @@ public final class PerfettoTrackEventBuilder {
   public static PerfettoTrackEventBuilder newEvent(
       int traceType, Category category, boolean isDebug) {
     if (category.isRegistered() && category.isEnabled()) {
-      return sThreadLocalBuilder.get().initNewEvent(traceType, category, isDebug);
+      PerfettoTrackEventBuilder builder = sThreadLocalBuilder.get();
+      if (builder.mInUse) {
+        builder = builder.nextFreeRoot();
+      }
+      return builder.initNewEvent(traceType, category, isDebug);
     }
     return NO_OP_BUILDER;
+  }
+
+  /**
+   * Returns a free builder for an event nested in this one, e.g. emitted from
+   * its argument list. Reusing this builder would drop this event.
+   */
+  private PerfettoTrackEventBuilder nextFreeRoot() {
+    PerfettoTrackEventBuilder builder = this;
+    while (builder.mInUse && builder.mRootDepth < MAX_ROOT_BUILDERS - 1) {
+      if (builder.mNextRoot == null) {
+        builder.mNextRoot =
+            new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null);
+        builder.mNextRoot.mRootDepth = builder.mRootDepth + 1;
+      }
+      builder = builder.mNextRoot;
+    }
+    return builder;
   }
 
   private PerfettoTrackEventBuilder(boolean isCategoryEnabled, PerfettoTrackEventBuilder parent) {
@@ -188,6 +218,7 @@ public final class PerfettoTrackEventBuilder {
     mIsBuilt = true;
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
+    mInUse = false;
   }
 
   /** Initialize the builder for a new trace event. */
@@ -197,6 +228,7 @@ public final class PerfettoTrackEventBuilder {
       return this;
     }
     mIsBuilt = false;
+    mInUse = true;
     mParent = null;
     mIsDebug = isDebug;
     updateNativeMemoryCleanerForDebug(mIsDebug);
