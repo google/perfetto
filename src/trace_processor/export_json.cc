@@ -38,6 +38,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_processor_storage.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -50,8 +51,6 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
-#include "src/trace_processor/trace_processor_storage_impl.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
 #include "src/trace_processor/util/json_value.h"
@@ -1709,9 +1708,8 @@ base::Status ExportJson(TraceProcessorStorage* tp,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
-  const TraceStorage* storage = reinterpret_cast<TraceProcessorStorageImpl*>(tp)
-                                    ->context()
-                                    ->storage.get();
+  const TraceStorage* storage = tp->storage();
+  PERFETTO_CHECK(storage);
   return ExportJson(storage, output, std::move(argument_filter),
                     std::move(metadata_filter), std::move(label_filter));
 }

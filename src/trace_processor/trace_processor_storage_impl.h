@@ -42,6 +42,9 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   base::Status Parse(TraceBlobView) override;
   void Flush() override;
   base::Status NotifyEndOfFile() override;
+  const TraceStorage* storage() const override {
+    return context_.storage.get();
+  }
 
   base::Status OnPushDataToSorter();
   void OnEventsFullyExtracted();
