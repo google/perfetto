@@ -29,6 +29,8 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
 #include "src/tracing/service/trace_buffer_v2.h"
@@ -444,7 +446,18 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
       protocol_abi_versions_(protocol_abi_versions),
-      weak_runner_(task_runner) {}
+      weak_runner_(task_runner) {
+  // In-process, the service uses the producer's memory directly, so no memfd
+  // is needed.
+  if (in_process_ && (protocol_abi_versions_ & kProtocolAbiV2)) {
+    v2_ring_buffer_arbiter_ =
+        std::make_unique<tracing_v2::ProducerRingBufferArbiter>(
+            task_runner, this,
+            [](size_t size) -> std::shared_ptr<SharedMemory> {
+              return std::make_shared<InProcessSharedMemory>(size);
+            });
+  }
+}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
   service_->DisconnectProducer(id_);
@@ -644,9 +657,34 @@ bool ProducerEndpointImpl::IsShmemProvidedByProducer() const {
 std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
     BufferID buf_id,
     BufferExhaustedPolicy buffer_exhausted_policy) {
+  if (!(protocol_abi_versions_ & kProtocolAbiV1)) {
+    PERFETTO_ELOG(
+        "Cannot create a v1 trace writer: v1 is not in the common protocol "
+        "mask (%x)",
+        protocol_abi_versions_);
+    return std::make_unique<NullTraceWriter>();
+  }
   PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
   return MaybeSharedMemoryArbiter()->CreateTraceWriter(buf_id,
                                                        buffer_exhausted_policy);
+}
+
+// Can be called on any thread.
+std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
+    BufferID buf_id,
+    BufferExhaustedPolicy buffer_exhausted_policy,
+    DataSourceInstanceID instance_id) {
+  // A v2 instance gets a ring buffer writer, or a NullTraceWriter if it
+  // cannot use the ring buffer.
+  // Any other instance gets the writer of the overload above: v1, or a
+  // NullTraceWriter if v1 is not in the common mask.
+  if (v2_ring_buffer_arbiter_) {
+    if (auto writer = v2_ring_buffer_arbiter_->MaybeCreateTraceWriter(
+            buf_id, buffer_exhausted_policy, instance_id)) {
+      return writer;
+    }
+  }
+  return CreateTraceWriter(buf_id, buffer_exhausted_policy);
 }
 
 void ProducerEndpointImpl::NotifyFlushComplete(FlushRequestID id) {
@@ -674,6 +712,11 @@ void ProducerEndpointImpl::SetupDataSource(DataSourceInstanceID ds_id,
                                            const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   allowed_target_buffers_.insert(static_cast<BufferID>(config.target_buffer()));
+  // Pick the transport before the producer can create writers.
+  if (v2_ring_buffer_arbiter_) {
+    v2_ring_buffer_arbiter_->SetupInstance(
+        ds_id, config, protocol_abi_versions_, shmem_size_hint_bytes_);
+  }
   weak_runner_.PostTask([this, ds_id, config] {
     producer_->SetupDataSource(ds_id, std::move(config));
   });
@@ -696,6 +739,10 @@ void ProducerEndpointImpl::NotifyDataSourceStarted(
 void ProducerEndpointImpl::NotifyDataSourceStopped(
     DataSourceInstanceID data_source_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // A data source can stop asynchronously and create writers until it reports
+  // the stop, so the arbiter forgets the instance only now.
+  if (v2_ring_buffer_arbiter_)
+    v2_ring_buffer_arbiter_->OnInstanceStopped(data_source_id);
   service_->NotifyDataSourceStopped(id_, data_source_id);
 }
 

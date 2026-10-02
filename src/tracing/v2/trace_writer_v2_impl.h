@@ -108,7 +108,7 @@ class TraceWriterV2Impl : public TraceWriter,
                           public protozero::MessageFinalizationListener,
                           public protozero::ScatteredStreamWriter::Delegate {
  public:
-  // ProducerRingBufferArbiter::CreateTraceWriter() creates each writer.
+  // ProducerRingBufferArbiter::MaybeCreateTraceWriter() creates each writer.
   //
   // |ring_buffer_arbiter| supplies the ring buffer. Packet bytes go directly
   // into it. The arbiter also receives drain requests and flushes. The

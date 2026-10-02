@@ -16,67 +16,136 @@
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
+#include <algorithm>
+#include <optional>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/trace_writer_v2_impl.h"
 
 namespace perfetto::tracing_v2 {
+namespace {
 
-// static
-std::unique_ptr<ProducerRingBufferArbiter> ProducerRingBufferArbiter::Create(
-    base::TaskRunner* task_runner,
-    ProducerEndpoint* endpoint,
-    SharedMemoryArbiter* shared_memory_arbiter,
-    std::shared_ptr<SharedMemory> ring_buffer_memory,
-    uint32_t chunk_size) {
-  if (!ring_buffer_memory) {
-    PERFETTO_ELOG("tracing v2: no ring buffer memory");
-    return nullptr;
-  }
+// The bytes for the ring buffer chunks, header not included, if the producer
+// gives no SMB size hint.
+constexpr size_t kDefaultSizeBudget = 128 * 1024;
 
-  if (ring_buffer_memory->size() > TracingService::kMaxShmSize) {
-    PERFETTO_ELOG("tracing v2: ring buffer size %zu is above the limit %zu",
-                  ring_buffer_memory->size(), TracingService::kMaxShmSize);
-    return nullptr;
-  }
-
-  base::StatusOr<uint32_t> num_chunks = NumChunksForRingBufferLayout(
-      ring_buffer_memory->start(), ring_buffer_memory->size(), chunk_size);
-  if (!num_chunks.ok()) {
-    PERFETTO_ELOG("tracing v2: %s", num_chunks.status().c_message());
-    return nullptr;
-  }
-
-  return std::unique_ptr<ProducerRingBufferArbiter>(
-      new ProducerRingBufferArbiter(task_runner, endpoint,
-                                    shared_memory_arbiter,
-                                    std::move(ring_buffer_memory), chunk_size));
-}
+}  // namespace
 
 ProducerRingBufferArbiter::ProducerRingBufferArbiter(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
-    SharedMemoryArbiter* shared_memory_arbiter,
-    std::shared_ptr<SharedMemory> ring_buffer_memory,
-    uint32_t chunk_size)
+    AllocateMemoryFn allocate_memory)
     : task_runner_(task_runner),
       endpoint_(endpoint),
-      shared_memory_arbiter_(shared_memory_arbiter),
-      memory_(std::move(ring_buffer_memory)),
-      ring_buffer_(static_cast<uint8_t*>(memory_->start()),
-                   memory_->size(),
-                   chunk_size) {}
+      allocate_memory_(std::move(allocate_memory)) {}
 
 ProducerRingBufferArbiter::~ProducerRingBufferArbiter() {
   Disconnect();
+}
+
+void ProducerRingBufferArbiter::SetupInstance(DataSourceInstanceID id,
+                                              const DataSourceConfig& config,
+                                              uint32_t protocol_abi_versions,
+                                              size_t size_budget) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  // Decide once per instance, at setup.
+  const uint32_t probability =
+      config.experimental_tracing_v2().use_v2_probability_percent();
+  bool use_ring_buffer = (protocol_abi_versions & kProtocolAbiV2) &&
+                         config.supports_tracing_v2() && probability > 0;
+  // Below 100%, flip the coin.
+  // The service already rejects a probability above 100.
+  if (use_ring_buffer && probability < 100) {
+    const uint64_t random = static_cast<uint64_t>(base::Uuidv4().lsb());
+    use_ring_buffer = random % 100 < probability;
+  }
+  if (!use_ring_buffer) {
+    if (!(protocol_abi_versions & kProtocolAbiV1)) {
+      PERFETTO_ELOG(
+          "Data source \"%s\" has no permitted transport: "
+          "v2 was not selected and v1 is not in the common mask",
+          config.name().c_str());
+    }
+    return;
+  }
+
+  // Later instances reuse the ring buffer, or stay without one after a
+  // failure.
+  if (reader_state_.load() == ReaderState::kNoRingBuffer)
+    CreateAndAttachRingBuffer(size_budget);
+
+  // Add the instance after the state left kNoRingBuffer, so that a writer
+  // that finds the instance also finds the ring buffer, or kDetached.
+  std::lock_guard<base::MaybeRtMutex> lock(mutex_);
+  v2_ring_buffer_instances_.insert(id);
+}
+
+void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(size_t size_budget) {
+  // A failure here is final.
+  // The state moves to kDetached, and the writers of all v2 instances are
+  // NullTraceWriters, with no v1 fallback.
+  const uint32_t chunk_size = kMinChunkSize;
+  // The service maps at most kMaxShmSize, header included.
+  const std::optional<size_t> size = RingBufferSizeForBudget(
+      std::min(size_budget ? size_budget : kDefaultSizeBudget,
+               TracingService::kMaxShmSize - sizeof(RingBufferHeader)),
+      chunk_size);
+  if (!size) {
+    PERFETTO_ELOG(
+        "tracing v2: no ring buffer of %u-byte chunks fits the budget",
+        chunk_size);
+    Disconnect();
+    return;
+  }
+  std::shared_ptr<SharedMemory> memory = allocate_memory_(*size);
+  if (!memory) {
+    // The allocator logs the reason.
+    Disconnect();
+    return;
+  }
+  // Both endpoints create the SMB arbiter before they set up data sources.
+  SharedMemoryArbiter* smb_arbiter = endpoint_->MaybeSharedMemoryArbiter();
+  PERFETTO_CHECK(smb_arbiter);
+
+  // Set the ring buffer before the state leaves kNoRingBuffer, because
+  // writers exist only after that.
+  shared_memory_arbiter_ = smb_arbiter;
+  memory_ = memory;
+  ring_buffer_.emplace(static_cast<uint8_t*>(memory_->start()), memory_->size(),
+                       chunk_size);
+  SetReaderState(ReaderState::kPending);
+
+  // In-process, the endpoint replies inline.
+  endpoint_->AttachV2RingBuffer(
+      memory, chunk_size,
+      [weak_this = weak_factory_.GetWeakPtr()](bool accepted) {
+        if (!weak_this)
+          return;
+        if (accepted) {
+          weak_this->OnReaderAttached();
+          return;
+        }
+        // Also on an ordinary disconnect: the pending reply is rejected.
+        PERFETTO_DLOG("tracing v2: ring buffer not accepted");
+        weak_this->Disconnect();
+      });
+}
+
+void ProducerRingBufferArbiter::OnInstanceStopped(DataSourceInstanceID id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  std::lock_guard<base::MaybeRtMutex> lock(mutex_);
+  v2_ring_buffer_instances_.erase(id);
 }
 
 void ProducerRingBufferArbiter::OnReaderAttached() {
@@ -101,13 +170,22 @@ void ProducerRingBufferArbiter::SetReaderState(ReaderState next) {
   const ReaderState current = reader_state_.load();
   PERFETTO_CHECK(
       next == ReaderState::kDetached ||
+      (current == ReaderState::kNoRingBuffer &&
+       next == ReaderState::kPending) ||
       (current == ReaderState::kPending && next == ReaderState::kAttached));
   reader_state_.store(next);
 }
 
-std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::CreateTraceWriter(
+std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::MaybeCreateTraceWriter(
     BufferID target_buffer,
-    BufferExhaustedPolicy policy) {
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID id) {
+  {
+    std::lock_guard<base::MaybeRtMutex> lock(mutex_);
+    if (!v2_ring_buffer_instances_.count(id))
+      return nullptr;
+  }
+
   if (PERFETTO_UNLIKELY(reader_state_.load() == ReaderState::kDetached))
     return std::make_unique<NullTraceWriter>();
 

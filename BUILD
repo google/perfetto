@@ -11764,6 +11764,7 @@ perfetto_cc_binary(
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_v2_abi",
+        ":src_tracing_v2_v2",
         "src/perfetto_cmd/main.cc",
     ],
     visibility = [

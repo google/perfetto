@@ -87,6 +87,16 @@ std::unique_ptr<TraceWriter> ProxyProducerEndpoint::CreateTraceWriter(
   }
   return backend_->CreateTraceWriter(target_buffer, buffer_exhausted_policy);
 }
+std::unique_ptr<TraceWriter> ProxyProducerEndpoint::CreateTraceWriter(
+    BufferID target_buffer,
+    BufferExhaustedPolicy buffer_exhausted_policy,
+    DataSourceInstanceID instance_id) {
+  if (!backend_) {
+    return nullptr;
+  }
+  return backend_->CreateTraceWriter(target_buffer, buffer_exhausted_policy,
+                                     instance_id);
+}
 SharedMemoryArbiter* ProxyProducerEndpoint::MaybeSharedMemoryArbiter() {
   if (!backend_) {
     return nullptr;

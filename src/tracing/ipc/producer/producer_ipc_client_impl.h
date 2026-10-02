@@ -30,6 +30,7 @@
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 #include "protos/perfetto/ipc/producer_port.ipc.h"
 
@@ -93,6 +94,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -151,8 +155,12 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
-  // Bitmask of the versions agreed in InitializeConnection. Zero until then,
-  // and after disconnect.
+  // Bitmask of the versions agreed in InitializeConnection, zero until then.
+  // It stays set after a disconnect:
+  // - CreateTraceWriter() reads it on data source threads, without a lock.
+  // - Those threads can create writers also after a disconnect, because the
+  //   owner keeps this endpoint alive until its writers are gone.
+  // - So a reset on disconnect would race with those reads.
   uint32_t protocol_abi_versions_ = 0;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
@@ -166,6 +174,11 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool direct_smb_patching_supported_ = false;
   bool use_shmem_emulation_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
+  // Picks v1 or v2 for each data source instance, and owns the ring buffer.
+  // OnConnectionInitialized() creates it if v2 is in the common mask.
+  // It is never reset, for the same reason as |protocol_abi_versions_|.
+  std::unique_ptr<tracing_v2::ProducerRingBufferArbiter>
+      v2_ring_buffer_arbiter_;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

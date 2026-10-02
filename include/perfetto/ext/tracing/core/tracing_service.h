@@ -199,9 +199,29 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // writer should be stored by the tracing service. This value is passed
   // upon creation of the data source (StartDataSource()) in the
   // DataSourceConfig.target_buffer().
+  //
+  // This original overload always creates a v1 writer, which writes into the
+  // shared memory buffer (SMB).
+  // It does not know the data source instance, so it cannot use tracing v2.
+  // Producers that create writers without an instance keep using it.
+  // If v1 is not in the connection's common mask, it returns a
+  // NullTraceWriter, which discards all packets.
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy) = 0;
+
+  // Creates a writer for the data source instance |id|.
+  // The writer uses the transport that the instance selected at setup: a
+  // tracing v2 ring buffer writer, or a v1 SMB writer.
+  // - Any thread can call it.
+  // - If the instance can use neither transport, it returns a
+  //   NullTraceWriter, which discards all packets.
+  // - An endpoint without tracing v2, such as Chromium's, does not need to
+  //   override it: the base version ignores |id| and creates a v1 writer
+  //   through the overload above.
+  virtual std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                         BufferExhaustedPolicy,
+                                                         DataSourceInstanceID);
 
   // TODO(eseckler): Also expose CreateStartupTraceWriter() ?
 
