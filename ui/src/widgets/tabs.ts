@@ -37,6 +37,9 @@ export interface TabsTab {
   readonly lazy?: boolean;
   // Whether to show a close button on the tab.
   readonly closeButton?: boolean;
+  // Called when this tab's close button is clicked (before
+  // TabsAttrs.onTabClose).
+  readonly onClose?: () => void;
   // Icon to display on the left side of the tab title.
   readonly leftIcon?: string | m.Children;
   // Optional menu items to show in a dropdown menu on the tab.
@@ -80,6 +83,8 @@ export interface TabsAttrs {
   // flat text tabs with a primary underline on the active tab, matching the
   // look of the (deprecated) TabStrip component.
   readonly variant?: 'card' | 'underline';
+  // When true, hides the tab bar and renders only the active tab's content.
+  readonly hideTabBar?: boolean;
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -268,6 +273,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       newTabContent,
       rightContent,
       variant = 'card',
+      hideTabBar,
       className,
     } = attrs;
 
@@ -279,15 +285,8 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       this.activatedKeys.add(activeKey);
     }
 
-    return m(
-      '.pf-tabs',
-      {
-        className: classNames(
-          className,
-          variant === 'underline' && 'pf-tabs--underline',
-        ),
-      },
-      m(
+    const renderTabBar = () => {
+      return m(
         '.pf-tabs__tabs',
         tabs.map((tab, index) => {
           const isDragTarget = this.dropTargetKey === tab.key;
@@ -360,7 +359,10 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                     this.renamingTabKey = undefined;
                   },
                 }),
-                onClose: () => onTabClose?.(tab.key),
+                onClose: () => {
+                  tab.onClose?.();
+                  onTabClose?.(tab.key);
+                },
                 onDragStart: (key) => {
                   this.draggedKey = key;
                 },
@@ -414,7 +416,18 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
             })),
         !isEmptyVnodes(rightContent) &&
           m('.pf-tabs__right-content', rightContent),
-      ),
+      );
+    };
+
+    return m(
+      '.pf-tabs',
+      {
+        className: classNames(
+          className,
+          variant === 'underline' && 'pf-tabs--underline',
+        ),
+      },
+      !hideTabBar && renderTabBar(),
       m(
         '.pf-tabs__content',
         tabs.map((tab) =>
