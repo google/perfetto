@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
+#include "src/profiling/unwind/unwind_types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -76,7 +77,7 @@ TEST(WireProtocolTest, AllocMessage) {
   metadata.alloc_size = 0xB1B2B3B4B5B6B7B8;
   metadata.alloc_address = 0xC1C2C3C4C5C6C7C8;
   metadata.stack_pointer = 0xD1D2D3D4D5D6D7D8;
-  metadata.arch = unwindstack::ARCH_X86;
+  metadata.arch = CpuArch::kX86;
   for (size_t i = 0; i < kMaxRegisterDataSize; ++i)
     metadata.register_data[i] = 0x66;
   msg.alloc_header = &metadata;

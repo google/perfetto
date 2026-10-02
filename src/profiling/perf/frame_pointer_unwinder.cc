@@ -16,22 +16,26 @@
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
 #include <cinttypes>
+#include <cstdint>
+#include <cstring>
 
 #include "perfetto/base/logging.h"
+#include "src/profiling/unwind/perf_regs.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
 
 void FramePointerUnwinder::Unwind() {
   if (!IsArchSupported()) {
-    PERFETTO_ELOG("Unsupported architecture: %d", arch_);
-    last_error_.code = unwindstack::ErrorCode::ERROR_UNSUPPORTED;
+    PERFETTO_ELOG("Unsupported architecture: %s", ToString(arch_).c_str());
+    last_error_.code = UnwindErrorCode::kUnsupported;
     return;
   }
 
-  if (maps_ == nullptr || maps_->Total() == 0) {
-    PERFETTO_ELOG("No maps provided");
-    last_error_.code = unwindstack::ErrorCode::ERROR_INVALID_MAP;
+  if (context_ == nullptr) {
+    PERFETTO_ELOG("No unwind context provided");
+    last_error_.code = UnwindErrorCode::kInvalidMap;
     return;
   }
 
@@ -45,56 +49,37 @@ void FramePointerUnwinder::Unwind() {
 void FramePointerUnwinder::TryUnwind() {
   uint64_t fp = 0;
   switch (arch_) {
-    case unwindstack::ARCH_ARM64:
-      fp = reinterpret_cast<uint64_t*>(
-          regs_->RawData())[unwindstack::Arm64Reg::ARM64_REG_R29];
+    case CpuArch::kArm64:
+      fp = regs_->raw_data[PERF_REG_ARM64_X29];
       break;
-    case unwindstack::ARCH_X86_64:
-      fp = reinterpret_cast<uint64_t*>(
-          regs_->RawData())[unwindstack::X86_64Reg::X86_64_REG_RBP];
+    case CpuArch::kX86_64:
+      fp = regs_->raw_data[PERF_REG_X86_BP];
       break;
-    case unwindstack::ARCH_RISCV64:
-      fp = reinterpret_cast<uint64_t*>(
-          regs_->RawData())[unwindstack::Riscv64Reg::RISCV64_REG_S0];
+    case CpuArch::kRiscv64:
+      fp = regs_->raw_data[PERF_REG_RISCV_S0];
       break;
-    case unwindstack::ARCH_UNKNOWN:
-    case unwindstack::ARCH_ARM:
-    case unwindstack::ARCH_X86:
+    case CpuArch::kUnknown:
+    case CpuArch::kArm:
+    case CpuArch::kX86:
         // not supported
         ;
   }
-  uint64_t sp = regs_->sp();
-  uint64_t pc = regs_->pc();
+  uint64_t sp = regs_->sp;
+  uint64_t pc = regs_->pc;
+
   for (size_t i = 0; i < max_frames_; i++) {
     if (!IsFrameValid(fp, sp))
       return;
 
-    // retrieve the map info and elf info
-    std::shared_ptr<unwindstack::MapInfo> map_info = maps_->Find(pc);
-    if (map_info == nullptr) {
-      last_error_.code = unwindstack::ErrorCode::ERROR_INVALID_MAP;
+    std::optional<FrameData> frame =
+        context_->BuildFrameFromPc(pc, resolve_names_);
+    if (!frame) {
+      last_error_.code = UnwindErrorCode::kInvalidMap;
       return;
     }
 
-    unwindstack::FrameData frame;
-    frame.num = i;
-    frame.rel_pc = pc;
-    frame.pc = pc;
-    frame.map_info = map_info;
-    unwindstack::Elf* elf = map_info->GetElf(process_memory_, arch_);
-    if (elf != nullptr) {
-      uint64_t relative_pc = elf->GetRelPc(pc, map_info.get());
-      uint64_t pc_adjustment = GetPcAdjustment(relative_pc, elf, arch_);
-      frame.rel_pc = relative_pc - pc_adjustment;
-      frame.pc = pc - pc_adjustment;
-      if (!resolve_names_ ||
-          !elf->GetFunctionName(frame.rel_pc, &frame.function_name,
-                                &frame.function_offset)) {
-        frame.function_name = "";
-        frame.function_offset = 0;
-      }
-    }
-    frames_.push_back(frame);
+    frame->sp = sp;
+    frames_.push_back(std::move(*frame));
     // move to the next frame
     fp = DecodeFrame(fp, &pc, &sp);
   }
@@ -103,39 +88,35 @@ void FramePointerUnwinder::TryUnwind() {
 uint64_t FramePointerUnwinder::DecodeFrame(uint64_t fp,
                                            uint64_t* next_pc,
                                            uint64_t* next_sp) {
-  uint64_t next_fp;
-  if (!process_memory_->ReadFully(static_cast<uint64_t>(fp), &next_fp,
-                                  sizeof(next_fp)))
-    return 0;
-
-  uint64_t pc;
-  if (!process_memory_->ReadFully(static_cast<uint64_t>(fp + sizeof(uint64_t)),
-                                  &pc, sizeof(pc)))
-    return 0;
-
   // Ensure there's not a stack overflow.
   if (__builtin_add_overflow(fp, sizeof(uint64_t) * 2, next_sp))
     return 0;
 
-  *next_pc = static_cast<uint64_t>(pc);
+  size_t offset = static_cast<size_t>(fp - regs_->sp);
+  uint64_t next_fp = 0;
+
+  std::memcpy(&next_fp, stack_data_ + offset, sizeof(uint64_t));
+  std::memcpy(next_pc, stack_data_ + offset + sizeof(uint64_t),
+              sizeof(uint64_t));
+
   return next_fp;
 }
 
 bool FramePointerUnwinder::IsFrameValid(uint64_t fp, uint64_t sp) {
   uint64_t align_mask = 0;
   switch (arch_) {
-    case unwindstack::ARCH_ARM64:
+    case CpuArch::kArm64:
       align_mask = 0x1;
       break;
-    case unwindstack::ARCH_X86_64:
+    case CpuArch::kX86_64:
       align_mask = 0xf;
       break;
-    case unwindstack::ARCH_RISCV64:
+    case CpuArch::kRiscv64:
       align_mask = 0x7;
       break;
-    case unwindstack::ARCH_UNKNOWN:
-    case unwindstack::ARCH_ARM:
-    case unwindstack::ARCH_X86:
+    case CpuArch::kUnknown:
+    case CpuArch::kArm:
+    case CpuArch::kX86:
         // not supported
         ;
   }

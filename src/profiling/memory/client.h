@@ -25,8 +25,6 @@
 #include <mutex>
 #include <vector>
 
-#include <unwindstack/Arch.h>
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -34,6 +32,7 @@
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -118,8 +117,7 @@ class Client {
   bool IsConnected();
 
  private:
-  ssize_t GetStackRegister(unwindstack::ArchEnum arch);
-  uintptr_t GetStackAddress(char* reg_data, unwindstack::ArchEnum arch);
+  uintptr_t GetStackAddress(char* reg_data, CpuArch arch);
   const char* GetStackEnd(const char* stacktop);
   bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;
   int64_t SendWireMessageWithRetriesIfBlocking(const WireMessage&)

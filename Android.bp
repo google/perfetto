@@ -110,12 +110,13 @@ cc_binary {
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
-        ":perfetto_src_profiling_common_unwind_support",
         ":perfetto_src_profiling_memory_daemon",
         ":perfetto_src_profiling_memory_heapprofd_main",
         ":perfetto_src_profiling_memory_ring_buffer",
         ":perfetto_src_profiling_memory_scoped_spinlock",
         ":perfetto_src_profiling_memory_wire_protocol",
+        ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
+        ":perfetto_src_profiling_unwind_unwind_core",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_traced_probes_packages_list_packages_list_parser",
         ":perfetto_src_tracing_common",
@@ -208,6 +209,9 @@ cc_binary {
     defaults: [
         "perfetto_defaults",
     ],
+    include_dirs: [
+        "bionic/libc/kernel",
+    ],
     header_libs: [
         "bionic_libc_platform_headers",
     ],
@@ -286,12 +290,8 @@ cc_library_shared {
         ":perfetto_src_profiling_memory_ring_buffer",
         ":perfetto_src_profiling_memory_scoped_spinlock",
         ":perfetto_src_profiling_memory_wire_protocol",
+        ":perfetto_src_profiling_unwind_unwind_core",
         "src/profiling/memory/client_api_factory_android.cc",
-    ],
-    shared_libs: [
-        "libbase",
-        "libprocinfo",
-        "libunwindstack",
     ],
     static_libs: [
         "libasync_safe",
@@ -307,6 +307,9 @@ cc_library_shared {
         "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
         "-Werror=global-constructors",
         "-Wglobal-constructors",
+    ],
+    include_dirs: [
+        "bionic/libc/kernel",
     ],
     header_libs: [
         "bionic_libc_platform_headers",
@@ -416,7 +419,6 @@ cc_library_shared {
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
-        ":perfetto_src_profiling_common_unwind_support",
         ":perfetto_src_profiling_memory_client",
         ":perfetto_src_profiling_memory_client_api",
         ":perfetto_src_profiling_memory_client_api_standalone",
@@ -424,6 +426,8 @@ cc_library_shared {
         ":perfetto_src_profiling_memory_ring_buffer",
         ":perfetto_src_profiling_memory_scoped_spinlock",
         ":perfetto_src_profiling_memory_wire_protocol",
+        ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
+        ":perfetto_src_profiling_unwind_unwind_core",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_traced_probes_packages_list_packages_list_parser",
         ":perfetto_src_tracing_common",
@@ -524,6 +528,9 @@ cc_library_shared {
     ],
     cflags: [
         "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
+    ],
+    include_dirs: [
+        "bionic/libc/kernel",
     ],
     header_libs: [
         "bionic_libc_platform_headers",
@@ -3083,13 +3090,14 @@ cc_test {
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
-        ":perfetto_src_profiling_common_unwind_support",
         ":perfetto_src_profiling_memory_client",
         ":perfetto_src_profiling_memory_daemon",
         ":perfetto_src_profiling_memory_end_to_end_tests",
         ":perfetto_src_profiling_memory_ring_buffer",
         ":perfetto_src_profiling_memory_scoped_spinlock",
         ":perfetto_src_profiling_memory_wire_protocol",
+        ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
+        ":perfetto_src_profiling_unwind_unwind_core",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_generator",
@@ -3513,6 +3521,9 @@ cc_test {
     ],
     cflags: [
         "-DZLIB_IMPLEMENTATION",
+    ],
+    include_dirs: [
+        "bionic/libc/kernel",
     ],
     header_libs: [
         "bionic_libc_platform_headers",
@@ -16549,14 +16560,6 @@ filegroup {
     ],
 }
 
-// GN: //src/profiling/common:unwind_support
-filegroup {
-    name: "perfetto_src_profiling_common_unwind_support",
-    srcs: [
-        "src/profiling/common/unwind_support.cc",
-    ],
-}
-
 // GN: //src/profiling/memory:bionic_libc_platform_headers_on_android
 filegroup {
     name: "perfetto_src_profiling_memory_bionic_libc_platform_headers_on_android",
@@ -16762,6 +16765,31 @@ filegroup {
     srcs: [
         "src/profiling/smaps/smaps_data_source_unittest.cc",
         "src/profiling/smaps/smaps_unittest.cc",
+    ],
+}
+
+// GN: //src/profiling/unwind/libunwindstack:libunwindstack
+filegroup {
+    name: "perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
+    srcs: [
+        "src/profiling/unwind/libunwindstack/libunwindstack_context.cc",
+    ],
+}
+
+// GN: //src/profiling/unwind/libunwindstack:unittests
+filegroup {
+    name: "perfetto_src_profiling_unwind_libunwindstack_unittests",
+    srcs: [
+        "src/profiling/unwind/libunwindstack/libunwindstack_context_unittest.cc",
+    ],
+}
+
+// GN: //src/profiling/unwind:unwind_core
+filegroup {
+    name: "perfetto_src_profiling_unwind_unwind_core",
+    srcs: [
+        "src/profiling/unwind/cpu_registers.cc",
+        "src/profiling/unwind/unwind_context.cc",
     ],
 }
 
@@ -24415,7 +24443,6 @@ cc_test {
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
         ":perfetto_src_profiling_common_unittests",
-        ":perfetto_src_profiling_common_unwind_support",
         ":perfetto_src_profiling_memory_client",
         ":perfetto_src_profiling_memory_daemon",
         ":perfetto_src_profiling_memory_ring_buffer",
@@ -24432,6 +24459,9 @@ cc_test {
         ":perfetto_src_profiling_smaps_smaps",
         ":perfetto_src_profiling_smaps_smaps_data_source",
         ":perfetto_src_profiling_smaps_unittests",
+        ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
+        ":perfetto_src_profiling_unwind_libunwindstack_unittests",
+        ":perfetto_src_profiling_unwind_unwind_core",
         ":perfetto_src_proto_utils_pb_to_txt",
         ":perfetto_src_proto_utils_txt_to_pb",
         ":perfetto_src_proto_utils_unittests",
@@ -26832,7 +26862,6 @@ cc_binary {
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
-        ":perfetto_src_profiling_common_unwind_support",
         ":perfetto_src_profiling_perf_common_types",
         ":perfetto_src_profiling_perf_proc_descriptors",
         ":perfetto_src_profiling_perf_producer",
@@ -26841,6 +26870,8 @@ cc_binary {
         ":perfetto_src_profiling_perf_unwinding",
         ":perfetto_src_profiling_smaps_smaps",
         ":perfetto_src_profiling_smaps_smaps_data_source",
+        ":perfetto_src_profiling_unwind_libunwindstack_libunwindstack",
+        ":perfetto_src_profiling_unwind_unwind_core",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
