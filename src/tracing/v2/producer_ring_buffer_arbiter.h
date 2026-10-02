@@ -17,13 +17,17 @@
 #ifndef SRC_TRACING_V2_PRODUCER_RING_BUFFER_ARBITER_H_
 #define SRC_TRACING_V2_PRODUCER_RING_BUFFER_ARBITER_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <set>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/rt_mutex.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -31,6 +35,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_writer.h"
 
@@ -42,17 +47,22 @@ namespace test {
 class ProducerRingBufferArbiterTestPeer;
 }  // namespace test
 
-// Coordinates producer writers sharing one tracing v2 ring buffer. The service
-// has its own reader for the ring buffer.
+// Coordinates the producer writers that share one tracing v2 ring buffer, for
+// one producer connection. The service has its own reader for the ring buffer.
 //
 // SharedMemory holds the bytes, and SharedRingBuffer provides a view of them.
 // This class owns the view and shares ownership of the mapping.
 //
-// The producer's ProducerEndpoint (for example ProducerIPCClientImpl) creates
-// one arbiter for each ring buffer that it shares with the service. In this
-// file, "endpoint" means that ProducerEndpoint, and "SMB arbiter" means the
-// SharedMemoryArbiter used for v1 tracing. For the path of packet bytes, see
-// TraceWriterV2Impl.
+// The producer's ProducerEndpoint owns one:
+// - ProducerIPCClientImpl over IPC: always.
+// - ProducerEndpointImpl in-process: only if the connection supports v2.
+// Both use it the same way. They differ only in the memory (a sealed memfd
+// over IPC), and in whether AttachV2RingBuffer() and DrainV2RingBuffer() are
+// an IPC or a direct call.
+//
+// In this file, "endpoint" means that ProducerEndpoint, and "SMB arbiter"
+// means the SharedMemoryArbiter used for v1 tracing. For the path of packet
+// bytes, see TraceWriterV2Impl.
 //
 // Why this class exists:
 //
@@ -62,6 +72,15 @@ class ProducerRingBufferArbiterTestPeer;
 //
 //   Job                             Why a writer cannot do it
 //   ------------------------------  -------------------------------------
+//   Select v2 for each data         The choice is per instance, and all
+//   source instance.                its writers must get the same one.
+//
+//   Create the ring buffer and      There is one ring buffer for the
+//   attach it to the service.       whole connection.
+//
+//   Track the service reader        The service accepts or rejects the
+//   (see State).                    ring buffer once, for all writers.
+//
 //   Ask the service to read the     Only the endpoint thread sends IPC.
 //   ring buffer                     Writers run on any thread.
 //   (DrainV2RingBuffer).
@@ -70,26 +89,40 @@ class ProducerRingBufferArbiterTestPeer;
 //                                   One shared flag merges the requests
 //                                   of all writers into one drain.
 //
-//   Track the service reader        The service accepts or rejects the
-//   (see ReaderState).              ring buffer once, for all writers.
-//
-//   Keep the ring buffer mapping.   Writers only borrow the memory.
-//
 //   Give out WriterIDs.             IDs come from the pool of the SMB
 //                                   arbiter, shared with v1 writers.
 //
 // Threads:
 //
-// Writers call this class from any thread. All other work runs on the
-// endpoint thread: creation, state changes, flush callbacks and service
-// requests. A writer call that needs the endpoint thread posts a task to it.
+// Writers, and MaybeCreateTraceWriter(), call this class from any thread. All
+// other work runs on the endpoint thread: setup, state changes, flush
+// callbacks and service requests. A writer call that needs the endpoint
+// thread posts a task to it.
 //
 // The diagrams below show each flow. Time goes down.
 // - "--->" is a direct call on the writer thread.
 // - "===>" is a posted task or an IPC request.
 // - "***>" is a change in shared memory, with no message.
 //
-// 1. After a publication, the writer asks for a drain if the ring buffer's
+// 1. The first data source instance that uses v2 creates the ring buffer:
+//
+//     endpoint                   this class                service
+//        |                           |                        |
+//        | SetupInstance()           |                        |
+//        |-------------------------->| allocates the memory,  |
+//        |                           | kNoRingBuffer ->       |
+//        |                           | kPending               |
+//        |                           |                        |
+//        |                           |== AttachV2RingBuffer =>| maps, checks
+//        |                           |<===== reply ===========| attaches
+//        |                           | kAttached, or          |
+//        |                           | kDetached if rejected  |
+//
+//    - Later instances reuse the ring buffer.
+//    - If the allocation fails, the state stays kNoRingBuffer, and the next
+//      instance that uses v2 tries again.
+//
+// 2. After a publication, the writer asks for a drain if the ring buffer's
 //    outstanding positions reach the drain threshold:
 //
 //     writer                  arbiter                 service
@@ -106,7 +139,7 @@ class ProducerRingBufferArbiterTestPeer;
 //    - The service handles attach and drain requests in order. It ignores
 //      drains if it has not accepted the ring buffer.
 //
-// 2. If the ring buffer is full, the writer asks for a drain, then waits:
+// 3. If the ring buffer is full, the writer asks for a drain, then waits:
 //
 //     writer                  arbiter                 service
 //        |                       |                       |
@@ -123,11 +156,11 @@ class ProducerRingBufferArbiterTestPeer;
 //    - On the endpoint thread, this class sends DrainV2RingBuffer at once, in
 //      the writer's call. A posted task could not run while the writer
 //      waits on that thread.
-//    - Before kAttached, the writer drops the packet and does not wait.
+//    - In kPending, the writer drops the packet and does not wait.
 //
-// 3. Flush(callback) asks for a drain, then runs |callback|:
+// 4. Flush(callback) asks for a drain, then runs |callback|:
 //
-//     writer                  arbiter                 service
+//     writer or endpoint      arbiter                 service
 //        |                       |                       |
 //        | Flush(callback)       |                       |
 //        |---------------------->| posts a drain task,   |
@@ -145,13 +178,14 @@ class ProducerRingBufferArbiterTestPeer;
 //      drain request. The service handles them in order.
 //    - The callback still runs if this object is destroyed first.
 //
-// 4. When a writer is destroyed, it calls OnWriterDestroyed() on its own
+// 5. When a writer is destroyed, it calls OnWriterDestroyed() on its own
 //    thread. This releases its WriterID in the SMB arbiter. No task is
 //    posted.
 //
 // Ownership:
 //
-// "owns" is a unique_ptr. "shares" is a shared_ptr. "uses" is a raw pointer.
+// "owns" is a unique_ptr or a member. "shares" is a shared_ptr. "uses" is a
+// raw pointer.
 //
 //   endpoint (for example ProducerIPCClientImpl)
 //     |-- owns --> SharedMemoryArbiterImpl: the WriterID pool
@@ -174,23 +208,33 @@ class ProducerRingBufferArbiterTestPeer;
 // - The writer releases its WriterID last, in OnWriterDestroyed().
 class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
  public:
-  // Whether writers can rely on a service reader to free space.
+  // The ring buffer budget if the producer gives no size hint.
+  static constexpr size_t kDefaultSizeBudget = 128 * 1024;
+
+  // Allocates |size| bytes for the ring buffer. Returns null on failure.
+  using AllocateMemoryFn =
+      std::function<std::shared_ptr<SharedMemory>(size_t size)>;
+
+  // The state of the ring buffer and of its service reader.
   // - Only the endpoint thread changes the state, but writers can read it
   //   from any thread.
   // - Drain requests are sent in every state, but the service ignores them
   //   if it has no accepted ring buffer.
   //
-  //     Create()             OnReaderAttached()
-  //   ----------> [ kPending ] ------------------> [ kAttached ]
-  //                    |                                 |
-  //                    +---------------+-----------------+
-  //                                    | Disconnect()
-  //                                    v
-  //                              [ kDetached ]
-  //                               (terminal)
-  enum class ReaderState {
-    // No reader yet. The endpoint shared the ring buffer and waits for the
-    // service reply.
+  //                    first v2 instance            accept reply
+  //   [ kNoRingBuffer ] ---------------> [ kPending ] ----------> [ kAttached ]
+  //          |                                |                        |
+  //          +--------------------------------+------------------------+
+  //                                           | rejection, Disconnect()
+  //                                           v
+  //                                     [ kDetached ]
+  //                                      (terminal)
+  enum class State {
+    // No ring buffer yet: no instance used v2, or the allocation failed.
+    // - The writers of a v2 instance are NullTraceWriters.
+    kNoRingBuffer,
+
+    // The ring buffer exists, and the attach request went out. No reader yet.
     // - Writers can already publish.
     // - The service can still reject the ring buffer.
     // - A writer does not wait for space in a full ring buffer. It drops the
@@ -203,28 +247,20 @@ class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
 
     // Terminal. No reader now or later. Entered after rejection, disconnect
     // or destruction of this class.
-    // - New writers are NullTraceWriters.
+    // - New writers of a v2 instance are NullTraceWriters.
     // - Existing writers keep the mapping. They drop packets when the ring
     //   buffer is full.
     kDetached,
   };
 
-  // Creates the producer side of a ring buffer on the endpoint thread. The
-  // endpoint then attaches the same mapping to the service.
-  //
-  // - Shares ownership of |ring_buffer_memory|. Writers borrow its view.
-  // - Logs an error and returns null for a missing mapping, an invalid layout,
-  //   or a mapping larger than kMaxShmSize.
-  // - The other arguments are borrowed and must outlive this object.
-  static std::unique_ptr<ProducerRingBufferArbiter> Create(
-      base::TaskRunner*,
-      ProducerEndpoint*,
-      SharedMemoryArbiter*,
-      std::shared_ptr<SharedMemory> ring_buffer_memory,
-      uint32_t chunk_size);
+  // |endpoint| receives AttachV2RingBuffer() and the drain requests.
+  // |task_runner| runs the endpoint thread. Both must outlive this object.
+  ProducerRingBufferArbiter(base::TaskRunner* task_runner,
+                            ProducerEndpoint* endpoint,
+                            AllocateMemoryFn allocate_memory);
 
   // The endpoint destroys this on its thread after all writers release their
-  // IDs. Calls Disconnect().
+  // IDs. Enters kDetached.
   ~ProducerRingBufferArbiter() override;
 
   // Writers keep a pointer to this object.
@@ -234,28 +270,46 @@ class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
 
   // Endpoint thread:
 
-  // The endpoint calls this on its thread when the service accepts the ring
-  // buffer. Ignored after Disconnect(), because the accept reply can arrive
-  // after it.
-  void OnReaderAttached();
+  // Call at data source setup, before the producer sees the instance.
+  // - Selects v2 first if it is in |protocol_abi_versions|, the service
+  //   permits it (supports_tracing_v2), and the probability sample selects it.
+  // - Otherwise, the endpoint can use v1 only if it is in the common set.
+  //   With no permitted version, logs an error. The endpoint returns writers
+  //   that discard data.
+  // - The first instance that does creates the ring buffer: at most
+  //   |size_budget| bytes (kDefaultSizeBudget if zero). Its writers get
+  //   WriterIDs from |arbiter|, which must outlive this object.
+  void SetupInstance(
+      DataSourceInstanceID,
+      const DataSourceConfig&,
+      const base::FlatSet<ProtocolAbiVersion>& protocol_abi_versions,
+      SharedMemoryArbiter* arbiter,
+      size_t size_budget);
 
-  // The endpoint calls this on its thread after rejection or disconnect.
-  // Enters kDetached. Repeated calls are safe.
+  // Call when the producer reports that the instance stopped
+  // (NotifyDataSourceStopped). Until then, also during an asynchronous stop,
+  // new writers of the instance get its transport.
+  void OnInstanceStopped(DataSourceInstanceID);
+
+  // After a disconnect: no reader now or later. Enters kDetached. Existing
+  // writers keep the mapping. Repeated calls are safe.
   void Disconnect();
 
   // Any thread:
 
-  // Creates a writer for |target_buffer|. Any thread can call this. The
-  // caller owns the writer.
+  // Returns a writer if the instance uses the ring buffer. The caller owns
+  // it. Returns null if v2 was not selected. The caller can then create a v1
+  // writer only if v1 is in the common set. Otherwise, it returns a
+  // NullTraceWriter.
   //
-  // Never returns null. Returns a NullTraceWriter, which discards all
-  // packets, if:
-  // - the state is kDetached, or
+  // For a v2 instance, never returns null. Returns a NullTraceWriter, which
+  // discards all packets, if:
+  // - there is no ring buffer for it (kNoRingBuffer), or no reader will ever
+  //   come (kDetached). There is no v1 fallback.
   // - the SMB arbiter has no free WriterID (exhaustion or shutdown).
-  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID target_buffer,
-                                                 BufferExhaustedPolicy);
-
-  // Writers, on their own thread:
+  std::unique_ptr<TraceWriter> MaybeCreateTraceWriter(BufferID,
+                                                      BufferExhaustedPolicy,
+                                                      DataSourceInstanceID);
 
   // Requests a drain after the writer publishes its data.
   // - Always queues a drain task, even if another is pending.
@@ -263,7 +317,10 @@ class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
   //   without waiting for a service ack.
   // - If this object is destroyed before the task runs, skips the drain but
   //   still runs |callback|.
+  // - Without a ring buffer, runs |callback| at once.
   void Flush(std::function<void()>);
+
+  // Writers, on their own thread:
 
   // The writer calls this on its thread after its final publication.
   // Releases its WriterID in the SMB arbiter. The release can let the
@@ -281,20 +338,24 @@ class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
   // True in kAttached only.
   bool IsReaderAttached() const override;
 
-  // The view that writers borrow. Fixed for the life of this object.
+  // The view that writers borrow. Set once with the ring buffer, then fixed.
+  // Writers exist only after it is set.
   SharedRingBuffer* ring_buffer() const { return ring_buffer_.get(); }
+
+  State state() const { return state_.load(); }
 
  private:
   friend class test::ProducerRingBufferArbiterTestPeer;
 
-  ProducerRingBufferArbiter(base::TaskRunner*,
-                            ProducerEndpoint*,
-                            SharedMemoryArbiter*,
-                            std::shared_ptr<SharedMemory> ring_buffer_memory,
-                            uint32_t chunk_size);
-
+  // Creates the ring buffer for the first v2 instance, and attaches it.
+  void CreateAndAttachRingBuffer(const DataSourceConfig&,
+                                 SharedMemoryArbiter*,
+                                 size_t size_budget);
+  // Runs on the endpoint thread. Ignored after Disconnect(), because the
+  // reply can arrive after it.
+  void OnAttachReply(bool accepted);
   // Runs on the endpoint thread. CHECKs that the transition is valid.
-  void SetReaderState(ReaderState);
+  void SetState(State);
 
   // Queues SendDrainRequest() on the endpoint thread. Callable from any thread.
   // - Ordinary notifications share a pending task.
@@ -310,13 +371,18 @@ class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
   // Runs tasks on the endpoint thread. Writers post drain and flush
   // requests here.
   base::TaskRunner* const task_runner_;
-  // Sends DrainV2RingBuffer to the service. Endpoint thread only.
+  // Receives AttachV2RingBuffer() and DrainV2RingBuffer(). Endpoint thread
+  // only.
   ProducerEndpoint* const endpoint_;
+  const AllocateMemoryFn allocate_memory_;
+
+  // --- The ring buffer. Set once by the first v2 instance, then fixed. ---
+  //
+  // Only the endpoint thread sets them, before |state_| leaves kNoRingBuffer.
+  // Writers exist only after that, so they read them without a lock.
+
   // The SMB arbiter. Any thread reserves and releases WriterIDs here.
-  SharedMemoryArbiter* const shared_memory_arbiter_;
-
-  // --- Ring buffer mapping and view. Fixed after construction. ---
-
+  SharedMemoryArbiter* shared_memory_arbiter_ = nullptr;
   // The shared memory that holds the ring buffer. Declared before
   // |ring_buffer_|, which points into it.
   //
@@ -324,22 +390,32 @@ class ProducerRingBufferArbiter : public SharedRingBufferWriter::Delegate {
   // - In-process, producer and service share this pointer. The mapping stays
   //   alive until both release it.
   // - Over IPC, the service maps the fd separately and owns that mapping.
-  const std::shared_ptr<SharedMemory> memory_;
+  std::shared_ptr<SharedMemory> memory_;
   // The view that writers borrow.
-  const std::unique_ptr<SharedRingBuffer> ring_buffer_;
+  std::unique_ptr<SharedRingBuffer> ring_buffer_;
 
   // --- Shared with writer threads. ---
 
-  // Writers read it from any thread. Only SetReaderState() writes it.
-  std::atomic<ReaderState> reader_state_{ReaderState::kPending};
+  // Writers read it from any thread. Only SetState() writes it.
+  std::atomic<State> state_{State::kNoRingBuffer};
   // Nonzero when an ordinary notification has claimed a drain task. The
   // claiming thread may not have queued it yet. Cleared before sending a drain.
   std::atomic<uint32_t> drain_task_pending_{0};
 
+  // |mutex_| guards |ring_buffer_instances_|.
+  // - Only the endpoint thread writes it. MaybeCreateTraceWriter() reads it
+  //   from any thread.
+  // - Writers can be created on real-time threads, so this is a MaybeRtMutex,
+  //   as in SharedMemoryArbiterImpl.
+  base::MaybeRtMutex mutex_;
+  // The running instances that use the ring buffer. The others use v1.
+  std::set<DataSourceInstanceID> ring_buffer_instances_;
+
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
-  // Posted tasks use weak pointers to detect that this object is gone.
-  // Any thread can copy them. Only the endpoint thread uses them.
+  // Posted tasks and the attach reply use weak pointers to detect that this
+  // object is gone. Any thread can copy them. Only the endpoint thread uses
+  // them.
   base::WeakPtrFactory<ProducerRingBufferArbiter> weak_factory_{this};
 };
 

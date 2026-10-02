@@ -4896,7 +4896,7 @@ message TrackEventConfig {
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 148
+// Next id: 149
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5009,12 +5009,39 @@ message DataSourceConfig {
   // - the target buffer is a TraceBufferV2.
   // Absent means false. True permits v2 but does not select it. The producer
   // can select v1 only if v1 is also in the common list. If no common version
-  // is permitted by the config and target buffer, the instance cannot run.
+  // is permitted by the config and target buffer, the instance cannot produce
+  // trace data.
   // One buffer can hold both formats. Each writer sequence uses one format.
   //
   // Not supported: a ProtoVM data source on the same buffer.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional bool supports_tracing_v2 = 147;
+
+  // Experimental. Selects the tracing v2 ring buffer for a data source
+  // instance.
+  // - The producer samples once per instance, at setup. Only an instance
+  //   with supports_tracing_v2 and v2 in the common set can be selected.
+  // - Otherwise, the instance uses v1 only if v1 is in the common set.
+  //   With no permitted version, the producer logs an error and the
+  //   instance's writers discard data. A missed sample does not enable v1.
+  // - The producer shares one ring buffer per connection, once. If the
+  //   allocation fails or the service rejects the ring buffer, the writers of
+  //   a selected instance drop their data. There is no v1 fallback.
+  // - The service validates these settings and passes them to the producer.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2. Range [0, 100], default 0. The
+    // service rejects a larger value.
+    optional uint32 use_v2_probability_percent = 1;
+    // Chunk size of the ring buffer in bytes, default 256. It must be in
+    // [256, 65536] and a multiple of 4. The service rejects other values.
+    // The first selected instance fixes it for the connection. The values of
+    // later instances are ignored.
+    // TODO(sashwinbalaji): the ring buffer is per connection, but this value
+    // is per instance. Move it to the producer level, or make the service
+    // reject a mismatch.
+    optional uint32 chunk_size_bytes = 2;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];

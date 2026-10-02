@@ -29,6 +29,8 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
 #include "src/tracing/service/trace_buffer_v2.h"
@@ -444,7 +446,17 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
       protocol_abi_versions_(std::move(protocol_abi_versions)),
-      weak_runner_(task_runner) {}
+      weak_runner_(task_runner) {
+  // In-process, the service maps nothing: it shares the producer's memory.
+  if (in_process_ && protocol_abi_versions_.count(ProtocolAbiVersion::kV2)) {
+    ring_buffer_arbiter_ =
+        std::make_unique<tracing_v2::ProducerRingBufferArbiter>(
+            task_runner, this,
+            [](size_t size) -> std::shared_ptr<SharedMemory> {
+              return InProcessSharedMemory::Create(size);
+            });
+  }
+}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
   service_->DisconnectProducer(id_);
@@ -644,15 +656,39 @@ bool ProducerEndpointImpl::IsShmemProvidedByProducer() const {
 std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
     BufferID buf_id,
     BufferExhaustedPolicy buffer_exhausted_policy) {
+  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV1))
+    return std::make_unique<NullTraceWriter>();
   PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
   return MaybeSharedMemoryArbiter()->CreateTraceWriter(buf_id,
                                                        buffer_exhausted_policy);
 }
 
+// Can be called on any thread.
+std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
+    BufferID buf_id,
+    BufferExhaustedPolicy buffer_exhausted_policy,
+    DataSourceInstanceID instance_id) {
+  if (ring_buffer_arbiter_) {
+    if (auto writer = ring_buffer_arbiter_->MaybeCreateTraceWriter(
+            buf_id, buffer_exhausted_policy, instance_id)) {
+      return writer;
+    }
+  }
+  return CreateTraceWriter(buf_id, buffer_exhausted_policy);
+}
+
 void ProducerEndpointImpl::NotifyFlushComplete(FlushRequestID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
-  return MaybeSharedMemoryArbiter()->NotifyFlushComplete(id);
+  if (!ring_buffer_arbiter_) {
+    MaybeSharedMemoryArbiter()->NotifyFlushComplete(id);
+    return;
+  }
+  // The service reads the last ring buffer data before the flush ack.
+  ring_buffer_arbiter_->Flush([weak_this = weak_ptr_factory_.GetWeakPtr(), id] {
+    if (weak_this)
+      weak_this->MaybeSharedMemoryArbiter()->NotifyFlushComplete(id);
+  });
 }
 
 void ProducerEndpointImpl::OnTracingSetup() {
@@ -674,6 +710,12 @@ void ProducerEndpointImpl::SetupDataSource(DataSourceInstanceID ds_id,
                                            const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   allowed_target_buffers_.insert(static_cast<BufferID>(config.target_buffer()));
+  // Pick the transport before the producer can create writers.
+  if (ring_buffer_arbiter_) {
+    ring_buffer_arbiter_->SetupInstance(ds_id, config, protocol_abi_versions_,
+                                        inproc_shmem_arbiter_.get(),
+                                        shmem_size_hint_bytes_);
+  }
   weak_runner_.PostTask([this, ds_id, config] {
     producer_->SetupDataSource(ds_id, std::move(config));
   });
@@ -696,7 +738,21 @@ void ProducerEndpointImpl::NotifyDataSourceStarted(
 void ProducerEndpointImpl::NotifyDataSourceStopped(
     DataSourceInstanceID data_source_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  service_->NotifyDataSourceStopped(id_, data_source_id);
+  if (!ring_buffer_arbiter_) {
+    service_->NotifyDataSourceStopped(id_, data_source_id);
+    return;
+  }
+  // The stop can be asynchronous. Its writers keep the instance's transport
+  // until now.
+  ring_buffer_arbiter_->OnInstanceStopped(data_source_id);
+  // The service reads the last ring buffer data before the stop.
+  ring_buffer_arbiter_->Flush(
+      [weak_this = weak_ptr_factory_.GetWeakPtr(), data_source_id] {
+        if (weak_this) {
+          weak_this->service_->NotifyDataSourceStopped(weak_this->id_,
+                                                       data_source_id);
+        }
+      });
 }
 
 void ProducerEndpointImpl::OnFreeBuffers(

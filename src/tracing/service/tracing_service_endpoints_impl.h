@@ -38,6 +38,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 // This header contains the declarations for the 3 abtract classes
 // (ProducerEndpointImpl, ConsumerEndpointImpl, RelayEndpointImpl).
@@ -89,6 +90,9 @@ class ProducerEndpointImpl
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID,
       BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -192,8 +196,14 @@ class ProducerEndpointImpl
   // DisconnectProducer() runs the final drain through |ring_buffer_drainer_|
   // before |allowed_target_buffers_| is destroyed.
   std::unique_ptr<tracing_v2::ServiceRingBufferDrainer> ring_buffer_drainer_;
+  // The producer side of tracing v2, for an in-process producer with v2 only.
+  // It attaches its ring buffer to this endpoint, and the service side above
+  // shares the same mapping.
+  std::unique_ptr<tracing_v2::ProducerRingBufferArbiter> ring_buffer_arbiter_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;
+  // Guards the callbacks that |ring_buffer_arbiter_| posts. Keep last.
+  base::WeakPtrFactory<ProducerEndpointImpl> weak_ptr_factory_{this};
 };
 
 // The implementation behind the service endpoint exposed to each consumer.

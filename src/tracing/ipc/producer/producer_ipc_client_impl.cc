@@ -36,6 +36,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/ipc/memfd.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -49,6 +50,21 @@
 // the callbacks.
 
 namespace perfetto {
+
+namespace {
+
+// The service maps its own copy of the ring buffer, so it needs a sealed
+// memfd.
+std::shared_ptr<SharedMemory> CreateRingBufferMemory(size_t size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  base::ignore_result(size);
+  return nullptr;
+#else
+  return PosixSharedMemory::CreateRingBuffer(size);
+#endif
+}
+
+}  // namespace
 
 // static. (Declared in include/tracing/ipc/producer_ipc_client.h).
 std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
@@ -114,7 +130,8 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
       name_(producer_name),
       shared_memory_page_size_hint_bytes_(shared_memory_page_size_hint_bytes),
       shared_memory_size_hint_bytes_(shared_memory_size_hint_bytes),
-      smb_scraping_mode_(smb_scraping_mode) {
+      smb_scraping_mode_(smb_scraping_mode),
+      ring_buffer_arbiter_(task_runner, this, &CreateRingBufferMemory) {
   // Check for producer-provided SMB (used by Chrome for startup tracing).
   if (shared_memory_) {
     // We also expect a valid (unbound) arbiter. Bind it to this endpoint now.
@@ -256,8 +273,8 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
-  protocol_abi_versions_.clear();
   data_sources_setup_.clear();
+  ring_buffer_arbiter_.Disconnect();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
 
@@ -349,9 +366,9 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const protos::gen::GetAsyncCommandResponse& cmd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // A failed InitializeConnection queues a disconnect. Do not call the
-  // producer if a command arrives before that task runs.
-  if (protocol_abi_versions_.empty()) {
-    PERFETTO_DLOG("Ignoring service command before connection initialization");
+  // producer before initialization or after disconnect.
+  if (!connected_ || protocol_abi_versions_.empty()) {
+    PERFETTO_DLOG("Ignoring service command without an initialized connection");
     return;
   }
 
@@ -361,6 +378,10 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const auto& req = cmd.setup_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
     data_sources_setup_.insert(dsid);
+    // Pick the transport before the producer can create writers.
+    ring_buffer_arbiter_.SetupInstance(
+        dsid, req.config(), protocol_abi_versions_,
+        shared_memory_arbiter_.get(), shared_memory_size_hint_bytes_);
     producer_->SetupDataSource(dsid, req.config());
     return;
   }
@@ -372,6 +393,9 @@ void ProducerIPCClientImpl::OnServiceRequest(
     if (!data_sources_setup_.count(dsid)) {
       // When connecting with an older (Android P) service, the service will not
       // send a SetupDataSource message. We synthesize it here in that case.
+      ring_buffer_arbiter_.SetupInstance(dsid, cfg, protocol_abi_versions_,
+                                         shared_memory_arbiter_.get(),
+                                         shared_memory_size_hint_bytes_);
       producer_->SetupDataSource(dsid, cfg);
     }
     producer_->StartDataSource(dsid, cfg);
@@ -595,9 +619,9 @@ void ProducerIPCClientImpl::AttachV2RingBuffer(
     uint32_t chunk_size_bytes,
     std::function<void(bool)> callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-
-  // OnConnect() offers v2 only on platforms with memfd support.
-  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2) ||
+  // v2 needs memfd support, and a connection without it never agrees on v2
+  // (see OnConnect()). So on platforms without memfd, this returns here.
+  if (!connected_ || !protocol_abi_versions_.count(ProtocolAbiVersion::kV2) ||
       !producer_port_ || !memory) {
     callback(false);
     return;
@@ -624,8 +648,10 @@ void ProducerIPCClientImpl::AttachV2RingBuffer(
 
 void ProducerIPCClientImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV2) || !producer_port_)
+  if (!connected_ || !protocol_abi_versions_.count(ProtocolAbiVersion::kV2) ||
+      !producer_port_) {
     return;
+  }
   producer_port_->DrainV2RingBuffer(
       protos::gen::DrainV2RingBufferRequest(),
       ipc::Deferred<protos::gen::DrainV2RingBufferResponse>());
@@ -651,10 +677,23 @@ void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
         "Cannot NotifyDataSourceStopped(), not connected to tracing service");
     return;
   }
-  protos::gen::NotifyDataSourceStoppedRequest req;
-  req.set_data_source_id(id);
-  producer_port_->NotifyDataSourceStopped(
-      req, ipc::Deferred<protos::gen::NotifyDataSourceStoppedResponse>());
+  // The stop can be asynchronous. Its writers keep the instance's transport
+  // until now.
+  ring_buffer_arbiter_.OnInstanceStopped(id);
+  auto weak = weak_factory_.GetWeakPtr();
+  auto finish = [weak, id] {
+    // Check the port that is used below. ScheduleDisconnect() resets it
+    // before |connected_|.
+    if (!weak || !weak->producer_port_)
+      return;
+    protos::gen::NotifyDataSourceStoppedRequest req;
+    req.set_data_source_id(id);
+    weak->producer_port_->NotifyDataSourceStopped(
+        req, ipc::Deferred<protos::gen::NotifyDataSourceStoppedResponse>());
+  };
+  // Flush() sends the drain request, then runs |finish|. The service handles
+  // them in that order, so it reads the last ring buffer data first.
+  ring_buffer_arbiter_.Flush(std::move(finish));
 }
 
 void ProducerIPCClientImpl::ActivateTriggers(
@@ -693,10 +732,23 @@ void ProducerIPCClientImpl::Sync(std::function<void()> callback) {
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {
-  // This method can be called by different threads. |shared_memory_arbiter_| is
-  // thread-safe but be aware of accessing any other state in this function.
+  // Any thread can call this after setup. The common set stays fixed, also
+  // after disconnect. The SMB arbiter is thread-safe.
+  if (!protocol_abi_versions_.count(ProtocolAbiVersion::kV1))
+    return std::make_unique<NullTraceWriter>();
   return shared_memory_arbiter_->CreateTraceWriter(target_buffer,
                                                    buffer_exhausted_policy);
+}
+
+std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
+    BufferID target_buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID id) {
+  if (auto writer = ring_buffer_arbiter_.MaybeCreateTraceWriter(target_buffer,
+                                                                policy, id)) {
+    return writer;
+  }
+  return CreateTraceWriter(target_buffer, policy);
 }
 
 SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {
@@ -708,7 +760,13 @@ bool ProducerIPCClientImpl::IsShmemProvidedByProducer() const {
 }
 
 void ProducerIPCClientImpl::NotifyFlushComplete(FlushRequestID req_id) {
-  shared_memory_arbiter_->NotifyFlushComplete(req_id);
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // The service reads the last ring buffer data before the flush ack.
+  auto weak = weak_factory_.GetWeakPtr();
+  ring_buffer_arbiter_.Flush([weak, req_id] {
+    if (weak && weak->connected_)
+      weak->shared_memory_arbiter_->NotifyFlushComplete(req_id);
+  });
 
   // NB: For producers using SMB emulation, the actual value of
   // ProducerSMBScrapingMode::kDefault in the service-side is unknown on the
