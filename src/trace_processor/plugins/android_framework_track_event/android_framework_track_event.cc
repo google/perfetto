@@ -47,12 +47,30 @@ using AndroidProcessStartEvent =
     ::com::android::internal::pbzero::AndroidProcessStartEvent;
 using AndroidBinderDiedEvent =
     ::com::android::internal::pbzero::AndroidBinderDiedEvent;
+using AndroidProcessDiedEvent =
+    ::com::android::internal::pbzero::AndroidProcessDiedEvent;
 using AndroidProcessStateSnapshot =
     ::com::android::internal::pbzero::AndroidProcessStateSnapshot;
 using AndroidTrackEventProcessTable = tables::AndroidTrackEventProcessTable;
 
+template <typename Decoder>
+std::optional<uint32_t> Uid(const Decoder& d) {
+  return d.has_uid() ? std::make_optional(static_cast<uint32_t>(d.uid()))
+                     : std::nullopt;
+}
+
+template <typename Decoder>
+std::optional<int64_t> Seq(const Decoder& d) {
+  return d.has_start_seq_id() ? std::make_optional(d.start_seq_id())
+                              : std::nullopt;
+}
+
 // __intrinsic_android_track_event_process, with a single row per process.
 // Shared by Parser and StartDumpModule.
+//
+// App processes are identified by start_seq_id, which AMS assigns to every
+// process it starts and which every lifecycle event carries. This keeps app
+// identity correct across pid reuse and late death events.
 class AndroidTrackEventProcessTableHolder {
  public:
   explicit AndroidTrackEventProcessTableHolder(StringPool* pool)
@@ -72,13 +90,94 @@ class AndroidTrackEventProcessTableHolder {
     return table_[*it_and_ins.first];
   }
 
+  // Returns the process for a started app (process_start, process_bound or a
+  // START dump record), creating it if this launch is new.
+  UniquePid GetOrCreateApp(TraceProcessorContext* context,
+                           int64_t ts,
+                           uint32_t pid,
+                           std::optional<uint32_t> uid,
+                           std::optional<int64_t> seq) {
+    if (seq) {
+      if (UniquePid* upid = seq_to_upid_.Find(*seq)) {
+        return *upid;
+      }
+    }
+    auto* tracker = context->process_tracker.get();
+    std::optional<UniquePid> upid = tracker->GetProcessOrNull(pid);
+    if (upid && !IsSameApp(context, *upid, uid, seq)) {
+      // The process on this pid died unseen (e.g. a native process listed by
+      // linux.process_stats): this is a new process.
+      tracker->EndThread(ts, pid);
+      upid = std::nullopt;
+    }
+    if (!upid) {
+      upid =
+          tracker->StartNewProcess(std::nullopt, std::nullopt, pid,
+                                   kNullStringId, ThreadNamePriority::kOther);
+    }
+    if (uid) {
+      tracker->SetProcessUid(*upid, *uid);
+    }
+    if (seq) {
+      SetStartSeqId(*upid, *seq);
+    }
+    return *upid;
+  }
+
+  // Returns the process a death event refers to, or nullopt if unknown. Death
+  // events can arrive after the pid was ended or reused, so match by seq first.
+  std::optional<UniquePid> FindDyingApp(TraceProcessorContext* context,
+                                        uint32_t pid,
+                                        std::optional<uint32_t> uid,
+                                        std::optional<int64_t> seq) {
+    if (seq) {
+      if (UniquePid* upid = seq_to_upid_.Find(*seq)) {
+        return *upid;
+      }
+    }
+    std::optional<UniquePid> upid =
+        context->process_tracker->GetProcessOrNull(pid);
+    if (!upid || !IsSameApp(context, *upid, uid, seq)) {
+      return std::nullopt;
+    }
+    if (seq) {
+      SetStartSeqId(*upid, *seq);
+    }
+    return upid;
+  }
+
  private:
+  // Whether the live process |upid| can be the app with |uid| and |seq|. If
+  // both sides have a seq it decides; otherwise fall back to the uid, as
+  // processes created before the app attached (by ftrace or
+  // linux.process_stats) have no seq.
+  bool IsSameApp(TraceProcessorContext* context,
+                 UniquePid upid,
+                 std::optional<uint32_t> uid,
+                 std::optional<int64_t> seq) {
+    if (auto* row = upid_to_row_.Find(upid); row && seq) {
+      std::optional<int64_t> known = table_[*row].start_seq_id();
+      if (known) {
+        return *known == *seq;
+      }
+    }
+    std::optional<uint32_t> known_uid =
+        context->storage->process_table()[upid].uid();
+    return !uid || !known_uid || *uid == *known_uid;
+  }
+
+  void SetStartSeqId(UniquePid upid, int64_t seq) {
+    GetOrInsertRow(upid).set_start_seq_id(seq);
+    seq_to_upid_[seq] = upid;
+  }
+
   AndroidTrackEventProcessTable table_;
   base::FlatHashMap<UniquePid, AndroidTrackEventProcessTable::Id> upid_to_row_;
+  base::FlatHashMap<int64_t, UniquePid> seq_to_upid_;
 };
 
-// Records AndroidProcessStartEvent and AndroidBinderDiedEvent into
-// __intrinsic_android_track_event_process.
+// Records AndroidProcessStartEvent, AndroidBinderDiedEvent and
+// AndroidProcessDiedEvent into __intrinsic_android_track_event_process.
 class Parser : public TrackEventExtensionParser {
  public:
   Parser(TrackEventExtensionParserContext* extension_parser_context,
@@ -89,6 +188,7 @@ class Parser : public TrackEventExtensionParser {
         table_(table) {
     RegisterTrackEventExtension(FBTE::kProcessStartEventFieldNumber);
     RegisterTrackEventExtension(FBTE::kBinderDiedEventFieldNumber);
+    RegisterTrackEventExtension(FBTE::kProcessDiedEventFieldNumber);
   }
   ~Parser() override = default;
 
@@ -105,6 +205,10 @@ class Parser : public TrackEventExtensionParser {
       case FBTE::kBinderDiedEventFieldNumber:
         HandleBinderDied(field.Cast<FBTE::kBinderDiedEvent>(), ts);
         break;
+      case FBTE::kProcessDiedEventFieldNumber:
+        HandleProcessDied(field.Cast<FBTE::kProcessDiedEvent>());
+        // Still reflect it into the slice args, as before.
+        return Result::kIgnored;
       default:
         break;
     }
@@ -112,32 +216,21 @@ class Parser : public TrackEventExtensionParser {
   }
 
  private:
-  void SetProcessMetadata(UniquePid upid, protozero::ConstBytes process_start) {
-    AndroidProcessStartEvent::Decoder evt(process_start);
-    if (evt.has_uid()) {
-      trace_context_->process_tracker->SetProcessUid(
-          upid, static_cast<uint32_t>(evt.uid()));
+  void HandleProcessStart(protozero::ConstBytes data, int64_t ts) {
+    AndroidProcessStartEvent::Decoder evt(data);
+    if (!evt.has_pid() || evt.pid() <= 0) {
+      return;
     }
+    UniquePid upid = table_->GetOrCreateApp(trace_context_, ts,
+                                            static_cast<uint32_t>(evt.pid()),
+                                            Uid(evt), Seq(evt));
     if (evt.has_process_name()) {
       trace_context_->process_tracker->UpdateProcessName(
           upid, trace_context_->storage->InternString(evt.process_name()),
           ProcessNamePriority::kOther);
     }
-  }
-
-  void HandleProcessStart(protozero::ConstBytes data, int64_t ts) {
-    AndroidProcessStartEvent::Decoder evt(data);
-    if (!evt.has_pid()) {
-      return;
-    }
-    UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(evt.pid()));
-    SetProcessMetadata(upid, data);
 
     auto row = table_->GetOrInsertRow(upid);
-    if (evt.has_start_seq_id()) {
-      row.set_start_seq_id(evt.start_seq_id());
-    }
     if (evt.has_package_uid()) {
       row.set_package_uid(evt.package_uid());
     }
@@ -174,28 +267,45 @@ class Parser : public TrackEventExtensionParser {
 
   void HandleBinderDied(protozero::ConstBytes data, int64_t ts) {
     AndroidBinderDiedEvent::Decoder evt(data);
-    if (!evt.has_pid()) {
+    if (!evt.has_pid() || evt.pid() <= 0) {
       return;
     }
-
-    std::optional<UniqueTid> utid =
-        trace_context_->process_tracker->GetThreadOrNull(
-            static_cast<uint32_t>(evt.pid()));
-    if (!utid) {
-      return;
-    }
+    auto pid = static_cast<uint32_t>(evt.pid());
     std::optional<UniquePid> upid =
-        trace_context_->storage->thread_table()[*utid].upid();
+        table_->FindDyingApp(trace_context_, pid, Uid(evt), Seq(evt));
+    if (!upid) {
+      return;
+    }
+    table_->GetOrInsertRow(*upid).set_fw_end_ts(ts);
+    // Only end the pid if it still belongs to this process.
+    if (trace_context_->process_tracker->GetProcessOrNull(pid) == upid) {
+      trace_context_->process_tracker->EndThread(ts, pid);
+    }
+  }
+
+  // Records why a process died. Ending it is left to binder_died, which
+  // arrives earlier.
+  void HandleProcessDied(protozero::ConstBytes data) {
+    AndroidProcessDiedEvent::Decoder evt(data);
+    if (!evt.has_pid() || evt.pid() <= 0) {
+      return;
+    }
+    std::optional<UniquePid> upid = table_->FindDyingApp(
+        trace_context_, static_cast<uint32_t>(evt.pid()), Uid(evt), Seq(evt));
     if (!upid) {
       return;
     }
     auto row = table_->GetOrInsertRow(*upid);
-    row.set_fw_end_ts(ts);
-    if (evt.has_start_seq_id()) {
-      row.set_start_seq_id(evt.start_seq_id());
+    if (evt.has_reason()) {
+      row.set_exit_reason(InternEnum(exit_reason_cache_,
+                                     ".com.android.internal.AppExitReasonCode",
+                                     static_cast<int32_t>(evt.reason())));
     }
-    trace_context_->process_tracker->EndThread(
-        ts, static_cast<uint32_t>(evt.pid()));
+    if (evt.has_sub_reason()) {
+      row.set_exit_sub_reason(InternEnum(
+          exit_sub_reason_cache_, ".com.android.internal.AppExitSubReasonCode",
+          static_cast<int32_t>(evt.sub_reason())));
+    }
   }
 
   StringId InternEnum(DescriptorPool::CachedDescriptor& cache,
@@ -210,12 +320,13 @@ class Parser : public TrackEventExtensionParser {
   TraceProcessorContext* trace_context_;
   DescriptorPool::CachedDescriptor trigger_type_cache_;
   DescriptorPool::CachedDescriptor hosting_type_cache_;
+  DescriptorPool::CachedDescriptor exit_reason_cache_;
+  DescriptorPool::CachedDescriptor exit_sub_reason_cache_;
   AndroidTrackEventProcessTableHolder* table_;
 };
 
 // Handles the AndroidProcessStateSnapshot emitted at trace start
-// (DUMP_REASON_START). It lists the processes alive when the trace started, so
-// it creates them and records their start_seq_id.
+// (DUMP_REASON_START), which lists the apps alive when the trace started.
 class StartDumpModule : public ProtoImporterModule {
  public:
   StartDumpModule(ProtoImporterModuleContext* module_context,
@@ -239,19 +350,13 @@ class StartDumpModule : public ProtoImporterModule {
       if (!rec.has_pid() || rec.pid() <= 0) {
         continue;
       }
-      UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
-          static_cast<uint32_t>(rec.pid()));
+      UniquePid upid = table_->GetOrCreateApp(trace_context_, args.ts,
+                                              static_cast<uint32_t>(rec.pid()),
+                                              Uid(rec), Seq(rec));
       if (rec.has_process_name()) {
         trace_context_->process_tracker->UpdateProcessName(
             upid, trace_context_->storage->InternString(rec.process_name()),
             ProcessNamePriority::kOther);
-      }
-      if (rec.has_uid()) {
-        trace_context_->process_tracker->SetProcessUid(
-            upid, static_cast<uint32_t>(rec.uid()));
-      }
-      if (rec.has_start_seq_id()) {
-        table_->GetOrInsertRow(upid).set_start_seq_id(rec.start_seq_id());
       }
     }
   }
