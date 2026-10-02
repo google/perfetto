@@ -298,24 +298,24 @@ node PerfettoPipeSource {
 
 enum PerfettoTreeDirection { UP DOWN }
 
-// One aggregate of a TREE ACCUMULATE stage: `SUM(col) AS name`. Any expression
-// parses; the compiler rejects the ones it cannot run.
-node PerfettoTreeAggregate {
+// One aggregate of a stage which computes them: `SUM(col) AS name`. Any
+// expression parses; the compiler rejects the ones it cannot run.
+node PerfettoAggregate {
   expr: index Expr
   name: inline SyntaqliteTextSpan
 
   fmt { child(expr) space "AS" space span(name) }
 }
 
-list PerfettoTreeAggregateList {
-  PerfettoTreeAggregate
+list PerfettoAggregateList {
+  PerfettoAggregate
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
 // `TREE ACCUMULATE UP | DOWN agg AS name, ...`
 node PerfettoTreeAccumulate {
   direction: inline PerfettoTreeDirection
-  aggregates: index PerfettoTreeAggregateList
+  aggregates: index PerfettoAggregateList
 
   fmt {
     group {
@@ -439,6 +439,7 @@ node PerfettoPipeAs {
 
 abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
+  PerfettoIntervalFlatten
   PerfettoPipeSelect
   PerfettoPipeExtend
   PerfettoPipeDrop
@@ -468,6 +469,21 @@ node PerfettoPerColumn {
 list PerfettoPerColumnList {
   PerfettoPerColumn
   fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `INTERVAL FLATTEN [PER cols] AGGREGATE agg AS name, ...`: cuts overlapping
+// rows at every boundary into disjoint segments, one row per segment.
+node PerfettoIntervalFlatten {
+  per: index PerfettoPerColumnList
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "INTERVAL" "FLATTEN"
+      if_set(per) { space "PER" space child(per) }
+      nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
 }
 
 // `INTERVAL INTERSECTION OF (rel AS a, rel AS b, ...) [PER cols]`: the
