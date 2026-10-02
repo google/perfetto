@@ -640,8 +640,15 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxErrors) {
                   .status()
                   .message(),
               HasSubstr("syntax error"));
-  EXPECT_THAT(ParsePipeline("FROM slice |> WHERE dur > 0").status().message(),
-              HasSubstr("syntax error near 'WHERE'"));
+  // A WHERE takes any expression, but runs only conditions comparing a
+  // column with values for now.
+  EXPECT_THAT(
+      ParsePipeline("FROM slice |> WHERE dur + 1 > 0").status().message(),
+      HasSubstr("comparing anything but a column is not supported yet"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> WHERE dur > 0 OR self = 1")
+                  .status()
+                  .message(),
+              HasSubstr("this operator is not supported yet"));
   EXPECT_THAT(ParsePipeline("FROM a JOIN b ON a.x = b.y |> TREE ACCUMULATE "
                             "UP SUM(a) AS b")
                   .status()
@@ -866,6 +873,55 @@ TEST_F(PerfettoSqlParserTest, PipelinePushesPruningIntoSql) {
       *sql,
       HasSubstr(
           R"((SELECT __intrinsic_dataframe_agg('ts,dur,utid', "ts", "dur", "utid") FROM (SELECT * FROM sql_spans) AS b))"));
+}
+
+// A filter reaching SQL is applied by SQLite as it reads the rows, so the
+// dataframe built holds only those kept.
+TEST_F(PerfettoSqlParserTest, PipelinePushesFiltersIntoSql) {
+  PerfettoSqlParser parser(macros_, catalog_, /*pipelines_allowed=*/true);
+  parser.Reset(SqlSource::FromExecuteQuery(
+      "FROM sql_spans |> WHERE dur > 2.5 AND cpu IN (1, 2) AND utid IS NULL "
+      "AND ts != 'x'"));
+  ASSERT_TRUE(parser.Next()) << parser.status().message();
+  auto sql =
+      pipeline::SelectPipelineSql(std::get<Pipeline>(parser.statement()).plan);
+  ASSERT_TRUE(sql.ok()) << sql.status().message();
+  EXPECT_THAT(
+      *sql,
+      HasSubstr(
+          R"(FROM sql_spans WHERE "dur" > 2.5 AND "cpu" IN (1, 2) AND "utid" IS NULL AND "ts" != 'x'))"));
+}
+
+// A WHERE's conditions move as far down as they keep the same rows: into the
+// scan below them, into the intersection operand whose column they test (all
+// operands for a PER column), but never past a TREE ACCUMULATE.
+TEST_F(PerfettoSqlParserTest, PipelineFiltersPushDown) {
+  EXPECT_EQ(*ParsePipeline("FROM slice |> WHERE dur > 5 AND depth IN (1, 2)"),
+            std::string("Scan(table slice) [") + kSliceColumns +
+                "] WHERE #2 > 5 AND #4 IN 1 2\n"
+                "Output(#0 AS id, #1 AS parent_id, #2 AS dur, #3 AS self, "
+                "#4 AS depth)\n");
+  EXPECT_EQ(*ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(dur) AS total "
+                           "|> WHERE total > 5 |> SELECT id, total"),
+            "Scan(table slice) [#0:id AS id, #1:uint32 AS parent_id, "
+            "#2:uint32 AS dur]\n"
+            "TreeAccumulate(up, node=#0, parent=#1, SUM(#2) -> #5:int64)\n"
+            "Filter(#5 > 5)\n"
+            "Output(#0 AS id, #5 AS total)\n");
+  EXPECT_EQ(*ParsePipeline("INTERVAL INTERSECTION OF (spans AS a, spans AS b) "
+                           "PER cpu |> WHERE b.utid = 3 AND cpu = 1 AND "
+                           "dur > 10 |> SELECT ts, dur, a.utid"),
+            // b.utid is read only by its filter; the region's dur belongs to
+            // no operand.
+            "IntervalIntersect(ts=#0, dur=#1)\n"
+            "  operand(ts=#2, dur=#3, key=#4, carries=[#5])\n"
+            "    Scan(table spans) [#2:uint32 AS ts, #3:uint32 AS dur, "
+            "#4:id AS cpu, #5:uint32 AS utid] WHERE #4 = 1\n"
+            "  operand(ts=#6, dur=#7, key=#8, carries=[])\n"
+            "    Scan(table spans) [#6:uint32 AS ts, #7:uint32 AS dur, "
+            "#8:id AS cpu, #9:uint32 AS utid] WHERE #9 = 3 AND #8 = 1\n"
+            "Filter(#1 > 10)\n"
+            "Output(#0 AS ts, #1 AS dur, #5 AS utid)\n");
 }
 
 // The relational operators which reshape a pipeline's row: EXTEND, DROP,

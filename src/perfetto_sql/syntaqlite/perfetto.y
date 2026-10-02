@@ -166,21 +166,13 @@ select_body_end(A) ::= . { A = pCtx->last_shifted_end; }
 
 // ---------- Pipelines ----------
 
-// `|>` is not a token the SQLite tokenizer knows, so a pipe is `|` directly
-// followed by `>`. No valid SQL expression contains those two in a row, but
-// an expression can end in `|`, so nothing that ends in a bare expression may
-// precede a pipe: see perfetto_pipe_source.
+// `|>`, a token of its own (see perfetto.tokens), so anything, an expression
+// included, can end right before it.
 %type perfetto_pipe {int}
-perfetto_pipe(A) ::= BITOR(B) GT(G). {
-    if (B.layer_id != G.layer_id || B.offset + B.n != G.offset) {
-        pCtx->error = 1;
-    }
-    A = 0;
-}
+perfetto_pipe(A) ::= PIPE. { A = 0; }
 
-// What a pipeline may start from: a table or a parenthesised subquery. A join
-// is not allowed here since its ON clause is an expression, whose trailing `|`
-// would be ambiguous with the pipe; wrap it in a subquery instead.
+// What a pipeline may start from: a table or a parenthesised subquery, which
+// is how to start from a join.
 %type perfetto_pipe_source {uint32_t}
 perfetto_pipe_source(A) ::= nm(N) dbnm(D) as(Z). {
     SyntaqliteTextSpan table_name;
@@ -353,6 +345,9 @@ perfetto_pipe_set_list(A) ::= perfetto_pipe_set_list(L) COMMA
 }
 
 %type perfetto_pipe_stage {uint32_t}
+perfetto_pipe_stage(A) ::= WHERE expr(E). {
+    A = synq_parse_perfetto_pipe_where(pCtx, E);
+}
 perfetto_pipe_stage(A) ::= SELECT perfetto_pipe_select_list(L). {
     A = synq_parse_perfetto_pipe_select(pCtx, L);
 }

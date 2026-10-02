@@ -42,7 +42,7 @@ inline constexpr char kDataframesFunction[] = "__intrinsic_dataframes";
 
 // A plan whose SQL sources have been moved out into dataframe arguments: the
 // plan reads its i-th SQL source as dataframe argument i, and `args[i]` is the
-// SQL building it.
+// SQL building it, which applies the scan's filters as it reads.
 struct PlanWithDataframeArgs {
   LogicalPlan plan;
   std::vector<std::string> args;

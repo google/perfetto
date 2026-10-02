@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -47,8 +49,15 @@ class PhysicalPlan {
   const core::exec::Source& source() const { return *pipeline_; }
   const std::vector<Column>& columns() const { return columns_; }
 
+  // The values of the plan's filter parameters: a run's scans and filters read
+  // them as it starts and goes.
+  core::exec::Filter::Params& params() { return params_; }
+
  private:
   friend class Lowering;
+
+  // Declared before the operators, which read it.
+  core::exec::Filter::Params params_;
 
   // Declared first so the input outlives the pipeline that reads it, as an
   // intersection's operands outlive the intersection.
@@ -62,7 +71,8 @@ class PhysicalPlan {
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must already be resolved.
-std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan&);
+// `pool` holds the strings of the dataframes read and must outlive the plan.
+std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan&, StringPool* pool);
 
 }  // namespace perfetto::trace_processor::pipeline
 

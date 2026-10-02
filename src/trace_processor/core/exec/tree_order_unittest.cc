@@ -622,7 +622,7 @@ TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
 
   DataframeScan scan(
       {df.shared_column(0), df.shared_column(1), df.shared_column(2)},
-      df.row_count());
+      df.row_count(), nullptr);
   auto ops = Number();
   ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
   ops.push_back(std::make_unique<TreeChildFirst>(3, 4));

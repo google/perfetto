@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -33,10 +34,12 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
+#include "src/trace_processor/perfetto_sql/pipeline/filter_pushdown.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -120,6 +123,18 @@ class Compiler {
   base::Status CompileSource(uint32_t from);
   base::Status CompileIntersection(uint32_t node);
   base::Status CompileStage(uint32_t stage);
+  base::Status CompileWhere(uint32_t stage);
+  // Adds the conditions `expr` joins with AND to `conditions`.
+  base::Status CompileConditions(uint32_t expr,
+                                 std::vector<op::FilterCondition>& conditions);
+  base::StatusOr<op::FilterCondition> CompileCondition(uint32_t expr);
+  base::StatusOr<ColumnId> CompileConditionColumn(uint32_t ref) const;
+  bool IsColumn(uint32_t expr) const {
+    return Node<SyntaqliteNode>(p_, expr)->tag == SYNTAQLITE_NODE_COLUMN_REF;
+  }
+  base::StatusOr<op::FilterValue> CompileValue(uint32_t value) const;
+  // Refuses a condition which is not yet one a filter can run.
+  base::Status UnsupportedCondition(uint32_t at, std::string_view what) const;
   base::Status CompileSelect(uint32_t stage);
   base::Status CompileExtend(uint32_t stage);
   base::Status CompileDrop(uint32_t stage);
@@ -436,6 +451,8 @@ void Compiler::AddScanColumn(op::Scan& scan, ColumnSchema column) {
 base::Status Compiler::CompileStage(uint32_t stage) {
   const auto* node = Node<SyntaqliteNode>(p_, stage);
   switch (static_cast<int>(node->tag)) {
+    case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
+      return CompileWhere(stage);
     case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE:
       return CompileTreeAccumulate(stage);
     case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT:
@@ -672,6 +689,188 @@ base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {
   }
   plan_.AddNode(std::move(acc), {plan_.root});
   return base::OkStatus();
+}
+
+base::Status Compiler::CompileWhere(uint32_t stage) {
+  scope_.op = "WHERE";
+  const auto* n = Node<SyntaqlitePerfettoPipeWhere>(p_, stage);
+  op::Filter filter;
+  RETURN_IF_ERROR(CompileConditions(n->condition, filter.conditions));
+  // The rows change but the row does not: every name still means the same.
+  plan_.AddNode(std::move(filter), {plan_.root});
+  return base::OkStatus();
+}
+
+base::Status Compiler::UnsupportedCondition(uint32_t at,
+                                            std::string_view what) const {
+  return Err(at, Error::kUnsupported, what,
+             ": a condition compares a column with values, as in `dur > 0`, "
+             "`name IS NULL` or `cpu IN (1, 2)`, joined by AND");
+}
+
+base::Status Compiler::CompileConditions(
+    uint32_t expr,
+    std::vector<op::FilterCondition>& conditions) {
+  const auto* node = Node<SyntaqliteNode>(p_, expr);
+  if (node->tag == SYNTAQLITE_NODE_PAREN_EXPR) {
+    return CompileConditions(node->paren_expr.expr, conditions);
+  }
+  if (node->tag == SYNTAQLITE_NODE_BINARY_EXPR &&
+      node->binary_expr.op == SYNTAQLITE_BINARY_OP_AND) {
+    RETURN_IF_ERROR(CompileConditions(node->binary_expr.left, conditions));
+    return CompileConditions(node->binary_expr.right, conditions);
+  }
+  ASSIGN_OR_RETURN(op::FilterCondition condition, CompileCondition(expr));
+  conditions.push_back(std::move(condition));
+  return base::OkStatus();
+}
+
+// One condition: `column op value` either way round, `column IS [NOT] NULL`
+// or `column IN (value, ...)`.
+base::StatusOr<op::FilterCondition> Compiler::CompileCondition(uint32_t expr) {
+  const auto* node = Node<SyntaqliteNode>(p_, expr);
+  op::FilterCondition condition;
+  uint32_t column;
+  std::vector<uint32_t> values;
+  switch (static_cast<int>(node->tag)) {
+    case SYNTAQLITE_NODE_BINARY_EXPR: {
+      const SyntaqliteBinaryExpr& e = node->binary_expr;
+      // Written the other way round, the comparison flips.
+      bool flip = !IsColumn(e.left);
+      column = flip ? e.right : e.left;
+      values.push_back(flip ? e.left : e.right);
+      switch (static_cast<int>(e.op)) {
+        case SYNTAQLITE_BINARY_OP_EQ:
+        case SYNTAQLITE_BINARY_OP_EQ_DOUBLE:
+          condition.op = core::Eq{};
+          break;
+        case SYNTAQLITE_BINARY_OP_NE:
+        case SYNTAQLITE_BINARY_OP_NE_ANGLE:
+          condition.op = core::Ne{};
+          break;
+        case SYNTAQLITE_BINARY_OP_LT:
+          condition.op = flip ? core::Op(core::Gt{}) : core::Op(core::Lt{});
+          break;
+        case SYNTAQLITE_BINARY_OP_LE:
+          condition.op = flip ? core::Op(core::Ge{}) : core::Op(core::Le{});
+          break;
+        case SYNTAQLITE_BINARY_OP_GT:
+          condition.op = flip ? core::Op(core::Lt{}) : core::Op(core::Gt{});
+          break;
+        case SYNTAQLITE_BINARY_OP_GE:
+          condition.op = flip ? core::Op(core::Le{}) : core::Op(core::Ge{});
+          break;
+        default:
+          return UnsupportedCondition(expr, "this operator");
+      }
+      break;
+    }
+    case SYNTAQLITE_NODE_IS_EXPR: {
+      const SyntaqliteIsExpr& e = node->is_expr;
+      column = e.left;
+      switch (static_cast<int>(e.op)) {
+        case SYNTAQLITE_IS_OP_IS_NULL:
+          condition.op = core::IsNull{};
+          break;
+        case SYNTAQLITE_IS_OP_NOT_NULL:
+        case SYNTAQLITE_IS_OP_NOT_NULL_SPACED:
+          condition.op = core::IsNotNull{};
+          break;
+        case SYNTAQLITE_IS_OP_IS:
+        case SYNTAQLITE_IS_OP_IS_NOT: {
+          const auto* right = Node<SyntaqliteNode>(p_, e.right);
+          if (right->tag != SYNTAQLITE_NODE_LITERAL ||
+              right->literal.literal_type != SYNTAQLITE_LITERAL_TYPE_NULL) {
+            return UnsupportedCondition(expr, "IS with anything but NULL");
+          }
+          condition.op = e.op == SYNTAQLITE_IS_OP_IS
+                             ? core::Op(core::IsNull{})
+                             : core::Op(core::IsNotNull{});
+          break;
+        }
+        default:
+          return UnsupportedCondition(expr, "this operator");
+      }
+      break;
+    }
+    case SYNTAQLITE_NODE_IN_EXPR: {
+      const SyntaqliteInExpr& e = node->in_expr;
+      if (e.negated) {
+        return UnsupportedCondition(expr, "NOT IN");
+      }
+      column = e.operand;
+      condition.op = core::In{};
+      if (syntaqlite_node_is_present(e.source)) {
+        const auto* source = Node<SyntaqliteNode>(p_, e.source);
+        if (source->tag != SYNTAQLITE_NODE_EXPR_LIST) {
+          return UnsupportedCondition(e.source, "IN with anything but values");
+        }
+        const auto* list = Node<SyntaqliteExprList>(p_, e.source);
+        for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
+          values.push_back(syntaqlite_list_child_id(list, i));
+        }
+      }
+      break;
+    }
+    default:
+      return UnsupportedCondition(expr, "this condition");
+  }
+  if (!IsColumn(column)) {
+    return UnsupportedCondition(column, "comparing anything but a column");
+  }
+  ASSIGN_OR_RETURN(condition.column, CompileConditionColumn(column));
+  for (uint32_t value_id : values) {
+    ASSIGN_OR_RETURN(op::FilterValue value, CompileValue(value_id));
+    condition.values.push_back(std::move(value));
+  }
+  return condition;
+}
+
+base::StatusOr<ColumnId> Compiler::CompileConditionColumn(
+    uint32_t ref_id) const {
+  const SyntaqliteColumnRef& ref = Node<SyntaqliteNode>(p_, ref_id)->column_ref;
+  if (IsPresent(ref.schema)) {
+    return Unsupported(ref_id, "a schema-qualified column");
+  }
+  std::string qualifier = IsPresent(ref.table) ? SpanText(p_, ref.table) : "";
+  return Resolve(qualifier, SpanText(p_, ref.column), ref_id);
+}
+
+// A value written in the pipeline: a literal, perhaps negated.
+base::StatusOr<op::FilterValue> Compiler::CompileValue(uint32_t value) const {
+  const auto* node = Node<SyntaqliteNode>(p_, value);
+  bool negate = node->tag == SYNTAQLITE_NODE_UNARY_EXPR &&
+                node->unary_expr.op == SYNTAQLITE_UNARY_OP_MINUS;
+  if (negate) {
+    node = Node<SyntaqliteNode>(p_, node->unary_expr.operand);
+  }
+  if (node->tag != SYNTAQLITE_NODE_LITERAL) {
+    return UnsupportedCondition(value, "comparing with anything but a value");
+  }
+  // The literal as written, including a string's quotes.
+  std::string text = SpanText(p_, node->literal.source);
+  switch (static_cast<int>(node->literal.literal_type)) {
+    case SYNTAQLITE_LITERAL_TYPE_INTEGER:
+      if (std::optional<int64_t> i = base::StringToInt64(text)) {
+        return op::FilterValue(negate ? -*i : *i);
+      }
+      return Expected(value, "an integer which fits in 64 bits");
+    case SYNTAQLITE_LITERAL_TYPE_FLOAT:
+      if (std::optional<double> d = base::StringToDouble(text)) {
+        return op::FilterValue(negate ? -*d : *d);
+      }
+      return Expected(value, "a number");
+    case SYNTAQLITE_LITERAL_TYPE_STRING:
+      if (negate) {
+        return Expected(value, "a number after the minus");
+      }
+      return op::FilterValue(
+          base::ReplaceAll(text.substr(1, text.size() - 2), "''", "'"));
+    case SYNTAQLITE_LITERAL_TYPE_NULL:
+      return Expected(value, "a value: compare with NULL using IS [NOT] NULL");
+    default:
+      return UnsupportedCondition(value, "this value");
+  }
 }
 
 // The stages below are relational operators which only change which columns
@@ -946,6 +1145,7 @@ base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
   Compiler compiler(p, source, catalog);
   RETURN_IF_ERROR(compiler.CompilePipeline(pipeline));
   LogicalPlan plan = compiler.Finish();
+  PushDownFilters(plan);
   PruneColumns(plan);
   return plan;
 }

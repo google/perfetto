@@ -26,8 +26,11 @@
 #include <vector>
 
 #include "perfetto/ext/base/variant.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/schema.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -46,6 +49,26 @@ struct NamedColumn {
 
 namespace op {
 
+// A value only known when the plan runs: the `index`-th of the values the plan
+// is passed, as SQLite passes the value of a constraint on a pipeline's
+// output. Bound to that value when the plan is loaded, before anything runs.
+struct FilterParam {
+  uint32_t index = 0;
+};
+
+// A value a filter compares a column with: written in the pipeline, or passed
+// to it.
+using FilterValue = std::variant<int64_t, double, std::string, FilterParam>;
+
+// One condition a row must meet: `column op values`. The operator is =, !=,
+// <, <=, >, >= with one value, IS NULL or IS NOT NULL with none, or IN with
+// any number. As in SQL, a comparison is never true of a null.
+struct FilterCondition {
+  ColumnId column = 0;
+  core::Op op{core::Eq{}};
+  std::vector<FilterValue> values;
+};
+
 // A dataframe read directly. Defined outside Scan because GCC only treats a
 // nested class's member initializers as parsed once the enclosing class is.
 struct ScanDataframe {
@@ -53,6 +76,13 @@ struct ScanDataframe {
   // Resolved at compile time; only the selected columns are retained.
   std::vector<std::shared_ptr<const dataframe::Column>> columns;
   uint32_t row_count = 0;
+  // The rows the scan's filters keep, in order, once the dataframe has run
+  // them; null while they have not been run, or if there are none.
+  std::shared_ptr<const core::FlexVector<uint32_t>> rows;
+  // The dataframe itself, when its filters compare with parameters and so run
+  // afresh each time the plan runs. It lives as long as the statement which
+  // runs the plan.
+  const dataframe::Dataframe* dataframe = nullptr;
 };
 
 // The dataframe the plan is passed as its `index`-th argument when it runs.
@@ -61,7 +91,7 @@ struct ScanDataframeArg {
   uint32_t index = 0;
 };
 
-// Reads all rows of a source. Always the first op.
+// Reads the rows of a source. Always the first op.
 struct Scan {
   using Dataframe = ScanDataframe;
   using DataframeArg = ScanDataframeArg;
@@ -72,6 +102,15 @@ struct Scan {
   Source source;
   // Bindings in source column order.
   std::vector<NamedColumn> columns;
+  // Conditions on the scan's own columns, every one of which a row must meet
+  // to be read. Pushed down from filters above, so the source can run them.
+  std::vector<FilterCondition> filters;
+};
+
+// `|> WHERE cond AND ...`: keeps the rows every condition holds for. The row
+// is otherwise unchanged.
+struct Filter {
+  std::vector<FilterCondition> conditions;
 };
 
 enum class TreeDirection : uint8_t { kUp, kDown };
@@ -116,7 +155,8 @@ struct IntervalIntersect {
 
 // The operator a plan node holds. Passes switch on `op.index()` with one case
 // per operator, using base::variant_index<Op, T>().
-using Op = std::variant<op::Scan, op::TreeAccumulate, op::IntervalIntersect>;
+using Op = std::
+    variant<op::Scan, op::Filter, op::TreeAccumulate, op::IntervalIntersect>;
 
 // Stable within a plan.
 using PlanNodeId = uint32_t;

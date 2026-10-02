@@ -117,6 +117,8 @@ const char* const kPipelines[] = {
     "INTERVAL INTERSECTION OF (spans AS a, spans AS b) PER cpu",
     // Pruning removes the fold, whose node is left behind unread.
     "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id",
+    "FROM df |> WHERE id IN (1, 2) AND self >= 1.5",
+    "FROM df |> WHERE parent_id IS NULL AND self != 'x'",
 };
 
 TEST_F(PlanSerializationTest, EveryOperatorRoundTrips) {
@@ -161,7 +163,7 @@ TEST_F(PlanSerializationTest, MalformedPlansAreRefusedOrRun) {
                  .ok()) {
           continue;
         }
-        auto physical = Lower(*read);
+        auto physical = Lower(*read, &pool_);
         core::exec::RowCursor cursor(physical->source());
         for (bool row = cursor.Open(); row; row = cursor.Next()) {
         }
@@ -186,6 +188,10 @@ TEST_F(PlanSerializationTest, PlansLoweringCannotRunAreRefused) {
           .aggregates[0]
           .output;
   EXPECT_FALSE(RoundTrip(reads_nothing_below).ok());
+
+  LogicalPlan no_value = Compile("FROM df |> WHERE self > 1");
+  no_value.nodes[0].Cast<op::Scan>().filters[0].values.clear();
+  EXPECT_FALSE(RoundTrip(no_value).ok());
 }
 
 TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreRefused) {
@@ -199,6 +205,32 @@ TEST_F(PlanSerializationTest, PlansWithTooManyOutputsAreRefused) {
   LogicalPlan over_limit = plan;
   over_limit.output.assign(kMaxPipelineColumns + 1, plan.output[0]);
   EXPECT_FALSE(RoundTrip(over_limit).ok());
+}
+
+// Anyone can write a parameter into a plan, so one not passed reads no rows.
+TEST_F(PlanSerializationTest, MissingParamsReadNoRows) {
+  for (const char* sql : {"FROM df |> WHERE self > 1",
+                          "FROM df |> TREE ACCUMULATE UP SUM(self) AS t "
+                          "|> WHERE t > 1"}) {
+    LogicalPlan plan = Compile(sql);
+    auto missing = [](std::vector<op::FilterCondition>& conditions) {
+      for (op::FilterCondition& condition : conditions) {
+        condition.values = {op::FilterParam{5}};
+      }
+    };
+    for (PlanNode& node : plan.nodes) {
+      if (node.Is<op::Scan>()) {
+        missing(node.Cast<op::Scan>().filters);
+      } else if (node.Is<op::Filter>()) {
+        missing(node.Cast<op::Filter>().conditions);
+      }
+    }
+    auto read = RoundTrip(plan);
+    ASSERT_TRUE(read.ok()) << sql;
+    auto physical = Lower(*read, &pool_);
+    core::exec::RowCursor cursor(physical->source());
+    EXPECT_FALSE(cursor.Open()) << sql;
+  }
 }
 
 }  // namespace
