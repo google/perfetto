@@ -36,7 +36,7 @@ const traceRowSpec = {
 type TraceRow = InferRowType<typeof traceRowSpec>;
 
 export interface TracesData {
-  readonly traces: TraceRow[];
+  readonly traces: readonly TraceRow[];
 }
 
 export async function loadTracesData(engine: Engine): Promise<TracesData> {
@@ -92,7 +92,7 @@ export class TracesTab implements m.ClassComponent<TracesTabAttrs> {
 }
 
 interface TraceListSectionAttrs {
-  data: TraceRow[];
+  data: readonly TraceRow[];
 }
 
 class TraceListSection implements m.ClassComponent<TraceListSectionAttrs> {

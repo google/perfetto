@@ -40,8 +40,8 @@ const machineRowSpec = {
 type MachineRow = InferRowType<typeof machineRowSpec>;
 
 export interface MachinesData {
-  machines: MachineRow[];
-  machineCount: number;
+  readonly machines: readonly MachineRow[];
+  readonly machineCount: number;
 }
 
 export async function loadMachinesData(engine: Engine): Promise<MachinesData> {
@@ -109,7 +109,7 @@ export class MachinesTab implements m.ClassComponent<MachinesTabAttrs> {
 
 // Machine List Section
 interface MachineListSectionAttrs {
-  data: MachineRow[];
+  readonly data: readonly MachineRow[];
 }
 
 class MachineListSection implements m.ClassComponent<MachineListSectionAttrs> {

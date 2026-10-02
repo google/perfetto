@@ -93,10 +93,10 @@ export async function getTraceInfos(
 
 // Generic error category interface
 export interface ErrorCategory {
-  name: string;
-  description: string;
-  totalCount: number;
-  entries: StatsSectionRow[];
+  readonly name: string;
+  readonly description: string;
+  readonly totalCount: number;
+  readonly entries: readonly StatsSectionRow[];
 }
 
 // Load stats with a custom WHERE clause
@@ -137,8 +137,19 @@ export async function loadStatsWithFilter(
 }
 
 // Group stats by category (name)
-export function groupByCategory(stats: StatsSectionRow[]): ErrorCategory[] {
-  const categoryMap = new Map<string, ErrorCategory>();
+export function groupByCategory(
+  stats: readonly StatsSectionRow[],
+): ErrorCategory[] {
+  // Mutable while grouping; handed out as readonly ErrorCategory.
+  const categoryMap = new Map<
+    string,
+    {
+      name: string;
+      description: string;
+      totalCount: number;
+      entries: StatsSectionRow[];
+    }
+  >();
   for (const stat of stats) {
     const existing = categoryMap.get(stat.name);
     if (existing) {

@@ -76,10 +76,10 @@ const aflagRowSpec = {
 type AflagRow = InferRowType<typeof aflagRowSpec>;
 
 export interface AndroidData {
-  packageList: PackageData[];
-  gameInterventions: AndroidGameInterventionRow[];
-  aflags: AflagRow[];
-  aflagErrors: string[];
+  readonly packageList: readonly PackageData[];
+  readonly gameInterventions: readonly AndroidGameInterventionRow[];
+  readonly aflags: readonly AflagRow[];
+  readonly aflagErrors: readonly string[];
 }
 
 export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
@@ -238,7 +238,7 @@ export class AndroidTab implements m.ClassComponent<AndroidTabAttrs> {
 
 // Package List Section
 interface PackageListSectionAttrs {
-  packageList: PackageData[];
+  packageList: readonly PackageData[];
 }
 
 class PackageListSection implements m.ClassComponent<PackageListSectionAttrs> {
@@ -291,7 +291,7 @@ class PackageListSection implements m.ClassComponent<PackageListSectionAttrs> {
 
 // Android Game Intervention List
 interface AndroidGameInterventionListAttrs {
-  data: AndroidGameInterventionRow[];
+  data: readonly AndroidGameInterventionRow[];
 }
 
 // Helper to format mode interventions
@@ -391,8 +391,8 @@ class AndroidGameInterventionList implements m.ClassComponent<AndroidGameInterve
 }
 
 interface AndroidAflagsSectionAttrs {
-  aflags: AflagRow[];
-  aflagErrors: string[];
+  aflags: readonly AflagRow[];
+  aflagErrors: readonly string[];
 }
 
 class AndroidAflagsSection implements m.ClassComponent<AndroidAflagsSectionAttrs> {

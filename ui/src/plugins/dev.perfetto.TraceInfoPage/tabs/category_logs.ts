@@ -50,26 +50,26 @@ const importLogSpec = {
 };
 
 interface CategoryLogRow {
-  ts: time | null;
-  severity: string;
-  name: string;
-  byte_offset: bigint | null;
-  args: string | null;
-  traceId: number | null;
-  traceIndex: number | null;
+  readonly ts: time | null;
+  readonly severity: string;
+  readonly name: string;
+  readonly byte_offset: bigint | null;
+  readonly args: string | null;
+  readonly traceId: number | null;
+  readonly traceIndex: number | null;
 }
 
 // A stats category augmented with the detailed import-log rows that share its
 // name. When the number of logs matches the aggregate count we can render the
 // individual entries; otherwise we fall back to the per-stat counts.
 export interface LogCategory extends ErrorCategory {
-  logs: CategoryLogRow[];
+  readonly logs: readonly CategoryLogRow[];
 }
 
 export interface CategoryLogsData {
-  categories: LogCategory[];
-  isMultiTrace: boolean;
-  isMultiMachine: boolean;
+  readonly categories: readonly LogCategory[];
+  readonly isMultiTrace: boolean;
+  readonly isMultiMachine: boolean;
 }
 
 // Loads stats matching `statsWhere` grouped by category, plus the trace import
@@ -89,14 +89,12 @@ export async function loadCategoryLogsData(
   }
   const isMultiMachine = machineIds.size > 1;
 
-  const categories: LogCategory[] = groupByCategory(errors).map((cat) => ({
-    ...cat,
-    logs: [],
-  }));
+  const errorCategories = groupByCategory(errors);
 
-  const categoryMap = new Map<string, LogCategory>();
-  for (const category of categories) {
-    categoryMap.set(category.name, category);
+  // Logs for each category, keyed by category name.
+  const logsByName = new Map<string, CategoryLogRow[]>();
+  for (const category of errorCategories) {
+    logsByName.set(category.name, []);
   }
 
   const logsResult = await engine.query(`
@@ -113,12 +111,12 @@ export async function loadCategoryLogsData(
   `);
 
   for (const iter = logsResult.iter(importLogSpec); iter.valid(); iter.next()) {
-    const category = categoryMap.get(iter.name);
-    if (!category) continue;
+    const logs = logsByName.get(iter.name);
+    if (!logs) continue;
 
     const traceId = iter.trace_id;
     const info = traceId !== null ? traceInfos.get(traceId) : undefined;
-    category.logs.push({
+    logs.push({
       ts: iter.ts !== null ? Time.fromRaw(iter.ts) : null,
       severity: iter.severity,
       name: iter.name,
@@ -128,6 +126,11 @@ export async function loadCategoryLogsData(
       traceIndex: info?.traceIndex ?? null,
     });
   }
+
+  const categories = errorCategories.map((cat) => ({
+    ...cat,
+    logs: logsByName.get(cat.name) ?? [],
+  }));
 
   return {categories, isMultiTrace, isMultiMachine};
 }

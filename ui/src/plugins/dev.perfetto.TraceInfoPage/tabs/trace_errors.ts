@@ -25,9 +25,9 @@ import {
 } from '../utils';
 
 export interface TraceErrorsData {
-  errors: StatsSectionRow[];
-  isMultiTrace: boolean;
-  isMultiMachine: boolean;
+  readonly errors: readonly StatsSectionRow[];
+  readonly isMultiTrace: boolean;
+  readonly isMultiMachine: boolean;
 }
 
 export async function loadTraceErrorsData(

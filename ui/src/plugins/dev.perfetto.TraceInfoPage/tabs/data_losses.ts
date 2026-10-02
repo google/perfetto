@@ -25,9 +25,9 @@ import {
 } from '../utils';
 
 export interface DataLossesData {
-  losses: StatsSectionRow[];
-  isMultiTrace: boolean;
-  isMultiMachine: boolean;
+  readonly losses: readonly StatsSectionRow[];
+  readonly isMultiTrace: boolean;
+  readonly isMultiMachine: boolean;
 }
 
 export async function loadDataLossesData(
