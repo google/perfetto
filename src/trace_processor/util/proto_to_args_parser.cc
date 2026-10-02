@@ -304,7 +304,8 @@ base::Status ProtoToArgsParser::ParseMessageField(
     const protozero::Field& field,
     Delegate& delegate,
     int* unknown_extensions,
-    RepeatedFieldIndex* repeated_field_index) {
+    RepeatedFieldIndex* repeated_field_index,
+    bool* cacheable) {
   PERFETTO_DCHECK(work_stack_.empty());
   PERFETTO_DCHECK(descriptor_idx < pool_.descriptors().size());
   allowed_fields_ = nullptr;
@@ -315,6 +316,7 @@ base::Status ProtoToArgsParser::ParseMessageField(
   uint32_t root_path = slot ? *slot
                             : AppendPathNode(root_key, StringPool::Id::Null(),
                                              /*has_array=*/false);
+  int unknown_before = unknown_extensions_ ? *unknown_extensions_ : 0;
   if (field.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
     if (auto* child = path_index_.Find(PathEdgeKey(root_path, field.id()))) {
       uint32_t node = *child;
@@ -324,6 +326,10 @@ base::Status ProtoToArgsParser::ParseMessageField(
               ProtoDescriptor::Type::kMessage &&
           TryRunFlatMessage(node, *path.resolved_idx, field.as_bytes(),
                             delegate)) {
+        if (cacheable) {
+          *cacheable =
+              !unknown_extensions_ || *unknown_extensions_ == unknown_before;
+        }
         return base::OkStatus();
       }
     }
@@ -352,6 +358,38 @@ base::Status ProtoToArgsParser::ParseMessageField(
   // Drain the stack even after an error, as ParseMessage does.
   base::Status loop_status = RunWorkLoop(delegate);
   return status.ok() ? loop_status : status;
+}
+
+std::optional<ProtoToArgsParser::MessageCacheKey> ProtoToArgsParser::CacheKey(
+    uint32_t descriptor_idx,
+    const protozero::Field& field) {
+  if (field.type() != protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+    return std::nullopt;
+  }
+  // Events tend to repeat the same field, and nodes are never removed, so
+  // the (message type, field) edge resolved last is kept.
+  uint64_t edge = PathEdgeKey(descriptor_idx, field.id());
+  uint32_t node_idx = cache_key_cache_node_;
+  if (PERFETTO_UNLIKELY(edge != cache_key_cache_edge_)) {
+    uint32_t* root = path_index_.Find(PathEdgeKey(kNoPath, descriptor_idx));
+    if (!root) {
+      return std::nullopt;
+    }
+    uint32_t* child = path_index_.Find(PathEdgeKey(*root, field.id()));
+    if (!child) {
+      return std::nullopt;
+    }
+    node_idx = *child;
+    cache_key_cache_edge_ = edge;
+    cache_key_cache_node_ = node_idx;
+  }
+  const PathNode& node = path_nodes_[node_idx];
+  if (!node.flat_eligible || node.override ||
+      node.flat_generation != pool_.generation()) {
+    return std::nullopt;
+  }
+  return MessageCacheKey{descriptor_idx, field.id(), node.flat_generation,
+                         node.flat_key_id.raw_id()};
 }
 
 base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {

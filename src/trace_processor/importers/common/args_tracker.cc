@@ -76,30 +76,7 @@ ArgsInserter::ArgsInserter(GlobalArgsTracker* global,
       row_(row),
       id_(id) {}
 
-ArgsInserter::ArgsInserter(ArgsInserter&& other) noexcept
-    : global_(other.global_),
-      buffer_(other.buffer_),
-      df_(other.df_),
-      col_(other.col_),
-      row_(other.row_),
-      id_(other.id_) {
-  other.global_ = nullptr;
-  other.buffer_ = nullptr;
-}
-
-ArgsInserter& ArgsInserter::operator=(ArgsInserter&& other) noexcept {
-  if (this != &other) {
-    // Destroy our current state (commits + releases the buffer), then
-    // move-construct from other in place.
-    this->~ArgsInserter();
-    new (this) ArgsInserter(std::move(other));
-  }
-  return *this;
-}
-
-ArgsInserter::~ArgsInserter() {
-  if (!global_)  // Empty, moved-from, or a test mock: nothing to commit.
-    return;
+void ArgsInserter::CommitAndRelease() {
   Commit();
   global_->ReleaseArgsBuffer(buffer_);
 }
@@ -110,6 +87,7 @@ ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
                                    UpdatePolicy update_policy) {
   std::vector<CompactArg>& args = buffer_->args;
   base::FlatHashMap<StringId, uint32_t>& key_index = buffer_->key_index;
+  buffer_->from_message = false;
 
   // Collapse same-key duplicates in place (kSkipIfExists keeps the first value,
   // kAddOrUpdate the last) so AddArgSet never sees two args with the same key.
@@ -153,12 +131,60 @@ ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
   return *this;
 }
 
-bool ArgsInserter::NeedsTranslation(const ArgsTranslationTable& table) const {
-  return std::any_of(buffer_->args.begin(), buffer_->args.end(),
-                     [&table](const CompactArg& arg) {
+bool ArgsInserter::AddMemoizedMessage(const MessageKey& key,
+                                      protozero::ConstBytes bytes) {
+  GlobalArgsTracker::MessageArgSet* set =
+      global_->FindMessageArgSet(key, bytes.data, bytes.size);
+  if (!set) {
+    return false;
+  }
+  if (buffer_->args.empty() && buffer_->array_indexes.size() == 0) {
+    buffer_->args = set->args;
+    buffer_->from_message = true;
+    buffer_->message_set_id = set->set_id;
+    buffer_->message_needs_translation = set->needs_translation;
+    return true;
+  }
+  for (const CompactArg& arg : set->args) {
+    AddArg(arg.flat_key, arg.key, arg.value, arg.update_policy);
+  }
+  return true;
+}
+
+void ArgsInserter::EndMessage(const MessageKey& key,
+                              protozero::ConstBytes bytes,
+                              bool cacheable) {
+  if (!cacheable || buffer_->message_start != 0 || buffer_->args.empty() ||
+      buffer_->array_indexes.size() != 0) {
+    return;
+  }
+  buffer_->from_message = true;
+  buffer_->message_key = key;
+  buffer_->message_bytes.assign(bytes.data, bytes.data + bytes.size);
+  buffer_->message_set_id.reset();
+  buffer_->message_needs_translation.reset();
+}
+
+namespace {
+
+bool ArgsNeedTranslation(const std::vector<GlobalArgsTracker::CompactArg>& args,
+                         const ArgsTranslationTable& table) {
+  return std::any_of(args.begin(), args.end(),
+                     [&table](const GlobalArgsTracker::CompactArg& arg) {
                        return table.NeedsTranslation(arg.flat_key, arg.key,
                                                      arg.value.type);
                      });
+}
+
+}  // namespace
+
+bool ArgsInserter::NeedsTranslationSlow(
+    const ArgsTranslationTable& table) const {
+  bool needs_translation = ArgsNeedTranslation(buffer_->args, table);
+  if (buffer_->from_message) {
+    buffer_->message_needs_translation = needs_translation;
+  }
+  return needs_translation;
 }
 
 ArgsInserter::CompactArgSet ArgsInserter::ToCompactArgSet() && {
@@ -178,8 +204,18 @@ void ArgsInserter::Commit() {
   if (args.empty()) {
     return;
   }
-  ArgSetId set_id =
-      global_->AddArgSet(args.data(), 0, static_cast<uint32_t>(args.size()));
+  ArgSetId set_id;
+  if (buffer_->from_message && buffer_->message_set_id) {
+    set_id = *buffer_->message_set_id;
+  } else {
+    set_id =
+        global_->AddArgSet(args.data(), 0, static_cast<uint32_t>(args.size()));
+    if (buffer_->from_message) {
+      global_->RememberMessageArgSet(buffer_->message_key,
+                                     buffer_->message_bytes, args, set_id,
+                                     buffer_->message_needs_translation);
+    }
+  }
   WriteArgSetId(df_, col_, row_, set_id);
 }
 

@@ -19,8 +19,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <new>
+#include <utility>
 
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -55,6 +58,7 @@ class ArgsTranslationTable;
 class ArgsInserter {
  public:
   using UpdatePolicy = GlobalArgsTracker::UpdatePolicy;
+  using MessageKey = GlobalArgsTracker::MessageKey;
   using CompactArg = GlobalArgsTracker::CompactArg;
   using CompactArgSet = base::SmallVector<CompactArg, 16>;
 
@@ -62,10 +66,29 @@ class ArgsInserter {
   // for the moved-from state and for default-constructed (empty) map entries.
   ArgsInserter() = default;
 
-  ~ArgsInserter();
+  ~ArgsInserter() {
+    if (global_)  // Empty, moved-from, or a test mock: nothing to commit.
+      CommitAndRelease();
+  }
 
-  ArgsInserter(ArgsInserter&&) noexcept;
-  ArgsInserter& operator=(ArgsInserter&&) noexcept;
+  ArgsInserter(ArgsInserter&& other) noexcept
+      : global_(other.global_),
+        buffer_(other.buffer_),
+        df_(other.df_),
+        col_(other.col_),
+        row_(other.row_),
+        id_(other.id_) {
+    other.global_ = nullptr;
+    other.buffer_ = nullptr;
+  }
+  ArgsInserter& operator=(ArgsInserter&& other) noexcept {
+    if (this != &other) {
+      if (global_)
+        CommitAndRelease();
+      new (this) ArgsInserter(std::move(other));
+    }
+    return *this;
+  }
 
   ArgsInserter(const ArgsInserter&) = delete;
   ArgsInserter& operator=(const ArgsInserter&) = delete;
@@ -82,6 +105,20 @@ class ArgsInserter {
                        StringId key,
                        Variadic v,
                        UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate);
+
+  // Adds the args of the message identified by |key| and |bytes| (see
+  // util::ProtoToArgsParser::CacheKey) if the same message was committed on
+  // its own before: its memoized args are added without parsing and, unless
+  // other args follow, its arg set id is reused at commit without hashing.
+  // Returns false if the message is not known; the caller then parses it
+  // between BeginMessage() and EndMessage() so the result is memoized.
+  bool AddMemoizedMessage(const MessageKey& key, protozero::ConstBytes bytes);
+  void BeginMessage() { buffer_->message_start = buffer_->args.size(); }
+  // Memoizes the args added since BeginMessage() when they are the only args
+  // of this inserter and |cacheable| says they depend on |bytes| alone.
+  void EndMessage(const MessageKey& key,
+                  protozero::ConstBytes bytes,
+                  bool cacheable);
 
   // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
   // track the next array index for an array under a specific key.
@@ -102,7 +139,12 @@ class ArgsInserter {
 
   // Returns whether this inserter holds any arg which requires translation
   // according to the provided |table|.
-  bool NeedsTranslation(const ArgsTranslationTable& table) const;
+  bool NeedsTranslation(const ArgsTranslationTable& table) const {
+    if (buffer_->from_message && buffer_->message_needs_translation) {
+      return *buffer_->message_needs_translation;
+    }
+    return NeedsTranslationSlow(table);
+  }
 
   // Moves the accumulated args out into a CompactArgSet, leaving this inserter
   // empty so it commits nothing when destroyed. Used by callers that must
@@ -118,9 +160,12 @@ class ArgsInserter {
                uint32_t row,
                uint32_t id);
 
+  bool NeedsTranslationSlow(const ArgsTranslationTable& table) const;
+
   // Commits the accumulated args (if any) as a single arg set and writes the
   // resulting arg_set_id into the target cell.
   void Commit();
+  void CommitAndRelease();
 
   // Non-null iff this inserter owns a pooled buffer; both are nulled on move.
   GlobalArgsTracker* global_ = nullptr;
