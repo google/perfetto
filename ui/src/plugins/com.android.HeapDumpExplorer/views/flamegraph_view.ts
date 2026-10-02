@@ -39,8 +39,9 @@ import {
 
 import {showModal} from '../../../widgets/modal';
 import {NUM} from '../../../trace_processor/query_result';
+import {makeHref} from '../nav';
 
-// Referenced by session.openFlamegraphPivotedAt.
+// Referenced by ObjectView's pivotFlamegraph.
 export const METRIC_OBJECT_SIZE = 'Object Size';
 export const METRIC_DOMINATED_OBJECT_SIZE = 'Dominated Object Size';
 
@@ -50,8 +51,6 @@ interface FlamegraphViewAttrs {
   readonly ts: time;
   readonly state: TreeExplorerState | undefined;
   readonly onStateChange: (state: TreeExplorerState) => void;
-  // Open the flamegraph-objects tab for `pathHashes` (CSV).
-  readonly onShowObjects: (pathHashes: string, isDominator: boolean) => void;
 }
 
 // path_hash_stable is exposed unaggregatable (and CAST to TEXT in SQL,
@@ -154,7 +153,7 @@ const METRIC_SPECS: ReadonlyArray<MetricSpec> = [
 function buildHeapGraphMetrics(
   upid: number,
   ts: time,
-  onShowObjects: (pathHashes: string, isDominator: boolean) => void,
+  trace: Trace,
 ): ReadonlyArray<TreeExplorerQueryMetric> {
   const showObjectsAction = (
     isDominator: boolean,
@@ -166,7 +165,12 @@ function buildHeapGraphMetrics(
     execute: async ({properties}) => {
       const pathHashes = properties.get('path_hash_stable');
       if (pathHashes === undefined) return;
-      onShowObjects(pathHashes, isDominator);
+      trace.navigate(
+        makeHref(
+          {upid, ts},
+          {view: 'flamegraph-objects', pathHashes, isDominator},
+        ),
+      );
     },
   });
   return METRIC_SPECS.map((s) =>
@@ -183,14 +187,12 @@ function buildHeapGraphMetrics(
 }
 
 export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
-  // The fetcher is created for the dump it serves and disposed by the memo when
-  // the dump changes or when this view is removed.
   const fetcherMemo = new Memo<TreeExplorerFetcher>();
 
   // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
   // the flamegraph behind a dismissible warning modal. Keyed by dump so it
   // re-arms when the dump changes; the check runs (and the modal is shown) only
-  // when this view is rendered, i.e. when the flamegraph tab is active.
+  // when this view is rendered.
   const incompleteSlot = new AsyncMemo<{
     isIncomplete: boolean;
     dismissed: boolean;
@@ -203,7 +205,7 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
         compute: () =>
           new TreeExplorerFetcher(
             attrs.trace,
-            buildHeapGraphMetrics(attrs.upid, attrs.ts, attrs.onShowObjects),
+            buildHeapGraphMetrics(attrs.upid, attrs.ts, attrs.trace),
           ),
       });
       const metrics = fetcher.metrics;
@@ -222,7 +224,6 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
       let state = attrs.state;
       if (state === undefined) {
         state = createDefaultTreeExplorerState(metrics);
-        attrs.onStateChange(state);
       }
 
       return [

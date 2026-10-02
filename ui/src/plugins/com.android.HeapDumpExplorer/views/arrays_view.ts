@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Memo} from '../../../base/memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import {EmptyState} from '../../../widgets/empty_state';
@@ -20,21 +21,20 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
-import {fmtHex} from '../format';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
   RowCounter,
   COL_INFO,
   colHeader,
+  fmtHex,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
-import {Anchor} from '../../../widgets/anchor';
+import * as queries from '../queries';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {type DumpRef, HdeAnchor} from '../nav';
 
-function buildQuery(activeDump: HeapDump): string {
+function buildQuery(activeDump: queries.HeapDump): string {
   return `
     SELECT
       o.id,
@@ -48,12 +48,12 @@ function buildQuery(activeDump: HeapDump): string {
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql(activeDump, 'o')}
+      AND ${queries.dumpFilterSql(activeDump, 'o')}
       AND od.array_data_hash IS NOT NULL
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -62,13 +62,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const id = Number(value);
         const cls = String(row.cls ?? '');
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-        return m(
-          Anchor,
-          {
-            onclick: () => navigate('object', {id, label: display}),
-          },
-          display,
-        );
+        return m(HdeAnchor, {dump, to: {view: 'object', id}}, display);
       },
     },
     cls: {
@@ -105,49 +99,25 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 
 interface ArraysViewAttrs {
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
-  readonly clearNavParam: (key: string) => void;
-  readonly initialArrayHash?: string;
-  readonly hasFieldValues?: boolean;
+  readonly activeDump: queries.HeapDump;
+  readonly arrayHash?: string;
+  readonly hasFieldValues: boolean;
 }
 
 export function ArraysView({
-  attrs: {engine, activeDump},
+  attrs: {engine},
 }: m.Vnode<ArraysViewAttrs>): m.Component<ArraysViewAttrs> {
-  const query = buildQuery(activeDump);
-  const datasource = new SQLDataSource({
-    engine,
-    tableOrSubquery: query,
-  });
-  const counter = new RowCounter();
-  counter.init(engine, query);
-
-  let filters: Filter[] = [];
-
-  function applyNavFilter(
-    ah: string | undefined,
-    clearNavParam: (key: string) => void,
-  ) {
-    if (!ah) return;
-    filters = [{field: 'array_hash', op: '=' as const, value: ah}];
-    counter.onFiltersChanged(filters);
-    clearNavParam('arrayHash');
-  }
+  const datasourceMemo = new Memo<SQLDataSource>();
+  const counter = new RowCounter(engine);
 
   return {
-    oninit(vnode) {
-      applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
-    },
-    onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
-    },
     onremove() {
-      datasource.dispose();
+      counter.dispose();
+      datasourceMemo.dispose();
     },
-    view(vnode) {
-      const {navigate} = vnode.attrs;
-      if (vnode.attrs.hasFieldValues === false) {
+    view({attrs}) {
+      const {activeDump, arrayHash} = attrs;
+      if (!attrs.hasFieldValues) {
         return m(
           DetailsShell,
           {title: 'Arrays', fillHeight: true},
@@ -159,14 +129,23 @@ export function ArraysView({
         );
       }
 
+      const query = buildQuery(activeDump);
+      const datasource = datasourceMemo.use({
+        key: {query},
+        compute: () => new SQLDataSource({engine, tableOrSubquery: query}),
+      });
+      const filters: Filter[] = arrayHash
+        ? [{field: 'array_hash', op: '=', value: arrayHash}]
+        : [];
+
       return m(
         DetailsShell,
         {
-          title: counter.heading('Arrays'),
+          title: counter.heading('Arrays', query, filters),
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(activeDump),
           data: datasource,
           fillHeight: true,
           initialColumns: [
@@ -179,10 +158,6 @@ export function ArraysView({
           ],
           filters,
           showExportButton: true,
-          onFiltersChanged: (f) => {
-            filters = [...f];
-            counter.onFiltersChanged(f);
-          },
         }),
       );
     },

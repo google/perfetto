@@ -18,64 +18,62 @@ import type {OomeDetails} from '../dev.perfetto.HeapProfile/oome_callstack_commo
 export type {OomeDetails};
 
 export interface HeapInfo {
-  name: string;
-  java: number;
-  native_: number;
+  readonly name: string;
+  readonly java: number;
+  readonly native_: number;
 }
 
 export interface DuplicateBitmapGroup {
   /** Content hash or dimension-based fallback key used for grouping. */
-  groupKey: string;
-  width: number;
-  height: number;
-  count: number;
-  totalBytes: number;
-  wastedBytes: number;
+  readonly groupKey: string;
+  readonly width: number;
+  readonly height: number;
+  readonly count: number;
+  readonly totalBytes: number;
+  readonly wastedBytes: number;
 }
 
 export interface DuplicateStringGroup {
-  value: string;
-  count: number;
-  totalBytes: number;
-  wastedBytes: number;
+  readonly value: string;
+  readonly count: number;
+  readonly totalBytes: number;
+  readonly wastedBytes: number;
 }
 
 export interface DuplicateArrayGroup {
-  className: string;
-  arrayHash: string;
-  count: number;
-  totalBytes: number;
-  wastedBytes: number;
+  readonly className: string;
+  readonly arrayHash: string;
+  readonly count: number;
+  readonly totalBytes: number;
+  readonly wastedBytes: number;
 }
 
 export interface OomeData {
-  upid: number;
-  ts: time;
-  details: OomeDetails;
+  readonly upid: number;
+  readonly ts: time;
+  readonly details: OomeDetails;
 }
 
 export interface OverviewData {
-  reachableInstanceCount: number;
-  unreachableInstanceCount: number;
-  classCount: number;
-  heaps: HeapInfo[];
-  duplicateBitmaps?: DuplicateBitmapGroup[];
-  duplicateStrings?: DuplicateStringGroup[];
-  duplicateArrays?: DuplicateArrayGroup[];
-  /** True when HPROF field values are available (heap_graph_primitive). */
-  hasFieldValues: boolean;
+  readonly reachableInstanceCount: number;
+  readonly unreachableInstanceCount: number;
+  readonly classCount: number;
+  readonly heaps: HeapInfo[];
+  readonly duplicateBitmaps?: DuplicateBitmapGroup[];
+  readonly duplicateStrings?: DuplicateStringGroup[];
+  readonly duplicateArrays?: DuplicateArrayGroup[];
   /** Process oom_score_adj at the dump instant; null if the trace has none. */
-  oomScore: number | null;
+  readonly oomScore: number | null;
   /** oom_adj bucket name from the stdlib (e.g. "cached"); null if unavailable. */
-  oomBucket: string | null;
+  readonly oomBucket: string | null;
   /** The anon RSS + swap size of the process (in bytes) at the time of the heap dump. */
-  anonRssAndSwapSize: bigint | null;
+  readonly anonRssAndSwapSize: bigint | null;
   /** The dmabuf size of the process (in bytes) at the time of the heap dump. */
-  dmabufRssSize: bigint | null;
+  readonly dmabufRssSize: bigint | null;
   /** The process uptime at the time of the heap dump. */
-  processUptime: bigint | null;
+  readonly processUptime: bigint | null;
   /** OOME details, if the dump was triggered by an OutOfMemoryError. */
-  oome: OomeDetails | undefined;
+  readonly oome: OomeDetails | undefined;
 }
 
 export type PrimOrRef =
@@ -95,67 +93,68 @@ export type PrimOrRef =
     };
 
 export interface PathEntry {
-  row: InstanceRow;
-  field: string;
-  isDominator: boolean;
+  readonly row: InstanceRow;
+  readonly field: string;
+  readonly isDominator: boolean;
 }
 
 export interface InstanceRow {
-  id: number;
-  display: string;
-  className: string;
-  isRoot: boolean;
-  rootTypeNames: string[] | null;
-  reachabilityName: string;
-  heap: string;
-  shallowJava: number;
-  shallowNative: number;
-  retainedTotal: number;
-  retainedCount: number;
+  readonly id: number;
+  readonly display: string;
+  readonly className: string;
+  readonly isRoot: boolean;
+  readonly rootTypeNames: string[] | null;
+  readonly reachabilityName: string;
+  readonly heap: string;
+  readonly shallowJava: number;
+  readonly shallowNative: number;
+  readonly retainedTotal: number;
+  readonly retainedCount: number;
+  // Null until filled in by enrichWithReachable.
   reachableSize: number | null;
   reachableNative: number | null;
   reachableCount: number | null;
-  retainedByHeap: {heap: string; java: number; native_: number}[];
-  str: string | null;
-  referent: InstanceRow | null;
-  isPlaceHolder?: boolean;
+  readonly retainedByHeap: {heap: string; java: number; native_: number}[];
+  readonly str: string | null;
+  readonly referent: InstanceRow | null;
+  readonly isPlaceHolder?: boolean;
 }
 
 export interface InstanceDetail {
-  row: InstanceRow;
-  isClassObj: boolean;
-  isArrayInstance: boolean;
-  isClassInstance: boolean;
-  classObjRow: InstanceRow | null;
-  instanceSize: number;
+  readonly row: InstanceRow;
+  readonly isClassObj: boolean;
+  readonly isArrayInstance: boolean;
+  readonly isClassInstance: boolean;
+  readonly classObjRow: InstanceRow | null;
+  readonly instanceSize: number;
   /** Superclass chain ordered starting-class first. */
-  classHierarchy: string[];
-  staticFields: {name: string; typeName: string; value: PrimOrRef}[];
-  instanceFields: {name: string; typeName: string; value: PrimOrRef}[];
-  elemTypeName: string | null;
-  arrayLength: number;
-  arrayElems: {idx: number; value: PrimOrRef}[];
-  bitmap: {
-    width: number;
-    height: number;
-    format: string;
-    data: Uint8Array<ArrayBuffer>;
+  readonly classHierarchy: string[];
+  readonly staticFields: {name: string; typeName: string; value: PrimOrRef}[];
+  readonly instanceFields: {name: string; typeName: string; value: PrimOrRef}[];
+  readonly elemTypeName: string | null;
+  readonly arrayLength: number;
+  readonly arrayElems: {idx: number; value: PrimOrRef}[];
+  readonly bitmap: {
+    readonly width: number;
+    readonly height: number;
+    readonly format: string;
+    readonly data: Uint8Array<ArrayBuffer>;
   } | null;
-  reverseRefs: InstanceRow[];
-  dominated: InstanceRow[];
-  dominatorPath: PathEntry[] | null;
-  shortestPath: PathEntry[] | null;
+  readonly reverseRefs: InstanceRow[];
+  readonly dominated: InstanceRow[];
+  readonly dominatorPath: PathEntry[] | null;
+  readonly shortestPath: PathEntry[] | null;
 }
 
 export interface BitmapListRow {
-  row: InstanceRow;
-  width: number;
-  height: number;
-  pixelCount: number;
-  hasPixelData: boolean;
-  density: number;
+  readonly row: InstanceRow;
+  readonly width: number;
+  readonly height: number;
+  readonly pixelCount: number;
+  readonly hasPixelData: boolean;
+  readonly density: number;
   /** Content hash of the compressed pixel buffer, null when unavailable. */
-  bufferHash: string | null;
+  readonly bufferHash: string | null;
   /**
    * Pixel-storage backing decoded from `Bitmap.mId` via the
    * `android.memory.heap_graph.bitmap` stdlib module. One of
@@ -164,37 +163,37 @@ export interface BitmapListRow {
    * 'ashmem' = shared kernel memory (PSS-shared across processes);
    * 'hardware' = AHardwareBuffer (GPU memory).
    */
-  storageType: string | null;
+  readonly storageType: string | null;
   /** Encoded `Bitmap.mId`. */
-  bitmapId: bigint | null;
+  readonly bitmapId: bigint | null;
   /**
    * Encoded `Bitmap.mSourceId` for parcel-received Bitmaps; null when the
    * Bitmap was locally allocated (raw -1 sentinel canonicalised).
    */
-  sourceId: bigint | null;
+  readonly sourceId: bigint | null;
   /** Sender pid decoded from sourceId. Null when sourceId is null. */
-  sourcePid: number | null;
+  readonly sourcePid: number | null;
   /** Sender's pixel storage type at writeToParcel time. */
-  sourceStorageType: string | null;
+  readonly sourceStorageType: string | null;
   /**
    * Sender's process name resolved against `process` at the heap dump's
    * timestamp. Requires the trace to include process info (e.g. captured
    * via `linux.process_stats` alongside the HPROF dump). Null otherwise.
    */
-  sourceProcessName: string | null;
+  readonly sourceProcessName: string | null;
 }
 
 export interface StringListRow {
-  id: number;
-  value: string;
-  length: number;
-  retainedSize: number;
-  reachableSize: number | null;
-  reachableNativeSize: number | null;
-  reachableCount: number | null;
-  shallowSize: number;
-  nativeSize: number;
-  heap: string;
-  className: string;
-  display: string;
+  readonly id: number;
+  readonly value: string;
+  readonly length: number;
+  readonly retainedSize: number;
+  readonly reachableSize: number | null;
+  readonly reachableNativeSize: number | null;
+  readonly reachableCount: number | null;
+  readonly shallowSize: number;
+  readonly nativeSize: number;
+  readonly heap: string;
+  readonly className: string;
+  readonly display: string;
 }

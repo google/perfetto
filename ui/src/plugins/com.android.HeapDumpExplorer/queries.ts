@@ -37,8 +37,7 @@ import type {
   DuplicateStringGroup,
   DuplicateArrayGroup,
 } from './types';
-import {fmtHex} from './format';
-import {shortClassName, SQL_PREAMBLE} from './components';
+import {shortClassName, SQL_PREAMBLE, fmtHex} from './components';
 import {type time, Time} from '../../base/time';
 
 /**
@@ -57,6 +56,14 @@ export interface HeapDump {
   readonly ts: time;
   readonly processName: string | null;
   readonly pid: number;
+}
+
+// Whether the trace has HPROF primitive field values (string contents, array
+// data, bitmap pixels). Only ART .hprof dumps record them; proto heap graphs
+// don't. Trace-wide, not per dump.
+export async function traceHasFieldValues(engine: Engine): Promise<boolean> {
+  const res = await engine.query(`SELECT 1 FROM heap_graph_primitive LIMIT 1`);
+  return res.iter({}).valid();
 }
 
 export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
@@ -108,6 +115,23 @@ function className(name: string | null, deobfuscated: string | null): string {
 
 function makeDisplay(cls: string, id: number): string {
   return `${shortClassName(cls)} ${fmtHex(id)}`;
+}
+
+// The display name of an object (e.g. `Foo 0x1a2b`), or undefined if there is
+// no such object.
+export async function getObjectDisplay(
+  engine: Engine,
+  id: number,
+): Promise<string | undefined> {
+  const res = await engine.query(`
+    SELECT c.name AS cls, c.deobfuscated_name AS deob
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE o.id = ${id}
+  `);
+  const it = res.iter({cls: STR_NULL, deob: STR_NULL});
+  if (!it.valid()) return undefined;
+  return makeDisplay(className(it.cls, it.deob), id);
 }
 
 function sqlEsc(s: string): string {
@@ -249,6 +273,7 @@ async function batchBitmapBufferHashes(
 export async function getOverview(
   engine: Engine,
   activeDump: HeapDump,
+  hasFieldValues: boolean,
 ): Promise<OverviewData> {
   const dumpFilter = dumpFilterSql(activeDump, 'o');
   const oomeInfo = await getOome(engine, activeDump);
@@ -326,11 +351,7 @@ export async function getOverview(
   // Duplicate bitmaps grouped by pixel content hash. Each bitmap's compressed
   // DumpData buffer is hashed to detect true content duplicates rather than
   // just matching on dimensions. Skipped for proto heap graphs (no HPROF data).
-  const hasPrimitivesRes = await engine.query(
-    `SELECT 1 FROM heap_graph_primitive LIMIT 1`,
-  );
-  const hasPrimitives = hasPrimitivesRes.iter({}).valid();
-  const dupRes = hasPrimitives
+  const dupRes = hasFieldValues
     ? await engine.query(`
     SELECT
       o.id,
@@ -429,7 +450,7 @@ export async function getOverview(
   // Duplicate strings grouped by value. Only available for HPROF dumps
   // which populate heap_graph_object_data.value_string.
   const duplicateStrings: DuplicateStringGroup[] = [];
-  if (hasPrimitives) {
+  if (hasFieldValues) {
     const strRes = await engine.query(`
       SELECT
         od.value_string AS value,
@@ -515,7 +536,6 @@ export async function getOverview(
     duplicateStrings:
       duplicateStrings.length > 0 ? duplicateStrings : undefined,
     duplicateArrays: duplicateArrays.length > 0 ? duplicateArrays : undefined,
-    hasFieldValues: hasPrimitives,
     oomScore,
     oomBucket,
     anonRssAndSwapSize,
@@ -685,7 +705,7 @@ async function fetchFieldValues(
 }
 
 /** Fetch dominator-tree path from GC root to the given object. */
-export async function fetchDominatorPath(
+async function fetchDominatorPath(
   engine: Engine,
   id: number,
 ): Promise<InstanceDetail['dominatorPath']> {
@@ -693,7 +713,7 @@ export async function fetchDominatorPath(
 }
 
 /** Fetch shortest reference path from a GC root to the given object. */
-export async function fetchShortestPathFromRoot(
+async function fetchShortestPathFromRoot(
   engine: Engine,
   id: number,
 ): Promise<InstanceDetail['shortestPath']> {
@@ -1052,10 +1072,10 @@ export async function getInstance(
 
   const reachabilityName = KIND_TO_REACHABILITY[classKind] ?? 'strong';
 
-  const row = rowFromIter({...oit, class_kind: classKind});
-  row.reachabilityName = reachabilityName;
+  const baseRow = rowFromIter({...oit, class_kind: classKind});
 
   // Detect referent for Reference subclasses.
+  let referent: InstanceRow | null = null;
   if (reachabilityName !== 'strong' && refSetId !== null) {
     const refResult = await engine.query(`
       SELECT
@@ -1079,14 +1099,14 @@ export async function getInstance(
     });
     if (rit.valid() && rit.owned_id !== null && rit.owned_id !== 0) {
       const refCls = className(rit.ref_cls, rit.ref_deob);
-      row.referent = {
+      referent = {
         id: rit.owned_id,
         display: makeDisplay(refCls, rit.owned_id),
         className: refCls,
         isRoot: false,
         rootTypeNames: null,
         reachabilityName: 'strong',
-        heap: row.heap,
+        heap: baseRow.heap,
         shallowJava: 0,
         shallowNative: 0,
         retainedTotal: 0,
@@ -1100,6 +1120,7 @@ export async function getInstance(
       };
     }
   }
+  const row: InstanceRow = {...baseRow, referent};
 
   // Look up the java.lang.Class<X> object for this class.
   let classObjRow: InstanceRow | null = null;
@@ -1291,7 +1312,7 @@ export async function getInstance(
  * we walk it by following each row's `parent_node_id` (the DFS predecessor,
  * i.e. the subclass that discovered this ancestor).
  */
-export async function getClassHierarchy(
+async function getClassHierarchy(
   engine: Engine,
   startClassId: number,
 ): Promise<string[]> {
@@ -1931,8 +1952,7 @@ async function getReachableSizes(
 }
 
 /**
- * Enrich InstanceRow[] with reachable sizes.  Call after initial data load;
- * the caller should trigger a re-render when the returned promise resolves.
+ * Enrich InstanceRow[] with reachable sizes.  Call after initial data load.
  */
 export async function enrichWithReachable(
   engine: Engine,
