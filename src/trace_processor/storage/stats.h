@@ -395,6 +395,27 @@ namespace perfetto::trace_processor::stats {
       "Provide a relationship - a ClockSnapshot, a remote_clock_sync, or a "   \
       "perfetto_manifest clock anchor - or attribute the file to a machine "   \
       "that shares a clock with the rest of the trace."),                      \
+  F(machine_data_claimed_by_other_trace, kSingle, kDataLoss, kAnalysis, Scope::kMachineAndTrace,        \
+      "Machine-wide data (e.g. ftrace scheduling and CPU frequency, "        \
+      "sys_stats, battery counters) from a trace was dropped because "       \
+      "another trace in the merged input provides the same kind of data "    \
+      "for the same machine at that time. For each machine and kind of "     \
+      "data, each trace contributes a single time window and windows "       \
+      "never overlap: the first trace in trace_file order keeps all its "    \
+      "data, later traces keep only their data outside the windows of "      \
+      "the traces before them (per-UID CPU time is only kept from the "      \
+      "first trace). Traces recorded one after another lose nothing. The "   \
+      "trace_import_logs table records, per trace and kind, the "            \
+      "timestamp of the first dropped data, the kind and the conflicting "   \
+      "trace. If the traces come from different machines or boots, "         \
+      "attribute them to different machines with a perfetto_manifest."),     \
+  F(machine_data_closed_at_trace_boundary, kSingle, kInfo, kAnalysis, Scope::kMachineAndTrace,    \
+      "A scheduling slice, thread state or slice on a machine-wide track was " \
+      "still open when its trace's data for that machine ended, and a later " \
+      "trace of the same machine provides that kind of data afterwards. "     \
+      "Rather than leaving it unfinished (dur = -1) across the next trace's "  \
+      "data, it was closed at the end of its trace's data, so its duration "   \
+      "is a lower bound. See machine_data_claimed_by_other_trace."),           \
   F(clock_sync_mixed_clock_sources,         kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace,      \
       "A non-primary trace file used both the primary trace's clock "          \
       "snapshots and its own for timestamp conversion. Timestamps "            \

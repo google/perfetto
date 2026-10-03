@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -113,6 +114,12 @@ ModuleResult AndroidCpuPerUidModule::TokenizePacket(
     const TokenizePacketArgs& args) {
   if (args.field.id() != TracePacket::kCpuPerUidDataFieldNumber) {
     return ModuleResult::Ignored();
+  }
+  // Per-UID CPU time is machine-wide data, fully imported at tokenization
+  // time: check that this trace provides it for this machine.
+  if (!context_->machine_data_claim_tracker->ShouldImport(
+          context_, MachineDataClaimTracker::Kind::kCpuPerUid, args.ts)) {
+    return ModuleResult::Handled();
   }
 
   auto* state = args.state->GetCustomState<AndroidCpuPerUidState>();

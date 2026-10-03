@@ -22,6 +22,7 @@
 
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -31,11 +32,17 @@ namespace perfetto::trace_processor {
 namespace {
 
 template <typename T, typename StreamVector, typename Factory>
-PERFETTO_ALWAYS_INLINE void PushToStream(uint32_t cpu,
+PERFETTO_ALWAYS_INLINE void PushToStream(TraceProcessorContext* context,
+                                         uint32_t cpu,
                                          int64_t ts,
                                          T& data,
                                          StreamVector& streams,
                                          const Factory& factory) {
+  if (PERFETTO_LIKELY(context) &&
+      PERFETTO_UNLIKELY(!context->machine_data_claim_tracker->ShouldImport(
+          context, MachineDataClaimTracker::Kind::kKernel, ts))) {
+    return;
+  }
   if (PERFETTO_UNLIKELY(cpu >= streams.size())) {
     size_t old_size = streams.size();
     streams.resize(cpu + 1);
@@ -77,26 +84,27 @@ void ProtoImporterModule::RegisterForField(uint32_t field_id) {
 void ProtoImporterModuleContext::PushFtraceEvent(uint32_t cpu,
                                                  int64_t ts,
                                                  FtraceData data) {
-  PushToStream(cpu, ts, data, ftrace_event_streams, ftrace_stream_factory);
+  PushToStream(context, cpu, ts, data, ftrace_event_streams,
+               ftrace_stream_factory);
 }
 
 void ProtoImporterModuleContext::PushEtwEvent(uint32_t cpu,
                                               int64_t ts,
                                               TracePacketData data) {
-  PushToStream(cpu, ts, data, etw_event_streams, etw_stream_factory);
+  PushToStream(context, cpu, ts, data, etw_event_streams, etw_stream_factory);
 }
 
 void ProtoImporterModuleContext::PushInlineSchedSwitch(uint32_t cpu,
                                                        int64_t ts,
                                                        InlineSchedSwitch data) {
-  PushToStream(cpu, ts, data, inline_sched_switch_streams,
+  PushToStream(context, cpu, ts, data, inline_sched_switch_streams,
                inline_sched_switch_stream_factory);
 }
 
 void ProtoImporterModuleContext::PushInlineSchedWaking(uint32_t cpu,
                                                        int64_t ts,
                                                        InlineSchedWaking data) {
-  PushToStream(cpu, ts, data, inline_sched_waking_streams,
+  PushToStream(context, cpu, ts, data, inline_sched_waking_streams,
                inline_sched_waking_stream_factory);
 }
 

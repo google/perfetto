@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
@@ -58,6 +59,8 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
       unknown_thread_name_id_(ctx->storage->InternString("<...>")) {}
 
 base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
+  TrackTracker::ScopedMachineData machine_data(
+      context_, MachineDataClaimTracker::Kind::kKernel);
   const StringId line_task_id{
       context_->storage->InternString(base::StringView(line.task))};
   auto utid = context_->process_tracker->GetOrCreateThread(line.pid);
