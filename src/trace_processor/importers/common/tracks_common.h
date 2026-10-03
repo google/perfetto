@@ -107,14 +107,15 @@ static constexpr auto kChromeProcessInstantBlueprint = tracks::SliceBlueprint(
 
 // Begin counter blueprints.
 
-inline constexpr auto kBatteryCounterBlueprint = tracks::CounterBlueprint(
-    "battery_counter",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(
-        tracks::StringDimensionBlueprint("battery_name"),
-        tracks::StringDimensionBlueprint("counter_name")),
-    tracks::FnNameBlueprint(
-        [](base::StringView battery_name, base::StringView counter_name) {
+inline constexpr auto kBatteryCounterBlueprint =
+    tracks::MachineCounterBlueprint(
+        "battery_counter",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::StringDimensionBlueprint("battery_name"),
+            tracks::StringDimensionBlueprint("counter_name")),
+        tracks::FnNameBlueprint([](base::StringView battery_name,
+                                   base::StringView counter_name) {
           if (battery_name.size() > 0) {
             return base::StackString<1024>(
                 "batt.%.*s.%.*s", int(battery_name.size()), battery_name.data(),
