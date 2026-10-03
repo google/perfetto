@@ -360,7 +360,10 @@ void MachineDataClaimTracker::CloseOpenSchedSlices() {
     if (!window) {
       continue;
     }
-    auto key = std::make_pair(window, r.utid());
+    uint32_t ucpu = sched->dataframe().GetCellUnchecked<
+        tables::SchedSliceTable::ColumnIndex::ucpu>(
+        tables::SchedSliceTable::kSpec, i);
+    auto key = std::make_pair(window, ucpu);
     auto it = latest_open.find(key);
     if (it == latest_open.end() || (*sched)[it->second].ts() < r.ts()) {
       latest_open[key] = i;

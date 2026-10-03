@@ -27,6 +27,8 @@
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "test/gtest_and_gmock.h"
@@ -319,6 +321,32 @@ TEST_F(MachineDataClaimTrackerTest, KindToString) {
   EXPECT_STREQ(MachineDataClaimTracker::KindToString(Kind::kAndroidPower),
                "android_power");
   EXPECT_STREQ(MachineDataClaimTracker::KindToString(Kind::kCounter), "counter");
+}
+
+TEST_F(MachineDataClaimTrackerTest, CloseOpenSchedSlicesPerCpu) {
+  tables::ThreadTable::Row thread;
+  thread.tid = 0;
+  thread.machine_id = machine_ctx_.machine_id();
+  auto utid = machine_ctx_.storage->mutable_thread_table()->Insert(thread).row;
+  ASSERT_EQ(utid, 0u);
+
+  ASSERT_TRUE(Import(&trace1_, 100, Kind::kSched));
+  ASSERT_TRUE(Import(&trace1_, 200, Kind::kSched));
+  ASSERT_TRUE(Import(&trace2_, 300, Kind::kSched));
+  ASSERT_TRUE(Import(&trace2_, 400, Kind::kSched));
+
+  auto* sched = machine_ctx_.storage->mutable_sched_slice_table();
+  auto s0 = sched->Insert({/*ts=*/150, /*dur=*/-1, /*utid=*/0,
+                           StringPool::Id::Null(), /*priority=*/0,
+                           tables::CpuTable::Id{0}});
+  auto s1 = sched->Insert({/*ts=*/160, /*dur=*/-1, /*utid=*/0,
+                           StringPool::Id::Null(), /*priority=*/0,
+                           tables::CpuTable::Id{1}});
+
+  tracker()->OnEventsFullyExtracted();
+
+  EXPECT_EQ((*sched)[s0.row].dur(), 50);
+  EXPECT_EQ((*sched)[s1.row].dur(), 40);
 }
 
 }  // namespace
