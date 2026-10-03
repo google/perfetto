@@ -42,14 +42,26 @@ constexpr uint32_t kMinFragmentPayloadSize =
 
 // Ring buffer occupancy at which a publication asks for a drain: the
 // percentage of ring buffer positions that are outstanding.
-//
-// TODO(sashwinbalaji): Expose this in TraceConfig. A later change in this
-// stack adds drain_occupancy_percent. Then use the configured value here.
-constexpr uint32_t kDrainOccupancyPercent = 25;
+// Used when drain_occupancy_percent is 0 or absent.
+constexpr uint32_t kDefaultDrainOccupancyPercent = 25;
 
-uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks) {
-  const uint64_t threshold =
-      uint64_t{num_chunks} * kDrainOccupancyPercent / 100;
+// Returns the drain threshold, in positions, for a ring buffer of
+// |num_chunks| chunks.
+// |drain_occupancy_percent| must be -1 to 100:
+// - -1: 1, so a writer asks for a drain after every publication.
+// - 0: 25% of |num_chunks|.
+// - 1 to 100: that percent of |num_chunks|.
+// The result is at least 1.
+uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks,
+                                        int32_t drain_occupancy_percent) {
+  PERFETTO_DCHECK(drain_occupancy_percent >= -1 &&
+                  drain_occupancy_percent <= 100);
+  if (drain_occupancy_percent == -1)
+    return 1;
+  const uint64_t percent = drain_occupancy_percent == 0
+                               ? kDefaultDrainOccupancyPercent
+                               : static_cast<uint64_t>(drain_occupancy_percent);
+  const uint64_t threshold = uint64_t{num_chunks} * percent / 100;
   // For small ring buffers, integer division can round the threshold down to
   // zero.
   return std::max(1u, static_cast<uint32_t>(threshold));
@@ -99,7 +111,8 @@ TraceWriterV2Impl::TraceWriterV2Impl(
                           target_buffer),
       buffer_exhausted_policy_(policy),
       drain_occupancy_threshold_(ComputeDrainOccupancyThreshold(
-          ring_buffer_arbiter->ring_buffer()->num_chunks())),
+          ring_buffer_arbiter->ring_buffer()->num_chunks(),
+          ring_buffer_arbiter->drain_occupancy_percent())),
       process_id_(base::GetProcessId()),
       stream_writer_(this),
       cur_packet_(std::make_unique<

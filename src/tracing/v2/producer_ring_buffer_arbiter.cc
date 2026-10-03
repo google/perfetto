@@ -39,6 +39,46 @@ namespace {
 // gives no SMB size hint.
 constexpr size_t kDefaultSizeBudget = 128 * 1024;
 
+// Chooses the chunk size from the chunk_size_options of |config|, at random,
+// by weight.
+// - An absent weight counts as 1, and 0 means never.
+// - An option with an invalid size is skipped: the service rejects it, but an
+//   older service does not.
+// Returns kMinChunkSize if no option can be chosen.
+uint32_t ChooseChunkSize(const DataSourceConfig& config) {
+  using ChunkSizeOption =
+      DataSourceConfig::ExperimentalTracingV2Config::ChunkSizeOption;
+
+  const auto& options = config.experimental_tracing_v2().chunk_size_options();
+  auto weight_of = [](const ChunkSizeOption& option) -> uint64_t {
+    if (!IsValidChunkSize(option.size_bytes()))
+      return 0;
+    return option.has_weight() ? option.weight() : 1;
+  };
+
+  uint64_t total_weight = 0;
+  for (const ChunkSizeOption& option : options)
+    total_weight += weight_of(option);
+
+  if (total_weight == 0)
+    return kMinChunkSize;
+
+  // Walk the options until their cumulative weight passes |target|.
+  const uint64_t target =
+      static_cast<uint64_t>(base::Uuidv4().lsb()) % total_weight;
+  uint64_t cumulative_weight = 0;
+  for (const ChunkSizeOption& option : options) {
+    cumulative_weight += weight_of(option);
+    if (target < cumulative_weight)
+      return option.size_bytes();
+  }
+
+  // Not reached: the last cumulative weight is the total, which is above
+  // |target|, so the loop returns.
+  PERFETTO_DFATAL("ChooseChunkSize: no option for the target");
+  return kMinChunkSize;
+}
+
 }  // namespace
 
 ProducerRingBufferArbiter::ProducerRingBufferArbiter(
@@ -83,7 +123,7 @@ void ProducerRingBufferArbiter::SetupInstance(DataSourceInstanceID id,
   // Later instances reuse the ring buffer, or stay without one after a
   // failure.
   if (!memory_ && reader_state_.load() == ReaderState::kPending)
-    CreateAndAttachRingBuffer(size_budget);
+    CreateAndAttachRingBuffer(config, size_budget);
 
   // Add the instance only now, so that a writer that finds the instance also
   // finds the ring buffer, or kDetached after a failure.
@@ -91,8 +131,13 @@ void ProducerRingBufferArbiter::SetupInstance(DataSourceInstanceID id,
   v2_ring_buffer_instances_.insert(id);
 }
 
-void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(size_t size_budget) {
-  const uint32_t chunk_size = kMinChunkSize;
+void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(
+    const DataSourceConfig& config,
+    size_t size_budget) {
+  drain_occupancy_percent_ =
+      config.experimental_tracing_v2().drain_occupancy_percent();
+
+  const uint32_t chunk_size = ChooseChunkSize(config);
   // The service maps at most kMaxShmSize, header included.
   const std::optional<size_t> size = RingBufferSizeForBudget(
       std::min(size_budget ? size_budget : kDefaultSizeBudget,

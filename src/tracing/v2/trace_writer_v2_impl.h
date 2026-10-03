@@ -229,7 +229,8 @@ class TraceWriterV2Impl : public TraceWriter,
   // outstanding positions.
   // - The count covers the positions of all writers.
   // - It includes reservations whose chunks are not published yet.
-  // - The constructor computes the threshold from the ring buffer's capacity.
+  // - The constructor computes the threshold from the ring buffer's capacity
+  //   and the arbiter's drain_occupancy_percent().
   const uint32_t drain_occupancy_threshold_;
 
   // Time source for stall deadlines. Tests replace it to advance time

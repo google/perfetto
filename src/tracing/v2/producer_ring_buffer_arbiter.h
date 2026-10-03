@@ -289,6 +289,8 @@ class ProducerRingBufferArbiter {
     return ring_buffer_ ? &*ring_buffer_ : nullptr;
   }
 
+  int32_t drain_occupancy_percent() const { return drain_occupancy_percent_; }
+
   // Drain requests, from writers on their own thread:
 
   // Asks the service to read the ring buffer. See DrainUrgency.
@@ -307,7 +309,7 @@ class ProducerRingBufferArbiter {
   // Creates the ring buffer for the first v2 instance, and attaches it.
   // A failure is final: the state moves to kDetached, and the writers of all
   // v2 instances are NullTraceWriters, with no v1 fallback.
-  void CreateAndAttachRingBuffer(size_t size_budget);
+  void CreateAndAttachRingBuffer(const DataSourceConfig&, size_t size_budget);
   // The attach reply calls it when the service accepts the ring buffer.
   // It moves kPending to kAttached, and does nothing in kDetached, because
   // over IPC the accept reply can arrive after a disconnect.
@@ -351,6 +353,10 @@ class ProducerRingBufferArbiter {
   std::shared_ptr<SharedMemory> memory_;
   // The view that writers borrow.
   std::optional<SharedRingBuffer> ring_buffer_;
+  // After a publication, a writer asks the service for a drain when this
+  // percentage of the ring buffer positions wait for the reader.
+  // All writers use the value of the first v2 instance.
+  int32_t drain_occupancy_percent_ = 0;
 
   // --- Shared with writer threads. ---
 

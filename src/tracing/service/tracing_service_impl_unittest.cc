@@ -705,6 +705,60 @@ TEST_F(TracingServiceImplTest, RejectsInvalidTracingV2Settings) {
   consumer->WaitForTracingDisabledWithError(IsEmpty());
 }
 
+// A chunk size must be valid for the ring buffer ABI.
+TEST_F(TracingServiceImplTest, RejectsInvalidChunkSizeOptions) {
+  auto make_config = [](uint32_t size) {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* ds_config = config.add_data_sources()->mutable_config();
+    ds_config->set_name("data_source");
+    ds_config->mutable_experimental_tracing_v2()
+        ->add_chunk_size_options()
+        ->set_size_bytes(size);
+    return config;
+  };
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  for (uint32_t size : {0u, 255u, 258u, 65540u}) {
+    consumer->EnableTracing(make_config(size));
+    consumer->WaitForTracingDisabledWithError(HasSubstr("chunk_size_options"));
+  }
+  for (uint32_t size : {256u, 65536u}) {
+    consumer->EnableTracing(make_config(size));
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabledWithError(IsEmpty());
+    consumer->FreeBuffers();
+  }
+}
+
+// drain_occupancy_percent must be -1 to 100.
+TEST_F(TracingServiceImplTest, RejectsInvalidDrainOccupancyPercent) {
+  auto make_config = [](int32_t percent) {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* ds_config = config.add_data_sources()->mutable_config();
+    ds_config->set_name("data_source");
+    ds_config->mutable_experimental_tracing_v2()->set_drain_occupancy_percent(
+        percent);
+    return config;
+  };
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  for (int32_t percent : {-2, 101}) {
+    consumer->EnableTracing(make_config(percent));
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("drain_occupancy_percent"));
+  }
+  for (int32_t percent : {-1, 100}) {
+    consumer->EnableTracing(make_config(percent));
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabledWithError(IsEmpty());
+    consumer->FreeBuffers();
+  }
+}
+
 // The consumer cannot set supports_tracing_v2. The service overwrites the
 // field, also for a producer without tracing v2.
 TEST_F(TracingServiceImplTest, ServiceOverwritesSupportsTracingV2) {
