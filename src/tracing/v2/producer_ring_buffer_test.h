@@ -80,7 +80,7 @@ namespace perfetto::tracing_v2 {
 class ProducerRingBufferTest : public ::testing::Test,
                                public SharedRingBufferReader::Delegate {
  protected:
-  // The arbiter always uses this chunk size.
+  // The arbiter uses this chunk size if the config has no chunk size option.
   static constexpr uint32_t kChunkSize = kMinChunkSize;
   static constexpr BufferID kTargetBuffer = 7;
   static constexpr DataSourceInstanceID kInstance = 1;

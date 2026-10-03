@@ -32,8 +32,10 @@
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
+#include <initializer_list>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "src/tracing/v2/producer_ring_buffer_test.h"
@@ -73,6 +75,23 @@ class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
     return test::ProducerRingBufferArbiterTestPeer::reader_state(
         arbiter_.get());
   }
+
+  // A v2 config with chunk size options from {size, weight} pairs.
+  // A negative weight leaves the weight absent.
+  static DataSourceConfig ChunkSizeConfig(
+      std::initializer_list<std::pair<uint32_t, int>> options) {
+    DataSourceConfig config = V2Config();
+    for (const auto& [size, weight] : options) {
+      auto* option =
+          config.mutable_experimental_tracing_v2()->add_chunk_size_options();
+      option->set_size_bytes(size);
+      if (weight >= 0)
+        option->set_weight(static_cast<uint32_t>(weight));
+    }
+    return config;
+  }
+
+  uint32_t chunk_size() { return arbiter_->ring_buffer()->chunk_size(); }
 
   // Writes one packet with |writer|, flushes, and returns true if the fake
   // service read it from the ring buffer.
@@ -228,6 +247,45 @@ TEST_F(ProducerRingBufferArbiterTest, DisconnectBeforeRingBufferIsFinal) {
   EXPECT_EQ(writer->writer_id(), 0u);
 }
 
+// --- Chunk size ---
+
+// The first v2 instance chooses the chunk size for the connection.
+// The budget counts bytes, so larger chunks give fewer of them.
+TEST_F(ProducerRingBufferArbiterTest, FirstV2InstanceChoosesTheChunkSize) {
+  SetupInstance(kInstance, ChunkSizeConfig({{1024, -1}}), /*num_chunks=*/16);
+  ASSERT_TRUE(arbiter_->ring_buffer());
+  EXPECT_EQ(chunk_size(), 1024u);
+  EXPECT_EQ(arbiter_->ring_buffer()->num_chunks(), 4u);
+
+  // The options of a later instance have no effect.
+  SetupInstance(2, ChunkSizeConfig({{512, -1}}), /*num_chunks=*/16);
+  EXPECT_EQ(chunk_size(), 1024u);
+}
+
+// Weight 0 means never, and an absent weight counts.
+TEST_F(ProducerRingBufferArbiterTest, ZeroWeightChunkSizeIsNeverChosen) {
+  SetupInstance(kInstance, ChunkSizeConfig({{512, 0}, {1024, -1}}),
+                /*num_chunks=*/16);
+  ASSERT_TRUE(arbiter_->ring_buffer());
+  EXPECT_EQ(chunk_size(), 1024u);
+}
+
+TEST_F(ProducerRingBufferArbiterTest, AllZeroWeightsUseTheDefaultChunkSize) {
+  SetupInstance(kInstance, ChunkSizeConfig({{512, 0}, {1024, 0}}),
+                /*num_chunks=*/16);
+  ASSERT_TRUE(arbiter_->ring_buffer());
+  EXPECT_EQ(chunk_size(), kChunkSize);
+}
+
+// An invalid size is never chosen.
+// The service rejects it, but an older service does not.
+TEST_F(ProducerRingBufferArbiterTest, InvalidChunkSizeIsNeverChosen) {
+  SetupInstance(kInstance, ChunkSizeConfig({{100, 5}, {258, 5}, {2048, 1}}),
+                /*num_chunks=*/16);
+  ASSERT_TRUE(arbiter_->ring_buffer());
+  EXPECT_EQ(chunk_size(), 2048u);
+}
+
 // --- Writers ---
 
 TEST_F(ProducerRingBufferArbiterTest, NullTraceWriterAfterDisconnect) {
@@ -317,6 +375,26 @@ TEST_F(ProducerRingBufferArbiterTest, UrgentDrainIsPostedFromOtherThread) {
   EXPECT_EQ(num_drain_requests_, 0u);
   task_runner_.RunUntilIdle();
   EXPECT_EQ(num_drain_requests_, 1u);
+}
+
+// The first v2 instance sets drain_occupancy_percent for the connection, and
+// the value of a later instance has no effect.
+TEST_F(ProducerRingBufferArbiterTest,
+       FirstV2InstanceSetsTheDrainOccupancyPercent) {
+  auto config = V2Config();
+  config.mutable_experimental_tracing_v2()->set_drain_occupancy_percent(-1);
+  SetupInstance(kInstance, config, /*num_chunks=*/8);
+  AttachReader();
+
+  config.mutable_experimental_tracing_v2()->set_drain_occupancy_percent(100);
+  SetupInstance(2, config, /*num_chunks=*/8);
+  auto writer = CreateWriter(BufferExhaustedPolicy::kDrop, 2);
+
+  // -1 asks for a drain after every publication.
+  WritePacket(writer.get(), "p");
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 1u);
+  EXPECT_EQ(ReadPackets().size(), 1u);
 }
 
 // --- Flush ---
