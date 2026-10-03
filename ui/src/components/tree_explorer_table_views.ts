@@ -39,6 +39,13 @@ import type {
 } from './widgets/datagrid/data_source';
 import type {IdBasedTree} from './widgets/datagrid/model';
 import type {Row, SqlValue} from '../trace_processor/query_result';
+import {
+  DIFF_FLAT_INITIAL_COLUMNS,
+  DIFF_TREE_INITIAL_COLUMNS,
+  buildFlatDiffExportString,
+  diffColumnSchema,
+  diffColumns,
+} from './tree_explorer_table_views_diff';
 
 const DEFAULT_TREE: IdBasedTree = {
   idField: 'id',
@@ -56,6 +63,9 @@ export interface TreeExplorerTreeViewAttrs {
 // the share of the root total. DataGrid id-based tree mode keeps expansion
 // O(visible rows) and the DOM virtualised. Direction (top-down vs bottom-up)
 // is a property of the fetched tree, not of this widget.
+//
+// Given a diff (see TreeExplorerData.diff), rows show how the values changed
+// from the baseline tree, biggest growth first.
 export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeViewAttrs> {
   private source?: TreeExplorerTreeDataSource;
   private sourceData?: TreeExplorerData;
@@ -69,42 +79,52 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
-    return m(DataGrid, {
-      className: 'pf-tree-explorer__grid',
-      fillHeight: true,
-      // The tree explorer's own filter bar is the filtering surface;
-      // row-level grid filters have no meaning on a tree walk.
-      disableFilterControls: true,
-      schema: {
-        name: {title: 'Name', columnType: 'text'},
-        total: {
-          title: 'Total',
-          columnType: 'quantitative',
-          cellRenderer: fmtValue,
+    const isDiff = attrs.data.diff !== undefined;
+    // A fragment, so that its key is honoured: the grid only reads its
+    // initial columns when created, so it is recreated when switching
+    // between a single tree and a diff.
+    return [
+      m(DataGrid, {
+        key: isDiff ? 'diff' : 'tree',
+        className: 'pf-tree-explorer__grid',
+        fillHeight: true,
+        // The tree explorer's own filter bar is the filtering surface;
+        // row-level grid filters have no meaning on a tree walk.
+        disableFilterControls: true,
+        schema: {
+          name: {title: 'Name', columnType: 'text'},
+          total: {
+            title: isDiff ? 'Current total' : 'Total',
+            columnType: 'quantitative',
+            cellRenderer: fmtValue,
+          },
+          self: {
+            title: isDiff ? 'Current self' : 'Self',
+            columnType: 'quantitative',
+            cellRenderer: fmtValue,
+          },
+          percent: {
+            title: '% of total',
+            columnType: 'quantitative',
+            cellRenderer: fmtPercent,
+          },
+          ...(isDiff ? diffColumnSchema(attrs.unit) : {}),
         },
-        self: {
-          title: 'Self',
-          columnType: 'quantitative',
-          cellRenderer: fmtValue,
+        data: this.source,
+        initialColumns: isDiff
+          ? DIFF_TREE_INITIAL_COLUMNS
+          : [
+              {id: 'name', field: 'name'},
+              {id: 'total', field: 'total', sort: 'DESC'},
+              {id: 'self', field: 'self'},
+              {id: 'percent', field: 'percent'},
+            ],
+        tree: this.tree ?? DEFAULT_TREE,
+        onTreeChanged: (tree) => {
+          this.tree = tree;
         },
-        percent: {
-          title: '% of total',
-          columnType: 'quantitative',
-          cellRenderer: fmtPercent,
-        },
-      },
-      data: this.source,
-      initialColumns: [
-        {id: 'name', field: 'name'},
-        {id: 'total', field: 'total', sort: 'DESC'},
-        {id: 'self', field: 'self'},
-        {id: 'percent', field: 'percent'},
-      ],
-      tree: this.tree ?? DEFAULT_TREE,
-      onTreeChanged: (tree) => {
-        this.tree = tree;
-      },
-    });
+      }),
+    ];
   }
 }
 
@@ -115,10 +135,12 @@ class TreeExplorerTreeDataSource extends InMemoryDataSource {
   private readonly children = new Map<number, TreeExplorerNode[]>();
   private readonly roots: TreeExplorerNode[] = [];
   private readonly total: number;
+  private readonly isDiff: boolean;
 
   constructor(data: TreeExplorerData) {
     super([]);
     this.total = data.allRootsCumulativeValue;
+    this.isDiff = data.diff !== undefined;
     const ids = new Set(data.nodes.map((n) => n.id));
     for (const n of data.nodes) {
       if (ids.has(n.parentId)) {
@@ -155,24 +177,24 @@ class TreeExplorerTreeDataSource extends InMemoryDataSource {
       collapsedIds !== undefined
         ? !collapsedIds.has(BigInt(id))
         : (expandedIds?.has(BigInt(id)) ?? false);
-    const cmp = this.comparator(model.sort);
+    // The grid reads cells by column alias, which is not the field for the
+    // columns the user adds.
+    const aliased = model.columns.filter((c) => c.alias !== c.field);
+    const sortField = model.columns.find(
+      (c) => c.alias === model.sort?.alias,
+    )?.field;
+    const cmp = this.comparator(sortField, model.sort?.direction);
     const rows: Row[] = [];
     const visit = (nodes: TreeExplorerNode[], depth: number) => {
-      for (const n of [...nodes].sort(cmp)) {
-        const children = this.children.get(n.id);
-        rows.push({
-          id: n.id,
-          parentId: n.parentId,
-          name: n.name,
-          total: n.cumulativeValue,
-          self: n.selfValue,
-          percent:
-            this.total === 0 ? 0 : (n.cumulativeValue / this.total) * 100,
-          __id: n.id,
-          __depth: depth,
-          __has_children: children === undefined ? 0 : 1,
-        });
-        if (children !== undefined && isExpanded(n.id)) {
+      const siblings = nodes.map((n) => ({node: n, row: this.row(n, depth)}));
+      siblings.sort((a, b) => cmp(a.row, b.row));
+      for (const {node, row} of siblings) {
+        for (const {field, alias} of aliased) {
+          row[alias] = row[field] ?? null;
+        }
+        rows.push(row);
+        const children = this.children.get(node.id);
+        if (children !== undefined && isExpanded(node.id)) {
           visit(children, depth + 1);
         }
       }
@@ -181,18 +203,39 @@ class TreeExplorerTreeDataSource extends InMemoryDataSource {
     return rows;
   }
 
+  private row(n: TreeExplorerNode, depth: number): Row {
+    return {
+      id: n.id,
+      parentId: n.parentId,
+      name: n.name,
+      total: n.cumulativeValue,
+      self: n.selfValue,
+      percent: this.total === 0 ? 0 : (n.cumulativeValue / this.total) * 100,
+      ...(this.isDiff
+        ? diffColumns({
+            baselineTotal: n.baselineCumulativeValue ?? 0,
+            total: n.cumulativeValue,
+            baselineSelf: n.baselineSelfValue ?? 0,
+            self: n.selfValue,
+          })
+        : {}),
+      __id: n.id,
+      __depth: depth,
+      __has_children: this.children.has(n.id) ? 1 : 0,
+    };
+  }
+
   private comparator(
-    sort: {alias: string; direction: 'ASC' | 'DESC'} | undefined,
-  ): (a: TreeExplorerNode, b: TreeExplorerNode) => number {
-    const dir = sort?.direction === 'ASC' ? 1 : -1;
-    switch (sort?.alias) {
-      case 'name':
-        return (a, b) => dir * a.name.localeCompare(b.name);
-      case 'self':
-        return (a, b) => dir * (a.selfValue - b.selfValue);
-      default: // 'total', 'percent' and the initial (unsorted) state.
-        return (a, b) => dir * (a.cumulativeValue - b.cumulativeValue);
+    field: string | undefined,
+    direction: 'ASC' | 'DESC' | undefined,
+  ): (a: Row, b: Row) => number {
+    const dir = direction === 'ASC' ? 1 : -1;
+    if (field === 'name') {
+      return (a, b) => dir * String(a.name).localeCompare(String(b.name));
     }
+    // Total when unsorted.
+    const key = field ?? 'total';
+    return (a, b) => dir * (Number(a[key]) - Number(b[key]));
   }
 }
 
@@ -200,6 +243,10 @@ export interface TreeExplorerFlatFunction {
   readonly name: string;
   readonly self: number;
   readonly total: number;
+  // Only set for diffs (see TreeExplorerData.diff): the values in the
+  // baseline tree, while `self` and `total` are the current tree's.
+  readonly baselineSelf?: number;
+  readonly baselineTotal?: number;
 }
 
 // Aggregates the tree per function name, pprof-style: `self` sums a
@@ -207,7 +254,8 @@ export interface TreeExplorerFlatFunction {
 // cumulative value counting only the topmost occurrence on each path, so
 // recursion (A -> B -> A) does not double-count A. Only the callee direction
 // (depth > 0) is aggregated: in PIVOT view the negative-depth caller nodes
-// re-attribute the same samples.
+// re-attribute the same samples. Diffs aggregate the baseline values the same
+// way.
 export function computeFlatFunctions(
   data: TreeExplorerData,
 ): TreeExplorerFlatFunction[] {
@@ -228,7 +276,10 @@ export function computeFlatFunctions(
     }
   }
 
-  const functions = new Map<string, {self: number; total: number}>();
+  const functions = new Map<
+    string,
+    {self: number; total: number; baselineSelf: number; baselineTotal: number}
+  >();
   // Number of times each name occurs on the current root-to-node path.
   // Explicit stack with exit markers: call stacks can be deep.
   const onPath = new Map<string, number>();
@@ -245,13 +296,15 @@ export function computeFlatFunctions(
       }
       let fn = functions.get(name);
       if (fn === undefined) {
-        fn = {self: 0, total: 0};
+        fn = {self: 0, total: 0, baselineSelf: 0, baselineTotal: 0};
         functions.set(name, fn);
       }
       fn.self += node.selfValue;
+      fn.baselineSelf += node.baselineSelfValue ?? 0;
       const occurrences = onPath.get(name) ?? 0;
       if (occurrences === 0) {
         fn.total += node.cumulativeValue;
+        fn.baselineTotal += node.baselineCumulativeValue ?? 0;
       }
       onPath.set(name, occurrences + 1);
       stack.push({node, exit: true});
@@ -260,7 +313,10 @@ export function computeFlatFunctions(
       }
     }
   }
-  return [...functions].map(([name, {self, total}]) => ({name, self, total}));
+  const isDiff = data.diff !== undefined;
+  return [...functions].map(([name, fn]) =>
+    isDiff ? {name, ...fn} : {name, self: fn.self, total: fn.total},
+  );
 }
 
 export interface TreeExplorerFlatViewAttrs {
@@ -269,6 +325,7 @@ export interface TreeExplorerFlatViewAttrs {
 }
 
 // Flat per-function table (pprof "Top"): Name, Self, Self %, Total, Total %.
+// Given a diff, it shows how self values changed, biggest growth first.
 export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatViewAttrs> {
   private rows?: readonly Row[];
   private rowsData?: TreeExplorerData;
@@ -280,42 +337,50 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
-    return m(DataGrid, {
-      className: 'pf-tree-explorer__grid',
-      fillHeight: true,
-      disableFilterControls: true,
-      schema: {
-        name: {title: 'Name', columnType: 'text'},
-        self: {
-          title: 'Self',
-          columnType: 'quantitative',
-          cellRenderer: fmtValue,
+    const isDiff = attrs.data.diff !== undefined;
+    // A keyed fragment, as in TreeExplorerTreeView.
+    return [
+      m(DataGrid, {
+        key: isDiff ? 'diff' : 'flat',
+        className: 'pf-tree-explorer__grid',
+        fillHeight: true,
+        disableFilterControls: true,
+        schema: {
+          name: {title: 'Name', columnType: 'text'},
+          self: {
+            title: isDiff ? 'Current self' : 'Self',
+            columnType: 'quantitative',
+            cellRenderer: fmtValue,
+          },
+          selfPercent: {
+            title: 'Self %',
+            columnType: 'quantitative',
+            cellRenderer: fmtPercent,
+          },
+          total: {
+            title: isDiff ? 'Current total' : 'Total',
+            columnType: 'quantitative',
+            cellRenderer: fmtValue,
+          },
+          totalPercent: {
+            title: 'Total %',
+            columnType: 'quantitative',
+            cellRenderer: fmtPercent,
+          },
+          ...(isDiff ? diffColumnSchema(attrs.unit) : {}),
         },
-        selfPercent: {
-          title: 'Self %',
-          columnType: 'quantitative',
-          cellRenderer: fmtPercent,
-        },
-        total: {
-          title: 'Total',
-          columnType: 'quantitative',
-          cellRenderer: fmtValue,
-        },
-        totalPercent: {
-          title: 'Total %',
-          columnType: 'quantitative',
-          cellRenderer: fmtPercent,
-        },
-      },
-      data: this.rows,
-      initialColumns: [
-        {id: 'name', field: 'name'},
-        {id: 'self', field: 'self', sort: 'DESC'},
-        {id: 'selfPercent', field: 'selfPercent'},
-        {id: 'total', field: 'total'},
-        {id: 'totalPercent', field: 'totalPercent'},
-      ],
-    });
+        data: this.rows,
+        initialColumns: isDiff
+          ? DIFF_FLAT_INITIAL_COLUMNS
+          : [
+              {id: 'name', field: 'name'},
+              {id: 'self', field: 'self', sort: 'DESC'},
+              {id: 'selfPercent', field: 'selfPercent'},
+              {id: 'total', field: 'total'},
+              {id: 'totalPercent', field: 'totalPercent'},
+            ],
+      }),
+    ];
   }
 }
 
@@ -328,6 +393,14 @@ function flatFunctionRows(data: TreeExplorerData): readonly Row[] {
     selfPercent: pct(fn.self),
     total: fn.total,
     totalPercent: pct(fn.total),
+    ...(data.diff !== undefined
+      ? diffColumns({
+          baselineTotal: fn.baselineTotal ?? 0,
+          total: fn.total,
+          baselineSelf: fn.baselineSelf ?? 0,
+          self: fn.self,
+        })
+      : {}),
   }));
 }
 
@@ -342,6 +415,13 @@ export function buildFlatExportString(
   metric: TreeExplorerMetric,
   format: ExportFormat,
 ): string {
+  if (data.diff !== undefined) {
+    return buildFlatDiffExportString(
+      computeFlatFunctions(data),
+      metric,
+      format,
+    );
+  }
   const unitDisplay = getUnitDisplayName(metric.unit);
   const columns = ['name', 'self', 'selfPercent', 'total', 'totalPercent'];
   const columnNames: Record<string, string> = {

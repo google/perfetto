@@ -85,7 +85,8 @@ function buildTabs(
   state: NavState,
   overview: OverviewData,
 ): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
-  const {engine, trace, navigateWithTabs, clearNavParam} = session;
+  const {engine, trace, navigateWithTabs, clearNavParam, baselineDump} =
+    session;
   const hideExplanationSetting = session.hideDefaultChangedHint;
   const hideHint = hideExplanationSetting.get();
   const actions = new Map<string, TabActions>();
@@ -108,17 +109,14 @@ function buildTabs(
       title: 'Flamegraph',
       content: m(FlamegraphView, {
         trace,
-        upid: activeDump.upid,
-        ts: activeDump.ts,
+        dump: dumpRef(session, activeDump),
+        baseline:
+          baselineDump === undefined
+            ? undefined
+            : dumpRef(session, baselineDump),
         state: session.flamegraphPanelState,
         onStateChange: session.setFlamegraphPanelState,
-        onShowObjects: (pathHashes, isDominator) =>
-          session.openFlamegraph({
-            pathHashes,
-            isDominator,
-            upid: activeDump.upid,
-            ts: activeDump.ts,
-          }),
+        onShowObjects: (selection) => session.openFlamegraph(selection),
       }),
     },
     {
@@ -266,6 +264,19 @@ function processLabel(d: queries.HeapDump): string {
     : `pid ${d.pid}`;
 }
 
+// Tells the dumps of a process apart by when they were taken.
+function dumpLabel(
+  session: HeapDumpExplorerSession,
+  d: queries.HeapDump,
+): string {
+  const offset = Time.diff(d.ts, session.trace.traceInfo.start);
+  return `${processLabel(d)} — ${formatDuration(session.trace, offset)}`;
+}
+
+function dumpRef(session: HeapDumpExplorerSession, d: queries.HeapDump) {
+  return {upid: d.upid, ts: d.ts, label: dumpLabel(session, d)};
+}
+
 function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
   const allDumps = session.dumps;
   const active = session.activeDump;
@@ -279,23 +290,70 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
       PopupMenu,
       {
         trigger: m(Button, {
-          label: processLabel(active),
+          label: dumpLabel(session, active),
           icon: 'memory',
           rightIcon: 'arrow_drop_down',
           variant: ButtonVariant.Outlined,
           compact: true,
         }),
       },
-      allDumps.map((d) => {
-        const offset = Time.diff(d.ts, session.trace.traceInfo.start);
-        return m(MenuItem, {
-          label: `${processLabel(d)} — ${formatDuration(session.trace, offset)}`,
+      allDumps.map((d) =>
+        m(MenuItem, {
+          label: dumpLabel(session, d),
           active: d === active,
           onclick: () => session.selectDump(d),
-        });
-      }),
+        }),
+      ),
     ),
+    // Only the flamegraph compares dumps.
+    session.nav.view === 'flamegraph' &&
+      renderBaselineSelector(session, active),
   );
+}
+
+// Picks the dump the flamegraph compares the active dump against.
+function renderBaselineSelector(
+  session: HeapDumpExplorerSession,
+  active: queries.HeapDump,
+): m.Children {
+  const baseline = session.baselineDump;
+  return [
+    m(
+      'span',
+      {
+        class:
+          'pf-hde-dump-selector__label pf-hde-dump-selector__label--baseline',
+      },
+      'Compare with:',
+    ),
+    m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          label: baseline === undefined ? 'None' : dumpLabel(session, baseline),
+          icon: 'difference',
+          rightIcon: 'arrow_drop_down',
+          variant: ButtonVariant.Outlined,
+          compact: true,
+          title: 'Show how the flamegraph changed from another heap dump',
+        }),
+      },
+      m(MenuItem, {
+        label: 'None',
+        active: baseline === undefined,
+        onclick: () => session.setBaselineDump(undefined),
+      }),
+      session.dumps
+        .filter((d) => d !== active)
+        .map((d) =>
+          m(MenuItem, {
+            label: dumpLabel(session, d),
+            active: d === baseline,
+            onclick: () => session.setBaselineDump(d),
+          }),
+        ),
+    ),
+  ];
 }
 
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
