@@ -188,12 +188,13 @@ class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
   // - A live ID makes TryShutdown() fail. This keeps the endpoint and the
   //   ring buffer alive until the last v2 writer is destroyed.
   //
-  // Unlike CreateTraceWriter(), these do not register the writer with the
-  // service. Each ring buffer chunk carries its own target buffer.
+  // Unlike CreateTraceWriter(), these do not call RegisterTraceWriter(): each
+  // ring buffer chunk names its own target buffer.
   //
   // Returns zero after shutdown or when all IDs are in use.
   virtual WriterID AllocateTracingV2WriterID() = 0;
-  // Call after the writer published its final data.
+  // Returns the ID to the pool. Call it after the writer's final publication:
+  // another writer can get the ID at once, and TryShutdown() can succeed.
   virtual void ReleaseTracingV2WriterID(WriterID) = 0;
 
   // Create a bound arbiter instance. Args:

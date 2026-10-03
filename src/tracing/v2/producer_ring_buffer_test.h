@@ -29,6 +29,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/field.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/in_process_shared_memory.h"

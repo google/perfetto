@@ -61,11 +61,9 @@ namespace perfetto::tracing_v2 {
 // Chunks must hold several small fragments to amortize their header overhead.
 constexpr uint32_t kMinChunkSize = 256;
 
-// Maximum chunk size, including the chunk header.
-//
-// - The service copies each chunk, without its header, into one TBChunk.
-// - The header includes at least the 4-byte state word. Removing it leaves
-//   room within TBChunk's 64 KiB - 1 byte limit.
+// Maximum chunk size, including the header. The service copies a chunk
+// without its header (at least 4 bytes) into one TBChunk, which holds at most
+// 64 KiB - 1 bytes.
 constexpr uint32_t kMaxChunkSize = 64 * 1024;
 
 // Each chunk's atomic<uint32_t> requires four-byte alignment.

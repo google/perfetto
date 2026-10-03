@@ -20,9 +20,10 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <vector>
+#include <optional>
 
 #include "perfetto/base/proc_utils.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message_handle.h"
@@ -35,9 +36,14 @@ namespace perfetto::tracing_v2 {
 
 class ProducerRingBufferArbiter;
 
+namespace test {
+class TraceWriterV2ImplTestPeer;
+}  // namespace test
+
 // TraceWriter implementation backed by a tracing v2 shared ring buffer.
 //
-// Data path from the SDK to the service:
+// Data path from the SDK to the service. "v" is a call or a write. "^" is a
+// read by the service. "<--" is an IPC request.
 //
 //          v1: SMB                           v2: ring buffer
 //
@@ -59,19 +65,35 @@ class ProducerRingBufferArbiter;
 //     | copies the listed chunks        | copies all published chunks
 //     |                                 |
 //   service <-- CommitData IPC        service <-- DrainV2RingBuffer IPC
-//               from the arbiter:                 from the ring arbiter:
+//               from the arbiter:                 from the ring buffer arbiter:
 //               "chunks N, M are                  "read what is
 //               complete"                         published"
 //
-// The ring arbiter is ProducerRingBufferArbiter, which sends drain requests
-// for all writers sharing the ring buffer.
+// The ring buffer arbiter is ProducerRingBufferArbiter. It sends the drain
+// requests of all writers of the ring buffer.
+//
+// Only this class calls both SharedRingBufferWriter and
+// ProducerRingBufferArbiter:
+// - SharedRingBufferWriter claims chunks, and publishes and relocates
+//   fragments.
+// - The arbiter delivers drain requests to the endpoint thread.
+//
+// This class decides:
+// - When to ask for a drain:
+//   - After a publication, if the ring buffer's outstanding positions reach
+//     |drain_occupancy_threshold_|.
+//   - After failed claims, if the writer drops the data. Only the reader can
+//     move past those positions.
+//   - Before each wait for space.
+// - What to do when no chunk is free: wait for the reader and try again, or
+//   drop the packet. See TryStallForSpace().
 //
 // A nested message can span chunks, and the reader can copy an earlier
 // fragment while the message is still open. So this writer cannot patch
 // length fields later, as v1 does. It uses proto group encoding instead:
 // - The format: proto_utils::kProtoGroupEndByte.
 // - The service converts each packet back to length-delimited protobuf: see
-//   ProtoRewriter.
+//   ProtoGroupRewriter.
 //
 // If the writer drops any part of a packet:
 // - Its remaining bytes go to the drop buffer.
@@ -88,14 +110,14 @@ class TraceWriterV2Impl : public TraceWriter,
  public:
   // ProducerRingBufferArbiter::CreateTraceWriter() creates each writer.
   //
-  // |ring_buffer_arbiter| supplies the ring buffer and acts as the delegate
-  // for reader notifications. It also handles flushes and releases |id| when
-  // this writer is destroyed. Packet bytes go directly into its ring buffer.
+  // |ring_buffer_arbiter| supplies the ring buffer. Packet bytes go directly
+  // into it. The arbiter also receives drain requests and flushes. The
+  // destructor releases |id| through it.
   //
-  // - |id|: reserved by the arbiter from the shared WriterID pool. Holding
-  //   it keeps the arbiter and its ring buffer alive.
-  // - |target_buffer|: the service buffer for the packets. Stored in each
-  //   chunk header.
+  // - |id|: the arbiter allocates it from the shared WriterID pool. See the
+  //   ownership diagram in ProducerRingBufferArbiter.
+  // - |target_buffer|: the service buffer for the packets. Each chunk header
+  //   stores it.
   // - |policy|: what the writer does when the ring buffer is full. See
   //   BufferExhaustedPolicy.
   TraceWriterV2Impl(ProducerRingBufferArbiter* ring_buffer_arbiter,
@@ -112,8 +134,8 @@ class TraceWriterV2Impl : public TraceWriter,
   // TraceWriter:
   TracePacketHandle NewTracePacket() override;
   void FinishTracePacket() override;
-  // Unlike v1, |callback| does not wait for a service ack. It runs on the
-  // endpoint thread after the drain request is sent.
+  // Unlike v1, |callback| does not wait for a service ack. See
+  // ProducerRingBufferArbiter::Flush().
   void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override {
     return ring_buffer_writer_.writer_id();
@@ -122,6 +144,10 @@ class TraceWriterV2Impl : public TraceWriter,
   uint64_t drop_count() const override { return drop_count_; }
 
  private:
+  friend class test::TraceWriterV2ImplTestPeer;
+
+  using ClockFunction = base::TimeMillis (*)();
+
   // protozero::MessageFinalizationListener:
   void OnMessageFinalized(protozero::Message*) override;
 
@@ -131,39 +157,102 @@ class TraceWriterV2Impl : public TraceWriter,
 
   // Checks that no packet is open, before a new packet or a flush.
   // - A caller can call Message::Finalize() directly, without the handle.
-  //   The message is then closed, but its last fragment is not published.
+  //   The message is then closed, but its last fragment stays unpublished.
   //   This publishes it.
   // - Raw stream callers skip finalization. They must call
   //   FinishTracePacket() first, or the CHECK fails.
   void EnsurePacketClosed();
 
+  // Obtains storage for the next fragment of the current packet: a new
+  // fragment in the ring buffer, or the drop buffer. NewTracePacket() calls it
+  // for the first fragment, GetNewBuffer() for each continuation.
+  // - On success, returns the fragment's range and ends drop mode.
+  // - If no chunk is free, applies the policy through TryStallForSpace(). If
+  //   the policy drops the packet, enters drop mode and returns the drop
+  //   buffer.
+  protozero::ContiguousMemoryRange BeginPacketFragment(
+      bool continues_from_prev);
+
   // Publishes the open fragment, if any.
   // - |continues_on_next| sets kFlagContinuesOnNextChunk.
-  // - If relocation fails, enters drop mode for the rest of the packet.
-  void ClosePacketFragment(bool continues_on_next);
+  // - After the publication, asks for a drain at the threshold.
+  // - If a relocation needs a new chunk, applies the policy through
+  //   TryStallForSpace(), with one stall deadline for each replacement
+  //   acquisition.
+  // - If the policy drops the fragment, enters drop mode for the rest of the
+  //   packet.
+  // - Returns with no relocation pending in |ring_buffer_writer_|.
+  void EndPacketFragment(bool continues_on_next);
 
-  // Sends the rest of the packet to |drop_buffer_| and returns its range.
-  // On the first call for a packet, counts the drop and records the data
-  // loss for the next publication.
-  protozero::ContiguousMemoryRange EnterDropMode();
+  // Decides what to do after |ring_buffer_writer_| found no free chunk: wait
+  // for the reader, or drop the data.
+  //
+  // Returns true after a wait. The caller then tries again to get a chunk.
+  // Returns false, without a wait, if the writer must drop the data:
+  // - The policy is kDrop.
+  // - The policy is kStallThenDrop, and an earlier loss is still unreported.
+  // - No reader is attached, so nothing frees space.
+  // - The stall deadline passed. Under kStall, this aborts instead.
+  //
+  // |claim_failed|: the failed call returned kClaimFailed. Its reserved
+  // positions stay unused until the reader moves past them. So a drop also
+  // asks for a drain.
+  //
+  // |stall_deadline|: the deadline of the current chunk acquisition. Pass an
+  // unset value on the first call for an acquisition, and the same value on
+  // each retry. The first wait sets it.
+  bool TryStallForSpace(bool claim_failed,
+                        std::optional<base::TimeMillis>* stall_deadline);
 
-  // Receives Flush() and OnWriterDestroyed(). Also the delegate of
-  // |ring_buffer_writer_|. See the constructor.
+  // Drops the rest of the open packet: its bytes go to GetDropBuffer() from now
+  // on.
+  // - If drop mode is not active yet, counts one drop and records the loss
+  //   for the next publication.
+  // - Drop mode lasts until a later packet gets a fragment in the ring buffer.
+  void EnterDropMode();
+
+  // Returns the process-wide drop buffer as a writable range. Only in drop
+  // mode.
+  protozero::ContiguousMemoryRange GetDropBuffer();
+
+  // Receives drain requests, Flush() and OnWriterDestroyed(). See the
+  // constructor.
   ProducerRingBufferArbiter* const ring_buffer_arbiter_;
 
   // Claims chunks and publishes fragments in the ring buffer.
   SharedRingBufferWriter ring_buffer_writer_;
 
+  // What this writer does when the ring buffer has no free chunk.
+  const BufferExhaustedPolicy buffer_exhausted_policy_;
+
+  // A publication asks for a drain when the ring buffer has at least this many
+  // outstanding positions.
+  // - The count covers the positions of all writers.
+  // - It includes reservations whose chunks are not published yet.
+  // - The constructor computes the threshold from the ring buffer's capacity.
+  const uint32_t drain_occupancy_threshold_;
+
+  // Time source for stall deadlines. Tests replace it to advance time
+  // deterministically across acquisition attempts.
+  ClockFunction get_time_ms_ = &base::GetWallTimeMs;
+
+  // PID of the process that created this writer. A DCHECK uses it to detect
+  // a process fork during tracing, which this writer does not support.
+  const base::PlatformProcessId process_id_;
+
   // Protozero writes packet bytes through this. It points into the open
-  // fragment, or into |drop_buffer_| in drop mode.
+  // fragment, or into the drop buffer in drop mode.
   protozero::ScatteredStreamWriter stream_writer_;
 
-  // Kept behind a pointer to avoid including the generated TracePacket header.
-  // The same root message is reset and reused for every packet.
+  // A pointer, so this header does not need the generated TracePacket header.
+  // NewTracePacket() resets and reuses the same root message for every packet.
   //
   // TODO(sashwinbalaji): Consider std::optional<RootMessage<TracePacket>>.
-  // It would save one heap allocation per writer, but require the generated
-  // TracePacket header here.
+  // - It saves one heap allocation per writer, but needs the generated
+  //   TracePacket header here.
+  // - It waits because TraceWriterImpl makes the same choice. One decision
+  //   must cover both writers.
+  // - Revisit if a profile shows this allocation at writer creation.
   std::unique_ptr<protozero::RootMessage<protos::pbzero::TracePacket>>
       cur_packet_;
 
@@ -171,20 +260,10 @@ class TraceWriterV2Impl : public TraceWriter,
   // Null after the fragment closes, and in drop mode.
   uint8_t* fragment_begin_ = nullptr;
 
-  // Drop mode writes go here, so the data source can finish the packet.
-  // These bytes are never published.
-  // - One buffer per writer. Writes use plain stores, so writers cannot
-  //   share a buffer.
-  // - Allocated on the first drop, then reused. Writers that never drop do
-  //   not pay for it.
-  // - Sized to the largest fragment. A raw stream caller can then reserve a
-  //   contiguous range as large as in a normal fragment.
-  std::vector<uint8_t> drop_buffer_;
-
   // True from NewTracePacket() until FinishTracePacket().
   bool packet_open_ = false;
 
-  // True while writes go to |drop_buffer_|. Stays true until a later
+  // True while writes go to the drop buffer. Stays true until a later
   // NewTracePacket() gets a fragment in the ring buffer.
   bool in_drop_mode_ = false;
 
@@ -194,10 +273,6 @@ class TraceWriterV2Impl : public TraceWriter,
   // Number of times this writer entered drop mode. Consecutive dropped
   // packets count once, as in TraceWriterImpl.
   uint64_t drop_count_ = 0;
-
-  // PID of the process that created this writer. A DCHECK uses it to detect
-  // a process fork during tracing, which is not supported.
-  const base::PlatformProcessId process_id_;
 };
 
 }  // namespace perfetto::tracing_v2

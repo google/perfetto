@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-// Tests for ProducerRingBufferArbiter, the producer object that coordinates
-// all tracing v2 writers of one ring buffer. They cover the jobs that one
-// writer cannot do alone:
+// Tests for ProducerRingBufferArbiter, the producer side of one tracing v2
+// ring buffer. They cover:
 // - Creation: the arbiter rejects a mapping with an invalid layout.
-// - Writers: WriterIDs from the SMB arbiter, NullTraceWriters after a
-//   disconnect, and no stall before the service reader is attached.
-// - Drain requests: a writer asks for a drain at the occupancy threshold.
-//   The arbiter merges the requests of all writers into one task.
+// - Writers: WriterIDs from the SMB arbiter, and NullTraceWriters after a
+//   disconnect.
+// - Drain requests: RequestDrain() merges requests into one task. On the
+//   endpoint thread, kUrgent sends the request at once.
 // - Flush: the drain request goes out before the callback. The callback
 //   also runs after a disconnect, or after the arbiter is destroyed.
+//
+// The writer decides when to ask for a drain and when to wait. Those tests
+// are in trace_writer_v2_impl_unittest.cc.
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
@@ -31,6 +33,7 @@
 
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "src/tracing/core/in_process_shared_memory.h"
@@ -57,6 +60,7 @@ class ProducerRingBufferArbiterTestPeer {
 namespace {
 
 using ::testing::_;
+using DrainUrgency = ProducerRingBufferArbiter::DrainUrgency;
 using ProducerRingBufferArbiterTest = ProducerRingBufferTest;
 
 // --- Creation ---
@@ -80,34 +84,6 @@ TEST_F(ProducerRingBufferArbiterTest, CreateRejectsInvalidLayout) {
 
 // --- Writers ---
 
-TEST_F(ProducerRingBufferArbiterTest, StalledWriterDrainsOnEndpointThread) {
-  CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
-  auto writer = CreateWriter(BufferExhaustedPolicy::kStall);
-
-  // No task runs here. The writer runs on the endpoint thread, so each wait
-  // for space sends the drain request at once, through
-  // NotifyReader(kWriterStalled).
-  const std::string payload(200, 's');
-  for (int i = 0; i < 12; ++i)
-    WritePacket(writer.get(), payload);
-  EXPECT_EQ(writer->drop_count(), 0u);
-  EXPECT_GT(num_drain_requests_, 0u);
-  writer.reset();
-  task_runner_.RunUntilIdle();
-
-  EXPECT_EQ(ReadPackets().size(), 12u);
-}
-
-TEST_F(ProducerRingBufferArbiterTest, WriterDoesNotWaitBeforeReaderAttached) {
-  CreateRingBufferArbiter(/*num_chunks=*/4);
-  auto writer = CreateWriter(BufferExhaustedPolicy::kStall);
-  const std::string payload(200, 'o');
-  for (int i = 0; i < 8 && writer->drop_count() == 0; ++i)
-    WritePacket(writer.get(), payload);
-  EXPECT_GT(writer->drop_count(), 0u);
-  EXPECT_EQ(num_drain_requests_, 0u);
-}
-
 TEST_F(ProducerRingBufferArbiterTest, NullTraceWriterAfterDisconnect) {
   CreateRingBufferArbiter(/*num_chunks=*/4);
   arbiter_->Disconnect();
@@ -115,6 +91,34 @@ TEST_F(ProducerRingBufferArbiterTest, NullTraceWriterAfterDisconnect) {
   ASSERT_TRUE(disconnected_writer);
   EXPECT_EQ(disconnected_writer->writer_id(), 0u);
   WritePacket(disconnected_writer.get(), "discarded");
+}
+
+// The service's accept reply can arrive after a disconnect. kDetached is
+// terminal, so the arbiter ignores it.
+TEST_F(ProducerRingBufferArbiterTest, LateAttachReplyAfterDisconnectIsIgnored) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  arbiter_->Disconnect();
+  arbiter_->OnReaderAttached();
+  EXPECT_FALSE(arbiter_->IsReaderAttached());
+  EXPECT_EQ(CreateWriter()->writer_id(), 0u);
+}
+
+// v1 and v2 writers of one producer take WriterIDs from one pool, because the
+// service keys sequences by (producer, WriterID).
+TEST_F(ProducerRingBufferArbiterTest, V1AndV2WritersShareWriterIds) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  auto v1_writer = smb_arbiter_->CreateTraceWriter(
+      kTargetBuffer, BufferExhaustedPolicy::kDrop);
+  auto v2_writer = CreateWriter();
+  EXPECT_NE(v1_writer->writer_id(), 0u);
+  EXPECT_NE(v2_writer->writer_id(), 0u);
+  EXPECT_NE(v1_writer->writer_id(), v2_writer->writer_id());
+
+  // Either live ID keeps the SMB arbiter from shutting down.
+  v1_writer.reset();
+  EXPECT_FALSE(smb_arbiter_->TryShutdown());
+  v2_writer.reset();
+  EXPECT_TRUE(smb_arbiter_->TryShutdown());
 }
 
 TEST_F(ProducerRingBufferArbiterTest, NoWriterIdAfterSmbArbiterShutdown) {
@@ -125,27 +129,51 @@ TEST_F(ProducerRingBufferArbiterTest, NoWriterIdAfterSmbArbiterShutdown) {
   EXPECT_EQ(writer->writer_id(), 0u);
 }
 
-// --- Drain requests and flush ---
+// --- Drain requests ---
 
-// Publications below the threshold stay buffered. Once it is reached,
-// further notifications share the pending drain task.
-TEST_F(ProducerRingBufferArbiterTest,
-       DrainRequestsAreCoalescedAtOccupancyThreshold) {
-  CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
-  auto writer = CreateWriter();
-  // Two of these packets do not fit one 256-byte chunk.
-  const std::string large(200, 'x');
-
-  WritePacket(writer.get(), large);
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(num_drain_requests_, 0u);  // 1 of 8 positions waits.
-
-  WritePacket(writer.get(), large);  // 2 of 8: asks for a drain.
-  WritePacket(writer.get(), large);  // Merged into the pending task.
+// Requests from all threads share one pending drain task. The task clears
+// the flag before it sends, so a later request posts a new task.
+TEST_F(ProducerRingBufferArbiterTest, RoutineDrainRequestsShareOneTask) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  arbiter_->RequestDrain(DrainUrgency::kRoutine);
+  arbiter_->RequestDrain(DrainUrgency::kRoutine);
+  std::thread other_writer_thread(
+      [&] { arbiter_->RequestDrain(DrainUrgency::kRoutine); });
+  other_writer_thread.join();
+  EXPECT_EQ(num_drain_requests_, 0u);
   task_runner_.RunUntilIdle();
   EXPECT_EQ(num_drain_requests_, 1u);
-  EXPECT_EQ(ReadPackets().size(), 3u);
+
+  arbiter_->RequestDrain(DrainUrgency::kRoutine);
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 2u);
 }
+
+// On the endpoint thread, kUrgent sends the request at once, so the caller
+// can block this thread next. It leaves a pending task alone. That task still
+// sends its own request.
+TEST_F(ProducerRingBufferArbiterTest, UrgentDrainIsDirectOnEndpointThread) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  arbiter_->RequestDrain(DrainUrgency::kRoutine);
+  arbiter_->RequestDrain(DrainUrgency::kUrgent);
+  EXPECT_EQ(num_drain_requests_, 1u);
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 2u);
+}
+
+// On another thread, kUrgent posts a task. Only the endpoint thread sends
+// requests to the service.
+TEST_F(ProducerRingBufferArbiterTest, UrgentDrainIsPostedFromOtherThread) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  std::thread other_writer_thread(
+      [&] { arbiter_->RequestDrain(DrainUrgency::kUrgent); });
+  other_writer_thread.join();
+  EXPECT_EQ(num_drain_requests_, 0u);
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 1u);
+}
+
+// --- Flush ---
 
 TEST_F(ProducerRingBufferArbiterTest, FlushRunsCallbackAfterDrainRequest) {
   CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
@@ -223,6 +251,8 @@ TEST_F(ProducerRingBufferArbiterTest, FlushRunsIfArbiterIsDestroyedFirst) {
   arbiter_.reset();
   task_runner_.RunUntilIdle();
   EXPECT_TRUE(flushed);
+  // The drain task saw that the arbiter is gone, and sent nothing.
+  EXPECT_EQ(num_drain_requests_, 0u);
 }
 
 }  // namespace

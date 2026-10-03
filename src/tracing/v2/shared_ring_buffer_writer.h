@@ -19,11 +19,11 @@
 
 #include <stdint.h>
 
+#include <functional>
 #include <optional>
 #include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
@@ -39,43 +39,85 @@ namespace perfetto::tracing_v2 {
 //   to the same ring buffer concurrently.
 // - Keep the ring buffer's memory and SharedRingBuffer view alive until
 //   every writer is destroyed. The destructor still publishes its chunk.
-// - Getting a chunk takes two steps:
+// - The writer gets a chunk in two steps:
 //   1. Reserve a write position. This moves write_pos.
 //   2. Claim the chunk at that position: change its state from Free to
 //      BeingWritten.
 //   Step 2 can fail, for example if an older writer still holds the chunk.
 //   The reserved position then stays unused, and only the reader can move
 //   past it.
-// - Before each wait for space, the writer calls Delegate::NotifyReader()
-//   with kWriterStalled, so that the reader runs and frees space.
-// - Stalling uses a futex wait when available. Otherwise, it sleeps and retries
-//   with the same timeout and buffer-exhaustion policy.
+// - The writer only accesses the ring buffer. It does not contact the reader,
+//   and it does not apply a BufferExhaustedPolicy. TraceWriterV2Impl does
+//   both.
+// - A call that needs a new chunk makes at most num_chunks attempts to
+//   reserve and claim one. If none succeeds, the call returns at once with
+//   kFull or kClaimFailed. Only WaitForReadPosChange() blocks.
+//
+// The writer is in one of three states:
+// - Ready: no fragment is open. The writer can still hold the chunk that it
+//   published last. It appends the next fragment there if the fragment fits,
+//   without a new reservation.
+// - Fragment open: BeginFragment() returned a range. The caller writes the
+//   fragment's bytes into it.
+// - Relocation pending: the reader took the chunk before EndFragment()
+//   published the fragment, and the writer could not claim a replacement
+//   chunk. The writer keeps a copy of the fragment. See EndFragment().
+//
+// The calls and the states that allow them:
+// - BeginFragment(): Ready. On success, opens a fragment.
+// - EndFragment(): Fragment open. Publishes the fragment and returns to
+//   Ready, or enters Relocation pending.
+// - RetryRelocation(): Relocation pending. Publishes the saved copy and
+//   returns to Ready, or stays in Relocation pending.
+// - DropRelocation(): Relocation pending. Drops the saved copy and returns to
+//   Ready.
+// - FinishCurrentChunk(): Ready or Fragment open. Releases the held chunk, so
+//   the next fragment needs a new one. TraceWriterV2Impl::Flush() uses it.
+//   - In Fragment open, it abandons the open fragment and publishes the
+//     earlier fragments of the chunk.
+// - WaitForReadPosChange(): after a call returned kFull or kClaimFailed.
+// - RecordDataLoss(), has_pending_data_loss(), accessors and GetStats(): any
+//   state.
 class SharedRingBufferWriter {
  public:
   // Result of BeginFragment(), which may need a new chunk.
   enum class BeginFragmentResult {
     kSuccess,
     // The ring buffer is structurally full: num_chunks positions are
-    // outstanding and the reader is behind. A stalling policy has already
-    // waited by the time this is returned.
+    // outstanding and the reader is behind. The call reserved nothing.
     kFull,
-    // Positions were reserved but their chunks could not be claimed. Chunks
-    // pinned by a stalled writer produce this without the ring buffer being
-    // full.
+    // The call reserved a position, but could not claim its chunk, for example
+    // because an older writer still holds it.
     //
-    // The reader has been notified before this is returned.
-    kNoChunkAvailable,
+    // The reserved position stays unused until the reader moves past it.
+    // Chunks pinned by a stalled writer produce this without the ring buffer
+    // being full.
+    kClaimFailed,
     // The request is larger than a freshly claimed chunk could hold. This is a
     // caller bug, not backpressure.
     kTooLarge,
   };
 
-  // Result of EndFragment() and FinishCurrentChunk(), which publish.
+  // Result of EndFragment(), RetryRelocation() and FinishCurrentChunk(), which
+  // publish.
   enum class EndFragmentResult {
     kSuccess,
-    // The reader scraped the chunk, but no replacement chunk was available.
-    // The unpublished fragment was dropped. The next publication reports loss.
-    kRelocationDropped,
+    // The reader took the chunk before the publication, and the writer could
+    // not claim a replacement chunk. The reasons are the same as in
+    // BeginFragmentResult. The writer is then in Relocation pending.
+    kFull,
+    kClaimFailed,
+  };
+
+  // Result of RetryRelocation().
+  struct RetryRelocationResult {
+    EndFragmentResult result = EndFragmentResult::kFull;
+    // True if the call claimed at least one replacement chunk.
+    // - A successful claim ends one acquisition. A caller that limits each
+    //   acquisition, such as TraceWriterV2Impl, then starts a new limit.
+    // - With kFull or kClaimFailed, the reader also took the last replacement
+    //   before its publication, and the next claim attempts failed.
+    bool acquired_replacement = false;
   };
 
   // A contiguous range for the caller to fill. Valid until the next call on
@@ -86,78 +128,9 @@ class SharedRingBufferWriter {
     uint8_t* end = nullptr;
   };
 
-  // Connects the writer to the service reader:
-  // - Sends drain requests through IPC, or a direct call for an in-process
-  //   service.
-  // - Tracks whether a reader is attached, so writers know if they can wait
-  //   for space.
-  //
-  // ProducerRingBufferArbiter implements it. It must outlive the writer.
-  //
-  // The writer calls it on two events:
-  //
-  // 1. The writer publishes a fragment and the number of outstanding positions
-  //    reaches |drain_threshold_positions_|:
-  //
-  //      NotifyReader(kPositionsReady)
-  //
-  //    Below the threshold, data waits for a later publication to reach it,
-  //    an explicit flush, or a stalled writer to request a drain.
-  //
-  // 2. The writer needs a new chunk and cannot get one. The ring buffer is
-  //    full, or the chunks at its reserved positions are still in use:
-  //
-  //      Can the writer wait?
-  //      - The policy is kStall or kStallThenDrop, and
-  //      - IsReaderAttached() is true.
-  //        |
-  //        +-- no --> NotifyReader(kPositionsReady), if the writer
-  //        |          skipped positions.
-  //        |          Return without a chunk. The data is dropped.
-  //        |
-  //        +-- yes -> NotifyReader(kWriterStalled).
-  //                   Wait up to 100 ms for read_pos to move.
-  //                   Try again.
-  //
-  // Threads:
-  // - Writers call it concurrently, each from its own thread. This includes
-  //   calls from a writer's destructor.
-  // - A call must not reenter the calling writer.
-  class Delegate {
-   public:
-    virtual ~Delegate();
-
-    // Why the writer calls NotifyReader(). The writer reports what happened.
-    // The delegate decides how to reach the reader.
-    enum class NotifyReason {
-      // Positions are ready for the reader to move past: a published
-      // fragment, or positions that the writer skipped. A hint. The delegate
-      // can merge calls or delay them.
-      kPositionsReady,
-      // The writer is stalled on a full ring buffer. It is about to block its
-      // thread until read_pos moves, for at most 100 ms (kMaxWaitMs).
-      // - The delegate must make the reader run, also when the caller is on
-      //   the thread that handles reader requests. A task posted to that
-      //   thread cannot run while the writer waits on it.
-      // - The writer calls this before each wait. It holds no chunk then.
-      kWriterStalled,
-    };
-
-    // Asks the reader to drain. See NotifyReason.
-    virtual void NotifyReader(NotifyReason) = 0;
-
-    // Returns true while a reader drains this ring buffer.
-    // If false, nothing frees space in a full ring buffer. So the writer
-    // drops data and does not wait, also under kStall. A wait would only end
-    // at the stall deadline, where kStall crashes.
-    virtual bool IsReaderAttached() const = 0;
-  };
-
   SharedRingBufferWriter(SharedRingBuffer* ring,
                          WriterID writer_id,
-                         BufferID target_buffer,
-                         BufferExhaustedPolicy buffer_exhausted_policy,
-                         Delegate* delegate);
+                         BufferID target_buffer);
   ~SharedRingBufferWriter();
 
   SharedRingBufferWriter(const SharedRingBufferWriter&) = delete;
@@ -167,8 +140,8 @@ class SharedRingBufferWriter {
 
   // Starts a fragment for the caller to fill.
   // - On success, returns a writable range of at least |min_size| bytes.
-  // - Reuses space in the current chunk when possible. Otherwise, claims a new
-  //   chunk using the configured buffer-exhaustion policy.
+  // - Reuses space in the current chunk when possible. Otherwise, tries to
+  //   claim a new chunk. See the class comment.
   // - Call EndFragment() after writing the bytes.
   // - Only one fragment can be open at a time.
   //
@@ -184,31 +157,44 @@ class SharedRingBufferWriter {
   // cannot infer |continues_from_prev| from the previous chunk's flag.
   FragmentRange BeginFragment(uint32_t min_size, bool continues_from_prev);
 
-  // Finishes the fragment with the |size| bytes the caller wrote.
-  // - |size| must fit in the range returned by BeginFragment().
-  // - Records the size and publishes the fragment, making it readable.
-  // - Set |continues_on_next| if the packet needs another chunk.
-  //   Leave it false if this fragment ends the packet.
-  //   The flag describes the last fragment, so the writer cannot append more
-  //   fragments to this chunk after EndFragment(..., true).
+  // Ends the open fragment at |size| bytes and publishes it, so the reader
+  // can copy it. |size| must fit the range from BeginFragment().
   //
-  // A packet split across chunks uses matching continuation flags:
+  // Set |continues_on_next| if the packet continues in the next chunk, which
+  // then starts with BeginFragment(..., true). The flag marks the chunk's last
+  // fragment, so the writer appends nothing more to this chunk.
   //
-  //   chunk A: EndFragment(..., true)   ContinuesOnNext
-  //   chunk B: BeginFragment(..., true) ContinuesFromPrev
-  //
-  // If the reader reaches the chunk before EndFragment() publishes:
-  // - It consumes the published fragments and requests a rewrite. If the chunk
-  //   carries kFlagDataLoss, it discards those fragments.
-  // - It advances past the reservation without access to the open fragment.
-  //   It will not return to this reservation for more fragments.
-  // - EndFragment() saves the unpublished fragment in private memory and
-  //   acknowledges the request. It then tries to publish that fragment in
-  //   another chunk.
-  //
-  // Relocation uses the configured buffer-exhaustion policy and can wait for
-  // space. If acquisition fails, EndFragment() returns kRelocationDropped.
+  // The reader can take a chunk while its last fragment is still open: it
+  // copies the published fragments and asks the writer to move the open one.
+  // EndFragment() then relocates the fragment:
+  // 1. It saves a copy and acknowledges the request, so the reader can reuse
+  //    the old chunk.
+  // 2. It claims a new chunk, copies the fragment there and publishes it. If
+  //    the reader takes this chunk too, it repeats.
+  // If step 2 cannot claim a chunk, returns kFull or kClaimFailed. The
+  // relocation is then pending: call RetryRelocation() or DropRelocation().
   EndFragmentResult EndFragment(uint32_t size, bool continues_on_next);
+
+  // Tries again to claim a chunk for the saved fragment, and publishes it
+  // there, as EndFragment() does. Only in Relocation pending.
+  RetryRelocationResult RetryRelocation();
+
+  // Drops the saved fragment. The next publication sets kFlagDataLoss. Only in
+  // Relocation pending.
+  void DropRelocation();
+
+  // Blocks the calling thread. The wait requests at most |timeout_ms|.
+  // Scheduling can make the elapsed time longer.
+  //
+  // Call it after kFull or kClaimFailed. A return does not reserve space. Call
+  // again to try for a chunk.
+  // - With a futex: returns when read_pos differs from the value that the
+  //   last reservation attempt saw, at the timeout, or on a spurious wake. So
+  //   if the reader moved read_pos after that attempt, it returns at once.
+  // - Without a futex: sleeps for the next step of v1's backoff, 0, 8, 72, ...
+  //   microseconds, at most 100 ms per step. No sleep requests more than
+  //   |timeout_ms|. It does not check read_pos.
+  void WaitForReadPosChange(uint32_t timeout_ms);
 
   // Publishes whatever is held and lets go of the chunk. Any open fragment is
   // abandoned: its bytes were never counted, so nothing is published for it.
@@ -222,6 +208,18 @@ class SharedRingBufferWriter {
   //   are discarded. The flag cannot identify which packets are safe.
   // - Data already delivered by the reader cannot be retracted.
   void RecordDataLoss() { data_loss_pending_ = true; }
+
+  // True until a claimed or published chunk carries the recorded loss. This
+  // includes a loss flag that a pending relocation inherited from the
+  // rewritten chunk.
+  //
+  // TraceWriterV2Impl uses it so that kStallThenDrop does not stall again for
+  // each dropped packet.
+  bool has_pending_data_loss() const {
+    return data_loss_pending_ ||
+           (pending_relocation_ &&
+            (pending_relocation_->chunk_flags & kFlagDataLoss));
+  }
 
   WriterID writer_id() const { return writer_id_; }
   // Largest range that BeginFragment() can return.
@@ -241,6 +239,17 @@ class SharedRingBufferWriter {
 
   static constexpr uint32_t kNoFragmentOpen = UINT32_MAX;
 
+  // A saved fragment that waits for a replacement chunk. Its bytes are in
+  // |relocation_payload_|.
+  struct PendingRelocation {
+    // Flags for the replacement chunk's BeingWritten word. Only
+    // kFlagContinuesFromPrevChunk and kFlagDataLoss, inherited from the
+    // rewritten chunk.
+    uint32_t chunk_flags = 0;
+    // Sets kFlagContinuesOnNextChunk on the replacement's publication.
+    bool continues_on_next = false;
+  };
+
   // Maximum payload available to one more fragment in the cached chunk, which
   // must exist.
   uint32_t MaxFragmentSizeInCurrentChunk() const;
@@ -259,20 +268,19 @@ class SharedRingBufferWriter {
   EndFragmentResult ReleaseCurrentChunkAsComplete(
       std::optional<uint32_t> fragment_size,
       bool continues_on_next);
+  // Writes the saved fragment into the newly claimed chunk, as its only
+  // fragment.
+  void CopyRelocatedFragment(uint32_t fragment_size);
   // Clears only this writer's cached chunk state. It does not modify the ring
   // buffer.
   void ResetCurrentChunk();
 
   SharedRingBuffer* const ring_;
-  Delegate* const delegate_;
   const WriterID writer_id_;
   const BufferID target_buffer_;
-  const BufferExhaustedPolicy buffer_exhausted_policy_;
   const uint32_t chunk_size_;
   // MaxFragmentSizeForEmptyChunk(chunk_size_), computed once.
   const uint32_t max_fragment_size_;
-  // Minimum outstanding positions needed to request a drain on publication.
-  const uint32_t drain_threshold_positions_;
 
   // State cached for the chunk this writer currently owns.
   uint8_t* cur_chunk_ = nullptr;
@@ -309,15 +317,37 @@ class SharedRingBufferWriter {
   // - Cleared after successfully claiming or publishing a chunk with the flag.
   // - Kept pending if the reader requests a rewrite before publication.
   //   AcquireNewChunk() then sets the flag in the replacement chunk.
+  // - A rewrite of BeingWritten(0) can move the chunk's loss flag into
+  //   |pending_relocation_|, not back into this flag. has_pending_data_loss()
+  //   checks both.
   bool data_loss_pending_ = false;
+
+  // The read_pos that the last reservation attempt saw.
+  // WaitForReadPosChange() waits while read_pos keeps this value.
+  uint32_t read_pos_for_wait_ = 0;
 
   // Stop trying the syscall if the build or kernel cannot provide it.
   // Once false, this writer uses sleep backoff for later waits too.
   bool use_futex_ = SharedRingBuffer::SupportsWriterWait();
 
+  // The next sleep of the backoff without futex. It grows with each sleep, up
+  // to 100 ms, across calls. It resets when the writer claims a chunk.
+  uint32_t fallback_sleep_us_ = 0;
+
+  // Set when a relocation cannot claim a replacement chunk. RetryRelocation()
+  // clears it after a claim. DropRelocation() also clears it.
+  std::optional<PendingRelocation> pending_relocation_;
+
   // Unpublished fragment saved while changing chunks. Allocated on demand and
   // reused. Writers that never relocate need no payload storage here.
   std::vector<uint8_t> relocation_payload_;
+
+  // Test callback, called after each replacement claim, before the
+  // publication.
+  // - The callback requests a rewrite of the replacement, as the reader can.
+  //   The publication then fails, and the writer relocates again.
+  // Empty in production. Tests force the race without scheduling threads.
+  std::function<void()> after_replacement_claim_for_testing_;
 
   Stats stats_;
 };
