@@ -83,7 +83,7 @@ constexpr auto kCpuPerUidBlueprint = tracks::CounterBlueprint(
       return base::StackString<128>("CPU for UID %u CL%u", uid, cluster);
     }));
 
-constexpr auto kCpuTotalsBlueprint = tracks::CounterBlueprint(
+constexpr auto kCpuTotalsBlueprint = tracks::MachineCounterBlueprint(
     "android_cpu_per_uid_totals",
     tracks::StaticUnitBlueprint("ms"),
     // TODO(lalitm): allow FnNameBlueprint and StringIdDimensionBlueprint to
