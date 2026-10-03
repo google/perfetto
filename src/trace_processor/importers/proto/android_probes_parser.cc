@@ -178,7 +178,7 @@ void AndroidProbesParser::ParseRailDescriptor(
                     idx);
       continue;
     }
-    static constexpr auto kPowerBlueprint = tracks::CounterBlueprint(
+    static constexpr auto kPowerBlueprint = tracks::MachineCounterBlueprint(
         "power_rails", tracks::UnknownUnitBlueprint(),
         tracks::DimensionBlueprints(
             tracks::kNameFromTraceDimensionBlueprint,
