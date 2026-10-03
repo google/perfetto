@@ -37,6 +37,8 @@ source_set("v2") {
   sources = [
     "producer_ring_buffer_arbiter.cc",
     "producer_ring_buffer_arbiter.h",
+    "producer_ring_buffer_config.cc",
+    "producer_ring_buffer_config.h",
     "shared_ring_buffer.cc",
     "shared_ring_buffer.h",
     "shared_ring_buffer_reader.cc",
@@ -94,6 +96,7 @@ perfetto_unittest_source_set("unittests") {
     "../test:test_support",
   ]
   sources = [
+    "producer_ring_buffer_config_unittest.cc",
     "shared_ring_buffer_abi_unittest.cc",
     "shared_ring_buffer_concurrency_unittest.cc",
     "shared_ring_buffer_reader_unittest.cc",

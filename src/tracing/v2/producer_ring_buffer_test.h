@@ -32,6 +32,7 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/service/trace_buffer_v2.h"
@@ -76,7 +77,6 @@ namespace perfetto::tracing_v2 {
 class ProducerRingBufferTest : public ::testing::Test,
                                public SharedRingBufferReader::Delegate {
  protected:
-  // The arbiter always uses this chunk size.
   static constexpr uint32_t kChunkSize = kMinChunkSize;
   static constexpr BufferID kTargetBuffer = 7;
   static constexpr ProducerID kProducerId = 1;
@@ -127,10 +127,15 @@ class ProducerRingBufferTest : public ::testing::Test,
   // chunks. It starts in kPending.
   // |num_chunks| must be a power of two, so that the size hint gives exactly
   // that many chunks.
-  void CreateRingBufferArbiter(uint32_t num_chunks) {
+  // |drain_occupancy_percent| has the meaning of the config field.
+  void CreateRingBufferArbiter(uint32_t num_chunks,
+                               int32_t drain_occupancy_percent = 0) {
+    DataSourceConfig config;
+    config.mutable_experimental_tracing_v2()->set_drain_occupancy_percent(
+        drain_occupancy_percent);
     // Allocate in this process, as the in-process endpoint does.
     auto arbiter_or = ProducerRingBufferArbiter::Create(
-        &task_runner_, &endpoint_, BudgetFor(num_chunks),
+        &task_runner_, &endpoint_, config, BudgetFor(num_chunks),
         [](size_t size) -> base::StatusOr<std::shared_ptr<SharedMemory>> {
           return std::shared_ptr<SharedMemory>(
               InProcessSharedMemory::Create(size));

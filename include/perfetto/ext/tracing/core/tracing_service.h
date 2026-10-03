@@ -150,14 +150,16 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // Call on the endpoint thread after tracing setup, if the caller selects v2.
   // Complete this call before allowing writer threads to call
   // CreateTraceWriterV2().
+  // - Uses |config|'s chunk size options and drain occupancy percentage.
+  //   Pass the config of the first instance that selects v2.
   // - After the first attempt, later calls on the same connection do nothing,
-  //   even if sizing, allocation or attachment failed.
+  //   even if the config differs or sizing, allocation or attachment failed.
   //   This keeps the arbiter pointer stable for writer threads, which read it
   //   without a lock.
   // - Does not wait for the service's attach reply. Writers can publish while
   //   the reply is pending.
   // - Does nothing if the endpoint or the connection has no tracing v2.
-  virtual void InitializeV2RingBuffer();
+  virtual void InitializeV2RingBuffer(const DataSourceConfig& config);
 
   // Attaches the producer's tracing v2 ring buffer to the service, which
   // installs a reader for it. The producer calls this on the endpoint

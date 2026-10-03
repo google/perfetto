@@ -124,7 +124,7 @@ class ProducerEndpointImpl
   }
 
   // TracingService::ProducerEndpoint implementation for tracing v2.
-  void InitializeV2RingBuffer() override;
+  void InitializeV2RingBuffer(const DataSourceConfig&) override;
   void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
                           uint32_t chunk_size_bytes,
                           std::function<void(bool)>) override;

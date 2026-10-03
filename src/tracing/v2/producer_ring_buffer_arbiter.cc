@@ -26,7 +26,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/tracing/core/null_trace_writer.h"
-#include "src/tracing/v2/shared_ring_buffer_abi.h"
+#include "src/tracing/v2/producer_ring_buffer_config.h"
 #include "src/tracing/v2/trace_writer_v2_impl.h"
 
 namespace perfetto::tracing_v2 {
@@ -36,29 +36,36 @@ base::StatusOr<std::unique_ptr<ProducerRingBufferArbiter>>
 ProducerRingBufferArbiter::Create(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
+    const DataSourceConfig& config,
     size_t shmem_size_hint_bytes,
     AllocateSharedMemoryFn allocate_shared_memory) {
   ASSIGN_OR_RETURN(
-      const size_t size,
-      RingBufferSizeForShmSizeHint(shmem_size_hint_bytes,
-                                   TracingService::kMaxShmSize, kMinChunkSize));
+      const ProducerRingBufferConfig ring_buffer_config,
+      ResolveProducerRingBufferConfig(config, shmem_size_hint_bytes,
+                                      TracingService::kMaxShmSize));
   ASSIGN_OR_RETURN(std::shared_ptr<SharedMemory> memory,
-                   allocate_shared_memory(size));
+                   allocate_shared_memory(ring_buffer_config.shmem_size_bytes));
   return std::unique_ptr<ProducerRingBufferArbiter>(
-      new ProducerRingBufferArbiter(task_runner, endpoint, std::move(memory)));
+      new ProducerRingBufferArbiter(
+          task_runner, endpoint, std::move(memory),
+          ring_buffer_config.chunk_size_bytes,
+          ring_buffer_config.drain_occupancy_threshold));
 }
 
 ProducerRingBufferArbiter::ProducerRingBufferArbiter(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
-    std::shared_ptr<SharedMemory> memory)
+    std::shared_ptr<SharedMemory> memory,
+    uint32_t chunk_size,
+    uint32_t drain_occupancy_threshold)
     : task_runner_(task_runner),
       endpoint_(endpoint),
       shared_memory_arbiter_(endpoint->MaybeSharedMemoryArbiter()),
       memory_(std::move(memory)),
       ring_buffer_(static_cast<uint8_t*>(memory_->start()),
                    memory_->size(),
-                   kMinChunkSize) {
+                   chunk_size),
+      drain_occupancy_threshold_(drain_occupancy_threshold) {
   PERFETTO_CHECK(shared_memory_arbiter_);
 }
 

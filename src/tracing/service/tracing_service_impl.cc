@@ -116,6 +116,7 @@
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include "src/tracing/service/zlib_compressor.h"
 #endif
@@ -831,6 +832,18 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       return PERFETTO_SVC_ERR(
           "experimental_tracing_v2.use_v2_probability_percent must be at most "
           "100");
+    }
+    if (tracing_v2_config.drain_occupancy_percent() < -1 ||
+        tracing_v2_config.drain_occupancy_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.drain_occupancy_percent must be -1 to 100");
+    }
+    for (const auto& option : tracing_v2_config.chunk_size_options()) {
+      if (!tracing_v2::IsValidChunkSize(option.size_bytes())) {
+        return PERFETTO_SVC_ERR(
+            "experimental_tracing_v2.chunk_size_options: invalid size %u",
+            option.size_bytes());
+      }
     }
 
     // Resolve target buffer: if target_buffer_name is set, look it up.

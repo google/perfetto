@@ -38,6 +38,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/tracing/v2/producer_ring_buffer_test.h"
 #include "test/gtest_and_gmock.h"
 
@@ -95,7 +96,7 @@ class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
 TEST_F(ProducerRingBufferArbiterTest, EndpointWithoutV2DiscardsV2Packets) {
   EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, _, _)).Times(0);
   EXPECT_CALL(endpoint_, CreateTraceWriter(_, _)).Times(0);
-  endpoint_.InitializeV2RingBuffer();
+  endpoint_.InitializeV2RingBuffer({});
   auto writer = endpoint_.CreateTraceWriterV2(kTargetBuffer,
                                               BufferExhaustedPolicy::kDrop);
   ASSERT_TRUE(writer);
@@ -106,7 +107,7 @@ TEST_F(ProducerRingBufferArbiterTest, EndpointWithoutV2DiscardsV2Packets) {
 // Create() returns the error status of the allocation function.
 TEST_F(ProducerRingBufferArbiterTest, CreateFailsIfAllocationFails) {
   auto arbiter_or = ProducerRingBufferArbiter::Create(
-      &task_runner_, &endpoint_, BudgetFor(4),
+      &task_runner_, &endpoint_, DataSourceConfig(), BudgetFor(4),
       [](size_t) -> base::StatusOr<std::shared_ptr<SharedMemory>> {
         return base::ErrStatus("no memory");
       });
