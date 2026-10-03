@@ -69,8 +69,8 @@ importers:
         specifier: ^1.0.4
         version: 1.0.4
       markdown-it:
-        specifier: ^14.2.0
-        version: 14.3.0
+        specifier: ^14.3.1
+        version: 14.3.1
       mithril:
         specifier: ^2.2.2
         version: 2.3.8
@@ -85,7 +85,7 @@ importers:
         version: 7.6.5
       syntaqlite:
         specifier: https://registry.npmjs.org/syntaqlite/-/syntaqlite-0.12.1.tgz
-        version: https://registry.npmjs.org/syntaqlite/-/syntaqlite-0.12.1.tgz
+        version: 0.12.1
       uuid:
         specifier: ^14.0.0
         version: 14.0.1
@@ -1585,8 +1585,8 @@ packages:
       '@types/markdown-it': '*'
       markdown-it: '*'
 
-  markdown-it@14.3.0:
-    resolution: {integrity: sha512-RCEsPjR+sr0x+AuYp601tKTkgFG4YEPLCzHST3cQ/fhlJkqAkz1L2/Qbp1j9qw5SBwQHFBoW8+hoN5xssOF0Tw==}
+  markdown-it@14.3.1:
+    resolution: {integrity: sha512-4Ej49aYTDFIQ+uBkfX8GBvJGccoARxxPep+7aWTs55ozbjQJpW9M26Fe53vnGgvLeVzva/amzjQQaQu9w0vMhA==}
     hasBin: true
 
   marked@15.0.12:
@@ -1852,9 +1852,8 @@ packages:
     resolution: {integrity: sha512-JJoOEKTfL1urb1mDoEblhD9NhEbWmq9jHEMEnxoC4ujUaZ4itA8vKgwkFAyNClgxplLi9tsUKX+EduK0p/l7sg==}
     engines: {node: ^14.18.0 || >=16.0.0}
 
-  syntaqlite@https://registry.npmjs.org/syntaqlite/-/syntaqlite-0.12.1.tgz:
-    resolution: {integrity: sha512-h07XtcblMG1v9UOacRD9nIWm4OyZyKSmvwG/lYvDRKrwEwmksyVcpxGHwlEtdSswZ2B9LrqG32Hd45zWbuZxcQ==, tarball: https://registry.npmjs.org/syntaqlite/-/syntaqlite-0.12.1.tgz}
-    version: 0.12.1
+  syntaqlite@0.12.1:
+    resolution: {integrity: sha512-h07XtcblMG1v9UOacRD9nIWm4OyZyKSmvwG/lYvDRKrwEwmksyVcpxGHwlEtdSswZ2B9LrqG32Hd45zWbuZxcQ==}
 
   tinybench@6.1.4:
     resolution: {integrity: sha512-9APumHG7r4yOk4X4WlkmE71aZcv1gvin1czO3OQ1U9iJcFA5Ja/ygyb0vPOVHTthFozUYs8CLoLUlM8grb2lTQ==}
@@ -3239,8 +3238,8 @@ snapshots:
       escape-string-regexp: 2.0.0
       js2xmlparser: 4.0.2
       klaw: 3.0.0
-      markdown-it: 14.3.0
-      markdown-it-anchor: 8.6.7(@types/markdown-it@14.1.2)(markdown-it@14.3.0)
+      markdown-it: 14.3.1
+      markdown-it-anchor: 8.6.7(@types/markdown-it@14.1.2)(markdown-it@14.3.1)
       marked: 4.3.0
       mkdirp: 1.0.4
       requizzle: 0.2.4
@@ -3368,12 +3367,12 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  markdown-it-anchor@8.6.7(@types/markdown-it@14.1.2)(markdown-it@14.3.0):
+  markdown-it-anchor@8.6.7(@types/markdown-it@14.1.2)(markdown-it@14.3.1):
     dependencies:
       '@types/markdown-it': 14.1.2
-      markdown-it: 14.3.0
+      markdown-it: 14.3.1
 
-  markdown-it@14.3.0:
+  markdown-it@14.3.1:
     dependencies:
       argparse: 2.0.1
       entities: 4.5.0
@@ -3627,7 +3626,7 @@ snapshots:
       '@pkgr/core': 0.1.2
       tslib: 2.8.1
 
-  syntaqlite@https://registry.npmjs.org/syntaqlite/-/syntaqlite-0.12.1.tgz: {}
+  syntaqlite@0.12.1: {}
 
   tinybench@6.1.4: {}
 
