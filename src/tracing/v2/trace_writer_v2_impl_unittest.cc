@@ -28,6 +28,7 @@
 #include "src/tracing/v2/trace_writer_v2_impl.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -251,23 +252,6 @@ TEST_F(TraceWriterV2ImplTest, DrainRequestsAreCoalescedAtOccupancyThreshold) {
   EXPECT_EQ(ReadPackets().size(), 3u);
 }
 
-// The threshold counts the outstanding positions of all writers. One small
-// packet from each of two writers reaches it together.
-TEST_F(TraceWriterV2ImplTest, DrainThresholdCountsAllWriters) {
-  CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
-  auto first = CreateWriter();
-  auto second = CreateWriter();
-
-  WritePacket(first.get(), "first");  // 1 of 8 positions.
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(num_drain_requests_, 0u);
-
-  WritePacket(second.get(), "second");  // 2 of 8: asks for a drain.
-  task_runner_.RunUntilIdle();
-  EXPECT_EQ(num_drain_requests_, 1u);
-  EXPECT_EQ(ReadPackets().size(), 2u);
-}
-
 // A publication after a relocation also checks the threshold.
 TEST_F(TraceWriterV2ImplTest, RelocatedPublicationAppliesDrainThreshold) {
   CreateRingBufferArbiterWithReader(/*num_chunks=*/8);
@@ -291,6 +275,52 @@ TEST_F(TraceWriterV2ImplTest, RelocatedPublicationAppliesDrainThreshold) {
   EXPECT_THAT(StringsOf(ReadPackets()),
               UnorderedElementsAre("first", "other", "relocated"));
 }
+
+struct DrainThresholdCase {
+  const char* name;
+  int32_t drain_occupancy_percent;
+  uint32_t threshold;
+};
+
+class TraceWriterV2DrainThresholdTest
+    : public TraceWriterV2ImplTest,
+      public ::testing::WithParamInterface<DrainThresholdCase> {};
+
+// The threshold counts positions across all writers. Each writer's first packet
+// claims a new chunk, so each publication adds exactly one outstanding pos.
+TEST_P(TraceWriterV2DrainThresholdTest,
+       DrainsAtConfiguredThresholdAcrossWriters) {
+  const DrainThresholdCase& param = GetParam();
+  CreateRingBufferArbiter(/*num_chunks=*/8, kChunkSize,
+                          param.drain_occupancy_percent);
+  AttachReader();
+
+  std::vector<std::unique_ptr<TraceWriter>> writers;
+  for (uint32_t i = 1; i < param.threshold; ++i) {
+    writers.push_back(CreateWriter());
+    WritePacket(writers.back().get(), "below");
+    task_runner_.RunUntilIdle();
+  }
+  EXPECT_EQ(num_drain_requests_, 0u);
+
+  writers.push_back(CreateWriter());
+  WritePacket(writers.back().get(), "at threshold");
+  task_runner_.RunUntilIdle();
+  EXPECT_EQ(num_drain_requests_, 1u);
+  EXPECT_EQ(ReadPackets().size(), param.threshold);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    DrainOccupancyPercent,
+    TraceWriterV2DrainThresholdTest,
+    ::testing::Values(
+        // -1 asks for a drain after every publication.
+        DrainThresholdCase{"EveryPublication", -1, 1},
+        DrainThresholdCase{"HalfOfRing", 50, 4},
+        DrainThresholdCase{"WholeRing", 100, 8}),
+    [](const ::testing::TestParamInfo<DrainThresholdCase>& info) {
+      return info.param.name;
+    });
 
 // --- Buffer exhaustion ---
 

@@ -31,11 +31,13 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/test/mock_producer_endpoint.h"
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
+#include "src/tracing/v2/producer_ring_buffer_config.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
@@ -56,8 +58,10 @@ namespace perfetto::tracing_v2 {
 // - TraceWriterV2ImplTest, in trace_writer_v2_impl_unittest.cc.
 //
 // The producer side is the code under test:
-// - CreateRingBufferArbiter() allocates memory and creates |arbiter_| in
-//   kPending, along with the fake service's view of the same memory.
+// - CreateRingBufferArbiter() resolves the settings with
+//   ResolveProducerRingBufferConfig(), as the endpoints do.
+//   Then it allocates memory and creates |arbiter_| in kPending, along with
+//   the fake service's view of the same memory.
 // - CreateWriter() creates a TraceWriterV2Impl from that arbiter.
 //
 // The fake service side reads back what the writers published:
@@ -77,7 +81,6 @@ namespace perfetto::tracing_v2 {
 class ProducerRingBufferTest : public ::testing::Test,
                                public SharedRingBufferReader::Delegate {
  protected:
-  // The arbiter always uses this chunk size.
   static constexpr uint32_t kChunkSize = kMinChunkSize;
   static constexpr BufferID kTargetBuffer = 7;
   static constexpr ProducerID kProducerId = 1;
@@ -118,16 +121,30 @@ class ProducerRingBufferTest : public ::testing::Test,
   }
 
   // Gives |arbiter_| a ring buffer of |num_chunks| chunks.
+  // |num_chunks| must be a power of two and at least 2.
+  // |drain_occupancy_percent| has the meaning of the config field.
   // The ring buffer starts in kPending.
-  void CreateRingBufferArbiter(uint32_t num_chunks) {
+  void CreateRingBufferArbiter(uint32_t num_chunks,
+                               uint32_t chunk_size = kChunkSize,
+                               int32_t drain_occupancy_percent = 0) {
+    DataSourceConfig config;
+    auto* v2_config = config.mutable_experimental_tracing_v2();
+    v2_config->add_chunk_size_options()->set_size_bytes(chunk_size);
+    v2_config->set_drain_occupancy_percent(drain_occupancy_percent);
+    const size_t chunk_bytes = static_cast<size_t>(num_chunks) * chunk_size;
+    const auto ring_buffer_config = ResolveProducerRingBufferConfig(
+        config, chunk_bytes, sizeof(RingBufferHeader) + chunk_bytes);
+    ASSERT_TRUE(ring_buffer_config);
     service_memory_ = std::make_shared<InProcessSharedMemory>(
-        sizeof(RingBufferHeader) + BudgetFor(num_chunks));
+        ring_buffer_config->shmem_size_bytes);
     arbiter_ = std::make_unique<ProducerRingBufferArbiter>(
-        &task_runner_, &endpoint_, service_memory_);
+        &task_runner_, &endpoint_, service_memory_,
+        ring_buffer_config->chunk_size_bytes,
+        ring_buffer_config->drain_occupancy_threshold);
     // As the service does, the reader uses its own view of the mapping.
     reader_ring_buffer_ = std::make_unique<SharedRingBuffer>(
         static_cast<uint8_t*>(service_memory_->start()),
-        service_memory_->size(), kChunkSize);
+        service_memory_->size(), ring_buffer_config->chunk_size_bytes);
     reader_ = std::make_unique<SharedRingBufferReader>(
         reader_ring_buffer_.get(), this);
   }

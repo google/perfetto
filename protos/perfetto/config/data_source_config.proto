@@ -213,6 +213,36 @@ message DataSourceConfig {
     // The service rejects a nonzero use_v2_probability_percent and a
     // ProtoVM data source on the same buffer.
     optional uint32 use_v2_probability_percent = 1;
+
+    // One chunk size that the producer can choose for the ring buffer.
+    message ChunkSizeOption {
+      // Bytes per chunk, from 256 to 65536, and a multiple of 4.
+      // The service rejects other values.
+      optional uint32 size_bytes = 1;
+      // The chance of this option, relative to the other options.
+      // Absent means 1, and 0 means never.
+      optional uint32 weight = 2;
+    }
+    // The producer chooses one option at random, by weight, when it creates
+    // the ring buffer.
+    // With no option, or with all weights 0, it uses 256 bytes.
+    //
+    // The first instance that selects v2 chooses the size for the connection,
+    // and the options of later instances have no effect.
+    repeated ChunkSizeOption chunk_size_options = 2;
+
+    // When the writers ask the service to drain the ring buffer.
+    // After each publication, a writer counts the ring buffer positions that
+    // wait for the reader, and asks for a drain when the count reaches:
+    // - 0 or absent: 25% of the positions.
+    // - 1 to 100: this percent of the positions, and at least one.
+    // - -1: one position, so it asks after every publication.
+    // Flushes and full ring buffers still ask for a drain at once.
+    // The service rejects other values.
+    //
+    // As for chunk_size_options, the first instance that selects v2 sets it
+    // for the connection, and the values of later instances have no effect.
+    optional int32 drain_occupancy_percent = 3;
   }
   optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 

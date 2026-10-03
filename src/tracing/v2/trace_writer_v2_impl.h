@@ -81,7 +81,7 @@ class TraceWriterV2ImplTestPeer;
 // This class decides:
 // - When to ask for a drain:
 //   - After a publication, if the ring buffer's outstanding positions reach
-//     |drain_occupancy_threshold_|.
+//     the arbiter's drain occupancy threshold.
 //   - After failed claims, if the writer drops the data. Only the reader can
 //     move past those positions.
 //   - Before each wait for space.
@@ -224,13 +224,6 @@ class TraceWriterV2Impl : public TraceWriter,
 
   // What this writer does when the ring buffer has no free chunk.
   const BufferExhaustedPolicy buffer_exhausted_policy_;
-
-  // A publication asks for a drain when the ring buffer has at least this many
-  // outstanding positions.
-  // - The count covers the positions of all writers.
-  // - It includes reservations whose chunks are not published yet.
-  // - The constructor computes the threshold from the ring buffer's capacity.
-  const uint32_t drain_occupancy_threshold_;
 
   // Time source for stall deadlines. Tests replace it to advance time
   // deterministically across acquisition attempts.

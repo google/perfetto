@@ -7123,6 +7123,8 @@ perfetto_filegroup(
     srcs = [
         "src/tracing/v2/producer_ring_buffer_arbiter.cc",
         "src/tracing/v2/producer_ring_buffer_arbiter.h",
+        "src/tracing/v2/producer_ring_buffer_config.cc",
+        "src/tracing/v2/producer_ring_buffer_config.h",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer.h",
         "src/tracing/v2/shared_ring_buffer_reader.cc",

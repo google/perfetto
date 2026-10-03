@@ -25,7 +25,6 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/tracing/core/null_trace_writer.h"
-#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/trace_writer_v2_impl.h"
 
 namespace perfetto::tracing_v2 {
@@ -33,14 +32,17 @@ namespace perfetto::tracing_v2 {
 ProducerRingBufferArbiter::ProducerRingBufferArbiter(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
-    std::shared_ptr<SharedMemory> memory)
+    std::shared_ptr<SharedMemory> memory,
+    uint32_t chunk_size,
+    uint32_t drain_occupancy_threshold)
     : task_runner_(task_runner),
       endpoint_(endpoint),
       shared_memory_arbiter_(endpoint->MaybeSharedMemoryArbiter()),
       memory_(std::move(memory)),
       ring_buffer_(static_cast<uint8_t*>(memory_->start()),
                    memory_->size(),
-                   kMinChunkSize) {
+                   chunk_size),
+      drain_occupancy_threshold_(drain_occupancy_threshold) {
   // ProducerIPCClientImpl and the in-process ProducerEndpointImpl both create
   // the SMB arbiter before they set up data sources.
   PERFETTO_CHECK(shared_memory_arbiter_);

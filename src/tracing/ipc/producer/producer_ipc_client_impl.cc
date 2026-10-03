@@ -37,6 +37,7 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/null_trace_writer.h"
+#include "src/tracing/v2/producer_ring_buffer_config.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -569,7 +570,8 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
   producer_port_->CommitData(req, std::move(async_response));
 }
 
-void ProducerIPCClientImpl::InitializeV2RingBuffer() {
+void ProducerIPCClientImpl::InitializeV2RingBuffer(
+    const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 #if PERFETTO_TRACING_V2_IPC()
   if (v2_ring_buffer_arbiter_.has_value() || !connected_ ||
@@ -577,20 +579,20 @@ void ProducerIPCClientImpl::InitializeV2RingBuffer() {
     return;
   }
 
-  auto size = tracing_v2::RingBufferSizeForShmSizeHint(
-      shared_memory_size_hint_bytes_, TracingService::kMaxShmSize,
-      tracing_v2::kMinChunkSize);
-  if (!size) {
+  const auto ring_buffer_config = tracing_v2::ResolveProducerRingBufferConfig(
+      config, shared_memory_size_hint_bytes_, TracingService::kMaxShmSize);
+  if (!ring_buffer_config) {
     PERFETTO_ELOG("tracing v2: cannot size ring buffer for shmem size hint %zu",
                   shared_memory_size_hint_bytes_);
     v2_ring_buffer_arbiter_ = nullptr;
     return;
   }
 
-  std::shared_ptr<SharedMemory> memory =
-      PosixSharedMemory::Create(*size, /*require_sealed_memfd=*/true);
+  std::shared_ptr<SharedMemory> memory = PosixSharedMemory::Create(
+      ring_buffer_config->shmem_size_bytes, /*require_sealed_memfd=*/true);
   if (!memory) {
-    PERFETTO_ELOG("tracing v2: failed to allocate %zu-byte ring buffer", *size);
+    PERFETTO_ELOG("tracing v2: failed to allocate %zu-byte ring buffer",
+                  ring_buffer_config->shmem_size_bytes);
     v2_ring_buffer_arbiter_ = nullptr;
     return;
   }
@@ -599,19 +601,22 @@ void ProducerIPCClientImpl::InitializeV2RingBuffer() {
   // publish while awaiting the reply, dropping packets instead of stalling
   // if space runs out.
   v2_ring_buffer_arbiter_ =
-      std::make_unique<tracing_v2::ProducerRingBufferArbiter>(task_runner_,
-                                                              this, memory);
+      std::make_unique<tracing_v2::ProducerRingBufferArbiter>(
+          task_runner_, this, memory, ring_buffer_config->chunk_size_bytes,
+          ring_buffer_config->drain_occupancy_threshold);
 
   // Keep the arbiter in kPending until the service replies to the attach
   // request. The callback sets kAttached on acceptance or kDetached on
   // rejection.
   auto* arbiter = v2_ring_buffer_arbiter_.value().get();
   AttachV2RingBuffer(
-      memory, tracing_v2::kMinChunkSize,
+      memory, ring_buffer_config->chunk_size_bytes,
       [weak_arbiter = arbiter->GetWeakPtr()](bool reader_attached) {
         if (weak_arbiter)
           weak_arbiter->OnReaderAttachReply(reader_attached);
       });
+#else
+  base::ignore_result(config);
 #endif
 }
 
