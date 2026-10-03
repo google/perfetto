@@ -12,7 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Emit a C++ header containing a constexpr std::array<uint8_t, N> blob.
+"""Emit a C++ header containing a blob packed into uint64_t words.
+
+The generated view preserves byte-oriented data(), size(), begin(), and end()
+accessors over constant-initialized storage. Each blob has its own view type.
+The header selects little- or big-endian uint64_t initializers at preprocessing
+time so the underlying bytes are identical on either architecture.
+This reduces C++ parsing work without long string literals, runtime conversion,
+or static constructors.
 
 Importable from other build-time codegen tools, or runnable as a CLI:
   python3 cpp_blob_emitter.py \\
@@ -38,7 +45,7 @@ import argparse
 import os
 import re
 import sys
-import textwrap
+import struct
 import zlib
 
 _HEADER_TEMPLATE = """/*
@@ -64,28 +71,33 @@ _HEADER_TEMPLATE = """/*
 #include <stdint.h>
 #include <array>
 
+#include "perfetto/base/compiler.h"
+
 namespace {namespace} {{
 
-inline constexpr std::array<uint8_t, {size}> k{symbol}{{
-{binary}}};
+inline constexpr std::array<uint64_t, {word_count}> k{symbol}Words{{{{
+#if PERFETTO_IS_LITTLE_ENDIAN()
+{little_binary}
+#else
+{big_binary}
+#endif
+}}}};
+struct {symbol}View {{
+  const uint64_t* words;
+
+  const uint8_t* data() const {{
+    return reinterpret_cast<const uint8_t*>(words);
+  }}
+  constexpr size_t size() const {{ return {size}; }}
+  const uint8_t* begin() const {{ return data(); }}
+  const uint8_t* end() const {{ return data() + size(); }}
+}};
+inline constexpr {symbol}View k{symbol}{{k{symbol}Words.data()}};
 
 }}  // namespace {namespace}
 
 #endif  // {include_guard}
 """
-
-
-def _format_byte_literal(data):
-  # Match the historical output of gen_cc_proto_descriptor.py exactly so
-  # consumers see byte-identical headers after the extraction.
-  try:
-    ord(data[0])
-    ordinal = ord
-  except TypeError:
-    ordinal = lambda x: x
-  binary = '{' + ', '.join('{0:#04x}'.format(ordinal(c)) for c in data) + '}'
-  return textwrap.fill(
-      binary, width=80, initial_indent='    ', subsequent_indent='     ')
 
 
 def derive_symbol(output_path, suffix=''):
@@ -111,17 +123,24 @@ def derive_include_guard(output_path, gen_dir=''):
 
 
 def emit_array(data, output_path, *, symbol, namespace, include_guard):
-  """Write `data` to `output_path` as a constexpr std::array<uint8_t, N>."""
-  binary = _format_byte_literal(data)
-  with open(output_path, 'wb') as f:
+  """Write a header with native-endian words and a byte-view accessor."""
+  # Padding is storage, not payload. Keep an addressable word for empty blobs.
+  padded = data + b'\0' * (-len(data) % 8) if data else b'\0' * 8
+
+  def words(order):
+    return '\n'.join(f'    0x{word:016x}ULL,'
+                     for (word,) in struct.iter_unpack(order + 'Q', padded))
+
+  with open(output_path, 'w') as f:
     f.write(
         _HEADER_TEMPLATE.format(
             include_guard=include_guard,
             namespace=namespace,
             symbol=symbol,
             size=len(data),
-            binary=binary,
-        ).encode())
+            word_count=len(padded) // 8,
+            little_binary=words('<'),
+            big_binary=words('>')))
 
 
 def emit_compressed_array(data,
