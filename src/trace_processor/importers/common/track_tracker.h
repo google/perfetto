@@ -204,6 +204,15 @@ class TrackTracker {
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
       const SetArgsCallback& args = {},
       const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
+    // The machine TrackTracker is shared by all traces on a machine and must
+    // not read per-trace state from context_. Machine-scoped tracks are
+    // forwarded to it.
+    if (bp.scope == tracks::Scope::kMachine &&
+        context_->machine_track_tracker &&
+        context_->machine_track_tracker.get() != this) {
+      return context_->machine_track_tracker->InternTrack(bp, dims, name, args,
+                                                          unit);
+    }
     uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
     auto [it, inserted] = tracks_.Insert(hash, {});
     if (inserted) {

@@ -21,6 +21,24 @@ from python.generators.diff_tests.testing import Tar
 from python.generators.diff_tests.testing import Zip as ZipTrace
 
 
+def _ftrace(*events, cpu=0, first_packet=False):
+  pfx = 'first_packet_on_sequence: true ' if first_packet else ''
+  return f'packet {{ {pfx}ftrace_events {{ cpu: {cpu} {" ".join(events)} }} }}'
+
+
+def _cpu_freq(ts, state, cpu=0, pid=1):
+  return (f'event {{ timestamp: {ts} pid: {pid} cpu_frequency {{ '
+          f'state: {state} cpu_id: {cpu} }} }}')
+
+
+def _two_trace_zip(trace1, trace2=None):
+  """ZIP with trace1.pftrace and trace2.pftrace (a copy of trace1 if None)."""
+  return ZipTrace({
+      'trace1.pftrace': TextProto(trace1),
+      'trace2.pftrace': TextProto(trace1 if trace2 is None else trace2),
+  })
+
+
 class Zip(TestSuite):
 
   def test_perf_proto_sym(self):
@@ -249,4 +267,32 @@ class Zip(TestSuite):
         "ts"
         1276407306585477
         1276408471040116
+        '''))
+
+  # Two traces from one machine share one cpu_frequency track per CPU and keep
+  # both traces' samples.
+  def test_two_traces_share_cpu_frequency_track(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(_cpu_freq(1000, 1000000), _cpu_freq(1001, 1200000)),
+            _ftrace(_cpu_freq(1000, 1000000), _cpu_freq(1002, 1400000))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM cpu_counter_track WHERE type = 'cpu_frequency')
+              AS cpufreq_tracks,
+            t.name,
+            t.cpu,
+            c.ts,
+            c.value
+          FROM counter c
+          JOIN cpu_counter_track t ON c.track_id = t.id
+          WHERE t.type = 'cpu_frequency'
+          ORDER BY c.ts, c.value;
+        ''',
+        out=Csv('''
+        "cpufreq_tracks","name","cpu","ts","value"
+        1,"cpufreq",0,1000,1000000.000000
+        1,"cpufreq",0,1000,1000000.000000
+        1,"cpufreq",0,1001,1200000.000000
+        1,"cpufreq",0,1002,1400000.000000
         '''))

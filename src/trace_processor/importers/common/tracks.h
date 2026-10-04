@@ -112,6 +112,30 @@ constexpr auto CounterBlueprint(const char type[],
   };
 }
 
+// Rule for Scope::kMachine: a counter that describes the device and whose
+// dimensions are only device identifiers (CPU, CPU cluster, GPU, battery and
+// counter name, power entity). Clock, thermal and cooling device counters
+// still use kTrace; they can move once they are checked against this rule.
+//
+// Identical to CounterBlueprint() but marks the resulting blueprint as
+// machine-scoped, so that all traces merged onto the same machine share a
+// single track row instead of creating one duplicate row per trace.
+template <typename NB = NameBlueprintT::Auto,
+          typename UB = UnitBlueprintT::Unknown,
+          typename DeB = DescriptionBlueprintT::None,
+          typename... D>
+constexpr auto MachineCounterBlueprint(
+    const char type[],
+    UB unit,
+    DimensionBlueprintsT<D...> dimensions = {},
+    NB name = NB{},
+    DeB description = DeB{}) {
+  auto bp = CounterBlueprint<NB, UB, DeB, D...>(type, unit, dimensions, name,
+                                                description);
+  bp.scope = Scope::kMachine;
+  return bp;
+}
+
 // Wraps all the dimension blueprints before passing them to SliceBlueprint()
 // or CounterBlueprint().
 template <typename... DimensionBlueprint>

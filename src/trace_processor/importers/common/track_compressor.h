@@ -197,6 +197,9 @@ class TrackCompressor {
       tracks::DimensionBlueprintsT<D...> dimensions = {},
       NB name = NB{}) {
     auto blueprint = tracks::SliceBlueprint(type, dimensions, name);
+    // Compressed tracks are always per trace: CreateTrack() does not forward
+    // to the machine TrackTracker. The scope is copied only so the blueprint
+    // initializer is complete.
     using BT = decltype(blueprint);
     constexpr auto kCompressorIdxDimensionIndex =
         std::tuple_size_v<typename BT::dimension_blueprints_t>;
@@ -220,6 +223,7 @@ class TrackCompressor {
                     blueprint.type,
                     blueprint.hasher,
                     blueprints,
+                    blueprint.scope,
                 },
                 fn,
                 blueprint.unit_blueprint,
@@ -235,6 +239,7 @@ class TrackCompressor {
                     blueprint.type,
                     blueprint.hasher,
                     blueprints,
+                    blueprint.scope,
                 },
                 blueprint.name_blueprint,
                 blueprint.unit_blueprint,

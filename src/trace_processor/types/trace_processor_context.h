@@ -257,6 +257,12 @@ class TraceProcessorContext {
   PerMachinePtr<GpuTracker> gpu_tracker;
   PerMachinePtr<UserTracker> user_tracker;
 
+  // Shared by all traces on this machine. Owns tracks whose blueprint is
+  // tracks::Scope::kMachine, so merged traces do not create duplicate rows.
+  // Note: the machine TrackTracker is shared by all traces on a machine and
+  // must not read per-trace state from context_.
+  PerMachinePtr<TrackTracker> machine_track_tracker;
+
   // Per-Machine, Per-Trace State
   // ==========================
   //
