@@ -16,7 +16,10 @@
 
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
 
+#include "perfetto/base/compiler.h"
+
 #include "src/trace_processor/importers/common/gpu_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -90,6 +93,13 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
   const int64_t tid = task_event.tid();
   const int32_t prio = task_event.prio();
   const size_t state = static_cast<size_t>(task_event.state());
+
+  // Check the claim before GetUtidForState: it starts/ends threads in the
+  // machine's process tracker, which a dropped trace must not touch.
+  if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepSched(
+          context_, MachineDataClaimTracker::SchedEventKind::kSwitch, ts))) {
+    return;
+  }
 
   // Handle thread creation
   auto utid_opt = GenericKernelParser::GetUtidForState(ts, tid, comm_id, state);

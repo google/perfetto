@@ -31,6 +31,36 @@ def _cpu_freq(ts, state, cpu=0, pid=1):
           f'state: {state} cpu_id: {cpu} }} }}')
 
 
+def _sched_switch(ts, pcomm, ppid, ncomm, npid, prev_state=0, prio=120):
+  return (f'event {{ timestamp: {ts} pid: {ppid} sched_switch {{ '
+          f'prev_comm: "{pcomm}" prev_pid: {ppid} prev_state: {prev_state} '
+          f'next_comm: "{ncomm}" next_pid: {npid} next_prio: {prio} }} }}')
+
+
+def _sched_waking(ts, pid, comm, target_pid, prio=120, target_cpu=0):
+  return (f'event {{ timestamp: {ts} pid: {pid} sched_waking {{ '
+          f'comm: "{comm}" pid: {target_pid} prio: {prio} '
+          f'target_cpu: {target_cpu} }} }}')
+
+
+def _task_newtask(ts, pid, child_pid, comm, clone_flags=0):
+  return (f'event {{ timestamp: {ts} pid: {pid} task_newtask {{ '
+          f'pid: {child_pid} comm: "{comm}" clone_flags: {clone_flags} }} }}')
+
+
+def _compact_sched(intern_table, switches):
+  fields = [f'intern_table: "{t}"' for t in intern_table]
+  for attr, idx in [
+      ('switch_timestamp', 0),
+      ('switch_next_pid', 1),
+      ('switch_prev_state', 2),
+      ('switch_next_prio', 3),
+      ('switch_next_comm_index', 4),
+  ]:
+    fields.extend(f'{attr}: {s[idx]}' for s in switches)
+  return f'compact_sched {{ {" ".join(fields)} }}'
+
+
 def _two_trace_zip(trace1, trace2=None):
   """ZIP with trace1.pftrace and trace2.pftrace (a copy of trace1 if None)."""
   return ZipTrace({
@@ -269,8 +299,323 @@ class Zip(TestSuite):
         1276408471040116
         '''))
 
-  # Two traces from one machine share one cpu_frequency track per CPU and keep
-  # both traces' samples.
+  # Duplicate cpu_frequency events across traces report claim conflicts.
+  def test_two_traces_duplicate_cpu_frequency(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(_cpu_freq(1000, 1000000), _cpu_freq(1001, 1200000)),
+            _ftrace(_cpu_freq(1000, 1000000), _cpu_freq(1002, 1400000))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM counter) AS counter_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "counter_count","conflict_count"
+        2,2
+        '''))
+
+  # Duplicate sched_switch events across traces report claim conflicts.
+  def test_two_traces_duplicate_sched(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 100, 't2', 200),
+                _sched_switch(2000, 't2', 200, 't1', 100),
+                _sched_switch(3000, 't1', 100, 't2', 200)),
+            _ftrace(
+                _sched_switch(1500, 't3', 300, 't4', 400),
+                _sched_switch(2500, 't4', 400, 't3', 300))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "sched_count","conflict_count"
+        3,2
+        '''))
+
+  # Independent claims across traces have no claim conflicts.
+  def test_two_traces_independent_claims(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(_cpu_freq(1000, 1000000), _cpu_freq(1001, 1200000)),
+            _ftrace(
+                _sched_switch(1000, 't1', 100, 't2', 200),
+                _sched_switch(2000, 't2', 200, 't1', 100),
+                _sched_switch(3000, 't1', 100, 't2', 200))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM counter) AS counter_count,
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS counter_conflicts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "counter_count","sched_count","counter_conflicts","sched_conflicts"
+        2,3,0,0
+        '''))
+
+  # Earlier timestamp in second zip member wins sched ownership.
+  def test_sched_claim_earlier_timestamp_wins(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'b.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(50, 't1', 10, 't2', 20),
+                        _sched_switch(60, 't2', 20, 't1', 10))),
+            'a.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(100, 't3', 30, 't4', 40),
+                        _sched_switch(120, 't4', 40, 't3', 30))),
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT max(ts) FROM sched) AS max_sched_ts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "sched_count","max_sched_ts","conflict_count"
+        2,60,2
+        '''))
+
+  # Compact sched bundles in duplicate traces deduplicate cleanly. All 3 of
+  # trace 2's compact switches count as dropped, including the first one per
+  # CPU (which never makes a slice but still claims / conflicts).
+  def test_two_traces_compact_sched(self):
+    compact_payload = _ftrace(
+        _compact_sched(['t1', 't2'], [
+            (1000, 10, 0, 120, 0),
+            (1000, 20, 0, 120, 1),
+            (1000, 10, 0, 120, 0),
+        ]))
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(compact_payload),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "sched_count","conflict_count"
+        2,3
+        '''))
+
+  # task_newtask does not claim scheduling; later switch claims it.
+  def test_newtask_does_not_claim_sched(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'a.pb':
+                TextProto(
+                    _ftrace(
+                        _task_newtask(500, 100, 200, 'forked_child'),
+                        _task_newtask(600, 100, 201, 'forked_child2'),
+                        first_packet=True)),
+            'b.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(1000, 't1', 10, 't2', 20),
+                        _sched_switch(2000, 't2', 20, 't1', 10))),
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "sched_count","sched_conflicts"
+        2,0
+        '''))
+
+  # Single trace with frequency and sched switch has no claim conflicts.
+  def test_single_trace_no_claim_conflicts(self):
+    return DiffTestBlueprint(
+        trace=TextProto(
+            _ftrace(
+                _cpu_freq(1000, 1000000), _sched_switch(1000, 't1', 10, 't2',
+                                                        20),
+                _sched_switch(2000, 't2', 20, 't1', 10))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM counter) AS counter_count,
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS counter_conflicts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "counter_count","sched_count","counter_conflicts","sched_conflicts"
+        1,2,0,0
+        '''))
+
+  # Two identical traces with switch + waking + switch. Trace 1 owns sched
+  # from its first sched_switch, so all three of trace 2's events (two
+  # switches and the waking) are dropped and thread_state has the same 5
+  # rows as a single trace. Note: wakings that arrive before the owner's
+  # first sched_switch are kept (nobody owns sched yet), which is why the
+  # waking comes second.
+  def test_two_traces_sched_waking(self):
+    waking_payload = _ftrace(
+        _sched_switch(1000, 't1', 10, 't2', 20, prev_state=1),
+        _sched_waking(1500, 20, 't1', 10),
+        _sched_switch(2500, 't2', 20, 't1', 10))
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(waking_payload),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread_state) AS thread_state_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "thread_state_count","conflict_count"
+        5,3
+        '''))
+
+  # Two identical traces where a thread is created mid-trace. Trace 2's
+  # task_newtask must be dropped as a whole: if it still started a thread,
+  # tid 30 would get a second utid and the owner's Runnable state would be
+  # left open on the first one. Expect one thread with 3 states (R, Running,
+  # R), like a single trace, and 4 dropped events from trace 2.
+  def test_two_traces_task_newtask_no_split_thread(self):
+    payload = _ftrace(
+        _sched_switch(500, 'p', 10, 'q', 20),
+        _task_newtask(1000, 10, 30, 'child', clone_flags=65536),
+        _sched_switch(1500, 'q', 20, 'child', 30),
+        _sched_switch(2500, 'child', 30, 'q', 20))
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread WHERE tid = 30) AS threads,
+            (SELECT count(*) FROM thread_state JOIN thread USING (utid)
+             WHERE tid = 30) AS states,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "threads","states","conflict_count"
+        1,3,4
+        '''))
+
+  # Same as above but the thread is created before either trace has a
+  # sched_switch, so nobody owns scheduling yet. The duplicate task_newtask
+  # must still reuse the existing thread instead of splitting it.
+  def test_two_traces_task_newtask_before_claim_no_split_thread(self):
+    payload = _ftrace(
+        _task_newtask(500, 10, 30, 'child', clone_flags=65536),
+        _sched_switch(1000, 'p', 10, 'child', 30),
+        _sched_switch(2000, 'child', 30, 'p', 10))
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread WHERE tid = 30) AS threads,
+            (SELECT count(*) FROM sched JOIN thread USING (utid)
+             WHERE tid = 30) AS sched_rows;
+        ''',
+        out=Csv('''
+        "threads","sched_rows"
+        1,1
+        '''))
+
+  # Back-to-back traces: trace 2 starts after trace 1 and forks a new process.
+  # Trace 2's sched data is dropped (trace 1 owns scheduling), but the new
+  # process and thread must still be created so trace 2's other data can be
+  # attributed to them. The stat is attributed to trace 2.
+  def test_back_to_back_fork_keeps_process(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(100, 'a', 10, 'b', 20),
+                _sched_switch(200, 'b', 20, 'a', 10)),
+            _ftrace(
+                _sched_switch(1000, 'a', 10, 'b', 20),
+                _task_newtask(1100, 10, 40, 'forked'))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread WHERE tid = 40) AS threads,
+            (SELECT count(*) FROM process WHERE pid = 40) AS processes,
+            (SELECT count(*) FROM thread_state JOIN thread USING (utid)
+             WHERE tid = 40) AS states,
+            (SELECT group_concat(f.name) FROM stats s
+             JOIN __intrinsic_trace_file f ON s.trace_id = f.id
+             WHERE s.name = 'machine_sched_claim_conflict' AND s.value > 0)
+              AS conflict_trace,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "threads","processes","states","conflict_trace","conflict_count"
+        1,1,0,"trace2.pftrace",2
+        '''))
+
+  # The first compact switch on a CPU claims scheduling too, so trace 2's
+  # waking right after it is dropped instead of leaving a second open
+  # Runnable state on the same thread.
+  def test_two_traces_compact_first_switch_claims(self):
+    payload = _ftrace(
+        _compact_sched(['t1'], [(1000, 10, 0, 120, 0)]),
+        _sched_waking(1500, 30, 't2', 20))
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread_state JOIN thread USING (utid)
+             WHERE tid = 20) AS states,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "states","conflict_count"
+        1,2
+        '''))
+
+  # Duplicate generic kernel task state events: trace 2 is dropped before it
+  # can start or end threads, so there is one thread and one slice.
+  def test_two_traces_generic_kernel(self):
+    payload = '''
+        packet {
+          timestamp: 1000
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "task1" tid: 101 state: 3 prio: 100
+          }
+        }
+        packet {
+          timestamp: 2000
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "task1" tid: 101 state: 8 prio: 100
+          }
+        }
+        '''
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched_slice) AS slices,
+            (SELECT count(*) FROM thread WHERE tid = 101) AS threads,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "slices","threads","conflict_count"
+        1,1,2
+        '''))
+
+  # Two traces from one machine share one cpu_frequency track per CPU; trace 1
+  # claims ownership so trace 2's overlapping samples are dropped.
   def test_two_traces_share_cpu_frequency_track(self):
     return DiffTestBlueprint(
         trace=_two_trace_zip(
@@ -292,7 +637,108 @@ class Zip(TestSuite):
         out=Csv('''
         "cpufreq_tracks","name","cpu","ts","value"
         1,"cpufreq",0,1000,1000000.000000
-        1,"cpufreq",0,1000,1000000.000000
         1,"cpufreq",0,1001,1200000.000000
-        1,"cpufreq",0,1002,1400000.000000
+        '''))
+
+  # Trace 1 provides battery capacity only and trace 2 provides current only.
+  # These are different tracks, so both are kept with no conflicts.
+  def test_two_traces_battery_counter_subsets(self):
+    t1 = """
+        packet { timestamp: 1000 battery { capacity_percent: 80 } }
+        packet { timestamp: 3000 battery { capacity_percent: 79 } }
+        packet { timestamp: 5000 battery { capacity_percent: 78 } }
+        packet { timestamp: 7000 battery { capacity_percent: 77 } }
+        packet { timestamp: 9000 battery { capacity_percent: 76 } }
+        """
+    t2 = """
+        packet { timestamp: 2000 battery { current_ua: -200000 } }
+        packet { timestamp: 4000 battery { current_ua: -210000 } }
+        packet { timestamp: 6000 battery { current_ua: -190000 } }
+        packet { timestamp: 8000 battery { current_ua: -220000 } }
+        packet { timestamp: 10000 battery { current_ua: -205000 } }
+        """
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(t1, t2),
+        query='''
+          SELECT
+            t.name,
+            count(c.id) AS count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS conflict_count
+          FROM counter_track t
+          JOIN counter c ON c.track_id = t.id
+          WHERE t.name LIKE 'batt.%'
+          GROUP BY t.name
+          ORDER BY t.name;
+        ''',
+        out=Csv('''
+        "name","count","conflict_count"
+        "batt.capacity_pct",5,0
+        "batt.current_ua",5,0
+        '''))
+
+  # When trace 2 has an early waking before any trace claims sched, it opens
+  # a runnable state. When trace 1's first context switch claims scheduling,
+  # trace 2's open state is closed at that switch timestamp so that no
+  # thread states overlap.
+  def test_early_waking_closed_at_first_sched_claim(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            't1.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(2000, 't1', 10, 't2', 20, prev_state=1),
+                        _sched_switch(3000, 't2', 20, 't1', 10, prev_state=1),
+                        _sched_switch(4000, 't1', 10, 't2', 20, prev_state=1),
+                    )),
+            't2.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_waking(1000, 1, 't2', 20),
+                        _sched_switch(2500, 't3', 30, 't2', 20, prev_state=1),
+                        _sched_switch(3500, 't2', 20, 't3', 30, prev_state=1),
+                    )),
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread_state a
+             JOIN thread_state b ON a.utid = b.utid AND b.ts > a.ts
+             AND (a.dur = -1 OR a.ts + a.dur > b.ts)) AS overlap_count,
+            (SELECT tid FROM thread t WHERE t.utid = ts.utid) AS tid,
+            ts.ts,
+            ts.dur,
+            ts.state
+          FROM thread_state ts
+          ORDER BY tid, ts.ts;
+        ''',
+        out=Csv('''
+        "overlap_count","tid","ts","dur","state"
+        0,10,2000,1000,"S"
+        0,10,3000,1000,"Running"
+        0,10,4000,-1,"S"
+        0,20,1000,1000,"R"
+        0,20,2000,1000,"Running"
+        0,20,3000,1000,"S"
+        0,20,4000,-1,"Running"
+        '''))
+
+  # JSON thread state ('T') events are guarded by KeepSched; once trace 1
+  # provides sched, duplicate thread states from trace 2 are dropped.
+  def test_two_traces_json_thread_state(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            't1.json':
+                '[{"name": "Running", "ph": "T", "ts": 1, "dur": 1, "pid": 1, "tid": 1, "args": {"cpu": 0}}]',
+            't2.json':
+                '[{"name": "Running", "ph": "T", "ts": 2, "dur": 1, "pid": 1, "tid": 1, "args": {"cpu": 0}}]',
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "sched_count","conflict_count"
+        1,1
         '''))

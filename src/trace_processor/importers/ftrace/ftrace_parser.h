@@ -229,7 +229,8 @@ class FtraceParser {
                          protozero::ConstBytes);
   void ParseSoftIrqExit(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
   void ParseGpuMemTotal(int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedBlockedReason(protozero::ConstBytes,
+  void ParseSchedBlockedReason(int64_t timestamp,
+                               protozero::ConstBytes,
                                PacketSequenceStateGeneration*);
   void ParseFastRpcDmaStat(int64_t timestamp,
                            uint32_t pid,

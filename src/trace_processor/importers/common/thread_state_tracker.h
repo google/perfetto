@@ -73,7 +73,8 @@ class ThreadStateTracker : public Destructible {
   void PushNewTaskEvent(int64_t event_ts, UniqueTid utid, UniqueTid waker_utid);
 
   // Updates the current blocked state for utid with blocked reason.
-  void PushBlockedReason(UniqueTid utid,
+  void PushBlockedReason(int64_t ts,
+                         UniqueTid utid,
                          std::optional<bool> io_wait,
                          std::optional<StringId> blocked_function);
 
@@ -101,6 +102,10 @@ class ThreadStateTracker : public Destructible {
                           std::optional<uint16_t> common_flags = std::nullopt);
 
   StringId GetPrevEndState(UniqueTid utid);
+
+  // Closes this trace's open thread states (dur == -1) at |ts| and forgets
+  // the per-thread state. Used when another trace takes over scheduling.
+  void CloseOpenStatesAt(int64_t ts);
 
  private:
   void AddOpenState(int64_t ts,

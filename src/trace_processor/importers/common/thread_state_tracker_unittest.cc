@@ -140,7 +140,7 @@ TEST_F(ThreadStateTrackerUnittest, BasicWakingEvent) {
 TEST_F(ThreadStateTrackerUnittest, BasicPushBlockedReason) {
   tracker_->PushSchedSwitchEvent(10, CPU_A, THREAD_A, StringIdOf("S"),
                                  THREAD_B);
-  tracker_->PushBlockedReason(THREAD_A, true, StringIdOf(kBlockedFunction));
+  tracker_->PushBlockedReason(10, THREAD_A, true, StringIdOf(kBlockedFunction));
 
   auto rows_it = ThreadStateIterator();
   VerifyThreadState(rows_it, 10, std::nullopt, THREAD_A, "S", true,
@@ -176,12 +176,12 @@ TEST_F(ThreadStateTrackerUnittest, SchedBlockedReasonWithIdleThread) {
                                  THREAD_A);
   tracker_->PushSchedSwitchEvent(2, CPU_A, THREAD_A, StringIdOf("D"),
                                  IDLE_THREAD);
-  tracker_->PushBlockedReason(THREAD_A, IDLE_THREAD, std::nullopt);
+  tracker_->PushBlockedReason(2, THREAD_A, IDLE_THREAD, std::nullopt);
   tracker_->PushSchedSwitchEvent(3, CPU_A, IDLE_THREAD, StringIdOf("D"),
                                  THREAD_B);
   tracker_->PushSchedSwitchEvent(4, CPU_A, THREAD_B, StringIdOf("D"),
                                  IDLE_THREAD);
-  tracker_->PushBlockedReason(THREAD_B, 1, std::nullopt);
+  tracker_->PushBlockedReason(4, THREAD_B, 1, std::nullopt);
 
   auto rows_it = ThreadStateIterator();
 

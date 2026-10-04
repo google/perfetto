@@ -48,6 +48,7 @@ class GlobalArgsTracker;
 class GlobalMetadataTracker;
 class GlobalStatsTracker;
 class ImportLogsTracker;
+class MachineDataClaimTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -262,6 +263,7 @@ class TraceProcessorContext {
   // Note: the machine TrackTracker is shared by all traces on a machine and
   // must not read per-trace state from context_.
   PerMachinePtr<TrackTracker> machine_track_tracker;
+  PerMachinePtr<MachineDataClaimTracker> machine_data_claim_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================

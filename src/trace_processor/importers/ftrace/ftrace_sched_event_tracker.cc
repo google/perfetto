@@ -26,6 +26,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
@@ -118,6 +119,11 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   AddRawSchedSwitchEvent(cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio,
                          prev_state, next_pid, next_comm_id, next_prio);
 
+  if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepSched(
+          context_, MachineDataClaimTracker::SchedEventKind::kSwitch, ts))) {
+    return;
+  }
+
   auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
       cpu, ts, next_utid, next_prio);
 
@@ -149,6 +155,14 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // discarded.
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
+    // This event is still a context switch: let it claim scheduling for this
+    // trace so another trace's early wakeups are dropped from here on. The
+    // result doesn't matter since no slice is started either way. Raw-only
+    // data (from before the trace started) never claims, as below.
+    if (!parse_only_into_raw) {
+      MachineDataClaimTracker::KeepSched(
+          context_, MachineDataClaimTracker::SchedEventKind::kSwitch, ts);
+    }
     context_->stats_tracker->IncrementStats(
         stats::compact_sched_switch_skipped);
 
@@ -197,8 +211,13 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // * updated |pending_sched->last_*| fields
   // * still-defaulted |pending_slice_storage_idx|
   // This is similar to the first compact_sched_switch per cpu.
-  if (PERFETTO_UNLIKELY(parse_only_into_raw))
+  if (PERFETTO_UNLIKELY(parse_only_into_raw ||
+                        !MachineDataClaimTracker::KeepSched(
+                            context_,
+                            MachineDataClaimTracker::SchedEventKind::kSwitch,
+                            ts))) {
     return;
+  }
 
   // Update per-cpu Sched table.
   auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(

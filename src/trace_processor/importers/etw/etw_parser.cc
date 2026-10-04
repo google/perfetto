@@ -24,6 +24,7 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
@@ -293,6 +294,11 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
     }
   }
 
+  if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepSched(
+          context_, MachineDataClaimTracker::SchedEventKind::kSwitch, ts))) {
+    return;
+  }
+
   auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
       cpu, ts, next_utid, next_prio);
 
@@ -314,7 +320,7 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
     StringId wait_reason_string_id = WaitReasonToStringId(prev_wait_reason);
 
     ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
-        prev_utid, IsIoWait(prev_wait_reason), wait_reason_string_id);
+        ts, prev_utid, IsIoWait(prev_wait_reason), wait_reason_string_id);
   }
 }
 

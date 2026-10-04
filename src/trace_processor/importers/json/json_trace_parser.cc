@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -463,6 +464,16 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
           if (ret != json::ReturnCode::kEndOfScope)
             RecordEventError(timestamp, event, stats::json_parser_failure);
         }
+      }
+
+      // Guard against duplicate sched/thread_state data across merged traces.
+      if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepSched(
+              context_,
+              (slice_name_id == running_string_id_ && cpu.has_value())
+                  ? MachineDataClaimTracker::SchedEventKind::kSwitch
+                  : MachineDataClaimTracker::SchedEventKind::kOther,
+              timestamp))) {
+        break;
       }
 
       storage->mutable_thread_state_table()->Insert(row);

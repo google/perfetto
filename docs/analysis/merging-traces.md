@@ -87,6 +87,31 @@ ZIP, so any tar/zip library works. The
 [`util merge` helper](#merge-util) below is just a convenience for doing
 the same thing from the command line, with some validation on top.
 
+### Same data source on the same machine
+
+When two files in an archive contribute the same machine-wide stream on the
+same machine, the first file to provide it owns it and the other files'
+events for that stream are dropped to prevent corrupted timelines:
+
+- Scheduling: owned by the first file to emit a context switch. Once
+  scheduling is owned, other files' wakeups and the thread states of their
+  new-task events are dropped too (the new threads themselves are kept).
+  Wakeups seen before any file owns scheduling are kept; when the first
+  file claims it, other files' open thread states (for example runnable
+  states from those wakeups) are closed at the claiming switch. ETW
+  context switches and JSON thread states follow the same rule. Fuchsia
+  scheduler records are not checked.
+- Machine-wide counters (CPU/GPU frequency and limits, CPU idle, entity state,
+  battery counters): each machine-wide counter track (for example CPU 2
+  frequency or battery charge) is owned by the first file to write a value to
+  it.
+
+Other data in the other files (e.g. app slices, logs) is still imported.
+Dropped events are recorded in the `machine_counter_claim_conflict` and
+`machine_sched_claim_conflict` stats, and the first dropped event of each kind
+is recorded in import logs (`_trace_import_logs`). If the files actually come from
+different devices, give each its own machine as shown below.
+
 ### Keeping two devices' data separate
 
 By default, two same-device-looking traces merge onto one machine. Naming
@@ -200,11 +225,13 @@ SELECT name, trace_type, size FROM trace_file;
 -- every event was placed on the timeline.
 SELECT name, value, machine_id, trace_id
 FROM stats
-WHERE severity = 'error' AND value > 0;
+WHERE severity IN ('error', 'data_loss') AND value > 0;
 ```
 
-The stats to watch for merges: `clock_sync_unrelatable_clock_domains` and
-`clock_sync_failure_no_path` count events whose clock could not be related
+The stats to watch for merges: `machine_counter_claim_conflict` and
+`machine_sched_claim_conflict` indicate conflicting machine streams where a
+secondary trace had its events dropped; `clock_sync_unrelatable_clock_domains`
+and `clock_sync_failure_no_path` count events whose clock could not be related
 to the timeline (record clock snapshots or add a manifest `clocks` entry);
 `trace_sorter_negative_timestamp_dropped` counts events an `offset_ns`
 moved before the start of the timeline.

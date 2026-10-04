@@ -44,6 +44,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -1170,7 +1171,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSchedBlockedReasonFieldNumber: {
-        ParseSchedBlockedReason(fld_bytes, seq_state);
+        ParseSchedBlockedReason(ts, fld_bytes, seq_state);
         break;
       }
       case FtraceEvent::kFastrpcDmaStatFieldNumber: {
@@ -1917,6 +1918,10 @@ void FtraceParser::ParseSchedWaking(int64_t timestamp,
 void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::SchedProcessFreeFtraceEvent::Decoder ex(blob);
   uint32_t pid = static_cast<uint32_t>(ex.pid());
+  // Not gated by MachineDataClaimTracker on purpose: thread lifecycle is kept
+  // for every trace. A duplicate free from another trace of this machine
+  // usually finds no live thread and does nothing. Known rare exception: if an
+  // older thread with the same tid is still live, the duplicate ends it too.
   context_->process_tracker->EndThread(timestamp, pid);
 }
 
@@ -2746,6 +2751,21 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     return;
   }
 
+  // Two traces of the same machine can both contain this exact event. If the
+  // event was already applied by another trace, reuse the thread instead of
+  // starting a second one for the same tid (which would split it in two). The
+  // thread state is still gated by MachineDataClaimTracker inside
+  // PushNewTaskEvent.
+  auto* claim_tracker = context_->machine_data_claim_tracker.get();
+  if (claim_tracker) {
+    if (auto existing = claim_tracker->FindTaskNewTask(timestamp, new_tid);
+        existing) {
+      ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+          timestamp, *existing, proc_tracker->GetOrCreateThread(source_tid));
+      return;
+    }
+  }
+
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
@@ -2757,6 +2777,10 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
 
     proc_tracker->AssociateCreatedProcessToParentThread(upid, source_utid);
+
+    if (claim_tracker) {
+      claim_tracker->RecordTaskNewTask(timestamp, new_tid, new_utid);
+    }
 
     ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
         timestamp, new_utid, source_utid);
@@ -2771,6 +2795,10 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
                                  ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid,
                                  /*associate_main_threads*/ true);
+
+  if (claim_tracker) {
+    claim_tracker->RecordTaskNewTask(timestamp, new_tid, new_utid);
+  }
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
       timestamp, new_utid, source_utid);
@@ -3274,6 +3302,7 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
 }
 
 void FtraceParser::ParseSchedBlockedReason(
+    int64_t timestamp,
     protozero::ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
   protos::pbzero::SchedBlockedReasonFtraceEvent::Decoder event(blob);
@@ -3284,7 +3313,7 @@ void FtraceParser::ParseSchedBlockedReason(
       protos::pbzero::InternedData::kKernelSymbolsFieldNumber, caller_iid);
 
   ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
-      utid, event.io_wait(), blocked_function_str_id);
+      timestamp, utid, event.io_wait(), blocked_function_str_id);
 }
 
 void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
