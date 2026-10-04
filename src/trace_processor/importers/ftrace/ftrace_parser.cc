@@ -44,7 +44,6 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
-#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -2751,14 +2750,12 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // new thread already exists and started at this timestamp, this is such a
   // duplicate: reuse the thread instead of starting a second one for the same
   // tid (which would split it in two).
-  if (MachineDataClaimTracker::IsEnabled(context_)) {
-    if (auto existing = proc_tracker->GetThreadOrNull(new_tid);
-        existing &&
-        context_->storage->thread_table()[*existing].start_ts() == timestamp) {
-      ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
-          timestamp, *existing, proc_tracker->GetOrCreateThread(source_tid));
-      return;
-    }
+  if (auto existing = proc_tracker->GetThreadOrNull(new_tid);
+      existing &&
+      context_->storage->thread_table()[*existing].start_ts() == timestamp) {
+    ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+        timestamp, *existing, proc_tracker->GetOrCreateThread(source_tid));
+    return;
   }
 
   // If the process is a fork, start a new process.

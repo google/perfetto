@@ -437,15 +437,8 @@ message ResetTraceProcessorArgs {
   optional ParsingMode parsing_mode = 5;
   optional SortingMode sorting_mode = 6;
 
-  enum DropDuplicateMachineData {
-    DROP_DUPLICATE_MACHINE_DATA_UNSET = 0;
-    DROP_DUPLICATE_MACHINE_DATA_OFF = 1;
-    DROP_DUPLICATE_MACHINE_DATA_ON = 2;
-  }
   // A list of serialized FileDescriptorSet protos.
   repeated bytes extra_parsing_descriptors = 7;
-
-  optional DropDuplicateMachineData drop_duplicate_machine_data = 8;
 }
 
 message RegisterSqlPackageArgs {

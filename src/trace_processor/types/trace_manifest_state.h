@@ -124,7 +124,6 @@ struct TraceManifestState {
   std::optional<uint32_t> trace_time_clock;
   std::optional<std::string> trace_time_file;
   std::optional<std::string> trace_time_machine;
-  std::optional<bool> drop_duplicate_machine_data;
   std::vector<FileEntry> files;
 
   // Maps a machine's logical (raw) id - the id the manifest assigns and names

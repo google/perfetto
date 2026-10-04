@@ -47,8 +47,6 @@ using ::testing::IsEmpty;
 class MachineDataClaimTrackerTest : public ::testing::Test {
  protected:
   MachineDataClaimTrackerTest() {
-    machine_ctx_.config.drop_duplicate_machine_data =
-        Config::DropDuplicateMachineData::kOn;
     machine_ctx_.storage = std::make_unique<TraceStorage>();
     machine_ctx_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(machine_ctx_.storage.get());
@@ -107,29 +105,6 @@ class MachineDataClaimTrackerTest : public ::testing::Test {
   TraceProcessorContext trace2_;
   TraceProcessorContext trace3_;
 };
-
-TEST_F(MachineDataClaimTrackerTest, OffByDefault) {
-  TraceProcessorContext off_ctx;
-  off_ctx.storage = machine_ctx_.storage.Fork();
-  off_ctx.global_args_tracker = machine_ctx_.global_args_tracker.Fork();
-  off_ctx.global_stats_tracker = machine_ctx_.global_stats_tracker.Fork();
-  off_ctx.machine_tracker = machine_ctx_.machine_tracker.Fork();
-  off_ctx.machine_data_claim_tracker =
-      machine_ctx_.machine_data_claim_tracker.Fork();
-  off_ctx.trace_state =
-      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
-          TraceProcessorContext::TraceState{TraceId(10)});
-  off_ctx.stats_tracker = std::make_unique<StatsTracker>(&off_ctx);
-  off_ctx.import_logs_tracker =
-      std::make_unique<ImportLogsTracker>(&off_ctx, TraceId(10));
-
-  // Default is OFF: ShouldImport returns true and does not create windows.
-  EXPECT_FALSE(MachineDataClaimTracker::IsEnabled(&off_ctx));
-  EXPECT_TRUE(off_ctx.machine_data_claim_tracker->ShouldImport(
-      &off_ctx, Kind::kSched, 100));
-  EXPECT_TRUE(off_ctx.machine_data_claim_tracker->ShouldImport(
-      &off_ctx, Kind::kSched, 100));
-}
 
 TEST_F(MachineDataClaimTrackerTest, SingleTraceImportsEverything) {
   EXPECT_THAT(Windows(), IsEmpty());

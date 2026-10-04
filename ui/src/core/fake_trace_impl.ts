@@ -82,14 +82,6 @@ export function initializeAppImplForTesting(): AppImpl {
         schema: z.boolean(),
         defaultValue: true,
       }),
-      dropDuplicateMachineDataSetting:
-          settingsManager.register<'manifest' | 'on' | 'off'>({
-        id: 'dev.perfetto.DropDuplicateMachineData',
-        name: 'Merge: drop duplicate machine-wide data',
-        description: '',
-        schema: z.enum(['manifest', 'on', 'off']),
-        defaultValue: 'manifest',
-      }),
     });
   }
   return AppImpl.instance;

@@ -807,23 +807,6 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
     config.extra_parsing_descriptors.emplace_back(
         reinterpret_cast<const char*>(bytes.data), bytes.size);
   }
-  if (reset_trace_processor_args.has_drop_duplicate_machine_data()) {
-    switch (reset_trace_processor_args.drop_duplicate_machine_data()) {
-      case Args::DropDuplicateMachineData::DROP_DUPLICATE_MACHINE_DATA_ON:
-        config.drop_duplicate_machine_data =
-            Config::DropDuplicateMachineData::kOn;
-        break;
-      case Args::DropDuplicateMachineData::DROP_DUPLICATE_MACHINE_DATA_OFF:
-        config.drop_duplicate_machine_data =
-            Config::DropDuplicateMachineData::kOff;
-        break;
-      case Args::DropDuplicateMachineData::DROP_DUPLICATE_MACHINE_DATA_UNSET:
-      default:
-        config.drop_duplicate_machine_data =
-            Config::DropDuplicateMachineData::kUnset;
-        break;
-    }
-  }
   ResetTraceProcessorInternal(config);
 }
 

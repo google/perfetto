@@ -415,28 +415,6 @@ base::Status PerfettoManifestReader::OnPushDataToSorter() {
     ApplyAttributes(context_, attrs);
   }
 
-  const json::Dom* merge_opts = nullptr;
-  if (root.HasMember("merge_options")) {
-    merge_opts = &root["merge_options"];
-  } else if (meta.HasMember("merge_options")) {
-    merge_opts = &meta["merge_options"];
-  }
-  if (merge_opts) {
-    if (!merge_opts->IsObject()) {
-      return base::ErrStatus(
-          "perfetto_manifest: merge_options must be an object");
-    }
-    if (merge_opts->HasMember("drop_duplicate_machine_data")) {
-      const json::Dom& opt = (*merge_opts)["drop_duplicate_machine_data"];
-      if (!opt.IsBool()) {
-        return base::ErrStatus(
-            "perfetto_manifest: merge_options: drop_duplicate_machine_data "
-            "must be a boolean");
-      }
-      state->drop_duplicate_machine_data = opt.AsBool();
-    }
-  }
-
   // Every member declared as a serialized table must be present: a missing
   // one would otherwise silently yield an empty table. All archive members
   // are added to the trace_file table before any is parsed, so this can be
@@ -697,9 +675,7 @@ class PerfettoManifestImporter
                       std::min<size_t>(size, kGuessTraceMaxLookahead));
     start.erase(std::remove_if(start.begin(), start.end(), base::IsSpace),
                 start.end());
-    return base::StartsWith(start, "{\"perfetto_manifest\"") ||
-           (base::StartsWith(start, "{\"merge_options\"") &&
-            base::Contains(start, "\"perfetto_manifest\""));
+    return base::StartsWith(start, "{\"perfetto_manifest\"");
   }
 
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(

@@ -62,26 +62,17 @@ class MachineDataClaimTracker {
   MachineDataClaimTracker(const MachineDataClaimTracker&) = delete;
   MachineDataClaimTracker& operator=(const MachineDataClaimTracker&) = delete;
 
-  // Resolves the high-to-low precedence policy:
-  // 1. Config tri-state (flag or RPC)
-  // 2. Manifest merge_options.drop_duplicate_machine_data
-  // 3. Default false (OFF)
-  static bool IsEnabled(const TraceProcessorContext* context);
-
   static std::optional<Kind> KindForTracePacketField(uint32_t field_id);
   static const char* KindToString(Kind kind);
   static size_t StatForKind(Kind kind);
 
   static bool IsExclusive(Kind kind) { return kind == Kind::kCpuPerUid; }
 
-  // Must be called at tokenization time for each piece of machine data of |kind|
-  // at trace time |ts|.
+  // Must be called at tokenization time for each piece of machine data of
+  // |kind| at trace time |ts|.
   PERFETTO_ALWAYS_INLINE bool ShouldImport(TraceProcessorContext* context,
                                            Kind kind,
                                            int64_t ts) {
-    if (PERFETTO_LIKELY(!IsEnabled(context))) {
-      return true;
-    }
     Claims& claims = claims_[static_cast<size_t>(kind)];
     if (PERFETTO_LIKELY(claims.last_accepted)) {
       Window& w = claims.windows[*claims.last_accepted];

@@ -37,7 +37,6 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
-#include "src/trace_processor/types/trace_manifest_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -57,26 +56,6 @@ MachineDataClaimTracker::MachineDataClaimTracker(TraceProcessorContext* context)
 }
 
 MachineDataClaimTracker::~MachineDataClaimTracker() = default;
-
-// static
-bool MachineDataClaimTracker::IsEnabled(const TraceProcessorContext* context) {
-  if (!context) {
-    return false;
-  }
-  if (context->config.drop_duplicate_machine_data ==
-      Config::DropDuplicateMachineData::kOn) {
-    return true;
-  }
-  if (context->config.drop_duplicate_machine_data ==
-      Config::DropDuplicateMachineData::kOff) {
-    return false;
-  }
-  if (context->trace_manifest_state &&
-      context->trace_manifest_state->drop_duplicate_machine_data.has_value()) {
-    return *context->trace_manifest_state->drop_duplicate_machine_data;
-  }
-  return false;
-}
 
 // static
 std::optional<MachineDataClaimTracker::Kind>
@@ -154,9 +133,6 @@ void MachineDataClaimTracker::RegisterMachineTrack(TrackId track_id,
 bool MachineDataClaimTracker::KeepCounter(TraceProcessorContext* caller,
                                           TrackId track,
                                           int64_t ts) {
-  if (!IsEnabled(caller)) {
-    return true;
-  }
   auto* self = caller->machine_data_claim_tracker.get();
   if (!self) {
     return true;
@@ -322,9 +298,6 @@ std::optional<int64_t> MachineDataClaimTracker::CloseAtWindowEnd(Kind kind,
 }
 
 void MachineDataClaimTracker::OnEventsFullyExtracted() {
-  if (!IsEnabled(context_)) {
-    return;
-  }
   auto merged = [this](Kind kind) {
     return claims_[static_cast<size_t>(kind)].windows.size() > 1;
   };

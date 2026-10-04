@@ -177,7 +177,6 @@ async function createEngine(
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
       extraParsingDescriptors: descriptorBlobs,
       forceFullSort: FORCE_FULL_SORT_FLAG.get(),
-      dropDuplicateMachineData: app.dropDuplicateMachineDataSetting.get(),
     });
   }
   engine.onResponseReceived = () => raf.scheduleFullRedraw();

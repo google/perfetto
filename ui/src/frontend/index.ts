@@ -289,18 +289,6 @@ function main() {
     defaultValue: true,
   });
 
-  const dropDuplicateMachineDataSetting =
-      settingsManager.register<'manifest' | 'on' | 'off'>({
-    id: 'dev.perfetto.DropDuplicateMachineData',
-    name: 'Merge: drop duplicate machine-wide data',
-    description:
-      'Policy for dropping duplicate machine-wide data when merging multiple traces from the same machine. ' +
-      'Overrides perfetto_manifest.json merge_options. Requires reloading/re-opening the trace to take effect.',
-    schema: z.enum(['manifest', 'on', 'off']),
-    defaultValue: 'manifest',
-    requiresReload: true,
-  });
-
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
@@ -310,7 +298,6 @@ function main() {
     analyticsSetting,
     startupCommandsSetting,
     enforceStartupCommandAllowlistSetting,
-    dropDuplicateMachineDataSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
