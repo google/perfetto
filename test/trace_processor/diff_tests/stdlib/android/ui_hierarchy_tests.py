@@ -1108,18 +1108,18 @@ class AndroidUiHierarchy(TestSuite):
         INCLUDE PERFETTO MODULE android.ui_hierarchy;
         SELECT
           s.ts, s.dur, p.pid, s.field, s.value_float, s.value_bool,
-          s.value_string, s.value_key
+          s.value_string, s.value_key, s.value
         FROM android_sysui_state s
         JOIN process p USING (upid)
         ORDER BY s.field, s.ts;
         """,
         out=Csv("""
-        "ts","dur","pid","field","value_float","value_bool","value_string","value_key"
-        1700,0,100,"bouncer","[NULL]",0,"[NULL]","[NULL]"
-        1000,600,100,"pinned_hun_key","[NULL]","[NULL]","[NULL]","key_a"
-        1600,100,100,"pinned_hun_key","[NULL]","[NULL]","[NULL]","[NULL]"
-        1000,500,100,"scene","[NULL]","[NULL]","Shade","[NULL]"
-        1500,200,100,"scene","[NULL]","[NULL]","Gone","[NULL]"
-        1000,500,100,"shade_expansion",1.000000,"[NULL]","[NULL]","[NULL]"
-        1500,200,100,"shade_expansion",0.000000,"[NULL]","[NULL]","[NULL]"
+        "ts","dur","pid","field","value_float","value_bool","value_string","value_key","value"
+        1700,0,100,"bouncer","[NULL]",0,"[NULL]","[NULL]","false"
+        1000,600,100,"pinned_hun_key","[NULL]","[NULL]","[NULL]","key_a","key_a"
+        1600,100,100,"pinned_hun_key","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
+        1000,500,100,"scene","[NULL]","[NULL]","Shade","[NULL]","Shade"
+        1500,200,100,"scene","[NULL]","[NULL]","Gone","[NULL]","Gone"
+        1000,500,100,"shade_expansion",1.000000,"[NULL]","[NULL]","[NULL]","1"
+        1500,200,100,"shade_expansion",0.000000,"[NULL]","[NULL]","[NULL]","0"
         """))

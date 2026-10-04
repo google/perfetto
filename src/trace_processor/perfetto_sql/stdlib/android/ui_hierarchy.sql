@@ -764,7 +764,10 @@ CREATE PERFETTO VIEW android_sysui_state(
   value_string STRING,
   -- Value, for sets of notification keys or overlay names (comma
   -- separated).
-  value_key STRING
+  value_key STRING,
+  -- The value as text, whatever its type ('%g' for floats, 'true'/'false');
+  -- NULL when the change cleared the field (e.g. an empty set of keys).
+  value STRING
 )
 AS
 WITH
@@ -957,7 +960,12 @@ SELECT
   value_float,
   value_bool,
   value_string,
-  value_key
+  value_key,
+  CASE
+    WHEN value_float IS NOT NULL THEN printf('%g', value_float)
+    WHEN value_bool IS NOT NULL THEN iif(value_bool, 'true', 'false')
+    ELSE coalesce(value_string, value_key)
+  END AS value
 FROM _all_values;
 
 -- SystemUI state (UiHierarchySnapshot.sysui_state) at each snapshot that
