@@ -31,21 +31,21 @@ trace.add_ftrace_packet(0)
 trace.add_newtask(ts=50, tid=2, new_tid=3, new_comm="kthreadd_child", flags=0)
 
 # Add an event on tid 3 which affects its own rss.
-trace.add_rss_stat(ts=90, tid=3, member=0, size=9, mm_id=4321, curr=True)
+trace.add_rss_stat(ts=90, tid=3, member=0, size=9, mm_id=4321, curr=1)
 
 # Try to add an event for tid 10. However, as we've not seen an event
 # with curr == True for tid == 10, this event will be dropped.
-trace.add_rss_stat(ts=91, tid=3, member=0, size=900, mm_id=1234, curr=False)
+trace.add_rss_stat(ts=91, tid=3, member=0, size=900, mm_id=1234, curr=0)
 
 # Add an event for tid 3 from tid 10. This emulates e.g. direct reclaim
 # where a process reaches into another process' mm struct.
-trace.add_rss_stat(ts=99, tid=10, member=0, size=10, mm_id=4321, curr=False)
+trace.add_rss_stat(ts=99, tid=10, member=0, size=10, mm_id=4321, curr=0)
 
 # Add an event on tid 10 which affects its own rss.
-trace.add_rss_stat(ts=100, tid=10, member=0, size=1000, mm_id=1234, curr=True)
+trace.add_rss_stat(ts=100, tid=10, member=0, size=1000, mm_id=1234, curr=1)
 
 # Add an event on tid 10 from tid 3. This emulates e.g. background reclaim
 # where kthreadd is cleaning up the mm struct of another process.
-trace.add_rss_stat(ts=101, tid=3, member=0, size=900, mm_id=1234, curr=False)
+trace.add_rss_stat(ts=101, tid=3, member=0, size=900, mm_id=1234, curr=0)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
