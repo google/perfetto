@@ -28,7 +28,11 @@ export type PropTarget =
   // A WindowManager window, selected on the Screen level.
   | {readonly kind: 'window'; readonly nodeId: string}
   // A process: shows only its windows.
-  | {readonly kind: 'process'; readonly key: string};
+  | {readonly kind: 'process'; readonly key: string}
+  // A shell transition: compares across it.
+  | {readonly kind: 'transition'; readonly transitionId: number}
+  // A SQL query, run in a query results tab.
+  | {readonly kind: 'query'; readonly title: string; readonly sql: string};
 
 export interface PropLink {
   readonly text: string;
@@ -61,11 +65,15 @@ export interface PropRow {
   readonly label: string;
   readonly value: PropValue;
   readonly diff?: PropDiff;
+  // Detail rows, shown when the row is expanded (collapsed at first).
+  readonly children?: ReadonlyArray<PropRow>;
 }
 
 export interface PropSection {
   readonly title: string;
   readonly rows: ReadonlyArray<PropRow>;
+  // A link next to the title, e.g. to query the section's data.
+  readonly action?: PropLink;
 }
 
 // Collects rows, dropping the ones without a value.
@@ -111,6 +119,11 @@ export class PropRowsBuilder {
     return this;
   }
 
+  row(row: PropRow): this {
+    this.rows.push(row);
+    return this;
+  }
+
   build(): PropRow[] {
     return this.rows;
   }
@@ -141,6 +154,8 @@ export function formatBounds(b: Bounds): string {
 // in the tooltip:
 // - "com.example/com.example.ui.MainActivity" -> "MainActivity"
 // - "com.example/.MainActivity" -> "MainActivity"
+// - "VRI-com.example/com.example.ui.MainActivity#277" ->
+//   "VRI-MainActivity#277"
 // - "androidx.compose.ui.platform.ComposeView" -> "ComposeView"
 // - SF layers drop the WM wrappers: "ab1254f StatusBar#80" ->
 //   "StatusBar#80", "Surface(name=ab1254f StatusBar#80)/@0x31d9daa -
@@ -155,6 +170,10 @@ export function displayName(name: string): string {
   }
   const hashed = /^[0-9a-f]{6,8} (.+)$/.exec(short);
   if (hashed !== null) short = hashed[1];
+  // Buffer layers prefix the window title ("VRI-", "BBQ-"); kept as is.
+  const prefixed = /^([A-Z]{2,}-)(.+)$/.exec(short);
+  const prefix = prefixed !== null ? prefixed[1] : '';
+  if (prefixed !== null) short = prefixed[2];
   const slash = short.indexOf('/');
   if (slash >= 0 && /^[a-zA-Z]\w*(?:\.\w+)+\//.test(short)) {
     short = short.slice(slash + 1).replace(/^\./, '');
@@ -162,7 +181,7 @@ export function displayName(name: string): string {
   // SF appends "#<layer id>" to layer names.
   const m = /^(?:[a-z_]\w*\.)+([A-Z][\w$]*(?:#\d+)?)$/.exec(short);
   if (m !== null) short = m[1];
-  return short;
+  return prefix + short;
 }
 
 export function nodeBounds(n: UiHierarchyNode): Bounds {

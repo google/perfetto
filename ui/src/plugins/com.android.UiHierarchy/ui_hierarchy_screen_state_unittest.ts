@@ -15,6 +15,7 @@
 import type {WindowOwner} from './ui_hierarchy_screen';
 import {ScreenState} from './ui_hierarchy_screen_state';
 import {buildSfLayer, linkWmWindows, SfLayerIndex} from './ui_hierarchy_sf';
+import type {Transition} from './ui_hierarchy_transitions';
 import {buildWmNodes, type WmContainerRow} from './ui_hierarchy_wm';
 
 const OFFSCREEN_ROOT = 2147483645;
@@ -49,7 +50,9 @@ const BUFFER = {
 
 // One display with StatusBar (systemui) above an app window, and the SF
 // layers drawing them.
-function state(opts: {withSf?: boolean} = {}): ScreenState {
+function state(
+  opts: {withSf?: boolean; transitions?: Transition[]} = {},
+): ScreenState {
   const rows: WmContainerRow[] = [
     {
       token: 100,
@@ -115,6 +118,7 @@ function state(opts: {withSf?: boolean} = {}): ScreenState {
       ['3', owner('upid:2', 'com.android.systemui')],
     ]),
     uiWindows: [],
+    transitions: opts.transitions ?? [],
   });
 }
 
@@ -201,6 +205,53 @@ describe('ScreenState', () => {
       'Density',
       'Visible layers',
     ]);
+  });
+
+  test('transitions of a window, a layer and the display', () => {
+    // Opens the app's container (layer 20) from ts 5 to 9; ts is 7.
+    const open: Transition = {
+      id: 42,
+      type: 1,
+      status: 'played',
+      flags: 0,
+      sendTs: 4n,
+      dispatchTs: 5n,
+      finishTs: 9n,
+      participants: [{layerId: 20, mode: 1, flags: 0}],
+    };
+    const s = state({transitions: [open]});
+    const d = s.display(undefined);
+    const sections = (n: string) => {
+      const node =
+        s.tree('sf', d, undefined).find((x) => x.nodeId === n) ?? wm(s, n);
+      return s.sections(node, d);
+    };
+    // The app window and its buffer layer (a descendant) took part.
+    const app = sections('2');
+    expect(app.map((x) => x.title)).toEqual([
+      'Window',
+      'SurfaceFlinger',
+      'Transition',
+    ]);
+    const rows = new Map(app[2].rows.map((r) => [r.label, r.value]));
+    expect(rows.get('Type')).toMatchObject({text: 'OPEN'});
+    expect(rows.get('Mode')).toMatchObject({text: 'OPEN'});
+    expect(rows.get('Status')).toMatchObject({text: 'playing'});
+    expect(sections('sf:21').map((x) => x.title)).toContain('Transition');
+    // StatusBar did not.
+    expect(sections('3').map((x) => x.title)).not.toContain('Transition');
+    // The display lists the transitions running at the snapshot.
+    expect(sections('100').map((x) => x.title)).toEqual([
+      'Display',
+      'Transition',
+    ]);
+    // Not before it started.
+    const early = state({transitions: [{...open, dispatchTs: 8n, sendTs: 8n}]});
+    expect(
+      early
+        .sections(wm(early, '2'), early.display(undefined))
+        .map((x) => x.title),
+    ).not.toContain('Transition');
   });
 
   test('without SurfaceFlinger data', () => {

@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Time} from '../../base/time';
 import type {Trace} from '../../public/trace';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {
   computeVersionDiffs,
   type NodeVersionChange,
@@ -26,6 +28,7 @@ import {
   type UiHierarchyWindow,
 } from './ui_hierarchy_data';
 import {
+  diffBaseIndex,
   diffSections,
   diffTrees,
   NO_DIFF,
@@ -33,6 +36,7 @@ import {
 } from './ui_hierarchy_diff';
 import type {InputCanvas} from './ui_hierarchy_input';
 import {
+  displayName,
   type PropSection,
   type PropTarget,
   uiNodeRows,
@@ -55,8 +59,28 @@ import {
   type SfSnapshot,
 } from './ui_hierarchy_sf';
 import {
+  hasTransactions,
+  layerTransactionRows,
+  queryTransactionDetails,
+  queryTransactionLog,
+  senderRows,
+  type TransactionDetails,
+  type TransactionLog,
+  transactionSection,
+  transactionsQuery,
+} from './ui_hierarchy_transactions';
+import {
+  queryTransitions,
+  type Transition,
+  type TransitionSpan,
+  transitionSpans,
+  transitionStart,
+  transitionTypeName,
+} from './ui_hierarchy_transitions';
+import {
   displayOf,
   queryWmSnapshots,
+  WM_KIND_DISPLAY,
   WM_KIND_WINDOW,
   type WmSnapshot,
 } from './ui_hierarchy_wm';
@@ -173,6 +197,33 @@ export class UiHierarchySession {
     readonly diff: TreeDiff;
   };
   sfSnapshots: SfSnapshot[] = [];
+  transitions: Transition[] = [];
+  // Whether the trace has SurfaceFlinger transactions.
+  hasTransactionData = false;
+  // The transactions of transactionRange, once loaded.
+  private transactionLog?: TransactionLog;
+  // What the transactions of the selected node set (see
+  // transactionDetailsFor()), by range and layers.
+  private transactionDetails?: {
+    readonly key: string;
+    readonly details: TransactionDetails;
+  };
+  private transactionDetailsLoading?: string;
+  private transactionSectionCache?: {
+    readonly node: UiHierarchyNode;
+    readonly state: ScreenState;
+    readonly log: TransactionLog;
+    readonly details?: TransactionDetails;
+    readonly since: string;
+    readonly sections: PropSection[];
+  };
+  // With the diff shown, compare with the snapshot at or before this time
+  // instead of the previous one (see compareTransition()).
+  diffBase?: {readonly ts: bigint; readonly label: string};
+  private spanCache?: {
+    readonly snaps: ReadonlyArray<{readonly ts: bigint}>;
+    readonly spans: TransitionSpan[];
+  };
   // The current WM snapshot's state, and the previous one's when the diff
   // is shown.
   private state = ScreenState.empty();
@@ -196,6 +247,12 @@ export class UiHierarchySession {
     return this.wmSnapshots.length > 0;
   }
 
+  // Whether the trace has anything to show: UI hierarchy windows, or
+  // WindowManager state for the Screen level.
+  get hasData(): boolean {
+    return this.windows.length > 0 || this.hasScreenLevel;
+  }
+
   get current(): HierarchyLevel {
     return this.level === 'screen' ? this.screen : this.win;
   }
@@ -217,6 +274,15 @@ export class UiHierarchySession {
     return this.level === 'screen'
       ? this.wmSnapshots[this.wmIndex]?.ts
       : this.snapshots[this.index]?.ts;
+  }
+
+  // The transitions on the current level's timeline.
+  get timelineTransitions(): TransitionSpan[] {
+    const snaps = this.level === 'screen' ? this.wmSnapshots : this.snapshots;
+    if (this.spanCache?.snaps !== snaps) {
+      this.spanCache = {snaps, spans: transitionSpans(this.transitions, snaps)};
+    }
+    return this.spanCache.spans;
   }
 
   private timelineTs(i: number): bigint | undefined {
@@ -317,15 +383,21 @@ export class UiHierarchySession {
 
   async init(): Promise<void> {
     this.windows = await queryWindows(this.trace.engine);
-    if (this.windows.length === 0) return;
     this.wmSnapshots = await queryWmSnapshots(this.trace.engine);
+    // Shell transitions come from their own data source, so they can be
+    // present (and shown under the Window level scrubber) without WM data.
+    this.transitions = await queryTransitions(this.trace.engine);
 
     if (this.hasScreenLevel) {
-      this.sfSnapshots = await querySfSnapshots(this.trace.engine);
+      [this.sfSnapshots, this.hasTransactionData] = await Promise.all([
+        querySfSnapshots(this.trace.engine),
+        hasTransactions(this.trace.engine),
+      ]);
       this.level = 'screen';
       await this.loadWmIndex(0);
       return;
     }
+    if (this.windows.length === 0) return;
     const def =
       this.windows.find((w) => w.title.includes('NotificationShade')) ??
       this.windows.find(
@@ -387,10 +459,11 @@ export class UiHierarchySession {
 
     this.loading = true;
     try {
+      const baseIdx = this.win.options.showDiff
+        ? diffBaseIndex(this.index, this.pinnedBaseIndex(this.snapshots))
+        : undefined;
       const prevSnap =
-        this.win.options.showDiff && this.index > 0
-          ? this.snapshots[this.index - 1]
-          : undefined;
+        baseIdx !== undefined ? this.snapshots[baseIdx] : undefined;
       const [nodes, prevNodes] = await Promise.all([
         queryNodesAt(this.trace.engine, win.windowId, snap.ts),
         prevSnap !== undefined
@@ -402,6 +475,8 @@ export class UiHierarchySession {
       this.win.setNodes(nodes);
       this.winPrevNodes = prevNodes;
       await this.syncScreenTo(snap.ts);
+      if (token !== this.loadToken) return;
+      await this.loadTransactionLog();
       if (token !== this.loadToken) return;
 
       // Preserve selected node if still present in this snapshot
@@ -457,10 +532,199 @@ export class UiHierarchySession {
   }
 
   // Shows or hides the changes since the previous snapshot at the current
-  // level, loading that snapshot.
+  // level, loading that snapshot. Hiding them also drops a pinned base.
   async setShowDiff(show: boolean): Promise<void> {
     this.current.options.showDiff = show;
+    if (!show) this.diffBase = undefined;
     await this.setIndex(this.timelineIndex);
+  }
+
+  // The index on `snaps` of the pinned diff base, if any.
+  private pinnedBaseIndex(
+    snaps: ReadonlyArray<{readonly ts: bigint}>,
+  ): number | undefined {
+    const base = this.diffBase;
+    if (base === undefined || snaps.length === 0) return undefined;
+    // Before the first snapshot: nothing to compare with at this level.
+    if (base.ts < snaps[0].ts) return undefined;
+    return indexAtOrBefore(snaps, base.ts);
+  }
+
+  // The snapshot the current one is compared with on the current level:
+  // the pinned base or the previous one. The diff shows what changed since
+  // then, the Transactions section who changed it.
+  private get comparisonBase():
+    | {readonly index: number; readonly label: string; readonly pinned: boolean}
+    | undefined {
+    const snaps = this.level === 'screen' ? this.wmSnapshots : this.snapshots;
+    const pinned = this.pinnedBaseIndex(snaps);
+    const index = diffBaseIndex(this.timelineIndex, pinned);
+    if (index === undefined) return undefined;
+    return index === pinned && this.diffBase !== undefined
+      ? {index, label: this.diffBase.label, pinned: true}
+      : {index, label: 'previous', pinned: false};
+  }
+
+  // What the current snapshot is compared with when the diff is shown.
+  get diffComparison():
+    | {readonly index: number; readonly label: string; readonly pinned: boolean}
+    | undefined {
+    return this.current.options.showDiff ? this.comparisonBase : undefined;
+  }
+
+  // The time range of the transactions explaining the current snapshot:
+  // after the comparison base, up to the current snapshot.
+  private get transactionRange():
+    {readonly after: bigint; readonly upTo: bigint} | undefined {
+    const base = this.comparisonBase;
+    const upTo = this.currentTs;
+    if (base === undefined || upTo === undefined) return undefined;
+    const after = this.timelineTs(base.index);
+    return after !== undefined ? {after, upTo} : undefined;
+  }
+
+  // Loads the transactions of transactionRange, unless already loaded.
+  private async loadTransactionLog(): Promise<void> {
+    if (!this.hasTransactionData) return;
+    const range = this.transactionRange;
+    const log = this.transactionLog;
+    if (range === undefined || isLogOf(log, range)) return;
+    const next = await queryTransactionLog(
+      this.trace.engine,
+      range.after,
+      range.upTo,
+    );
+    // Moved on meanwhile.
+    const now = this.transactionRange;
+    if (now !== undefined && isLogOf(next, now)) this.transactionLog = next;
+  }
+
+  // Who changed tree node `n` since the comparison base: the transactions
+  // of its layers, or on a display, of every layer by sender.
+  private transactionSections(n: UiHierarchyNode): PropSection[] {
+    const base = this.comparisonBase;
+    const range = this.transactionRange;
+    const log = this.transactionLog;
+    if (base === undefined || range === undefined || !isLogOf(log, range)) {
+      return [];
+    }
+    const since = `snapshot ${base.index + 1} · ${base.label}`;
+    if (n.kind === WM_KIND_DISPLAY) {
+      return [transactionSection(senderRows(log, since))];
+    }
+    const ids = this.state.transactionLayerIds(n);
+    if (ids.size === 0) return [];
+    const details = this.transactionDetailsFor(range, ids);
+    // Rebuilt only when something changed: the detail rows can be many.
+    const c = this.transactionSectionCache;
+    if (
+      c?.node === n &&
+      c.state === this.state &&
+      c.log === log &&
+      c.details === details &&
+      c.since === since
+    ) {
+      return c.sections;
+    }
+    const rows = layerTransactionRows(log, ids, {
+      since,
+      transitions: this.transitions,
+      layerName: (id) => this.state.sfLayers.byId.get(id)?.name,
+      details,
+    });
+    const sections: PropSection[] = [
+      {
+        ...transactionSection(rows),
+        action: {
+          text: 'Query',
+          title: 'Everything these transactions set, in a query results tab',
+          target: {
+            kind: 'query',
+            title: `Transactions: ${displayName(n.name)}`,
+            sql: transactionsQuery(ids, range.after, range.upTo),
+          },
+        },
+      },
+    ];
+    this.transactionSectionCache = {
+      node: n,
+      state: this.state,
+      log,
+      details,
+      since,
+      sections,
+    };
+    return sections;
+  }
+
+  // What the transactions on `layerIds` in `range` set, once loaded;
+  // starts loading it otherwise.
+  private transactionDetailsFor(
+    range: {readonly after: bigint; readonly upTo: bigint},
+    layerIds: ReadonlySet<number>,
+  ): TransactionDetails | undefined {
+    const key = [
+      range.after,
+      range.upTo,
+      ...[...layerIds].sort((a, b) => a - b),
+    ].join(',');
+    const cached = this.transactionDetails;
+    if (cached?.key === key) return cached.details;
+    if (this.transactionDetailsLoading === key) return undefined;
+    this.transactionDetailsLoading = key;
+    queryTransactionDetails(
+      this.trace.engine,
+      range.after,
+      range.upTo,
+      layerIds,
+    ).then((details) => {
+      if (this.transactionDetailsLoading !== key) return;
+      this.transactionDetailsLoading = undefined;
+      this.transactionDetails = {key, details};
+      m.redraw();
+    });
+    return undefined;
+  }
+
+  // Shows what transition `span` changed: its last snapshot, compared with
+  // the one before it started.
+  async compareTransition(span: TransitionSpan): Promise<void> {
+    const snaps = this.level === 'screen' ? this.wmSnapshots : this.snapshots;
+    const before = snaps[Math.max(0, span.first - 1)];
+    if (before === undefined) return;
+    this.pause();
+    this.diffBase = {
+      ts: before.ts,
+      label: `before ${transitionTypeName(span.transition.type)}`,
+    };
+    this.current.options.showDiff = true;
+    await this.setIndex(span.last);
+  }
+
+  // Compares with the previous snapshot again.
+  async unpinDiffBase(): Promise<void> {
+    this.diffBase = undefined;
+    await this.setIndex(this.timelineIndex);
+  }
+
+  // Shows the current snapshot's time on the timeline, flagged.
+  showInTimeline(): void {
+    const ts = this.currentTs;
+    if (ts === undefined) return;
+    const t = Time.fromRaw(ts);
+    this.trace.notes.addNote({
+      id: 'com.android.UiHierarchy#snapshot',
+      timestamp: t,
+      text: 'UI hierarchy snapshot',
+    });
+    this.trace.navigate('#!/viewer');
+    this.trace.scrollTo({
+      time: {
+        start: Time.sub(t, 50_000_000n),
+        end: Time.add(t, 50_000_000n),
+        behavior: 'focus',
+      },
+    });
   }
 
   async selectNode(nodeId: string): Promise<void> {
@@ -614,19 +878,21 @@ export class UiHierarchySession {
   }
 
   // The properties of Screen level node `n`, with the changes since the
-  // previous snapshot when the diff is shown.
+  // previous snapshot when the diff is shown, and who made them.
   screenSections(n: UiHierarchyNode): PropSection[] {
     const cur = this.state.sections(n, this.screenDisplay);
     const prev = this.prevScreen;
     const before = prev?.tree.byNodeId.get(n.nodeId);
-    return prev !== undefined && before !== undefined
-      ? diffSections(prev.state.sections(before, prev.display), cur)
-      : cur;
+    const sections =
+      prev !== undefined && before !== undefined
+        ? diffSections(prev.state.sections(before, prev.display), cur)
+        : cur;
+    return [...sections, ...this.transactionSections(n)];
   }
 
   // The WM and SF properties of WM window `n` (Window level root node).
   windowSections(n: UiHierarchyNode): PropSection[] {
-    return this.state.windowSections(n);
+    return [...this.state.windowSections(n), ...this.transactionSections(n)];
   }
 
   // The previous snapshot's state, display and tree, when the diff is
@@ -729,7 +995,31 @@ export class UiHierarchySession {
         m.redraw();
         return;
       }
+      case 'transition':
+        await this.goToTransition(target.transitionId);
+        return;
+      case 'query':
+        this.trace.plugins
+          .getPlugin(QueryPagePlugin)
+          .addQueryResultsTab({query: target.sql, title: target.title});
+        return;
     }
+  }
+
+  // Compares across transition `id` when it spans snapshots on this
+  // level, else shows the snapshot it started after.
+  private async goToTransition(id: number): Promise<void> {
+    const span = this.timelineTransitions.find((s) => s.transition.id === id);
+    if (span !== undefined) {
+      await this.compareTransition(span);
+      return;
+    }
+    const t = this.transitions.find((x) => x.id === id);
+    const start = t !== undefined ? transitionStart(t) : undefined;
+    const snaps = this.level === 'screen' ? this.wmSnapshots : this.snapshots;
+    if (start === undefined || snaps.length === 0) return;
+    this.pause();
+    await this.setIndex(indexAtOrBefore(snaps, start));
   }
 
   // The WM window drawing the currently open UI hierarchy window.
@@ -762,6 +1052,25 @@ export class UiHierarchySession {
         ? this.state.treeNodeIdOf(this.treeMode, n.nodeId)
         : nodeId;
     m.redraw();
+  }
+
+  // Why the selected window's View/Compose tree can't be shown, if so.
+  get viewsUnavailableReason(): string | undefined {
+    if (this.level === 'window') return undefined;
+    const win = this.selectedWindowNode;
+    if (win === undefined) {
+      return 'Select a window to see its View/Compose tree';
+    }
+    if (this.uiWindowFor(win.nodeId) === undefined) {
+      return `${win.name} has no android.ui.hierarchy data`;
+    }
+    return undefined;
+  }
+
+  // Opens the View/Compose tree of the selected window.
+  async openSelected(): Promise<void> {
+    const win = this.selectedWindowNode;
+    if (win !== undefined) await this.openWindowFor(win.nodeId);
   }
 
   async openWindowFor(nodeId: string): Promise<void> {
@@ -808,16 +1117,20 @@ export class UiHierarchySession {
           this.wmSnapshots[j],
           this.sfSnapshots,
           this.windows,
+          this.transitions,
         );
-      const withPrev = this.screen.options.showDiff && this.wmIndex > 0;
+      const baseIdx = this.screen.options.showDiff
+        ? diffBaseIndex(this.wmIndex, this.pinnedBaseIndex(this.wmSnapshots))
+        : undefined;
       const [state, prevState] = await Promise.all([
         load(this.wmIndex),
-        withPrev ? load(this.wmIndex - 1) : undefined,
+        baseIdx !== undefined ? load(baseIdx) : undefined,
       ]);
       if (token !== this.wmToken) return;
       this.state = state;
       this.prevState = prevState;
       this.screen.setNodes(state.nodes);
+      if (this.level === 'screen') await this.loadTransactionLog();
     } finally {
       if (token === this.wmToken && !quiet) this.loading = false;
     }
@@ -827,6 +1140,13 @@ export class UiHierarchySession {
 
 function uiNodeSections(n: UiHierarchyNode): PropSection[] {
   return [{title: n.kindName, rows: uiNodeRows(n)}];
+}
+
+function isLogOf(
+  log: TransactionLog | undefined,
+  range: {readonly after: bigint; readonly upTo: bigint},
+): log is TransactionLog {
+  return log?.after === range.after && log.upTo === range.upTo;
 }
 
 function nearestIndex(items: ReadonlyArray<{ts: bigint}>, ts: bigint): number {

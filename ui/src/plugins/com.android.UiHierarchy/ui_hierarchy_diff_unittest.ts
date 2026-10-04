@@ -15,6 +15,7 @@
 import type {UiHierarchyNode} from './ui_hierarchy_data';
 import {
   changedWithAncestors,
+  diffBaseIndex,
   diffSections,
   diffTrees,
   hasDiff,
@@ -60,6 +61,19 @@ const sectionsOf = (n: UiHierarchyNode): PropSection[] => [
       .build(),
   },
 ];
+
+describe('diffBaseIndex', () => {
+  test('a pinned base before the current snapshot', () => {
+    expect(diffBaseIndex(9, 4)).toBe(4);
+  });
+  test('else the previous snapshot', () => {
+    expect(diffBaseIndex(9, undefined)).toBe(8);
+    expect(diffBaseIndex(4, 4)).toBe(3);
+    expect(diffBaseIndex(3, 4)).toBe(2);
+    expect(diffBaseIndex(0, undefined)).toBeUndefined();
+    expect(diffBaseIndex(0, 0)).toBeUndefined();
+  });
+});
 
 describe('diffSections', () => {
   test('marks changed, added and removed rows in place', () => {

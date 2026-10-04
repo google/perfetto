@@ -1123,3 +1123,92 @@ class AndroidUiHierarchy(TestSuite):
         1000,500,100,"shade_expansion",1.000000,"[NULL]","[NULL]","[NULL]","1"
         1500,200,100,"shade_expansion",0.000000,"[NULL]","[NULL]","[NULL]","0"
         """))
+
+  # The queries the UI plugin runs for the Transition section and the slider
+  # marks (ui_hierarchy_transitions.ts): Shell transitions with their handler
+  # name and participants (SF layer ids), in a trace with UI hierarchy data.
+  def test_shell_transitions_for_ui(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          trusted_pid: 100
+          sequence_flags: 1
+          interned_data {
+            ui_strings { iid: 1 str: "NotificationShade" }
+          }
+          ui_hierarchy {
+            is_keyframe: true
+            windows { id: 1 title_iid: 1 right: 1080 bottom: 2400 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          trusted_pid: 1305
+          timestamp: 1000
+          [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_handler_mappings] {
+            mapping {
+              id: 1
+              name: "com.android.wm.shell.transition.DefaultTransitionHandler"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 2
+          trusted_pid: 1305
+          timestamp: 1500
+          [com.android.internal.FrameworksBaseWinscopeTracePacket.shell_transition] {
+            id: 41
+            create_time_ns: 1100
+            send_time_ns: 1200
+            dispatch_time_ns: 1250
+            finish_time_ns: 1500
+            start_transaction_id: 7
+            finish_transaction_id: 8
+            handler: 1
+            type: 3
+            changes { mode: 3 layer_id: 74 window_id: 1074 flags: 0 }
+            changes { mode: 4 layer_id: 53 window_id: 1053 flags: 2 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          trusted_pid: 100
+          sequence_flags: 2
+          ui_hierarchy {
+            windows { id: 1 title_iid: 1 right: 1080 bottom: 2400 }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.transition_id,
+          t.transition_type,
+          t.status,
+          t.send_time_ns,
+          t.dispatch_time_ns,
+          t.finish_time_ns,
+          t.start_transaction_id,
+          t.finish_transaction_id,
+          h.handler_name
+        FROM __intrinsic_window_manager_shell_transitions t
+        LEFT JOIN (
+          SELECT handler_id, min(handler_name) AS handler_name
+          FROM __intrinsic_window_manager_shell_transition_handlers
+          GROUP BY handler_id
+        ) h ON h.handler_id = t.handler
+        ORDER BY coalesce(t.dispatch_time_ns, t.send_time_ns, t.ts);
+        SELECT transition_id, layer_id, mode, flags
+        FROM __intrinsic_window_manager_shell_transition_participants
+        ORDER BY layer_id;
+        """,
+        out=Csv("""
+        "transition_id","transition_type","status","send_time_ns","dispatch_time_ns","finish_time_ns","start_transaction_id","finish_transaction_id","handler_name"
+        41,3,"played",1200,1250,1500,7,8,"com.android.wm.shell.transition.DefaultTransitionHandler"
+
+        "transition_id","layer_id","mode","flags"
+        41,53,4,2
+        41,74,3,0
+        """))

@@ -35,14 +35,87 @@ export function renderPropSections(
     .filter((s) => s.rows.length > 0)
     .map((s) =>
       m('.pf-uih-props-section', [
-        m('.pf-uih-section-title', s.title),
-        m(
-          Tree,
-          {bordered: true},
-          s.rows.map((r) => renderRow(r, onLink)),
-        ),
+        m('.pf-uih-section-title', [
+          s.title,
+          s.action !== undefined &&
+            m(
+              Anchor,
+              {
+                className: 'pf-uih-section-title__action',
+                title: s.action.title,
+                onclick: () =>
+                  s.action !== undefined && onLink(s.action.target),
+              },
+              s.action.text,
+            ),
+        ]),
+        m(Tree, {bordered: true}, renderRows(s.rows, onLink)),
       ]),
     );
+}
+
+// Rows with children expand on click; they're keyed by content so another
+// selection's rows start collapsed.
+function renderRows(
+  rows: ReadonlyArray<PropRow>,
+  onLink: (target: PropTarget) => void,
+): m.Children {
+  if (!rows.some((r) => r.children !== undefined)) {
+    return rows.map((r) => renderRow(r, onLink));
+  }
+  return rows.map((r, i) =>
+    r.children === undefined
+      ? m(TreeNode, {
+          key: `${i}|${r.label}|${valueKey(r.value)}`,
+          left: renderLabel(r.label),
+          right: renderValue(r.value, onLink),
+        })
+      : m(ExpandableRow, {
+          key: `${i}|${r.label}|${valueKey(r.value)}`,
+          row: r,
+          onLink,
+        }),
+  );
+}
+
+interface ExpandableRowAttrs {
+  readonly row: PropRow;
+  readonly onLink: (target: PropTarget) => void;
+}
+
+// A row whose children are only rendered while it is expanded: detail
+// trees can be large.
+class ExpandableRow implements m.ClassComponent<ExpandableRowAttrs> {
+  private expanded = false;
+
+  view({attrs: {row, onLink}}: m.CVnode<ExpandableRowAttrs>): m.Children {
+    return m(
+      TreeNode,
+      {
+        left: renderLabel(row.label),
+        right: renderValue(row.value, onLink),
+        showCaret: true,
+        collapsed: !this.expanded,
+        onCollapseChanged: (collapsed: boolean) => {
+          this.expanded = !collapsed;
+        },
+      },
+      this.expanded && renderRows(row.children ?? [], onLink),
+    );
+  }
+}
+
+function valueKey(v: PropValue): string {
+  switch (v.kind) {
+    case 'text':
+    case 'copy':
+    case 'chip':
+      return v.text;
+    case 'links':
+      return v.links.map((l) => l.text).join(',');
+    case 'list':
+      return v.items.join(',');
+  }
 }
 
 // The name of the selected item, its kind and short facts.
@@ -69,7 +142,10 @@ function renderRow(
 ): m.Children {
   const d = r.diff;
   if (d === undefined) {
-    return m(TreeNode, {left: r.label, right: renderValue(r.value, onLink)});
+    return m(TreeNode, {
+      left: renderLabel(r.label),
+      right: renderValue(r.value, onLink),
+    });
   }
   const none = m('span.pf-uih-diff__none', '\u2013');
   const before =
@@ -81,7 +157,7 @@ function renderRow(
         );
   const after = d.kind === 'removed' ? none : renderValue(r.value, onLink);
   return m(TreeNode, {
-    left: r.label,
+    left: renderLabel(r.label),
     right: m('span.pf-uih-diff', [before, m('span', '\u2192'), after]),
   });
 }
@@ -117,4 +193,9 @@ function renderValue(
     case 'chip':
       return m(Chip, {label: v.text, compact: true});
   }
+}
+
+// Long labels are cut by the stylesheet; the tooltip has the full text.
+function renderLabel(label: string): m.Children {
+  return m('span', {title: label}, label);
 }

@@ -39,7 +39,12 @@ export const NO_DIFF: TreeDiff = {changes: new Map(), removed: []};
 export const VOLATILE_ROWS: ReadonlyArray<{
   readonly section?: string;
   readonly label: string;
-}> = [{section: 'SurfaceFlinger', label: 'Frame'}, {label: 'Recompositions'}];
+}> = [
+  {section: 'SurfaceFlinger', label: 'Frame'},
+  {label: 'Recompositions'},
+  // Relative to the snapshot time.
+  {section: 'Transition', label: 'Started'},
+];
 
 function isVolatile(section: string, label: string): boolean {
   return VOLATILE_ROWS.some(
@@ -99,6 +104,16 @@ function diffRows(
 
 function sameValue(a: PropRow, b: PropRow): boolean {
   return JSON.stringify(a.value) === JSON.stringify(b.value);
+}
+
+// The snapshot to compare snapshot `current` with: `base` if it comes
+// before it, else the previous snapshot (none for the first one).
+export function diffBaseIndex(
+  current: number,
+  base: number | undefined,
+): number | undefined {
+  if (base !== undefined && base < current) return base;
+  return current > 0 ? current - 1 : undefined;
 }
 
 export function hasDiff(sections: ReadonlyArray<PropSection>): boolean {

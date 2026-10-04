@@ -331,10 +331,11 @@ export class UiHierarchyViewer implements m.ClassComponent<UiHierarchyViewerAttr
             compact: true,
             active: o.showDiff,
             title: o.showDiff
-              ? 'Hide changes since the previous snapshot'
+              ? 'Hide changes'
               : 'Show changes since the previous snapshot',
             onclick: () => void s.setShowDiff(!o.showDiff),
           }),
+          renderDiffBase(s),
           o.showDiff &&
             m(Button, {
               icon: 'filter_list',
@@ -955,4 +956,23 @@ function subtreeIds(
     stack.push(...(childrenOf.get(id) ?? []));
   }
   return out;
+}
+
+// What the changes are against: the previous snapshot, or the one picked
+// by comparing across a transition, which can be dropped.
+function renderDiffBase(s: UiHierarchySession): m.Children {
+  const c = s.diffComparison;
+  if (c === undefined) return null;
+  return m(Chip, {
+    label: `vs ${c.index + 1} · ${c.label}`,
+    compact: true,
+    intent: c.pinned ? Intent.Primary : Intent.None,
+    className: 'pf-uih-diff-base',
+    title: c.pinned
+      ? `Changes since snapshot ${c.index + 1}, ${c.label}`
+      : `Changes since the previous snapshot (${c.index + 1})`,
+    removable: c.pinned,
+    removeButtonTitle: 'Compare with the previous snapshot',
+    onRemove: () => void s.unpinDiffBase(),
+  });
 }

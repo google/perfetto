@@ -80,6 +80,13 @@ describe('displayName', () => {
       ),
     ).toBe('NexusLauncherActivity');
     expect(displayName('com.example/.MainActivity')).toBe('MainActivity');
+    expect(
+      displayName(
+        'VRI-com.google.android.deskclock/' +
+          'com.android.deskclock.DeskClock#277',
+      ),
+    ).toBe('VRI-DeskClock#277');
+    expect(displayName('VRI-StatusBar#81')).toBe('VRI-StatusBar#81');
   });
 
   test('qualified class names drop the package', () => {

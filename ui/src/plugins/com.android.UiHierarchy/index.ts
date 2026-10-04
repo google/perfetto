@@ -17,6 +17,7 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {registerComposeEventTracks} from './ui_hierarchy_events_track';
 import {UiHierarchyPage} from './ui_hierarchy_page';
 import {UI_HIERARCHY_ROUTE} from './ui_hierarchy_route';
@@ -29,12 +30,12 @@ export default class implements PerfettoPlugin {
   static readonly description =
     'Android UI Hierarchy viewer: multi-window timeline tracks with lazy queries, ' +
     '3-pane 2D/3D hierarchy inspection, and node version change tracking.';
-  static readonly dependencies = [ProcessThreadGroupsPlugin];
+  static readonly dependencies = [ProcessThreadGroupsPlugin, QueryPagePlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const session = new UiHierarchySession(ctx);
     await session.init();
-    if (session.windows.length === 0) return;
+    if (!session.hasData) return;
 
     // Full-screen page + sidebar navigation
     ctx.pages.registerPage({

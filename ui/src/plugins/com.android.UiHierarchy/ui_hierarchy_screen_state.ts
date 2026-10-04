@@ -56,6 +56,12 @@ import {
   windowOfLayer,
 } from './ui_hierarchy_sf';
 import {
+  lastTransitionOf,
+  type Transition,
+  transitionRows,
+  transitionsAt,
+} from './ui_hierarchy_transitions';
+import {
   defaultDisplay,
   displayOf,
   matchUiWindow,
@@ -84,6 +90,8 @@ export interface ScreenStateParts {
   readonly windowOwners: ReadonlyMap<string, WindowOwner>;
   // android.ui.hierarchy windows, matched to WM windows.
   readonly uiWindows: ReadonlyArray<UiHierarchyWindow>;
+  // All shell transitions of the trace.
+  readonly transitions: ReadonlyArray<Transition>;
 }
 
 export class ScreenState {
@@ -115,6 +123,7 @@ export class ScreenState {
       windowLinks: new Map(),
       windowOwners: new Map(),
       uiWindows: [],
+      transitions: [],
     });
   }
 
@@ -356,6 +365,21 @@ export class ScreenState {
       : undefined;
   }
 
+  // The layers whose transactions describe tree node `n`: a layer itself,
+  // or a WM window's leash, container and buffer layers. Empty for others.
+  transactionLayerIds(n: UiHierarchyNode): Set<number> {
+    const layer = this.layerOf(n);
+    if (layer !== undefined) return new Set([layer.id]);
+    const ids = new Set<number>();
+    if (n.kind === WM_KIND_WINDOW) {
+      const layers = this.windowLinkFor(n.nodeId)?.layers;
+      for (const l of [layers?.leash, layers?.container, layers?.buffer]) {
+        if (l !== undefined) ids.add(l.id);
+      }
+    }
+    return ids;
+  }
+
   // The WindowManager and SurfaceFlinger properties of WM window `node`.
   windowSections(node: UiHierarchyNode): PropSection[] {
     const sections: PropSection[] = [
@@ -374,7 +398,47 @@ export class ScreenState {
     if (input !== undefined) {
       sections.push({title: 'Input', rows: inputRows(input, false)});
     }
+    sections.push(...this.transitionSections(layers?.container?.id));
     return sections;
+  }
+
+  // The last transition at or before this snapshot that moved layer
+  // `layerId` or one of its ancestors (participants are usually tasks).
+  private transitionSections(layerId: number | undefined): PropSection[] {
+    if (layerId === undefined) return [];
+    const ids = new Set<number>();
+    for (
+      let l = this.sfLayers.byId.get(layerId);
+      l !== undefined && !ids.has(l.id);
+      l =
+        l.parentId !== undefined
+          ? this.sfLayers.byId.get(l.parentId)
+          : undefined
+    ) {
+      ids.add(l.id);
+    }
+    const hit = lastTransitionOf(this.parts.transitions, ids, this.ts);
+    if (hit === undefined) return [];
+    const rows = transitionRows(
+      hit.transition,
+      hit.participant,
+      this.ts,
+      (id) => this.sfLayers.byId.get(id)?.name,
+    );
+    return [{title: 'Transition', rows}];
+  }
+
+  // The transitions running at this snapshot.
+  private runningTransitionSections(): PropSection[] {
+    return transitionsAt(this.parts.transitions, this.ts).map((t) => ({
+      title: 'Transition',
+      rows: transitionRows(
+        t,
+        undefined,
+        this.ts,
+        (id) => this.sfLayers.byId.get(id)?.name,
+      ),
+    }));
   }
 
   // The properties of tree node `n` on `display`: a process, a layer, a WM
@@ -391,12 +455,13 @@ export class ScreenState {
     }
     const layer = this.layerOf(n);
     if (layer !== undefined) {
-      const sections = [
+      const sections: PropSection[] = [
         {title: 'SurfaceFlinger', rows: sfLayerRows(this.sfLayers, layer)},
       ];
       if (layer.input !== undefined) {
         sections.push({title: 'Input', rows: inputRows(layer.input, true)});
       }
+      sections.push(...this.transitionSections(layer.id));
       return sections;
     }
     switch (n.kind) {
@@ -411,6 +476,7 @@ export class ScreenState {
               this.displayLayerCounts(n),
             ),
           },
+          ...this.runningTransitionSections(),
         ];
       default:
         return [{title: n.kindName, rows: wmNodeRows(n, undefined)}];
@@ -425,6 +491,7 @@ export async function loadScreenState(
   snap: WmSnapshot,
   sfSnapshots: ReadonlyArray<SfSnapshot>,
   uiWindows: ReadonlyArray<UiHierarchyWindow>,
+  transitions: ReadonlyArray<Transition>,
 ): Promise<ScreenState> {
   const sfSnap =
     sfSnapshots.length > 0
@@ -469,5 +536,6 @@ export async function loadScreenState(
       signals.map((sig) => [sig.nodeId, resolveWindowOwner(sig, processes)]),
     ),
     uiWindows,
+    transitions,
   });
 }

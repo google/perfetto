@@ -46,9 +46,40 @@
 }
 
 .pf-uih-scrub {
+  position: relative;
   flex: 1;
   min-width: 120px;
-  accent-color: var(--pf-color-accent);
+  display: flex;
+  align-items: center;
+
+  input {
+    width: 100%;
+    margin: 0;
+    accent-color: var(--pf-color-accent);
+  }
+}
+
+.pf-uih-level--unavailable {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+// A transition's snapshots, as a strip under the slider track.
+.pf-uih-scrub__transition {
+  position: absolute;
+  z-index: 1; // Above the slider, which would take the clicks.
+  min-width: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--pf-color-text-muted);
+  opacity: 0.5;
+  cursor: pointer;
+
+  &:hover,
+  &--current {
+    opacity: 1;
+    background: var(--pf-color-accent);
+  }
 }
 
 // Display › Process › Window navigation.
@@ -588,8 +619,26 @@
 }
 
 .pf-uih-section-title {
+  display: flex;
+  align-items: baseline;
   font-weight: 600;
   margin: 12px 0 6px;
+
+  &__action {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: normal;
+  }
+}
+
+// Long labels (layer names, raw field keys) are cut so values keep room;
+// the full label is in the tooltip.
+.pf-uih-props-section .pf-tree .pf-tree-node .pf-tree-left {
+  min-width: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pf-uih-history {
