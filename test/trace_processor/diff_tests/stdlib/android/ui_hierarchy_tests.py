@@ -1056,3 +1056,70 @@ class AndroidUiHierarchy(TestSuite):
         1000,0.250000,0.000000,"KEYGUARD","Lockscreen","LOCKSCREEN","AOD","RUNNING",0.500000,0,1,"key_a,key_b","key_a","key_b","[NULL]",1,"[NULL]"
         2000,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
         """))
+
+  # android_sysui_state starts each changing field at its value in the first
+  # snapshot with SystemUI state: unless the first change repeats it (bouncer)
+  # or the field never changes (qs_expansion). A change with no value clears a
+  # set (pinned_hun_key).
+  def test_stdlib_sysui_state_initial_values(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          trusted_pid: 100
+          sequence_flags: 1
+          interned_data {
+            ui_strings { iid: 1 str: "NotificationShade" }
+            ui_strings { iid: 2 str: "Shade" }
+            ui_strings { iid: 3 str: "Gone" }
+            ui_strings { iid: 4 str: "key_a" }
+            ui_strings { iid: 5 str: "shade_expansion" }
+            ui_strings { iid: 6 str: "scene" }
+            ui_strings { iid: 7 str: "pinned_hun_key" }
+            ui_strings { iid: 8 str: "bouncer" }
+          }
+          ui_hierarchy {
+            is_keyframe: true
+            windows { id: 1 title_iid: 1 right: 1080 bottom: 2400 }
+            sysui_state {
+              shade_expansion: 1
+              qs_expansion: 0
+              scene_iid: 2
+              bouncer: false
+              pinned_hun_key_iids: 4
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1500
+          trusted_pid: 100
+          sequence_flags: 2
+          ui_hierarchy_events {
+            state_events { ts: 1500 field_iid: 5 value_float: 0 }
+            state_events { ts: 1500 field_iid: 6 value_string_iid: 3 }
+            state_events { ts: 1600 field_iid: 7 }
+            state_events { ts: 1700 field_iid: 8 value_bool: false }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.ui_hierarchy;
+        SELECT
+          s.ts, s.dur, p.pid, s.field, s.value_float, s.value_bool,
+          s.value_string, s.value_key
+        FROM android_sysui_state s
+        JOIN process p USING (upid)
+        ORDER BY s.field, s.ts;
+        """,
+        out=Csv("""
+        "ts","dur","pid","field","value_float","value_bool","value_string","value_key"
+        1700,0,100,"bouncer","[NULL]",0,"[NULL]","[NULL]"
+        1000,600,100,"pinned_hun_key","[NULL]","[NULL]","[NULL]","key_a"
+        1600,100,100,"pinned_hun_key","[NULL]","[NULL]","[NULL]","[NULL]"
+        1000,500,100,"scene","[NULL]","[NULL]","Shade","[NULL]"
+        1500,200,100,"scene","[NULL]","[NULL]","Gone","[NULL]"
+        1000,500,100,"shade_expansion",1.000000,"[NULL]","[NULL]","[NULL]"
+        1500,200,100,"shade_expansion",0.000000,"[NULL]","[NULL]","[NULL]"
+        """))

@@ -56,7 +56,7 @@ export async function registerSysUiStateTracks(
           sqlSource: `
             SELECT ts, value_float AS value
             FROM android_sysui_state
-            WHERE ${upidCond} AND ${fieldCond}
+            WHERE ${upidCond} AND ${fieldCond} AND value_float IS NOT NULL
           `,
         })
       : SliceTrack.create({
@@ -64,6 +64,8 @@ export async function registerSysUiStateTracks(
           uri,
           dataset: new SourceDataset({
             schema: {id: NUM, ts: LONG, dur: LONG, depth: NUM, name: STR},
+            // A change with no value clears the field (e.g. the last pinned
+            // heads-up was unpinned): no slice until the next change.
             src: `
             SELECT
               row_number() OVER (ORDER BY ts) AS id,
@@ -75,11 +77,12 @@ export async function registerSysUiStateTracks(
                 WHEN value_bool IS NOT NULL
                   THEN iif(value_bool, 'true', 'false')
                 WHEN value_string IS NOT NULL THEN value_string
-                WHEN value_key IS NOT NULL THEN value_key
-                ELSE 'changed'
+                ELSE value_key
               END AS name
             FROM android_sysui_state
             WHERE ${upidCond} AND ${fieldCond}
+              AND coalesce(value_float, value_bool, value_string, value_key)
+                IS NOT NULL
           `,
           }),
           colorizer: (row) => materialColorScheme(row.name),

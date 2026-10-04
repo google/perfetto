@@ -744,7 +744,9 @@ LIMIT 1;
 
 -- SystemUI state changes (UiStateEvent): one row per value of a field, lasting
 -- until the next change of the same field in the same process (or the trace
--- end).
+-- end). A field's value before its first change, if any, comes from the first
+-- snapshot of the process that carries SystemUI state
+-- (android_ui_hierarchy_snapshot_state).
 CREATE PERFETTO VIEW android_sysui_state(
   -- Timestamp of the change.
   ts TIMESTAMP,
@@ -765,10 +767,188 @@ CREATE PERFETTO VIEW android_sysui_state(
   value_key STRING
 )
 AS
+WITH
+  _first_state AS (
+    SELECT *
+    FROM (
+      SELECT
+        snapshot.ts,
+        snapshot.upid,
+        state.*,
+        row_number() OVER (
+          PARTITION BY
+            snapshot.upid
+          ORDER BY snapshot.ts, snapshot.id
+        ) AS rn
+      FROM __intrinsic_ui_hierarchy_snapshot_state AS state
+      JOIN __intrinsic_ui_hierarchy_snapshot AS snapshot
+        ON snapshot.id = state.snapshot_id
+    )
+    WHERE
+      rn = 1
+  ),
+  -- The snapshot fields, named as the UiStateEvent fields (the
+  -- UiSysUiState field names without the _iid(s) suffix).
+  _initial AS (
+    SELECT
+      ts,
+      upid,
+      'shade_expansion' AS field,
+      shade_expansion AS value_float,
+      NULL AS value_bool,
+      NULL AS value_string,
+      NULL AS value_key
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'qs_expansion', qs_expansion, NULL, NULL, NULL
+    FROM _first_state
+    UNION ALL
+    SELECT
+      ts,
+      upid,
+      'keyguard_transition_value',
+      keyguard_transition_value,
+      NULL,
+      NULL,
+      NULL
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'dozing', NULL, dozing, NULL, NULL FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'bouncer', NULL, bouncer, NULL, NULL FROM _first_state
+    UNION ALL
+    SELECT
+      ts,
+      upid,
+      'lockscreen_show_notifications',
+      NULL,
+      lockscreen_show_notifications,
+      NULL,
+      NULL
+    FROM _first_state
+    UNION ALL
+    SELECT
+      ts,
+      upid,
+      'lockscreen_show_private',
+      NULL,
+      lockscreen_show_private,
+      NULL,
+      NULL
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'status_bar_state', NULL, NULL, status_bar_state, NULL
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'scene', NULL, NULL, scene, NULL FROM _first_state
+    UNION ALL
+    SELECT
+      ts,
+      upid,
+      'keyguard_transition_from',
+      NULL,
+      NULL,
+      keyguard_transition_from,
+      NULL
+    FROM _first_state
+    UNION ALL
+    SELECT
+      ts,
+      upid,
+      'keyguard_transition_to',
+      NULL,
+      NULL,
+      keyguard_transition_to,
+      NULL
+    FROM _first_state
+    UNION ALL
+    SELECT
+      ts,
+      upid,
+      'keyguard_transition_state',
+      NULL,
+      NULL,
+      keyguard_transition_state,
+      NULL
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'pinned_hun_key', NULL, NULL, NULL, pinned_hun_keys
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'guts_key', NULL, NULL, NULL, guts_key FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'remote_input_key', NULL, NULL, NULL, remote_input_keys
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'user_expanded_key', NULL, NULL, NULL, user_expanded_keys
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'snooze_key', NULL, NULL, NULL, snooze_key
+    FROM _first_state
+    UNION ALL
+    SELECT ts, upid, 'overlay', NULL, NULL, NULL, overlay_keys FROM _first_state
+  ),
+  _first_change AS (
+    SELECT *
+    FROM (
+      SELECT
+        upid,
+        field,
+        ts,
+        value_float,
+        value_bool,
+        value_string,
+        value_key,
+        row_number() OVER (PARTITION BY upid, field ORDER BY ts, id) AS rn
+      FROM __intrinsic_ui_hierarchy_sysui_state
+    )
+    WHERE
+      rn = 1
+  ),
+  -- Only the fields that change, as of before their first change (unless
+  -- that change repeats the value).
+  _all_values AS (
+    SELECT
+      initial.ts,
+      -1 AS ord,
+      initial.upid,
+      initial.field,
+      initial.value_float,
+      initial.value_bool,
+      initial.value_string,
+      initial.value_key
+    FROM _initial AS initial
+    JOIN _first_change AS change
+      ON change.upid IS initial.upid
+      AND change.field = initial.field
+      AND initial.ts < change.ts
+    WHERE
+      coalesce(
+        initial.value_float,
+        initial.value_bool,
+        initial.value_string,
+        initial.value_key
+      ) IS NOT NULL
+      AND NOT (initial.value_float IS change.value_float
+      AND initial.value_bool IS change.value_bool
+      AND initial.value_string IS change.value_string
+      AND initial.value_key IS change.value_key)
+    UNION ALL
+    SELECT
+      ts,
+      id AS ord,
+      upid,
+      field,
+      value_float,
+      value_bool,
+      value_string,
+      value_key
+    FROM __intrinsic_ui_hierarchy_sysui_state
+  )
 SELECT
   ts,
   coalesce(
-    lead(ts) OVER (PARTITION BY upid, field ORDER BY ts, id),
+    lead(ts) OVER (PARTITION BY upid, field ORDER BY ts, ord),
     trace_end()
   )
   - ts AS dur,
@@ -778,7 +958,7 @@ SELECT
   value_bool,
   value_string,
   value_key
-FROM __intrinsic_ui_hierarchy_sysui_state;
+FROM _all_values;
 
 -- SystemUI state (UiHierarchySnapshot.sysui_state) at each snapshot that
 -- carries it.
