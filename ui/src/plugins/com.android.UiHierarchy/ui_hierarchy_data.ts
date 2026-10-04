@@ -101,8 +101,9 @@ export interface NodeVersionChange {
   readonly bounds: string;
   readonly changedProps: string[];
   // Whether this version is a different node than the previous one with
-  // the same id (another name or kind). Producers that predate stable ids
-  // numbered nodes per capture, so ids got reused.
+  // the same id (another kind, or another name for a non-Compose node).
+  // Producers that predate stable ids numbered nodes per capture, so ids got
+  // reused.
   readonly idReused?: boolean;
 }
 
@@ -114,6 +115,9 @@ export interface ScreenTextEntry {
   readonly boundsLeft: number;
   readonly boundsTop: number;
 }
+
+// UiNode.KIND_COMPOSE_NODE.
+const KIND_COMPOSE_NODE = 3;
 
 export function kindToString(kind: number): string {
   switch (kind) {
@@ -515,8 +519,13 @@ export function computeVersionDiffs(
     const cur = versions[i];
     const prev = i > 0 ? versions[i - 1] : undefined;
     const changedProps: string[] = [];
+    // Compose nodes are named by their label (text, content description...),
+    // which changes on the same node (a clock, a text field being typed in):
+    // for them only a change of kind means another node.
     const idReused =
-      prev !== undefined && (cur.name !== prev.name || cur.kind !== prev.kind);
+      prev !== undefined &&
+      (cur.kind !== prev.kind ||
+        (cur.name !== prev.name && cur.kind !== KIND_COMPOSE_NODE));
     if (!prev) {
       changedProps.push('Initial version');
     } else {

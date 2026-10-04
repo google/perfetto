@@ -81,6 +81,21 @@ describe('UiHierarchyData', () => {
       expect(same[1].idReused).toBe(false);
     });
 
+    it('does not flag Compose nodes renamed by their label', () => {
+      // A Compose node's name is its label, e.g. a clock's text.
+      const renamed = computeVersionDiffs([
+        {...baseNode, name: '12:01'},
+        {...baseNode, rowId: 2, ts: 2000n, name: '12:02'},
+      ]);
+      expect(renamed[1].idReused).toBe(false);
+      const view = {...baseNode, kind: 1, kindName: 'View'};
+      const renamedView = computeVersionDiffs([
+        {...view, name: 'dismiss_text'},
+        {...view, rowId: 2, ts: 2000n, name: 'history_button'},
+      ]);
+      expect(renamedView[1].idReused).toBe(true);
+    });
+
     it('detects text changes between versions', () => {
       const v2: UiHierarchyNode = {
         ...baseNode,
