@@ -27,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -43,17 +44,21 @@
 namespace perfetto::trace_processor {
 
 using ::perfetto::protos::pbzero::InternedData;
+using ::perfetto::protos::pbzero::SysUiState;
 using ::perfetto::protos::pbzero::TracePacket;
 using ::perfetto::protos::pbzero::UiEvent;
 using ::perfetto::protos::pbzero::UiHierarchyEvents;
 using ::perfetto::protos::pbzero::UiHierarchySnapshot;
 using ::perfetto::protos::pbzero::UiNode;
 using ::perfetto::protos::pbzero::UiProperty;
+using ::perfetto::protos::pbzero::UiStateEvent;
 using ::perfetto::protos::pbzero::UiWindow;
 
 namespace {
 
 constexpr uint32_t kUnknownUpid = std::numeric_limits<uint32_t>::max();
+// UiNode.FLAG_VISIBLE.
+constexpr int64_t kFlagVisible = 1;
 
 void HashDouble(base::FnvHasher& h, double v) {
   uint64_t bits;
@@ -71,14 +76,18 @@ UiHierarchyModule::UiHierarchyModule(
     tables::UiHierarchyWindowTable* window_table,
     tables::UiHierarchyNodeTable* node_table,
     tables::UiHierarchyWindowFrameTable* window_frame_table,
-    tables::UiHierarchyEventTable* event_table)
+    tables::UiHierarchyEventTable* event_table,
+    tables::SysUiStateTable* sysui_state_table,
+    tables::UiHierarchySnapshotStateTable* snapshot_state_table)
     : ProtoImporterModule(module_context),
       context_(context),
       snapshot_table_(snapshot_table),
       window_table_(window_table),
       node_table_(node_table),
       window_frame_table_(window_frame_table),
-      event_table_(event_table) {
+      event_table_(event_table),
+      sysui_state_table_(sysui_state_table),
+      snapshot_state_table_(snapshot_state_table) {
   RegisterForField(TracePacket::kUiHierarchyFieldNumber);
   RegisterForField(TracePacket::kUiHierarchyEventsFieldNumber);
 }
@@ -126,6 +135,24 @@ void UiHierarchyModule::ParseEvents(protozero::ConstBytes bytes,
                                     std::optional<int64_t> pid,
                                     const TracePacketData& data) {
   UiHierarchyEvents::Decoder batch(bytes);
+
+  for (auto it = batch.state_events(); it; ++it) {
+    UiStateEvent::Decoder e(*it);
+    tables::SysUiStateTable::Row row;
+    row.ts = e.ts();
+    row.upid = upid;
+    row.field = ResolveString(data, e.field_iid());
+    if (e.has_value_float())
+      row.value_float = static_cast<double>(e.value_float());
+    if (e.has_value_bool())
+      row.value_bool = e.value_bool() ? 1 : 0;
+    if (e.has_value_string_iid())
+      row.value_string = ResolveString(data, e.value_string_iid());
+    if (e.has_value_key_iids())
+      row.value_key = JoinStrings(data, e.value_key_iids());
+    sysui_state_table_->Insert(row);
+  }
+
   for (auto it = batch.events(); it; ++it) {
     UiEvent::Decoder e(*it);
     tables::UiHierarchyEventTable::Row row;
@@ -203,6 +230,25 @@ void UiHierarchyModule::ParseEvents(protozero::ConstBytes bytes,
     StringId spec = ResolveString(data, e.spec_iid());
     if (!spec.is_null())
       row.spec = spec;
+
+    StringId semantic_key = ResolveString(data, e.semantic_key_iid());
+    if (!semantic_key.is_null())
+      row.semantic_key = semantic_key;
+    if (e.has_args()) {
+      string_buffer_.clear();
+      for (auto ait = e.args(); ait; ++ait) {
+        UiProperty::Decoder p(*ait);
+        StringId k = ResolveString(data, p.name_iid());
+        StringId v = ResolveString(data, p.value_iid());
+        if (!string_buffer_.empty())
+          string_buffer_ += ", ";
+        string_buffer_ += context_->storage->GetString(k).ToStdString();
+        string_buffer_ += "=";
+        string_buffer_ += context_->storage->GetString(v).ToStdString();
+      }
+      row.args =
+          context_->storage->InternString(base::StringView(string_buffer_));
+    }
     event_table_->Insert(row);
   }
 }
@@ -264,6 +310,10 @@ void UiHierarchyModule::ParseSnapshot(protozero::ConstBytes bytes,
   row.changed_node_count = static_cast<int32_t>(changed);
   row.removed_node_count = static_cast<int32_t>(removed);
   auto snapshot_id = snapshot_table_->Insert(row).id;
+  if (snap.has_sysui_state()) {
+    ParseSysUiState(snap.sysui_state(), snapshot_id, data);
+  }
+
   for (const PendingFrame& f : pending_frames_) {
     tables::UiHierarchyWindowFrameTable::Row fr;
     fr.ts = ts;
@@ -278,6 +328,75 @@ void UiHierarchyModule::ParseSnapshot(protozero::ConstBytes bytes,
     window_frame_table_->Insert(fr);
   }
   pending_frames_.clear();
+}
+
+void UiHierarchyModule::ParseSysUiState(
+    protozero::ConstBytes bytes,
+    tables::UiHierarchySnapshotTable::Id snapshot_id,
+    const TracePacketData& data) {
+  SysUiState::Decoder state(bytes);
+  tables::UiHierarchySnapshotStateTable::Row row;
+  row.snapshot_id = snapshot_id;
+  auto str = [&](bool has, uint64_t iid) -> std::optional<StringId> {
+    if (!has)
+      return std::nullopt;
+    return ResolveString(data, iid);
+  };
+  auto boolean = [](bool has, bool v) -> std::optional<int32_t> {
+    if (!has)
+      return std::nullopt;
+    return v ? 1 : 0;
+  };
+  if (state.has_shade_expansion())
+    row.shade_expansion = static_cast<double>(state.shade_expansion());
+  if (state.has_qs_expansion())
+    row.qs_expansion = static_cast<double>(state.qs_expansion());
+  row.status_bar_state =
+      str(state.has_status_bar_state_iid(), state.status_bar_state_iid());
+  row.scene = str(state.has_scene_iid(), state.scene_iid());
+  row.keyguard_transition_from = str(state.has_keyguard_transition_from_iid(),
+                                     state.keyguard_transition_from_iid());
+  row.dozing = boolean(state.has_dozing(), state.dozing());
+  row.bouncer = boolean(state.has_bouncer(), state.bouncer());
+  row.keyguard_transition_to = str(state.has_keyguard_transition_to_iid(),
+                                   state.keyguard_transition_to_iid());
+  row.keyguard_transition_state = str(state.has_keyguard_transition_state_iid(),
+                                      state.keyguard_transition_state_iid());
+  if (state.has_keyguard_transition_value()) {
+    row.keyguard_transition_value =
+        static_cast<double>(state.keyguard_transition_value());
+  }
+  row.lockscreen_show_notifications =
+      boolean(state.has_lockscreen_show_notifications(),
+              state.lockscreen_show_notifications());
+  row.lockscreen_show_private = boolean(state.has_lockscreen_show_private(),
+                                        state.lockscreen_show_private());
+  row.guts_key = str(state.has_guts_key_iid(), state.guts_key_iid());
+  row.snooze_key = str(state.has_snooze_key_iid(), state.snooze_key_iid());
+  if (state.has_pinned_hun_key_iids())
+    row.pinned_hun_keys = JoinStrings(data, state.pinned_hun_key_iids());
+  if (state.has_remote_input_key_iids())
+    row.remote_input_keys = JoinStrings(data, state.remote_input_key_iids());
+  if (state.has_user_expanded_key_iids())
+    row.user_expanded_keys = JoinStrings(data, state.user_expanded_key_iids());
+  if (state.has_overlay_iids())
+    row.overlay_keys = JoinStrings(data, state.overlay_iids());
+  snapshot_state_table_->Insert(row);
+}
+
+StringId UiHierarchyModule::JoinStrings(
+    const TracePacketData& data,
+    protozero::RepeatedFieldIterator<uint64_t> it) {
+  string_buffer_.clear();
+  for (; it; ++it) {
+    StringId id = ResolveString(data, *it);
+    if (id.is_null())
+      continue;
+    if (!string_buffer_.empty())
+      string_buffer_ += ",";
+    string_buffer_ += context_->storage->GetString(id).ToStdString();
+  }
+  return context_->storage->InternString(base::StringView(string_buffer_));
 }
 
 uint32_t UiHierarchyModule::ParseWindow(protozero::ConstBytes bytes,
@@ -315,7 +434,8 @@ uint32_t UiHierarchyModule::ParseWindow(protozero::ConstBytes bytes,
   StringId title = ResolveString(data, win.title_iid());
   base::FnvHasher h;
   h.UpdateAll(title.raw_id(), win.display_id(), win.left(), win.top(),
-              win.right(), win.bottom(), win.has_focus());
+              win.right(), win.bottom(), win.has_focus(),
+              win.has_pending_work_mask() ? win.pending_work_mask() : 0);
   const uint64_t hash = h.digest();
   // Window roots are positioned relative to the window, so moving the window
   // moves every node.
@@ -341,6 +461,8 @@ uint32_t UiHierarchyModule::ParseWindow(protozero::ConstBytes bytes,
     row.bounds_right = win.right();
     row.bounds_bottom = win.bottom();
     row.has_focus = win.has_focus() ? 1 : 0;
+    if (win.has_pending_work_mask())
+      row.pending_work_mask = win.pending_work_mask();
     ws.window.row = window_table_->Insert(row).row;
     ws.window.hash = hash;
   }
@@ -401,6 +523,8 @@ bool UiHierarchyModule::ParseNode(protozero::ConstBytes bytes,
   const StringId role = ResolveString(data, node.role_iid());
   const StringId state_description =
       ResolveString(data, node.state_description_iid());
+  const StringId semantic_key = ResolveString(data, node.semantic_key_iid());
+  const StringId semantic_role = ResolveString(data, node.semantic_role_iid());
   if (!name.is_null())
     row.name = name;
   if (!source_location.is_null())
@@ -415,6 +539,10 @@ bool UiHierarchyModule::ParseNode(protozero::ConstBytes bytes,
     row.role = role;
   if (!state_description.is_null())
     row.state_description = state_description;
+  if (!semantic_key.is_null())
+    row.semantic_key = semantic_key;
+  if (!semantic_role.is_null())
+    row.semantic_role = semantic_role;
   Matrix local = {1, 0, 0, 0, 1, 0, 0, 0, 1};
   if (node.has_transform()) {
     size_t i = 0;
@@ -613,6 +741,26 @@ UiHierarchyModule::ScreenTransform(WindowState& ws, int64_t id, int depth) {
   return ns->screen;
 }
 
+void UiHierarchyModule::UpdateEffectiveVisibility(WindowState& ws,
+                                                  NodeState& ns,
+                                                  int depth) {
+  if (ns.effective_gen == generation_) {
+    return;
+  }
+  ns.is_effectively_visible = (ns.content.flags & kFlagVisible) != 0;
+  ns.effective_alpha = ns.content.alpha;
+  // Depth guard against malformed (cyclic) parent links.
+  if (ns.parent && depth < 512) {
+    if (NodeState* parent = ws.nodes.Find(*ns.parent)) {
+      UpdateEffectiveVisibility(ws, *parent, depth + 1);
+      ns.is_effectively_visible =
+          ns.is_effectively_visible && parent->is_effectively_visible;
+      ns.effective_alpha *= parent->effective_alpha;
+    }
+  }
+  ns.effective_gen = generation_;
+}
+
 void UiHierarchyModule::RefreshNodes(WindowState& ws,
                                      const std::vector<int64_t>& dirty,
                                      int64_t ts) {
@@ -668,9 +816,14 @@ void UiHierarchyModule::RefreshNodes(WindowState& ws,
     row.bounds_right = static_cast<int32_t>(std::lround(max_x));
     row.bounds_bottom = static_cast<int32_t>(std::lround(max_y));
 
+    UpdateEffectiveVisibility(ws, *ns, 0);
+    row.is_effectively_visible = ns->is_effectively_visible ? 1 : 0;
+    row.effective_alpha = ns->effective_alpha;
+
     base::FnvHasher h;
     h.UpdateAll(ns->basis_hash, row.bounds_left, row.bounds_top,
-                row.bounds_right, row.bounds_bottom);
+                row.bounds_right, row.bounds_bottom, row.is_effectively_visible,
+                row.effective_alpha);
     uint64_t hash = h.digest();
     if (hash == 0)
       hash = 1;  // 0 means "no row emitted yet".

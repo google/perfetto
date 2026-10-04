@@ -44,6 +44,9 @@ message UiHierarchySnapshot {
 
   // Effective UiHierarchyConfig.TextMode used for this capture.
   optional int32 effective_text_mode = 4;
+
+  // System UI state at the time of the capture. Only set by SystemUI.
+  optional SysUiState sysui_state = 17;
 }
 
 message UiWindow {
@@ -83,6 +86,21 @@ message UiWindow {
   optional int64 vsync_id = 14;
   // WindowManager.LayoutParams.type.
   optional int32 window_type = 15;
+
+  // Work scheduled but not yet done when the window was captured. A capture
+  // with a non-zero mask may not reflect the final (settled) frame.
+  enum PendingWork {
+    PENDING_WORK_NONE = 0;
+    PENDING_WORK_LAYOUT = 1;
+    PENDING_WORK_DRAW = 2;
+    PENDING_WORK_TRAVERSAL = 4;
+    PENDING_WORK_ANIMATION = 8;
+    PENDING_WORK_COMPOSE_RECOMPOSE = 16;
+    PENDING_WORK_COMPOSE_MEASURE_LAYOUT = 32;
+    PENDING_WORK_COMPOSE_SNAPSHOT = 64;
+  }
+  // Bitmask of PendingWork values.
+  optional uint32 pending_work_mask = 16;
 }
 
 message UiNode {
@@ -202,6 +220,13 @@ message UiNode {
   // View.getZ() (elevation + translationZ) or Compose effective
   // zIndex/elevation.
   optional float z = 42;
+
+  // Stable key of the entity the node shows (e.g. a notification key), set
+  // only on anchor nodes (notification row/card, shelf icon). Lets queries
+  // follow an entity across windows and View/Compose implementations.
+  optional uint64 semantic_key_iid = 43;
+  // Normalized role, e.g. "title", "action[2]", "smart_reply[0]".
+  optional uint64 semantic_role_iid = 44;
 }
 
 message UiProperty {
@@ -215,6 +240,8 @@ message UiProperty {
 // clock domain.
 message UiHierarchyEvents {
   repeated UiEvent events = 1;
+  // Changes of SystemUI state between snapshots.
+  repeated UiStateEvent state_events = 2;
 }
 
 message UiEvent {
@@ -285,7 +312,8 @@ message UiEvent {
 
     // --- Input (requires compose ui tracing hooks) ---
     // A pointer event dispatched. action = PointerEventType, pointer_id,
-    // x/y in window px, node_id = first hit node, value_iid = hit path.
+    // x/y in window px, node_id = first hit node, value_iid = hit path
+    // (comma-joined node ids).
     // consumed = whether any node consumed it.
     TYPE_POINTER_INPUT = 40;
     // A key event dispatched. action = key action, value_iid = key.
@@ -316,6 +344,13 @@ message UiEvent {
     TYPE_LAZY_ITEM_COMPOSED = 61;
     TYPE_LAZY_ITEM_DISPOSED = 62;
     TYPE_LAZY_ITEM_PREFETCHED = 63;
+
+    // --- App state and interactions ---
+    // An app-defined state change of the entity in |semantic_key_iid|.
+    TYPE_APP_STATE = 70;
+    // A user interaction (e.g. tap, swipe) on the entity in
+    // |semantic_key_iid|.
+    TYPE_INTERACTION = 71;
   }
   optional Type type = 1;
   optional int64 ts = 2;
@@ -369,4 +404,64 @@ message UiEvent {
   optional int32 input_event_id = 35;
   // Lookahead measure / place pass.
   optional bool is_lookahead = 36;
+
+  // Entity the event applies to (see UiNode.semantic_key_iid).
+  optional uint64 semantic_key_iid = 37;
+  // Free-form name=value arguments of TYPE_APP_STATE / TYPE_INTERACTION.
+  repeated UiProperty args = 38;
+}
+
+// SystemUI state relevant to interpreting a capture (shade, keyguard, scene,
+// notification state). All *_iid fields reference InternedData.ui_strings.
+message SysUiState {
+  // Notification shade expansion fraction, 0 (collapsed) to 1 (expanded).
+  optional float shade_expansion = 1;
+  // Quick settings expansion fraction, 0 to 1.
+  optional float qs_expansion = 2;
+  // StatusBarState: "SHADE", "KEYGUARD" or "SHADE_LOCKED".
+  optional uint64 status_bar_state_iid = 3;
+  // Current scene (scene container builds only), e.g. "Lockscreen".
+  optional uint64 scene_iid = 4;
+  // KeyguardTransition "from" state of the latest transition.
+  optional uint64 keyguard_transition_from_iid = 5;
+  optional bool dozing = 6;
+  // Whether the primary bouncer is showing.
+  optional bool bouncer = 7;
+
+  // Notification keys: pinned heads-up notifications.
+  repeated uint64 pinned_hun_key_iids = 8;
+  // Notification whose guts (long-press menu) are open.
+  optional uint64 guts_key_iid = 9;
+  // Notifications with an active inline reply.
+  repeated uint64 remote_input_key_iids = 10;
+  // Notifications expanded by the user.
+  repeated uint64 user_expanded_key_iids = 11;
+  // Notification showing the snooze menu.
+  optional uint64 snooze_key_iid = 12;
+
+  // KeyguardTransition "to" state, its TransitionState (STARTED, RUNNING,
+  // FINISHED, CANCELED) and value (0 to 1).
+  optional uint64 keyguard_transition_to_iid = 13;
+  optional uint64 keyguard_transition_state_iid = 14;
+  optional float keyguard_transition_value = 15;
+  // Active overlays (scene container builds only).
+  repeated uint64 overlay_iids = 16;
+  // Lockscreen settings.
+  optional bool lockscreen_show_notifications = 17;
+  optional bool lockscreen_show_private = 18;
+}
+
+// A change of one SystemUI state field between snapshots. Exactly one of the
+// value fields is set.
+message UiStateEvent {
+  // Timestamp of the change, in the packet's clock domain.
+  optional int64 ts = 1;
+  // Name of the field (InternedData.ui_strings), e.g. "shade_expansion".
+  optional uint64 field_iid = 2;
+  optional float value_float = 3;
+  optional bool value_bool = 4;
+  optional uint64 value_string_iid = 5;
+  // Interned ids of the members of a set-valued field: notification keys
+  // (e.g. the pinned heads-up notifications) or overlay names (overlays).
+  repeated uint64 value_key_iids = 6;
 }

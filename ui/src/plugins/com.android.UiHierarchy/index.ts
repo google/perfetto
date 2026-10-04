@@ -21,6 +21,7 @@ import {registerComposeEventTracks} from './ui_hierarchy_events_track';
 import {UiHierarchyPage} from './ui_hierarchy_page';
 import {UI_HIERARCHY_ROUTE} from './ui_hierarchy_route';
 import {UiHierarchySession} from './ui_hierarchy_session';
+import {registerSysUiStateTracks} from './ui_hierarchy_sysui_state';
 import {createUiHierarchyTrack} from './ui_hierarchy_track';
 
 export default class implements PerfettoPlugin {
@@ -96,5 +97,6 @@ export default class implements PerfettoPlugin {
 
     // Register Compose runtime events, scope slices, and state invalidations per-process
     await registerComposeEventTracks(ctx, getOrCreateGroupForProcess, session);
+    await registerSysUiStateTracks(ctx, getOrCreateGroupForProcess);
   }
 }

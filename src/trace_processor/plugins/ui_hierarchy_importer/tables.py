@@ -83,6 +83,7 @@ UI_HIERARCHY_WINDOW_TABLE = Table(
         C('bounds_right', CppInt32()),
         C('bounds_bottom', CppInt32()),
         C('has_focus', CppInt32()),
+        C('pending_work_mask', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -102,6 +103,7 @@ UI_HIERARCHY_WINDOW_TABLE = Table(
             'bounds_right': 'Window bounds in screen px.',
             'bounds_bottom': 'Window bounds in screen px.',
             'has_focus': '1 if the window has input focus.',
+            'pending_work_mask': 'Bitmask of PendingWork.',
         }))
 
 # Interval table: one row per distinct version of a node. Every change of any
@@ -139,6 +141,8 @@ UI_HIERARCHY_NODE_TABLE = Table(
         C('lookahead_width', CppOptional(CppInt32())),
         C('lookahead_height', CppOptional(CppInt32())),
         C('alpha', CppDouble()),
+        C('is_effectively_visible', CppInt32()),
+        C('effective_alpha', CppDouble()),
         C('flags', CppInt64()),
         C('text', CppOptional(CppString())),
         C('content_description', CppOptional(CppString())),
@@ -157,6 +161,8 @@ UI_HIERARCHY_NODE_TABLE = Table(
         C('clip_bottom', CppOptional(CppInt32())),
         C('draw_order', CppOptional(CppInt32())),
         C('z', CppOptional(CppDouble())),
+        C('semantic_key', CppOptional(CppString())),
+        C('semantic_role', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -217,6 +223,10 @@ UI_HIERARCHY_NODE_TABLE = Table(
                 'Lookahead (target) size.',
             'alpha':
                 'Effective alpha.',
+            'is_effectively_visible':
+                '1 if this node and all its ancestors are visible.',
+            'effective_alpha':
+                'Alpha multiplied by the effective alpha of its parent.',
             'flags':
                 'Bitmask of UiNode.Flag.',
             'text':
@@ -254,6 +264,10 @@ UI_HIERARCHY_NODE_TABLE = Table(
                 'Window-global paint order.',
             'z':
                 'View.getZ() or Compose effective zIndex/elevation.',
+            'semantic_key':
+                'Semantic key for anchor nodes.',
+            'semantic_role':
+                'Normalized semantic role.',
         }))
 
 # One row per UiWindow message: frame accounting for completeness checks.
@@ -348,6 +362,8 @@ UI_HIERARCHY_EVENT_TABLE = Table(
         C('window_id', CppOptional(CppInt32())),
         C('input_event_id', CppOptional(CppInt32())),
         C('is_lookahead', CppOptional(CppUint32())),
+        C('semantic_key', CppOptional(CppString())),
+        C('args', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -434,13 +450,104 @@ UI_HIERARCHY_EVENT_TABLE = Table(
                 'MotionEvent/KeyEvent id (joins android_input_events).',
             'is_lookahead':
                 '1 for lookahead measure/place passes.',
+            'semantic_key':
+                'Semantic key for app state / interaction events.',
+            'args':
+                'Comma-separated extra args for events.',
+        }))
+
+# System UI state extracted from UiHierarchySnapshot and UiStateEvent.
+UI_HIERARCHY_SYSUI_STATE_TABLE = Table(
+    python_module=__file__,
+    class_name='SysUiStateTable',
+    sql_name='__intrinsic_ui_hierarchy_sysui_state',
+    columns=[
+        C('ts',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('upid', CppOptional(CppTableId(PROCESS_TABLE))),
+        C('field', CppString()),
+        C('value_float', CppOptional(CppDouble())),
+        C('value_bool', CppOptional(CppInt32())),
+        C('value_string', CppOptional(CppString())),
+        C('value_key', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          SystemUI state changes (UiStateEvent), one row per changed field.
+        ''',
+        group='Android UI Hierarchy',
+        columns={
+            'ts': 'Timestamp of the state change.',
+            'upid': 'Process that reported the change.',
+            'field': 'Name of the state field.',
+            'value_float': 'Float value.',
+            'value_bool': 'Boolean value.',
+            'value_string': 'String value.',
+            'value_key': 'Set members (notification keys or overlay names).',
+        }))
+
+# System UI state joined per snapshot.
+UI_HIERARCHY_SNAPSHOT_STATE_TABLE = Table(
+    python_module=__file__,
+    class_name='UiHierarchySnapshotStateTable',
+    sql_name='__intrinsic_ui_hierarchy_snapshot_state',
+    columns=[
+        C('snapshot_id', CppTableId(UI_HIERARCHY_SNAPSHOT_TABLE)),
+        C('shade_expansion', CppOptional(CppDouble())),
+        C('qs_expansion', CppOptional(CppDouble())),
+        C('status_bar_state', CppOptional(CppString())),
+        C('scene', CppOptional(CppString())),
+        C('keyguard_transition_from', CppOptional(CppString())),
+        C('dozing', CppOptional(CppInt32())),
+        C('bouncer', CppOptional(CppInt32())),
+        C('keyguard_transition_to', CppOptional(CppString())),
+        C('keyguard_transition_state', CppOptional(CppString())),
+        C('keyguard_transition_value', CppOptional(CppDouble())),
+        C('lockscreen_show_notifications', CppOptional(CppInt32())),
+        C('lockscreen_show_private', CppOptional(CppInt32())),
+        C('pinned_hun_keys', CppOptional(CppString())),
+        C('guts_key', CppOptional(CppString())),
+        C('remote_input_keys', CppOptional(CppString())),
+        C('user_expanded_keys', CppOptional(CppString())),
+        C('snooze_key', CppOptional(CppString())),
+        C('overlay_keys', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          SysUi state for each snapshot.
+        ''',
+        group='Android UI Hierarchy',
+        columns={
+            'snapshot_id': 'Snapshot ID.',
+            'shade_expansion': 'Shade expansion.',
+            'qs_expansion': 'QS expansion.',
+            'status_bar_state': 'Status bar state.',
+            'scene': 'Scene.',
+            'keyguard_transition_from': 'Keyguard transition from.',
+            'dozing': 'Dozing.',
+            'bouncer': 'Bouncer.',
+            'keyguard_transition_to': 'Keyguard transition to.',
+            'keyguard_transition_state': 'Keyguard transition state.',
+            'keyguard_transition_value': 'Keyguard transition value.',
+            'lockscreen_show_notifications': 'Lockscreen show notifications.',
+            'lockscreen_show_private': 'Lockscreen show private.',
+            'pinned_hun_keys': 'Pinned hun keys.',
+            'guts_key': 'Guts key.',
+            'remote_input_keys': 'Remote input keys.',
+            'user_expanded_keys': 'User expanded keys.',
+            'snooze_key': 'Snooze key.',
+            'overlay_keys': 'Overlay keys.',
         }))
 
 # Keep this list sorted.
 ALL_TABLES = [
     UI_HIERARCHY_EVENT_TABLE,
     UI_HIERARCHY_NODE_TABLE,
+    UI_HIERARCHY_SNAPSHOT_STATE_TABLE,
     UI_HIERARCHY_SNAPSHOT_TABLE,
+    UI_HIERARCHY_SYSUI_STATE_TABLE,
     UI_HIERARCHY_WINDOW_FRAME_TABLE,
     UI_HIERARCHY_WINDOW_TABLE,
 ]

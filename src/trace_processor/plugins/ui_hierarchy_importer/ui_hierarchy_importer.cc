@@ -53,6 +53,11 @@ class UiHierarchyImporter : public Plugin<UiHierarchyImporter> {
                    {}});
     out.push_back(
         {&events_->dataframe(), tables::UiHierarchyEventTable::Name(), {}});
+    out.push_back(
+        {&sysui_states_->dataframe(), tables::SysUiStateTable::Name(), {}});
+    out.push_back({&snapshot_states_->dataframe(),
+                   tables::UiHierarchySnapshotStateTable::Name(),
+                   {}});
   }
 
   void RegisterProtoImporterModules(
@@ -61,11 +66,13 @@ class UiHierarchyImporter : public Plugin<UiHierarchyImporter> {
     EnsureTables();
     module_context->modules.emplace_back(new UiHierarchyModule(
         module_context, trace_context, snapshots_.get(), windows_.get(),
-        nodes_.get(), window_frames_.get(), events_.get()));
+        nodes_.get(), window_frames_.get(), events_.get(), sysui_states_.get(),
+        snapshot_states_.get()));
   }
 
   uint64_t GetBoundsMutationCount() override {
-    return snapshots_ ? snapshots_->mutations() : 0;
+    return snapshots_ ? snapshots_->mutations() + sysui_states_->mutations()
+                      : 0;
   }
 
   std::pair<int64_t, int64_t> GetTimestampBounds() override {
@@ -73,6 +80,10 @@ class UiHierarchyImporter : public Plugin<UiHierarchyImporter> {
     int64_t end_ns = 0;
     if (snapshots_) {
       for (auto it = snapshots_->IterateRows(); it; ++it) {
+        start_ns = std::min(it.ts(), start_ns);
+        end_ns = std::max(it.ts(), end_ns);
+      }
+      for (auto it = sysui_states_->IterateRows(); it; ++it) {
         start_ns = std::min(it.ts(), start_ns);
         end_ns = std::max(it.ts(), end_ns);
       }
@@ -92,6 +103,9 @@ class UiHierarchyImporter : public Plugin<UiHierarchyImporter> {
     window_frames_ =
         std::make_unique<tables::UiHierarchyWindowFrameTable>(pool);
     events_ = std::make_unique<tables::UiHierarchyEventTable>(pool);
+    sysui_states_ = std::make_unique<tables::SysUiStateTable>(pool);
+    snapshot_states_ =
+        std::make_unique<tables::UiHierarchySnapshotStateTable>(pool);
   }
 
   std::unique_ptr<tables::UiHierarchySnapshotTable> snapshots_;
@@ -99,6 +113,8 @@ class UiHierarchyImporter : public Plugin<UiHierarchyImporter> {
   std::unique_ptr<tables::UiHierarchyNodeTable> nodes_;
   std::unique_ptr<tables::UiHierarchyWindowFrameTable> window_frames_;
   std::unique_ptr<tables::UiHierarchyEventTable> events_;
+  std::unique_ptr<tables::SysUiStateTable> sysui_states_;
+  std::unique_ptr<tables::UiHierarchySnapshotStateTable> snapshot_states_;
 };
 
 UiHierarchyImporter::~UiHierarchyImporter() = default;

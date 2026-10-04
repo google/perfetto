@@ -1366,8 +1366,19 @@ message UiHierarchyConfig {
   optional bool include_animations = 16;
   // Scroll deltas and lazy layout item compose / dispose / prefetch.
   optional bool include_foundation_events = 17;
-  // Convenience: enable everything above (and 8-10).
+  // Convenience: enables every include_* option. Producers ignore the ones
+  // they don't implement.
   optional bool include_everything = 18;
+
+  // Salt for hashing semantic keys (e.g. notification keys) so that they
+  // don't leak package names. Empty/unset: a random 16-byte salt per
+  // tracing session (hashes are not comparable across sessions). Set it to
+  // correlate hashes across traces.
+  optional string key_hash_salt = 19;
+  // Emit UiEvent.TYPE_APP_STATE events. Default (unset): true.
+  optional bool include_app_state = 20;
+  // Emit UiEvent.TYPE_INTERACTION events. Default (unset): true.
+  optional bool include_interactions = 21;
 }
 
 // End of protos/perfetto/config/android/ui_hierarchy_config.proto

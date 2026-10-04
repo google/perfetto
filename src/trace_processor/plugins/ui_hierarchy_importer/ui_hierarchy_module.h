@@ -24,6 +24,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/plugins/ui_hierarchy_importer/tables_py.h"
@@ -45,13 +46,16 @@ class TraceProcessorContext;
 // or after an incremental-state reset does not create a new row.
 class UiHierarchyModule : public ProtoImporterModule {
  public:
-  UiHierarchyModule(ProtoImporterModuleContext* module_context,
-                    TraceProcessorContext* context,
-                    tables::UiHierarchySnapshotTable* snapshot_table,
-                    tables::UiHierarchyWindowTable* window_table,
-                    tables::UiHierarchyNodeTable* node_table,
-                    tables::UiHierarchyWindowFrameTable* window_frame_table,
-                    tables::UiHierarchyEventTable* event_table);
+  UiHierarchyModule(
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* context,
+      tables::UiHierarchySnapshotTable* snapshot_table,
+      tables::UiHierarchyWindowTable* window_table,
+      tables::UiHierarchyNodeTable* node_table,
+      tables::UiHierarchyWindowFrameTable* window_frame_table,
+      tables::UiHierarchyEventTable* event_table,
+      tables::SysUiStateTable* sysui_state_table,
+      tables::UiHierarchySnapshotStateTable* snapshot_state_table);
   ~UiHierarchyModule() override;
 
   void ParseField(const ParseFieldArgs& args) override;
@@ -83,6 +87,11 @@ class UiHierarchyModule : public ProtoImporterModule {
     Matrix local{};
     int32_t width = 0;
     int32_t height = 0;
+    // Whether the node and all its ancestors are visible, and its alpha
+    // multiplied by theirs. Valid when effective_gen == the current generation.
+    bool is_effectively_visible = false;
+    double effective_alpha = 1.0;
+    uint64_t effective_gen = 0;
     // Screen transform, valid when screen_gen == the current generation.
     Matrix screen{};
     uint64_t screen_gen = 0;
@@ -128,6 +137,15 @@ class UiHierarchyModule : public ProtoImporterModule {
                     const std::vector<int64_t>& dirty,
                     int64_t ts);
   const Matrix& ScreenTransform(WindowState& ws, int64_t id, int depth);
+  // Computes NodeState::is_effectively_visible / effective_alpha of `ns`
+  // from its ancestors (memoized per generation).
+  void UpdateEffectiveVisibility(WindowState& ws, NodeState& ns, int depth);
+  void ParseSysUiState(protozero::ConstBytes bytes,
+                       tables::UiHierarchySnapshotTable::Id snapshot_id,
+                       const TracePacketData& data);
+  // Resolves `iids` and joins them with ",".
+  StringId JoinStrings(const TracePacketData& data,
+                       protozero::RepeatedFieldIterator<uint64_t> iids);
   void SetParent(WindowState& ws, int64_t id, std::optional<int64_t> parent);
   void EraseNode(WindowState& ws, int64_t id, int64_t ts);
 
@@ -143,6 +161,8 @@ class UiHierarchyModule : public ProtoImporterModule {
   tables::UiHierarchyNodeTable* const node_table_;
   tables::UiHierarchyWindowFrameTable* const window_frame_table_;
   tables::UiHierarchyEventTable* const event_table_;
+  tables::SysUiStateTable* const sysui_state_table_;
+  tables::UiHierarchySnapshotStateTable* const snapshot_state_table_;
 
   struct PendingFrame {
     int64_t window_id;

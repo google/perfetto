@@ -73,7 +73,9 @@ CREATE PERFETTO VIEW android_ui_hierarchy_window(
   -- Bounds in screen px.
   bounds_bottom LONG,
   -- Whether the window has input focus.
-  has_focus BOOL
+  has_focus BOOL,
+  -- Bitmask of PendingWork (0 = settled).
+  pending_work_mask LONG
 )
 AS
 SELECT
@@ -88,7 +90,8 @@ SELECT
   bounds_top,
   bounds_right,
   bounds_bottom,
-  has_focus
+  has_focus,
+  pending_work_mask
 FROM __intrinsic_ui_hierarchy_window;
 
 -- UI nodes (Views, Compose semantics nodes, composables). One row per distinct
@@ -145,6 +148,10 @@ CREATE PERFETTO VIEW android_ui_hierarchy_node(
   lookahead_height LONG,
   -- Effective alpha.
   alpha DOUBLE,
+  -- Whether this node and all its ancestors are visible.
+  is_effectively_visible BOOL,
+  -- Alpha multiplied by the effective alpha of its parent.
+  effective_alpha DOUBLE,
   -- UiNode.Flag bitmask.
   flags LONG,
   -- Whether the node is visible (FLAG_VISIBLE).
@@ -192,7 +199,11 @@ CREATE PERFETTO VIEW android_ui_hierarchy_node(
   -- Window-global paint order.
   draw_order LONG,
   -- View.getZ() or Compose effective zIndex/elevation.
-  z DOUBLE
+  z DOUBLE,
+  -- Semantic key for anchor nodes.
+  semantic_key STRING,
+  -- Normalized semantic role.
+  semantic_role STRING
 )
 AS
 SELECT
@@ -228,6 +239,8 @@ SELECT
   lookahead_width,
   lookahead_height,
   alpha,
+  is_effectively_visible != 0 AS is_effectively_visible,
+  effective_alpha,
   flags,
   (flags & 1) != 0 AS is_visible,
   (flags & 4) != 0 AS is_clickable,
@@ -251,7 +264,9 @@ SELECT
   clip_bottom,
   (flags & 65536) != 0 AS is_clips_children,
   draw_order,
-  z
+  z,
+  semantic_key,
+  semantic_role
 FROM __intrinsic_ui_hierarchy_node;
 
 -- The full UI tree (all windows) live at a given timestamp.
@@ -490,7 +505,11 @@ CREATE PERFETTO VIEW android_ui_hierarchy_compose_event(
   -- Platform input event id (MotionEvent/KeyEvent id) for correlation with android_input_events.
   input_event_id LONG,
   -- Whether measure/place was in lookahead pass.
-  is_lookahead BOOL
+  is_lookahead BOOL,
+  -- Semantic key for app state / interaction events.
+  semantic_key STRING,
+  -- Comma-separated extra args for events.
+  args STRING
 )
 AS
 SELECT
@@ -540,6 +559,8 @@ SELECT
     WHEN 61 THEN 'lazy_item_composed'
     WHEN 62 THEN 'lazy_item_disposed'
     WHEN 63 THEN 'lazy_item_prefetched'
+    WHEN 70 THEN 'app_state'
+    WHEN 71 THEN 'interaction'
     ELSE 'unknown'
   END AS type,
   name,
@@ -573,7 +594,9 @@ SELECT
   spec,
   window_id,
   input_event_id,
-  is_lookahead != 0 AS is_lookahead
+  is_lookahead != 0 AS is_lookahead,
+  semantic_key,
+  args
 FROM __intrinsic_ui_hierarchy_event;
 
 -- Why each recompose scope executed: every scope execution joined with the
@@ -680,3 +703,144 @@ WHERE
 GROUP BY
   upid,
   window_id;
+
+-- Maps a screen recording video frame to the UI snapshot closest in time.
+CREATE PERFETTO FUNCTION android_ui_hierarchy_snapshot_for_video_frame(
+  -- Video frame id (from __intrinsic_video_frames.id).
+  video_frame_id LONG
+)
+RETURNS TABLE(
+  -- android_ui_hierarchy_snapshot row id.
+  id LONG
+)
+AS
+SELECT snapshot.id
+FROM android_ui_hierarchy_snapshot AS snapshot
+JOIN __intrinsic_video_frames AS video
+  ON video.id = $video_frame_id
+ORDER BY
+  abs(snapshot.ts - video.ts),
+  snapshot.id
+LIMIT 1;
+
+-- Maps a UI snapshot to the screen recording video frame closest in time.
+CREATE PERFETTO FUNCTION android_video_frame_for_ui_hierarchy_snapshot(
+  -- Snapshot id (from android_ui_hierarchy_snapshot.id).
+  snapshot_id LONG
+)
+RETURNS TABLE(
+  -- Video frame id (from __intrinsic_video_frames.id).
+  id LONG
+)
+AS
+SELECT video.id
+FROM __intrinsic_video_frames AS video
+JOIN android_ui_hierarchy_snapshot AS snapshot
+  ON snapshot.id = $snapshot_id
+ORDER BY
+  abs(video.ts - snapshot.ts),
+  video.id
+LIMIT 1;
+
+-- SystemUI state changes (UiStateEvent): one row per value of a field, lasting
+-- until the next change of the same field in the same process (or the trace
+-- end).
+CREATE PERFETTO VIEW android_sysui_state(
+  -- Timestamp of the change.
+  ts TIMESTAMP,
+  -- How long the value held.
+  dur DURATION,
+  -- Process that reported the change.
+  upid JOINID(process.id),
+  -- Field name, e.g. 'shade_expansion'.
+  field STRING,
+  -- Value, for float fields.
+  value_float DOUBLE,
+  -- Value, for boolean fields.
+  value_bool BOOL,
+  -- Value, for string fields.
+  value_string STRING,
+  -- Value, for sets of notification keys or overlay names (comma
+  -- separated).
+  value_key STRING
+)
+AS
+SELECT
+  ts,
+  coalesce(
+    lead(ts) OVER (PARTITION BY upid, field ORDER BY ts, id),
+    trace_end()
+  )
+  - ts AS dur,
+  upid,
+  field,
+  value_float,
+  value_bool,
+  value_string,
+  value_key
+FROM __intrinsic_ui_hierarchy_sysui_state;
+
+-- SystemUI state (UiHierarchySnapshot.sysui_state) at each snapshot that
+-- carries it.
+CREATE PERFETTO VIEW android_ui_hierarchy_snapshot_state(
+  -- android_ui_hierarchy_snapshot row id.
+  snapshot_id JOINID(android_ui_hierarchy_snapshot.id),
+  -- Shade expansion (0-1).
+  shade_expansion DOUBLE,
+  -- QS expansion (0-1).
+  qs_expansion DOUBLE,
+  -- Status bar state (SHADE, KEYGUARD, SHADE_LOCKED).
+  status_bar_state STRING,
+  -- Active scene.
+  scene STRING,
+  -- Keyguard transition from.
+  keyguard_transition_from STRING,
+  -- Dozing.
+  dozing BOOL,
+  -- Bouncer showing.
+  bouncer BOOL,
+  -- Keyguard transition to.
+  keyguard_transition_to STRING,
+  -- Keyguard transition state (STARTED, RUNNING, FINISHED, CANCELED).
+  keyguard_transition_state STRING,
+  -- Keyguard transition value (0-1).
+  keyguard_transition_value DOUBLE,
+  -- Lockscreen show notifications setting.
+  lockscreen_show_notifications BOOL,
+  -- Lockscreen show private setting.
+  lockscreen_show_private BOOL,
+  -- Pinned HUN keys (comma separated).
+  pinned_hun_keys STRING,
+  -- Key of the notification with open guts.
+  guts_key STRING,
+  -- Remote input keys (comma separated).
+  remote_input_keys STRING,
+  -- User expanded keys (comma separated).
+  user_expanded_keys STRING,
+  -- Key of the notification showing the snooze menu.
+  snooze_key STRING,
+  -- Active overlays (comma separated).
+  overlay_keys STRING
+)
+AS
+SELECT
+  snapshot_id,
+  shade_expansion,
+  qs_expansion,
+  status_bar_state,
+  scene,
+  keyguard_transition_from,
+  dozing,
+  bouncer,
+  keyguard_transition_to,
+  keyguard_transition_state,
+  keyguard_transition_value,
+  lockscreen_show_notifications,
+  lockscreen_show_private,
+  pinned_hun_keys,
+  guts_key,
+  remote_input_keys,
+  user_expanded_keys,
+  snooze_key,
+  overlay_keys
+FROM __intrinsic_ui_hierarchy_snapshot_state;

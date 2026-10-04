@@ -3755,7 +3755,7 @@ class SurfaceFlingerTransactionsConfig(_message.Message):
     def __init__(self, mode: _Optional[_Union[SurfaceFlingerTransactionsConfig.Mode, str]] = ...) -> None: ...
 
 class UiHierarchyConfig(_message.Message):
-    __slots__ = ("min_interval_ms", "keyframe_interval_ms", "text_mode", "disable_views", "include_composition", "include_modifiers", "include_text_layout", "include_recomposition_events", "include_composable_calls", "include_state_reads", "include_runtime_events", "include_tree_events", "include_invalidations", "include_layout_passes", "include_input", "include_animations", "include_foundation_events", "include_everything")
+    __slots__ = ("min_interval_ms", "keyframe_interval_ms", "text_mode", "disable_views", "include_composition", "include_modifiers", "include_text_layout", "include_recomposition_events", "include_composable_calls", "include_state_reads", "include_runtime_events", "include_tree_events", "include_invalidations", "include_layout_passes", "include_input", "include_animations", "include_foundation_events", "include_everything", "key_hash_salt", "include_app_state", "include_interactions")
     class TextMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         TEXT_MODE_UNSPECIFIED: _ClassVar[UiHierarchyConfig.TextMode]
@@ -3784,6 +3784,9 @@ class UiHierarchyConfig(_message.Message):
     INCLUDE_ANIMATIONS_FIELD_NUMBER: _ClassVar[int]
     INCLUDE_FOUNDATION_EVENTS_FIELD_NUMBER: _ClassVar[int]
     INCLUDE_EVERYTHING_FIELD_NUMBER: _ClassVar[int]
+    KEY_HASH_SALT_FIELD_NUMBER: _ClassVar[int]
+    INCLUDE_APP_STATE_FIELD_NUMBER: _ClassVar[int]
+    INCLUDE_INTERACTIONS_FIELD_NUMBER: _ClassVar[int]
     min_interval_ms: int
     keyframe_interval_ms: int
     text_mode: UiHierarchyConfig.TextMode
@@ -3802,7 +3805,10 @@ class UiHierarchyConfig(_message.Message):
     include_animations: bool
     include_foundation_events: bool
     include_everything: bool
-    def __init__(self, min_interval_ms: _Optional[int] = ..., keyframe_interval_ms: _Optional[int] = ..., text_mode: _Optional[_Union[UiHierarchyConfig.TextMode, str]] = ..., disable_views: bool = ..., include_composition: bool = ..., include_modifiers: bool = ..., include_text_layout: bool = ..., include_recomposition_events: bool = ..., include_composable_calls: bool = ..., include_state_reads: bool = ..., include_runtime_events: bool = ..., include_tree_events: bool = ..., include_invalidations: bool = ..., include_layout_passes: bool = ..., include_input: bool = ..., include_animations: bool = ..., include_foundation_events: bool = ..., include_everything: bool = ...) -> None: ...
+    key_hash_salt: str
+    include_app_state: bool
+    include_interactions: bool
+    def __init__(self, min_interval_ms: _Optional[int] = ..., keyframe_interval_ms: _Optional[int] = ..., text_mode: _Optional[_Union[UiHierarchyConfig.TextMode, str]] = ..., disable_views: bool = ..., include_composition: bool = ..., include_modifiers: bool = ..., include_text_layout: bool = ..., include_recomposition_events: bool = ..., include_composable_calls: bool = ..., include_state_reads: bool = ..., include_runtime_events: bool = ..., include_tree_events: bool = ..., include_invalidations: bool = ..., include_layout_passes: bool = ..., include_input: bool = ..., include_animations: bool = ..., include_foundation_events: bool = ..., include_everything: bool = ..., key_hash_salt: _Optional[str] = ..., include_app_state: bool = ..., include_interactions: bool = ...) -> None: ...
 
 class AndroidUserListConfig(_message.Message):
     __slots__ = ("user_type_filter",)
@@ -5820,19 +5826,39 @@ class RecoveredTraceInfo(_message.Message):
     def __init__(self, reason: _Optional[_Union[RecoveredTraceInfo.Reason, str]] = ..., original_file_size_bytes: _Optional[int] = ..., bytes_truncated: _Optional[int] = ...) -> None: ...
 
 class UiHierarchySnapshot(_message.Message):
-    __slots__ = ("vsync_id", "is_keyframe", "windows", "effective_text_mode")
+    __slots__ = ("vsync_id", "is_keyframe", "windows", "effective_text_mode", "sysui_state")
     VSYNC_ID_FIELD_NUMBER: _ClassVar[int]
     IS_KEYFRAME_FIELD_NUMBER: _ClassVar[int]
     WINDOWS_FIELD_NUMBER: _ClassVar[int]
     EFFECTIVE_TEXT_MODE_FIELD_NUMBER: _ClassVar[int]
+    SYSUI_STATE_FIELD_NUMBER: _ClassVar[int]
     vsync_id: int
     is_keyframe: bool
     windows: _containers.RepeatedCompositeFieldContainer[UiWindow]
     effective_text_mode: int
-    def __init__(self, vsync_id: _Optional[int] = ..., is_keyframe: bool = ..., windows: _Optional[_Iterable[_Union[UiWindow, _Mapping]]] = ..., effective_text_mode: _Optional[int] = ...) -> None: ...
+    sysui_state: SysUiState
+    def __init__(self, vsync_id: _Optional[int] = ..., is_keyframe: bool = ..., windows: _Optional[_Iterable[_Union[UiWindow, _Mapping]]] = ..., effective_text_mode: _Optional[int] = ..., sysui_state: _Optional[_Union[SysUiState, _Mapping]] = ...) -> None: ...
 
 class UiWindow(_message.Message):
-    __slots__ = ("id", "title_iid", "display_id", "left", "top", "right", "bottom", "has_focus", "removed", "nodes", "removed_node_ids", "frame_number", "skipped_frames", "vsync_id", "window_type")
+    __slots__ = ("id", "title_iid", "display_id", "left", "top", "right", "bottom", "has_focus", "removed", "nodes", "removed_node_ids", "frame_number", "skipped_frames", "vsync_id", "window_type", "pending_work_mask")
+    class PendingWork(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        PENDING_WORK_NONE: _ClassVar[UiWindow.PendingWork]
+        PENDING_WORK_LAYOUT: _ClassVar[UiWindow.PendingWork]
+        PENDING_WORK_DRAW: _ClassVar[UiWindow.PendingWork]
+        PENDING_WORK_TRAVERSAL: _ClassVar[UiWindow.PendingWork]
+        PENDING_WORK_ANIMATION: _ClassVar[UiWindow.PendingWork]
+        PENDING_WORK_COMPOSE_RECOMPOSE: _ClassVar[UiWindow.PendingWork]
+        PENDING_WORK_COMPOSE_MEASURE_LAYOUT: _ClassVar[UiWindow.PendingWork]
+        PENDING_WORK_COMPOSE_SNAPSHOT: _ClassVar[UiWindow.PendingWork]
+    PENDING_WORK_NONE: UiWindow.PendingWork
+    PENDING_WORK_LAYOUT: UiWindow.PendingWork
+    PENDING_WORK_DRAW: UiWindow.PendingWork
+    PENDING_WORK_TRAVERSAL: UiWindow.PendingWork
+    PENDING_WORK_ANIMATION: UiWindow.PendingWork
+    PENDING_WORK_COMPOSE_RECOMPOSE: UiWindow.PendingWork
+    PENDING_WORK_COMPOSE_MEASURE_LAYOUT: UiWindow.PendingWork
+    PENDING_WORK_COMPOSE_SNAPSHOT: UiWindow.PendingWork
     ID_FIELD_NUMBER: _ClassVar[int]
     TITLE_IID_FIELD_NUMBER: _ClassVar[int]
     DISPLAY_ID_FIELD_NUMBER: _ClassVar[int]
@@ -5848,6 +5874,7 @@ class UiWindow(_message.Message):
     SKIPPED_FRAMES_FIELD_NUMBER: _ClassVar[int]
     VSYNC_ID_FIELD_NUMBER: _ClassVar[int]
     WINDOW_TYPE_FIELD_NUMBER: _ClassVar[int]
+    PENDING_WORK_MASK_FIELD_NUMBER: _ClassVar[int]
     id: int
     title_iid: int
     display_id: int
@@ -5863,10 +5890,11 @@ class UiWindow(_message.Message):
     skipped_frames: int
     vsync_id: int
     window_type: int
-    def __init__(self, id: _Optional[int] = ..., title_iid: _Optional[int] = ..., display_id: _Optional[int] = ..., left: _Optional[int] = ..., top: _Optional[int] = ..., right: _Optional[int] = ..., bottom: _Optional[int] = ..., has_focus: bool = ..., removed: bool = ..., nodes: _Optional[_Iterable[_Union[UiNode, _Mapping]]] = ..., removed_node_ids: _Optional[_Iterable[int]] = ..., frame_number: _Optional[int] = ..., skipped_frames: _Optional[int] = ..., vsync_id: _Optional[int] = ..., window_type: _Optional[int] = ...) -> None: ...
+    pending_work_mask: int
+    def __init__(self, id: _Optional[int] = ..., title_iid: _Optional[int] = ..., display_id: _Optional[int] = ..., left: _Optional[int] = ..., top: _Optional[int] = ..., right: _Optional[int] = ..., bottom: _Optional[int] = ..., has_focus: bool = ..., removed: bool = ..., nodes: _Optional[_Iterable[_Union[UiNode, _Mapping]]] = ..., removed_node_ids: _Optional[_Iterable[int]] = ..., frame_number: _Optional[int] = ..., skipped_frames: _Optional[int] = ..., vsync_id: _Optional[int] = ..., window_type: _Optional[int] = ..., pending_work_mask: _Optional[int] = ...) -> None: ...
 
 class UiNode(_message.Message):
-    __slots__ = ("id", "parent_id", "index", "kind", "name_iid", "source_location_iid", "x", "y", "width", "height", "transform", "alpha", "flags", "text_iid", "content_description_iid", "test_tag_iid", "role_iid", "state_description_iid", "action_iids", "properties", "elevation", "scroll_x", "scroll_y", "lookahead_x", "lookahead_y", "lookahead_width", "lookahead_height", "hashcode", "clip_bounds", "draw_order", "z")
+    __slots__ = ("id", "parent_id", "index", "kind", "name_iid", "source_location_iid", "x", "y", "width", "height", "transform", "alpha", "flags", "text_iid", "content_description_iid", "test_tag_iid", "role_iid", "state_description_iid", "action_iids", "properties", "elevation", "scroll_x", "scroll_y", "lookahead_x", "lookahead_y", "lookahead_width", "lookahead_height", "hashcode", "clip_bounds", "draw_order", "z", "semantic_key_iid", "semantic_role_iid")
     class Kind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         KIND_UNSPECIFIED: _ClassVar[UiNode.Kind]
@@ -5958,6 +5986,8 @@ class UiNode(_message.Message):
     CLIP_BOUNDS_FIELD_NUMBER: _ClassVar[int]
     DRAW_ORDER_FIELD_NUMBER: _ClassVar[int]
     Z_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_KEY_IID_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_ROLE_IID_FIELD_NUMBER: _ClassVar[int]
     id: int
     parent_id: int
     index: int
@@ -5989,7 +6019,9 @@ class UiNode(_message.Message):
     clip_bounds: _containers.RepeatedScalarFieldContainer[int]
     draw_order: int
     z: float
-    def __init__(self, id: _Optional[int] = ..., parent_id: _Optional[int] = ..., index: _Optional[int] = ..., kind: _Optional[_Union[UiNode.Kind, str]] = ..., name_iid: _Optional[int] = ..., source_location_iid: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., width: _Optional[int] = ..., height: _Optional[int] = ..., transform: _Optional[_Iterable[float]] = ..., alpha: _Optional[float] = ..., flags: _Optional[int] = ..., text_iid: _Optional[int] = ..., content_description_iid: _Optional[int] = ..., test_tag_iid: _Optional[int] = ..., role_iid: _Optional[int] = ..., state_description_iid: _Optional[int] = ..., action_iids: _Optional[_Iterable[int]] = ..., properties: _Optional[_Iterable[_Union[UiProperty, _Mapping]]] = ..., elevation: _Optional[float] = ..., scroll_x: _Optional[int] = ..., scroll_y: _Optional[int] = ..., lookahead_x: _Optional[int] = ..., lookahead_y: _Optional[int] = ..., lookahead_width: _Optional[int] = ..., lookahead_height: _Optional[int] = ..., hashcode: _Optional[int] = ..., clip_bounds: _Optional[_Iterable[int]] = ..., draw_order: _Optional[int] = ..., z: _Optional[float] = ...) -> None: ...
+    semantic_key_iid: int
+    semantic_role_iid: int
+    def __init__(self, id: _Optional[int] = ..., parent_id: _Optional[int] = ..., index: _Optional[int] = ..., kind: _Optional[_Union[UiNode.Kind, str]] = ..., name_iid: _Optional[int] = ..., source_location_iid: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., width: _Optional[int] = ..., height: _Optional[int] = ..., transform: _Optional[_Iterable[float]] = ..., alpha: _Optional[float] = ..., flags: _Optional[int] = ..., text_iid: _Optional[int] = ..., content_description_iid: _Optional[int] = ..., test_tag_iid: _Optional[int] = ..., role_iid: _Optional[int] = ..., state_description_iid: _Optional[int] = ..., action_iids: _Optional[_Iterable[int]] = ..., properties: _Optional[_Iterable[_Union[UiProperty, _Mapping]]] = ..., elevation: _Optional[float] = ..., scroll_x: _Optional[int] = ..., scroll_y: _Optional[int] = ..., lookahead_x: _Optional[int] = ..., lookahead_y: _Optional[int] = ..., lookahead_width: _Optional[int] = ..., lookahead_height: _Optional[int] = ..., hashcode: _Optional[int] = ..., clip_bounds: _Optional[_Iterable[int]] = ..., draw_order: _Optional[int] = ..., z: _Optional[float] = ..., semantic_key_iid: _Optional[int] = ..., semantic_role_iid: _Optional[int] = ...) -> None: ...
 
 class UiProperty(_message.Message):
     __slots__ = ("name_iid", "value_iid")
@@ -6000,13 +6032,15 @@ class UiProperty(_message.Message):
     def __init__(self, name_iid: _Optional[int] = ..., value_iid: _Optional[int] = ...) -> None: ...
 
 class UiHierarchyEvents(_message.Message):
-    __slots__ = ("events",)
+    __slots__ = ("events", "state_events")
     EVENTS_FIELD_NUMBER: _ClassVar[int]
+    STATE_EVENTS_FIELD_NUMBER: _ClassVar[int]
     events: _containers.RepeatedCompositeFieldContainer[UiEvent]
-    def __init__(self, events: _Optional[_Iterable[_Union[UiEvent, _Mapping]]] = ...) -> None: ...
+    state_events: _containers.RepeatedCompositeFieldContainer[UiStateEvent]
+    def __init__(self, events: _Optional[_Iterable[_Union[UiEvent, _Mapping]]] = ..., state_events: _Optional[_Iterable[_Union[UiStateEvent, _Mapping]]] = ...) -> None: ...
 
 class UiEvent(_message.Message):
-    __slots__ = ("type", "ts", "dur", "name_iid", "scope_id", "state_id", "value_iid", "depth", "dirty1", "dirty2", "composition_id", "tid", "node_id", "parent_id", "index", "from_index", "x", "y", "width", "height", "min_width", "max_width", "min_height", "max_height", "object_id", "frame_time_ns", "play_time_ns", "pointer_id", "action", "consumed", "delta", "consumed_delta", "spec_iid", "window_id", "input_event_id", "is_lookahead")
+    __slots__ = ("type", "ts", "dur", "name_iid", "scope_id", "state_id", "value_iid", "depth", "dirty1", "dirty2", "composition_id", "tid", "node_id", "parent_id", "index", "from_index", "x", "y", "width", "height", "min_width", "max_width", "min_height", "max_height", "object_id", "frame_time_ns", "play_time_ns", "pointer_id", "action", "consumed", "delta", "consumed_delta", "spec_iid", "window_id", "input_event_id", "is_lookahead", "semantic_key_iid", "args")
     class Type(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         TYPE_UNSPECIFIED: _ClassVar[UiEvent.Type]
@@ -6044,6 +6078,8 @@ class UiEvent(_message.Message):
         TYPE_LAZY_ITEM_COMPOSED: _ClassVar[UiEvent.Type]
         TYPE_LAZY_ITEM_DISPOSED: _ClassVar[UiEvent.Type]
         TYPE_LAZY_ITEM_PREFETCHED: _ClassVar[UiEvent.Type]
+        TYPE_APP_STATE: _ClassVar[UiEvent.Type]
+        TYPE_INTERACTION: _ClassVar[UiEvent.Type]
     TYPE_UNSPECIFIED: UiEvent.Type
     TYPE_COMPOSITION: UiEvent.Type
     TYPE_SCOPE: UiEvent.Type
@@ -6079,6 +6115,8 @@ class UiEvent(_message.Message):
     TYPE_LAZY_ITEM_COMPOSED: UiEvent.Type
     TYPE_LAZY_ITEM_DISPOSED: UiEvent.Type
     TYPE_LAZY_ITEM_PREFETCHED: UiEvent.Type
+    TYPE_APP_STATE: UiEvent.Type
+    TYPE_INTERACTION: UiEvent.Type
     TYPE_FIELD_NUMBER: _ClassVar[int]
     TS_FIELD_NUMBER: _ClassVar[int]
     DUR_FIELD_NUMBER: _ClassVar[int]
@@ -6115,6 +6153,8 @@ class UiEvent(_message.Message):
     WINDOW_ID_FIELD_NUMBER: _ClassVar[int]
     INPUT_EVENT_ID_FIELD_NUMBER: _ClassVar[int]
     IS_LOOKAHEAD_FIELD_NUMBER: _ClassVar[int]
+    SEMANTIC_KEY_IID_FIELD_NUMBER: _ClassVar[int]
+    ARGS_FIELD_NUMBER: _ClassVar[int]
     type: UiEvent.Type
     ts: int
     dur: int
@@ -6151,7 +6191,65 @@ class UiEvent(_message.Message):
     window_id: int
     input_event_id: int
     is_lookahead: bool
-    def __init__(self, type: _Optional[_Union[UiEvent.Type, str]] = ..., ts: _Optional[int] = ..., dur: _Optional[int] = ..., name_iid: _Optional[int] = ..., scope_id: _Optional[int] = ..., state_id: _Optional[int] = ..., value_iid: _Optional[int] = ..., depth: _Optional[int] = ..., dirty1: _Optional[int] = ..., dirty2: _Optional[int] = ..., composition_id: _Optional[int] = ..., tid: _Optional[int] = ..., node_id: _Optional[int] = ..., parent_id: _Optional[int] = ..., index: _Optional[int] = ..., from_index: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., width: _Optional[int] = ..., height: _Optional[int] = ..., min_width: _Optional[int] = ..., max_width: _Optional[int] = ..., min_height: _Optional[int] = ..., max_height: _Optional[int] = ..., object_id: _Optional[int] = ..., frame_time_ns: _Optional[int] = ..., play_time_ns: _Optional[int] = ..., pointer_id: _Optional[int] = ..., action: _Optional[int] = ..., consumed: bool = ..., delta: _Optional[float] = ..., consumed_delta: _Optional[float] = ..., spec_iid: _Optional[int] = ..., window_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., is_lookahead: bool = ...) -> None: ...
+    semantic_key_iid: int
+    args: _containers.RepeatedCompositeFieldContainer[UiProperty]
+    def __init__(self, type: _Optional[_Union[UiEvent.Type, str]] = ..., ts: _Optional[int] = ..., dur: _Optional[int] = ..., name_iid: _Optional[int] = ..., scope_id: _Optional[int] = ..., state_id: _Optional[int] = ..., value_iid: _Optional[int] = ..., depth: _Optional[int] = ..., dirty1: _Optional[int] = ..., dirty2: _Optional[int] = ..., composition_id: _Optional[int] = ..., tid: _Optional[int] = ..., node_id: _Optional[int] = ..., parent_id: _Optional[int] = ..., index: _Optional[int] = ..., from_index: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., width: _Optional[int] = ..., height: _Optional[int] = ..., min_width: _Optional[int] = ..., max_width: _Optional[int] = ..., min_height: _Optional[int] = ..., max_height: _Optional[int] = ..., object_id: _Optional[int] = ..., frame_time_ns: _Optional[int] = ..., play_time_ns: _Optional[int] = ..., pointer_id: _Optional[int] = ..., action: _Optional[int] = ..., consumed: bool = ..., delta: _Optional[float] = ..., consumed_delta: _Optional[float] = ..., spec_iid: _Optional[int] = ..., window_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., is_lookahead: bool = ..., semantic_key_iid: _Optional[int] = ..., args: _Optional[_Iterable[_Union[UiProperty, _Mapping]]] = ...) -> None: ...
+
+class SysUiState(_message.Message):
+    __slots__ = ("shade_expansion", "qs_expansion", "status_bar_state_iid", "scene_iid", "keyguard_transition_from_iid", "dozing", "bouncer", "pinned_hun_key_iids", "guts_key_iid", "remote_input_key_iids", "user_expanded_key_iids", "snooze_key_iid", "keyguard_transition_to_iid", "keyguard_transition_state_iid", "keyguard_transition_value", "overlay_iids", "lockscreen_show_notifications", "lockscreen_show_private")
+    SHADE_EXPANSION_FIELD_NUMBER: _ClassVar[int]
+    QS_EXPANSION_FIELD_NUMBER: _ClassVar[int]
+    STATUS_BAR_STATE_IID_FIELD_NUMBER: _ClassVar[int]
+    SCENE_IID_FIELD_NUMBER: _ClassVar[int]
+    KEYGUARD_TRANSITION_FROM_IID_FIELD_NUMBER: _ClassVar[int]
+    DOZING_FIELD_NUMBER: _ClassVar[int]
+    BOUNCER_FIELD_NUMBER: _ClassVar[int]
+    PINNED_HUN_KEY_IIDS_FIELD_NUMBER: _ClassVar[int]
+    GUTS_KEY_IID_FIELD_NUMBER: _ClassVar[int]
+    REMOTE_INPUT_KEY_IIDS_FIELD_NUMBER: _ClassVar[int]
+    USER_EXPANDED_KEY_IIDS_FIELD_NUMBER: _ClassVar[int]
+    SNOOZE_KEY_IID_FIELD_NUMBER: _ClassVar[int]
+    KEYGUARD_TRANSITION_TO_IID_FIELD_NUMBER: _ClassVar[int]
+    KEYGUARD_TRANSITION_STATE_IID_FIELD_NUMBER: _ClassVar[int]
+    KEYGUARD_TRANSITION_VALUE_FIELD_NUMBER: _ClassVar[int]
+    OVERLAY_IIDS_FIELD_NUMBER: _ClassVar[int]
+    LOCKSCREEN_SHOW_NOTIFICATIONS_FIELD_NUMBER: _ClassVar[int]
+    LOCKSCREEN_SHOW_PRIVATE_FIELD_NUMBER: _ClassVar[int]
+    shade_expansion: float
+    qs_expansion: float
+    status_bar_state_iid: int
+    scene_iid: int
+    keyguard_transition_from_iid: int
+    dozing: bool
+    bouncer: bool
+    pinned_hun_key_iids: _containers.RepeatedScalarFieldContainer[int]
+    guts_key_iid: int
+    remote_input_key_iids: _containers.RepeatedScalarFieldContainer[int]
+    user_expanded_key_iids: _containers.RepeatedScalarFieldContainer[int]
+    snooze_key_iid: int
+    keyguard_transition_to_iid: int
+    keyguard_transition_state_iid: int
+    keyguard_transition_value: float
+    overlay_iids: _containers.RepeatedScalarFieldContainer[int]
+    lockscreen_show_notifications: bool
+    lockscreen_show_private: bool
+    def __init__(self, shade_expansion: _Optional[float] = ..., qs_expansion: _Optional[float] = ..., status_bar_state_iid: _Optional[int] = ..., scene_iid: _Optional[int] = ..., keyguard_transition_from_iid: _Optional[int] = ..., dozing: bool = ..., bouncer: bool = ..., pinned_hun_key_iids: _Optional[_Iterable[int]] = ..., guts_key_iid: _Optional[int] = ..., remote_input_key_iids: _Optional[_Iterable[int]] = ..., user_expanded_key_iids: _Optional[_Iterable[int]] = ..., snooze_key_iid: _Optional[int] = ..., keyguard_transition_to_iid: _Optional[int] = ..., keyguard_transition_state_iid: _Optional[int] = ..., keyguard_transition_value: _Optional[float] = ..., overlay_iids: _Optional[_Iterable[int]] = ..., lockscreen_show_notifications: bool = ..., lockscreen_show_private: bool = ...) -> None: ...
+
+class UiStateEvent(_message.Message):
+    __slots__ = ("ts", "field_iid", "value_float", "value_bool", "value_string_iid", "value_key_iids")
+    TS_FIELD_NUMBER: _ClassVar[int]
+    FIELD_IID_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FLOAT_FIELD_NUMBER: _ClassVar[int]
+    VALUE_BOOL_FIELD_NUMBER: _ClassVar[int]
+    VALUE_STRING_IID_FIELD_NUMBER: _ClassVar[int]
+    VALUE_KEY_IIDS_FIELD_NUMBER: _ClassVar[int]
+    ts: int
+    field_iid: int
+    value_float: float
+    value_bool: bool
+    value_string_iid: int
+    value_key_iids: _containers.RepeatedScalarFieldContainer[int]
+    def __init__(self, ts: _Optional[int] = ..., field_iid: _Optional[int] = ..., value_float: _Optional[float] = ..., value_bool: bool = ..., value_string_iid: _Optional[int] = ..., value_key_iids: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class AndroidUserList(_message.Message):
     __slots__ = ("users", "error")

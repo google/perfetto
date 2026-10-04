@@ -183,6 +183,12 @@ export async function queryWindows(
   return out;
 }
 
+// SQL condition matching rows of process `upid`. Windows of packets without a
+// pid have a NULL upid, which the session maps to 0.
+function upidFilter(upid: number): string {
+  return upid === 0 ? '(upid IS NULL OR upid = 0)' : `upid = ${upid}`;
+}
+
 // The id of the window's frame shown at `ts` (the latest frame at or before
 // it), which is the event id on the window's timeline track. Snapshot ids are
 // per process and can't be used for that.
@@ -195,7 +201,7 @@ export async function queryWindowFrameIdAt(
   const res = await engine.query(`
     SELECT id
     FROM __intrinsic_ui_hierarchy_window_frame
-    WHERE upid = ${upid} AND window_id = ${windowId} AND NOT is_removed
+    WHERE ${upidFilter(upid)} AND window_id = ${windowId} AND NOT is_removed
     ORDER BY ts > ${ts}, ABS(ts - ${ts})
     LIMIT 1;
   `);
@@ -211,7 +217,7 @@ export async function querySnapshots(
   windowId?: number,
 ): Promise<UiHierarchySnapshot[]> {
   const conds: string[] = [];
-  if (upid !== undefined) conds.push(`upid = ${upid}`);
+  if (upid !== undefined) conds.push(upidFilter(upid));
   if (windowId !== undefined) {
     conds.push(`id IN (
       SELECT snapshot_id
@@ -573,7 +579,7 @@ export async function queryScreenText(
   ts: bigint,
   upid?: number,
 ): Promise<ScreenTextEntry[]> {
-  const whereClause = upid !== undefined ? `WHERE upid = ${upid}` : '';
+  const whereClause = upid !== undefined ? `WHERE ${upidFilter(upid)}` : '';
   const query = `
     INCLUDE PERFETTO MODULE android.ui_hierarchy;
     SELECT
