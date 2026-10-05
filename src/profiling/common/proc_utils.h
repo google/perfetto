@@ -84,6 +84,11 @@ namespace glob_aware {
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids);
 
+// Returns true if the /proc/pid/cmdline of |pid| matches any of the
+// |patterns|. Kernel threads and zombies (empty cmdline) never match.
+bool PidMatchesCmdlinePatterns(pid_t pid,
+                               const std::vector<std::string>& patterns);
+
 bool MatchCmdlineGlobPatterns(const std::string& cmdline,
                               const std::vector<std::string>& patterns);
 }  // namespace glob_aware
