@@ -17,7 +17,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {Icons} from '../base/semantic_icons';
 import {Button} from './button';
-import type {HTMLAttrs} from './common';
+import type {HTMLAnchorAttrs, HTMLAttrs} from './common';
 import {Icon} from './icon';
 import {PopupMenu} from './menu';
 import {PopupPosition} from './popup';
@@ -199,6 +199,67 @@ export namespace TabStrip {
         onblur: commit,
         onclick: (e: Event) => e.stopPropagation(),
       });
+    }
+  }
+
+  export interface LinkAttrs extends HTMLAnchorAttrs {
+    // Whether this tab is the active one (typically derived from the URL).
+    readonly active?: boolean;
+    // Whether this tab is disabled: greyed out, and the link can't be followed.
+    readonly disabled?: boolean;
+    // Icon shown before the title: an icon name, or arbitrary content.
+    readonly icon?: string | m.Children;
+    // Called when the close button is clicked. When set, a close button is
+    // shown. Unlike Tab, middle-click is left to the browser (open in new tab)
+    // rather than closing the tab.
+    readonly onClose?: () => void;
+  }
+
+  // A tab that is a real link, for use inside TabStrip. Navigation is left to
+  // the browser, so right-click, middle-click, open-in-new-tab and history all
+  // work as for any other link. Unlike Tab, links can't be renamed.
+  export class Link implements m.ClassComponent<LinkAttrs> {
+    view({attrs, children}: m.CVnode<LinkAttrs>): m.Children {
+      const {
+        active,
+        disabled,
+        icon,
+        href,
+        onclick,
+        onClose,
+        className,
+        ...htmlAttrs
+      } = attrs;
+      return m(
+        'a.pf-tab-strip__tab',
+        {
+          ...htmlAttrs,
+          'className': classNames(
+            className,
+            active && 'pf-tab-strip__tab--active',
+            disabled && 'pf-tab-strip__tab--disabled',
+          ),
+          'aria-current': active ? 'page' : undefined,
+          'aria-disabled': disabled ? 'true' : undefined,
+          // An <a> without an href can't be followed (click, middle-click, or
+          // open in new tab), which is exactly what disabled should mean.
+          'href': disabled ? undefined : href,
+          'onclick': disabled ? undefined : onclick,
+        },
+        renderTabContent(icon, children),
+        onClose &&
+          m(Button, {
+            compact: true,
+            icon: Icons.Close,
+            disabled,
+            onclick: (e: Event) => {
+              // Don't follow the enclosing link.
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            },
+          }),
+      );
     }
   }
 }
