@@ -54,7 +54,7 @@ import {renderSplitPanel} from './demos/split_panel_demo';
 import {renderCombobox} from './demos/combobox_demo';
 import {renderSwitch} from './demos/switch_demo';
 import {renderTabs} from './demos/tabs_demo';
-import {renderTabStrip} from './demos/tabstrip_demo';
+import {renderTabStrip} from './demos/tab_strip_demo';
 import {renderTagInput} from './demos/tag_input_demo';
 import {renderTextInput} from './demos/text_input_demo';
 import {renderTextParagraph} from './demos/text_paragraph_demo';
