@@ -22,7 +22,7 @@ import {SqlSourceNode} from './nodes/sources/sql_source';
 import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
-import {TabStrip} from '../../../widgets/tab_strip';
+import {Tabs} from '../../../widgets/tabs';
 import type {NodeModifyAttrs} from '../node_types';
 import {Button, type ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {ResultsPanelEmptyState, InfoBox} from './widgets';
@@ -321,37 +321,35 @@ export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
       selectedView === SelectedView.kModify &&
         this.renderModifyView(node, attrs),
       selectedView === SelectedView.kResult &&
-        m('.', [
-          m(TabStrip, {
-            tabs: [
-              {key: 'sql', title: 'SQL'},
-              {key: 'proto', title: 'Proto'},
-            ],
-            currentTabKey: this.resultTabMode,
-            onTabChange: (key: string) => {
-              this.resultTabMode = key as 'sql' | 'proto';
+        m(Tabs, {
+          variant: 'underline',
+          activeTabKey: this.resultTabMode,
+          onTabChange: (key: string) => {
+            this.resultTabMode = key as 'sql' | 'proto';
+          },
+          tabs: [
+            {
+              key: 'sql',
+              title: 'SQL',
+              content: isAQuery(query)
+                ? m(CodeSnippet, {language: 'SQL', text: sql})
+                : m(ResultsPanelEmptyState, {
+                    icon: 'info',
+                    title: 'SQL not available',
+                  }),
             },
-          }),
-          m('hr', {
-            style: {
-              margin: '0',
-              borderTop: '1px solid var(--separator-color)',
+            {
+              key: 'proto',
+              title: 'Proto',
+              content: isAQuery(query)
+                ? m(CodeSnippet, {text: textproto, language: 'textproto'})
+                : m(ResultsPanelEmptyState, {
+                    icon: 'info',
+                    title: 'Proto not available',
+                  }),
             },
-          }),
-          this.resultTabMode === 'sql'
-            ? isAQuery(query)
-              ? m(CodeSnippet, {language: 'SQL', text: sql})
-              : m(ResultsPanelEmptyState, {
-                  icon: 'info',
-                  title: 'SQL not available',
-                })
-            : isAQuery(query)
-              ? m(CodeSnippet, {text: textproto, language: 'textproto'})
-              : m(ResultsPanelEmptyState, {
-                  icon: 'info',
-                  title: 'Proto not available',
-                }),
-        ]),
+          ],
+        }),
     );
   }
 
