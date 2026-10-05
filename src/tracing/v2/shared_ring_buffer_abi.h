@@ -26,7 +26,9 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/bits.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -58,6 +60,11 @@ namespace perfetto::tracing_v2 {
 
 // Chunks must hold several small fragments to amortize their header overhead.
 constexpr uint32_t kMinChunkSize = 256;
+
+// Maximum chunk size, including the header. The service copies a chunk
+// without its header (at least 4 bytes) into one TBChunk, which holds at most
+// 64 KiB - 1 bytes.
+constexpr uint32_t kMaxChunkSize = 64 * 1024;
 
 // Each chunk's atomic<uint32_t> requires four-byte alignment.
 constexpr uint32_t kChunkAlignmentBytes = 4;
@@ -154,6 +161,52 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // positions are outstanding. num_chunks is a power of two, so 2^30 is the
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
+
+// True if |chunk_size| is in [kMinChunkSize, kMaxChunkSize] and a multiple of
+// kChunkAlignmentBytes.
+constexpr bool IsValidChunkSize(uint32_t chunk_size) {
+  return chunk_size >= kMinChunkSize && chunk_size <= kMaxChunkSize &&
+         chunk_size % kChunkAlignmentBytes == 0;
+}
+
+// Validates the layout of an untrusted ring buffer and returns its chunk
+// count, or an error describing why the layout is invalid.
+//
+// - Any thread can call it. It reads no shared bytes.
+// - The transport limits the mapping size separately.
+// - The SharedRingBuffer constructor treats validation errors as fatal.
+inline base::StatusOr<uint32_t> NumChunksForRingBufferLayout(
+    const void* start,
+    size_t size,
+    uint32_t chunk_size) {
+  if (!start ||
+      reinterpret_cast<uintptr_t>(start) % alignof(RingBufferHeader) != 0) {
+    return base::ErrStatus("ring buffer start is null or misaligned");
+  }
+  if (!IsValidChunkSize(chunk_size))
+    return base::ErrStatus("invalid chunk size %u", chunk_size);
+  // Subtract the header after this check to avoid overflow on 32-bit builds.
+  if (size < sizeof(RingBufferHeader))
+    return base::ErrStatus("ring buffer size %zu is below the header", size);
+  const size_t chunks_size = size - sizeof(RingBufferHeader);
+  if (chunks_size % chunk_size != 0) {
+    return base::ErrStatus("ring buffer size %zu is not header + N * %u", size,
+                           chunk_size);
+  }
+  const size_t count = chunks_size / chunk_size;
+  // Two chunks form the minimum useful configuration. One chunk satisfies
+  // the ABI: write_pos - read_pos is 0 when empty and 1 when full.
+  // The Free wrap count distinguishes successive uses of that chunk.
+  //
+  // The power-of-two rule permits chunk indexing with a mask. The maximum
+  // keeps outstanding positions below 2^31 for unambiguous unsigned
+  // subtraction.
+  if (count < kMinChunksPerRing || count > kMaxChunksPerRing ||
+      !base::IsPowerOfTwo(count)) {
+    return base::ErrStatus("invalid chunk count %zu", count);
+  }
+  return static_cast<uint32_t>(count);
+}
 
 constexpr uint64_t PackRwPositions(uint32_t write_pos, uint32_t read_pos) {
   return (static_cast<uint64_t>(write_pos) << 32) | read_pos;
@@ -373,6 +426,9 @@ enum PayloadFlags : uint32_t {
   // - A writer may keep appending. The flag stays set for that reservation.
   //   Fragments appended to this chunk are also discarded once published.
   // This allows cached reuse after loss without forcing a new reservation.
+  //
+  // TODO(sashwinbalaji): Carry the cause of the loss. TBv2 reports this flag
+  // as DATA_LOSS_READ_GAP. v1 reports a full buffer as DATA_LOSS_SMB_FULL.
   kFlagDataLoss = 1u << kPayloadFlagsShift,
 
   // The last fragment is not the end of its packet. The packet continues in

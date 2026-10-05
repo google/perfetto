@@ -44,9 +44,13 @@ namespace {
 
 using Internals = test::SharedRingBufferInternalsForTest;
 using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
-using test::GetNoopWriterDelegate;
+using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
 
 constexpr BufferID kBuffer = 5;
+
+// Longest single wait of a kStall writer. The reader ends a wait early when it
+// moves read_pos.
+constexpr uint32_t kMaxWaitMs = 100;
 
 struct StressParams {
   uint32_t num_writers;
@@ -55,6 +59,10 @@ struct StressParams {
   // An upper bound on the attempts each writer makes.
   uint32_t fragments_per_writer;
   uint32_t seed_pos;
+  // The writers apply the policy themselves. Only kDrop and kStall. kStall
+  // waits for the reader and tries again until it gets a chunk, or until the
+  // run stops the writers. This loads SharedRingBufferWriter under
+  // contention. It does not test the policy of TraceWriterV2Impl.
   BufferExhaustedPolicy policy;
   // If nonzero, the writers are stopped once the reader has consumed this
   // many positions past seed_pos. That makes the run end on reader
@@ -73,7 +81,7 @@ struct StressStats {
   uint64_t dropped = 0;
   // The reader scraped a chunk out from under a writer.
   uint64_t relocations = 0;
-  // Acquisitions that returned kFull without reserving a position. kStall
+  // Acquisitions that ended with kFull, without reserving a position. kStall
   // keeps retrying both full reservations and failed chunk claims, so it must
   // leave this counter at zero.
   uint64_t reported_full = 0;
@@ -113,9 +121,8 @@ void RunStress(const StressParams& params, StressStats* stats) {
   std::atomic<uint32_t> writers_done{0};
   // Set when the run's progress target is reached or when the drain below
   // gives up, so the writers stop producing and can be joined instead of
-  // racing an unresponsive protocol forever. Every blocking call a writer
-  // makes has a 30 second deadline, so a stopped writer leaves its loop within
-  // one BeginFragment() call.
+  // racing an unresponsive protocol forever. A kStall writer checks the flag
+  // before each wait, and a wait lasts at most kMaxWaitMs.
   std::atomic<bool> stop_writers{false};
   // Attempts each writer made before it left its loop.
   std::vector<uint64_t> attempts(params.num_writers, 0);
@@ -125,11 +132,21 @@ void RunStress(const StressParams& params, StressStats* stats) {
   std::vector<uint64_t> reported_full(params.num_writers, 0);
   std::vector<std::thread> writer_threads;
 
+  ASSERT_TRUE(params.policy == BufferExhaustedPolicy::kDrop ||
+              params.policy == BufferExhaustedPolicy::kStall);
+  const bool stall = params.policy == BufferExhaustedPolicy::kStall;
+  // Returns true if a kStall writer can wait and try again.
+  auto wait_for_space = [&](SharedRingBufferWriter* writer) {
+    if (!stall || stop_writers.load(std::memory_order_relaxed))
+      return false;
+    writer->WaitForReadPosChange(kMaxWaitMs);
+    return true;
+  };
+
   for (uint32_t w = 0; w < params.num_writers; ++w) {
     writer_threads.emplace_back([&, w] {
       SharedRingBufferWriter writer(ring.get(), static_cast<WriterID>(w + 1),
-                                    kBuffer, params.policy,
-                                    GetNoopWriterDelegate());
+                                    kBuffer);
       // A payload that varies in size so that chunk boundaries and reuse get
       // exercised rather than one fixed shape. The 255-fragment cap is out of
       // reach: every fragment costs at least nine bytes, so even the largest
@@ -148,7 +165,11 @@ void RunStress(const StressParams& params, StressStats* stats) {
         memcpy(payload.data(), &writer_tag, sizeof(writer_tag));
         memcpy(payload.data() + 4, &n, sizeof(n));
 
-        const auto range = writer.BeginFragment(size, false);
+        auto range = writer.BeginFragment(size, false);
+        while (range.result != BeginFragmentResult::kSuccess &&
+               wait_for_space(&writer)) {
+          range = writer.BeginFragment(size, false);
+        }
         if (range.result != BeginFragmentResult::kSuccess) {
           ++unwritten[w];
           if (range.result == BeginFragmentResult::kFull)
@@ -164,7 +185,11 @@ void RunStress(const StressParams& params, StressStats* stats) {
         // make the race likely, this makes it frequent.
         if ((n & 7) == 0)
           std::this_thread::yield();
-        writer.EndFragment(size, false);
+        EndFragmentResult end = writer.EndFragment(size, false);
+        while (end != EndFragmentResult::kSuccess && wait_for_space(&writer))
+          end = writer.RetryRelocation().result;
+        if (end != EndFragmentResult::kSuccess)
+          writer.DropRelocation();
       }
       writer.FinishCurrentChunk();
       attempts[w] = n;
@@ -337,7 +362,8 @@ TEST(SharedRingBufferConcurrencyTest, StressStallPolicy) {
             &stats);
   EXPECT_GT(stats.received, 0u);
   // kStall retries until it acquires a chunk, including after failed claims.
-  // Exhausting its deadline would abort rather than return kFull.
+  // It gives up only when the run stops the writers. A stalled protocol fails
+  // the drain deadline in RunStress() instead.
   EXPECT_EQ(stats.reported_full, 0u);
 }
 
