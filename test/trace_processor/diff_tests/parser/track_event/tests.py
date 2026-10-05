@@ -1842,3 +1842,85 @@ class TrackEvent(TestSuite):
         "rank1_b",1,"rank=1,stage='fwd'"
         "no_rank",3,"[NULL]"
         """))
+
+  # String dimension values can be interned with `string_value_iid`. The
+  # resolved string is the value: it is the same identity (and merge key) as an
+  # inline `string_value` with the same contents. An iid without interned data
+  # is invalid and ignored.
+  def test_track_event_dimensions_interned_string_value(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          sequence_flags: 2
+          interned_data {
+            debug_annotation_string_values { iid: 1 str: "fwd" }
+          }
+          track_descriptor {
+            uuid: 10
+            process { pid: 100 process_name: "trainer" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 11
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "stage" string_value_iid: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 12
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "stage" string_value: "fwd" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 13
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "stage" string_value_iid: 99 }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 1000
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "interned" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 2000
+          track_event { track_uuid: 12 type: TYPE_INSTANT name: "inline" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 3000
+          track_event { track_uuid: 13 type: TYPE_INSTANT name: "unknown_iid" } }
+        """),
+        query="""
+        SELECT
+          s.name AS slice,
+          dense_rank() OVER (ORDER BY s.track_id) AS track_idx,
+          (
+            SELECT string_value FROM track_dimension
+            WHERE track_id = s.track_id AND name = 'stage'
+          ) AS stage,
+          (
+            SELECT value FROM stats
+            WHERE name = 'track_descriptor_invalid_dimension'
+          ) AS invalid
+        FROM slice AS s
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "slice","track_idx","stage","invalid"
+        "interned",1,"fwd",1
+        "inline",1,"fwd",1
+        "unknown_iid",2,"[NULL]",1
+        """))

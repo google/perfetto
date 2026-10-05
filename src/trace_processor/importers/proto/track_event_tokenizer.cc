@@ -440,6 +440,15 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
       out.int_value = dim.int_value();
     } else if (dim.has_string_value()) {
       out.string_value = context_->storage->InternString(dim.string_value());
+    } else if (dim.has_string_value_iid()) {
+      out.string_value = args.state->InternedStringId(
+          protos::pbzero::InternedData::kDebugAnnotationStringValuesFieldNumber,
+          dim.string_value_iid());
+      if (!out.string_value) {
+        RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
+                             track.uuid());
+        continue;
+      }
     } else {
       RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
                            track.uuid());

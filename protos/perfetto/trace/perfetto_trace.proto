@@ -17910,6 +17910,12 @@ message Dimension {
   oneof value {
     int64 int_value = 2;
     string string_value = 3;
+    // Interned version of `string_value`: corresponds to the
+    // `debug_annotation_string_values` field in InternedData, looked up in the
+    // interned data of the sequence the TrackDescriptor is emitted on. The
+    // resolved string is the value, so an interned and an inline string with
+    // the same contents are the same value.
+    uint64 string_value_iid = 5;
   }
 
   // Optional human readable label for this *value*, e.g. "worker-east" for

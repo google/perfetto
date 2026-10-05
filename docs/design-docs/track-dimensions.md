@@ -35,6 +35,7 @@ message Dimension {
   oneof value {
     int64 int_value = 2;
     string string_value = 3;
+    uint64 string_value_iid = 5;
   }
   optional string display_name = 4;
 }
@@ -189,12 +190,15 @@ workspace
 
 Deliberate deviations, all of them at the edges of what the RFC pins down:
 
-- **Inline strings instead of interned ids.** The RFC's Decision says custom
+- **Only string values can be interned.** The RFC's Decision says custom
   string data is interned, and sketches `name_iid` / `string_value_iid` /
-  `display_name_iid`. `TrackDescriptor` already carries `name` and
-  `description` inline and a descriptor is emitted once per track, so the
-  prototype uses inline strings. The RFC lists the interned-data layout as an
-  open question, and iids can be added wire-compatibly.
+  `display_name_iid`. The prototype only has `string_value_iid`, which reuses
+  the `debug_annotation_string_values` interning index (like
+  `GpuRenderStageEvent`'s extra data does) rather than adding a new
+  InternedData field. The iid is resolved when the descriptor is tokenized, so
+  the resolved string is the value: an interned and an inline string with the
+  same contents are the same value and the same track identity. `name_iid` and
+  `display_name_iid` can be added wire-compatibly later.
 - **Fewer columns in the query surface.** The RFC sketches `value_type`,
   `declaring_track_id` and `is_inherited`; the prototype omits all three.
   `value_type` is derivable (exactly one value column is non-null) and the RFC
