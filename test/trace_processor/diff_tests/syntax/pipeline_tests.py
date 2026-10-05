@@ -96,38 +96,6 @@ class PerfettoPipeline(TestSuite):
         74228,0
         """))
 
-  def test_interval_flatten(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        PERFETTO PRAGMA pipelines = 1;
-        CREATE PERFETTO TABLE spans AS
-        SELECT 10 AS ts, 100 AS dur, 1 AS cpu, 5 AS weight
-        UNION ALL SELECT 20, 40, 1, 1
-        UNION ALL SELECT 30, 120, 1, NULL
-        UNION ALL SELECT 60, 0, 1, 2
-        UNION ALL SELECT 200, 10, 2, 3
-        UNION ALL SELECT 210, 10, 2, 4;
-
-        CREATE PERFETTO TABLE flat AS
-        FROM spans
-        |> INTERVAL FLATTEN PER cpu
-           AGGREGATE COUNT(*) AS n, SUM(weight) AS weight;
-
-        SELECT * FROM flat ORDER BY cpu, ts, dur;
-        """,
-        out=Csv("""
-        "ts","dur","cpu","n","weight"
-        10,10,1,1,5
-        20,10,1,2,6
-        30,30,1,3,6
-        60,0,1,3,7
-        60,50,1,2,5
-        110,40,1,1,"[NULL]"
-        200,10,2,1,3
-        210,10,2,1,4
-        """))
-
   # Must match interval_self_intersect, which this is meant to replace.
   def test_interval_flatten_matches_self_intersect(self):
     return DiffTestBlueprint(

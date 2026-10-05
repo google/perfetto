@@ -21,12 +21,13 @@
 #include <memory>
 #include <vector>
 
-#include "src/trace_processor/core/exec/breaker.h"
+#include "perfetto/base/status.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -48,14 +49,21 @@ struct IntervalFlattenSpec {
 // INTERVAL FLATTEN. The input must be grouped by the keys and ordered by ts
 // within each group; the output is too, followed by a group number column.
 // A row of no width becomes a segment of no width which also counts the rows
-// spanning it.
-class IntervalFlatten : public Breaker {
+// spanning it. Completed segments are emitted in bounded batches; only active
+// intervals and the keys needed by the current call are retained.
+class IntervalFlatten : public Operator {
  public:
   explicit IntervalFlatten(IntervalFlattenSpec);
   ~IntervalFlatten() override;
   BatchPreference batch_preference() const override {
     return BatchPreference::kThroughput;
   }
+
+  std::unique_ptr<OperatorState> MakeState() const override;
+  OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
+  OpResult Finish(RowBatch&, OperatorState&) const override;
+  void Rewind(OperatorState&) const override;
+  base::Status status(const OperatorState&) const override;
 
  private:
   // A sum over some rows, and how many of them held a value.
@@ -72,14 +80,21 @@ class IntervalFlatten : public Breaker {
     uint32_t slot;
   };
 
-  struct State : Breaker::State {
+  struct State : OperatorState {
     ~State() override;
 
+    base::Status status = base::OkStatus();
+    // The first unconsumed row when Execute yields a full output batch.
+    uint32_t input_row = 0;
+    // input_row can still be zero when draining the preceding group yields.
+    bool input_pending = false;
     uint32_t input_group = 0;
     uint32_t output_group = 0;
     bool in_group = false;
-    int64_t previous = 0;
-    int64_t time = 0;
+    // The next segment starts at cursor. input_ts is the last accepted input
+    // timestamp; its points remain pending until all rows at that time arrive.
+    int64_t cursor = 0;
+    int64_t input_ts = 0;
     Totals live;
     Totals instant;
     // A min-heap on end.
@@ -89,18 +104,23 @@ class IntervalFlatten : public Breaker {
     FlexVector<Sum> slot_sums;
     FlexVector<uint32_t> free_slots;
 
+    // Keys for the current input batch plus one carried key from the previous
+    // input batch. Groups can share an output batch without retaining earlier
+    // input.
     RowStore key_rows;
     RowBatch retained;
+    RowBatch saved_key;
+    uint32_t key_row = 0;
+    uint32_t first_key = 0;
 
-    // The segments, a column each. All are `segment_capacity` long, of which
-    // the first `segments` are used.
+    // At most kMaxBatchRows completed segments, reused after each yield.
+    // Active intervals remain in the heap until their ends are reached.
     uint32_t segments = 0;
     uint32_t segment_capacity = 0;
     FlexVector<int64_t> segment_ts;
     FlexVector<int64_t> segment_dur;
     FlexVector<uint32_t> segment_groups;
     FlexVector<uint32_t> segment_key_rows;
-    uint32_t key_row = 0;
     // What every kCount aggregate holds.
     FlexVector<int64_t> segment_counts;
     struct SegmentSums {
@@ -108,20 +128,23 @@ class IntervalFlatten : public Breaker {
       BitVector present;
     };
     std::vector<SegmentSums> segment_sums;
-    uint32_t served = 0;
     RowBatch served_keys;
   };
 
-  std::unique_ptr<Breaker::State> CreateState() const override;
-  bool Consume(const RowBatch& in, Breaker::State& state) const override;
-  bool Finalize(Breaker::State& state) const override;
-  bool Serve(RowBatch& out, Breaker::State& state) const override;
-  void Reset(Breaker::State& state) const override;
+  bool RetainKeys(const RowBatch&, State&) const;
+  bool AddInterval(State&,
+                   int64_t start,
+                   int64_t length,
+                   Span<const FlatColumnReader<int64_t>> sums) const;
+  // Publishes any completed segments, or propagates an arithmetic error.
+  OpResult Yield(RowBatch&, State&, OpResult result) const;
 
   static bool Add(State&, int64_t a, int64_t b, int64_t* out);
+  // Completes the last input timestamp and sweeps to time. Passing the maximum
+  // timestamp drains a group. False means an error or a full output batch;
+  // retrying resumes at the first segment which has not yet been emitted.
   bool Advance(State&, int64_t time) const;
-  bool EmitInstant(State&) const;
-  bool EndGroup(State&) const;
+  bool Expire(State&, int64_t end) const;
   bool Emit(State&, int64_t ts, int64_t dur, bool with_instant) const;
   void GrowSegments(State&) const;
 

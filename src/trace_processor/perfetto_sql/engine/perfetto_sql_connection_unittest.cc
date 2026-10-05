@@ -1304,17 +1304,18 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
     EXPECT_THAT(result.status().message(), testing::HasSubstr("overflow"));
   }
   // The limits themselves are valid, including subtracting the minimum value
-  // when its interval ends, and ending an interval at the maximum timestamp.
+  // when its interval ends, and intervals and points at the maximum timestamp.
   rows = Rows(R"(
     FROM (SELECT 0 AS ts, 1 AS dur, -9223372036854775808 AS weight
           UNION ALL SELECT 1, 1, 9223372036854775807
-          UNION ALL SELECT 9223372036854775806, 1, 0)
+          UNION ALL SELECT 9223372036854775806, 1, 0
+          UNION ALL SELECT 9223372036854775807, 0, 7)
     |> INTERVAL FLATTEN AGGREGATE SUM(weight) AS w
   )");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(*rows, testing::ElementsAre("0,1,-9223372036854775808",
-                                          "1,1,9223372036854775807",
-                                          "9223372036854775806,1,0"));
+  EXPECT_THAT(*rows, testing::ElementsAre(
+                         "0,1,-9223372036854775808", "1,1,9223372036854775807",
+                         "9223372036854775806,1,0", "9223372036854775807,0,7"));
 
   // Only the segment's columns are left.
   EXPECT_THAT(Rows("FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n "
