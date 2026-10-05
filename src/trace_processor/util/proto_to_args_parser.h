@@ -17,10 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_PROTO_TO_ARGS_PARSER_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -182,6 +184,10 @@ class ProtoToArgsParser {
   // DebugAnnotation is parsed via generic descriptor reflection.
   void EnableDebugAnnotationParsing() { debug_annotation_enabled_ = true; }
 
+  bool HasIndexedKeyCacheForTesting() const {
+    return indexed_key_cache_ != nullptr;
+  }
+
   // This class is responsible for resetting the current key prefix to the old
   // value when deleted or reset.
   struct ScopedNestedKeyContext {
@@ -340,12 +346,6 @@ class ProtoToArgsParser {
                                   bool added_entry,
                                   Delegate& delegate);
 
-  base::Status ParsePackedField(const FieldDescriptor& field_descriptor,
-                                RepeatedFieldIndex& repeated_field_index,
-                                protozero::Field field,
-                                uint32_t parent_path,
-                                Delegate& delegate);
-
   // The override registered for the current key_prefix_.flat_key, if any.
   ParsingOverrideForField* FindOverrideForKey();
 
@@ -405,11 +405,66 @@ class ProtoToArgsParser {
     uint32_t flat_generation = 0;
     bool flat_eligible = false;
     base::FlatHashMap<uint32_t, FlatField> flat_fields;
-    // The override registered for this node's flat key, if any. Looked up
-    // once when the node is created, so overrides must be registered before
-    // the first parse.
+    // The override registered for this node's flat key, if any. Looked up once
+    // when the node is created; registering an override clears the path cache.
     ParsingOverrideForField* override = nullptr;
   };
+
+  static constexpr uint32_t kMaxCachedRepeatedDepth = 3;
+  static constexpr uint32_t kIndexedKeyCacheSize = 1024;
+  static_assert((kIndexedKeyCacheSize & (kIndexedKeyCacheSize - 1)) == 0,
+                "Indexed-key cache size must be a power of two");
+  struct RepeatedIndexTuple {
+    void Push(uint32_t index) {
+      if (!cacheable) {
+        return;
+      }
+      if (depth >= kMaxCachedRepeatedDepth || index > 255) {
+        cacheable = false;
+        return;
+      }
+      packed |= static_cast<uint64_t>(index) << (depth * 8);
+      ++depth;
+    }
+
+    uint64_t packed = 0;
+    uint8_t depth = 0;
+    bool cacheable = true;
+  };
+
+  base::Status ParsePackedField(
+      const FieldDescriptor& field_descriptor,
+      RepeatedFieldIndex& repeated_field_index,
+      protozero::Field field,
+      uint32_t parent_path,
+      const RepeatedIndexTuple& parent_repeated_indices,
+      Delegate& delegate);
+
+  struct IndexedKeyCacheEntry {
+    bool valid = false;
+    uint32_t descriptor_generation = 0;
+    uint32_t path_node = 0;
+    uint64_t tuple = 0;
+    uint8_t tuple_depth = 0;
+    StringPool::Id key = StringPool::Id::Null();
+  };
+
+  PERFETTO_ALWAYS_INLINE void MaybeResetDescriptorCaches() {
+    uint32_t generation = pool_.generation();
+    if (PERFETTO_UNLIKELY(generation != descriptor_generation_)) {
+      ResetDescriptorCaches(generation);
+    }
+  }
+  PERFETTO_NO_INLINE void ResetDescriptorCaches(uint32_t generation);
+  bool CanCacheIndexedKey(const FieldDescriptor&, uint32_t node) const;
+  std::optional<StringPool::Id> FindIndexedKey(
+      uint32_t node,
+      const RepeatedIndexTuple& tuple) const;
+  void CacheIndexedKey(uint32_t node,
+                       const RepeatedIndexTuple& tuple,
+                       StringPool::Id key);
+  uint32_t IndexedKeyCacheSlot(uint32_t node,
+                               const RepeatedIndexTuple& tuple) const;
 
   bool TryRunFlatMessage(uint32_t node,
                          uint32_t descriptor_idx,
@@ -467,6 +522,12 @@ class ProtoToArgsParser {
   // Edge -> child node index in |path_nodes_| (see |PathEdgeKey|). Roots are
   // keyed by pool descriptor index under the kNoPath parent.
   base::FlatHashMap<uint64_t, uint32_t> path_index_;
+  // Direct-mapped memo for fully indexed descriptor leaf keys. Entries carry
+  // every key component and are compared exactly, so hash collisions and
+  // eviction can only turn a hit into the unchanged slow path.
+  std::unique_ptr<std::array<IndexedKeyCacheEntry, kIndexedKeyCacheSize>>
+      indexed_key_cache_;
+  uint32_t descriptor_generation_ = std::numeric_limits<uint32_t>::max();
   Key key_prefix_;
   // Parameters to ParseMessage that apply uniformly to every ProtoMessage
   // WorkItem on the stack. Set by ParseMessage; read by StepProtoMessage.
