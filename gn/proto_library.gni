@@ -309,7 +309,9 @@ template("perfetto_proto_library") {
       foreach(dep, invoker.public_deps) {
         # Get the absolute target path
         mapped_dep = string_replace(dep, expansion_token, "source_set")
-        mapped_dep = string_replace(mapped_dep, ":cpp", ":source_set")
+        if (get_label_info(mapped_dep, "name") == "cpp") {
+          mapped_dep = get_label_info(mapped_dep, "dir") + ":source_set"
+        }
         public_deps += [ mapped_dep ]
         exports_ += [ get_label_info(mapped_dep, "dir") + ":" +
                       get_label_info(mapped_dep, "name") ]
@@ -319,7 +321,9 @@ template("perfetto_proto_library") {
     if (defined(invoker.deps)) {
       foreach(dep, invoker.deps) {
         mapped_dep = string_replace(dep, expansion_token, "source_set")
-        mapped_dep = string_replace(mapped_dep, ":cpp", ":source_set")
+        if (get_label_info(mapped_dep, "name") == "cpp") {
+          mapped_dep = get_label_info(mapped_dep, "dir") + ":source_set"
+        }
         public_deps += [ mapped_dep ]
       }
     }
