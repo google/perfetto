@@ -209,7 +209,7 @@ struct ExtensionInfo {
 struct ExtensionTypeCheck {
   std::string extendee_full_name;
   std::string field_name;
-  std::string existing_raw_type;
+  FieldDescriptor existing_field;
   std::string new_raw_type;
 };
 
