@@ -96,6 +96,86 @@ class PerfettoPipeline(TestSuite):
         74228,0
         """))
 
+  # Must match interval_self_intersect, which this is meant to replace.
+  def test_interval_flatten_matches_self_intersect(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT ts, dur FROM slice WHERE dur > 0)
+        |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n;
+
+        CREATE PERFETTO TABLE macro AS
+        SELECT ts, dur, sum(NOT interval_ends_at_ts) AS n
+        FROM interval_self_intersect!(
+          (SELECT id, ts, dur FROM slice WHERE dur > 0)
+        )
+        GROUP BY group_id
+        HAVING n > 0;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (
+            SELECT count(*) FROM (
+              SELECT ts, dur, n FROM piped
+              EXCEPT SELECT ts, dur, n FROM macro
+            )
+          ) + (
+            SELECT count(*) FROM (
+              SELECT ts, dur, n FROM macro
+              EXCEPT SELECT ts, dur, n FROM piped
+            )
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        107295,0
+        """))
+
+  # Per key, sum(n * dur) over segments equals sum(dur) over rows.
+  def test_interval_flatten_keys_over_many_batches(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (
+          SELECT ts, dur, track_id, IIF(depth % 2 = 0, 'even', 'odd') AS parity
+          FROM slice
+          WHERE dur > 0
+        )
+        |> INTERVAL FLATTEN PER track_id, parity AGGREGATE COUNT(*) AS n;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT
+          track_id,
+          IIF(depth % 2 = 0, 'even', 'odd') AS parity,
+          sum(dur) AS covered
+        FROM slice
+        WHERE dur > 0
+        GROUP BY track_id, parity;
+
+        SELECT
+          (SELECT count(*) FROM expected) AS keys,
+          (
+            SELECT count(*) FROM expected e
+            FULL JOIN (
+              SELECT track_id, parity, sum(n * dur) AS covered
+              FROM piped
+              GROUP BY track_id, parity
+            ) p USING (track_id, parity)
+            WHERE e.covered IS NOT p.covered
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "keys","mismatches"
+        101,0
+        """))
+
   def test_pipeline_errors_name_the_problem(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),

@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -27,13 +28,17 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
+#include "src/trace_processor/core/common/sort_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/group_by.h"
+#include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
+#include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -61,9 +66,13 @@ class Lowering {
 
   std::unique_ptr<ex::Source> MakeSource(const op::Scan&) const;
   void LowerTreeAccumulate(const op::TreeAccumulate&);
+  void LowerIntervalFlatten(const op::IntervalFlatten&);
 
   // Establishes the physical layout and ordering needed by a tree fold.
   void PrepareTree(const op::TreeAccumulate&);
+  // Groups rows by `keys`, ordered by `ascending` within each group, adding
+  // only the Sort and GroupBy not already established.
+  void PrepareGroups(const std::vector<ColumnId>& keys, ColumnId ascending);
   // Appends to `into` an AssertType on the column at `position` if `column`
   // is not already flat Int64. The position is the column's in the pipeline
   // `into` belongs to, which is not this one for an intersection's operand.
@@ -98,6 +107,15 @@ class Lowering {
   };
   std::optional<TreeColumns> tree_columns_;
   std::optional<op::TreeDirection> tree_order_;
+
+  // The known order of the rows: grouped by `grouped_by` (numbered in
+  // `group_column`), with `ascending` ascending within each group.
+  struct Order {
+    std::vector<ColumnId> grouped_by;
+    uint32_t group_column = 0;
+    std::vector<ColumnId> ascending;
+  };
+  Order order_;
 };
 
 void Lowering::LowerNode(PlanNodeId id) {
@@ -114,6 +132,10 @@ void Lowering::LowerNode(PlanNodeId id) {
       // Each operand runs as its own pipeline, so the intersection lowers
       // its children itself.
       LowerIntervalIntersect(node.Cast<op::IntervalIntersect>(), node.children);
+      return;
+    case base::variant_index<Op, op::IntervalFlatten>():
+      LowerNode(node.children[0]);
+      LowerIntervalFlatten(node.Cast<op::IntervalFlatten>());
       return;
     default:
       PERFETTO_FATAL("Unknown operator");
@@ -141,6 +163,13 @@ void Lowering::LowerScan(const op::Scan& scan) {
     Define(column.id);
   }
   out_->input_ = MakeSource(scan);
+  // A dataframe is read in order, so a column it keeps sorted ascends.
+  const auto& dataframe = base::unchecked_get<op::Scan::Dataframe>(scan.source);
+  for (uint32_t i = 0; i < scan.columns.size(); ++i) {
+    if (!dataframe.columns[i]->sort_state.Is<core::Unsorted>()) {
+      order_.ascending.push_back(scan.columns[i].id);
+    }
+  }
 }
 
 void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
@@ -197,6 +226,81 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
   out_->input_ = std::make_unique<ex::IntervalIntersect>(std::move(operands));
 }
 
+void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
+                             ColumnId ascending) {
+  auto has = [](const std::vector<ColumnId>& ids, ColumnId id) {
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
+  };
+  bool grouped =
+      std::is_permutation(order_.grouped_by.begin(), order_.grouped_by.end(),
+                          keys.begin(), keys.end());
+  if (grouped && has(order_.ascending, ascending)) {
+    return;
+  }
+  // GroupBy is stable, so sorting first orders every group.
+  if (!order_.grouped_by.empty() || !has(order_.ascending, ascending)) {
+    ex::SortSpec sort;
+    sort.keys.push_back({Position(ascending), false});
+    operators_.push_back(std::make_unique<ex::Sort>(std::move(sort)));
+    order_ = Order();
+    order_.ascending.push_back(ascending);
+  }
+  if (!keys.empty()) {
+    std::vector<uint32_t> positions;
+    for (ColumnId key : keys) {
+      positions.push_back(Position(key));
+    }
+    operators_.push_back(std::make_unique<ex::GroupBy>(std::move(positions)));
+    order_.grouped_by = keys;
+    order_.group_column = column_count_++;
+  }
+}
+
+void Lowering::LowerIntervalFlatten(const op::IntervalFlatten& flatten) {
+  RequireInt64(flatten.ts, Position(flatten.ts), operators_);
+  RequireInt64(flatten.dur, Position(flatten.dur), operators_);
+  PrepareGroups(flatten.keys, flatten.ts);
+  ex::IntervalFlattenSpec spec;
+  spec.ts_column = Position(flatten.ts);
+  spec.dur_column = Position(flatten.dur);
+  for (ColumnId key : flatten.keys) {
+    spec.key_columns.push_back(Position(key));
+  }
+  spec.group_column = order_.group_column;
+  for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+    ex::IntervalFlattenSpec::Aggregate lowered;
+    switch (agg.function) {
+      case op::IntervalFlatten::Function::kCount:
+        lowered.function = ex::IntervalFlattenSpec::Function::kCount;
+        break;
+      case op::IntervalFlatten::Function::kSum:
+        RequireInt64(agg.column, Position(agg.column), operators_);
+        lowered.function = ex::IntervalFlattenSpec::Function::kSum;
+        lowered.column = Position(agg.column);
+        break;
+    }
+    spec.aggregates.push_back(lowered);
+  }
+  operators_.push_back(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
+
+  // Its rows are the segments, laid out afresh.
+  column_count_ = 0;
+  Define(flatten.out_ts);
+  Define(flatten.out_dur);
+  for (ColumnId key : flatten.keys) {
+    Define(key);
+  }
+  for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+    Define(agg.output);
+  }
+  order_ = Order();
+  order_.grouped_by = flatten.keys;
+  order_.group_column = column_count_++;
+  order_.ascending.push_back(flatten.out_ts);
+  tree_columns_.reset();
+  tree_order_.reset();
+}
+
 void Lowering::RequireInt64(ColumnId column,
                             uint32_t position,
                             std::vector<std::unique_ptr<ex::Operator>>& into) {
@@ -225,6 +329,7 @@ void Lowering::PrepareTree(const op::TreeAccumulate& acc) {
   if (tree_order_ == acc.direction) {
     return;
   }
+  order_ = Order();
   if (acc.direction == op::TreeDirection::kUp) {
     operators_.push_back(std::make_unique<ex::TreeChildFirst>(
         tree_columns_->node, tree_columns_->parent));
