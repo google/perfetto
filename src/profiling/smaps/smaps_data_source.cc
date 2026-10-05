@@ -167,6 +167,19 @@ void SmapsDataSource::SerializeSmapsForPid(pid_t pid) {
     return;
   }
 
+  // Kernel threads and zombies have no mm, so their smaps can be opened but
+  // are empty. Skip them by peeking at the first character. The peeked data
+  // stays buffered in the stream, so the parsing below continues where the
+  // peek left off instead of making the kernel regenerate the file.
+  int first_char = fgetc(*smaps);
+  if (first_char == EOF) {
+    if (ferror(*smaps)) {
+      PERFETTO_DPLOG("linux.smaps: failed to read %s", path.c_str());
+    }
+    return;
+  }
+  ungetc(first_char, *smaps);
+
   auto trace_packet = trace_writer_->NewTracePacket();
   trace_packet->set_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
