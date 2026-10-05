@@ -1202,6 +1202,14 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
               testing::HasSubstr("the same in every operand"));
 }
 
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlattenParses) {
+  EXPECT_THAT(Rows("FROM (SELECT 0 AS ts, 1 AS dur) "
+                   "|> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n")
+                  .status()
+                  .message(),
+              testing::HasSubstr("INTERVAL FLATTEN is not supported yet"));
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
   auto fork = connection_->Fork();
   auto first = connection_->ExecuteUntilLastStatement(
