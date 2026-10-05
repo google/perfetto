@@ -120,7 +120,7 @@ TEST(OpsTest, SortRowLayoutMatchesAStableSort) {
       for (Order order :
            {Order::kShuffled, Order::kSorted, Order::kRuns, Order::kReversed,
             Order::kReversedTies, Order::kAlike}) {
-        std::vector<uint8_t> buffer(size_t{rows} * stride);
+        std::vector<uint8_t> buffer(static_cast<size_t>(rows) * stride);
         for (uint32_t r = 0; r < rows; ++r) {
           uint64_t value = 0;
           switch (order) {
@@ -147,7 +147,7 @@ TEST(OpsTest, SortRowLayoutMatchesAStableSort) {
           // with every byte before them a function of the value too.
           for (uint32_t b = 0; b < stride; ++b) {
             uint32_t from_end = stride - 1 - b;
-            buffer[size_t{r} * stride + b] =
+            buffer[static_cast<size_t>(r) * stride + b] =
                 from_end < 4 ? static_cast<uint8_t>(value >> (from_end * 8))
                              : static_cast<uint8_t>(value / 50);
           }
@@ -162,8 +162,9 @@ TEST(OpsTest, SortRowLayoutMatchesAStableSort) {
         }
         std::stable_sort(
             order_of.begin(), order_of.end(), [&](uint32_t a, uint32_t b) {
-              return memcmp(&buffer[size_t{a} * stride],
-                            &buffer[size_t{b} * stride], stride) < 0;
+              return memcmp(&buffer[static_cast<size_t>(a) * stride],
+                            &buffer[static_cast<size_t>(b) * stride],
+                            stride) < 0;
             });
         std::vector<uint32_t> expected(rows);
         for (uint32_t r = 0; r < rows; ++r) {
