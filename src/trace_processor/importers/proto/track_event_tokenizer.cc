@@ -91,7 +91,8 @@ using protos::pbzero::CounterDescriptor;
 
 // Dimensions which trace processor recognizes and synthesizes itself, and
 // whose canonical value means the same thing across data sources. Producers
-// cannot declare a custom dimension with one of these names.
+// cannot declare a custom dimension with one of these names. Keep in sync with
+// the list of reserved names documented in dimension.proto.
 bool IsWellKnownDimensionName(base::StringView name) {
   return name == "machine" || name == "gpu" || name == "cpu" ||
          name == "process" || name == "thread";

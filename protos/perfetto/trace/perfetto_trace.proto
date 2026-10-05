@@ -17874,9 +17874,22 @@ message CounterDescriptor {
 // A named, typed key/value which is part of a track's identity.
 //
 // Dimensions are the single vocabulary for identifiers which apply to a set of
-// tracks: `machine`, `gpu`, `cpu`, `process` and `thread` are *well-known*
-// dimensions synthesized by trace processor, while producers can declare their
-// own *custom* dimensions (`rank`, `shard`, `stage`, ...) on a TrackDescriptor.
+// tracks: *well-known* dimensions are synthesized by trace processor, while
+// producers can declare their own *custom* dimensions (`rank`, `shard`,
+// `stage`, ...) on a TrackDescriptor.
+//
+// Reserved names: the names of the well-known dimensions are reserved and
+// cannot be used for custom dimensions. They are:
+//  * `machine`: the machine the track belongs to.
+//  * `gpu`: the GPU the track belongs to.
+//  * `cpu`: the CPU the track belongs to.
+//  * `process`: the process the track belongs to.
+//  * `thread`: the thread the track belongs to.
+// Their values are derived by trace processor from the typed fields of the
+// TrackDescriptor (e.g. `process`, `thread`) and from import context, and mean
+// the same thing across data sources. A custom dimension using a reserved name
+// is ignored and trace processor records the
+// `track_descriptor_reserved_dimension_name` import error.
 //
 // A dimension has no scope field: it is declared on the track described by the
 // containing TrackDescriptor and applies to that track plus:
@@ -17900,8 +17913,8 @@ message CounterDescriptor {
 //    `TrackDescriptor.sibling_merge_behavior`) if they declare the same
 //    dimensions.
 message Dimension {
-  // The canonical dimension key, e.g. "rank". Custom dimensions cannot use a
-  // reserved well-known name (`machine`, `gpu`, `cpu`, `process`, `thread`).
+  // The canonical dimension key, e.g. "rank". Must be non-empty and must not
+  // be one of the reserved names listed above.
   optional string name = 1;
 
   // The typed value of the dimension. This is the value used for SQL queries,
@@ -18311,7 +18324,8 @@ message TrackDescriptor {
   //
   // Well-known dimensions (`machine`, `gpu`, `cpu`, `process`, `thread`) are
   // synthesized by trace processor from the typed fields above and from import
-  // context: producers must *not* declare them here.
+  // context: their names are reserved and producers must *not* declare them
+  // here. See Dimension for the full list of reserved names.
   repeated Dimension dimensions = 21;
 }
 
