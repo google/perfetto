@@ -60,10 +60,9 @@ inline RadixDigits GetRadixDigits(uint32_t key_bits, size_t size) {
 
 }  // namespace internal
 
-// The number of counts RadixSort() needs for keys of `key_bits` bits: those
-// of the fewest passes, whose digits are widest.
-inline size_t RadixSortCountsSize(uint32_t key_bits) {
-  internal::RadixDigits digits = internal::GetRadixDigits(key_bits, UINT32_MAX);
+// The number of counts RadixSort() needs for `size` keys of `key_bits` bits.
+inline size_t RadixSortCountsSize(uint32_t key_bits, size_t size) {
+  internal::RadixDigits digits = internal::GetRadixDigits(key_bits, size);
   return size_t{digits.passes} << digits.bits;
 }
 
@@ -77,8 +76,8 @@ inline size_t RadixSortCountsSize(uint32_t key_bits) {
 // has the same digit, as it would not move anything.
 //
 // @param scratch_begin A buffer of at least `end - begin` elements.
-// @param counts A buffer of at least `RadixSortCountsSize(key_bits)` elements,
-// passed in so that it can be reused.
+// @param counts Reusable buffer with at least
+// `RadixSortCountsSize(key_bits, end - begin)` elements.
 // @return Whichever of `begin` and `scratch_begin` holds the sorted elements.
 template <typename T, typename Key>
 T* RadixSort(T* begin,
@@ -157,7 +156,7 @@ T* StableSortByKey(T* begin,
   auto size = static_cast<size_t>(end - begin);
   if (internal::RadixSortIsCheaper(size, key_bits)) {
     std::unique_ptr<uint32_t[]> counts(
-        new uint32_t[RadixSortCountsSize(key_bits)]);
+        new uint32_t[RadixSortCountsSize(key_bits, size)]);
     return RadixSort(begin, end, scratch_begin, counts.get(), key_bits, key);
   }
   std::sort(begin, end, [&key, &position](const T& a, const T& b) {
