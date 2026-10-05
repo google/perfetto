@@ -1006,6 +1006,32 @@ message AndroidProcessStateChangedEvent {
   optional ProcessGroup prev_process_group = 15;
 }
 
+// Emitted on the proc_state track before a dying process's record is cleaned
+// up, recording its last set runtime state so ring-buffer traces can recover
+// the state of processes that die before the end-of-trace snapshot.
+message AndroidProcessStateDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
+
+  // Previous proc state before the process died.
+  optional ProcessStateEnum prev_proc_state = 3;
+
+  // Previous oom score before the process died.
+  optional int32 prev_oom_score = 4;
+
+  // Previous capability flags before the process died.
+  optional int32 prev_capability_flags = 5
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
+
+  // Previous kernel process group (android.os.Process.THREAD_GROUP_*) before
+  // the process died.
+  optional ProcessGroup prev_process_group = 6;
+}
+
 message AndroidProcessGroupChangedEvent {
   // Uid of the package of the process changing group (if available).
   optional int32 uid = 1;
@@ -1211,7 +1237,7 @@ message AndroidSelfBroadcastEvent {
 
 message FrameworksBaseTrackEvent {
   // Usable range: [2004, 2006], [2008, 2099]
-  // Next id: 2023
+  // Next id: 2024
   extend perfetto.protos.TrackEvent {
     optional AndroidMessageQueue message_queue = 2004;
     optional AndroidBitmap bitmap = 2005;
@@ -1233,5 +1259,6 @@ message FrameworksBaseTrackEvent {
     optional AndroidProcStateUpdateEvent proc_state_update_event = 2020;
     optional AndroidSelfBroadcastEvent self_broadcast_event = 2021;
     optional AndroidProcessGroupChangedEvent process_group_changed_event = 2022;
+    optional AndroidProcessStateDiedEvent process_state_died_event = 2023;
   }
 }

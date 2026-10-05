@@ -489,3 +489,114 @@ class AndroidParser(TestSuite):
           2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",7,0
           "[NULL]",500,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1
         """))
+
+  def test_android_process_state_died(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          [com.android.internal.FrameworksBaseTracePacket.android_process_state] {
+            dump_reason: DUMP_REASON_START
+            record { pid: 100 uid: 10050 process_name: "com.example.a" start_seq_id: 1 }
+            record { pid: 200 uid: 10060 process_name: "com.example.b" start_seq_id: 2 }
+          }
+        }
+        # pid 100 has a state change before dying: initial state comes from the
+        # earlier state change, not process_state_died.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_state_changed"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10050
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              prev_oom_score: 0
+              cur_oom_score: 900
+              prev_capability_flags: 1
+              cur_capability_flags: 0
+              reason: OOM_ADJ_REASON_ACTIVITY
+              seq_id: 5
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_state_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+              pid: 100
+              uid: 10050
+              prev_proc_state: PROCESS_STATE_CACHED_EMPTY
+              prev_oom_score: 900
+              prev_capability_flags: 0
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3001
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 100
+              uid: 10050
+              start_seq_id: 1
+            }
+          }
+        }
+        # pid 200 never changed state before dying and is not in the END dump:
+        # initial state comes from process_state_died.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4000
+          track_event {
+            type: TYPE_INSTANT
+            name: "process_state_died"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_died_event] {
+              pid: 200
+              uid: 10060
+              prev_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_oom_score: 200
+              prev_capability_flags: 4
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 4001
+          track_event {
+            type: TYPE_INSTANT
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              pid: 200
+              uid: 10060
+              start_seq_id: 2
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.is_initial
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,1
+          2000,100,"PROCESS_STATE_CACHED_EMPTY",900,0,0
+          "[NULL]",200,"PROCESS_STATE_FOREGROUND_SERVICE",200,4,1
+        """))

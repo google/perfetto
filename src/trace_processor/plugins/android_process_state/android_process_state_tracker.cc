@@ -119,6 +119,33 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   process_state_table_->Insert(row);
 }
 
+void AndroidProcessStateTracker::ParseProcessStateDied(
+    int64_t ts,
+    protozero::ConstBytes bytes) {
+  fb::AndroidProcessStateDiedEvent::Decoder p(bytes);
+  if (!p.has_pid() || p.pid() <= 0) {
+    return;
+  }
+  std::optional<UniquePid> opt_upid =
+      context_->process_tracker->GetProcessOrNull(
+          static_cast<uint32_t>(p.pid()));
+  if (!opt_upid) {
+    return;
+  }
+  ProcessStateValues prev;
+  prev.upid = *opt_upid;
+  if (p.has_prev_proc_state()) {
+    prev.proc_state = static_cast<int32_t>(p.prev_proc_state());
+  }
+  if (p.has_prev_oom_score()) {
+    prev.oom_score = p.prev_oom_score();
+  }
+  if (p.has_prev_capability_flags()) {
+    prev.capability_flags = p.prev_capability_flags();
+  }
+  UpdateInitialStateFromDelta(ts, prev);
+}
+
 void AndroidProcessStateTracker::ParseProcessStateDump(
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
