@@ -36,6 +36,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "src/tracing/service/service_ring_buffer_drainer.h"
 
 // This header contains the declarations for the 3 abtract classes
 // (ProducerEndpointImpl, ConsumerEndpointImpl, RelayEndpointImpl).
@@ -55,7 +56,9 @@ struct TracingSession;
 struct TriggerInfo;
 
 // The implementation behind the service endpoint exposed to each producer.
-class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
+class ProducerEndpointImpl
+    : public TracingService::ProducerEndpoint,
+      public tracing_v2::ServiceRingBufferDrainer::Delegate {
  public:
   ProducerEndpointImpl(ProducerID,
                        const ClientIdentity& client_identity,
@@ -66,7 +69,8 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
                        const std::string& machine_name,
                        const std::string& sdk_version,
                        bool in_process,
-                       bool smb_scraping_enabled);
+                       bool smb_scraping_enabled,
+                       uint32_t protocol_abi_versions);
   ~ProducerEndpointImpl() override;
 
   // TracingService::ProducerEndpoint implementation.
@@ -113,6 +117,23 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
     if (it != writers_.end())
       return it->second;
     return std::nullopt;
+  }
+
+  // TracingService::ProducerEndpoint implementation for tracing v2.
+  void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
+                          uint32_t chunk_size_bytes,
+                          std::function<void(bool)>) override;
+  void DrainV2RingBuffer() override;
+
+  // tracing_v2::ServiceRingBufferDrainer::Delegate implementation.
+  TraceBufferV2* GetRingBufferDestination(BufferID) override;
+  void ForEachRingBufferDestination(
+      const std::function<void(TraceBufferV2&)>& callback) override;
+  void OnRingBufferChunksDiscarded(uint64_t count) override;
+
+  // Mapping size for the memory guardrail. Zero if no ring buffer is attached.
+  size_t ring_buffer_size_bytes() const {
+    return v2_ring_buffer_drainer_ ? v2_ring_buffer_drainer_->size_bytes() : 0;
   }
 
   bool IsShmemEmulated() { return shmem_abi_.use_shmem_emulation(); }
@@ -162,6 +183,15 @@ class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
   // SharedMemoryArbiterImpl methods themselves are thread-safe.
   std::unique_ptr<SharedMemoryArbiterImpl> inproc_shmem_arbiter_;
 
+  // Bitmask of the common versions supplied to ConnectProducer(). Fixed for
+  // the connection.
+  const uint32_t protocol_abi_versions_;
+
+  // |v2_ring_buffer_drainer_| owns the reader and keeps the ring buffer mapped.
+  // The reader's destination checks use |allowed_target_buffers_|.
+  // DisconnectProducer() runs the final drain through |v2_ring_buffer_drainer_|
+  // before |allowed_target_buffers_| is destroyed.
+  std::unique_ptr<tracing_v2::ServiceRingBufferDrainer> v2_ring_buffer_drainer_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;
 };

@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/tracing/ipc/memfd.h"
 
 namespace perfetto::tracing_v2 {
 
@@ -49,6 +50,29 @@ namespace perfetto::tracing_v2 {
 //   number of published fragments while the chunk belongs to a writer.
 //
 // The ABI assumes little-endian producer and service processes.
+
+// Sharing over IPC
+// ----------------
+//
+// A producer in another process shares the ring buffer with the service as a
+// sealed memfd. Without memfd, IPC producers and services use only v1.
+//
+// IPC code uses the two checks below, not memfd directly. If tracing v2 ever
+// needs more from the platform, only these checks change.
+
+// Build-time check. True if the build has the memfd code.
+// It guards the code that shares the memfd. Part of that code, such as
+// PosixSharedMemory, does not build on Windows.
+#define PERFETTO_TRACING_V2_IPC() PERFETTO_MEMFD_ENABLED()
+
+// Runtime check. True if the kernel supports memfd.
+// Always false when PERFETTO_TRACING_V2_IPC() is false.
+//
+// Only IPC code may call this. HasMemfdSupport() is in src/tracing/ipc:common,
+// which only IPC builds have.
+inline bool IpcSupportsTracingV2() {
+  return HasMemfdSupport();
+}
 
 // Shared-memory layout
 // --------------------

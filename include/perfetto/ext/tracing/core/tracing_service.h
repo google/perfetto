@@ -49,6 +49,55 @@ class ClientIdentity;
 // TODO: for the moment this assumes that all the calls happen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.
 
+// A shared memory layout and the operations that send its data to the service.
+// Each version is independent. Support for v2 does not imply support for v1.
+//
+// Each value is a single bit. Peers exchange and store a set of versions as a
+// uint32_t mask, e.g. kProtocolAbiV1 | kProtocolAbiV2.
+// A new version must take the next unused bit: 1 << 2, then 1 << 3.
+//
+// At connection setup:
+// - The producer sends the mask of versions it supports in
+//   InitializeConnection.
+// - The service returns the mask of versions that both sides support.
+// - An old peer sends no mask. This means v1 only.
+// - No common version means the connection fails.
+// The proto enum in protos/perfetto/ipc/producer_port.proto has the same
+// values.
+//
+// The common mask stays fixed for the connection. A writer must use one of
+// these versions that its data source config and target buffer permit.
+//
+// A layout change that an old peer cannot read needs a new version.
+enum ProtocolAbiVersion : uint32_t {
+  // The original protocol.
+  // - The producer and the service share one shared memory buffer (SMB) of
+  //   pages and chunks.
+  // - Writers fill chunks. The producer tells the service which chunks are
+  //   complete with CommitData() IPCs.
+  // - Lengths of nested messages that cross a chunk are patched later, usually
+  //   through CommitData().
+  // Layout: include/perfetto/ext/tracing/core/shared_memory_abi.h.
+  // Docs: https://perfetto.dev/docs/design-docs/api-and-abi#shmem-abi.
+  kProtocolAbiV1 = 1 << 0,
+
+  // Tracing v2. It is still under development and its ABI is not stable yet.
+  //
+  // The producer allocates a ring buffer:
+  // - AttachV2RingBuffer() shares it with the service, once.
+  // - Writers append chunks and never patch them. Nested messages use proto
+  //   group encoding, so no length needs a patch.
+  // - DrainV2RingBuffer() asks the service to read it. There is no CommitData()
+  //   for these chunks.
+  // A connection can use both writer types only if both versions are in the
+  // common mask. A writer sequence must use one format throughout its life.
+  // Layout: src/tracing/v2/shared_ring_buffer_abi.h.
+  // Design: RFC-0014, https://github.com/google/perfetto/discussions/4508.
+  // Ring buffer ABI: RFC-0046,
+  // https://github.com/google/perfetto/discussions/7120.
+  kProtocolAbiV2 = 1 << 1,
+};
+
 // The API for the Producer port of the Service.
 // Subclassed by:
 // 1. The tracing_service_impl.cc business logic when returning it in response
@@ -96,6 +145,32 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
                           CommitDataCallback callback = {}) = 0;
 
   virtual SharedMemory* shared_memory() const = 0;
+
+  // Attaches the producer's tracing v2 ring buffer to the service, which
+  // installs a reader for it. The producer calls this on the endpoint
+  // sequence, before any DrainV2RingBuffer().
+  // - The producer owns |memory| and keeps it mapped for its writers.
+  // - Over IPC, ProducerIPCClientImpl sends the descriptor of |memory| in the
+  //   AttachV2RingBuffer IPC. ProducerIPCService maps it and calls this on the
+  //   service's ProducerEndpointImpl.
+  // - The ring buffer must be new: the reader starts at position 0. A ring
+  //   buffer that another reader drained fails on the first drain.
+  //
+  // Results:
+  // - Accepted: the layout is valid and the reader exists. Data that the
+  //   producer published before the call is kept. The service takes a
+  //   reference to |memory| and keeps it until the producer disconnects.
+  // - Rejected: the connection and any existing attachment stay unchanged.
+  //   The service keeps no reference to |memory|.
+  //   If no ring buffer is attached, the producer can retry with a valid
+  //   mapping.
+  // - |callback| runs on the endpoint sequence, possibly inline.
+  // - |memory| refers to the caller's shared_ptr, and |callback| may reset it.
+  //   An implementation that needs the mapping after running |callback| must
+  //   copy |memory| first.
+  virtual void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>& memory,
+                                  uint32_t chunk_size_bytes,
+                                  std::function<void(bool)> callback);
 
   // Requests a drain of the tracing v2 ring buffer, the equivalent of
   // CommitData() for the v2 protocol.
@@ -439,6 +514,9 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   // Producer::StartDataSource(). The |shm| will also be rejected when
   // connecting to a service that is too old (pre Android-11).
   //
+  // |protocol_abi_versions| is a bitmask of the ProtocolAbiVersion values that
+  // both peers support. It must not be zero. The default is v1 only.
+  //
   // Can return null in the unlikely event that service has too many producers
   // connected.
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
@@ -452,7 +530,8 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
-      const std::string& machine_name = {}) = 0;
+      const std::string& machine_name = {},
+      uint32_t protocol_abi_versions = kProtocolAbiV1) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.
