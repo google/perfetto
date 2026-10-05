@@ -264,6 +264,7 @@ packet {
     name: "process_died"
     [com.android.internal.FrameworksBaseTrackEvent.process_died_event] {
       pid: 901
+      start_seq_id: 90
       reason: APP_EXIT_REASON_CRASH
     }
   }

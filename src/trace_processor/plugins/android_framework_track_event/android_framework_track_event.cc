@@ -78,6 +78,9 @@ class AndroidTrackEventProcessTableHolder {
   // start_seq_id must go through here to keep the index in sync.
   void SetStartSeqId(AndroidTrackEventProcessTable::RowReference row,
                      int64_t start_seq_id) {
+    if (row.start_seq_id().has_value() && *row.start_seq_id() != start_seq_id) {
+      start_seq_id_to_row_.Erase(*row.start_seq_id());
+    }
     row.set_start_seq_id(start_seq_id);
     start_seq_id_to_row_[start_seq_id] = row.id();
   }
@@ -163,7 +166,7 @@ class Parser : public TrackEventExtensionParser {
 
   void HandleProcessStart(protozero::ConstBytes data, int64_t ts) {
     AndroidProcessStartEvent::Decoder evt(data);
-    if (!evt.has_pid()) {
+    if (!evt.has_pid() || evt.pid() <= 0) {
       return;
     }
     UniquePid upid = trace_context_->process_tracker->GetOrCreateProcess(
@@ -218,7 +221,7 @@ class Parser : public TrackEventExtensionParser {
   // ended and possibly reused by another process.
   std::optional<AndroidTrackEventProcessTable::RowReference>
   ResolveDyingProcess(uint32_t pid, std::optional<int64_t> start_seq_id) {
-    if (auto row = table_->FindRowByStartSeqId(*start_seq_id)) {
+    if (auto row = table_->FindRowByStartSeqId(start_seq_id)) {
       auto process = trace_context_->storage->process_table()[row->upid()];
       if (process.pid() != pid) {
         return std::nullopt;
@@ -288,12 +291,12 @@ class Parser : public TrackEventExtensionParser {
     if (!row) {
       return;
     }
-    if (evt.has_reason()) {
+    if (!row->exit_reason().has_value() && evt.has_reason()) {
       row->set_exit_reason(InternEnum(exit_reason_cache_,
                                       ".com.android.internal.AppExitReasonCode",
                                       static_cast<int32_t>(evt.reason())));
     }
-    if (evt.has_sub_reason()) {
+    if (!row->exit_sub_reason().has_value() && evt.has_sub_reason()) {
       row->set_exit_sub_reason(InternEnum(
           exit_sub_reason_cache_, ".com.android.internal.AppExitSubReasonCode",
           static_cast<int32_t>(evt.sub_reason())));
@@ -303,10 +306,12 @@ class Parser : public TrackEventExtensionParser {
   StringId InternEnum(DescriptorPool::CachedDescriptor& cache,
                       const char* enum_name,
                       int32_t value) {
-    auto name = trace_context_->descriptor_pool_->FindEnumString(
-        cache, enum_name, value);
+    if (auto name = trace_context_->descriptor_pool_->FindEnumString(
+            cache, enum_name, value)) {
+      return trace_context_->storage->InternString(base::StringView(*name));
+    }
     return trace_context_->storage->InternString(
-        base::StringView(name ? *name : std::to_string(value)));
+        base::StringView(std::to_string(value)));
   }
 
   TraceProcessorContext* trace_context_;
