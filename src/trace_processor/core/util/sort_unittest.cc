@@ -47,7 +47,7 @@ struct TestEntryString {
 TEST(RadixSort, SmokeTest) {
   std::vector<uint32_t> data = {3, 1, 4, 1, 5, 9, 2, 6};
   std::vector<uint32_t> scratch(data.size());
-  std::vector<uint32_t> counts(RadixSortCountsSize(32));
+  std::vector<uint32_t> counts(RadixSortCountsSize(32, data.size()));
 
   uint32_t* result =
       RadixSort(data.data(), data.data() + data.size(), scratch.data(),
@@ -72,7 +72,7 @@ TEST(RadixSort, MatchesStableSort) {
         data[i] = {constant | (r & varying), i};
       }
       std::vector<TestEntry64> scratch(data.size());
-      std::vector<uint32_t> counts(RadixSortCountsSize(key_bits));
+      std::vector<uint32_t> counts(RadixSortCountsSize(key_bits, data.size()));
       TestEntry64* result = RadixSort(
           data.data(), data.data() + data.size(), scratch.data(), counts.data(),
           key_bits, [](const TestEntry64& x) { return x.key; });
@@ -94,7 +94,7 @@ TEST(RadixSort, Stability) {
   std::vector<TestEntry> data = {{3, 0}, {1, 1}, {4, 2}, {1, 3},
                                  {5, 4}, {9, 5}, {2, 6}, {6, 7}};
   std::vector<TestEntry> scratch(data.size());
-  std::vector<uint32_t> counts(RadixSortCountsSize(32));
+  std::vector<uint32_t> counts(RadixSortCountsSize(32, data.size()));
 
   TestEntry* result =
       RadixSort(data.data(), data.data() + data.size(), scratch.data(),
