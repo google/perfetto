@@ -217,7 +217,7 @@ perfetto_aggregate_list(A) ::= perfetto_aggregate(X). {
     A = synq_parse_perfetto_aggregate_list(pCtx, SYNTAQLITE_NULL_NODE, X);
 }
 perfetto_aggregate_list(A) ::= perfetto_aggregate_list(L) COMMA
-                                    perfetto_aggregate(X). {
+                               perfetto_aggregate(X). {
     A = synq_parse_perfetto_aggregate_list(pCtx, L, X);
 }
 
