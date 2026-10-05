@@ -69,6 +69,8 @@ source_set("minimal") {
     "tracing_service_module.h",
     "track_event_arg_fields.cc",
     "track_event_arg_fields.h",
+    "track_event_dimension_resolver.cc",
+    "track_event_dimension_resolver.h",
     "track_event_event_importer.h",
     "track_event_extension_parser.cc",
     "track_event_extension_parser.h",

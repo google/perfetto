@@ -153,7 +153,8 @@ std::pair<uint32_t, StringId> GetMergeKey(
 }  // namespace
 
 TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
-    : source_key_(context->storage->InternString("source")),
+    : dimension_resolver_(context),
+      source_key_(context->storage->InternString("source")),
       source_id_key_(context->storage->InternString("trace_id")),
       is_root_in_scope_key_(context->storage->InternString("is_root_in_scope")),
       category_key_(context->storage->InternString("category")),
@@ -746,6 +747,7 @@ void TrackEventTracker::OnEventsFullyExtracted() {
                    : nullptr;
     RecordDeclaredDimensions(uuid, id ? std::make_optional(*id) : std::nullopt);
   }
+  dimension_resolver_.ResolveAll();
 }
 
 void TrackEventTracker::RecordDeclaredDimensions(
@@ -779,21 +781,25 @@ void TrackEventTracker::RecordDeclaredDimensions(
     return;
   }
   state->dimensions_recorded = true;
+  const auto& dims = state->reservation.dimensions;
   auto* table = context_->storage->mutable_track_dimension_decl_table();
-  for (const auto& dim : state->reservation.dimensions) {
+  for (const auto& dim : dims) {
     tables::TrackDimensionDeclTable::Row row;
     row.declaring_track_id = track_id;
     row.name = dim.name;
     row.int_value = dim.int_value;
-    row.string_value = dim.string_value.is_null()
-                           ? std::nullopt
-                           : std::make_optional(dim.string_value);
-    row.display_name = dim.display_name.is_null()
-                           ? std::nullopt
-                           : std::make_optional(dim.display_name);
+    row.string_value = dim.string_value;
+    row.display_name = dim.display_name;
     row.upid = upid;
     row.utid = utid;
     table->Insert(row);
+  }
+  if (upid) {
+    dimension_resolver_.DeclareForProcess(*upid, dims);
+  } else if (utid) {
+    dimension_resolver_.DeclareForThread(*utid, dims);
+  } else {
+    dimension_resolver_.DeclareForTrack(*track_id, dims);
   }
 }
 

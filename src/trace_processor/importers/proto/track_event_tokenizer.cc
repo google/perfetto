@@ -480,7 +480,7 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
       key += std::to_string(*dim->int_value);
     } else {
       key += '\'';
-      key += storage->GetString(dim->string_value).ToStdString();
+      key += storage->GetString(*dim->string_value).ToStdString();
       key += '\'';
     }
   }
