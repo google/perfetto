@@ -88,6 +88,11 @@
 
 .pf-hde-dump-selector__label {
   color: var(--pf-color-text-hint);
+
+  // Starts the group picking the flamegraph's baseline dump.
+  &--baseline {
+    margin-left: 1rem;
+  }
 }
 
 .pf-hde-error-text {

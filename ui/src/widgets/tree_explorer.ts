@@ -57,6 +57,10 @@ export type TreeExplorerPropertyDefinition = {
   value: string;
   isVisible: boolean;
   isAggregatable: boolean;
+  // The value only has meaning within the tree it was read from (e.g. an id,
+  // or a hash of one), so it never matches between two trees: diffs pair
+  // nodes ignoring it.
+  profileSpecific?: boolean;
 };
 
 export interface TreeExplorerNode {
@@ -71,6 +75,11 @@ export interface TreeExplorerNode {
   readonly marker?: string;
   readonly xStart: number;
   readonly xEnd: number;
+  // Only set in a diff (see TreeExplorerData.diff): the node's values in the
+  // baseline tree, while selfValue/cumulativeValue hold its values in the
+  // current tree. A node missing from one of the trees has 0 values there.
+  readonly baselineSelfValue?: number;
+  readonly baselineCumulativeValue?: number;
 }
 
 export interface TreeExplorerData {
@@ -81,6 +90,23 @@ export interface TreeExplorerData {
   readonly maxDepth: number;
   readonly nodeActions: ReadonlyArray<TreeExplorerOptionalAction>;
   readonly rootActions: ReadonlyArray<TreeExplorerOptionalAction>;
+  // Set when the data is the diff of a current tree against a baseline tree
+  // (see tree_explorer_diff.ts). The fields above then describe the current
+  // tree, and every node carries its baseline values too.
+  readonly diff?: TreeExplorerDiffSummary;
+}
+
+export interface TreeExplorerDiffSummary {
+  // The baseline tree's unfilteredCumulativeValue / allRootsCumulativeValue.
+  readonly baselineUnfilteredCumulativeValue: number;
+  readonly baselineAllRootsCumulativeValue: number;
+  // Extent of the x axis the nodes' xStart/xEnd are laid out on. Unlike in a
+  // single tree, node widths need not be the current values (see
+  // TreeExplorerComparison.width).
+  readonly layoutWidth: number;
+  // Largest absolute cumulative change of any node or of the root: the scale
+  // of ABSOLUTE diff coloring.
+  readonly maxAbsDelta: number;
 }
 
 const TREE_EXPLORER_FILTER_SCHEMA = z
@@ -119,6 +145,36 @@ const TREE_EXPLORER_VIEW_SCHEMA = z
 
 export type TreeExplorerView = z.infer<typeof TREE_EXPLORER_VIEW_SCHEMA>;
 
+// How a tree is compared against a baseline tree. Only has an effect when the
+// host supplies a baseline (see TreeExplorerPanelAttrs.baseline).
+const TREE_EXPLORER_COMPARISON_SCHEMA = z
+  .object({
+    // What the views show: the diff of the current tree against the
+    // baseline, or one of the two trees on its own.
+    show: z.enum(['DIFF', 'CURRENT', 'BASELINE']),
+    // What the widths of diff nodes are proportional to: the sum of both
+    // trees' values, so nodes of either tree are visible, or the values of a
+    // single tree, which hides the nodes only the other tree has.
+    width: z.enum(['COMBINED', 'CURRENT', 'BASELINE']),
+    // What the colors of diff nodes encode: the change relative to the
+    // largest change in the tree (ABSOLUTE), or relative to the node's own
+    // baseline value (RELATIVE).
+    color: z.enum(['ABSOLUTE', 'RELATIVE']),
+  })
+  .readonly();
+
+export type TreeExplorerComparison = z.infer<
+  typeof TREE_EXPLORER_COMPARISON_SCHEMA
+>;
+export type TreeExplorerDiffWidth = TreeExplorerComparison['width'];
+export type TreeExplorerDiffColor = TreeExplorerComparison['color'];
+
+export const DEFAULT_TREE_EXPLORER_COMPARISON: TreeExplorerComparison = {
+  show: 'DIFF',
+  width: 'COMBINED',
+  color: 'ABSOLUTE',
+};
+
 export const TREE_EXPLORER_STATE_SCHEMA = z
   .object({
     selectedMetricId: z.string().readonly(),
@@ -129,11 +185,20 @@ export const TREE_EXPLORER_STATE_SCHEMA = z
     displayMode: z.enum(['flamegraph', 'tree', 'flat']).default('flamegraph'),
     filters: z.array(TREE_EXPLORER_FILTER_SCHEMA),
     view: TREE_EXPLORER_VIEW_SCHEMA,
+    // Undefined means DEFAULT_TREE_EXPLORER_COMPARISON: read it through
+    // getTreeExplorerComparison().
+    comparison: TREE_EXPLORER_COMPARISON_SCHEMA.optional(),
   })
   .readonly();
 
 export type TreeExplorerState = z.infer<typeof TREE_EXPLORER_STATE_SCHEMA>;
 export type TreeExplorerDisplayMode = TreeExplorerState['displayMode'];
+
+export function getTreeExplorerComparison(
+  state: TreeExplorerState,
+): TreeExplorerComparison {
+  return state.comparison ?? DEFAULT_TREE_EXPLORER_COMPARISON;
+}
 
 export interface TreeExplorerMetric {
   // Stable identity used in persisted state. Defaults to `name`.
@@ -275,10 +340,7 @@ export function updateTreeExplorerState(
     return state;
   }
   return {
-    filters: state.filters,
-    view: state.view,
-    addedMetricIds: state.addedMetricIds,
-    displayMode: state.displayMode,
+    ...state,
     selectedMetricId: metricId(metrics[0]),
   };
 }

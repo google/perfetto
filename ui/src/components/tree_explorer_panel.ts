@@ -36,6 +36,14 @@ import {
   buildFlatExportString,
 } from './tree_explorer_table_views';
 import {Tabs} from '../widgets/tabs';
+import {
+  type TreeExplorerBaseline,
+  TreeExplorerPanelDiff,
+  exportDiffSuffix,
+  renderTreeExplorerDiffControls,
+} from './tree_explorer_panel_diff';
+
+export type {TreeExplorerBaseline} from './tree_explorer_panel_diff';
 
 export interface TreeExplorerPanelAttrs {
   // The fetcher supplying the tree, or undefined to show a pending state.
@@ -57,6 +65,11 @@ export interface TreeExplorerPanelAttrs {
   // Host-provided downloads shown alongside the built-in exports of the
   // displayed tree, for representations the panel cannot build itself.
   readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
+
+  // Opts into comparing the tree against a baseline tree: adds controls
+  // choosing (in `state.comparison`) whether the views show the diff of the
+  // two trees (see tree_explorer_diff.ts) or either tree on its own.
+  readonly baseline?: TreeExplorerBaseline;
 }
 
 // The batteries-included tree explorer: a tab bar switching between the
@@ -72,15 +85,18 @@ export interface TreeExplorerPanelAttrs {
 // panel.
 export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttrs> {
   private highlightPattern = '';
+  private readonly diff = new TreeExplorerPanelDiff();
 
   view({attrs}: m.CVnode<TreeExplorerPanelAttrs>): m.Children {
     const {fetcher, state = createDefaultTreeExplorerState(fetcher.metrics)} =
       attrs;
     const metrics = fetcher?.metrics;
-    const data =
-      fetcher !== undefined && state !== undefined
-        ? fetcher.use({...state, view: effectiveView(state)}).data
-        : undefined;
+    const {data, shown, compareDisabledReason} = this.diff.shownData(
+      fetcher,
+      attrs.baseline,
+      state,
+      effectiveView,
+    );
 
     const shownState = state ?? {
       view: {kind: 'TOP_DOWN' as const},
@@ -127,11 +143,11 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
                       );
                 },
           exportFileBaseName:
-            displayMode === 'flat'
+            (displayMode === 'flat'
               ? 'functions'
               : displayMode === 'tree'
                 ? 'call_tree'
-                : 'flamegraph',
+                : 'flamegraph') + exportDiffSuffix(shown),
           extraDownloadItems: attrs.extraDownloadItems,
         }),
         children,
@@ -164,6 +180,13 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
             displayMode: key as TreeExplorerDisplayMode,
           });
         },
+        rightContent: renderTreeExplorerDiffControls(
+          attrs.baseline,
+          shownState,
+          attrs.onStateChange,
+          displayMode,
+          compareDisabledReason,
+        ),
         tabs: [
           {
             key: 'flamegraph',

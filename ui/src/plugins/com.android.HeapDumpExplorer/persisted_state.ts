@@ -45,6 +45,8 @@ export const HDE_STATE_SCHEMA = z
     // The selected heap dump; identifies which dump the rest of the state
     // belongs to. Restore is skipped if it no longer matches a loaded dump.
     activeDump: DUMP_REF_SCHEMA.optional(),
+    // The dump the Flamegraph tab compares the active dump against, if any.
+    baselineDump: DUMP_REF_SCHEMA.optional(),
     // The active navigation, as a stateToSubpage subpage string.
     nav: z.string().optional(),
     // Open "Flamegraph objects" drill-down tabs. The active one is not stored;

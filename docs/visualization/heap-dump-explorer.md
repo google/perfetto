@@ -234,9 +234,10 @@ it. It is usually the fastest way to spot that one subtree of the
 heap is disproportionately large.
 
 The same flamegraph appears in the timeline when you click a heap
-dump diamond in an _"ART heap dump"_ track — every feature below works
-identically there. A few extras that only exist in the timeline
-variant are covered at the end under
+dump diamond in an _"ART heap dump"_ track — every feature below but
+[comparing two dumps](#comparing-two-heap-dumps) works identically
+there. A few extras that only exist in the timeline variant are
+covered at the end under
 [the timeline flamegraph](#the-timeline-flamegraph).
 
 ![Timeline on top, heap graph flamegraph in the bottom panel after clicking the heap dump diamond on the process track.](../images/heap_docs/14-flamegraph-bottom-panel.png)
@@ -447,6 +448,63 @@ everything you can do from a node:
 Actions launched from a node match that node exactly (the pattern is
 anchored as `^name$`), so filtering on `java.lang.String` will not
 accidentally match `java.lang.StringBuilder`.
+
+### Comparing two heap dumps
+
+NOTE: Comparing is only available on the explorer's Flamegraph tab; the
+timeline flamegraph always shows a single dump.
+
+When the trace holds more than one heap dump, the Flamegraph tab can
+show how the heap changed between two of them, e.g. between a dump
+taken before and one taken after repeating a suspected leak a few
+times. Pick the earlier dump in the _Compare with:_ menu next to the
+_Heap dump:_ selector: the flamegraph then shows the tree of the active
+dump diffed against the tree of that _baseline_ dump.
+
+- Nodes are paired across the two dumps by their path of class names
+  (and their Root Type and Heap Type), so the same reference chain
+  lines up in both dumps even though the objects themselves differ.
+- **Red** nodes grew, **green** nodes shrank and grey ones did not
+  change; the legend at the right of the tab bar reads from _Shrank_
+  to _Grew_.
+- A node's width is proportional to the sum of its values in both
+  dumps, so that nodes only one of the dumps has are visible too.
+- Hovering a node shows its Cumulative and Self values in the baseline
+  and in the current dump and how they changed. The `root` row
+  summarizes the change of the whole dump, e.g.
+  `root: 20.10 MiB → 24.50 MiB (+4.40 MiB, +21.89%)`.
+- The diff's tooltips, copied stacks and exports leave out the Self
+  Count, which belongs to a single dump: switch to the _Object Count_
+  metric to compare the numbers of objects instead.
+
+The _Diff_ switch at the right of the tab bar turns the diff off; the
+_Baseline_ / _Current_ toggle then shows either dump on its own, with
+the same metric and filters, to flip between the two. While diffing,
+the tune button next to the legend changes how the diff is drawn:
+
+- **Node width** — _Baseline + current_ (the default) or the values of
+  a single dump, _Current_ or _Baseline_, which sizes nodes like that
+  dump's own flamegraph and hides the nodes only the other dump has.
+- **Node color** — _Absolute change_ (the default) colors nodes by
+  their change relative to the largest change in the tree, so that the
+  biggest movers stand out. _Relative change_ colors them by their
+  change relative to their own baseline value, saturating at ±100%, so
+  that small classes which doubled stand out too.
+
+The _Call Tree_ and _Functions_ tabs show the same diff as tables,
+with baseline, change (`Δ`) and relative change (`Δ %`) columns,
+largest growth first. Exports of the diff hold the baseline and current
+values of each row and their change, in files ending in `_diff` (or in
+`_baseline` when showing the baseline dump). The _Pprof profile_
+download always holds a single dump: the baseline dump when showing it,
+otherwise the active dump.
+
+In the diff, node actions such as _Show objects from this class_ act on
+the active dump, so they are not offered on nodes only the baseline
+has. When showing the baseline dump they act on that dump, and showing
+its objects makes it the active dump. The _View in Flamegraph_ buttons
+of an object tab pivot on a path of the active dump, so they show the
+active dump on its own.
 
 ### The timeline flamegraph
 

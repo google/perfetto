@@ -52,9 +52,23 @@ import {
   addFilter,
   displayPercentage,
   displaySize,
+  getTreeExplorerComparison,
   getUnitDisplayName,
   metricId,
 } from './tree_explorer';
+import {
+  isPairingProperty,
+  treeExplorerDiffColor,
+  treeExplorerDiffScore,
+} from './tree_explorer_diff';
+import {
+  buildFlamegraphDiffExportString,
+  filterDiffHostActions,
+  flamegraphDiffRootLabel,
+  formatDiffStackColumns,
+  renderFlamegraphDiffNodeTooltip,
+  renderFlamegraphDiffRootTooltip,
+} from './flamegraph_diff';
 
 const LABEL_FONT_STYLE = '12px Roboto';
 const NODE_HEIGHT = 20;
@@ -423,7 +437,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           this.attrs.data,
           this.zoomRegion ?? {
             queryXStart: 0,
-            queryXEnd: this.attrs.data.allRootsCumulativeValue,
+            queryXEnd: layoutWidth(this.attrs.data),
             type: 'ROOT',
           },
           size.width,
@@ -447,9 +461,38 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     const yStart = canvasRect.top;
     const yEnd = canvasRect.bottom;
 
-    const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes} =
+    const {allRootsCumulativeValue, unfilteredCumulativeValue, nodes, diff} =
       this.attrs.data;
     const unit = ensureExists(this.selectedMetric).unit;
+    const rootLabel =
+      diff === undefined
+        ? `root: ${displaySize(allRootsCumulativeValue, unit)} (${displayPercentage(
+            allRootsCumulativeValue,
+            unfilteredCumulativeValue,
+          )})`
+        : flamegraphDiffRootLabel(
+            diff.baselineAllRootsCumulativeValue,
+            allRootsCumulativeValue,
+            unit,
+          );
+    const diffColor = getTreeExplorerComparison(this.attrs.state).color;
+    // A diff colors nodes by how their value changed instead of by name.
+    const colorSchemeOf = (
+      name: string,
+      greyed: boolean,
+      baseline: number,
+      current: number,
+    ) =>
+      diff === undefined || greyed
+        ? getFlamegraphColorScheme(name, greyed)
+        : getDiffColorScheme(
+            treeExplorerDiffScore(
+              baseline,
+              current,
+              diffColor,
+              diff.maxAbsDelta,
+            ),
+          );
 
     ctx.font = LABEL_FONT_STYLE;
     ctx.textBaseline = 'middle';
@@ -472,22 +515,29 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }
 
       const hover = isIntersecting(this.hoveredX, this.hoveredY, node);
+      const greyed = state === 'PARTIAL';
       let name: string;
       let colorScheme;
       if (source.kind === 'ROOT') {
-        const val = displaySize(allRootsCumulativeValue, unit);
-        const percent = displayPercentage(
+        name = rootLabel;
+        colorScheme = colorSchemeOf(
+          'root',
+          greyed,
+          diff?.baselineAllRootsCumulativeValue ?? 0,
           allRootsCumulativeValue,
-          unfilteredCumulativeValue,
         );
-        name = `root: ${val} (${percent})`;
-        colorScheme = getFlamegraphColorScheme('root', state === 'PARTIAL');
       } else if (source.kind === 'MERGED') {
         name = '(merged)';
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        colorScheme = colorSchemeOf(name, greyed, 0, 0);
       } else {
-        name = nodes[source.queryIdx].name;
-        colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
+        const queryNode = nodes[source.queryIdx];
+        name = queryNode.name;
+        colorScheme = colorSchemeOf(
+          name,
+          greyed,
+          queryNode.baselineCumulativeValue ?? 0,
+          queryNode.cumulativeValue,
+        );
       }
       const highlighted =
         source.kind === 'NODE' &&
@@ -574,9 +624,19 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       unfilteredCumulativeValue,
       nodeActions,
       rootActions,
+      diff,
     } = ensureExists(this.attrs.data);
     const {unit, nameColumnLabel} = ensureExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
+      const actions = this.renderActionsMenu(rootActions, new Map());
+      if (diff !== undefined) {
+        return renderFlamegraphDiffRootTooltip(
+          unit,
+          diff.baselineAllRootsCumulativeValue,
+          allRootsCumulativeValue,
+          actions,
+        );
+      }
       const val = displaySize(allRootsCumulativeValue, unit);
       const percent = displayPercentage(
         allRootsCumulativeValue,
@@ -589,7 +649,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
           '.tooltip-text-line',
           m('.tooltip-bold-text', 'Cumulative:'),
           m('.tooltip-text', `${val}, ${percent}`),
-          this.renderActionsMenu(rootActions, new Map()),
+          actions,
         ),
       );
     }
@@ -634,24 +694,32 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         m('.tooltip-bold-text', `${nameLabel}:`),
         m('.tooltip-text', name),
       ),
-      m(
-        '.tooltip-text-line',
-        m('.tooltip-bold-text', 'Cumulative:'),
-        m(
-          '.tooltip-text',
-          `${displaySize(cumulativeValue, unit)} (${percentText})`,
-        ),
-      ),
-      m(
-        '.tooltip-text-line',
-        m('.tooltip-bold-text', 'Self:'),
-        m(
-          '.tooltip-text',
-          `${displaySize(selfValue, unit)} (${selfPercentText})`,
-        ),
-      ),
+      diff === undefined
+        ? [
+            m(
+              '.tooltip-text-line',
+              m('.tooltip-bold-text', 'Cumulative:'),
+              m(
+                '.tooltip-text',
+                `${displaySize(cumulativeValue, unit)} (${percentText})`,
+              ),
+            ),
+            m(
+              '.tooltip-text-line',
+              m('.tooltip-bold-text', 'Self:'),
+              m(
+                '.tooltip-text',
+                `${displaySize(selfValue, unit)} (${selfPercentText})`,
+              ),
+            ),
+          ]
+        : renderFlamegraphDiffNodeTooltip(unit, nodes[queryIdx]),
       Array.from(properties, ([_, value]) => {
-        if (value.isVisible) {
+        // In a diff, only the pairing properties are those of both trees.
+        if (
+          value.isVisible &&
+          (diff === undefined || isPairingProperty(value))
+        ) {
           return m(
             '.tooltip-text-line',
             m('.tooltip-bold-text', value.displayName + ':'),
@@ -675,11 +743,16 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   ) {
     const {properties} = node;
     const builtIn = this.buildNodeActions(source, name, node);
+    const hostActions = filterDiffHostActions(
+      nodeActions,
+      this.attrs.data?.diff !== undefined,
+      node.cumulativeValue,
+    );
 
     const isFlat = (a: TreeExplorerOptionalAction) =>
       a.execute !== undefined &&
       (a.subActions === undefined || a.subActions.length === 0);
-    const embedderFlat: NodeAction[] = nodeActions.filter(isFlat).map((a) => ({
+    const embedderFlat: NodeAction[] = hostActions.filter(isFlat).map((a) => ({
       label: a.name,
       icon: a.icon ?? 'open_in_new',
       description: a.description,
@@ -692,7 +765,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         this.tooltipPos = undefined;
       },
     }));
-    const embedderComplex = nodeActions
+    const embedderComplex = hostActions
       .filter((a) => !isFlat(a))
       .map((a) => this.renderMenuItem(a, properties, node));
 
@@ -943,7 +1016,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     node: TreeExplorerNode,
     withDetails: boolean,
   ): string {
-    const {nodes, unfilteredCumulativeValue} = ensureExists(this.attrs.data);
+    const {nodes, unfilteredCumulativeValue, diff} = ensureExists(
+      this.attrs.data,
+    );
     const metric = ensureExists(this.selectedMetric);
     const view = this.attrs.state.view;
 
@@ -968,11 +1043,15 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       return stack.map((n) => n.name).join('\n');
     }
 
-    // Collect all unique property keys, separated by aggregatable status
+    // Collect all unique property keys, separated by aggregatable status. In
+    // a diff, only the pairing properties are those of both trees.
     const unaggKeys: string[] = [];
     const aggKeys: string[] = [];
     for (const entry of stack) {
       for (const [key, prop] of entry.properties) {
+        if (diff !== undefined && !isPairingProperty(prop)) {
+          continue;
+        }
         if (prop.isAggregatable) {
           if (!aggKeys.includes(key)) {
             aggKeys.push(key);
@@ -1032,10 +1111,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       for (const key of unaggKeys) {
         cols.push(entry.properties.get(key)?.value ?? '');
       }
-      cols.push(
-        `${cumulative} (${cumulativePercent})`,
-        `${self} (${selfPercent})`,
-      );
+      if (diff === undefined) {
+        cols.push(
+          `${cumulative} (${cumulativePercent})`,
+          `${self} (${selfPercent})`,
+        );
+      } else {
+        cols.push(...formatDiffStackColumns(entry, metric.unit));
+      }
       for (const key of aggKeys) {
         cols.push(entry.properties.get(key)?.value ?? '');
       }
@@ -1060,6 +1143,9 @@ export function buildFlamegraphExportString(
   metric: TreeExplorerMetric,
   format: ExportFormat,
 ): string {
+  if (data.diff !== undefined) {
+    return buildFlamegraphDiffExportString(data, metric, format);
+  }
   const {nodes} = data;
   const unitDisplay = getUnitDisplayName(metric.unit);
 
@@ -1122,11 +1208,18 @@ export function buildFlamegraphExportString(
   }
 }
 
+// The extent of the x axis the nodes are laid out on.
+function layoutWidth(data: TreeExplorerData): number {
+  return data.diff?.layoutWidth ?? data.allRootsCumulativeValue;
+}
+
 function computeRenderNodes(
-  {nodes, allRootsCumulativeValue, minDepth}: TreeExplorerData,
+  data: TreeExplorerData,
   zoomRegion: ZoomRegion,
   canvasWidth: number,
 ): ReadonlyArray<RenderNode> {
+  const {nodes, minDepth} = data;
+  const rootQueryXEnd = layoutWidth(data);
   const renderNodes: RenderNode[] = [];
 
   const mergedKeyToX = new Map<string, number>();
@@ -1138,12 +1231,11 @@ function computeRenderNodes(
     source: {
       kind: 'ROOT',
       queryXStart: 0,
-      queryXEnd: allRootsCumulativeValue,
+      queryXEnd: rootQueryXEnd,
       type: 'ROOT',
     },
     state:
-      zoomRegion.queryXStart === 0 &&
-      zoomRegion.queryXEnd === allRootsCumulativeValue
+      zoomRegion.queryXStart === 0 && zoomRegion.queryXEnd === rootQueryXEnd
         ? 'NORMAL'
         : 'PARTIAL',
   });
@@ -1152,6 +1244,11 @@ function computeRenderNodes(
   for (let i = 0; i < nodes.length; i++) {
     const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
     assertTrue(depth !== 0);
+    // Diff nodes which take no space (the nodes missing from the tree the
+    // widths are taken from) are not drawn.
+    if (data.diff !== undefined && qXEnd <= qXStart) {
+      continue;
+    }
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
     if (
@@ -1162,7 +1259,7 @@ function computeRenderNodes(
     }
     const queryXPerPx = depthMatchingZoom
       ? zoomQueryWidth / canvasWidth
-      : allRootsCumulativeValue / canvasWidth;
+      : rootQueryXEnd / canvasWidth;
     const relativeXStart = depthMatchingZoom
       ? qXStart - zoomRegion.queryXStart
       : qXStart;
@@ -1350,5 +1447,20 @@ function getFlamegraphColorScheme(name: string, greyed: boolean): ColorScheme {
   const base = new HSLColor({h: hue, s: 46, l: 80});
   scheme = makeColorScheme(base, base.darken(15).saturate(15));
   colorSchemeCache.set(name, scheme);
+  return scheme;
+}
+
+// Cache for the color schemes of diff nodes, by score in percent.
+const diffColorSchemeCache = new Map<number, ColorScheme>();
+
+// The color scheme of a diff node, by its treeExplorerDiffScore.
+function getDiffColorScheme(score: number): ColorScheme {
+  const percent = Math.round(score * 100);
+  let scheme = diffColorSchemeCache.get(percent);
+  if (scheme === undefined) {
+    const base = treeExplorerDiffColor(percent / 100);
+    scheme = makeColorScheme(base, base.darken(10));
+    diffColorSchemeCache.set(percent, scheme);
+  }
   return scheme;
 }
