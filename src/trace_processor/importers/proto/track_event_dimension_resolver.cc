@@ -94,11 +94,12 @@ void TrackEventDimensionResolver::DeclareForTrack(TrackId track_id,
 
 void TrackEventDimensionResolver::ResolveAll() {
   // The overwhelmingly common case: no producer declared any dimension.
-  if (by_upid_.empty() && by_utid_.empty() && by_track_.empty()) {
+  if (by_upid_.size() == 0 && by_utid_.size() == 0 && by_track_.size() == 0) {
     return;
   }
   auto* out = storage_->mutable_track_dimension_table();
   for (auto it = storage_->track_table().IterateRows(); it; ++it) {
+    // |dims| stays valid as nothing is inserted into |resolved_| in the loop.
     const DimensionVec& dims = Resolve(it.id());
     for (const auto& dim : dims) {
       tables::TrackDimensionTable::Row row;
@@ -114,15 +115,15 @@ void TrackEventDimensionResolver::ResolveAll() {
 
 // Returns the effective dimensions of |id|, computing (and memoizing) them if
 // necessary.
+//
+// The returned reference is only valid until the next call to |Resolve|, as
+// that can insert into |resolved_|.
 const DimensionVec& TrackEventDimensionResolver::Resolve(TrackId id) {
-  if (auto it = resolved_.find(id.value); it != resolved_.end()) {
-    return it->second;
-  }
-  // Guard against pathological (and, in a well formed trace, impossible)
-  // cycles in the parent chain.
-  auto [placeholder, inserted] = resolved_.emplace(id.value, DimensionVec());
+  // Inserting an empty placeholder first also guards against pathological
+  // (and, in a well formed trace, impossible) cycles in the parent chain.
+  auto [placeholder, inserted] = resolved_.Insert(id.value, DimensionVec());
   if (!inserted) {
-    return placeholder->second;
+    return *placeholder;
   }
 
   DimensionVec dims;
@@ -136,28 +137,30 @@ const DimensionVec& TrackEventDimensionResolver::Resolve(TrackId id) {
     upid = storage_->thread_table()[tables::ThreadTable::Id(*utid)].upid();
   }
   if (upid) {
-    if (auto d = by_upid_.find(*upid); d != by_upid_.end()) {
-      MergeDimensions(context_, d->second, dims);
+    if (const DimensionVec* d = by_upid_.Find(*upid); d) {
+      MergeDimensions(context_, *d, dims);
     }
   }
   // 2. Dimensions of the thread this track belongs to.
   if (utid) {
-    if (auto d = by_utid_.find(*utid); d != by_utid_.end()) {
-      MergeDimensions(context_, d->second, dims);
+    if (const DimensionVec* d = by_utid_.Find(*utid); d) {
+      MergeDimensions(context_, *d, dims);
     }
   }
-  // 3. Dimensions inherited from ancestor tracks.
+  // 3. Dimensions inherited from ancestor tracks. The reference returned by
+  //    |Resolve| is consumed before anything else is inserted.
   if (auto parent = track.parent_id(); parent) {
     MergeDimensions(context_, Resolve(*parent), dims);
   }
   // 4. Dimensions declared on this very track.
-  if (auto d = by_track_.find(id.value); d != by_track_.end()) {
-    MergeDimensions(context_, d->second, dims);
+  if (const DimensionVec* d = by_track_.Find(id.value); d) {
+    MergeDimensions(context_, *d, dims);
   }
 
-  auto it = resolved_.find(id.value);
-  it->second = std::move(dims);
-  return it->second;
+  // |placeholder| may have been invalidated by the recursion above.
+  DimensionVec* slot = resolved_.Find(id.value);
+  *slot = std::move(dims);
+  return *slot;
 }
 
 }  // namespace perfetto::trace_processor
