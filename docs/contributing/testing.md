@@ -237,8 +237,9 @@ reports:
 
 - `ui-test-artifacts/screenshot-diffs/index.html` shows every failing
   screenshot on a single page. Use the toolbar to switch all of them at once
-  between the Diff, Actual, Expected, Side by side and Slider views. Each card
-  links to the corresponding test in the full Playwright report.
+  between the Side by side view (Before, After and Diff in three columns) and
+  the Slider view (Before vs After). Each card links to the corresponding test
+  in the full Playwright report.
 - `ui-test-artifacts/index.html` is the full Playwright report, with errors,
   test steps and retries for each test.
 

@@ -205,7 +205,7 @@ the #diff-data script tag with a JSON object of the form:
       .view > .layer {
         grid-area: 1 / 1;
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: center;
         min-width: 0;
         visibility: hidden;
@@ -228,6 +228,16 @@ the #diff-data script tag with a JSON object of the form:
         min-width: 0;
         margin: 0;
         text-align: center;
+      }
+      .side-by-side a {
+        cursor: zoom-in;
+      }
+      .not-applicable {
+        padding: 24px;
+        color: var(--fg-muted);
+        background: var(--bg-subtle);
+        border: 1px dashed var(--border);
+        border-radius: 6px;
       }
       figcaption {
         color: var(--fg-muted);
@@ -287,13 +297,14 @@ the #diff-data script tag with a JSON object of the form:
     <script>
       'use strict';
 
+      // The first view is the default.
       const VIEWS = [
-        {id: 'diff', label: 'Diff', needs: ['diff']},
-        {id: 'actual', label: 'Actual', needs: ['actual']},
-        {id: 'expected', label: 'Expected', needs: ['expected']},
-        {id: 'side', label: 'Side by side', needs: ['expected', 'actual']},
-        {id: 'slider', label: 'Slider', needs: ['expected', 'actual']},
+        {id: 'side', label: 'Side by side'},
+        {id: 'slider', label: 'Slider'},
       ];
+
+      // UI names for the image roles. The data keeps Playwright's names.
+      const ROLE_LABELS = {expected: 'Before', actual: 'After', diff: 'Diff'};
 
       // Creates an element. `attrs` may contain 'class', 'text', event handlers
       // ('onclick', ...) and any other attribute. Children can be nodes or strings.
@@ -316,12 +327,28 @@ the #diff-data script tag with a JSON object of the form:
         return el('img', {src, alt: src});
       }
 
-      function isAvailable(view, images) {
-        return view.needs.every((r) => images[r] !== undefined);
+      // One column per role: Before | After | Diff. Clicking an image opens it
+      // full size in a new tab. Missing images (e.g. no baseline) get a
+      // placeholder so the columns stay aligned across cards.
+      function renderSideBySide(images) {
+        const figures = ['expected', 'actual', 'diff'].map((role) => {
+          const src = images[role];
+          return el(
+            'figure',
+            {},
+            el('figcaption', {text: ROLE_LABELS[role]}),
+            src === undefined
+              ? el('div', {class: 'not-applicable', text: 'Not applicable'})
+              : el('a', {href: src, target: '_blank'}, img(src)),
+          );
+        });
+        return el('div', {class: 'side-by-side'}, ...figures);
       }
 
       function renderSlider(images) {
         const actual = img(images.actual);
+        // Without a baseline there is nothing to compare against.
+        if (images.expected === undefined) return actual;
         const expected = img(images.expected);
         const overlay = el('div', {class: 'overlay'}, expected);
         const divider = el('div', {class: 'divider'});
@@ -331,11 +358,19 @@ the #diff-data script tag with a JSON object of the form:
           actual,
           overlay,
           divider,
-          el('span', {class: 'label', style: 'left: 4px', text: 'Expected'}),
-          el('span', {class: 'label', style: 'right: 4px', text: 'Actual'}),
+          el('span', {
+            class: 'label',
+            style: 'left: 4px',
+            text: ROLE_LABELS.expected,
+          }),
+          el('span', {
+            class: 'label',
+            style: 'right: 4px',
+            text: ROLE_LABELS.actual,
+          }),
         );
         const setPos = (pct) => {
-          // Expected on the left of the divider, actual on the right.
+          // Before on the left of the divider, after on the right.
           expected.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
           divider.style.left = `${pct}%`;
         };
@@ -366,26 +401,9 @@ the #diff-data script tag with a JSON object of the form:
       function renderView(viewId, images) {
         switch (viewId) {
           case 'side':
-            return el(
-              'div',
-              {class: 'side-by-side'},
-              el(
-                'figure',
-                {},
-                el('figcaption', {text: 'Expected'}),
-                img(images.expected),
-              ),
-              el(
-                'figure',
-                {},
-                el('figcaption', {text: 'Actual'}),
-                img(images.actual),
-              ),
-            );
+            return renderSideBySide(images);
           case 'slider':
             return renderSlider(images);
-          default:
-            return img(images[viewId]);
         }
       }
 
@@ -396,32 +414,35 @@ the #diff-data script tag with a JSON object of the form:
         const view = el('div', {class: 'view'});
         const layers = new Map();
         for (const v of VIEWS) {
-          if (!isAvailable(v, f.images)) continue;
           const layer = el('div', {class: 'layer'}, renderView(v.id, f.images));
           layers.set(v.id, layer);
           view.append(layer);
         }
 
         const setView = (viewId) => {
-          // Fall back to 'actual' (always present) if e.g. there is no baseline.
-          const id = layers.has(viewId) ? viewId : 'actual';
           for (const [lid, layer] of layers) {
-            layer.classList.toggle('active', lid === id);
+            layer.classList.toggle('active', lid === viewId);
           }
         };
 
         const files = el('div', {class: 'files'});
         const dims = el('span');
-        const actualImg = layers.get('actual').querySelector('img');
+        const actualImg = view.querySelector(
+          `img[src="${CSS.escape(f.images.actual)}"]`,
+        );
         actualImg.addEventListener('load', () => {
           dims.textContent = `${actualImg.naturalWidth} x ${actualImg.naturalHeight}`;
         });
         files.append(dims);
-        for (const role of ['diff', 'actual', 'expected']) {
+        for (const role of ['expected', 'actual', 'diff']) {
           const src = f.images[role];
           if (src !== undefined) {
             files.append(
-              el('a', {href: src, target: '_blank', text: `${role}.png`}),
+              el('a', {
+                href: src,
+                target: '_blank',
+                text: `${ROLE_LABELS[role].toLowerCase()}.png`,
+              }),
             );
           }
         }
@@ -548,7 +569,7 @@ the #diff-data script tag with a JSON object of the form:
           ),
         );
         for (const c of cards) root.append(c.node);
-        setAll('diff');
+        setAll(VIEWS[0].id);
       }
 
       main();
