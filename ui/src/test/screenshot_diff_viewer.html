@@ -41,7 +41,6 @@ the #diff-data script tag with a JSON object of the form:
         --border: #d0d7de;
         --bg-subtle: #f6f8fa;
         --accent: #0969da;
-        --danger: #cf222e;
       }
       * {
         box-sizing: border-box;
@@ -127,30 +126,6 @@ the #diff-data script tag with a JSON object of the form:
         background: #fff;
         border-bottom: 1px solid var(--border);
       }
-      .toolbar-label {
-        font-weight: 600;
-      }
-      /* A row of joined buttons; the selected one is filled. */
-      .segmented {
-        display: inline-flex;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        overflow: hidden;
-      }
-      .segmented button {
-        border: none;
-        border-right: 1px solid var(--border);
-        border-radius: 0;
-        padding: 5px 16px;
-      }
-      .segmented button:last-child {
-        border-right: none;
-      }
-      .segmented button.selected {
-        color: #fff;
-        background: var(--accent);
-        font-weight: 600;
-      }
       .spacer {
         flex: 1;
       }
@@ -193,27 +168,7 @@ the #diff-data script tag with a JSON object of the form:
       .card-body {
         padding: 12px 16px 16px;
       }
-      /*
-       * All views of a card are stacked in the same grid cell and only the
-       * selected one is visible. Hidden views still take up space, so the card
-       * is always as tall as its tallest view and switching views never moves
-       * the page.
-       */
-      .view {
-        display: grid;
-      }
-      .view > .layer {
-        grid-area: 1 / 1;
-        display: flex;
-        align-items: flex-start;
-        justify-content: center;
-        min-width: 0;
-        visibility: hidden;
-      }
-      .view > .layer.active {
-        visibility: visible;
-      }
-      .view img {
+      .side-by-side img {
         max-width: 100%;
         vertical-align: top;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
@@ -243,40 +198,6 @@ the #diff-data script tag with a JSON object of the form:
         color: var(--fg-muted);
         margin-bottom: 4px;
       }
-      .slider {
-        position: relative;
-        display: inline-block;
-        max-width: 100%;
-        cursor: ew-resize;
-        touch-action: none;
-        user-select: none;
-      }
-      .slider img {
-        display: block;
-        pointer-events: none;
-      }
-      .slider .overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-      }
-      .slider .divider {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 2px;
-        margin-left: -1px;
-        background: var(--danger);
-      }
-      .slider .label {
-        position: absolute;
-        top: 4px;
-        padding: 0 6px;
-        font-size: 12px;
-        color: #fff;
-        background: rgba(0, 0, 0, 0.6);
-        border-radius: 4px;
-      }
       .files {
         margin-top: 12px;
         display: flex;
@@ -296,12 +217,6 @@ the #diff-data script tag with a JSON object of the form:
     </script>
     <script>
       'use strict';
-
-      // The first view is the default.
-      const VIEWS = [
-        {id: 'side', label: 'Side by side'},
-        {id: 'slider', label: 'Slider'},
-      ];
 
       // UI names for the image roles. The data keeps Playwright's names.
       const ROLE_LABELS = {expected: 'Before', actual: 'After', diff: 'Diff'};
@@ -329,7 +244,7 @@ the #diff-data script tag with a JSON object of the form:
 
       // One column per role: Before | After | Diff. Clicking an image opens it
       // full size in a new tab. Missing images (e.g. no baseline) get a
-      // placeholder so the columns stay aligned across cards.
+      // placeholder so the columns keep their positions.
       function renderSideBySide(images) {
         const figures = ['expected', 'actual', 'diff'].map((role) => {
           const src = images[role];
@@ -345,89 +260,13 @@ the #diff-data script tag with a JSON object of the form:
         return el('div', {class: 'side-by-side'}, ...figures);
       }
 
-      function renderSlider(images) {
-        const actual = img(images.actual);
-        // Without a baseline there is nothing to compare against.
-        if (images.expected === undefined) return actual;
-        const expected = img(images.expected);
-        const overlay = el('div', {class: 'overlay'}, expected);
-        const divider = el('div', {class: 'divider'});
-        const box = el(
-          'div',
-          {class: 'slider'},
-          actual,
-          overlay,
-          divider,
-          el('span', {
-            class: 'label',
-            style: 'left: 4px',
-            text: ROLE_LABELS.expected,
-          }),
-          el('span', {
-            class: 'label',
-            style: 'right: 4px',
-            text: ROLE_LABELS.actual,
-          }),
-        );
-        const setPos = (pct) => {
-          // Before on the left of the divider, after on the right.
-          expected.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
-          divider.style.left = `${pct}%`;
-        };
-        const onPointer = (e) => {
-          const r = box.getBoundingClientRect();
-          setPos(
-            Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)),
-          );
-        };
-        box.addEventListener('pointerdown', (e) => {
-          box.setPointerCapture(e.pointerId);
-          onPointer(e);
-        });
-        box.addEventListener('pointermove', (e) => {
-          if (box.hasPointerCapture(e.pointerId)) onPointer(e);
-        });
-        // Keep the overlaid expected image the same rendered size as actual.
-        actual.addEventListener('load', () => {
-          expected.style.width = `${actual.clientWidth}px`;
-        });
-        new ResizeObserver(() => {
-          expected.style.width = `${actual.clientWidth}px`;
-        }).observe(actual);
-        setPos(50);
-        return box;
-      }
-
-      function renderView(viewId, images) {
-        switch (viewId) {
-          case 'side':
-            return renderSideBySide(images);
-          case 'slider':
-            return renderSlider(images);
-        }
-      }
-
-      // Builds one accordion card. Every available view is built once and
-      // stacked (see the .view CSS); setView() only toggles which is visible.
-      // Returns {node, setView}.
+      // Builds one accordion card and returns its <details> node.
       function renderCard(f) {
-        const view = el('div', {class: 'view'});
-        const layers = new Map();
-        for (const v of VIEWS) {
-          const layer = el('div', {class: 'layer'}, renderView(v.id, f.images));
-          layers.set(v.id, layer);
-          view.append(layer);
-        }
-
-        const setView = (viewId) => {
-          for (const [lid, layer] of layers) {
-            layer.classList.toggle('active', lid === viewId);
-          }
-        };
+        const columns = renderSideBySide(f.images);
 
         const files = el('div', {class: 'files'});
         const dims = el('span');
-        const actualImg = view.querySelector(
+        const actualImg = columns.querySelector(
           `img[src="${CSS.escape(f.images.actual)}"]`,
         );
         actualImg.addEventListener('load', () => {
@@ -468,13 +307,12 @@ the #diff-data script tag with a JSON object of the form:
               }),
         );
 
-        const node = el(
+        return el(
           'details',
           {class: 'card', open: ''},
           summary,
-          el('div', {class: 'card-body'}, view, files),
+          el('div', {class: 'card-body'}, columns, files),
         );
-        return {node, setView};
       }
 
       function renderCopyableCommand(cmd) {
@@ -534,42 +372,20 @@ the #diff-data script tag with a JSON object of the form:
         }
 
         const cards = failures.map(renderCard);
-
-        // The single view switcher: sets every card to the same view at once,
-        // which is the point of this page (bulk review).
-        const segmented = el('div', {class: 'segmented'});
-        const setAll = (viewId) => {
-          for (const b of segmented.children) {
-            b.classList.toggle('selected', b.dataset.view === viewId);
-          }
-          for (const c of cards) c.setView(viewId);
-        };
-        for (const v of VIEWS) {
-          segmented.append(
-            el('button', {
-              'text': v.label,
-              'data-view': v.id,
-              'onclick': () => setAll(v.id),
-            }),
-          );
-        }
         const setOpen = (open) => {
-          for (const c of cards) c.node.open = open;
+          for (const c of cards) c.open = open;
         };
 
         root.append(
           el(
             'div',
             {class: 'toolbar'},
-            el('span', {class: 'toolbar-label', text: 'View'}),
-            segmented,
             el('span', {class: 'spacer'}),
             el('button', {text: 'Expand all', onclick: () => setOpen(true)}),
             el('button', {text: 'Collapse all', onclick: () => setOpen(false)}),
           ),
         );
-        for (const c of cards) root.append(c.node);
-        setAll(VIEWS[0].id);
+        for (const c of cards) root.append(c);
       }
 
       main();

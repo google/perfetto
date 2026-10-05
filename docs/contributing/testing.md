@@ -236,10 +236,9 @@ the "Perfetto UI Builds & Tests" comment on the pull request link to two
 reports:
 
 - `ui-test-artifacts/screenshot-diffs/index.html` shows every failing
-  screenshot on a single page. Use the toolbar to switch all of them at once
-  between the Side by side view (Before, After and Diff in three columns) and
-  the Slider view (Before vs After). Each card links to the corresponding test
-  in the full Playwright report.
+  screenshot on a single page, with the Before, After and Diff images side by
+  side. Each card links to the corresponding test in the full Playwright
+  report.
 - `ui-test-artifacts/index.html` is the full Playwright report, with errors,
   test steps and retries for each test.
 
