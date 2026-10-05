@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 
@@ -268,8 +267,7 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
       return false;
     }
     if (s.has_row.size() <= node) {
-      // Grown geometrically, as resize allocates exactly what it is asked for.
-      s.has_row.resize(std::max<uint64_t>(node + 1, s.has_row.size() * 2));
+      s.has_row.resize(node + 1);
     }
     if (s.has_row.is_set(node)) {
       s.status = base::ErrStatus(

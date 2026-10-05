@@ -21,7 +21,9 @@
 #include <cstring>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -35,6 +37,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/key_encoder.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
@@ -81,29 +84,41 @@ struct Regions {
 // One operand's rows sharing a key, and whether they can be searched without
 // a tree.
 struct Group {
+  std::string key;
   std::vector<Interval> intervals;
   bool nonoverlapping = true;
 };
 
-// Reads one flat, non-null Int64 column of a batch.
-struct Int64Reader {
-  explicit Int64Reader(const ColumnView& column)
-      : data(static_cast<const int64_t*>(column.data())),
-        selection(column.selection()),
-        validity(column.validity()) {}
+// One operand's groups, kept across runs to reuse their memory: the first
+// `used` are this run's. Held by pointer, so the keys the map views never
+// move.
+struct Groups {
+  std::vector<std::unique_ptr<Group>> all;
+  size_t used = 0;
+  base::FlatHashMapV2<std::string_view, Group*> by_key;
 
-  bool Read(uint32_t row, int64_t* out) const {
-    uint32_t index = selection.GetIndex(row);
-    if (validity && !validity->is_set(index)) {
-      return false;
+  Group& Get(std::string_view key) {
+    if (Group** found = by_key.Find(key)) {
+      return **found;
     }
-    *out = data[index];
-    return true;
+    if (used == all.size()) {
+      all.emplace_back(std::make_unique<Group>());
+    }
+    Group& group = *all[used++];
+    group.key.assign(key);
+    group.intervals.clear();
+    group.nonoverlapping = true;
+    by_key.Insert(group.key, &group);
+    return group;
   }
-
-  const int64_t* data;
-  RowSelection selection;
-  const BitVector* validity;
+  const Group* Find(std::string_view key) const {
+    Group* const* found = by_key.Find(key);
+    return found ? *found : nullptr;
+  }
+  void Clear() {
+    used = 0;
+    by_key.Clear();
+  }
 };
 
 base::Status ValidateOperand(const RowBatch& batch,
@@ -114,28 +129,12 @@ base::Status ValidateOperand(const RowBatch& batch,
     return column.kind() == ColumnView::Kind::kFlat &&
            column.type().Is<Int64>();
   };
-  bool ok = is_int64(operand.ts_column) && is_int64(operand.dur_column) &&
-            std::all_of(operand.key_columns.begin(), operand.key_columns.end(),
-                        is_int64);
+  bool ok = is_int64(operand.ts_column) && is_int64(operand.dur_column);
   return ok ? base::OkStatus()
             : base::ErrStatus(
-                  "INTERVAL INTERSECTION: operand %u's ts, dur and PER "
-                  "columns must be Int64",
+                  "INTERVAL INTERSECTION: operand %u's ts and dur columns "
+                  "must be Int64",
                   which + 1);
-}
-
-// A key column takes this many bytes: whether it holds a value, then the
-// value itself. Two rows which hold no value there agree on it, as they
-// would under GROUP BY.
-constexpr size_t kKeyColumnBytes = 1 + sizeof(int64_t);
-
-void WriteKeyColumn(std::string& key,
-                    uint32_t at,
-                    bool present,
-                    int64_t value) {
-  char* to = key.data() + at * kKeyColumnBytes;
-  to[0] = present ? 1 : 0;
-  memcpy(to + 1, &value, sizeof(value));
 }
 
 class IntersectState : public OperatorState {
@@ -144,9 +143,11 @@ class IntersectState : public OperatorState {
 
   std::vector<std::unique_ptr<OperatorState>> operand_states;
   std::vector<std::unique_ptr<RowStore>> stores;
+  // Shared by the operands, so their keys' types must agree.
+  KeyEncoder keys;
   // Per operand, its rows by key. A key with no entry in some operand covers
   // nothing, so only keys every operand has produce regions.
-  std::vector<base::FlatHashMap<std::string, Group>> groups;
+  std::vector<Groups> groups;
 
   bool computed = false;
   Regions regions;
@@ -171,6 +172,11 @@ class IntersectState : public OperatorState {
     std::vector<Interval> overlaps;
     // Per operand, the row indices a gather reads.
     std::vector<std::vector<uint32_t>> gather_rows;
+    // An operand's batches as they are read, and the part of them kept.
+    RowBatch batch;
+    RowBatch retained;
+    // Per operand, its group of the key being narrowed.
+    std::vector<const Group*> key_groups;
   } scratch;
 };
 
@@ -181,17 +187,20 @@ base::Status Collect(const IntervalIntersectOperand& operand,
                      uint32_t which,
                      OperatorState& state,
                      RowStore& store,
-                     base::FlatHashMap<std::string, Group>& groups) {
-  RowBatch batch;
-  RowBatch retained;
-  std::string key(operand.key_columns.size() * kKeyColumnBytes, '\0');
+                     KeyEncoder& keys,
+                     Groups& groups,
+                     IntersectState::Scratch& scratch) {
+  RowBatch& batch = scratch.batch;
+  RowBatch& retained = scratch.retained;
   while (operand.source->GetData(batch, state)) {
     RETURN_IF_ERROR(ValidateOperand(batch, operand, which));
-    Int64Reader ts(batch.column(operand.ts_column));
-    Int64Reader dur(batch.column(operand.dur_column));
-    std::vector<Int64Reader> keys;
-    for (uint32_t column : operand.key_columns) {
-      keys.emplace_back(batch.column(column));
+    FlatColumnReader<int64_t> ts(batch.column(operand.ts_column));
+    FlatColumnReader<int64_t> dur(batch.column(operand.dur_column));
+    if (std::optional<uint32_t> bad = keys.Encode(batch, operand.key_columns)) {
+      return base::ErrStatus(
+          "INTERVAL INTERSECTION: operand %u's PER column %u must hold one "
+          "type, the same in every operand",
+          which + 1, *bad + 1);
     }
     for (uint32_t row = 0; row < batch.size(); ++row) {
       int64_t start;
@@ -205,14 +214,8 @@ base::Status Collect(const IntervalIntersectOperand& operand,
             "below zero",
             which + 1);
       }
-      for (uint32_t i = 0; i < keys.size(); ++i) {
-        // Read before writing: argument evaluation order is unspecified, so
-        // passing both `Read(&value)` and `value` could copy it unread.
-        int64_t value = 0;
-        bool present = keys[i].Read(row, &value);
-        WriteKeyColumn(key, i, present, value);
-      }
-      Group& group = groups[key];
+      std::string_view key = keys.Key(row);
+      Group& group = groups.Get(key);
       group.intervals.push_back({static_cast<Ts>(start),
                                  static_cast<Ts>(start + length),
                                  store.size() + row});
@@ -228,8 +231,8 @@ base::Status Collect(const IntervalIntersectOperand& operand,
 
   // The intersector reads intervals in order of their start, and takes a set
   // which never overlaps itself down a cheaper path.
-  for (auto it = groups.GetIterator(); it; ++it) {
-    Group& group = it.value();
+  for (size_t g = 0; g < groups.used; ++g) {
+    Group& group = *groups.all[g];
     std::sort(group.intervals.begin(), group.intervals.end(),
               [](const Interval& a, const Interval& b) {
                 if (a.start != b.start) {
@@ -356,7 +359,7 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     s.scratch.narrowed.operands = count;
     for (uint32_t i = 0; i < count; ++i) {
       s.status = Collect(operands_[i], i, *s.operand_states[i], *s.stores[i],
-                         s.groups[i]);
+                         s.keys, s.groups[i], s.scratch);
       if (!s.status.ok()) {
         return false;
       }
@@ -365,15 +368,17 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     // fewest of them can start one.
     uint32_t fewest = 0;
     for (uint32_t i = 1; i < count; ++i) {
-      if (s.groups[i].size() < s.groups[fewest].size()) {
+      if (s.groups[i].used < s.groups[fewest].used) {
         fewest = i;
       }
     }
-    std::vector<const Group*> groups(count);
-    for (auto it = s.groups[fewest].GetIterator(); it; ++it) {
+    std::vector<const Group*>& groups = s.scratch.key_groups;
+    groups.resize(count);
+    for (size_t g = 0; g < s.groups[fewest].used; ++g) {
+      const std::string& key = s.groups[fewest].all[g]->key;
       bool everywhere = true;
       for (uint32_t i = 0; i < count && everywhere; ++i) {
-        const Group* group = s.groups[i].Find(it.key());
+        const Group* group = s.groups[i].Find(key);
         groups[i] = group;
         everywhere = group != nullptr;
       }

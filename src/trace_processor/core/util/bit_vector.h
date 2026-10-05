@@ -277,6 +277,35 @@ struct BitVector {
   // The && qualifier allows reusing the existing words_ buffer in-place.
   BitVector Compact(const BitVector& keep) && { return CompactInPlace(keep); }
 
+  // Sets bits [at, at + count) to `value`.
+  void FillBits(uint64_t at, uint64_t count, bool value) {
+    PERFETTO_DCHECK(at + count <= size_);
+    if (count == 0) {
+      return;
+    }
+    constexpr uint64_t kAll = std::numeric_limits<uint64_t>::max();
+    uint64_t end = at + count;
+    uint64_t first = at / 64;
+    uint64_t last = (end - 1) / 64;
+    uint64_t head = kAll << (at % 64);
+    uint64_t tail = kAll >> (63 - ((end - 1) % 64));
+    if (first == last) {
+      head &= tail;
+      tail = 0;
+    }
+    uint64_t* words = words_.data();
+    size_t whole = (last > first) ? ((last - first - 1) * sizeof(uint64_t)) : 0;
+    if (value) {
+      words[first] |= head;
+      memset(&words[first + 1], 0xFF, whole);
+      words[last] |= tail;
+    } else {
+      words[first] &= ~head;
+      memset(&words[first + 1], 0, whole);
+      words[last] &= ~tail;
+    }
+  }
+
   // Sets bits [at, at + count) from `src` bits [from, from + count). Bits in
   // the destination range which are unset in the source are left alone, so the
   // range has to start clear to be a copy rather than a merge.
@@ -320,11 +349,6 @@ struct BitVector {
   void ClearAllBits() {
     memset(words_.data(), 0, words_.size() * sizeof(uint64_t));
   }
-
-  // Makes room for `new_size` bits without changing the size. Growth here is
-  // geometric where resize allocates exactly what was asked for, so anything
-  // filling a bit vector a chunk at a time has to come through here first.
-  void reserve(uint64_t new_size) { words_.reserve((new_size + 63) / 64); }
 
   // Resizes the vector to the specified size. If shrinking, bits past the new
   // size are cleared. If growing, new bits are set to the given value.

@@ -171,6 +171,7 @@ class GpuEventParser {
     StringId description;
   };
   const StringId category_id_;
+  const StringId stage_name_id_;
   const StringId kernel_name_id_;
   const StringId kernel_demangled_name_id_;
   const StringId arch_id_;

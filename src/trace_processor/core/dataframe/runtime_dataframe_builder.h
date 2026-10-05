@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -100,7 +101,8 @@ class RuntimeDataframeBuilder {
                           const Options& options = {})
       : coulumn_count_(static_cast<uint32_t>(names.size())),
         builder_(std::move(names), pool, options),
-        pool_(pool) {}
+        pool_(pool),
+        pooled_(coulumn_count_) {}
   ~RuntimeDataframeBuilder() = default;
 
   // Movable but not copyable
@@ -157,12 +159,18 @@ class RuntimeDataframeBuilder {
             return false;
           }
           break;
-        case ValueFetcherImpl::kString:
-          if (!builder_.PushNonNull(
-                  i, pool_->InternString(fetcher->GetStringValue(i)))) {
+        case ValueFetcherImpl::kString: {
+          const char* str = fetcher->GetStringValue(i);
+          std::optional<StringPool::Id> id;
+          if (pooled_[i].likely) {
+            id = pool_->FindPooledString(str, &pooled_[i].block);
+            pooled_[i].likely = id.has_value();
+          }
+          if (!builder_.PushNonNull(i, id ? *id : pool_->InternString(str))) {
             return false;
           }
           break;
+        }
         case ValueFetcherImpl::kNull:
           builder_.PushNull(i);
           break;
@@ -209,6 +217,13 @@ class RuntimeDataframeBuilder {
   uint32_t coulumn_count_ = 0;
   AdhocDataframeBuilder builder_;
   StringPool* pool_ = nullptr;
+  // Per column, whether its strings seem to come from `pool_`, so need not be
+  // interned again, and the block the last one was in. One miss stops looking.
+  struct Pooled {
+    bool likely = true;
+    uint32_t block = 0;
+  };
+  std::vector<Pooled> pooled_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

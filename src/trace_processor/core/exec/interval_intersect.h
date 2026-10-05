@@ -32,7 +32,7 @@ namespace perfetto::trace_processor::core::exec {
 struct IntervalIntersectOperand {
   // Read in full before any region is found.
   const Source* source = nullptr;
-  // All must be flat Int64 columns of `source`'s batches.
+  // Flat Int64 columns of `source`'s batches.
   uint32_t ts_column = 0;
   uint32_t dur_column = 0;
   // Compared pairwise across the operands, in this order.

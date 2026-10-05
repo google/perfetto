@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_STORE_H_
 
+#include <cstddef>
+#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -41,6 +43,7 @@ class RowStore {
   void Clear() {
     for (auto& column : columns_) {
       column.batches.clear();
+      column.copies_used = 0;
       column.nullable = false;
       column.same_selection_as_previous = true;
     }
@@ -57,6 +60,9 @@ class RowStore {
       std::shared_ptr<const void> owner;
     };
     std::vector<Batch> batches;
+    // Copies of borrowed input, reused after Clear() once nothing holds them.
+    std::vector<std::shared_ptr<ColumnChunk>> copies;
+    size_t copies_used = 0;
     BufferPool<ColumnChunk> buffers;
     bool nullable = false;
     bool same_selection_as_previous = true;

@@ -15,10 +15,13 @@
  */
 
 #include <cinttypes>
+#include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -34,10 +37,17 @@
 #include "src/ipc/test/test_socket.h"
 #include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
 #include "src/tracing/service/tracing_service_impl.h"
+#include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include "src/tracing/ipc/posix_shared_memory.h"
+#endif
 
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/ipc/producer_port.gen.h"
+#include "protos/perfetto/ipc/producer_port.ipc.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -58,6 +68,25 @@ class ProducerIPCClientTestPeer {
       ProducerIPCClientImpl* client,
       const protos::gen::GetAsyncCommandResponse& cmd) {
     client->OnServiceRequest(cmd);
+  }
+
+  static uint32_t protocol_abi_versions(const ProducerIPCClientImpl* client) {
+    return client->protocol_abi_versions_;
+  }
+
+  // Acts like an InitializeConnection reply to |offered_versions|.
+  static void OnConnectionInitialized(ProducerIPCClientImpl* client,
+                                      uint32_t offered_versions,
+                                      uint32_t protocol_abi_versions,
+                                      bool connection_succeeded = true) {
+    ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response;
+    if (connection_succeeded) {
+      response =
+          ipc::AsyncResult<protos::gen::InitializeConnectionResponse>::Create();
+      response->set_direct_smb_patching_supported(true);
+      response->set_protocol_abi_versions(protocol_abi_versions);
+    }
+    client->OnConnectionInitialized(offered_versions, std::move(response));
   }
 };
 
@@ -328,6 +357,460 @@ TEST_F(TracingIntegrationTest, SetupTracingWithoutSmbDisconnects) {
   task_runner_->RunUntilIdle();
   EXPECT_FALSE(producer_endpoint_);
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
+ protected:
+  std::vector<DataSourceConfig> Start(TraceConfig config, size_t instances) {
+    std::vector<DataSourceConfig> setups;
+    auto started = task_runner_->CreateCheckpoint("ring_buffer_started");
+    size_t starts = 0;
+    EXPECT_CALL(producer_, OnTracingSetup());
+    EXPECT_CALL(producer_, SetupDataSource(_, _))
+        .Times(static_cast<int>(instances))
+        .WillRepeatedly([&](DataSourceInstanceID, const DataSourceConfig& cfg) {
+          setups.push_back(cfg);
+        });
+    EXPECT_CALL(producer_, StartDataSource(_, _))
+        .Times(static_cast<int>(instances))
+        .WillRepeatedly([&](DataSourceInstanceID, const DataSourceConfig&) {
+          if (++starts == instances)
+            started();
+        });
+    consumer_endpoint_->EnableTracing(config);
+    task_runner_->RunUntilCheckpoint("ring_buffer_started");
+    return setups;
+  }
+
+  void Attach() {
+    memory_ = PosixSharedMemory::Create(sizeof(tracing_v2::RingBufferHeader) +
+                                        16 * 256);
+    ring_buffer_ = std::make_unique<tracing_v2::SharedRingBuffer>(
+        static_cast<uint8_t*>(memory_->start()), memory_->size(), 256);
+    auto attached = task_runner_->CreateCheckpoint("ring_buffer_attached");
+    producer_endpoint_->AttachV2RingBuffer(memory_, 256,
+                                           [attached](bool success) {
+                                             EXPECT_TRUE(success);
+                                             attached();
+                                           });
+    task_runner_->RunUntilCheckpoint("ring_buffer_attached");
+  }
+
+  ProducerIPCClientImpl* client() {
+    return static_cast<ProducerIPCClientImpl*>(producer_endpoint_.get());
+  }
+
+  uint32_t protocol_abi_versions() {
+    return test::ProducerIPCClientTestPeer::protocol_abi_versions(client());
+  }
+
+  void Drain() {
+    std::string name = "drain_" + std::to_string(next_checkpoint_++);
+    auto drained = task_runner_->CreateCheckpoint(name);
+    producer_endpoint_->DrainV2RingBuffer();
+    producer_endpoint_->Sync(drained);
+    task_runner_->RunUntilCheckpoint(name);
+  }
+
+  std::vector<protos::gen::TracePacket> Read() {
+    std::vector<protos::gen::TracePacket> result;
+    auto read = task_runner_->CreateCheckpoint("ring_buffer_read");
+    EXPECT_CALL(consumer_, OnTracePackets(_, _))
+        .WillRepeatedly([&](std::vector<TracePacket>* packets, bool more) {
+          for (const auto& encoded : *packets) {
+            protos::gen::TracePacket packet;
+            EXPECT_TRUE(
+                packet.ParseFromString(encoded.GetRawBytesForTesting()));
+            if (packet.has_for_testing())
+              result.push_back(std::move(packet));
+          }
+          if (!more)
+            read();
+        });
+    consumer_endpoint_->ReadBuffers();
+    task_runner_->RunUntilCheckpoint("ring_buffer_read");
+    testing::Mock::VerifyAndClearExpectations(&consumer_);
+    return result;
+  }
+
+  TraceStats GetTraceStats() {
+    TraceStats result;
+    auto on_stats = task_runner_->CreateCheckpoint("ring_buffer_stats");
+    EXPECT_CALL(consumer_, OnTraceStats(true, _))
+        .WillOnce([&](bool, const TraceStats& stats) {
+          result = stats;
+          on_stats();
+        });
+    consumer_endpoint_->GetTraceStats();
+    task_runner_->RunUntilCheckpoint("ring_buffer_stats");
+    return result;
+  }
+
+  static std::string Packet(const std::string& value) {
+    return std::string("\xa3\x38\x0a") + static_cast<char>(value.size()) +
+           value + '\x04';
+  }
+  std::shared_ptr<PosixSharedMemory> memory_;
+  std::unique_ptr<tracing_v2::SharedRingBuffer> ring_buffer_;
+  size_t next_checkpoint_ = 0;
+};
+
+TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
+  TraceConfig config;
+  for (uint32_t i = 0; i < 2; ++i) {
+    auto* buffer = config.add_buffers();
+    buffer->set_size_kb(64);
+    buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+    auto* source = config.add_data_sources()->mutable_config();
+    source->set_name("perfetto.test");
+    source->set_target_buffer(i);
+  }
+  auto setups = Start(config, 2);
+  ASSERT_EQ(setups.size(), 2u);
+  Attach();
+  auto first = tracing_v2::test::MakeWriter(
+      ring_buffer_.get(), 1, static_cast<BufferID>(setups[0].target_buffer()));
+  auto second = tracing_v2::test::MakeWriter(
+      ring_buffer_.get(), 2, static_cast<BufferID>(setups[1].target_buffer()));
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(
+      &first, Packet("partial").substr(0, 3), false, true));
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&second, Packet("other-before")));
+  first.FinishCurrentChunk();
+  second.FinishCurrentChunk();
+  Drain();
+  first.RecordDataLoss();
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&first, Packet("discarded")));
+  first.FinishCurrentChunk();
+  Drain();
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&first, Packet("recovered")));
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&second, Packet("other-after")));
+  first.FinishCurrentChunk();
+  second.FinishCurrentChunk();
+  Drain();
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), 3u);
+  for (const auto& packet : packets) {
+    if (packet.for_testing().str() == "recovered")
+      EXPECT_TRUE(packet.previous_packet_dropped());
+    else if (packet.for_testing().str() == "other-after")
+      EXPECT_FALSE(packet.previous_packet_dropped());
+    else
+      EXPECT_EQ(packet.for_testing().str(), "other-before");
+  }
+}
+
+TEST_F(RingBufferTransportIntegrationTest,
+       RejectsIncompatibleAndForbiddenDestinations) {
+  TraceConfig config;
+  for (uint32_t i = 0; i < 2; ++i) {
+    auto* buffer = config.add_buffers();
+    buffer->set_size_kb(64);
+    if (i == 1)
+      buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+    auto* source = config.add_data_sources()->mutable_config();
+    source->set_name("perfetto.test");
+    source->set_target_buffer(i);
+  }
+  auto setups = Start(config, 2);
+  ASSERT_EQ(setups.size(), 2u);
+  EXPECT_FALSE(setups[0].supports_tracing_v2());
+  EXPECT_TRUE(setups[1].supports_tracing_v2());
+  Attach();
+
+  // The producer is allowed to write to the v1 buffer, but not through the
+  // ring buffer. Buffer 0 is not a buffer of this producer.
+  const BufferID v1_buffer = static_cast<BufferID>(setups[0].target_buffer());
+  const BufferID targets[] = {v1_buffer, 0};
+  for (size_t i = 0; i < 2; ++i) {
+    auto writer = tracing_v2::test::MakeWriter(
+        ring_buffer_.get(), static_cast<WriterID>(i + 1), targets[i]);
+    ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer, Packet("rejected")));
+  }
+  Drain();
+  EXPECT_TRUE(Read().empty());
+  // The service drops both chunks before any trace buffer sees them.
+  EXPECT_EQ(GetTraceStats().chunks_discarded(), 2u);
+}
+
+TEST_F(RingBufferTransportIntegrationTest,
+       DisconnectRecoversUnnotifiedPublication) {
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(64);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  config.add_data_sources()->mutable_config()->set_name("perfetto.test");
+  auto setups = Start(config, 1);
+  ASSERT_EQ(setups.size(), 1u);
+  Attach();
+  {
+    auto writer = tracing_v2::test::MakeWriter(
+        ring_buffer_.get(), 1,
+        static_cast<BufferID>(setups[0].target_buffer()));
+    ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer, Packet("unnotified")));
+  }
+  EXPECT_CALL(producer_, OnDisconnect()).Times(1);
+  producer_endpoint_->Disconnect();
+  producer_endpoint_.reset();
+  task_runner_->RunUntilIdle();
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].for_testing().str(), "unnotified");
+}
+
+TEST_F(RingBufferTransportIntegrationTest, CorruptRingBufferKeepsConnection) {
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(64);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  config.add_data_sources()->mutable_config()->set_name("perfetto.test");
+  auto setups = Start(config, 1);
+  ASSERT_EQ(setups.size(), 1u);
+  const auto target = static_cast<BufferID>(setups[0].target_buffer());
+  Attach();
+
+  auto writer = tracing_v2::test::MakeWriter(ring_buffer_.get(), 1, target);
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer, Packet("corrupt")));
+  writer.FinishCurrentChunk();
+  tracing_v2::test::SharedRingBufferInternalsForTest::SetChunkStateWord(
+      ring_buffer_.get(), tracing_v2::ChunkIndex::FromIndex(0),
+      static_cast<uint32_t>(tracing_v2::ChunkState::kReserved5));
+  Drain();
+
+  // The service stops the reader but keeps the connection. Drain() ends with
+  // a Sync() round trip, so the connection is still alive here.
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer, Packet("ignored")));
+  writer.FinishCurrentChunk();
+  Drain();
+  EXPECT_TRUE(Read().empty());
+  EXPECT_EQ(tracing_v2::test::SharedRingBufferInternalsForTest::GetReadPos(
+                ring_buffer_.get()),
+            0u);
+
+  const TraceStats stats = GetTraceStats();
+  ASSERT_EQ(stats.buffer_stats_size(), 1);
+  EXPECT_EQ(stats.buffer_stats()[0].abi_violations(), 1u);
+}
+
+// Each advertised version is independent. Keep all common versions, and do
+// not add v1 to a v2-only offer. An old producer sends 0 and gets v1.
+TEST_F(RingBufferTransportIntegrationTest, ServiceReturnsAllCommonVersions) {
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
+
+  // Returns the common mask, or nullopt if the service rejects the request.
+  auto negotiate = [&](uint32_t offered) -> std::optional<uint32_t> {
+    struct Listener : public ipc::ServiceProxy::EventListener {
+      std::function<void()> on_connect;
+      void OnConnect() override { on_connect(); }
+    } listener;
+    protos::gen::ProducerPortProxy port(&listener);
+    const std::string name = "raw_" + std::to_string(next_checkpoint_++);
+    listener.on_connect = task_runner_->CreateCheckpoint(name + "_connected");
+    auto ipc_client = ipc::Client::CreateInstance(
+        {kProducerSock.name(), /*sock_retry=*/false}, task_runner_.get());
+    ipc_client->BindService(port.GetWeakPtr());
+    task_runner_->RunUntilCheckpoint(name + "_connected");
+
+    protos::gen::InitializeConnectionRequest req;
+    req.set_producer_name(name);
+    req.set_supported_protocol_abi_versions(offered);
+    std::optional<uint32_t> common;
+    auto replied = task_runner_->CreateCheckpoint(name + "_replied");
+    ipc::Deferred<protos::gen::InitializeConnectionResponse> reply;
+    reply.Bind(
+        [&](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
+          if (resp)
+            common = resp->protocol_abi_versions();
+          replied();
+        });
+    port.InitializeConnection(req, std::move(reply));
+    task_runner_->RunUntilCheckpoint(name + "_replied");
+    return common;
+  };
+  const uint32_t kV1 = kProtocolAbiV1;
+  const uint32_t kV2 = kProtocolAbiV2;
+  const uint32_t kUnknown = 1u << 2;
+  EXPECT_EQ(negotiate(kV1 | kV2 | kUnknown), kV1 | kV2);
+  EXPECT_EQ(negotiate(kV2), kV2);
+  EXPECT_EQ(negotiate(kV1), kV1);
+  EXPECT_EQ(negotiate(0), kV1);
+  EXPECT_EQ(negotiate(kUnknown | kV2), kV2);
+  EXPECT_EQ(negotiate(kUnknown), std::nullopt);
+}
+
+// A reply must contain only offered versions.
+TEST_F(RingBufferTransportIntegrationTest,
+       DisconnectsIfServiceReturnsUnknownVersion) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), kProtocolAbiV1 | kProtocolAbiV2, kProtocolAbiV2 | (1u << 2));
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
+
+TEST_F(RingBufferTransportIntegrationTest,
+       DisconnectsIfServiceAddsV1ToV2OnlyOffer) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), kProtocolAbiV2, kProtocolAbiV1 | kProtocolAbiV2);
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
+
+TEST_F(RingBufferTransportIntegrationTest, V2OnlyOfferRejectsLegacyService) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(client(),
+                                                           kProtocolAbiV2, 0);
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
+
+TEST_F(RingBufferTransportIntegrationTest, LegacyServicePermitsOnlyV1) {
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), kProtocolAbiV1 | kProtocolAbiV2, 0);
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1);
+}
+
+TEST_F(RingBufferTransportIntegrationTest, ClientKeepsOnlyCommonVersions) {
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), kProtocolAbiV1 | kProtocolAbiV2, kProtocolAbiV2);
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV2);
+}
+
+TEST_F(RingBufferTransportIntegrationTest, ClientAcceptsV2OnlyOffer) {
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), kProtocolAbiV2, kProtocolAbiV2);
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV2);
+}
+
+TEST_F(RingBufferTransportIntegrationTest, RejectedInitializationDisconnects) {
+  auto disconnected = task_runner_->CreateCheckpoint("producer_disconnected");
+  EXPECT_CALL(producer_, OnDisconnect()).WillOnce(disconnected);
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), kProtocolAbiV2, 0, /*connection_succeeded=*/false);
+  task_runner_->RunUntilCheckpoint("producer_disconnected");
+  producer_endpoint_.reset();
+}
+
+TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
+  ASSERT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(64);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  config.add_data_sources()->mutable_config()->set_name("perfetto.test");
+  BufferID target = 0;
+  auto started = task_runner_->CreateCheckpoint("ring_buffer_started");
+  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID, const DataSourceConfig& cfg) {
+        EXPECT_TRUE(cfg.supports_tracing_v2());
+        target = static_cast<BufferID>(cfg.target_buffer());
+      });
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce(InvokeWithoutArgs(started));
+  consumer_endpoint_->EnableTracing(config);
+  task_runner_->RunUntilCheckpoint("ring_buffer_started");
+
+  std::shared_ptr<PosixSharedMemory> memory =
+      PosixSharedMemory::Create(sizeof(tracing_v2::RingBufferHeader) + 4 * 256);
+  tracing_v2::SharedRingBuffer ring_buffer(
+      static_cast<uint8_t*>(memory->start()), memory->size(), 256);
+  auto writer = tracing_v2::test::MakeWriter(&ring_buffer, 2, target);
+  // Field 900 contains TestEvent.str, with the internal bare closing marker.
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer,
+                                              "\xa3\x38\x0a\x05"
+                                              "early\x04"));
+  writer.FinishCurrentChunk();
+  auto attached = task_runner_->CreateCheckpoint("ring_buffer_attached");
+  producer_endpoint_->AttachV2RingBuffer(memory, 256, [attached](bool success) {
+    EXPECT_TRUE(success);
+    attached();
+  });
+  task_runner_->RunUntilCheckpoint("ring_buffer_attached");
+  EXPECT_EQ(tracing_v2::test::SharedRingBufferInternalsForTest::GetReadPos(
+                &ring_buffer),
+            1u);
+
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&writer,
+                                              "\xa3\x38\x0a\x05"
+                                              "later\x04"));
+  writer.FinishCurrentChunk();
+  auto drained = task_runner_->CreateCheckpoint("ring_buffer_drained");
+  producer_endpoint_->DrainV2RingBuffer();
+  producer_endpoint_->Sync([&] {
+    EXPECT_EQ(tracing_v2::test::SharedRingBufferInternalsForTest::GetReadPos(
+                  &ring_buffer),
+              2u);
+    drained();
+  });
+  task_runner_->RunUntilCheckpoint("ring_buffer_drained");
+
+  // The manual ring buffer writer uses ID 2. The first v1 writer receives ID
+  // 1.
+  auto legacy = producer_endpoint_->CreateTraceWriter(
+      target, BufferExhaustedPolicy::kDrop);
+  legacy->NewTracePacket()->set_for_testing()->set_str("legacy");
+  auto committed = task_runner_->CreateCheckpoint("legacy_committed");
+  legacy->Flush(committed);
+  task_runner_->RunUntilCheckpoint("legacy_committed");
+  std::vector<std::string> values;
+  auto read = task_runner_->CreateCheckpoint("ring_buffer_read");
+  EXPECT_CALL(consumer_, OnTracePackets(_, _))
+      .WillRepeatedly([&](std::vector<TracePacket>* packets, bool more) {
+        for (const auto& encoded : *packets) {
+          protos::gen::TracePacket packet;
+          ASSERT_TRUE(packet.ParseFromString(encoded.GetRawBytesForTesting()));
+          if (packet.has_for_testing())
+            values.push_back(packet.for_testing().str());
+          if (packet.has_trace_config())
+            EXPECT_FALSE(packet.trace_config()
+                             .data_sources()[0]
+                             .config()
+                             .has_supports_tracing_v2());
+        }
+        if (!more)
+          read();
+      });
+  consumer_endpoint_->ReadBuffers();
+  task_runner_->RunUntilCheckpoint("ring_buffer_read");
+  EXPECT_THAT(values,
+              testing::UnorderedElementsAre("early", "later", "legacy"));
+}
+
+TEST_F(RingBufferTransportIntegrationTest,
+       RejectsInvalidAndDuplicateRingBuffers) {
+  auto attach = [&](size_t size, uint32_t chunk_size, bool accepted,
+                    const char* checkpoint) {
+    std::shared_ptr<PosixSharedMemory> memory = PosixSharedMemory::Create(size);
+    auto done = task_runner_->CreateCheckpoint(checkpoint);
+    producer_endpoint_->AttachV2RingBuffer(memory, chunk_size,
+                                           [=](bool result) {
+                                             EXPECT_EQ(result, accepted);
+                                             done();
+                                           });
+    task_runner_->RunUntilCheckpoint(checkpoint);
+  };
+  // An invalid layout does not persist state on the peer. A second attach with
+  // a valid layout can still succeed.
+  attach(4096, 256, false, "invalid_layout");
+  attach(sizeof(tracing_v2::RingBufferHeader) + 1024, 256, true, "first_valid");
+  // The service attaches one ring buffer per producer. A later one is
+  // rejected.
+  attach(sizeof(tracing_v2::RingBufferHeader) + 1024, 256, false,
+         "duplicate_ring_buffer");
+  auto synced = task_runner_->CreateCheckpoint("still_connected");
+  producer_endpoint_->Sync(synced);
+  task_runner_->RunUntilCheckpoint("still_connected");
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
+}
+#endif
 
 TEST_F(TracingIntegrationTest, WithIPCTransport) {
   // Start tracing.
