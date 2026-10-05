@@ -109,7 +109,8 @@ constexpr auto kThreadTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::kThreadDimensionBlueprint,
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value"),
+        tracks::StringIdDimensionBlueprint("custom_dimensions")),
     tracks::DynamicNameBlueprint());
 
 constexpr auto kProcessTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
@@ -118,7 +119,8 @@ constexpr auto kProcessTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::kProcessDimensionBlueprint,
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value"),
+        tracks::StringIdDimensionBlueprint("custom_dimensions")),
     tracks::DynamicNameBlueprint());
 
 constexpr auto kGlobalTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
@@ -126,7 +128,8 @@ constexpr auto kGlobalTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
     tracks::DimensionBlueprints(
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value"),
+        tracks::StringIdDimensionBlueprint("custom_dimensions")),
     tracks::DynamicNameBlueprint());
 
 std::pair<uint32_t, StringId> GetMergeKey(
@@ -216,13 +219,6 @@ void TrackEventTracker::ReserveDescriptorTrack(
       rr.set_name(reservation.name);
     }
   }
-  // Dimensions are not part of the track identity, so a re-emitted descriptor
-  // is allowed to be the first one carrying them (e.g. because the producer
-  // only learns its rank after the first descriptor was emitted).
-  if (it->reservation.dimensions.empty() && !reservation.dimensions.empty()) {
-    it->reservation.dimensions = reservation.dimensions;
-  }
-
   it->reservation.min_timestamp =
       std::min(it->reservation.min_timestamp, reservation.min_timestamp);
 }
@@ -484,8 +480,10 @@ TrackEventTracker::InternDescriptorTrackImpl(
   };
   // Merged tracks are created lazily and there can be more than one of them
   // for a single descriptor, so dimensions are recorded from the track
-  // creation callback. Every other track is handled once, at end of trace, by
-  // |OnEventsFullyExtracted|.
+  // creation callback. Only descriptors with the same dimensions are merged
+  // together (they are part of the merge key), so the dimensions of the
+  // descriptor creating the track apply to the whole merged track. Every other
+  // track is handled once, at end of trace, by |OnEventsFullyExtracted|.
   auto on_new_merged_track = [this, uuid, set_parent_id](bool set_parent) {
     return [this, uuid, set_parent_id, set_parent](TrackId id) {
       if (set_parent) {
@@ -540,7 +538,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
             kThreadTrackMergedBlueprint,
             tracks::Dimensions(parent_resolved_track->utid(),
                                static_cast<int64_t>(reservation->parent_uuid),
-                               type, key),
+                               type, key, reservation->dimensions_key),
             tracks::DynamicName(name), args_fn_non_root,
             on_new_merged_track(!parent_resolved_track->is_root()));
       }
@@ -590,7 +588,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
             kProcessTrackMergedBlueprint,
             tracks::Dimensions(parent_resolved_track->upid(),
                                static_cast<int64_t>(reservation->parent_uuid),
-                               type, key),
+                               type, key, reservation->dimensions_key),
             tracks::DynamicName(translated_name), args_fn_non_root,
             on_new_merged_track(!parent_resolved_track->is_root()));
       }
@@ -627,7 +625,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
   return context_->track_compressor->CreateTrackFactory(
       kGlobalTrackMergedBlueprint,
       tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid), type,
-                         key),
+                         key, reservation->dimensions_key),
       tracks::DynamicName(name),
       is_root_in_scope ? args_fn_root : args_fn_non_root,
       on_new_merged_track(true));

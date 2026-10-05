@@ -789,6 +789,7 @@ class TrackEvent(TestSuite):
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",400,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",500,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",600,"[NULL]"
+          "custom_dimensions","custom_dimensions","[NULL]","[NULL]"
           "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
           "event.name","event.name","[NULL]","[NULL]"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
@@ -1784,4 +1785,60 @@ class TrackEvent(TestSuite):
         "machine"
         "process"
         "thread"
+        """))
+
+  # Dimensions are part of the track identity: a re-emitted descriptor with
+  # different dimensions (including a first descriptor without any) is a
+  # conflicting reservation and the first descriptor is kept. Order and display
+  # names don't matter.
+  def test_track_event_dimensions_identity_reservation(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions_identity.textproto'),
+        query="""
+        SELECT
+          s.name AS slice,
+          (
+            SELECT group_concat(d.name || '=' || coalesce(d.int_value, d.string_value), ',')
+            FROM (
+              SELECT * FROM track_dimension
+              WHERE track_id = s.track_id AND is_well_known = 0
+              ORDER BY name
+            ) AS d
+          ) AS dimensions,
+          (
+            SELECT value FROM stats
+            WHERE name = 'track_descriptor_conflicting_reservation'
+          ) AS conflicts
+        FROM slice AS s
+        WHERE s.name IN ('g1_event', 'g2_event')
+        ORDER BY s.name;
+        """,
+        out=Csv("""
+        "slice","dimensions","conflicts"
+        "g1_event","rank=1,stage=fwd",2
+        "g2_event","[NULL]",2
+        """))
+
+  # Dimensions are part of the sibling merge key: siblings are only merged if
+  # they declare the same dimensions.
+  def test_track_event_dimensions_identity_merging(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions_identity.textproto'),
+        query="""
+        SELECT
+          s.name AS slice,
+          dense_rank() OVER (ORDER BY s.track_id) AS track_idx,
+          extract_arg(t.dimension_arg_set_id, 'custom_dimensions')
+            AS custom_dimensions
+        FROM slice AS s
+        JOIN track AS t ON t.id = s.track_id
+        WHERE t.name = 'step'
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "slice","track_idx","custom_dimensions"
+        "rank1_a",1,"rank=1,stage='fwd'"
+        "rank2",2,"rank=2,stage='fwd'"
+        "rank1_b",1,"rank=1,stage='fwd'"
+        "no_rank",3,"[NULL]"
         """))

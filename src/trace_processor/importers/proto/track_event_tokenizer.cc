@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -23,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
@@ -448,6 +450,42 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
     }
     reservation.dimensions.push_back(out);
   }
+  if (reservation.dimensions.empty()) {
+    return;
+  }
+
+  // Dimensions are part of the track identity: canonicalize them into a single
+  // string (e.g. `rank=7,stage='forward'`), independent of declaration order,
+  // which is compared by |IsForSameTrack| and is part of the sibling merge key.
+  // Display names only affect presentation, so they are not part of it.
+  const auto* storage = context_->storage.get();
+  std::vector<const Reservation::Dimension*> sorted;
+  for (const auto& dim : reservation.dimensions) {
+    sorted.push_back(&dim);
+  }
+  std::stable_sort(sorted.begin(), sorted.end(),
+                   [storage](const Reservation::Dimension* a,
+                             const Reservation::Dimension* b) {
+                     return storage->GetString(a->name) <
+                            storage->GetString(b->name);
+                   });
+  std::string key;
+  for (const auto* dim : sorted) {
+    if (!key.empty()) {
+      key += ',';
+    }
+    key += storage->GetString(dim->name).ToStdString();
+    key += '=';
+    if (dim->int_value) {
+      key += std::to_string(*dim->int_value);
+    } else {
+      key += '\'';
+      key += storage->GetString(dim->string_value).ToStdString();
+      key += '\'';
+    }
+  }
+  reservation.dimensions_key =
+      context_->storage->InternString(base::StringView(key));
 }
 
 void TrackEventTokenizer::RecordDimensionError(size_t stat_key,

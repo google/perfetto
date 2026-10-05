@@ -17889,14 +17889,24 @@ message CounterDescriptor {
 // Declaring a *different* value for a dimension name which is already
 // inherited from an ancestor is invalid: trace processor records an import
 // error and keeps the inherited value.
+//
+// The dimensions declared on a TrackDescriptor (names and values; the order
+// and `display_name` don't matter) are part of the identity of that track:
+//  * they are fixed for the lifetime of the track, so every TrackDescriptor
+//    emitted for a given `uuid`, including the first one, must declare the
+//    same dimensions. A TrackDescriptor declaring different dimensions is
+//    rejected as a conflicting reservation and the first one is kept.
+//  * sibling tracks are only merged (see
+//    `TrackDescriptor.sibling_merge_behavior`) if they declare the same
+//    dimensions.
 message Dimension {
   // The canonical dimension key, e.g. "rank". Custom dimensions cannot use a
   // reserved well-known name (`machine`, `gpu`, `cpu`, `process`, `thread`).
   optional string name = 1;
 
-  // The typed value of the dimension. This is the value used for SQL queries
-  // and (for well-known dimensions) merging, so it should be stable for the
-  // whole trace.
+  // The typed value of the dimension. This is the value used for SQL queries,
+  // track identity and (for well-known dimensions) merging, so it must be
+  // stable for the whole trace.
   oneof value {
     int64 int_value = 2;
     string string_value = 3;
@@ -18134,6 +18144,7 @@ message TrackDescriptor {
   //    `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME`.
   // 3. Depending on the behavior, the corresponding key must match (e.g. `name`
   //    for `BY_TRACK_NAME`, `sibling_merge_key` for `BY_SIBLING_MERGE_KEY`).
+  // 4. All tracks must declare the same `dimensions`.
   //
   // Specifically:
   //   - in the UI, all tracks which are merged together will be
@@ -18286,6 +18297,11 @@ message TrackDescriptor {
   // tracks which inherit from it: tracks of the same process if `process` is
   // set, tracks of the same thread if `thread` is set, and `parent_uuid`
   // descendants otherwise. See Dimension for the full resolution rules.
+  //
+  // Dimensions are part of the track's identity: every descriptor emitted for
+  // this `uuid` must declare the same dimensions, starting with the first one,
+  // and only siblings declaring the same dimensions are merged. See Dimension
+  // for details.
   //
   // Well-known dimensions (`machine`, `gpu`, `cpu`, `process`, `thread`) are
   // synthesized by trace processor from the typed fields above and from import
