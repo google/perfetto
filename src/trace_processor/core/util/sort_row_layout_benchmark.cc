@@ -41,7 +41,7 @@ enum class Order { kShuffled, kSorted, kReversed, kRuns };
 
 // Lays out `value` as a present nullable Int64 key column at `to`.
 void WriteKey(uint64_t value, uint8_t* to) {
-  uint64_t bits = base::HostToBE64(value ^ (uint64_t{1} << 63));
+  uint64_t bits = base::HostToBE64(value ^ (static_cast<uint64_t>(1) << 63));
   to[0] = 0xFF;
   memcpy(to + 1, &bits, sizeof(bits));
 }
@@ -51,12 +51,12 @@ void Run(benchmark::State& state,
          Order order,
          uint32_t columns = 1) {
   const uint32_t stride = kColumnBytes * columns;
-  std::vector<uint8_t> keys(size_t{rows} * stride);
+  std::vector<uint8_t> keys(static_cast<size_t>(rows) * stride);
   for (uint32_t i = 0; i < rows; ++i) {
     uint64_t value = 0;
     switch (order) {
       case Order::kShuffled:
-        value = uint64_t{i} * 0x9E3779B97F4A7C15ull >> 20;
+        value = static_cast<uint64_t>(i) * 0x9E3779B97F4A7C15ull >> 20;
         break;
       case Order::kSorted:
         value = i;
@@ -65,15 +65,18 @@ void Run(benchmark::State& state,
         value = rows - i;
         break;
       case Order::kRuns:
-        value = (uint64_t{i % (rows / 16)} * 16) + (i / (rows / 16));
+        value =
+            (static_cast<uint64_t>(i % (rows / 16)) * 16) + (i / (rows / 16));
         break;
     }
-    uint8_t* row = &keys[size_t{i} * stride];
+    uint8_t* row = &keys[static_cast<size_t>(i) * stride];
     if (columns == 1) {
       WriteKey(value, row);
     } else {
       // A 32-bit key first, so the two differ in 10 bytes.
-      WriteKey(uint64_t{i} * 2654435761u % (uint64_t{1} << 32), row);
+      WriteKey(static_cast<uint64_t>(i) * 2654435761u %
+                   (static_cast<uint64_t>(1) << 32),
+               row);
       WriteKey(value, row + kColumnBytes);
     }
   }

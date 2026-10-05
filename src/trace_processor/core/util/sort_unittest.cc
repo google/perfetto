@@ -49,9 +49,9 @@ TEST(RadixSort, SmokeTest) {
   std::vector<uint32_t> scratch(data.size());
   std::vector<uint32_t> counts(RadixSortCountsSize(32, data.size()));
 
-  uint32_t* result =
-      RadixSort(data.data(), data.data() + data.size(), scratch.data(),
-                counts.data(), 32, [](uint32_t x) { return uint64_t{x}; });
+  uint32_t* result = RadixSort(
+      data.data(), data.data() + data.size(), scratch.data(), counts.data(), 32,
+      [](uint32_t x) { return static_cast<uint64_t>(x); });
 
   std::vector<uint32_t> sorted_data(result, result + data.size());
   ASSERT_THAT(sorted_data, testing::ElementsAre(1, 1, 2, 3, 4, 5, 6, 9));
@@ -62,13 +62,14 @@ TEST(RadixSort, SmokeTest) {
 TEST(RadixSort, MatchesStableSort) {
   std::minstd_rand0 rnd(0);
   for (uint32_t key_bits = 1; key_bits <= 64; ++key_bits) {
-    uint64_t mask =
-        key_bits == 64 ? ~uint64_t{0} : (uint64_t{1} << key_bits) - 1;
-    for (uint64_t varying : {mask, mask & 0xFF, mask & ~uint64_t{0xFFFF}}) {
+    uint64_t mask = key_bits == 64 ? ~static_cast<uint64_t>(0)
+                                   : (static_cast<uint64_t>(1) << key_bits) - 1;
+    for (uint64_t varying :
+         {mask, mask & 0xFF, mask & ~static_cast<uint64_t>(0xFFFF)}) {
       uint64_t constant = ~mask & 0xA5A5A5A5A5A5A5A5;
       std::vector<TestEntry64> data(3000);
       for (uint32_t i = 0; i < data.size(); ++i) {
-        uint64_t r = (uint64_t{rnd()} << 32) ^ rnd();
+        uint64_t r = (static_cast<uint64_t>(rnd()) << 32) ^ rnd();
         data[i] = {constant | (r & varying), i};
       }
       std::vector<TestEntry64> scratch(data.size());
@@ -117,8 +118,8 @@ TEST(StableSortByKey, MatchesStableSort) {
     for (uint32_t key_bits : {3u, 40u}) {
       std::vector<TestEntry64> data(size);
       for (uint32_t i = 0; i < size; ++i) {
-        uint64_t r = (uint64_t{rnd()} << 32) ^ rnd();
-        data[i] = {r & ((uint64_t{1} << key_bits) - 1), i};
+        uint64_t r = (static_cast<uint64_t>(rnd()) << 32) ^ rnd();
+        data[i] = {r & ((static_cast<uint64_t>(1) << key_bits) - 1), i};
       }
       std::vector<TestEntry64> scratch(size);
       TestEntry64* result = StableSortByKey(

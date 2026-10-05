@@ -46,7 +46,7 @@ constexpr uint32_t kMaxKeyBytes = 8;
 
 struct Rows {
   const uint8_t* operator[](uint32_t row) const {
-    return data + (size_t{row} * stride);
+    return data + (static_cast<size_t>(row) * stride);
   }
   const uint8_t* data;
   uint32_t stride;
@@ -90,6 +90,9 @@ int CompareRows(const uint8_t* a, const uint8_t* b, uint32_t stride) {
     memcpy(&x, a + at, 8);
     memcpy(&y, b + at, 8);
     if (x != y) {
+      // Row bytes are ordered by significance, even when this word spans
+      // multiple columns. Convert to host order so an integer comparison
+      // gives the same result as comparing those bytes from left to right.
       return base::BE64ToHost(x) < base::BE64ToHost(y) ? -1 : 1;
     }
     if (at == stride - 8) {
@@ -108,8 +111,8 @@ struct ExistingOrder {
 // Stops as soon as the rows are neither in a few runs nor strictly descending,
 // which for most input is within a few rows.
 ExistingOrder FindExistingOrder(const Rows& rows) {
-  size_t max_runs =
-      std::min(kMaxMergedRuns, size_t{rows.count} / kRowsPerMergedRun);
+  size_t max_runs = std::min(
+      kMaxMergedRuns, static_cast<size_t>(rows.count) / kRowsPerMergedRun);
   ExistingOrder order;
   order.runs.emplace_back(0u);
   bool few_runs = true;
@@ -152,6 +155,8 @@ void FindVaryingBytes(const Rows& rows, Scratch& scratch) {
     for (uint32_t w = 0; w < words; ++w) {
       memcpy(&first[w], rows[0] + word_at(w), 8);
     }
+    // XOR each row with the first and accumulate the differences. A byte is
+    // constant across all rows exactly when none of its bits are set in diff.
     for (uint32_t r = 0; r < rows.count; ++r) {
       for (uint32_t w = 0; w < words; ++w) {
         uint64_t word;
@@ -188,6 +193,9 @@ Token* PackKeys(const Rows& rows,
   for (uint32_t r = 0; r < rows.count; ++r) {
     const uint8_t* row = rows[r];
     uint64_t key = 0;
+    // Constant bytes cannot decide the order. Pack the remaining bytes from
+    // most to least significant so the integer key preserves their ordering.
+    // This constructs a numeric value, so no endian conversion is needed.
     for (uint32_t b = 0; b < key_bytes; ++b) {
       key = (key << 8) | row[varying[b]];
     }
@@ -213,8 +221,9 @@ Token* MergeRuns(Token* tokens,
       runs[kept++] = runs[r];
     }
     if (r + 1 < runs.size()) {
+      // An odd final run has no partner; carry it into the next merge pass.
       memcpy(dest + runs[r], source + runs[r],
-             size_t{runs[r + 1] - runs[r]} * sizeof(Token));
+             static_cast<size_t>(runs[r + 1] - runs[r]) * sizeof(Token));
       runs[kept++] = runs[r];
     }
     runs[kept++] = runs.back();
@@ -254,9 +263,11 @@ void SortRowLayout(Span<const uint8_t> row_layout,
   if (count <= 1) {
     return;
   }
-  PERFETTO_DCHECK(row_layout.size() >= size_t{count} * row_stride);
+  PERFETTO_DCHECK(row_layout.size() >= static_cast<size_t>(count) * row_stride);
   Rows rows{row_layout.b, row_stride, count};
 
+  // 1. Reuse existing order where possible. Keep run boundaries for merging
+  // if the input consists of a small number of ascending runs.
   ExistingOrder order = FindExistingOrder(rows);
   if (order.sorted) {
     return;
@@ -267,12 +278,15 @@ void SortRowLayout(Span<const uint8_t> row_layout,
     return;
   }
 
+  // 2. Build compact keys from the first eight varying bytes. Sorting these
+  // tokens avoids repeatedly reading full rows through their offsets.
   Scratch scratch;
   FindVaryingBytes(rows, scratch);
   auto key_bytes = static_cast<uint32_t>(
       std::min<size_t>(scratch.varying.size(), kMaxKeyBytes));
   Token* tokens = PackKeys(rows, key_bytes, indices->b, scratch);
   Token* sorted = tokens;
+  // 3. Merge existing runs or sort the tokens, preserving input order for ties.
   if (!order.runs.empty()) {
     sorted = MergeRuns(tokens, Resize(scratch.spare, count), order.runs);
   } else {
@@ -281,6 +295,8 @@ void SortRowLayout(Span<const uint8_t> row_layout,
         [](const Token& t) { return t.key; },
         [](const Token& t) { return t.position; });
   }
+  // 4. If the key omitted varying bytes, equal keys may still represent
+  // different rows. Compare full rows within each tied group to finish sorting.
   if (scratch.varying.size() > kMaxKeyBytes) {
     SortTiesOnWholeRows(sorted, rows);
   }

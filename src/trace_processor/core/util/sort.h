@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string_view>
 #include <type_traits>
@@ -46,10 +47,11 @@ inline RadixDigits GetRadixDigits(uint32_t key_bits, size_t size) {
     return {0, 0};
   }
   RadixDigits best{};
-  uint64_t best_cost = UINT64_MAX;
+  uint64_t best_cost = std::numeric_limits<uint64_t>::max();
   for (uint32_t passes = fewest; passes <= fewest + 2; ++passes) {
     uint32_t bits = (key_bits + passes - 1) / passes;
-    uint64_t cost = uint64_t{passes} * ((4 * size) + (uint64_t{1} << bits));
+    uint64_t cost = static_cast<uint64_t>(passes) *
+                    ((4 * size) + (static_cast<uint64_t>(1) << bits));
     if (cost < best_cost) {
       best = {passes, bits};
       best_cost = cost;
@@ -63,7 +65,7 @@ inline RadixDigits GetRadixDigits(uint32_t key_bits, size_t size) {
 // The number of counts RadixSort() needs for `size` keys of `key_bits` bits.
 inline size_t RadixSortCountsSize(uint32_t key_bits, size_t size) {
   internal::RadixDigits digits = internal::GetRadixDigits(key_bits, size);
-  return size_t{digits.passes} << digits.bits;
+  return static_cast<size_t>(digits.passes) << digits.bits;
 }
 
 // Sorts [begin, end) by `key(element)`, a uint64_t, with a stable Least
@@ -93,8 +95,12 @@ T* RadixSort(T* begin,
     return begin;
   }
   internal::RadixDigits digits = internal::GetRadixDigits(key_bits, n);
-  size_t buckets = size_t{1} << digits.bits;
+  size_t buckets = static_cast<size_t>(1) << digits.bits;
   uint64_t mask = buckets - 1;
+
+  // 1. Count frequencies for every digit in a single read of the input. Each
+  // digit has its own table of `buckets` counts. Sorting changes the order of
+  // elements but not these frequencies, so later passes can reuse them.
   memset(counts, 0, digits.passes * buckets * sizeof(uint32_t));
   for (T* it = begin; it != end; ++it) {
     uint64_t k = key(*it);
@@ -104,21 +110,29 @@ T* RadixSort(T* begin,
   }
   T* source = begin;
   T* dest = scratch_begin;
+  // Process digits from least to most significant. Each pass must be stable
+  // to preserve the ordering established by the less significant digits.
   for (uint32_t p = 0; p < digits.passes; ++p) {
     uint32_t* count = counts + (p * buckets);
     uint32_t shift = p * digits.bits;
+    // If every element is in the same bucket, this pass cannot change the
+    // order. Leave the data in `source` without swapping buffers.
     if (count[(key(*source) >> shift) & mask] == n) {
       continue;
     }
+    // 2. Convert frequencies into the starting output position of each bucket.
     uint32_t total = 0;
     for (size_t d = 0; d < buckets; ++d) {
       uint32_t c = count[d];
       count[d] = total;
       total += c;
     }
+    // 3. Distribute elements in source order. Advancing each bucket's position
+    // after every write preserves the relative order of equal digits.
     for (T* it = source; it != source + n; ++it) {
       dest[count[(key(*it) >> shift) & mask]++] = *it;
     }
+    // The next pass reads this pass's output, avoiding a copy back to `begin`.
     std::swap(source, dest);
   }
   return source;
@@ -131,10 +145,11 @@ namespace internal {
 // element, and clears and sums its counts.
 inline bool RadixSortIsCheaper(size_t size, uint32_t key_bits) {
   RadixDigits digits = GetRadixDigits(key_bits, size);
-  uint64_t radix = uint64_t{digits.passes} *
-                   ((uint64_t{3} * size) + (uint64_t{1} << digits.bits));
+  uint64_t radix = static_cast<uint64_t>(digits.passes) *
+                   ((static_cast<uint64_t>(3) * size) +
+                    (static_cast<uint64_t>(1) << digits.bits));
   uint64_t log2_size = 64 - base::CountLeadZeros64(size);
-  return radix < uint64_t{2} * size * log2_size;
+  return radix < static_cast<uint64_t>(2) * size * log2_size;
 }
 
 }  // namespace internal
