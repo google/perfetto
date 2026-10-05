@@ -116,6 +116,14 @@ std::optional<Uids> GetUids(const std::string& status) {
   return uids;
 }
 
+std::optional<uid_t> GetUidFromProcfs(pid_t pid) {
+  base::StackString<32> path("/proc/%d", static_cast<int>(pid));
+  struct stat statbuf{};
+  if (stat(path.c_str(), &statbuf) != 0)
+    return std::nullopt;
+  return statbuf.st_uid;
+}
+
 // Normalize cmdline in place. Stores new beginning of string in *cmdline_ptr.
 // Returns new size of string (from new beginning).
 // Modifies string in *cmdline_ptr.

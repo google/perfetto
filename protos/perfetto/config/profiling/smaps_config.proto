@@ -21,7 +21,8 @@ package perfetto.protos;
 // Config for the "linux.smaps" data source, describes one-shot or periodic
 // /proc/pid/smaps collection.
 //
-// A valid config must specify at least one |target_cmdline|. Example:
+// A valid config must specify at least one |target_cmdline| or |target_uid|.
+// Example:
 //
 // data_sources {
 //   config {
@@ -40,6 +41,8 @@ message ProcessSmapsConfig {
   optional SmapsConfig smaps_config = 1;
 
   // Which processes to record. At least one field must be set.
+  // Multiples of the same option (e.g. target_cmdline) are ORed.
+  // Different options are ANDed, skipping fields that are unset.
   message Scope {
     // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
     // comm string).
@@ -55,6 +58,18 @@ message ProcessSmapsConfig {
     //
     // Implementation note: at most 511 characters of cmdline are considered.
     repeated string target_cmdline = 1;
+
+    // Range of UIDs.
+    message UidRange {
+      // inclusive, must be set
+      optional uint32 min_uid = 1;
+      // inclusive, must be set
+      optional uint32 max_uid = 2;
+      // Android: if true, compare the UID modulo the per-user/profile offset
+      // (AID_USER_OFFSET, 100000).
+      optional bool android_match_across_profiles = 3;
+    }
+    repeated UidRange target_uid = 2;
   }
   optional Scope scope = 2;
 

@@ -49,6 +49,7 @@ class SmapsDataSource {
 
     protos::gen::SmapsConfig recording_config;
     std::vector<std::string> target_cmdlines;
+    std::vector<protos::gen::ProcessSmapsConfig::Scope::UidRange> target_uids;
     uint32_t read_period_ms = 0;            // if zero: capture once
     uint32_t max_processes_per_period = 0;  // if zero: unlimited
    private:
@@ -81,6 +82,9 @@ class SmapsDataSource {
       const std::function<bool(pid_t)>& filter,
       uint32_t max_count,
       HashAndPid* last_picked);
+
+  // public for testing
+  static bool MatchesScope(pid_t pid, const Config& config);
 
  private:
   // Enqueues the work necessary for one pass, and reposts itself if the config
