@@ -1271,6 +1271,51 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
               testing::ElementsAre("0,5,1,1,1", "10,5,1,1,1", "15,5,1,1,1",
                                    "30,5,2,1,1", "40,5,NULL,1,1", "5,5,1,1,2"));
 
+  // Aliases can repeat a logical key. Grouping by (a, b) cannot be reused
+  // when the next stage groups by (a, a), even though both lists have length 2.
+  rows = Rows(R"(
+    FROM (SELECT 0 AS ts, 10 AS dur, 1 AS a, 1 AS b
+          UNION ALL SELECT 0, 10, 1, 2)
+    |> INTERVAL FLATTEN PER a, b AGGREGATE COUNT(*) AS n
+    |> SELECT ts, dur, a AS x, a AS y, n
+    |> INTERVAL FLATTEN PER x, y AGGREGATE SUM(n) AS n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,10,1,1,2"));
+
+  // Check accumulation, removal, instant/live combination and endpoint
+  // arithmetic. Each case must fail rather than wrapping a signed integer.
+  for (const char* values : {
+           "(0, 2, 9223372036854775807), (0, 2, 1)",
+           "(0, 2, -9223372036854775808), (0, 2, -1)",
+           "(0, 1, -1), (0, 2, 9223372036854775807), (0, 2, 1)",
+           "(0, 1, 1), (0, 2, -9223372036854775808), (0, 2, -1)",
+           "(0, 1, -9223372036854775808), (0, 2, 9223372036854775807), "
+           "(0, 2, 1)",
+           "(0, 2, 9223372036854775807), (1, 0, 1)",
+           "(9223372036854775807, 1, 0)",
+       }) {
+    SCOPED_TRACE(values);
+    auto result =
+        Rows(std::string("FROM (WITH v(ts, dur, weight) AS (VALUES ") + values +
+             ") SELECT ts, dur, weight FROM v) "
+             "|> INTERVAL FLATTEN AGGREGATE SUM(weight) AS w");
+    ASSERT_FALSE(result.ok());
+    EXPECT_THAT(result.status().message(), testing::HasSubstr("overflow"));
+  }
+  // The limits themselves are valid, including subtracting the minimum value
+  // when its interval ends, and ending an interval at the maximum timestamp.
+  rows = Rows(R"(
+    FROM (SELECT 0 AS ts, 1 AS dur, -9223372036854775808 AS weight
+          UNION ALL SELECT 1, 1, 9223372036854775807
+          UNION ALL SELECT 9223372036854775806, 1, 0)
+    |> INTERVAL FLATTEN AGGREGATE SUM(weight) AS w
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,1,-9223372036854775808",
+                                          "1,1,9223372036854775807",
+                                          "9223372036854775806,1,0"));
+
   // Only the segment's columns are left.
   EXPECT_THAT(Rows("FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n "
                    "|> SELECT weight")

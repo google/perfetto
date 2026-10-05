@@ -75,8 +75,8 @@ class IntervalFlatten : public Breaker {
   struct State : Breaker::State {
     ~State() override;
 
-    uint32_t group = 0;
-    uint32_t group_number = 0;
+    uint32_t input_group = 0;
+    uint32_t output_group = 0;
     bool in_group = false;
     int64_t previous = 0;
     int64_t time = 0;
@@ -118,10 +118,11 @@ class IntervalFlatten : public Breaker {
   bool Serve(RowBatch& out, Breaker::State& state) const override;
   void Reset(Breaker::State& state) const override;
 
-  void Advance(State&, int64_t time) const;
-  void EmitInstant(State&) const;
-  void EndGroup(State&) const;
-  void Emit(State&, int64_t ts, int64_t dur, bool with_instant) const;
+  static bool Add(State&, int64_t a, int64_t b, int64_t* out);
+  bool Advance(State&, int64_t time) const;
+  bool EmitInstant(State&) const;
+  bool EndGroup(State&) const;
+  bool Emit(State&, int64_t ts, int64_t dur, bool with_instant) const;
   void GrowSegments(State&) const;
 
   IntervalFlattenSpec spec_;

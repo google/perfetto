@@ -231,10 +231,9 @@ void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
   auto has = [](const std::vector<ColumnId>& ids, ColumnId id) {
     return std::find(ids.begin(), ids.end(), id) != ids.end();
   };
-  bool grouped = order_.grouped_by.size() == keys.size() &&
-                 std::all_of(keys.begin(), keys.end(), [&](ColumnId key) {
-                   return has(order_.grouped_by, key);
-                 });
+  bool grouped =
+      std::is_permutation(order_.grouped_by.begin(), order_.grouped_by.end(),
+                          keys.begin(), keys.end());
   if (grouped && has(order_.ascending, ascending)) {
     return;
   }

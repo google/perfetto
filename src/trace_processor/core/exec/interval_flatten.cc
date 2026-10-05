@@ -26,6 +26,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/util/heap.h"
@@ -117,13 +118,15 @@ bool IntervalFlatten::Consume(const RowBatch& in, Breaker::State& state) const {
       return false;
     }
     uint32_t group = keyed ? groups->Value<uint32_t>(row) : 0;
-    if (!s.in_group || group != s.group) {
+    if (!s.in_group || group != s.input_group) {
       if (s.in_group) {
-        EndGroup(s);
-        ++s.group_number;
+        if (!EndGroup(s)) {
+          return false;
+        }
+        ++s.output_group;
       }
       s.in_group = true;
-      s.group = group;
+      s.input_group = group;
       s.key_row = s.key_rows.size() + row;
       s.time = std::numeric_limits<int64_t>::min();
       started = true;
@@ -135,9 +138,13 @@ bool IntervalFlatten::Consume(const RowBatch& in, Breaker::State& state) const {
         return false;
       }
       if (s.instant.count > 0) {
-        EmitInstant(s);
+        if (!EmitInstant(s)) {
+          return false;
+        }
       }
-      Advance(s, start);
+      if (!Advance(s, start)) {
+        return false;
+      }
       s.time = start;
     }
     Totals* totals = &s.instant;
@@ -146,21 +153,27 @@ bool IntervalFlatten::Consume(const RowBatch& in, Breaker::State& state) const {
       totals = &s.live;
       if (s.free_slots.empty()) {
         slot = s.slots++;
-        s.slot_sums.resize(uint64_t{s.slots} * sums_);
+        s.slot_sums.resize(static_cast<uint64_t>(s.slots) * sums_);
       } else {
         slot = s.free_slots.back();
         s.free_slots.pop_back();
       }
-      PushEnd(s.ends, Live{start + length, slot});
+      int64_t end;
+      if (!Add(s, start, length, &end)) {
+        return false;
+      }
+      PushEnd(s.ends, Live{end, slot});
     }
     ++totals->count;
     for (uint32_t i = 0; i < sums_; ++i) {
       Sum held{};
       held.holding = sums[i].Read(row, &held.sum);
-      totals->sums[i].sum += held.sum;
+      if (!Add(s, totals->sums[i].sum, held.sum, &totals->sums[i].sum)) {
+        return false;
+      }
       totals->sums[i].holding += held.holding;
       if (length > 0) {
-        s.slot_sums[size_t{slot} * sums_ + i] = held;
+        s.slot_sums[static_cast<size_t>(slot) * sums_ + i] = held;
       }
     }
   }
@@ -177,12 +190,22 @@ bool IntervalFlatten::Consume(const RowBatch& in, Breaker::State& state) const {
   return s.status.ok();
 }
 
-void IntervalFlatten::Advance(State& s, int64_t time) const {
+bool IntervalFlatten::Add(State& s, int64_t a, int64_t b, int64_t* out) {
+  if (base::CheckedAdd(a, b, out)) {
+    return true;
+  }
+  s.status = base::ErrStatus("INTERVAL FLATTEN: integer overflow");
+  return false;
+}
+
+bool IntervalFlatten::Advance(State& s, int64_t time) const {
   int64_t previous = s.previous;
   while (!s.ends.empty() && s.ends.begin()->end <= time) {
     int64_t end = s.ends.begin()->end;
     if (s.live.count > 0 && previous < end) {
-      Emit(s, previous, end - previous, false);
+      if (!Emit(s, previous, end - previous, false)) {
+        return false;
+      }
     }
     previous = end;
     while (!s.ends.empty() && s.ends.begin()->end == end) {
@@ -190,33 +213,52 @@ void IntervalFlatten::Advance(State& s, int64_t time) const {
       PopEnd(s.ends);
       --s.live.count;
       for (uint32_t i = 0; i < sums_; ++i) {
-        const Sum& held = s.slot_sums[size_t{slot} * sums_ + i];
-        s.live.sums[i].sum -= held.sum;
+        const Sum& held = s.slot_sums[static_cast<size_t>(slot) * sums_ + i];
+        // Negating the minimum Int64 value would itself overflow. Subtract it
+        // directly only when the result is representable.
+        if (held.sum == std::numeric_limits<int64_t>::min()) {
+          if (s.live.sums[i].sum >= 0) {
+            s.status = base::ErrStatus("INTERVAL FLATTEN: integer overflow");
+            return false;
+          }
+          s.live.sums[i].sum -= held.sum;
+        } else if (!Add(s, s.live.sums[i].sum, -held.sum,
+                        &s.live.sums[i].sum)) {
+          return false;
+        }
         s.live.sums[i].holding -= held.holding;
       }
       s.free_slots.push_back(slot);
     }
   }
   if (s.live.count > 0 && previous < time) {
-    Emit(s, previous, time - previous, false);
+    if (!Emit(s, previous, time - previous, false)) {
+      return false;
+    }
   }
   s.previous = time;
+  return true;
 }
 
-void IntervalFlatten::EmitInstant(State& s) const {
-  Emit(s, s.time, 0, true);
+bool IntervalFlatten::EmitInstant(State& s) const {
+  if (!Emit(s, s.time, 0, true)) {
+    return false;
+  }
   s.instant.count = 0;
   std::fill(s.instant.sums.begin(), s.instant.sums.end(), Sum());
+  return true;
 }
 
-void IntervalFlatten::EndGroup(State& s) const {
+bool IntervalFlatten::EndGroup(State& s) const {
   if (s.instant.count > 0) {
-    EmitInstant(s);
+    if (!EmitInstant(s)) {
+      return false;
+    }
   }
-  Advance(s, std::numeric_limits<int64_t>::max());
+  return Advance(s, std::numeric_limits<int64_t>::max());
 }
 
-void IntervalFlatten::Emit(State& s,
+bool IntervalFlatten::Emit(State& s,
                            int64_t ts,
                            int64_t dur,
                            bool with_instant) const {
@@ -226,7 +268,7 @@ void IntervalFlatten::Emit(State& s,
   }
   s.segment_ts[n] = ts;
   s.segment_dur[n] = dur;
-  s.segment_groups[n] = s.group_number;
+  s.segment_groups[n] = s.output_group;
   s.segment_key_rows[n] = s.key_row;
   const Totals& live = s.live;
   const Totals& instant = s.instant;
@@ -234,7 +276,9 @@ void IntervalFlatten::Emit(State& s,
   for (uint32_t i = 0; i < sums_; ++i) {
     Sum total = live.sums[i];
     if (with_instant) {
-      total.sum += instant.sums[i].sum;
+      if (!Add(s, total.sum, instant.sums[i].sum, &total.sum)) {
+        return false;
+      }
       total.holding += instant.sums[i].holding;
     }
     State::SegmentSums& out = s.segment_sums[i];
@@ -242,6 +286,7 @@ void IntervalFlatten::Emit(State& s,
     out.present.change(n, total.holding > 0);
   }
   s.segments = n + 1;
+  return true;
 }
 
 PERFETTO_NO_INLINE void IntervalFlatten::GrowSegments(State& s) const {
@@ -260,7 +305,7 @@ PERFETTO_NO_INLINE void IntervalFlatten::GrowSegments(State& s) const {
 bool IntervalFlatten::Finalize(Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
   if (s.in_group) {
-    EndGroup(s);
+    return EndGroup(s);
   }
   return true;
 }
@@ -302,8 +347,8 @@ bool IntervalFlatten::Serve(RowBatch& out, Breaker::State& state) const {
 
 void IntervalFlatten::Reset(Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
-  s.group = 0;
-  s.group_number = 0;
+  s.input_group = 0;
+  s.output_group = 0;
   s.in_group = false;
   s.previous = 0;
   s.time = 0;
