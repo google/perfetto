@@ -70,7 +70,7 @@ struct LsdSorter<RadixSortTag> {
   static void Sort(std::vector<PodObject>& data) {
     std::vector<PodObject> scratch(data.size());
     std::vector<uint32_t> counts(
-        perfetto::trace_processor::core::RadixSortCountsSize(64));
+        perfetto::trace_processor::core::RadixSortCountsSize(64, data.size()));
     perfetto::trace_processor::core::RadixSort(
         data.data(), data.data() + data.size(), scratch.data(), counts.data(),
         64, [](const PodObject& obj) { return obj.key; });

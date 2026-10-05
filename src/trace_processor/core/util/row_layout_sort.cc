@@ -53,7 +53,7 @@ struct Rows {
   uint32_t count;
 };
 
-// A row's first 8 varying bytes, big-endian so they compare as the row does,
+// A row's first 8 varying bytes packed into an integer in significance order,
 // its position and its index. Ties break on position, so even an unstable
 // sort is stable.
 struct Token {
@@ -191,7 +191,7 @@ Token* PackKeys(const Rows& rows,
     for (uint32_t b = 0; b < key_bytes; ++b) {
       key = (key << 8) | row[varying[b]];
     }
-    tokens[r] = {base::HostToBE64(key), r, indices[r]};
+    tokens[r] = {key, r, indices[r]};
   }
   return tokens;
 }
@@ -201,9 +201,7 @@ Token* PackKeys(const Rows& rows,
 Token* MergeRuns(Token* tokens,
                  Token* scratch,
                  base::SmallVector<uint32_t, kMaxMergedRuns + 2> runs) {
-  auto by_key = [](const Token& a, const Token& b) {
-    return base::BE64ToHost(a.key) < base::BE64ToHost(b.key);
-  };
+  auto by_key = [](const Token& a, const Token& b) { return a.key < b.key; };
   Token* source = tokens;
   Token* dest = scratch;
   while (runs.size() > 2) {
@@ -280,7 +278,7 @@ void SortRowLayout(Span<const uint8_t> row_layout,
   } else {
     sorted = StableSortByKey(
         tokens, tokens + count, Resize(scratch.spare, count), key_bytes * 8,
-        [](const Token& t) { return base::BE64ToHost(t.key); },
+        [](const Token& t) { return t.key; },
         [](const Token& t) { return t.position; });
   }
   if (scratch.varying.size() > kMaxKeyBytes) {
