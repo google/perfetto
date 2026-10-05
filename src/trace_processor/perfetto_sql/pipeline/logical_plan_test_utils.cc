@@ -18,8 +18,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
@@ -56,6 +58,44 @@ std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   return out;
 }
 
+std::string ConditionsString(
+    const std::vector<op::FilterCondition>& conditions) {
+  static constexpr const char* kOps[] = {
+      "=",    "!=",     "<",           "<=",      ">", ">=",
+      "GLOB", "REGEXP", "IS NOT NULL", "IS NULL", "IN"};
+  static_assert(std::size(kOps) == core::Op::kSize);
+  std::string out;
+  for (size_t i = 0; i < conditions.size(); ++i) {
+    const op::FilterCondition& condition = conditions[i];
+    out += (i ? " AND #" : "#") + std::to_string(condition.column) + " " +
+           kOps[condition.op.index()];
+    for (const op::FilterValue& value : condition.values) {
+      switch (value.index()) {
+        case base::variant_index<op::FilterValue, int64_t>():
+          out += " " + std::to_string(base::unchecked_get<int64_t>(value));
+          break;
+        case base::variant_index<op::FilterValue, double>():
+          out += " " + std::to_string(base::unchecked_get<double>(value));
+          break;
+        case base::variant_index<op::FilterValue, std::string>():
+          out += " '" + base::unchecked_get<std::string>(value) + "'";
+          break;
+        case base::variant_index<op::FilterValue, op::FilterParam>():
+          out += " ?" + std::to_string(
+                            base::unchecked_get<op::FilterParam>(value).index);
+          break;
+        default:
+          PERFETTO_FATAL("Unknown filter value");
+      }
+    }
+  }
+  return out;
+}
+
+std::string FilterString(const op::Filter& filter) {
+  return "Filter(" + ConditionsString(filter.conditions) + ")";
+}
+
 std::string ScanString(const LogicalPlan& plan, const op::Scan& scan) {
   std::string out = "Scan(";
   switch (scan.source.index()) {
@@ -83,7 +123,11 @@ std::string ScanString(const LogicalPlan& plan, const op::Scan& scan) {
     out +=
         ColumnString(plan, scan.columns[i].id) + " AS " + scan.columns[i].name;
   }
-  return out + "]";
+  out += "]";
+  if (!scan.filters.empty()) {
+    out += " WHERE " + ConditionsString(scan.filters);
+  }
+  return out;
 }
 
 std::string TreeAccumulateString(const LogicalPlan& plan,
@@ -130,6 +174,9 @@ std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
   switch (node.op.index()) {
     case base::variant_index<Op, op::Scan>():
       return ScanString(plan, node.Cast<op::Scan>()) + "\n";
+    case base::variant_index<Op, op::Filter>():
+      return SubtreeString(plan, node.children[0]) +
+             FilterString(node.Cast<op::Filter>()) + "\n";
     case base::variant_index<Op, op::TreeAccumulate>():
       return SubtreeString(plan, node.children[0]) +
              TreeAccumulateString(plan, node.Cast<op::TreeAccumulate>()) + "\n";

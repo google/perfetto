@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -27,10 +28,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
+#include "src/trace_processor/core/exec/dataframe_query_scan.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -45,8 +50,9 @@ namespace ex = core::exec;
 // Builds one pipeline of operators, including any blocking ordering stages.
 class Lowering {
  public:
-  explicit Lowering(const LogicalPlan& plan)
+  Lowering(const LogicalPlan& plan, StringPool* pool)
       : plan_(plan),
+        pool_(pool),
         out_(std::make_unique<PhysicalPlan>()),
         positions_(plan.columns.size(), std::numeric_limits<uint32_t>::max()),
         int64_columns_(plan.columns.size(), false) {}
@@ -56,10 +62,18 @@ class Lowering {
 
  private:
   void LowerScan(const op::Scan&);
+  void LowerFilter(const op::Filter&);
+  // `condition` on the column at `position` in the batch it tests.
+  ex::Filter::Condition LowerCondition(const op::FilterCondition& condition,
+                                       uint32_t position) const;
   void LowerIntervalIntersect(const op::IntervalIntersect&,
                               const std::vector<PlanNodeId>& children);
 
   std::unique_ptr<ex::Source> MakeSource(const op::Scan&) const;
+  // The scan's filters as an operator over what it reads, or null if there
+  // are none or the dataframe has already run them. Plans are only run once
+  // loaded, which runs them, but can be lowered straight from compiling.
+  std::unique_ptr<ex::Operator> UnrunScanFilters(const op::Scan&) const;
   void LowerTreeAccumulate(const op::TreeAccumulate&);
 
   // Establishes the physical layout and ordering needed by a tree fold.
@@ -80,6 +94,8 @@ class Lowering {
 
   // Borrowed for the duration of lowering.
   const LogicalPlan& plan_;
+  // Holds the strings filters compare; outlives the plan.
+  StringPool* pool_;
 
   // Execution graph under construction.
   std::unique_ptr<PhysicalPlan> out_;
@@ -106,6 +122,10 @@ void Lowering::LowerNode(PlanNodeId id) {
     case base::variant_index<Op, op::Scan>():
       LowerScan(node.Cast<op::Scan>());
       return;
+    case base::variant_index<Op, op::Filter>():
+      LowerNode(node.children[0]);
+      LowerFilter(node.Cast<op::Filter>());
+      return;
     case base::variant_index<Op, op::TreeAccumulate>():
       LowerNode(node.children[0]);
       LowerTreeAccumulate(node.Cast<op::TreeAccumulate>());
@@ -120,13 +140,40 @@ void Lowering::LowerNode(PlanNodeId id) {
   }
 }
 
+namespace {
+
+// The name the scan reads the column `id` by.
+const std::string& ColumnName(const op::Scan& scan, ColumnId id) {
+  auto it = std::find_if(scan.columns.begin(), scan.columns.end(),
+                         [id](const NamedColumn& c) { return c.id == id; });
+  PERFETTO_DCHECK(it != scan.columns.end());
+  return it->name;
+}
+
+}  // namespace
+
 std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
   switch (scan.source.index()) {
     case base::variant_index<op::Scan::Source, op::Scan::Dataframe>(): {
       const auto& source =
           base::unchecked_get<op::Scan::Dataframe>(scan.source);
+      if (source.dataframe) {
+        // Its filters compare with parameters, so run as each run starts.
+        std::vector<ex::Filter::Condition> conditions;
+        const std::vector<std::string>& names =
+            source.dataframe->column_names();
+        for (const op::FilterCondition& condition : scan.filters) {
+          const std::string& name = ColumnName(scan, condition.column);
+          auto it = std::find(names.begin(), names.end(), name);
+          conditions.push_back(LowerCondition(
+              condition, static_cast<uint32_t>(it - names.begin())));
+        }
+        return std::make_unique<ex::DataframeQueryScan>(
+            source.dataframe, source.columns, std::move(conditions),
+            &out_->params_);
+      }
       return std::make_unique<ex::DataframeScan>(source.columns,
-                                                 source.row_count);
+                                                 source.row_count, source.rows);
     }
     default:
       // SQL is moved out into dataframe arguments, and those are bound to
@@ -135,12 +182,34 @@ std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
   }
 }
 
+std::unique_ptr<ex::Operator> Lowering::UnrunScanFilters(
+    const op::Scan& scan) const {
+  const auto* source = std::get_if<op::Scan::Dataframe>(&scan.source);
+  if (scan.filters.empty() || (source && (source->rows || source->dataframe))) {
+    return nullptr;
+  }
+  std::vector<ex::Filter::Condition> conditions;
+  for (const op::FilterCondition& condition : scan.filters) {
+    // A scan's batch holds its columns in order.
+    uint32_t position = 0;
+    while (scan.columns[position].id != condition.column) {
+      ++position;
+    }
+    conditions.push_back(LowerCondition(condition, position));
+  }
+  return std::make_unique<ex::Filter>(std::move(conditions), pool_,
+                                      &out_->params_);
+}
+
 void Lowering::LowerScan(const op::Scan& scan) {
   PERFETTO_DCHECK(!out_->input_);
   for (const NamedColumn& column : scan.columns) {
     Define(column.id);
   }
   out_->input_ = MakeSource(scan);
+  if (auto filter = UnrunScanFilters(scan)) {
+    operators_.push_back(std::move(filter));
+  }
 }
 
 void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
@@ -172,6 +241,9 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     // An operand is read through a pipeline of its own, which widens its
     // bounds to Int64 where they are not already.
     std::vector<std::unique_ptr<ex::Operator>> widen;
+    if (auto filter = UnrunScanFilters(scan)) {
+      widen.push_back(std::move(filter));
+    }
     ex::IntervalIntersectOperand lowered;
     lowered.ts_column = position(operand.ts);
     lowered.dur_column = position(operand.dur);
@@ -195,6 +267,44 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     }
   }
   out_->input_ = std::make_unique<ex::IntervalIntersect>(std::move(operands));
+}
+
+void Lowering::LowerFilter(const op::Filter& filter) {
+  std::vector<ex::Filter::Condition> conditions;
+  for (const op::FilterCondition& condition : filter.conditions) {
+    conditions.push_back(LowerCondition(condition, Position(condition.column)));
+  }
+  operators_.push_back(std::make_unique<ex::Filter>(std::move(conditions),
+                                                    pool_, &out_->params_));
+}
+
+ex::Filter::Condition Lowering::LowerCondition(
+    const op::FilterCondition& condition,
+    uint32_t position) const {
+  ex::Filter::Condition out;
+  out.column = position;
+  out.op = condition.op;
+  // The filter converts each value to the column's type as a dataframe does.
+  for (const op::FilterValue& value : condition.values) {
+    switch (value.index()) {
+      case base::variant_index<op::FilterValue, int64_t>():
+        out.values.emplace_back(base::unchecked_get<int64_t>(value));
+        break;
+      case base::variant_index<op::FilterValue, double>():
+        out.values.emplace_back(base::unchecked_get<double>(value));
+        break;
+      case base::variant_index<op::FilterValue, std::string>():
+        out.values.emplace_back(base::unchecked_get<std::string>(value));
+        break;
+      case base::variant_index<op::FilterValue, op::FilterParam>():
+        // A parameter's values are only known when the plan runs.
+        out.param = base::unchecked_get<op::FilterParam>(value).index;
+        break;
+      default:
+        PERFETTO_FATAL("Unknown filter value");
+    }
+  }
+  return out;
 }
 
 void Lowering::RequireInt64(ColumnId column,
@@ -265,8 +375,8 @@ std::unique_ptr<PhysicalPlan> Lowering::Finish() {
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
-std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan) {
-  Lowering lowering(plan);
+std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan, StringPool* pool) {
+  Lowering lowering(plan, pool);
   lowering.LowerNode(plan.root);
   return lowering.Finish();
 }

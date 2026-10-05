@@ -25,6 +25,10 @@ source_set("logical") {
     "column_pruning.h",
     "compiler.cc",
     "compiler.h",
+    "cost_estimation.cc",
+    "cost_estimation.h",
+    "filter_pushdown.cc",
+    "filter_pushdown.h",
     "logical_plan.h",
     "pipeline_sql.cc",
     "pipeline_sql.h",
@@ -39,6 +43,8 @@ source_set("logical") {
     "../../containers",
     "../../core/common",
     "../../core/dataframe",
+    "../../core/exec",
+    "../../core/util",
     "../../sqlite",
     "../../util:sql_argument",
     "../schema",
@@ -54,6 +60,7 @@ source_set("plan") {
   deps = [
     "../../../../gn:default_deps",
     "../../../base",
+    "../../containers",
     "../../core/common",
     "../../core/dataframe",
     "../../core/exec",
@@ -93,6 +100,7 @@ source_set("test_utils") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "cost_estimation_unittest.cc",
     "physical_plan_unittest.cc",
     "plan_serialization_unittest.cc",
   ]

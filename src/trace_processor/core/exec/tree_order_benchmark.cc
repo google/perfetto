@@ -103,8 +103,8 @@ void BM_TreeOrderNumberOnly(benchmark::State& state) {
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
-                     df.row_count());
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
+                     nullptr);
   std::vector<std::unique_ptr<Operator>> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   Pipeline pipeline(scan, std::move(ops), {});
@@ -116,8 +116,8 @@ void BM_TreeParentFirst(benchmark::State& state) {
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
-                     df.row_count());
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
+                     nullptr);
   std::vector<std::unique_ptr<Operator>> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
@@ -130,8 +130,8 @@ void BM_TreeChildFirst(benchmark::State& state) {
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
-                     df.row_count());
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)}, df.row_count(),
+                     nullptr);
   std::vector<std::unique_ptr<Operator>> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeChildFirst>(2, 3));

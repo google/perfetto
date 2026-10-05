@@ -43,8 +43,10 @@
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/cost_estimation.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
@@ -176,9 +178,14 @@ class PerfettoSqlConnection {
 
   // Loads a plan written by pipeline::SerializePlan, ready to run, reading
   // `args` as its dataframe arguments. The plan keeps what it reads of them.
+  // Its filter parameters are bound each time it runs.
   base::StatusOr<std::unique_ptr<pipeline::PhysicalPlan>> LoadPipeline(
       std::string_view serialized,
       const std::vector<const dataframe::Dataframe*>& args);
+
+  // Estimates running `plan` without loading or running it: what SQLite needs
+  // to plan the query around it.
+  pipeline::PlanEstimate EstimatePipeline(const pipeline::LogicalPlan& plan);
 
   // Registers a virtual table module with the given name.
   //

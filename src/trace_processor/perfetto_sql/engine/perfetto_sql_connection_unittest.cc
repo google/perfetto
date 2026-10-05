@@ -893,6 +893,78 @@ TEST_F(PerfettoSqlConnectionPipelineTest, AccumulateUpAndDown) {
                                    "2,0,30,NULL,30,40", "3,1,40,c,40,70"));
 }
 
+// WHERE keeps the rows every condition holds for, before or after other
+// stages. Values convert as they do when SQL filters a table, so a float or a
+// string compared with an integer column means what it does there.
+TEST_F(PerfettoSqlConnectionPipelineTest, WhereKeepsMatchingRows) {
+  struct Case {
+    const char* query;
+    std::vector<std::string> rows;
+  };
+  const Case kCases[] = {
+      {"FROM tree |> WHERE self >= 20 AND parent_id IS NOT NULL",
+       {"1,0,20,a", "2,0,30,NULL", "3,1,40,c"}},
+      {"FROM tree |> WHERE name IS NULL", {"2,0,30,NULL"}},
+      {"FROM tree |> WHERE id IN (3, 1, 7)", {"1,0,20,a", "3,1,40,c"}},
+      {"FROM tree |> WHERE name > 'b'", {"0,NULL,10,root", "3,1,40,c"}},
+      {"FROM tree |> WHERE self < 25.5", {"0,NULL,10,root", "1,0,20,a"}},
+      {"FROM tree |> WHERE self = 'x'", {}},
+      {"FROM tree |> WHERE self < -1", {}},
+      {"FROM tree |> TREE ACCUMULATE UP SUM(self) AS total "
+       "|> WHERE total > 50 |> SELECT id, total",
+       {"0,100", "1,60"}},
+  };
+  for (const Case& c : kCases) {
+    auto rows = Rows(c.query);
+    ASSERT_TRUE(rows.ok()) << c.query << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.query;
+  }
+  EXPECT_THAT(Rows("FROM tree |> WHERE nope = 1").status().message(),
+              testing::HasSubstr("no such column: 'nope'"));
+  EXPECT_THAT(Rows("FROM tree |> WHERE id = NULL").status().message(),
+              testing::HasSubstr("IS [NOT] NULL"));
+}
+
+// A WHERE on an intersection keeps the same rows wherever its conditions end
+// up: in an operand's scan, in every operand's for a PER column, or above.
+TEST_F(PerfettoSqlConnectionPipelineTest, WhereOnAnIntersection) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE a AS
+    SELECT 0 AS ts, 10 AS dur, 1 AS cpu, 7 AS x
+    UNION ALL SELECT 20, 10, 2, 8
+  )")
+                  .ok());
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE b AS
+    SELECT 5 AS ts, 10 AS dur, 1 AS cpu, 1 AS y
+    UNION ALL SELECT 25, 2, 2, 2
+  )")
+                  .ok());
+  const char kIntersect[] =
+      "INTERVAL INTERSECTION OF (a, b) PER cpu |> SELECT ts, dur, a.x, b.y";
+  auto all = Rows(kIntersect);
+  ASSERT_TRUE(all.ok()) << all.status().c_message();
+  EXPECT_THAT(*all, testing::UnorderedElementsAre("5,5,7,1", "25,2,8,2"));
+  struct Case {
+    const char* where;
+    std::vector<std::string> rows;
+  };
+  const Case kCases[] = {
+      {"a.x = 7", {"5,5,7,1"}},
+      {"b.y != 1", {"25,2,8,2"}},
+      {"cpu = 2", {"25,2,8,2"}},
+      {"dur > 3", {"5,5,7,1"}},
+      {"b.cpu IN (1, 2) AND a.x > 7 AND ts >= 25", {"25,2,8,2"}},
+  };
+  for (const Case& c : kCases) {
+    std::string query = "INTERVAL INTERSECTION OF (a, b) PER cpu |> WHERE " +
+                        std::string(c.where) + " |> SELECT ts, dur, a.x, b.y";
+    auto rows = Rows(query);
+    ASSERT_TRUE(rows.ok()) << c.where << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.where;
+  }
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, StartsFromAnySql) {
   auto rows = Rows(R"(
     FROM (SELECT id, parent_id, self * 2 AS doubled FROM tree WHERE id < 10)
@@ -1010,10 +1082,10 @@ TEST_F(PerfettoSqlConnectionPipelineTest, Errors) {
                   .status()
                   .message(),
               testing::HasSubstr("'name'"));
-  EXPECT_THAT(Rows("CREATE PERFETTO TABLE t AS FROM tree |> WHERE id = 1")
+  EXPECT_THAT(Rows("CREATE PERFETTO TABLE t AS FROM tree |> ORDER BY id")
                   .status()
                   .message(),
-              testing::HasSubstr("syntax error near 'WHERE'"));
+              testing::HasSubstr("syntax error near 'ORDER'"));
   // Semantic analysis cannot yet describe every relation.
   EXPECT_THAT(Rows("FROM (VALUES (1, 2))").status().message(),
               testing::HasSubstr(
@@ -1224,6 +1296,68 @@ TEST_F(PerfettoSqlConnectionPipelineTest, RowsHaveNoRowid) {
               testing::HasSubstr("no rowid"));
   EXPECT_THAT(Rows("SELECT c0" + from + " WHERE rowid = 1").status().message(),
               testing::HasSubstr("no rowid"));
+}
+
+// SQLite's constraints on a pipeline's output are pushed into its plan, as far
+// down as they keep the same rows, and mean what they would in SQLite.
+TEST_F(PerfettoSqlConnectionPipelineTest, OutputConstraintsArePushedIn) {
+  struct Case {
+    std::string where;
+    std::vector<std::string> rows;
+  };
+  std::string tree = From(PipelineSql("FROM tree"));
+  const Case kTreeCases[] = {
+      {"c0 = 1", {"1,0,20,a"}},
+      {"c0 != 1 AND c2 < 35", {"0,NULL,10,root", "2,0,30,NULL"}},
+      {"c2 > 25.5", {"2,0,30,NULL", "3,1,40,c"}},
+      {"c1 IS NULL", {"0,NULL,10,root"}},
+      {"c3 IS NOT NULL AND c3 >= 'b'", {"0,NULL,10,root", "3,1,40,c"}},
+      {"c0 = '1'", {}},
+      // An IN reaches the plan as one list, in which a null equals nothing.
+      {"c0 IN (3, 1, 7)", {"1,0,20,a", "3,1,40,c"}},
+      {"c0 IN (1, NULL)", {"1,0,20,a"}},
+      {"c3 IN ('a', 'c', 'z')", {"1,0,20,a", "3,1,40,c"}},
+      {"c0 IN (SELECT 2 UNION SELECT 0)", {"0,NULL,10,root", "2,0,30,NULL"}},
+  };
+  for (const Case& c : kTreeCases) {
+    auto rows = Rows("SELECT c0, c1, c2, c3" + tree + " WHERE " + c.where);
+    ASSERT_TRUE(rows.ok()) << c.where << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.where;
+  }
+
+  // Constraints stay above an accumulation, so the totals are unchanged.
+  std::string totals =
+      From(PipelineSql("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total"));
+  const Case kTotalCases[] = {
+      {"c4 > 50", {"0,100", "1,60"}},
+      {"c0 = 1", {"1,60"}},
+  };
+  for (const Case& c : kTotalCases) {
+    auto rows = Rows("SELECT c0, c4" + totals + " WHERE " + c.where);
+    ASSERT_TRUE(rows.ok()) << c.where << ": " << rows.status().c_message();
+    EXPECT_EQ(*rows, c.rows) << c.where;
+  }
+
+  // Joined, the value comes from each row of the other table in turn.
+  std::string join =
+      "SELECT p.c0, p.c4 FROM (SELECT 1 AS x UNION ALL SELECT 3) "
+      "AS s, " +
+      totals.substr(strlen(" FROM ")) + " AS p WHERE p.c0 = s.x";
+  auto joined = Rows(join);
+  ASSERT_TRUE(joined.ok()) << joined.status().c_message();
+  EXPECT_THAT(*joined, testing::UnorderedElementsAre("1,60", "3,40"));
+
+  // The plan run is the one the constraints were pushed into.
+  auto plan = Rows("EXPLAIN QUERY PLAN SELECT c0" + tree + " WHERE c0 = 1");
+  ASSERT_TRUE(plan.ok()) << plan.status().c_message();
+  EXPECT_THAT(*plan,
+              testing::Contains(testing::HasSubstr("VIRTUAL TABLE INDEX 3:")));
+  // An IN's list is passed whole, so the pipeline runs once for it.
+  auto in_plan =
+      Rows("EXPLAIN QUERY PLAN SELECT c0" + tree + " WHERE c0 IN (1, 3)");
+  ASSERT_TRUE(in_plan.ok()) << in_plan.status().c_message();
+  EXPECT_THAT(*in_plan,
+              testing::Contains(testing::HasSubstr("VIRTUAL TABLE INDEX 7:")));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, ColumnReadersRefreshAcrossBatches) {
