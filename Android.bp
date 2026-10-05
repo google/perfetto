@@ -17877,6 +17877,7 @@ filegroup {
         "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
         "src/trace_processor/core/exec/executor_contract_unittest.cc",
         "src/trace_processor/core/exec/group_by_unittest.cc",
+        "src/trace_processor/core/exec/interval_flatten_unittest.cc",
         "src/trace_processor/core/exec/interval_intersect_unittest.cc",
         "src/trace_processor/core/exec/key_encoder_unittest.cc",
         "src/trace_processor/core/exec/operator_unittest.cc",
