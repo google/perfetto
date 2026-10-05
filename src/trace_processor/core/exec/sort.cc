@@ -86,12 +86,14 @@ bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
           "SORT: key %u must be a column of numbers of one type", k + 1);
       return false;
     }
-    s.types[k] = type;
   }
   if (first) {
+    // Record types only after every key is valid, so an error cannot leave
+    // partially initialized types without a matching row layout.
     // Nullability is only known batch by batch.
     std::vector<RowLayout::Column> columns;
     for (uint32_t k = 0; k < spec_.keys.size(); ++k) {
+      s.types[k] = LayoutType(in.column(spec_.keys[k].column));
       columns.push_back({*s.types[k], true, spec_.keys[k].descending});
     }
     s.layout = RowLayout(columns);
@@ -165,6 +167,7 @@ bool Sort::Serve(RowBatch& out, Breaker::State& state) const {
 
 void Sort::Reset(Breaker::State& state) const {
   auto& s = static_cast<State&>(state);
+  std::fill(s.types.begin(), s.types.end(), std::nullopt);
   s.keys.clear();
   s.rows.Clear();
   s.order.clear();

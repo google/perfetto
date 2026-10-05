@@ -144,12 +144,40 @@ TEST(SortTest, NullsSortAsInSqlite) {
   }
 }
 
-TEST(SortTest, LaterKeysBreakTies) {
-  KeysSource source({2, 1, 2, 1}, {0.5, -1.5, -0.5, 2.5}, 2);
-  Pipeline sorted(source, SortBy({{1, false}, {2, true}}), {});
-  base::Status status;
-  EXPECT_THAT(Ids(sorted, &status), ElementsAre(3, 1, 0, 2));
-  EXPECT_TRUE(status.ok()) << status.message();
+TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
+  Sort sort(SortSpec{{{1, false}, {2, true}}});
+  auto state = sort.MakeState();
+  std::vector<int64_t> first = {2, 1, 2, 1};
+  std::vector<int32_t> narrower = {2, 1, 2, 1};
+  std::vector<double> second = {0.5, -1.5, -0.5, 2.5};
+  RowBatch in;
+  RowBatch out;
+  in.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, first.data()));
+  // The first key is valid, but the second cannot be used in a row layout.
+  in.AddColumn(ColumnView::Variants(nullptr));
+  in.SetCardinality(4);
+  ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kError);
+  EXPECT_THAT(sort.status(*state).message(), testing::HasSubstr("key 2"));
+
+  for (bool change_type : {false, true}) {
+    // Recover from the rejected batch, then reuse a completed sort with a
+    // different key width. Both runs must establish their own row layout.
+    sort.Rewind(*state);
+    ASSERT_TRUE(sort.status(*state).ok());
+    if (change_type) {
+      in.SetColumn(
+          1, ColumnView::Reference(StorageType{Int32{}}, narrower.data()));
+    }
+    in.SetColumn(2,
+                 ColumnView::Reference(StorageType{Double{}}, second.data()));
+    ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kNeedMoreInput);
+    ASSERT_EQ(sort.Finish(out, *state), OpResult::kHaveMoreOutput);
+    // Equal first keys are ordered by the descending second key.
+    EXPECT_THAT(test::ReadColumn<uint32_t>(out, 0), ElementsAre(3, 1, 0, 2));
+    EXPECT_EQ(sort.Finish(out, *state), OpResult::kNeedMoreInput);
+    EXPECT_TRUE(sort.status(*state).ok());
+  }
 }
 
 TEST(SortTest, IdsSortAsTheirValues) {
