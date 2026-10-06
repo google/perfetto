@@ -313,6 +313,37 @@ class AndroidParser(TestSuite):
           100,"com.example.app",10001,42,10002,10003,10004,2000,5000
         """))
 
+  def test_android_framework_track_event_process_died(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_track_event_process_died.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          t.start_seq_id,
+          t.fw_start_ts,
+          t.fw_end_ts,
+          p.end_ts,
+          t.exit_reason,
+          t.exit_sub_reason
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.upid;
+        """,
+        out=Csv("""
+          "pid","start_seq_id","fw_start_ts","fw_end_ts","end_ts","exit_reason","exit_sub_reason"
+          100,1,1000000000,2000000000,2000000000,"APP_EXIT_REASON_CRASH","APP_EXIT_SUBREASON_TOO_MANY_CACHED"
+          100,3,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          200,2,1000000000,3000000000,3000000000,"APP_EXIT_REASON_ANR","[NULL]"
+          300,4,1000000000,"[NULL]","[NULL]","APP_EXIT_REASON_ANR","[NULL]"
+          400,5,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_LOW_MEMORY","[NULL]"
+          500,6,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          600,"[NULL]","[NULL]","[NULL]","[NULL]","APP_EXIT_REASON_SIGNALED","[NULL]"
+          700,7,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_FREEZER","[NULL]"
+          800,9,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          1100,10,1000000000,4000000000,2000000000,"[NULL]","[NULL]"
+          1100,11,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        """))
+
   def test_android_framework_track_event_enum(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
