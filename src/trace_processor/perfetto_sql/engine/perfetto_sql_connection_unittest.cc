@@ -1335,6 +1335,24 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
               testing::HasSubstr("COUNT"));
 }
 
+TEST_F(PerfettoSqlConnectionPipelineTest, OrderByAndAggregateParse) {
+  EXPECT_THAT(Rows("FROM (SELECT 0 AS ts, 1 AS dur) "
+                   "|> ORDER BY ts DESC, dur |> SELECT ts")
+                  .status()
+                  .message(),
+              testing::HasSubstr("ORDER BY is not supported yet"));
+  for (const char* stage :
+       {"AGGREGATE COUNT(*) AS n", "AGGREGATE SUM(dur) AS total GROUP BY ts",
+        "AGGREGATE COUNT(*) AS n, SUM(dur) AS total GROUP BY t.ts AS start, "
+        "dur |> SELECT n"}) {
+    EXPECT_THAT(
+        Rows(std::string("FROM (SELECT 0 AS ts, 1 AS dur) AS t |> ") + stage)
+            .status()
+            .message(),
+        testing::HasSubstr("AGGREGATE is not supported yet"));
+  }
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
   auto fork = connection_->Fork();
   auto first = connection_->ExecuteUntilLastStatement(

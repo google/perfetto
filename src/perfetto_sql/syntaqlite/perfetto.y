@@ -353,6 +353,39 @@ perfetto_pipe_set_list(A) ::= perfetto_pipe_set_list(L) COMMA
     A = synq_parse_perfetto_pipe_set_item_list(pCtx, L, X);
 }
 
+// ORDER BY's list: `column [ASC | DESC], ...`.
+%type perfetto_pipe_order_term {uint32_t}
+perfetto_pipe_order_term(A) ::= perfetto_pipe_column(C) sortorder(O). {
+    A = synq_parse_perfetto_pipe_order_term(pCtx, C, (SyntaqliteSortOrder)O);
+}
+
+%type perfetto_pipe_order_list {uint32_t}
+perfetto_pipe_order_list(A) ::= perfetto_pipe_order_term(X). {
+    A = synq_parse_perfetto_pipe_order_term_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_order_list(A) ::= perfetto_pipe_order_list(L) COMMA
+                                perfetto_pipe_order_term(X). {
+    A = synq_parse_perfetto_pipe_order_term_list(pCtx, L, X);
+}
+
+// AGGREGATE's keys: `GROUP BY column [[AS] name], ...`.
+%type perfetto_pipe_group_item {uint32_t}
+perfetto_pipe_group_item(A) ::= perfetto_pipe_column(X). { A = X; }
+perfetto_pipe_group_item(A) ::= perfetto_pipe_named_column(X). { A = X; }
+
+%type perfetto_pipe_group_list {uint32_t}
+perfetto_pipe_group_list(A) ::= perfetto_pipe_group_item(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, SYNTAQLITE_NULL_NODE, X);
+}
+perfetto_pipe_group_list(A) ::= perfetto_pipe_group_list(L) COMMA
+                                perfetto_pipe_group_item(X). {
+    A = synq_parse_perfetto_pipe_column_list(pCtx, L, X);
+}
+
+%type perfetto_pipe_group_by {uint32_t}
+perfetto_pipe_group_by(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
+perfetto_pipe_group_by(A) ::= GROUP BY perfetto_pipe_group_list(L). { A = L; }
+
 %type perfetto_pipe_stage {uint32_t}
 perfetto_pipe_stage(A) ::= SELECT perfetto_pipe_select_list(L). {
     A = synq_parse_perfetto_pipe_select(pCtx, L);
@@ -372,6 +405,13 @@ perfetto_pipe_stage(A) ::= SET perfetto_pipe_set_list(L). {
 perfetto_pipe_stage(A) ::= INTERVAL FLATTEN perfetto_per(P)
                            AGGREGATE perfetto_aggregate_list(L). {
     A = synq_parse_perfetto_interval_flatten(pCtx, P, L);
+}
+perfetto_pipe_stage(A) ::= ORDER BY perfetto_pipe_order_list(L). {
+    A = synq_parse_perfetto_pipe_order_by(pCtx, L);
+}
+perfetto_pipe_stage(A) ::= AGGREGATE perfetto_aggregate_list(L)
+                           perfetto_pipe_group_by(G). {
+    A = synq_parse_perfetto_pipe_aggregate(pCtx, L, G);
 }
 perfetto_pipe_stage(A) ::= AS nm(N). {
     A = synq_parse_perfetto_pipe_as(pCtx, synq_span_dequote(pCtx, N));
