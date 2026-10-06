@@ -162,10 +162,11 @@ interface Filter {
  *   slice columns        -> slice tracks
  *   pivot columns        -> slice tracks (sourced via an optional join)
  *
- * All counters are driven by per-level `INTERVAL FLATTEN` segment tables built
- * once per instance, so the expensive overlap computation is paid once per
- * hierarchy level instead of once per node. The per-node counter query is then
- * a cheap filter over its level's segments, and the counter renderers are lazy
+ * All counters are driven by ONE shared `INTERVAL FLATTEN` segments table built
+ * once per instance, holding the atomic overlap segments of every hierarchy
+ * level, so the expensive overlap computation is paid a single time instead of
+ * once per node. The per-node counter query is then a cheap filter over those
+ * segments, and the counter renderers are lazy
  * (CounterTrack.create), so the work scales with what the user views rather
  * than with the size of the hierarchy.
  */
@@ -184,10 +185,11 @@ export class BreakdownTracks {
   // each name gets a UUID suffix so independent grids — e.g. the binder server
   // and client trees — never collide on a table name:
   //   intervals  one row per source interval (no joins).
-  //   segments   one per hierarchy level: INTERVAL FLATTEN PER k0..k(i-1).
+  //   segments   INTERVAL FLATTEN output: the atomic overlap segments of every
+  //              level, tagged with their level.
   //   projected  source rows + slice/pivot joins (may fan out 1:N) + ts/dur.
   private readonly intervalsTableName: string;
-  private readonly segmentsTableNames: readonly string[];
+  private readonly segmentsTableName: string;
   private readonly projectedTableName: string;
 
   // The breakdown / slice / pivot columns the caller supplies are arbitrary SQL
@@ -216,17 +218,12 @@ export class BreakdownTracks {
 
     const unique = uuidv4().replace(/-/g, '_');
     this.intervalsTableName = `_breakdown_intervals_${unique}`;
+    this.segmentsTableName = `_breakdown_segments_${unique}`;
     this.projectedTableName = `_breakdown_projected_${unique}`;
 
     this.aggColNames = props.aggregation.columns.map((_, i) => `k${i}`);
     this.sliceColNames = (props.slice?.columns ?? []).map((_, i) => `s${i}`);
     this.pivotColNames = (props.pivots?.columns ?? []).map((_, i) => `p${i}`);
-
-    // Level i is partitioned by the first i breakdown columns; level 0 is the
-    // root (no partition).
-    this.segmentsTableNames = [...Array(this.aggColNames.length + 1)].map(
-      (_, i) => `_breakdown_segments_${unique}_${i}`,
-    );
 
     this.modulesClause = (props.modules ?? [])
       .map((m) => `INCLUDE PERFETTO MODULE ${m};`)
@@ -254,15 +251,15 @@ export class BreakdownTracks {
     assertUnreachable(this.props.aggregationType);
   }
 
-  private getAggregationQuery(filtersClause: string, level: number): string {
-    // One row per atomic segment of this node, read from its level's segments
-    // table; filters are raw equality on the pre-projected k* columns. FLATTEN
-    // emits nothing where no interval is active, so a 0 is added at the end of
-    // every run of segments to make the counter drop there.
+  private getAggregationQuery(filtersClause: string): string {
+    // One row per atomic segment of this node; filters are raw equality on the
+    // level and the pre-projected k* columns. FLATTEN emits nothing where no
+    // interval is active, so a 0 is added at the end of every run of segments
+    // to make the counter drop there.
     return `
       WITH s AS (
         SELECT ts, dur, value, LEAD(ts) OVER (ORDER BY ts) AS next_ts
-        FROM ${this.segmentsTableNames[level]}
+        FROM ${this.segmentsTableName}
         ${filtersClause}
       )
       SELECT ts, value FROM s
@@ -307,9 +304,10 @@ export class BreakdownTracks {
   //   _breakdown_intervals: one row per source interval (ts, dur, the
   //     breakdown columns, [agg_value]) from the aggregation table ONLY — no
   //     slice/pivot joins, so the overlap count is never inflated by a 1:N join.
-  //   _breakdown_segments_<i>: INTERVAL FLATTEN of the intervals partitioned by
-  //     the first i breakdown columns: one row per atomic segment with its
-  //     aggregate, so per-node counter queries are a plain filter on level i.
+  //   _breakdown_segments: INTERVAL FLATTEN over the intervals, once per
+  //     hierarchy level (level i partitioned by the first i breakdown columns,
+  //     level 0 the unpartitioned root): one row per atomic segment with its
+  //     level and aggregate, so per-node counter queries are a plain filter.
   //   _breakdown_projected: one row per source row WITH the slice/pivot joins
   //     applied (so it may fan out 1:N) plus the slice/pivot ts/dur. Drives the
   //     hierarchy enumeration and the slice/pivot tracks.
@@ -336,18 +334,25 @@ export class BreakdownTracks {
       ? `${this.props.sliceIdColumn} IS NOT NULL AND `
       : '';
 
-    const segmentsTables = this.segmentsTableNames
-      .map((name, level) => {
-        const per =
-          level === 0
-            ? ''
-            : `PER ${this.aggColNames.slice(0, level).join(', ')} `;
-        return `
-      CREATE PERFETTO TABLE ${name} AS
-      FROM ${this.intervalsTableName}
-      |> INTERVAL FLATTEN ${per}AGGREGATE ${this.aggExpr()} AS value;`;
-      })
-      .join('\n');
+    // One FLATTEN input row per interval and level, keyed by the level and the
+    // breakdown columns above it (the deeper ones NULL). `level` must be a PER
+    // column: a real key can itself be NULL, so without it level 0 and level 1
+    // with a NULL k0 would share a group. With it, one FLATTEN computes every
+    // level's segments in a single pass.
+    const levelRows = Array.from(
+      {length: this.aggColNames.length + 1},
+      (_, level) => {
+        const cols = [
+          `${level} AS level`,
+          'ts',
+          'dur',
+          ...this.aggColNames.map((k, i) => (i < level ? k : `NULL AS ${k}`)),
+          ...(hasValue ? ['agg_value'] : []),
+        ];
+        return `SELECT ${cols.join(', ')} FROM ${this.intervalsTableName}`;
+      },
+    ).join('\n        UNION ALL ');
+    const perCols = ['level', ...this.aggColNames].join(', ');
 
     // The projection applies the slice/pivot joins, so a plain id column would
     // be ambiguous if a join table shares the name — e.g. the binder breakdown
@@ -372,7 +377,12 @@ export class BreakdownTracks {
       SELECT ${intervalCols}
       FROM ${agg.tableName}
       WHERE ${idCheck}${aggTs} >= 0 AND ${aggDur} > 0;
-      ${segmentsTables}
+
+      CREATE PERFETTO TABLE ${this.segmentsTableName} AS
+      FROM (
+        ${levelRows}
+      )
+      |> INTERVAL FLATTEN PER ${perCols} AGGREGATE ${this.aggExpr()} AS value;
 
       CREATE PERFETTO TABLE ${this.projectedTableName} AS
       SELECT ${projectedCols}
@@ -562,11 +572,10 @@ export class BreakdownTracks {
 
   private async getCounterTrackSortOrder(
     filtersClause: string,
-    level: number,
   ): Promise<number> {
     const result = await this.props.trace.engine.query(`
       SELECT MAX(value) as max_value
-      FROM ${this.segmentsTableNames[level]}
+      FROM ${this.segmentsTableName}
       ${filtersClause}
     `);
     const maxValue = result.firstRow({max_value: NUM_NULL}).max_value;
@@ -578,13 +587,17 @@ export class BreakdownTracks {
     newFilters: Filter[],
   ): Promise<TrackNode> {
     // A counter node's filters are exactly the breakdown columns above it, so
-    // its level in the hierarchy is the number of filters.
-    const level = newFilters.length;
+    // its level in the hierarchy is the number of filters; the level selects
+    // its segments in the shared segments table.
+    const filters: Filter[] = [
+      {columnName: 'level', value: `${newFilters.length}`},
+      ...newFilters,
+    ];
     return this.createTrackNode(
       name,
-      newFilters,
+      filters,
       (uri, filtersClause) =>
-        // Lazy: getAggregationQuery is a cheap filter over the level's segments
+        // Lazy: getAggregationQuery is a cheap filter over the shared segments
         // table, and CounterTrack's useData fires it only on render — nothing is
         // materialized per node at trace load.
         CounterTrack.create({
@@ -592,10 +605,11 @@ export class BreakdownTracks {
           uri,
           sqlSource: `
             SELECT ts, value
-            FROM (${this.getAggregationQuery(filtersClause, level)})
+            FROM (${this.getAggregationQuery(filtersClause)})
           `,
         }),
-      (filtersClause) => this.getCounterTrackSortOrder(filtersClause, level),
+      (filtersClause) => this.getCounterTrackSortOrder(filtersClause),
+      newFilters.length === 0 ? this.props.description : undefined,
     );
   }
 
@@ -604,6 +618,7 @@ export class BreakdownTracks {
     filters: Filter[],
     createTrack: (uri: string, filtersClause: string) => TrackRenderer,
     getSortOrder?: (filterClause: string) => Promise<number>,
+    description?: string,
   ): Promise<TrackNode> {
     const filtersClause =
       filters.length > 0 ? `\nWHERE ${buildFilterSqlClause(filters)}` : '';
@@ -614,8 +629,7 @@ export class BreakdownTracks {
     this.props.trace.tracks.registerTrack({
       uri,
       renderer,
-      ...(filters.length === 0 &&
-        this.props.description && {description: this.props.description}),
+      ...(description && {description}),
     });
 
     let sortOrder: number | undefined;
