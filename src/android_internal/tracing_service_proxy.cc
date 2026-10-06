@@ -23,8 +23,6 @@
 #include <binder/ParcelFileDescriptor.h>
 #include <binder/Status.h>
 #include <utils/String16.h>
-#include <chrono>
-#include <thread>
 
 namespace perfetto {
 namespace android_internal {
@@ -59,17 +57,6 @@ bool ReportTrace(const char* reporter_package_name,
   // Keep this first so we recapture the raw fd in a RAII type as soon as
   // possible.
   android::base::unique_fd fd(owned_trace_fd);
-
-  // A trace upload may start soon after boot completes.
-  // However, the device must be unlocked first before the trace can be
-  // uploaded. So, if the user unlocks the device much later, waitForService
-  // will log every second. Polling first for at most 1 hour to reduce log spam.
-  uint32_t polling_count = 60 * 60;  // 1 hour
-  while (polling_count > 0 && android::defaultServiceManager()->checkService(
-                                  android::String16(kServiceName)) == nullptr) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    polling_count--;
-  }
 
   auto service = android::waitForService<ITracingServiceProxy>(
       android::String16(kServiceName));
