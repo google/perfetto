@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type {DetailsPanel} from '../public/details_panel';
+import {EvtSource} from '../base/events';
 import type {TabDescriptor, TabManager} from '../public/tab';
 import {DrawerPanelVisibility, toggleVisibility} from '../widgets/drawer_panel';
 
@@ -36,6 +37,9 @@ export class TabManagerImpl implements TabManager, Disposable {
   private _currentTab: string = 'current_selection';
   private _tabPanelVisibility = DrawerPanelVisibility.COLLAPSED;
   private _tabPanelVisibilityChanged = false;
+
+  // Fired when the current tab or the tab panel visibility changes.
+  readonly onTabPanelStateChanged = new EvtSource<void>();
 
   [Symbol.dispose]() {
     // Dispose of all tabs that are currently alive
@@ -87,6 +91,7 @@ export class TabManagerImpl implements TabManager, Disposable {
     ) {
       this.setTabPanelVisibility(DrawerPanelVisibility.VISIBLE);
     }
+    this.onTabPanelStateChanged.notify();
   }
 
   // Hide a tab in the tab bar pick a new tab to show.
@@ -118,6 +123,7 @@ export class TabManagerImpl implements TabManager, Disposable {
       // Otherwise just remove the tab
       this._openTabs = this._openTabs.filter((x) => x !== uri);
     }
+    this.onTabPanelStateChanged.notify();
   }
 
   toggleTab(uri: string): void {
@@ -191,6 +197,14 @@ export class TabManagerImpl implements TabManager, Disposable {
   setTabPanelVisibility(visibility: DrawerPanelVisibility): void {
     this._tabPanelVisibility = visibility;
     this._tabPanelVisibilityChanged = true;
+    this.onTabPanelStateChanged.notify();
+  }
+
+  get isCurrentSelectionTabVisible(): boolean {
+    return (
+      this._currentTab === 'current_selection' &&
+      this._tabPanelVisibility !== DrawerPanelVisibility.COLLAPSED
+    );
   }
 
   toggleTabPanelVisibility(): void {
