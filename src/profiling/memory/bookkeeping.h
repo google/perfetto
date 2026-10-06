@@ -18,6 +18,7 @@
 #define SRC_PROFILING_MEMORY_BOOKKEEPING_H_
 
 #include <map>
+#include <unordered_map>
 #include <vector>
 
 #include "perfetto/base/time.h"
