@@ -28,7 +28,8 @@ class TraceProcessorContext;
 
 namespace perfetto::trace_processor::android_process_state {
 
-// Receives the trace-stop AndroidProcessState and AndroidFreezerState dumps.
+// Receives the trace-stop AndroidProcessState and AndroidFreezerState dumps,
+// plus TrackEvents for causal trigger correlation.
 class AndroidProcessStateModule : public ProtoImporterModule {
  public:
   AndroidProcessStateModule(ProtoImporterModuleContext* module_context,
@@ -42,12 +43,12 @@ class AndroidProcessStateModule : public ProtoImporterModule {
   AndroidProcessStateTracker* const tracker_;
 };
 
-// Receives the per-process AndroidProcessStateChangedEvent and
-// AndroidFreezerEvent deltas (TrackEvent extension fields).
+// Receives the per-process AndroidProcessStateChangedEvent,
+// AndroidFreezerEvent, and ActivityManager graph/trigger TrackEvent extensions.
 class AndroidProcessStateExtensionParser : public TrackEventExtensionParser {
  public:
   AndroidProcessStateExtensionParser(TrackEventExtensionParserContext* context,
-                                     TraceProcessorContext*,
+                                     TraceProcessorContext* trace_context,
                                      AndroidProcessStateTracker* tracker);
   ~AndroidProcessStateExtensionParser() override;
 
@@ -55,6 +56,7 @@ class AndroidProcessStateExtensionParser : public TrackEventExtensionParser {
                            const TrackEventFieldContext& event) override;
 
  private:
+  TraceProcessorContext* const trace_context_;
   AndroidProcessStateTracker* const tracker_;
 };
 

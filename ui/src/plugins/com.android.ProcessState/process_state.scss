@@ -1,0 +1,155 @@
+// com.android.ProcessState styles. The explorer lives in the timeline details
+// panel (.pf-ps-detailpanel): the relationship graph (the shared LayeredGraph
+// charts_svg widget) and a tabbed Current / Process list pane.
+
+// Clickable pid links inside the grids (rendered by grid_helpers.gridSchema).
+.pf-ps-link {
+  color: var(--pf-color-primary, #1565c0);
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// Diff palette (green added / amber changed / red removed), shared by the
+// graph legend swatches and the Process-list "change" column badge. Matches
+// the DIFF_ADDED / DIFF_REMOVED edge colours in process_graph.ts.
+.pf-ps-diff-added {
+  color: #2e7d32;
+}
+.pf-ps-diff-changed {
+  color: #ef6c00;
+}
+.pf-ps-diff-removed {
+  color: #c62828;
+}
+.pf-ps-diff-badge {
+  font-weight: bold;
+  white-space: nowrap;
+}
+.pf-ps-diff-leg {
+  font-size: 11px;
+  margin-left: 10px;
+}
+
+// ---- shared layout bits (used by BOTH the full page and the details panel) ----
+.pf-ps-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--pf-color-border, #eee);
+}
+.pf-ps-tab {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-bottom: 2px solid transparent;
+  color: var(--pf-color-text-muted, #777);
+}
+.pf-ps-tab--on {
+  color: var(--pf-color-text, #111);
+  font-weight: bold;
+  border-bottom-color: var(--pf-color-primary, #1565c0);
+}
+.pf-ps-tabbody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pf-ps-tabbody > .pf-data-grid {
+  flex: 1;
+  min-height: 0;
+}
+.pf-ps-tabbody--scroll {
+  display: block;
+  overflow: auto;
+  padding-top: 8px;
+}
+.pf-ps-card {
+  border: 1px solid var(--pf-color-border, #e2e2e2);
+  margin-bottom: 8px;
+  .pf-data-grid {
+    max-height: 220px;
+  }
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+.pf-ps-card-h {
+  background: var(--pf-color-background-secondary);
+  padding: 4px 10px;
+  font-weight: bold;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--pf-color-text-muted, #555);
+}
+.pf-ps-card-b {
+  padding: 8px 10px;
+}
+.pf-ps-detail-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.pf-ps-detail-title {
+  font-size: 14px;
+  font-weight: bold;
+}
+.pf-ps-detail-sub {
+  font-family: monospace;
+  color: var(--pf-color-text-muted, #777);
+}
+.pf-ps-none {
+  padding: 6px 2px;
+  color: var(--pf-color-text-muted, #999);
+  font-size: 12px;
+}
+// ---- timeline details panel: the whole explorer (no separate page) ----
+// `.pf-ps-detailpanel` is the DetailsShell ROOT; make its `.pf-content` a flex
+// column so the SplitPanel fills the drawer's real height. The split's
+// orientation (and resize handle) is owned by the shared SplitPanel widget; we
+// only flip `direction` based on the drawer height.
+.pf-ps-detailpanel {
+  height: 100%;
+  min-height: 0;
+  font-size: 12px;
+  .pf-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  // Wrapper that hands the SplitPanel the drawer height (and whose height we
+  // measure to choose the orientation).
+  .pf-ps-splitwrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+  }
+  // The graph fills its SplitPanel pane.
+  .pf-lgraph-graph {
+    flex: 1;
+    min-height: 0;
+  }
+  // Detail pane (tabs + tables) fills the other pane.
+  .pf-ps-bottom {
+    // The SplitPanel pane (.pf-split-panel__second) is a sized flex item but is
+    // itself display:block, so flex:1 here has no flex parent to grow against.
+    // Fill the pane explicitly (like the graph does) so the tab body — and the
+    // fillHeight DataGrid inside it — gets a bounded height and scrolls instead
+    // of overflowing and being clipped.
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0 8px;
+  }
+}
