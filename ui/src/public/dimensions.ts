@@ -82,20 +82,17 @@ export function formatDimensionLabels(
 
 /**
  * The shared collapse rule: a dimension is only worth showing when it
- * disambiguates something. That is the case when the trace has more than one
- * distinct value for it, or when some of its peers do not carry it at all -
- * a Chrome frame title on the one renderer process which has one says just as
- * much as a rank which differs between processes. Dimensions which already
- * have a specialized presentation are never labelled here.
+ * disambiguates something, i.e. when the trace has more than one distinct value
+ * for it. A dimension with a single value in the whole trace, e.g. the `rank`
+ * of a trace recorded by a single training process, is never labelled.
+ * Dimensions which already have a specialized presentation are never labelled
+ * here either.
  *
  * @param dimensions Every effective dimension in the trace.
- * @param absentOnSomePeers Names which at least one peer does not carry, e.g.
- *     a dimension declared on 1 of 6 processes.
  * @returns The names of the dimensions which should be labelled.
  */
 export function visibleDimensionNames(
   dimensions: ReadonlyArray<Dimension>,
-  absentOnSomePeers: ReadonlySet<string> = new Set(),
 ): Set<string> {
   const values = new Map<string, Set<string>>();
   for (const dimension of dimensions) {
@@ -106,9 +103,7 @@ export function visibleDimensionNames(
   }
   return new Set(
     Array.from(values)
-      .filter(
-        ([name, distinct]) => distinct.size > 1 || absentOnSomePeers.has(name),
-      )
+      .filter(([, distinct]) => distinct.size > 1)
       .map(([name]) => name),
   );
 }

@@ -81,14 +81,17 @@ describe('visibleDimensionNames', () => {
     expect(Array.from(visible).sort()).toEqual(['rank', 'stage']);
   });
 
-  test('shows a dimension which only some peers carry', () => {
-    // A Chrome frame title on the single renderer of a trace: one value, but
-    // the other processes have no label at all.
-    const visible = visibleDimensionNames(
-      [strDim('chrome.process_label', 'IMDb: Ratings, Reviews')],
-      new Set(['chrome.process_label']),
-    );
-    expect(Array.from(visible)).toEqual(['chrome.process_label']);
+  test('hides the rank of a trace with a single rank', () => {
+    // A trace recorded by a single training process: the rank is inherited by
+    // all of its tracks but has a single value, so it tells nothing apart.
+    const visible = visibleDimensionNames([
+      intDim('rank', 0),
+      intDim('rank', 0),
+      intDim('rank', 0),
+      intDim('shard', 0),
+      intDim('shard', 1),
+    ]);
+    expect(Array.from(visible)).toEqual(['shard']);
   });
 
   test('dimensions presented elsewhere are never labelled', () => {
@@ -98,14 +101,6 @@ describe('visibleDimensionNames', () => {
       {name: 'gpu', intValue: 0},
       {name: 'gpu', intValue: 1},
     ]);
-    expect(Array.from(visible)).toEqual([]);
-  });
-
-  test('a uniform dimension every peer carries stays hidden', () => {
-    const visible = visibleDimensionNames(
-      [intDim('rank', 3), intDim('rank', 3)],
-      new Set(),
-    );
     expect(Array.from(visible)).toEqual([]);
   });
 });
