@@ -408,6 +408,7 @@ class AndroidParser(TestSuite):
           t.proc_state,
           t.oom_score,
           t.capability_flags,
+          t.process_group,
           t.reason,
           t.seq_id,
           t.is_initial
@@ -416,16 +417,16 @@ class AndroidParser(TestSuite):
         ORDER BY p.pid, t.ts, t.reason;
         """,
         out=Csv("""
-          "ts","pid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
-          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
-          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
-          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",10,0
-          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"OOM_ADJ_REASON_BIND_SERVICE",11,0
-          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]","[NULL]",1
-          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]","[NULL]",1
-          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
-          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"OOM_ADJ_REASON_BIND_SERVICE",21,0
-          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"OOM_ADJ_REASON_START_RECEIVER",20,0
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",10,0
+          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",11,0
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"[NULL]","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"[NULL]","[NULL]","[NULL]",1
+          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",21,0
+          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,0
         """))
 
   def test_android_freezer_state(self):
@@ -504,6 +505,7 @@ class AndroidParser(TestSuite):
           t.proc_state,
           t.oom_score,
           t.capability_flags,
+          t.process_group,
           t.reason,
           t.seq_id,
           t.is_initial
@@ -512,11 +514,11 @@ class AndroidParser(TestSuite):
         ORDER BY p.pid, t.ts;
         """,
         out=Csv("""
-          "ts","pid","proc_state","oom_score","capability_flags","reason","seq_id","is_initial"
-          "[NULL]",100,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1
-          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]",1
-          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]",1
-          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"[NULL]","[NULL]",1
-          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"OOM_ADJ_REASON_START_RECEIVER",7,0
-          "[NULL]",500,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]",1
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]","[NULL]",1
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,0,"[NULL]","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",7,0
+          "[NULL]",500,"PROCESS_STATE_TOP",100,0,"[NULL]","[NULL]","[NULL]",1
         """))

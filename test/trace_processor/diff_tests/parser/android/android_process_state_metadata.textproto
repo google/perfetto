@@ -97,6 +97,8 @@ packet {
       cur_oom_score: 200
       prev_capability_flags: 1
       cur_capability_flags: 0
+      prev_process_group: PROCESS_GROUP_TOP_APP
+      cur_process_group: PROCESS_GROUP_FOREGROUND
       reason: 3
       seq_id: 7
     }

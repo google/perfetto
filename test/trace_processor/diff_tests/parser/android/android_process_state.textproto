@@ -42,6 +42,8 @@ packet {
       cur_oom_score: 200
       prev_capability_flags: 1
       cur_capability_flags: 0
+      prev_process_group: PROCESS_GROUP_TOP_APP
+      cur_process_group: PROCESS_GROUP_FOREGROUND
       reason: 3
       seq_id: 10
     }
@@ -81,6 +83,8 @@ packet {
       cur_oom_score: 900
       prev_capability_flags: 0
       cur_capability_flags: 0
+      prev_process_group: PROCESS_GROUP_FOREGROUND
+      cur_process_group: PROCESS_GROUP_BACKGROUND
       reason: 4
       seq_id: 11
     }
@@ -107,6 +111,8 @@ packet {
       cur_oom_score: 250
       prev_capability_flags: 1
       cur_capability_flags: 0
+      prev_process_group: PROCESS_GROUP_TOP_APP
+      cur_process_group: PROCESS_GROUP_FOREGROUND
       reason: 3
       seq_id: 20
     }
@@ -128,6 +134,8 @@ packet {
       cur_oom_score: 300
       prev_capability_flags: 0
       cur_capability_flags: 0
+      prev_process_group: PROCESS_GROUP_FOREGROUND
+      cur_process_group: PROCESS_GROUP_BACKGROUND
       reason: 4
       seq_id: 21
     }
