@@ -182,6 +182,112 @@ describe('TrackNode.addChildInOrder', () => {
   });
 });
 
+describe('TrackNode.expandAll / collapseAll', () => {
+  let foo: TrackNode;
+  let bar: TrackNode;
+  let baz: TrackNode;
+  let qux: TrackNode;
+
+  // Record the order of the onExpand callbacks.
+  let log: string[];
+
+  // Helper to create a node and record its name to the log when expanded.
+  const node = (name: string) =>
+    new TrackNode({name, onExpand: () => log.push(name)});
+
+  // Returns the names of all expanded nodes, in the defined order.
+  const getExpandedNames = (): string[] =>
+    [foo, bar, baz, qux].filter((n) => !n.collapsed).map((n) => n.name);
+
+  // Before each test, reset the log and build a fresh tree:
+  //   foo
+  //   ├── bar
+  //   │   └── baz
+  //   └── qux
+  beforeEach(() => {
+    log = [];
+
+    foo = node('foo');
+    bar = node('bar');
+    baz = node('baz');
+    qux = node('qux');
+
+    foo.addChildLast(bar);
+    bar.addChildLast(baz);
+    foo.addChildLast(qux);
+  });
+
+  describe('expandAll()', () => {
+    test('at the root expands every node including leaves', () => {
+      foo.expandAll();
+
+      expect(getExpandedNames()).toEqual(['foo', 'bar', 'baz', 'qux']);
+    });
+
+    test('triggers onExpand for every node in depth-first pre-order', () => {
+      foo.expandAll();
+
+      expect(log).toEqual(['foo', 'bar', 'baz', 'qux']);
+    });
+
+    test('on subtree expands whole subtree but nothing more', () => {
+      bar.expandAll();
+
+      expect(getExpandedNames()).toEqual(['bar', 'baz']);
+    });
+
+    test('on a partly expanded tree expands the rest in the tree', () => {
+      // Setup a partly expanded tree:
+      //
+      // foo - collapsed
+      // ├── bar - expanded
+      // │   └── baz - collapsed
+      // └── qux - collapsed
+      bar.expand();
+
+      // Now expand at the root level
+      foo.expandAll();
+
+      // Everything should be expanded, including baz
+      // (which was collapsed under an expanded node).
+      expect(getExpandedNames()).toEqual(['foo', 'bar', 'baz', 'qux']);
+    });
+  });
+
+  describe('collapseAll()', () => {
+    test('at the root collapses every node including leaves', () => {
+      foo.expandAll();
+      foo.collapseAll();
+
+      expect(getExpandedNames()).toEqual([]);
+    });
+
+    test('on subtree collapses subtree and nothing more', () => {
+      foo.expandAll();
+      bar.collapseAll();
+
+      expect(getExpandedNames()).toEqual(['foo', 'qux']);
+    });
+
+    test('on a partly expanded tree collapses the rest in the tree', () => {
+      // Setup a partly expanded tree:
+      //
+      // foo - collapsed
+      // ├── bar - expanded
+      // │   └── baz - expanded
+      // └── qux - collapsed
+      bar.expand();
+      baz.expand();
+
+      // Now collapse at the root level
+      foo.collapseAll();
+
+      // Everything should be collapsed
+      expect(getExpandedNames()).toEqual([]);
+    });
+  });
+});
+
 test('TrackNode::flatTracksOrdered', () => {
   const root = new TrackNode();
 
