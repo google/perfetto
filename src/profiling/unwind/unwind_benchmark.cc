@@ -149,6 +149,17 @@ struct SampleSnapshot {
   uint64_t sp = 0;
 };
 
+// Copies raw stack bytes across frames without triggering ASan stack-redzone
+// checks or compiler loop-to-memcpy replacement.
+PERFETTO_NO_INLINE void CopyStackMemory(uint8_t* dst,
+                                        const volatile uint8_t* src,
+                                        size_t size)
+    __attribute__((no_sanitize("address", "hwaddress", "memory"))) {
+  for (size_t i = 0; i < size; ++i) {
+    dst[i] = src[i];
+  }
+}
+
 SampleSnapshot CaptureCurrentStack() {
   SampleSnapshot sample;
   uint64_t reg_data[CpuRegisters::kMaxRegs] = {};
@@ -173,8 +184,8 @@ SampleSnapshot CaptureCurrentStack() {
   size_t bytes_to_copy = std::min(bytes_available, kMaxStackDumpBytes);
 
   sample.stack_bytes.resize(bytes_to_copy);
-  memcpy(sample.stack_bytes.data(), reinterpret_cast<const void*>(sp),
-         bytes_to_copy);
+  CopyStackMemory(sample.stack_bytes.data(),
+                  reinterpret_cast<const volatile uint8_t*>(sp), bytes_to_copy);
 
   return sample;
 }
