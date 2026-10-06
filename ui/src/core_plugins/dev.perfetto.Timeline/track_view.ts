@@ -669,6 +669,7 @@ const TrackPopupMenu = {
         {label: 'Track details', icon: 'info'},
         renderTrackDetailsMenu(attrs.node, attrs.descriptor),
       ),
+      ...renderExpandCollapseAllButtons(attrs.node),
       m(MenuDivider),
       m(
         MenuItem,
@@ -734,6 +735,24 @@ const TrackPopupMenu = {
     ];
   },
 };
+
+// Only nodes with children can be expanded or collapsed.
+function renderExpandCollapseAllButtons(node: TrackNode): m.Children[] {
+  if (!node.hasChildren) return [];
+  return [
+    m(MenuDivider),
+    m(MenuItem, {
+      label: 'Expand all',
+      icon: 'unfold_more',
+      onclick: () => node.expandAll(),
+    }),
+    m(MenuItem, {
+      label: 'Collapse all',
+      icon: 'unfold_less',
+      onclick: () => node.collapseAll(),
+    }),
+  ];
+}
 
 function renderTrackSettings(descriptor?: Track): m.Children[] {
   const settings = descriptor?.renderer.settings;
