@@ -29,6 +29,8 @@ Unreleased:
       and Windows.
     * Add option to record smaps snapshots alongside ART heap dumps in the
       record page.
+    * Added "Expand all" and "Collapse all" to the track menu to expand or
+      collapse a track group and all of its descendants.
   SDK:
     *
   Misc:
