@@ -736,6 +736,45 @@ TEST_F(TraceWriterV2ImplTest, DropCountCountsEachLossOnce) {
   EXPECT_EQ(writer->drop_count(), 2u);
 }
 
+// The writer publishes the first dropped packet of an episode at once. It
+// publishes later ones in batches of 64, and the rest when the episode ends.
+TEST_F(TraceWriterV2ImplTest, DroppedPacketsArePublishedPromptly) {
+  // Without a reader, kDrop does not wait and nothing frees space.
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  auto writer = CreateWriter(BufferExhaustedPolicy::kDrop);
+  auto published = [this] {
+    return reader_ring_buffer_->LoadHeaderRelaxed().dropped_packets;
+  };
+  // Each 200-byte packet needs its own chunk. Four fill the ring buffer.
+  const std::string payload(200, 'd');
+  for (int i = 0; i < 4; ++i)
+    WritePacket(writer.get(), payload);
+  ASSERT_EQ(writer->drop_count(), 0u);
+
+  // The first loss is visible at once, before any flush.
+  WritePacket(writer.get(), payload);
+  EXPECT_EQ(writer->drop_count(), 1u);
+  EXPECT_EQ(published(), 1u);
+
+  // The next 63 losses wait for a batch. The 64th completes it.
+  for (int i = 0; i < 63; ++i)
+    WritePacket(writer.get(), payload);
+  EXPECT_EQ(published(), 1u);
+  WritePacket(writer.get(), payload);
+  EXPECT_EQ(published(), 65u);
+
+  // Two more wait. The end of the episode publishes them.
+  WritePacket(writer.get(), payload);
+  WritePacket(writer.get(), payload);
+  EXPECT_EQ(published(), 65u);
+  AttachReader();
+  Drain();
+  WritePacket(writer.get(), "fits");
+  EXPECT_EQ(published(), 67u);
+  // One episode counts as one drop.
+  EXPECT_EQ(writer->drop_count(), 1u);
+}
+
 // written() counts the packet bytes in all fragments. It does not count
 // chunk headers or size entries.
 TEST_F(TraceWriterV2ImplTest, WrittenCountsPacketBytes) {

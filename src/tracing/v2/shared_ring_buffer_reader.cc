@@ -65,6 +65,8 @@ const char* ChunkStateName(ChunkState state) {
 
 SharedRingBufferReader::Delegate::~Delegate() = default;
 
+void SharedRingBufferReader::Delegate::OnChunkRejected(const ChunkRejection&) {}
+
 SharedRingBufferReader::SharedRingBufferReader(SharedRingBuffer* ring,
                                                Delegate* delegate)
     : ring_(ring),
@@ -131,7 +133,7 @@ SharedRingBufferReader::DrainResult SharedRingBufferReader::Drain(
 // it, report a protocol error.
 SharedRingBufferReader::ConsumeResult
 SharedRingBufferReader::ConsumeNextPosition() {
-  if (PERFETTO_UNLIKELY(has_protocol_error_))
+  if (PERFETTO_UNLIKELY(protocol_error_))
     return ConsumeResult::kProtocolError;
 
   // A relaxed load is enough here. An older write_pos only shortens this
@@ -143,7 +145,8 @@ SharedRingBufferReader::ConsumeNextPosition() {
   if (PERFETTO_UNLIKELY(outstanding > num_chunks_)) {
     // A legal writer cannot reserve more than num_chunks outstanding
     // positions.
-    has_protocol_error_ = true;
+    protocol_error_ = ProtocolError{"write_pos is too far ahead of read_pos", 0,
+                                    read_pos_, write_pos};
     PERFETTO_ELOG(
         "tracing v2: stopping ring buffer reader: write_pos %u is %u "
         "positions ahead of read_pos %u, which is more than the %u chunks "
@@ -163,13 +166,15 @@ SharedRingBufferReader::ConsumeNextPosition() {
     case ChunkState::kFree: {
       // Check reserved bits first. Reclaiming must not hide an invalid word.
       if (PERFETTO_UNLIKELY((state_word & ~kWriterIDMask) != 0))
-        return StopOnProtocolError("Free word has reserved bits", state_word);
+        return StopOnProtocolError("Free word has reserved bits", state_word,
+                                   write_pos);
       // Only this reader advances the wrap. A different wrap here is an error.
       const uint32_t expected_free_word =
           MakeFreeStateWordForPosition(chunk_pos, num_chunks_);
       if (PERFETTO_UNLIKELY(state_word != expected_free_word)) {
         return StopOnProtocolError(
-            "Free word carries another position's wrap count", state_word);
+            "Free word carries another position's wrap count", state_word,
+            write_pos);
       }
       if (before_state_transition_for_testing_)
         before_state_transition_for_testing_();
@@ -180,6 +185,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
         return ConsumeResult::kRetryImmediately;
       ++read_pos_;
       ++stats_.positions_skipped;
+      ++stats_.holes;
       return ConsumeResult::kPositionSkipped;
     }
 
@@ -192,9 +198,10 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // copy before it delivers fragments or reports loss for this position.
       if (!ring_->TryRequestRewrite(chunk_idx, &state_word))
         return ConsumeResult::kRetryImmediately;
+      // On success, |state_word| still holds the word that was decoded.
       ++read_pos_;
       ++stats_.rewrite_requests;
-      return HandleCopiedChunk(status);
+      return HandleCopiedChunk(status, state_word);
     }
 
     case ChunkState::kComplete: {
@@ -217,9 +224,10 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // kFlagDataLoss to the relocated fragment instead.
       if (status == CopiedChunkStatus::kNoFragments &&
           (copied_chunk_.payload_flags & kFlagDataLoss)) {
+        ++stats_.data_loss_chunks;
         delegate_->OnDataLoss(copied_chunk_.writer_id);
       }
-      return HandleCopiedChunk(status);
+      return HandleCopiedChunk(status, state_word);
     }
 
     case ChunkState::kRewriteRequested:
@@ -228,6 +236,7 @@ SharedRingBufferReader::ConsumeNextPosition() {
       // changing the chunk's state word or delivering fragments.
       ++read_pos_;
       ++stats_.positions_skipped;
+      ++stats_.holes;
       return ConsumeResult::kPositionSkipped;
 
     case ChunkState::kRewriteAcknowledged:
@@ -244,17 +253,18 @@ SharedRingBufferReader::ConsumeNextPosition() {
             ChunkStateOf(state_word) == ChunkState::kRewriteAcknowledged
                 ? "RewriteAcknowledged word has payload bits set"
                 : "RewriteAcknowledged word changed under the reader",
-            state_word);
+            state_word, write_pos);
       }
       ++read_pos_;
       ++stats_.positions_skipped;
+      ++stats_.holes;
       return ConsumeResult::kPositionSkipped;
 
     case ChunkState::kReserved5:
     case ChunkState::kReserved6:
     case ChunkState::kReserved7:
       // The reader cannot safely reclaim an unknown state.
-      return StopOnProtocolError("reserved chunk state", state_word);
+      return StopOnProtocolError("reserved chunk state", state_word, write_pos);
   }
   PERFETTO_FATAL("tracing v2: unhandled chunk state word 0x%08x", state_word);
 }
@@ -283,8 +293,11 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
   if (state_word & kFlagDataLoss)
     return CopiedChunkStatus::kDataLoss;
 
-  if (ChunkFormatOf(state_word) != ChunkFormat::kTargetBuffer)
+  if (ChunkFormatOf(state_word) != ChunkFormat::kTargetBuffer) {
+    rejection_ = ChunkRejection{};
+    rejection_.reason = ChunkRejection::Reason::kUnsupportedFormat;
     return CopiedChunkStatus::kUnsupportedFormat;
+  }
 
   // Decode first to find the payload end and the directory start.
   // Until then, payload_begin is the decoder's lower bound. It prevents size
@@ -294,11 +307,31 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
   const uint8_t* const payload_begin = chunk + kTargetBufferPayloadOffset;
   const uint8_t* sizes_cursor = chunk + chunk_size_;
   uint32_t total = 0;
+  // Keeps the decoder facts of a failure. Only the failure paths call it.
+  // |entry_end| is the highest address of the failed size entry.
+  auto malformed = [&](ChunkRejection::Reason reason, uint32_t fragment_index,
+                       uint32_t payload_bytes, const uint8_t* entry_end) {
+    rejection_ = ChunkRejection{};
+    rejection_.reason = reason;
+    rejection_.fragment_index = fragment_index;
+    rejection_.payload_bytes = payload_bytes;
+    rejection_.directory_bytes =
+        static_cast<uint32_t>(chunk + chunk_size_ - entry_end);
+    return CopiedChunkStatus::kMalformed;
+  };
   for (uint32_t i = 0; i < num_fragments; ++i) {
+    const uint8_t* const entry_end = sizes_cursor;
     const auto fragment_size =
         ReadFragmentSizeReversed(payload_begin, &sizes_cursor);
-    if (!fragment_size || *fragment_size > capacity - total) {
-      return CopiedChunkStatus::kMalformed;
+    if (!fragment_size) {
+      return malformed(ChunkRejection::Reason::kInvalidSizeEncoding, i, total,
+                       entry_end);
+    }
+    // |total| <= |capacity| and a size has at most 28 bits, so the sum below
+    // fits in 32 bits.
+    if (*fragment_size > capacity - total) {
+      return malformed(ChunkRejection::Reason::kFragmentTooLarge, i,
+                       total + *fragment_size, entry_end);
     }
     total += *fragment_size;
     copied_fragments_.push_back(protozero::ConstBytes{nullptr, *fragment_size});
@@ -312,8 +345,10 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
   //   No cursor change needs to be undone.
   const uint32_t sizes_bytes =
       static_cast<uint32_t>(chunk + chunk_size_ - sizes_cursor);
-  if (total > capacity - sizes_bytes)
-    return CopiedChunkStatus::kMalformed;
+  if (total > capacity - sizes_bytes) {
+    return malformed(ChunkRejection::Reason::kPayloadOverlapsDirectory,
+                     num_fragments, total, sizes_cursor);
+  }
 
   // Copy the published payload out of shared memory.
   copied_payload_.assign(payload_begin, payload_begin + total);
@@ -327,25 +362,33 @@ SharedRingBufferReader::CopyPublishedFragments(ChunkIndex chunk_idx,
   copied_chunk_.target_buffer = LoadTargetBufferId(chunk);
   copied_chunk_.fragments = copied_fragments_.data();
   copied_chunk_.num_fragments = num_fragments;
+  copied_chunk_.payload_size = total;
   return CopiedChunkStatus::kReady;
 }
 
 SharedRingBufferReader::ConsumeResult SharedRingBufferReader::HandleCopiedChunk(
-    CopiedChunkStatus status) {
+    CopiedChunkStatus status,
+    uint32_t state_word) {
   switch (status) {
     case CopiedChunkStatus::kReady:
       ++stats_.chunks_read;
       delegate_->OnChunkRead(copied_chunk_);
       return ConsumeResult::kChunkRead;
     case CopiedChunkStatus::kMalformed:
-      ++stats_.malformed_chunks;
-      delegate_->OnDataLoss(copied_chunk_.writer_id);
-      break;
     case CopiedChunkStatus::kUnsupportedFormat:
-      ++stats_.unsupported_format_chunks;
+      if (status == CopiedChunkStatus::kMalformed) {
+        ++stats_.malformed_chunks;
+      } else {
+        ++stats_.unsupported_format_chunks;
+      }
+      // read_pos_ has already moved past the chunk.
+      rejection_.chunk_pos = read_pos_ - 1;
+      rejection_.state_word = state_word;
+      delegate_->OnChunkRejected(rejection_);
       delegate_->OnDataLoss(copied_chunk_.writer_id);
       break;
     case CopiedChunkStatus::kDataLoss:
+      ++stats_.data_loss_chunks;
       delegate_->OnDataLoss(copied_chunk_.writer_id);
       break;
     case CopiedChunkStatus::kNoFragments:
@@ -358,9 +401,10 @@ SharedRingBufferReader::ConsumeResult SharedRingBufferReader::HandleCopiedChunk(
 
 SharedRingBufferReader::ConsumeResult
 SharedRingBufferReader::StopOnProtocolError(const char* reason,
-                                            uint32_t state_word) {
+                                            uint32_t state_word,
+                                            uint32_t write_pos) {
   // Stop rather than trusting a malformed word from a producer. Log once.
-  has_protocol_error_ = true;
+  protocol_error_ = ProtocolError{reason, state_word, read_pos_, write_pos};
   PERFETTO_ELOG(
       "tracing v2: stopping ring buffer reader at position %u: %s "
       "(chunk state word 0x%08x, %s)",

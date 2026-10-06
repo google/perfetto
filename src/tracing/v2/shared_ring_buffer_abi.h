@@ -100,13 +100,28 @@ constexpr uint32_t kMinChunksPerRing = 2;
 // ------------------
 //
 //   byte offset
-//   0              4              8              12               64
-//   +--------------+--------------+--------------+----------------+
-//   |   read_pos   |  write_pos   | num_writers_ |    reserved    |
-//   |              |              |   waiting    |                |
-//   +--------------+--------------+--------------+----------------+
-//   |<------- rw_positions ------>|<- atomic32 ->|
+//   0              4              8              12             16
+//   +--------------+--------------+--------------+--------------+
+//   |   read_pos   |  write_pos   | num_writers_ | diagnostics_ |
+//   |              |              |   waiting    |   version    |
+//   +--------------+--------------+--------------+--------------+
+//   |<------- rw_positions ------>|<------ atomic32 each ------>|
 //          atomic<uint64_t>
+//
+//   16             24             32             40             48
+//   +--------------+--------------+--------------+--------------+
+//   |   dropped_   |    stalls    | stall_time_  |  max_stall_  |
+//   |   packets    |              |      ms      |      ms      |
+//   +--------------+--------------+--------------+--------------+
+//   |<----------------- atomic<uint64_t> each ----------------->|
+//
+//   48                            56             60             64
+//   +-----------------------------+--------------+--------------+
+//   |    first_writer_failure     |    drain_    |   writer_    |
+//   |                             |  threshold   |  creation_   |
+//   |                             |              |  failures    |
+//   +-----------------------------+--------------+--------------+
+//   |<----- atomic<uint64_t> ---->|<------ atomic32 each ------>|
 //
 // Writers check capacity by loading rw_positions once. In memory:
 // - The first four bytes hold read_pos.
@@ -122,7 +137,24 @@ constexpr uint32_t kMinChunksPerRing = 2;
 // for space. It is only an optimization and never decides whether the ring
 // buffer is full or who owns a chunk.
 //
-// Bytes 12..63 pad the header to one cache line.
+// Bytes 12..63 hold diagnostics, for TraceStats:
+// - The producer writes them. traced reports them and never trusts them.
+// - The protocol never reads them, and a reader must not check them.
+// - The producer sets diagnostics_version before it attaches the ring buffer.
+//   Zero means that the producer writes no diagnostics. A producer that leaves
+//   the bytes zero stays compatible. traced then reports the fields as absent.
+// - Version 1 has every field in the diagrams above. A later version keeps
+//   them and only adds fields.
+//
+// The diagnostic fields:
+// - dropped_packets, stalls, stall_time_ms and max_stall_ms: totals for all
+//   writers. Writers add to them only when they drop data or wait for space.
+// - first_writer_failure: the first writer failure before an abort. See
+//   EncodeWriterFailure(). Zero means none.
+// - drain_threshold: the outstanding positions at which a publication asks for
+//   a drain. All writers of the ring buffer use this value.
+// - writer_creation_failures: v2 writers that could not get a WriterID, and
+//   became NullTraceWriters. Wraps at 2^32.
 //
 static_assert(sizeof(std::atomic<uint32_t>) == 4 &&
                   alignof(std::atomic<uint32_t>) <= 4,
@@ -133,16 +165,101 @@ static_assert(std::atomic<uint32_t>::is_always_lock_free &&
                   std::atomic<uint64_t>::is_always_lock_free,
               "Shared-memory atomics must be lock-free");
 
+// The diagnostics that this code writes and reads. See above.
+constexpr uint32_t kRingBufferDiagnosticsVersion = 1;
+
 struct alignas(64) RingBufferHeader {
   std::atomic<uint64_t> rw_positions;
   std::atomic<uint32_t> num_writers_waiting;
-  uint8_t reserved[52];
+
+  // Diagnostics. See above.
+  std::atomic<uint32_t> diagnostics_version;
+  std::atomic<uint64_t> dropped_packets;
+  std::atomic<uint64_t> stalls;
+  std::atomic<uint64_t> stall_time_ms;
+  std::atomic<uint64_t> max_stall_ms;
+  std::atomic<uint64_t> first_writer_failure;
+  std::atomic<uint32_t> drain_threshold;
+  std::atomic<uint32_t> writer_creation_failures;
 };
 
 static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
-                  offsetof(RingBufferHeader, reserved) == 12 &&
+                  offsetof(RingBufferHeader, diagnostics_version) == 12 &&
+                  offsetof(RingBufferHeader, dropped_packets) == 16 &&
+                  offsetof(RingBufferHeader, stalls) == 24 &&
+                  offsetof(RingBufferHeader, stall_time_ms) == 32 &&
+                  offsetof(RingBufferHeader, max_stall_ms) == 40 &&
+                  offsetof(RingBufferHeader, first_writer_failure) == 48 &&
+                  offsetof(RingBufferHeader, drain_threshold) == 56 &&
+                  offsetof(RingBufferHeader, writer_creation_failures) == 60 &&
                   sizeof(RingBufferHeader) == 64,
               "RingBufferHeader does not match the shared-memory ABI");
+
+// First writer failure
+// --------------------
+//
+// A writer stores one record in first_writer_failure just before it aborts.
+// A compare-and-swap from zero keeps the first record, so a single 64-bit
+// store publishes it whole. No lock or second word is needed. traced keeps
+// its own mapping, so it reads the record after the producer dies.
+//
+//   bit 0      8          16                   32                         64
+//   +----------+----------+--------------------+--------------------------+
+//   |  reason  | reserved |      WriterID      |       observed value     |
+//   +----------+----------+--------------------+--------------------------+
+//
+// The observed value depends on the reason. See WriterFailureReason.
+// The reserved bits are zero. A reader ignores them.
+//
+// TraceStats.TracingV2.Producer.WriterFailure has the same values. A value
+// never changes once a producer can write it. Add new reasons to both.
+enum class WriterFailureReason : uint8_t {
+  kNone = 0,
+  // A publication CAS lost to a word other than this writer's
+  // RewriteRequested. The value is the word that the CAS returned.
+  kPublicationLost = 1,
+  // The RewriteRequested -> RewriteAcknowledged CAS failed. The value is the
+  // word that the CAS returned.
+  kAcknowledgementFailed = 2,
+  // Under BufferExhaustedPolicy::kStall, one chunk acquisition waited for
+  // the whole stall timeout. The value is the read_pos that the last
+  // reservation attempt saw.
+  kStallTimeout = 3,
+};
+
+struct WriterFailure {
+  WriterFailureReason reason = WriterFailureReason::kNone;
+  WriterID writer_id = 0;
+  uint32_t value = 0;
+};
+
+constexpr uint32_t kWriterFailureReasonShift = 0;
+constexpr uint32_t kWriterFailureWriterIDShift = 16;
+constexpr uint32_t kWriterFailureValueShift = 32;
+static_assert(kWriterFailureReasonShift + 8 * sizeof(WriterFailureReason) <=
+                      kWriterFailureWriterIDShift &&
+                  kWriterFailureWriterIDShift + 8 * sizeof(WriterID) <=
+                      kWriterFailureValueShift &&
+                  kWriterFailureValueShift + 32 == 64,
+              "The fields of the writer failure record overlap");
+
+constexpr uint64_t EncodeWriterFailure(const WriterFailure& failure) {
+  return (uint64_t{static_cast<uint8_t>(failure.reason)}
+          << kWriterFailureReasonShift) |
+         (uint64_t{failure.writer_id} << kWriterFailureWriterIDShift) |
+         (uint64_t{failure.value} << kWriterFailureValueShift);
+}
+
+// |record| is untrusted. An unknown reason stays as its raw value.
+constexpr WriterFailure DecodeWriterFailure(uint64_t record) {
+  WriterFailure failure;
+  failure.reason = static_cast<WriterFailureReason>(
+      static_cast<uint8_t>(record >> kWriterFailureReasonShift));
+  failure.writer_id =
+      static_cast<WriterID>(record >> kWriterFailureWriterIDShift);
+  failure.value = static_cast<uint32_t>(record >> kWriterFailureValueShift);
+  return failure;
+}
 
 // Logical positions and chunk indexing
 // ------------------------------------

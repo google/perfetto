@@ -342,6 +342,9 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
     if (PERFETTO_UNLIKELY(ChunkStateOf(expected) !=
                               ChunkState::kRewriteRequested ||
                           WriterIDOf(expected) != writer_id_)) {
+      // traced keeps its own mapping, so it reads the record after the abort.
+      ring_->RecordFirstWriterFailure(
+          {WriterFailureReason::kPublicationLost, writer_id_, expected});
       PERFETTO_FATAL(
           "tracing v2: publication of chunk %u by writer %u lost to state word "
           "0x%08x, which is not a rewrite request for this writer",
@@ -382,12 +385,16 @@ SharedRingBufferWriter::ReleaseCurrentChunkAsComplete(
 
     // Acknowledge before the next acquisition. The reader can then reclaim the
     // old chunk even if this writer must wait for replacement space.
+    // On failure, |observed| holds the word that the CAS found.
+    uint32_t observed = expected;
     if (PERFETTO_UNLIKELY(
-            !ring_->TryAcknowledgeRewrite(cur_chunk_idx_, expected))) {
+            !ring_->TryAcknowledgeRewrite(cur_chunk_idx_, &observed))) {
+      ring_->RecordFirstWriterFailure(
+          {WriterFailureReason::kAcknowledgementFailed, writer_id_, observed});
       PERFETTO_FATAL(
           "tracing v2: writer %u could not acknowledge chunk %u: only its "
-          "owner may leave RewriteRequested",
-          writer_id_, cur_chunk_idx_.value());
+          "owner may leave RewriteRequested, but the word is 0x%08x",
+          writer_id_, cur_chunk_idx_.value(), observed);
     }
     ++stats_.relocations;
 

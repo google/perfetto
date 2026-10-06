@@ -438,17 +438,14 @@ void ProducerIPCService::AttachV2RingBuffer(
     return;
   }
 
+  // If the descriptor cannot be mapped, pass a null mapping on. The endpoint
+  // rejects it and reports the rejection in TraceStats.
   std::shared_ptr<SharedMemory> memory;
 #if PERFETTO_TRACING_V2_IPC()
   memory = PosixSharedMemory::AttachToFd(std::move(fd),
                                          /*require_seals_if_supported=*/true,
                                          TracingService::kMaxShmSize);
 #endif
-  if (!memory) {
-    PERFETTO_DLOG("AttachV2RingBuffer() rejected: could not map the memfd");
-    resp.Reject();
-    return;
-  }
 
   // |resp| cannot be copied, but std::function requires a copyable callback.
   // Capture a shared_ptr so callback copies refer to the same response.

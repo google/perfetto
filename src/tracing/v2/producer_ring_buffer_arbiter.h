@@ -273,7 +273,8 @@ class ProducerRingBufferArbiter {
   // - A v2 instance gets a ring buffer writer, or a NullTraceWriter, which
   //   discards all packets, if:
   //   - the state is kDetached, or
-  //   - the SMB arbiter has no free WriterID (exhaustion or shutdown).
+  //   - the SMB arbiter has no free WriterID (exhaustion or shutdown). The
+  //     header's writer_creation_failures counts this case.
   std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
                                                  BufferExhaustedPolicy,
                                                  DataSourceInstanceID);
@@ -289,7 +290,11 @@ class ProducerRingBufferArbiter {
     return ring_buffer_ ? &*ring_buffer_ : nullptr;
   }
 
-  int32_t drain_occupancy_percent() const { return drain_occupancy_percent_; }
+  // A publication asks for a drain when the ring buffer has at least this many
+  // outstanding positions. Set once, with the ring buffer, from the
+  // drain_occupancy_percent of the first v2 instance. Later instances reuse
+  // it, whatever their own config asks. The header reports the same value.
+  uint32_t drain_threshold() const { return drain_threshold_; }
 
   // Drain requests, from writers on their own thread:
 
@@ -353,10 +358,8 @@ class ProducerRingBufferArbiter {
   std::shared_ptr<SharedMemory> memory_;
   // The view that writers borrow.
   std::optional<SharedRingBuffer> ring_buffer_;
-  // After a publication, a writer asks the service for a drain when this
-  // percentage of the ring buffer positions wait for the reader.
-  // All writers use the value of the first v2 instance.
-  int32_t drain_occupancy_percent_ = 0;
+  // See drain_threshold().
+  uint32_t drain_threshold_ = 0;
 
   // --- Shared with writer threads. ---
 

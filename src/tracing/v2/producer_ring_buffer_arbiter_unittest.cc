@@ -170,6 +170,24 @@ TEST_F(ProducerRingBufferArbiterTest, FirstV2InstanceAttachesRingBuffer) {
   EXPECT_TRUE(PacketReachesRingBuffer(writer.get()));
 }
 
+// The arbiter writes the header diagnostics before the attach request, so the
+// service's view sees them at attach.
+TEST_F(ProducerRingBufferArbiterTest, DiagnosticsAreSetBeforeAttach) {
+  SharedRingBuffer::HeaderSnapshot at_attach;
+  EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, _, _))
+      .WillOnce([&](const std::shared_ptr<SharedMemory>& memory,
+                    uint32_t chunk_size, std::function<void(bool)>) {
+        SharedRingBuffer view(static_cast<uint8_t*>(memory->start()),
+                              memory->size(), chunk_size);
+        at_attach = view.LoadHeaderRelaxed();
+      });
+  SetupInstance(kInstance, V2Config(), /*num_chunks=*/8);
+  EXPECT_EQ(at_attach.diagnostics_version, kRingBufferDiagnosticsVersion);
+  // 25% of 8 chunks.
+  EXPECT_EQ(at_attach.drain_threshold, 2u);
+  EXPECT_EQ(arbiter_->drain_threshold(), 2u);
+}
+
 TEST_F(ProducerRingBufferArbiterTest, InstancesShareOneRingBuffer) {
   CreateRingBufferArbiterWithReader(/*num_chunks=*/4);
   SetupInstance(kInstance + 1, V2Config());
@@ -332,6 +350,9 @@ TEST_F(ProducerRingBufferArbiterTest, NoWriterIdAfterSmbArbiterShutdown) {
   auto writer = CreateWriter();
   ASSERT_TRUE(writer);
   EXPECT_EQ(writer->writer_id(), 0u);
+  // The service reads the failure from the header.
+  EXPECT_EQ(reader_ring_buffer_->LoadHeaderRelaxed().writer_creation_failures,
+            1u);
 }
 
 // --- Drain requests ---
@@ -379,17 +400,21 @@ TEST_F(ProducerRingBufferArbiterTest, UrgentDrainIsPostedFromOtherThread) {
 }
 
 // The first v2 instance sets drain_occupancy_percent for the connection, and
-// the value of a later instance has no effect.
+// the value of a later instance has no effect. The header reports the
+// threshold that the writers use.
 TEST_F(ProducerRingBufferArbiterTest,
        FirstV2InstanceSetsTheDrainOccupancyPercent) {
   auto config = V2Config();
   config.mutable_experimental_tracing_v2()->set_drain_occupancy_percent(-1);
   SetupInstance(kInstance, config, /*num_chunks=*/8);
   AttachReader();
+  EXPECT_EQ(reader_ring_buffer_->LoadHeaderRelaxed().drain_threshold, 1u);
 
   config.mutable_experimental_tracing_v2()->set_drain_occupancy_percent(100);
   SetupInstance(2, config, /*num_chunks=*/8);
   auto writer = CreateWriter(BufferExhaustedPolicy::kDrop, 2);
+  EXPECT_EQ(arbiter_->drain_threshold(), 1u);
+  EXPECT_EQ(reader_ring_buffer_->LoadHeaderRelaxed().drain_threshold, 1u);
 
   // -1 asks for a drain after every publication.
   WritePacket(writer.get(), "p");

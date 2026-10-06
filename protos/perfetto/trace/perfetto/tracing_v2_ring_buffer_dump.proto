@@ -1,0 +1,115 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+import "protos/perfetto/common/trace_stats.proto";
+
+package perfetto.protos;
+
+// Experimental. A copy of one producer's tracing v2 ring buffer, as traced
+// found it. The ring buffer is shared memory that the producer can write:
+// - traced reads each word once, at slightly different times, so the copy is
+//   not a consistent snapshot.
+// - Every field that comes from the ring buffer is untrusted.
+// The layout is in src/tracing/v2/shared_ring_buffer_abi.h.
+//
+// The essential facts of a failure are also in TraceStats.tracing_v2, which a
+// trace filter does not remove. A dump adds the memory around them.
+//
+// See TraceConfig.BuiltinDataSource.experimental_dump_tracing_v2_ring_buffers
+// and experimental_dump_tracing_v2_chunk_bytes.
+message TracingV2RingBufferDump {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    // traced stopped reading after a protocol error. Always taken. The
+    // producer's entry in TraceStats.tracing_v2 has the details. The producer
+    // can write after the reader stops, so the copy can be later than the
+    // error.
+    REASON_PROTOCOL_ERROR = 1;
+    // At the end of the session, after the final drain.
+    REASON_STOP = 2;
+    // When the producer disconnected, after the final drain.
+    REASON_PRODUCER_DISCONNECT = 3;
+    // When traced cloned the session.
+    REASON_CLONE = 4;
+    // When traced discarded a chunk as malformed or in an unknown format.
+    // Only with chunk bytes, for at most 8 chunks for each producer of the
+    // session. Only that chunk is copied. See rejection.
+    REASON_REJECTED_CHUNK = 5;
+  }
+  optional Reason reason = 1;
+
+  // BOOTTIME of the copy.
+  optional uint64 timestamp_ns = 2;
+
+  // The producer, as in TraceStats.TracingV2.Producer.
+  optional uint32 producer_id = 3;
+
+  // The layout that traced validated at attach.
+  optional uint32 chunk_size_bytes = 4;
+  optional uint32 num_chunks = 12;
+
+  // traced's own read position.
+  optional uint32 reader_read_pos = 5;
+
+  // From the ring buffer header. Untrusted.
+  optional uint32 read_pos = 6;
+  optional uint32 write_pos = 7;
+  optional uint32 num_writers_waiting = 8;
+
+  // The state word of each chunk, in chunk index order. Untrusted.
+  // With REASON_REJECTED_CHUNK, only the word of that chunk. traced reads it
+  // after its own transition, so it is not the word that the reader decoded:
+  // see rejection.state_word.
+  repeated fixed32 chunk_state_words = 9 [packed = true];
+
+  // With experimental_dump_tracing_v2_chunk_bytes, the raw bytes of chunks.
+  //
+  // They are untrusted, raw trace data. They can hold data of every session
+  // on the producer, and stale bytes of earlier sessions in free chunks and
+  // unused space. A trace filter treats them as one opaque bytes field: it
+  // keeps or drops them whole.
+  //
+  // traced copies them only if they fit the pending dump budget. See
+  // TraceStats.TracingV2.ring_buffer_dumps_evicted.
+  enum ChunkBytes {
+    // The config does not ask for chunk bytes.
+    CHUNK_BYTES_UNSPECIFIED = 0;
+    // `chunks` holds every chunk, in chunk index order.
+    CHUNK_BYTES_ALL = 1;
+    // `chunks` holds the chunks of chunk_byte_indexes, in that order.
+    // Not all chunks fit the budget. The chunk at reader_read_pos comes
+    // first, then the chunks that are not Free, in position order.
+    CHUNK_BYTES_SELECTED = 2;
+    // No chunk fit the budget.
+    CHUNK_BYTES_OMITTED = 3;
+  }
+  optional ChunkBytes chunk_bytes = 13;
+  // Each chunk starts with its state word.
+  optional bytes chunks = 10;
+  repeated uint32 chunk_byte_indexes = 14 [packed = true];
+  // Chunks of the dump whose bytes are not in `chunks`.
+  optional uint32 chunk_bytes_omitted = 15;
+
+  // With REASON_REJECTED_CHUNK: the position of the rejected chunk, and the
+  // record of the read attempt that rejected it. traced copies the bytes
+  // after its transition, in the same drain pass. No other writer can claim
+  // the chunk before that pass ends. But a writer that held it can still
+  // write it, so the bytes can differ from the bytes that the reader decoded.
+  optional uint32 chunk_pos = 11;
+  optional TraceStats.TracingV2.ChunkRejection rejection = 16;
+}

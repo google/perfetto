@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "src/tracing/v2/shared_ring_buffer.h"
@@ -36,6 +37,7 @@ using Internals = test::SharedRingBufferInternalsForTest;
 using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
 using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
 using ConsumeResult = SharedRingBufferReader::ConsumeResult;
+using Rejection = SharedRingBufferReader::ChunkRejection;
 using test::MakeWriter;
 using test::WriteFragment;
 
@@ -70,6 +72,12 @@ class RecordingDelegate : public SharedRingBufferReader::Delegate {
     writers_with_data_loss.push_back(writer_id);
   }
 
+  void OnChunkRejected(const Rejection& rejection) override {
+    // OnDataLoss() follows each rejection.
+    EXPECT_EQ(rejections.size(), writers_with_data_loss.size());
+    rejections.push_back(rejection);
+  }
+
   std::vector<std::string> AllFragments() const {
     std::vector<std::string> all;
     for (const ReadChunk& chunk : chunks)
@@ -79,7 +87,25 @@ class RecordingDelegate : public SharedRingBufferReader::Delegate {
 
   std::vector<ReadChunk> chunks;
   std::vector<WriterID> writers_with_data_loss;
+  std::vector<Rejection> rejections;
 };
+
+// Checks the one rejection that |delegate| received.
+void ExpectOneRejection(const RecordingDelegate& delegate,
+                        Rejection::Reason reason,
+                        uint32_t state_word,
+                        uint32_t fragment_index,
+                        uint32_t payload_bytes,
+                        uint32_t directory_bytes) {
+  ASSERT_EQ(delegate.rejections.size(), 1u);
+  const Rejection& rejection = delegate.rejections[0];
+  EXPECT_EQ(rejection.reason, reason);
+  EXPECT_EQ(rejection.chunk_pos, 0u);
+  EXPECT_EQ(rejection.state_word, state_word);
+  EXPECT_EQ(rejection.fragment_index, fragment_index);
+  EXPECT_EQ(rejection.payload_bytes, payload_bytes);
+  EXPECT_EQ(rejection.directory_bytes, directory_bytes);
+}
 
 // ---------------------------------------------------------------------------
 // The nominal path.
@@ -450,6 +476,7 @@ TEST(SharedRingBufferReaderTest, UnclaimedPosition) {
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.read_pos(), 1u);
   EXPECT_EQ(reader.GetStats().positions_skipped, 1u);
+  EXPECT_EQ(reader.GetStats().holes, 1u);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
@@ -478,6 +505,7 @@ TEST(SharedRingBufferReaderTest, RewriteRequestedSkipped) {
   // Only the owning writer may leave that state, so the reader left it alone.
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)), marked);
   EXPECT_EQ(reader.GetStats().positions_skipped, 1u);
+  EXPECT_EQ(reader.GetStats().holes, 1u);
 }
 
 TEST(SharedRingBufferReaderTest, RewriteAcknowledgedReclaimed) {
@@ -490,15 +518,15 @@ TEST(SharedRingBufferReaderTest, RewriteAcknowledgedReclaimed) {
   ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, being_written));
   uint32_t observed = being_written;
   ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
-  ASSERT_TRUE(ring->TryAcknowledgeRewrite(
-      ChunkIndex::FromIndex(0),
-      ReplaceChunkState(being_written, ChunkState::kRewriteRequested)));
+  observed = ReplaceChunkState(being_written, ChunkState::kRewriteRequested);
+  ASSERT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &observed));
 
   ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
+  EXPECT_EQ(reader.GetStats().holes, 1u);
 }
 
 // ---------------------------------------------------------------------------
@@ -567,14 +595,16 @@ TEST(SharedRingBufferReaderTest, UnknownFormat) {
   SharedRingBufferReader reader(ring.get(), &delegate);
 
   ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
-  Internals::SetChunkStateWord(
-      ring.get(), ChunkIndex::FromIndex(0),
-      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kReservedRouting, 0,
-                        3, kWriterB));
+  const uint32_t word = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kReservedRouting, 0, 3, kWriterB);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().unsupported_format_chunks, 1u);
+  // The record keeps the word that the transition to Free replaced.
+  ExpectOneRejection(delegate, Rejection::Reason::kUnsupportedFormat, word, 0,
+                     0, 0);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterB}));
   // The loss was reported and the chunk remains usable.
@@ -591,14 +621,17 @@ TEST(SharedRingBufferReaderTest, SizesLargerThanChunk) {
   ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   // varint(0) takes one byte. 255 such entries do not fit in the 250-byte
   // payload area.
-  Internals::SetChunkStateWord(
-      ring.get(), ChunkIndex::FromIndex(0),
-      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0,
-                        255, kWriterB));
+  const uint32_t word = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 255, kWriterB);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
+  // The 251st entry would start at the payload start.
+  ExpectOneRejection(delegate, Rejection::Reason::kInvalidSizeEncoding, word,
+                     /*fragment_index=*/250, /*payload_bytes=*/0,
+                     /*directory_bytes=*/250);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterB}));
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
@@ -616,14 +649,16 @@ TEST(SharedRingBufferReaderTest, PayloadSizesOverlap) {
   // by itself, but its two-byte size varint does not fit beside it.
   WriteFragmentSizeReversed(ring->chunk_at(ChunkIndex::FromIndex(0)) + 256,
                             249);
-  Internals::SetChunkStateWord(
-      ring.get(), ChunkIndex::FromIndex(0),
-      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1,
-                        kWriterB));
+  const uint32_t word = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1, kWriterB);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
+  ExpectOneRejection(delegate, Rejection::Reason::kPayloadOverlapsDirectory,
+                     word, /*fragment_index=*/1, /*payload_bytes=*/249,
+                     /*directory_bytes=*/2);
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterB}));
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
@@ -678,14 +713,17 @@ TEST(SharedRingBufferReaderTest, CumulativeSizeOverflow) {
   uint8_t* sizes_begin = chunk + 512;
   sizes_begin = WriteFragmentSizeReversed(sizes_begin, 400);
   WriteFragmentSizeReversed(sizes_begin, 400);
-  Internals::SetChunkStateWord(
-      ring.get(), ChunkIndex::FromIndex(0),
-      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 2,
-                        kWriterB));
+  const uint32_t word = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 2, kWriterB);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
+  // The second size entry starts after the two bytes of the first one.
+  ExpectOneRejection(delegate, Rejection::Reason::kFragmentTooLarge, word,
+                     /*fragment_index=*/1, /*payload_bytes=*/800,
+                     /*directory_bytes=*/2);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
@@ -699,14 +737,15 @@ TEST(SharedRingBufferReaderTest, UnterminatedFragmentSize) {
   ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
   for (uint32_t i = 0; i < kMaxFragmentSizeVarIntBytes; ++i)
     ring->chunk_at(ChunkIndex::FromIndex(0))[511 - i] = 0x80;
-  Internals::SetChunkStateWord(
-      ring.get(), ChunkIndex::FromIndex(0),
-      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1,
-                        kWriterB));
+  const uint32_t word = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1, kWriterB);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
   EXPECT_EQ(reader.GetStats().malformed_chunks, 1u);
+  ExpectOneRejection(delegate, Rejection::Reason::kInvalidSizeEncoding, word, 0,
+                     0, 0);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
@@ -747,10 +786,9 @@ TEST(SharedRingBufferReaderTest, MalformedBeingWrittenChunk) {
   SharedRingBufferReader reader(ring.get(), &delegate);
 
   ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
-  Internals::SetChunkStateWord(
-      ring.get(), ChunkIndex::FromIndex(0),
-      MakeDataStateWord(ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer,
-                        0, 255, kWriterB));
+  const uint32_t word = MakeDataStateWord(
+      ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 255, kWriterB);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), word);
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kPositionSkipped);
@@ -760,6 +798,41 @@ TEST(SharedRingBufferReaderTest, MalformedBeingWrittenChunk) {
   EXPECT_EQ(
       ChunkStateOf(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0))),
       ChunkState::kRewriteRequested);
+  // The record keeps the BeingWritten word, not the RewriteRequested one.
+  ExpectOneRejection(delegate, Rejection::Reason::kInvalidSizeEncoding, word,
+                     250, 0, 250);
+}
+
+// A malformed copy whose state transition loses is a retry. Only the attempt
+// that wins the transition can report a rejection.
+TEST(SharedRingBufferReaderTest, LostTransitionReportsNoRejection) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  RecordingDelegate delegate;
+  SharedRingBufferReader reader(ring.get(), &delegate);
+
+  ASSERT_EQ(ring->TryReserveWritePos().chunk_pos, 0u);
+  // 255 fragments do not fit: the first copy is malformed.
+  Internals::SetChunkStateWord(
+      ring.get(), ChunkIndex::FromIndex(0),
+      MakeDataStateWord(ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer,
+                        0, 255, kWriterB));
+  // Before the reader's CAS, the word changes. The retry finds a Complete
+  // chunk without fragments.
+  bool changed = false;
+  Internals::SetBeforeStateTransitionCallback(&reader, [&] {
+    if (std::exchange(changed, true))
+      return;
+    Internals::SetChunkStateWord(
+        ring.get(), ChunkIndex::FromIndex(0),
+        MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0,
+                          0, kWriterB));
+  });
+
+  EXPECT_EQ(reader.Drain(4).positions_consumed, 1u);
+  EXPECT_TRUE(changed);
+  EXPECT_EQ(reader.GetStats().malformed_chunks, 0u);
+  EXPECT_TRUE(delegate.rejections.empty());
+  EXPECT_TRUE(delegate.writers_with_data_loss.empty());
 }
 
 TEST(SharedRingBufferReaderTest, ReservedStateStopsRing) {
@@ -774,7 +847,11 @@ TEST(SharedRingBufferReaderTest, ReservedStateStopsRing) {
 
   EXPECT_EQ(Internals::ConsumeNextPosition(&reader),
             ConsumeResult::kProtocolError);
-  EXPECT_TRUE(reader.has_protocol_error());
+  ASSERT_TRUE(reader.protocol_error());
+  EXPECT_STREQ(reader.protocol_error()->reason, "reserved chunk state");
+  EXPECT_EQ(reader.protocol_error()->state_word, reserved_word);
+  EXPECT_EQ(reader.protocol_error()->read_pos, 0u);
+  EXPECT_EQ(reader.protocol_error()->write_pos, 1u);
   EXPECT_EQ(reader.read_pos(), 0u);
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             reserved_word);
@@ -947,6 +1024,7 @@ TEST(SharedRingBufferReaderTest, DiscardsAllPublishedFragmentsAfterLoss) {
     EXPECT_EQ(result.last_result, ConsumeResult::kPositionSkipped);
     EXPECT_TRUE(delegate.chunks.empty());
     EXPECT_EQ(delegate.writers_with_data_loss, std::vector<WriterID>{kWriterA});
+    EXPECT_EQ(reader.GetStats().data_loss_chunks, 1u);
 
     if (writer_is_appending) {
       const uint32_t word =
@@ -1025,6 +1103,9 @@ TEST(SharedRingBufferReaderTest, DataLossOnEmptyCompleteChunk) {
             ConsumeResult::kPositionSkipped);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterA}));
+  EXPECT_EQ(reader.GetStats().data_loss_chunks, 1u);
+  // A flagged chunk is a skipped position, but not a hole.
+  EXPECT_EQ(reader.GetStats().holes, 0u);
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             MakeFreeStateWord(1));
 
@@ -1036,6 +1117,7 @@ TEST(SharedRingBufferReaderTest, DataLossOnEmptyCompleteChunk) {
   ASSERT_EQ(delegate.chunks.size(), 1u);
   EXPECT_EQ(delegate.chunks[0].payload_flags, 0u);
   EXPECT_EQ(delegate.writers_with_data_loss.size(), 1u);
+  EXPECT_EQ(reader.GetStats().data_loss_chunks, 1u);
 }
 
 // The reader wins against BeingWritten(0) with kFlagDataLoss. It takes no
@@ -1056,6 +1138,7 @@ TEST(SharedRingBufferReaderTest, DataLossFollowsRelocatedFragment) {
             ConsumeResult::kPositionSkipped);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_TRUE(delegate.writers_with_data_loss.empty());
+  EXPECT_EQ(reader.GetStats().data_loss_chunks, 0u);
   EXPECT_EQ(
       ChunkStateOf(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0))),
       ChunkState::kRewriteRequested);
@@ -1068,6 +1151,7 @@ TEST(SharedRingBufferReaderTest, DataLossFollowsRelocatedFragment) {
   reader.Drain(8);
   EXPECT_TRUE(delegate.chunks.empty());
   EXPECT_EQ(delegate.writers_with_data_loss, (std::vector<WriterID>{kWriterA}));
+  EXPECT_EQ(reader.GetStats().data_loss_chunks, 1u);
 }
 
 // The smallest supported ring buffer reuses both chunks across traversals.

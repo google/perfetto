@@ -5420,6 +5420,25 @@ message TraceConfig {
     //
     // Introduced in v58 / Android 26Q3+.
     optional bool enable_concurrent_session_events = 10;
+
+    // Experimental. Dump the tracing v2 ring buffer of each producer of the
+    // session at stop, at producer disconnect, and into each clone, as
+    // TracingV2RingBufferDump packets.
+    // traced always dumps a ring buffer whose reader stopped on a protocol
+    // error.
+    // A dump has the header and the state word of each chunk. Each session
+    // holds at most 4 MiB of dumps until a read emits them.
+    optional bool experimental_dump_tracing_v2_ring_buffers = 11;
+
+    // Experimental. Add raw chunk bytes to every tracing v2 ring buffer dump,
+    // and dump up to 8 chunks for each producer that traced discards as
+    // malformed or in an unknown format.
+    // - The bytes are raw trace data. They can hold data of every session
+    //   that uses the producer, and stale bytes of earlier sessions.
+    // - A trace_filter treats them as opaque: it keeps or drops them whole.
+    // - A dump holds all chunks only if they fit the dump budget. Otherwise
+    //   it holds some chunks and lists them.
+    optional bool experimental_dump_tracing_v2_chunk_bytes = 12;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 

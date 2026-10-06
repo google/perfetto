@@ -61,6 +61,7 @@
 
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/trace_stats.gen.h"
 #include "src/shared_lib/reset_for_testing.h"
 #include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/test_messages.pzc.h"
@@ -1094,6 +1095,27 @@ TEST_P(SharedLibV2Test, NestedPacketAndFlush) {
                         StringField(payload)))))));
   }
   EXPECT_TRUE(found);
+
+  // TraceStats reports the ring buffer that the library attached.
+  using Entry = perfetto::protos::gen::TraceStats::TracingV2::Producer;
+  size_t entries = 0;
+  for (auto trace_field : FieldView(trace)) {
+    for (auto stats_field :
+         IdFieldView(trace_field,
+                     perfetto_protos_TracePacket_trace_stats_field_number)) {
+      perfetto::protos::gen::TraceStats stats;
+      ASSERT_TRUE(stats.ParseFromArray(stats_field.value.delimited.start,
+                                       stats_field.value.delimited.len));
+      for (const Entry& entry : stats.tracing_v2().producers()) {
+        ++entries;
+        EXPECT_EQ(entry.ring_state(), Entry::RING_STATE_ATTACHED);
+        EXPECT_EQ(entry.chunk_size_bytes(), 256u);
+        EXPECT_GT(entry.counters().chunks_admitted(), 0u);
+        EXPECT_EQ(entry.diagnostics_version(), 1u);
+      }
+    }
+  }
+  EXPECT_EQ(entries, 1u);
 }
 
 TEST_P(SharedLibV2Test, ZeroProbabilityUsesLengthDelimited) {

@@ -221,6 +221,14 @@ class SharedRingBufferWriter {
             (pending_relocation_->chunk_flags & kFlagDataLoss));
   }
 
+  // Records a stall timeout as the first writer failure of the ring buffer,
+  // with the read_pos that the last reservation attempt saw. The caller
+  // aborts next. See WriterFailureReason::kStallTimeout.
+  void RecordStallTimeout() {
+    ring_->RecordFirstWriterFailure(
+        {WriterFailureReason::kStallTimeout, writer_id_, read_pos_for_wait_});
+  }
+
   WriterID writer_id() const { return writer_id_; }
   // Largest range that BeginFragment() can return.
   uint32_t max_fragment_size() const { return max_fragment_size_; }

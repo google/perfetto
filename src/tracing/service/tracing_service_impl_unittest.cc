@@ -43,6 +43,7 @@
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
+#include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -70,7 +71,9 @@
 #include "src/tracing/test/mock_producer.h"
 #include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
+#include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
+#include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/semantic_type.gen.h"
@@ -79,6 +82,7 @@
 #include "protos/perfetto/trace/perfetto/concurrent_session_event.gen.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -521,6 +525,9 @@ TEST_F(TracingServiceImplTest, InProcessInstanceWriterUsesV2) {
   source->set_name(descriptor.name());
   source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
       100);
+  source->mutable_experimental_tracing_v2()
+      ->add_chunk_size_options()
+      ->set_size_bytes(512);
   DataSourceInstanceID instance = 0;
   BufferID target_buffer = 0;
   auto started = task_runner.CreateCheckpoint("instance_started");
@@ -572,6 +579,23 @@ TEST_F(TracingServiceImplTest, InProcessInstanceWriterUsesV2) {
     EXPECT_EQ(packet.for_testing().str(), payload);
   }
   EXPECT_EQ(packet_count, 1u);
+
+  // The ring buffer that the in-process arbiter created is in the stats.
+  consumer->GetTraceStats();
+  const TraceStats stats = consumer->WaitForTraceStats(true);
+  ASSERT_EQ(stats.tracing_v2().producers_size(), 1);
+  const auto& entry = stats.tracing_v2().producers()[0];
+  EXPECT_EQ(entry.ring_state(),
+            TraceStats::TracingV2::Producer::RING_STATE_ATTACHED);
+  EXPECT_EQ(entry.chunk_size_bytes(), 512u);
+  EXPECT_GT(entry.num_chunks(), 0u);
+  EXPECT_GT(entry.counters().chunks_admitted(), 0u);
+  // The observation started before the setup attached the ring buffer.
+  EXPECT_EQ(entry.counters_at_start().chunks_admitted(), 0u);
+  // The in-process arbiter wrote the diagnostics, with the default threshold
+  // of 25% of the chunks.
+  EXPECT_EQ(entry.diagnostics_version(), 1u);
+  EXPECT_EQ(entry.drain_threshold(), std::max(1u, entry.num_chunks() / 4));
   writer.reset();
   EXPECT_CALL(producer, StopDataSource(instance));
   consumer->DisableTracing();
@@ -794,6 +818,1092 @@ TEST_F(TracingServiceImplTest, ServiceOverwritesSupportsTracingV2) {
   consumer->DisableTracing();
   EXPECT_CALL(*producer, StopDataSource(_));
   consumer->WaitForTracingDisabled();
+}
+
+// A ring buffer that a test attaches to a producer endpoint, as an IPC
+// producer does. The test writes through its own view of the same memory.
+class TestV2RingBuffer {
+ public:
+  static constexpr uint32_t kChunkSize = 256;
+  static constexpr uint32_t kNumChunks = 4;
+  static constexpr uint32_t kDrainThreshold = 1;
+
+  // With |producer_diagnostics|, the test writes the header diagnostics, as
+  // the producer's ProducerRingBufferArbiter does before it attaches.
+  explicit TestV2RingBuffer(uint32_t num_chunks = kNumChunks,
+                            bool producer_diagnostics = true)
+      : memory_(std::make_shared<InProcessSharedMemory>(
+            sizeof(tracing_v2::RingBufferHeader) + num_chunks * kChunkSize)),
+        ring_buffer_(static_cast<uint8_t*>(memory_->start()),
+                     memory_->size(),
+                     kChunkSize) {
+    if (producer_diagnostics)
+      ring_buffer_.InitializeDiagnostics(kDrainThreshold);
+  }
+
+  // Returns the reply, which the endpoint sends inline.
+  bool AttachTo(TracingService::ProducerEndpoint* endpoint) {
+    std::optional<bool> accepted;
+    endpoint->AttachV2RingBuffer(memory_, kChunkSize,
+                                 [&](bool result) { accepted = result; });
+    EXPECT_TRUE(accepted.has_value());
+    return accepted.value_or(false);
+  }
+
+  // Publishes one TracePacket with |timestamp| for |target_buffer|.
+  // Returns the size of the fragment payload.
+  size_t WritePacket(WriterID writer_id,
+                     BufferID target_buffer,
+                     uint64_t timestamp) {
+    protos::gen::TracePacket packet;
+    packet.set_timestamp(timestamp);
+    const std::string bytes = packet.SerializeAsString();
+    tracing_v2::SharedRingBufferWriter writer =
+        tracing_v2::test::MakeWriter(&ring_buffer_, writer_id, target_buffer);
+    EXPECT_TRUE(tracing_v2::test::WriteFragment(&writer, bytes));
+    writer.FinishCurrentChunk();
+    return bytes.size();
+  }
+
+  // Makes the next unread position hold a reserved state, which stops the
+  // reader.
+  void CorruptNextChunk() {
+    const uint32_t chunk_pos = ring_buffer_.TryReserveWritePos().chunk_pos;
+    tracing_v2::test::SharedRingBufferInternalsForTest::SetChunkStateWord(
+        &ring_buffer_,
+        tracing_v2::ChunkIndex::FromPosition(chunk_pos,
+                                             ring_buffer_.num_chunks()),
+        static_cast<uint32_t>(tracing_v2::ChunkState::kReserved5));
+  }
+
+  tracing_v2::SharedRingBuffer* ring_buffer() { return &ring_buffer_; }
+
+ private:
+  std::shared_ptr<InProcessSharedMemory> memory_;
+  tracing_v2::SharedRingBuffer ring_buffer_;
+};
+
+// Tests of TraceStats.tracing_v2. The producer shares v1 and v2 with the
+// service, as an IPC producer with memfd does, and attaches a
+// TestV2RingBuffer.
+class TracingServiceImplV2StatsTest : public TracingServiceImplTest {
+ public:
+  using Entry = TraceStats::TracingV2::Producer;
+  using Dump = protos::gen::TracingV2RingBufferDump;
+
+  TracingServiceImplV2StatsTest() {
+    consumer_ = CreateMockConsumer();
+    consumer_->Connect(svc.get());
+    producer_ = CreateMockProducer();
+    producer_->Connect(svc.get(), "v2_producer", /*uid=*/42, /*pid=*/1025,
+                       kDefaultMachineID, /*machine_name=*/{},
+                       /*shared_memory_size_hint_bytes=*/0,
+                       /*shared_memory_page_size_hint_bytes=*/0,
+                       /*shm=*/nullptr, /*in_process=*/false,
+                       kProtocolAbiV1 | kProtocolAbiV2);
+    producer_->RegisterDataSource("data_source");
+    producer_->RegisterDataSource("data_source_2");
+  }
+
+  // One TRACE_BUFFER_V2 buffer, and |data_source| with the given v2
+  // probability.
+  static TraceConfig MakeConfig(const std::string& data_source,
+                                uint32_t use_v2_probability_percent) {
+    TraceConfig config;
+    auto* buffer = config.add_buffers();
+    buffer->set_size_kb(64);
+    buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+    auto* ds_config = config.add_data_sources()->mutable_config();
+    ds_config->set_name(data_source);
+    ds_config->mutable_experimental_tracing_v2()
+        ->set_use_v2_probability_percent(use_v2_probability_percent);
+    return config;
+  }
+
+  // MakeConfig() with dumps, and chunk bytes if |chunk_bytes|.
+  static TraceConfig MakeDumpConfig(const std::string& data_source,
+                                    bool chunk_bytes) {
+    TraceConfig config = MakeConfig(data_source, 100);
+    auto* builtin = config.mutable_builtin_data_sources();
+    builtin->set_experimental_dump_tracing_v2_ring_buffers(true);
+    builtin->set_experimental_dump_tracing_v2_chunk_bytes(chunk_bytes);
+    return config;
+  }
+
+  // Starts a session with |config| and returns the target buffer of its data
+  // source.
+  BufferID StartSession(MockConsumer* consumer, const TraceConfig& config) {
+    const std::string& name = config.data_sources()[0].config().name();
+    consumer->EnableTracing(config);
+    // Only the first session sets up the producer's shared memory.
+    if (!producer_set_up_) {
+      producer_->WaitForTracingSetup();
+      producer_set_up_ = true;
+    }
+    producer_->WaitForDataSourceSetup(name);
+    producer_->WaitForDataSourceStart(name);
+    return producer_->GetDataSourceInstance(name)->target_buffer;
+  }
+
+  void StopSession(MockConsumer* consumer) {
+    if (producer_)
+      EXPECT_CALL(*producer_, StopDataSource(_));
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabled();
+  }
+
+  // Acks the next flush with a CommitData request, as an IPC producer does.
+  void ExpectFlush() {
+    EXPECT_CALL(*producer_, Flush(_, _, _, _))
+        .WillOnce([this](FlushRequestID id, const DataSourceInstanceID*, size_t,
+                         FlushFlags) {
+          CommitDataRequest request;
+          request.set_flush_request_id(id);
+          producer_->endpoint()->CommitData(request);
+        });
+  }
+
+  // Clones the last session of consumer_ into a new consumer.
+  std::unique_ptr<MockConsumer> Clone() {
+    std::unique_ptr<MockConsumer> clone = CreateMockConsumer();
+    clone->Connect(svc.get());
+    auto cloned = task_runner.CreateCheckpoint("cloned");
+    EXPECT_CALL(*clone, OnSessionCloned(_))
+        .WillOnce([cloned](const Consumer::OnSessionClonedArgs& args) {
+          EXPECT_TRUE(args.success);
+          cloned();
+        });
+    ExpectFlush();
+    clone->CloneSession(GetLastTracingSessionId(consumer_.get()));
+    task_runner.RunUntilCheckpoint("cloned");
+    return clone;
+  }
+
+  static TraceStats GetStats(MockConsumer* consumer) {
+    consumer->GetTraceStats();
+    return consumer->WaitForTraceStats(true);
+  }
+
+  static std::vector<Entry> GetEntries(MockConsumer* consumer) {
+    return GetStats(consumer).tracing_v2().producers();
+  }
+
+  // A missing entry fails the test and returns an empty one.
+  static Entry GetOnlyEntry(MockConsumer* consumer) {
+    std::vector<Entry> entries = GetEntries(consumer);
+    EXPECT_EQ(entries.size(), 1u);
+    return entries.empty() ? Entry() : entries[0];
+  }
+
+  void Drain() { producer_->endpoint()->DrainV2RingBuffer(); }
+
+  // The packets of one read of |consumer|.
+  struct Read {
+    std::vector<Dump> dumps;
+    std::vector<TraceStats> stats;
+    std::vector<uint64_t> timestamps;
+  };
+  static Read ReadTrace(MockConsumer* consumer) {
+    Read read;
+    for (const auto& packet : consumer->ReadBuffers()) {
+      if (packet.has_tracing_v2_ring_buffer_dump())
+        read.dumps.push_back(packet.tracing_v2_ring_buffer_dump());
+      if (packet.has_trace_stats())
+        read.stats.push_back(packet.trace_stats());
+      if (packet.has_timestamp() && !packet.has_trace_stats())
+        read.timestamps.push_back(packet.timestamp());
+    }
+    return read;
+  }
+
+  static std::vector<Dump> ReadDumps(MockConsumer* consumer) {
+    return ReadTrace(consumer).dumps;
+  }
+
+  // The accounting relation of TraceStats.TracingV2.Counters.
+  static void ExpectEveryDeliveredChunkAccounted(
+      const TraceStats::TracingV2::Counters& counters) {
+    EXPECT_EQ(counters.reader_chunks_delivered(),
+              counters.chunks_admitted() + counters.invalid_writer_chunks() +
+                  counters.invalid_destination_chunks() +
+                  counters.trace_buffer_rejected_buffer_full() +
+                  counters.trace_buffer_rejected_format_conflict() +
+                  counters.trace_buffer_rejected_protovm() +
+                  counters.trace_buffer_rejected_invalid());
+  }
+
+  std::unique_ptr<MockProducer> producer_;
+  std::unique_ptr<MockConsumer> consumer_;
+  bool producer_set_up_ = false;
+  TestV2RingBuffer ring_buffer_;
+};
+
+TEST_F(TracingServiceImplV2StatsTest, NoEntryWithoutV2Request) {
+  StartSession(consumer_.get(), MakeConfig("data_source", 0));
+  EXPECT_FALSE(GetStats(consumer_.get()).has_tracing_v2());
+  StopSession(consumer_.get());
+}
+
+// A consumer reads the live entry before and after the attach, and the trace
+// carries it too.
+TEST_F(TracingServiceImplV2StatsTest, LiveEntry) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+
+  std::vector<Entry> entries = GetEntries(consumer_.get());
+  ASSERT_EQ(entries.size(), 1u);
+  EXPECT_NE(entries[0].producer_id(), 0u);
+  EXPECT_EQ(entries[0].pid(), 1025);
+  EXPECT_EQ(entries[0].uid(), 42);
+  EXPECT_EQ(entries[0].producer_name(), "v2_producer");
+  EXPECT_FALSE(entries[0].has_sdk_version());
+  EXPECT_EQ(entries[0].protocol_abi_versions(),
+            kProtocolAbiV1 | kProtocolAbiV2);
+  EXPECT_EQ(entries[0].ring_state(), Entry::RING_STATE_NONE);
+  EXPECT_EQ(entries[0].observation_end(), Entry::OBSERVATION_END_NONE);
+  EXPECT_GT(entries[0].observation_start_ns(), 0u);
+  EXPECT_GE(entries[0].observation_end_ns(), entries[0].observation_start_ns());
+  EXPECT_EQ(entries[0].instances_requesting_v2(), 1u);
+  EXPECT_EQ(entries[0].instances_eligible_for_v2(), 1u);
+  // No ring buffer at the start: its totals start from zero.
+  EXPECT_EQ(entries[0].counters_at_start().reader_chunks_delivered(), 0u);
+  EXPECT_EQ(entries[0].counters_at_start().writer_dropped_packets(), 0u);
+  EXPECT_TRUE(entries[0].counters_at_start().has_writer_dropped_packets());
+
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  const size_t payload =
+      ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+
+  entries = GetEntries(consumer_.get());
+  ASSERT_EQ(entries.size(), 1u);
+  const Entry& entry = entries[0];
+  EXPECT_EQ(entry.ring_state(), Entry::RING_STATE_ATTACHED);
+  EXPECT_EQ(entry.chunk_size_bytes(), TestV2RingBuffer::kChunkSize);
+  EXPECT_EQ(entry.num_chunks(), TestV2RingBuffer::kNumChunks);
+  EXPECT_EQ(entry.counters().drain_requests(), 1u);
+  // The attach drain and the requested one.
+  EXPECT_EQ(entry.counters().drain_passes(), 2u);
+  EXPECT_EQ(entry.counters().reader_chunks_delivered(), 1u);
+  EXPECT_EQ(entry.counters().chunks_admitted(), 1u);
+  EXPECT_EQ(entry.counters().admitted_payload_bytes(), payload);
+  EXPECT_EQ(entry.counters().chunks_with_producer_loss(), 0u);
+  EXPECT_EQ(entry.counters().malformed_chunks(), 0u);
+  ExpectEveryDeliveredChunkAccounted(entry.counters());
+  // The drain caught up. The positions agree.
+  EXPECT_EQ(entry.last_drain_result(), Entry::DRAIN_RESULT_CAUGHT_UP);
+  EXPECT_EQ(entry.last_drain_positions_consumed(), 1u);
+  EXPECT_GE(entry.last_drain_ns(), entry.observation_start_ns());
+  EXPECT_EQ(entry.last_progress_ns(), entry.last_drain_ns());
+  EXPECT_EQ(entry.reader_read_pos(), 1u);
+  EXPECT_EQ(entry.read_pos(), 1u);
+  EXPECT_EQ(entry.write_pos(), 1u);
+  EXPECT_EQ(entry.diagnostics_version(), 1u);
+  EXPECT_EQ(entry.drain_threshold(), TestV2RingBuffer::kDrainThreshold);
+  EXPECT_FALSE(entry.has_writer_failure());
+
+  size_t stats_entries = 0;
+  size_t v2_writers = 0;
+  bool found_packet = false;
+  for (const auto& packet : consumer_->ReadBuffers()) {
+    found_packet |= packet.has_timestamp() && packet.timestamp() == 42;
+    for (const Entry& e : packet.trace_stats().tracing_v2().producers()) {
+      ++stats_entries;
+      EXPECT_EQ(e.ring_state(), Entry::RING_STATE_ATTACHED);
+    }
+    for (const auto& writer : packet.trace_stats().writer_stats()) {
+      if (writer.protocol_abi_versions() != kProtocolAbiV2)
+        continue;
+      ++v2_writers;
+      // The writer maps to the producer entry.
+      EXPECT_EQ(writer.producer_id(), entry.producer_id());
+      EXPECT_EQ(writer.writer_id(), 1u);
+    }
+  }
+  EXPECT_TRUE(found_packet);
+  EXPECT_EQ(stats_entries, 1u);
+  EXPECT_EQ(v2_writers, 1u);
+
+  StopSession(consumer_.get());
+}
+
+// Without histograms, the writer entries still tell v1 from v2 writers.
+TEST_F(TracingServiceImplV2StatsTest, WriterVersionsWithoutHistograms) {
+  TraceConfig config = MakeConfig("data_source", 100);
+  config.mutable_builtin_data_sources()->set_disable_chunk_usage_histograms(
+      true);
+  const BufferID target = StartSession(consumer_.get(), config);
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+
+  const TraceStats stats = GetStats(consumer_.get());
+  EXPECT_TRUE(stats.chunk_payload_histogram_def().empty());
+  ASSERT_EQ(stats.writer_stats_size(), 1);
+  EXPECT_EQ(stats.writer_stats()[0].protocol_abi_versions(), kProtocolAbiV2);
+  EXPECT_EQ(stats.writer_stats()[0].writer_id(), 1u);
+  EXPECT_TRUE(stats.writer_stats()[0].chunk_payload_histogram_counts().empty());
+
+  StopSession(consumer_.get());
+}
+
+TEST_F(TracingServiceImplV2StatsTest, RejectedAttach) {
+  StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  TracingService::ProducerEndpoint* endpoint = producer_->endpoint();
+  auto attach = [endpoint](std::shared_ptr<SharedMemory> memory) {
+    std::optional<bool> accepted;
+    endpoint->AttachV2RingBuffer(memory, TestV2RingBuffer::kChunkSize,
+                                 [&](bool result) { accepted = result; });
+    return accepted.value_or(true);
+  };
+
+  // ProducerIPCService passes a null mapping when it cannot map the memfd.
+  EXPECT_FALSE(attach(nullptr));
+  Entry entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.ring_state(), Entry::RING_STATE_REJECTED);
+  EXPECT_EQ(entry.attach_rejection(),
+            "the transport could not map the ring buffer");
+
+  // 4096 bytes minus the header is not a whole number of 256-byte chunks.
+  // The first reason stays.
+  EXPECT_FALSE(attach(std::make_shared<InProcessSharedMemory>(4096)));
+  entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.ring_state(), Entry::RING_STATE_REJECTED);
+  EXPECT_EQ(entry.attach_rejection(),
+            "the transport could not map the ring buffer");
+
+  // A rejected second attach keeps the attached ring buffer. The state shows
+  // the attachment, and the reason still shows the earlier rejection.
+  ASSERT_TRUE(ring_buffer_.AttachTo(endpoint));
+  EXPECT_FALSE(ring_buffer_.AttachTo(endpoint));
+  entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.ring_state(), Entry::RING_STATE_ATTACHED);
+  EXPECT_EQ(entry.attach_rejection(),
+            "the transport could not map the ring buffer");
+
+  StopSession(consumer_.get());
+}
+
+TEST_F(TracingServiceImplV2StatsTest, ProtocolError) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  tracing_v2::test::SharedRingBufferInternalsForTest::SetChunkStateWord(
+      ring_buffer_.ring_buffer(), tracing_v2::ChunkIndex::FromIndex(0),
+      static_cast<uint32_t>(tracing_v2::ChunkState::kReserved5));
+  Drain();
+
+  const std::vector<Entry> entries = GetEntries(consumer_.get());
+  ASSERT_EQ(entries.size(), 1u);
+  EXPECT_EQ(entries[0].ring_state(), Entry::RING_STATE_PROTOCOL_ERROR);
+  EXPECT_EQ(entries[0].protocol_error(), "reserved chunk state");
+  EXPECT_EQ(entries[0].protocol_error_state_word(),
+            static_cast<uint32_t>(tracing_v2::ChunkState::kReserved5));
+  EXPECT_EQ(entries[0].protocol_error_read_pos(), 0u);
+  EXPECT_EQ(entries[0].protocol_error_write_pos(), 1u);
+  EXPECT_GE(entries[0].protocol_error_timestamp_ns(),
+            entries[0].observation_start_ns());
+  EXPECT_LE(entries[0].protocol_error_timestamp_ns(),
+            entries[0].observation_end_ns());
+  EXPECT_EQ(entries[0].last_drain_result(), Entry::DRAIN_RESULT_PROTOCOL_ERROR);
+  EXPECT_EQ(entries[0].counters().chunks_admitted(), 0u);
+
+  // The config has no dump switch. The dump on a protocol error is always on,
+  // without chunk bytes.
+  const std::vector<Dump> dumps = ReadDumps(consumer_.get());
+  ASSERT_EQ(dumps.size(), 1u);
+  EXPECT_EQ(dumps[0].reason(), Dump::REASON_PROTOCOL_ERROR);
+  EXPECT_EQ(dumps[0].producer_id(), entries[0].producer_id());
+  EXPECT_EQ(dumps[0].chunk_size_bytes(), TestV2RingBuffer::kChunkSize);
+  EXPECT_EQ(dumps[0].num_chunks(), TestV2RingBuffer::kNumChunks);
+  EXPECT_EQ(dumps[0].reader_read_pos(), 0u);
+  ASSERT_EQ(dumps[0].chunk_state_words().size(), TestV2RingBuffer::kNumChunks);
+  EXPECT_EQ(dumps[0].chunk_state_words()[0],
+            static_cast<uint32_t>(tracing_v2::ChunkState::kReserved5));
+  EXPECT_FALSE(dumps[0].has_chunk_bytes());
+
+  // A read emits each dump once.
+  EXPECT_TRUE(ReadDumps(consumer_.get()).empty());
+
+  StopSession(consumer_.get());
+}
+
+// An IPC read emits stats. A later failure, then the stop, must still reach
+// the saved trace with fresh final stats.
+TEST_F(TracingServiceImplV2StatsTest, LateFailureReachesFinalStats) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+
+  // The first read emits the stats of the session start.
+  Read read = ReadTrace(consumer_.get());
+  ASSERT_EQ(read.stats.size(), 1u);
+  ASSERT_EQ(read.stats[0].tracing_v2().producers_size(), 1);
+  EXPECT_EQ(read.stats[0].tracing_v2().producers()[0].ring_state(),
+            Entry::RING_STATE_ATTACHED);
+
+  ring_buffer_.CorruptNextChunk();
+  Drain();
+  StopSession(consumer_.get());
+
+  read = ReadTrace(consumer_.get());
+  ASSERT_EQ(read.stats.size(), 1u);
+  ASSERT_EQ(read.stats[0].tracing_v2().producers_size(), 1);
+  const Entry& entry = read.stats[0].tracing_v2().producers()[0];
+  EXPECT_EQ(entry.ring_state(), Entry::RING_STATE_PROTOCOL_ERROR);
+  EXPECT_EQ(entry.observation_end(), Entry::OBSERVATION_END_SESSION_STOPPED);
+  ASSERT_EQ(read.dumps.size(), 1u);
+  EXPECT_EQ(read.dumps[0].reason(), Dump::REASON_PROTOCOL_ERROR);
+}
+
+// The producer-written counters in the ring buffer header reach the entry.
+TEST_F(TracingServiceImplV2StatsTest, ProducerWrittenCounters) {
+  StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  tracing_v2::SharedRingBuffer* ring = ring_buffer_.ring_buffer();
+  ring->AddDroppedPackets(3);
+  ring->RecordStall(/*duration_ms=*/7);
+  ring->RecordStall(/*duration_ms=*/5);
+  ring->AddWriterCreationFailure();
+  // Only the first failure stays.
+  ring->RecordFirstWriterFailure(
+      {tracing_v2::WriterFailureReason::kAcknowledgementFailed,
+       /*writer_id=*/9, /*value=*/0x1234});
+  ring->RecordFirstWriterFailure(
+      {tracing_v2::WriterFailureReason::kStallTimeout, /*writer_id=*/2,
+       /*value=*/7});
+
+  const Entry entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.counters().writer_dropped_packets(), 3u);
+  EXPECT_EQ(entry.counters().writer_stalls(), 2u);
+  EXPECT_EQ(entry.counters().writer_stall_time_ms(), 12u);
+  EXPECT_EQ(entry.counters().writer_creation_failures(), 1u);
+  EXPECT_EQ(entry.writer_max_stall_ms(), 7u);
+  EXPECT_EQ(entry.writer_failure(),
+            Entry::WRITER_FAILURE_ACKNOWLEDGEMENT_FAILED);
+  EXPECT_EQ(entry.writer_failure_writer_id(), 9u);
+  EXPECT_EQ(entry.writer_failure_value(), 0x1234u);
+
+  StopSession(consumer_.get());
+}
+
+// A producer that writes no diagnostics leaves its fields absent, not zero.
+TEST_F(TracingServiceImplV2StatsTest, UnsupportedDiagnosticsAreAbsent) {
+  TestV2RingBuffer old_producer_ring(TestV2RingBuffer::kNumChunks,
+                                     /*producer_diagnostics=*/false);
+  StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(old_producer_ring.AttachTo(producer_->endpoint()));
+
+  const Entry entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.ring_state(), Entry::RING_STATE_ATTACHED);
+  EXPECT_EQ(entry.diagnostics_version(), 0u);
+  EXPECT_FALSE(entry.has_drain_threshold());
+  EXPECT_FALSE(entry.has_writer_max_stall_ms());
+  EXPECT_FALSE(entry.counters().has_writer_dropped_packets());
+  EXPECT_FALSE(entry.counters().has_writer_stalls());
+  EXPECT_FALSE(entry.counters().has_writer_creation_failures());
+  // traced's own counters are there.
+  EXPECT_TRUE(entry.counters().has_drain_passes());
+
+  StopSession(consumer_.get());
+}
+
+// With the switch, the service dumps each ring buffer at stop, after the final
+// drain, and ends the observation.
+TEST_F(TracingServiceImplV2StatsTest, DumpAtStop) {
+  const BufferID target = StartSession(
+      consumer_.get(), MakeDumpConfig("data_source", /*chunk_bytes=*/false));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+
+  StopSession(consumer_.get());
+
+  const Read read = ReadTrace(consumer_.get());
+  ASSERT_EQ(read.dumps.size(), 1u);
+  EXPECT_EQ(read.dumps[0].reason(), Dump::REASON_STOP);
+  // The final drain read the one chunk.
+  EXPECT_EQ(read.dumps[0].reader_read_pos(), 1u);
+  EXPECT_EQ(read.dumps[0].read_pos(), 1u);
+  EXPECT_EQ(read.dumps[0].write_pos(), 1u);
+  EXPECT_EQ(read.dumps[0].chunk_state_words().size(),
+            TestV2RingBuffer::kNumChunks);
+  ASSERT_EQ(read.stats.size(), 1u);
+  const Entry& entry = read.stats[0].tracing_v2().producers()[0];
+  EXPECT_EQ(entry.observation_end(), Entry::OBSERVATION_END_SESSION_STOPPED);
+  EXPECT_EQ(entry.counters().chunks_admitted(), 1u);
+}
+
+// With chunk bytes, each trigger copies the bytes: stop, disconnect, clone
+// and protocol error.
+TEST_F(TracingServiceImplV2StatsTest, ChunkBytesForEveryTrigger) {
+  const BufferID target = StartSession(
+      consumer_.get(), MakeDumpConfig("data_source", /*chunk_bytes=*/true));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+
+  std::unique_ptr<MockConsumer> clone = Clone();
+  std::vector<Dump> dumps = ReadDumps(clone.get());
+  ASSERT_EQ(dumps.size(), 1u);
+  EXPECT_EQ(dumps[0].reason(), Dump::REASON_CLONE);
+  EXPECT_EQ(dumps[0].chunk_bytes(), Dump::CHUNK_BYTES_ALL);
+  EXPECT_EQ(dumps[0].chunks().size(), size_t{TestV2RingBuffer::kNumChunks} *
+                                          TestV2RingBuffer::kChunkSize);
+
+  ring_buffer_.CorruptNextChunk();
+  Drain();
+  producer_.reset();
+
+  dumps = ReadDumps(consumer_.get());
+  ASSERT_EQ(dumps.size(), 2u);
+  EXPECT_EQ(dumps[0].reason(), Dump::REASON_PROTOCOL_ERROR);
+  EXPECT_EQ(dumps[0].chunk_bytes(), Dump::CHUNK_BYTES_ALL);
+  EXPECT_EQ(dumps[1].reason(), Dump::REASON_PRODUCER_DISCONNECT);
+  EXPECT_EQ(dumps[1].chunk_bytes(), Dump::CHUNK_BYTES_ALL);
+  // Each chunk starts with its state word. The corrupted chunk is at index 1.
+  uint32_t word = 0;
+  memcpy(&word, dumps[0].chunks().data() + TestV2RingBuffer::kChunkSize,
+         sizeof(word));
+  EXPECT_EQ(word, static_cast<uint32_t>(tracing_v2::ChunkState::kReserved5));
+
+  StopSession(consumer_.get());
+}
+
+// Rejected chunks: each session keeps its own samples of the bytes, with the
+// original state word. The stats keep the first record of each reason, also
+// without chunk bytes.
+TEST_F(TracingServiceImplV2StatsTest, RejectedChunkDumps) {
+  using Rejection = TraceStats::TracingV2::ChunkRejection;
+  // 64 chunks, so one drain pass can reject more than 8.
+  TestV2RingBuffer ring(/*num_chunks=*/64);
+  StartSession(consumer_.get(),
+               MakeDumpConfig("data_source", /*chunk_bytes=*/true));
+  std::unique_ptr<MockConsumer> no_bytes = CreateMockConsumer();
+  no_bytes->Connect(svc.get());
+  StartSession(no_bytes.get(), MakeConfig("data_source_2", 100));
+  ASSERT_TRUE(ring.AttachTo(producer_->endpoint()));
+
+  // 10 chunks in an unknown format.
+  const uint32_t word = tracing_v2::MakeDataStateWord(
+      tracing_v2::ChunkState::kComplete,
+      tracing_v2::ChunkFormat::kReservedRouting, 0, 1, /*writer_id=*/3);
+  for (uint32_t i = 0; i < 10; ++i) {
+    const uint32_t chunk_pos =
+        ring.ring_buffer()->TryReserveWritePos().chunk_pos;
+    tracing_v2::test::SharedRingBufferInternalsForTest::SetChunkStateWord(
+        ring.ring_buffer(), tracing_v2::ChunkIndex::FromPosition(chunk_pos, 64),
+        word);
+  }
+  Drain();
+
+  const std::vector<Dump> dumps = ReadDumps(consumer_.get());
+  ASSERT_EQ(dumps.size(), 8u);
+  for (uint32_t i = 0; i < dumps.size(); ++i) {
+    EXPECT_EQ(dumps[i].reason(), Dump::REASON_REJECTED_CHUNK);
+    EXPECT_EQ(dumps[i].chunk_pos(), i);
+    // The record keeps the decoded word. The state word list shows the word
+    // after the reader freed the chunk.
+    EXPECT_EQ(dumps[i].rejection().reason(),
+              Rejection::REASON_UNSUPPORTED_FORMAT);
+    EXPECT_EQ(dumps[i].rejection().state_word(), word);
+    ASSERT_EQ(dumps[i].chunk_state_words().size(), 1u);
+    EXPECT_EQ(tracing_v2::ChunkStateOf(dumps[i].chunk_state_words()[0]),
+              tracing_v2::ChunkState::kFree);
+    EXPECT_EQ(dumps[i].chunk_bytes(), Dump::CHUNK_BYTES_SELECTED);
+    EXPECT_EQ(dumps[i].chunk_byte_indexes(), std::vector<uint32_t>{i});
+    EXPECT_EQ(dumps[i].chunks().size(), TestV2RingBuffer::kChunkSize);
+  }
+  Entry entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.rejected_chunk_dumps_suppressed(), 2u);
+  EXPECT_EQ(entry.counters().unsupported_format_chunks(), 10u);
+  ASSERT_EQ(entry.chunk_rejections_size(), 1);
+  EXPECT_EQ(entry.chunk_rejections()[0].reason(),
+            Rejection::REASON_UNSUPPORTED_FORMAT);
+  EXPECT_EQ(entry.chunk_rejections()[0].chunk_pos(), 0u);
+  EXPECT_EQ(entry.chunk_rejections()[0].state_word(), word);
+
+  // The session without chunk bytes takes no rejected-chunk dump, and spends
+  // no samples. It still has the record.
+  EXPECT_TRUE(ReadDumps(no_bytes.get()).empty());
+  entry = GetOnlyEntry(no_bytes.get());
+  EXPECT_FALSE(entry.has_rejected_chunk_dumps_suppressed());
+  EXPECT_EQ(entry.chunk_rejections_size(), 1);
+
+  StopSession(no_bytes.get());
+  StopSession(consumer_.get());
+}
+
+// The pending dumps stay within the session budget. A newer dump evicts the
+// oldest routine dump, and an error dump evicts routine dumps.
+TEST_F(TracingServiceImplV2StatsTest, DumpBudgetPrefersNewAndErrorDumps) {
+  // 8192 chunks of 256 bytes: a dump with chunk bytes is a bit more than
+  // 2 MiB, so the 4 MiB budget holds one.
+  constexpr uint32_t kNumChunks = 8192;
+  StartSession(consumer_.get(),
+               MakeDumpConfig("data_source", /*chunk_bytes=*/true));
+  TestV2RingBuffer ring(kNumChunks);
+  ASSERT_TRUE(ring.AttachTo(producer_->endpoint()));
+
+  // Two more producers, each with a large ring buffer.
+  std::vector<std::unique_ptr<MockProducer>> others;
+  std::vector<std::unique_ptr<TestV2RingBuffer>> other_rings;
+  for (const char* name : {"producer_b", "producer_c"}) {
+    others.push_back(CreateMockProducer());
+    MockProducer* other = others.back().get();
+    other->Connect(svc.get(), name, /*uid=*/42, /*pid=*/1026, kDefaultMachineID,
+                   /*machine_name=*/{},
+                   /*shared_memory_size_hint_bytes=*/0,
+                   /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+                   /*in_process=*/false, kProtocolAbiV1 | kProtocolAbiV2);
+    other->RegisterDataSource("data_source");
+    other->WaitForTracingSetup();
+    other->WaitForDataSourceSetup("data_source");
+    other->WaitForDataSourceStart("data_source");
+    other_rings.push_back(std::make_unique<TestV2RingBuffer>(kNumChunks));
+    ASSERT_TRUE(other_rings.back()->AttachTo(other->endpoint()));
+  }
+
+  // Each disconnect takes a routine dump. The second one evicts the first.
+  others[0].reset();
+  EXPECT_FALSE(
+      GetStats(consumer_.get()).tracing_v2().has_ring_buffer_dumps_evicted());
+  others[1].reset();
+  EXPECT_EQ(GetStats(consumer_.get()).tracing_v2().ring_buffer_dumps_evicted(),
+            1u);
+
+  // The protocol-error dump evicts the remaining routine dump.
+  ring.CorruptNextChunk();
+  Drain();
+  const Read read = ReadTrace(consumer_.get());
+  ASSERT_EQ(read.dumps.size(), 1u);
+  EXPECT_EQ(read.dumps[0].reason(), Dump::REASON_PROTOCOL_ERROR);
+  EXPECT_EQ(read.dumps[0].chunk_bytes(), Dump::CHUNK_BYTES_ALL);
+  ASSERT_EQ(read.stats.size(), 1u);
+  EXPECT_EQ(read.stats[0].tracing_v2().ring_buffer_dumps_evicted(), 2u);
+  EXPECT_FALSE(read.stats[0].tracing_v2().has_ring_buffer_dumps_omitted());
+
+  StopSession(consumer_.get());
+}
+
+// A ring buffer larger than the dump budget gets a partial copy. It has all
+// state words, and the bytes of the important chunks, listed by index.
+TEST_F(TracingServiceImplV2StatsTest, LargeRingBufferGetsAPartialDump) {
+  // 65536 chunks of 256 bytes: 16 MiB.
+  constexpr uint32_t kNumChunks = 65536;
+  const BufferID target = StartSession(
+      consumer_.get(), MakeDumpConfig("data_source", /*chunk_bytes=*/true));
+  TestV2RingBuffer ring(kNumChunks);
+  ASSERT_TRUE(ring.AttachTo(producer_->endpoint()));
+  ring.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+  ring.CorruptNextChunk();
+  Drain();
+
+  const std::vector<Dump> dumps = ReadDumps(consumer_.get());
+  ASSERT_EQ(dumps.size(), 1u);
+  EXPECT_EQ(dumps[0].reason(), Dump::REASON_PROTOCOL_ERROR);
+  EXPECT_EQ(dumps[0].chunk_state_words().size(), kNumChunks);
+  EXPECT_EQ(dumps[0].chunk_bytes(), Dump::CHUNK_BYTES_SELECTED);
+  // The reader stopped at position 1. Every other chunk is Free.
+  EXPECT_EQ(dumps[0].chunk_byte_indexes(), std::vector<uint32_t>{1});
+  EXPECT_EQ(dumps[0].chunks().size(), TestV2RingBuffer::kChunkSize);
+  EXPECT_EQ(dumps[0].chunk_bytes_omitted(), kNumChunks - 1);
+
+  StopSession(consumer_.get());
+}
+
+// The dump packets and the stats go over IPC in slices that fit one IPC
+// message, also when the packets are larger.
+TEST_F(TracingServiceImplV2StatsTest, LargePacketsAreSliced) {
+  // 4096 chunks of 256 bytes: a 1 MiB dump.
+  constexpr uint32_t kNumChunks = 4096;
+  StartSession(consumer_.get(),
+               MakeDumpConfig("data_source", /*chunk_bytes=*/true));
+  TestV2RingBuffer ring(kNumChunks);
+  ASSERT_TRUE(ring.AttachTo(producer_->endpoint()));
+
+  // Many producers make the stats larger than one slice.
+  std::vector<std::unique_ptr<NiceMock<MockProducer>>> producers;
+  std::vector<std::unique_ptr<TracingService::ProducerEndpoint>> endpoints;
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("data_source");
+  for (int i = 0; i < 1000; ++i) {
+    producers.push_back(std::make_unique<NiceMock<MockProducer>>(&task_runner));
+    endpoints.push_back(svc->ConnectProducer(
+        producers.back().get(), ClientIdentity(42, 2000 + i),
+        "producer_with_a_long_name_" + std::to_string(i),
+        /*shared_memory_size_hint_bytes=*/4096, /*in_process=*/false,
+        TracingService::ProducerSMBScrapingMode::kDefault,
+        /*shared_memory_page_size_hint_bytes=*/4096, /*shm=*/nullptr,
+        /*sdk_version=*/"sdk", /*machine_name=*/{},
+        kProtocolAbiV1 | kProtocolAbiV2));
+    endpoints.back()->RegisterDataSource(descriptor);
+  }
+  task_runner.RunUntilIdle();
+
+  ring.CorruptNextChunk();
+  Drain();
+
+  size_t num_dumps = 0;
+  size_t stats_size = 0;
+  auto done = task_runner.CreateCheckpoint("read_sliced");
+  EXPECT_CALL(*consumer_, OnTraceData(_, _))
+      .WillRepeatedly([&](std::vector<TracePacket>* packets, bool has_more) {
+        for (TracePacket& packet : *packets) {
+          for (const Slice& slice : packet.slices())
+            EXPECT_LE(slice.size, TracingServiceImpl::kMaxTracePacketSliceSize);
+          protos::gen::TracePacket decoded;
+          ASSERT_TRUE(decoded.ParseFromString(packet.GetRawBytesForTesting()));
+          if (decoded.has_tracing_v2_ring_buffer_dump()) {
+            ++num_dumps;
+            EXPECT_EQ(decoded.tracing_v2_ring_buffer_dump().chunks().size(),
+                      size_t{kNumChunks} * TestV2RingBuffer::kChunkSize);
+          }
+          if (decoded.has_trace_stats())
+            stats_size = packet.size();
+        }
+        if (!has_more)
+          done();
+      });
+  consumer_->endpoint()->ReadBuffers();
+  task_runner.RunUntilCheckpoint("read_sliced");
+  EXPECT_EQ(num_dumps, 1u);
+  EXPECT_GT(stats_size, TracingServiceImpl::kMaxTracePacketSliceSize);
+
+  EXPECT_CALL(*producer_, StopDataSource(_));
+  consumer_->DisableTracing();
+  consumer_->WaitForTracingDisabled();
+  endpoints.clear();
+}
+
+// With max_file_size_bytes, a dump that does not fit is not written. The
+// trace data and the final stats are.
+TEST_F(TracingServiceImplV2StatsTest, FileKeepsDataAndStatsWithoutDump) {
+  // 256 chunks of 256 bytes: a 64 KiB dump.
+  TestV2RingBuffer ring(/*num_chunks=*/256);
+  TraceConfig config = MakeDumpConfig("data_source", /*chunk_bytes=*/true);
+  config.set_write_into_file(true);
+  config.set_file_write_period_ms(100000);
+  config.set_max_file_size_bytes(32 * 1024);
+  base::TempFile tmp_file = base::TempFile::Create();
+  consumer_->EnableTracing(config, base::ScopedFile(dup(tmp_file.fd())));
+  producer_->WaitForTracingSetup();
+  producer_->WaitForDataSourceSetup("data_source");
+  producer_->WaitForDataSourceStart("data_source");
+  const BufferID target =
+      producer_->GetDataSourceInstance("data_source")->target_buffer;
+  ASSERT_TRUE(ring.AttachTo(producer_->endpoint()));
+  ring.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+
+  StopSession(consumer_.get());
+
+  protos::gen::Trace trace;
+  ASSERT_TRUE(ParseNotEmptyTraceFromFile(tmp_file, trace));
+  bool found_packet = false;
+  size_t num_stats = 0;
+  for (const auto& packet : trace.packet()) {
+    found_packet |= packet.has_timestamp() && packet.timestamp() == 42;
+    EXPECT_FALSE(packet.has_tracing_v2_ring_buffer_dump());
+    if (!packet.has_trace_stats())
+      continue;
+    ++num_stats;
+    ASSERT_EQ(packet.trace_stats().tracing_v2().producers_size(), 1);
+    EXPECT_EQ(
+        packet.trace_stats().tracing_v2().producers()[0].observation_end(),
+        Entry::OBSERVATION_END_SESSION_STOPPED);
+  }
+  EXPECT_TRUE(found_packet);
+  EXPECT_EQ(num_stats, 1u);
+}
+
+// A chunk for a buffer that the producer may not use is not admitted. The
+// producer's counters say where it went.
+TEST_F(TracingServiceImplV2StatsTest, ForbiddenBufferIsNotAdmitted) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+
+  ring_buffer_.WritePacket(/*writer_id=*/1, /*target_buffer=*/0,
+                           /*timestamp=*/41);
+  Drain();
+  const TraceStats stats = GetStats(consumer_.get());
+  EXPECT_EQ(stats.chunks_discarded(), 1u);
+  ASSERT_EQ(stats.tracing_v2().producers_size(), 1);
+  const auto& counters = stats.tracing_v2().producers()[0].counters();
+  EXPECT_EQ(counters.reader_chunks_delivered(), 1u);
+  EXPECT_EQ(counters.chunks_admitted(), 0u);
+  EXPECT_EQ(counters.invalid_destination_chunks(), 1u);
+  ExpectEveryDeliveredChunkAccounted(counters);
+
+  ring_buffer_.WritePacket(/*writer_id=*/2, target, /*timestamp=*/42);
+  Drain();
+  EXPECT_EQ(GetOnlyEntry(consumer_.get()).counters().chunks_admitted(), 1u);
+
+  StopSession(consumer_.get());
+}
+
+// The attach and the drain at stop are the service's own drains, not producer
+// requests.
+TEST_F(TracingServiceImplV2StatsTest, ServiceDrainsAreNotRequests) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+
+  StopSession(consumer_.get());
+
+  const Entry entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.counters().drain_requests(), 0u);
+  EXPECT_GE(entry.counters().drain_passes(), 2u);
+  EXPECT_EQ(entry.counters().chunks_admitted(), 1u);
+}
+
+// The ring buffer belongs to the connection. A later session reports the
+// layout of that connection, whatever its own config asks. Its baseline
+// excludes the activity before it started.
+TEST_F(TracingServiceImplV2StatsTest, LaterSessionSharesTheRingBuffer) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+  const Entry first = GetOnlyEntry(consumer_.get());
+
+  std::unique_ptr<MockConsumer> later = CreateMockConsumer();
+  later->Connect(svc.get());
+  TraceConfig config = MakeConfig("data_source_2", 100);
+  TraceConfig::DataSource& source = (*config.mutable_data_sources())[0];
+  source.mutable_config()
+      ->mutable_experimental_tracing_v2()
+      ->add_chunk_size_options()
+      ->set_size_bytes(512);
+  const BufferID later_target = StartSession(later.get(), config);
+  ring_buffer_.WritePacket(/*writer_id=*/2, later_target, /*timestamp=*/43);
+  Drain();
+
+  const Entry entry = GetOnlyEntry(later.get());
+  EXPECT_EQ(entry.producer_id(), first.producer_id());
+  EXPECT_EQ(entry.chunk_size_bytes(), TestV2RingBuffer::kChunkSize);
+  EXPECT_GE(entry.observation_start_ns(), first.observation_start_ns());
+  // The connection totals include the chunk of the first session. The
+  // baseline removes it.
+  EXPECT_EQ(entry.counters_at_start().chunks_admitted(), 1u);
+  EXPECT_EQ(entry.counters().chunks_admitted(), 2u);
+
+  StopSession(later.get());
+  StopSession(consumer_.get());
+}
+
+// Unregistering the data source does not end the observation.
+TEST_F(TracingServiceImplV2StatsTest, UnregisterKeepsTheObservation) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+
+  EXPECT_CALL(*producer_, StopDataSource(_));
+  producer_->UnregisterDataSource("data_source");
+  task_runner.RunUntilIdle();
+
+  Entry entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.observation_end(), Entry::OBSERVATION_END_NONE);
+  EXPECT_EQ(entry.counters().chunks_admitted(), 1u);
+
+  // A later disconnect still ends it.
+  producer_.reset();
+  entry = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(entry.observation_end(),
+            Entry::OBSERVATION_END_PRODUCER_DISCONNECTED);
+  EXPECT_EQ(entry.counters().chunks_admitted(), 1u);
+
+  StopSession(consumer_.get());
+}
+
+// A stopped session keeps its final values and gets no later dumps, while
+// another session on the same producer keeps observing.
+TEST_F(TracingServiceImplV2StatsTest, StopEndsTheObservation) {
+  const BufferID target = StartSession(
+      consumer_.get(), MakeDumpConfig("data_source", /*chunk_bytes=*/false));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+
+  std::unique_ptr<MockConsumer> other = CreateMockConsumer();
+  other->Connect(svc.get());
+  const BufferID other_target =
+      StartSession(other.get(), MakeConfig("data_source_2", 100));
+
+  StopSession(consumer_.get());
+  const Entry stopped = GetOnlyEntry(consumer_.get());
+  EXPECT_EQ(stopped.observation_end(), Entry::OBSERVATION_END_SESSION_STOPPED);
+  EXPECT_EQ(stopped.counters().chunks_admitted(), 1u);
+
+  ring_buffer_.WritePacket(/*writer_id=*/2, other_target, /*timestamp=*/43);
+  Drain();
+  ring_buffer_.CorruptNextChunk();
+  Drain();
+
+  // The stopped session: the same values, and only the stop dump.
+  EXPECT_EQ(GetOnlyEntry(consumer_.get()).SerializeAsString(),
+            stopped.SerializeAsString());
+  const std::vector<Dump> dumps = ReadDumps(consumer_.get());
+  ASSERT_EQ(dumps.size(), 1u);
+  EXPECT_EQ(dumps[0].reason(), Dump::REASON_STOP);
+
+  // The other session sees the later activity and the error.
+  const Entry live = GetOnlyEntry(other.get());
+  EXPECT_EQ(live.observation_end(), Entry::OBSERVATION_END_NONE);
+  EXPECT_EQ(live.ring_state(), Entry::RING_STATE_PROTOCOL_ERROR);
+  EXPECT_EQ(live.counters().chunks_admitted(), 2u);
+  EXPECT_EQ(ReadDumps(other.get()).size(), 1u);
+
+  StopSession(other.get());
+}
+
+// A disconnect ends the observation after the final drain.
+TEST_F(TracingServiceImplV2StatsTest, DisconnectEndsTheObservation) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+
+  // No drain before the disconnect. The service drains when it disconnects
+  // the producer.
+  producer_.reset();
+
+  const std::vector<Entry> entries = GetEntries(consumer_.get());
+  ASSERT_EQ(entries.size(), 1u);
+  EXPECT_EQ(entries[0].observation_end(),
+            Entry::OBSERVATION_END_PRODUCER_DISCONNECTED);
+  EXPECT_GE(entries[0].observation_end_ns(), entries[0].observation_start_ns());
+  EXPECT_EQ(entries[0].ring_state(), Entry::RING_STATE_ATTACHED);
+  EXPECT_EQ(entries[0].counters().chunks_admitted(), 1u);
+
+  bool found_packet = false;
+  for (const auto& packet : consumer_->ReadBuffers()) {
+    found_packet |= packet.has_timestamp() && packet.timestamp() == 42;
+    // No dump without the switch.
+    EXPECT_FALSE(packet.has_tracing_v2_ring_buffer_dump());
+  }
+  EXPECT_TRUE(found_packet);
+
+  StopSession(consumer_.get());
+}
+
+// With the switch, the service dumps the ring buffer of a producer that
+// disconnects, after its final drain.
+TEST_F(TracingServiceImplV2StatsTest, DumpAtDisconnect) {
+  const BufferID target = StartSession(
+      consumer_.get(), MakeDumpConfig("data_source", /*chunk_bytes=*/false));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+
+  producer_.reset();
+
+  const std::vector<Dump> dumps = ReadDumps(consumer_.get());
+  ASSERT_EQ(dumps.size(), 1u);
+  EXPECT_EQ(dumps[0].reason(), Dump::REASON_PRODUCER_DISCONNECT);
+  EXPECT_EQ(dumps[0].reader_read_pos(), 1u);
+
+  StopSession(consumer_.get());
+}
+
+// Observations ended by a disconnect are bounded. The newest stay.
+TEST_F(TracingServiceImplV2StatsTest, DisconnectHistoryKeepsTheNewest) {
+  StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("data_source");
+  constexpr int kNumDisconnects = 258;
+  for (int i = 0; i < kNumDisconnects; ++i) {
+    NiceMock<MockProducer> producer(&task_runner);
+    auto endpoint = svc->ConnectProducer(
+        &producer, ClientIdentity(42, 2000 + i), "churn",
+        /*shared_memory_size_hint_bytes=*/4096, /*in_process=*/false,
+        TracingService::ProducerSMBScrapingMode::kDefault,
+        /*shared_memory_page_size_hint_bytes=*/4096, /*shm=*/nullptr,
+        /*sdk_version=*/{}, /*machine_name=*/{},
+        kProtocolAbiV1 | kProtocolAbiV2);
+    endpoint->RegisterDataSource(descriptor);
+    task_runner.RunUntilIdle();
+    endpoint.reset();
+    task_runner.RunUntilIdle();
+  }
+
+  const TraceStats stats = GetStats(consumer_.get());
+  EXPECT_EQ(stats.tracing_v2().producers_evicted(), 2u);
+  // The fixture's producer is still connected, and is never evicted.
+  std::vector<int32_t> disconnected_pids;
+  for (const Entry& entry : stats.tracing_v2().producers()) {
+    if (entry.observation_end() == Entry::OBSERVATION_END_NONE) {
+      EXPECT_EQ(entry.pid(), 1025);
+      continue;
+    }
+    disconnected_pids.push_back(entry.pid());
+  }
+  ASSERT_EQ(disconnected_pids.size(), 256u);
+  EXPECT_EQ(disconnected_pids.front(), 2002);
+  EXPECT_EQ(disconnected_pids.back(), 2000 + kNumDisconnects - 1);
+
+  StopSession(consumer_.get());
+}
+
+// A clone keeps the observations of the clone time, with their baselines.
+// Later writes and a disconnect change only the source session.
+TEST_F(TracingServiceImplV2StatsTest, CloneEndsTheObservations) {
+  const BufferID target =
+      StartSession(consumer_.get(), MakeConfig("data_source", 100));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/42);
+  Drain();
+  const Entry source = GetOnlyEntry(consumer_.get());
+
+  std::unique_ptr<MockConsumer> clone = Clone();
+  const std::vector<Entry> before = GetEntries(clone.get());
+  ASSERT_EQ(before.size(), 1u);
+  EXPECT_EQ(before[0].observation_end(), Entry::OBSERVATION_END_CLONED);
+  EXPECT_EQ(before[0].observation_start_ns(), source.observation_start_ns());
+  EXPECT_EQ(before[0].counters_at_start().SerializeAsString(),
+            source.counters_at_start().SerializeAsString());
+  EXPECT_EQ(before[0].counters().chunks_admitted(), 1u);
+
+  ring_buffer_.WritePacket(/*writer_id=*/1, target, /*timestamp=*/43);
+  Drain();
+  EXPECT_EQ(GetOnlyEntry(consumer_.get()).counters().chunks_admitted(), 2u);
+  producer_.reset();
+
+  const std::vector<Entry> after = GetEntries(clone.get());
+  ASSERT_EQ(after.size(), 1u);
+  EXPECT_EQ(after[0].SerializeAsString(), before[0].SerializeAsString());
+
+  StopSession(consumer_.get());
+}
+
+// With the switch, a clone gets a dump of each live ring buffer, and the dumps
+// that the source has not emitted yet.
+TEST_F(TracingServiceImplV2StatsTest, DumpAtClone) {
+  StartSession(consumer_.get(),
+               MakeDumpConfig("data_source", /*chunk_bytes=*/false));
+  ASSERT_TRUE(ring_buffer_.AttachTo(producer_->endpoint()));
+  // A protocol error leaves one pending dump in the source.
+  ring_buffer_.CorruptNextChunk();
+  Drain();
+
+  std::unique_ptr<MockConsumer> clone = Clone();
+  const std::vector<Dump> dumps = ReadDumps(clone.get());
+  ASSERT_EQ(dumps.size(), 2u);
+  EXPECT_EQ(dumps[0].reason(), Dump::REASON_PROTOCOL_ERROR);
+  EXPECT_EQ(dumps[1].reason(), Dump::REASON_CLONE);
+
+  // The source keeps its own pending dump.
+  const std::vector<Dump> source_dumps = ReadDumps(consumer_.get());
+  ASSERT_EQ(source_dumps.size(), 1u);
+  EXPECT_EQ(source_dumps[0].reason(), Dump::REASON_PROTOCOL_ERROR);
+
+  StopSession(consumer_.get());
 }
 
 TEST_F(TracingServiceImplTest, AtMostOneConfig) {

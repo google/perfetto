@@ -184,6 +184,14 @@ class TraceWriterV2Impl : public TraceWriter,
   // - Returns with no relocation pending in |ring_buffer_writer_|.
   void EndPacketFragment(bool continues_on_next);
 
+  // One chunk acquisition that waits for space. It starts at the first wait,
+  // and ends when the writer gets a chunk or drops the data.
+  struct Stall {
+    base::TimeMillis start;
+    // kStall aborts at this time, and kStallThenDrop drops.
+    base::TimeMillis deadline;
+  };
+
   // Decides what to do after |ring_buffer_writer_| found no free chunk: wait
   // for the reader, or drop the data.
   //
@@ -192,24 +200,32 @@ class TraceWriterV2Impl : public TraceWriter,
   // - The policy is kDrop.
   // - The policy is kStallThenDrop, and an earlier loss is still unreported.
   // - No reader is attached, so nothing frees space.
-  // - The stall deadline passed. Under kStall, this aborts instead.
+  // - The stall deadline passed. Under kStall, this aborts instead. First it
+  //   records the stall and a kStallTimeout writer failure in the header.
   //
   // |claim_failed|: the failed call returned kClaimFailed. Its reserved
   // positions stay unused until the reader moves past them. So a drop also
   // asks for a drain.
   //
-  // |stall_deadline|: the deadline of the current chunk acquisition. Pass an
-  // unset value on the first call for an acquisition, and the same value on
-  // each retry. The first wait sets it.
-  bool TryStallForSpace(bool claim_failed,
-                        std::optional<base::TimeMillis>* stall_deadline);
+  // |stall|: the current chunk acquisition. Pass an unset value on the first
+  // call for an acquisition, and the same value on each retry. The first wait
+  // sets it. A drop or an abort ends it.
+  bool TryStallForSpace(bool claim_failed, std::optional<Stall>* stall);
+
+  // Ends |*stall|, if set, and records it in the ring buffer header.
+  void FinishStall(std::optional<Stall>* stall);
 
   // Drops the rest of the open packet: its bytes go to GetDropBuffer() from now
   // on.
-  // - If drop mode is not active yet, counts one drop and records the loss
-  //   for the next publication.
+  // - Counts one dropped packet for the ring buffer header.
+  // - If drop mode is not active yet, counts one drop, records the loss for
+  //   the next publication, and publishes the dropped packet count at once.
   // - Drop mode lasts until a later packet gets a fragment in the ring buffer.
+  //   That fragment publishes the rest of the count.
   void EnterDropMode();
+
+  // Adds |unpublished_dropped_packets_| to the ring buffer header.
+  void PublishDroppedPackets();
 
   // Returns the process-wide drop buffer as a writable range. Only in drop
   // mode.
@@ -229,12 +245,12 @@ class TraceWriterV2Impl : public TraceWriter,
   // outstanding positions.
   // - The count covers the positions of all writers.
   // - It includes reservations whose chunks are not published yet.
-  // - The constructor computes the threshold from the ring buffer's capacity
-  //   and the arbiter's drain_occupancy_percent().
+  // - The arbiter computes it once for the ring buffer. See
+  //   ProducerRingBufferArbiter::drain_threshold().
   const uint32_t drain_occupancy_threshold_;
 
-  // Time source for stall deadlines. Tests replace it to advance time
-  // deterministically across acquisition attempts.
+  // Time source for stall deadlines and durations. Tests replace it to advance
+  // time deterministically across acquisition attempts.
   ClockFunction get_time_ms_ = &base::GetWallTimeMs;
 
   // PID of the process that created this writer. A DCHECK uses it to detect
@@ -274,6 +290,18 @@ class TraceWriterV2Impl : public TraceWriter,
   // Number of times this writer entered drop mode. Consecutive dropped
   // packets count once, as in TraceWriterImpl.
   uint64_t drop_count_ = 0;
+
+  // Dropped packets not yet added to the ring buffer header.
+  // - On a full ring buffer, the drop path only reads the header.
+  //   A header write for each dropped packet would slow the other writers and
+  //   the reader, which shares that cache line.
+  // - The first dropped packet of a drop mode episode is added at once.
+  //   Later ones are added in batches of kDroppedPacketsBatch.
+  // - The end of the episode, Flush() and destruction add the rest.
+  // So the header total is a lower bound. If the process crashes in drop
+  // mode, up to kDroppedPacketsBatch - 1 packets of each writer stay
+  // unpublished.
+  uint64_t unpublished_dropped_packets_ = 0;
 };
 
 }  // namespace perfetto::tracing_v2

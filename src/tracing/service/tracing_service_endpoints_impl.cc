@@ -813,8 +813,12 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
     status = base::ErrStatus("the connection has no tracing v2");
   } else if (v2_ring_buffer_drainer_) {
     status = base::ErrStatus("a ring buffer is already attached");
-  } else if (!memory || memory->size() > TracingService::kMaxShmSize) {
-    status = base::ErrStatus("no mapping, or the mapping is too large");
+  } else if (!memory) {
+    // ProducerIPCService passes no memory when it cannot map the memfd.
+    status = base::ErrStatus("the transport could not map the ring buffer");
+  } else if (memory->size() > TracingService::kMaxShmSize) {
+    status = base::ErrStatus("ring buffer size %zu is above kMaxShmSize",
+                             memory->size());
   } else {
     status = tracing_v2::NumChunksForRingBufferLayout(
                  memory->start(), memory->size(), chunk_size_bytes)
@@ -823,6 +827,11 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
   if (!status.ok()) {
     PERFETTO_DLOG("Producer %" PRIu16 " \"%s\": ring buffer rejected: %s", id_,
                   name_.c_str(), status.c_message());
+    // Keep the first reason. A rejected second attach leaves the attached
+    // ring buffer in place, and the reason still shows the producer bug.
+    if (v2_attach_rejection_.empty())
+      v2_attach_rejection_ = status.message();
+    service_->OnRingBufferAttachRejected(this);
     callback(false);
     return;
   }
@@ -830,14 +839,15 @@ void ProducerEndpointImpl::AttachV2RingBuffer(
   v2_ring_buffer_drainer_ =
       std::make_unique<tracing_v2::ServiceRingBufferDrainer>(
           memory, chunk_size_bytes, id_, client_identity_, this,
-          weak_runner_.task_runner());
+          service_->clock_.get(), weak_runner_.task_runner());
   service_->UpdateMemoryGuardrail();
-  DrainV2RingBuffer();
+  v2_ring_buffer_drainer_->Drain();
   callback(true);
 }
 
 void ProducerEndpointImpl::DrainV2RingBuffer() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  ++v2_drain_requests_;
   if (v2_ring_buffer_drainer_)
     v2_ring_buffer_drainer_->Drain();
 }
@@ -862,6 +872,15 @@ void ProducerEndpointImpl::ForEachRingBufferDestination(
 
 void ProducerEndpointImpl::OnRingBufferChunksDiscarded(uint64_t count) {
   service_->OnRingBufferChunksDiscarded(count);
+}
+
+void ProducerEndpointImpl::OnRingBufferProtocolError() {
+  service_->OnRingBufferProtocolError(this);
+}
+
+void ProducerEndpointImpl::OnRingBufferChunkRejected(
+    const tracing_v2::SharedRingBufferReader::ChunkRejection& rejection) {
+  service_->OnRingBufferChunkRejected(this, rejection);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

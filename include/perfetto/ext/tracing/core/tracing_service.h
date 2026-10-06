@@ -152,7 +152,8 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // - The producer owns |memory| and keeps it mapped for its writers.
   // - Over IPC, ProducerIPCClientImpl sends the descriptor of |memory| in the
   //   AttachV2RingBuffer IPC. ProducerIPCService maps it and calls this on the
-  //   service's ProducerEndpointImpl.
+  //   service's ProducerEndpointImpl. If the mapping fails, it passes a null
+  //   |memory|, which is rejected.
   // - The ring buffer must be new: the reader starts at position 0. A ring
   //   buffer that another reader drained fails on the first drain.
   //

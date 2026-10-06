@@ -632,7 +632,9 @@ TEST(SharedRingBufferTest, AcknowledgeThenReclaim) {
 
   // Nobody but the owning writer can leave RewriteRequested, and the writer
   // says nothing about who gets the chunk next.
-  ASSERT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), marked));
+  uint32_t acknowledged = marked;
+  ASSERT_TRUE(
+      ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &acknowledged));
   EXPECT_EQ(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0)),
             kRewriteAcknowledgedStateWord);
 
@@ -688,10 +690,9 @@ TEST(SharedRingBufferTest, OnlyReaderWritesFree) {
   observed =
       ReplaceChunkState(CompleteWord(kWriterA, 1), ChunkState::kBeingWritten);
   ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
-  ASSERT_TRUE(ring->TryAcknowledgeRewrite(
-      ChunkIndex::FromIndex(0),
-      ReplaceChunkState(CompleteWord(kWriterA, 1),
-                        ChunkState::kRewriteRequested)));
+  observed = ReplaceChunkState(CompleteWord(kWriterA, 1),
+                               ChunkState::kRewriteRequested);
+  ASSERT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &observed));
   EXPECT_NE(ChunkStateOf(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0))),
             ChunkState::kFree);
   EXPECT_EQ(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0)),
@@ -717,10 +718,9 @@ TEST(SharedRingBufferTest, ReclaimAcrossPositionRollover) {
   ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, BeingWrittenWord(kWriterA)));
   uint32_t observed = BeingWrittenWord(kWriterA);
   ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
-  ASSERT_TRUE(ring->TryAcknowledgeRewrite(
-      ChunkIndex::FromIndex(0),
-      ReplaceChunkState(BeingWrittenWord(kWriterA),
-                        ChunkState::kRewriteRequested)));
+  observed = ReplaceChunkState(BeingWrittenWord(kWriterA),
+                               ChunkState::kRewriteRequested);
+  ASSERT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &observed));
 
   ASSERT_TRUE(
       ring->TryReleaseRewriteAcknowledgedChunkAsFree(kLastLapPos, &observed));
@@ -865,7 +865,7 @@ TEST(SharedRingBufferTest, PublicationLosesToScrape) {
 
   // The writer moves its unpublished fragment elsewhere and lets go of the
   // chunk, saying nothing about who gets it next.
-  EXPECT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), expected));
+  EXPECT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &expected));
   EXPECT_EQ(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0)),
             kRewriteAcknowledgedStateWord);
 }
@@ -1088,6 +1088,77 @@ TEST(SharedRingBufferTest, PublishWithoutWaitersLeavesHintClean) {
   ring->PublishReadPos(3);
   EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
   EXPECT_EQ(Internals::GetReadPos(ring.get()), 3u);
+}
+
+// --- Header diagnostics ---
+
+// A new ring buffer has no diagnostics. Only the producer sets them, and a
+// second view of the memory, as the service has, reads them unchanged.
+TEST(SharedRingBufferTest, DiagnosticsBelongToTheProducer) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  EXPECT_EQ(ring->LoadHeaderRelaxed().diagnostics_version, 0u);
+
+  ring->InitializeDiagnostics(/*drain_threshold=*/3);
+  ring->AddWriterCreationFailure();
+  SharedRingBuffer service_view(
+      ring->chunk_at(ChunkIndex::FromIndex(0)) - sizeof(RingBufferHeader),
+      sizeof(RingBufferHeader) + 4 * 256, 256);
+  const SharedRingBuffer::HeaderSnapshot header =
+      service_view.LoadHeaderRelaxed();
+  EXPECT_EQ(header.diagnostics_version, kRingBufferDiagnosticsVersion);
+  EXPECT_EQ(header.drain_threshold, 3u);
+  EXPECT_EQ(header.writer_creation_failures, 1u);
+}
+
+// The record keeps the first failure. Every field survives the encoding.
+TEST(SharedRingBufferTest, FirstWriterFailureIsKept) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  EXPECT_EQ(DecodeWriterFailure(ring->LoadHeaderRelaxed().first_writer_failure)
+                .reason,
+            WriterFailureReason::kNone);
+
+  ring->RecordFirstWriterFailure({WriterFailureReason::kPublicationLost,
+                                  /*writer_id=*/0xffff, /*value=*/0xfedcba98});
+  ring->RecordFirstWriterFailure(
+      {WriterFailureReason::kStallTimeout, /*writer_id=*/1, /*value=*/2});
+
+  const WriterFailure failure =
+      DecodeWriterFailure(ring->LoadHeaderRelaxed().first_writer_failure);
+  EXPECT_EQ(failure.reason, WriterFailureReason::kPublicationLost);
+  EXPECT_EQ(failure.writer_id, 0xffffu);
+  EXPECT_EQ(failure.value, 0xfedcba98u);
+}
+
+// A record from a newer producer decodes with its raw reason.
+TEST(SharedRingBufferTest, UnknownWriterFailureReasonDecodes) {
+  constexpr uint64_t kRecord =
+      (uint64_t{0x12345678} << 32) | (uint64_t{42} << 16) | uint64_t{200};
+  const WriterFailure failure = DecodeWriterFailure(kRecord);
+  EXPECT_EQ(static_cast<uint8_t>(failure.reason), 200u);
+  EXPECT_EQ(failure.writer_id, 42u);
+  EXPECT_EQ(failure.value, 0x12345678u);
+  EXPECT_EQ(EncodeWriterFailure(failure), kRecord);
+}
+
+// A failed acknowledgement reports the word that the CAS found.
+TEST(SharedRingBufferTest, FailedAcknowledgementReturnsTheWord) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  constexpr WriterID kWriter = 3;
+  const uint32_t being_written = MakeDataStateWord(
+      ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 0, kWriter);
+  ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, being_written));
+  uint32_t requested = being_written;
+  ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &requested));
+
+  // Another actor changes the word. Only the owner may leave
+  // RewriteRequested.
+  const uint32_t foreign = MakeFreeStateWord(5);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), foreign);
+  uint32_t observed =
+      ReplaceChunkState(being_written, ChunkState::kRewriteRequested);
+  EXPECT_FALSE(
+      ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &observed));
+  EXPECT_EQ(observed, foreign);
 }
 
 }  // namespace

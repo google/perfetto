@@ -184,21 +184,21 @@ bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
 }
 
 bool SharedRingBuffer::TryAcknowledgeRewrite(ChunkIndex chunk_idx,
-                                             uint32_t observed) {
-  PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kRewriteRequested);
+                                             uint32_t* observed) {
+  PERFETTO_DCHECK(ChunkStateOf(*observed) == ChunkState::kRewriteRequested);
 
   // RewriteRequested -> RewriteAcknowledged, with all other bits zero.
   //
   // On failure, report a protocol error. Only this writer can change
   // RewriteRequested, so the observed word must still match.
+  // The CAS stores the word that it found in |*observed|, for the report.
   //
   // Proposed memory ordering:
   // - Success: release to save the unpublished fragment before
   //   acknowledgement. The reader can then reclaim the chunk.
   // - Failure: relaxed because it only reports a protocol error.
-  uint32_t expected = observed;
   std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
-  return state_word->compare_exchange_strong(expected,
+  return state_word->compare_exchange_strong(*observed,
                                              kRewriteAcknowledgedStateWord);
 }
 
@@ -412,6 +412,72 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   //
   // Waits are bounded, so a failed wake delays writers but cannot strand them.
   base::FutexWake(ReadPosFutexAddress(&ring_header->rw_positions), INT_MAX);
+}
+
+void SharedRingBuffer::InitializeDiagnostics(uint32_t drain_threshold) {
+  // Relaxed stores are enough. traced reads these fields only after the
+  // attach request, which follows them: a later IPC message, or a later call
+  // on this thread in-process.
+  RingBufferHeader* ring_header = header();
+  ring_header->drain_threshold.store(drain_threshold,
+                                     std::memory_order_relaxed);
+  ring_header->diagnostics_version.store(kRingBufferDiagnosticsVersion,
+                                         std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::AddDroppedPackets(uint64_t count) {
+  header()->dropped_packets.fetch_add(count, std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::AddWriterCreationFailure() {
+  header()->writer_creation_failures.fetch_add(1, std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::RecordFirstWriterFailure(const WriterFailure& failure) {
+  PERFETTO_DCHECK(failure.reason != WriterFailureReason::kNone);
+  // Zero means no record yet. A lost race leaves the earlier record.
+  uint64_t no_record = 0;
+  header()->first_writer_failure.compare_exchange_strong(
+      no_record, EncodeWriterFailure(failure), std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::RecordStall(uint64_t duration_ms) {
+  RingBufferHeader* ring_header = header();
+  ring_header->stalls.fetch_add(1, std::memory_order_relaxed);
+  ring_header->stall_time_ms.fetch_add(duration_ms, std::memory_order_relaxed);
+  // Raise the maximum. A lost race reloads the current maximum and retries.
+  uint64_t max_ms = ring_header->max_stall_ms.load(std::memory_order_relaxed);
+  while (duration_ms > max_ms &&
+         !ring_header->max_stall_ms.compare_exchange_weak(
+             max_ms, duration_ms, std::memory_order_relaxed)) {
+  }
+}
+
+SharedRingBuffer::HeaderSnapshot SharedRingBuffer::LoadHeaderRelaxed() const {
+  const RingBufferHeader* ring_header = header();
+  const uint64_t rw_positions =
+      ring_header->rw_positions.load(std::memory_order_relaxed);
+  HeaderSnapshot snapshot;
+  snapshot.read_pos = ReadPosOf(rw_positions);
+  snapshot.write_pos = WritePosOf(rw_positions);
+  snapshot.num_writers_waiting =
+      ring_header->num_writers_waiting.load(std::memory_order_relaxed);
+  snapshot.diagnostics_version =
+      ring_header->diagnostics_version.load(std::memory_order_relaxed);
+  snapshot.dropped_packets =
+      ring_header->dropped_packets.load(std::memory_order_relaxed);
+  snapshot.stalls = ring_header->stalls.load(std::memory_order_relaxed);
+  snapshot.stall_time_ms =
+      ring_header->stall_time_ms.load(std::memory_order_relaxed);
+  snapshot.max_stall_ms =
+      ring_header->max_stall_ms.load(std::memory_order_relaxed);
+  snapshot.first_writer_failure =
+      ring_header->first_writer_failure.load(std::memory_order_relaxed);
+  snapshot.drain_threshold =
+      ring_header->drain_threshold.load(std::memory_order_relaxed);
+  snapshot.writer_creation_failures =
+      ring_header->writer_creation_failures.load(std::memory_order_relaxed);
+  return snapshot;
 }
 
 }  // namespace perfetto::tracing_v2

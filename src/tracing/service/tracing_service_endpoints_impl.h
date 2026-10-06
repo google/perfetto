@@ -134,6 +134,9 @@ class ProducerEndpointImpl
   void ForEachRingBufferDestination(
       const std::function<void(TraceBufferV2&)>& callback) override;
   void OnRingBufferChunksDiscarded(uint64_t count) override;
+  void OnRingBufferProtocolError() override;
+  void OnRingBufferChunkRejected(
+      const tracing_v2::SharedRingBufferReader::ChunkRejection&) override;
 
   // Mapping size for the memory guardrail. Zero if no ring buffer is attached.
   size_t ring_buffer_size_bytes() const {
@@ -205,6 +208,16 @@ class ProducerEndpointImpl
   // DisconnectProducer() runs the final drain through |v2_ring_buffer_drainer_|
   // before |allowed_target_buffers_| is destroyed.
   std::unique_ptr<tracing_v2::ServiceRingBufferDrainer> v2_ring_buffer_drainer_;
+
+  // Why AttachV2RingBuffer() rejected the first rejected ring buffer. Empty if
+  // it rejected none. TraceStats.tracing_v2 reports it, also after a later
+  // attach succeeds.
+  std::string v2_attach_rejection_;
+
+  // DrainV2RingBuffer() calls, from the producer only. The service's own
+  // drains call |v2_ring_buffer_drainer_| directly.
+  uint64_t v2_drain_requests_ = 0;
+
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakRunner weak_runner_;
 };

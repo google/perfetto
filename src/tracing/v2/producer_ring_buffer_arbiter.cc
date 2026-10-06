@@ -39,6 +39,33 @@ namespace {
 // gives no SMB size hint.
 constexpr size_t kDefaultSizeBudget = 128 * 1024;
 
+// Ring buffer occupancy at which a publication asks for a drain: the
+// percentage of ring buffer positions that are outstanding.
+// Used when drain_occupancy_percent is 0 or absent.
+constexpr uint32_t kDefaultDrainOccupancyPercent = 25;
+
+// Returns the drain threshold, in positions, for a ring buffer of
+// |num_chunks| chunks.
+// |drain_occupancy_percent| must be -1 to 100:
+// - -1: 1, so a writer asks for a drain after every publication.
+// - 0: 25% of |num_chunks|.
+// - 1 to 100: that percent of |num_chunks|.
+// The result is at least 1.
+uint32_t ComputeDrainThreshold(uint32_t num_chunks,
+                               int32_t drain_occupancy_percent) {
+  PERFETTO_DCHECK(drain_occupancy_percent >= -1 &&
+                  drain_occupancy_percent <= 100);
+  if (drain_occupancy_percent == -1)
+    return 1;
+  const uint64_t percent = drain_occupancy_percent == 0
+                               ? kDefaultDrainOccupancyPercent
+                               : static_cast<uint64_t>(drain_occupancy_percent);
+  const uint64_t threshold = uint64_t{num_chunks} * percent / 100;
+  // For small ring buffers, integer division can round the threshold down to
+  // zero.
+  return std::max(1u, static_cast<uint32_t>(threshold));
+}
+
 // Chooses the chunk size from the chunk_size_options of |config|, at random,
 // by weight.
 // - An absent weight counts as 1, and 0 means never.
@@ -134,9 +161,6 @@ void ProducerRingBufferArbiter::SetupInstance(DataSourceInstanceID id,
 void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(
     const DataSourceConfig& config,
     size_t size_budget) {
-  drain_occupancy_percent_ =
-      config.experimental_tracing_v2().drain_occupancy_percent();
-
   const uint32_t chunk_size = ChooseChunkSize(config);
   // The service maps at most kMaxShmSize, header included.
   const std::optional<size_t> size = RingBufferSizeForBudget(
@@ -168,6 +192,13 @@ void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(
   memory_ = memory;
   ring_buffer_.emplace(static_cast<uint8_t*>(memory_->start()), memory_->size(),
                        chunk_size);
+  // One threshold for the ring buffer, from the config of this first v2
+  // instance. Writers use it, and the header reports it to traced, before the
+  // attach request below.
+  drain_threshold_ = ComputeDrainThreshold(
+      ring_buffer_->num_chunks(),
+      config.experimental_tracing_v2().drain_occupancy_percent());
+  ring_buffer_->InitializeDiagnostics(drain_threshold_);
 
   // The reply callback moves kPending to kAttached, or to kDetached if the
   // service rejects the ring buffer.
@@ -237,8 +268,13 @@ std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::CreateTraceWriter(
   PERFETTO_DCHECK(shared_memory_arbiter_ && ring_buffer_);
   const WriterID writer_id =
       shared_memory_arbiter_->AllocateTracingV2WriterID();
-  if (PERFETTO_UNLIKELY(!writer_id))
+  if (PERFETTO_UNLIKELY(!writer_id)) {
+    // The state was kPending or kAttached above, so the ring buffer exists and
+    // traced can read the count. A NullTraceWriter in kDetached is not
+    // counted, because no reader can see it.
+    ring_buffer_->AddWriterCreationFailure();
     return std::make_unique<NullTraceWriter>();
+  }
 
   return std::make_unique<TraceWriterV2Impl>(this, writer_id, target_buffer,
                                              policy);

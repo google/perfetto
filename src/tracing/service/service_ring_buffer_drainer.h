@@ -20,8 +20,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <functional>
 #include <memory>
+#include <optional>
 
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/weak_runner.h"
@@ -33,6 +35,12 @@
 
 namespace perfetto {
 class TraceBufferV2;
+namespace protos::pbzero {
+class TracingV2RingBufferDump;
+}  // namespace protos::pbzero
+namespace tracing_service {
+class Clock;
+}  // namespace tracing_service
 namespace tracing_v2 {
 
 namespace test {
@@ -78,16 +86,30 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
     // Adds |count| to the service's chunks_discarded statistic for chunks that
     // never reached a trace buffer. Excludes loss reported by the producer.
     virtual void OnRingBufferChunksDiscarded(uint64_t count) = 0;
+
+    // Called once, after the reader stopped on a protocol error. The delegate
+    // can read the drainer, for example with WriteDump().
+    virtual void OnRingBufferProtocolError() = 0;
+
+    // Called for each chunk that the reader discards as malformed or in an
+    // unknown format. The record is valid only for this call.
+    // - It runs inside Drain(). See SharedRingBufferReader::Delegate for
+    //   what the chunk bytes can still show.
+    // - The delegate can copy them with WriteDump(), and must not destroy the
+    //   drainer.
+    virtual void OnRingBufferChunkRejected(
+        const SharedRingBufferReader::ChunkRejection&) = 0;
   };
 
   // Shares ownership of |memory|. The mapping and |chunk_size_bytes| must
-  // describe a valid ring buffer layout. |delegate| and |task_runner| must
-  // remain valid until destruction.
+  // describe a valid ring buffer layout. |delegate|, |clock| and
+  // |task_runner| must remain valid until destruction.
   ServiceRingBufferDrainer(std::shared_ptr<SharedMemory> memory,
                            uint32_t chunk_size_bytes,
                            ProducerID,
                            ClientIdentity,
                            Delegate* delegate,
+                           tracing_service::Clock* clock,
                            base::TaskRunner* task_runner);
 
   // Cancels pending retry tasks. Destruction does not call Drain() or copy any
@@ -111,6 +133,107 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   // Mapping size for the service's memory guardrail.
   size_t size_bytes() const { return memory_->size(); }
 
+  // The layout and the reader state, for TraceStats.tracing_v2.
+  uint32_t chunk_size() const { return ring_buffer_.chunk_size(); }
+  uint32_t num_chunks() const { return ring_buffer_.num_chunks(); }
+  uint32_t reader_read_pos() const { return reader_.read_pos(); }
+  const std::optional<SharedRingBufferReader::ProtocolError>& protocol_error()
+      const {
+    return reader_.protocol_error();
+  }
+  SharedRingBufferReader::Stats reader_stats() const {
+    return reader_.GetStats();
+  }
+
+  // The header, as the producer last wrote it. Untrusted.
+  SharedRingBuffer::HeaderSnapshot LoadHeader() const {
+    return ring_buffer_.LoadHeaderRelaxed();
+  }
+
+  // For diagnostics only. Totals since the drainer was created.
+  //
+  // Each OnChunkRead() call adds 1 to exactly one admission counter. So,
+  // outside Drain():
+  //   reader_stats().chunks_read == chunks_admitted + invalid_writer_chunks +
+  //       invalid_destination_chunks + the trace_buffer_rejected_* counters
+  struct Stats {
+    // Drain() calls that ran the reader. A call after a protocol error does
+    // not run it.
+    uint64_t drain_passes = 0;
+    // Passes that consumed no position but ended at the retry limit.
+    uint64_t drain_passes_without_progress = 0;
+    // Thread CPU time of the reader's passes, including the delegate calls
+    // inside them.
+    uint64_t drain_cpu_time_ns = 0;
+
+    // Admission outcomes of the chunks that the reader delivered.
+    uint64_t chunks_admitted = 0;
+    // Fragment payload bytes of the admitted chunks.
+    uint64_t admitted_payload_bytes = 0;
+    uint64_t invalid_writer_chunks = 0;
+    uint64_t invalid_destination_chunks = 0;
+    // TraceBufferV2::CopyChunkV2Result, other than kAdmitted.
+    uint64_t trace_buffer_rejected_buffer_full = 0;
+    uint64_t trace_buffer_rejected_format_conflict = 0;
+    uint64_t trace_buffer_rejected_protovm = 0;
+    uint64_t trace_buffer_rejected_invalid = 0;
+  };
+  const Stats& stats() const { return stats_; }
+
+  // The last pass. Times are BOOTTIME, zero before the first pass. Drain()
+  // reads the clock once per pass, when the pass starts. The records of the
+  // pass use the same time.
+  struct LastDrain {
+    int64_t time_ns = 0;
+    // The last pass that consumed a position.
+    int64_t progress_time_ns = 0;
+    uint32_t positions_consumed = 0;
+    SharedRingBufferReader::ConsumeResult result =
+        SharedRingBufferReader::ConsumeResult::kNoData;
+  };
+  const LastDrain& last_drain() const { return last_drain_; }
+
+  // BOOTTIME of the pass that found the protocol error. Zero if none.
+  int64_t protocol_error_time_ns() const { return protocol_error_time_ns_; }
+
+  // The first rejection of each reason, with the BOOTTIME of its pass,
+  // indexed by SharedRingBufferReader::ChunkRejection::Reason. Kept for the
+  // life of the connection. reader_stats() counts all of them.
+  struct RejectionRecord {
+    SharedRingBufferReader::ChunkRejection rejection;
+    int64_t time_ns = 0;
+  };
+  using FirstRejections =
+      std::array<std::optional<RejectionRecord>,
+                 SharedRingBufferReader::ChunkRejection::kNumReasons>;
+  const FirstRejections& first_rejections() const { return first_rejections_; }
+
+  // Ring buffer dumps.
+  //
+  // A dump has the layout, the positions, the header fields, and the state
+  // word of each chunk. With |include_chunk_bytes|, it also has chunk bytes.
+  // With |only_chunk_pos|, it has only the chunk at that position.
+  // - Each word is read once. The copy is not a consistent snapshot.
+  // - The loop bounds and the sizes come from the layout validated at attach,
+  //   never from shared memory.
+
+  // An upper bound of the serialized size of the complete dump, including
+  // the enclosing TracePacket and its service fields.
+  size_t DumpSizeBound(bool include_chunk_bytes,
+                       std::optional<uint32_t> only_chunk_pos) const;
+
+  // Writes the dump into |dump|, within |max_bytes| of serialized size, as
+  // DumpSizeBound() counts it.
+  // - If not all chunk bytes fit, copies the chunk at the reader position
+  //   first, then the chunks that are not Free, in position order. It lists
+  //   their indexes and the omitted count.
+  // - Returns false if even the state words do not fit. |dump| is then
+  //   incomplete and the caller must discard it.
+  bool WriteDump(protos::pbzero::TracingV2RingBufferDump* dump,
+                 bool include_chunk_bytes,
+                 std::optional<uint32_t> only_chunk_pos,
+                 size_t max_bytes) const;
+
  private:
   friend class test::ServiceRingBufferDrainerTestPeer;
 
@@ -118,6 +241,7 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   // The reader calls these inline during Drain().
   void OnChunkRead(const SharedRingBufferReader::ChunkContents&) override;
   void OnDataLoss(WriterID) override;
+  void OnChunkRejected(const SharedRingBufferReader::ChunkRejection&) override;
 
   // Marks a gap in the sequence for |writer_id| in its destination buffer.
   void RecordWriterLoss(WriterID writer_id);
@@ -127,6 +251,7 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   const ClientIdentity client_identity_;
 
   Delegate* const delegate_;
+  tracing_service::Clock* const clock_;
 
   // Declared before |ring_buffer_| and |reader_| so the mapping outlives them.
   std::shared_ptr<SharedMemory> memory_;
@@ -137,6 +262,11 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   SharedRingBufferReader reader_;
 
   bool retry_scheduled_ = false;
+
+  Stats stats_;
+  LastDrain last_drain_;
+  int64_t protocol_error_time_ns_ = 0;
+  FirstRejections first_rejections_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 

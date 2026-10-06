@@ -22,11 +22,19 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/mman.h>
+
+#include "perfetto/ext/base/subprocess.h"
+#endif
 
 namespace perfetto::tracing_v2 {
 namespace {
@@ -951,6 +959,67 @@ TEST(SharedRingBufferWriterTest, DestructorPublishes) {
   ASSERT_EQ(decoded.fragments.size(), 1u);
   EXPECT_EQ(decoded.fragments[0], "kept");
 }
+
+// The stall timeout record names the writer and the read_pos that it waited
+// on.
+TEST(SharedRingBufferWriterTest, StallTimeoutRecord) {
+  test::SharedRingBufferForTesting ring(2, 256);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  ASSERT_TRUE(PinAllChunks(ring.get(), kWriterB));
+  // The ring buffer has no free chunk. The reservations see read_pos 0.
+  ASSERT_NE(writer.BeginFragment(4, false).result,
+            BeginFragmentResult::kSuccess);
+
+  writer.RecordStallTimeout();
+  const WriterFailure failure =
+      DecodeWriterFailure(ring->LoadHeaderRelaxed().first_writer_failure);
+  EXPECT_EQ(failure.reason, WriterFailureReason::kStallTimeout);
+  EXPECT_EQ(failure.writer_id, kWriterA);
+  EXPECT_EQ(failure.value, 0u);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// A writer records its failure in the header before it aborts. A child
+// process aborts. The parent reads the record from the shared mapping, as
+// traced does after a producer crash.
+TEST(SharedRingBufferWriterTest, PublicationFailureIsRecordedBeforeAbort) {
+  constexpr uint32_t kNumChunks = 4;
+  constexpr uint32_t kChunkSize = 256;
+  const size_t size = sizeof(RingBufferHeader) + kNumChunks * kChunkSize;
+  void* shared = mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                      MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  ASSERT_NE(shared, MAP_FAILED);
+  SharedRingBuffer ring(static_cast<uint8_t*>(shared), size, kChunkSize);
+  // Only the reader may change a BeingWritten word, and only to
+  // RewriteRequested.
+  const uint32_t foreign = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1, kWriterB);
+
+  base::Subprocess child;
+  child.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  child.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  child.args.posix_entrypoint_for_testing = [&ring, foreign] {
+    SharedRingBufferWriter writer = MakeWriter(&ring, kWriterA, kBuffer);
+    if (writer.BeginFragment(4, false).result != BeginFragmentResult::kSuccess)
+      _exit(1);
+    Internals::SetChunkStateWord(&ring, ChunkIndex::FromIndex(0), foreign);
+    writer.EndFragment(4, false);  // Aborts.
+    _exit(2);
+  };
+  child.Start();
+  ASSERT_TRUE(child.Wait(30000));
+  // A signal killed the child. It did not reach either _exit().
+  EXPECT_GT(child.returncode(), 128);
+
+  const WriterFailure failure =
+      DecodeWriterFailure(ring.LoadHeaderRelaxed().first_writer_failure);
+  EXPECT_EQ(failure.reason, WriterFailureReason::kPublicationLost);
+  EXPECT_EQ(failure.writer_id, kWriterA);
+  EXPECT_EQ(failure.value, foreign);
+  munmap(shared, size);
+}
+#endif
 
 }  // namespace
 }  // namespace perfetto::tracing_v2

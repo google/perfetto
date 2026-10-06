@@ -3793,6 +3793,7 @@ filegroup {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
@@ -8671,6 +8672,7 @@ genrule {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
@@ -11600,6 +11602,7 @@ filegroup {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
@@ -11815,6 +11818,7 @@ filegroup {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
     ],
 }
 
@@ -11822,6 +11826,8 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_trace_perfetto_cpp_gen",
     srcs: [
+        ":perfetto_protos_perfetto_common_cpp",
+        ":perfetto_protos_perfetto_protovm_cpp",
         ":perfetto_protos_perfetto_trace_perfetto_cpp",
     ],
     tools: [
@@ -11834,6 +11840,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.gen.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.gen.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.gen.cc",
+        "external/perfetto/protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.gen.cc",
     ],
 }
 
@@ -11841,6 +11848,8 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_perfetto_cpp_gen_headers",
     srcs: [
+        ":perfetto_protos_perfetto_common_cpp",
+        ":perfetto_protos_perfetto_protovm_cpp",
         ":perfetto_protos_perfetto_trace_perfetto_cpp",
     ],
     tools: [
@@ -11853,6 +11862,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.gen.h",
         "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.gen.h",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.gen.h",
+        "external/perfetto/protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -11868,6 +11878,7 @@ filegroup {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
     ],
 }
 
@@ -11875,6 +11886,8 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_trace_perfetto_lite_gen",
     srcs: [
+        ":perfetto_protos_perfetto_common_lite",
+        ":perfetto_protos_perfetto_protovm_lite",
         ":perfetto_protos_perfetto_trace_perfetto_lite",
     ],
     tools: [
@@ -11886,6 +11899,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pb.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pb.cc",
+        "external/perfetto/protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.pb.cc",
     ],
 }
 
@@ -11893,6 +11907,8 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_perfetto_lite_gen_headers",
     srcs: [
+        ":perfetto_protos_perfetto_common_lite",
+        ":perfetto_protos_perfetto_protovm_lite",
         ":perfetto_protos_perfetto_trace_perfetto_lite",
     ],
     tools: [
@@ -11904,6 +11920,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pb.h",
         "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pb.h",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pb.h",
+        "external/perfetto/protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -11919,6 +11936,7 @@ filegroup {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
     ],
 }
 
@@ -11926,6 +11944,8 @@ filegroup {
 genrule {
     name: "perfetto_protos_perfetto_trace_perfetto_zero_gen",
     srcs: [
+        ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_protovm_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
     ],
     tools: [
@@ -11938,6 +11958,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.pbzero.cc",
     ],
 }
 
@@ -11945,6 +11966,8 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_perfetto_zero_gen_headers",
     srcs: [
+        ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_protovm_zero",
         ":perfetto_protos_perfetto_trace_perfetto_zero",
     ],
     tools: [
@@ -11957,6 +11980,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h",
         "external/perfetto/protos/perfetto/trace/perfetto/trace_provenance.pbzero.h",
         "external/perfetto/protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -13998,6 +14022,7 @@ genrule {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
@@ -23667,6 +23692,7 @@ java_library {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
@@ -24164,6 +24190,7 @@ python_library_host {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
         "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",

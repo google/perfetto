@@ -20,14 +20,17 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/service/clock.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -35,6 +38,8 @@
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.pbzero.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
@@ -88,10 +93,17 @@ class FakeDelegate : public ServiceRingBufferDrainer::Delegate {
   void OnRingBufferChunksDiscarded(uint64_t count) override {
     chunks_discarded += count;
   }
+  void OnRingBufferProtocolError() override { ++protocol_errors; }
+  void OnRingBufferChunkRejected(
+      const SharedRingBufferReader::ChunkRejection& rejection) override {
+    rejections.push_back(rejection);
+  }
 
   std::unique_ptr<TraceBufferV2> buffer =
       TraceBufferV2::Create(64 * 1024, TraceBuffer::kOverwrite);
   uint64_t chunks_discarded = 0;
+  uint32_t protocol_errors = 0;
+  std::vector<SharedRingBufferReader::ChunkRejection> rejections;
 };
 
 struct ReadPacket {
@@ -113,7 +125,36 @@ class ServiceRingBufferDrainerTest : public testing::Test {
         static_cast<uint8_t*>(memory->start()), memory->size(), kChunkSize);
     drainer_ = std::make_unique<ServiceRingBufferDrainer>(
         std::move(memory), kChunkSize, kProducer, ClientIdentity(1000, 1001),
-        &delegate_, &task_runner_);
+        &delegate_, &clock_, &task_runner_);
+  }
+
+  // Serializes a dump of the ring buffer within |max_bytes|.
+  std::optional<protos::gen::TracingV2RingBufferDump> WriteDump(
+      bool include_chunk_bytes,
+      std::optional<uint32_t> only_chunk_pos,
+      size_t max_bytes) {
+    protozero::HeapBuffered<protos::pbzero::TracingV2RingBufferDump> raw;
+    if (!drainer_->WriteDump(raw.get(), include_chunk_bytes, only_chunk_pos,
+                             max_bytes)) {
+      return std::nullopt;
+    }
+    const std::string serialized = raw.SerializeAsString();
+    EXPECT_LE(serialized.size(), max_bytes);
+    protos::gen::TracingV2RingBufferDump dump;
+    EXPECT_TRUE(dump.ParseFromString(serialized));
+    return dump;
+  }
+
+  // Each delivered chunk has exactly one admission outcome.
+  void ExpectEveryDeliveredChunkAccounted() {
+    const auto& stats = drainer_->stats();
+    EXPECT_EQ(drainer_->reader_stats().chunks_read,
+              stats.chunks_admitted + stats.invalid_writer_chunks +
+                  stats.invalid_destination_chunks +
+                  stats.trace_buffer_rejected_buffer_full +
+                  stats.trace_buffer_rejected_format_conflict +
+                  stats.trace_buffer_rejected_protovm +
+                  stats.trace_buffer_rejected_invalid);
   }
 
   std::vector<ReadPacket> ReadPackets() {
@@ -138,6 +179,7 @@ class ServiceRingBufferDrainerTest : public testing::Test {
   uint32_t ReadPos() { return Internals::GetReadPos(ring_buffer_.get()); }
 
   base::TestTaskRunner task_runner_;
+  tracing_service::ClockImpl clock_;
   FakeDelegate delegate_;
   std::unique_ptr<SharedRingBuffer> ring_buffer_;
   std::unique_ptr<ServiceRingBufferDrainer> drainer_;
@@ -154,6 +196,20 @@ TEST_F(ServiceRingBufferDrainerTest, DrainsIntoDestination) {
 
   EXPECT_EQ(ReadPos(), 1u);
   EXPECT_EQ(delegate_.chunks_discarded, 0u);
+  EXPECT_EQ(drainer_->stats().chunks_admitted, 1u);
+  // The fragment payloads only, without the size directory.
+  EXPECT_EQ(drainer_->stats().admitted_payload_bytes,
+            Packet("first").size() + Packet("second").size());
+  ExpectEveryDeliveredChunkAccounted();
+  // The pass consumed the only position and caught up with write_pos.
+  EXPECT_EQ(drainer_->stats().drain_passes, 1u);
+  EXPECT_EQ(drainer_->stats().drain_passes_without_progress, 0u);
+  EXPECT_GT(drainer_->last_drain().time_ns, 0);
+  EXPECT_EQ(drainer_->last_drain().progress_time_ns,
+            drainer_->last_drain().time_ns);
+  EXPECT_EQ(drainer_->last_drain().positions_consumed, 1u);
+  EXPECT_EQ(drainer_->last_drain().result,
+            SharedRingBufferReader::ConsumeResult::kNoData);
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 2u);
   EXPECT_EQ(packets[0].str, "first");
@@ -182,6 +238,8 @@ TEST_F(ServiceRingBufferDrainerTest, DiscardsInvalidWriterIds) {
 
   EXPECT_EQ(ReadPos(), 2u);
   EXPECT_EQ(delegate_.chunks_discarded, 2u);
+  EXPECT_EQ(drainer_->stats().invalid_writer_chunks, 2u);
+  ExpectEveryDeliveredChunkAccounted();
   EXPECT_TRUE(ReadPackets().empty());
 }
 
@@ -202,6 +260,9 @@ TEST_F(ServiceRingBufferDrainerTest, ForbiddenDestinationRecordsLoss) {
   // The service drops the chunk before any trace buffer sees it. The
   // writer's sequence in the allowed buffer shows the gap.
   EXPECT_EQ(delegate_.chunks_discarded, 1u);
+  EXPECT_EQ(drainer_->stats().chunks_admitted, 2u);
+  EXPECT_EQ(drainer_->stats().invalid_destination_chunks, 1u);
+  ExpectEveryDeliveredChunkAccounted();
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 2u);
   EXPECT_EQ(packets[0].str, "before");
@@ -236,27 +297,102 @@ TEST_F(ServiceRingBufferDrainerTest, ProducerLossIsNotAServiceDiscard) {
 }
 
 TEST_F(ServiceRingBufferDrainerTest, MalformedAndUnknownChunksAreDiscards) {
-  const struct {
-    ChunkFormat format;
-    uint32_t num_fragments;
-  } kChunks[] = {
-      // 255 one-byte sizes do not fit in a 256-byte chunk.
-      {ChunkFormat::kTargetBuffer, 255},
-      {ChunkFormat::kReservedRouting, 1},
+  using Reason = SharedRingBufferReader::ChunkRejection::Reason;
+  const uint32_t kWords[] = {
+      // 255 size entries do not fit in a 256-byte chunk. The zero bytes decode
+      // as 250 empty fragments, then the directory reaches the payload start.
+      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0,
+                        255, kWriter),
+      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kReservedRouting, 0,
+                        1, kWriter),
+      // A second chunk of the first reason. Only the first one is kept.
+      MakeDataStateWord(ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0,
+                        255, kWriter),
   };
-  for (const auto& chunk : kChunks) {
+  for (uint32_t word : kWords) {
     const uint32_t chunk_pos = ring_buffer_->TryReserveWritePos().chunk_pos;
     Internals::SetChunkStateWord(
         ring_buffer_.get(), ChunkIndex::FromPosition(chunk_pos, kNumChunks),
-        MakeDataStateWord(ChunkState::kComplete, chunk.format, 0,
-                          chunk.num_fragments, kWriter));
+        word);
   }
 
   drainer_->Drain();
 
-  EXPECT_EQ(ReadPos(), 2u);
-  EXPECT_EQ(delegate_.chunks_discarded, 2u);
+  EXPECT_EQ(ReadPos(), 3u);
+  EXPECT_EQ(delegate_.chunks_discarded, 3u);
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 0u);
+  // Rejected chunks never reach OnChunkRead().
+  EXPECT_EQ(drainer_->reader_stats().chunks_read, 0u);
+  EXPECT_EQ(drainer_->reader_stats().malformed_chunks, 2u);
+  EXPECT_EQ(drainer_->reader_stats().unsupported_format_chunks, 1u);
+
+  // Each record keeps the word that the reader decoded, although the
+  // Complete -> Free transition replaced it.
+  ASSERT_EQ(delegate_.rejections.size(), 3u);
+  EXPECT_EQ(delegate_.rejections[0].state_word, kWords[0]);
+  EXPECT_EQ(ChunkStateOf(ring_buffer_->LoadChunkStateWordAcquire(
+                ChunkIndex::FromIndex(0))),
+            ChunkState::kFree);
+
+  const auto& first = drainer_->first_rejections();
+  const auto& invalid =
+      first[static_cast<size_t>(Reason::kInvalidSizeEncoding)];
+  ASSERT_TRUE(invalid);
+  EXPECT_EQ(invalid->rejection.chunk_pos, 0u);
+  EXPECT_EQ(invalid->rejection.state_word, kWords[0]);
+  EXPECT_EQ(invalid->rejection.fragment_index, 250u);
+  EXPECT_EQ(invalid->rejection.payload_bytes, 0u);
+  EXPECT_EQ(invalid->rejection.directory_bytes, 250u);
+  EXPECT_EQ(invalid->time_ns, drainer_->last_drain().time_ns);
+  const auto& unsupported =
+      first[static_cast<size_t>(Reason::kUnsupportedFormat)];
+  ASSERT_TRUE(unsupported);
+  EXPECT_EQ(unsupported->rejection.chunk_pos, 1u);
+  EXPECT_EQ(unsupported->rejection.state_word, kWords[1]);
+  EXPECT_FALSE(first[static_cast<size_t>(Reason::kFragmentTooLarge)]);
+  EXPECT_FALSE(first[static_cast<size_t>(Reason::kPayloadOverlapsDirectory)]);
+}
+
+// Every trace buffer rejection reaches its own counter, and the totals still
+// account for every delivered chunk.
+TEST_F(ServiceRingBufferDrainerTest, TraceBufferRejectionsAreCounted) {
+  SharedRingBufferWriter writer =
+      MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
+  auto write_and_drain = [&](const std::string& value) {
+    ASSERT_TRUE(WriteFragment(&writer, Packet(value)));
+    writer.FinishCurrentChunk();
+    drainer_->Drain();
+  };
+
+  // A ProtoVM of the producer on the buffer.
+  delegate_.buffer->MaybeSetUpProtoVm("vm", "", 1024, kProducer);
+  write_and_drain("protovm");
+  EXPECT_EQ(drainer_->stats().trace_buffer_rejected_protovm, 1u);
+
+  // The writer ID already has a v1 sequence in the buffer.
+  delegate_.buffer = TraceBufferV2::Create(64 * 1024, TraceBuffer::kOverwrite);
+  const uint8_t v1_payload[] = {0x01, 0x00};
+  delegate_.buffer->CopyChunkUntrusted(
+      kProducer, ClientIdentity(1000, 1001), kWriter, /*chunk_id=*/0,
+      /*num_fragments=*/1, /*chunk_flags=*/0, /*chunk_complete=*/true,
+      v1_payload, sizeof(v1_payload));
+  write_and_drain("format conflict");
+  EXPECT_EQ(drainer_->stats().trace_buffer_rejected_format_conflict, 1u);
+
+  // A full DISCARD buffer.
+  delegate_.buffer = TraceBufferV2::Create(4096, TraceBuffer::kDiscard);
+  const std::string large(200, 'f');
+  for (int i = 0;
+       i < 64 && drainer_->stats().trace_buffer_rejected_buffer_full == 0;
+       ++i) {
+    write_and_drain(large);
+  }
+  EXPECT_GT(drainer_->stats().trace_buffer_rejected_buffer_full, 0u);
+  EXPECT_GT(drainer_->stats().chunks_admitted, 0u);
+
+  EXPECT_EQ(drainer_->stats().invalid_writer_chunks, 0u);
+  EXPECT_EQ(drainer_->stats().invalid_destination_chunks, 0u);
+  ExpectEveryDeliveredChunkAccounted();
 }
 
 TEST_F(ServiceRingBufferDrainerTest, ProtocolErrorIsAnAbiViolation) {
@@ -269,6 +405,16 @@ TEST_F(ServiceRingBufferDrainerTest, ProtocolErrorIsAnAbiViolation) {
 
   drainer_->Drain();
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 1u);
+  EXPECT_EQ(delegate_.protocol_errors, 1u);
+  EXPECT_EQ(drainer_->protocol_error_time_ns(), drainer_->last_drain().time_ns);
+  EXPECT_EQ(drainer_->last_drain().result,
+            SharedRingBufferReader::ConsumeResult::kProtocolError);
+  ASSERT_TRUE(drainer_->protocol_error());
+  EXPECT_STREQ(drainer_->protocol_error()->reason, "reserved chunk state");
+  EXPECT_EQ(drainer_->protocol_error()->state_word,
+            static_cast<uint32_t>(ChunkState::kReserved5));
+  EXPECT_EQ(drainer_->protocol_error()->read_pos, 0u);
+  EXPECT_EQ(drainer_->protocol_error()->write_pos, 1u);
 
   // The reader stays stopped. Later drains read and count nothing.
   ASSERT_TRUE(WriteFragment(&writer, Packet("ignored")));
@@ -277,7 +423,127 @@ TEST_F(ServiceRingBufferDrainerTest, ProtocolErrorIsAnAbiViolation) {
   task_runner_.RunUntilIdle();
   EXPECT_EQ(ReadPos(), 0u);
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 1u);
+  EXPECT_EQ(delegate_.protocol_errors, 1u);
+  EXPECT_EQ(drainer_->stats().drain_passes, 1u);
   EXPECT_TRUE(ReadPackets().empty());
+}
+
+TEST_F(ServiceRingBufferDrainerTest, WriteDumpCopiesHeaderAndStateWords) {
+  SharedRingBufferWriter writer =
+      MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, Packet("first")));
+  writer.FinishCurrentChunk();
+  drainer_->Drain();
+  // An open fragment keeps position 1 BeingWritten, so the dump shows a writer
+  // that holds it.
+  ASSERT_EQ(writer.BeginFragment(/*min_size=*/4, false).result,
+            SharedRingBufferWriter::BeginFragmentResult::kSuccess);
+
+  const size_t bound = drainer_->DumpSizeBound(
+      /*include_chunk_bytes=*/false, /*only_chunk_pos=*/std::nullopt);
+  const auto dump = WriteDump(/*include_chunk_bytes=*/false,
+                              /*only_chunk_pos=*/std::nullopt, bound);
+  ASSERT_TRUE(dump);
+
+  EXPECT_EQ(dump->chunk_size_bytes(), kChunkSize);
+  EXPECT_EQ(dump->num_chunks(), kNumChunks);
+  EXPECT_EQ(dump->reader_read_pos(), 1u);
+  EXPECT_EQ(dump->read_pos(), 1u);
+  EXPECT_EQ(dump->write_pos(), 2u);
+  EXPECT_EQ(dump->num_writers_waiting(), 0u);
+  ASSERT_EQ(dump->chunk_state_words().size(), kNumChunks);
+  EXPECT_EQ(ChunkStateOf(dump->chunk_state_words()[1]),
+            ChunkState::kBeingWritten);
+  EXPECT_FALSE(dump->has_chunk_bytes());
+  EXPECT_FALSE(dump->has_chunks());
+
+  // The state words are the required part. A smaller budget writes nothing.
+  EXPECT_FALSE(WriteDump(/*include_chunk_bytes=*/false,
+                         /*only_chunk_pos=*/std::nullopt, bound - 1));
+}
+
+TEST_F(ServiceRingBufferDrainerTest, WriteDumpCopiesAllChunkBytesThatFit) {
+  SharedRingBufferWriter writer =
+      MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, Packet("first")));
+  writer.FinishCurrentChunk();
+
+  const size_t bound =
+      drainer_->DumpSizeBound(/*include_chunk_bytes=*/true, std::nullopt);
+  const auto dump =
+      WriteDump(/*include_chunk_bytes=*/true, std::nullopt, bound);
+  ASSERT_TRUE(dump);
+  EXPECT_EQ(dump->chunk_bytes(),
+            protos::gen::TracingV2RingBufferDump::CHUNK_BYTES_ALL);
+  ASSERT_EQ(dump->chunks().size(), size_t{kNumChunks} * kChunkSize);
+  EXPECT_TRUE(dump->chunk_byte_indexes().empty());
+  // Each chunk starts with its state word.
+  uint32_t word = 0;
+  memcpy(&word, dump->chunks().data(), sizeof(word));
+  EXPECT_EQ(word, dump->chunk_state_words()[0]);
+}
+
+// When not all chunk bytes fit, the dump keeps the chunk at the reader
+// position, then the chunks that are not Free, and lists them.
+TEST_F(ServiceRingBufferDrainerTest, WriteDumpSelectsChunksWithinBudget) {
+  SharedRingBufferWriter first =
+      MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
+  ASSERT_TRUE(WriteFragment(&first, Packet("drained")));
+  first.FinishCurrentChunk();
+  drainer_->Drain();
+  // Positions 1 and 2 are Complete. Chunks 3 and 0 are Free.
+  SharedRingBufferWriter second =
+      MakeWriter(ring_buffer_.get(), kWriter + 1, kBuffer);
+  ASSERT_TRUE(WriteFragment(&first, Packet("complete")));
+  first.FinishCurrentChunk();
+  ASSERT_TRUE(WriteFragment(&second, Packet("held")));
+
+  // Room for the state words and two chunks.
+  const size_t required = drainer_->DumpSizeBound(false, std::nullopt);
+  const size_t two_chunks = required + 2 * 7 + 2 * (kChunkSize + 5);
+  auto dump = WriteDump(/*include_chunk_bytes=*/true, std::nullopt, two_chunks);
+  ASSERT_TRUE(dump);
+  EXPECT_EQ(dump->chunk_bytes(),
+            protos::gen::TracingV2RingBufferDump::CHUNK_BYTES_SELECTED);
+  EXPECT_EQ(dump->chunk_byte_indexes(), (std::vector<uint32_t>{1, 2}));
+  EXPECT_EQ(dump->chunks().size(), 2u * kChunkSize);
+  EXPECT_EQ(dump->chunk_bytes_omitted(), kNumChunks - 2);
+  // The state words still cover every chunk.
+  EXPECT_EQ(dump->chunk_state_words().size(), kNumChunks);
+
+  // Room for the state words only.
+  dump = WriteDump(/*include_chunk_bytes=*/true, std::nullopt, required);
+  ASSERT_TRUE(dump);
+  EXPECT_EQ(dump->chunk_bytes(),
+            protos::gen::TracingV2RingBufferDump::CHUNK_BYTES_OMITTED);
+  EXPECT_FALSE(dump->has_chunks());
+  EXPECT_EQ(dump->chunk_bytes_omitted(), kNumChunks);
+}
+
+// A rejected chunk record keeps the facts of the failed decode.
+TEST_F(ServiceRingBufferDrainerTest, RejectionRecordsDecoderFacts) {
+  using Reason = SharedRingBufferReader::ChunkRejection::Reason;
+  // Two fragments. Size entry 0 says 100 bytes. Size entry 1 has a
+  // continuation bit in every byte, so it is longer than four bytes.
+  const uint32_t chunk_pos = ring_buffer_->TryReserveWritePos().chunk_pos;
+  uint8_t* chunk = ring_buffer_->chunk_at(ChunkIndex::FromIndex(0));
+  chunk[kChunkSize - 1] = 100;
+  memset(&chunk[kChunkSize - 6], 0x80, 5);
+  const uint32_t word = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 2, kWriter);
+  Internals::SetChunkStateWord(ring_buffer_.get(), ChunkIndex::FromIndex(0),
+                               word);
+
+  drainer_->Drain();
+
+  ASSERT_EQ(delegate_.rejections.size(), 1u);
+  const auto& rejection = delegate_.rejections[0];
+  EXPECT_EQ(rejection.reason, Reason::kInvalidSizeEncoding);
+  EXPECT_EQ(rejection.chunk_pos, chunk_pos);
+  EXPECT_EQ(rejection.state_word, word);
+  EXPECT_EQ(rejection.fragment_index, 1u);
+  EXPECT_EQ(rejection.payload_bytes, 100u);
+  EXPECT_EQ(rejection.directory_bytes, 1u);
 }
 
 TEST_F(ServiceRingBufferDrainerTest, LostRacesPostOneDelayedRetry) {

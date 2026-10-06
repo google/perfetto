@@ -134,8 +134,13 @@ class TraceBuffer_WriterStats {
  public:
   using WriterBuckets =
       Histogram<8, 32, 128, 512, 1024, 2048, 4096, 8192, 12288, 16384>;
+  struct Entry {
+    WriterBuckets chunk_payload;
+    // The ProtocolAbiVersion bits of the writer's chunks.
+    uint32_t protocol_abi_versions = 0;
+  };
   using WriterStatsMap = base::FlatHashMap<ProducerAndWriterID,
-                                           WriterBuckets,
+                                           Entry,
                                            std::hash<ProducerAndWriterID>,
                                            base::QuadraticProbe,
                                            /*AppendOnly=*/true>;
@@ -153,8 +158,13 @@ class TraceBuffer_WriterStats {
     return *this;
   }
 
-  void Insert(ProducerAndWriterID key, HistValue val) {
-    map_.Insert(key, {}).first->Add(val);
+  // |protocol_abi_version|: the ProtocolAbiVersion that carried the chunk.
+  void Insert(ProducerAndWriterID key,
+              HistValue val,
+              uint32_t protocol_abi_version) {
+    Entry* entry = map_.Insert(key, {}).first;
+    entry->chunk_payload.Add(val);
+    entry->protocol_abi_versions |= protocol_abi_version;
   }
 
   WriterStatsMap::Iterator GetIterator() const { return map_.GetIterator(); }

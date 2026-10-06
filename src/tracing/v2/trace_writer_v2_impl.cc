@@ -40,33 +40,6 @@ namespace {
 constexpr uint32_t kMinFragmentPayloadSize =
     static_cast<uint32_t>(protozero::proto_utils::kMaxSimpleFieldEncodedSize);
 
-// Ring buffer occupancy at which a publication asks for a drain: the
-// percentage of ring buffer positions that are outstanding.
-// Used when drain_occupancy_percent is 0 or absent.
-constexpr uint32_t kDefaultDrainOccupancyPercent = 25;
-
-// Returns the drain threshold, in positions, for a ring buffer of
-// |num_chunks| chunks.
-// |drain_occupancy_percent| must be -1 to 100:
-// - -1: 1, so a writer asks for a drain after every publication.
-// - 0: 25% of |num_chunks|.
-// - 1 to 100: that percent of |num_chunks|.
-// The result is at least 1.
-uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks,
-                                        int32_t drain_occupancy_percent) {
-  PERFETTO_DCHECK(drain_occupancy_percent >= -1 &&
-                  drain_occupancy_percent <= 100);
-  if (drain_occupancy_percent == -1)
-    return 1;
-  const uint64_t percent = drain_occupancy_percent == 0
-                               ? kDefaultDrainOccupancyPercent
-                               : static_cast<uint64_t>(drain_occupancy_percent);
-  const uint64_t threshold = uint64_t{num_chunks} * percent / 100;
-  // For small ring buffers, integer division can round the threshold down to
-  // zero.
-  return std::max(1u, static_cast<uint32_t>(threshold));
-}
-
 // Each wait for space requests at most this time. A wait can end early, for
 // example when the reader moves read_pos.
 // SharedRingBufferWriter::WaitForReadPosChange() states the exact guarantees.
@@ -90,6 +63,11 @@ constexpr uint32_t kMaxWaitMs = 100;
 // in SharedMemoryArbiterImpl::GetNewChunk().
 constexpr uint32_t kStallTimeoutMs = 30000;
 
+// A writer adds the first dropped packet of a drop mode episode to the ring
+// buffer header at once. It adds later ones in batches of this size.
+// See TraceWriterV2Impl::unpublished_dropped_packets_.
+constexpr uint64_t kDroppedPacketsBatch = 64;
+
 // Drop mode writes go here, so the data source can finish the packet. Nobody
 // reads it.
 // - All writers of the process share it, as v1 writers share
@@ -110,9 +88,7 @@ TraceWriterV2Impl::TraceWriterV2Impl(
                           id,
                           target_buffer),
       buffer_exhausted_policy_(policy),
-      drain_occupancy_threshold_(ComputeDrainOccupancyThreshold(
-          ring_buffer_arbiter->ring_buffer()->num_chunks(),
-          ring_buffer_arbiter->drain_occupancy_percent())),
+      drain_occupancy_threshold_(ring_buffer_arbiter->drain_threshold()),
       process_id_(base::GetProcessId()),
       stream_writer_(this),
       cur_packet_(std::make_unique<
@@ -172,6 +148,7 @@ void TraceWriterV2Impl::Flush(std::function<void()> callback) {
   // reservations.
   ring_buffer_writer_.FinishCurrentChunk();
   stream_writer_.Reset({nullptr, nullptr});
+  PublishDroppedPackets();
   ring_buffer_arbiter_->Flush(std::move(callback));
 }
 
@@ -218,13 +195,19 @@ void TraceWriterV2Impl::EnsurePacketClosed() {
 
 protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragment(
     bool continues_from_prev) {
-  std::optional<base::TimeMillis> stall_deadline;
+  std::optional<Stall> stall;
   for (;;) {
     const auto range = ring_buffer_writer_.BeginFragment(
         kMinFragmentPayloadSize, continues_from_prev);
     if (range.result == SharedRingBufferWriter::BeginFragmentResult::kSuccess) {
+      FinishStall(&stall);
       fragment_begin_ = range.begin;
-      in_drop_mode_ = false;
+      // The drop mode episode ends. Publish the rest of its count now, so an
+      // idle or crashed writer does not hide it.
+      if (PERFETTO_UNLIKELY(in_drop_mode_)) {
+        PublishDroppedPackets();
+        in_drop_mode_ = false;
+      }
       return {range.begin, range.end};
     }
     // Every valid chunk size holds kMinFragmentPayloadSize.
@@ -234,7 +217,7 @@ protozero::ContiguousMemoryRange TraceWriterV2Impl::BeginPacketFragment(
     const bool claim_failed =
         range.result ==
         SharedRingBufferWriter::BeginFragmentResult::kClaimFailed;
-    if (!TryStallForSpace(claim_failed, &stall_deadline)) {
+    if (!TryStallForSpace(claim_failed, &stall)) {
       EnterDropMode();
       return GetDropBuffer();
     }
@@ -259,13 +242,13 @@ void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
   // until the policy lets the writer try again or drop it.
   SharedRingBufferWriter::EndFragmentResult result =
       ring_buffer_writer_.EndFragment(used, continues_on_next);
-  // The stall deadline of the current replacement acquisition. It starts at
-  // the first wait after EndFragment() returns.
-  std::optional<base::TimeMillis> stall_deadline;
+  // The current replacement acquisition. It starts at the first wait after
+  // EndFragment() returns.
+  std::optional<Stall> stall;
   while (result != SharedRingBufferWriter::EndFragmentResult::kSuccess) {
     const bool claim_failed =
         result == SharedRingBufferWriter::EndFragmentResult::kClaimFailed;
-    if (!TryStallForSpace(claim_failed, &stall_deadline)) {
+    if (!TryStallForSpace(claim_failed, &stall)) {
       // Discard the saved fragment and the rest of the packet.
       ring_buffer_writer_.DropRelocation();
       EnterDropMode();
@@ -273,10 +256,10 @@ void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
     }
     const auto retry = ring_buffer_writer_.RetryRelocation();
     // A claimed replacement ends the current acquisition, even if the reader
-    // then took it before publication. The next acquisition gets its own
-    // deadline at its first wait. Retries without a claim keep the deadline.
+    // then took it before publication. The next acquisition starts at its own
+    // first wait, with its own deadline. Retries without a claim keep it.
     if (retry.acquired_replacement)
-      stall_deadline.reset();
+      FinishStall(&stall);
     result = retry.result;
   }
 
@@ -292,9 +275,8 @@ void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
   }
 }
 
-bool TraceWriterV2Impl::TryStallForSpace(
-    bool claim_failed,
-    std::optional<base::TimeMillis>* stall_deadline) {
+bool TraceWriterV2Impl::TryStallForSpace(bool claim_failed,
+                                         std::optional<Stall>* stall) {
   // While a loss waits for its report, kStallThenDrop acts as kDrop.
   // Otherwise each dropped packet can cost another full timeout.
   //
@@ -313,12 +295,16 @@ bool TraceWriterV2Impl::TryStallForSpace(
   uint32_t time_left_ms = 0;
   if (can_stall && ring_buffer_arbiter_->IsReaderAttached()) {
     const base::TimeMillis now = get_time_ms_();
-    if (!stall_deadline->has_value())
-      *stall_deadline = now + base::TimeMillis(kStallTimeoutMs);
-    const base::TimeMillis deadline = **stall_deadline;
+    if (!stall->has_value())
+      *stall = Stall{now, now + base::TimeMillis(kStallTimeoutMs)};
+    const base::TimeMillis deadline = (*stall)->deadline;
     if (now < deadline) {
       time_left_ms = static_cast<uint32_t>((deadline - now).count());
     } else if (buffer_exhausted_policy_ == BufferExhaustedPolicy::kStall) {
+      // Record the stall and the failure first. traced keeps its own mapping
+      // of the ring buffer, so it still reads both after the abort.
+      FinishStall(stall);
+      ring_buffer_writer_.RecordStallTimeout();
       PERFETTO_FATAL(
           "tracing v2: writer %u could not acquire a chunk for %u ms: "
           "possible deadlock",
@@ -326,8 +312,9 @@ bool TraceWriterV2Impl::TryStallForSpace(
     }
   }
 
-  // Every drop takes this exit.
+  // Every drop takes this exit. It also ends the stall, if one started.
   if (time_left_ms == 0) {
+    FinishStall(stall);
     // Failed claims left reserved positions that only the reader can move
     // past. Until it does, they block the reservations of all writers. An
     // earlier drain does not cover positions reserved after it.
@@ -357,14 +344,42 @@ bool TraceWriterV2Impl::TryStallForSpace(
   return true;
 }
 
+void TraceWriterV2Impl::FinishStall(std::optional<Stall>* stall) {
+  if (!stall->has_value())
+    return;
+  const base::TimeMillis duration = get_time_ms_() - (*stall)->start;
+  ring_buffer_arbiter_->ring_buffer()->RecordStall(
+      static_cast<uint64_t>(duration.count()));
+  stall->reset();
+}
+
 void TraceWriterV2Impl::EnterDropMode() {
   fragment_begin_ = nullptr;
-  // Consecutive dropped packets count as one drop.
-  if (in_drop_mode_)
+  // Each call loses one packet, fully or in part. This is the only place that
+  // counts dropped packets.
+  ++unpublished_dropped_packets_;
+  if (in_drop_mode_) {
+    // A later packet of the same episode. Publish in batches.
+    if (unpublished_dropped_packets_ == kDroppedPacketsBatch)
+      PublishDroppedPackets();
     return;
+  }
+
+  // The first packet of a new episode. Consecutive dropped packets count as
+  // one drop. Publish at once, so the loss is visible even if the process
+  // crashes before the episode ends.
   in_drop_mode_ = true;
   ++drop_count_;
   ring_buffer_writer_.RecordDataLoss();
+  PublishDroppedPackets();
+}
+
+void TraceWriterV2Impl::PublishDroppedPackets() {
+  if (!unpublished_dropped_packets_)
+    return;
+  ring_buffer_arbiter_->ring_buffer()->AddDroppedPackets(
+      unpublished_dropped_packets_);
+  unpublished_dropped_packets_ = 0;
 }
 
 protozero::ContiguousMemoryRange TraceWriterV2Impl::GetDropBuffer() {

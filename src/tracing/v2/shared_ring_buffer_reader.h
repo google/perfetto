@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -85,6 +86,43 @@ class SharedRingBufferReader {
     // Delegate call.
     const protozero::ConstBytes* fragments = nullptr;
     uint32_t num_fragments = 0;
+    // The sum of the fragment sizes, without the size directory.
+    uint32_t payload_size = 0;
+  };
+
+  // A chunk that the reader discarded as malformed or in an unknown format.
+  // It describes the attempt whose state transition succeeded. Failed CAS
+  // attempts are retries and produce no record.
+  struct ChunkRejection {
+    // TraceStats.TracingV2.ChunkRejection.Reason has these values + 1, because
+    // its 0 is REASON_UNSPECIFIED. Change both together.
+    enum class Reason {
+      // The format bits name a format that this reader cannot decode.
+      kUnsupportedFormat,
+      // A size entry is truncated, or longer than kMaxFragmentSizeVarIntBytes.
+      kInvalidSizeEncoding,
+      // A fragment does not fit in the payload capacity of the chunk.
+      kFragmentTooLarge,
+      // The payload ends after the start of the size directory.
+      kPayloadOverlapsDirectory,
+    };
+    static constexpr size_t kNumReasons =
+        static_cast<size_t>(Reason::kPayloadOverlapsDirectory) + 1;
+    Reason reason = Reason::kUnsupportedFormat;
+    uint32_t chunk_pos = 0;
+    // The word that the reader decoded, before its own transition replaced it.
+    uint32_t state_word = 0;
+    // For the malformed reasons:
+    // - fragment_index: the fragment whose size entry failed. For
+    //   kPayloadOverlapsDirectory, the number of fragments.
+    // - payload_bytes: the decoded sizes up to and including that fragment.
+    //   kInvalidSizeEncoding excludes the fragment, which has no size.
+    // - directory_bytes: the size directory bytes before the failed entry.
+    //   For kPayloadOverlapsDirectory, the whole directory.
+    // Payload capacity is chunk_size - kTargetBufferPayloadOffset.
+    uint32_t fragment_index = 0;
+    uint32_t payload_bytes = 0;
+    uint32_t directory_bytes = 0;
   };
 
   struct DrainResult {
@@ -120,6 +158,18 @@ class SharedRingBufferReader {
     // - Later fragments in that chunk can start complete, valid packets.
     //   Deliver those packets and report the gap on the first one.
     virtual void OnDataLoss(WriterID) = 0;
+
+    // Called before OnDataLoss() when the reader discards a chunk as
+    // malformed or in an unknown format. The record is valid only for this
+    // call.
+    // - The reader's transition already replaced the state word. The record
+    //   keeps the word that the reader decoded.
+    // - Until Drain() publishes read_pos, no other reservation can claim the
+    //   chunk. If the chunk was BeingWritten, its owner can still write it.
+    //   So bytes that the delegate copies now are a later sample, which can
+    //   differ from the bytes that the reader decoded.
+    // The default does nothing.
+    virtual void OnChunkRejected(const ChunkRejection&);
   };
 
   SharedRingBufferReader(SharedRingBuffer* ring, Delegate* delegate);
@@ -142,18 +192,41 @@ class SharedRingBufferReader {
   // This lets other tasks run between passes over a large ring buffer.
   DrainResult Drain(uint32_t max_positions);
 
-  bool has_protocol_error() const { return has_protocol_error_; }
+  // Why the reader stopped. Set once, by the first protocol error.
+  struct ProtocolError {
+    // Names the failed check. A string literal.
+    const char* reason = nullptr;
+    // The state word of the chunk at |read_pos|. Zero if the check was on
+    // the positions.
+    uint32_t state_word = 0;
+    uint32_t read_pos = 0;
+    // The write_pos that the reader loaded for this position.
+    uint32_t write_pos = 0;
+  };
+  bool has_protocol_error() const { return protocol_error_.has_value(); }
+  const std::optional<ProtocolError>& protocol_error() const {
+    return protocol_error_;
+  }
   uint32_t read_pos() const { return read_pos_; }
 
   // For diagnostics only. The protocol never reads these counters.
-  // TODO(sashwinbalaji): Wire these counters into service statistics.
+  // The service reports some of them in TraceStats.tracing_v2.
   struct Stats {
     uint64_t positions_skipped = 0;
     // Successful BeingWritten -> RewriteRequested transitions.
     uint64_t rewrite_requests = 0;
+    // OnChunkRead() calls. The reader counts each one before the call.
     uint64_t chunks_read = 0;
+    // Chunks discarded with an OnChunkRejected() call. They never reach
+    // OnChunkRead().
     uint64_t malformed_chunks = 0;
     uint64_t unsupported_format_chunks = 0;
+    // Chunks that the writer flagged with kFlagDataLoss. Each one is a loss
+    // report to the delegate.
+    uint64_t data_loss_chunks = 0;
+    // Holes: reservations that no writer filled. Their chunk was Free, or
+    // another writer still held it. A subset of |positions_skipped|.
+    uint64_t holes = 0;
   };
   Stats GetStats() const { return stats_; }
 
@@ -174,6 +247,8 @@ class SharedRingBufferReader {
   // Validates and copies the published fragments.
   // Skips payload access if kFlagDataLoss is set. Otherwise validates sizes
   // and format before copying.
+  // On kMalformed and kUnsupportedFormat, fills the reason and decoder facts
+  // of |rejection_|.
   // The caller handles ownership before reporting any data loss.
   CopiedChunkStatus CopyPublishedFragments(ChunkIndex chunk_idx,
                                            uint32_t state_word);
@@ -181,11 +256,14 @@ class SharedRingBufferReader {
   // Called only after winning the position's compare-and-swap.
   // Delivers valid, unflagged fragments to the delegate. Reports discarded
   // chunks as loss.
-  ConsumeResult HandleCopiedChunk(CopiedChunkStatus);
+  // |state_word|: the word that CopyPublishedFragments() decoded.
+  ConsumeResult HandleCopiedChunk(CopiedChunkStatus, uint32_t state_word);
 
   // Latches the error and logs |reason| once, together with the position and
   // the offending word. read_pos is not advanced.
-  ConsumeResult StopOnProtocolError(const char* reason, uint32_t state_word);
+  ConsumeResult StopOnProtocolError(const char* reason,
+                                    uint32_t state_word,
+                                    uint32_t write_pos);
 
   SharedRingBuffer* const ring_;
   Delegate* const delegate_;
@@ -194,7 +272,7 @@ class SharedRingBufferReader {
 
   // The reader owns this value and publishes it once per Drain().
   uint32_t read_pos_ = 0;
-  bool has_protocol_error_ = false;
+  std::optional<ProtocolError> protocol_error_;
 
   // Test callback, called just before the reader's chunk-state CAS.
   // - The reader has loaded the state and copied any readable fragments.
@@ -222,6 +300,11 @@ class SharedRingBufferReader {
 
   // Chunk metadata and a view of copied_fragments_ passed to OnChunkRead().
   ChunkContents copied_chunk_;
+
+  // The decoder facts of the last attempt that found a malformed or
+  // unsupported chunk. Passed to OnChunkRejected() only if that attempt's
+  // transition succeeded.
+  ChunkRejection rejection_;
 
   Stats stats_;
 };
