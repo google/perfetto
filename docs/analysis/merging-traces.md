@@ -106,7 +106,8 @@ timelines:
 - Machine-wide counters (CPU/GPU frequency and limits, CPU idle, entity state,
   battery counters): each counter track (for example CPU 2 frequency or
   battery charge) is owned by the first file to write a value to it, until
-  that file's data for it ends. Then the next trace to write it takes over.
+  that file's data for it ends. Then another file takes over, starting with
+  its last dropped value.
 
 Other data in the other files (e.g. app slices, logs) is still imported.
 Dropped events are recorded in the `machine_counter_claim_conflict` and

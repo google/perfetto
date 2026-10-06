@@ -59,8 +59,14 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
 std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
                                                    double value,
                                                    TrackId track_id) {
-  if (PERFETTO_UNLIKELY(!MachineDataClaimTracker::KeepCounter(
-          context_, track_id, timestamp))) {
+  std::vector<MachineDataClaimTracker::ExpiredCounter> expired;
+  bool keep = MachineDataClaimTracker::KeepCounter(context_, track_id,
+                                                   timestamp, value, &expired);
+  for (const auto& exp : expired) {
+    context_->storage->mutable_counter_table()->Insert(
+        {timestamp, exp.track, exp.value, {}});
+  }
+  if (PERFETTO_UNLIKELY(!keep)) {
     return std::nullopt;
   }
   auto* counters = context_->storage->mutable_counter_table();

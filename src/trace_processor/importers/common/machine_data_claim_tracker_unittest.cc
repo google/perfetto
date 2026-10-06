@@ -393,8 +393,10 @@ TEST_F(MachineDataClaimTrackerTest, SchedLeasesDropAndHandover) {
             1);
 }
 
-// Counter track handover: write after owner lease end becomes new owner.
-TEST_F(MachineDataClaimTrackerTest, CounterHandoverAfterLease) {
+// When expiry is triggered by a write on the same track, the incoming write
+// supersedes any cached value and no extra row is emitted.
+TEST_F(MachineDataClaimTrackerTest,
+       CounterExpiryTriggeredBySameTrackNoExtraRow) {
   TrackId freq_track = context1.track_tracker->InternTrack(
       tracks::kCpuFrequencyBlueprint, tracks::Dimensions(0));
 
@@ -414,12 +416,13 @@ TEST_F(MachineDataClaimTrackerTest, CounterHandoverAfterLease) {
   EXPECT_TRUE(
       context1.event_tracker->PushCounter(1000, 100.0, freq_track).has_value());
 
-  // Trace 2 pushes at 1500; dropped inside Trace 1 lease.
+  // Trace 2 pushes at 1500; dropped inside Trace 1 lease and cached.
   EXPECT_FALSE(
       context2.event_tracker->PushCounter(1500, 200.0, freq_track).has_value());
 
-  // At ts 2500, Trace 2 writes to freq_track after Trace 1's lease end (2000)
-  // -> handover!
+  // At ts 2500, Trace 2 writes to the SAME freq_track.
+  // The incoming write (300.0) supersedes the cached value (200.0), so only
+  // 300.0 is inserted (no duplicate row at ts 2500).
   EXPECT_TRUE(
       context2.event_tracker->PushCounter(2500, 300.0, freq_track).has_value());
 
@@ -428,7 +431,7 @@ TEST_F(MachineDataClaimTrackerTest, CounterHandoverAfterLease) {
             std::make_optional(TraceId{1}));
 
   // Verify counter table on freq_track has exactly two rows: ts 1000 (100.0)
-  // and ts 2500 (300.0).
+  // and ts 2500 (300.0). No row with value 200.0.
   const auto& counter_table = context1.storage->counter_table();
   size_t freq_rows = 0;
   for (auto it = counter_table.IterateRows(); it; ++it) {

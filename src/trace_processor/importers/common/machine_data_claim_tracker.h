@@ -57,8 +57,10 @@ namespace perfetto::trace_processor {
 //    first drop per trace (and counter type) is also in the import logs.
 //  - Another trace's write after the owner's lease makes it the new owner.
 //    For scheduling, the old owner's open slices and thread states are closed
-//    at its lease end through its own trackers. For a counter track, the next
-//    trace to write it takes over.
+//    at its lease end through its own trackers. For a counter track whose
+//    lease ended, the trace that wrote the last dropped value takes over and
+//    that value is written at the current timestamp, unless the current write
+//    is to that track.
 //  - Wakeups, new-task runnable states and blocked reasons never claim. While
 //    another trace owns scheduling they are dropped. Before anyone owns it,
 //    they are dropped only if an earlier-starting trace's sched events cover
@@ -117,6 +119,11 @@ class MachineDataClaimTracker {
   static constexpr uint32_t kSourceDumpstateBattery =
       1u << static_cast<uint8_t>(SourceKind::kDumpstateBattery);
 
+  struct ExpiredCounter {
+    TrackId track;
+    double value;
+  };
+
   explicit MachineDataClaimTracker(TraceProcessorContext* context);
   ~MachineDataClaimTracker();
   MachineDataClaimTracker(const MachineDataClaimTracker&) = delete;
@@ -157,9 +164,12 @@ class MachineDataClaimTracker {
   void RegisterMachineTrack(TrackId track_id, std::string_view type);
 
   // Checks whether counter sample on |track| should be kept.
-  PERFETTO_ALWAYS_INLINE static bool KeepCounter(TraceProcessorContext* caller,
-                                                 TrackId track,
-                                                 int64_t ts) {
+  PERFETTO_ALWAYS_INLINE static bool KeepCounter(
+      TraceProcessorContext* caller,
+      TrackId track,
+      int64_t ts,
+      double value = 0.0,
+      std::vector<ExpiredCounter>* expired_out = nullptr) {
     auto* self = caller->machine_data_claim_tracker.get();
     if (PERFETTO_UNLIKELY(!self)) {
       return true;
@@ -174,10 +184,11 @@ class MachineDataClaimTracker {
     TraceId trace_id = caller->trace_state ? caller->trace_state->trace_id
                                            : caller->trace_id();
     if (PERFETTO_LIKELY(claim.owner == trace_id &&
-                        ts <= claim.owner_lease_end)) {
+                        ts <= self->earliest_pending_owner_lease_end_)) {
       return true;
     }
-    return self->KeepCounterSlow(caller, track, ts, trace_id);
+    return self->KeepCounterSlow(caller, track, ts, value, trace_id,
+                                 expired_out);
   }
 
   // Checks whether scheduling event should be kept.
@@ -251,6 +262,13 @@ class MachineDataClaimTracker {
     uint32_t source_mask = 0;
     std::optional<TraceId> owner;
     int64_t owner_lease_end = std::numeric_limits<int64_t>::min();
+
+    struct DroppedEntry {
+      TraceId trace_id;
+      double value;
+      int64_t ts;
+    };
+    std::vector<DroppedEntry> dropped_entries;
   };
 
   PERFETTO_ALWAYS_INLINE void NoteDataImpl(TraceProcessorContext* context,
@@ -287,6 +305,9 @@ class MachineDataClaimTracker {
   int64_t SchedLeaseEnd(TraceId trace_id) const;
   int64_t CounterLeaseEnd(TraceId trace_id, uint32_t source_mask) const;
 
+  void ProcessExpiredCounterTracks(int64_t current_ts,
+                                   TrackId current_track,
+                                   std::vector<ExpiredCounter>* expired_out);
   void CloseOpenRowsForSched(TraceId old_owner, int64_t close_ts);
   std::optional<TraceId> EarlierSchedTraceCovering(TraceId trace_id,
                                                    int64_t ts) const;
@@ -294,11 +315,14 @@ class MachineDataClaimTracker {
                        TraceId trace_id,
                        int64_t ts,
                        TraceId owner_id);
+  static void EraseOwnerFromDropped(TrackClaim& claim, TraceId owner);
 
   bool KeepCounterSlow(TraceProcessorContext* caller,
                        TrackId track,
                        int64_t ts,
-                       TraceId trace_id);
+                       double value,
+                       TraceId trace_id,
+                       std::vector<ExpiredCounter>* expired_out);
   bool KeepSchedSlow(TraceProcessorContext* caller,
                      SchedEventKind kind,
                      int64_t ts,
@@ -320,6 +344,9 @@ class MachineDataClaimTracker {
 
   std::optional<TraceId> sched_owner_;
 
+  int64_t earliest_pending_owner_lease_end_ =
+      std::numeric_limits<int64_t>::max();
+  std::vector<TrackId> registered_machine_tracks_;
   std::vector<TrackClaim> track_claims_;
 
   std::vector<TraceId> sched_dropped_traces_;

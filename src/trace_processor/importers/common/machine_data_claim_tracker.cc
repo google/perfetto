@@ -184,6 +184,8 @@ void MachineDataClaimTracker::RegisterMachineTrack(TrackId track_id,
   claim.is_machine_track = true;
   claim.type_id = context_->storage->InternString(type);
 
+  registered_machine_tracks_.push_back(track_id);
+
   uint32_t mask = 0;
   if (type == "cpu_frequency") {
     mask = kSourceFtrace | kSourceSysStats | kSourceGenericKernel |
@@ -217,12 +219,94 @@ void MachineDataClaimTracker::CloseOpenRowsForSched(TraceId old_owner,
   }
 }
 
-bool MachineDataClaimTracker::KeepCounterSlow(TraceProcessorContext* caller,
-                                              TrackId track,
-                                              int64_t ts,
-                                              TraceId trace_id) {
+void MachineDataClaimTracker::EraseOwnerFromDropped(TrackClaim& claim,
+                                                    TraceId owner) {
+  auto it =
+      std::find_if(claim.dropped_entries.begin(), claim.dropped_entries.end(),
+                   [owner](const TrackClaim::DroppedEntry& e) {
+                     return e.trace_id == owner;
+                   });
+  if (it != claim.dropped_entries.end()) {
+    claim.dropped_entries.erase(it);
+  }
+}
+
+void MachineDataClaimTracker::ProcessExpiredCounterTracks(
+    int64_t current_ts,
+    TrackId current_track,
+    std::vector<ExpiredCounter>* expired_out) {
+  if (current_ts <= earliest_pending_owner_lease_end_) {
+    return;
+  }
+  int64_t next_earliest = std::numeric_limits<int64_t>::max();
+  for (TrackId reg_track : registered_machine_tracks_) {
+    size_t track_idx = reg_track.value;
+    auto& claim = track_claims_[track_idx];
+    if (!claim.is_machine_track || !claim.owner.has_value()) {
+      continue;
+    }
+    if (claim.owner_lease_end < current_ts) {
+      // If expiry affects the track currently being written, skip cached
+      // successor logic and let the normal path below claim it for the writer.
+      if (track_idx == current_track.value) {
+        claim.owner.reset();
+        claim.owner_lease_end = std::numeric_limits<int64_t>::min();
+        continue;
+      }
+
+      // Owner lease has expired. Search dropped cache for successor.
+      size_t best_idx = std::numeric_limits<size_t>::max();
+      for (size_t i = 0; i < claim.dropped_entries.size(); ++i) {
+        const auto& entry = claim.dropped_entries[i];
+        int64_t candidate_lease =
+            CounterLeaseEnd(entry.trace_id, claim.source_mask);
+        if (candidate_lease >= current_ts) {
+          if (best_idx == std::numeric_limits<size_t>::max() ||
+              entry.ts > claim.dropped_entries[best_idx].ts ||
+              (entry.ts == claim.dropped_entries[best_idx].ts &&
+               entry.trace_id < claim.dropped_entries[best_idx].trace_id)) {
+            best_idx = i;
+          }
+        }
+      }
+      if (best_idx != std::numeric_limits<size_t>::max()) {
+        auto best = claim.dropped_entries[best_idx];
+        claim.dropped_entries.erase(claim.dropped_entries.begin() +
+                                    static_cast<ptrdiff_t>(best_idx));
+        // Only emit if current_ts > cached ts to keep counter table ts-sorted.
+        if (current_ts > best.ts && expired_out) {
+          expired_out->push_back(
+              {TrackId{static_cast<uint32_t>(track_idx)}, best.value});
+        }
+        claim.owner = best.trace_id;
+        claim.owner_lease_end =
+            CounterLeaseEnd(best.trace_id, claim.source_mask);
+        next_earliest = std::min(next_earliest, claim.owner_lease_end);
+      } else {
+        // No cached successor: track becomes unowned.
+        claim.owner.reset();
+        claim.owner_lease_end = std::numeric_limits<int64_t>::min();
+      }
+    } else {
+      next_earliest = std::min(next_earliest, claim.owner_lease_end);
+    }
+  }
+  earliest_pending_owner_lease_end_ = next_earliest;
+}
+
+bool MachineDataClaimTracker::KeepCounterSlow(
+    TraceProcessorContext* caller,
+    TrackId track,
+    int64_t ts,
+    double value,
+    TraceId trace_id,
+    std::vector<ExpiredCounter>* expired_out) {
   if (PERFETTO_UNLIKELY(!trace_contexts_.Find(trace_id))) {
     trace_contexts_[trace_id] = caller;
+  }
+
+  if (ts > earliest_pending_owner_lease_end_) {
+    ProcessExpiredCounterTracks(ts, track, expired_out);
   }
   PERFETTO_DCHECK(track.value < track_claims_.size());
   auto& claim = track_claims_[track.value];
@@ -233,6 +317,9 @@ bool MachineDataClaimTracker::KeepCounterSlow(TraceProcessorContext* caller,
   if (!claim.owner.has_value()) {
     claim.owner = trace_id;
     claim.owner_lease_end = CounterLeaseEnd(trace_id, claim.source_mask);
+    earliest_pending_owner_lease_end_ =
+        std::min(earliest_pending_owner_lease_end_, claim.owner_lease_end);
+    EraseOwnerFromDropped(claim, trace_id);
     return true;
   }
 
@@ -240,40 +327,55 @@ bool MachineDataClaimTracker::KeepCounterSlow(TraceProcessorContext* caller,
     return true;
   }
 
-  if (ts > claim.owner_lease_end) {
-    // Handover after owner lease end: incoming write becomes the new owner.
-    claim.owner = trace_id;
-    claim.owner_lease_end = CounterLeaseEnd(trace_id, claim.source_mask);
-    return true;
-  }
+  if (ts <= claim.owner_lease_end) {
+    // Cache last dropped value and ts for this trace.
+    auto it =
+        std::find_if(claim.dropped_entries.begin(), claim.dropped_entries.end(),
+                     [trace_id](const TrackClaim::DroppedEntry& e) {
+                       return e.trace_id == trace_id;
+                     });
+    if (it != claim.dropped_entries.end()) {
+      it->value = value;
+      it->ts = ts;
+    } else {
+      claim.dropped_entries.push_back({trace_id, value, ts});
+    }
 
-  // Drop inside owner's lease.
-  auto dropped_key = std::make_pair(trace_id, claim.type_id);
-  auto it = std::find(counter_dropped_types_.begin(),
-                      counter_dropped_types_.end(), dropped_key);
-  if (it != counter_dropped_types_.end()) {
-    caller->stats_tracker->IncrementStats(
-        stats::machine_counter_claim_conflict);
+    auto dropped_key = std::make_pair(trace_id, claim.type_id);
+    auto drop_it = std::find(counter_dropped_types_.begin(),
+                             counter_dropped_types_.end(), dropped_key);
+    if (drop_it != counter_dropped_types_.end()) {
+      caller->stats_tracker->IncrementStats(
+          stats::machine_counter_claim_conflict);
+      return false;
+    }
+    counter_dropped_types_.push_back(dropped_key);
+    if (caller->import_logs_tracker) {
+      TraceId owner_id = *claim.owner;
+      StringId type_id = claim.type_id;
+      caller->import_logs_tracker->RecordParserLog(
+          stats::machine_counter_claim_conflict, ts,
+          [this, type_id, owner_id](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(kind_key_id_, Variadic::String(counter_kind_id_));
+            inserter.AddArg(counter_type_key_id_, Variadic::String(type_id));
+            inserter.AddArg(
+                owner_trace_id_key_id_,
+                Variadic::Integer(static_cast<int64_t>(owner_id.value)));
+          });
+    } else {
+      caller->stats_tracker->IncrementStats(
+          stats::machine_counter_claim_conflict);
+    }
     return false;
   }
-  counter_dropped_types_.push_back(dropped_key);
-  if (caller->import_logs_tracker) {
-    TraceId owner_id = *claim.owner;
-    StringId type_id = claim.type_id;
-    caller->import_logs_tracker->RecordParserLog(
-        stats::machine_counter_claim_conflict, ts,
-        [this, type_id, owner_id](ArgsTracker::BoundInserter& inserter) {
-          inserter.AddArg(kind_key_id_, Variadic::String(counter_kind_id_));
-          inserter.AddArg(counter_type_key_id_, Variadic::String(type_id));
-          inserter.AddArg(
-              owner_trace_id_key_id_,
-              Variadic::Integer(static_cast<int64_t>(owner_id.value)));
-        });
-  } else {
-    caller->stats_tracker->IncrementStats(
-        stats::machine_counter_claim_conflict);
-  }
-  return false;
+
+  // Handover after owner lease end.
+  claim.owner = trace_id;
+  claim.owner_lease_end = CounterLeaseEnd(trace_id, claim.source_mask);
+  earliest_pending_owner_lease_end_ =
+      std::min(earliest_pending_owner_lease_end_, claim.owner_lease_end);
+  EraseOwnerFromDropped(claim, trace_id);
+  return true;
 }
 
 bool MachineDataClaimTracker::KeepSchedSlow(TraceProcessorContext* caller,
