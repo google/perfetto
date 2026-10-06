@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AsyncLimiter} from '../../base/async_limiter';
 import {Time} from '../../base/time';
 import {featureFlags} from '../../core/feature_flags';
 import type {FlowDirection, Flow} from './flow_types';
@@ -44,6 +45,7 @@ export class FlowManager {
   private _focusedFlowIdRight = -1;
   private _visibleCategories = new Map<string, boolean>();
   private _initialized = false;
+  private readonly areaFlowsLimiter = new AsyncLimiter();
 
   constructor(
     private engine: Engine,
@@ -416,7 +418,7 @@ export class FlowManager {
     this.queryFlowEvents(query).then((flows) => this.setConnectedFlows(flows));
   }
 
-  private areaSelected(area: AreaSelection) {
+  private async areaSelected(area: AreaSelection) {
     const trackIds: number[] = [];
 
     for (const trackInfo of area.tracks) {
@@ -476,7 +478,9 @@ export class FlowManager {
       (t2.track_id in ${tracks}
         and (t2.ts <= ${endNs} and t2.ts >= ${startNs}))
     `;
-    this.queryFlowEvents(query).then((flows) => this.setSelectedFlows(flows));
+    const flows = await this.queryFlowEvents(query);
+    // The selection may have changed while the query was running.
+    if (this._curSelection === area) this.setSelectedFlows(flows);
   }
 
   private setConnectedFlows(connectedFlows: Flow[]) {
@@ -529,7 +533,9 @@ export class FlowManager {
     }
 
     if (selection.kind === 'area') {
-      this.areaSelected(selection);
+      // Area selections can change every frame (e.g. while pinned to the
+      // viewport), so only query the flows of the latest one.
+      this.areaFlowsLimiter.schedule(() => this.areaSelected(selection));
     } else {
       this.setSelectedFlows([]);
     }

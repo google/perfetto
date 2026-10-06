@@ -67,6 +67,7 @@ function renderTabbedDetails(
   trace: TraceImpl,
   title: string,
   tabs: ReadonlyArray<TabEntry>,
+  extraButtons?: m.Children,
 ) {
   if (tabs.length === 0) {
     return undefined;
@@ -98,7 +99,7 @@ function renderTabbedDetails(
             }),
           ),
         ),
-        buttons: activeTab.buttons,
+        buttons: [extraButtons, activeTab.buttons],
       },
       // Render all tabs but control visibility with Gate
       tabs.map((tab) => m(Gate, {open: activeTab === tab}, tab.content)),
@@ -114,8 +115,11 @@ export class CurrentSelectionTab implements m.ClassComponent<CurrentSelectionTab
   private readonly fadeContext = new FadeContext();
 
   view({attrs}: m.Vnode<CurrentSelectionTabAttrs>): m.Children {
-    const section = this.renderCurrentSelectionTabContent(attrs.trace);
-    if (section.isLoading) {
+    const {trace} = attrs;
+    const section = this.renderCurrentSelectionTabContent(trace);
+    // Swapping FadeIn/FadeOut recreates the panel. A pinned selection changes
+    // every frame, so skip the fade to keep the panel (and focus) intact.
+    if (section.isLoading && !trace.pinnedAreaSelection.isPinned) {
       return m(FadeIn, section.content);
     } else {
       return m(FadeOut, {context: this.fadeContext}, section.content);
@@ -197,9 +201,25 @@ export class CurrentSelectionTab implements m.ClassComponent<CurrentSelectionTab
   private renderAreaSelection(trace: TraceImpl, selection: AreaSelection) {
     const tabs = renderTabs(trace.selection.selectionTabs, selection);
     return (
-      renderTabbedDetails(trace, 'Area Selection', tabs) ??
-      this.renderEmptySelection('No details available for selection')
+      renderTabbedDetails(
+        trace,
+        'Area Selection',
+        tabs,
+        this.renderPinToViewportButton(trace),
+      ) ?? this.renderEmptySelection('No details available for selection')
     );
+  }
+
+  private renderPinToViewportButton(trace: TraceImpl) {
+    const pin = trace.pinnedAreaSelection;
+    return m(Button, {
+      label: 'Pin to viewport',
+      icon: 'push_pin',
+      iconFilled: pin.isPinned,
+      active: pin.isPinned,
+      tooltip: 'Keep the selection in place while panning; zooming resizes it',
+      onclick: () => pin.toggle(),
+    });
   }
 
   private renderNoteSelection(trace: TraceImpl, selection: NoteSelection) {
