@@ -66,9 +66,14 @@ export function wheelNavigationInteraction(
         if (e.ctrlKey) {
           const sign = e.deltaY < 0 ? -1 : 1;
           const deltaY = sign * Math.log2(1 + Math.abs(e.deltaY));
+          const ratio = 1 - deltaY * WHEEL_ZOOM_SPEED;
+          if (trace.pinnedAreaSelection.isPinned) {
+            trace.pinnedAreaSelection.zoom(ratio);
+            return;
+          }
           const zoomPx = e.position.x - rect.left;
           const centerPoint = zoomPx / rect.width;
-          trace.timeline.zoom(1 - deltaY * WHEEL_ZOOM_SPEED, centerPoint);
+          trace.timeline.zoom(ratio, centerPoint);
         }
       }
     },
