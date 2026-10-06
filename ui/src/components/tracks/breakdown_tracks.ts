@@ -367,7 +367,6 @@ export class BreakdownTracks {
 
     await this.props.trace.engine.query(`
       ${this.modulesClause}
-      PERFETTO PRAGMA pipelines = 1;
 
       CREATE PERFETTO TABLE ${this.intervalsTableName} AS
       SELECT ${intervalCols}
