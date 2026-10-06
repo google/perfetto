@@ -29,10 +29,6 @@ source_set("operations") {
     "tree_accumulate.cc",
     "tree_accumulate.h",
   ]
-
-  # Temporary: central plan passes still include concrete operation headers.
-  # Removed when the final migration gives the plan a virtual interface.
-  allow_circular_includes_from = [ "..:plan" ]
   deps = [
     "..:plan",
     "../../../../../gn:default_deps",

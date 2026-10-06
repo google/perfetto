@@ -18,64 +18,133 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "perfetto/ext/base/variant.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
+
+namespace perfetto::trace_processor {
+class StringPool;
+namespace core::dataframe {
+class Dataframe;
+}  // namespace core::dataframe
+}  // namespace perfetto::trace_processor
 
 namespace perfetto::trace_processor::pipeline {
 
-// The operator a plan node holds. Passes switch on `operation.index()` with one
-// case per operator, using base::variant_index<PlanOperation, T>().
-using PlanOperation =
-    std::variant<Scan, TreeAccumulate, IntervalIntersect, IntervalFlatten>;
+class Catalog;
+class Lowering;
+class PlanReader;
+class PlanWriter;
+class LogicalPlan;
+class PlanNode;
 
-// An operator together with the relations it reads. A Scan reads none; a
+// -----------------------------------------------------------------------------
+// Operation interface
+// -----------------------------------------------------------------------------
+
+// One operation in a logical plan. Lowering builds the batch-processing
+// core::exec operators which execute it.
+class PlanOperation {
+ public:
+  PlanOperation() = default;
+  virtual ~PlanOperation();
+
+  // Copies mutable payload state so pruning or binding a copied plan cannot
+  // modify its original. Immutable dataframe columns may remain shared.
+  virtual std::unique_ptr<PlanOperation> Clone() const = 0;
+
+  // Updates this payload and marks required input ColumnIds in needed.
+  // Returns a child slot to replace this node, or nullopt to keep it. The
+  // pruning driver traverses children after this call; implementations do not.
+  virtual std::optional<uint32_t> Prune(std::vector<bool>* needed) = 0;
+
+  // Source preparation, each applied to every node by the caller. Operations
+  // without source state inherit no-op defaults.
+  //
+  // Moves SQL into the argument list before encoding, replacing each SQL
+  // source with its index in that list.
+  virtual void MoveSqlSourcesToDataframeArgs(std::vector<std::string>*);
+
+  // Resolves named dataframes against the catalog after decoding a plan.
+  virtual base::Status ResolveDataframes(LogicalPlan*, const Catalog&);
+
+  // Attaches runtime dataframe arguments before lowering the decoded plan.
+  virtual base::Status BindDataframeArgs(
+      LogicalPlan*,
+      const std::vector<const core::dataframe::Dataframe*>&,
+      StringPool*);
+
+  // Builds execution steps, including child traversal. Intersection attaches
+  // independent operand pipelines; other stages lower their single input.
+  virtual void Lower(Lowering*, const PlanNode&) const = 0;
+
+  // Writes this payload and updates the available column IDs. The driver
+  // writes outer tags and orders stages; sources encode their own children.
+  virtual void Write(PlanWriter*, const PlanNode&, Available*) const = 0;
+
+  virtual const OperationRegistration& registration() const = 0;
+
+ protected:
+  // Concrete payloads are copied by Clone; the interface itself is not a value.
+  PlanOperation(const PlanOperation&) = default;
+  PlanOperation& operator=(const PlanOperation&) = default;
+  PlanOperation(PlanOperation&&) noexcept = default;
+  PlanOperation& operator=(PlanOperation&&) noexcept = default;
+};
+
+// -----------------------------------------------------------------------------
+// Plan nodes
+// -----------------------------------------------------------------------------
+
+// An operation together with the relations it reads. A Scan reads none; a
 // single-input stage reads one; an intersection reads one per operand.
 class PlanNode {
  public:
-  PlanNode(PlanOperation operation, std::vector<PlanNodeId> children)
-      : operation_(std::move(operation)), children_(std::move(children)) {}
+  PlanNode(std::unique_ptr<PlanOperation> operation,
+           std::vector<PlanNodeId> children);
+
+  // Plans have value semantics: each copy owns independent mutable payloads.
+  PlanNode(const PlanNode&);
+  PlanNode& operator=(const PlanNode&);
+  PlanNode(PlanNode&&) noexcept;
+  PlanNode& operator=(PlanNode&&) noexcept;
+  ~PlanNode();
 
   template <typename T>
   bool Is() const {
-    return std::holds_alternative<T>(operation_);
+    return &operation_->registration() == &T::kRegistration;
   }
 
-  // Returns the operator as a T. The node must hold one.
-  template <typename T>
-  T& Cast() {
-    return base::unchecked_get<T>(operation_);
-  }
+  // Returns the operation as a T. The node must hold one.
   template <typename T>
   const T& Cast() const {
-    return base::unchecked_get<T>(operation_);
+    PERFETTO_DCHECK(Is<T>());
+    return static_cast<const T&>(*operation_);
   }
 
   std::vector<PlanNodeId>& children() { return children_; }
   const std::vector<PlanNodeId>& children() const { return children_; }
 
-  PlanOperation& operation() { return operation_; }
-  const PlanOperation& operation() const { return operation_; }
+  PlanOperation& operation() { return *operation_; }
+  const PlanOperation& operation() const { return *operation_; }
 
  private:
-  PlanOperation operation_;
   std::vector<PlanNodeId> children_;
+  std::unique_ptr<PlanOperation> operation_;
 };
 
 // -----------------------------------------------------------------------------
 // Logical plan
 // -----------------------------------------------------------------------------
 
-// A tree of operators. Column types are stored once, indexed by ID; operators
+// A tree of operations. Column types are stored once, indexed by ID; operations
 // name the values they consume and produce, independently of layout.
 //
 // The root is the last stage of the pipeline and the leaves are its sources.
@@ -89,10 +158,11 @@ class LogicalPlan {
 
   // Adds a node reading `children` and makes it the root, which holds while a
   // plan is built bottom up: each node added is the topmost one so far.
-  PlanNodeId AddNode(PlanOperation operation,
-                     std::vector<PlanNodeId> children = {}) {
+  template <typename T>
+  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
     auto id = static_cast<PlanNodeId>(nodes_.size());
-    nodes_.push_back({std::move(operation), std::move(children)});
+    nodes_.emplace_back(std::make_unique<T>(std::move(operation)),
+                        std::move(children));
     root_ = id;
     return id;
   }

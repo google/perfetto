@@ -21,7 +21,7 @@
 #include <optional>
 #include <vector>
 
-#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -32,9 +32,11 @@ class PlanNode;
 // `|> INTERVAL FLATTEN [PER cols] AGGREGATE agg AS name, ...`. Cuts the rows
 // at every start and end into disjoint segments, each collapsed into one row:
 // its bounds, the keys, then one column per aggregate.
-class IntervalFlatten {
+class IntervalFlatten : public PlanOperation {
  public:
-  // Payload types remain public while central plan passes use them.
+  static const OperationRegistration kRegistration;
+
+ private:
   enum class Function : uint8_t { kCount, kSum };
   struct Aggregate {
     Function function = Function::kCount;
@@ -43,35 +45,19 @@ class IntervalFlatten {
     ColumnId output = 0;
   };
 
-  static const OperationRegistration kRegistration;
-
-  // Updates this payload and marks required input ColumnIds in needed.
-  // A returned child slot replaces this node; the caller traverses children.
-  std::optional<uint32_t> Prune(std::vector<bool>* needed);
-
-  // Lowers children and appends this operation's execution steps.
-  void Lower(Lowering*, const PlanNode&) const;
-
-  // Temporary accessors for plan passes not yet moved into this class.
-  // Removed in the final migration commit; test formatting uses friend access.
-  ColumnId& ts() { return ts_; }
-  const ColumnId& ts() const { return ts_; }
-  ColumnId& dur() { return dur_; }
-  const ColumnId& dur() const { return dur_; }
-  std::vector<ColumnId>& keys() { return keys_; }
-  const std::vector<ColumnId>& keys() const { return keys_; }
-  std::vector<Aggregate>& aggregates() { return aggregates_; }
-  const std::vector<Aggregate>& aggregates() const { return aggregates_; }
-  ColumnId& out_ts() { return out_ts_; }
-  const ColumnId& out_ts() const { return out_ts_; }
-  ColumnId& out_dur() { return out_dur_; }
-  const ColumnId& out_dur() const { return out_dur_; }
-
- private:
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
 
+  // PlanOperation implementation. Dispatch goes through the base interface.
+  std::unique_ptr<PlanOperation> Clone() const override;
+  std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
+  void Lower(Lowering*, const PlanNode&) const override;
+  void Write(PlanWriter*, const PlanNode&, Available*) const override;
+
   static base::Status BuildPlan(Compiler*, uint32_t);
+  static void DecodePlan(PlanReader*, Available*);
+
+  const OperationRegistration& registration() const override;
 
   ColumnId ts_ = 0;
   ColumnId dur_ = 0;

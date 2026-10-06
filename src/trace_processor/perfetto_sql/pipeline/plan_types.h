@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "src/trace_processor/core/common/schema.h"
 
@@ -41,6 +42,9 @@ using PlanNodeId = uint32_t;
 
 // Which way a tree is walked: from the leaves up, or from the roots down.
 enum class TreeDirection : uint8_t { kUp, kDown };
+
+// The columns available to a stage, in the order positions number them.
+using Available = std::vector<ColumnId>;
 
 }  // namespace perfetto::trace_processor::pipeline
 

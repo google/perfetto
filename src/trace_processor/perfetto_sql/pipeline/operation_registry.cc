@@ -41,10 +41,19 @@ const OperationRegistration* const kOperations[] = {
 
 }  // namespace
 
+const OperationRegistration* FindOperationByTag(uint8_t tag) {
+  for (const auto* registration : kOperations) {
+    if (registration->encoding() && registration->encoding()->tag() == tag) {
+      return registration;
+    }
+  }
+  return nullptr;
+}
+
 const OperationRegistration* FindOperationBySyntax(uint32_t syntax) {
-  for (const auto* definition : kOperations) {
-    if (definition->syntax() == syntax) {
-      return definition;
+  for (const auto* registration : kOperations) {
+    if (registration->syntax() == syntax) {
+      return registration;
     }
   }
   return nullptr;

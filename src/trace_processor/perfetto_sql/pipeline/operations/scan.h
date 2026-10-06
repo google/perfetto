@@ -26,7 +26,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -67,26 +67,9 @@ struct ScanDataframeArg {
 };
 
 // Reads all rows of a source. Always the first operation.
-class Scan {
+class Scan : public PlanOperation {
  public:
-  // Payload types remain public while central plan passes use them.
-  using Dataframe = ScanDataframe;
-  using DataframeArg = ScanDataframeArg;
-  // Where a scan reads from: a dataframe, SQL, or a dataframe argument. SQL
-  // sources become dataframe arguments when the plan is written into SQL, and
-  // those are bound to dataframes when it is loaded.
-  using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
-
   static const OperationRegistration kRegistration;
-
-  // Updates this payload and marks required input ColumnIds in needed.
-  // A returned child slot replaces this node; the caller traverses children.
-  std::optional<uint32_t> Prune(std::vector<bool>* needed);
-
-  // Creates the source and records its batch layout and ordering.
-  void Lower(Lowering*, const PlanNode&) const;
-
-  std::unique_ptr<core::exec::Source> MakeSource() const;
 
   // Builds the plan for what a source reads: a dataframe or SQL.
   static base::StatusOr<SourceRelation> BuildRelation(Compiler*,
@@ -96,21 +79,39 @@ class Scan {
   static std::optional<std::string> SourceQualifier(
       Compiler*,
       const SyntaqlitePerfettoPipeSource& n);
+  std::unique_ptr<core::exec::Source> MakeSource() const;
 
-  // Temporary accessors for plan passes not yet moved into this class.
-  // The final migration keeps only const columns() for intersection operands.
-  Source& source() { return source_; }
-  const Source& source() const { return source_; }
-  std::vector<NamedColumn>& columns() { return columns_; }
+  // Intersection embeds a scan payload without a separate source tag.
+  static Available ReadPayload(PlanReader*, Scan*);
   const std::vector<NamedColumn>& columns() const { return columns_; }
 
  private:
+  using Dataframe = ScanDataframe;
+  using DataframeArg = ScanDataframeArg;
+  // Where a scan reads from: a dataframe, SQL, or a dataframe argument. SQL
+  // sources become dataframe arguments when the plan is written into SQL, and
+  // those are bound to dataframes when it is loaded.
+  using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
+
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
   // Materializes SQL sources for execution tests without exposing the payload.
   friend class TestCatalog;
 
+  // PlanOperation implementation. Dispatch goes through the base interface.
+  std::unique_ptr<PlanOperation> Clone() const override;
+  std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
+  void Lower(Lowering*, const PlanNode&) const override;
+  void Write(PlanWriter*, const PlanNode&, Available*) const override;
+  void MoveSqlSourcesToDataframeArgs(std::vector<std::string>*) override;
+  base::Status ResolveDataframes(LogicalPlan*, const Catalog&) override;
+  base::Status BindDataframeArgs(
+      LogicalPlan*,
+      const std::vector<const dataframe::Dataframe*>&,
+      StringPool*) override;
+
   static base::Status BuildPlan(Compiler*, uint32_t);
+  static void DecodePlan(PlanReader*, Available*);
 
   // The finalized dataframe a source names, if it can be read without SQLite.
   static const dataframe::Dataframe* FindDirectDataframe(
@@ -123,14 +124,13 @@ class Scan {
   static base::Status CheckSourceNames(Compiler*,
                                        const std::vector<NamedColumn>& columns,
                                        uint32_t at);
-
   static Scan BuildDataframeScan(Compiler*,
                                  const dataframe::Dataframe& dataframe,
                                  std::string name);
-
   static base::StatusOr<Scan> BuildSqlScan(Compiler*, uint32_t from);
-
   static void AddScanColumn(Compiler*, Scan* scan, ColumnSchema column);
+
+  const OperationRegistration& registration() const override;
 
   Source source_;
   // Bindings in source column order.

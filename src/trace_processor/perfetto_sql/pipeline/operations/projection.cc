@@ -33,8 +33,8 @@
 namespace perfetto::trace_processor::pipeline::projection {
 namespace {
 
-// The stages below are relational operators which only change which columns
-// the row has and what they are called: nothing runs. Where an operator could
+// The stages below are relational operations which only change which columns
+// the row has and what they are called: nothing runs. Where an operation could
 // take an expression, it takes a column reference for now.
 
 // The columns a SELECT or EXTEND list produces, resolved against the row
@@ -286,15 +286,16 @@ ExpandStar(Compiler* c, uint32_t star_id, bool allow_unqualified_star) {
 }  // namespace
 
 const OperationRegistration kSelect{SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT,
-                                    &BuildSelectPlan};
+                                    &BuildSelectPlan, std::nullopt};
 const OperationRegistration kExtend{SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND,
-                                    &BuildExtendPlan};
+                                    &BuildExtendPlan, std::nullopt};
 const OperationRegistration kDrop{SYNTAQLITE_NODE_PERFETTO_PIPE_DROP,
-                                  &BuildDropPlan};
+                                  &BuildDropPlan, std::nullopt};
 const OperationRegistration kRename{SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME,
-                                    &BuildRenamePlan};
+                                    &BuildRenamePlan, std::nullopt};
 const OperationRegistration kSet{SYNTAQLITE_NODE_PERFETTO_PIPE_SET,
-                                 &BuildSetPlan};
-const OperationRegistration kAs{SYNTAQLITE_NODE_PERFETTO_PIPE_AS, &BuildAsPlan};
+                                 &BuildSetPlan, std::nullopt};
+const OperationRegistration kAs{SYNTAQLITE_NODE_PERFETTO_PIPE_AS, &BuildAsPlan,
+                                std::nullopt};
 
 }  // namespace perfetto::trace_processor::pipeline::projection
