@@ -30,8 +30,15 @@ source_set("exec") {
     "column_view.h",
     "dataframe_scan.cc",
     "dataframe_scan.h",
+    "group_by.cc",
+    "group_by.h",
+    "interval_flatten.cc",
+    "interval_flatten.h",
     "interval_intersect.cc",
     "interval_intersect.h",
+    "key_encoder.cc",
+    "key_encoder.h",
+    "layout_column.h",
     "operator.cc",
     "operator.h",
     "pipeline.cc",
@@ -43,6 +50,8 @@ source_set("exec") {
     "row_selection.h",
     "row_store.cc",
     "row_store.h",
+    "sort.cc",
+    "sort.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
     "tree_number_nodes.cc",
@@ -55,6 +64,7 @@ source_set("exec") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../../util:bump_allocator",
     "../common",
     "../dataframe",
     "../util",
@@ -79,10 +89,14 @@ perfetto_unittest_source_set("unittests") {
     "breaker_unittest.cc",
     "dataframe_scan_unittest.cc",
     "executor_contract_unittest.cc",
+    "group_by_unittest.cc",
+    "interval_flatten_unittest.cc",
     "interval_intersect_unittest.cc",
+    "key_encoder_unittest.cc",
     "operator_unittest.cc",
     "row_batch_unittest.cc",
     "row_store_unittest.cc",
+    "sort_unittest.cc",
     "tree_accumulate_unittest.cc",
     "tree_number_nodes_unittest.cc",
     "tree_order_unittest.cc",
@@ -105,6 +119,11 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     sources = [
+      "breaker_benchmark.cc",
+      "interval_flatten_benchmark.cc",
+      "interval_intersect_benchmark.cc",
+      "key_encoder_benchmark.cc",
+      "row_store_benchmark.cc",
       "tree_number_nodes_benchmark.cc",
       "tree_order_benchmark.cc",
     ]
@@ -115,6 +134,7 @@ if (enable_perfetto_benchmarks) {
       "../../containers",
       "../common",
       "../dataframe",
+      "../util",
     ]
   }
 }

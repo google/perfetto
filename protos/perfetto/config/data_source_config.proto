@@ -79,7 +79,7 @@ import "protos/perfetto/config/qnx/qnx_config.proto";
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 147
+// Next id: 148
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -185,6 +185,19 @@ message DataSourceConfig {
   // Once the config store (b/482305876) exists we should move protovm programs
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
+
+  // Set by the service to indicate that this data source can write to its
+  // target buffer through the tracing v2 ring buffer. True only if:
+  // - v2 is in the connection's common ProtocolAbiVersion mask, and
+  // - the target buffer is a TraceBufferV2.
+  // Absent means false. True permits v2 but does not select it. The producer
+  // can select v1 only if v1 is also in the common mask. If no common version
+  // is permitted by the config and target buffer, the instance cannot run.
+  // One buffer can hold both formats. Each writer sequence uses one format.
+  //
+  // Not supported: a ProtoVM data source on the same buffer.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool supports_tracing_v2 = 147;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];

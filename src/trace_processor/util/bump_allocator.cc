@@ -80,6 +80,20 @@ BumpAllocator::Allocation BumpAllocator::GetAllocation(AllocId id) {
                     &chunk.unfreed_allocations);
 }
 
+void BumpAllocator::Clear() {
+  if (chunks_.empty()) {
+    return;
+  }
+  size_t dropped = chunks_.size() - 1;
+  chunks_.erase_front(dropped);
+  // The kept chunk takes the next index, so ids keep growing.
+  erased_front_chunks_count_ += dropped + 1;
+  Chunk& chunk = chunks_.front();
+  chunk.bump_offset = 0;
+  chunk.unfreed_allocations = 0;
+  PERFETTO_ASAN_POISON(chunk.allocation.get(), kChunkSize);
+}
+
 uint64_t BumpAllocator::EraseFrontFreeChunks() {
   size_t to_erase_chunks = 0;
   for (; to_erase_chunks < chunks_.size(); ++to_erase_chunks) {

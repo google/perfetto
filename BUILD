@@ -188,6 +188,8 @@ perfetto_cc_library(
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
+        ":src_tracing_v2_abi",
+        ":src_tracing_v2_v2",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -1256,6 +1258,8 @@ perfetto_cc_library(
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
+        ":src_tracing_v2_abi",
+        ":src_tracing_v2_v2",
     ] + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
@@ -2591,8 +2595,15 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/column_view.h",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/dataframe_scan.h",
+        "src/trace_processor/core/exec/group_by.cc",
+        "src/trace_processor/core/exec/group_by.h",
+        "src/trace_processor/core/exec/interval_flatten.cc",
+        "src/trace_processor/core/exec/interval_flatten.h",
         "src/trace_processor/core/exec/interval_intersect.cc",
         "src/trace_processor/core/exec/interval_intersect.h",
+        "src/trace_processor/core/exec/key_encoder.cc",
+        "src/trace_processor/core/exec/key_encoder.h",
+        "src/trace_processor/core/exec/layout_column.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
         "src/trace_processor/core/exec/pipeline.cc",
@@ -2604,6 +2615,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/row_selection.h",
         "src/trace_processor/core/exec/row_store.cc",
         "src/trace_processor/core/exec/row_store.h",
+        "src/trace_processor/core/exec/sort.cc",
+        "src/trace_processor/core/exec/sort.h",
         "src/trace_processor/core/exec/tree_accumulate.cc",
         "src/trace_processor/core/exec/tree_accumulate.h",
         "src/trace_processor/core/exec/tree_number_nodes.cc",
@@ -2665,6 +2678,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/core/util/bit_vector.h",
         "src/trace_processor/core/util/flex_vector.h",
+        "src/trace_processor/core/util/heap.h",
         "src/trace_processor/core/util/ops.cc",
         "src/trace_processor/core/util/ops.h",
         "src/trace_processor/core/util/range.h",
@@ -7031,6 +7045,8 @@ perfetto_filegroup(
         "src/tracing/service/packet_stream_validator.h",
         "src/tracing/service/random.cc",
         "src/tracing/service/random.h",
+        "src/tracing/service/service_ring_buffer_drainer.cc",
+        "src/tracing/service/service_ring_buffer_drainer.h",
         "src/tracing/service/trace_buffer.h",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v1.h",
@@ -7061,6 +7077,31 @@ perfetto_filegroup(
     srcs = [
         "src/tracing/service/zstd_compressor.cc",
         "src/tracing/service/zstd_compressor.h",
+    ],
+)
+
+# GN target: //src/tracing/v2:abi
+perfetto_filegroup(
+    name = "src_tracing_v2_abi",
+    srcs = [
+        "src/tracing/v2/shared_ring_buffer_abi.h",
+    ],
+)
+
+# GN target: //src/tracing/v2:v2
+perfetto_filegroup(
+    name = "src_tracing_v2_v2",
+    srcs = [
+        "src/tracing/v2/producer_ring_buffer_arbiter.cc",
+        "src/tracing/v2/producer_ring_buffer_arbiter.h",
+        "src/tracing/v2/shared_ring_buffer.cc",
+        "src/tracing/v2/shared_ring_buffer.h",
+        "src/tracing/v2/shared_ring_buffer_reader.cc",
+        "src/tracing/v2/shared_ring_buffer_reader.h",
+        "src/tracing/v2/shared_ring_buffer_writer.cc",
+        "src/tracing/v2/shared_ring_buffer_writer.h",
+        "src/tracing/v2/trace_writer_v2_impl.cc",
+        "src/tracing/v2/trace_writer_v2_impl.h",
     ],
 )
 
@@ -11602,6 +11643,8 @@ perfetto_cc_library(
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
         ":src_tracing_system_backend",
+        ":src_tracing_v2_abi",
+        ":src_tracing_v2_v2",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -11728,6 +11771,7 @@ perfetto_cc_binary(
         ":src_tracing_ipc_consumer_consumer",
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
+        ":src_tracing_v2_abi",
         "src/perfetto_cmd/main.cc",
     ],
     visibility = [

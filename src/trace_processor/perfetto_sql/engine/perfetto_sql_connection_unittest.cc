@@ -24,6 +24,7 @@
 
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -1173,6 +1174,165 @@ TEST_F(PerfettoSqlConnectionPipelineTest, NewDataframeArgsAreSafe) {
            " FROM (SELECT 1 AS v UNION ALL SELECT 2 UNION ALL SELECT 3)");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_EQ(rows->size(), 3u);
+}
+
+// Nulls agree with each other, as under GROUP BY.
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE a(ts INTEGER, dur INTEGER, name TEXT, n INTEGER);
+    CREATE TABLE b(ts INTEGER, dur INTEGER, name TEXT, n INTEGER);
+    INSERT INTO a VALUES (0, 10, 'x', 1), (0, 10, 'y', 2), (0, 10, NULL, 3);
+    INSERT INTO b VALUES (5, 10, 'x', 1), (5, 10, NULL, 2), (5, 10, 'z', 3);
+  )")
+                  .ok());
+  auto rows = Rows(R"(
+    INTERVAL INTERSECTION OF (a AS a, b AS b) PER name
+    |> SELECT ts, dur, name
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL", "5,5,x"));
+
+  // Keys must be the same type in every operand.
+  EXPECT_THAT(Rows(R"(
+    INTERVAL INTERSECTION OF (
+      a AS a, (SELECT ts, dur, n AS name FROM b) AS b
+    ) PER name
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("the same in every operand"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER, weight INTEGER);
+    INSERT INTO spans VALUES
+      (0, 10, 1, 5), (5, 10, 1, NULL), (15, 5, 1, 2), (7, 0, 1, 1),
+      (30, 5, 2, 4), (40, 5, NULL, 1), (NULL, 5, 1, 1);
+  )")
+                  .ok());
+  // Overlaps are cut at every boundary; a point makes an instant counting the
+  // rows spanning it; rows which only meet stay apart; nulls sum to nothing.
+  auto rows = Rows(R"(
+    FROM spans
+    |> INTERVAL FLATTEN PER cpu
+       AGGREGATE COUNT(*) AS n, SUM(weight) AS w
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              testing::ElementsAre("0,5,1,1,5", "10,5,1,1,NULL", "15,5,1,1,2",
+                                   "30,5,2,1,4", "40,5,NULL,1,1", "5,2,1,2,5",
+                                   "7,0,1,3,6", "7,3,1,2,5"));
+
+  rows = Rows(R"(
+    FROM (SELECT ts, dur FROM spans WHERE cpu = 2 OR cpu IS NULL)
+    |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n
+    |> SELECT ts, n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("30,1", "40,1"));
+
+  // Keys can be of any one type, and come out as they went in.
+  rows = Rows(R"(
+    FROM (
+      SELECT ts, dur, IIF(cpu = 1, 'one', NULL) AS c FROM spans
+    )
+    |> INTERVAL FLATTEN PER c AGGREGATE COUNT(*) AS n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre(
+                         "0,5,one,1", "10,5,one,1", "15,5,one,1", "30,5,NULL,1",
+                         "40,5,NULL,1", "5,2,one,2", "7,0,one,3", "7,3,one,2"));
+
+  // Input order doesn't matter.
+  for (const char* order : {"ts", "ts DESC"}) {
+    rows = Rows(base::StackString<256>(R"(
+      FROM (SELECT * FROM spans ORDER BY %s)
+      |> INTERVAL FLATTEN PER cpu
+         AGGREGATE COUNT(*) AS n, SUM(weight) AS w
+    )",
+                                       order)
+                    .ToStdString());
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows,
+                testing::ElementsAre("0,5,1,1,5", "10,5,1,1,NULL", "15,5,1,1,2",
+                                     "30,5,2,1,4", "40,5,NULL,1,1", "5,2,1,2,5",
+                                     "7,0,1,3,6", "7,3,1,2,5"));
+  }
+
+  // Segments never overlap, so flattening again keeps each.
+  rows = Rows(R"(
+    FROM (SELECT * FROM spans WHERE dur > 0)
+    |> INTERVAL FLATTEN PER cpu AGGREGATE COUNT(*) AS n
+    |> INTERVAL FLATTEN PER cpu AGGREGATE COUNT(*) AS m, SUM(n) AS n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              testing::ElementsAre("0,5,1,1,1", "10,5,1,1,1", "15,5,1,1,1",
+                                   "30,5,2,1,1", "40,5,NULL,1,1", "5,5,1,1,2"));
+
+  // Aliases can repeat a logical key. Grouping by (a, b) cannot be reused
+  // when the next stage groups by (a, a), even though both lists have length 2.
+  rows = Rows(R"(
+    FROM (SELECT 0 AS ts, 10 AS dur, 1 AS a, 1 AS b
+          UNION ALL SELECT 0, 10, 1, 2)
+    |> INTERVAL FLATTEN PER a, b AGGREGATE COUNT(*) AS n
+    |> SELECT ts, dur, a AS x, a AS y, n
+    |> INTERVAL FLATTEN PER x, y AGGREGATE SUM(n) AS n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,10,1,1,2"));
+
+  // Check accumulation, removal, instant/live combination and endpoint
+  // arithmetic. Each case must fail rather than wrapping a signed integer.
+  for (const char* values : {
+           "(0, 2, 9223372036854775807), (0, 2, 1)",
+           "(0, 2, -9223372036854775808), (0, 2, -1)",
+           "(0, 1, -1), (0, 2, 9223372036854775807), (0, 2, 1)",
+           "(0, 1, 1), (0, 2, -9223372036854775808), (0, 2, -1)",
+           "(0, 1, -9223372036854775808), (0, 2, 9223372036854775807), "
+           "(0, 2, 1)",
+           "(0, 2, 9223372036854775807), (1, 0, 1)",
+           "(9223372036854775807, 1, 0)",
+       }) {
+    SCOPED_TRACE(values);
+    auto result =
+        Rows(std::string("FROM (WITH v(ts, dur, weight) AS (VALUES ") + values +
+             ") SELECT ts, dur, weight FROM v) "
+             "|> INTERVAL FLATTEN AGGREGATE SUM(weight) AS w");
+    ASSERT_FALSE(result.ok());
+    EXPECT_THAT(result.status().message(), testing::HasSubstr("overflow"));
+  }
+  // The limits themselves are valid, including subtracting the minimum value
+  // when its interval ends, and intervals and points at the maximum timestamp.
+  rows = Rows(R"(
+    FROM (SELECT 0 AS ts, 1 AS dur, -9223372036854775808 AS weight
+          UNION ALL SELECT 1, 1, 9223372036854775807
+          UNION ALL SELECT 9223372036854775806, 1, 0
+          UNION ALL SELECT 9223372036854775807, 0, 7)
+    |> INTERVAL FLATTEN AGGREGATE SUM(weight) AS w
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre(
+                         "0,1,-9223372036854775808", "1,1,9223372036854775807",
+                         "9223372036854775806,1,0", "9223372036854775807,0,7"));
+
+  // Only the segment's columns are left.
+  EXPECT_THAT(Rows("FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n "
+                   "|> SELECT weight")
+                  .status()
+                  .message(),
+              testing::HasSubstr("weight"));
+  EXPECT_THAT(Rows("FROM (SELECT 0 AS ts, -1 AS dur) "
+                   "|> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n")
+                  .status()
+                  .message(),
+              testing::HasSubstr("below zero"));
+  EXPECT_THAT(Rows("FROM spans |> INTERVAL FLATTEN "
+                   "AGGREGATE COUNT(weight) AS n")
+                  .status()
+                  .message(),
+              testing::HasSubstr("COUNT"));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {

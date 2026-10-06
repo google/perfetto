@@ -46,10 +46,16 @@ base::Status RowStore::Append(const RowBatch& in) {
     auto owner = in.owner(c);
     // Unknown borrowed storage must be materialized before retention.
     if (!owner) {
-      auto packed = std::make_shared<ColumnChunk>();
-      packed->CopyFrom(view, in.size(), 0);
-      view = packed->View(view, view.validity() != nullptr);
-      owner = std::move(packed);
+      if (column.copies_used == column.copies.size()) {
+        column.copies.emplace_back();
+      }
+      std::shared_ptr<ColumnChunk>& copy = column.copies[column.copies_used++];
+      if (!copy || copy.use_count() != 1) {
+        copy = std::make_shared<ColumnChunk>();
+      }
+      copy->CopyFrom(view, in.size(), 0);
+      view = copy->View(view, view.validity() != nullptr);
+      owner = copy;
     }
     column.nullable |= view.validity() != nullptr;
     if (c) {

@@ -287,6 +287,66 @@ ProtoFile::Oneof OneOfFromDescriptor(
   return oneof;
 }
 
+// Path of |desc| in the file's comment table, e.g. {4, 2} for the 3rd message.
+std::vector<int> SourceCodeInfoPath(const google::protobuf::Descriptor& desc) {
+  std::vector<int> path;
+  if (desc.containing_type()) {
+    path = SourceCodeInfoPath(*desc.containing_type());
+    path.push_back(google::protobuf::DescriptorProto::kNestedTypeFieldNumber);
+  } else {
+    path.push_back(
+        google::protobuf::FileDescriptorProto::kMessageTypeFieldNumber);
+  }
+  path.push_back(desc.index());
+  return path;
+}
+
+// Reads each `extensions` statement of |desc| with its comments and ranges.
+std::vector<ProtoFile::ExtensionsStatement> ExtensionsStatementsFromDescriptor(
+    const google::protobuf::Descriptor& desc) {
+  std::vector<ProtoFile::ExtensionsStatement> statements;
+  if (desc.extension_range_count() == 0)
+    return statements;
+
+  auto add_range_to_last_statement = [&](int range_index) {
+    const auto* range = desc.extension_range(range_index);
+    statements.back().ranges.push_back(
+        {range->start_number(), range->end_number()});
+  };
+
+  // Statements sit at this path in the comment table; ranges one level below.
+  std::vector<int> statement_path = SourceCodeInfoPath(desc);
+  statement_path.push_back(
+      google::protobuf::DescriptorProto::kExtensionRangeFieldNumber);
+
+  google::protobuf::FileDescriptorProto file_proto;
+  desc.file()->CopySourceCodeInfoTo(&file_proto);
+  for (const auto& location : file_proto.source_code_info().location()) {
+    std::vector<int> path(location.path().begin(), location.path().end());
+    bool is_statement = path == statement_path;
+    bool is_range =
+        path.size() == statement_path.size() + 1 &&
+        std::equal(statement_path.begin(), statement_path.end(), path.begin());
+    if (is_statement) {
+      statements.emplace_back();
+      statements.back().leading_comments =
+          base::SplitString(location.leading_comments(), "\n");
+      statements.back().trailing_comments =
+          base::SplitString(location.trailing_comments(), "\n");
+    } else if (is_range && !statements.empty()) {
+      add_range_to_last_statement(path.back());
+    }
+  }
+
+  // Without source info, keep all ranges in one statement with no comments.
+  if (statements.empty()) {
+    statements.emplace_back();
+    for (int i = 0; i < desc.extension_range_count(); ++i)
+      add_range_to_last_statement(i);
+  }
+  return statements;
+}
+
 ProtoFile::Message MessageFromDescriptor(
     const google::protobuf::Descriptor& desc,
     const std::vector<const google::protobuf::FileDescriptor*>&
@@ -300,6 +360,8 @@ ProtoFile::Message MessageFromDescriptor(
       message.reserved_numbers.insert(num);
     }
   }
+
+  message.extensions_statements = ExtensionsStatementsFromDescriptor(desc);
 
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     message.enums.emplace_back(EnumFromDescriptor(*desc.enum_type(i)));
@@ -334,6 +396,9 @@ ProtoFile::Message MessageFromDescriptor(
         if (ext_field->file() == ext_file) {
           message.fields.emplace_back(
               FieldFromDescriptor(desc, *ext_field, extension_files));
+          // protoc rejects a field number inside an `extensions` range.
+          for (auto& statement : message.extensions_statements)
+            statement.RemoveFieldNumber(ext_field->number());
         }
       }
     }
@@ -353,7 +418,8 @@ const T* FindByName(const std::vector<T>& items, const std::string& name) {
 
 bool IsMessageEmpty(const ProtoFile::Message& msg) {
   return msg.fields.empty() && msg.enums.empty() &&
-         msg.nested_messages.empty() && msg.oneofs.empty();
+         msg.nested_messages.empty() && msg.oneofs.empty() &&
+         msg.extensions_statements.empty();
 }
 
 }  // namespace

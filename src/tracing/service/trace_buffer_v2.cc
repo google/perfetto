@@ -1206,6 +1206,11 @@ void TraceBufferV2::RecordChunkV2DataLoss(ProducerID producer_id,
     seq_it->second.pending_chunk_v2_data_loss = true;
 }
 
+void TraceBufferV2::RecordAbiViolation() {
+  PERFETTO_CHECK(!read_only_);
+  stats_.set_abi_violations(stats_.abi_violations() + 1);
+}
+
 TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   DcheckIsAlignedAndWithinBounds(off);
   size_t end = off + TBChunk::OuterSize(size);

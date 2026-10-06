@@ -89,6 +89,39 @@ TEST(RowStoreTest, SurvivesTheStorageItWasReadFromMovingOn) {
   EXPECT_THAT(ReadAll(store, 0), ElementsAre(1, 2, 3));
 }
 
+// Copies are reused after Clear(), but not while an earlier view holds one.
+TEST(RowStoreTest, AViewStillHeldSurvivesClearingAndRefilling) {
+  std::vector<int64_t> first = {1, 2, 3};
+  std::vector<int64_t> second = {7, 8, 9};
+  RowStore store;
+  RowBatch batch;
+  Fill(&batch, first, 0, 3);
+  ASSERT_TRUE(store.Append(batch).ok());
+  RowBatch held;
+  store.View(&held, 0, 3);
+
+  store.Clear();
+  Fill(&batch, second, 0, 3);
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  EXPECT_THAT(test::ReadColumn<int64_t>(held, 0), ElementsAre(1, 2, 3));
+  EXPECT_THAT(ReadAll(store, 0), ElementsAre(7, 8, 9));
+}
+
+TEST(RowStoreTest, RefillsAfterClearing) {
+  std::vector<int64_t> first = {1, 2, 3};
+  std::vector<int64_t> second = {7, 8};
+  RowStore store;
+  RowBatch batch;
+  Fill(&batch, first, 0, 3);
+  ASSERT_TRUE(store.Append(batch).ok());
+  store.Clear();
+  Fill(&batch, second, 0, 2);
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  EXPECT_THAT(ReadAll(store, 0), ElementsAre(7, 8));
+}
+
 // A batch narrowed to a scattering of rows is stored as those rows laid out
 // one after another, whatever the batch was pointing at.
 TEST(RowStoreTest, ReadsBackDenseWhateverArrived) {
