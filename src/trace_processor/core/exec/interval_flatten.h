@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/aggregation.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
@@ -32,12 +33,8 @@
 namespace perfetto::trace_processor::core::exec {
 
 struct IntervalFlattenSpec {
-  enum class Function : uint8_t { kCount, kSum };
-  struct Aggregate {
-    Function function = Function::kCount;
-    // Unused by kCount.
-    uint32_t column = 0;
-  };
+  using Aggregate = AggregateCall;
+  using Function = AggregateCall::Function;
   uint32_t ts_column = 0;
   uint32_t dur_column = 0;
   std::vector<uint32_t> key_columns;
@@ -62,15 +59,7 @@ class IntervalFlatten : public Operator {
   base::Status status(const OperatorState&) const override;
 
  private:
-  // A sum over some rows, and how many of them held a value.
-  struct Sum {
-    int64_t sum;
-    int64_t holding;
-  };
-  struct Totals {
-    int64_t count = 0;
-    std::vector<Sum> sums;
-  };
+  using Totals = AggregateTotals;
   struct Live {
     int64_t end;
     uint32_t slot;
@@ -119,13 +108,7 @@ class IntervalFlatten : public Operator {
     FlexVector<int64_t> segment_dur;
     FlexVector<uint32_t> segment_groups;
     FlexVector<uint32_t> segment_key_rows;
-    // What every kCount aggregate holds.
-    FlexVector<int64_t> segment_counts;
-    struct SegmentSums {
-      FlexVector<int64_t> values;
-      BitVector present;
-    };
-    std::vector<SegmentSums> segment_sums;
+    AggregateResults segment_aggregates;
     RowBatch served_keys;
   };
 
@@ -138,6 +121,7 @@ class IntervalFlatten : public Operator {
   OpResult Yield(RowBatch&, State&, OpResult result) const;
 
   static bool Add(State&, int64_t a, int64_t b, int64_t* out);
+  static bool Overflow(State&);
   // Completes the last input timestamp and sweeps to time. Passing the maximum
   // timestamp drains a group. False means an error or a full output batch;
   // retrying resumes at the first segment which has not yet been emitted.
@@ -147,8 +131,8 @@ class IntervalFlatten : public Operator {
   void GrowSegments(State&) const;
 
   IntervalFlattenSpec spec_;
-  std::vector<uint32_t> sum_index_;
-  uint32_t sums_ = 0;
+  Aggregation aggregation_;
+  uint32_t sums_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

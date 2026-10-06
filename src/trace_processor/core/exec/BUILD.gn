@@ -17,6 +17,8 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
+    "aggregation.cc",
+    "aggregation.h",
     "assert_type.cc",
     "assert_type.h",
     "batch_buffer.cc",

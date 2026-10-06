@@ -25,7 +25,6 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
@@ -45,7 +44,7 @@ constexpr auto kEndsLater = [](const auto& a, const auto& b) {
 };
 
 template <typename Live>
-void PushEnd(FlexVector<Live>& heap, Live live) {
+PERFETTO_ALWAYS_INLINE void PushEnd(FlexVector<Live>& heap, Live live) {
   heap.push_back(live);
   HeapSiftUp(heap.data(), heap.size() - 1, live, kEndsLater);
 }
@@ -62,23 +61,19 @@ void PopEnd(FlexVector<Live>& heap) {
 }  // namespace
 
 IntervalFlatten::IntervalFlatten(IntervalFlattenSpec spec)
-    : Operator({BatchPreference::kThroughput}), spec_(std::move(spec)) {
-  for (const IntervalFlattenSpec::Aggregate& agg : spec_.aggregates) {
-    sum_index_.push_back(sums_);
-    if (agg.function == IntervalFlattenSpec::Function::kSum) {
-      ++sums_;
-    }
-  }
-}
+    : Operator({BatchPreference::kThroughput}),
+      spec_(std::move(spec)),
+      aggregation_(spec_.aggregates),
+      sums_(aggregation_.sums()) {}
 
 IntervalFlatten::~IntervalFlatten() = default;
 IntervalFlatten::State::~State() = default;
 
 std::unique_ptr<OperatorState> IntervalFlatten::MakeState() const {
   auto state = std::make_unique<State>();
-  state->live.sums.resize(sums_);
+  state->live = aggregation_.MakeTotals();
   state->instant = state->live;
-  state->segment_sums.resize(sums_);
+  state->segment_aggregates = aggregation_.MakeResults();
   return state;
 }
 
@@ -91,24 +86,16 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   if (!s.status.ok()) {
     return OpResult::kError;
   }
-  bool typed = IsInt64(in, spec_.ts_column) && IsInt64(in, spec_.dur_column);
-  for (const IntervalFlattenSpec::Aggregate& agg : spec_.aggregates) {
-    typed = typed && (agg.function != IntervalFlattenSpec::Function::kSum ||
-                      IsInt64(in, agg.column));
-  }
-  if (!typed) {
+  if (!IsInt64(in, spec_.ts_column) || !IsInt64(in, spec_.dur_column) ||
+      !aggregation_.CanRead(in)) {
     s.status = base::ErrStatus(
         "INTERVAL FLATTEN: ts, dur and summed columns must be Int64");
     return OpResult::kError;
   }
   FlatColumnReader<int64_t> ts(in.column(spec_.ts_column));
   FlatColumnReader<int64_t> dur(in.column(spec_.dur_column));
-  base::SmallVector<FlatColumnReader<int64_t>, 4> sums;
-  for (const IntervalFlattenSpec::Aggregate& agg : spec_.aggregates) {
-    if (agg.function == IntervalFlattenSpec::Function::kSum) {
-      sums.emplace_back(in.column(agg.column));
-    }
-  }
+  Aggregation::Readers sums;
+  aggregation_.Read(in, &sums);
   // A full output batch can interrupt consumption of the same input. Keep its
   // keys in place until all rows have been consumed.
   if (!s.input_pending) {
@@ -196,12 +183,10 @@ PERFETTO_ALWAYS_INLINE bool IntervalFlatten::AddInterval(
   }
   ++totals->count;
   for (uint32_t i = 0; i < sums_; ++i) {
-    Sum held{};
-    held.holding = sums[i].Read(s.input_row, &held.sum);
-    if (!Add(s, totals->sums[i].sum, held.sum, &totals->sums[i].sum)) {
-      return false;
+    Sum held = Sum::Of(sums[i], s.input_row);
+    if (!totals->sums[i].Add(held)) {
+      return Overflow(s);
     }
-    totals->sums[i].holding += held.holding;
     if (length > 0) {
       s.slot_sums[static_cast<size_t>(slot) * sums_ + i] = held;
     }
@@ -237,9 +222,10 @@ PERFETTO_ALWAYS_INLINE bool IntervalFlatten::Add(State& s,
                                                  int64_t a,
                                                  int64_t b,
                                                  int64_t* out) {
-  if (base::CheckedAdd(a, b, out)) {
-    return true;
-  }
+  return base::CheckedAdd(a, b, out) || Overflow(s);
+}
+
+bool IntervalFlatten::Overflow(State& s) {
   s.status = base::ErrStatus("INTERVAL FLATTEN: integer overflow");
   return false;
 }
@@ -251,8 +237,7 @@ bool IntervalFlatten::Advance(State& s, int64_t time) const {
     if (!Emit(s, s.input_ts, 0, true)) {
       return false;
     }
-    s.instant.count = 0;
-    std::fill(s.instant.sums.begin(), s.instant.sums.end(), Sum());
+    s.instant.Clear();
   }
   int64_t& cursor = s.cursor;
   while (!s.ends.empty() && s.ends.begin()->end <= time) {
@@ -284,18 +269,9 @@ PERFETTO_ALWAYS_INLINE bool IntervalFlatten::Expire(State& s,
     --s.live.count;
     for (uint32_t i = 0; i < sums_; ++i) {
       const Sum& held = s.slot_sums[static_cast<size_t>(slot) * sums_ + i];
-      // Negating the minimum Int64 value would itself overflow. Subtract it
-      // directly only when the result is representable.
-      if (held.sum == std::numeric_limits<int64_t>::min()) {
-        if (s.live.sums[i].sum >= 0) {
-          s.status = base::ErrStatus("INTERVAL FLATTEN: integer overflow");
-          return false;
-        }
-        s.live.sums[i].sum -= held.sum;
-      } else if (!Add(s, s.live.sums[i].sum, -held.sum, &s.live.sums[i].sum)) {
-        return false;
+      if (!s.live.sums[i].Subtract(held)) {
+        return Overflow(s);
       }
-      s.live.sums[i].holding -= held.holding;
     }
     s.free_slots.push_back(slot);
   }
@@ -321,18 +297,14 @@ bool IntervalFlatten::Emit(State& s,
   s.segment_key_rows[n] = s.key_row;
   const Totals& live = s.live;
   const Totals& instant = s.instant;
-  s.segment_counts[n] = live.count + (with_instant ? instant.count : 0);
+  s.segment_aggregates.SetCount(
+      n, live.count + (with_instant ? instant.count : 0));
   for (uint32_t i = 0; i < sums_; ++i) {
     Sum total = live.sums[i];
-    if (with_instant) {
-      if (!Add(s, total.sum, instant.sums[i].sum, &total.sum)) {
-        return false;
-      }
-      total.holding += instant.sums[i].holding;
+    if (with_instant && !total.Add(instant.sums[i])) {
+      return Overflow(s);
     }
-    State::SegmentSums& out = s.segment_sums[i];
-    out.values[n] = total.sum;
-    out.present.change(n, total.holding > 0);
+    s.segment_aggregates.SetSum(n, i, total);
   }
   s.segments = n + 1;
   return true;
@@ -344,11 +316,7 @@ PERFETTO_NO_INLINE void IntervalFlatten::GrowSegments(State& s) const {
   s.segment_dur.resize(s.segment_capacity);
   s.segment_groups.resize(s.segment_capacity);
   s.segment_key_rows.resize(s.segment_capacity);
-  s.segment_counts.resize(s.segment_capacity);
-  for (State::SegmentSums& sum : s.segment_sums) {
-    sum.values.resize(s.segment_capacity);
-    sum.present.resize(s.segment_capacity);
-  }
+  s.segment_aggregates.Resize(s.segment_capacity);
 }
 
 OpResult IntervalFlatten::Finish(RowBatch& out, OperatorState& state) const {
@@ -388,14 +356,7 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
       out.AddColumn(s.served_keys.column(k), s.served_keys.owner(k));
     }
   }
-  for (uint32_t a = 0; a < spec_.aggregates.size(); ++a) {
-    if (spec_.aggregates[a].function == IntervalFlattenSpec::Function::kSum) {
-      const State::SegmentSums& sum = s.segment_sums[sum_index_[a]];
-      add(StorageType{Int64{}}, sum.values.data(), &sum.present);
-    } else {
-      add(StorageType{Int64{}}, s.segment_counts.data(), nullptr);
-    }
-  }
+  aggregation_.AddColumns(s.segment_aggregates, &out);
   add(StorageType{Uint32{}}, s.segment_groups.data(), nullptr);
   out.SetCardinality(count);
   return result;
@@ -412,10 +373,8 @@ void IntervalFlatten::State::Reset() {
   s.in_group = false;
   s.cursor = 0;
   s.input_ts = 0;
-  s.live.count = 0;
-  std::fill(s.live.sums.begin(), s.live.sums.end(), Sum());
-  s.instant.count = 0;
-  std::fill(s.instant.sums.begin(), s.instant.sums.end(), Sum());
+  s.live.Clear();
+  s.instant.Clear();
   s.ends.clear();
   s.slots = 0;
   s.slot_sums.clear();
