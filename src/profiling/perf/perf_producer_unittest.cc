@@ -17,6 +17,7 @@
 #include "src/profiling/perf/perf_producer.h"
 
 #include <stdint.h>
+#include <map>
 #include <optional>
 
 #include "perfetto/base/logging.h"
@@ -30,11 +31,19 @@ bool ShouldReject(pid_t pid,
                   std::string cmdline,
                   const TargetFilter& filter,
                   bool skip_cmd,
-                  base::FlatSet<std::string>* additional_cmdlines) {
+                  base::FlatSet<std::string>* additional_cmdlines,
+                  std::map<pid_t, pid_t> parents = {}) {
   return PerfProducer::ShouldRejectDueToFilter(
-      pid, filter, skip_cmd, additional_cmdlines, [cmdline](std::string* out) {
+      pid, filter, skip_cmd, additional_cmdlines,
+      [cmdline](std::string* out) {
         *out = cmdline;
         return true;
+      },
+      [parents](pid_t p) -> std::optional<pid_t> {
+        auto it = parents.find(p);
+        if (it == parents.end())
+          return std::nullopt;
+        return it->second;
       });
 }
 
@@ -195,6 +204,39 @@ TEST(TargetFilterTest, AdditionalCmdlines) {
   EXPECT_EQ(extra_cmds.count("/bin/echo"), 1u);
   EXPECT_EQ(extra_cmds.count("/bin/cat"), 1u);
   EXPECT_EQ(extra_cmds.count("/bin/top"), 0u);
+}
+
+TEST(TargetFilterTest, TargetPidDescendants) {
+  bool skip_cmd = false;
+  base::FlatSet<std::string> extra_cmds;
+  TargetFilter filter;
+  filter.pids.insert(100);
+  // 100 forks 200 (a worker that renamed itself), which forks 300; 400 is
+  // unrelated and 500 was reparented to init.
+  std::map<pid_t, pid_t> parents = {
+      {100, 1}, {200, 100}, {300, 200}, {400, 1}, {500, 1}};
+
+  // Without the option, only the pid itself.
+  EXPECT_FALSE(
+      ShouldReject(100, "nginx", filter, skip_cmd, &extra_cmds, parents));
+  EXPECT_TRUE(ShouldReject(200, "nginx: worker process", filter, skip_cmd,
+                           &extra_cmds, parents));
+
+  filter.pid_descendants = true;
+  EXPECT_FALSE(ShouldReject(200, "nginx: worker process", filter, skip_cmd,
+                            &extra_cmds, parents));
+  EXPECT_FALSE(
+      ShouldReject(300, "cc1", filter, skip_cmd, &extra_cmds, parents));
+  EXPECT_TRUE(
+      ShouldReject(400, "bash", filter, skip_cmd, &extra_cmds, parents));
+  EXPECT_TRUE(ShouldReject(500, "nginx: worker process", filter, skip_cmd,
+                           &extra_cmds, parents));
+  // A process already gone has no parent to read.
+  EXPECT_TRUE(
+      ShouldReject(600, "gone", filter, skip_cmd, &extra_cmds, parents));
+  // Exclusions still win.
+  filter.exclude_pids.insert(300);
+  EXPECT_TRUE(ShouldReject(300, "cc1", filter, skip_cmd, &extra_cmds, parents));
 }
 
 }  // namespace
