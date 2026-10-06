@@ -64,6 +64,28 @@ class GraphSearchTests(TestSuite):
         "node_id","parent_node_id"
         """))
 
+  def test_dfs_no_edges_returns_start_nodes(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 0 AS dest_node_id
+            WHERE FALSE
+          )
+          SELECT * FROM graph_reachable_dfs!(
+            foo,
+            (SELECT 3 AS node_id UNION ALL SELECT 7)
+          )
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        3,"[NULL]"
+        7,"[NULL]"
+        """))
+
   def test_dfs_one_node(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
@@ -302,6 +324,28 @@ class GraphSearchTests(TestSuite):
         """,
         out=Csv("""
         "node_id","parent_node_id"
+        """))
+
+  def test_bfs_no_edges_returns_start_nodes(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          WITH foo AS (
+            SELECT 0 AS source_node_id, 0 AS dest_node_id
+            WHERE FALSE
+          )
+          SELECT * FROM graph_reachable_bfs!(
+            foo,
+            (SELECT 3 AS node_id UNION ALL SELECT 7)
+          )
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","parent_node_id"
+        3,"[NULL]"
+        7,"[NULL]"
         """))
 
   def test_bfs_one_node(self):
