@@ -17869,7 +17869,16 @@ message CounterDescriptor {
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
 
-// Begin of protos/perfetto/trace/track_event/dimension.proto
+// Begin of protos/perfetto/trace/track_event/state_descriptor.proto
+
+// Descriptor for a state track.
+// For now, this message is empty. It is used to identify a track as a state
+// track.
+message StateDescriptor {}
+
+// End of protos/perfetto/trace/track_event/state_descriptor.proto
+
+// Begin of protos/perfetto/trace/track_event/track_dimension.proto
 
 // A named, typed key/value which is part of a track's identity.
 //
@@ -17912,7 +17921,7 @@ message CounterDescriptor {
 //  * sibling tracks are only merged (see
 //    `TrackDescriptor.sibling_merge_behavior`) if they declare the same
 //    dimensions.
-message Dimension {
+message TrackDimension {
   // The canonical dimension key, e.g. "rank". Must be non-empty and must not
   // be one of the reserved names listed above.
   optional string name = 1;
@@ -17937,16 +17946,7 @@ message Dimension {
   optional string display_name = 4;
 }
 
-// End of protos/perfetto/trace/track_event/dimension.proto
-
-// Begin of protos/perfetto/trace/track_event/state_descriptor.proto
-
-// Descriptor for a state track.
-// For now, this message is empty. It is used to identify a track as a state
-// track.
-message StateDescriptor {}
-
-// End of protos/perfetto/trace/track_event/state_descriptor.proto
+// End of protos/perfetto/trace/track_event/track_dimension.proto
 
 // Begin of protos/perfetto/trace/track_event/track_descriptor.proto
 
@@ -18315,18 +18315,18 @@ message TrackDescriptor {
   // Dimensions declared here are resolved onto this track *and* onto the
   // tracks which inherit from it: tracks of the same process if `process` is
   // set, tracks of the same thread if `thread` is set, and `parent_uuid`
-  // descendants otherwise. See Dimension for the full resolution rules.
+  // descendants otherwise. See TrackDimension for the full resolution rules.
   //
   // Dimensions are part of the track's identity: every descriptor emitted for
   // this `uuid` must declare the same dimensions, starting with the first one,
-  // and only siblings declaring the same dimensions are merged. See Dimension
-  // for details.
+  // and only siblings declaring the same dimensions are merged. See
+  // TrackDimension for details.
   //
   // Well-known dimensions (`machine`, `gpu`, `cpu`, `process`, `thread`) are
   // synthesized by trace processor from the typed fields above and from import
   // context: their names are reserved and producers must *not* declare them
-  // here. See Dimension for the full list of reserved names.
-  repeated Dimension dimensions = 21;
+  // here. See TrackDimension for the full list of reserved names.
+  repeated TrackDimension dimensions = 21;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

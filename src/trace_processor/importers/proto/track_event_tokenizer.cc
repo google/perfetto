@@ -62,11 +62,11 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/dimension.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/range_of_interest.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_dimension.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -92,7 +92,7 @@ using protos::pbzero::CounterDescriptor;
 // Dimensions which trace processor recognizes and synthesizes itself, and
 // whose canonical value means the same thing across data sources. Producers
 // cannot declare a custom dimension with one of these names. Keep in sync with
-// the list of reserved names documented in dimension.proto.
+// the list of reserved names documented in track_dimension.proto.
 bool IsWellKnownDimensionName(base::StringView name) {
   return name == "machine" || name == "gpu" || name == "cpu" ||
          name == "process" || name == "thread";
@@ -421,7 +421,7 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
     TrackEventTracker::DescriptorTrackReservation& reservation) {
   using Reservation = TrackEventTracker::DescriptorTrackReservation;
   for (auto it = track.dimensions(); it; ++it) {
-    protos::pbzero::Dimension::Decoder dim(*it);
+    protos::pbzero::TrackDimension::Decoder dim(*it);
 
     base::StringView name = dim.name();
     if (name.empty()) {
