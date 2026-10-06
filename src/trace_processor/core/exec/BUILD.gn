@@ -17,6 +17,8 @@ import("../../../../gn/test.gni")
 
 source_set("exec") {
   sources = [
+    "aggregate.cc",
+    "aggregate.h",
     "aggregation.cc",
     "aggregation.h",
     "assert_type.cc",
@@ -87,6 +89,7 @@ source_set("test_utils") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "aggregate_unittest.cc",
     "assert_type_unittest.cc",
     "breaker_unittest.cc",
     "dataframe_scan_unittest.cc",
