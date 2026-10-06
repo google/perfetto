@@ -39,6 +39,7 @@ import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {TrackWrapper} from '../../core/track_manager';
+import type {AreaSelection} from '../../public/selection';
 import type {TrackRenderer, Track} from '../../public/track';
 import type {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
@@ -46,7 +47,7 @@ import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
 import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {COLOR_ACCENT} from '../../frontend/css_constants';
+import {COLOR_ACCENT, COLOR_WARNING} from '../../frontend/css_constants';
 import {calculateResolution} from '../../base/resolution';
 import type {Trace} from '../../public/trace';
 import {Anchor, linkify} from '../../widgets/anchor';
@@ -565,6 +566,23 @@ export class TrackView {
     return undefined;
   }
 
+  isInAreaSelection(selection: AreaSelection): boolean {
+    if (this.node.isSummary) {
+      // Expanded summary tracks aren't drawn on the canvas; their children are.
+      if (this.node.expanded) return false;
+      // Summary tracks cannot themselves be area-selected. So, as a visual aid,
+      // if this track is a summary track and some of its children are in the
+      // area selecion, highlight this track as if it were in the area
+      // selection too.
+      return selection.trackUris.some((uri) => this.node.getTrackByUri(uri));
+    }
+    // For non-summary tracks, simply highlight this track if it's in the area
+    // selection.
+    return (
+      this.node.uri !== undefined && selection.trackUris.includes(this.node.uri)
+    );
+  }
+
   private highlightIfTrackInAreaSelection(
     ctx: CanvasRenderingContext2D,
     timescale: TimeScale,
@@ -576,24 +594,7 @@ export class TrackView {
       return;
     }
 
-    let selected = false;
-    if (this.node.isSummary) {
-      // Summary tracks cannot themselves be area-selected. So, as a visual aid,
-      // if this track is a summary track and some of its children are in the
-      // area selecion, highlight this track as if it were in the area
-      // selection too.
-      selected = selection.trackUris.some((uri) =>
-        this.node.getTrackByUri(uri),
-      );
-    } else {
-      // For non-summary tracks, simply highlight this track if it's in the area
-      // selection.
-      if (this.node.uri !== undefined) {
-        selected = selection.trackUris.includes(this.node.uri);
-      }
-    }
-
-    if (selected) {
+    if (this.isInAreaSelection(selection)) {
       const startPx = timescale.timeToPx(selection.start);
       const endPx = timescale.timeToPx(selection.end);
 
@@ -605,7 +606,9 @@ export class TrackView {
       // Only draw if there's a visible portion
       if (clampedWidth > 0) {
         ctx.globalAlpha = 0.3;
-        ctx.fillStyle = COLOR_ACCENT;
+        ctx.fillStyle = this.trace.areaSelectionEditor.isEditing
+          ? COLOR_WARNING
+          : COLOR_ACCENT;
         ctx.fillRect(clampedStartPx, 0, clampedWidth, size.height);
         ctx.globalAlpha = 1.0;
       }
