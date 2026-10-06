@@ -69,7 +69,7 @@ export default class implements PerfettoPlugin {
          extract_arg(dimension_arg_set_id, 'cluster') as cluster
        from track
        where type = 'android_cpu_per_uid_totals'
-       order by type, cluster`,
+       order by type, cluster, id`,
     );
 
     const it = tracks.iter({id: NUM, type: STR, cluster: NUM});
@@ -80,15 +80,20 @@ export default class implements PerfettoPlugin {
       });
       this.topLevelGroup(ctx).addChildInOrder(group);
 
+      const seenUris = new Set<string>();
       for (; it.valid(); it.next()) {
         const name = `${it.type} (${clusterName(it.cluster)})`;
+        const baseUri = `/cpu_per_uid_summary_${it.type}_${it.cluster}`;
+        const uri = seenUris.has(baseUri) ? `${baseUri}_${it.id}` : baseUri;
+        seenUris.add(baseUri);
+        seenUris.add(uri);
         await this.addCpuPerUidTrack(
           ctx,
           `select ts, value
           from counter
           where track_id = ${it.id}`,
           name,
-          `/cpu_per_uid_summary_${it.type}_${it.cluster}`,
+          uri,
           group,
           'cpu-per-uid-summary',
         );
