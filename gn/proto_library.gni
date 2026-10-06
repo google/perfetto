@@ -152,7 +152,6 @@ template("protozero_cpp_library") {
     forward_variables_from(invoker,
                            [
                              "defines",
-                             "deps",
                              "generator_plugin_options",
                              "include_dirs",
                              "proto_deps",
@@ -206,7 +205,6 @@ template("ipc_library") {
     forward_variables_from(invoker,
                            [
                              "defines",
-                             "deps",
                              "extra_configs",
                              "include_dirs",
                              "proto_deps",
@@ -311,6 +309,9 @@ template("perfetto_proto_library") {
       foreach(dep, invoker.public_deps) {
         # Get the absolute target path
         mapped_dep = string_replace(dep, expansion_token, "source_set")
+        if (get_label_info(mapped_dep, "name") == "cpp") {
+          mapped_dep = get_label_info(mapped_dep, "dir") + ":source_set"
+        }
         public_deps += [ mapped_dep ]
         exports_ += [ get_label_info(mapped_dep, "dir") + ":" +
                       get_label_info(mapped_dep, "name") ]
@@ -320,6 +321,9 @@ template("perfetto_proto_library") {
     if (defined(invoker.deps)) {
       foreach(dep, invoker.deps) {
         mapped_dep = string_replace(dep, expansion_token, "source_set")
+        if (get_label_info(mapped_dep, "name") == "cpp") {
+          mapped_dep = get_label_info(mapped_dep, "dir") + ":source_set"
+        }
         public_deps += [ mapped_dep ]
       }
     }
@@ -404,7 +408,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=pbzero"
         deps = all_deps_
-        proto_deps = [ ":$source_set_target_name" ]
+        proto_deps = [ ":${source_set_target_name}_input_group" ]
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
@@ -415,7 +419,7 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
         deps = all_deps_
-        proto_deps = [ ":$source_set_target_name" ]
+        proto_deps = [ ":${source_set_target_name}_input_group" ]
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
@@ -427,7 +431,7 @@ template("perfetto_proto_library") {
         proto_in_dir = proto_path
         proto_out_dir = proto_path
         generator_plugin_options = "wrapper_namespace=gen"
-        proto_deps = [ ":$source_set_target_name" ]
+        proto_deps = [ ":${source_set_target_name}_input_group" ]
         deps = all_deps_ + [ ":$cpp_target_name_" ]
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
@@ -442,7 +446,7 @@ template("perfetto_proto_library") {
         cc_generator_options = "lite=true:"
         propagate_imports_configs = propagate_imports_configs_
         import_dirs = import_dirs_
-        proto_deps = [ ":${source_set_target_name}" ]
+        proto_deps = [ ":${source_set_target_name}_input_group" ]
         forward_variables_from(invoker, vars_to_forward)
       }
     } else {
