@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -156,6 +157,9 @@ base::Status AndroidBatteryStatsReader::SendToSorter(
       ClockId::Machine(protos::pbzero::ClockSnapshot::Clock::REALTIME),
       event_ts.count());
   if (trace_ts) {
+    MachineDataClaimTracker::NoteData(
+        context_, MachineDataClaimTracker::SourceKind::kDumpstateBattery,
+        *trace_ts);
     stream_->Push(*trace_ts, std::move(event));
   }
   return base::OkStatus();

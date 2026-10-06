@@ -188,17 +188,14 @@ namespace perfetto::trace_processor::stats {
   F(machine_counter_claim_conflict,       kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
         "Machine-wide counter values (CPU/GPU frequency, CPU idle, battery "   \
         "counters, entity state) from this trace were dropped because "        \
-        "another trace on the same machine already provided values on that "   \
-        "track. Merging the same data source from multiple traces onto one "   \
-        "machine is not supported; if the traces are from different devices, " \
-        "give each its own machine in a trace manifest."),                     \
+        "another trace on the same machine owned that track at that time. If " \
+        "the traces are from different devices or boots, give each its own "  \
+        "machine in a trace manifest."),                                       \
   F(machine_sched_claim_conflict,         kSingle,  kDataLoss, kAnalysis, Scope::kMachineAndTrace,      \
         "Scheduling events (sched_switch, sched_waking, ...) from this trace " \
-        "were dropped because another trace on the same machine already "      \
-        "provided scheduling data. Merging the same data source from "         \
-        "multiple traces onto one machine is not supported; if the traces "    \
-        "are from different devices, give each its own machine in a trace "    \
-        "manifest."),                                                          \
+        "were dropped because another trace on the same machine owned "        \
+        "scheduling at that time. If the traces are from different devices "   \
+        "or boots, give each its own machine in a trace manifest."),           \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
        "CpuInfo contained CPU feature bits not known to this version of "      \

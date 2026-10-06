@@ -283,6 +283,7 @@ source_set("proto_importer_module") {
     "../../../base",
     "../../sorter",
     "../../types",
+    "../common",
     "../common:parser_types",
   ]
 }

@@ -28,6 +28,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -108,6 +109,15 @@ base::Status EtwTokenizer::TokenizeEtwEvent(
   if (!timestamp.ok()) {
     return timestamp.status();
   }
+
+  MachineDataClaimTracker::NoteData(module_context_->context,
+                                    MachineDataClaimTracker::SourceKind::kEtw,
+                                    *timestamp);
+  if (etw_decoder.has_c_switch() || etw_decoder.has_ready_thread()) {
+    MachineDataClaimTracker::NoteSchedData(module_context_->context,
+                                           *timestamp);
+  }
+
   module_context_->PushEtwEvent(
       cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
 

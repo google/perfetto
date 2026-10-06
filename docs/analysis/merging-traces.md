@@ -90,27 +90,43 @@ the same thing from the command line, with some validation on top.
 ### Same data source on the same machine
 
 When two files in an archive contribute the same machine-wide stream on the
-same machine, the first file to provide it owns it and the other files'
-events for that stream are dropped to prevent corrupted timelines:
+same machine, only one file writes it at any time, to prevent corrupted
+timelines:
 
-- Scheduling: owned by the first file to emit a context switch. Once
-  scheduling is owned, other files' wakeups and the thread states of their
-  new-task events are dropped too (the new threads themselves are kept).
-  Wakeups seen before any file owns scheduling are kept; when the first
-  file claims it, other files' open thread states (for example runnable
-  states from those wakeups) are closed at the claiming switch. ETW
-  context switches and JSON thread states follow the same rule. Fuchsia
-  scheduler records are not checked.
+- Scheduling: owned by the first file to emit a context switch, until that
+  file's scheduling events end. Then the next file to emit a context switch
+  takes over, and the previous owner's open slices and thread states are
+  closed at its last scheduling event. While a file owns scheduling, other
+  files' context switches, wakeups and new-task thread states are dropped (the
+  new threads themselves are kept). Before any file owns scheduling, a file's
+  wakeups are kept unless an earlier-starting file's scheduling events cover
+  them. When the first file claims scheduling, the other files' open thread
+  states are closed at that switch. ETW context switches and JSON thread
+  states follow the same rules. Fuchsia scheduler records are not checked.
 - Machine-wide counters (CPU/GPU frequency and limits, CPU idle, entity state,
-  battery counters): each machine-wide counter track (for example CPU 2
-  frequency or battery charge) is owned by the first file to write a value to
-  it.
+  battery counters): each counter track (for example CPU 2 frequency or
+  battery charge) is owned by the first file to write a value to it, until
+  that file's data for it ends. Then the next trace to write it takes over.
 
 Other data in the other files (e.g. app slices, logs) is still imported.
 Dropped events are recorded in the `machine_counter_claim_conflict` and
 `machine_sched_claim_conflict` stats, and the first dropped event of each kind
-is recorded in import logs (`_trace_import_logs`). If the files actually come from
-different devices, give each its own machine as shown below.
+is recorded in import logs (`_trace_import_logs`).
+
+Known limitations:
+
+- If two files start at exactly the same timestamp, ties follow the sorter's
+  order.
+- A file keeps a counter track until all of its streams that can write it
+  end, even if that counter stopped earlier.
+- After a handover, a CPU or thread has no data until the new owner's next
+  event for it.
+- Scheduling is never handed over from a file whose scheduling comes only
+  from generic kernel events or ETW, because its open slices can't be closed.
+  JSON traces never hand over scheduling either.
+
+If the files come from different devices or different boots, give each its
+own machine as shown below.
 
 ### Keeping two devices' data separate
 
@@ -229,8 +245,8 @@ WHERE severity IN ('error', 'data_loss') AND value > 0;
 ```
 
 The stats to watch for merges: `machine_counter_claim_conflict` and
-`machine_sched_claim_conflict` indicate conflicting machine streams where a
-secondary trace had its events dropped; `clock_sync_unrelatable_clock_domains`
+`machine_sched_claim_conflict` indicate conflicting machine streams where
+another trace owned that data at that time; `clock_sync_unrelatable_clock_domains`
 and `clock_sync_failure_no_path` count events whose clock could not be related
 to the timeline (record clock snapshots or add a manifest `clocks` entry);
 `trace_sorter_negative_timestamp_dropped` counts events an `offset_ns`

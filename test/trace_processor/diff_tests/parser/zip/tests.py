@@ -61,11 +61,14 @@ def _compact_sched(intern_table, switches):
   return f'compact_sched {{ {" ".join(fields)} }}'
 
 
-def _two_trace_zip(trace1, trace2=None):
+def _two_trace_zip(trace1,
+                   trace2=None,
+                   name1='trace1.pftrace',
+                   name2='trace2.pftrace'):
   """ZIP with trace1.pftrace and trace2.pftrace (a copy of trace1 if None)."""
   return ZipTrace({
-      'trace1.pftrace': TextProto(trace1),
-      'trace2.pftrace': TextProto(trace1 if trace2 is None else trace2),
+      name1: TextProto(trace1),
+      name2: TextProto(trace1 if trace2 is None else trace2),
   })
 
 
@@ -299,7 +302,9 @@ class Zip(TestSuite):
         1276408471040116
         '''))
 
-  # Duplicate cpu_frequency events across traces report claim conflicts.
+  # In C, trace 1 owns until ts 1001; trace 2's sample at 1000 is dropped and
+  # cached (1 conflict). At 1002 (> 1001), handover emits the cached value and
+  # keeps trace 2's sample (total 4 rows).
   def test_two_traces_duplicate_cpu_frequency(self):
     return DiffTestBlueprint(
         trace=_two_trace_zip(
@@ -313,7 +318,7 @@ class Zip(TestSuite):
         ''',
         out=Csv('''
         "counter_count","conflict_count"
-        2,2
+        3,1
         '''))
 
   # Duplicate sched_switch events across traces report claim conflicts.
@@ -361,7 +366,7 @@ class Zip(TestSuite):
         2,3,0,0
         '''))
 
-  # Earlier timestamp in second zip member wins sched ownership.
+  # In C, b.pb owns [50, 60]. At 100 (> 60), a.pb takes over via handover.
   def test_sched_claim_earlier_timestamp_wins(self):
     return DiffTestBlueprint(
         trace=ZipTrace({
@@ -385,7 +390,7 @@ class Zip(TestSuite):
         ''',
         out=Csv('''
         "sched_count","max_sched_ts","conflict_count"
-        2,60,2
+        4,120,0
         '''))
 
   # Compact sched bundles in duplicate traces deduplicate cleanly. All 3 of
@@ -531,10 +536,8 @@ class Zip(TestSuite):
         1,1
         '''))
 
-  # Back-to-back traces: trace 2 starts after trace 1 and forks a new process.
-  # Trace 2's sched data is dropped (trace 1 owns scheduling), but the new
-  # process and thread must still be created so trace 2's other data can be
-  # attributed to them. The stat is attributed to trace 2.
+  # Back-to-back traces: in C, trace 2 starts after trace 1 ends, so trace 2's
+  # window is non-overlapping. Trace 2's sched data is kept (0 conflicts).
   def test_back_to_back_fork_keeps_process(self):
     return DiffTestBlueprint(
         trace=_two_trace_zip(
@@ -559,7 +562,7 @@ class Zip(TestSuite):
         ''',
         out=Csv('''
         "threads","processes","states","conflict_trace","conflict_count"
-        1,1,0,"trace2.pftrace",2
+        1,1,1,"[NULL]",0
         '''))
 
   # The first compact switch on a CPU claims scheduling too, so trace 2's
@@ -615,7 +618,9 @@ class Zip(TestSuite):
         '''))
 
   # Two traces from one machine share one cpu_frequency track per CPU; trace 1
-  # claims ownership so trace 2's overlapping samples are dropped.
+  # claims ownership on [1000, 1001], so trace 2's sample at 1000 is dropped and
+  # cached. At 1002 (> 1001), handover writes the cached value and keeps trace 2's
+  # sample at 1002.
   def test_two_traces_share_cpu_frequency_track(self):
     return DiffTestBlueprint(
         trace=_two_trace_zip(
@@ -638,6 +643,7 @@ class Zip(TestSuite):
         "cpufreq_tracks","name","cpu","ts","value"
         1,"cpufreq",0,1000,1000000.000000
         1,"cpufreq",0,1001,1200000.000000
+        1,"cpufreq",0,1002,1400000.000000
         '''))
 
   # Trace 1 provides battery capacity only and trace 2 provides current only.
@@ -741,4 +747,595 @@ class Zip(TestSuite):
         out=Csv('''
         "sched_count","conflict_count"
         1,1
+        '''))
+
+  # Merging identical traces gives identical sched/counter rows.
+  def test_lease_identical_traces(self):
+    payload = _ftrace(
+        _sched_switch(1000, 't1', 10, 't2', 20),
+        _sched_switch(2000, 't2', 20, 't1', 10), _cpu_freq(1000, 1000000),
+        _cpu_freq(2000, 1200000))
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT count(*) FROM counter) AS counter_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS counter_conflicts;
+        ''',
+        out=Csv('''
+        "sched_count","counter_count","sched_conflicts","counter_conflicts"
+        2,2,2,2
+        '''))
+
+  # Partial overlap: later trace's data after the first ends is kept via handover.
+  def test_lease_partial_overlap(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(2000, 't2', 20, 't1', 10)),
+            _ftrace(
+                _sched_switch(1500, 't3', 30, 't4', 40),
+                _sched_switch(3000, 't4', 40, 't3', 30))),
+        query='''
+          SELECT
+            ts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count
+          FROM sched
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+        "ts","conflict_count"
+        1000,1
+        2000,1
+        3000,1
+        '''))
+
+  # Enclosed: long trace starting first keeps all, short trace dropped.
+  def test_lease_enclosed(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(2000, 't2', 20, 't1', 10),
+                _sched_switch(4000, 't1', 10, 't2', 20)),
+            _ftrace(
+                _sched_switch(1500, 't3', 30, 't4', 40),
+                _sched_switch(2500, 't4', 40, 't3', 30))),
+        query='''
+          SELECT
+            ts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count
+          FROM sched
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+        "ts","conflict_count"
+        1000,2
+        2000,2
+        4000,2
+        '''))
+
+  # Enclosed reversed: short trace starts first; short owns its span, long
+  # takes over after short ends.
+  def test_lease_enclosed_reversed(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(2000, 't2', 20, 't1', 10)),
+            _ftrace(
+                _sched_switch(1500, 't3', 30, 't4', 40),
+                _sched_switch(3000, 't4', 40, 't3', 30),
+                _sched_switch(4000, 't3', 30, 't4', 40))),
+        query='''
+          SELECT
+            ts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count
+          FROM sched
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+        "ts","conflict_count"
+        1000,1
+        2000,1
+        3000,1
+        4000,1
+        '''))
+
+  # Back-to-back: no overlap, nothing dropped.
+  def test_lease_back_to_back(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(100, 't1', 10, 't2', 20),
+                _sched_switch(200, 't2', 20, 't1', 10)),
+            _ftrace(
+                _sched_switch(300, 't3', 30, 't4', 40),
+                _sched_switch(400, 't4', 40, 't3', 30))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count;
+        ''',
+        out=Csv('''
+        "sched_count","conflict_count"
+        4,0
+        '''))
+
+  # 3 traces chain: T1 -> T3 takes over after T1 ends; T2's overlapping events dropped.
+  def test_lease_three_traces_chain(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            't1.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(100, 't1', 10, 't2', 20),
+                        _sched_switch(200, 't2', 20, 't1', 10))),
+            't2.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(150, 't3', 30, 't4', 40),
+                        _sched_switch(350, 't4', 40, 't3', 30))),
+            't3.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(300, 't5', 50, 't6', 60),
+                        _sched_switch(500, 't6', 60, 't5', 50))),
+        }),
+        query='''
+          SELECT
+            ts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count
+          FROM sched
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+        "ts","conflict_count"
+        100,2
+        200,2
+        300,2
+        500,2
+        '''))
+
+  # Reversed file order gives same output.
+  def test_lease_reversed_file_order(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(2000, 't2', 20, 't1', 10)),
+            _ftrace(
+                _sched_switch(1500, 't3', 30, 't4', 40),
+                _sched_switch(3000, 't4', 40, 't3', 30)),
+            name1='z_t1.pftrace',
+            name2='a_t2.pftrace'),
+        query='''
+          SELECT
+            ts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS conflict_count
+          FROM sched
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+        "ts","conflict_count"
+        1000,1
+        2000,1
+        3000,1
+        '''))
+
+  # Sched in T1, ftrace cpufreq in T2 -> both kept.
+  def test_lease_r4a_sched_and_cpufreq(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(2000, 't2', 20, 't1', 10)),
+            _ftrace(_cpu_freq(1000, 1000000), _cpu_freq(2000, 1200000))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT count(*) FROM counter) AS counter_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS counter_conflicts;
+        ''',
+        out=Csv('''
+        "sched_count","counter_count","sched_conflicts","counter_conflicts"
+        2,2,0,0
+        '''))
+
+  # Sched in T1, atrace slices in T2 -> both kept.
+  def test_lease_r4b_sched_and_atrace_slices(self):
+    t2 = """
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            categories: "cat"
+            name: "slice1"
+            type: TYPE_SLICE_BEGIN
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            track_uuid: 1
+            type: TYPE_SLICE_END
+          }
+        }
+        """
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(2000, 't2', 20, 't1', 10)), t2),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT count(*) FROM slice) AS slice_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "sched_count","slice_count","sched_conflicts"
+        2,1,0
+        '''))
+
+  # Meminfo in T1, vmstat in T2 -> both kept.
+  def test_lease_r5_meminfo_and_vmstat(self):
+    t1 = """
+        packet {
+          timestamp: 1000
+          sys_stats {
+            meminfo {
+              key: MEMINFO_MEM_TOTAL
+              value: 1000000
+            }
+          }
+        }
+        """
+    t2 = """
+        packet {
+          timestamp: 1000
+          sys_stats {
+            vmstat {
+              key: VMSTAT_NR_FREE_PAGES
+              value: 50000
+            }
+          }
+        }
+        """
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(t1, t2),
+        query='''
+          SELECT
+            (SELECT count(*) FROM counter) AS counter_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS counter_conflicts;
+        ''',
+        out=Csv('''
+        "counter_count","counter_conflicts"
+        2,0
+        '''))
+
+  # Waking-only trace fails closed: waking events after other trace's sched
+  # lease are dropped while another trace owns sched.
+  def test_lease_waking_only_trace_fail_closed(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(3000, 't2', 20, 't1', 10)),
+            _ftrace(
+                _sched_waking(3500, 20, 't1', 10),
+                _sched_waking(4000, 20, 't1', 10))),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread_state) AS state_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "state_count","sched_conflicts"
+        4,2
+        '''))
+
+  # Soft drop: T2 ftrace events before valid-data start don't start claim.
+  def test_lease_soft_drop(self):
+    t1 = _ftrace(_cpu_freq(1000, 1000000))
+    t2 = """
+        packet {
+          ftrace_events {
+            cpu: 0
+            previous_bundle_end_timestamp: 1500
+            event {
+              timestamp: 500
+              pid: 1
+              cpu_frequency { state: 800000 cpu_id: 0 }
+            }
+            event {
+              timestamp: 2000
+              pid: 1
+              cpu_frequency { state: 1200000 cpu_id: 0 }
+            }
+          }
+        }
+        """
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(t1, t2),
+        query='''
+          SELECT
+            c.ts,
+            c.value
+          FROM counter c
+          JOIN cpu_counter_track t ON c.track_id = t.id
+          WHERE t.type = 'cpu_frequency'
+          ORDER BY c.ts;
+        ''',
+        out=Csv('''
+        "ts","value"
+        1000,1000000.000000
+        2000,1200000.000000
+        '''))
+
+  # Stream stops early: T1 ftrace ends early, T2 takes over.
+  def test_lease_stream_stops_early(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(_cpu_freq(1000, 1000000), _cpu_freq(1500, 1200000)),
+            _ftrace(_cpu_freq(2000, 1400000))),
+        query='''
+          SELECT
+            c.ts,
+            c.value,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_counter_claim_conflict') AS conflict_count
+          FROM counter c
+          JOIN cpu_counter_track t ON c.track_id = t.id
+          WHERE t.type = 'cpu_frequency'
+          ORDER BY c.ts;
+        ''',
+        out=Csv('''
+        "ts","value","conflict_count"
+        1000,1000000.000000,0
+        1500,1200000.000000,0
+        2000,1400000.000000,0
+        '''))
+
+  # Handover closing: old owner's open slice closed at its sched lease end.
+  def test_lease_handover_closing(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _sched_switch(1000, 't1', 10, 't2', 20),
+                _sched_switch(1800, 't2', 20, 't1', 10),
+                _sched_waking(2000, 10, 't1', 10)),
+            _ftrace(
+                _sched_switch(2500, 't3', 30, 't4', 40),
+                _sched_switch(3000, 't4', 40, 't3', 30))),
+        query='''
+          SELECT
+            ts,
+            dur
+          FROM sched
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+        "ts","dur"
+        1000,800
+        1800,200
+        2500,500
+        3000,-1
+        '''))
+
+  # Counter value at expiry: expiry triggered by another track writes cached
+  # dropped value at expiry time.
+  def test_lease_counter_value_at_expiry(self):
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(
+            _ftrace(
+                _cpu_freq(1000, 1000000, cpu=0),
+                _cpu_freq(2000, 1200000, cpu=0)),
+            _ftrace(
+                _cpu_freq(1500, 1500000, cpu=0),
+                _cpu_freq(3000, 1800000, cpu=1))),
+        query='''
+          SELECT
+            t.cpu,
+            c.ts,
+            c.value
+          FROM counter c
+          JOIN cpu_counter_track t ON c.track_id = t.id
+          WHERE t.type = 'cpu_frequency'
+          ORDER BY t.cpu, c.ts;
+        ''',
+        out=Csv('''
+        "cpu","ts","value"
+        0,1000,1000000.000000
+        0,2000,1200000.000000
+        1,3000,1800000.000000
+        '''))
+
+  # Early waking in trace 2 is closed at trace 1's first switch. Trace 2 later
+  # takes over after trace 1's lease ends without creating thread state overlaps.
+  def test_early_waking_closed_before_takeover(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            't1.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(2000, 't1', 10, 't2', 20, prev_state=1),
+                        _sched_switch(3000, 't2', 20, 't1', 10, prev_state=1),
+                    )),
+            't2.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_waking(1000, 1, 't2', 20),
+                        _sched_switch(2500, 't3', 30, 't2', 20, prev_state=1),
+                        _sched_switch(4000, 't3', 30, 't2', 20, prev_state=1),
+                        _sched_switch(5000, 't2', 20, 't3', 30, prev_state=1),
+                    )),
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread_state a
+             JOIN thread_state b ON a.utid = b.utid AND b.ts > a.ts
+             AND (a.dur = -1 OR a.ts + a.dur > b.ts)) AS overlap_count,
+            (SELECT count(*) FROM thread_state WHERE dur = -1 AND state = 'R') AS open_r_count,
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "overlap_count","open_r_count","sched_count","sched_conflicts"
+        0,0,4,1
+        '''))
+
+  # Waking-only trace: early waking before first switch is closed at claim;
+  # wakings after owner's lease ends are dropped while trace 1 owns sched.
+  def test_waking_only_trace_dropped_while_owned(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            't1.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(2000, 't1', 10, 't2', 20, prev_state=1),
+                        _sched_switch(3000, 't2', 20, 't1', 10, prev_state=1),
+                        _sched_switch(4000, 't1', 10, 't2', 20, prev_state=1),
+                    )),
+            't2.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_waking(1500, 1, 't2', 20),
+                        _sched_waking(4500, 1, 't2', 20),
+                        _sched_waking(4600, 1, 't1', 10),
+                    )),
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread_state a
+             JOIN thread_state b ON a.utid = b.utid AND b.ts > a.ts
+             AND (a.dur = -1 OR a.ts + a.dur > b.ts)) AS overlap_count,
+            (SELECT count(*) FROM thread_state WHERE dur = -1 AND state = 'R') AS open_r_count,
+            (SELECT count(*) FROM thread_state) AS state_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "overlap_count","open_r_count","state_count","sched_conflicts"
+        0,0,7,2
+        '''))
+
+  # Three traces: T1 claims, T2 wakings and switches dropped, T3 takes over after
+  # T1's lease ends. No overlapping thread states.
+  def test_waking_between_two_owners_dropped(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            't1.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(1000, 't1', 10, 't2', 20, prev_state=1),
+                        _sched_switch(2000, 't2', 20, 't1', 10, prev_state=1),
+                    )),
+            't2.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_waking(1100, 1, 't2', 20),
+                        _sched_waking(2050, 1, 't2', 20),
+                        _sched_switch(2200, 't3', 30, 't2', 20, prev_state=1),
+                        _sched_switch(2800, 't2', 20, 't3', 30, prev_state=1),
+                    )),
+            't3.pb':
+                TextProto(
+                    _ftrace(
+                        _sched_switch(2100, 't4', 40, 't2', 20, prev_state=1),
+                        _sched_switch(5000, 't2', 20, 't4', 40, prev_state=1),
+                    )),
+        }),
+        query='''
+          SELECT
+            (SELECT count(*) FROM thread_state a
+             JOIN thread_state b ON a.utid = b.utid AND b.ts > a.ts
+             AND (a.dur = -1 OR a.ts + a.dur > b.ts)) AS overlap_count,
+            (SELECT count(*) FROM thread_state WHERE dur = -1 AND state = 'R') AS open_r_count,
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "overlap_count","open_r_count","sched_count","sched_conflicts"
+        0,0,4,4
+        '''))
+
+  # Generic kernel task states have no sched closer; ownership never hands over,
+  # preventing overlapping sched slices on CPU 0.
+  def test_generic_kernel_owner_keeps_sched(self):
+    t1 = """
+        packet {
+          timestamp: 1000
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "t2" tid: 20 state: 3 prio: 100
+          }
+        }
+        packet {
+          timestamp: 2000
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "t2" tid: 20 state: 4 prio: 100
+          }
+        }
+        packet {
+          timestamp: 2000
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "t1" tid: 10 state: 3 prio: 100
+          }
+        }
+        """
+    t2 = """
+        packet {
+          timestamp: 3000
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "t4" tid: 40 state: 3 prio: 100
+          }
+        }
+        packet {
+          timestamp: 3500
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "t4" tid: 40 state: 4 prio: 100
+          }
+        }
+        packet {
+          timestamp: 3500
+          generic_kernel_task_state_event {
+            cpu: 0 comm: "t3" tid: 30 state: 3 prio: 100
+          }
+        }
+        """
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(t1, t2),
+        query='''
+          SELECT
+            (SELECT count(*) FROM sched a
+             JOIN sched b ON a.cpu = b.cpu AND b.ts > a.ts
+             AND (a.dur = -1 OR a.ts + a.dur > b.ts)) AS sched_overlaps,
+            (SELECT count(*) FROM sched) AS sched_count,
+            (SELECT coalesce(sum(value), 0) FROM stats
+             WHERE name = 'machine_sched_claim_conflict') AS sched_conflicts;
+        ''',
+        out=Csv('''
+        "sched_overlaps","sched_count","sched_conflicts"
+        0,2,3
         '''))

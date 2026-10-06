@@ -70,6 +70,13 @@ FtraceSchedEventTracker::FtraceSchedEventTracker(TraceProcessorContext* context)
         context->storage->InternString(waking_descriptor->fields[i].name);
   }
   sched_waking_id_ = context->storage->InternString(waking_descriptor->name);
+
+  if (context->machine_data_claim_tracker) {
+    TraceId trace_id = context->trace_state ? context->trace_state->trace_id
+                                            : context->trace_id();
+    context->machine_data_claim_tracker->RegisterSchedCloser(
+        trace_id, [this](int64_t ts) { ClosePendingSlicesAt(ts); });
+  }
 }
 
 FtraceSchedEventTracker::~FtraceSchedEventTracker() = default;
@@ -336,6 +343,21 @@ StringId FtraceSchedEventTracker::TaskStateToStringId(int64_t task_state_int) {
   return task_state.is_valid()
              ? context_->storage->InternString(task_state.ToString().data())
              : kNullStringId;
+}
+
+void FtraceSchedEventTracker::ClosePendingSlicesAt(int64_t ts) {
+  for (uint32_t cpu = 0; cpu < sched_event_state_.num_cpus(); ++cpu) {
+    auto* pending = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
+    if (pending->pending_slice_storage_idx !=
+        std::numeric_limits<uint32_t>::max()) {
+      auto* slices = context_->storage->mutable_sched_slice_table();
+      auto r = (*slices)[pending->pending_slice_storage_idx];
+      PERFETTO_DCHECK(ts >= r.ts());
+      context_->sched_event_tracker->ClosePendingSlice(
+          pending->pending_slice_storage_idx, ts, kNullStringId);
+    }
+    *pending = SchedEventState::PendingSchedInfo{};
+  }
 }
 
 }  // namespace perfetto::trace_processor

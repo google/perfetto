@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_reader.h"
 #include "src/trace_processor/importers/archive/archive_entry.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/decompressor.h"
@@ -106,6 +107,7 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
   }
 
+  MachineDataClaimTracker::NotifyTokenizationDone(context_);
   return base::OkStatus();
 }
 

@@ -60,6 +60,8 @@ class SchedEventState {
     return &pending_sched_per_cpu_[cpu];
   }
 
+  size_t num_cpus() const { return pending_sched_per_cpu_.size(); }
+
  private:
   // Information retained from the preceding sched_switch seen on a given cpu.
   std::vector<PendingSchedInfo> pending_sched_per_cpu_;

@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -205,6 +206,7 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
     return context_->sorter->CreateStream(
         std::make_unique<InlineSchedWakingSink>(parser_.get(), cpu));
   };
+  module_context_.context = context_;
   RegisterDefaultModules(&module_context_, context_);
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
@@ -545,9 +547,22 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       return res.ToStatus();
   }
   auto& modules = module_context_.modules_by_field;
+  std::optional<uint32_t> parsed_field;
   for (const protozero::Field& f : decoder.unknown_fields()) {
     if (f.id() >= modules.size() || modules[f.id()].empty())
       continue;
+    if (!parsed_field) {
+      parsed_field = f.id();
+      auto kind =
+          MachineDataClaimTracker::SourceKindForTracePacketField(*parsed_field);
+      if (kind) {
+        MachineDataClaimTracker::NoteData(context_, *kind, timestamp);
+        if (*parsed_field == protos::pbzero::TracePacket::
+                                 kGenericKernelTaskStateEventFieldNumber) {
+          MachineDataClaimTracker::NoteSchedData(context_, timestamp);
+        }
+      }
+    }
     for (ProtoImporterModule* module : modules[f.id()]) {
       ModuleResult res = module->TokenizePacket({decoder, &packet, timestamp,
                                                  state->current_generation(),

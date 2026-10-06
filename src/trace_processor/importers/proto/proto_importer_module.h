@@ -194,6 +194,7 @@ struct ProtoImporterModuleContext {
   EtwModule* etw_module = nullptr;
   TrackEventModule* track_module = nullptr;
   MetadataMinimalModule* metadata_minimal_module = nullptr;
+  TraceProcessorContext* context = nullptr;
 
   std::unique_ptr<TraceSorter::Stream<TracePacketData>> trace_packet_stream;
   std::unique_ptr<TraceSorter::Stream<TrackEventData>> track_event_stream;

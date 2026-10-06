@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -64,6 +65,8 @@ class MachineDataClaimTrackerTest : public ::testing::Test {
     context1.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context1.storage.get());
     context1.process_tracker = std::make_unique<ProcessTracker>(&context1);
+    context1.sched_event_tracker =
+        std::make_unique<SchedEventTracker>(&context1);
     context1.track_tracker = std::make_unique<TrackTracker>(&context1);
     context1.event_tracker = std::make_unique<EventTracker>(&context1);
 
@@ -83,6 +86,8 @@ class MachineDataClaimTrackerTest : public ::testing::Test {
     context2.stats_tracker = std::make_unique<StatsTracker>(&context2);
     context2.global_args_tracker = context1.global_args_tracker.Fork();
     context2.process_tracker = context1.process_tracker.Fork();
+    context2.sched_event_tracker =
+        std::make_unique<SchedEventTracker>(&context2);
     context2.track_tracker = std::make_unique<TrackTracker>(&context2);
     context2.event_tracker = std::make_unique<EventTracker>(&context2);
   }
@@ -337,6 +342,102 @@ TEST_F(MachineDataClaimTrackerTest, FirstClaimClosesOtherTracesOpenStates) {
 
   // Verify Trace 2's open state was closed at ts 2000 (dur = 1000).
   EXPECT_EQ(table[0].dur(), 1000);
+}
+
+// Leases + drop inside lease + handover after lease.
+TEST_F(MachineDataClaimTrackerTest, SchedLeasesDropAndHandover) {
+  MachineDataClaimTracker::NoteSchedData(&context1, 1000);
+  MachineDataClaimTracker::NoteSchedData(&context1, 2000);
+  MachineDataClaimTracker::NoteSchedData(&context2, 1500);
+  MachineDataClaimTracker::NoteSchedData(&context2, 3000);
+  MachineDataClaimTracker::NotifyTokenizationDone(&context1);
+
+  // Traces register sched closers so they can hand over.
+  context1.machine_data_claim_tracker->RegisterSchedCloser(TraceId{0},
+                                                           [](int64_t) {});
+  context1.machine_data_claim_tracker->RegisterSchedCloser(TraceId{1},
+                                                           [](int64_t) {});
+
+  // Trace 1 claims sched at ts 1000; lease ends at 2000.
+  EXPECT_TRUE(MachineDataClaimTracker::KeepSched(
+      &context1, SchedEventKind::kSwitch, 1000));
+  EXPECT_EQ(context1.machine_data_claim_tracker->sched_owner_for_testing(),
+            std::make_optional(TraceId{0}));
+  EXPECT_EQ(
+      context1.machine_data_claim_tracker->sched_owner_lease_end_for_testing(),
+      2000);
+
+  // Trace 2 switch at 1500 is inside Trace 1's lease -> dropped.
+  EXPECT_FALSE(MachineDataClaimTracker::KeepSched(
+      &context2, SchedEventKind::kSwitch, 1500));
+  EXPECT_EQ(context2.global_stats_tracker->GetStats(
+                context2.machine_id(), context2.trace_id(),
+                stats::machine_sched_claim_conflict),
+            1);
+
+  // Trace 2 switch at 2500 is after Trace 1's lease end -> handover!
+  EXPECT_TRUE(MachineDataClaimTracker::KeepSched(
+      &context2, SchedEventKind::kSwitch, 2500));
+  EXPECT_EQ(context1.machine_data_claim_tracker->sched_owner_for_testing(),
+            std::make_optional(TraceId{1}));
+  EXPECT_EQ(
+      context1.machine_data_claim_tracker->sched_owner_lease_end_for_testing(),
+      3000);
+
+  // Trace 1 switch at 2600 is inside Trace 2's lease -> dropped.
+  EXPECT_FALSE(MachineDataClaimTracker::KeepSched(
+      &context1, SchedEventKind::kSwitch, 2600));
+  EXPECT_EQ(context1.global_stats_tracker->GetStats(
+                context1.machine_id(), context1.trace_id(),
+                stats::machine_sched_claim_conflict),
+            1);
+}
+
+// Counter track handover: write after owner lease end becomes new owner.
+TEST_F(MachineDataClaimTrackerTest, CounterHandoverAfterLease) {
+  TrackId freq_track = context1.track_tracker->InternTrack(
+      tracks::kCpuFrequencyBlueprint, tracks::Dimensions(0));
+
+  MachineDataClaimTracker::NoteData(
+      &context1, MachineDataClaimTracker::SourceKind::kFtrace, 1000);
+  MachineDataClaimTracker::NoteData(
+      &context1, MachineDataClaimTracker::SourceKind::kFtrace, 2000);
+
+  MachineDataClaimTracker::NoteData(
+      &context2, MachineDataClaimTracker::SourceKind::kFtrace, 1500);
+  MachineDataClaimTracker::NoteData(
+      &context2, MachineDataClaimTracker::SourceKind::kFtrace, 3000);
+
+  MachineDataClaimTracker::NotifyTokenizationDone(&context1);
+
+  // Trace 1 claims freq_track at 1000; lease ends at 2000.
+  EXPECT_TRUE(
+      context1.event_tracker->PushCounter(1000, 100.0, freq_track).has_value());
+
+  // Trace 2 pushes at 1500; dropped inside Trace 1 lease.
+  EXPECT_FALSE(
+      context2.event_tracker->PushCounter(1500, 200.0, freq_track).has_value());
+
+  // At ts 2500, Trace 2 writes to freq_track after Trace 1's lease end (2000)
+  // -> handover!
+  EXPECT_TRUE(
+      context2.event_tracker->PushCounter(2500, 300.0, freq_track).has_value());
+
+  EXPECT_EQ(context1.machine_data_claim_tracker->counter_owner_for_testing(
+                freq_track),
+            std::make_optional(TraceId{1}));
+
+  // Verify counter table on freq_track has exactly two rows: ts 1000 (100.0)
+  // and ts 2500 (300.0).
+  const auto& counter_table = context1.storage->counter_table();
+  size_t freq_rows = 0;
+  for (auto it = counter_table.IterateRows(); it; ++it) {
+    if (it.track_id() == freq_track) {
+      ++freq_rows;
+      EXPECT_NE(it.value(), 200.0);
+    }
+  }
+  EXPECT_EQ(freq_rows, 2u);
 }
 
 }  // namespace

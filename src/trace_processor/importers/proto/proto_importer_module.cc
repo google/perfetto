@@ -22,6 +22,7 @@
 
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -89,6 +90,9 @@ void ProtoImporterModuleContext::PushEtwEvent(uint32_t cpu,
 void ProtoImporterModuleContext::PushInlineSchedSwitch(uint32_t cpu,
                                                        int64_t ts,
                                                        InlineSchedSwitch data) {
+  MachineDataClaimTracker::NoteData(
+      context, MachineDataClaimTracker::SourceKind::kFtrace, ts);
+  MachineDataClaimTracker::NoteSchedData(context, ts);
   PushToStream(cpu, ts, data, inline_sched_switch_streams,
                inline_sched_switch_stream_factory);
 }
@@ -96,6 +100,9 @@ void ProtoImporterModuleContext::PushInlineSchedSwitch(uint32_t cpu,
 void ProtoImporterModuleContext::PushInlineSchedWaking(uint32_t cpu,
                                                        int64_t ts,
                                                        InlineSchedWaking data) {
+  MachineDataClaimTracker::NoteData(
+      context, MachineDataClaimTracker::SourceKind::kFtrace, ts);
+  MachineDataClaimTracker::NoteSchedData(context, ts);
   PushToStream(cpu, ts, data, inline_sched_waking_streams,
                inline_sched_waking_stream_factory);
 }

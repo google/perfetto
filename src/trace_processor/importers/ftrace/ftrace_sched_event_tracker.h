@@ -94,6 +94,11 @@ class FtraceSchedEventTracker : public Destructible {
                               uint16_t common_flags,
                               bool parse_only_into_raw);
 
+  // Closes all currently open sched slices for this trace across all CPUs at
+  // |ts|, setting duration to ts - start_ts, and resetting per-CPU pending
+  // sched state.
+  void ClosePendingSlicesAt(int64_t ts);
+
  private:
   StringId TaskStateToStringId(int64_t task_state_int);
 

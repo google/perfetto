@@ -34,6 +34,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -286,6 +287,15 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     return;
   }
   int64_t raw_ts = *raw_ts_opt;
+
+  MachineDataClaimTracker::NoteData(
+      context_, MachineDataClaimTracker::SourceKind::kFtrace, raw_ts);
+  if (event_id == protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber ||
+      event_id == protos::pbzero::FtraceEvent::kSchedWakingFieldNumber ||
+      event_id == protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber ||
+      event_id == protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber) {
+    MachineDataClaimTracker::NoteSchedData(context_, raw_ts);
+  }
 
   if (PERFETTO_UNLIKELY(
           event_id == protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber)) {

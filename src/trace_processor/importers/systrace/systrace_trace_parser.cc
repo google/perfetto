@@ -36,6 +36,7 @@
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
@@ -190,12 +191,20 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
           auto trace_ts =
               ctx_->clock_tracker->ConvertDefaultClockToTraceTime(line.ts);
           if (trace_ts) {
+            MachineDataClaimTracker::NoteData(
+                ctx_, MachineDataClaimTracker::SourceKind::kSystrace,
+                *trace_ts);
+            if (line.event_name.rfind("sched_", 0) == 0 ||
+                line.event_name == "task_newtask") {
+              MachineDataClaimTracker::NoteSchedData(ctx_, *trace_ts);
+            }
             // The converted timestamp is both the sorting key and the value
             // the parser stage reads: SystraceLineParser populates tables
             // from line.ts, so the conversion must be written back.
             line.ts = *trace_ts;
             stream_->Push(*trace_ts, std::move(line));
           }
+
         } else {
           ctx_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
         }
