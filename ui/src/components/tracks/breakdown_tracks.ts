@@ -54,7 +54,7 @@ interface BreakdownTrackSqlInfo {
   /**
    * This is the value that should be displayed in the
    * aggregation counter track. Required for MAX / SUM aggregation; ignored for
-   * COUNT.
+   * COUNT. Must be an integer column.
    */
   valueCol?: string;
   /**
@@ -304,7 +304,7 @@ export class BreakdownTracks {
   }
 
   // Builds the tables that drive every track:
-  //   _breakdown_intervals: one row per source interval (id, ts, dur, the
+  //   _breakdown_intervals: one row per source interval (ts, dur, the
   //     breakdown columns, [agg_value]) from the aggregation table ONLY — no
   //     slice/pivot joins, so the overlap count is never inflated by a 1:N join.
   //   _breakdown_segments_<i>: INTERVAL FLATTEN of the intervals partitioned by
@@ -317,11 +317,9 @@ export class BreakdownTracks {
     const agg = this.props.aggregation;
     const aggTs = agg.tsCol ?? 'ts';
     const aggDur = agg.durCol ?? 'dur';
-    const idExpr = this.props.sliceIdColumn ?? 'ROW_NUMBER() OVER ()';
     const hasValue = agg.valueCol !== undefined;
 
     const intervalCols = [
-      `${idExpr} AS id`,
       `${aggTs} AS ts`,
       `${aggDur} AS dur`,
       ...agg.columns.map((col, i) => `${col} AS k${i}`),
@@ -329,10 +327,11 @@ export class BreakdownTracks {
     ].join(', ');
 
     // Drop intervals that can't carry a count: a NULL id (e.g. binder_reply_id
-    // on oneway transactions), a negative dur (dur = -1 marks an incomplete
-    // slice) or a zero dur (an instant, which FLATTEN would otherwise count
-    // over a zero-width segment). ROW_NUMBER ids are never NULL, so the id
-    // check is only emitted when a real id column was supplied.
+    // on oneway transactions), a NULL or negative ts (FLATTEN rejects ts < 0),
+    // a negative dur (dur = -1 marks an incomplete slice) or a zero dur (an
+    // instant, which FLATTEN would otherwise count over a zero-width segment).
+    // ROW_NUMBER ids are never NULL, so the id check is only emitted when a
+    // real id column was supplied.
     const idCheck = this.props.sliceIdColumn
       ? `${this.props.sliceIdColumn} IS NOT NULL AND `
       : '';
@@ -354,8 +353,7 @@ export class BreakdownTracks {
     // be ambiguous if a join table shares the name — e.g. the binder breakdown
     // tables also carry binder_reply_id, which the client perspective uses as
     // its id. Qualify it with the base table. The ROW_NUMBER fallback needs no
-    // qualification and can't be ambiguous. (The intervals table has no joins,
-    // so it keeps the unqualified idExpr.)
+    // qualification and can't be ambiguous.
     const projectedIdExpr = this.props.sliceIdColumn
       ? `${agg.tableName}.${this.props.sliceIdColumn}`
       : 'ROW_NUMBER() OVER ()';
@@ -374,7 +372,7 @@ export class BreakdownTracks {
       CREATE PERFETTO TABLE ${this.intervalsTableName} AS
       SELECT ${intervalCols}
       FROM ${agg.tableName}
-      WHERE ${idCheck}${aggTs} IS NOT NULL AND ${aggDur} > 0;
+      WHERE ${idCheck}${aggTs} >= 0 AND ${aggDur} > 0;
       ${segmentsTables}
 
       CREATE PERFETTO TABLE ${this.projectedTableName} AS
