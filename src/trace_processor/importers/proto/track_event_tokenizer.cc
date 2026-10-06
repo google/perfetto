@@ -443,7 +443,7 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
       out.string_value = context_->storage->InternString(dim.string_value());
     } else if (dim.has_string_value_iid()) {
       out.string_value = args.state->InternedStringId(
-          protos::pbzero::InternedData::kDebugAnnotationStringValuesFieldNumber,
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
           dim.string_value_iid());
       if (!out.string_value) {
         RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
@@ -457,6 +457,16 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
     }
     if (dim.has_display_name()) {
       out.display_name = context_->storage->InternString(dim.display_name());
+    } else if (dim.has_display_name_iid()) {
+      // The display name only affects presentation: an unknown iid drops it
+      // but keeps the dimension.
+      out.display_name = args.state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.display_name_iid());
+      if (!out.display_name) {
+        RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
+                             track.uuid());
+      }
     }
     reservation.dimensions.push_back(out);
   }

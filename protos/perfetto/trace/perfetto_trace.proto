@@ -15789,6 +15789,9 @@ message InternedData {
   repeated InternedString debug_annotation_string_values = 29;
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
+  // Interned string values and display names of TrackDimensions (see
+  // TrackDimension.string_value_iid and TrackDimension.display_name_iid).
+  repeated InternedString track_dimension_strings = 52;
 
   //
   // == STABLE PUBLIC API: Callstacks and symbolization ==
@@ -17933,7 +17936,7 @@ message TrackDimension {
     int64 int_value = 2;
     string string_value = 3;
     // Interned version of `string_value`: corresponds to the
-    // `debug_annotation_string_values` field in InternedData, looked up in the
+    // `track_dimension_strings` field in InternedData, looked up in the
     // interned data of the sequence the TrackDescriptor is emitted on. The
     // resolved string is the value, so an interned and an inline string with
     // the same contents are the same value.
@@ -17943,7 +17946,13 @@ message TrackDimension {
   // Optional human readable label for this *value*, e.g. "worker-east" for
   // rank 7. Only affects presentation: the canonical typed value above is what
   // SQL and merging use.
-  optional string display_name = 4;
+  oneof display {
+    string display_name = 4;
+    // Interned version of `display_name`: corresponds to the
+    // `track_dimension_strings` field in InternedData, looked up like
+    // `string_value_iid`.
+    uint64 display_name_iid = 6;
+  }
 }
 
 // End of protos/perfetto/trace/track_event/track_dimension.proto
