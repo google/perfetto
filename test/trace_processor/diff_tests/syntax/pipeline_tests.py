@@ -176,6 +176,51 @@ class PerfettoPipeline(TestSuite):
         101,0
         """))
 
+  # `ts` is already in order on `slice`, so the first sorts nothing.
+  def test_order_by_matches_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE by_ts AS
+        FROM slice
+        |> ORDER BY ts
+        |> SELECT id;
+
+        CREATE PERFETTO TABLE by_many AS
+        FROM (SELECT id, dur, depth, parent_id FROM slice)
+        |> ORDER BY depth DESC, parent_id, dur DESC, id
+        |> SELECT id;
+
+        SELECT
+          (SELECT count(*) FROM by_many) AS rows,
+          (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, id FROM by_ts) AS p
+            JOIN (
+              SELECT row_number() OVER (ORDER BY ts, id) AS n, id FROM slice
+            ) AS s USING (n)
+            WHERE p.id != s.id
+          ) + (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, id FROM by_many) AS p
+            JOIN (
+              SELECT
+                row_number() OVER (
+                  ORDER BY depth DESC, parent_id, dur DESC, id
+                ) AS n,
+                id
+              FROM slice
+            ) AS s USING (n)
+            WHERE p.id != s.id
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        74228,0
+        """))
+
   def test_pipeline_errors_name_the_problem(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
