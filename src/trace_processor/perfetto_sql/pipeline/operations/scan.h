@@ -32,11 +32,18 @@
 
 struct SyntaqlitePerfettoPipeSource;
 
+namespace perfetto::trace_processor::core::exec {
+class Source;
+}  // namespace perfetto::trace_processor::core::exec
+
 namespace perfetto::trace_processor::core::dataframe {
 class Dataframe;
 }  // namespace perfetto::trace_processor::core::dataframe
 
 namespace perfetto::trace_processor::pipeline {
+
+class Lowering;
+class PlanNode;
 
 // A relation a source reads: the plan node producing it and its columns.
 struct SourceRelation {
@@ -71,6 +78,15 @@ class Scan {
   using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
 
   static const OperationRegistration kRegistration;
+
+  // Updates this payload and marks required input ColumnIds in needed.
+  // A returned child slot replaces this node; the caller traverses children.
+  std::optional<uint32_t> Prune(std::vector<bool>* needed);
+
+  // Creates the source and records its batch layout and ordering.
+  void Lower(Lowering*, const PlanNode&) const;
+
+  std::unique_ptr<core::exec::Source> MakeSource() const;
 
   // Builds the plan for what a source reads: a dataframe or SQL.
   static base::StatusOr<SourceRelation> BuildRelation(Compiler*,

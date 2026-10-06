@@ -37,11 +37,14 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor::pipeline {
+namespace ex = core::exec;
 
 namespace analysis = ::perfetto::perfetto_sql::analysis;
 using core::StorageType;
@@ -199,6 +202,78 @@ base::StatusOr<Scan> Scan::BuildSqlScan(Compiler* c, uint32_t from) {
 void Scan::AddScanColumn(Compiler* c, Scan* scan, ColumnSchema column) {
   ColumnId id = c->AddColumn(column.name, column.type);
   scan->columns_.push_back({std::move(column.name), id});
+}
+
+std::optional<uint32_t> Scan::Prune(std::vector<bool>* used) {
+  auto& needed = *used;
+  auto& scan = *this;
+  std::vector<uint32_t> keep;
+  for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
+    if (needed[scan.columns_[i].id]) {
+      keep.push_back(i);
+    }
+  }
+  if (keep.size() == scan.columns_.size()) {
+    return std::nullopt;
+  }
+  // Always keep at least one column: a batch with no columns has no rows.
+  if (keep.empty()) {
+    keep.push_back(0);
+  }
+  std::vector<NamedColumn> kept_columns;
+  for (uint32_t i : keep) {
+    kept_columns.push_back(std::move(scan.columns_[i]));
+  }
+  scan.columns_ = std::move(kept_columns);
+
+  switch (scan.source_.index()) {
+    case base::variant_index<Scan::Source, Scan::Dataframe>(): {
+      auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
+      std::vector<std::shared_ptr<const dataframe::Column>> kept;
+      for (uint32_t i : keep) {
+        kept.push_back(std::move(dataframe.columns[i]));
+      }
+      dataframe.columns = std::move(kept);
+      return std::nullopt;
+    }
+    case base::variant_index<Scan::Source, SqlSource>():
+      // The SQL building a dataframe of the relation reads only the columns
+      // the scan keeps.
+      return std::nullopt;
+    default:
+      PERFETTO_FATAL("Unknown scan source");
+  }
+}
+
+void Scan::Lower(Lowering* c, const PlanNode&) const {
+  const auto& scan = *this;
+
+  PERFETTO_DCHECK(!c->has_source());
+  for (const NamedColumn& column : scan.columns_) {
+    c->Define(column.id);
+  }
+  c->SetSource(scan.MakeSource());
+  // A dataframe is read in order, so a column it keeps sorted ascends.
+  const auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
+  for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
+    if (!dataframe.columns[i]->sort_state.Is<core::Unsorted>()) {
+      c->AddAscendingColumn(scan.columns_[i].id);
+    }
+  }
+}
+
+std::unique_ptr<ex::Source> Scan::MakeSource() const {
+  const auto& scan = *this;
+  switch (scan.source_.index()) {
+    case base::variant_index<Scan::Source, Scan::Dataframe>(): {
+      const auto& data = base::unchecked_get<Scan::Dataframe>(scan.source_);
+      return std::make_unique<ex::DataframeScan>(data.columns, data.row_count);
+    }
+    default:
+      // SQL is moved out into dataframe arguments, and those are bound to
+      // dataframes, before a plan is run.
+      PERFETTO_FATAL("Unknown scan source");
+  }
 }
 
 }  // namespace perfetto::trace_processor::pipeline

@@ -30,9 +30,12 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
 namespace perfetto::trace_processor::pipeline {
+namespace ex = core::exec;
 
 const OperationRegistration TreeAccumulate::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE, &BuildPlan};
@@ -68,6 +71,52 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   }
   c->AddNode(std::move(acc), {c->plan().root()});
   return base::OkStatus();
+}
+
+std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* used) {
+  auto& needed = *used;
+  aggregates_.erase(std::remove_if(aggregates_.begin(), aggregates_.end(),
+                                   [&](const TreeAccumulate::Aggregate& agg) {
+                                     return !needed[agg.output];
+                                   }),
+                    aggregates_.end());
+
+  // A fold with nothing left to compute can go entirely. Checking that the
+  // input is a valid tree is not something a fold promises on its own.
+  if (aggregates_.empty()) {
+    return 0;
+  }
+
+  // Otherwise it needs the tree's structure and the columns it aggregates.
+  const auto& acc = *this;
+  needed[acc.node_column_] = true;
+  needed[acc.parent_column_] = true;
+  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
+    needed[agg.column] = true;
+  }
+  return std::nullopt;
+}
+
+void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
+  const auto& acc = *this;
+  c->LowerNode(node.children()[0]);
+
+  const auto tree = c->PrepareTree(acc.node_column_, acc.parent_column_,
+                                   acc.direction_ == TreeDirection::kUp);
+  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
+    PERFETTO_DCHECK(agg.function == TreeAccumulate::Function::kSum);
+    c->RequireInt64(agg.column);
+  }
+  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
+    ex::TreeAccumulateSpec spec{tree.node, tree.parent,
+                                c->Position(agg.column)};
+    if (acc.direction_ == TreeDirection::kUp) {
+      c->AddOperator(std::make_unique<ex::TreeAccumulateUp>(spec));
+    } else {
+      c->AddOperator(std::make_unique<ex::TreeAccumulateDown>(spec));
+    }
+    c->Define(agg.output);
+  }
 }
 
 }  // namespace perfetto::trace_processor::pipeline
