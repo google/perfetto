@@ -111,12 +111,12 @@ TEST(ExecutorContractTest,
   input.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
   input.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
   input.SetCardinality(2);
-  ASSERT_EQ(op.Execute(input, output, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, input, output, *state));
   retained.CopyFrom(output);
   EXPECT_THAT(test::ReadColumn<int64_t>(retained, 3), ElementsAre(10, 30));
   values = {100, 200};
   state->Reset();
-  ASSERT_EQ(op.Execute(input, output, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, input, output, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(output, 3), ElementsAre(100, 300));
   EXPECT_THAT(test::ReadColumn<int64_t>(retained, 3), ElementsAre(10, 30));
 }

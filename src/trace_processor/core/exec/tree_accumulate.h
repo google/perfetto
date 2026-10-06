@@ -40,13 +40,13 @@ struct TreeAccumulateSpec {
 // Requires rows child first, so every descendant has been seen when the node
 // arrives. Subtrees may be interleaved: DFS post-order is not required.
 // Input columns are preserved and one flat Int64 total column is appended.
-class TreeAccumulateUp : public Operator {
+class TreeAccumulateUp final : public Transform {
  public:
   explicit TreeAccumulateUp(TreeAccumulateSpec);
   ~TreeAccumulateUp() override;
 
   std::unique_ptr<OperatorState> MakeState() const override;
-  OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
+  bool Process(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
@@ -58,13 +58,13 @@ class TreeAccumulateUp : public Operator {
 // Requires rows parent first, so every ancestor has been totalled when the node
 // arrives. Input columns are preserved and one flat Int64 total column is
 // appended.
-class TreeAccumulateDown : public Operator {
+class TreeAccumulateDown final : public Transform {
  public:
   explicit TreeAccumulateDown(TreeAccumulateSpec);
   ~TreeAccumulateDown() override;
 
   std::unique_ptr<OperatorState> MakeState() const override;
-  OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
+  bool Process(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
