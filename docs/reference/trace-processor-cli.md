@@ -80,7 +80,8 @@ configuration, so pass `--debuginfod` when starting the server.
 | `--debuginfod-stall-timeout SECONDS` | Abort a transfer that stays below one byte per second for this long. | `10` |
 
 Setting URLs alone does not enable downloads; a configured `DEBUGINFOD_URLS`
-without `--debuginfod` produces a warning. Local symbol paths and Breakpad
+without `--debuginfod` produces a warning when symbolization leaves frames
+unresolved. Local symbol paths and Breakpad
 files are searched first and only build IDs that are still unresolved are
 fetched, from the cache and then from each server in order. Downloaded files
 are checked against the requested build ID and published to the cache

@@ -229,18 +229,18 @@ class DebuginfodBinaryFinder : public BinaryFinder {
 }  // namespace
 
 base::Status ResolveDebuginfodOptions(const DebuginfodOptions& options,
-                                      DebuginfodConfig* config,
-                                      std::string* warnings) {
+                                      DebuginfodConfig* config) {
   if (!EnvironmentValue("LLVM_SYMBOLIZER_OPTS").empty())
-    *warnings +=
+    config->llvm_opts_warning =
         "LLVM_SYMBOLIZER_OPTS is ignored; Perfetto controls "
         "llvm-symbolizer options.\n";
   const std::string env_urls = EnvironmentValue("DEBUGINFOD_URLS");
   if (!options.enabled) {
     if (!env_urls.empty() || options.urls.has_value()) {
-      *warnings += options.urls ? "--debuginfod-urls is set but ignored; "
-                                : "DEBUGINFOD_URLS is set but ignored; ";
-      *warnings += "pass --debuginfod to enable downloads.\n";
+      config->disabled_warning = options.urls
+                                     ? "--debuginfod-urls is set but ignored; "
+                                     : "DEBUGINFOD_URLS is set but ignored; ";
+      config->disabled_warning += "pass --debuginfod to enable downloads.\n";
     }
     return base::OkStatus();
   }
