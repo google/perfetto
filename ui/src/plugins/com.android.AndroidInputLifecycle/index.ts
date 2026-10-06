@@ -19,6 +19,7 @@ import type {ArrowConnection} from '../../components/related_events/arrow_visual
 import {TrackPinningManager} from '../../components/related_events/utils';
 import {showModal} from '../../widgets/modal';
 import {Select} from '../../widgets/select';
+import {Spinner} from '../../widgets/spinner';
 import {Form, FormLabel} from '../../widgets/form';
 import {STR} from '../../trace_processor/query_result';
 import {Time} from '../../base/time';
@@ -47,7 +48,8 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
   static readonly description =
     'Visualise connected input events in the lifecycle from touch to frame, ' +
-    "with latencies for the various input stages. Activate by running the command 'Android: View Input Lifecycle'.";
+    'with latencies for the various input stages. Select any slice in the ' +
+    'input pipeline to draw arrows and show the Input Lifecycle tab.';
 
   private static extensionSettings = new Map<string, Setting<boolean>>();
 
@@ -71,12 +73,20 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
 
   private visibleRowIds = new Set<string>();
   private lastAppliedEventId?: number;
+  private tabVisible = false;
   private allEventConnections: ArrowConnection[] = [];
   private activeExcludeSpeculative?: boolean;
   private pinnedApp?: string;
   private pinnedTrackUris: string[] = [];
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    // android.input is expensive to include; skip it entirely on traces that
+    // cannot contain input events (android_input_events is rooted on these).
+    const hasInput = await trace.engine.query(
+      `SELECT 1 FROM slice WHERE name GLOB 'sendMessage(*' LIMIT 1`,
+    );
+    if (hasInput.numRows() === 0) return;
+
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
     const activeExtensions: InputLifecycleExtension[] = [];
@@ -100,41 +110,34 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
       new RelatedEventsOverlay(trace, () => this.getConnections(trace, source)),
     );
 
-    trace.tabs.registerTab({
-      uri: 'com.android.AndroidInputLifecycleTab',
-      isEphemeral: false,
-      content: {
-        getTitle: () => 'Android Input Lifecycle',
-        render: () => {
-          const {data: rows, isPending} = this.useRowState(trace, source);
-
-          if (rows) {
-            this.applyInitialSelection(trace, rows);
-          }
-
-          return m(AndroidInputLifecycleTab, {
+    trace.selection.registerTrackEventSelectionTab({
+      id: 'android_input_lifecycle',
+      name: 'Input Lifecycle',
+      render: () => {
+        const result = this.useRows(trace, source);
+        // While the next lookup is pending, keep the tab mounted (rather than
+        // returning undefined, which drops it from the tab bar for a frame)
+        // but only if it was already showing.
+        if (result.isPending) {
+          return this.tabVisible
+            ? {isLoading: true, content: m(Spinner, {easing: true})}
+            : undefined;
+        }
+        const rows = result.data;
+        this.tabVisible = rows.length > 0;
+        if (!this.tabVisible) return undefined;
+        return {
+          isLoading: false,
+          content: m(AndroidInputLifecycleTab, {
             trace,
-            rows: rows ?? [],
+            rows,
             visibleRowIds: this.visibleRowIds,
-            loading: isPending,
             pinningManager,
             onToggleVisibility: (rowId) => this.toggleVisibility(rowId),
-            onToggleAllVisibility: () => this.toggleAllVisibility(rows ?? []),
+            onToggleAllVisibility: () => this.toggleAllVisibility(rows),
             activeExtensions,
-          });
-        },
-      },
-      onHide: () => {
-        this.visibleRowIds.clear();
-        this.lastAppliedEventId = undefined;
-      },
-    });
-
-    trace.commands.registerCommand({
-      id: 'com.android.openAndroidInputLifecycleTab',
-      name: 'Android: View Input Lifecycle',
-      callback: () => {
-        trace.tabs.showTab('com.android.AndroidInputLifecycleTab');
+          }),
+        };
       },
     });
 
@@ -231,42 +234,35 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   // Fetch or reuse cached row data for the currently selected slice. Can call
   // this function every render cycle without performance concerns, as the
   // underlying data slot will ensure the query is only executed once per
-  // sliceId.
-  private useRowState(
+  // sliceId. On first load for a given selection, the row containing the
+  // selected slice is made visible so that its arrows are drawn.
+  private useRows(
     trace: Trace,
     source: AndroidInputEventSource,
   ): AsyncMemoResult<InputChainRow[]> {
     const selection = trace.selection.selection;
-
-    if (selection.kind !== 'track_event') {
+    if (
+      selection.kind !== 'track_event' ||
+      trace.tracks.getTrack(selection.trackUri)?.renderer.rootTableName !==
+        'slice'
+    ) {
+      this.lastAppliedEventId = undefined;
+      this.visibleRowIds.clear();
       return {data: [], isPending: false};
     }
 
-    return source.use(selection.eventId);
-  }
-
-  private applyInitialSelection(trace: Trace, rows: InputChainRow[]) {
-    const selection = trace.selection.selection;
-    if (selection.kind !== 'track_event') return;
-
-    const eventId = selection.eventId;
-    if (this.lastAppliedEventId === eventId) return;
-
-    this.lastAppliedEventId = eventId;
-    this.visibleRowIds.clear();
-
-    for (const row of rows) {
-      const ids: number[] = [];
-      for (const stageData of row.stagesData.values()) {
-        if (stageData.nav) {
-          ids.push(stageData.nav.id);
-        }
-      }
-      if (ids.includes(eventId)) {
-        this.visibleRowIds.add(row.uiRowId);
-        break;
-      }
+    const result = source.use(selection.eventId);
+    if (result.data && this.lastAppliedEventId !== selection.eventId) {
+      this.lastAppliedEventId = selection.eventId;
+      this.visibleRowIds.clear();
+      const row = result.data.find((r) =>
+        Array.from(r.stagesData.values()).some(
+          (s) => s.nav?.id === selection.eventId,
+        ),
+      );
+      if (row) this.visibleRowIds.add(row.uiRowId);
     }
+    return result;
   }
 
   private getConnections(
@@ -274,7 +270,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     source: AndroidInputEventSource,
   ): ArrowConnection[] {
     const connections: ArrowConnection[] = [...this.allEventConnections];
-    const {data: rows} = this.useRowState(trace, source);
+    const {data: rows} = this.useRows(trace, source);
     if (!rows) return connections;
 
     const visibleRows = rows.filter((r) => this.visibleRowIds.has(r.uiRowId));
