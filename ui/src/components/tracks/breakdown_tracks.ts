@@ -384,6 +384,11 @@ export class BreakdownTracks {
       )
       |> INTERVAL FLATTEN PER ${perCols} AGGREGATE ${this.aggExpr()} AS value;
 
+      -- Per-node queries filter on exactly these columns; without the index
+      -- each one scans every level's segments.
+      CREATE PERFETTO INDEX ${this.segmentsTableName}_idx
+      ON ${this.segmentsTableName}(${perCols});
+
       CREATE PERFETTO TABLE ${this.projectedTableName} AS
       SELECT ${projectedCols}
       FROM ${agg.tableName}
