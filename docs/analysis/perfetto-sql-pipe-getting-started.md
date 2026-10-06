@@ -119,6 +119,52 @@ Result regions:      [-- 10 @ 1.8G --)[- 10 -]     [-- 20 @ 2.4G --)
 
 ---
 
+## Flattening Overlapping Intervals: `INTERVAL FLATTEN`
+
+To count concurrent activity or sum a value across active intervals, use
+`INTERVAL FLATTEN`. It splits a single set of overlapping intervals into
+segments and computes an aggregate for each segment.
+
+For example, two tasks run during `[0, 10)` and `[5, 15)`, with weights 2 and
+3. Flattening shows when one or both are active:
+
+```sql
+PERFETTO PRAGMA pipelines = 1;
+
+FROM (
+  SELECT 0 AS ts, 10 AS dur, 2 AS weight
+  UNION ALL
+  SELECT 5 AS ts, 10 AS dur, 3 AS weight
+)
+|> INTERVAL FLATTEN AGGREGATE COUNT(*) AS active, SUM(weight) AS total_weight;
+```
+
+| ts | dur | active | total_weight |
+| -- | --- | ------ | ------------ |
+| 0 | 5 | 1 | 2 |
+| 5 | 5 | 2 | 5 |
+| 10 | 5 | 1 | 3 |
+
+Use `PER` to flatten each group independently. For example, count overlapping
+positive-duration slices on each track:
+
+```sql
+FROM (SELECT ts, dur, track_id FROM slice WHERE dur > 0)
+|> INTERVAL FLATTEN PER track_id AGGREGATE COUNT(*) AS active;
+```
+
+The result contains `ts`, `dur`, `track_id`, and `active`. Other input columns
+are discarded. Gaps with no activity produce no rows. Input need not be sorted.
+
+`SUM` adds the values of active rows; it does not multiply them by the segment's
+duration. To calculate a duration-weighted total, save the pipeline as a
+`PERFETTO TABLE` and aggregate `dur * total_weight` in a SQL query.
+
+See the [syntax reference](/docs/analysis/perfetto-sql-pipe-syntax.md#interval-flatten)
+for point intervals, `NULL` handling, and supported aggregate expressions.
+
+---
+
 ## Summing Over Trees: `TREE ACCUMULATE`
 
 Traces often contain trees where each row has an `id` and a `parent_id`, with
