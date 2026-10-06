@@ -130,6 +130,37 @@ for the retained columns.
 
 ---
 
+## `INTERVAL FLATTEN`
+
+Implementation: `/src/trace_processor/core/exec/interval_flatten.cc`
+
+The planner prepares input grouped by the `PER` keys and ordered by `ts`
+within each group, adding sorting and grouping only when the existing order
+cannot be reused. These preparation steps can buffer the input; the flattening
+step itself processes ordered batches incrementally.
+
+`IntervalFlatten` sweeps one group at a time. A min-heap tracks active interval
+endpoints. Running counts and sums are updated when intervals start or expire,
+so producing a segment does not require scanning every active interval. Each
+active interval retains its contributions so they can be subtracted at its
+endpoint. Sums also track the number of non-NULL contributions, allowing an
+all-NULL sum to remain NULL.
+
+Points at a timestamp are accumulated separately and emitted together once all
+rows starting at that timestamp have been consumed. Their totals include
+positive-duration intervals active at that instant, but are not carried into
+the next positive-duration segment.
+
+Completed segments are emitted in bounded batches. The sweep retains active
+interval state and the grouping keys needed for output, rather than buffering
+all completed segments. Finalization drains intervals still active when the
+input ends. Endpoint and sum arithmetic is checked for integer overflow.
+
+Unused aggregates are pruned, but the stage remains even if no aggregates are
+needed: flattening still changes the rows and their interval boundaries.
+
+---
+
 ## `TREE ACCUMULATE`
 
 Implementation:
