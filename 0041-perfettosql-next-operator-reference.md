@@ -452,14 +452,14 @@ The tree operators are RFC-0020's tree functions re-expressed as pipe stages.
 `tree_propagate_up/down`; `TREE MERGE SIBLINGS` is
 `tree_merge_siblings[_ordered]`; `TREE MERGE INTO PARENT` is
 `tree_merge_into_parent`; `TREE INVERT` is `tree_invert`. `CONTRACT`, `ABSORB`,
-`PRUNE`, `REPARENT`, and `EXPAND` are new.
+`PRUNE`, `REPARENT`, `FLATTEN RECURSION`, `KEY SIBLINGS`, and `EXPAND` are new.
 
 ### 6.1 Structure and weight
 
 The **filters** (§6.2), **reshapes** (§6.3), and **reparent** (§6.4) may act on
-a filtered working set, naming the full structure with `OVER rel`. The **folds**
-(§6.5-6.6), **`ACCUMULATE`** (§6.8), and **`EXPAND`** (§6.9) require the
-complete tree in the pipe.
+a filtered working set, naming the full structure with `OVER rel`.
+**`KEY SIBLINGS`** and the **folds** (§6.5-6.6), **`ACCUMULATE`** (§6.8), and
+**`EXPAND`** (§6.9) require the complete tree in the pipe.
 
 ```
 over_clause := "OVER" rel ;
@@ -513,28 +513,71 @@ FROM slice
 ### 6.4 Reparent
 
 ```
-stage := "|>" "TREE REPARENT TO NEAREST ANCESTOR IN" rel [ over_clause ] ;
+stage := "|>" "TREE REPARENT TO NEAREST ANCESTOR IN" rel [ over_clause ]
+       | "|>" "TREE FLATTEN RECURSION BY" cols [ over_clause ] ;
 ```
 
-Row-preserving: each node's parent becomes its nearest strict ancestor that is
-in `rel`, the marker set, yielding a forest with one subtree per marker. Passing
-the boundary markers of a key column recovers a partition-by-group.
+Row-preserving: every node survives with its payload and only `parent_id`
+changes.
 
-### 6.5 Merge siblings
+`REPARENT TO NEAREST ANCESTOR IN rel`: each node's parent becomes its nearest
+strict ancestor that is in `rel`, the marker set, yielding a forest with one
+subtree per marker. Passing the boundary markers of a key column recovers a
+partition-by-group.
+
+`FLATTEN RECURSION BY cols`: a node that agrees with its parent on `cols`
+becomes its parent's sibling, keeping its own subtree. The rule applies
+repeatedly, so a chain `A → A → A` becomes three siblings, and a same-key child
+of a root becomes a root. The recursive nodes end up as siblings with the same
+key, so a following `KEY SIBLINGS` or `MERGE SIBLINGS` on the same `cols` (§6.5)
+puts them in one group.
 
 ```
-stage := "|>" "TREE MERGE SIBLINGS BY" cols [ "ORDERED" ] agg_clause ;
+FROM callstacks
+|> TREE FLATTEN RECURSION BY name
+|> TREE MERGE SIBLINGS BY name AGGREGATE SUM(self_weight) AS self_weight
 ```
 
-`MERGE SIBLINGS BY cols` re-keys every node by its root-to-node path of `cols`
-and unifies nodes with the same path, combining payloads via `agg_clause`,
-taking a tree of callstacks to a tree keyed by name path (a flamegraph).
-`ORDERED` unifies only _consecutive_ same-key runs.
+### 6.5 Key and merge siblings
+
+```
+stage := "|>" "TREE KEY SIBLINGS BY" cols "AS" "(" name "," name ")"
+       | "|>" "TREE MERGE SIBLINGS BY" cols [ "ORDERED" ] agg_clause ;
+```
+
+Both stages key every node by its root-to-node path of `cols`: two nodes get the
+same key when their parents have the same key and they agree on `cols`. Roots
+are keyed by `cols` alone.
+
+`KEY SIBLINGS BY cols AS (key, parent_key)` is row-preserving. It adds two
+properties to every node: its own key as `key` and its parent's key as
+`parent_key`, null for a root. Keys are dense ids scoped to the stage's output.
+The key is an ordinary column: later stages can filter on it, join on it, or
+aggregate by it.
+
+`MERGE SIBLINGS BY cols` unifies nodes with the same key, combining payloads via
+`agg_clause`, taking a tree of callstacks to a tree keyed by name path (a
+flamegraph). `ORDERED` unifies only _consecutive_ same-key runs.
 
 ```
 FROM callstacks
 |> TREE MERGE SIBLINGS BY name AGGREGATE SUM(self_weight) AS self_weight
 |> TREE ACCUMULATE UP SUM(self_weight) AS total;
+```
+
+```
+-- Each heap object tagged with its node in the class tree.
+CREATE PERFETTO TABLE heap_object_nodes AS
+GRAPH BFS TREE NODES heap_objects EDGES heap_refs FROM gc_roots
+|> TREE FLATTEN RECURSION BY class_name
+|> TREE KEY SIBLINGS BY class_name, heap_type AS (node_id, parent_node_id);
+
+-- The class tree. The objects behind one of its nodes are the rows of
+-- heap_object_nodes with that node_id.
+CREATE PERFETTO TABLE heap_class_tree AS
+FROM heap_object_nodes
+|> AGGREGATE SUM(self_size) AS self_size, COUNT(*) AS self_count
+   GROUP BY node_id, parent_node_id, class_name, heap_type;
 ```
 
 ### 6.6 Merge into parent
@@ -655,7 +698,9 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 | `TREE KEEP IF` / `DROP IF`              | tree filter      | focus / prune                                     |
 | `TREE CONTRACT` / `ABSORB`              | tree reshape     | fold a node up / fold its subtree in              |
 | `TREE PRUNE`                            | tree reshape     | drop node and its subtree                         |
-| `TREE REPARENT`                         | tree reshape     | reparent to nearest marker ancestor               |
+| `TREE REPARENT`                         | tree reparent    | reparent to nearest marker ancestor               |
+| `TREE FLATTEN RECURSION`                | tree reparent    | same-key child becomes its parent's sibling       |
+| `TREE KEY SIBLINGS`                     | tree key         | tag each node with its path key                   |
 | `TREE MERGE SIBLINGS`                   | tree fold        | unify by path key (build a flamegraph)            |
 | `TREE MERGE INTO PARENT`                | tree merge       | collapse recursion                                |
 | `TREE INVERT`                           | tree reorient    | flip leaves ↔ roots                               |
