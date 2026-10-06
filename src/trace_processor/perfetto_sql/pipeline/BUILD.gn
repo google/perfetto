@@ -17,7 +17,17 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("logical") {
+# Registration connects the common plan code with the concrete operations.
+source_set("pipeline") {
+  sources = [ "operation_registry.cc" ]
+  deps = [
+    ":plan",
+    "../../../../gn:default_deps",
+    "operations",
+  ]
+}
+
+source_set("plan") {
   sources = [
     "catalog.cc",
     "catalog.h",
@@ -26,10 +36,14 @@ source_set("logical") {
     "compiler.cc",
     "compiler.h",
     "logical_plan.h",
+    "operation_registry.h",
+    "physical_plan.cc",
+    "physical_plan.h",
     "pipeline_sql.cc",
     "pipeline_sql.h",
     "plan_serialization.cc",
     "plan_serialization.h",
+    "plan_types.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -39,24 +53,8 @@ source_set("logical") {
     "../../containers",
     "../../core/common",
     "../../core/dataframe",
-    "../../sqlite",
-    "../../util:sql_argument",
-    "../schema",
-  ]
-}
-
-source_set("plan") {
-  sources = [
-    "physical_plan.cc",
-    "physical_plan.h",
-  ]
-  public_deps = [ ":logical" ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-    "../../core/common",
-    "../../core/dataframe",
     "../../core/exec",
+    "../../sqlite",
   ]
 }
 
@@ -64,7 +62,8 @@ source_set("test_catalog") {
   testonly = true
   sources = [ "test_catalog.h" ]
   deps = [
-    ":logical",
+    ":pipeline",
+    ":plan",
     "../../../../gn:default_deps",
     "../../../base",
     "../../../perfetto_sql/analysis",
@@ -73,6 +72,7 @@ source_set("test_catalog") {
     "../../sqlite",
     "../engine",
     "../schema",
+    "operations",
   ]
 }
 
@@ -83,10 +83,12 @@ source_set("test_utils") {
     "logical_plan_test_utils.h",
   ]
   deps = [
-    ":logical",
+    ":pipeline",
+    ":plan",
     "../../../../gn:default_deps",
     "../../../base",
     "../../core/common",
+    "operations",
   ]
 }
 
@@ -97,7 +99,7 @@ perfetto_unittest_source_set("unittests") {
     "plan_serialization_unittest.cc",
   ]
   deps = [
-    ":logical",
+    ":pipeline",
     ":plan",
     ":test_catalog",
     ":test_utils",
@@ -110,5 +112,6 @@ perfetto_unittest_source_set("unittests") {
     "../../core/util",
     "../../sqlite",
     "../parser",
+    "operations",
   ]
 }

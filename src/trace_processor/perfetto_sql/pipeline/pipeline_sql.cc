@@ -45,41 +45,42 @@ std::string QuoteString(const std::string& text) {
 
 PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
   PlanWithDataframeArgs out;
-  for (PlanNode& node : plan.nodes) {
-    if (!node.Is<op::Scan>()) {
+  for (PlanNode& node : plan.nodes()) {
+    if (!node.Is<Scan>()) {
       continue;
     }
-    auto& scan = node.Cast<op::Scan>();
-    if (!std::holds_alternative<SqlSource>(scan.source)) {
+    auto& scan = node.Cast<Scan>();
+    if (!std::holds_alternative<SqlSource>(scan.source())) {
       continue;
     }
     std::vector<std::string> names;
     std::vector<std::string> references;
-    for (const NamedColumn& column : scan.columns) {
+    for (const NamedColumn& column : scan.columns()) {
       names.push_back(column.name);
       references.push_back(QuoteIdentifier(column.name));
     }
-    const std::string& from = base::unchecked_get<SqlSource>(scan.source).sql();
+    const std::string& from =
+        base::unchecked_get<SqlSource>(scan.source()).sql();
     out.args.push_back("SELECT " + std::string(kDataframeAggFunction) + "(" +
                        QuoteString(base::Join(names, ",")) + ", " +
                        base::Join(references, ", ") + ") FROM " + from);
-    scan.source =
-        op::Scan::DataframeArg{static_cast<uint32_t>(out.args.size() - 1)};
+    scan.source() =
+        Scan::DataframeArg{static_cast<uint32_t>(out.args.size() - 1)};
   }
   out.plan = std::move(plan);
   return out;
 }
 
 base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan) {
-  if (plan.output.size() > kMaxPipelineColumns) {
+  if (plan.output().size() > kMaxPipelineColumns) {
     return base::ErrStatus("A pipeline can output at most %u columns, not %zu",
-                           kMaxPipelineColumns, plan.output.size());
+                           kMaxPipelineColumns, plan.output().size());
   }
   PlanWithDataframeArgs moved = MoveSqlSourcesToDataframeArgs(plan);
   std::vector<std::string> columns;
-  for (uint32_t i = 0; i < plan.output.size(); ++i) {
+  for (uint32_t i = 0; i < plan.output().size(); ++i) {
     columns.push_back("c" + std::to_string(i) + " AS " +
-                      QuoteIdentifier(plan.output[i].name));
+                      QuoteIdentifier(plan.output()[i].name));
   }
   std::string arguments = "X'" + base::ToHex(SerializePlan(moved.plan)) + "'";
   if (!moved.args.empty()) {

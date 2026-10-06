@@ -170,34 +170,33 @@ class PlanWriter {
   std::string Write() {
     // Pruning can leave nodes the root does not reach.
     std::vector<const PlanNode*> stages;
-    PlanNodeId id = plan_.root;
-    while (plan_.nodes[id].Is<op::TreeAccumulate>() ||
-           plan_.nodes[id].Is<op::IntervalFlatten>()) {
-      stages.push_back(&plan_.nodes[id]);
-      id = plan_.nodes[id].children[0];
+    PlanNodeId id = plan_.root();
+    while (plan_.nodes()[id].Is<TreeAccumulate>() ||
+           plan_.nodes()[id].Is<IntervalFlatten>()) {
+      stages.push_back(&plan_.nodes()[id]);
+      id = plan_.nodes()[id].children()[0];
     }
-    const PlanNode& source = plan_.nodes[id];
-    w_.U8(static_cast<uint8_t>(source.op.index()));
-    Available available = source.Is<op::Scan>()
-                              ? WriteScan(source.Cast<op::Scan>())
-                              : WriteIntervalIntersect(source);
+    const PlanNode& source = plan_.nodes()[id];
+    w_.U8(static_cast<uint8_t>(source.operation().index()));
+    Available available = source.Is<Scan>() ? WriteScan(source.Cast<Scan>())
+                                            : WriteIntervalIntersect(source);
     w_.Size(stages.size());
     for (auto it = stages.rbegin(); it != stages.rend(); ++it) {
       const PlanNode& stage = **it;
-      w_.U8(static_cast<uint8_t>(stage.op.index()));
-      switch (stage.op.index()) {
-        case base::variant_index<Op, op::TreeAccumulate>():
-          WriteTreeAccumulate(stage.Cast<op::TreeAccumulate>(), available);
+      w_.U8(static_cast<uint8_t>(stage.operation().index()));
+      switch (stage.operation().index()) {
+        case base::variant_index<PlanOperation, TreeAccumulate>():
+          WriteTreeAccumulate(stage.Cast<TreeAccumulate>(), available);
           break;
-        case base::variant_index<Op, op::IntervalFlatten>():
-          WriteIntervalFlatten(stage.Cast<op::IntervalFlatten>(), available);
+        case base::variant_index<PlanOperation, IntervalFlatten>():
+          WriteIntervalFlatten(stage.Cast<IntervalFlatten>(), available);
           break;
         default:
           PERFETTO_FATAL("Unknown stage");
       }
     }
-    w_.Size(plan_.output.size());
-    for (const NamedColumn& column : plan_.output) {
+    w_.Size(plan_.output().size());
+    for (const NamedColumn& column : plan_.output()) {
       w_.Str(column.name);
       w_.Position(available, column.id);
     }
@@ -205,81 +204,81 @@ class PlanWriter {
   }
 
  private:
-  Available WriteScan(const op::Scan& scan) {
-    w_.U8(static_cast<uint8_t>(scan.source.index()));
-    switch (scan.source.index()) {
-      case base::variant_index<op::Scan::Source, op::Scan::Dataframe>():
-        w_.Str(base::unchecked_get<op::Scan::Dataframe>(scan.source).name);
+  Available WriteScan(const Scan& scan) {
+    w_.U8(static_cast<uint8_t>(scan.source().index()));
+    switch (scan.source().index()) {
+      case base::variant_index<Scan::Source, Scan::Dataframe>():
+        w_.Str(base::unchecked_get<Scan::Dataframe>(scan.source()).name);
         break;
-      case base::variant_index<op::Scan::Source, op::Scan::DataframeArg>():
-        w_.U32(base::unchecked_get<op::Scan::DataframeArg>(scan.source).index);
+      case base::variant_index<Scan::Source, Scan::DataframeArg>():
+        w_.U32(base::unchecked_get<Scan::DataframeArg>(scan.source()).index);
         break;
       default:
         // SQL is moved out into dataframe arguments before a plan is written.
         PERFETTO_FATAL("Unknown scan source");
     }
-    w_.Size(scan.columns.size());
+    w_.Size(scan.columns().size());
     Available available;
-    for (const NamedColumn& column : scan.columns) {
+    for (const NamedColumn& column : scan.columns()) {
       w_.Str(column.name);
-      WriteType(w_, plan_.columns[column.id].type);
+      WriteType(w_, plan_.columns()[column.id].type);
       available.push_back(column.id);
     }
     return available;
   }
 
-  void WriteTreeAccumulate(const op::TreeAccumulate& acc,
-                           Available& available) {
-    w_.U8(static_cast<uint8_t>(acc.direction));
-    w_.Position(available, acc.node_column);
-    w_.Position(available, acc.parent_column);
-    w_.Size(acc.aggregates.size());
+  void WriteTreeAccumulate(const TreeAccumulate& acc, Available& available) {
+    w_.U8(static_cast<uint8_t>(acc.direction()));
+    w_.Position(available, acc.node_column());
+    w_.Position(available, acc.parent_column());
+    w_.Size(acc.aggregates().size());
     Available outputs;
-    for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
+    for (const TreeAccumulate::Aggregate& agg : acc.aggregates()) {
       w_.Position(available, agg.column);
-      w_.Str(plan_.columns[agg.output].name);
+      w_.Str(plan_.columns()[agg.output].name);
       outputs.push_back(agg.output);
     }
     available.insert(available.end(), outputs.begin(), outputs.end());
   }
 
   // Replaces `available` with the segment's columns.
-  void WriteIntervalFlatten(const op::IntervalFlatten& flatten,
+  void WriteIntervalFlatten(const IntervalFlatten& flatten,
                             Available& available) {
-    w_.Position(available, flatten.ts);
-    w_.Position(available, flatten.dur);
-    w_.Size(flatten.keys.size());
-    for (ColumnId key : flatten.keys) {
+    w_.Position(available, flatten.ts());
+    w_.Position(available, flatten.dur());
+    w_.Size(flatten.keys().size());
+    for (ColumnId key : flatten.keys()) {
       w_.Position(available, key);
     }
-    w_.Size(flatten.aggregates.size());
-    for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+    w_.Size(flatten.aggregates().size());
+    for (const IntervalFlatten::Aggregate& agg : flatten.aggregates()) {
       w_.U8(static_cast<uint8_t>(agg.function));
-      if (agg.function == op::IntervalFlatten::Function::kSum) {
+      if (agg.function == IntervalFlatten::Function::kSum) {
         w_.Position(available, agg.column);
       }
-      w_.Str(plan_.columns[agg.output].name);
+      w_.Str(plan_.columns()[agg.output].name);
     }
-    w_.Str(plan_.columns[flatten.out_ts].name);
-    w_.Str(plan_.columns[flatten.out_dur].name);
-    available = {flatten.out_ts, flatten.out_dur};
-    available.insert(available.end(), flatten.keys.begin(), flatten.keys.end());
-    for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+    w_.Str(plan_.columns()[flatten.out_ts()].name);
+    w_.Str(plan_.columns()[flatten.out_dur()].name);
+    available = {flatten.out_ts(), flatten.out_dur()};
+    available.insert(available.end(), flatten.keys().begin(),
+                     flatten.keys().end());
+    for (const IntervalFlatten::Aggregate& agg : flatten.aggregates()) {
       available.push_back(agg.output);
     }
   }
 
   Available WriteIntervalIntersect(const PlanNode& node) {
-    const auto& isect = node.Cast<op::IntervalIntersect>();
-    w_.Str(plan_.columns[isect.ts].name);
-    w_.Str(plan_.columns[isect.dur].name);
-    w_.Size(isect.operands.size());
-    w_.Size(isect.operands.empty() ? 0 : isect.operands[0].keys.size());
-    Available available{isect.ts, isect.dur};
-    for (uint32_t k = 0; k < isect.operands.size(); ++k) {
-      const op::IntervalIntersect::Operand& operand = isect.operands[k];
-      PERFETTO_CHECK(plan_.nodes[node.children[k]].Is<op::Scan>());
-      Available in = WriteScan(plan_.nodes[node.children[k]].Cast<op::Scan>());
+    const auto& isect = node.Cast<IntervalIntersect>();
+    w_.Str(plan_.columns()[isect.ts()].name);
+    w_.Str(plan_.columns()[isect.dur()].name);
+    w_.Size(isect.operands().size());
+    w_.Size(isect.operands().empty() ? 0 : isect.operands()[0].keys.size());
+    Available available{isect.ts(), isect.dur()};
+    for (uint32_t k = 0; k < isect.operands().size(); ++k) {
+      const IntervalIntersect::Operand& operand = isect.operands()[k];
+      PERFETTO_CHECK(plan_.nodes()[node.children()[k]].Is<Scan>());
+      Available in = WriteScan(plan_.nodes()[node.children()[k]].Cast<Scan>());
       w_.Position(in, operand.ts);
       w_.Position(in, operand.dur);
       for (ColumnId id : operand.keys) {
@@ -305,13 +304,13 @@ class PlanReader {
   LogicalPlan Read() {
     Available available;
     switch (r_.U8()) {
-      case base::variant_index<Op, op::Scan>(): {
-        op::Scan scan;
+      case base::variant_index<PlanOperation, Scan>(): {
+        Scan scan;
         available = ReadScan(scan);
         plan_.AddNode(std::move(scan));
         break;
       }
-      case base::variant_index<Op, op::IntervalIntersect>():
+      case base::variant_index<PlanOperation, IntervalIntersect>():
         ReadIntervalIntersect(available);
         break;
       default:
@@ -321,11 +320,11 @@ class PlanReader {
     uint32_t stages = r_.Count();
     for (uint32_t i = 0; i < stages && r_.ok(); ++i) {
       switch (r_.U8()) {
-        case base::variant_index<Op, op::TreeAccumulate>():
-          plan_.AddNode(ReadTreeAccumulate(available), {plan_.root});
+        case base::variant_index<PlanOperation, TreeAccumulate>():
+          plan_.AddNode(ReadTreeAccumulate(available), {plan_.root()});
           break;
-        case base::variant_index<Op, op::IntervalFlatten>():
-          plan_.AddNode(ReadIntervalFlatten(available), {plan_.root});
+        case base::variant_index<PlanOperation, IntervalFlatten>():
+          plan_.AddNode(ReadIntervalFlatten(available), {plan_.root()});
           break;
         default:
           r_.Fail();
@@ -338,8 +337,8 @@ class PlanReader {
       r_.Fail();
       return {};
     }
-    plan_.output.resize(outputs);
-    for (NamedColumn& column : plan_.output) {
+    plan_.output().resize(outputs);
+    for (NamedColumn& column : plan_.output()) {
       column.name = r_.Str();
       column.id = r_.Position(available);
     }
@@ -347,24 +346,24 @@ class PlanReader {
   }
 
  private:
-  Available ReadScan(op::Scan& scan) {
+  Available ReadScan(Scan& scan) {
     switch (r_.U8()) {
-      case base::variant_index<op::Scan::Source, op::Scan::Dataframe>(): {
-        op::Scan::Dataframe source;
+      case base::variant_index<Scan::Source, Scan::Dataframe>(): {
+        Scan::Dataframe source;
         source.name = r_.Str();
-        scan.source = std::move(source);
+        scan.source() = std::move(source);
         break;
       }
-      case base::variant_index<op::Scan::Source, op::Scan::DataframeArg>():
-        scan.source = op::Scan::DataframeArg{r_.U32()};
+      case base::variant_index<Scan::Source, Scan::DataframeArg>():
+        scan.source() = Scan::DataframeArg{r_.U32()};
         break;
       default:
         r_.Fail();
         return {};
     }
-    scan.columns.resize(r_.Count());
+    scan.columns().resize(r_.Count());
     Available available;
-    for (NamedColumn& column : scan.columns) {
+    for (NamedColumn& column : scan.columns()) {
       column.name = r_.Str();
       column.id = plan_.AddColumn(column.name, ReadType(r_));
       available.push_back(column.id);
@@ -372,22 +371,22 @@ class PlanReader {
     return available;
   }
 
-  op::IntervalFlatten ReadIntervalFlatten(Available& available) {
-    op::IntervalFlatten flatten;
-    flatten.ts = r_.Position(available);
-    flatten.dur = r_.Position(available);
-    flatten.keys.resize(r_.Count());
-    for (ColumnId& key : flatten.keys) {
+  IntervalFlatten ReadIntervalFlatten(Available& available) {
+    IntervalFlatten flatten;
+    flatten.ts() = r_.Position(available);
+    flatten.dur() = r_.Position(available);
+    flatten.keys().resize(r_.Count());
+    for (ColumnId& key : flatten.keys()) {
       key = r_.Position(available);
     }
-    flatten.aggregates.resize(r_.Count());
-    for (op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+    flatten.aggregates().resize(r_.Count());
+    for (IntervalFlatten::Aggregate& agg : flatten.aggregates()) {
       switch (r_.U8()) {
-        case static_cast<uint8_t>(op::IntervalFlatten::Function::kCount):
-          agg.function = op::IntervalFlatten::Function::kCount;
+        case static_cast<uint8_t>(IntervalFlatten::Function::kCount):
+          agg.function = IntervalFlatten::Function::kCount;
           break;
-        case static_cast<uint8_t>(op::IntervalFlatten::Function::kSum):
-          agg.function = op::IntervalFlatten::Function::kSum;
+        case static_cast<uint8_t>(IntervalFlatten::Function::kSum):
+          agg.function = IntervalFlatten::Function::kSum;
           agg.column = r_.Position(available);
           break;
         default:
@@ -396,45 +395,46 @@ class PlanReader {
       }
       agg.output = plan_.AddColumn(r_.Str(), core::Int64{});
     }
-    flatten.out_ts = plan_.AddColumn(r_.Str(), core::Int64{});
-    flatten.out_dur = plan_.AddColumn(r_.Str(), core::Int64{});
-    available = {flatten.out_ts, flatten.out_dur};
-    available.insert(available.end(), flatten.keys.begin(), flatten.keys.end());
-    for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+    flatten.out_ts() = plan_.AddColumn(r_.Str(), core::Int64{});
+    flatten.out_dur() = plan_.AddColumn(r_.Str(), core::Int64{});
+    available = {flatten.out_ts(), flatten.out_dur()};
+    available.insert(available.end(), flatten.keys().begin(),
+                     flatten.keys().end());
+    for (const IntervalFlatten::Aggregate& agg : flatten.aggregates()) {
       available.push_back(agg.output);
     }
     return flatten;
   }
 
-  op::TreeAccumulate ReadTreeAccumulate(Available& available) {
-    op::TreeAccumulate acc;
-    acc.direction = static_cast<op::TreeDirection>(r_.U8());
-    acc.node_column = r_.Position(available);
-    acc.parent_column = r_.Position(available);
-    acc.aggregates.resize(r_.Count());
-    for (op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
+  TreeAccumulate ReadTreeAccumulate(Available& available) {
+    TreeAccumulate acc;
+    acc.direction() = static_cast<TreeDirection>(r_.U8());
+    acc.node_column() = r_.Position(available);
+    acc.parent_column() = r_.Position(available);
+    acc.aggregates().resize(r_.Count());
+    for (TreeAccumulate::Aggregate& agg : acc.aggregates()) {
       agg.column = r_.Position(available);
       agg.output = plan_.AddColumn(r_.Str(), core::Int64{});
     }
-    for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
+    for (const TreeAccumulate::Aggregate& agg : acc.aggregates()) {
       available.push_back(agg.output);
     }
     return acc;
   }
 
   void ReadIntervalIntersect(Available& available) {
-    op::IntervalIntersect isect;
-    isect.ts = plan_.AddColumn(r_.Str(), core::Int64{});
-    isect.dur = plan_.AddColumn(r_.Str(), core::Int64{});
-    available = {isect.ts, isect.dur};
-    isect.operands.resize(r_.Count());
+    IntervalIntersect isect;
+    isect.ts() = plan_.AddColumn(r_.Str(), core::Int64{});
+    isect.dur() = plan_.AddColumn(r_.Str(), core::Int64{});
+    available = {isect.ts(), isect.dur()};
+    isect.operands().resize(r_.Count());
     uint32_t keys = r_.Count();
-    if (isect.operands.size() < 2) {
+    if (isect.operands().size() < 2) {
       r_.Fail();
     }
     std::vector<PlanNodeId> children;
-    for (op::IntervalIntersect::Operand& operand : isect.operands) {
-      op::Scan scan;
+    for (IntervalIntersect::Operand& operand : isect.operands()) {
+      Scan scan;
       Available in = ReadScan(scan);
       if (!r_.ok()) {
         return;
@@ -473,12 +473,12 @@ std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
 // Points each dataframe scan at the dataframe now registered under its name,
 // which must still have every column the plan reads, with the same type.
 base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
-  for (PlanNode& node : plan.nodes) {
-    if (!node.Is<op::Scan>()) {
+  for (PlanNode& node : plan.nodes()) {
+    if (!node.Is<Scan>()) {
       continue;
     }
-    auto& scan = node.Cast<op::Scan>();
-    auto* source = std::get_if<op::Scan::Dataframe>(&scan.source);
+    auto& scan = node.Cast<Scan>();
+    auto* source = std::get_if<Scan::Dataframe>(&scan.source());
     if (!source) {
       continue;
     }
@@ -487,10 +487,10 @@ base::Status ResolveDataframes(LogicalPlan& plan, const Catalog& catalog) {
       return base::ErrStatus("Pipeline: table '%s' no longer exists",
                              source->name.c_str());
     }
-    for (const NamedColumn& column : scan.columns) {
+    for (const NamedColumn& column : scan.columns()) {
       std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
       const std::optional<core::StorageType>& type =
-          plan.columns[column.id].type;
+          plan.columns()[column.id].type;
       if (!i || !type || !(*type == dataframe->column_type(*i))) {
         return base::ErrStatus(
             "Pipeline: table '%s' has changed since the pipeline was written",
@@ -513,12 +513,12 @@ base::Status BindDataframeArgs(
     LogicalPlan& plan,
     const std::vector<const dataframe::Dataframe*>& args,
     StringPool* pool) {
-  for (PlanNode& node : plan.nodes) {
-    if (!node.Is<op::Scan>()) {
+  for (PlanNode& node : plan.nodes()) {
+    if (!node.Is<Scan>()) {
       continue;
     }
-    auto& scan = node.Cast<op::Scan>();
-    const auto* arg = std::get_if<op::Scan::DataframeArg>(&scan.source);
+    auto& scan = node.Cast<Scan>();
+    const auto* arg = std::get_if<Scan::DataframeArg>(&scan.source());
     if (!arg) {
       continue;
     }
@@ -530,7 +530,7 @@ base::Status BindDataframeArgs(
     const dataframe::Dataframe* dataframe = args[arg->index];
     if (!dataframe) {
       std::vector<std::string> names;
-      for (const NamedColumn& column : scan.columns) {
+      for (const NamedColumn& column : scan.columns()) {
         names.push_back(column.name);
       }
       dataframe::AdhocDataframeBuilder::Options options;
@@ -540,9 +540,9 @@ base::Status BindDataframeArgs(
                                   .Build());
       dataframe = &*empty;
     }
-    op::Scan::Dataframe source;
+    Scan::Dataframe source;
     source.name = "dataframe argument " + std::to_string(arg->index);
-    for (const NamedColumn& column : scan.columns) {
+    for (const NamedColumn& column : scan.columns()) {
       std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
       if (!i) {
         return base::ErrStatus("Pipeline: %s has no column '%s'",
@@ -550,11 +550,11 @@ base::Status BindDataframeArgs(
       }
       // The dataframe was built after the plan was written, so it decides
       // what each column holds.
-      plan.columns[column.id].type = dataframe->column_type(*i);
+      plan.columns()[column.id].type = dataframe->column_type(*i);
       source.columns.push_back(dataframe->shared_column(*i));
     }
     source.row_count = dataframe->row_count();
-    scan.source = std::move(source);
+    scan.source() = std::move(source);
   }
   return base::OkStatus();
 }

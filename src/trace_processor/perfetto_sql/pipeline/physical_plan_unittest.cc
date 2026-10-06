@@ -81,6 +81,8 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
 
 class PhysicalPlanTest : public ::testing::Test {
  protected:
+  using Rows = std::vector<std::pair<int64_t, std::optional<int64_t>>>;
+
   PhysicalPlanTest()
       : connection_(SqliteConnection::CreateConnectionToNewDatabase()),
         catalog_(&pool_, connection_.get()) {}
@@ -132,8 +134,8 @@ class PhysicalPlanTest : public ::testing::Test {
   // front as SQLite builds it where the pipeline is written.
   base::StatusOr<std::unique_ptr<PhysicalPlan>> LowerReadingSql(
       LogicalPlan plan) {
-    ASSIGN_OR_RETURN(auto dataframes,
-                     BuildSqlSources(connection_.get(), &pool_, plan));
+    ASSIGN_OR_RETURN(auto dataframes, TestCatalog::BuildSqlSources(
+                                          connection_.get(), &pool_, plan));
     LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
     RETURN_IF_ERROR(
         BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
@@ -149,7 +151,6 @@ class PhysicalPlanTest : public ::testing::Test {
   }
 
   // Runs `plan` and returns (id, value) pairs sorted by id.
-  using Rows = std::vector<std::pair<int64_t, std::optional<int64_t>>>;
   base::StatusOr<Rows> Run(const PhysicalPlan& plan, const std::string& value) {
     uint32_t id_column = 0;
     uint32_t value_column = 0;
@@ -301,10 +302,10 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
       "|> TREE ACCUMULATE UP SUM(path) AS total"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
-  ColumnId total = logical.output.back().id;
-  ColumnId id = logical.output.front().id;
+  ColumnId total = logical.output().back().id;
+  ColumnId id = logical.output().front().id;
   // Project and alias the same value twice, independently of the source names.
-  logical.output = {{"total", total}, {"id", id}, {"again", total}};
+  logical.output() = {{"total", total}, {"id", id}, {"again", total}};
   auto plan = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Names(*plan), ElementsAre("total", "id", "again"));
   EXPECT_NE(plan->columns()[0].index, total);
@@ -376,8 +377,8 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
   // Neither the original input name nor its value is exposed in the result.
-  logical.output = {{"id", logical.output.front().id},
-                    {"renamed_total", logical.output.back().id}};
+  logical.output() = {{"id", logical.output().front().id},
+                      {"renamed_total", logical.output().back().id}};
   auto physical = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Run(*physical, "renamed_total").status().message(),
               HasSubstr("'self'"));

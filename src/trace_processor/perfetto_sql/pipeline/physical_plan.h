@@ -40,9 +40,9 @@ class PhysicalPlan {
   };
 
   PhysicalPlan();
-  ~PhysicalPlan();
   PhysicalPlan(const PhysicalPlan&) = delete;
   PhysicalPlan& operator=(const PhysicalPlan&) = delete;
+  ~PhysicalPlan();
 
   const core::exec::Source& source() const { return *pipeline_; }
   const std::vector<Column>& columns() const { return columns_; }
