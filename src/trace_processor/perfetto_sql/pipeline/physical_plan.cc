@@ -78,7 +78,7 @@ class Lowering {
   // `into` belongs to, which is not this one for an intersection's operand.
   void RequireInt64(ColumnId column,
                     uint32_t position,
-                    std::vector<std::unique_ptr<ex::Operator>>& into);
+                    std::vector<ex::Pipeline::Step>& into);
 
   // Map logical IDs to physical batch columns.
   uint32_t Position(ColumnId id) const {
@@ -92,7 +92,7 @@ class Lowering {
 
   // Execution graph under construction.
   std::unique_ptr<PhysicalPlan> out_;
-  std::vector<std::unique_ptr<ex::Operator>> operators_;
+  std::vector<ex::Pipeline::Step> operators_;
 
   // Logical ID -> physical batch position. Operators append columns as lowered.
   std::vector<uint32_t> positions_;
@@ -200,7 +200,7 @@ void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
     };
     // An operand is read through a pipeline of its own, which widens its
     // bounds to Int64 where they are not already.
-    std::vector<std::unique_ptr<ex::Operator>> widen;
+    std::vector<ex::Pipeline::Step> widen;
     ex::IntervalIntersectOperand lowered;
     lowered.ts_column = position(operand.ts);
     lowered.dur_column = position(operand.dur);
@@ -303,7 +303,7 @@ void Lowering::LowerIntervalFlatten(const op::IntervalFlatten& flatten) {
 
 void Lowering::RequireInt64(ColumnId column,
                             uint32_t position,
-                            std::vector<std::unique_ptr<ex::Operator>>& into) {
+                            std::vector<ex::Pipeline::Step>& into) {
   // TODO(lalitm): Replace this with numeric normalization and support Double
   // totals in tree accumulation. For dynamically typed inputs, a Double in a
   // later batch may require promoting earlier Int64 values too. Choosing one

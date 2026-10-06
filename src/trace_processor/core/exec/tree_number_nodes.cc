@@ -174,8 +174,8 @@ std::unique_ptr<OperatorState> TreeNumberNodes::MakeState() const {
   return state;
 }
 
-void TreeNumberNodes::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
+void TreeNumberNodes::State::Reset() {
+  State& s = *this;
   s.dense = true;
   s.numbered = 0;
   s.numbers.Clear();

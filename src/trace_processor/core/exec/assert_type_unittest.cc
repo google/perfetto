@@ -229,13 +229,15 @@ TEST(AssertTypeTest, WideningANonNullFlatColumnStaysNonNull) {
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(7, 8));
 }
 
-TEST(AssertTypeTest, RewindClearsATypeError) {
+TEST(AssertTypeTest, ResetClearsATypeError) {
   StringPool pool;
   Asserted run({Variant::String(pool.InternString("wrong"))},
                AssertTypeTarget{Int64{}});
   ASSERT_EQ(run.Execute(), OpResult::kError);
   ASSERT_FALSE(run.status().ok());
-  run.op.Rewind(*run.state);
+  run.values[0] = Variant::Int64(1);
+  run.state->Reset();
+  EXPECT_EQ(run.Execute(), OpResult::kNeedMoreInput);
   EXPECT_TRUE(run.status().ok());
 }
 
@@ -271,7 +273,7 @@ TEST(AssertTypeTest, RetainedOutputSurvivesConversionAndRewind) {
   retained.CopyFrom(run.out);
   run.values[0] = Variant::Int64(99);
   run.values[1] = Variant::Int64(100);
-  run.op.Rewind(*run.state);
+  run.state->Reset();
   ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
               ElementsAre(Optional(7), Eq(std::nullopt)));

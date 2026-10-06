@@ -211,8 +211,8 @@ Output Drain(const Source& source) {
   return Drain(&run);
 }
 
-std::vector<std::unique_ptr<Operator>> Number() {
-  std::vector<std::unique_ptr<Operator>> ops;
+std::vector<Pipeline::Step> Number() {
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   return ops;
 }
@@ -339,7 +339,7 @@ TEST(TreeChildFirstTest, ASelfParentIsReported) {
 
 TEST(TreeChildFirstTest, DuplicateNumberedNodesAreReported) {
   NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeChildFirst>(0, 1));
   Pipeline order(source, std::move(ops), {});
   Execution run(order);
@@ -424,8 +424,8 @@ TEST(TreeChildFirstTest, PreservesInterleavedChildFirstSubtrees) {
 }
 
 // Numbers the rows, then puts them parent first.
-std::vector<std::unique_ptr<Operator>> NumberParentFirst() {
-  std::vector<std::unique_ptr<Operator>> ops;
+std::vector<Pipeline::Step> NumberParentFirst() {
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
   return ops;
@@ -532,7 +532,7 @@ TEST(TreeParentFirstTest, ASelfParentIsReported) {
 
 TEST(TreeParentFirstTest, DuplicateNumberedNodesAreReported) {
   NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeParentFirst>(0, 1));
   Pipeline pipeline(source, std::move(ops), {});
   Execution run(pipeline);

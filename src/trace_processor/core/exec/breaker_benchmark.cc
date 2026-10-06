@@ -67,7 +67,7 @@ void Run(benchmark::State& state,
     while (op.Finish(out, *op_state) == OpResult::kHaveMoreOutput) {
       benchmark::DoNotOptimize(out.size());
     }
-    op.Rewind(*op_state);
+    op_state->Reset();
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * rows);
 }

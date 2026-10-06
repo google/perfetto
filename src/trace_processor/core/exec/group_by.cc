@@ -124,8 +124,9 @@ bool GroupBy::Serve(RowBatch& out, Breaker::State& state) const {
   return true;
 }
 
-void GroupBy::Reset(Breaker::State& state) const {
-  auto& s = static_cast<State&>(state);
+void GroupBy::State::Reset() {
+  Breaker::State::Reset();
+  State& s = *this;
   s.group_of.Clear();
   s.group_keys.Clear();
   s.groups.clear();

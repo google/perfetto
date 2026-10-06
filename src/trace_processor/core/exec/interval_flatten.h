@@ -55,14 +55,10 @@ class IntervalFlatten : public Operator {
  public:
   explicit IntervalFlatten(IntervalFlattenSpec);
   ~IntervalFlatten() override;
-  BatchPreference batch_preference() const override {
-    return BatchPreference::kThroughput;
-  }
 
   std::unique_ptr<OperatorState> MakeState() const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
@@ -81,7 +77,9 @@ class IntervalFlatten : public Operator {
   };
 
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
 
     base::Status status = base::OkStatus();
     // The first unconsumed row when Execute yields a full output batch.

@@ -222,8 +222,9 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
   return true;
 }
 
-void TreeChildFirst::Reset(Breaker::State& state) const {
-  State& s = state.Cast<State>();
+void TreeChildFirst::State::Reset() {
+  Breaker::State::Reset();
+  State& s = *this;
   s.has_row.clear();
   s.nodes_seen = 0;
   s.parent_first = true;
@@ -400,8 +401,8 @@ OpResult TreeParentFirst::Finish(RowBatch& out, OperatorState& state) const {
   return OpResult::kNeedMoreInput;
 }
 
-void TreeParentFirst::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
+void TreeParentFirst::State::Reset() {
+  State& s = *this;
   s.nodes.Clear();
   s.held.Clear();
   s.letting_go.clear();
