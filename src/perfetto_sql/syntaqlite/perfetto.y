@@ -353,10 +353,17 @@ perfetto_pipe_set_list(A) ::= perfetto_pipe_set_list(L) COMMA
     A = synq_parse_perfetto_pipe_set_item_list(pCtx, L, X);
 }
 
-// ORDER BY's list: `column [ASC | DESC], ...`.
+// ORDER BY's list: `expr [ASC | DESC], ...`. A term ends at `|`, since `|>`
+// is two tokens: a top-level bitwise OR needs parentheses.
 %type perfetto_pipe_order_term {uint32_t}
-perfetto_pipe_order_term(A) ::= perfetto_pipe_column(C) sortorder(O). {
-    A = synq_parse_perfetto_pipe_order_term(pCtx, C, (SyntaqliteSortOrder)O);
+perfetto_pipe_order_term(A) ::= expr(E). [BITNOT] {
+    A = synq_parse_perfetto_pipe_order_term(pCtx, E, SYNTAQLITE_SORT_ORDER_NONE);
+}
+perfetto_pipe_order_term(A) ::= expr(E) ASC. {
+    A = synq_parse_perfetto_pipe_order_term(pCtx, E, SYNTAQLITE_SORT_ORDER_ASC);
+}
+perfetto_pipe_order_term(A) ::= expr(E) DESC. {
+    A = synq_parse_perfetto_pipe_order_term(pCtx, E, SYNTAQLITE_SORT_ORDER_DESC);
 }
 
 %type perfetto_pipe_order_list {uint32_t}

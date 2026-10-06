@@ -3896,6 +3896,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/order_by.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/projection.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/projection.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/scan.cc",

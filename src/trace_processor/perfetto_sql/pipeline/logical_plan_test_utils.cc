@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
 
@@ -75,6 +76,7 @@ class LogicalPlanFormatter {
                                            const IntervalFlatten&);
   static std::string IntervalIntersectString(const LogicalPlan&,
                                              const PlanNode&);
+  static std::string OrderByString(const OrderBy&);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
 };
 
@@ -169,6 +171,15 @@ std::string LogicalPlanFormatter::IntervalIntersectString(
   return out;
 }
 
+std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
+  std::string out = "OrderBy(";
+  for (size_t i = 0; i < order.keys_.size(); ++i) {
+    out += (i ? ", #" : "#") + std::to_string(order.keys_[i].column) +
+           (order.keys_[i].descending ? " DESC" : "");
+  }
+  return out + ")";
+}
+
 // Prints sources first so a pipeline reads in the order it runs.
 // Intersection operands are printed inline.
 std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
@@ -187,6 +198,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<IntervalFlatten>()) {
     return SubtreeString(plan, node.children()[0]) +
            IntervalFlattenString(plan, node.Cast<IntervalFlatten>()) + "\n";
+  }
+  if (node.Is<OrderBy>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           OrderByString(node.Cast<OrderBy>()) + "\n";
   }
   PERFETTO_FATAL("Unknown plan operation");
 }

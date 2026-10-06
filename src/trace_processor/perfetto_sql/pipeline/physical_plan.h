@@ -123,6 +123,13 @@ class Lowering {
   // Groups rows by `keys`, ordered by `ascending` within each group, adding
   // only the Sort and GroupBy not already established.
   void PrepareGroups(const std::vector<ColumnId>& keys, ColumnId ascending);
+  // Sorts rows by `keys`, the first deciding, unless they are known to be in
+  // that order already. A key of unknown type must hold integers.
+  struct SortKey {
+    ColumnId column = 0;
+    bool descending = false;
+  };
+  void SortRows(const std::vector<SortKey>& keys);
   // Adds numbering and traversal operators as needed, reusing the current
   // tree until ResetLayout. Returned positions name physical temporaries.
   TreeColumns PrepareTree(ColumnId node, ColumnId parent, TreeDirection);

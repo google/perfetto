@@ -683,7 +683,7 @@ TEST_F(PerfettoSqlParserTest, PipelineCompileErrors) {
       ParsePipeline("FROM slice |> TREE ACCUMULATE UP SUM(self + 1) AS n")
           .status()
           .message(),
-      HasSubstr("expected a column name"));
+      HasSubstr("an expression other than a column is not supported yet"));
 }
 
 TEST_F(PerfettoSqlParserTest, PipelineQualifiedColumns) {
@@ -754,7 +754,7 @@ TEST_F(PerfettoSqlParserTest, PipelineErrorsCarryATraceback) {
 
   plan = ParsePipeline("FROM slice\n|> TREE ACCUMULATE UP SUM(nope) AS t");
   ASSERT_FALSE(plan.ok());
-  EXPECT_THAT(plan.status().message(), HasSubstr("SUM(nope) AS t\n"));
+  EXPECT_THAT(plan.status().message(), HasSubstr("    nope\n"));
   EXPECT_THAT(plan.status().message(), HasSubstr("^"));
 }
 

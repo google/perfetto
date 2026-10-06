@@ -60,7 +60,7 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   for (uint32_t i = 0; i < count; i++) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
-    ASSIGN_OR_RETURN(ColumnId value, c->ResolveSum(agg_id, agg->expr));
+    ASSIGN_OR_RETURN(ColumnId value, c->ResolveSum(agg->expr));
     std::string name = SpanText(c->parser(), agg->name);
     ColumnId id = c->AddColumn(name, core::Int64{});
     acc.aggregates_.push_back({TreeAccumulate::Function::kSum, value, id});
