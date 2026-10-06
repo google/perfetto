@@ -18610,7 +18610,6 @@ filegroup {
         "src/trace_processor/importers/proto/stack_profile_sequence_state.cc",
         "src/trace_processor/importers/proto/tracing_service_module.cc",
         "src/trace_processor/importers/proto/track_event_arg_fields.cc",
-        "src/trace_processor/importers/proto/track_event_dimension_resolver.cc",
         "src/trace_processor/importers/proto/track_event_extension_parser.cc",
         "src/trace_processor/importers/proto/track_event_module.cc",
         "src/trace_processor/importers/proto/track_event_parser.cc",
