@@ -47,9 +47,9 @@ interface KeyedDimension {
  * Surfaces track dimensions in the timeline.
  *
  * Dimensions are a trace processor concept first: this plugin implements the
- * shared presentation half of it, i.e. the collapse rule ("only show a
- * dimension when it has more than one value in the trace") and the subtitle
- * labels which come out of it. Well known dimensions which already have
+ * shared presentation half of it, i.e. the collapse rule (string dimensions
+ * are always shown, integer ones only when they have more than one value in
+ * the trace) and the subtitle labels which come out of it. Well known dimensions which already have
  * specialized presentation (GPU hierarchy, machine name suffixes) are skipped:
  * see public/dimensions.ts.
  */
@@ -70,8 +70,7 @@ export default class implements PerfettoPlugin {
         return;
       }
 
-      // The collapse rule is global: a dimension disambiguates nothing when it
-      // has a single value in the whole trace.
+      // The collapse rule is global: see visibleDimensionNames.
       const visible = visibleDimensionNames([
         ...trackDims.map((d) => d.dimension),
         ...processDims.map((d) => d.dimension),
