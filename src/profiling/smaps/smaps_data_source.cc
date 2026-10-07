@@ -78,7 +78,34 @@ std::optional<SmapsDataSource::Config> SmapsDataSource::Config::Create(
     }
   }
 
+  config.max_processes_per_period = smaps_cfg_pb.max_processes_per_period();
+
   return config;
+}
+
+// static
+// Walk the list with wraparound, starting after the given |last_picked|,
+// choosing up to |max_count| that pass the |filter|. Finally, update the
+// |last_picked|.
+std::vector<pid_t> SmapsDataSource::PickMatchingTargets(
+    const std::vector<HashAndPid>& pids,
+    const std::function<bool(pid_t)>& filter,
+    uint32_t max_count,
+    HashAndPid* last_picked) {
+  std::vector<pid_t> ret;
+  size_t start_pos = static_cast<size_t>(
+      std::upper_bound(pids.begin(), pids.end(), *last_picked) - pids.begin());
+
+  for (size_t i = 0; i < pids.size(); i++) {
+    if (max_count && ret.size() >= max_count)
+      break;
+    const HashAndPid& entry = pids[(start_pos + i) % pids.size()];
+    if (!filter(entry.second))
+      continue;
+    ret.push_back(entry.second);
+    *last_picked = entry;
+  }
+  return ret;
 }
 
 SmapsDataSource::SmapsDataSource(Config config,
@@ -146,22 +173,29 @@ void SmapsDataSource::Tick() {
 void SmapsDataSource::QueueSmapsReads() {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, LINUX_SMAPS_ENQUEUE);
 
-  // Build a shuffled list of pids.
-  std::vector<std::pair<uint64_t, pid_t>> walk_order;
-  ForEachPid([this, &walk_order](pid_t pid) {
-    walk_order.emplace_back(base::MurmurHashCombine(walk_seed_, pid), pid);
-  });
-  std::sort(walk_order.begin(), walk_order.end());
-
   // Note: the set of matching processes is re-evaluated on every tick to catch
   // new or renamed processes.
+
+  // Shuffle the order of pids by hashing them (using a per-instance seed), this
+  // avoids biases in sampling cases, as pid order mostly follows process
+  // creation order.
+  std::vector<HashAndPid> shuffled_pids;
+  ForEachPid([this, &shuffled_pids](pid_t pid) {
+    shuffled_pids.emplace_back(base::MurmurHashCombine(walk_seed_, pid), pid);
+  });
+  std::sort(shuffled_pids.begin(), shuffled_pids.end());
+
+  // If the number of processes per tick is capped, the walk resumes from where
+  // the previous tick stopped, so that successive ticks cover different
+  // processes.
   const pid_t self_pid = getpid();
-  for (const auto& [key, pid] : walk_order) {
-    if (pid == self_pid)
-      continue;
-    if (glob_aware::PidMatchesCmdlinePatterns(pid, config_.target_cmdlines))
-      pending_reads_.push_back(pid);
-  }
+  pending_reads_ = PickMatchingTargets(
+      shuffled_pids,
+      [this, self_pid](pid_t pid) {
+        return pid != self_pid && glob_aware::PidMatchesCmdlinePatterns(
+                                      pid, config_.target_cmdlines);
+      },
+      config_.max_processes_per_period, &last_picked_);
   if (pending_reads_.empty())
     return;
 

@@ -16,8 +16,11 @@
 
 #include "src/profiling/smaps/smaps_data_source.h"
 
+#include <sys/types.h>
+
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/tracing/core/data_source_config.h"
 #include "protos/perfetto/config/profiling/smaps_config.gen.h"
@@ -28,6 +31,7 @@ namespace profiling {
 namespace {
 
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 
 // Mirrors the bounds in smaps_data_source.cc.
 constexpr uint32_t kMinReadPeriodMs = 1000;
@@ -115,6 +119,126 @@ TEST(SmapsDataSourceConfigTest, ClampsTooLargeReadPeriod) {
 
   ASSERT_TRUE(config.has_value());
   EXPECT_EQ(config->read_period_ms, kMaxReadPeriodMs);
+}
+
+TEST(SmapsDataSourceConfigTest, UnsetMaxProcessesMeansUnlimited) {
+  protos::gen::ProcessSmapsConfig smaps_cfg_pb;
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
+
+  std::optional<SmapsDataSource::Config> config = CreateConfig(smaps_cfg_pb);
+
+  ASSERT_TRUE(config.has_value());
+  EXPECT_EQ(config->max_processes_per_period, 0u);
+}
+
+TEST(SmapsDataSourceConfigTest, KeepsMaxProcesses) {
+  protos::gen::ProcessSmapsConfig smaps_cfg_pb;
+  smaps_cfg_pb.mutable_scope()->add_target_cmdline("top");
+  smaps_cfg_pb.set_max_processes_per_period(5);
+
+  std::optional<SmapsDataSource::Config> config = CreateConfig(smaps_cfg_pb);
+
+  ASSERT_TRUE(config.has_value());
+  EXPECT_EQ(config->max_processes_per_period, 5u);
+}
+
+using HashAndPid = SmapsDataSource::HashAndPid;
+
+bool MatchAll(pid_t) {
+  return true;
+}
+
+TEST(SmapsDataSourceWalkTest, UnlimitedSelectsAllMatches) {
+  std::vector<HashAndPid> walk = {{1, 30}, {2, 10}, {3, 20}};
+  HashAndPid last_picked{0, 0};
+
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 0, &last_picked),
+      ElementsAre(30, 10, 20));
+  EXPECT_EQ(last_picked, HashAndPid(3, 20));
+  // All matches are selected every time, regardless of |last_picked|.
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 0, &last_picked),
+      ElementsAre(30, 10, 20));
+}
+
+TEST(SmapsDataSourceWalkTest, CapRotatesThroughMatches) {
+  std::vector<HashAndPid> walk = {{1, 10}, {2, 20}, {3, 30}, {4, 40}, {5, 50}};
+  HashAndPid last_picked{0, 0};
+
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 2, &last_picked),
+      ElementsAre(10, 20));
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 2, &last_picked),
+      ElementsAre(30, 40));
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 2, &last_picked),
+      ElementsAre(50, 10));
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 2, &last_picked),
+      ElementsAre(20, 30));
+}
+
+TEST(SmapsDataSourceWalkTest, CapLargerThanMatchesSelectsEachOnce) {
+  std::vector<HashAndPid> walk = {{1, 10}, {2, 20}, {3, 30}};
+  HashAndPid last_picked{2, 20};
+
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 10, &last_picked),
+      ElementsAre(30, 10, 20));
+}
+
+TEST(SmapsDataSourceWalkTest, LastPickedOnlyAdvancesPastMatches) {
+  std::vector<HashAndPid> walk = {{1, 10}, {2, 20}, {3, 30}, {4, 40}};
+  auto only_20_and_40 = [](pid_t pid) { return pid == 20 || pid == 40; };
+  HashAndPid last_picked{0, 0};
+
+  EXPECT_THAT(SmapsDataSource::PickMatchingTargets(walk, only_20_and_40, 1,
+                                                   &last_picked),
+              ElementsAre(20));
+  EXPECT_EQ(last_picked, HashAndPid(2, 20));
+  EXPECT_THAT(SmapsDataSource::PickMatchingTargets(walk, only_20_and_40, 1,
+                                                   &last_picked),
+              ElementsAre(40));
+  EXPECT_THAT(SmapsDataSource::PickMatchingTargets(walk, only_20_and_40, 1,
+                                                   &last_picked),
+              ElementsAre(20));
+}
+
+TEST(SmapsDataSourceWalkTest, LastPickedSurvivesExitedProcess) {
+  // The previously picked process is no longer in the walk.
+  std::vector<HashAndPid> walk = {{1, 10}, {2, 20}, {4, 40}};
+  HashAndPid last_picked{3, 30};
+
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 2, &last_picked),
+      ElementsAre(40, 10));
+}
+
+TEST(SmapsDataSourceWalkTest, TiesBrokenByPid) {
+  std::vector<HashAndPid> walk = {{1, 10}, {1, 20}, {1, 30}};
+  HashAndPid last_picked{0, 0};
+
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 1, &last_picked),
+      ElementsAre(10));
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets(walk, MatchAll, 1, &last_picked),
+      ElementsAre(20));
+}
+
+TEST(SmapsDataSourceWalkTest, NoMatchesLeavesLastPicked) {
+  std::vector<HashAndPid> walk = {{1, 10}, {2, 20}};
+  HashAndPid last_picked{1, 10};
+
+  EXPECT_THAT(SmapsDataSource::PickMatchingTargets(
+                  walk, [](pid_t) { return false; }, 1, &last_picked),
+              IsEmpty());
+  EXPECT_EQ(last_picked, HashAndPid(1, 10));
+  EXPECT_THAT(
+      SmapsDataSource::PickMatchingTargets({}, MatchAll, 1, &last_picked),
+      IsEmpty());
 }
 
 }  // namespace

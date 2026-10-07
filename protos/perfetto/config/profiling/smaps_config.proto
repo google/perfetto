@@ -63,6 +63,18 @@ message ProcessSmapsConfig {
   // writing, [1s, 24hr] range).
   // If zero or unset, each process is captured only once at start.
   optional uint32 read_period_ms = 3;
+
+  // Caps the number of processes handled per |read_period_ms|, or overall if
+  // the config is one-shot (period = 0). The immediate use case is to limit
+  // work if too many processes match the |scope|.
+  // Additionally, this option can be used for sampling, since the
+  // implementation inspects processes in a shuffled order (not in numeric pid
+  // order), and successive periods cover separate subsets of pids.
+  // So a config with scope=*, period=10s, and max_processes=5 would
+  // progressively scan all processes on the machine by parsing 5 processes at
+  // a time with 10s breaks in between.
+  // If zero or unset, there is no limit.
+  optional uint32 max_processes_per_period = 4;
 }
 
 // Describes what to record from /proc/pid/smaps.
