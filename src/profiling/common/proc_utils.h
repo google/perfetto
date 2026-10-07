@@ -63,6 +63,9 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids);
 
 std::optional<Uids> GetUids(const std::string&);
 
+// Returns the effective process UID from stat(/proc/pid).
+std::optional<uid_t> GetUidFromProcfs(pid_t pid);
+
 void FindAllProfilablePids(std::set<pid_t>* pids);
 
 // Heapprofd requires tracking two types of cmdline patterns. The newer glob

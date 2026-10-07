@@ -121,14 +121,11 @@ void Grow(std::vector<int64_t>* by_node, uint32_t node) {
   }
 }
 
-// Fills `out` with the input columns plus a column of `totals`.
-void Emit(const RowBatch& in,
-          RowBatch& out,
-          const std::shared_ptr<FlexVector<int64_t>>& totals) {
-  out.CopyFrom(in);
+// Appends a column of `totals` to `batch`.
+void Emit(RowBatch& batch, const std::shared_ptr<FlexVector<int64_t>>& totals) {
   ColumnView column =
       ColumnView::Reference(StorageType{Int64{}}, totals->data());
-  out.AddColumn(column, totals);
+  batch.AddColumn(column, totals);
 }
 
 }  // namespace
@@ -153,21 +150,19 @@ base::Status TreeAccumulateDown::status(const OperatorState& state) const {
   return state.Cast<const AccumulateState>().status;
 }
 
-OpResult TreeAccumulateUp::Execute(const RowBatch& in,
-                                   RowBatch& out,
-                                   OperatorState& state) const {
+bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {
   AccumulateState& s = state.Cast<AccumulateState>();
-  s.status = Validate(in, spec_);
+  s.status = Validate(batch, spec_);
   if (!s.status.ok()) {
-    return OpResult::kError;
+    return false;
   }
-  uint32_t count = in.size();
-  const uint32_t* nodes =
-      Flatten<uint32_t>(in.column(spec_.node_column), count, &s.node_scratch);
-  const uint32_t* parents = Flatten<uint32_t>(in.column(spec_.parent_column),
+  uint32_t count = batch.size();
+  const uint32_t* nodes = Flatten<uint32_t>(batch.column(spec_.node_column),
+                                            count, &s.node_scratch);
+  const uint32_t* parents = Flatten<uint32_t>(batch.column(spec_.parent_column),
                                               count, &s.parent_scratch);
   const int64_t* values =
-      FlattenValues(in.column(spec_.value_column), count, &s.value_scratch);
+      FlattenValues(batch.column(spec_.value_column), count, &s.value_scratch);
 
   s.totals.reset();
   s.totals = s.buffers.Acquire();
@@ -180,36 +175,34 @@ OpResult TreeAccumulateUp::Execute(const RowBatch& in,
     // total is final the moment the node arrives.
     int64_t total;
     if (!Add(s, values[row], s.by_node[node], &total)) {
-      return OpResult::kError;
+      return false;
     }
     totals[row] = total;
     uint32_t parent = parents[row];
     if (parent != kNoNode) {
       Grow(&s.by_node, parent);
       if (!Add(s, s.by_node[parent], total, &s.by_node[parent])) {
-        return OpResult::kError;
+        return false;
       }
     }
   }
-  Emit(in, out, s.totals);
-  return OpResult::kNeedMoreInput;
+  Emit(batch, s.totals);
+  return true;
 }
 
-OpResult TreeAccumulateDown::Execute(const RowBatch& in,
-                                     RowBatch& out,
-                                     OperatorState& state) const {
+bool TreeAccumulateDown::Process(RowBatch& batch, OperatorState& state) const {
   AccumulateState& s = state.Cast<AccumulateState>();
-  s.status = Validate(in, spec_);
+  s.status = Validate(batch, spec_);
   if (!s.status.ok()) {
-    return OpResult::kError;
+    return false;
   }
-  uint32_t count = in.size();
-  const uint32_t* nodes =
-      Flatten<uint32_t>(in.column(spec_.node_column), count, &s.node_scratch);
-  const uint32_t* parents = Flatten<uint32_t>(in.column(spec_.parent_column),
+  uint32_t count = batch.size();
+  const uint32_t* nodes = Flatten<uint32_t>(batch.column(spec_.node_column),
+                                            count, &s.node_scratch);
+  const uint32_t* parents = Flatten<uint32_t>(batch.column(spec_.parent_column),
                                               count, &s.parent_scratch);
   const int64_t* values =
-      FlattenValues(in.column(spec_.value_column), count, &s.value_scratch);
+      FlattenValues(batch.column(spec_.value_column), count, &s.value_scratch);
 
   s.totals.reset();
   s.totals = s.buffers.Acquire();
@@ -224,15 +217,15 @@ OpResult TreeAccumulateDown::Execute(const RowBatch& in,
     }
     int64_t total;
     if (!Add(s, values[row], above, &total)) {
-      return OpResult::kError;
+      return false;
     }
     uint32_t node = nodes[row];
     Grow(&s.by_node, node);
     s.by_node[node] = total;
     totals[row] = total;
   }
-  Emit(in, out, s.totals);
-  return OpResult::kNeedMoreInput;
+  Emit(batch, s.totals);
+  return true;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

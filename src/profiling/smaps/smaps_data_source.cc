@@ -45,6 +45,20 @@ namespace profiling {
 namespace {
 constexpr uint32_t kMinReadPeriodMs = 1000;                 // 1s
 constexpr uint32_t kMaxReadPeriodMs = 24 * 60 * 60 * 1000;  // 24 hrs
+constexpr uint32_t kAndroidUserOffset = 100000;             // AID_USER_OFFSET
+
+using UidRange = protos::gen::ProcessSmapsConfig::Scope::UidRange;
+
+bool UidInRanges(uid_t uid, const std::vector<UidRange>& ranges) {
+  for (const UidRange& range : ranges) {
+    uint32_t cmp_uid = uid;
+    if (range.android_match_across_profiles())
+      cmp_uid %= kAndroidUserOffset;
+    if (cmp_uid >= range.min_uid() && cmp_uid <= range.max_uid())
+      return true;
+  }
+  return false;
+}
 }  // namespace
 
 // static
@@ -58,11 +72,21 @@ std::optional<SmapsDataSource::Config> SmapsDataSource::Config::Create(
 
   Config config;
   config.target_cmdlines = smaps_cfg_pb.scope().target_cmdline();
-  if (config.target_cmdlines.empty()) {
+  config.target_uids = smaps_cfg_pb.scope().target_uid();
+  if (config.target_cmdlines.empty() && config.target_uids.empty()) {
     PERFETTO_ELOG(
-        "linux.smaps does not specify scope.target_cmdline, rejecting data "
-        "source.");
+        "linux.smaps does not specify scope.target_cmdline or "
+        "scope.target_uid, rejecting data source.");
     return std::nullopt;
+  }
+  for (const UidRange& range : config.target_uids) {
+    if (!range.has_min_uid() || !range.has_max_uid() ||
+        range.min_uid() > range.max_uid()) {
+      PERFETTO_ELOG(
+          "linux.smaps scope.target_uid has an incomplete or empty range, "
+          "rejecting data source.");
+      return std::nullopt;
+    }
   }
 
   config.recording_config = smaps_cfg_pb.smaps_config();
@@ -78,7 +102,50 @@ std::optional<SmapsDataSource::Config> SmapsDataSource::Config::Create(
     }
   }
 
+  config.max_processes_per_period = smaps_cfg_pb.max_processes_per_period();
+
   return config;
+}
+
+// static
+bool SmapsDataSource::MatchesScope(pid_t pid, const Config& config) {
+  // Different cases of one option (e.g. uid) are ORed. Different options are
+  // ANDed. So if the config has both uid and cmdline lists, only processes
+  // that match at least one case from both lists pass the overall test.
+  if (!config.target_uids.empty()) {
+    std::optional<uid_t> uid = GetUidFromProcfs(pid);
+    if (!uid.has_value() || !UidInRanges(*uid, config.target_uids)) {
+      return false;
+    }
+  }
+  if (!config.target_cmdlines.empty())
+    return glob_aware::PidMatchesCmdlinePatterns(pid, config.target_cmdlines);
+  return true;
+}
+
+// static
+// Walk the list with wraparound, starting after the given |last_picked|,
+// choosing up to |max_count| that pass the |filter|. Finally, update the
+// |last_picked|.
+std::vector<pid_t> SmapsDataSource::PickMatchingTargets(
+    const std::vector<HashAndPid>& pids,
+    const std::function<bool(pid_t)>& filter,
+    uint32_t max_count,
+    HashAndPid* last_picked) {
+  std::vector<pid_t> ret;
+  size_t start_pos = static_cast<size_t>(
+      std::upper_bound(pids.begin(), pids.end(), *last_picked) - pids.begin());
+
+  for (size_t i = 0; i < pids.size(); i++) {
+    if (max_count && ret.size() >= max_count)
+      break;
+    const HashAndPid& entry = pids[(start_pos + i) % pids.size()];
+    if (!filter(entry.second))
+      continue;
+    ret.push_back(entry.second);
+    *last_picked = entry;
+  }
+  return ret;
 }
 
 SmapsDataSource::SmapsDataSource(Config config,
@@ -99,6 +166,19 @@ void SmapsDataSource::SerializeSmapsForPid(pid_t pid) {
     PERFETTO_DPLOG("linux.smaps: failed to open %s", path.c_str());
     return;
   }
+
+  // Kernel threads and zombies have no mm, so their smaps can be opened but
+  // are empty. Skip them by peeking at the first character. The peeked data
+  // stays buffered in the stream, so the parsing below continues where the
+  // peek left off instead of making the kernel regenerate the file.
+  int first_char = fgetc(*smaps);
+  if (first_char == EOF) {
+    if (ferror(*smaps)) {
+      PERFETTO_DPLOG("linux.smaps: failed to read %s", path.c_str());
+    }
+    return;
+  }
+  ungetc(first_char, *smaps);
 
   auto trace_packet = trace_writer_->NewTracePacket();
   trace_packet->set_timestamp(
@@ -146,22 +226,28 @@ void SmapsDataSource::Tick() {
 void SmapsDataSource::QueueSmapsReads() {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, LINUX_SMAPS_ENQUEUE);
 
-  // Build a shuffled list of pids.
-  std::vector<std::pair<uint64_t, pid_t>> walk_order;
-  ForEachPid([this, &walk_order](pid_t pid) {
-    walk_order.emplace_back(base::MurmurHashCombine(walk_seed_, pid), pid);
-  });
-  std::sort(walk_order.begin(), walk_order.end());
-
   // Note: the set of matching processes is re-evaluated on every tick to catch
   // new or renamed processes.
+
+  // Shuffle the order of pids by hashing them (using a per-instance seed), this
+  // avoids biases in sampling cases, as pid order mostly follows process
+  // creation order.
+  std::vector<HashAndPid> shuffled_pids;
+  ForEachPid([this, &shuffled_pids](pid_t pid) {
+    shuffled_pids.emplace_back(base::MurmurHashCombine(walk_seed_, pid), pid);
+  });
+  std::sort(shuffled_pids.begin(), shuffled_pids.end());
+
+  // If the number of processes per tick is capped, the walk resumes from where
+  // the previous tick stopped, so that successive ticks cover different
+  // processes.
   const pid_t self_pid = getpid();
-  for (const auto& [key, pid] : walk_order) {
-    if (pid == self_pid)
-      continue;
-    if (glob_aware::PidMatchesCmdlinePatterns(pid, config_.target_cmdlines))
-      pending_reads_.push_back(pid);
-  }
+  pending_reads_ = PickMatchingTargets(
+      shuffled_pids,
+      [this, self_pid](pid_t pid) {
+        return pid != self_pid && MatchesScope(pid, config_);
+      },
+      config_.max_processes_per_period, &last_picked_);
   if (pending_reads_.empty())
     return;
 

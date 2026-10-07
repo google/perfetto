@@ -237,11 +237,11 @@ TEST(TreeAccumulateTest, UpReportsIntegerOverflow) {
   TreeAccumulateUp op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
   values[0] = 1;
   state->Reset();
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  EXPECT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_TRUE(op.status(*state).ok());
 }
 
@@ -258,7 +258,7 @@ TEST(TreeAccumulateTest, DownReportsIntegerOverflow) {
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
 }
 
@@ -278,7 +278,7 @@ TEST(TreeAccumulateTest, NullValuesContributeZero) {
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 3), ElementsAre(0, 7));
 }
 
@@ -295,7 +295,7 @@ TEST(TreeAccumulateTest, WrongColumnTypesAreReported) {
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("Uint32"));
 }
 

@@ -179,7 +179,9 @@ export class PerfettoTestHelper {
   }
 
   async switchToTab(text: string | RegExp) {
-    await this.page.locator('.pf-drawer-panel__tab', {hasText: text}).click();
+    await this.page
+      .locator('.pf-drawer-panel .pf-tab-strip__tab', {hasText: text})
+      .click();
   }
 
   async scheduleFullRedraw(): Promise<void> {
