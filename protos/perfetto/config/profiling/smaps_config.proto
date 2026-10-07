@@ -73,6 +73,7 @@ message ProcessSmapsConfig {
   // So a config with scope=*, period=10s, and max_processes=5 would
   // progressively scan all processes on the machine by parsing 5 processes at
   // a time with 10s breaks in between.
+  // If zero or unset, there is no limit.
   optional uint32 max_processes_per_period = 4;
 }
 
