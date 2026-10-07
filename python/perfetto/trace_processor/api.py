@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import dataclasses as dc
-from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional, Union
 
 from perfetto.common.exceptions import PerfettoException
@@ -21,10 +20,9 @@ from perfetto.common.query_result_iterator import QueryResultIterator
 from perfetto.trace_processor.http import TraceProcessorHttp
 from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
+from perfetto.trace_processor.remote import TraceProcessorRemote
 from perfetto.trace_processor.shell import load_shell
 from perfetto.trace_processor.process_tree import terminate_process_tree
-from perfetto.trace_processor.unix import TraceProcessorUnix
-from perfetto.trace_processor.unix import unix_socket_path_for
 from perfetto.trace_uri_resolver import registry
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
@@ -206,8 +204,8 @@ class TraceProcessor:
     self.protos = ProtoFactory(self.platform_delegate)
     self.resolver_registry = config.resolver_registry or \
       self.platform_delegate.default_resolver_registry()
-    # Despite its name, |self.http| may hold a client that isn't HTTP-based
-    # (e.g. TraceProcessorUnix, which talks to a session over a Unix socket).
+    # Despite its name, |self.http| may hold a client that doesn't use HTTP
+    # (TraceProcessorRemote, which may use other transports).
     # The name is kept for backwards compatibility: external code reads
     # |self.http| directly.
     self.http = self._create_tp_client(remote)
@@ -348,26 +346,9 @@ class TraceProcessor:
     return self._metadata
 
   def _create_tp_client(
-      self, remote: str) -> Union[TraceProcessorHttp, TraceProcessorUnix]:
+      self, remote: str) -> Union[TraceProcessorHttp, TraceProcessorRemote]:
     if remote:
-      socket_path = unix_socket_path_for(remote)
-      if socket_path:
-        try:
-          return TraceProcessorUnix(socket_path, protos=self.protos)
-        except (FileNotFoundError, ConnectionRefusedError) as ex:
-          # No socket file, or a stale one left behind by a dead server.
-          raise TraceProcessorException(
-              f"No live trace processor session '{remote}' at {socket_path}. "
-              "Start one with: trace_processor server unix --name <name> "
-              "<trace>") from ex
-
-      # Without a scheme (e.g. 'localhost:9123'), urlparse treats the host as
-      # the scheme and the port as the path, so we'd connect to the wrong
-      # address. Adding an explicit http:// makes parsing unambiguous.
-      p = urlparse(remote)
-      if p.scheme not in ('http', 'https'):
-        p = urlparse('http://' + remote)
-      return TraceProcessorHttp(p.netloc, protos=self.protos)
+      return TraceProcessorRemote(remote, protos=self.protos)
 
     (url, self.subprocess, self._tp_stdout, self._tp_stderr,
      self._job_handle) = load_shell(
