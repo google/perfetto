@@ -304,6 +304,9 @@ class PerfettoSqlConnection {
 
   SqliteConnection* sqlite_connection() { return connection_.get(); }
 
+  // Returns the StringPool backing this connection.
+  StringPool* string_pool() const { return pool_; }
+
   // Test-only accessor for the |PerfettoSqlDatabase| backing this connection.
   PerfettoSqlDatabase* database_for_testing() { return database_.get(); }
 
