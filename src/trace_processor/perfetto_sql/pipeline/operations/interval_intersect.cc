@@ -31,10 +31,14 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 
 namespace perfetto::trace_processor::pipeline {
+namespace ex = core::exec;
 
 const OperationRegistration IntervalIntersect::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan};
@@ -129,6 +133,80 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
   }
   c->AddNode(std::move(isect), std::move(children));
   return base::OkStatus();
+}
+
+std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
+  // An intersection passes on only the operand columns used after it, but
+  // reads each operand's bounds and partition columns to find the regions.
+  auto& isect = *this;
+  for (IntervalIntersect::Operand& operand : isect.operands_) {
+    auto& carried = operand.carried;
+    carried.erase(std::remove_if(carried.begin(), carried.end(),
+                                 [&](ColumnId id) { return !(*needed)[id]; }),
+                  carried.end());
+  }
+  for (const IntervalIntersect::Operand& operand : isect.operands_) {
+    (*needed)[operand.ts] = true;
+    (*needed)[operand.dur] = true;
+    for (ColumnId key : operand.keys) {
+      (*needed)[key] = true;
+    }
+  }
+  return std::nullopt;
+}
+
+void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
+  // Each operand runs as its own pipeline, so the intersection lowers
+  // its children itself.
+  const auto& isect = *this;
+  const auto& children = node.children();
+
+  PERFETTO_DCHECK(!c->has_source());
+  PERFETTO_DCHECK(isect.operands_.size() == children.size());
+  // The region's bounds come first, then each operand's carried columns in
+  // turn.
+  c->Define(isect.ts_);
+  c->Define(isect.dur_);
+
+  std::vector<ex::IntervalIntersectOperand> inputs;
+  for (uint32_t i = 0; i < isect.operands_.size(); i++) {
+    const IntervalIntersect::Operand& operand = isect.operands_[i];
+    // A node may read any child, but an operand is read as a scan of its own,
+    // which is what lets it become a pipeline separate from this one.
+    const PlanNode& child = c->plan().nodes()[children[i]];
+    PERFETTO_DCHECK(child.Is<Scan>());
+    const auto& scan = child.Cast<Scan>();
+    // Roles are named by plan-wide ID, while the operator reads batch
+    // positions, so each is resolved against the operand's own column order.
+    auto position = [&](ColumnId column_id) {
+      uint32_t at = 0;
+      while (scan.columns()[at].id != column_id) {
+        ++at;
+      }
+      return at;
+    };
+    // An operand is read through a pipeline of its own, which widens its
+    // bounds to Int64 where they are not already.
+    std::vector<ex::Pipeline::Step> widen;
+    ex::IntervalIntersectOperand lowered;
+    lowered.ts_column = position(operand.ts);
+    lowered.dur_column = position(operand.dur);
+    for (ColumnId key : operand.keys) {
+      lowered.key_columns.push_back(position(key));
+    }
+    for (ColumnId id : operand.carried) {
+      lowered.retained_columns.push_back(position(id));
+    }
+    c->RequireInt64(operand.ts, lowered.ts_column, &widen);
+    c->RequireInt64(operand.dur, lowered.dur_column, &widen);
+    lowered.source = c->AddOperand(scan.MakeSource(), std::move(widen));
+    inputs.push_back(std::move(lowered));
+
+    for (ColumnId id : operand.carried) {
+      c->Define(id);
+    }
+  }
+  c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));
 }
 
 }  // namespace perfetto::trace_processor::pipeline

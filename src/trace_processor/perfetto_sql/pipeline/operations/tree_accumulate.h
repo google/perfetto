@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_TREE_ACCUMULATE_H_
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
@@ -25,7 +26,8 @@
 
 namespace perfetto::trace_processor::pipeline {
 
-enum class TreeDirection : uint8_t { kUp, kDown };
+class Lowering;
+class PlanNode;
 
 // `|> TREE ACCUMULATE UP | DOWN agg AS name, ...`. Appends one column per
 // aggregate.
@@ -40,6 +42,13 @@ class TreeAccumulate {
   };
 
   static const OperationRegistration kRegistration;
+
+  // Updates this payload and marks required input ColumnIds in needed.
+  // A returned child slot replaces this node; the caller traverses children.
+  std::optional<uint32_t> Prune(std::vector<bool>* needed);
+
+  // Lowers children and appends this operation's execution steps.
+  void Lower(Lowering*, const PlanNode&) const;
 
   // Temporary accessors for plan passes not yet moved into this class.
   // Removed in the final migration commit; test formatting uses friend access.
