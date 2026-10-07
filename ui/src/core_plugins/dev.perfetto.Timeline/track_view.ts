@@ -669,7 +669,7 @@ const TrackPopupMenu = {
         {label: 'Track details', icon: 'info'},
         renderTrackDetailsMenu(attrs.node, attrs.descriptor),
       ),
-      ...renderExpandCollapseAllButtons(attrs.node),
+      renderExpandCollapseAllButtons(attrs.node),
       m(MenuDivider),
       m(
         MenuItem,
