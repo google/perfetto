@@ -58,7 +58,7 @@ void GzipDecompressor::Feed(const uint8_t* data, size_t size) {
 
 GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
                                                          size_t out_capacity) {
-  if (z_stream_->avail_in == 0)
+  if (z_stream_->next_in == nullptr || out_capacity == 0)
     return Result{ResultCode::kNeedsMoreInput, 0};
 
   z_stream_->next_out = out;
@@ -66,6 +66,7 @@ GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
 
   int ret = inflate(z_stream_.get(), Z_NO_FLUSH);
   switch (ret) {
+    case Z_STREAM_ERROR:
     case Z_NEED_DICT:
     case Z_DATA_ERROR:
     case Z_MEM_ERROR:
