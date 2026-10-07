@@ -31,12 +31,12 @@ const OperationRegistration* const kOperations[] = {
     &TreeAccumulate::kRegistration,
     &IntervalIntersect::kRegistration,
     &IntervalFlatten::kRegistration,
-    &Projection::kSelect,
-    &Projection::kExtend,
-    &Projection::kDrop,
-    &Projection::kRename,
-    &Projection::kSet,
-    &Projection::kAs,
+    &projection::kSelect,
+    &projection::kExtend,
+    &projection::kDrop,
+    &projection::kRename,
+    &projection::kSet,
+    &projection::kAs,
 };
 
 }  // namespace

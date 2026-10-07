@@ -65,7 +65,7 @@ std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span);
 
 // Whether `span` was written at all. An empty quoted name, like `""`, has
 // no length but is still there.
-bool IsPresent(SyntaqliteTextSpan span);
+bool IsSpanPresent(SyntaqliteTextSpan span);
 
 template <typename T>
 const T* Node(SyntaqliteParser* p, uint32_t id) {
@@ -187,8 +187,9 @@ class Compiler {
   // Diagnostic label for subsequent scope changes; must outlive compilation.
   void SetOperation(const char* operation);
 
-  // Replaces the visible row. Aliases are retained unless ClearAliases is used.
-  void SetRow(std::vector<RowColumn> row);
+  // Replaces the whole visible row. Aliases are retained unless ClearAliases
+  // is used.
+  void ReplaceRow(std::vector<RowColumn> row);
   void ExtendRow(std::vector<RowColumn> columns);
 
   // Removes matching unqualified columns and the alias with this name.

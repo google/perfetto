@@ -85,7 +85,7 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   // The rows collapse, so the row is only what each segment holds.
   flatten.out_ts_ = c->AddColumn("ts", core::Int64{});
   flatten.out_dur_ = c->AddColumn("dur", core::Int64{});
-  c->SetRow({});
+  c->ReplaceRow({});
   c->ClearAliases();
   c->Append({"ts", flatten.out_ts_}, stage);
   c->Append({"dur", flatten.out_dur_}, stage);

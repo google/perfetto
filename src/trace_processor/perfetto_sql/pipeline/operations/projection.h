@@ -17,37 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_PROJECTION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_PROJECTION_H_
 
-#include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
-namespace perfetto::trace_processor::pipeline {
+// The pipeline stages which only change which columns the row has and what
+// they are called. They add no plan node, so they are just registrations.
+namespace perfetto::trace_processor::pipeline::projection {
 
-class Projection {
- public:
-  static const OperationRegistration kSelect;
-  static const OperationRegistration kExtend;
-  static const OperationRegistration kDrop;
-  static const OperationRegistration kRename;
-  static const OperationRegistration kSet;
-  static const OperationRegistration kAs;
+extern const OperationRegistration kSelect;
+extern const OperationRegistration kExtend;
+extern const OperationRegistration kDrop;
+extern const OperationRegistration kRename;
+extern const OperationRegistration kSet;
+extern const OperationRegistration kAs;
 
- private:
-  static base::Status BuildSelectPlan(Compiler*, uint32_t stage);
-  static base::Status BuildExtendPlan(Compiler*, uint32_t stage);
-  static base::Status BuildDropPlan(Compiler*, uint32_t stage);
-  static base::Status BuildRenamePlan(Compiler*, uint32_t stage);
-  static base::Status BuildSetPlan(Compiler*, uint32_t stage);
-  static base::Status BuildAsPlan(Compiler*, uint32_t stage);
-
-  // The columns a SELECT or EXTEND list produces, resolved against the row
-  // before the stage.
-  static base::StatusOr<std::vector<Compiler::RowColumn>>
-  ResolveItems(Compiler*, uint32_t list_id, bool allow_unqualified_star);
-
-  static base::StatusOr<std::vector<Compiler::RowColumn>>
-  ExpandStar(Compiler*, uint32_t star_id, bool allow_unqualified_star);
-};
-
-}  // namespace perfetto::trace_processor::pipeline
+}  // namespace perfetto::trace_processor::pipeline::projection
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_OPERATIONS_PROJECTION_H_

@@ -30,50 +30,45 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 
-namespace perfetto::trace_processor::pipeline {
+namespace perfetto::trace_processor::pipeline::projection {
+namespace {
 
 // The stages below are relational operators which only change which columns
 // the row has and what they are called: nothing runs. Where an operator could
 // take an expression, it takes a column reference for now.
 
-const OperationRegistration Projection::kSelect{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT, &BuildSelectPlan};
-const OperationRegistration Projection::kExtend{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND, &BuildExtendPlan};
-const OperationRegistration Projection::kDrop{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_DROP, &BuildDropPlan};
-const OperationRegistration Projection::kRename{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME, &BuildRenamePlan};
-const OperationRegistration Projection::kSet{SYNTAQLITE_NODE_PERFETTO_PIPE_SET,
-                                             &BuildSetPlan};
-const OperationRegistration Projection::kAs{SYNTAQLITE_NODE_PERFETTO_PIPE_AS,
-                                            &BuildAsPlan};
+// The columns a SELECT or EXTEND list produces, resolved against the row
+// before the stage.
+base::StatusOr<std::vector<Compiler::RowColumn>>
+ResolveItems(Compiler*, uint32_t list_id, bool allow_unqualified_star);
+base::StatusOr<std::vector<Compiler::RowColumn>>
+ExpandStar(Compiler*, uint32_t star_id, bool allow_unqualified_star);
 
 // Replaces the row. What it leaves is a new table: no alias reaches into it.
-base::Status Projection::BuildSelectPlan(Compiler* c, uint32_t stage) {
+base::Status BuildSelectPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("SELECT");
   const auto* n = Node<SyntaqlitePerfettoPipeSelect>(c->parser(), stage);
   ASSIGN_OR_RETURN(std::vector<Compiler::RowColumn> row,
-                   Projection::ResolveItems(c, n->columns, true));
-  c->SetRow(std::move(row));
+                   ResolveItems(c, n->columns, true));
+  c->ReplaceRow(std::move(row));
   c->ClearAliases();
   return base::OkStatus();
 }
 
 // Adds columns to the row. Items see only the row before the stage, not each
 // other.
-base::Status Projection::BuildExtendPlan(Compiler* c, uint32_t stage) {
+base::Status BuildExtendPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("EXTEND");
   const auto* n = Node<SyntaqlitePerfettoPipeExtend>(c->parser(), stage);
   ASSIGN_OR_RETURN(std::vector<Compiler::RowColumn> columns,
-                   Projection::ResolveItems(c, n->columns, false));
+                   ResolveItems(c, n->columns, false));
   c->ExtendRow(std::move(columns));
   return base::OkStatus();
 }
 
 // Removes every column of each name. Aliases still reach the dropped columns,
 // except an alias of the same name, which the name now hides.
-base::Status Projection::BuildDropPlan(Compiler* c, uint32_t stage) {
+base::Status BuildDropPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("DROP");
   const auto* n = Node<SyntaqlitePerfettoPipeDrop>(c->parser(), stage);
   const auto* list =
@@ -106,7 +101,7 @@ base::Status Projection::BuildDropPlan(Compiler* c, uint32_t stage) {
 // Renames columns in place. Each name must find exactly one column, and all
 // renames happen at once, so two columns can swap names. Aliases still reach
 // the columns under their old names.
-base::Status Projection::BuildRenamePlan(Compiler* c, uint32_t stage) {
+base::Status BuildRenamePlan(Compiler* c, uint32_t stage) {
   c->SetOperation("RENAME");
   const auto* n = Node<SyntaqlitePerfettoPipeRename>(c->parser(), stage);
   const auto* list =
@@ -132,7 +127,7 @@ base::Status Projection::BuildRenamePlan(Compiler* c, uint32_t stage) {
 // column, and every value is read from the row before the stage. Aliases
 // still reach the old values, except an alias of the same name, which the
 // name now hides.
-base::Status Projection::BuildSetPlan(Compiler* c, uint32_t stage) {
+base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("SET");
   const auto* n = Node<SyntaqlitePerfettoPipeSet>(c->parser(), stage);
   const auto* list =
@@ -153,7 +148,7 @@ base::Status Projection::BuildSetPlan(Compiler* c, uint32_t stage) {
     ASSIGN_OR_RETURN(size_t at, c->FindInRow(name, item_id));
     const auto* value =
         Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item->value);
-    std::string qualifier = IsPresent(value->qualifier)
+    std::string qualifier = IsSpanPresent(value->qualifier)
                                 ? SpanText(c->parser(), value->qualifier)
                                 : "";
     ASSIGN_OR_RETURN(
@@ -168,7 +163,7 @@ base::Status Projection::BuildSetPlan(Compiler* c, uint32_t stage) {
 }
 
 // Replaces every alias with one covering the whole row as it is now.
-base::Status Projection::BuildAsPlan(Compiler* c, uint32_t stage) {
+base::Status BuildAsPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("AS");
   const auto* n = Node<SyntaqlitePerfettoPipeAs>(c->parser(), stage);
   c->ClearAliases();
@@ -176,10 +171,8 @@ base::Status Projection::BuildAsPlan(Compiler* c, uint32_t stage) {
   return base::OkStatus();
 }
 
-base::StatusOr<std::vector<Compiler::RowColumn>> Projection::ResolveItems(
-    Compiler* c,
-    uint32_t list_id,
-    bool allow_unqualified_star) {
+base::StatusOr<std::vector<Compiler::RowColumn>>
+ResolveItems(Compiler* c, uint32_t list_id, bool allow_unqualified_star) {
   const auto* list =
       Node<SyntaqlitePerfettoPipeSelectItemList>(c->parser(), list_id);
   std::vector<Compiler::RowColumn> columns;
@@ -187,19 +180,18 @@ base::StatusOr<std::vector<Compiler::RowColumn>> Projection::ResolveItems(
     uint32_t item_id = syntaqlite_list_child_id(list, i);
     if (Node<SyntaqliteNode>(c->parser(), item_id)->tag ==
         SYNTAQLITE_NODE_PERFETTO_PIPE_STAR) {
-      ASSIGN_OR_RETURN(
-          std::vector<Compiler::RowColumn> expanded,
-          Projection::ExpandStar(c, item_id, allow_unqualified_star));
+      ASSIGN_OR_RETURN(std::vector<Compiler::RowColumn> expanded,
+                       ExpandStar(c, item_id, allow_unqualified_star));
       columns.insert(columns.end(), expanded.begin(), expanded.end());
       continue;
     }
     const auto* item = Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-    std::string qualifier = IsPresent(item->qualifier)
+    std::string qualifier = IsSpanPresent(item->qualifier)
                                 ? SpanText(c->parser(), item->qualifier)
                                 : "";
     std::string name = SpanText(c->parser(), item->name);
     ASSIGN_OR_RETURN(ColumnId id, c->Resolve(qualifier, name, item_id));
-    if (IsPresent(item->alias)) {
+    if (IsSpanPresent(item->alias)) {
       name = SpanText(c->parser(), item->alias);
     }
     columns.push_back({{std::move(name), id}, c->operation(), item_id});
@@ -207,13 +199,11 @@ base::StatusOr<std::vector<Compiler::RowColumn>> Projection::ResolveItems(
   return columns;
 }
 
-base::StatusOr<std::vector<Compiler::RowColumn>> Projection::ExpandStar(
-    Compiler* c,
-    uint32_t star_id,
-    bool allow_unqualified_star) {
+base::StatusOr<std::vector<Compiler::RowColumn>>
+ExpandStar(Compiler* c, uint32_t star_id, bool allow_unqualified_star) {
   const auto* star = Node<SyntaqlitePerfettoPipeStar>(c->parser(), star_id);
   std::vector<Compiler::RowColumn> columns;
-  if (IsPresent(star->qualifier)) {
+  if (IsSpanPresent(star->qualifier)) {
     std::string qualifier = SpanText(c->parser(), star->qualifier);
     const Compiler::Alias* alias = c->FindAlias(qualifier);
     if (!alias) {
@@ -276,7 +266,7 @@ base::StatusOr<std::vector<Compiler::RowColumn>> Projection::ExpandStar(
         return c->Err(item_id, Compiler::Error::kAmbiguousColumn, target,
                       c->AmbiguousCandidates({matches.begin(), matches.end()}));
       }
-      std::string qualifier = IsPresent(item->qualifier)
+      std::string qualifier = IsSpanPresent(item->qualifier)
                                   ? SpanText(c->parser(), item->qualifier)
                                   : "";
       ASSIGN_OR_RETURN(
@@ -293,4 +283,18 @@ base::StatusOr<std::vector<Compiler::RowColumn>> Projection::ExpandStar(
   return columns;
 }
 
-}  // namespace perfetto::trace_processor::pipeline
+}  // namespace
+
+const OperationRegistration kSelect{SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT,
+                                    &BuildSelectPlan};
+const OperationRegistration kExtend{SYNTAQLITE_NODE_PERFETTO_PIPE_EXTEND,
+                                    &BuildExtendPlan};
+const OperationRegistration kDrop{SYNTAQLITE_NODE_PERFETTO_PIPE_DROP,
+                                  &BuildDropPlan};
+const OperationRegistration kRename{SYNTAQLITE_NODE_PERFETTO_PIPE_RENAME,
+                                    &BuildRenamePlan};
+const OperationRegistration kSet{SYNTAQLITE_NODE_PERFETTO_PIPE_SET,
+                                 &BuildSetPlan};
+const OperationRegistration kAs{SYNTAQLITE_NODE_PERFETTO_PIPE_AS, &BuildAsPlan};
+
+}  // namespace perfetto::trace_processor::pipeline::projection

@@ -54,7 +54,7 @@ std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
   return base::ReplaceAll(name, std::string(2, quote), std::string(1, quote));
 }
 
-bool IsPresent(SyntaqliteTextSpan span) {
+bool IsSpanPresent(SyntaqliteTextSpan span) {
   return span.length != 0 || syntaqlite_span_is_quoted(span);
 }
 
@@ -93,7 +93,7 @@ void Compiler::SetOperation(const char* operation) {
   scope_.operation = operation;
 }
 
-void Compiler::SetRow(std::vector<RowColumn> row) {
+void Compiler::ReplaceRow(std::vector<RowColumn> row) {
   scope_.row = std::move(row);
 }
 
@@ -319,10 +319,10 @@ base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t agg_id, uint32_t expr) {
     return Expected(arg_id, "a column name");
   }
   const SyntaqliteColumnRef& ref = arg->column_ref;
-  if (IsPresent(ref.schema)) {
+  if (IsSpanPresent(ref.schema)) {
     return Unsupported(arg_id, "a schema-qualified column");
   }
-  std::string table = IsPresent(ref.table) ? SpanText(p_, ref.table) : "";
+  std::string table = IsSpanPresent(ref.table) ? SpanText(p_, ref.table) : "";
   ASSIGN_OR_RETURN(ColumnId value,
                    Resolve(table, SpanText(p_, ref.column), agg_id));
   const auto& type = plan_.columns()[value].type;

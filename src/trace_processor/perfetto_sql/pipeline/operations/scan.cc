@@ -85,7 +85,7 @@ const dataframe::Dataframe* Scan::FindDirectDataframe(
   // Only an unqualified table name is read directly; anything else goes to
   // SQLite. An alias only renames the qualifier, so it does not matter here.
   bool table_name =
-      !syntaqlite_node_is_present(n.select) && !IsPresent(n.schema);
+      !syntaqlite_node_is_present(n.select) && !IsSpanPresent(n.schema);
   if (!table_name) {
     return nullptr;
   }
@@ -162,7 +162,7 @@ base::StatusOr<Scan> Scan::BuildSqlScan(Compiler* c, uint32_t from) {
   // the pipeline is written, which is the only place everything it reads is
   // in scope.
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(c->parser(), from);
-  if (IsPresent(n->schema)) {
+  if (IsSpanPresent(n->schema)) {
     return c->Err(from, Compiler::Error::kUnsupported,
                   "reading a relation whose columns cannot be worked out",
                   " (a schema-qualified table)");
