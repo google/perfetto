@@ -156,11 +156,11 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
 
   std::unique_ptr<SharedMemory> shared_memory_;
   // Bitmask of the versions agreed in InitializeConnection, zero until then.
-  // It stays set after a disconnect:
-  // - CreateTraceWriter() reads it on data source threads, without a lock.
-  // - Those threads can create writers also after a disconnect, because the
-  //   owner keeps this endpoint alive until its writers are gone.
-  // - So a reset on disconnect would race with those reads.
+  // CreateTraceWriter() reads it and |v2_ring_buffer_arbiter_| on data source
+  // threads without a lock:
+  // - OnConnectionInitialized() sets them before any data source exists.
+  // - They are never reset, also not on disconnect, because data source
+  //   threads can still create writers then.
   uint32_t protocol_abi_versions_ = 0;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
@@ -176,7 +176,6 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::vector<std::function<void()>> pending_sync_reqs_;
   // Picks v1 or v2 for each data source instance, and owns the ring buffer.
   // OnConnectionInitialized() creates it if v2 is in the common mask.
-  // It is never reset, for the same reason as |protocol_abi_versions_|.
   std::unique_ptr<tracing_v2::ProducerRingBufferArbiter>
       v2_ring_buffer_arbiter_;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};

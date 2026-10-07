@@ -188,7 +188,9 @@ class ProducerRingBufferTest : public ::testing::Test,
   std::unique_ptr<TraceWriter> CreateWriter(
       BufferExhaustedPolicy policy = BufferExhaustedPolicy::kDrop,
       DataSourceInstanceID id = kInstance) {
-    return arbiter_->MaybeCreateTraceWriter(kTargetBuffer, policy, id);
+    // For an instance without v2, the mock endpoint's v1 overload returns
+    // nullptr.
+    return arbiter_->CreateTraceWriter(kTargetBuffer, policy, id);
   }
 
   static void WritePacket(TraceWriter* writer, const std::string& str) {

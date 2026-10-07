@@ -674,15 +674,10 @@ std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
     BufferID buf_id,
     BufferExhaustedPolicy buffer_exhausted_policy,
     DataSourceInstanceID instance_id) {
-  // A v2 instance gets a ring buffer writer, or a NullTraceWriter if it
-  // cannot use the ring buffer.
-  // Any other instance gets the writer of the overload above: v1, or a
-  // NullTraceWriter if v1 is not in the common mask.
   if (v2_ring_buffer_arbiter_) {
-    if (auto writer = v2_ring_buffer_arbiter_->MaybeCreateTraceWriter(
-            buf_id, buffer_exhausted_policy, instance_id)) {
-      return writer;
-    }
+    // The arbiter handles picking v1 or v2 for the instance.
+    return v2_ring_buffer_arbiter_->CreateTraceWriter(
+        buf_id, buffer_exhausted_policy, instance_id);
   }
   return CreateTraceWriter(buf_id, buffer_exhausted_policy);
 }

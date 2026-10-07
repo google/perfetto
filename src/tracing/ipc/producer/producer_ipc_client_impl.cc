@@ -267,6 +267,7 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
   data_sources_setup_.clear();
+  // Keep the connection state set. See |protocol_abi_versions_| in the header.
   if (v2_ring_buffer_arbiter_)
     v2_ring_buffer_arbiter_->Disconnect();
   producer_->OnDisconnect();  // Note: may delete |this|.
@@ -721,15 +722,10 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy policy,
     DataSourceInstanceID id) {
-  // A v2 instance gets a ring buffer writer, or a NullTraceWriter if it
-  // cannot use the ring buffer.
-  // Any other instance gets the writer of the overload above: v1, or a
-  // NullTraceWriter if v1 is not in the common mask.
   if (v2_ring_buffer_arbiter_) {
-    if (auto writer = v2_ring_buffer_arbiter_->MaybeCreateTraceWriter(
-            target_buffer, policy, id)) {
-      return writer;
-    }
+    // The arbiter handles picking v1 or v2 for the instance.
+    return v2_ring_buffer_arbiter_->CreateTraceWriter(target_buffer, policy,
+                                                      id);
   }
   return CreateTraceWriter(target_buffer, policy);
 }

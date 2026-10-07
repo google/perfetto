@@ -111,7 +111,8 @@ TEST_F(ProducerRingBufferArbiterTest, InstanceUsesV1WithoutServiceSupport) {
   SetupInstance(kInstance, config);
   EXPECT_FALSE(CreateWriter());
   EXPECT_EQ(num_allocations_, 0u);
-  EXPECT_EQ(reader_state(), ReaderState::kNoRingBuffer);
+  EXPECT_EQ(reader_state(), ReaderState::kPending);
+  EXPECT_FALSE(arbiter_->ring_buffer());
 }
 
 TEST_F(ProducerRingBufferArbiterTest, InstanceUsesV1WithZeroProbability) {

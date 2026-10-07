@@ -82,11 +82,11 @@ void ProducerRingBufferArbiter::SetupInstance(DataSourceInstanceID id,
 
   // Later instances reuse the ring buffer, or stay without one after a
   // failure.
-  if (reader_state_.load() == ReaderState::kNoRingBuffer)
+  if (!memory_ && reader_state_.load() == ReaderState::kPending)
     CreateAndAttachRingBuffer(size_budget);
 
-  // Add the instance after the state left kNoRingBuffer, so that a writer
-  // that finds the instance also finds the ring buffer, or kDetached.
+  // Add the instance only now, so that a writer that finds the instance also
+  // finds the ring buffer, or kDetached after a failure.
   std::lock_guard<base::MaybeRtMutex> lock(mutex_);
   v2_ring_buffer_instances_.insert(id);
 }
@@ -117,13 +117,12 @@ void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(size_t size_budget) {
   SharedMemoryArbiter* smb_arbiter = endpoint_->MaybeSharedMemoryArbiter();
   PERFETTO_CHECK(smb_arbiter);
 
-  // Set the ring buffer before the state leaves kNoRingBuffer, because
+  // Set the ring buffer before SetupInstance() adds the instance, because
   // writers exist only after that.
   shared_memory_arbiter_ = smb_arbiter;
   memory_ = memory;
   ring_buffer_.emplace(static_cast<uint8_t*>(memory_->start()), memory_->size(),
                        chunk_size);
-  SetReaderState(ReaderState::kPending);
 
   // The reply callback moves kPending to kAttached, or to kDetached if the
   // service rejects the ring buffer.
@@ -170,25 +169,27 @@ void ProducerRingBufferArbiter::SetReaderState(ReaderState next) {
   const ReaderState current = reader_state_.load();
   PERFETTO_CHECK(
       next == ReaderState::kDetached ||
-      (current == ReaderState::kNoRingBuffer &&
-       next == ReaderState::kPending) ||
       (current == ReaderState::kPending && next == ReaderState::kAttached));
   reader_state_.store(next);
 }
 
-std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::MaybeCreateTraceWriter(
+std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy policy,
     DataSourceInstanceID id) {
+  bool is_v2_instance = false;
   {
     std::lock_guard<base::MaybeRtMutex> lock(mutex_);
-    if (!v2_ring_buffer_instances_.count(id))
-      return nullptr;
+    is_v2_instance = v2_ring_buffer_instances_.count(id) > 0;
   }
+
+  if (!is_v2_instance)
+    return endpoint_->CreateTraceWriter(target_buffer, policy);
 
   if (PERFETTO_UNLIKELY(reader_state_.load() == ReaderState::kDetached))
     return std::make_unique<NullTraceWriter>();
 
+  PERFETTO_DCHECK(shared_memory_arbiter_ && ring_buffer_);
   const WriterID writer_id =
       shared_memory_arbiter_->AllocateTracingV2WriterID();
   if (PERFETTO_UNLIKELY(!writer_id))

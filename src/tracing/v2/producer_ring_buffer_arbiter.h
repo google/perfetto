@@ -77,29 +77,10 @@ class ProducerRingBufferArbiterTestPeer;
 //
 // Threads:
 // - Writers call ring_buffer(), RequestDrain(), IsReaderAttached(), Flush()
-//   and OnWriterDestroyed() from any thread. MaybeCreateTraceWriter() can also
+//   and OnWriterDestroyed() from any thread. CreateTraceWriter() can also
 //   run on any thread.
 // - Creation, state changes, posted tasks, flush callbacks and service
 //   requests run on the endpoint thread.
-//
-// Flush(callback) posts its own drain task, then the callback. Time goes
-// down. "===>" is a posted task, or an IPC request to the service.
-//
-//     writer thread           endpoint thread         service
-//        |                       |                       |
-//        | Flush(callback)       |                       |
-//        |==== drain task ======>|                       |
-//        |==== callback ========>|                       |
-//        |                       |== DrainV2RingBuffer =>| copies chunks
-//        |                       | callback()            |
-//
-// A message that the callback sends reaches the service after the drain
-// request. The service handles them in order.
-//
-// The endpoints do not ask for a drain before their flush and stop acks.
-// The service drains the ring buffer by itself after the last flush ack,
-// after the last stop ack, and when the producer disconnects
-// (TracingServiceImpl::ScrapeSharedMemoryBuffers()).
 //
 // The first data source instance that selects v2 creates the ring buffer.
 // Time goes down.
@@ -109,7 +90,6 @@ class ProducerRingBufferArbiterTestPeer;
 //    |                           |                           |
 //    | SetupInstance()           |                           |
 //    |-------------------------->| allocates the memory      |
-//    |                           | kNoRingBuffer -> kPending |
 //    |<-- AttachV2RingBuffer() --|                           |
 //    |== AttachV2RingBuffer, with the memfd ================>| maps, checks,
 //    |<== reply =============================================| attaches
@@ -125,6 +105,20 @@ class ProducerRingBufferArbiterTestPeer;
 //   IPC messages.
 // - The service uses the same mapping.
 // - The attach reply runs before AttachV2RingBuffer() returns.
+//
+// Flush(callback) posts its own drain task, then the callback. Time goes
+// down. "===>" is a posted task, or an IPC request to the service.
+//
+//     writer thread           endpoint thread         service
+//        |                       |                       |
+//        | Flush(callback)       |                       |
+//        |==== drain task ======>|                       |
+//        |==== callback ========>|                       |
+//        |                       |== DrainV2RingBuffer =>| copies chunks
+//        |                       | callback()            |
+//
+// A message that the callback sends reaches the service after the drain
+// request. The service handles them in order.
 //
 // Ownership:
 //
@@ -168,22 +162,20 @@ class ProducerRingBufferArbiter {
   //   attach and drain requests in order. It ignores a drain for a ring
   //   buffer that it did not accept.
   //
-  //                   SetupInstance()            OnReaderAttached()
-  //   [kNoRingBuffer] --------------> [kPending] -----------------> [kAttached]
-  //          |                             |                             |
-  //          +-----------------------------+-----------------------------+
-  //                                        | Disconnect()
-  //                                        v
-  //                                   [kDetached]
-  //                                   (terminal)
+  //              OnReaderAttached()
+  //   [kPending] -----------------> [kAttached]
+  //        |                             |
+  //        +--------------+--------------+
+  //                       | Disconnect()
+  //                       v
+  //                  [kDetached]
+  //                  (terminal)
   enum class ReaderState {
-    // No instance selected v2 yet, so there is no ring buffer and no writer.
-    // - Tracing v2 is still an experiment that few connections use, so the
-    //   ring buffer is created only when the first instance selects v2.
-    kNoRingBuffer,
-
-    // No reader yet. The endpoint shared the ring buffer and waits for the
-    // service reply.
+    // The initial state. No reader yet.
+    // - There is no ring buffer until the first instance selects v2, because
+    //   tracing v2 is still an experiment that few connections use.
+    // - Then the endpoint shares the ring buffer and waits for the service
+    //   reply.
     // - Writers can already publish.
     // - The service can still reject the ring buffer.
     // - A writer does not wait for space in a full ring buffer. It drops the
@@ -274,18 +266,17 @@ class ProducerRingBufferArbiter {
 
   // Writers:
 
-  // Creates a writer for |target_buffer|, on any thread. The caller owns the
-  // writer.
-  //
-  // Returns nullptr if the instance did not select v2, so that the endpoint
-  // can create a v1 writer instead.
-  // For a v2 instance it never returns nullptr, but returns a NullTraceWriter,
-  // which discards all packets, if:
-  // - the state is kDetached, or
-  // - the SMB arbiter has no free WriterID (exhaustion or shutdown).
-  std::unique_ptr<TraceWriter> MaybeCreateTraceWriter(BufferID,
-                                                      BufferExhaustedPolicy,
-                                                      DataSourceInstanceID);
+  // Creates a writer for the data source instance |id|, on any thread. The
+  // caller owns the writer.
+  // - An instance that did not select v2 gets the endpoint's v1 path:
+  //   CreateTraceWriter(buffer, policy) on |endpoint_|.
+  // - A v2 instance gets a ring buffer writer, or a NullTraceWriter, which
+  //   discards all packets, if:
+  //   - the state is kDetached, or
+  //   - the SMB arbiter has no free WriterID (exhaustion or shutdown).
+  std::unique_ptr<TraceWriter> CreateTraceWriter(BufferID,
+                                                 BufferExhaustedPolicy,
+                                                 DataSourceInstanceID);
 
   // The writer calls this on its thread after its final publication.
   // - Releases its WriterID in the SMB arbiter.
@@ -335,8 +326,9 @@ class ProducerRingBufferArbiter {
   // Runs tasks on the endpoint thread. Writers post drain and flush
   // requests here.
   base::TaskRunner* const task_runner_;
-  // Sends AttachV2RingBuffer and DrainV2RingBuffer to the service. Endpoint
-  // thread only.
+  // Sends AttachV2RingBuffer and DrainV2RingBuffer to the service, on the
+  // endpoint thread only. CreateTraceWriter() also calls its v1
+  // CreateTraceWriter(buffer, policy), on any thread.
   ProducerEndpoint* const endpoint_;
 
   // Allocates |memory_| for the first v2 instance. See AllocateV2RingBufferFn.
@@ -344,8 +336,7 @@ class ProducerRingBufferArbiter {
 
   // --- Ring buffer mapping and view. Set once, by the first v2 instance. ---
   //
-  // Only the endpoint thread sets them, before |reader_state_| leaves
-  // kNoRingBuffer.
+  // Only the endpoint thread sets them, before it adds the first v2 instance.
   // Writers exist only after that, so they read them without a lock.
 
   // The SMB arbiter. Any thread allocates and releases WriterIDs here.
@@ -364,14 +355,14 @@ class ProducerRingBufferArbiter {
   // --- Shared with writer threads. ---
 
   // Writers read it from any thread. Only SetReaderState() writes it.
-  std::atomic<ReaderState> reader_state_{ReaderState::kNoRingBuffer};
+  std::atomic<ReaderState> reader_state_{ReaderState::kPending};
   // Nonzero while a shared drain task is pending. A request without |force|
   // sets it before it posts that task. The task clears it before it sends
   // DrainV2RingBuffer.
   std::atomic<uint32_t> drain_task_pending_{0};
 
   // Guards |v2_ring_buffer_instances_|, which only the endpoint thread writes
-  // but MaybeCreateTraceWriter() reads from any thread.
+  // but CreateTraceWriter() reads from any thread.
   base::MaybeRtMutex mutex_;
   // The running data source instances that use the v2 ring buffer.
   base::FlatSet<DataSourceInstanceID> v2_ring_buffer_instances_;
