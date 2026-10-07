@@ -16,13 +16,29 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import argparse
 import os
 import re
 import sys
 from codecs import open
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-SELF_PATH = os.path.relpath(__file__, PROJECT_ROOT).replace('\\', '/')
+DEFAULT_PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.realpath(__file__)))
+
+parser = argparse.ArgumentParser(
+    description='Merge all Perfetto protos into a single file.')
+parser.add_argument(
+    '--project-root',
+    default=DEFAULT_PROJECT_ROOT,
+    help='Path to the protos project root directory.')
+parser.add_argument(
+    '--check-only',
+    action='store_true',
+    help='Check if merged protos are up to date without modifying them.')
+args, unknown_args = parser.parse_known_args()
+
+PROJECT_ROOT = os.path.abspath(args.project_root)
+SELF_PATH = os.path.relpath(__file__, DEFAULT_PROJECT_ROOT).replace('\\', '/')
 
 CONFIG_PROTO_ROOTS = [
     'protos/perfetto/common/data_source_descriptor.proto',
@@ -137,7 +153,7 @@ def merge_protos(root_paths, output_path):
   if prev_content == merged_content:
     return True
 
-  if '--check-only' in sys.argv:
+  if args.check_only:
     return False
 
   print('Updating {}'.format(output_path))
