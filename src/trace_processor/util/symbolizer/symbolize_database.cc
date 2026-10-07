@@ -796,7 +796,7 @@ void FormatUnresolvedSummary(bool colorize,
 }
 
 // One line of counts for the run, plus any server that could not be reached.
-// Warnings about missing tools are printed even when nothing was looked up.
+// Warnings are printed even when nothing was looked up.
 void FormatDebuginfod(bool colorize,
                       const DebuginfodStats& stats,
                       std::string* out) {
@@ -903,6 +903,7 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
     result.error_details =
         "no symbol paths were searched. Pass --symbol-paths PATH1,PATH2,... "
         "or enable automatic symbol path discovery.";
+    result.debuginfod.warnings = config.debuginfod.disabled_warning;
     CollectResults(mappings, &result);
     return result;
   }
@@ -942,6 +943,9 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                 &result.symbols);
     }
   }
+  result.debuginfod.warnings += config.debuginfod.llvm_opts_warning;
+  if (unresolved)
+    result.debuginfod.warnings += config.debuginfod.disabled_warning;
   CollectResults(mappings, &result);
 
   if (result.llvm_symbolizer_unavailable &&

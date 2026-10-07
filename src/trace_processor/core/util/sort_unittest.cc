@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/endian.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "test/gtest_and_gmock.h"
 

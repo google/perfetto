@@ -530,8 +530,10 @@ CREATE PERFETTO VIEW package_list(
   uid LONG,
   -- Bool whether this app is debuggable.
   debuggable LONG,
-  -- Bool whether this app is profileable.
+  -- Bool whether this app is profileable from the shell.
   profileable_from_shell LONG,
+  -- Bool whether this app is profileable by the platform.
+  profileable LONG,
   -- versionCode from the APK.
   version_code LONG
 )

@@ -17,12 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_BATCH_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_BATCH_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/no_destructor.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_selection.h"
 
@@ -57,14 +59,17 @@ class RowBatch {
   ColumnView& mutable_column(uint32_t column) { return columns_[column]; }
 
   const std::shared_ptr<const void>& owner(uint32_t column) const {
-    return owners_[column];
+    static const base::NoDestructor<std::shared_ptr<const void>> none;
+    return column < owners_.size() ? owners_[column] : none.ref();
   }
 
   // Points this batch at `other`'s columns and cardinality. Nothing is copied:
   // values and indices are shared, and borrowed values remain borrowed.
   void CopyFrom(const RowBatch& other) {
     columns_ = other.columns_;
-    owners_ = other.owners_;
+    if (!owners_.empty() || !other.owners_.empty()) {
+      owners_ = other.owners_;
+    }
     cardinality_ = other.cardinality_;
   }
 
@@ -81,14 +86,20 @@ class RowBatch {
                  ColumnView view,
                  std::shared_ptr<const void> owner = nullptr) {
     columns_[column] = std::move(view);
-    owners_[column] = std::move(owner);
+    if (owner || column < owners_.size()) {
+      owners_.resize(std::max<size_t>(owners_.size(), column + 1));
+      owners_[column] = std::move(owner);
+    }
   }
   // Adds a column. `owner` keeps the values alive for as long as the batch
   // does. A null owner declares borrowed storage; retaining consumers may copy.
   void AddColumn(ColumnView column,
                  std::shared_ptr<const void> owner = nullptr) {
     columns_.push_back(std::move(column));
-    owners_.push_back(std::move(owner));
+    if (owner) {
+      owners_.resize(columns_.size());
+      owners_.back() = std::move(owner);
+    }
   }
 
   // Points every column at the `count` rows `selection` picks out.
@@ -109,9 +120,12 @@ class RowBatch {
  private:
   uint32_t cardinality_ = 0;
   std::vector<ColumnView> columns_;
-  // One per column; null for columns the batch does not own.
+  // By column, up to the last column the batch owns; null for the others.
   std::vector<std::shared_ptr<const void>> owners_;
   SelectionPool selections_;
+  // Reused scratch for composing each distinct mapping once, including when
+  // columns sharing it are separated by a computed column.
+  std::vector<std::pair<RowSelection, uint32_t>> compositions_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

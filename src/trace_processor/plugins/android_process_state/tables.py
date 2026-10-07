@@ -38,7 +38,9 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('proc_state', CppOptional(CppString())),
         C('oom_score', CppOptional(CppInt32())),
         C('capability_flags', CppOptional(CppInt32())),
+        C('process_group', CppOptional(CppString())),
         C('reason', CppOptional(CppString())),
+        C('seq_id', CppOptional(CppInt64())),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -55,8 +57,12 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'OOM score.',
             'capability_flags':
                 'Capability flags.',
+            'process_group':
+                'Process group enum name or value.',
             'reason':
                 'Reason for state change (if from track event).',
+            'seq_id':
+                'OOM adjuster sequence ID (if from track event).',
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
         },

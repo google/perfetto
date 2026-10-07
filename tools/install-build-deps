@@ -515,33 +515,33 @@ BIGTRACE_DEPS = [
 SYNTAQLITE_DEPS = [
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.10.1/syntaqlite-linux-x64.tar.gz',
-        '469f20daaa88fb8b8abe8baa9d1ab3e0eadea2f67ede4ceb44fc71d7150a1018',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-linux-x64.tar.gz',
+        'b55c12f33c07ae4dc16ae66520b4d12cfa8e4383fb3edf83ede16c7fd95241ef',
         'linux', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.10.1/syntaqlite-linux-arm64.tar.gz',
-        'df293ab3cf6b92143d7171cd48b68c9a3dc90b172b11b73815e65efa4c894a14',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-linux-arm64.tar.gz',
+        '49ac24b916db7eece63984d5141f9f4aa16d83f7d2f86a33d46eca647f7bba98',
         'linux', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.10.1/syntaqlite-macos-x64.tar.gz',
-        'e7c534b5389381c8102c4258cbd6be0c2125ab52b6b8a879e33200c19edf538b',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-macos-x64.tar.gz',
+        '6bd729aad0f89e0eac68cc52f8f85fc074e7d90c49aef9d668ff192470fa9c1a',
         'darwin', 'x64'),
     Dependency(
         'buildtools/syntaqlite.tgz',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.10.1/syntaqlite-macos-arm64.tar.gz',
-        '88155719ad989b2ea1866fe240e850e806cace80a5a29029cc218cd9a267830e',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-macos-arm64.tar.gz',
+        'c3ac266b2da0e7932a74e2d1bb222202b8a83db000195f4c7a5f1191eacf1934',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.10.1/syntaqlite-windows-x64.zip',
-        '75ab52efe6b8c42ec1ffe5afb66086fedaaa3668f562d845d15fd3f4300707d4',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-windows-x64.zip',
+        '56b31b499016d8135c4cc085c4ab7dc28f4ce220768db8a5452a4d667275dfd1',
         'windows', 'x64'),
     Dependency(
         'buildtools/syntaqlite.zip',
-        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.10.1/syntaqlite-windows-arm64.zip',
-        '11126807326d26da1036cb798d5628883034ea306709c12e16a7974104625f05',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.12.1/syntaqlite-windows-arm64.zip',
+        'f48a2ef7e683d15caca586976b61d1fc257bf4cd6aa407035a56a56c3f6d1400',
         'windows', 'arm64'),
 ]
 
@@ -759,7 +759,24 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   return True
 
 
-def InstallNodeModules(force_clean=False):
+def PrintInstallFailureHint(what, public_flag, public_url):
+  lines = [f'{what} installation failed.']
+  if shutil.which('gpkg'):
+    # Give actionable instructions to Googlers on how to go/corp-airlock.
+    lines += [
+        'This is likely due to go/corp-airlock.',
+        'Run `gcert && gpkg setup` and try again, or',
+    ]
+  else:
+    lines += ['If your environment uses a custom package registry,']
+  lines += [f're-run with {public_flag} to use {public_url}']
+  width = max(len(l) for l in lines)
+  border = '+' + '-' * (width + 2) + '+'
+  body = '\n'.join(f'| {l.ljust(width)} |' for l in lines)
+  print(f'\033[33m{border}\n{body}\n{border}\033[0m', file=sys.stderr)
+
+
+def InstallNodeModules(force_clean=False, public_npm=False):
   if force_clean:
     node_modules = os.path.join(UI_DIR, 'node_modules')
     logging.info('Clearing %s', node_modules)
@@ -774,10 +791,14 @@ def InstallNodeModules(force_clean=False):
   env = os.environ.copy()
   env['PATH'] = TOOLS_DIR + ':' + env['PATH']
 
-  subprocess.check_call(
-      [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile'],
-      cwd=UI_DIR,
-      env=env)
+  cmd = [os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile']
+  if public_npm:
+    cmd += ['--registry', 'https://registry.npmjs.org/']
+  if subprocess.call(cmd, cwd=UI_DIR, env=env) != 0:
+    if not public_npm:
+      PrintInstallFailureHint('pnpm', '--public-npm',
+                              'https://registry.npmjs.org/')
+    sys.exit(1)
   # pbjs has the bad habit of installing extra packages on its first
   # run. Run it here, so we avoid fetches while building.
   pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
@@ -886,16 +907,9 @@ def InstallPythonVenv(public_pypi=False):
   cmd += ['-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
   if subprocess.call(cmd) != 0:
-    if shutil.which("gpkg"):
-      # Give actionable instructions to Googlers on how to go/corp-airlock.
-      print(
-          '''\033[33m
-+---------------------------------------------------------+
-| venv installation failed, likely due to go/corp-airlock |
-| Run `gcert && gpkg setup` and try again                 |
-+---------------------------------------------------------+
-\033[0m''',
-          file=sys.stderr)
+    if not public_pypi:
+      PrintInstallFailureHint('venv', '--public-pypi',
+                              'https://pypi.org/simple/')
     sys.exit(1)
 
   with open(PYTHON_STATUS_FILE, 'w') as f:
@@ -957,6 +971,11 @@ def Main():
       '--public-pypi',
       action='store_true',
       help='Force pip to use the public PyPI index (https://pypi.org/simple/)')
+  parser.add_argument(
+      '--public-npm',
+      action='store_true',
+      help='Force pnpm to use the public npm registry (https://registry.npmjs.org/)'
+  )
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
@@ -1116,7 +1135,7 @@ def Main():
     if args.check_only:
       deps_updated |= not CheckNodeModules()
     else:
-      InstallNodeModules(force_clean=nodejs_updated)
+      InstallNodeModules(force_clean=nodejs_updated, public_npm=args.public_npm)
 
   if not args.no_dev_tools:
     # Check the python venv

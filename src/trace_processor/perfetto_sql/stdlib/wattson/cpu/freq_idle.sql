@@ -45,7 +45,7 @@ CROSS JOIN _dev_cpu_policy_map;
 -- Start matching CPUs with 1D curves based on combination of freq and idle.
 -- Passing freq and idle directly as id into _interval_intersect! eliminates
 -- rowid table joins inside _idle_freq_materialized, and carrying state_id
--- through _stats_cpu0..7 eliminates 10 table joins in _w_cpu_slices.
+-- through _w_cpu_slices eliminates 10 table joins.
 CREATE PERFETTO TABLE _idle_freq_materialized AS
 WITH
   params AS MATERIALIZED (

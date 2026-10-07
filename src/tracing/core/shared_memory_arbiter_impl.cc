@@ -1103,6 +1103,16 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
       new TraceWriterImpl(this, id, target_buffer, buffer_exhausted_policy));
 }
 
+WriterID SharedMemoryArbiterImpl::AllocateTracingV2WriterID() {
+  std::lock_guard<base::MaybeRtMutex> lock(lock_);
+  return did_shutdown_ ? 0 : active_writer_ids_.Allocate();
+}
+
+void SharedMemoryArbiterImpl::ReleaseTracingV2WriterID(WriterID id) {
+  std::lock_guard<base::MaybeRtMutex> lock(lock_);
+  active_writer_ids_.Free(id);
+}
+
 void SharedMemoryArbiterImpl::ReleaseWriterID(WriterID id) {
   base::TaskRunner* task_runner = nullptr;
   base::WeakPtr<SharedMemoryArbiterImpl> weak_this;

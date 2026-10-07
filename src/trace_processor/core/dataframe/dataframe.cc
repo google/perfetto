@@ -218,6 +218,14 @@ Dataframe Dataframe::RemoveIndexAt(uint32_t pos) const {
 }
 
 void Dataframe::Finalize() {
+  FinalizeColumns(/*estimate_distinct=*/true);
+}
+
+void Dataframe::FinalizeWithoutStatistics() {
+  FinalizeColumns(/*estimate_distinct=*/false);
+}
+
+void Dataframe::FinalizeColumns(bool estimate_distinct) {
   if (finalized_) {
     return;
   }
@@ -273,7 +281,9 @@ void Dataframe::Finalize() {
       default:
         PERFETTO_FATAL("Invalid nullability type");
     }
-    c->estimated_distinct = EstimateDistinct(distinct_counts, *c);
+    if (estimate_distinct) {
+      c->estimated_distinct = EstimateDistinct(distinct_counts, *c);
+    }
   }
   // Bump the mutation counter so that any cursors with cached pointers
   // know to refresh them: shrink_to_fit() may have reallocated the internal

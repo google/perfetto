@@ -18,8 +18,11 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_
 
 #include <sqlite3.h>  // IWYU pragma: export
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+
+#include "perfetto/base/compiler.h"
 
 namespace perfetto::trace_processor::sqlite::result {
 
@@ -50,6 +53,17 @@ inline void RawString(sqlite3_context* ctx,
 }
 inline void StaticString(sqlite3_context* ctx, const char* str, int size = -1) {
   RawString(ctx, str, size, kSqliteStatic);
+}
+// `str[size]` must be zero: SQLite then neither measures nor copies `str`.
+inline void StaticTerminatedString(sqlite3_context* ctx,
+                                   const char* str,
+                                   size_t size) {
+#ifdef SQLITE_UTF8_ZT
+  sqlite3_result_text64(ctx, str, size, kSqliteStatic, SQLITE_UTF8_ZT);
+#else
+  base::ignore_result(size);
+  StaticString(ctx, str);
+#endif
 }
 inline void TransientString(sqlite3_context* ctx,
                             const char* str,

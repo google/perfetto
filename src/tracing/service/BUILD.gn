@@ -21,8 +21,10 @@ source_set("service") {
     "..:common",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/ext/tracing/core",
+    "../v2",
   ]
   deps = [
+    ":proto_group_rewriter",
     "../../../gn:default_deps",
     "../../../include/perfetto/tracing",
     "../../../protos/perfetto/common:zero",
@@ -53,6 +55,8 @@ source_set("service") {
     "packet_stream_validator.h",
     "random.cc",
     "random.h",
+    "service_ring_buffer_drainer.cc",
+    "service_ring_buffer_drainer.h",
     "trace_buffer.h",
     "trace_buffer_v1.cc",
     "trace_buffer_v1.h",
@@ -128,12 +132,45 @@ if (enable_perfetto_zstd) {
   }
 }
 
+# Pure conversion from tracing v2 internal group framing to length-delimited
+# protobuf. Runs at read time in the service on untrusted reassembled packets.
+source_set("proto_group_rewriter") {
+  public_deps = [
+    "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/ext/tracing/core",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/protozero",
+    "../../base",
+  ]
+  sources = [
+    "proto_group_rewriter.cc",
+    "proto_group_rewriter.h",
+  ]
+}
+
+perfetto_fuzzer_test("proto_group_rewriter_fuzzer") {
+  sources = [
+    "proto_group_rewriter_fuzzer.cc",
+    "proto_group_rewriter_reference_for_testing.h",
+  ]
+  deps = [
+    ":proto_group_rewriter",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/protozero",
+    "../../base",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":proto_group_rewriter",
     ":service",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/protozero",
     "../../../protos/perfetto/common:semantic_type_cpp",
     "../../../protos/perfetto/config/protovm:cpp",
     "../../../protos/perfetto/protovm:cpp",
@@ -144,8 +181,11 @@ perfetto_unittest_source_set("unittests") {
     "../../../src/protozero/filtering:bytecode_generator",
     "../../base",
     "../../base:test_support",
+    "../../protozero",
     "../core",
     "../test:test_support",
+    "../v2",
+    "../v2:test_support",
   ]
 
   if (enable_perfetto_zlib) {
@@ -165,6 +205,9 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
+    "proto_group_rewriter_reference_for_testing.h",
+    "proto_group_rewriter_unittest.cc",
+    "service_ring_buffer_drainer_unittest.cc",
     "trace_buffer_v1_unittest.cc",
     "trace_buffer_v2_unittest.cc",
   ]

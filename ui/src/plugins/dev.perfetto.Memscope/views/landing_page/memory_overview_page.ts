@@ -26,7 +26,7 @@ import {Select} from '../../../../widgets/select';
 import {Callout} from '../../components/callout';
 import {Page} from '../../components/page';
 import {PreviewBanner} from '../../components/preview_banner';
-import {MemoryOverviewTab, ProcessMemDetails} from './proc_mem_overview';
+import {type MemoryOverviewTab, ProcessMemDetails} from './proc_mem_overview';
 import {
   loadProcessMemoryStats,
   type ProcMemStat,

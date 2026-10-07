@@ -8,6 +8,11 @@ Unreleased:
      is not BOOTTIME. They were previously stored unconverted, which could
      also cause ftrace events to be dropped when preserve_ftrace_buffer is
      disabled.
+   * Changed `graph_reachable_dfs` and `graph_reachable_bfs` to return the
+     start nodes when the graph has no edges, consistent with how start nodes
+     not in the graph are handled when it does have edges. Previously an empty
+     table was returned. See
+     https://perfetto.dev/docs/analysis/perfetto-sql-backcompat.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.
@@ -24,8 +29,16 @@ Unreleased:
       enabled, selecting a slice shows only the flows directly connected to it
       (one step) instead of following the entire flow chain. Useful for traces
       with dense flow graphs (e.g. build dependencies).
+    * Fix issue where horizontal two-finger scrolling to pan the timeline would
+      also trigger browser navigation gestures in Chrome under ChromeOS, Linux
+      and Windows.
+    * Add option to record smaps snapshots alongside ART heap dumps in the
+      record page.
   SDK:
     *
+  Misc:
+    * Added the `perfetto_cxx_standard` GN arg (default "c++17") to allow
+      standalone builds to use a newer C++ standard (e.g. "c++20").
 
 v58.3 - 2026-08-27:
   Misc:

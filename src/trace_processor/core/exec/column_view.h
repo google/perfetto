@@ -131,6 +131,48 @@ class ColumnView {
   const BitVector* validity_ = nullptr;
 };
 
+// Reads a flat column's values through its selection and validity.
+template <typename T>
+class FlatColumnReader {
+ public:
+  explicit FlatColumnReader(const ColumnView& column)
+      : data_(static_cast<const T*>(column.data())),
+        selection_(column.selection()),
+        validity_(column.validity()) {
+    PERFETTO_DCHECK(column.kind() == ColumnView::Kind::kFlat);
+    PERFETTO_DCHECK(column.type().Is<typename TypeTagFor<T>::type>());
+  }
+
+  // False if the row holds no value.
+  PERFETTO_ALWAYS_INLINE bool Read(uint32_t row, T* out) const {
+    uint32_t index = selection_.GetIndex(row);
+    if (validity_ && !validity_->is_set(index)) {
+      return false;
+    }
+    *out = data_[index];
+    return true;
+  }
+
+ private:
+  const T* data_;
+  RowSelection selection_;
+  const BitVector* validity_;
+};
+
+// Whether two batches' views of a column can be combined. An implicit Id and
+// a stored Uint32 hold the same values: gathering turns one into the other.
+inline bool SameLogicalType(const ColumnView& a, const ColumnView& b) {
+  auto is_uint32 = [](const ColumnView& view) {
+    return view.kind() != ColumnView::Kind::kVariant &&
+           (view.type().Is<Id>() || view.type().Is<Uint32>());
+  };
+  if (is_uint32(a) && is_uint32(b)) {
+    return true;
+  }
+  return a.kind() == b.kind() &&
+         (a.kind() == ColumnView::Kind::kVariant || a.type() == b.type());
+}
+
 }  // namespace perfetto::trace_processor::core::exec
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_

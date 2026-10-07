@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <variant>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
@@ -224,7 +225,7 @@ class PackedRepeatedFieldIterator {
       return *this;
     }
 
-    if (wire_type == ProtoWireType::kVarInt) {
+    if constexpr (wire_type == ProtoWireType::kVarInt) {
       uint64_t new_value = 0;
       const uint8_t* new_pos =
           proto_utils::ParseVarInt(read_ptr_, data_end_, &new_value);
@@ -243,6 +244,7 @@ class PackedRepeatedFieldIterator {
       // NB: the raw buffer is not guaranteed to be aligned, so neither are
       // these copies.
       memcpy(&curr_value_, read_ptr_, sizeof(CppType));
+      curr_value_ = perfetto::base::LEToHost(curr_value_);
       read_ptr_ += kStep;
     }
 

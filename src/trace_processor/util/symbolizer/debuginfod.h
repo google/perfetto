@@ -43,13 +43,16 @@ struct DebuginfodConfig {
   std::string cache_path;
   uint32_t connect_timeout_seconds = 5;
   uint32_t stall_timeout_seconds = 10;
+  // Settings that were not honoured. Reported only by a symbolization run
+  // they would have changed: one that looked up frames, and for
+  // |disabled_warning| left some of them unresolved.
+  std::string llvm_opts_warning;
+  std::string disabled_warning;
 };
 
-// Resolves environment defaults and validates configuration. Warnings are
-// returned separately so callers can print them even in quiet mode.
+// Resolves environment defaults and validates configuration.
 base::Status ResolveDebuginfodOptions(const DebuginfodOptions&,
-                                      DebuginfodConfig*,
-                                      std::string* warnings);
+                                      DebuginfodConfig*);
 
 // Per build ID outcomes of debuginfod lookups. The servers tried for each
 // mapping are reported through its SymbolPathAttempts.

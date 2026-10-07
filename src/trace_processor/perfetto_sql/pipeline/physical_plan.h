@@ -26,19 +26,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
-namespace perfetto::trace_processor {
-class SqliteConnection;
-class StringPool;
-}  // namespace perfetto::trace_processor
-
 namespace perfetto::trace_processor::pipeline {
-
-// Connection state needed by lowering. The connection and pool must outlive
-// the plan. Dataframe columns have already been resolved by logical planning.
-struct LowerEnvironment {
-  SqliteConnection* connection = nullptr;
-  StringPool* pool = nullptr;
-};
 
 // A pipeline ready to run: the executor nodes plus which batch columns are
 // the output. Const once built, so it can be run any number of times with one
@@ -62,7 +50,10 @@ class PhysicalPlan {
  private:
   friend class Lowering;
 
-  // Declared first so the input outlives the pipeline that reads it.
+  // Declared first so the input outlives the pipeline that reads it, as an
+  // intersection's operands outlive the intersection.
+  std::vector<std::unique_ptr<core::exec::Source>> operand_inputs_;
+  std::vector<std::unique_ptr<core::exec::Pipeline>> operand_pipelines_;
   std::unique_ptr<core::exec::Source> input_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
@@ -70,8 +61,8 @@ class PhysicalPlan {
 
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
-std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan&,
-                                    const LowerEnvironment&);
+// Every dataframe the plan reads must already be resolved.
+std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan&);
 
 }  // namespace perfetto::trace_processor::pipeline
 

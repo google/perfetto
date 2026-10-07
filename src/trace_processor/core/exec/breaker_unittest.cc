@@ -51,6 +51,11 @@ class Reverse final : public Breaker {
   uint32_t column_;
 
   struct State : Breaker::State {
+    void Reset() override {
+      Breaker::State::Reset();
+      values.clear();
+      served = 0;
+    }
     ~State() override;
     std::vector<int64_t> values;
     uint32_t served = 0;
@@ -90,11 +95,6 @@ class Reverse final : public Breaker {
     s.served += count;
     return true;
   }
-  void Reset(Breaker::State& state) const override {
-    State& s = state.Cast<State>();
-    s.values.clear();
-    s.served = 0;
-  }
 };
 
 Reverse::State::~State() = default;
@@ -110,9 +110,9 @@ std::vector<int64_t> DrainValues(const Source& source) {
 
 TEST(BreakerTest, ServesOnlyOnceTheWholeInputIsIn) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops));
+  Pipeline reverse(source, std::move(ops), {});
 
   std::vector<int64_t> values = DrainValues(reverse);
   ASSERT_EQ(values.size(), kMaxBatchRows * 2u + 7u);
@@ -125,10 +125,10 @@ TEST(BreakerTest, ServesOnlyOnceTheWholeInputIsIn) {
 TEST(BreakerTest, ConsecutiveBreakersDrainAndRewindInOnePipeline) {
   auto expected = Sequence(kMaxBatchRows * 2 + 7);
   ArraySource source(expected);
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Reverse>());
   ops.push_back(std::make_unique<Reverse>(0));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
   RowCursor cursor(pipeline);
   // Restart while a breaker still has buffered output to serve.
   ASSERT_TRUE(cursor.Open());
@@ -144,9 +144,9 @@ TEST(BreakerTest, ConsecutiveBreakersDrainAndRewindInOnePipeline) {
 
 TEST(BreakerTest, RewindReadsTheInputAgain) {
   ArraySource source({1, 2, 3});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops));
+  Pipeline reverse(source, std::move(ops), {});
   RowCursor cursor(reverse);
   for (cursor.Open(); !cursor.eof(); cursor.Next()) {
   }
@@ -160,9 +160,9 @@ TEST(BreakerTest, RewindReadsTheInputAgain) {
 
 TEST(BreakerTest, AFailingInputIsReported) {
   FailingSource source;
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops));
+  Pipeline reverse(source, std::move(ops), {});
   RowCursor cursor(reverse);
   EXPECT_FALSE(cursor.Open());
   EXPECT_EQ(cursor.status().message(), "input broke");
@@ -170,9 +170,9 @@ TEST(BreakerTest, AFailingInputIsReported) {
 
 TEST(BreakerTest, AFailingConsumeIsReported) {
   ArraySource source({1, -2, 3});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops));
+  Pipeline reverse(source, std::move(ops), {});
   RowCursor cursor(reverse);
   EXPECT_FALSE(cursor.Open());
   EXPECT_EQ(cursor.status().message(), "negative value");

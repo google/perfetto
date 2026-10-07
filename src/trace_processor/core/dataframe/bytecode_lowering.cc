@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/type_set.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
@@ -88,18 +89,19 @@ GetSortedFilterArgs(const RangeOp& op) {
   }
 }
 
-// Helper to get byte size of storage types for layout calculation.
-uint8_t GetDataSize(StorageType type) {
+// Helper to get the row layout type of storage types for layout calculation.
+RowLayout::Type GetRowLayoutType(StorageType type) {
   switch (type.index()) {
     case StorageType::GetTypeIndex<Id>():
     case StorageType::GetTypeIndex<Uint32>():
-    case StorageType::GetTypeIndex<Int32>():
     case StorageType::GetTypeIndex<String>():
-      return sizeof(uint32_t);
+      return RowLayout::Type::kUint32;
+    case StorageType::GetTypeIndex<Int32>():
+      return RowLayout::Type::kInt32;
     case StorageType::GetTypeIndex<Int64>():
-      return sizeof(int64_t);
+      return RowLayout::Type::kInt64;
     case StorageType::GetTypeIndex<Double>():
-      return sizeof(double);
+      return RowLayout::Type::kDouble;
     default:
       PERFETTO_FATAL("Invalid storage type");
   }
@@ -476,10 +478,10 @@ void BytecodeLowering::LowerDistinct(const logical::Distinct& d) {
   for (uint32_t col : d.cols) {
     row_layout_params.push_back({col, false});
   }
-  uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
+  RowLayout layout = MakeRowLayout(row_layout_params);
+  auto total_row_stride = static_cast<uint16_t>(layout.stride());
   i::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
-  auto buffer_reg =
-      CopyToRowLayout(total_row_stride, indices, {}, row_layout_params);
+  auto buffer_reg = CopyToRowLayout(layout, indices, {}, row_layout_params);
   {
     using B = i::Distinct;
     auto& bc = AddOpcode<B>();
@@ -589,9 +591,10 @@ void BytecodeLowering::LowerSort(const logical::Sort& sort) {
         {spec.col, columns_[spec.col]->storage.type().Is<String>(),
          spec.direction == SortDirection::kDescending});
   }
-  uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
-  auto buffer_reg = CopyToRowLayout(total_row_stride, indices, string_rank_map,
-                                    row_layout_params);
+  RowLayout layout = MakeRowLayout(row_layout_params);
+  auto total_row_stride = static_cast<uint16_t>(layout.stride());
+  auto buffer_reg =
+      CopyToRowLayout(layout, indices, string_rank_map, row_layout_params);
   {
     using B = i::SortRowLayout;
     auto& op = AddOpcode<B>();
@@ -992,25 +995,26 @@ void BytecodeLowering::MaybeReleaseScratchSpanRegister() {
   }
 }
 
-uint16_t BytecodeLowering::CalculateRowLayoutStride(
+RowLayout BytecodeLowering::MakeRowLayout(
     const std::vector<RowLayoutParams>& row_layout_params) {
   PERFETTO_CHECK(!row_layout_params.empty());
-  uint16_t calculated_total_row_stride = 0;
+  std::vector<RowLayout::Column> columns;
+  columns.reserve(row_layout_params.size());
   for (const auto& param : row_layout_params) {
     const Column& col = GetColumn(param.column);
-    bool is_non_null = col.null_storage.nullability().Is<NonNull>();
-    calculated_total_row_stride +=
-        (is_non_null ? 0u : 1u) + GetDataSize(col.storage.type());
+    columns.push_back({GetRowLayoutType(col.storage.type()),
+                       !col.null_storage.nullability().Is<NonNull>(),
+                       param.invert_copied_bits});
   }
-  return calculated_total_row_stride;
+  return RowLayout(columns);
 }
 
 i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
-    uint16_t row_stride,
+    const RowLayout& layout,
     i::RwHandle<Span<uint32_t>> indices,
     i::ReadHandle<i::StringIdToRankMap> rank_map,
     const std::vector<RowLayoutParams>& row_layout_params) {
-  uint32_t buffer_size = plan_.params.max_row_count * row_stride;
+  uint32_t buffer_size = plan_.params.max_row_count * layout.stride();
   i::RwHandle<Slab<uint8_t>> new_buffer_reg =
       builder_.AllocateRegister<Slab<uint8_t>>();
   {
@@ -1019,8 +1023,8 @@ i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
     op.arg<B::buffer_size>() = buffer_size;
     op.arg<B::dest_buffer_register>() = new_buffer_reg;
   }
-  uint16_t current_offset = 0;
-  for (const auto& param : row_layout_params) {
+  for (uint32_t i = 0; i < row_layout_params.size(); ++i) {
+    const RowLayoutParams& param = row_layout_params[i];
     const Column& col = GetColumn(param.column);
     const auto& nullability = col.null_storage.nullability();
     auto null_bv_reg = EnsurePrefixPopcountFor(param.column);
@@ -1036,14 +1040,12 @@ i::RwHandle<Slab<uint8_t>> BytecodeLowering::CopyToRowLayout(
       op.arg<B::source_indices_register>() = indices;
       op.arg<B::dest_buffer_register>() = new_buffer_reg;
       op.arg<B::rank_map_register>() = rank_map;
-      op.arg<B::row_layout_offset>() = current_offset;
-      op.arg<B::row_layout_stride>() = row_stride;
+      op.arg<B::row_layout_offset>() =
+          static_cast<uint16_t>(layout.slot(i).offset);
+      op.arg<B::row_layout_stride>() = static_cast<uint16_t>(layout.stride());
       op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
     }
-    current_offset +=
-        (nullability.Is<NonNull>() ? 0u : 1u) + GetDataSize(col.storage.type());
   }
-  PERFETTO_CHECK(current_offset == row_stride);
   return new_buffer_reg;
 }
 

@@ -40,6 +40,7 @@
 #include "src/tracing/service/clock.h"
 #include "src/tracing/service/dependencies.h"
 #include "src/tracing/service/random.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
@@ -63,14 +64,12 @@ class Consumer;
 class Producer;
 class SharedMemory;
 class SharedMemoryArbiterImpl;
-class TraceBuffer;
 class TracePacket;
 
 namespace tracing_service {
 // The tracing service business logic.
 class TracingServiceImpl : public TracingService {
  public:
-  static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
   static constexpr uint8_t kSyncMarker[] = {0x82, 0x47, 0x7a, 0x76, 0xb2, 0x8d,
                                             0x42, 0xba, 0x81, 0xdc, 0x33, 0x32,
                                             0x6d, 0x57, 0xa0, 0x79};
@@ -174,7 +173,12 @@ class TracingServiceImpl : public TracingService {
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
-      const std::string& machine_name = {}) override;
+      const std::string& machine_name = {},
+      uint32_t protocol_abi_versions = kProtocolAbiV1) override;
+
+  // The endpoint reports discarded ring buffer chunks on the service
+  // sequence. Adds them to chunks_discarded.
+  void OnRingBufferChunksDiscarded(uint64_t count);
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -295,7 +299,11 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
-  TraceBuffer* GetBufferByID(BufferID);
+  // Returns nullptr if there is no buffer with this ID, or if |type| is set
+  // and does not match the buffer type.
+  TraceBuffer* GetBufferByID(
+      BufferID,
+      std::optional<TraceBuffer::BufType> type = std::nullopt);
   void FlushDataSourceInstances(
       TracingSession*,
       uint32_t timeout_ms,

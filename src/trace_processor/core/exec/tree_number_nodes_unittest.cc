@@ -65,7 +65,7 @@ struct Numbered {
     in.SetCardinality(count);
   }
 
-  OpResult Execute() { return op.Execute(in, out, *state); }
+  bool Process() { return test::ProcessCopy(op, in, out, *state); }
 
   TreeNumberNodes op;
   std::unique_ptr<OperatorState> state;
@@ -79,7 +79,7 @@ struct Numbered {
 TEST(TreeNumberNodesTest, IdsWhichAreAlreadyNodeNumbersAreLeftAlone) {
   Numbered<int64_t> run(StorageType{Int64{}}, {0, 1, 2}, {0, 0, 1},
                         {false, true, true});
-  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process());
 
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u, 2u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3),
@@ -92,7 +92,7 @@ TEST(TreeNumberNodesTest, IdsWhichAreAlreadyNodeNumbersAreLeftAlone) {
 TEST(TreeNumberNodesTest, AScatteringOfIdsIsNumberedDensely) {
   Numbered<int64_t> run(StorageType{Int64{}}, {500, 900, 700}, {0, 500, 900},
                         {false, true, true});
-  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process());
 
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u, 2u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3),
@@ -104,7 +104,7 @@ TEST(TreeNumberNodesTest, AScatteringOfIdsIsNumberedDensely) {
 TEST(TreeNumberNodesTest, AParentNotYetSeenIsNumberedAnyway) {
   Numbered<int64_t> run(StorageType{Int64{}}, {2, 1, 0}, {1, 0, 0},
                         {true, true, false});
-  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process());
 
   std::vector<uint32_t> nodes = test::ReadColumn<uint32_t>(run.out, 2);
   std::vector<uint32_t> parents = test::ReadColumn<uint32_t>(run.out, 3);
@@ -115,7 +115,7 @@ TEST(TreeNumberNodesTest, AParentNotYetSeenIsNumberedAnyway) {
 
 TEST(TreeNumberNodesTest, AnIdOfAnyWidthIsNamed) {
   Numbered<uint32_t> run(StorageType{Uint32{}}, {7, 8}, {0, 7}, {false, true});
-  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process());
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3), ElementsAre(kNoNode, 0u));
 }
@@ -126,7 +126,7 @@ TEST(TreeNumberNodesTest, AStringIsAnIdLikeAnythingElse) {
   StringPool::Id b = pool.InternString("b");
   Numbered<StringPool::Id> run(StorageType{String{}}, {a, b}, {a, a},
                                {false, true});
-  ASSERT_EQ(run.Execute(), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process());
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3), ElementsAre(kNoNode, 0u));
 }
@@ -146,7 +146,7 @@ TEST(TreeNumberNodesTest, AnIdColumnIsTheRowItSitsAt) {
   in.SetCardinality(2);
 
   RowBatch out;
-  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
 }
 
@@ -162,7 +162,7 @@ TEST(TreeNumberNodesTest, AVariantIdIsNamed) {
   in.SetCardinality(2);
 
   RowBatch out;
-  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 3), ElementsAre(kNoNode, 0u));
 }
@@ -181,13 +181,13 @@ TEST(TreeNumberNodesTest, VariantStringsAndIntegersHaveSeparateKeys) {
   in.SetCardinality(2);
 
   RowBatch out;
-  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
 }
 
 TEST(TreeNumberNodesTest, DuplicateIdsAreReported) {
   Numbered<int64_t> run(StorageType{Int64{}}, {1, 1}, {0, 0}, {false, false});
-  EXPECT_EQ(run.Execute(), OpResult::kError);
+  EXPECT_FALSE(run.Process());
   EXPECT_THAT(run.op.status(*run.state).message(),
               testing::HasSubstr("same id"));
 }
@@ -206,7 +206,7 @@ TEST(TreeNumberNodesTest, ARowWithNoIdIsReported) {
   in.SetCardinality(2);
 
   RowBatch out;
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("no id"));
 }
 
@@ -223,7 +223,7 @@ TEST(TreeNumberNodesTest, NumberingIsStableAcrossBatches) {
 
   in.Compose(RowSelection::Range(0), 2);
   in.SetCardinality(2);
-  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
 
   RowBatch again;
@@ -231,7 +231,7 @@ TEST(TreeNumberNodesTest, NumberingIsStableAcrossBatches) {
   again.AddColumn(ColumnView::Reference(StorageType{Int64{}}, parents.data()));
   again.Compose(RowSelection::Range(2), 1);
   again.SetCardinality(1);
-  ASSERT_EQ(op.Execute(again, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, again, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(2u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 3), ElementsAre(0u));
 }
@@ -250,14 +250,14 @@ struct Scanned {
     }
   }
 
-  OpResult Execute(uint32_t offset, uint32_t count) {
+  bool Process(uint32_t offset, uint32_t count) {
     RowBatch in;
     in.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
     in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents_.data(),
                                        &validity_));
     in.Compose(RowSelection::Range(offset), count);
     in.SetCardinality(count);
-    return op.Execute(in, out, *state);
+    return test::ProcessCopy(op, in, out, *state);
   }
 
   TreeNumberNodes op;
@@ -271,7 +271,7 @@ struct Scanned {
 // general path, which numbers it identically.
 TEST(TreeNumberNodesTest, AParentPointingForwardIsNumberedTheSameWay) {
   Scanned run({0, 2, 0, 1}, {false, true, true, true});
-  ASSERT_EQ(run.Execute(0, 4), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process(0, 4));
 
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2),
               ElementsAre(0u, 1u, 2u, 3u));
@@ -285,13 +285,13 @@ TEST(TreeNumberNodesTest, AParentPointingForwardIsNumberedTheSameWay) {
 TEST(TreeNumberNodesTest, AParentNumberedAheadStillGetsItsRow) {
   // Rows 0, 2, 3 in order, then the row with id 1, which row 0 referred to.
   Scanned run({1, 0, 0, 2}, {true, false, true, true});
-  ASSERT_EQ(run.Execute(0, 1), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process(0, 1));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3), ElementsAre(1u));
 
-  ASSERT_EQ(run.Execute(2, 2), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process(2, 2));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(2u, 3u));
 
-  ASSERT_EQ(run.Execute(1, 1), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(run.Process(1, 1));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(1u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3), ElementsAre(kNoNode));
   EXPECT_TRUE(run.op.IsDenseForTesting(*run.state));
@@ -301,8 +301,8 @@ TEST(TreeNumberNodesTest, AParentNumberedAheadStillGetsItsRow) {
 // one of their ids.
 TEST(TreeNumberNodesTest, ADuplicateOfAnInOrderRowIsReported) {
   Scanned run({0, 0}, {false, true});
-  ASSERT_EQ(run.Execute(0, 2), OpResult::kNeedMoreInput);
-  EXPECT_EQ(run.Execute(1, 1), OpResult::kError);
+  ASSERT_TRUE(run.Process(0, 2));
+  EXPECT_FALSE(run.Process(1, 1));
   EXPECT_THAT(run.op.status(*run.state).message(),
               testing::HasSubstr("same id"));
 }
@@ -348,7 +348,7 @@ TEST(TreeNumberNodesTest, AScannedIdColumnIsItsOwnNumbering) {
   uint32_t row = 0;
   uint32_t batches = 0;
   while (scan.GetData(in, *scan_state)) {
-    ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+    ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
     ASSERT_TRUE(op.IsDenseForTesting(*state));
     std::vector<uint32_t> nodes = test::ReadColumn<uint32_t>(out, 2);
     std::vector<uint32_t> parents = test::ReadColumn<uint32_t>(out, 3);
