@@ -194,7 +194,10 @@ base::Status ZipReader::TryParseHeader() {
   }
   if (cur_.hdr.compression != kNoCompression &&
       cur_.hdr.compression != kDeflate) {
-    return base::ErrStatus("Unsupported compression method");
+    return base::ErrStatus(
+        "Unsupported compression method at offset 0x%zx. type=%x. Only "
+        "deflate and no compression are supported.",
+        reader_.start_offset(), cur_.hdr.compression);
   }
   if (cur_.hdr.flags & kDataDescriptor && cur_.hdr.compression != kDeflate) {
     return base::ErrStatus(
