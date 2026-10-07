@@ -36,12 +36,14 @@
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 const OperationRegistration IntervalIntersect::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan};
+    SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION, &BuildPlan,
+    OperationRegistration::Encoding{2, true, &DecodePlan}};
 
 namespace {
 
@@ -75,7 +77,7 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
   uint32_t key_count = per ? syntaqlite_list_count(per) : 0;
 
   IntervalIntersect isect;
-  // The region's bounds are the operator's own, so they are named before an
+  // The region's bounds are the operation's own, so they are named before an
   // operand can bind anything.
   isect.ts_ = c->AddColumn("ts", core::Int64{});
   isect.dur_ = c->AddColumn("dur", core::Int64{});
@@ -207,6 +209,79 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     }
   }
   c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));
+}
+
+const OperationRegistration& IntervalIntersect::registration() const {
+  return kRegistration;
+}
+
+std::unique_ptr<PlanOperation> IntervalIntersect::Clone() const {
+  return std::make_unique<IntervalIntersect>(*this);
+}
+
+void IntervalIntersect::Write(PlanWriter* c,
+                              const PlanNode& node,
+                              Available* available_columns) const {
+  auto& available = *available_columns;
+  const auto& isect = node.Cast<IntervalIntersect>();
+  c->writer().Str(c->plan().columns()[isect.ts_].name);
+  c->writer().Str(c->plan().columns()[isect.dur_].name);
+  c->writer().Size(isect.operands_.size());
+  c->writer().Size(isect.operands_.empty() ? 0
+                                           : isect.operands_[0].keys.size());
+  available = {isect.ts_, isect.dur_};
+  for (uint32_t k = 0; k < isect.operands_.size(); ++k) {
+    const IntervalIntersect::Operand& operand = isect.operands_[k];
+    PERFETTO_CHECK(c->plan().nodes()[node.children()[k]].Is<Scan>());
+    Available in;
+    const auto& child = c->plan().nodes()[node.children()[k]];
+    child.operation().Write(c, child, &in);
+    c->writer().Position(in, operand.ts);
+    c->writer().Position(in, operand.dur);
+    for (ColumnId id : operand.keys) {
+      c->writer().Position(in, id);
+    }
+    c->writer().Size(operand.carried.size());
+    for (ColumnId id : operand.carried) {
+      c->writer().Position(in, id);
+      available.push_back(id);
+    }
+  }
+}
+
+void IntervalIntersect::DecodePlan(PlanReader* c,
+                                   Available* available_columns) {
+  auto& available = *available_columns;
+  IntervalIntersect isect;
+  isect.ts_ = c->AddColumn(c->reader().Str(), core::Int64{});
+  isect.dur_ = c->AddColumn(c->reader().Str(), core::Int64{});
+  available = {isect.ts_, isect.dur_};
+  isect.operands_.resize(c->reader().Count());
+  uint32_t keys = c->reader().Count();
+  if (isect.operands_.size() < 2) {
+    c->reader().Fail();
+  }
+  std::vector<PlanNodeId> children;
+  for (IntervalIntersect::Operand& operand : isect.operands_) {
+    Scan scan;
+    Available in = Scan::ReadPayload(c, &scan);
+    if (!c->reader().ok()) {
+      return;
+    }
+    children.push_back(c->AddNode(std::move(scan)));
+    operand.ts = c->reader().Position(in);
+    operand.dur = c->reader().Position(in);
+    operand.keys.resize(keys);
+    for (ColumnId& id : operand.keys) {
+      id = c->reader().Position(in);
+    }
+    operand.carried.resize(c->reader().Count());
+    for (ColumnId& id : operand.carried) {
+      id = c->reader().Position(in);
+      available.push_back(id);
+    }
+  }
+  c->AddNode(std::move(isect), std::move(children));
 }
 
 }  // namespace perfetto::trace_processor::pipeline

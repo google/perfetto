@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
@@ -196,6 +197,28 @@ TEST_F(PhysicalPlanTest, AccumulateUpSumsEachSubtree) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_THAT(Names(**plan), ElementsAre("id", "parent_id", "self", "total"));
   auto rows = Run(**plan, "total");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
+}
+
+// Optimizing a copy must not change the results of the original plan.
+TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
+  CreateDataframeTree();
+  auto original = Compile(
+      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");
+  ASSERT_TRUE(original.ok()) << original.status().message();
+
+  LogicalPlan copy = *original;
+  copy.output().resize(1);
+  PruneColumns(copy);
+
+  // Copy assignment must also preserve independent operation payloads.
+  copy = *original;
+  copy.output().resize(1);
+  PruneColumns(copy);
+
+  auto rows = Run(*Lower(*original), "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));

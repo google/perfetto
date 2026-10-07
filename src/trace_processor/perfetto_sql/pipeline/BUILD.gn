@@ -35,6 +35,7 @@ source_set("plan") {
     "column_pruning.h",
     "compiler.cc",
     "compiler.h",
+    "logical_plan.cc",
     "logical_plan.h",
     "operation_registry.h",
     "physical_plan.cc",

@@ -21,7 +21,7 @@
 #include <optional>
 #include <vector>
 
-#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
@@ -31,9 +31,11 @@ class PlanNode;
 
 // `INTERVAL INTERSECTION OF (rel AS a, ...) [PER cols]`. A source: the rows
 // are the regions every operand covers, not the rows of any one of them.
-class IntervalIntersect {
+class IntervalIntersect : public PlanOperation {
  public:
-  // Payload types remain public while central plan passes use them.
+  static const OperationRegistration kRegistration;
+
+ private:
   // The columns read from one operand, which is a child of the node. Operands
   // are in child order, so `operands[i]` describes `children[i]`.
   struct Operand {
@@ -46,29 +48,19 @@ class IntervalIntersect {
     std::vector<ColumnId> carried;
   };
 
-  static const OperationRegistration kRegistration;
-
-  // Updates this payload and marks required input ColumnIds in needed.
-  // A returned child slot replaces this node; the caller traverses children.
-  std::optional<uint32_t> Prune(std::vector<bool>* needed);
-
-  // Lowers children and appends this operation's execution steps.
-  void Lower(Lowering*, const PlanNode&) const;
-
-  // Temporary accessors for plan passes not yet moved into this class.
-  // Removed in the final migration commit; test formatting uses friend access.
-  std::vector<Operand>& operands() { return operands_; }
-  const std::vector<Operand>& operands() const { return operands_; }
-  ColumnId& ts() { return ts_; }
-  const ColumnId& ts() const { return ts_; }
-  ColumnId& dur() { return dur_; }
-  const ColumnId& dur() const { return dur_; }
-
- private:
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
 
+  // PlanOperation implementation. Dispatch goes through the base interface.
+  std::unique_ptr<PlanOperation> Clone() const override;
+  std::optional<uint32_t> Prune(std::vector<bool>* needed) override;
+  void Lower(Lowering*, const PlanNode&) const override;
+  void Write(PlanWriter*, const PlanNode&, Available*) const override;
+
   static base::Status BuildPlan(Compiler*, uint32_t);
+  static void DecodePlan(PlanReader*, Available*);
+
+  const OperationRegistration& registration() const override;
 
   std::vector<Operand> operands_;
   // The region's own bounds, which no operand owns.

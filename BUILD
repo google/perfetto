@@ -3919,6 +3919,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.h",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.h",
+        "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
         "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",

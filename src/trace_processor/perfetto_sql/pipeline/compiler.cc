@@ -141,10 +141,10 @@ ColumnId Compiler::AddColumn(std::string name,
 }
 
 base::Status Compiler::BuildOperation(uint32_t stage) {
-  const auto* definition =
+  const auto* registration =
       FindOperationBySyntax(Node<SyntaqliteNode>(p_, stage)->tag);
-  PERFETTO_CHECK(definition);
-  return definition->BuildPlan(this, stage);
+  PERFETTO_CHECK(registration);
+  return registration->BuildPlan(this, stage);
 }
 
 base::Status Compiler::Err(uint32_t at,

@@ -19,53 +19,20 @@
 #include <cstdint>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
-#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor::pipeline {
-namespace {
-
-std::string QuoteIdentifier(const std::string& name) {
-  return "\"" + base::ReplaceAll(name, "\"", "\"\"") + "\"";
-}
-
-std::string QuoteString(const std::string& text) {
-  return "'" + base::ReplaceAll(text, "'", "''") + "'";
-}
-
-}  // namespace
 
 PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
   PlanWithDataframeArgs out;
   for (PlanNode& node : plan.nodes()) {
-    if (!node.Is<Scan>()) {
-      continue;
-    }
-    auto& scan = node.Cast<Scan>();
-    if (!std::holds_alternative<SqlSource>(scan.source())) {
-      continue;
-    }
-    std::vector<std::string> names;
-    std::vector<std::string> references;
-    for (const NamedColumn& column : scan.columns()) {
-      names.push_back(column.name);
-      references.push_back(QuoteIdentifier(column.name));
-    }
-    const std::string& from =
-        base::unchecked_get<SqlSource>(scan.source()).sql();
-    out.args.push_back("SELECT " + std::string(kDataframeAggFunction) + "(" +
-                       QuoteString(base::Join(names, ",")) + ", " +
-                       base::Join(references, ", ") + ") FROM " + from);
-    scan.source() =
-        Scan::DataframeArg{static_cast<uint32_t>(out.args.size() - 1)};
+    node.operation().MoveSqlSourcesToDataframeArgs(&out.args);
   }
   out.plan = std::move(plan);
   return out;
@@ -94,6 +61,14 @@ base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan) {
   }
   return "SELECT " + base::Join(columns, ", ") + " FROM " + kPipelineFunction +
          "(" + arguments + ")";
+}
+
+std::string QuoteIdentifier(const std::string& name) {
+  return "\"" + base::ReplaceAll(name, "\"", "\"\"") + "\"";
+}
+
+std::string QuoteString(const std::string& text) {
+  return "'" + base::ReplaceAll(text, "'", "''") + "'";
 }
 
 }  // namespace perfetto::trace_processor::pipeline

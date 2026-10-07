@@ -33,12 +33,14 @@
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 
 const OperationRegistration TreeAccumulate::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE, &BuildPlan};
+    SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE, &BuildPlan,
+    OperationRegistration::Encoding{1, false, &DecodePlan}};
 
 base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("TREE ACCUMULATE");
@@ -116,6 +118,49 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
     }
     c->Define(agg.output);
   }
+}
+
+const OperationRegistration& TreeAccumulate::registration() const {
+  return kRegistration;
+}
+
+std::unique_ptr<PlanOperation> TreeAccumulate::Clone() const {
+  return std::make_unique<TreeAccumulate>(*this);
+}
+
+void TreeAccumulate::Write(PlanWriter* c,
+                           const PlanNode&,
+                           Available* available_columns) const {
+  auto& available = *available_columns;
+  const auto& acc = *this;
+  c->writer().U8(static_cast<uint8_t>(acc.direction_));
+  c->writer().Position(available, acc.node_column_);
+  c->writer().Position(available, acc.parent_column_);
+  c->writer().Size(acc.aggregates_.size());
+  Available outputs;
+  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
+    c->writer().Position(available, agg.column);
+    c->writer().Str(c->plan().columns()[agg.output].name);
+    outputs.push_back(agg.output);
+  }
+  available.insert(available.end(), outputs.begin(), outputs.end());
+}
+
+void TreeAccumulate::DecodePlan(PlanReader* c, Available* available_columns) {
+  auto& available = *available_columns;
+  TreeAccumulate acc;
+  acc.direction_ = static_cast<TreeDirection>(c->reader().U8());
+  acc.node_column_ = c->reader().Position(available);
+  acc.parent_column_ = c->reader().Position(available);
+  acc.aggregates_.resize(c->reader().Count());
+  for (TreeAccumulate::Aggregate& agg : acc.aggregates_) {
+    agg.column = c->reader().Position(available);
+    agg.output = c->AddColumn(c->reader().Str(), core::Int64{});
+  }
+  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
+    available.push_back(agg.output);
+  }
+  c->AddNode(std::move(acc), {c->plan().root()});
 }
 
 }  // namespace perfetto::trace_processor::pipeline

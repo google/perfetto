@@ -24,17 +24,11 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/group_by.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
-#include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
@@ -117,21 +111,7 @@ const core::exec::Source* Lowering::AddOperand(
 
 void Lowering::LowerNode(PlanNodeId id) {
   const PlanNode& node = plan_.nodes()[id];
-  switch (node.operation().index()) {
-    case base::variant_index<PlanOperation, Scan>():
-      node.Cast<Scan>().Lower(this, node);
-      return;
-    case base::variant_index<PlanOperation, TreeAccumulate>():
-      node.Cast<TreeAccumulate>().Lower(this, node);
-      return;
-    case base::variant_index<PlanOperation, IntervalIntersect>():
-      node.Cast<IntervalIntersect>().Lower(this, node);
-      return;
-    case base::variant_index<PlanOperation, IntervalFlatten>():
-      node.Cast<IntervalFlatten>().Lower(this, node);
-      return;
-  }
-  PERFETTO_FATAL("For GCC");
+  node.operation().Lower(this, node);
 }
 
 void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,

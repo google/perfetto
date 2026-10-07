@@ -36,10 +36,14 @@
 #include "src/perfetto_sql/analysis/relation.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -50,7 +54,8 @@ namespace analysis = ::perfetto::perfetto_sql::analysis;
 using core::StorageType;
 
 const OperationRegistration Scan::kRegistration{
-    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE, &BuildPlan};
+    SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE, &BuildPlan,
+    OperationRegistration::Encoding{0, true, &DecodePlan}};
 
 base::Status Scan::BuildPlan(Compiler* c, uint32_t from) {
   const auto* n = Node<SyntaqlitePerfettoPipeSource>(c->parser(), from);
@@ -273,6 +278,183 @@ std::unique_ptr<ex::Source> Scan::MakeSource() const {
       // dataframes, before a plan is run.
       PERFETTO_FATAL("Unknown scan source");
   }
+}
+
+const OperationRegistration& Scan::registration() const {
+  return kRegistration;
+}
+
+namespace {
+
+std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
+                                       const std::string& name) {
+  const std::vector<std::string>& names = dataframe.column_names();
+  for (uint32_t i = 0; i < names.size(); ++i) {
+    if (names[i] == name && !dataframe::IsHiddenColumn(names[i])) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
+std::unique_ptr<PlanOperation> Scan::Clone() const {
+  return std::make_unique<Scan>(*this);
+}
+
+void Scan::Write(PlanWriter* c,
+                 const PlanNode&,
+                 Available* available_columns) const {
+  auto& available = *available_columns;
+  const auto& scan = *this;
+  c->writer().U8(static_cast<uint8_t>(scan.source_.index()));
+  switch (scan.source_.index()) {
+    case base::variant_index<Scan::Source, Scan::Dataframe>():
+      c->writer().Str(base::unchecked_get<Scan::Dataframe>(scan.source_).name);
+      break;
+    case base::variant_index<Scan::Source, Scan::DataframeArg>():
+      c->writer().U32(
+          base::unchecked_get<Scan::DataframeArg>(scan.source_).index);
+      break;
+    default:
+      // SQL is moved out into dataframe arguments before a plan is written.
+      PERFETTO_FATAL("Unknown scan source");
+  }
+  c->writer().Size(scan.columns_.size());
+  available.clear();
+  for (const NamedColumn& column : scan.columns_) {
+    c->writer().Str(column.name);
+    WriteType(&c->writer(), c->plan().columns()[column.id].type);
+    available.push_back(column.id);
+  }
+}
+
+void Scan::DecodePlan(PlanReader* c, Available* available_columns) {
+  auto& available = *available_columns;
+  Scan scan;
+  available = ReadPayload(c, &scan);
+  c->AddNode(std::move(scan));
+}
+
+Available Scan::ReadPayload(PlanReader* c, Scan* scan) {
+  switch (c->reader().U8()) {
+    case base::variant_index<Scan::Source, Scan::Dataframe>(): {
+      Scan::Dataframe source;
+      source.name = c->reader().Str();
+      scan->source_ = std::move(source);
+      break;
+    }
+    case base::variant_index<Scan::Source, Scan::DataframeArg>():
+      scan->source_ = Scan::DataframeArg{c->reader().U32()};
+      break;
+    default:
+      c->reader().Fail();
+      return {};
+  }
+  scan->columns_.resize(c->reader().Count());
+  Available available;
+  for (NamedColumn& column : scan->columns_) {
+    column.name = c->reader().Str();
+    column.id = c->AddColumn(column.name, ReadType(&c->reader()));
+    available.push_back(column.id);
+  }
+  return available;
+}
+
+base::Status Scan::ResolveDataframes(LogicalPlan* logical_plan,
+                                     const Catalog& catalog) {
+  auto& plan = *logical_plan;
+  auto& scan = *this;
+  auto* data = std::get_if<Scan::Dataframe>(&scan.source_);
+  if (!data) {
+    return base::OkStatus();
+  }
+  const dataframe::Dataframe* dataframe = catalog.FindDataframe(data->name);
+  if (!dataframe) {
+    return base::ErrStatus("Pipeline: table '%s' no longer exists",
+                           data->name.c_str());
+  }
+  for (const NamedColumn& column : scan.columns_) {
+    std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
+    const std::optional<core::StorageType>& type =
+        plan.columns()[column.id].type;
+    if (!i || !type || !(*type == dataframe->column_type(*i))) {
+      return base::ErrStatus(
+          "Pipeline: table '%s' has changed since the pipeline was written",
+          data->name.c_str());
+    }
+    data->columns.push_back(dataframe->shared_column(*i));
+  }
+  data->row_count = dataframe->row_count();
+
+  return base::OkStatus();
+}
+
+base::Status Scan::BindDataframeArgs(
+    LogicalPlan* logical_plan,
+    const std::vector<const dataframe::Dataframe*>& args,
+    StringPool* pool) {
+  auto& plan = *logical_plan;
+  auto& scan = *this;
+  const auto* arg = std::get_if<Scan::DataframeArg>(&scan.source_);
+  if (!arg) {
+    return base::OkStatus();
+  }
+  if (arg->index >= args.size()) {
+    return base::ErrStatus("Pipeline: no dataframe argument %u", arg->index);
+  }
+  // A relation with no rows is passed as null: read it as empty columns.
+  std::optional<dataframe::Dataframe> empty;
+  const dataframe::Dataframe* dataframe = args[arg->index];
+  if (!dataframe) {
+    std::vector<std::string> names;
+    for (const NamedColumn& column : scan.columns_) {
+      names.push_back(column.name);
+    }
+    dataframe::AdhocDataframeBuilder::Options options;
+    options.emit_auto_id = false;
+    ASSIGN_OR_RETURN(
+        empty, dataframe::AdhocDataframeBuilder(std::move(names), pool, options)
+                   .Build());
+    dataframe = &*empty;
+  }
+  Scan::Dataframe data;
+  data.name = "dataframe argument " + std::to_string(arg->index);
+  for (const NamedColumn& column : scan.columns_) {
+    std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
+    if (!i) {
+      return base::ErrStatus("Pipeline: %s has no column '%s'",
+                             data.name.c_str(), column.name.c_str());
+    }
+    // The dataframe was built after the plan was written, so it decides
+    // what each column holds.
+    plan.columns()[column.id].type = dataframe->column_type(*i);
+    data.columns.push_back(dataframe->shared_column(*i));
+  }
+  data.row_count = dataframe->row_count();
+  scan.source_ = std::move(data);
+
+  return base::OkStatus();
+}
+
+void Scan::MoveSqlSourcesToDataframeArgs(std::vector<std::string>* sql_args) {
+  auto& args = *sql_args;
+  auto& scan = *this;
+  if (!std::holds_alternative<SqlSource>(scan.source_)) {
+    return;
+  }
+  std::vector<std::string> names;
+  std::vector<std::string> references;
+  for (const NamedColumn& column : scan.columns_) {
+    names.push_back(column.name);
+    references.push_back(QuoteIdentifier(column.name));
+  }
+  const std::string& from = base::unchecked_get<SqlSource>(scan.source_).sql();
+  args.push_back("SELECT " + std::string(kDataframeAggFunction) + "(" +
+                 QuoteString(base::Join(names, ",")) + ", " +
+                 base::Join(references, ", ") + ") FROM " + from);
+  scan.source_ = Scan::DataframeArg{static_cast<uint32_t>(args.size() - 1)};
 }
 
 }  // namespace perfetto::trace_processor::pipeline
