@@ -211,14 +211,11 @@ bool AssertType::Widen(const ColumnView& column,
                            &chunk.Values<double>(), &chunk.validity);
 }
 
-OpResult AssertType::Execute(const RowBatch& in,
-                             RowBatch& out,
-                             OperatorState& state) const {
+bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
-  out.CopyFrom(in);
-  const ColumnView& column = in.column(column_);
+  const ColumnView& column = batch.column(column_);
   if (column.kind() != ColumnView::Kind::kVariant && column.type() == type_) {
-    return OpResult::kNeedMoreInput;
+    return true;
   }
   auto buffer = s.buffers.Acquire();
   ColumnChunk& chunk = *buffer;
@@ -229,16 +226,17 @@ OpResult AssertType::Execute(const RowBatch& in,
     if (!widen) {
       s.status = base::ErrStatus("column '%s' is %s, not %s", name_.c_str(),
                                  Name(column.type()), Name(type_));
-      return OpResult::kError;
+      return false;
     }
-    if (!Widen(column, in.size(), chunk, s)) {
-      return OpResult::kError;
+    if (!Widen(column, batch.size(), chunk, s)) {
+      return false;
     }
     // A column without validity has no nulls to remap, so stays non-null.
     const BitVector* validity = column.validity() ? &chunk.validity : nullptr;
-    out.SetColumn(column_, ColumnView::Reference(type_, Data(chunk), validity),
-                  std::move(buffer));
-    return OpResult::kNeedMoreInput;
+    batch.SetColumn(column_,
+                    ColumnView::Reference(type_, Data(chunk), validity),
+                    std::move(buffer));
+    return true;
   }
 
   auto mismatch = [&](const Variant& cell) {
@@ -246,7 +244,7 @@ OpResult AssertType::Execute(const RowBatch& in,
                                Name(cell.type), Name(type_));
     return false;
   };
-  uint32_t count = in.size();
+  uint32_t count = batch.size();
   bool ok;
   switch (target_.index()) {
     case AssertTypeTarget::GetTypeIndex<Int64>():
@@ -296,12 +294,12 @@ OpResult AssertType::Execute(const RowBatch& in,
       PERFETTO_FATAL("Unreachable");
   }
   if (!ok) {
-    return OpResult::kError;
+    return false;
   }
-  out.SetColumn(column_,
-                ColumnView::Reference(type_, Data(chunk), &chunk.validity),
-                std::move(buffer));
-  return OpResult::kNeedMoreInput;
+  batch.SetColumn(column_,
+                  ColumnView::Reference(type_, Data(chunk), &chunk.validity),
+                  std::move(buffer));
+  return true;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

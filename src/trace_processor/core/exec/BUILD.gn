@@ -124,6 +124,7 @@ if (enable_perfetto_benchmarks) {
       "interval_intersect_benchmark.cc",
       "key_encoder_benchmark.cc",
       "pipeline_benchmark.cc",
+      "pipeline_steps_benchmark.cc",
       "row_store_benchmark.cc",
       "tree_number_nodes_benchmark.cc",
       "tree_order_benchmark.cc",
