@@ -45,6 +45,20 @@ namespace profiling {
 namespace {
 constexpr uint32_t kMinReadPeriodMs = 1000;                 // 1s
 constexpr uint32_t kMaxReadPeriodMs = 24 * 60 * 60 * 1000;  // 24 hrs
+constexpr uint32_t kAndroidUserOffset = 100000;             // AID_USER_OFFSET
+
+using UidRange = protos::gen::ProcessSmapsConfig::Scope::UidRange;
+
+bool UidInRanges(uid_t uid, const std::vector<UidRange>& ranges) {
+  for (const UidRange& range : ranges) {
+    uint32_t cmp_uid = uid;
+    if (range.android_match_across_profiles())
+      cmp_uid %= kAndroidUserOffset;
+    if (cmp_uid >= range.min_uid() && cmp_uid <= range.max_uid())
+      return true;
+  }
+  return false;
+}
 }  // namespace
 
 // static
@@ -58,11 +72,21 @@ std::optional<SmapsDataSource::Config> SmapsDataSource::Config::Create(
 
   Config config;
   config.target_cmdlines = smaps_cfg_pb.scope().target_cmdline();
-  if (config.target_cmdlines.empty()) {
+  config.target_uids = smaps_cfg_pb.scope().target_uid();
+  if (config.target_cmdlines.empty() && config.target_uids.empty()) {
     PERFETTO_ELOG(
-        "linux.smaps does not specify scope.target_cmdline, rejecting data "
-        "source.");
+        "linux.smaps does not specify scope.target_cmdline or "
+        "scope.target_uid, rejecting data source.");
     return std::nullopt;
+  }
+  for (const UidRange& range : config.target_uids) {
+    if (!range.has_min_uid() || !range.has_max_uid() ||
+        range.min_uid() > range.max_uid()) {
+      PERFETTO_ELOG(
+          "linux.smaps scope.target_uid has an incomplete or empty range, "
+          "rejecting data source.");
+      return std::nullopt;
+    }
   }
 
   config.recording_config = smaps_cfg_pb.smaps_config();
@@ -81,6 +105,22 @@ std::optional<SmapsDataSource::Config> SmapsDataSource::Config::Create(
   config.max_processes_per_period = smaps_cfg_pb.max_processes_per_period();
 
   return config;
+}
+
+// static
+bool SmapsDataSource::MatchesScope(pid_t pid, const Config& config) {
+  // Different cases of one option (e.g. uid) are ORed. Different options are
+  // ANDed. So if the config has both uid and cmdline lists, only processes
+  // that match at least one case from both lists pass the overall test.
+  if (!config.target_uids.empty()) {
+    std::optional<uid_t> uid = GetUidFromProcfs(pid);
+    if (!uid.has_value() || !UidInRanges(*uid, config.target_uids)) {
+      return false;
+    }
+  }
+  if (!config.target_cmdlines.empty())
+    return glob_aware::PidMatchesCmdlinePatterns(pid, config.target_cmdlines);
+  return true;
 }
 
 // static
@@ -192,8 +232,7 @@ void SmapsDataSource::QueueSmapsReads() {
   pending_reads_ = PickMatchingTargets(
       shuffled_pids,
       [this, self_pid](pid_t pid) {
-        return pid != self_pid && glob_aware::PidMatchesCmdlinePatterns(
-                                      pid, config_.target_cmdlines);
+        return pid != self_pid && MatchesScope(pid, config_);
       },
       config_.max_processes_per_period, &last_picked_);
   if (pending_reads_.empty())

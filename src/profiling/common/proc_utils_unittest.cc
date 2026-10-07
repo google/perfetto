@@ -161,6 +161,11 @@ TEST(ProcUtilsTest, PidMatchesCmdlinePatterns) {
   EXPECT_FALSE(glob_aware::PidMatchesCmdlinePatterns(getpid(), {}));
 }
 
+TEST(ProcUtilsTest, GetUidFromProcfs) {
+  EXPECT_EQ(GetUidFromProcfs(getpid()), geteuid());
+  EXPECT_EQ(GetUidFromProcfs(-1), std::nullopt);
+}
+
 TEST(ProcUtilsTest, GetRssAnonAndSwap) {
   std::string status = "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB";
   EXPECT_EQ(GetRssAnonAndSwap(status), 20000u);
