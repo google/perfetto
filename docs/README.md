@@ -5,8 +5,9 @@ performance, we suggest reading the [What is Tracing?](/docs/tracing-101.md)
 page first.
 
 Perfetto is an open-source suite of SDKs, daemons and tools which use
-**tracing** to help developers understand the behaviour of the complex systems
-and root-cause functional and performance issues on client / embedded systems.
+**tracing** and **profiling** to help developers understand the behaviour of
+complex systems and root-cause functional and performance issues on client /
+embedded systems.
 
 It consists of:
 
@@ -20,9 +21,10 @@ It consists of:
   level (e.g. scheduling states, CPU frequencies, memory profiling, callstack
   sampling) context during the trace.
 - **Fully local, browser-based UI** for visualizing large amounts of complex,
-  interconnected data on a timeline. Our UI works in all major browsers, doesn't
-  require any installation, works offline, and can open traces recorded by other
-  (non-Perfetto) tracing tools.
+  interconnected data on a timeline and for exploring CPU and memory profiles
+  with flamegraphs and call trees. Our UI works in all major browsers, doesn't
+  require any installation, works offline, and can open traces and profiles
+  recorded by other tools, such as pprof, Linux perf and simpleperf.
 - **Powerful, SQL-based analysis library** for programmatically analyzing large
   amounts of complex, interconnected data on a timeline, even if it was not
   collected with Perfetto recording tooling.
@@ -64,15 +66,20 @@ Other usecases Perfetto is commonly used for include:
   kernel issues via ftrace, scheduling latency or IPCs between processes.
 - **Collecting, analysing and visualizing heap profiles on Linux** to debug high
   memory usage of C/C++/Rust apps and libraries.
-- **Analysing and visualizing CPU profiles (Linux perf profiles) on Linux** to
-  optimize CPU usage in C/C++/Rust apps and libraries.
+- **Viewing and analysing CPU profiles from other profilers** such as pprof,
+  Linux perf and simpleperf, to optimize CPU usage of apps and libraries in
+  any language. See
+  [Viewing CPU Profiles](/docs/getting-started/viewing-cpu-profiles.md).
 - **Analyze and visualize a wide range of profiling and tracing formats.**
   Perfetto can open traces and profiles from various other tools, allowing you
   to use the Perfetto UI and its SQL-based query engine on many data sources,
   including:
+  - _pprof_
   - _Chrome JSON format_
   - _Firefox Profiler JSON format_
   - _Linux perf (binary and text formats)_
+  - _Android simpleperf_
+  - _Collapsed stacks (Brendan Gregg's FlameGraph format)_
   - _Linux ftrace text format_
   - _macOS Instruments_
   - _Fuchsia tracing format_
