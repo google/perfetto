@@ -40,26 +40,6 @@ ArgsInserter& ShellTransitionsTracker::AddArgsTo(int32_t transition_id) {
   return *transition_info->args_inserter;
 }
 
-void ShellTransitionsTracker::SetTimestamp(int32_t transition_id,
-                                           int64_t timestamp_ns) {
-  auto row_ref = GetRowReference(transition_id);
-  if (row_ref.has_value()) {
-    auto row = row_ref.value();
-    row.set_ts(timestamp_ns);
-  }
-}
-
-void ShellTransitionsTracker::SetTimestampIfEmpty(int32_t transition_id,
-                                                  int64_t timestamp_ns) {
-  auto row_ref = GetRowReference(transition_id);
-  if (row_ref.has_value()) {
-    auto row = row_ref.value();
-    if (!row.ts()) {
-      row.set_ts(timestamp_ns);
-    }
-  }
-}
-
 void ShellTransitionsTracker::SetTransitionType(int32_t transition_id,
                                                 int32_t transition_type) {
   auto row = GetRowReference(transition_id);
@@ -156,7 +136,7 @@ void ShellTransitionsTracker::SetFinishTransactionId(int32_t transition_id,
 }
 
 void ShellTransitionsTracker::Flush() {
-  SetStatusesAndDurations();
+  SetDerivedFields();
   // Destroying each TransitionInfo commits its parked inserter's args.
   transitions_infos_.clear();
 }
@@ -181,20 +161,45 @@ ShellTransitionsTracker::GetOrInsertTransition(int32_t transition_id) {
   return &pos->second;
 }
 
-void ShellTransitionsTracker::SetStatusesAndDurations() {
+void ShellTransitionsTracker::SetDerivedFields() {
   auto* string_pool = context_->storage.get()->mutable_string_pool();
   auto* table =
       context_->storage->mutable_window_manager_shell_transitions_table();
 
   for (auto it = table->IterateRows(); it; ++it) {
-    if (IsValid(it.merge_time_ns())) {
+    auto has_create_time = IsValid(it.create_time_ns());
+    auto has_send_time = IsValid(it.send_time_ns());
+    auto has_dispatch_time = IsValid(it.dispatch_time_ns());
+    auto has_shell_abort_time = IsValid(it.shell_abort_time_ns());
+    auto has_wm_abort_time = IsValid(it.wm_abort_time_ns());
+    auto has_finish_time = IsValid(it.finish_time_ns());
+    auto has_merge_time = IsValid(it.merge_time_ns());
+
+    int64_t start_time = 0;
+    if (has_create_time) {
+      start_time = it.create_time_ns().value();
+    } else if (has_send_time) {
+      start_time = it.send_time_ns().value();
+    } else if (has_dispatch_time) {
+      start_time = it.dispatch_time_ns().value();
+    } else if (has_shell_abort_time) {
+      start_time = it.shell_abort_time_ns().value();
+    } else if (has_wm_abort_time) {
+      start_time = it.wm_abort_time_ns().value();
+    } else if (has_finish_time) {
+      start_time = it.finish_time_ns().value();
+    } else if (has_merge_time) {
+      start_time = it.merge_time_ns().value();
+    }
+    if (start_time != 0) {
+      it.set_ts(start_time);
+    }
+
+    if (has_merge_time) {
       // Assume that merged transitions will never be dispatched.
       it.set_status(string_pool->InternString("merged"));
       continue;
     }
-
-    auto has_dispatch_time = IsValid(it.dispatch_time_ns());
-    auto has_finish_time = IsValid(it.finish_time_ns());
 
     if (has_dispatch_time && has_finish_time) {
       it.set_duration_ns(it.finish_time_ns().value() -
@@ -205,9 +210,7 @@ void ShellTransitionsTracker::SetStatusesAndDurations() {
       continue;
     }
 
-    auto has_abort_time =
-        IsValid(it.shell_abort_time_ns()) || IsValid(it.wm_abort_time_ns());
-    if (has_abort_time && !has_dispatch_time) {
+    if ((has_shell_abort_time || has_wm_abort_time) && !has_dispatch_time) {
       // WM can call abort at any time, but playing transitions cannot be
       // aborted, so only set status to "aborted" if transition has not been
       // dispatched.
