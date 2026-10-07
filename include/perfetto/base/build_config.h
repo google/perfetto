@@ -225,4 +225,56 @@
 //   added to the amalgamated headers.
 #include "perfetto_build_flags.h"  // no-include-violation-check
 
+// In the amalgamated SDK, optional features (zlib, re2) are opt-in. The
+// consumer drops a header named "perfetto_sdk_config.h" somewhere on their
+// include path; inside it they `#define PERFETTO_SDK_ENABLE_ZLIB 1` /
+// `#define PERFETTO_SDK_ENABLE_RE2 1` to opt in. Setting the macro to 0 (or
+// omitting the file entirely) keeps the feature off.
+#if PERFETTO_BUILDFLAG(PERFETTO_AMALGAMATED_SDK)
+
+#if defined(__has_include)
+#if __has_include("perfetto_sdk_config.h")
+#include "perfetto_sdk_config.h"  // no-include-violation-check gen_amalgamated:keep
+#endif
+#endif
+
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2
+#if defined(PERFETTO_SDK_ENABLE_RE2) && (PERFETTO_SDK_ENABLE_RE2 == 1)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_RE2() 0
+#endif
+
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB
+#if defined(PERFETTO_SDK_ENABLE_ZLIB) && (PERFETTO_SDK_ENABLE_ZLIB == 1)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 0
+#endif
+
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZSTD
+#if defined(PERFETTO_SDK_ENABLE_ZSTD) && (PERFETTO_SDK_ENABLE_ZSTD == 1)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZSTD() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZSTD() 0
+#endif
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_AMALGAMATED_SDK)
+
+// Unlike the PERFETTO_SDK_ENABLE_* opt-ins above (amalgamated SDK), these are
+// file-scope opt-outs that apply to every build. Define them to compile out the
+// optional zlib/zstd compressors. Static libs like
+// libperfetto_client_experimental get linked into many binaries, so keeping a
+// compressor out means those binaries don't have to link libz/libzstd. See
+// tools/gen_android_bp.
+#if defined(PERFETTO_FORCE_DISABLE_ZLIB)
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZLIB() 0
+#endif
+
+#if defined(PERFETTO_FORCE_DISABLE_ZSTD)
+#undef PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZSTD
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ZSTD() 0
+#endif
+
 #endif  // INCLUDE_PERFETTO_BASE_BUILD_CONFIG_H_

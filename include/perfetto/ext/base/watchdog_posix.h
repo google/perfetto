@@ -43,6 +43,23 @@ struct ProcStat {
 
 bool ReadProcStat(int fd, ProcStat* out);
 
+// all are measured in pages
+struct ProcStatm {
+  uint64_t size = 0;
+  uint64_t resident = 0;
+  uint64_t shared = 0;
+  uint64_t text = 0;
+  uint64_t lib = 0;
+  uint64_t data = 0;
+  uint64_t dt = 0;  // dirty
+
+  uint64_t rss_anon_pages() const {
+    return resident > shared ? resident - shared : 0;
+  }
+};
+
+bool ReadProcStatm(int fd, ProcStatm* out);
+
 // Ensures that the calling program does not exceed certain hard limits on
 // resource usage e.g. time, memory and CPU. If exceeded, the program is
 // crashed.
@@ -172,7 +189,7 @@ class Watchdog {
 
   // Check each type of resource every |polling_interval_ms_| miillis.
   // Returns true if the threshold is exceeded and the process should be killed.
-  bool CheckMemory_Locked(uint64_t rss_bytes)
+  bool CheckMemory_Locked(uint64_t rss_anon_bytes)
       PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
   bool CheckCpu_Locked(uint64_t cpu_time)
       PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_);

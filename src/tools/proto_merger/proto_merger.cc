@@ -16,15 +16,87 @@
 
 #include "src/tools/proto_merger/proto_merger.h"
 
+#include <algorithm>
 #include <optional>
+#include <unordered_set>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/tools/proto_merger/proto_file_serializer.h"
 
 namespace perfetto {
 namespace proto_merger {
 namespace {
+
+struct MergeContext {
+  std::unordered_set<std::string> known_enums;
+  std::unordered_set<std::string> allowlisted_options;
+};
+
+struct FieldParams {
+  const std::set<int>& allowlist;
+  const std::unordered_set<int>& reserved_numbers;
+  const std::unordered_set<std::string>& deleted_type_names;
+};
+
+void StripDeletedElementComment(std::vector<std::string>& leading_comments) {
+  std::vector<std::string> kept;
+  kept.reserve(leading_comments.size());
+  for (size_t i = 0; i < leading_comments.size(); i++) {
+    if (base::TrimWhitespace(leading_comments[i]) != kDeletedCommentWarning) {
+      kept.push_back(std::move(leading_comments[i]));
+      continue;
+    }
+    // |i| is the warning line: don't keep it, and also drop one blank
+    // comment line before it (already in |kept|) and one after it.
+    if (!kept.empty() && base::TrimWhitespace(kept.back()).empty())
+      kept.pop_back();
+    if (i + 1 < leading_comments.size() &&
+        base::TrimWhitespace(leading_comments[i + 1]).empty())
+      i++;  // Skips the blank line: the loop increment moves past it.
+  }
+  leading_comments = std::move(kept);
+}
+
+bool IsAllowlistedOption(
+    const std::string& key,
+    const std::unordered_set<std::string>& allowlisted_options) {
+  return allowlisted_options.count(key);
+}
+
+void MergeAllowlistedOptions(
+    const std::vector<ProtoFile::Option>& upstream,
+    std::vector<ProtoFile::Option>& out,
+    const std::unordered_set<std::string>& allowlisted_options) {
+  if (allowlisted_options.empty() || upstream.empty())
+    return;
+
+  for (const auto& upstream_opt : upstream) {
+    if (IsAllowlistedOption(upstream_opt.key, allowlisted_options)) {
+      auto it = std::find_if(out.begin(), out.end(),
+                             [&](const ProtoFile::Option& opt) {
+                               return opt.key == upstream_opt.key;
+                             });
+      if (it != out.end()) {
+        it->value = upstream_opt.value;
+      } else {
+        out.push_back(upstream_opt);
+      }
+    }
+  }
+}
+
+void MarkFieldAsDeprecated(ProtoFile::Field& field) {
+  auto it = std::find_if(
+      field.options.begin(), field.options.end(),
+      [](const ProtoFile::Option& opt) { return opt.key == "deprecated"; });
+  if (it != field.options.end()) {
+    it->value = "true";
+  } else {
+    field.options.push_back(ProtoFile::Option{"deprecated", "true"});
+  }
+}
 
 template <typename Key, typename Value>
 std::optional<Value> FindInMap(const std::map<Key, Value>& map,
@@ -45,6 +117,13 @@ const T* FindByName(const std::vector<T>& items, const std::string& name) {
   return nullptr;
 }
 
+template <typename T>
+T CleanDeletedItem(const T& input_item) {
+  T item = input_item;
+  StripDeletedElementComment(item.leading_comments);
+  return item;
+}
+
 // Compute the items present in the |input| vector but deleted in
 // the |upstream| vector by looking at the field |name|.
 // T is ProtoFile::Enum, ProtoFile::Oneof or ProtoFile::Message.
@@ -52,7 +131,7 @@ template <typename T>
 std::vector<T> ComputeDeletedByName(const std::vector<T>& input,
                                     const std::vector<T>& upstream) {
   std::vector<T> deleted;
-  std::set<std::string> seen;
+  std::unordered_set<std::string> seen;
   for (const auto& upstream_item : upstream) {
     auto* input_item = FindByName(input, upstream_item.name);
     if (!input_item)
@@ -63,7 +142,7 @@ std::vector<T> ComputeDeletedByName(const std::vector<T>& input,
   for (const auto& input_item : input) {
     if (seen.count(input_item.name))
       continue;
-    deleted.emplace_back(input_item);
+    deleted.emplace_back(CleanDeletedItem(input_item));
   }
   return deleted;
 }
@@ -87,7 +166,7 @@ template <typename T>
 std::vector<T> ComputeDeletedByNumber(const std::vector<T>& input,
                                       const std::vector<T>& upstream) {
   std::vector<T> deleted;
-  std::set<int> seen;
+  std::unordered_set<int> seen;
   for (const auto& upstream_item : upstream) {
     auto* input_item = FindByNumber(input, upstream_item.number);
     if (!input_item)
@@ -98,13 +177,15 @@ std::vector<T> ComputeDeletedByNumber(const std::vector<T>& input,
   for (const auto& input_item : input) {
     if (seen.count(input_item.number))
       continue;
-    deleted.emplace_back(input_item);
+    deleted.emplace_back(CleanDeletedItem(input_item));
   }
   return deleted;
 }
 
-ProtoFile::Enum::Value MergeEnumValue(const ProtoFile::Enum::Value& input,
-                                      const ProtoFile::Enum::Value& upstream) {
+ProtoFile::Enum::Value MergeEnumValue(
+    const ProtoFile::Enum::Value& input,
+    const ProtoFile::Enum::Value& upstream,
+    const std::unordered_set<std::string>& allowlisted_options) {
   PERFETTO_CHECK(input.number == upstream.number);
 
   ProtoFile::Enum::Value out;
@@ -117,11 +198,16 @@ ProtoFile::Enum::Value MergeEnumValue(const ProtoFile::Enum::Value& input,
   // Get everything else from the input.
   out.number = input.number;
   out.options = input.options;
+
+  MergeAllowlistedOptions(upstream.options, out.options, allowlisted_options);
+
   return out;
 }
 
-ProtoFile::Enum MergeEnum(const ProtoFile::Enum& input,
-                          const ProtoFile::Enum& upstream) {
+ProtoFile::Enum MergeEnum(
+    const ProtoFile::Enum& input,
+    const ProtoFile::Enum& upstream,
+    const std::unordered_set<std::string>& allowlisted_options) {
   PERFETTO_CHECK(input.name == upstream.name);
 
   ProtoFile::Enum out;
@@ -136,7 +222,8 @@ ProtoFile::Enum MergeEnum(const ProtoFile::Enum& input,
     // values are also allowed. Therefore, if the value doesn't exist
     // in the input, just take it from the source of truth.
     auto* input_value = FindByNumber(input.values, upstream_value.number);
-    auto out_value = input_value ? MergeEnumValue(*input_value, upstream_value)
+    auto out_value = input_value ? MergeEnumValue(*input_value, upstream_value,
+                                                  allowlisted_options)
                                  : upstream_value;
     out.values.emplace_back(std::move(out_value));
   }
@@ -150,7 +237,8 @@ ProtoFile::Enum MergeEnum(const ProtoFile::Enum& input,
 std::vector<ProtoFile::Enum> MergeEnums(
     const std::vector<ProtoFile::Enum>& input,
     const std::vector<ProtoFile::Enum>& upstream,
-    const std::set<std::string>& allowlist) {
+    const std::set<std::string>& allowlist,
+    const std::unordered_set<std::string>& allowlisted_options) {
   std::vector<ProtoFile::Enum> out;
   for (const auto& upstream_enum : upstream) {
     auto* input_enum = FindByName(input, upstream_enum.name);
@@ -164,30 +252,95 @@ std::vector<ProtoFile::Enum> MergeEnums(
     }
 
     // Otherwise, merge the enums from the input and source of truth.
-    out.emplace_back(MergeEnum(*input_enum, upstream_enum));
+    out.emplace_back(
+        MergeEnum(*input_enum, upstream_enum, allowlisted_options));
   }
   return out;
 }
 
+void CollectEnums(const std::vector<ProtoFile::Enum>& enums,
+                  const std::vector<ProtoFile::Message>& messages,
+                  const std::string& prefix,
+                  std::unordered_set<std::string>& out) {
+  for (const auto& en : enums) {
+    out.insert(prefix + en.name);
+  }
+  for (const auto& msg : messages) {
+    CollectEnums(msg.enums, msg.nested_messages, prefix + msg.name + ".", out);
+  }
+}
+// Protocol Buffers binary/wire-compatible type transitions.
+// Transitions are allowed between types within the same category as they share
+// the same wire format.
+bool IsAllowedTypeTransition(
+    const std::string& from,
+    const std::string& to,
+    const std::unordered_set<std::string>& known_enums) {
+  auto is_primitive = [](const std::string& type) {
+    return type == "double" || type == "float" || type == "int64" ||
+           type == "uint64" || type == "int32" || type == "fixed64" ||
+           type == "fixed32" || type == "bool" || type == "string" ||
+           type == "bytes" || type == "uint32" || type == "sfixed32" ||
+           type == "sfixed64" || type == "sint32" || type == "sint64";
+  };
+  auto is_varint = [&](const std::string& type) {
+    return type == "int32" || type == "uint32" || type == "int64" ||
+           type == "uint64" || type == "bool" || known_enums.count(type);
+  };
+  auto is_message = [&](const std::string& type) {
+    return !is_primitive(type) && !known_enums.count(type);
+  };
+
+  if (is_varint(from) && is_varint(to)) {
+    return true;
+  }
+  if ((from == "sint32" || from == "sint64") &&
+      (to == "sint32" || to == "sint64")) {
+    return true;
+  }
+  if ((from == "fixed32" || from == "sfixed32") &&
+      (to == "fixed32" || to == "sfixed32")) {
+    return true;
+  }
+  if ((from == "fixed64" || from == "sfixed64") &&
+      (to == "fixed64" || to == "sfixed64")) {
+    return true;
+  }
+  if ((from == "string" || from == "bytes") &&
+      (to == "string" || to == "bytes")) {
+    return true;
+  }
+  if ((from == "bytes" && is_message(to)) ||
+      (is_message(from) && to == "bytes")) {
+    return true;
+  }
+  return false;
+}
+
 base::Status MergeField(const ProtoFile::Field& input,
                         const ProtoFile::Field& upstream,
+                        const MergeContext& ctx,
                         ProtoFile::Field& out) {
   PERFETTO_CHECK(input.number == upstream.number);
 
   if (input.packageless_type != upstream.packageless_type) {
-    return base::ErrStatus(
-        "The type of field with id %d and name %s (source of truth name: %s) "
-        "changed from %s to %s. Please resolve conflict manually before "
-        "rerunning.",
-        input.number, input.name.c_str(), upstream.name.c_str(),
-        input.packageless_type.c_str(), upstream.packageless_type.c_str());
+    if (!IsAllowedTypeTransition(input.packageless_type,
+                                 upstream.packageless_type, ctx.known_enums)) {
+      return base::ErrStatus(
+          "The type of field with id %d and name %s (source of truth name: %s) "
+          "changed from %s to %s. Please resolve conflict manually before "
+          "rerunning.",
+          input.number, input.name.c_str(), upstream.name.c_str(),
+          input.packageless_type.c_str(), upstream.packageless_type.c_str());
+    }
   }
 
   // If the packageless type name is the same but the type is different
   // mostly we should error however sometimes it is useful to allow downstream
   // to 'alias' an upstream type. For example 'Foo' to an existing internal
   // type in another package 'my.private.Foo'.
-  if (input.type != upstream.type) {
+  if (input.packageless_type == upstream.packageless_type &&
+      input.type != upstream.type) {
     if (!base::EndsWith(upstream.type, "Atom")) {
       return base::ErrStatus(
           "Upstream field with id %d and name '%s' "
@@ -208,15 +361,25 @@ base::Status MergeField(const ProtoFile::Field& input,
   // Get everything else from the input.
   out.number = input.number;
   out.options = input.options;
-  out.packageless_type = input.packageless_type;
-  out.type = input.type;
+
+  MergeAllowlistedOptions(upstream.options, out.options,
+                          ctx.allowlisted_options);
+
+  if (input.packageless_type != upstream.packageless_type) {
+    out.packageless_type = upstream.packageless_type;
+    out.type = upstream.type;
+  } else {
+    out.packageless_type = input.packageless_type;
+    out.type = input.type;
+  }
 
   return base::OkStatus();
 }
 
 base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
                          const std::vector<ProtoFile::Field>& upstream,
-                         const std::set<int>& allowlist,
+                         const FieldParams& params,
+                         const MergeContext& ctx,
                          std::vector<ProtoFile::Field>& out) {
   for (const auto& upstream_field : upstream) {
     auto* input_field = FindByNumber(input, upstream_field.number);
@@ -224,38 +387,103 @@ base::Status MergeFields(const std::vector<ProtoFile::Field>& input,
       // If the field is missing from the input but is present
       // in the allowlist, take the whole field from the
       // source of truth.
-      if (allowlist.count(upstream_field.number))
+      if (params.allowlist.count(upstream_field.number))
         out.emplace_back(upstream_field);
       continue;
     }
 
     // Otherwise, merge the fields from the input and source of truth.
     ProtoFile::Field out_field;
-    base::Status status = MergeField(*input_field, upstream_field, out_field);
+    base::Status status =
+        MergeField(*input_field, upstream_field, ctx, out_field);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_field));
   }
+
+  // Append reserved fields from input as deprecated fields, unless they use a
+  // deleted type.
+  for (const auto& input_field : input) {
+    if (params.reserved_numbers.count(input_field.number) &&
+        !params.deleted_type_names.count(input_field.type)) {
+      ProtoFile::Field deprecated_field = input_field;
+      MarkFieldAsDeprecated(deprecated_field);
+      out.emplace_back(std::move(deprecated_field));
+    }
+  }
+
   return base::OkStatus();
 }
 
-// We call both of these just "Merge" so that |MergeRecursive| below can
-// reference them with the same name.
 base::Status Merge(const ProtoFile::Oneof& input,
                    const ProtoFile::Oneof& upstream,
                    const Allowlist::Oneof& allowlist,
-                   ProtoFile::Oneof& out);
+                   const MergeContext& ctx,
+                   const std::unordered_set<std::string>& deleted_type_names,
+                   ProtoFile::Oneof& out) {
+  PERFETTO_CHECK(input.name == upstream.name);
+  out.name = input.name;
 
-base::Status Merge(const ProtoFile::Message& input,
-                   const ProtoFile::Message& upstream,
-                   const Allowlist::Message& allowlist,
-                   ProtoFile::Message& out);
+  // Get the comments from the source of truth.
+  out.leading_comments = upstream.leading_comments;
+  out.trailing_comments = upstream.trailing_comments;
+
+  // Compute all the fields present in the input but deleted in the
+  // source of truth.
+  for (auto& field : ComputeDeletedByNumber(input.fields, upstream.fields)) {
+    ProtoFile::Field out_field = field;
+    if (deleted_type_names.count(field.type)) {
+      MarkFieldAsDeprecated(out_field);
+    }
+    out.deleted_fields.emplace_back(std::move(out_field));
+  }
+
+  // Finish by merging the list of fields.
+  const std::unordered_set<int> empty_reserved_numbers;
+  FieldParams field_params{allowlist, empty_reserved_numbers,
+                           deleted_type_names};
+  return MergeFields(input.fields, upstream.fields, field_params, ctx,
+                     out.fields);
+}
+
+base::Status MergeOneofs(
+    const std::vector<ProtoFile::Oneof>& input,
+    const std::vector<ProtoFile::Oneof>& upstream,
+    const std::map<std::string, Allowlist::Oneof>& allowlist_map,
+    const MergeContext& ctx,
+    const std::unordered_set<std::string>& deleted_type_names,
+    std::vector<ProtoFile::Oneof>& out) {
+  for (const auto& upstream_item : upstream) {
+    auto opt_allowlist = FindInMap(allowlist_map, upstream_item.name);
+    auto* input_item = FindByName(input, upstream_item.name);
+
+    if (!input_item && !opt_allowlist)
+      continue;
+
+    ProtoFile::Oneof input_or_fake;
+    if (input_item) {
+      input_or_fake = *input_item;
+    } else {
+      input_or_fake.name = upstream_item.name;
+    }
+
+    auto allowlist = opt_allowlist.value_or(Allowlist::Oneof{});
+    ProtoFile::Oneof out_item;
+    auto status = Merge(input_or_fake, upstream_item, allowlist, ctx,
+                        deleted_type_names, out_item);
+    if (!status.ok())
+      return status;
+    out.emplace_back(std::move(out_item));
+  }
+  return base::OkStatus();
+}
 
 template <typename T, typename AllowlistType>
 base::Status MergeRecursive(
     const std::vector<T>& input,
     const std::vector<T>& upstream,
     const std::map<std::string, AllowlistType>& allowlist_map,
+    const MergeContext& ctx,
     std::vector<T>& out) {
   for (const auto& upstream_item : upstream) {
     auto opt_allowlist = FindInMap(allowlist_map, upstream_item.name);
@@ -278,11 +506,12 @@ base::Status MergeRecursive(
       input_or_fake = *input_item;
     } else {
       input_or_fake.name = upstream_item.name;
+      input_or_fake.extensions_statements = upstream_item.extensions_statements;
     }
 
     auto allowlist = opt_allowlist.value_or(AllowlistType{});
     T out_item;
-    auto status = Merge(input_or_fake, upstream_item, allowlist, out_item);
+    auto status = Merge(input_or_fake, upstream_item, allowlist, ctx, out_item);
     if (!status.ok())
       return status;
     out.emplace_back(std::move(out_item));
@@ -290,28 +519,10 @@ base::Status MergeRecursive(
   return base::OkStatus();
 }
 
-base::Status Merge(const ProtoFile::Oneof& input,
-                   const ProtoFile::Oneof& upstream,
-                   const Allowlist::Oneof& allowlist,
-                   ProtoFile::Oneof& out) {
-  PERFETTO_CHECK(input.name == upstream.name);
-  out.name = input.name;
-
-  // Get the comments from the source of truth.
-  out.leading_comments = upstream.leading_comments;
-  out.trailing_comments = upstream.trailing_comments;
-
-  // Compute all the fields present in the input but deleted in the
-  // source of truth.
-  out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
-
-  // Finish by merging the list of fields.
-  return MergeFields(input.fields, upstream.fields, allowlist, out.fields);
-}
-
 base::Status Merge(const ProtoFile::Message& input,
                    const ProtoFile::Message& upstream,
                    const Allowlist::Message& allowlist,
+                   const MergeContext& ctx,
                    ProtoFile::Message& out) {
   PERFETTO_CHECK(input.name == upstream.name);
   out.name = input.name;
@@ -320,43 +531,137 @@ base::Status Merge(const ProtoFile::Message& input,
   out.leading_comments = upstream.leading_comments;
   out.trailing_comments = upstream.trailing_comments;
 
+  // Keep the input's `extensions` statements; take comments from upstream.
+  out.extensions_statements = input.extensions_statements;
+  for (auto& statement : out.extensions_statements) {
+    if (statement.ranges.empty())
+      continue;
+    int first_field_number = statement.ranges[0].start_number;
+    for (const auto& upstream_statement : upstream.extensions_statements) {
+      for (const auto& upstream_range : upstream_statement.ranges) {
+        // Also matches split ranges, e.g. `1001 to max` vs `1000 to max`.
+        if (upstream_range.ContainsFieldNumber(first_field_number)) {
+          statement.leading_comments = upstream_statement.leading_comments;
+          statement.trailing_comments = upstream_statement.trailing_comments;
+        }
+      }
+    }
+  }
+
   // Compute all the values present in the input but deleted in the
   // source of truth.
   out.deleted_enums = ComputeDeletedByName(input.enums, upstream.enums);
   out.deleted_nested_messages =
       ComputeDeletedByName(input.nested_messages, upstream.nested_messages);
   out.deleted_oneofs = ComputeDeletedByName(input.oneofs, upstream.oneofs);
-  out.deleted_fields = ComputeDeletedByNumber(input.fields, upstream.fields);
+
+  std::unordered_set<std::string> deleted_type_names;
+  for (const auto& en : out.deleted_enums)
+    deleted_type_names.insert(en.name);
+  for (const auto& msg : out.deleted_nested_messages)
+    deleted_type_names.insert(msg.name);
+
+  for (auto& field : ComputeDeletedByNumber(input.fields, upstream.fields)) {
+    bool is_deleted_type = deleted_type_names.count(field.type);
+    if (!upstream.reserved_numbers.count(field.number) || is_deleted_type) {
+      ProtoFile::Field out_field = field;
+      if (is_deleted_type) {
+        MarkFieldAsDeprecated(out_field);
+      }
+      out.deleted_fields.emplace_back(std::move(out_field));
+    }
+  }
 
   // Merge any nested enum types.
-  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums);
+  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums,
+                         ctx.allowlisted_options);
 
   // Merge any nested message types.
-  auto status = MergeRecursive(input.nested_messages, upstream.nested_messages,
-                               allowlist.nested_messages, out.nested_messages);
+  auto status =
+      MergeRecursive(input.nested_messages, upstream.nested_messages,
+                     allowlist.nested_messages, ctx, out.nested_messages);
   if (!status.ok())
     return status;
 
   // Merge any oneofs.
-  status = MergeRecursive(input.oneofs, upstream.oneofs, allowlist.oneofs,
-                          out.oneofs);
+  status = MergeOneofs(input.oneofs, upstream.oneofs, allowlist.oneofs, ctx,
+                       deleted_type_names, out.oneofs);
   if (!status.ok())
     return status;
 
   // Finish by merging the list of fields.
-  return MergeFields(input.fields, upstream.fields, allowlist.fields,
-                     out.fields);
+  FieldParams field_params{allowlist.fields, upstream.reserved_numbers,
+                           deleted_type_names};
+  status =
+      MergeFields(input.fields, upstream.fields, field_params, ctx, out.fields);
+  if (!status.ok())
+    return status;
+
+  // New upstream fields may fall inside the input's ranges; cut them out.
+  for (auto& statement : out.extensions_statements) {
+    for (const auto& field : out.fields)
+      statement.RemoveFieldNumber(field.number);
+    for (const auto& oneof : out.oneofs) {
+      for (const auto& field : oneof.fields)
+        statement.RemoveFieldNumber(field.number);
+    }
+  }
+  return base::OkStatus();
+}
+
+void ConvertOptionsForEditions(ProtoFile::Field& field) {
+  for (auto& opt : field.options) {
+    if (opt.key == "packed") {
+      opt.key = "features.repeated_field_encoding";
+      opt.value = "PACKED";
+    }
+  }
+}
+
+void ConvertOptionsForEditions(ProtoFile::Message& msg) {
+  for (auto& f : msg.fields) {
+    ConvertOptionsForEditions(f);
+  }
+  for (auto& oneof : msg.oneofs) {
+    for (auto& f : oneof.fields) {
+      ConvertOptionsForEditions(f);
+    }
+  }
+  for (auto& nested : msg.nested_messages) {
+    ConvertOptionsForEditions(nested);
+  }
 }
 
 }  // namespace
 
-base::Status MergeProtoFiles(const ProtoFile& input,
-                             const ProtoFile& upstream,
-                             const Allowlist& allowlist,
-                             ProtoFile& out) {
+base::Status MergeProtoFiles(
+    const ProtoFile& input,
+    const ProtoFile& upstream,
+    const Allowlist& allowlist,
+    ProtoFile& out,
+    const std::unordered_set<std::string>& allowlisted_options) {
   // The preamble is taken directly from upstream. This allows private stuff
   // to be in the preamble without being present in upstream.
   out.preamble = input.preamble;
+  out.is_proto2 = input.is_proto2;
+
+  MergeContext ctx;
+  ctx.allowlisted_options = allowlisted_options;
+
+  for (const auto& en : upstream.enums) {
+    ctx.known_enums.insert(en.name);
+  }
+  for (const auto& msg : upstream.messages) {
+    CollectEnums(msg.enums, msg.nested_messages, msg.name + ".",
+                 ctx.known_enums);
+  }
+  for (const auto& en : input.enums) {
+    ctx.known_enums.insert(en.name);
+  }
+  for (const auto& msg : input.messages) {
+    CollectEnums(msg.enums, msg.nested_messages, msg.name + ".",
+                 ctx.known_enums);
+  }
 
   // Compute all the enums and messages present in the input but deleted in the
   // source of truth.
@@ -365,11 +670,22 @@ base::Status MergeProtoFiles(const ProtoFile& input,
       ComputeDeletedByName(input.messages, upstream.messages);
 
   // Merge the top-level enums.
-  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums);
+  out.enums = MergeEnums(input.enums, upstream.enums, allowlist.enums,
+                         ctx.allowlisted_options);
 
   // Finish by merging the top-level messages.
-  return MergeRecursive(input.messages, upstream.messages, allowlist.messages,
-                        out.messages);
+  base::Status status = MergeRecursive(input.messages, upstream.messages,
+                                       allowlist.messages, ctx, out.messages);
+  if (!status.ok())
+    return status;
+
+  if (!out.is_proto2) {
+    for (auto& msg : out.messages) {
+      ConvertOptionsForEditions(msg);
+    }
+  }
+
+  return base::OkStatus();
 }
 
 }  // namespace proto_merger

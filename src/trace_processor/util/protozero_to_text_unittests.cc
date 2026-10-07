@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/protozero/test/example_proto/extensions.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/test_messages.descriptor.h"
@@ -102,6 +103,31 @@ timestamp_delta_us: 3)",
       "timestamp_delta_us: 3",
       ProtozeroToText(pool, ".perfetto.protos.TrackEvent", binary_proto,
                       kSkipNewLines));
+}
+
+TEST(ProtozeroToTextTest, ExtensionWrapperScoped) {
+  using ::protozero::test::protos::pbzero::BrowserExtension;
+  using ::protozero::test::protos::pbzero::RealFakeEvent;
+  using ::protozero::test::protos::pbzero::SystemA;
+  protozero::HeapBuffered<RealFakeEvent> msg{kChunkSize, kChunkSize};
+  msg->set_base_int(7);
+  auto* ext = msg->BeginNestedMessage<SystemA>(
+      BrowserExtension::kExtensionAFieldNumber);
+  ext->set_int_a(42);
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok());
+
+  EXPECT_EQ(
+      "base_int: 7\n"
+      "[protozero.test.protos.BrowserExtension.extension_a] {\n"
+      "  int_a: 42\n"
+      "}",
+      ProtozeroToText(pool, ".protozero.test.protos.RealFakeEvent",
+                      binary_proto, kIncludeNewLines));
 }
 
 // Sets up a descriptor pool with all the messages from

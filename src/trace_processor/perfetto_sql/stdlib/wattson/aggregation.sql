@@ -15,13 +15,13 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-INCLUDE PERFETTO MODULE wattson.cpu.idle;
-
 INCLUDE PERFETTO MODULE wattson.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.attribution;
 
 INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
+
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
@@ -42,13 +42,6 @@ AS (
       SELECT
         period_id,
         utid,
-        thread_name,
-        process_name,
-        package_name,
-        tid,
-        pid,
-        upid,
-        uid,
         sum(estimated_mw * dur) / 1e9 AS active_mws,
         sum(estimated_mw * dur) AS total_mw_ns
       FROM $tasks_table
@@ -78,13 +71,13 @@ AS (
     a.period_id,
     w.dur AS period_dur,
     a.utid,
-    a.tid,
-    a.pid,
-    a.upid,
-    a.uid,
-    coalesce(a.thread_name, 'Thread ' || a.tid) AS thread_name,
-    coalesce(a.process_name, '') AS process_name,
-    coalesce(a.package_name, '') AS package_name,
+    md.tid,
+    md.pid,
+    md.upid,
+    md.uid,
+    coalesce(md.thread_name, 'Thread ' || md.tid) AS thread_name,
+    coalesce(md.process_name, '') AS process_name,
+    coalesce(md.package_name, '') AS package_name,
     a.active_mws AS estimated_mws,
     -- Fixed power calculation: divide by the specific period duration
     a.total_mw_ns / w.dur AS estimated_mw,
@@ -95,6 +88,10 @@ AS (
   FROM active_summary AS a
   JOIN $window_table AS w
     ON a.period_id = w.period_id
+  -- The descriptive columns depend only on utid, so they are looked up here,
+  -- once per aggregated thread, rather than being dragged through every slice.
+  JOIN _wattson_task_metadata AS md
+    ON a.utid = md.utid
   LEFT JOIN idle_summary AS i
     ON a.period_id = i.period_id AND a.utid = i.utid
 );
@@ -127,13 +124,6 @@ AS (
         ii.dur,
         ii.id_1 AS period_id,
         tasks.estimated_mw,
-        tasks.thread_name,
-        tasks.process_name,
-        tasks.tid,
-        tasks.pid,
-        tasks.upid,
-        tasks.uid,
-        tasks.package_name,
         tasks.utid
       FROM _interval_intersect!(
       (
@@ -387,12 +377,8 @@ CREATE PERFETTO VIEW wattson_metric_metadata(
   metric_version LONG,
   -- Wattson power curve version
   power_model_version LONG,
-  -- Wattson estimation will be crude
-  -- if missing cpu/idle counter
+  -- Deprecated: always 0
   is_crude_estimate BOOL
 )
 AS
-SELECT
-  4 AS metric_version,
-  1 AS power_model_version,
-  CAST(NOT EXISTS (SELECT 1 FROM _wattson_cpuidle_counters_exist) AS INTEGER) AS is_crude_estimate;
+SELECT 4 AS metric_version, 1 AS power_model_version, 0 AS is_crude_estimate;

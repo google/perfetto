@@ -31,11 +31,13 @@ bool IsValid(std::optional<int64_t> timestamp_ns) {
 ShellTransitionsTracker::ShellTransitionsTracker(TraceProcessorContext* context)
     : context_(context) {}
 
-ArgsTracker::BoundInserter ShellTransitionsTracker::AddArgsTo(
-    int32_t transition_id) {
+ArgsInserter& ShellTransitionsTracker::AddArgsTo(int32_t transition_id) {
   auto* transition_info = GetOrInsertTransition(transition_id);
-
-  return transition_info->args_tracker.AddArgsTo(transition_info->row_id);
+  if (!transition_info->args_inserter) {
+    transition_info->args_inserter =
+        ArgsTracker(context_).AddArgsTo(transition_info->row_id);
+  }
+  return *transition_info->args_inserter;
 }
 
 void ShellTransitionsTracker::SetTimestamp(int32_t transition_id,
@@ -155,7 +157,7 @@ void ShellTransitionsTracker::SetFinishTransactionId(int32_t transition_id,
 
 void ShellTransitionsTracker::Flush() {
   SetStatusesAndDurations();
-  // The destructor of ArgsTracker will flush the args to the tables.
+  // Destroying each TransitionInfo commits its parked inserter's args.
   transitions_infos_.clear();
 }
 
@@ -173,8 +175,7 @@ ShellTransitionsTracker::GetOrInsertTransition(int32_t transition_id) {
   row.transition_id = transition_id;
   auto row_id = window_manager_shell_transitions_table->Insert(row).id;
 
-  transitions_infos_.insert(
-      {transition_id, TransitionInfo{row_id, ArgsTracker(context_)}});
+  transitions_infos_.insert({transition_id, TransitionInfo{row_id, {}}});
 
   pos = transitions_infos_.find(transition_id);
   return &pos->second;

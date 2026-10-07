@@ -52,6 +52,7 @@ constexpr char kHeapprofdDataSourceName[] = "android.heapprofd";
 constexpr char kJavaHprofDataSourceName[] = "android.java_hprof";
 constexpr char kJavaHprofOomDataSourceName[] = "android.java_hprof.oom";
 constexpr char kTracedPerfDataSourceName[] = "linux.perf";
+constexpr char kTracedPerfSmapsDataSourceName[] = "linux.smaps";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
 constexpr char kJavaHprofOomActivePropertyName[] =
@@ -126,6 +127,11 @@ void BuiltinProducer::OnConnect() {
     endpoint_->RegisterDataSource(lazy_traced_perf_dsd);
   }
   {
+    DataSourceDescriptor lazy_traced_perf_smaps_dsd;
+    lazy_traced_perf_smaps_dsd.set_name(kTracedPerfSmapsDataSourceName);
+    endpoint_->RegisterDataSource(lazy_traced_perf_smaps_dsd);
+  }
+  {
     DataSourceDescriptor java_hprof_oome_dsd;
     java_hprof_oome_dsd.set_name(kJavaHprofOomDataSourceName);
     endpoint_->RegisterDataSource(java_hprof_oome_dsd);
@@ -147,7 +153,9 @@ void BuiltinProducer::SetupDataSource(DataSourceInstanceID ds_id,
     return;
   }
 
-  if (ds_config.name() == kTracedPerfDataSourceName) {
+  // Both data sources are implemented by traced_perf.
+  if (ds_config.name() == kTracedPerfDataSourceName ||
+      ds_config.name() == kTracedPerfSmapsDataSourceName) {
     SetAndroidProperty(kLazyTracedPerfPropertyName, "1");
     lazy_traced_perf_.generation++;
     lazy_traced_perf_.instance_ids.emplace(ds_id);

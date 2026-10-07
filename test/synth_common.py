@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import argparse
+from pathlib import Path
 
 from collections import namedtuple
 from google.protobuf import descriptor_pb2, message_factory, descriptor_pool
@@ -338,7 +339,8 @@ class Trace(object):
                            name,
                            description=None,
                            unit_numerators=[],
-                           unit_denominators=[]):
+                           unit_denominators=[],
+                           value_direction=None):
     packet = self.add_packet()
     packet.timestamp = ts
     gpu_counters = packet.gpu_counter_event
@@ -351,6 +353,8 @@ class Trace(object):
       spec.description = description
     spec.numerator_units.extend(unit_numerators)
     spec.denominator_units.extend(unit_denominators)
+    if value_direction is not None:
+      spec.value_direction = value_direction
 
   def add_gpu_counter(self, ts, counter_id, value, clock_id=None, seq_id=None):
     packet = self.add_packet()
@@ -704,7 +708,8 @@ class Trace(object):
   def add_expected_display_frame_start_event(self, ts, cookie, token, pid):
     packet = self.add_packet()
     packet.timestamp = ts
-    event = packet.frame_timeline_event.expected_display_frame_start
+    event = packet.Extensions[
+        self.prototypes.frame_timeline_event].expected_display_frame_start
     if token != -1:
       event.cookie = cookie
       event.token = token
@@ -716,7 +721,8 @@ class Trace(object):
                                            prediction_type):
     packet = self.add_packet()
     packet.timestamp = ts
-    event = packet.frame_timeline_event.actual_display_frame_start
+    event = packet.Extensions[
+        self.prototypes.frame_timeline_event].actual_display_frame_start
     if token != -1:
       event.cookie = cookie
       event.token = token
@@ -732,7 +738,8 @@ class Trace(object):
                                              layer_name):
     packet = self.add_packet()
     packet.timestamp = ts
-    event = packet.frame_timeline_event.expected_surface_frame_start
+    event = packet.Extensions[
+        self.prototypes.frame_timeline_event].expected_surface_frame_start
     if token != -1 and display_frame_token != -1:
       event.cookie = cookie
       event.token = token
@@ -756,7 +763,8 @@ class Trace(object):
                                            jank_score=0):
     packet = self.add_packet()
     packet.timestamp = ts
-    event = packet.frame_timeline_event.actual_surface_frame_start
+    event = packet.Extensions[
+        self.prototypes.frame_timeline_event].actual_surface_frame_start
     if token != -1 and display_frame_token != -1:
       event.cookie = cookie
       event.token = token
@@ -779,7 +787,7 @@ class Trace(object):
   def add_frame_end_event(self, ts, cookie):
     packet = self.add_packet()
     packet.timestamp = ts
-    event = packet.frame_timeline_event.frame_end
+    event = packet.Extensions[self.prototypes.frame_timeline_event].frame_end
     event.cookie = cookie
 
 
@@ -842,6 +850,7 @@ def create_trace():
       'ChromeTrackEvent',
       'CounterDescriptor',
       'ThreadDescriptor',
+      'frame_timeline_event',
   ])
 
   chrome_latency_info_prototypes = ChromeLatencyInfo(
@@ -877,5 +886,24 @@ def create_trace():
           pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),
       ThreadDescriptor=get_message_class(
           pool, pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
+      frame_timeline_event=pool.FindExtensionByName(
+          'com.android.internal.FrameworksNativeTracePacket.frame_timeline_event'
+      ),
   )
   return Trace(ProtoTrace(), prototypes)
+
+
+ATOMS_DESCRIPTOR_PATH = (
+    Path(__file__).parent.parent / 'src' / 'trace_processor' / 'importers' /
+    'proto' / 'atoms.descriptor')
+
+
+def get_statsd_atom_message_class():
+  """Loads the Statsd Atom descriptor proto and return its message class."""
+  p = descriptor_pool.DescriptorPool()
+  with open(ATOMS_DESCRIPTOR_PATH, 'rb') as f:
+    desc_set = descriptor_pb2.FileDescriptorSet()
+    desc_set.ParseFromString(f.read())
+    for f_desc in desc_set.file:
+      p.Add(f_desc)
+  return get_message_class(p, p.FindMessageTypeByName('android.os.statsd.Atom'))

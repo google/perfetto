@@ -23,9 +23,12 @@ INCLUDE PERFETTO MODULE counters.intervals;
 -- zygote-adjusted values.
 --
 -- NOTE: For 'mem.rss.anon', 'mem.swap', 'mem.rss.file', and 'mem.heap' tracks, we
--- subtract the Zygote's average memory usage. This provides a better estimate
--- of the child process's unique memory usage by accounting for the
--- baseline memory inherited from the Zygote.
+-- subtract the average memory usage of the zygote that forked the process (its
+-- parent). This provides a better estimate of the child process's unique memory
+-- usage by accounting for the baseline memory inherited from its zygote. This is
+-- a no-op for a process whose forking zygote has no memory samples in the trace
+-- (e.g. traces with only ftrace rss_stat, where idle zygotes are not sampled;
+-- process_stats polling captures them).
 --
 -- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
 -- an accounting issue: see b/418231246 for more details.
@@ -117,48 +120,53 @@ WITH
       - max(i.ts, coalesce(p.start_ts, i.ts)))
       > 0
   ),
-  -- Step 4: Calculate zygote memory baseline.
-  -- TODO: improve zygote process detection
+  -- Step 4: Calculate the per-zygote memory baseline and map each process to
+  -- the zygote that forked it (its parent). A process inherits memory (via
+  -- copy-on-write) only from the specific zygote that forked it, so the
+  -- baseline is kept per-zygote and attributed by parent, rather than pooled
+  -- across all zygotes and subtracted from every process.
+  -- Only the primary zygotes. Secondary zygotes (webview_zygote, per-app
+  -- '<package>_zygote') are intentionally treated as ordinary processes.
   zygote_processes AS (
-    SELECT upid
-    FROM process
-    WHERE
-      name IN ('zygote', 'zygote64', 'webview_zygote')
+    SELECT upid FROM process WHERE name IN ('zygote', 'zygote64')
   ),
-  zygote_tracks AS (
-    SELECT t.name AS memory_track_name, t.track_id
-    FROM mem_tracks AS t
-    JOIN zygote_processes AS z USING (upid)
-    WHERE
-      t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.heap')
-  ),
+  -- Average memory of each zygote, per adjustable track, keyed by the zygote's
+  -- own upid.
   zygote_baseline AS (
     SELECT
-      max(CASE WHEN memory_track_name = 'mem.rss.anon' THEN avg_val END) AS rss_anon_base,
-      max(CASE WHEN memory_track_name = 'mem.swap' THEN avg_val END) AS swap_base,
-      max(CASE WHEN memory_track_name = 'mem.rss.file' THEN avg_val END) AS rss_file_base,
-      max(CASE WHEN memory_track_name = 'mem.heap' THEN avg_val END) AS heap_base
-    FROM (
-      SELECT z.memory_track_name, avg(cast_int!(c.value)) AS avg_val
-      FROM mem_counters AS c
-      JOIN zygote_tracks AS z USING (track_id)
-      GROUP BY
-        z.memory_track_name
-    )
+      t.upid AS zygote_upid,
+      t.name AS memory_track_name,
+      avg(cast_int!(c.value)) AS baseline_value
+    FROM mem_counters AS c
+    JOIN mem_tracks AS t USING (track_id)
+    JOIN zygote_processes AS z
+      ON t.upid = z.upid
+    WHERE
+      t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.heap')
+    GROUP BY
+      t.upid,
+      t.name
   ),
-  -- Step 5: Join clipped intervals with zygote baseline.
+  -- Map each process to its forking zygote (its parent), when the parent is a
+  -- zygote. Processes not forked from a zygote (e.g. native daemons) match
+  -- nothing here and so get no baseline subtracted.
+  process_zygote_parent AS (
+    SELECT p.upid, p.parent_upid AS zygote_upid
+    FROM process AS p
+    JOIN zygote_processes AS z
+      ON p.parent_upid = z.upid
+  ),
+  -- Step 5: Attach, for each interval, the baseline of the process's parent
+  -- zygote for that track (0 when the process was not forked from a zygote, or
+  -- the track is not one of the adjustable metrics).
   mem_intervals_with_zygote_baseline AS (
-    SELECT
-      c.*,
-      CASE
-        WHEN c.memory_track_name = 'mem.rss.anon' THEN zb.rss_anon_base
-        WHEN c.memory_track_name = 'mem.swap' THEN zb.swap_base
-        WHEN c.memory_track_name = 'mem.rss.file' THEN zb.rss_file_base
-        WHEN c.memory_track_name = 'mem.heap' THEN zb.heap_base
-        ELSE 0
-      END AS zygote_baseline_value
+    SELECT c.*, coalesce(zb.baseline_value, 0) AS zygote_baseline_value
     FROM mem_intervals_clipped AS c
-    CROSS JOIN zygote_baseline AS zb
+    LEFT JOIN process_zygote_parent AS pzp
+      ON c.upid = pzp.upid
+    LEFT JOIN zygote_baseline AS zb
+      ON zb.zygote_upid = pzp.zygote_upid
+      AND zb.memory_track_name = c.memory_track_name
   )
 -- Final Step: Compute the zygote-adjusted memory value.
 SELECT
@@ -173,7 +181,7 @@ SELECT
   d.value,
   CASE
     WHEN NOT (p.upid IS NULL)
-    AND NOT (p.name IN ('zygote', 'zygote64', 'webview_zygote')) THEN max(
+    AND d.upid NOT IN (SELECT upid FROM zygote_processes) THEN max(
       0,
       cast_int!(d.value) - cast_int!(COALESCE(d.zygote_baseline_value, 0))
     )
@@ -211,9 +219,12 @@ CREATE VIRTUAL TABLE _memory_breakdown_mem_oom_span_join USING SPAN_LEFT_JOIN(
 -- insights into memory usage under system memory pressure.
 --
 -- NOTE: For 'mem.rss.anon', 'mem.swap', 'mem.rss.file', and 'mem.heap' tracks, we
--- subtract the Zygote's average memory usage. This provides a better estimate
--- of the child process's unique memory usage by accounting for the
--- baseline memory inherited from the Zygote.
+-- subtract the average memory usage of the zygote that forked the process (its
+-- parent). This provides a better estimate of the child process's unique memory
+-- usage by accounting for the baseline memory inherited from its zygote. This is
+-- a no-op for a process whose forking zygote has no memory samples in the trace
+-- (e.g. traces with only ftrace rss_stat, where idle zygotes are not sampled;
+-- process_stats polling captures them).
 --
 -- NOTE: Some tracks may have a spike greater than 100MiB. This can be legitimate or
 -- an accounting issue: see b/418231246 for more details.

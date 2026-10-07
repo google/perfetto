@@ -19,7 +19,7 @@ import {CodeSnippet} from '../../../../widgets/code_snippet';
 import {traceSummarySpecToText} from '../../../../base/proto_utils_wasm';
 import {Spinner} from '../../../../widgets/spinner';
 import {DataGrid} from '../../../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../../components/widgets/datagrid/datagrid_schema';
 import type {Row} from '../../../../trace_processor/query_result';
 import {Tabs} from '../../../../widgets/tabs';
 import type {Engine} from '../../../../trace_processor/engine';
@@ -60,7 +60,7 @@ function getMetricValue(
 }
 
 export interface MetricResult {
-  schema: SchemaRegistry;
+  schema: ColumnSchema;
   rows: Row[];
   metricId: string;
 }
@@ -86,19 +86,17 @@ export function parseMetricBundleForValue(
   const metricId = `${metricIdPrefix}_${valueColumn}`;
 
   // Build schema columns: dimensions (text) + this value (quantitative).
-  const schemaColumns: Record<
+  const schema: Record<
     string,
     {title: string; columnType: 'text' | 'quantitative'}
   > = {};
   for (const dim of dimensionNames) {
-    schemaColumns[dim] = {title: dim, columnType: 'text'};
+    schema[dim] = {title: dim, columnType: 'text'};
   }
-  schemaColumns[valueColumn] = {
+  schema[valueColumn] = {
     title: valueColumn,
     columnType: 'quantitative',
   };
-
-  const schema: SchemaRegistry = {[metricId]: schemaColumns};
 
   // Convert rows to DataGrid format.
   const rows: Row[] = [];
@@ -180,7 +178,6 @@ export async function showMetricsExportModal(
         return m(DataGrid, {
           data: state.result.rows,
           schema: state.result.schema,
-          rootSchema: state.result.metricId,
         });
     }
   };

@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
@@ -40,14 +41,11 @@
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <io.h>
-#else
-#include <unistd.h>
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <unistd.h>  // For STDIN_FILENO.
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDIN_FILENO)
 #define STDIN_FILENO 0
-#define STDOUT_FILENO 1
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -139,8 +137,10 @@ SQL can be provided in three ways:
   2. From a file:          tp query -f queries.sql trace.pb
   3. From stdin:           cat q.sql | tp query trace.pb
 
-Multiple semicolon-separated statements are supported. Use -i to drop into
-an interactive shell after the queries complete.
+Multiple semicolon-separated statements are supported: every statement's
+result set is printed as CSV, with consecutive result sets separated by a
+single blank line. Use -i to drop into an interactive shell after the
+queries complete.
 
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
@@ -168,10 +168,12 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
 }
 
 base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
-  if (ctx.positional_args.empty()) {
-    return base::ErrStatus("query: trace file is required");
-  }
-  std::string trace_file = ctx.positional_args[0];
+  RETURN_IF_ERROR(RejectExtraPositionals(ctx, "query", 2));
+  // With --remote, the trace is already loaded server-side, so there is no
+  // trace-file positional: the first positional (if any) is the SQL.
+  std::string trace_file;
+  size_t sql_pos = 0;
+  RETURN_IF_ERROR(ResolveTraceFileArg(ctx, "query", &trace_file, &sql_pos));
 
   // Advanced: structured query mode.
   if (!structured_query_id_.empty()) {
@@ -185,9 +187,9 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   //   4. Stdin pipe:  query trace.pb < file.sql
   std::string sql;
   bool read_stdin =
-      query_file_ == "-" || (query_file_.empty() && !isatty(STDIN_FILENO));
-  if (ctx.positional_args.size() >= 2) {
-    sql = ctx.positional_args[1];
+      query_file_ == "-" || (query_file_.empty() && !base::IsTty(STDIN_FILENO));
+  if (ctx.positional_args.size() > sql_pos) {
+    sql = ctx.positional_args[sql_pos];
   } else if (read_stdin) {
     if (!base::ReadFileDescriptor(STDIN_FILENO, &sql))
       return base::ErrStatus("query: failed to read SQL from stdin");
@@ -200,11 +202,29 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
         "stdin.");
   }
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
-  ASSIGN_OR_RETURN(auto tp,
-                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  ASSIGN_OR_RETURN(auto t_load,
-                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  base::TimeNanos t_load{};
+  ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
+                                                 trace_file, &t_load));
+  // One-shot `query TRACE` calls re-parse the trace every time. Scripts and
+  // coding agents rarely read --help but do read stderr, so when parsing
+  // was slow enough to matter tell them, once per call, how to keep the
+  // trace loaded across queries. Measured on agents: this line alone moved
+  // warm-session use from 0% to >80% of runs; longer guides were not read.
+  constexpr double kSlowParseSeconds = 1.0;
+  double load_s = static_cast<double>(t_load.count()) / 1e9;
+  if (!ctx.global->quiet && ctx.global->remote_addr.empty() && !interactive_ &&
+      load_s >= kSlowParseSeconds) {
+    fprintf(
+        stderr,
+        "Tip: parsing took %.1fs and `query TRACE` re-parses on every call. "
+        "To run many queries, load once and reuse the session:\n"
+        "  trace_processor server unix --name S --daemonize %s\n"
+        "  trace_processor query --remote S \"SELECT ...\"\n"
+        "  trace_processor server kill S\n"
+        "Schema discovery and PerfettoSQL tips: `trace_processor help "
+        "agent`.\n",
+        load_s, trace_file.c_str());
+  }
 
   if (!query_file_.empty()) {
     if (!base::ReadFile(query_file_, &sql)) {
@@ -220,7 +240,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 #endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
-  auto status = RunQueries(tp.get(), sql, true);
+  auto status = RunQueries(tp.get(), sql, true, ctx.global->quiet);
   if (!status.ok()) {
     MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path);
     return status;
@@ -233,9 +253,12 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 
   if (interactive_) {
     RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(),
-        InteractiveOptions{
-            wide_ ? 40u : 20u, MetricV1OutputFormat::kNone, {}, {}, nullptr}));
+        tp.get(), InteractiveOptions{wide_ ? 40u : 20u,
+                                     MetricV1OutputFormat::kNone,
+                                     {},
+                                     {},
+                                     nullptr,
+                                     ctx.global->quiet}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
@@ -250,11 +273,9 @@ base::Status QuerySubcommand::RunStructuredQuery(
         "query: --structured-query-id requires at least one --summary-spec");
   }
 
-  auto config = BuildConfig(*ctx.global, ctx.platform);
-  ASSIGN_OR_RETURN(auto tp,
-                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  ASSIGN_OR_RETURN(auto t_load,
-                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+  base::TimeNanos t_load{};
+  ASSIGN_OR_RETURN(auto tp, CreateTraceProcessor(*ctx.global, ctx.platform,
+                                                 trace_file, &t_load));
 
   std::unique_ptr<Summarizer> summarizer;
   RETURN_IF_ERROR(tp->CreateSummarizer(&summarizer));
@@ -271,8 +292,9 @@ base::Status QuerySubcommand::RunStructuredQuery(
         structured_query_id_.c_str());
   }
 
-  RETURN_IF_ERROR(
-      RunQueries(tp.get(), "SELECT * FROM " + query_result.table_name, true));
+  RETURN_IF_ERROR(RunQueries(tp.get(),
+                             "SELECT * FROM " + query_result.table_name, true,
+                             ctx.global->quiet));
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!perf_file_.empty()) {

@@ -27,9 +27,13 @@ import {
 } from './query_store';
 import {formatDate} from '../../base/time';
 import {showModal} from '../../widgets/modal';
-import {historyStore, formatCompactDate} from './history_store';
+import {
+  historyStore,
+  formatCompactDate,
+  formatCompactTime,
+} from './history_store';
 
-// Open-an-existing-history-entry callback.
+// Reopens an existing history entry.
 export type OpenQueryFn = (
   query: string,
   uuid: string,
@@ -40,10 +44,9 @@ export type OpenQueryFn = (
 ) => void;
 
 // SQL block clamped to ~4 lines with a fade-out mask; click to expand.
-// Used by both the sidebar history row and the delete-confirm modal.
-// The sidebar inherits its frame from `.pf-query-history__item pre`; the
-// modal uses `standalone: true` for the `--standalone` CSS class.
-// Expand state is a Mithril instance field so it survives redraws.
+// Used by the sidebar history row and the delete-confirm modal (the latter
+// passes `standalone: true`). Expand state lives on the instance so it
+// survives redraws.
 interface ClampedQueryAttrs {
   readonly queryText: string;
   readonly standalone?: boolean;
@@ -80,13 +83,12 @@ class ClampedQuery implements m.ClassComponent<ClampedQueryAttrs> {
   }
 }
 
-// UUIDs whose full SQL has already been fetched via the per-uuid endpoint.
-// Capped to avoid unbounded growth over long sessions.
+// UUIDs whose full SQL has already been fetched. Capped to bound growth.
 const FETCHED_SQL_MAX = 500;
 const fetchedFullSql = new Set<string>();
 
-// Returns an onExpand callback that fetches the full SQL on first expand,
-// or undefined if already fetched / no uuid.
+// onExpand callback that fetches the full SQL on first expand, or undefined
+// if already fetched / no uuid.
 function makeFullSqlExpander(
   uuid: string | undefined,
   currentText: string,
@@ -94,7 +96,7 @@ function makeFullSqlExpander(
   if (!uuid || fetchedFullSql.has(uuid)) return undefined;
   return () => {
     if (fetchedFullSql.size >= FETCHED_SQL_MAX) {
-      // Evict oldest entry (Set iteration order = insertion order).
+      // Evict oldest (Set iteration order = insertion order).
       const first = fetchedFullSql.values().next().value;
       if (first !== undefined) fetchedFullSql.delete(first);
     }
@@ -117,21 +119,30 @@ function makeFullSqlExpander(
 export function renderHistoryItem(
   entry: QueryExecution,
   index: number,
-  isMaterialized: boolean,
   openQuery?: OpenQueryFn,
 ): m.Children {
+  // One mixed list, so the kind comes from the entry itself.
+  const isMaterialized = entry.materialized === true;
   const queryText = entry.perfettoSql || '';
   const uuid = entry.uuid;
   const startTime = entry.startTime;
   const rows = entry.processedRows;
   const link = entry.tableLink;
   const dateObj = startTime !== undefined ? new Date(startTime) : null;
-  // Compact for the narrow sidebar; hover reveals the full UTC timestamp.
+  // Compact time for the narrow sidebar (the day is on the group header);
+  // hover and the standalone delete modal reveal the full local + UTC date.
+  const timeString = dateObj ? formatCompactTime(dateObj) : 'N/A';
   const localString = dateObj ? formatCompactDate(dateObj) : 'N/A';
   const utcString =
     startTime !== undefined
       ? formatDate(new Date(startTime), {printTimezone: false})
       : 'N/A';
+
+  const openThis = () => {
+    if (openQuery && uuid) {
+      openQuery(queryText, uuid, isMaterialized, false, entry.limit, startTime);
+    }
+  };
 
   const buttonsRow = m(
     Stack,
@@ -141,18 +152,7 @@ export function renderHistoryItem(
     },
     [
       m(Button, {
-        onclick: () => {
-          if (openQuery && uuid) {
-            openQuery(
-              queryText,
-              uuid,
-              isMaterialized,
-              false,
-              entry.limit,
-              startTime,
-            );
-          }
-        },
+        onclick: openThis,
         icon: Icons.ChangeTab,
         title: 'Open',
       }),
@@ -203,26 +203,45 @@ export function renderHistoryItem(
   return m(
     '.pf-query-history__item',
     {key: `${uuid}-${index}`},
-    m('.pf-bt-history-item-meta', [
-      buttonsRow,
-      m('div.pf-bt-history-item-header', [
-        m(
-          'span.pf-bt-history-item-status',
-          {
-            class: `pf-bt-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
-          },
-          statusDisplayLabel(entry.status),
-        ),
-        m(
-          'span.pf-bt-history-item-date',
-          {title: `UTC: ${utcString}`},
-          localString,
-        ),
-      ]),
-    ]),
-    // Separate section (materialized only): a banded strip between the
-    // meta header and the SQL pre, with its own background and borders so
-    // it reads as a distinct section, not a row inside the header card.
+    m(
+      '.pf-bt-history-item-meta',
+      {
+        // The whole status/date band opens the query, like the Open button.
+        // Skip clicks that originated on the overlaid buttons so Delete
+        // doesn't also open.
+        onclick: (e: MouseEvent) => {
+          if ((e.target as HTMLElement).closest('button')) return;
+          openThis();
+        },
+      },
+      [
+        buttonsRow,
+        m('div.pf-bt-history-item-header', [
+          m(
+            'span.pf-bt-history-item-status',
+            {
+              class: `pf-bt-status-${entry.status.toLowerCase().replace(/_/g, '-')}`,
+            },
+            statusDisplayLabel(entry.status),
+          ),
+          m(
+            'span.pf-bt-history-item-kind',
+            {
+              title: isMaterialized
+                ? 'Results saved to a backend table — reopen to browse them.'
+                : 'Results were shown inline at run time and not saved.',
+            },
+            isMaterialized ? 'Persistent' : 'Ephemeral',
+          ),
+          m(
+            'span.pf-bt-history-item-date',
+            {title: `${localString} (UTC: ${utcString})`},
+            timeString,
+          ),
+        ]),
+      ],
+    ),
+    // Materialized only: a banded strip between the header and the SQL pre.
     isMaterialized &&
       m(
         'div.pf-bt-history-item-details',
@@ -251,10 +270,7 @@ export function renderHistoryItem(
           `${formatCompact(rows)} ${rows === 1 ? 'row' : 'rows'}`,
         ),
       ),
-    // Sidebar uses the .pf-query-history__item pre rule for the
-    // monospace look; modal callers opt in via `{standalone: true}`.
-    // /query_executions clips perfettoSql; first expand fetches the
-    // full text via the per-uuid endpoint.
+    // /query_executions clips perfettoSql; first expand fetches the full text.
     m(ClampedQuery, {
       queryText,
       onExpand: makeFullSqlExpander(uuid, queryText),

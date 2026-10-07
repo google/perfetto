@@ -94,7 +94,7 @@ Producer(s) write tracing data, in the form of protobuf-encoded binary blobs,
 directly into its shared memory buffer, using a special library called
 [ProtoZero](/docs/design-docs/protozero.md). The shared memory buffer:
 
-* Has a fixed and typically small size (configurable, default: 128 KB).
+* Has a fixed and typically small size (configurable, default: 256 KB).
 * Is an ABI and must maintain backwards compatibility.
 * Is shared by all data sources of the producer.
 * Is independent of the number and the size of the trace buffers.

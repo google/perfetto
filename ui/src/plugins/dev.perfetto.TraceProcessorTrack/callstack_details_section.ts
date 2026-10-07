@@ -64,6 +64,7 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
       argKey === 'callsite_id' ? 'callsite_id' : 'end_callsite_id';
     const result = await this.trace.engine.query(`
       INCLUDE PERFETTO MODULE callstacks.stack_profile;
+      INCLUDE PERFETTO MODULE graphs.scan;
 
       WITH callstack AS MATERIALIZED (
         SELECT
@@ -120,7 +121,7 @@ export class CallstackDetailsSection implements TrackEventDetailsPanelSection {
           const location =
             frame.sourceFile && frame.lineNumber !== undefined
               ? `${frame.sourceFile}:${frame.lineNumber}`
-              : frame.sourceFile ?? '';
+              : (frame.sourceFile ?? '');
 
           return m(TreeNode, {
             left: `#${index}`,

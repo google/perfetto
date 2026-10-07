@@ -19,8 +19,7 @@ import {Spinner} from '../../../widgets/spinner';
 import {EmptyState} from '../../../widgets/empty_state';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {StringListRow} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import type {Filter} from '../../../components/widgets/datagrid/model';
@@ -35,6 +34,9 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -65,94 +67,90 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): SchemaRegistry {
+function makeUiSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      id: {
-        title: 'Object',
-        columnType: 'identifier',
-        cellRenderer: (value: SqlValue, row) => {
-          const id = Number(value);
-          const str = row.value != null ? String(row.value) : null;
-          const display = `String ${fmtHex(id)}`;
-          return m(
-            'button',
+    id: {
+      title: 'Object',
+      columnType: 'identifier',
+      cellRenderer: (value: SqlValue, row) => {
+        const id = Number(value);
+        const str = row.value != null ? String(row.value) : null;
+        const display = `String ${fmtHex(id)}`;
+        return m(
+          Anchor,
+          {
+            class: 'pf-hde-str-color',
+            onclick: () =>
+              navigate('object', {
+                id,
+                label: str
+                  ? `"${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`
+                  : display,
+              }),
+          },
+          m(
+            'span',
             {
-              class: 'pf-hde-link',
-              onclick: () =>
-                navigate('object', {
-                  id,
-                  label: str
-                    ? `"${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`
-                    : display,
-                }),
+              class: 'pf-hde-mono pf-hde-break-all',
             },
-            m(
-              'span',
-              {
-                class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
-              },
-              str
-                ? '"' +
-                    (str.length > 300 ? str.slice(0, 300) + '\u2026' : str) +
-                    '"'
-                : display,
-            ),
-          );
-        },
+            str
+              ? '"' +
+                  (str.length > 300 ? str.slice(0, 300) + '\u2026' : str) +
+                  '"'
+              : display,
+          ),
+        );
       },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      len: {
-        title: 'Length',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      heap: {
-        title: 'Heap',
-        columnType: 'text',
-      },
-      value: {
-        title: 'Value',
-        columnType: 'text',
-      },
-      self_size: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_size: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable native', COL_INFO.reachableNative),
-        titleString: 'Reachable native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable count', COL_INFO.reachableCount),
-        titleString: 'Reachable count',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    len: {
+      title: 'Length',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    heap: {
+      title: 'Heap',
+      columnType: 'text',
+    },
+    value: {
+      title: 'Value',
+      columnType: 'text',
+    },
+    self_size: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_size: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable native', COL_INFO.reachableNative),
+      titleString: 'Reachable native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable count', COL_INFO.reachableCount),
+      titleString: 'Reachable count',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
     },
   };
 }
 
-const SUMMARY_SCHEMA: SchemaRegistry = {
-  query: {
-    property: {title: 'Property', columnType: 'text'},
-    value: {title: 'Value', columnType: 'text'},
-  },
+const SUMMARY_SCHEMA: ColumnSchema = {
+  property: {title: 'Property', columnType: 'text'},
+  value: {title: 'Value', columnType: 'text'},
 };
 
 // --- StringsView -------------------------------------------------------------
@@ -166,11 +164,18 @@ interface StringsViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-function StringsView(): m.Component<StringsViewAttrs> {
-  let allRows: StringListRow[] | null = null;
-  let alive = true;
-  let dataSource: SQLDataSource | null = null;
+export function StringsView({
+  attrs: {engine, activeDump},
+}: m.Vnode<StringsViewAttrs>): m.Component<StringsViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+    preamble: SQL_PREAMBLE,
+  });
   const counter = new RowCounter();
+  counter.init(engine, query, SQL_PREAMBLE);
+  const allRowsMemo = new AsyncMemo<readonly StringListRow[]>();
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -185,47 +190,44 @@ function StringsView(): m.Component<StringsViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        sqlSchema: createSimpleSchema(query),
-        rootSchemaName: 'query',
-        preamble: SQL_PREAMBLE,
-      });
-      counter.init(engine, query, SQL_PREAMBLE);
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
-      queries
-        .getStringList(engine, activeDump)
-        .then((r) => {
-          if (!alive) return;
-          allRows = r;
-          m.redraw();
-        })
-        .catch(console.error);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
-      alive = false;
+      datasource.dispose();
+      allRowsMemo.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
 
-      if (!allRows) {
-        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
+      const {isPending, data: allRows} = allRowsMemo.use({
+        key: {},
+        compute: () => queries.getStringList(engine, activeDump),
+      });
+
+      if (isPending) {
+        return m(
+          DetailsShell,
+          {title: 'Strings', fillHeight: true, className: 'pf-hde-tab--padded'},
+          m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+        );
       }
 
       if (allRows.length === 0) {
-        return m(EmptyState, {
-          icon: 'text_fields',
-          title:
-            vnode.attrs.hasFieldValues === false
-              ? 'String values require an ART heap dump (.hprof)'
-              : 'No string data available',
-          fillHeight: true,
-        });
+        return m(
+          DetailsShell,
+          {title: 'Strings', fillHeight: true, className: 'pf-hde-tab--padded'},
+          m(EmptyState, {
+            icon: 'text_fields',
+            title:
+              vnode.attrs.hasFieldValues === false
+                ? 'String values require an ART heap dump (.hprof)'
+                : 'No string data available',
+            fillHeight: true,
+          }),
+        );
       }
 
       const totalRetained = allRows.reduce((s, r) => s + r.retainedSize, 0);
@@ -241,48 +243,48 @@ function StringsView(): m.Component<StringsViewAttrs> {
         {property: 'Total retained', value: fmtSize(totalRetained)},
       ];
 
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Strings')),
-
-        m('div', {class: 'pf-hde-card pf-hde-mb-4 pf-hde-flex-none'}, [
-          m(DataGrid, {
-            schema: SUMMARY_SCHEMA,
-            rootSchema: 'query',
-            data: summaryRows,
-            initialColumns: [
-              {id: 'property', field: 'property'},
-              {id: 'value', field: 'value'},
-            ],
-          }),
-        ]),
-
-        dataSource
-          ? m(DataGrid, {
-              schema: makeUiSchema(navigate),
-              rootSchema: 'query',
-              data: dataSource,
-              fillHeight: true,
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Strings'),
+          fillHeight: true,
+          className: 'pf-hde-tab--padded',
+        },
+        [
+          m('div', {class: 'pf-hde-card pf-hde-mb-4 pf-hde-flex-none'}, [
+            m(DataGrid, {
+              schema: SUMMARY_SCHEMA,
+              data: summaryRows,
               initialColumns: [
-                {id: 'id', field: 'id'},
+                {id: 'property', field: 'property'},
                 {id: 'value', field: 'value'},
-                {id: 'retained', field: 'retained'},
-                {id: 'reachable_size', field: 'reachable_size'},
-                {id: 'reachable_native', field: 'reachable_native'},
-                {id: 'reachable_count', field: 'reachable_count'},
-                {id: 'len', field: 'len'},
-                {id: 'heap', field: 'heap'},
               ],
-              filters,
-              showExportButton: true,
-              onFiltersChanged: (f) => {
-                filters = [...f];
-                counter.onFiltersChanged(f);
-              },
-            })
-          : null,
-      ]);
+            }),
+          ]),
+
+          m(DataGrid, {
+            schema: makeUiSchema(navigate),
+            data: datasource,
+            fillHeight: true,
+            initialColumns: [
+              {id: 'id', field: 'id'},
+              {id: 'value', field: 'value'},
+              {id: 'retained', field: 'retained'},
+              {id: 'reachable_size', field: 'reachable_size'},
+              {id: 'reachable_native', field: 'reachable_native'},
+              {id: 'reachable_count', field: 'reachable_count'},
+              {id: 'len', field: 'len'},
+              {id: 'heap', field: 'heap'},
+            ],
+            filters,
+            showExportButton: true,
+            onFiltersChanged: (f) => {
+              filters = [...f];
+              counter.onFiltersChanged(f);
+            },
+          }),
+        ],
+      );
     },
   };
 }
-
-export default StringsView;

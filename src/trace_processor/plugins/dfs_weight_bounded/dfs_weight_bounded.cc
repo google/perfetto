@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -126,13 +127,26 @@ base::StatusOr<std::vector<Destinations>> ParseSourceToDestionationsMap(
 
   for (; source_node_ids && dest_node_ids && edge_weights;
        ++source_node_ids, ++dest_node_ids, ++edge_weights) {
+    if (*source_node_ids < 0 ||
+        *source_node_ids > std::numeric_limits<int32_t>::max() ||
+        *dest_node_ids < 0 ||
+        *dest_node_ids > std::numeric_limits<int32_t>::max()) {
+      return base::ErrStatus(
+          "dfs_weight_bounded: node ids must be non-negative 32-bit integers");
+    }
+    if (*edge_weights < 0 ||
+        *edge_weights > std::numeric_limits<uint32_t>::max()) {
+      return base::ErrStatus(
+          "dfs_weight_bounded: edge weights must be unsigned 32-bit integers");
+    }
+    auto source_id = static_cast<uint32_t>(*source_node_ids);
+    auto dest_id = static_cast<uint32_t>(*dest_node_ids);
+    size_t required_size =
+        static_cast<size_t>(std::max(source_id, dest_id)) + 1;
     source_to_destinations_map.resize(
-        std::max(source_to_destinations_map.size(),
-                 std::max(static_cast<size_t>(*source_node_ids + 1),
-                          static_cast<size_t>(*dest_node_ids + 1))));
-    source_to_destinations_map[static_cast<uint32_t>(*source_node_ids)]
-        .push_back(Edge{static_cast<uint32_t>(*dest_node_ids),
-                        static_cast<uint32_t>(*edge_weights)});
+        std::max(source_to_destinations_map.size(), required_size));
+    source_to_destinations_map[source_id].push_back(
+        Edge{dest_id, static_cast<uint32_t>(*edge_weights)});
   }
   if (parse_error) {
     return base::ErrStatus("Failed while parsing source or dest ids");
@@ -154,6 +168,17 @@ base::StatusOr<std::vector<Edge>> ParseRootToMaxWeightMap(
   auto target_weights = end.int_values(&parse_error);
 
   for (; root_node_ids && target_weights; ++root_node_ids, ++target_weights) {
+    if (*root_node_ids < 0 ||
+        *root_node_ids > std::numeric_limits<int32_t>::max()) {
+      return base::ErrStatus(
+          "dfs_weight_bounded: root ids must be non-negative 32-bit integers");
+    }
+    if (*target_weights < 0 ||
+        *target_weights > std::numeric_limits<uint32_t>::max()) {
+      return base::ErrStatus(
+          "dfs_weight_bounded: target weights must be unsigned 32-bit "
+          "integers");
+    }
     roots.push_back(Edge{static_cast<uint32_t>(*root_node_ids),
                          static_cast<uint32_t>(*target_weights)});
   }
@@ -193,6 +218,12 @@ void DfsWeightBoundedImpl(
       StackState stack_state = stack.back();
       stack.pop_back();
 
+      // Roots outside the graph are valid isolated nodes. Handle them before
+      // indexing the graph-sized visited array.
+      if (stack_state.id >= source_to_destinations_map.size()) {
+        table->Insert({root.id, stack_state.id, stack_state.parent_id});
+        continue;
+      }
       if (seen_node_ids[stack_state.id]) {
         continue;
       }
@@ -216,8 +247,6 @@ void DfsWeightBoundedImpl(
         // crossed the threshold before exiting the search.
         break;
       }
-
-      PERFETTO_DCHECK(stack_state.id < source_to_destinations_map.size());
 
       const auto& children = source_to_destinations_map[stack_state.id];
       for (auto it = children.rbegin(); it != children.rend(); ++it) {
@@ -393,8 +422,7 @@ void RegisterPlugin() {
       []() -> std::unique_ptr<PluginBase> {
         return std::make_unique<DfsWeightBoundedPlugin>();
       },
-      DfsWeightBoundedPlugin::kPluginId,
-      DfsWeightBoundedPlugin::kDepIds.data(),
+      DfsWeightBoundedPlugin::kPluginId, DfsWeightBoundedPlugin::kDepIds.data(),
       DfsWeightBoundedPlugin::kDepIds.size());
   base::ignore_result(reg);
 }

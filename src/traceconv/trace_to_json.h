@@ -19,16 +19,17 @@
 
 #include <iostream>
 
+#include "perfetto/base/status.h"
 #include "src/traceconv/trace_to_systrace.h"
 
 namespace perfetto {
 namespace trace_to_text {
 
-int TraceToJson(std::istream* input,
-                std::ostream* output,
-                bool compress,
-                Keep truncate_keep,
-                bool full_sort);
+base::Status TraceToJson(std::istream* input,
+                         std::ostream* output,
+                         bool compress,
+                         Keep truncate_keep,
+                         bool full_sort);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

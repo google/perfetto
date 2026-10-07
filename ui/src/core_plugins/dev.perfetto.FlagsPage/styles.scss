@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "flags_page";
-@import "plugins_page";
+@use "flags_page" as *;
+@use "plugins_page" as *;

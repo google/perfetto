@@ -39,14 +39,16 @@ Layer MakeVisibleLayer() {
 std::unordered_map<int32_t, VisibilityProperties> ComputeVisibility(
     const std::string& snapshot,
     StringPool* pool) {
-  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(snapshot);
+  com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(
+      snapshot);
 
-  protos::pbzero::LayersProto::Decoder layers_decoder(
+  com::android::internal::pbzero::LayersProto::Decoder layers_decoder(
       snapshot_decoder.layers());
 
   const auto layers_top_to_bottom = ExtractLayersTopToBottom(layers_decoder);
-  const auto layers_by_id = ExtractLayersById(
-      protos::pbzero::LayersProto::Decoder(snapshot_decoder.layers()));
+  const auto layers_by_id =
+      ExtractLayersById(com::android::internal::pbzero::LayersProto::Decoder(
+          snapshot_decoder.layers()));
 
   return VisibilityComputation(snapshot_decoder, layers_top_to_bottom,
                                layers_by_id, pool)

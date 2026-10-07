@@ -16,6 +16,7 @@ import {assertTrue} from '../base/assert';
 import {Workspace, type WorkspaceManager} from '../public/workspace';
 import {featureFlags} from './feature_flags';
 
+export const DEFAULT_WORKSPACE_ID = 'default';
 const DEFAULT_WORKSPACE_NAME = 'Default Workspace';
 const DEFAULT_WORKSPACE_EDITABLE_FLAG = featureFlags.register({
   id: 'defaultWorkspaceEditable',
@@ -26,7 +27,7 @@ const DEFAULT_WORKSPACE_EDITABLE_FLAG = featureFlags.register({
 });
 
 export class WorkspaceManagerImpl implements WorkspaceManager {
-  readonly defaultWorkspace = new Workspace();
+  readonly defaultWorkspace = new Workspace(DEFAULT_WORKSPACE_ID);
   private _workspaces: Workspace[] = [];
   private _currentWorkspace: Workspace;
 
@@ -36,8 +37,8 @@ export class WorkspaceManagerImpl implements WorkspaceManager {
     this._currentWorkspace = this.defaultWorkspace;
   }
 
-  createEmptyWorkspace(title: string): Workspace {
-    const workspace = new Workspace();
+  createEmptyWorkspace(title: string, id?: string): Workspace {
+    const workspace = new Workspace(id);
     workspace.title = title;
     this._workspaces.push(workspace);
     return workspace;

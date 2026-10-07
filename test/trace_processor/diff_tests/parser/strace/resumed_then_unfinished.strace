@@ -1,0 +1,3 @@
+1000 1700000052.321000 epoll_wait(4, <unfinished ...>
+1000 1700000052.321500 <... epoll_wait resumed> {}, 64, 100 <unfinished ...>
+1000 1700000052.322000 <... epoll_wait resumed> {}, 64, 100) = 1

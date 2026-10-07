@@ -43,6 +43,20 @@ message BrowserExtension {
   }
 }
 
+// Scalar extensions (exercise non-message FindFieldByName paths).
+message ScalarBrowserExtension {
+  extend RealFakeEvent {
+    optional uint32 ext_uint = 12;
+    optional string ext_string = 13;
+    optional bool ext_bool = 14;
+  }
+}
+
+// File-scope extend (no enclosing wrapper).
+extend RealFakeEvent {
+  optional uint32 file_scope_ext = 15;
+}
+
 // "Legacy" message with the same format as BrowserExtension. Tests that if
 // LegacyFakeEvent is split into RealFakeEvent and BrowserExtension, the wire
 // format remains compatible.

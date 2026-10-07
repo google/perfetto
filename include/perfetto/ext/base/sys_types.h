@@ -41,11 +41,7 @@ using gid_t = int;
 using pid_t = int;
 #endif  // !GCC
 
-#if defined(_WIN64)
-using ssize_t = int64_t;
-#else
-using ssize_t = long;
-#endif  // _WIN64
+using ssize_t = intptr_t;
 
 #endif  // __MINGW32__
 

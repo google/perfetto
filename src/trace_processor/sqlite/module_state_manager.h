@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -98,10 +99,13 @@ class ModuleStateManagerBase {
   static void OnRollbackTo(PerVtabState* state, int);
 
   static void* GetState(PerVtabState* s);
-  void* GetStateByName(const std::string& name);
+  void* GetStateByName(std::string_view name);
 
-  using StateMap =
-      base::FlatHashMap<std::string, std::unique_ptr<PerVtabState>>;
+  // SQL object names are case-insensitive, so the map must be too.
+  using StateMap = base::FlatHashMapV2<std::string,
+                                       std::unique_ptr<PerVtabState>,
+                                       base::CaseInsensitiveHash,
+                                       base::CaseInsensitiveEq>;
 
   StateMap state_by_name_;
   CommittedStateManager* committed_store_;
@@ -196,7 +200,7 @@ class ModuleStateManager : public ModuleStateManagerBase {
   // This function should only be called for speculative lookups from outside
   // the module implementation: use `GetState` inside the sqlite::Module
   // implementation.
-  typename Module::State* GetStateByName(const std::string& name) {
+  typename Module::State* GetStateByName(std::string_view name) {
     return static_cast<typename Module::State*>(
         ModuleStateManagerBase::GetStateByName(name));
   }

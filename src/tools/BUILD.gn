@@ -105,8 +105,10 @@ perfetto_unittest_source_set("tracing_proto_extensions_unittests") {
     ":tracing_proto_extensions_lib",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../protos/perfetto/common:zero",
     "../base",
     "../base:test_support",
+    "../protozero",
   ]
   sources = [ "tracing_proto_extensions_unittest.cc" ]
 }
@@ -116,7 +118,10 @@ group("unittests") {
   deps = [ ":tracing_proto_extensions_unittests" ]
 
   if (current_toolchain == host_toolchain) {
-    deps += [ "ftrace_proto_gen:unittests" ]
+    deps += [
+      "ftrace_proto_gen:unittests",
+      "proto_merger:unittests",
+    ]
   }
 }
 

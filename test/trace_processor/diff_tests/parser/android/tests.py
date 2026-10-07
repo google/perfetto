@@ -290,3 +290,235 @@ class AndroidParser(TestSuite):
           "ScreenState",0,1000,2.000000
           "ScreenState",1,2000,1.000000
         """))
+
+  def test_android_framework_track_event_process(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_track_event.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          p.uid,
+          t.start_seq_id,
+          t.package_uid,
+          t.caller_uid,
+          t.defining_uid,
+          t.fw_start_ts,
+          t.fw_end_ts
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid);
+        """,
+        out=Csv("""
+          "pid","name","uid","start_seq_id","package_uid","caller_uid","defining_uid","fw_start_ts","fw_end_ts"
+          100,"com.example.app",10001,42,10002,10003,10004,2000,5000
+        """))
+
+  def test_android_framework_track_event_process_died(self):
+    return DiffTestBlueprint(
+        trace=Path('android_framework_track_event_process_died.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          t.start_seq_id,
+          t.fw_start_ts,
+          t.fw_end_ts,
+          p.end_ts,
+          t.exit_reason,
+          t.exit_sub_reason
+        FROM __intrinsic_android_track_event_process t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.upid;
+        """,
+        out=Csv("""
+          "pid","start_seq_id","fw_start_ts","fw_end_ts","end_ts","exit_reason","exit_sub_reason"
+          100,1,1000000000,2000000000,2000000000,"APP_EXIT_REASON_CRASH","APP_EXIT_SUBREASON_TOO_MANY_CACHED"
+          100,3,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          200,2,1000000000,3000000000,3000000000,"APP_EXIT_REASON_ANR","[NULL]"
+          300,4,1000000000,"[NULL]","[NULL]","APP_EXIT_REASON_ANR","[NULL]"
+          400,5,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_LOW_MEMORY","[NULL]"
+          500,6,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          600,"[NULL]","[NULL]","[NULL]","[NULL]","APP_EXIT_REASON_SIGNALED","[NULL]"
+          700,7,"[NULL]",2000000000,2000000000,"APP_EXIT_REASON_FREEZER","[NULL]"
+          800,9,1000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+          1100,10,1000000000,4000000000,2000000000,"[NULL]","[NULL]"
+          1100,11,3000000000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_android_framework_track_event_enum(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor { uuid: 2 thread { pid: 100 tid: 100 } }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 100
+          extension_descriptor {
+            extension_set {
+              file {
+                package: "com.android.internal"
+                name: "fbte_enums.proto"
+                enum_type {
+                  name: "TriggerType"
+                  value { name: "TRIGGER_TYPE_UNKNOWN" number: 0 }
+                  value { name: "TRIGGER_TYPE_JOB" number: 4 }
+                }
+                enum_type {
+                  name: "HostingTypeId"
+                  value { name: "HOSTING_TYPE_UNKNOWN" number: 0 }
+                  value { name: "HOSTING_TYPE_SERVICE" number: 11 }
+                }
+              }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            track_uuid: 2
+            type: TYPE_INSTANT
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 100
+              trigger_type: TRIGGER_TYPE_JOB
+              hosting_type: HOSTING_TYPE_SERVICE
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT trigger_type, hosting_type
+        FROM __intrinsic_android_track_event_process;
+        """,
+        out=Csv("""
+          "trigger_type","hosting_type"
+          "TRIGGER_TYPE_JOB","HOSTING_TYPE_SERVICE"
+        """))
+
+  def test_android_process_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.process_group,
+          t.reason,
+          t.seq_id,
+          t.is_initial
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.reason;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",10,0
+          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",11,0
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
+          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",21,0
+          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,0
+        """))
+
+  def test_android_freezer_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.unfrozen_dur_ms,
+          t.frozen_dur_ms,
+          t.unfreeze_reason,
+          t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfrozen_dur_ms","frozen_dur_ms","unfreeze_reason","is_initial"
+          "[NULL]",100,"[NULL]","[NULL]","UFR_ACTIVITY",1
+          3000,200,100,300,"UFR_BIND_SERVICE",0
+          "[NULL]",600,"[NULL]","[NULL]","UFR_PING",1
+          "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
+        """))
+
+  def test_android_process_state_metadata(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT
+          p.pid,
+          p.name,
+          p.uid,
+          p.android_user_id,
+          t.start_seq_id,
+          t.fw_start_ts,
+          t.fw_end_ts,
+          p.end_ts
+        FROM process p
+        LEFT JOIN __intrinsic_android_track_event_process t
+          ON t.upid = p.upid
+        WHERE p.pid > 0
+        ORDER BY p.pid;
+        """,
+        out=Csv("""
+          "pid","name","uid","android_user_id","start_seq_id","fw_start_ts","fw_end_ts","end_ts"
+          100,"com.example.appa",10001,0,1,1000000000,"[NULL]","[NULL]"
+          200,"com.example.dumps_only",20001,0,10,"[NULL]","[NULL]","[NULL]"
+          300,"system_server",1000,0,"[NULL]","[NULL]","[NULL]","[NULL]"
+          400,"com.example.pre_existing",40001,0,5,"[NULL]",3000000000,3000000000
+          500,"com.example.started_late",50001,0,6,2000000000,"[NULL]","[NULL]"
+        """))
+
+  def test_android_process_state_metadata_freezer(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT t.ts, p.pid, t.unfreeze_reason, t.is_initial
+        FROM __intrinsic_android_freezer_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","unfreeze_reason","is_initial"
+          "[NULL]",200,"UFR_PING",1
+          2500000000,400,"UFR_BINDER_TXNS",0
+        """))
+
+  def test_android_process_state_metadata_state(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state_metadata.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.proc_state,
+          t.oom_score,
+          t.capability_flags,
+          t.process_group,
+          t.reason,
+          t.seq_id,
+          t.is_initial
+        FROM __intrinsic_android_process_state t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts;
+        """,
+        out=Csv("""
+          "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
+          "[NULL]",100,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,0,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",7,0
+          "[NULL]",500,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+        """))

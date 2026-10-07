@@ -115,6 +115,7 @@ class IntervalsFillGaps(TestSuite):
         """,
         out=Csv("""
         "ts","dur","grp","val"
+        100,900,"[NULL]","[NULL]"
         """))
 
   def test_fill_gaps_no_valid_slices(self):

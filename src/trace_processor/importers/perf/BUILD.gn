@@ -28,15 +28,15 @@ source_set("record") {
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
-    "../../../../include/perfetto/trace_processor:trace_processor",
+    "../../../../include/perfetto/ext/base",
+    "../../../../include/perfetto/trace_processor",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
-    "../common:common",
+    "../common",
     "../common:parser_types",
   ]
 }
@@ -93,7 +93,8 @@ source_set("perf") {
     "../../types",
     "../../util:build_id",
     "../../util:trace_blob_view_reader",
-    "../common:common",
+    "../../util:trace_type",
+    "../common",
     "../proto:minimal",
   ]
 }

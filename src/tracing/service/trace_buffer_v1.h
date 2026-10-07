@@ -243,9 +243,10 @@ class TraceBufferV1 : public TraceBuffer {
   //   P1, P4, P7, P2, P3, P5, P8, P9, P6
   // But the following is guaranteed to NOT happen:
   //   P1, P5, P7, P4 (P4 cannot come after P5)
-  bool ReadNextTracePacket(TracePacket*,
-                           PacketSequenceProperties* sequence_properties,
-                           bool* previous_packet_on_sequence_dropped) override;
+  bool ReadNextTracePacket(
+      TracePacket*,
+      PacketSequenceProperties* sequence_properties,
+      uint32_t* previous_packet_on_sequence_dropped) override;
 
   // Creates a read-only clone of the trace buffer. Calls to
   // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned

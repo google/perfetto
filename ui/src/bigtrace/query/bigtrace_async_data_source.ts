@@ -19,12 +19,15 @@ import type {
 } from '../../components/widgets/datagrid/data_source';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row, SqlValue} from '../../trace_processor/query_result';
-import type {QueryResult} from '../../base/query_slot';
+import type {AsyncMemoResult} from '../../base/async_memo';
 import {
   type BigtraceQueryClient,
+  BigtraceHttpError,
   QueryCancelledError,
 } from './bigtrace_query_client';
+import type {BigtraceColumnSchema} from './column_types';
 import {encodeFilters} from './filter_encoding';
+import {FetchScheduler} from './fetch_scheduler';
 import m from 'mithril';
 
 type ModelWithColumns = DataSourceModel & {
@@ -34,14 +37,16 @@ type ModelWithColumns = DataSourceModel & {
 // DataSource adapter paging `:fetch_results` into the DataGrid widget.
 export class BigtraceAsyncDataSource implements DataSource {
   private loadedRows: Row[] = [];
-  private isFetching = false;
-  private columns: string[] = [];
   private error: string | null = null;
+  // HTTP status of the last error, when it was an HTTP error (undefined
+  // otherwise). Lets the results view tell a not-ready-yet 400 from a real
+  // failure without parsing the message string.
+  private errorStatus: number | undefined;
   private hasInitialFetchCompleted = false;
   // Window in `loadedRows`, for range-change detection.
   private loadedOffset = 0;
   private loadedLimit = 0;
-  // AIP-132 §Ordering. Empty = materialization order.
+  // AIP-132 §Ordering. Empty = default order.
   private currentOrderBy = '';
   // Aliases pre-resolved to field names. `currentFilterKey` is the JSON
   // form for cheap equality checks.
@@ -49,9 +54,31 @@ export class BigtraceAsyncDataSource implements DataSource {
   private currentFilterKey = '';
   // `useRows` falls back to `getTotalRows()` when undefined.
   private _filteredTotalRows: number | undefined;
+  // Field-mask shipped as `:fetch_results` `columns`. Tracks the visible
+  // results-grid columns so a column toggle refetches a narrower page (and
+  // pulls in a metadata column when the user just enabled it).
+  private currentColumns: readonly string[] = [];
+  private currentColumnsKey = '';
+  // availableColumnNames from the last fetch — the results-page column picker
+  // reads this to know what's selectable.
+  private _availableColumnNames: ReadonlyArray<string> | undefined;
+  private schema?: ReadonlyArray<BigtraceColumnSchema>;
+  // Owns debouncing and cancellation; see FetchScheduler.
+  private readonly scheduler: FetchScheduler;
 
   get filteredTotalRows(): number | undefined {
     return this._filteredTotalRows;
+  }
+
+  get availableColumnNames(): ReadonlyArray<string> | undefined {
+    if (this._availableColumnNames !== undefined) {
+      return this._availableColumnNames;
+    }
+    const initial = this.getInitialSchema?.();
+    if (initial !== undefined && initial.length > 0) {
+      return initial.map((s) => s.name);
+    }
+    return undefined;
   }
 
   // `signal`: owner aborts on close. `getTotalRows`: scrollbar sizing.
@@ -59,8 +86,12 @@ export class BigtraceAsyncDataSource implements DataSource {
     private readonly queryUuid: string,
     private readonly queryClient: BigtraceQueryClient,
     private readonly getTotalRows: () => number,
-    private readonly signal?: AbortSignal,
-  ) {}
+    signal?: AbortSignal,
+    private readonly getInitialSchema?: () =>
+      ReadonlyArray<BigtraceColumnSchema> | undefined,
+  ) {
+    this.scheduler = new FetchScheduler(signal, () => m.redraw());
+  }
 
   useRows(_model: DataSourceModel): DataSourceRows {
     const model = _model as ModelWithColumns;
@@ -69,18 +100,32 @@ export class BigtraceAsyncDataSource implements DataSource {
     const wantedFilterKey = encodeFilters(wantedFilter);
     const wantedOffset = model.pagination?.offset ?? 0;
     const wantedLimit = model.pagination?.limit ?? 0;
+    // Columns the grid is currently displaying; shipped as the `:fetch_results`
+    // `columns` field-mask.
+    const wantedColumns = (model.columns ?? []).map((c) => c.field);
+    const wantedColumnsKey = JSON.stringify(wantedColumns);
 
-    // Fetch on sort/filter/range/initial change; skip if in flight (avoids redraw storms).
+    // Fetch on sort/filter/range/columns/initial change.
     const sortChanged = wantedOrderBy !== this.currentOrderBy;
     const filterChanged = wantedFilterKey !== this.currentFilterKey;
     const rangeChanged =
       this.hasInitialFetchCompleted &&
       (wantedOffset !== this.loadedOffset ||
         (wantedLimit > 0 && wantedLimit !== this.loadedLimit));
+    const columnsChanged =
+      this.hasInitialFetchCompleted &&
+      wantedColumnsKey !== this.currentColumnsKey;
     const needsInitial = !this.hasInitialFetchCompleted && wantedLimit > 0;
+    // No `isFetching` check: a tick arriving mid-fetch is the newest thing the
+    // user has asked for, so it replaces the pending window rather than being
+    // dropped. The debounce coalesces the burst and the fetch supersedes
+    // whatever is still in flight.
     if (
-      (sortChanged || filterChanged || rangeChanged || needsInitial) &&
-      !this.isFetching
+      sortChanged ||
+      filterChanged ||
+      rangeChanged ||
+      columnsChanged ||
+      needsInitial
     ) {
       this.currentOrderBy = wantedOrderBy;
       if (filterChanged) {
@@ -89,9 +134,18 @@ export class BigtraceAsyncDataSource implements DataSource {
         // Briefly oversized scrollbar > briefly collapsed while refetching.
         this._filteredTotalRows = undefined;
       }
+      this.currentColumns = wantedColumns;
+      this.currentColumnsKey = wantedColumnsKey;
       // First render may have limit=0; fall back so the schema comes back.
       const fetchLimit = wantedLimit > 0 ? wantedLimit : 100;
-      this.fetchMoreRows(wantedOffset, fetchLimit);
+      // The first window is what the user is waiting on with nothing on
+      // screen, so it goes now; later ones can afford to settle.
+      this.scheduler.schedule(
+        this.requestKey(wantedOffset, fetchLimit),
+        needsInitial,
+        (controller) =>
+          this.fetchMoreRows(wantedOffset, fetchLimit, controller),
+      );
     }
 
     const mappedRows = this.loadedRows.map((row) => {
@@ -112,11 +166,13 @@ export class BigtraceAsyncDataSource implements DataSource {
       // Filtered total; falls back to unfiltered while undefined.
       totalRows: this._filteredTotalRows ?? this.getTotalRows(),
       rowOffset: this.loadedOffset,
-      isPending: this.isFetching,
+      // Pending covers the debounce window too, so the grid doesn't flicker
+      // back to "settled" between the last scroll tick and the request.
+      isPending: this.scheduler.isPending,
     };
   }
 
-  // Resolve widget alias → SELECT field (backend whitelists fields).
+  // Resolve widget alias → backend field name for the order_by wire string.
   private formatOrderBy(model: ModelWithColumns): string {
     const sort = model.sort;
     if (!sort) return '';
@@ -136,78 +192,114 @@ export class BigtraceAsyncDataSource implements DataSource {
     });
   }
 
-  // Re-fetch the currently-loaded window. No-op if a fetch is in flight.
+  // Re-fetch the currently-loaded window, superseding anything queued or in
+  // flight — an explicit refresh shouldn't wait behind a scroll.
   async refresh(): Promise<void> {
-    if (this.isFetching) return;
     const offset = this.loadedOffset;
     const limit = this.loadedLimit > 0 ? this.loadedLimit : 100;
-    await this.fetchMoreRows(offset, limit);
+    await this.scheduler.runNow((controller) =>
+      this.fetchMoreRows(offset, limit, controller),
+    );
   }
 
-  private async fetchMoreRows(offset: number, limit: number) {
-    if (this.signal?.aborted) return;
+  // What a fetch of this window would actually ask the backend for. Two
+  // requests with the same key are the same request.
+  private requestKey(offset: number, limit: number): string {
+    return [
+      offset,
+      limit,
+      this.currentOrderBy,
+      this.currentFilterKey,
+      this.currentColumnsKey,
+    ].join('|');
+  }
+
+  private async fetchMoreRows(
+    offset: number,
+    limit: number,
+    controller: AbortController,
+  ) {
     this.error = null;
-    this.isFetching = true;
-    m.redraw();
+    this.errorStatus = undefined;
     try {
       const result = await this.queryClient.fetchResults(
         this.queryUuid,
         limit,
         offset,
-        this.signal,
+        controller.signal,
         this.currentOrderBy,
         this.currentFilter,
+        this.currentColumns.length > 0 ? this.currentColumns : undefined,
       );
+      // A reply that raced its own abort belongs to a window the user has
+      // left; adopting it would put back the page they scrolled away from.
+      if (!this.scheduler.isCurrent(controller)) return;
       this.loadedRows = [...result.rows];
       this.loadedOffset = offset;
       this.loadedLimit = limit;
       this.hasInitialFetchCompleted = true;
       this._filteredTotalRows = result.totalFilteredRows;
+      this._availableColumnNames = result.availableColumnNames;
 
-      if (this.columns.length === 0 && result.columns.length > 0) {
-        this.columns = [...result.columns];
+      if (this.schema === undefined && result.schema.length > 0) {
+        this.schema = result.schema;
       }
     } catch (e) {
-      // Abort is expected when the owning tab closes; don't surface it.
+      // Aborts are routine here — the tab closing, or a newer window
+      // superseding this one — so they are not failures to show.
       if (e instanceof QueryCancelledError) return;
       console.error('[bigtrace] fetch_results failed:', e);
-      this.error = e instanceof Error ? e.message : String(e);
-    } finally {
-      this.isFetching = false;
-      m.redraw();
+      if (e instanceof BigtraceHttpError) {
+        // Surface the backend's detail (not the wrapped message) and keep the
+        // status for the results view's not-ready-yet check.
+        this.error = e.detail;
+        this.errorStatus = e.status;
+      } else {
+        this.error = e instanceof Error ? e.message : String(e);
+      }
     }
   }
 
   // Force the first window after SUCCESS without waiting for a render.
   async ensureResultsLoaded(): Promise<void> {
-    if (this.hasInitialFetchCompleted) return;
-    await this.fetchMoreRows(0, 100);
+    if (this.hasInitialFetchCompleted || this.scheduler.isPending) return;
+    await this.refresh();
   }
 
   getError(): string | null {
     return this.error;
   }
 
-  getColumns(): string[] {
-    return this.columns;
+  // HTTP status of the last fetch error, if it was an HTTP error (undefined
+  // otherwise).
+  getErrorStatus(): number | undefined {
+    return this.errorStatus;
   }
 
-  useAggregateSummaries(_model: DataSourceModel): QueryResult<Row> {
-    return {data: undefined, isPending: false, isFresh: true};
+  getColumns(): string[] {
+    return this.getSchema()?.map((s) => s.name) ?? [];
+  }
+
+  getSchema(): ReadonlyArray<BigtraceColumnSchema> | undefined {
+    return this.getInitialSchema?.() ?? this.schema;
+  }
+
+  useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {
+    return {data: {}, isPending: false};
   }
 
   useDistinctValues(
     _column: string | undefined,
-  ): QueryResult<readonly SqlValue[]> {
+  ): AsyncMemoResult<readonly SqlValue[]> {
     // `data: []` (not `undefined`) avoids a permanent "Loading…" in the
     // column-filter "Equals" submenu. Cell-context menu filtering still works.
-    return {data: [], isPending: false, isFresh: true};
+    return {data: [], isPending: false};
   }
 
   useParameterKeys(
     _prefix: string | undefined,
-  ): QueryResult<readonly string[]> {
-    return {data: undefined, isPending: false, isFresh: true};
+  ): AsyncMemoResult<readonly string[]> {
+    return {data: [], isPending: false};
   }
 
   async exportData(_model: DataSourceModel): Promise<readonly Row[]> {

@@ -26,10 +26,11 @@
 
 namespace perfetto::trace_processor::pigweed {
 
-// We only distinguish between the int types that we need to; we need
-// to know different lengths for unsigned due to varint encoding.
+// We only distinguish between the types that we need to: different lengths for
+// unsigned due to varint encoding, and 'c'/'p' because they are passed to
+// vsnprintf as an 'int'/'void*' rather than a promoted 64-bit integer.
 // Strings are not supported.
-enum ArgType { kSignedInt, kUnsigned32, kUnsigned64, kFloat };
+enum ArgType { kSignedInt, kChar, kUnsigned32, kUnsigned64, kPointer, kFloat };
 
 // Representation of an arg in a formatting string: where it is,
 // its contents, and its type.
@@ -38,6 +39,11 @@ struct Arg {
   std::string format;
   size_t begin;
   size_t end;
+  // Whether the field width and/or precision use the '*' wildcard. Each
+  // wildcard consumes an extra integer argument from the payload that must be
+  // resolved before the value itself is formatted.
+  bool width_star = false;
+  bool precision_star = false;
 };
 
 // A parsed format string from the database.

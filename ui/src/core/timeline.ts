@@ -27,6 +27,11 @@ import {
 import type {TraceInfo} from '../public/trace_info';
 import {raf} from './raf_scheduler';
 
+// How far past the trace start/end the timeline (and minimap) may be panned or
+// zoomed, expressed as a fraction of the visible width. This gutter makes it
+// easier to select content sitting right at the edges of the trace.
+export const GUTTER_FRACTION = 0.01;
+
 /**
  * State that is shared between several frontend components, but not the
  * controller. This state is updated at 60fps.
@@ -116,25 +121,40 @@ export class TimelineImpl implements Timeline {
     private readonly _durationPrecision: Setting<DurationPrecision>,
     readonly timezoneOverride: Setting<string>,
   ) {
+    // Start zoomed out to the whole trace, plus a small gutter on each side so
+    // content at the very edges isn't flush against the screen edge.
+    const gutterPad = Number(traceInfo.end - traceInfo.start) * GUTTER_FRACTION;
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
       traceInfo.start,
       traceInfo.end,
-    );
+    ).pad(gutterPad);
   }
 
   pan(delta: number) {
-    this.setVisibleWindow(
-      this._visibleWindow
-        .translate(delta)
-        .fitWithin(this.traceInfo.start, this.traceInfo.end),
-    );
+    this.setVisibleWindow(this._visibleWindow.translate(delta));
   }
 
   zoom(ratio: number, centerPoint: number = 0.5) {
     this.setVisibleWindow(
-      this._visibleWindow
-        .scale(ratio, centerPoint, this.MIN_DURATION)
-        .fitWithin(this.traceInfo.start, this.traceInfo.end),
+      this._visibleWindow.scale(ratio, centerPoint, this.MIN_DURATION),
+    );
+  }
+
+  // Clamp a candidate window to the trace bounds, but allow it to extend a
+  // small gutter past the start/end so that content right at the edges of the
+  // trace is easier to select.
+  private clampToGutter(w: HighPrecisionTimeSpan): HighPrecisionTimeSpan {
+    const traceDuration = Number(this.traceInfo.end - this.traceInfo.start);
+    // Pad proportionally to the window's duration (so the gutter is a constant
+    // fraction of the screen at any zoom), but cap it at the trace duration so
+    // that when zoomed out beyond the trace the bounds stay fixed instead of
+    // breathing with the velocity of the WASD spring zoom animation.
+    const pad = BigInt(
+      Math.round(Math.min(w.duration, traceDuration) * GUTTER_FRACTION),
+    );
+    return w.fitWithin(
+      Time.fromRaw(this.traceInfo.start - pad),
+      Time.fromRaw(this.traceInfo.end + pad),
     );
   }
 
@@ -318,24 +338,20 @@ export class TimelineImpl implements Timeline {
   moveStart(start: HighPrecisionTime) {
     const endTime = this._visibleWindow.end;
     const newDur = endTime.sub(start).toNumber();
-    this._visibleWindow = new HighPrecisionTimeSpan(start, newDur);
-
-    raf.scheduleCanvasRedraw();
+    this.setVisibleWindow(new HighPrecisionTimeSpan(start, newDur));
   }
 
   moveEnd(end: HighPrecisionTime) {
     const startTime = this._visibleWindow.start;
     const newDuration = end.sub(startTime).toNumber();
-    this._visibleWindow = new HighPrecisionTimeSpan(startTime, newDuration);
-
-    raf.scheduleCanvasRedraw();
+    this.setVisibleWindow(new HighPrecisionTimeSpan(startTime, newDuration));
   }
 
   // Set visible window using a high precision time span
   setVisibleWindow(ts: HighPrecisionTimeSpan) {
-    this._visibleWindow = ts
-      .clampDuration(this.MIN_DURATION)
-      .fitWithin(this.traceInfo.start, this.traceInfo.end);
+    this._visibleWindow = this.clampToGutter(
+      ts.clampDuration(this.MIN_DURATION),
+    );
 
     raf.scheduleCanvasRedraw();
   }
@@ -446,9 +462,9 @@ export class TimelineImpl implements Timeline {
     }
 
     // Apply clamping to target window
-    const clampedTarget = targetWindow
-      .clampDuration(this.MIN_DURATION)
-      .fitWithin(this.traceInfo.start, this.traceInfo.end);
+    const clampedTarget = this.clampToGutter(
+      targetWindow.clampDuration(this.MIN_DURATION),
+    );
 
     // Store animation state
     this._animationStartWindow = this._visibleWindow;

@@ -15,10 +15,7 @@
 import type {StandardGroup} from '../dev.perfetto.StandardGroups';
 
 export type TopLevelTrackGroup =
-  | 'PROCESS'
-  | 'THREAD'
-  | StandardGroup
-  | undefined;
+  'PROCESS' | 'THREAD' | StandardGroup | undefined;
 
 export interface TrackGroupSchema {
   name: string;

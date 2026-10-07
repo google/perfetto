@@ -16,10 +16,12 @@
 
 #include "src/trace_processor/shell/subcommand.h"
 
+#include <string>
 #include <unordered_set>
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/shell/traceconv_compat.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::shell {
@@ -122,6 +124,149 @@ TEST(FindSubcommandTest, SubcommandAfterFlags) {
   auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, {});
   EXPECT_EQ(result.subcommand, &query);
   EXPECT_EQ(result.argv_index, 2);
+}
+
+// ---------------------------------------------------------------------------
+// traceconv compatibility shim.
+// ---------------------------------------------------------------------------
+
+TEST(InvokedAsTraceconvTest, BareNameMatches) {
+  EXPECT_TRUE(InvokedAsTraceconv("traceconv"));
+}
+
+TEST(InvokedAsTraceconvTest, WithDirectoryMatches) {
+  EXPECT_TRUE(InvokedAsTraceconv("/usr/local/bin/traceconv"));
+  EXPECT_TRUE(InvokedAsTraceconv("./traceconv"));
+}
+
+TEST(InvokedAsTraceconvTest, WindowsExeMatches) {
+  EXPECT_TRUE(InvokedAsTraceconv("traceconv.exe"));
+  EXPECT_TRUE(InvokedAsTraceconv("C:\\tools\\traceconv.exe"));
+}
+
+TEST(InvokedAsTraceconvTest, PrebuiltCacheNameMatches) {
+  // The prebuilt wrapper caches the binary as "traceconv-<sha16>".
+  EXPECT_TRUE(InvokedAsTraceconv(
+      "/home/u/.local/share/perfetto/prebuilts/traceconv-0123456789abcdef"));
+  EXPECT_TRUE(InvokedAsTraceconv("traceconv-0123456789abcdef.exe"));
+}
+
+TEST(InvokedAsTraceconvTest, TraceProcessorDoesNotMatch) {
+  EXPECT_FALSE(InvokedAsTraceconv("trace_processor_shell"));
+  EXPECT_FALSE(InvokedAsTraceconv("/opt/perfetto/trace_processor_shell"));
+  EXPECT_FALSE(InvokedAsTraceconv("tp"));
+}
+
+TEST(InvokedAsTraceconvTest, SimilarNamesDoNotMatch) {
+  // A binary whose name merely starts with the letters "traceconv" but is a
+  // different tool must not be hijacked into traceconv-compatible mode.
+  EXPECT_FALSE(InvokedAsTraceconv("traceconverter"));
+  EXPECT_FALSE(InvokedAsTraceconv("my_traceconv"));
+}
+
+// Helper: turns the rewritten arg vector into a single space-joined string for
+// concise assertions.
+std::string Join(const std::vector<std::string>& v) {
+  std::string out;
+  for (const auto& s : v) {
+    if (!out.empty())
+      out += ' ';
+    out += s;
+  }
+  return out;
+}
+
+TEST(RewriteTraceconvArgsTest, ConvertFormatGetsConvertInserted) {
+  auto args = ArgvHolder::Make({"traceconv", "json", "in.pb", "out.json"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv convert json in.pb out.json");
+}
+
+TEST(RewriteTraceconvArgsTest, ProfileFormatGetsConvertInserted) {
+  auto args = ArgvHolder::Make({"traceconv", "profile", "in.pb"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv convert profile in.pb");
+}
+
+TEST(RewriteTraceconvArgsTest, SymbolizeGetsUtilInserted) {
+  auto args = ArgvHolder::Make({"traceconv", "symbolize", "in.pb", "out"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv util symbolize in.pb out");
+}
+
+TEST(RewriteTraceconvArgsTest, DeobfuscateGetsUtilInserted) {
+  auto args = ArgvHolder::Make({"traceconv", "deobfuscate", "in.pb"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv util deobfuscate in.pb");
+}
+
+TEST(RewriteTraceconvArgsTest, BundleIsLeftUnchanged) {
+  // "bundle" is itself a subcommand name; no word is inserted.
+  auto args = ArgvHolder::Make({"traceconv", "bundle", "in.pb", "out.tar"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_TRUE(out.empty());
+}
+
+TEST(RewriteTraceconvArgsTest, DecompressPacketsGetsUtilInserted) {
+  auto args =
+      ArgvHolder::Make({"traceconv", "decompress_packets", "in.pb", "out.pb"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv util decompress_packets in.pb out.pb");
+}
+
+TEST(RewriteTraceconvArgsTest, BinaryIsRenamedToUtilTextToBinary) {
+  // The legacy "binary" mode moved to "util text_to_binary".
+  auto args = ArgvHolder::Make({"traceconv", "binary", "in.txt", "out.pb"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv util text_to_binary in.txt out.pb");
+}
+
+TEST(RewriteTraceconvArgsTest, JavaHeapProfileBecomesConvertProfileJavaHeap) {
+  // The legacy "java_heap_profile" alias became "convert profile --java-heap".
+  auto args = ArgvHolder::Make(
+      {"traceconv", "java_heap_profile", "in.pb", "--output-dir", "/tmp/x"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out),
+            "traceconv convert profile --java-heap in.pb --output-dir /tmp/x");
+}
+
+TEST(RewriteTraceconvArgsTest, UnknownModeRoutesToConvert) {
+  // An unrecognised MODE is routed to convert, which emits a clear error.
+  auto args = ArgvHolder::Make({"traceconv", "wibble", "in.pb"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv convert wibble in.pb");
+}
+
+TEST(RewriteTraceconvArgsTest, NoPositionalLeavesArgsUnchanged) {
+  // Bare invocation and version/help flags have no MODE positional.
+  auto bare = ArgvHolder::Make({"traceconv"});
+  EXPECT_TRUE(RewriteTraceconvArgs(bare.argc(), bare.argv()).empty());
+
+  auto version = ArgvHolder::Make({"traceconv", "--version"});
+  EXPECT_TRUE(RewriteTraceconvArgs(version.argc(), version.argv()).empty());
+}
+
+TEST(RewriteTraceconvArgsTest, ValuedFlagBeforeModeSkipsItsArgument) {
+  // -t consumes "end"; the MODE is "json", which must still be found and the
+  // leading flags preserved ahead of the inserted subcommand word.
+  auto args =
+      ArgvHolder::Make({"traceconv", "-t", "end", "json", "in.pb", "out.json"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv -t end convert json in.pb out.json");
+}
+
+TEST(RewriteTraceconvArgsTest, LongValuedFlagBeforeModeSkipsItsArgument) {
+  auto args =
+      ArgvHolder::Make({"traceconv", "--pid", "1234", "profile", "in.pb"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv --pid 1234 convert profile in.pb");
+}
+
+TEST(RewriteTraceconvArgsTest, BooleanFlagBeforeModeIsNotTreatedAsValued) {
+  // --full-sort takes no argument, so the very next token ("json") is the MODE.
+  auto args = ArgvHolder::Make({"traceconv", "--full-sort", "json", "in.pb"});
+  auto out = RewriteTraceconvArgs(args.argc(), args.argv());
+  EXPECT_EQ(Join(out), "traceconv --full-sort convert json in.pb");
 }
 
 }  // namespace

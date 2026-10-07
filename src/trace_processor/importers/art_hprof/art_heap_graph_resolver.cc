@@ -15,64 +15,25 @@
  */
 
 #include <algorithm>
-#include <deque>
+#include <cstring>
 #include <string>
 #include <variant>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto::trace_processor::art_hprof {
 
-template <typename T>
-T ReadBigEndian(TraceProcessorContext* context,
-                const std::vector<uint8_t>& data,
-                size_t offset,
-                size_t length) {
-  if (offset + length > data.size()) {
-    context->stats_tracker->IncrementStats(stats::hprof_field_value_errors);
-    return 0;
-  }
-
-  T result = 0;
-  for (size_t i = 0; i < length; ++i) {
-    result = static_cast<T>((result << 8) | static_cast<T>(data[offset + i]));
-  }
-  return result;
-}
-
-template <typename T>
-T ReadBigEndian(TraceProcessorContext* context,
-                const std::vector<uint8_t>& data,
-                size_t offset) {
-  return ReadBigEndian<T>(context, data, offset, sizeof(T));
-}
-
-template <typename T>
-void ExtractTypedArrayValues(TraceProcessorContext* context,
-                             Object& obj,
-                             const std::vector<uint8_t>& data,
-                             size_t element_count,
-                             size_t element_size) {
-  std::vector<T> values;
-  values.reserve(element_count);
-
-  for (size_t i = 0; i < element_count; ++i) {
-    size_t offset = i * element_size;
-    T value = ReadBigEndian<T>(context, data, offset);
-    values.push_back(value);
-  }
-
-  obj.SetArrayData(std::move(values));
-}
-
 HeapGraphResolver::HeapGraphResolver(
     TraceProcessorContext* context,
     HprofHeader& header,
-    base::FlatHashMap<uint64_t, Object>& objects,
+    ObjectStore& objects,
     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
     base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+    ClassFieldLayouts& class_fields,
     uint64_t string_class_id,
     DebugStats& stats)
     : context_(context),
@@ -80,36 +41,100 @@ HeapGraphResolver::HeapGraphResolver(
       objects_(objects),
       roots_(roots),
       classes_(classes),
+      class_fields_(class_fields),
       stats_(stats),
+      referent_field_id_(
+          context->storage->InternString("java.lang.ref.Reference.referent")),
+      string_value_field_id_(
+          context->storage->InternString("java.lang.String.value")),
+      string_offset_field_id_(
+          context->storage->InternString("java.lang.String.offset")),
+      string_count_field_id_(
+          context->storage->InternString("java.lang.String.count")),
+      cleaner_thunk_field_id_(
+          context->storage->InternString("sun.misc.Cleaner.thunk")),
+      cleaner_thunk_outer_field_id_(context->storage->InternString(
+          "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0")),
+      native_registry_size_field_id_(context->storage->InternString(
+          "libcore.util.NativeAllocationRegistry.size")),
       string_class_id_(string_class_id) {}
 
 void HeapGraphResolver::ResolveGraph() {
+  BuildClassFieldLayouts();
   ExtractAllObjectData();
-  field_cache_.Clear();
   DecodeJavaStrings();
   MarkReachableObjects();
-  ComputeSelfSizes();
   CalculateNativeSizes();
 }
 
 void HeapGraphResolver::ExtractAllObjectData() {
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    auto& obj = it.value();
-    if (obj.GetObjectType() == ObjectType::kInstance ||
-        obj.GetObjectType() == ObjectType::kClass) {
-      auto cls = classes_.Find(obj.GetClassId());
-      if (cls) {
-        ExtractObjectReferences(obj, *cls);
-        ExtractFieldValues(obj, *cls);
+  // Match ahat's self_size computation:
+  //   Instances: CLASS_DUMP.instanceSize (not INSTANCE_DUMP.data_length).
+  //   Class objects: java.lang.Class.instanceSize + staticFieldsSize.
+  //   Arrays: CLASS_DUMP.instanceSize (header) + element_count * element_size.
+  uint32_t java_lang_class_size = 0;
+  uint64_t cleaner_class_id = 0;
+  for (auto it = classes_.GetIterator(); it; ++it) {
+    if (it.value().GetName() == "java.lang.Class") {
+      java_lang_class_size = it.value().GetInstanceSize();
+    } else if (it.value().GetName() == kSunMiscCleaner) {
+      cleaner_class_id = it.key();
+    }
+  }
+
+  const uint32_t id_size = header_.GetIdSize();
+  for (ObjectIndex i = 0; i < objects_.size(); ++i) {
+    auto& obj = objects_.at(i);
+    auto* cls = classes_.Find(obj.GetClassId());
+    switch (obj.GetObjectType()) {
+      case ObjectType::kInstance:
+      case ObjectType::kClass: {
+        if (cls) {
+          ExtractObjectReferences(obj, *cls);
+        }
+        if (obj.GetObjectType() == ObjectType::kClass) {
+          size_t size = java_lang_class_size;
+          for (const auto& field : obj.GetFields()) {
+            size += GetFieldTypeSize(field.GetType(), id_size);
+          }
+          obj.SetSelfSizeOverride(size);
+        } else if (cls) {
+          obj.SetSelfSizeOverride(cls->GetInstanceSize());
+        }
+        // Collect string objects for DecodeJavaStrings().
+        if (string_class_id_ != 0 && obj.GetClassId() == string_class_id_) {
+          string_object_indices_.push_back(i);
+        }
+        // Collect sun.misc.Cleaner objects for CalculateNativeSizes().
+        if (cleaner_class_id != 0 && obj.GetClassId() == cleaner_class_id) {
+          ObjectIndex referent = kInvalidObjectIndex;
+          ObjectIndex thunk = kInvalidObjectIndex;
+          for (const auto& ref : obj.GetReferences()) {
+            if (ref.field_name == referent_field_id_) {
+              referent = ref.target_index;
+            } else if (ref.field_name == cleaner_thunk_field_id_) {
+              thunk = ref.target_index;
+            }
+          }
+          if (referent != kInvalidObjectIndex && thunk != kInvalidObjectIndex) {
+            cleaners_.emplace_back(referent, thunk);
+          }
+        }
+        break;
       }
-      // Collect string object IDs for DecodeJavaStrings().
-      if (string_class_id_ != 0 && obj.GetClassId() == string_class_id_) {
-        string_object_ids_.push_back(obj.GetId());
-      }
-    } else if (obj.GetObjectType() == ObjectType::kObjectArray) {
-      ExtractArrayElementReferences(obj);
-    } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
-      ExtractPrimitiveArrayValues(obj);
+      case ObjectType::kObjectArray:
+        ExtractArrayElementReferences(obj);
+        if (cls) {
+          obj.SetSelfSizeOverride(cls->GetInstanceSize() +
+                                  obj.GetArrayElementCount() * id_size);
+        }
+        break;
+      case ObjectType::kPrimitiveArray:
+        if (cls) {
+          obj.SetSelfSizeOverride(cls->GetInstanceSize() +
+                                  obj.GetArrayDataBytes());
+        }
+        break;
     }
 
     uint64_t obj_id = obj.GetId();
@@ -123,88 +148,59 @@ void HeapGraphResolver::ExtractAllObjectData() {
 
 void HeapGraphResolver::MarkReachableObjects() {
   // BFS from roots to mark reachability and compute shortest-path
-  // root_distance. Skips "referent" fields from weak/phantom/finalizer
-  // reference types to match ahat's retained=SOFT behavior (soft referent
-  // edges are followed).
+  // root_distance. Edges flagged as weak/phantom/finalizer referents during
+  // extraction are not followed.
+  std::vector<ObjectIndex> queue;
 
-  // Pre-compute which class IDs are reference types by walking the hierarchy.
-  base::FlatHashMap<uint64_t, bool> ref_type_classes;
-  {
-    base::FlatHashMap<uint64_t, bool> base_refs;
-    for (auto it = classes_.GetIterator(); it; ++it) {
-      const auto& name = it.value().GetName();
-      if (name == "java.lang.ref.WeakReference" ||
-          name == "java.lang.ref.PhantomReference" ||
-          name == "java.lang.ref.FinalizerReference") {
-        base_refs[it.key()] = true;
-      }
-    }
-    for (auto it = classes_.GetIterator(); it; ++it) {
-      uint64_t current = it.key();
-      for (int depth = 0; depth < 100 && current != 0; ++depth) {
-        if (base_refs.Find(current)) {
-          ref_type_classes[it.key()] = true;
-          break;
-        }
-        auto* cls = classes_.Find(current);
-        if (!cls)
-          break;
-        current = cls->GetSuperClassId();
-      }
-    }
-  }
-
-  std::deque<uint64_t> queue;
-
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    auto& obj = it.value();
+  for (ObjectIndex i = 0; i < objects_.size(); ++i) {
+    auto& obj = objects_.at(i);
     if (obj.IsRoot()) {
-      queue.push_back(it.key());
+      queue.push_back(i);
       obj.SetReachable();
       obj.SetRootDistance(0);
     }
   }
 
-  while (!queue.empty()) {
-    uint64_t current_id = queue.front();
-    queue.pop_front();
-
-    auto* obj = objects_.Find(current_id);
-    if (!obj) {
-      continue;
-    }
-
-    bool skip_referent = ref_type_classes.Find(obj->GetClassId()) != nullptr;
-    int32_t next_distance = obj->GetRootDistance() + 1;
-    for (const auto& ref : obj->GetReferences()) {
-      if (skip_referent &&
-          ref.field_name == "java.lang.ref.Reference.referent") {
+  for (size_t head = 0; head < queue.size(); ++head) {
+    Object& obj = objects_.at(queue[head]);
+    int32_t next_distance = obj.GetRootDistance() + 1;
+    for (const auto& ref : obj.GetReferences()) {
+      if (ref.target_index == kInvalidObjectIndex || ref.is_weak_referent) {
         continue;
       }
-      auto* target = objects_.Find(ref.target_id);
-      if (target && !target->IsReachable()) {
-        target->SetReachable();
-        target->SetRootDistance(next_distance);
-        queue.push_back(ref.target_id);
+      Object& target = objects_.at(ref.target_index);
+      if (!target.IsReachable()) {
+        target.SetReachable();
+        target.SetRootDistance(next_distance);
+        queue.push_back(ref.target_index);
       }
     }
   }
 }
 
 void HeapGraphResolver::ExtractArrayElementReferences(Object& obj) {
-  const auto& elements = obj.GetArrayElements();
+  const uint8_t* elements = obj.GetRawData();
+  size_t elements_size = obj.GetRawDataSize();
+  size_t count = obj.GetArrayElementCount();
+  uint32_t id_size = header_.GetIdSize();
   char buf[24];
-  for (size_t i = 0; i < elements.size(); ++i) {
-    uint64_t element_id = elements[i];
+  obj.ReserveReferences(count);
+  for (size_t i = 0; i < count; ++i) {
+    uint64_t element_id = ReadBigEndian<uint64_t>(
+        context_, elements, elements_size, i * id_size, id_size);
     if (element_id != 0) {
-      auto owned_obj = objects_.Find(element_id);
-      if (owned_obj) {
-        snprintf(buf, sizeof(buf), "[%zu]", i);
-        obj.AddReference(buf, owned_obj->GetClassId(), element_id);
+      ObjectIndex target = objects_.FindIndex(element_id);
+      if (target != kInvalidObjectIndex) {
+        size_t len = base::SprintfTrunc(buf, sizeof(buf), "[%zu]", i);
+        obj.AddReference(
+            context_->storage->InternString(base::StringView(buf, len)),
+            target);
         stats_.reference_count++;
       }
     }
   }
+  // The element ids are no longer needed once references have been created.
+  obj.ClearRawData();
 }
 
 bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
@@ -212,217 +208,52 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
   // Resolve pending static field references, qualifying names as
   // "ClassName.fieldName" to match the proto heap graph format.
   for (const auto& ref : obj.GetPendingReferences()) {
-    if (!ref.field_class_id) {
-      auto it = objects_.Find(ref.target_id);
-      if (it) {
-        std::string qualified = cls.GetName() + "." + ref.field_name;
-        obj.AddReference(qualified, it->GetClassId(), ref.target_id);
-        stats_.reference_count++;
-      }
+    ObjectIndex target = objects_.FindIndex(ref.target_id);
+    if (target != kInvalidObjectIndex) {
+      std::string qualified =
+          cls.GetName() + "." +
+          context_->storage->GetString(ref.field_name).ToStdString();
+      obj.AddReference(context_->storage->InternString(qualified), target);
+      stats_.reference_count++;
     }
   }
 
-  const std::vector<uint8_t>& data = obj.GetRawData();
-  if (data.empty()) {
+  const uint8_t* data = obj.GetRawData();
+  size_t data_size = obj.GetRawDataSize();
+  if (data_size == 0) {
     return true;
   }
 
-  const auto& fields = GetClassHierarchyFields(cls.GetId());
-  size_t offset = 0;
+  const auto* layout = class_fields_.Find(cls.GetId());
+  if (!layout) {
+    return true;
+  }
 
-  for (const auto& field : fields) {
-    if (offset >= data.size()) {
+  const uint32_t id_size = header_.GetIdSize();
+  obj.ReserveReferences(obj.GetReferences().size() +
+                        layout->object_fields.size());
+  for (const auto& field : layout->object_fields) {
+    if (field.offset >= data_size) {
       break;
     }
-
-    if (field.GetType() == FieldType::kObject) {
-      if (offset + header_.GetIdSize() <= data.size()) {
-        uint64_t target_id = ReadBigEndian<uint64_t>(context_, data, offset,
-                                                     header_.GetIdSize());
-        offset += header_.GetIdSize();
-
-        if (target_id != 0) {
-          uint64_t field_class_id = 0;
-          auto it = objects_.Find(target_id);
-          if (it) {
-            field_class_id = it->GetClassId();
-          }
-
-          obj.AddReference(field.GetName(), field_class_id, target_id);
-          stats_.reference_count++;
-        }
-      } else {
-        context_->stats_tracker->IncrementStats(stats::hprof_reference_errors);
-        break;
-      }
-    } else {
-      offset += GetFieldTypeSize(field.GetType(), header_.GetIdSize());
+    if (field.offset + id_size > data_size) {
+      context_->stats_tracker->IncrementStats(stats::hprof_reference_errors);
+      break;
+    }
+    uint64_t target_id = ReadBigEndian<uint64_t>(context_, data, data_size,
+                                                 field.offset, id_size);
+    if (target_id != 0) {
+      obj.AddReference(field.name, objects_.FindIndex(target_id),
+                       field.is_weak_referent);
+      stats_.reference_count++;
     }
   }
 
   return true;
 }
 
-void HeapGraphResolver::ExtractFieldValues(Object& obj,
-                                           const ClassDefinition& cls) {
-  if (obj.GetObjectType() != ObjectType::kInstance ||
-      obj.GetRawData().empty()) {
-    return;
-  }
-
-  const auto& fields = GetClassHierarchyFields(cls.GetId());
-  const auto& data = obj.GetRawData();
-  size_t offset = 0;
-  for (const auto& field_def : fields) {
-    if (offset >= data.size()) {
-      break;
-    }
-
-    Field field(field_def.GetName(), field_def.GetType());
-    switch (field_def.GetType()) {
-      case FieldType::kBoolean: {
-        bool value = data[offset] != 0;
-        field.SetValue(value);
-        offset += 1;
-        break;
-      }
-      case FieldType::kByte: {
-        uint8_t value = data[offset];
-        field.SetValue(value);
-        offset += 1;
-        break;
-      }
-      case FieldType::kChar: {
-        field.SetValue(ReadBigEndian<uint16_t>(context_, data, offset));
-        offset += 2;
-        break;
-      }
-      case FieldType::kShort: {
-        field.SetValue(ReadBigEndian<int16_t>(context_, data, offset));
-        offset += 2;
-        break;
-      }
-      case FieldType::kInt: {
-        field.SetValue(ReadBigEndian<int32_t>(context_, data, offset));
-        offset += 4;
-        break;
-      }
-      case FieldType::kLong: {
-        field.SetValue(ReadBigEndian<int64_t>(context_, data, offset));
-        offset += 8;
-        break;
-      }
-      case FieldType::kFloat: {
-        uint32_t raw = ReadBigEndian<uint32_t>(context_, data, offset);
-        float value;
-        std::memcpy(&value, &raw, sizeof(float));
-        field.SetValue(value);
-        offset += 4;
-        break;
-      }
-      case FieldType::kDouble: {
-        uint64_t raw = ReadBigEndian<uint64_t>(context_, data, offset);
-        double value;
-        std::memcpy(&value, &raw, sizeof(double));
-        field.SetValue(value);
-        offset += 8;
-        break;
-      }
-      case FieldType::kObject: {
-        uint64_t id = ReadBigEndian<uint64_t>(context_, data, offset,
-                                              header_.GetIdSize());
-        field.SetValue(id);
-        offset += header_.GetIdSize();
-        break;
-      }
-    }
-
-    obj.AddField(std::move(field));
-  }
-
-  obj.ClearRawData();
-}
-
-void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
-  if (obj.GetObjectType() != ObjectType::kPrimitiveArray ||
-      obj.GetRawData().empty()) {
-    return;
-  }
-
-  const FieldType element_type = obj.GetArrayElementType();
-  const auto& data = obj.GetRawData();
-  size_t element_size = GetFieldTypeSize(element_type, header_.GetIdSize());
-
-  if (element_size == 0 || data.size() % element_size != 0) {
-    return;
-  }
-
-  size_t element_count = data.size() / element_size;
-
-  switch (element_type) {
-    case FieldType::kBoolean: {
-      std::vector<bool> values;
-      values.reserve(element_count);
-      for (size_t i = 0; i < element_count; ++i) {
-        values.push_back(data[i] != 0);
-      }
-      obj.SetArrayData(std::move(values));
-      break;
-    }
-    case FieldType::kByte: {
-      std::vector<uint8_t> values(data.begin(), data.end());
-      obj.SetArrayData(std::move(values));
-      break;
-    }
-    case FieldType::kChar:
-      ExtractTypedArrayValues<uint16_t>(context_, obj, data, element_count,
-                                        element_size);
-      break;
-    case FieldType::kShort:
-      ExtractTypedArrayValues<int16_t>(context_, obj, data, element_count,
-                                       element_size);
-      break;
-    case FieldType::kInt:
-      ExtractTypedArrayValues<int32_t>(context_, obj, data, element_count,
-                                       element_size);
-      break;
-    case FieldType::kLong:
-      ExtractTypedArrayValues<int64_t>(context_, obj, data, element_count,
-                                       element_size);
-      break;
-    case FieldType::kFloat: {
-      std::vector<float> values;
-      values.reserve(element_count);
-      for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * element_size;
-        uint32_t raw = ReadBigEndian<uint32_t>(context_, data, offset);
-        float value;
-        memcpy(&value, &raw, sizeof(float));
-        values.push_back(value);
-      }
-      obj.SetArrayData(std::move(values));
-      break;
-    }
-    case FieldType::kDouble: {
-      std::vector<double> values;
-      values.reserve(element_count);
-      for (size_t i = 0; i < element_count; ++i) {
-        size_t offset = i * element_size;
-        uint64_t raw = ReadBigEndian<uint64_t>(context_, data, offset);
-        double value;
-        memcpy(&value, &raw, sizeof(double));
-        values.push_back(value);
-      }
-      obj.SetArrayData(std::move(values));
-      break;
-    }
-    case FieldType::kObject:
-      break;
-  }
-}
-
 std::optional<std::string> HeapGraphResolver::DecodeJavaString(
-    const Object& string_obj) const {
+    const Object& string_obj) {
   auto cls = classes_.Find(string_obj.GetClassId());
   if (!cls || cls->GetName() != kJavaLangString)
     return std::nullopt;
@@ -431,21 +262,27 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
   std::optional<int32_t> offset_opt;
   std::optional<int32_t> count_opt;
 
-  for (const Field& f : string_obj.GetFields()) {
-    if (f.GetName() == "java.lang.String.value") {
-      if (auto v = f.GetValue<uint64_t>())
-        value_array_id = *v;
-    } else if (f.GetName() == "java.lang.String.offset") {
-      offset_opt = f.GetValue<int32_t>();
-    } else if (f.GetName() == "java.lang.String.count") {
-      count_opt = f.GetValue<int32_t>();
-    }
-  }
+  const auto* layout = class_fields_.Find(string_obj.GetClassId());
+  if (!layout)
+    return std::nullopt;
+
+  ForEachFieldValue(context_, layout->fields, string_obj.GetRawData(),
+                    string_obj.GetRawDataSize(), header_.GetIdSize(),
+                    [&](const Field& f) {
+                      if (f.GetName() == string_value_field_id_) {
+                        if (auto v = f.GetValue<uint64_t>())
+                          value_array_id = *v;
+                      } else if (f.GetName() == string_offset_field_id_) {
+                        offset_opt = f.GetValue<int32_t>();
+                      } else if (f.GetName() == string_count_field_id_) {
+                        count_opt = f.GetValue<int32_t>();
+                      }
+                    });
 
   if (value_array_id == 0)
     return std::nullopt;
 
-  auto array = objects_.Find(value_array_id);
+  const Object* array = objects_.Find(value_array_id);
   if (!array)
     return std::nullopt;
 
@@ -473,17 +310,21 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
     }
   };
 
-  const auto& array_data = array->GetArrayDataVariant();
+  const uint8_t* array_data = array->GetArrayData().data();
 
-  if (const auto* bytes = std::get_if<std::vector<uint8_t>>(&array_data)) {
+  if (array->GetArrayElementType() == FieldType::kByte) {
     for (int32_t i = 0; i < count; ++i)
-      result.push_back(
-          static_cast<char>((*bytes)[static_cast<size_t>(offset + i)]));
+      result.push_back(static_cast<char>(array_data[offset + i]));
     return result;
   }
-  if (const auto* chars = std::get_if<std::vector<uint16_t>>(&array_data)) {
-    for (int32_t i = 0; i < count; ++i)
-      append_utf8_from_utf16((*chars)[static_cast<size_t>(offset + i)]);
+  if (array->GetArrayElementType() == FieldType::kChar) {
+    for (int32_t i = 0; i < count; ++i) {
+      uint16_t ch;
+      memcpy(&ch,
+             array_data + static_cast<size_t>(offset + i) * sizeof(uint16_t),
+             sizeof(ch));
+      append_utf8_from_utf16(ch);
+    }
     return result;
   }
 
@@ -494,22 +335,43 @@ void HeapGraphResolver::DecodeJavaStrings() {
   if (string_class_id_ == 0)
     return;
 
-  for (uint64_t obj_id : string_object_ids_) {
-    auto* obj = objects_.Find(obj_id);
-    if (!obj)
-      continue;
-    auto decoded = DecodeJavaString(*obj);
+  for (ObjectIndex idx : string_object_indices_) {
+    Object& obj = objects_.at(idx);
+    auto decoded = DecodeJavaString(obj);
     if (decoded) {
-      obj->SetDecodedString(std::move(*decoded));
+      obj.SetDecodedString(context_->storage->InternString(*decoded));
     }
   }
 }
 
-const std::vector<Field>& HeapGraphResolver::GetClassHierarchyFields(
-    uint64_t class_id) {
-  auto* cached = field_cache_.Find(class_id);
-  if (cached) {
-    return *cached;
+void HeapGraphResolver::BuildClassFieldLayouts() {
+  // Reference subclasses whose "referent" edge must not be followed when
+  // computing reachability. Matches ahat's retained=SOFT behavior: soft
+  // referent edges are followed.
+  base::FlatHashMap<uint64_t, bool> weak_ref_classes;
+  {
+    base::FlatHashMap<uint64_t, bool> base_refs;
+    for (auto it = classes_.GetIterator(); it; ++it) {
+      const auto& name = it.value().GetName();
+      if (name == "java.lang.ref.WeakReference" ||
+          name == "java.lang.ref.PhantomReference" ||
+          name == "java.lang.ref.FinalizerReference") {
+        base_refs[it.key()] = true;
+      }
+    }
+    for (auto it = classes_.GetIterator(); it; ++it) {
+      uint64_t current = it.key();
+      for (int depth = 0; depth < 100 && current != 0; ++depth) {
+        if (base_refs.Find(current)) {
+          weak_ref_classes[it.key()] = true;
+          break;
+        }
+        auto* cls = classes_.Find(current);
+        if (!cls)
+          break;
+        current = cls->GetSuperClassId();
+      }
+    }
   }
 
   // HPROF instance data is laid out derived-class-first: the most-derived
@@ -517,65 +379,32 @@ const std::vector<Field>& HeapGraphResolver::GetClassHierarchyFields(
   // Field names are qualified as "ClassName.fieldName" to match the proto
   // heap graph format and allow MarkReachableObjects to recognize
   // "java.lang.ref.Reference.referent".
-  std::vector<Field> result;
-  uint64_t current_class_id = class_id;
-  while (current_class_id != 0) {
-    auto cls = classes_.Find(current_class_id);
-    if (!cls) {
-      break;
-    }
-    for (const auto& f : cls->GetInstanceFields()) {
-      result.emplace_back(cls->GetName() + "." + f.GetName(), f.GetType());
-    }
-    current_class_id = cls->GetSuperClassId();
-  }
-
-  field_cache_[class_id] = std::move(result);
-  return *field_cache_.Find(class_id);
-}
-
-void HeapGraphResolver::ComputeSelfSizes() {
-  // Match ahat's self_size computation:
-  //   Instances: CLASS_DUMP.instanceSize (not INSTANCE_DUMP.data_length).
-  //   Class objects: java.lang.Class.instanceSize + staticFieldsSize.
-  //   Arrays: CLASS_DUMP.instanceSize (header) + element_count * element_size.
-  std::optional<uint32_t> java_lang_class_size;
+  uint32_t id_size = header_.GetIdSize();
   for (auto it = classes_.GetIterator(); it; ++it) {
-    if (it.value().GetName() == "java.lang.Class") {
-      java_lang_class_size = it.value().GetInstanceSize();
-      break;
+    ClassFieldLayout layout;
+    bool is_weak_ref = weak_ref_classes.Find(it.key()) != nullptr;
+    uint32_t offset = 0;
+    uint64_t current_class_id = it.key();
+    while (current_class_id != 0) {
+      auto cls = classes_.Find(current_class_id);
+      if (!cls) {
+        break;
+      }
+      for (const auto& f : cls->GetInstanceFields()) {
+        std::string qualified =
+            cls->GetName() + "." +
+            context_->storage->GetString(f.GetName()).ToStdString();
+        StringId name = context_->storage->InternString(qualified);
+        layout.fields.emplace_back(name, f.GetType());
+        if (f.GetType() == FieldType::kObject) {
+          layout.object_fields.push_back(
+              {name, offset, is_weak_ref && name == referent_field_id_});
+        }
+        offset += static_cast<uint32_t>(GetFieldTypeSize(f.GetType(), id_size));
+      }
+      current_class_id = cls->GetSuperClassId();
     }
-  }
-
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    auto& obj = it.value();
-    if (obj.GetObjectType() == ObjectType::kClass) {
-      // java.lang.Class.instanceSize + sum of static field sizes.
-      size_t size = java_lang_class_size.value_or(0);
-      for (const auto& field : obj.GetFields()) {
-        size += GetFieldTypeSize(field.GetType(), header_.GetIdSize());
-      }
-      obj.SetSelfSizeOverride(size);
-    } else if (obj.GetObjectType() == ObjectType::kInstance) {
-      auto* cls = classes_.Find(obj.GetClassId());
-      if (cls) {
-        obj.SetSelfSizeOverride(cls->GetInstanceSize());
-      }
-    } else if (obj.GetObjectType() == ObjectType::kObjectArray) {
-      auto* cls = classes_.Find(obj.GetClassId());
-      if (cls) {
-        size_t header = cls->GetInstanceSize();
-        size_t data = obj.GetArrayElements().size() * header_.GetIdSize();
-        obj.SetSelfSizeOverride(header + data);
-      }
-    } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
-      auto* cls = classes_.Find(obj.GetClassId());
-      if (cls) {
-        size_t header = cls->GetInstanceSize();
-        size_t data = obj.GetRawData().size();
-        obj.SetSelfSizeOverride(header + data);
-      }
-    }
+    class_fields_[it.key()] = std::move(layout);
   }
 }
 
@@ -601,88 +430,56 @@ void HeapGraphResolver::ComputeSelfSizes() {
 // Registry.size is attributed as the native_size of Object.
 // Matches ahat's AhatClassInstance.asRegisteredNativeAllocation().
 void HeapGraphResolver::CalculateNativeSizes() {
-  std::vector<std::pair<uint64_t, uint64_t>>
-      cleaners;  // (referent_id, thunk_id)
-
-  // Find sun.misc.Cleaner objects
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    auto& obj = it.value();
-    auto cls = classes_.Find(obj.GetClassId());
-    if (!cls || cls->GetName() != kSunMiscCleaner) {
-      continue;
-    }
-
-    std::optional<uint64_t> referent_id;
-    std::optional<uint64_t> thunk_id;
-
-    for (const auto& ref : obj.GetReferences()) {
-      if (ref.field_name == "java.lang.ref.Reference.referent") {
-        referent_id = ref.target_id;
-      } else if (ref.field_name == "sun.misc.Cleaner.thunk") {
-        thunk_id = ref.target_id;
-      }
-    }
-
-    if (!referent_id || !thunk_id) {
-      continue;
-    }
-
-    cleaners.emplace_back(*referent_id, *thunk_id);
-  }
-
-  // Traverse cleaner chains to find NativeAllocationRegistry and attribute size
-  for (const auto& [referent_id, thunk_id] : cleaners) {
-    auto thunk = objects_.Find(thunk_id);
-    if (!thunk) {
-      continue;
-    }
+  // Traverse cleaner chains to find NativeAllocationRegistry and attribute
+  // size. The cleaners themselves were collected by ExtractAllObjectData().
+  for (const auto& [referent_idx, thunk_idx] : cleaners_) {
+    const Object& thunk = objects_.at(thunk_idx);
 
     // Verify thunk is a CleanerThunk (matches ahat check)
-    auto thunk_cls = classes_.Find(thunk->GetClassId());
+    auto thunk_cls = classes_.Find(thunk.GetClassId());
     if (!thunk_cls ||
         thunk_cls->GetName() != kNativeAllocationRegistryCleanerThunk) {
       continue;
     }
 
-    std::optional<uint64_t> registry_id;
-    for (const auto& ref : thunk->GetReferences()) {
-      if (ref.field_name ==
-          "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0") {
-        registry_id = ref.target_id;
+    ObjectIndex registry_idx = kInvalidObjectIndex;
+    for (const auto& ref : thunk.GetReferences()) {
+      if (ref.field_name == cleaner_thunk_outer_field_id_) {
+        registry_idx = ref.target_index;
         break;
       }
     }
 
-    if (!registry_id) {
+    if (registry_idx == kInvalidObjectIndex) {
       continue;
     }
 
-    auto registry = objects_.Find(*registry_id);
-    if (!registry) {
-      continue;
-    }
+    const Object& registry = objects_.at(registry_idx);
 
     // Verify registry is a NativeAllocationRegistry (matches ahat check)
-    auto registry_cls = classes_.Find(registry->GetClassId());
+    auto registry_cls = classes_.Find(registry.GetClassId());
     if (!registry_cls || registry_cls->GetName() != kNativeAllocationRegistry) {
       continue;
     }
 
-    auto size_field =
-        registry->FindField("libcore.util.NativeAllocationRegistry.size");
-    if (!size_field) {
+    const auto* layout = class_fields_.Find(registry.GetClassId());
+    if (!layout) {
       continue;
     }
 
-    int64_t native_size = size_field->GetNumericValue();
+    int64_t native_size = 0;
+    ForEachFieldValue(context_, layout->fields, registry.GetRawData(),
+                      registry.GetRawDataSize(), header_.GetIdSize(),
+                      [&](const Field& f) {
+                        if (f.GetName() == native_registry_size_field_id_) {
+                          native_size = f.GetNumericValue();
+                        }
+                      });
     if (native_size <= 0) {
       continue;
     }
 
-    auto referent = objects_.Find(referent_id);
-    if (referent) {
-      referent->AddNativeSize(native_size);
-    }
+    objects_.at(referent_idx).AddNativeSize(native_size);
   }
 }
 }  // namespace perfetto::trace_processor::art_hprof

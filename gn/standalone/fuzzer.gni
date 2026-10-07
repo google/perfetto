@@ -26,6 +26,7 @@ template("perfetto_fuzzer_test") {
     }
   } else {
     not_needed(invoker, "*")
+
     group(target_name) {
     }
   }

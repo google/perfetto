@@ -34,7 +34,8 @@ class WindowManagerParser {
  private:
   tables::WindowManagerTable::Id InsertSnapshotRow(
       int64_t timestamp,
-      protos::pbzero::WindowManagerTraceEntry::Decoder& entry_decoder);
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder&
+          entry_decoder);
   void InsertWindowContainerRows(
       int64_t timestamp,
       tables::WindowManagerTable::Id snapshot_id,

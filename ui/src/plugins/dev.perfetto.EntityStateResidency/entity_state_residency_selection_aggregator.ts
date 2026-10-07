@@ -13,11 +13,16 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import type {ColumnDef} from '../../components/aggregation';
-import type {Aggregator} from '../../components/aggregation_adapter';
+import {
+  type Aggregator,
+  type AggregatorGridConfig,
+  createAggregationData,
+} from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {formatPercentValue} from '../../components/aggregation_panel';
 
 export class EntityStateResidencySelectionAggregator implements Aggregator {
   readonly id = 'entity_state_residency_aggregation';
@@ -38,13 +43,17 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
     }
 
     return {
+      getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         const duration = area.end - area.start;
         const durationSec = Duration.toSeconds(duration);
 
-        const query = `
-          INCLUDE PERFETTO MODULE android.entity_state_residency;
-          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+        await engine.query(
+          `INCLUDE PERFETTO MODULE android.entity_state_residency`,
+        );
+        const table = await createPerfettoTable({
+          engine,
+          as: `
             WITH aggregated AS (
               SELECT
                 track_id,
@@ -66,45 +75,35 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
               (last - first)/(${durationSec} * 1e9) AS rate_percent
             FROM aggregated
             GROUP BY track_id, entity_name, state_name
-        `;
-        await engine.query(query);
+          `,
+        });
 
-        return {
-          tableName: this.id,
-        };
+        return createAggregationData(table);
       },
     };
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Entity',
-        columnId: 'entity_name',
-        sort: 'DESC',
+  private getGridConfig(): AggregatorGridConfig {
+    return {
+      schema: {
+        entity_name: {title: 'Entity', columnType: 'text'},
+        state_name: {title: 'State', columnType: 'text'},
+        delta_value: {title: 'Time in state (ms)', columnType: 'quantitative'},
+        rate_percent: {
+          title: 'Time in state',
+          columnType: 'quantitative',
+          cellRenderer: formatPercentValue,
+        },
+        count: {title: 'Sample Count', columnType: 'quantitative'},
       },
-      {
-        title: 'State',
-        columnId: 'state_name',
-      },
-      {
-        title: 'Time in state (ms)',
-        columnId: 'delta_value',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Time in state',
-        formatHint: 'PERCENT',
-        columnId: 'rate_percent',
-        sum: true,
-      },
-      {
-        title: 'Sample Count',
-        columnId: 'count',
-        formatHint: 'NUMERIC',
-      },
-    ];
+      initialColumns: [
+        {id: 'entity_name', field: 'entity_name', sort: 'DESC'},
+        {id: 'state_name', field: 'state_name'},
+        {id: 'delta_value', field: 'delta_value', aggregate: 'SUM'},
+        {id: 'rate_percent', field: 'rate_percent', aggregate: 'SUM'},
+        {id: 'count', field: 'count'},
+      ],
+    };
   }
 
   getTabName() {

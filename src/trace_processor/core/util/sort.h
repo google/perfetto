@@ -25,7 +25,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "perfetto/ext/base/endian.h"
+#include "perfetto/base/endian.h"
 
 namespace perfetto::trace_processor::core {
 namespace internal {

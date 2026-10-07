@@ -76,6 +76,7 @@ source_set("producer") {
     "../common:proc_cmdline",
     "../common:producer_support",
     "../common:profiler_guardrails",
+    "../smaps:smaps_data_source",
   ]
   sources = [
     "event_config.cc",

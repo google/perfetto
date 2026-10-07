@@ -21,8 +21,10 @@ source_set("service") {
     "..:common",
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/ext/tracing/core",
+    "../v2",
   ]
   deps = [
+    ":proto_group_rewriter",
     "../../../gn:default_deps",
     "../../../include/perfetto/tracing",
     "../../../protos/perfetto/common:zero",
@@ -36,7 +38,7 @@ source_set("service") {
     "../../base:clock_snapshots",
     "../../base:version",
     "../../base/regex",
-    "../../protovm:protovm",
+    "../../protovm",
     "../../protozero/filtering:message_filter",
     "../../protozero/filtering:message_filter_config",
     "../../protozero/filtering:string_filter",
@@ -53,11 +55,11 @@ source_set("service") {
     "packet_stream_validator.h",
     "random.cc",
     "random.h",
+    "service_ring_buffer_drainer.cc",
+    "service_ring_buffer_drainer.h",
     "trace_buffer.h",
     "trace_buffer_v1.cc",
     "trace_buffer_v1.h",
-    "trace_buffer_v1_with_v2_shadow.cc",
-    "trace_buffer_v1_with_v2_shadow.h",
     "trace_buffer_v2.cc",
     "trace_buffer_v2.h",
     "tracing_service_endpoints_impl.cc",
@@ -74,11 +76,34 @@ source_set("service") {
       "../../android_internal:lazy_library_loader",
     ]
   }
+
+  # The service compresses ReadBuffers output using the codecs below, which
+  # pull in the optional compression libraries. Depend on them only when
+  # enabled, so libz/libzstd stay out of builds that don't compress.
+  if (enable_perfetto_zlib) {
+    deps += [ ":zlib_compressor" ]
+  }
+  if (enable_perfetto_zstd) {
+    deps += [ ":zstd_compressor" ]
+  }
+}
+
+# Shared by the zlib and zstd packet compressors below; header-only.
+if (enable_perfetto_zlib || enable_perfetto_zstd) {
+  source_set("packet_compressor_common") {
+    public_deps = [
+      "../../../gn:default_deps",
+      "../../../include/perfetto/ext/tracing/core",
+      "../../protozero",
+    ]
+    sources = [ "packet_compressor_common.h" ]
+  }
 }
 
 if (enable_perfetto_zlib) {
   source_set("zlib_compressor") {
     deps = [
+      ":packet_compressor_common",
       "../../../gn:default_deps",
       "../../../gn:zlib",
       "../../../include/perfetto/tracing",
@@ -91,12 +116,61 @@ if (enable_perfetto_zlib) {
   }
 }
 
+if (enable_perfetto_zstd) {
+  source_set("zstd_compressor") {
+    deps = [
+      ":packet_compressor_common",
+      "../../../gn:default_deps",
+      "../../../gn:zstd",
+      "../../../include/perfetto/tracing",
+      "../core",
+    ]
+    sources = [
+      "zstd_compressor.cc",
+      "zstd_compressor.h",
+    ]
+  }
+}
+
+# Pure conversion from tracing v2 internal group framing to length-delimited
+# protobuf. Runs at read time in the service on untrusted reassembled packets.
+source_set("proto_group_rewriter") {
+  public_deps = [
+    "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/ext/tracing/core",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/protozero",
+    "../../base",
+  ]
+  sources = [
+    "proto_group_rewriter.cc",
+    "proto_group_rewriter.h",
+  ]
+}
+
+perfetto_fuzzer_test("proto_group_rewriter_fuzzer") {
+  sources = [
+    "proto_group_rewriter_fuzzer.cc",
+    "proto_group_rewriter_reference_for_testing.h",
+  ]
+  deps = [
+    ":proto_group_rewriter",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/protozero",
+    "../../base",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":proto_group_rewriter",
     ":service",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/protozero",
     "../../../protos/perfetto/common:semantic_type_cpp",
     "../../../protos/perfetto/config/protovm:cpp",
     "../../../protos/perfetto/protovm:cpp",
@@ -107,8 +181,11 @@ perfetto_unittest_source_set("unittests") {
     "../../../src/protozero/filtering:bytecode_generator",
     "../../base",
     "../../base:test_support",
+    "../../protozero",
     "../core",
     "../test:test_support",
+    "../v2",
+    "../v2:test_support",
   ]
 
   if (enable_perfetto_zlib) {
@@ -118,15 +195,26 @@ perfetto_unittest_source_set("unittests") {
     ]
   }
 
+  if (enable_perfetto_zstd) {
+    deps += [
+      ":zstd_compressor",
+      "../../../gn:zstd",
+    ]
+  }
+
   sources = [
     "histogram_unittest.cc",
     "packet_stream_validator_unittest.cc",
+    "proto_group_rewriter_reference_for_testing.h",
+    "proto_group_rewriter_unittest.cc",
+    "service_ring_buffer_drainer_unittest.cc",
     "trace_buffer_v1_unittest.cc",
     "trace_buffer_v2_unittest.cc",
   ]
 
-  if (enable_perfetto_zlib) {
-    sources += [ "zlib_compressor_unittest.cc" ]
+  if (enable_perfetto_zlib || enable_perfetto_zstd) {
+    deps += [ ":packet_compressor_common" ]
+    sources += [ "compressor_unittest.cc" ]
   }
 
   # These tests rely on test_task_runner.h which
@@ -145,14 +233,29 @@ if (enable_perfetto_benchmarks) {
       "../../../gn:default_deps",
       "../../../protos/perfetto/trace:zero",
       "../../../protos/perfetto/trace/ftrace:zero",
+      "../../../protos/perfetto/trace/track_event:zero",
+      "../../../protos/third_party/android/art:art_heap_graph_zero",
       "../../protozero",
       "../core",
       "../test:test_support",
     ]
     sources = [
+      "compression_benchmark.cc",
       "packet_stream_validator_benchmark.cc",
       "trace_buffer_benchmark.cc",
     ]
+    if (enable_perfetto_zlib) {
+      deps += [
+        ":zlib_compressor",
+        "../../../gn:zlib",
+      ]
+    }
+    if (enable_perfetto_zstd) {
+      deps += [
+        ":zstd_compressor",
+        "../../../gn:zstd",
+      ]
+    }
   }
 }
 

@@ -22,7 +22,7 @@ import {CopyableLink} from '../widgets/copyable_link';
 import {AppImpl} from '../core/app_impl';
 
 export function isShareable(trace: Trace) {
-  return AppImpl.instance.isInternalUser && trace.traceInfo.downloadable;
+  return AppImpl.instance.isInternalUser && trace.traceInfo.shareable;
 }
 
 const STATE_HASH_PLACEHOLDER = 'perfettoStateHashPlaceholder';
@@ -36,7 +36,26 @@ export async function shareTrace(trace: TraceImpl) {
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
   const hasPlaceholder = urlHasPlaceholder(traceUrl);
 
-  if (isShareable(trace)) {
+  if (hasPlaceholder) {
+    // The sender provided a URL carrying a state-hash placeholder. Upload
+    // only the UI state and inject the hash back into that URL, rather than
+    // re-uploading the trace to GCS. This takes precedence over the trace
+    // being shareable, so the sender's URL (which may be authenticated or
+    // otherwise non-public) is preserved.
+    const result = confirm(
+      `Upload UI state and generate a permalink? ` +
+        `The state (not the trace) will be accessible by anybody with the permalink.`,
+    );
+
+    if (result) {
+      const hash = await createPermalink(trace, undefined);
+      const urlWithHash = traceUrl.replace(STATE_HASH_PLACEHOLDER, hash);
+      showModal({
+        title: 'Permalink',
+        content: m(CopyableLink, {url: urlWithHash}),
+      });
+    }
+  } else if (isShareable(trace)) {
     // Just upload the trace and create a permalink.
     const result = confirm(
       `Upload UI state and generate a permalink? ` +
@@ -53,54 +72,31 @@ export async function shareTrace(trace: TraceImpl) {
         }),
       });
     }
-  } else {
-    if (traceUrl) {
-      if (hasPlaceholder) {
-        // Trace is not sharable, but has a URL and a placeholder. Upload the
-        // state and return the URL with the placeholder filled in.
-        // Trace is not sharable, but has a URL with no placeholder.
-        // Just upload the trace and create a permalink.
-        const result = confirm(
-          `Upload UI state and generate a permalink? ` +
-            `The state (not the trace) will be accessible by anybody with the permalink.`,
-        );
-
-        if (result) {
-          const hash = await createPermalink(trace, undefined);
-          const urlWithHash = traceUrl.replace(STATE_HASH_PLACEHOLDER, hash);
-          showModal({
-            title: 'Permalink',
-            content: m(CopyableLink, {url: urlWithHash}),
-          });
-        }
-      } else {
-        // Trace is not sharable, has a URL, but no placeholder.
-        showModal({
-          title: 'Cannot create permalink from external trace',
-          content: m(
-            '',
-            m(
-              'p',
-              'This trace was opened by an external site and as such cannot ' +
-                'be re-shared preserving the UI state. ',
-            ),
-            m('p', 'By using the URL below you can open this trace again.'),
-            m('p', 'Clicking will copy the URL into the clipboard.'),
-            m(CopyableLink, {url: traceUrl}),
-          ),
-        });
-      }
-    } else {
-      // Trace is not sharable and has no URL. Nothing we can do. Just tell the
-      // user.
-      showModal({
-        title: 'Cannot create permalink',
-        content: m(
+  } else if (traceUrl) {
+    // Not shareable, has a URL, but no placeholder.
+    showModal({
+      title: 'Cannot create permalink from external trace',
+      content: m(
+        '',
+        m(
           'p',
           'This trace was opened by an external site and as such cannot ' +
             'be re-shared preserving the UI state. ',
         ),
-      });
-    }
+        m('p', 'By using the URL below you can open this trace again.'),
+        m('p', 'Clicking will copy the URL into the clipboard.'),
+        m(CopyableLink, {url: traceUrl}),
+      ),
+    });
+  } else {
+    // Not shareable and has no URL. Nothing we can do. Just tell the user.
+    showModal({
+      title: 'Cannot create permalink',
+      content: m(
+        'p',
+        'This trace was opened by an external site and as such cannot ' +
+          'be re-shared preserving the UI state. ',
+      ),
+    });
   }
 }

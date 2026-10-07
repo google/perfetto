@@ -24,7 +24,7 @@ There are two way to get CPU frequency data:
    snapshot of the initial frequency.
 2. Polling sysfs by enabling the `linux.sys_stats` data source and setting
    `cpufreq_period_ms` to a value > 0. This will periodically poll
-   `/sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq` and record the
+   `/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq` and record the
    current value in the trace buffer. Works on both Intel and ARM-based
    platforms.
 
@@ -77,10 +77,6 @@ Known issues:
   it's possible that some CPU might not report any event, showing a gap on the
   left-hand side of the trace, or none at all. Perfetto doesn't currently record
   the initial cpu frequency when the trace is started.
-
-* Currently the UI doesn't render the cpufreq track if idle states (see below)
-  are not captured. This is a UI-only bug, data is recorded and query-able
-  through trace processor even if not displayed.
 
 ### UI
 

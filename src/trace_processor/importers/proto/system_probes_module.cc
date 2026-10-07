@@ -45,42 +45,37 @@ SystemProbesModule::SystemProbesModule(
 }
 
 ModuleResult SystemProbesModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t,
-    RefPtr<PacketSequenceStateGeneration>,
-    uint32_t field_id) {
-  switch (field_id) {
+    const TokenizePacketArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kSystemInfoFieldNumber:
-      parser_.ParseSystemInfo(decoder.system_info());
+      parser_.ParseSystemInfo(args.field.Cast<TracePacket::kSystemInfo>());
       return ModuleResult::Handled();
     case TracePacket::kCpuInfoFieldNumber:
-      parser_.ParseCpuInfo(decoder.cpu_info());
+      parser_.ParseCpuInfo(args.field.Cast<TracePacket::kCpuInfo>());
       return ModuleResult::Handled();
     case TracePacket::kGpuInfoFieldNumber:
-      parser_.ParseGpuInfo(decoder.gpu_info());
+      parser_.ParseGpuInfo(args.field.Cast<TracePacket::kGpuInfo>());
       return ModuleResult::Handled();
     case TracePacket::kInterruptInfoFieldNumber:
-      parser_.ParseInterruptInfo(decoder.interrupt_info());
+      parser_.ParseInterruptInfo(
+          args.field.Cast<TracePacket::kInterruptInfo>());
       return ModuleResult::Handled();
   }
   return ModuleResult::Ignored();
 }
 
-void SystemProbesModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
-    int64_t ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  switch (field_id) {
+void SystemProbesModule::ParseField(const ParseFieldArgs& args) {
+  switch (args.field.id()) {
     case TracePacket::kProcessTreeFieldNumber:
-      parser_.ParseProcessTree(ts, decoder.process_tree());
+      parser_.ParseProcessTree(args.ts,
+                               args.field.Cast<TracePacket::kProcessTree>());
       return;
     case TracePacket::kProcessStatsFieldNumber:
-      parser_.ParseProcessStats(ts, decoder.process_stats());
+      parser_.ParseProcessStats(args.ts,
+                                args.field.Cast<TracePacket::kProcessStats>());
       return;
     case TracePacket::kSysStatsFieldNumber:
-      parser_.ParseSysStats(ts, decoder.sys_stats());
+      parser_.ParseSysStats(args.ts, args.field.Cast<TracePacket::kSysStats>());
       return;
   }
 }

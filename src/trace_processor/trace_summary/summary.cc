@@ -912,7 +912,8 @@ base::Status Summarize(TraceProcessor* processor,
                 kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
                 ".perfetto.protos.TraceSummarySpec", "-",
                 std::string_view(reinterpret_cast<const char*>(specs[i].ptr),
-                                 specs[i].size)));
+                                 specs[i].size),
+                /*allow_unknown_fields=*/true));
         spec_decoders.emplace_back(synthetic_protos.back().data(),
                                    synthetic_protos.back().size());
         break;

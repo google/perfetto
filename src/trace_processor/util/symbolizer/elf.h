@@ -18,9 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_SYMBOLIZER_ELF_H_
 
 #include <stddef.h>
-#include <cinttypes>
-
-#include "perfetto/base/build_config.h"
+#include <stdint.h>
 
 // We cannot just include elf.h, as that only exists on Linux, and we want to
 // allow symbolization on other platforms as well. As we only need a small
@@ -30,22 +28,18 @@ namespace perfetto {
 namespace profiling {
 
 constexpr auto PT_LOAD = 1;
+constexpr auto PT_NOTE = 4;
 constexpr auto PF_X = 1;
 constexpr auto SHT_NOTE = 7;
 constexpr auto NT_GNU_BUILD_ID = 3;
 constexpr auto ELFCLASS32 = 1;
 constexpr auto ELFCLASS64 = 2;
-constexpr auto ELFMAG0 = 0x7f;
-constexpr auto ELFMAG1 = 'E';
-constexpr auto ELFMAG2 = 'L';
-constexpr auto ELFMAG3 = 'F';
+constexpr char kElfMagic[] =
+    "\x7f"
+    "ELF";
 constexpr auto ELFDATA2LSB = 1;
 constexpr auto EV_CURRENT = 1;
-constexpr auto EI_MAG0 = 0;
-constexpr auto EI_MAG1 = 1;
-constexpr auto EI_MAG2 = 2;
-constexpr auto EI_MAG3 = 3;
-constexpr auto EI_CLASS = 4;
+constexpr auto EI_CLASS = sizeof(kElfMagic) - 1;
 constexpr auto EI_DATA = 5;
 constexpr auto EI_VERSION = 6;
 

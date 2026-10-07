@@ -50,6 +50,7 @@ bool DataSourceBase::CanAdoptStartupSession(
   DataSourceConfig service_config_stripped = service_config;
 
   startup_config_stripped.set_target_buffer(0);
+  startup_config_stripped.set_supports_tracing_v2(false);
   startup_config_stripped.set_tracing_session_id(0);
   startup_config_stripped.set_session_initiator(
       DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
@@ -58,6 +59,7 @@ bool DataSourceBase::CanAdoptStartupSession(
   startup_config_stripped.set_enable_extra_guardrails(false);
 
   service_config_stripped.set_target_buffer(0);
+  service_config_stripped.set_supports_tracing_v2(false);
   service_config_stripped.set_tracing_session_id(0);
   service_config_stripped.set_session_initiator(
       DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
@@ -104,19 +106,13 @@ void DataSourceType::ClearIncrementalState(
     internal::DataSourceInstanceThreadLocalState* tls_inst,
     uint32_t instance_index,
     uint32_t actual_generation) {
-  if constexpr (
-      PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY) {
-    // Try to clear the existing state if we have a clear function and the
-    // state exists. This allows reusing allocated memory instead of
-    // destroying and recreating the state object.
-    void* incremental_state = tls_inst->incremental_state.get();
-    if (clear_incremental_state_fn_ && incremental_state &&
-        clear_incremental_state_fn_(incremental_state, user_arg_)) {
-      tls_inst->incremental_state_generation = actual_generation;
-    } else {
-      tls_inst->incremental_state.reset();
-      CreateIncrementalState(tls_inst, instance_index);
-    }
+  // Try to clear the existing state if we have a clear function and the
+  // state exists. This allows reusing allocated memory instead of
+  // destroying and recreating the state object.
+  void* incremental_state = tls_inst->incremental_state.get();
+  if (clear_incremental_state_fn_ && incremental_state &&
+      clear_incremental_state_fn_(incremental_state, user_arg_)) {
+    tls_inst->incremental_state_generation = actual_generation;
   } else {
     tls_inst->incremental_state.reset();
     CreateIncrementalState(tls_inst, instance_index);

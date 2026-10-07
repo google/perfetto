@@ -85,7 +85,8 @@ class Dom {
   bool IsInt() const { return std::holds_alternative<int64_t>(data_); }
   bool IsUint() const { return std::holds_alternative<uint64_t>(data_); }
   bool IsDouble() const { return std::holds_alternative<double>(data_); }
-  bool IsNumeric() const { return IsInt() || IsUint() || IsDouble(); }
+  bool IsIntegral() const { return IsInt() || IsUint(); }
+  bool IsNumeric() const { return IsIntegral() || IsDouble(); }
   bool IsString() const { return std::holds_alternative<std::string>(data_); }
   bool IsArray() const { return std::holds_alternative<Array>(data_); }
   bool IsObject() const { return std::holds_alternative<Object>(data_); }

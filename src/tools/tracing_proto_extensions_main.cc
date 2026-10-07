@@ -40,10 +40,10 @@ namespace {
 const char kUsage[] =
     R"(Usage: tracing_proto_extensions [options]
 
-Reads a track_event_extensions.json registry, compiles referenced .proto files,
+Reads an extensions.json registry, compiles referenced .proto files,
 validates extension field numbers, and generates a merged FileDescriptorSet.
 
--j, --json:            Path to the root track_event_extensions.json file.
+-j, --json:            Path to the root extensions.json file.
 -I, --proto_path:      Proto include directory (can be specified multiple times).
 -o, --descriptor-out:  Output path for the binary FileDescriptorSet.
     --gzip:            Gzip-compress the output.
@@ -53,12 +53,12 @@ validates extension field numbers, and generates a merged FileDescriptorSet.
 Example:
 
   tracing_proto_extensions \
-    --json protos/perfetto/trace/track_event/track_event_extensions.json \
+    --json protos/perfetto/trace/extensions.json \
     -I . \
     --descriptor-out /tmp/extensions.descriptor
 
   tracing_proto_extensions \
-    --json protos/perfetto/trace/track_event/track_event_extensions.json \
+    --json protos/perfetto/trace/extensions.json \
     -I . \
     --descriptor-out /tmp/extensions.descriptor.gz --gzip
 )";

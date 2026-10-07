@@ -22,7 +22,7 @@ import {
 import {Spinner} from '../../../widgets/spinner';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {
-  SchemaRegistry,
+  ColumnSchema,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
 import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
@@ -42,6 +42,9 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import type {HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 export interface ObjectParams {
   readonly id: number;
@@ -197,417 +200,405 @@ const METRIC_INFO: Record<string, string> = {
     'shortest-path tree. Includes objects also reachable via other paths.',
 };
 
-const SIZE_SCHEMA: SchemaRegistry = {
-  query: {
-    metric: {
-      title: 'Metric',
-      columnType: 'text',
-      cellRenderer: (value: SqlValue): CellRenderResult => {
-        const label = String(value ?? '');
-        const info = METRIC_INFO[label];
-        return {content: info ? colHeader(label, info) : label};
-      },
+const SIZE_SCHEMA: ColumnSchema = {
+  metric: {
+    title: 'Metric',
+    columnType: 'text',
+    cellRenderer: (value: SqlValue): CellRenderResult => {
+      const label = String(value ?? '');
+      const info = METRIC_INFO[label];
+      return {content: info ? colHeader(label, info) : label};
     },
-    java: {
-      title: 'Java',
-      columnType: 'quantitative',
-      cellRenderer: nullableSizeRenderer,
-    },
-    native: {
-      title: 'Native',
-      columnType: 'quantitative',
-      cellRenderer: nullableSizeRenderer,
-    },
-    count: {
-      title: 'Count',
-      columnType: 'quantitative',
-      cellRenderer: (value: SqlValue): CellRenderResult => {
-        if (value === null) {
-          return {
-            content: m(
-              'span',
-              {class: 'pf-hde-mono pf-hde-opacity-60'},
-              '\u2026',
-            ),
-            align: 'right',
-          };
-        }
+  },
+  java: {
+    title: 'Java',
+    columnType: 'quantitative',
+    cellRenderer: nullableSizeRenderer,
+  },
+  native: {
+    title: 'Native',
+    columnType: 'quantitative',
+    cellRenderer: nullableSizeRenderer,
+  },
+  count: {
+    title: 'Count',
+    columnType: 'quantitative',
+    cellRenderer: (value: SqlValue): CellRenderResult => {
+      if (value === null) {
         return {
           content: m(
             'span',
-            {class: 'pf-hde-mono'},
-            Number(value).toLocaleString(),
+            {class: 'pf-hde-mono pf-hde-opacity-60'},
+            '\u2026',
           ),
           align: 'right',
         };
-      },
+      }
+      return {
+        content: m(
+          'span',
+          {class: 'pf-hde-mono'},
+          Number(value).toLocaleString(),
+        ),
+        align: 'right',
+      };
     },
   },
 };
 
-function makeInstanceSchema(navigate: NavFn): SchemaRegistry {
+function makeInstanceSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      id: {
-        title: 'Object',
-        columnType: 'identifier',
-        cellRenderer: (value: SqlValue, row) => {
-          const id = Number(value);
-          const cls = String(row.cls ?? '');
-          const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-          const str = row.str != null ? String(row.str) : null;
-          return m('span', [
-            m(
-              'button',
-              {
-                class: 'pf-hde-link',
-                onclick: () =>
-                  navigate('object', {id, label: str ? `"${str}"` : display}),
-              },
-              display,
-            ),
-            str
-              ? m(
-                  'span',
-                  {class: 'pf-hde-str-badge'},
-                  ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
-                )
-              : null,
-          ]);
-        },
+    id: {
+      title: 'Object',
+      columnType: 'identifier',
+      cellRenderer: (value: SqlValue, row) => {
+        const id = Number(value);
+        const cls = String(row.cls ?? '');
+        const display = `${shortClassName(cls)} ${fmtHex(id)}`;
+        const str = row.str != null ? String(row.str) : null;
+        return m('span', [
+          m(
+            Anchor,
+            {
+              onclick: () =>
+                navigate('object', {id, label: str ? `"${str}"` : display}),
+            },
+            display,
+          ),
+          str
+            ? m(
+                'span',
+                {class: 'pf-hde-str-badge'},
+                ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
+              )
+            : null,
+        ]);
       },
-      self_size: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      native_size: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_count: {
-        title: colHeader('Retained #', COL_INFO.retainedCount),
-        titleString: 'Retained #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      reachable_size: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable Native', COL_INFO.reachableNative),
-        titleString: 'Reachable Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable #', COL_INFO.reachableCount),
-        titleString: 'Reachable #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      heap: {
-        title: 'Heap',
-        columnType: 'text',
-      },
-      cls: {
-        title: 'Class',
-        columnType: 'text',
-      },
-      str: {
-        title: 'String Value',
-        columnType: 'text',
-      },
+    },
+    self_size: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    native_size: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_count: {
+      title: colHeader('Retained #', COL_INFO.retainedCount),
+      titleString: 'Retained #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    reachable_size: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable Native', COL_INFO.reachableNative),
+      titleString: 'Reachable Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable #', COL_INFO.reachableCount),
+      titleString: 'Reachable #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    heap: {
+      title: 'Heap',
+      columnType: 'text',
+    },
+    cls: {
+      title: 'Class',
+      columnType: 'text',
+    },
+    str: {
+      title: 'String Value',
+      columnType: 'text',
     },
   };
 }
 
-function makeFieldSchema(navigate: NavFn): SchemaRegistry {
+function makeFieldSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      name: {
-        title: 'Name',
-        columnType: 'text',
-        cellRenderer: (value: SqlValue, row) => {
-          if (row.value_kind === 'ref' && row.ref_id !== null) {
-            return m(
-              'button',
-              {
-                class: 'pf-hde-link',
-                onclick: () =>
-                  navigate('object', {
-                    id: Number(row.ref_id),
-                    label: String(row.value_display ?? ''),
-                  }),
-              },
-              String(value),
-            );
-          }
-          return m('span', String(value ?? ''));
-        },
-      },
-      type_name: {
-        title: 'Type',
-        columnType: 'text',
-      },
-      value_display: {
-        title: 'Value',
-        columnType: 'text',
-        cellRenderer: (value: SqlValue, row) => {
-          if (row.value_kind === 'ref' && row.ref_id !== null) {
-            return m(PrimOrRefCell, {
-              v: {
-                kind: 'ref',
-                id: Number(row.ref_id),
-                display: String(value),
-                str: row.ref_str != null ? String(row.ref_str) : null,
-              },
-              navigate,
-            });
-          }
-          return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
-        },
-      },
-      shallow: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      shallow_native: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable Native', COL_INFO.reachableNative),
-        titleString: 'Reachable Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable #', COL_INFO.reachableCount),
-        titleString: 'Reachable #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      value_kind: {
-        title: 'Kind',
-        columnType: 'text',
-      },
-      ref_id: {
-        title: 'Ref ID',
-        columnType: 'identifier',
-      },
-      ref_str: {
-        title: 'Ref String',
-        columnType: 'text',
+    name: {
+      title: 'Name',
+      columnType: 'text',
+      cellRenderer: (value: SqlValue, row) => {
+        if (row.value_kind === 'ref' && row.ref_id !== null) {
+          return m(
+            Anchor,
+            {
+              onclick: () =>
+                navigate('object', {
+                  id: Number(row.ref_id),
+                  label: String(row.value_display ?? ''),
+                }),
+            },
+            String(value),
+          );
+        }
+        return m('span', String(value ?? ''));
       },
     },
-  };
-}
-
-function makeArraySchema(
-  navigate: NavFn,
-  elemTypeName: string,
-): SchemaRegistry {
-  return {
-    query: {
-      idx: {
-        title: 'Index',
-        columnType: 'quantitative',
-        cellRenderer: (value: SqlValue): CellRenderResult => ({
-          content: m('span', {class: 'pf-hde-mono'}, String(value ?? 0)),
-          align: 'right',
-        }),
-      },
-      value_display: {
-        title: `Value (${elemTypeName})`,
-        columnType: 'text',
-        cellRenderer: (value: SqlValue, row) => {
-          if (row.value_kind === 'ref' && row.ref_id !== null) {
-            return m(PrimOrRefCell, {
-              v: {
-                kind: 'ref',
-                id: Number(row.ref_id),
-                display: String(value),
-                str: row.ref_str != null ? String(row.ref_str) : null,
-              },
-              navigate,
-            });
-          }
-          return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
-        },
-      },
-      shallow: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      shallow_native: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable: {
-        title: colHeader('Reachable', COL_INFO.reachable),
-        titleString: 'Reachable',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_native: {
-        title: colHeader('Reachable Native', COL_INFO.reachableNative),
-        titleString: 'Reachable Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      reachable_count: {
-        title: colHeader('Reachable #', COL_INFO.reachableCount),
-        titleString: 'Reachable #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      value_kind: {
-        title: 'Kind',
-        columnType: 'text',
-      },
-      ref_id: {
-        title: 'Ref ID',
-        columnType: 'identifier',
-      },
-      ref_str: {
-        title: 'Ref String',
-        columnType: 'text',
-      },
+    type_name: {
+      title: 'Type',
+      columnType: 'text',
     },
-  };
-}
-
-function ObjectView(): m.Component<ObjectViewAttrs> {
-  let detail: InstanceDetail | null | 'loading' = 'loading';
-  let prevId: number | undefined;
-  let alive = true;
-  let fetchSeq = 0;
-
-  function fetchData(attrs: ObjectViewAttrs) {
-    detail = 'loading';
-    prevId = attrs.params.id;
-    const seq = ++fetchSeq;
-    queries
-      .getInstance(attrs.engine, attrs.activeDump, attrs.params.id)
-      .then((d) => {
-        if (!alive || seq !== fetchSeq) return;
-        detail = d;
-        m.redraw();
-        if (d) {
-          // Enrich all sections with reachable sizes asynchronously.
-          const enrichTasks: Promise<void>[] = [
-            queries.enrichWithReachable(attrs.engine, [d.row]),
-            queries.enrichWithReachable(attrs.engine, d.reverseRefs),
-            queries.enrichWithReachable(attrs.engine, d.dominated),
-          ];
-          if (d.isClassObj) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.staticFields),
-            );
-          }
-          if (d.isClassInstance && d.instanceFields.length > 0) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.instanceFields),
-            );
-          }
-          if (d.isArrayInstance) {
-            enrichTasks.push(
-              queries.enrichArrayElemsWithReachable(attrs.engine, d.arrayElems),
-            );
-          }
-          Promise.all(enrichTasks).then(() => {
-            if (alive && seq === fetchSeq) m.redraw();
+    value_display: {
+      title: 'Value',
+      columnType: 'text',
+      cellRenderer: (value: SqlValue, row) => {
+        if (row.value_kind === 'ref' && row.ref_id !== null) {
+          return m(PrimOrRefCell, {
+            v: {
+              kind: 'ref',
+              id: Number(row.ref_id),
+              display: String(value),
+              str: row.ref_str != null ? String(row.ref_str) : null,
+            },
+            navigate,
           });
         }
-      })
-      .catch((err) => {
-        console.error(err);
-        if (!alive || seq !== fetchSeq) return;
-        detail = null;
-        m.redraw();
-      });
+        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
+      },
+    },
+    shallow: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    shallow_native: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable Native', COL_INFO.reachableNative),
+      titleString: 'Reachable Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable #', COL_INFO.reachableCount),
+      titleString: 'Reachable #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    value_kind: {
+      title: 'Kind',
+      columnType: 'text',
+    },
+    ref_id: {
+      title: 'Ref ID',
+      columnType: 'identifier',
+    },
+    ref_str: {
+      title: 'Ref String',
+      columnType: 'text',
+    },
+  };
+}
+
+function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
+  return {
+    idx: {
+      title: 'Index',
+      columnType: 'quantitative',
+      cellRenderer: (value: SqlValue): CellRenderResult => ({
+        content: m('span', {class: 'pf-hde-mono'}, String(value ?? 0)),
+        align: 'right',
+      }),
+    },
+    value_display: {
+      title: `Value (${elemTypeName})`,
+      columnType: 'text',
+      cellRenderer: (value: SqlValue, row) => {
+        if (row.value_kind === 'ref' && row.ref_id !== null) {
+          return m(PrimOrRefCell, {
+            v: {
+              kind: 'ref',
+              id: Number(row.ref_id),
+              display: String(value),
+              str: row.ref_str != null ? String(row.ref_str) : null,
+            },
+            navigate,
+          });
+        }
+        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
+      },
+    },
+    shallow: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    shallow_native: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable: {
+      title: colHeader('Reachable', COL_INFO.reachable),
+      titleString: 'Reachable',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_native: {
+      title: colHeader('Reachable Native', COL_INFO.reachableNative),
+      titleString: 'Reachable Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    reachable_count: {
+      title: colHeader('Reachable #', COL_INFO.reachableCount),
+      titleString: 'Reachable #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    value_kind: {
+      title: 'Kind',
+      columnType: 'text',
+    },
+    ref_id: {
+      title: 'Ref ID',
+      columnType: 'identifier',
+    },
+    ref_str: {
+      title: 'Ref String',
+      columnType: 'text',
+    },
+  };
+}
+
+export function ObjectView(): m.Component<ObjectViewAttrs> {
+  const dataMemo = new AsyncMemo<InstanceDetail | undefined>();
+
+  async function enrichDetail(engine: Engine, d: InstanceDetail) {
+    // Enrich all sections with reachable sizes asynchronously.
+    const enrichTasks: Promise<void>[] = [
+      queries.enrichWithReachable(engine, [d.row]),
+      queries.enrichWithReachable(engine, d.reverseRefs),
+      queries.enrichWithReachable(engine, d.dominated),
+    ];
+    if (d.isClassObj) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.staticFields),
+      );
+    }
+    if (d.isClassInstance && d.instanceFields.length > 0) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.instanceFields),
+      );
+    }
+    if (d.isArrayInstance) {
+      enrichTasks.push(
+        queries.enrichArrayElemsWithReachable(engine, d.arrayElems),
+      );
+    }
+
+    await Promise.all(enrichTasks);
   }
 
   return {
-    oninit(vnode) {
-      fetchData(vnode.attrs);
-    },
-    onupdate(vnode) {
-      if (vnode.attrs.params.id !== prevId) {
-        fetchData(vnode.attrs);
-      }
-    },
     onremove() {
-      alive = false;
+      dataMemo.dispose();
     },
     view(vnode) {
       const {navigate, params} = vnode.attrs;
 
-      if (detail === 'loading') {
-        return m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true}));
+      const {isPending, data: detail} = dataMemo.use({
+        key: params.id,
+        compute: async () => {
+          const detail = await queries.getInstance(
+            vnode.attrs.engine,
+            vnode.attrs.activeDump,
+            params.id,
+          );
+          // TODO: Show intermediate state using multiple asynmemos
+          if (detail) await enrichDetail(vnode.attrs.engine, detail);
+          return detail;
+        },
+      });
+
+      if (isPending) {
+        return m(
+          DetailsShell,
+          {
+            title: `Object ${fmtHex(params.id)}`,
+            fillHeight: true,
+            className: 'pf-hde-tab--padded',
+          },
+          m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+        );
       }
+
       if (!detail) {
         return m(
-          'div',
-          {class: 'pf-hde-error-text'},
-          'No object with id ' + fmtHex(params.id),
+          DetailsShell,
+          {
+            title: `Object ${fmtHex(params.id)}`,
+            fillHeight: true,
+            className: 'pf-hde-tab--padded',
+          },
+          m(
+            'div',
+            {class: 'pf-hde-error-text'},
+            'No object with id ' + fmtHex(params.id),
+          ),
         );
       }
 
@@ -616,9 +607,8 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
       const flamegraphAction = (isDominator: boolean) =>
         row.className
           ? m(
-              'button',
+              Anchor,
               {
-                class: 'pf-hde-link',
                 title: isDominator
                   ? 'Open in Flamegraph pivoted on this dominator path'
                   : 'Open in Flamegraph pivoted on this shortest path',
@@ -635,331 +625,339 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
             )
           : null;
 
-      return m('div', {class: 'pf-hde-view-scroll pf-hde-view-stack'}, [
-        m('div', [
-          m(
-            'h2',
-            {class: 'pf-hde-view-heading pf-hde-view-heading--tight'},
-            'Object ' + fmtHex(row.id),
-          ),
+      return m(
+        DetailsShell,
+        {
+          title: 'Object ' + fmtHex(row.id),
+          fillHeight: true,
+          className: 'pf-hde-tab--padded',
+        },
+        m('div', {class: 'pf-hde-view-scroll pf-hde-view-stack'}, [
           m('div', {class: 'pf-hde-action-row'}, [
             m(InstanceLink, {row, navigate}),
           ]),
-        ]),
 
-        detail.bitmap
-          ? m(Section, {title: 'Bitmap Image'}, [
-              m(BitmapImage, {
-                width: detail.bitmap.width,
-                height: detail.bitmap.height,
-                format: detail.bitmap.format,
-                data: detail.bitmap.data,
-              }),
-              m('div', {class: 'pf-hde-bitmap-meta pf-hde-mt-1'}, [
-                m(
-                  'span',
-                  detail.bitmap.width +
-                    ' x ' +
-                    detail.bitmap.height +
-                    ' px (' +
-                    detail.bitmap.format.toUpperCase() +
-                    ')',
-                ),
-                m(
-                  'button',
-                  {
-                    class: 'pf-hde-download-link',
-                    onclick: () => {
-                      if (
-                        detail === null ||
-                        detail === 'loading' ||
-                        detail.bitmap === null
-                      ) {
-                        return;
-                      }
-                      const ext = detail.bitmap.format;
-                      downloadBlob(
-                        `bitmap-${fmtHex(row.id)}.${ext}`,
-                        detail.bitmap.data,
-                      );
-                    },
-                  },
-                  'Download image',
-                ),
-              ]),
-            ])
-          : null,
-
-        m(
-          Section,
-          {
-            title: 'Shortest Path from GC Root',
-            actions: detail.shortestPath ? flamegraphAction(false) : null,
-          },
-          detail.shortestPath
-            ? m(
-                'div',
-                {class: 'pf-hde-view-stack--tight'},
-                detail.shortestPath.map((pe, i) =>
+          detail.bitmap
+            ? m(Section, {title: 'Bitmap Image'}, [
+                m(BitmapImage, {
+                  width: detail.bitmap.width,
+                  height: detail.bitmap.height,
+                  format: detail.bitmap.format,
+                  data: detail.bitmap.data,
+                }),
+                m('div', {class: 'pf-hde-bitmap-meta pf-hde-mt-1'}, [
                   m(
-                    'div',
-                    {
-                      key: i,
-                      class: 'pf-hde-path-entry',
-                      style: {'--pf-hde-depth': String(i)},
-                    },
-                    [
-                      m(
-                        'span',
-                        {class: 'pf-hde-path-arrow'},
-                        i === 0 ? '' : '\u2192',
-                      ),
-                      m(InstanceLink, {row: pe.row, navigate}),
-                      pe.field
-                        ? m('span', {class: 'pf-hde-path-field'}, pe.field)
-                        : null,
-                    ],
+                    'span',
+                    detail.bitmap.width +
+                      ' x ' +
+                      detail.bitmap.height +
+                      ' px (' +
+                      detail.bitmap.format.toUpperCase() +
+                      ')',
                   ),
-                ),
-              )
-            : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
-        ),
-
-        m(
-          Section,
-          {
-            title: 'Dominator Tree Path',
-            actions: detail.dominatorPath ? flamegraphAction(true) : null,
-          },
-          detail.dominatorPath
-            ? m(
-                'div',
-                {class: 'pf-hde-view-stack--tight'},
-                detail.dominatorPath.map((pe, i) =>
                   m(
-                    'div',
+                    Anchor,
                     {
-                      key: i,
-                      class: `pf-hde-path-entry${pe.isDominator ? ' pf-hde-semibold' : ''}`,
-                      style: {'--pf-hde-depth': String(i)},
+                      class: 'pf-hde-download-link',
+                      onclick: () => {
+                        if (detail.bitmap === null) return;
+                        const ext = detail.bitmap.format;
+                        downloadBlob(
+                          `bitmap-${fmtHex(row.id)}.${ext}`,
+                          detail.bitmap.data,
+                        );
+                      },
                     },
-                    [
-                      m(
-                        'span',
-                        {class: 'pf-hde-path-arrow'},
-                        i === 0 ? '' : '\u2192',
-                      ),
-                      m(InstanceLink, {row: pe.row, navigate}),
-                      pe.field
-                        ? m('span', {class: 'pf-hde-path-field'}, pe.field)
-                        : null,
-                    ],
+                    'Download image',
                   ),
-                ),
-              )
-            : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
-        ),
+                ]),
+              ])
+            : null,
 
-        m(Section, {title: 'Object Info'}, [
-          m('div', {class: 'pf-hde-info-grid'}, [
-            m('span', {class: 'pf-hde-info-grid__label'}, 'Class:'),
-            m(
-              'span',
-              detail.classObjRow
-                ? m(InstanceLink, {
-                    row: detail.classObjRow,
-                    navigate,
-                  })
-                : '???',
-            ),
-            m('span', {class: 'pf-hde-info-grid__label'}, 'Heap:'),
-            m('span', row.heap),
-            ...(row.isRoot
-              ? [
-                  m('span', {class: 'pf-hde-info-grid__label'}, 'Root Types:'),
-                  m('span', row.rootTypeNames?.join(', ')),
-                ]
-              : []),
+          m(
+            Section,
+            {
+              title: 'Shortest Path from GC Root',
+              actions: detail.shortestPath ? flamegraphAction(false) : null,
+            },
+            detail.shortestPath
+              ? m(
+                  'div',
+                  {class: 'pf-hde-view-stack--tight'},
+                  detail.shortestPath.map((pe, i) =>
+                    m(
+                      'div',
+                      {
+                        key: i,
+                        class: 'pf-hde-path-entry',
+                        style: {'--pf-hde-depth': String(i)},
+                      },
+                      [
+                        m(
+                          'span',
+                          {class: 'pf-hde-path-arrow'},
+                          i === 0 ? '' : '\u2192',
+                        ),
+                        m(InstanceLink, {row: pe.row, navigate}),
+                        pe.field
+                          ? m('span', {class: 'pf-hde-path-field'}, pe.field)
+                          : null,
+                      ],
+                    ),
+                  ),
+                )
+              : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
+          ),
+
+          m(
+            Section,
+            {
+              title: 'Dominator Tree Path',
+              actions: detail.dominatorPath ? flamegraphAction(true) : null,
+            },
+            detail.dominatorPath
+              ? m(
+                  'div',
+                  {class: 'pf-hde-view-stack--tight'},
+                  detail.dominatorPath.map((pe, i) =>
+                    m(
+                      'div',
+                      {
+                        key: i,
+                        class: `pf-hde-path-entry${pe.isDominator ? ' pf-hde-semibold' : ''}`,
+                        style: {'--pf-hde-depth': String(i)},
+                      },
+                      [
+                        m(
+                          'span',
+                          {class: 'pf-hde-path-arrow'},
+                          i === 0 ? '' : '\u2192',
+                        ),
+                        m(InstanceLink, {row: pe.row, navigate}),
+                        pe.field
+                          ? m('span', {class: 'pf-hde-path-field'}, pe.field)
+                          : null,
+                      ],
+                    ),
+                  ),
+                )
+              : m('p', {class: 'pf-hde-muted'}, 'No path to GC root.'),
+          ),
+
+          m(Section, {title: 'Object Info'}, [
+            m('div', {class: 'pf-hde-info-grid'}, [
+              m('span', {class: 'pf-hde-info-grid__label'}, 'Class:'),
+              m(
+                'span',
+                detail.classObjRow
+                  ? m(InstanceLink, {
+                      row: detail.classObjRow,
+                      navigate,
+                    })
+                  : '???',
+              ),
+              m('span', {class: 'pf-hde-info-grid__label'}, 'Heap:'),
+              m('span', row.heap),
+              ...(row.isRoot
+                ? [
+                    m(
+                      'span',
+                      {class: 'pf-hde-info-grid__label'},
+                      'Root Types:',
+                    ),
+                    m('span', row.rootTypeNames?.join(', ')),
+                  ]
+                : []),
+            ]),
           ]),
+
+          m(
+            Section,
+            {title: 'Object Size'},
+            (() => {
+              let retainedJava = 0;
+              let retainedNative = 0;
+              for (const h of row.retainedByHeap) {
+                retainedJava += h.java;
+                retainedNative += h.native_;
+              }
+              const sizeRows: Row[] = [
+                {
+                  metric: 'Shallow',
+                  java: row.shallowJava,
+                  native: row.shallowNative,
+                  count: 1,
+                },
+                {
+                  metric: 'Retained',
+                  java: retainedJava,
+                  native: retainedNative,
+                  count: row.retainedCount,
+                },
+                {
+                  metric: 'Reachable',
+                  java: row.reachableSize,
+                  native: row.reachableNative,
+                  count: row.reachableCount,
+                },
+              ];
+              return m(DataGrid, {
+                schema: SIZE_SCHEMA,
+                data: sizeRows,
+                initialColumns: [
+                  {id: 'metric', field: 'metric'},
+                  {id: 'java', field: 'java'},
+                  {id: 'native', field: 'native'},
+                  {id: 'count', field: 'count'},
+                ],
+              });
+            })(),
+          ),
+
+          detail.isClassObj
+            ? m(Section, {title: 'Class Info'}, [
+                m('div', {class: 'pf-hde-info-grid pf-hde-mb-3'}, [
+                  m(
+                    'span',
+                    {class: 'pf-hde-info-grid__label'},
+                    'Instance Size:',
+                  ),
+                  m(
+                    'span',
+                    {class: 'pf-hde-mono'},
+                    String(detail.instanceSize),
+                  ),
+                ]),
+              ])
+            : null,
+
+          detail.classHierarchy.length > 0
+            ? m(
+                Section,
+                {title: 'Class Hierarchy'},
+                renderClassHierarchy(detail.classHierarchy, navigate),
+              )
+            : null,
+
+          detail.isClassObj
+            ? m(
+                Section,
+                {title: 'Static Fields'},
+                renderFieldsGrid(detail.staticFields, navigate),
+              )
+            : null,
+
+          detail.isClassInstance
+            ? m(
+                Section,
+                {title: 'Fields'},
+                detail.instanceFields.length > 0
+                  ? renderFieldsGrid(detail.instanceFields, navigate)
+                  : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
+              )
+            : null,
+
+          detail.isArrayInstance
+            ? m(
+                Section,
+                {title: `Array Elements (${detail.arrayLength})`},
+                renderArrayGrid(
+                  detail.arrayElems,
+                  detail.elemTypeName ?? 'Object',
+                  navigate,
+                  detail.elemTypeName === 'byte'
+                    ? () => {
+                        queries
+                          .getRawArrayBlob(vnode.attrs.engine, params.id)
+                          .then((blob) => {
+                            if (blob !== null) {
+                              downloadBlob(
+                                `array-${fmtHex(params.id)}.bin`,
+                                blob,
+                              );
+                            }
+                          })
+                          .catch(console.error);
+                      }
+                    : undefined,
+                ),
+              )
+            : null,
+
+          m(
+            Section,
+            {
+              title:
+                detail.reverseRefs.length > 0
+                  ? `Objects with References to this Object (${detail.reverseRefs.length})`
+                  : 'Objects with References to this Object',
+              defaultOpen:
+                detail.reverseRefs.length > 0 && detail.reverseRefs.length < 50,
+            },
+            detail.reverseRefs.length > 0
+              ? m(DataGrid, {
+                  schema: makeInstanceSchema(navigate),
+                  data: detail.reverseRefs.map(instanceRowToRow),
+                  initialColumns: [
+                    {id: 'id', field: 'id'},
+                    {id: 'cls', field: 'cls'},
+                    {id: 'str', field: 'str'},
+                    {id: 'self_size', field: 'self_size'},
+                    {id: 'native_size', field: 'native_size'},
+                    {id: 'retained', field: 'retained'},
+                    {id: 'retained_native', field: 'retained_native'},
+                    {id: 'retained_count', field: 'retained_count'},
+                    {id: 'reachable_size', field: 'reachable_size'},
+                    {id: 'reachable_native', field: 'reachable_native'},
+                    {id: 'reachable_count', field: 'reachable_count'},
+                  ],
+                  showExportButton: true,
+                })
+              : m(
+                  'p',
+                  {class: 'pf-hde-muted'},
+                  'No references to this object.',
+                ),
+          ),
+
+          m(
+            Section,
+            {
+              title:
+                detail.dominated.length > 0
+                  ? `Immediately Dominated Objects (${detail.dominated.length})`
+                  : 'Immediately Dominated Objects',
+              defaultOpen:
+                detail.dominated.length > 0 && detail.dominated.length < 50,
+            },
+            detail.dominated.length > 0
+              ? m(DataGrid, {
+                  schema: makeInstanceSchema(navigate),
+                  data: detail.dominated.map(instanceRowToRow),
+                  initialColumns: [
+                    {id: 'id', field: 'id'},
+                    {id: 'cls', field: 'cls'},
+                    {id: 'str', field: 'str'},
+                    {id: 'self_size', field: 'self_size'},
+                    {id: 'native_size', field: 'native_size'},
+                    {id: 'retained', field: 'retained'},
+                    {id: 'retained_native', field: 'retained_native'},
+                    {id: 'retained_count', field: 'retained_count'},
+                    {id: 'reachable_size', field: 'reachable_size'},
+                    {id: 'reachable_native', field: 'reachable_native'},
+                    {id: 'reachable_count', field: 'reachable_count'},
+                    {id: 'heap', field: 'heap'},
+                  ],
+                  showExportButton: true,
+                })
+              : m(
+                  'p',
+                  {class: 'pf-hde-muted'},
+                  'No immediately dominated objects.',
+                ),
+          ),
         ]),
-
-        m(
-          Section,
-          {title: 'Object Size'},
-          (() => {
-            let retainedJava = 0;
-            let retainedNative = 0;
-            for (const h of row.retainedByHeap) {
-              retainedJava += h.java;
-              retainedNative += h.native_;
-            }
-            const sizeRows: Row[] = [
-              {
-                metric: 'Shallow',
-                java: row.shallowJava,
-                native: row.shallowNative,
-                count: 1,
-              },
-              {
-                metric: 'Retained',
-                java: retainedJava,
-                native: retainedNative,
-                count: row.retainedCount,
-              },
-              {
-                metric: 'Reachable',
-                java: row.reachableSize,
-                native: row.reachableNative,
-                count: row.reachableCount,
-              },
-            ];
-            return m(DataGrid, {
-              schema: SIZE_SCHEMA,
-              rootSchema: 'query',
-              data: sizeRows,
-              initialColumns: [
-                {id: 'metric', field: 'metric'},
-                {id: 'java', field: 'java'},
-                {id: 'native', field: 'native'},
-                {id: 'count', field: 'count'},
-              ],
-            });
-          })(),
-        ),
-
-        detail.isClassObj
-          ? m(Section, {title: 'Class Info'}, [
-              m('div', {class: 'pf-hde-info-grid pf-hde-mb-3'}, [
-                m('span', {class: 'pf-hde-info-grid__label'}, 'Instance Size:'),
-                m('span', {class: 'pf-hde-mono'}, String(detail.instanceSize)),
-              ]),
-            ])
-          : null,
-
-        detail.classHierarchy.length > 0
-          ? m(
-              Section,
-              {title: 'Class Hierarchy'},
-              renderClassHierarchy(detail.classHierarchy, navigate),
-            )
-          : null,
-
-        detail.isClassObj
-          ? m(
-              Section,
-              {title: 'Static Fields'},
-              renderFieldsGrid(detail.staticFields, navigate),
-            )
-          : null,
-
-        detail.isClassInstance
-          ? m(
-              Section,
-              {title: 'Fields'},
-              detail.instanceFields.length > 0
-                ? renderFieldsGrid(detail.instanceFields, navigate)
-                : m('p', {class: 'pf-hde-muted'}, 'No instance fields.'),
-            )
-          : null,
-
-        detail.isArrayInstance
-          ? m(
-              Section,
-              {title: `Array Elements (${detail.arrayLength})`},
-              renderArrayGrid(
-                detail.arrayElems,
-                detail.elemTypeName ?? 'Object',
-                navigate,
-                detail.elemTypeName === 'byte'
-                  ? () => {
-                      queries
-                        .getRawArrayBlob(vnode.attrs.engine, params.id)
-                        .then((blob) => {
-                          if (blob !== null) {
-                            downloadBlob(
-                              `array-${fmtHex(params.id)}.bin`,
-                              blob,
-                            );
-                          }
-                        })
-                        .catch(console.error);
-                    }
-                  : undefined,
-              ),
-            )
-          : null,
-
-        m(
-          Section,
-          {
-            title:
-              detail.reverseRefs.length > 0
-                ? `Objects with References to this Object (${detail.reverseRefs.length})`
-                : 'Objects with References to this Object',
-            defaultOpen:
-              detail.reverseRefs.length > 0 && detail.reverseRefs.length < 50,
-          },
-          detail.reverseRefs.length > 0
-            ? m(DataGrid, {
-                schema: makeInstanceSchema(navigate),
-                rootSchema: 'query',
-                data: detail.reverseRefs.map(instanceRowToRow),
-                initialColumns: [
-                  {id: 'id', field: 'id'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'str', field: 'str'},
-                  {id: 'self_size', field: 'self_size'},
-                  {id: 'native_size', field: 'native_size'},
-                  {id: 'retained', field: 'retained'},
-                  {id: 'retained_native', field: 'retained_native'},
-                  {id: 'retained_count', field: 'retained_count'},
-                  {id: 'reachable_size', field: 'reachable_size'},
-                  {id: 'reachable_native', field: 'reachable_native'},
-                  {id: 'reachable_count', field: 'reachable_count'},
-                ],
-                showExportButton: true,
-              })
-            : m('p', {class: 'pf-hde-muted'}, 'No references to this object.'),
-        ),
-
-        m(
-          Section,
-          {
-            title:
-              detail.dominated.length > 0
-                ? `Immediately Dominated Objects (${detail.dominated.length})`
-                : 'Immediately Dominated Objects',
-            defaultOpen:
-              detail.dominated.length > 0 && detail.dominated.length < 50,
-          },
-          detail.dominated.length > 0
-            ? m(DataGrid, {
-                schema: makeInstanceSchema(navigate),
-                rootSchema: 'query',
-                data: detail.dominated.map(instanceRowToRow),
-                initialColumns: [
-                  {id: 'id', field: 'id'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'str', field: 'str'},
-                  {id: 'self_size', field: 'self_size'},
-                  {id: 'native_size', field: 'native_size'},
-                  {id: 'retained', field: 'retained'},
-                  {id: 'retained_native', field: 'retained_native'},
-                  {id: 'retained_count', field: 'retained_count'},
-                  {id: 'reachable_size', field: 'reachable_size'},
-                  {id: 'reachable_native', field: 'reachable_native'},
-                  {id: 'reachable_count', field: 'reachable_count'},
-                  {id: 'heap', field: 'heap'},
-                ],
-                showExportButton: true,
-              })
-            : m(
-                'p',
-                {class: 'pf-hde-muted'},
-                'No immediately dominated objects.',
-              ),
-        ),
-      ]);
+      );
     },
   };
 }
@@ -970,7 +968,6 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
   }
   return m(DataGrid, {
     schema: makeFieldSchema(navigate),
-    rootSchema: 'query',
     data: fields.map(fieldRowToRow),
     initialColumns: [
       {id: 'type_name', field: 'type_name'},
@@ -1013,14 +1010,14 @@ function renderArrayGrid(
       ? m('div', {class: 'pf-hde-action-row pf-hde-mb-2'}, [
           onDownloadBytes
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: onDownloadBytes},
                 'Download bytes',
               )
             : null,
           elems.length > 0
             ? m(
-                'button',
+                Anchor,
                 {class: 'pf-hde-download-link', onclick: copyTsv},
                 'Copy as TSV',
               )
@@ -1029,7 +1026,6 @@ function renderArrayGrid(
       : null,
     m(DataGrid, {
       schema: makeArraySchema(navigate, elemTypeName),
-      rootSchema: 'query',
       data: elems.map((e) => arrayElemToRow(e, elemTypeName)),
       initialColumns: [
         {id: 'idx', field: 'idx'},
@@ -1089,9 +1085,8 @@ function subclassFilterTarget(className: string): string {
 
 function classFilterLink(className: string, navigate: NavFn): m.Child {
   return m(
-    'button',
+    Anchor,
     {
-      class: 'pf-hde-link',
       title: 'Open subclasses of this class',
       onclick: () =>
         navigate('classes', {rootClass: subclassFilterTarget(className)}),
@@ -1124,5 +1119,3 @@ function renderClassHierarchy(
     ),
   );
 }
-
-export default ObjectView;

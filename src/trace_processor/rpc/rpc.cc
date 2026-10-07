@@ -30,14 +30,21 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
 
@@ -45,6 +52,26 @@
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto::trace_processor {
+
+// Takes ownership of a Stream's responses and hands them to the transport's
+// RpcResponseFunction one slice at a time.
+class Rpc::Outbox {
+ public:
+  explicit Outbox(RpcResponseFunction response_fn)
+      : response_fn_(std::move(response_fn)) {}
+
+  void Send(std::vector<protozero::ScatteredHeapBuffer::Slice> slices) {
+    for (const auto& slice : slices) {
+      auto range = slice.GetUsedRange();
+      response_fn_(range.begin, static_cast<uint32_t>(range.size()));
+    }
+  }
+
+  void Close() { response_fn_(nullptr, 0); }
+
+ private:
+  RpcResponseFunction response_fn_;
+};
 
 namespace {
 // Writes a "Loading trace ..." update every N bytes.
@@ -59,17 +86,15 @@ constexpr auto kSliceSize =
     QueryResultSerializer::kDefaultBatchSplitThreshold + 4096;
 
 // Holds a trace_processor::TraceProcessorRpc pbzero message. Avoids extra
-// copies by doing direct scattered calls from the fragmented heap buffer onto
-// the RpcResponseFunction (the receiver is expected to deal with arbitrary
-// fragmentation anyways). It also takes care of prefixing each message with
-// the proto preamble and varint size.
+// copies by handing the fragmented heap buffer itself to the Outbox. It also
+// takes care of prefixing each message with the proto preamble and varint size.
 class Response {
  public:
   Response(int64_t seq, int method);
   Response(const Response&) = delete;
   Response& operator=(const Response&) = delete;
   RpcProto* operator->() { return msg_; }
-  void Send(Rpc::RpcResponseFunction);
+  void Send(Rpc::Outbox&);
 
  private:
   RpcProto* msg_ = nullptr;
@@ -88,21 +113,128 @@ Response::Response(int64_t seq, int method) : buf_(kSliceSize, kSliceSize) {
   msg_->set_response(static_cast<RpcProto::TraceProcessorMethod>(method));
 }
 
-void Response::Send(Rpc::RpcResponseFunction send_fn) {
-  buf_->Finalize();
-  for (const auto& slice : buf_.GetSlices()) {
-    auto range = slice.GetUsedRange();
-    send_fn(range.begin, static_cast<uint32_t>(range.size()));
+void Response::Send(Rpc::Outbox& outbox) {
+  outbox.Send(buf_.TakeSlices());
+}
+
+// Statement-cursor metadata stamped on the first message of a
+// TPM_STATEMENT_STREAMING response; null for TPM_QUERY_STREAMING.
+struct StatementStreamHeader {
+  uint32_t tail_offset = 0;
+  bool statement_executed = false;
+};
+
+// Emits the StatementResult envelope of a TPM_STATEMENT_STREAMING reply,
+// stamping the cursor metadata when |header| is non-null. The single place
+// where the cursor fields are written.
+protos::pbzero::QueryResult* SetStatementResult(
+    Response& resp,
+    const StatementStreamHeader* header) {
+  auto* stmt_res = resp->set_statement_result();
+  if (header) {
+    stmt_res->set_tail_offset(header->tail_offset);
+    stmt_res->set_statement_executed(header->statement_executed);
+  }
+  return stmt_res->set_result();
+}
+
+// Returns the QueryResult submessage of |resp| for the endpoint being served:
+// the bare query_result for TPM_QUERY_STREAMING (|header| == nullptr) or the
+// one nested in a StatementResult for TPM_STATEMENT_STREAMING, stamping
+// |header| on the first message of the stream.
+protos::pbzero::QueryResult* SetResult(Response& resp,
+                                       const StatementStreamHeader* header,
+                                       bool first_message) {
+  if (!header)
+    return resp->set_query_result();
+  return SetStatementResult(resp, first_message ? header : nullptr);
+}
+
+// Streams every message of |serializer|'s result through |outbox|, one
+// Response per message. Shared tail of TPM_QUERY_STREAMING and
+// TPM_STATEMENT_STREAMING.
+PERFETTO_NO_INLINE void StreamSerializerResponses(
+    QueryResultSerializer* serializer,
+    int req_type,
+    int64_t* tx_seq_id,
+    Rpc::Outbox& outbox,
+    const StatementStreamHeader* header) {
+  for (bool has_more = true, first = true; has_more; first = false) {
+    const int64_t seq_id = (*tx_seq_id)++;
+    Response resp(seq_id, req_type);
+    has_more = serializer->Serialize(SetResult(resp, header, first));
+    const uint32_t resp_size = resp->Finalize();
+    if (resp_size < protozero::proto_utils::kMaxMessageLength) {
+      // This is the nominal case.
+      resp.Send(outbox);
+      continue;
+    }
+    // In rare cases a query can end up with a batch which is too big.
+    // Normally batches are automatically split before hitting the limit,
+    // but one can come up with a query where a single cell is > 256MB.
+    // If this happens, just bail out gracefully rather than creating an
+    // unparsable proto which will cause a RPC framing error.
+    // If we hit this, we have to discard `resp` because it's
+    // unavoidably broken (due to have overflown the 4-bytes size) and
+    // can't be parsed. Instead create a new response with the error.
+    Response err_resp(seq_id, req_type);
+    auto* qres = SetResult(err_resp, header, first);
+    qres->add_batch()->set_is_last_batch(true);
+    qres->set_error("The query ended up with a response that is too big (" +
+                    std::to_string(resp_size) +
+                    " bytes). This usually happens when a single row is >= 256 "
+                    "MiB. Consider writing large values to a file instead.");
+    err_resp.Send(outbox);
+    break;
   }
 }
+
+// Sends the single-message TPM_STATEMENT_STREAMING replies which don't stream
+// a result set: errors detected before execution (|error| != nullptr) and the
+// no-statement-left case (|header| with statement_executed == false).
+PERFETTO_NO_INLINE void SendSingleStatementResponse(
+    int req_type,
+    int64_t* tx_seq_id,
+    Rpc::Outbox& outbox,
+    const StatementStreamHeader* header,
+    const char* error) {
+  Response resp((*tx_seq_id)++, req_type);
+  auto* qres = SetStatementResult(resp, header);
+  if (error)
+    qres->set_error(error);
+  qres->add_batch()->set_is_last_batch(true);
+  resp.Send(outbox);
+}
+
+class RpcExportOutput : public TraceProcessor::ExportOutput {
+ public:
+  // |path|, when provided, makes the export write to that file instead of
+  // streaming through Write().
+  explicit RpcExportOutput(const Rpc::ExportCallback& callback,
+                           std::optional<std::string> path = std::nullopt)
+      : callback_(callback), path_(std::move(path)) {}
+
+  base::Status Write(const void* data, size_t size) override {
+    return callback_(static_cast<const uint8_t*>(data), size,
+                     /*has_more=*/true);
+  }
+
+  std::optional<std::string> GetFilePath() const override { return path_; }
+
+ private:
+  const Rpc::ExportCallback& callback_;
+  std::optional<std::string> path_;
+};
 
 }  // namespace
 
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
          bool has_preloaded_eof,
          Config default_config,
+         TraceProcessor::PlatformInterface* platform,
          std::function<void(TraceProcessor*)> on_trace_processor_created)
     : default_config_(default_config),
+      platform_(platform),
       on_trace_processor_created_(std::move(on_trace_processor_created)),
       current_config_(std::move(default_config)),
       trace_processor_(std::move(preloaded_instance)),
@@ -112,7 +244,7 @@ Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
   }
 }
 
-Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
+Rpc::Rpc() : Rpc(nullptr, false, Config(), nullptr, {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
@@ -124,32 +256,80 @@ void Rpc::ResetTraceProcessorInternal(const Config& config) {
   // hold pointers to it.
   summarizers_.Clear();
 
-  trace_processor_ = TraceProcessor::CreateInstance(config);
+  trace_processor_ = TraceProcessor::CreateInstance(config, platform_);
   if (on_trace_processor_created_) {
     on_trace_processor_created_(trace_processor_.get());
   }
 
-  // Deliberately not resetting the RPC channel state (rxbuf_, {tx,rx}_seq_id_).
+  // Deliberately not touching the RPC channel state: the Streams' tokenizers
+  // and Rpc's own {tx,rx} sequence ids.
   // This is invoked from the same client to clear the current trace state
   // before loading a new one. The IPC channel is orthogonal to that and the
   // message numbering continues regardless of the reset.
 }
 
-void Rpc::OnRpcRequest(const void* data, size_t len) {
-  rxbuf_.Append(data, len);
+Rpc::Stream::Stream(Rpc& rpc, RpcResponseFunction response_fn)
+    : rpc_(rpc), outbox_(std::make_unique<Outbox>(std::move(response_fn))) {}
+
+Rpc::Stream::~Stream() = default;
+
+Rpc::RequestHandle::~RequestHandle() {
+  PERFETTO_CHECK(stream_ == nullptr);
+}
+
+Rpc::RequestHandle::RequestHandle(RequestHandle&& other) noexcept
+    : stream_(other.stream_), write_(std::move(other.write_)) {
+  other.stream_ = nullptr;
+}
+
+Rpc::RequestHandle& Rpc::RequestHandle::operator=(
+    RequestHandle&& other) noexcept {
+  this->~RequestHandle();  // CHECKs that any reservation held was consumed.
+  new (this) RequestHandle(std::move(other));
+  return *this;
+}
+
+void Rpc::RequestHandle::EndRequest(size_t size_written) {
+  PERFETTO_CHECK(stream_ != nullptr);
+  Stream* stream = std::exchange(stream_, nullptr);
+  write_.EndWrite(size_written);
+  stream->FinishRequest();
+  stream->rpc_.DrainStream(*stream);
+}
+
+void Rpc::RequestHandle::AbortRequest() {
+  PERFETTO_CHECK(stream_ != nullptr);
+  write_.AbortWrite();
+  std::exchange(stream_, nullptr)->FinishRequest();
+}
+
+Rpc::RequestHandle Rpc::Stream::BeginRequest(size_t size) {
+  // The handle keeps the caller from losing a reservation, but not from
+  // holding two at once. The ring buffer has the same guard for its own
+  // handles; this one is here so the CHECK fires at the Stream API boundary.
+  PERFETTO_CHECK(!request_in_flight_);
+  request_in_flight_ = true;
+  return RequestHandle(this, rxbuf_.BeginWrite(size));
+}
+
+void Rpc::Stream::FinishRequest() {
+  PERFETTO_CHECK(request_in_flight_);
+  request_in_flight_ = false;
+}
+
+void Rpc::DrainStream(Stream& stream) {
   for (;;) {
-    auto msg = rxbuf_.ReadMessage();
+    auto msg = stream.rxbuf_.ReadMessage();
     if (!msg.valid()) {
-      if (msg.fatal_framing_error) {
+      if (msg.fatal_framing_error()) {
         protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
         err_msg->add_msg()->set_fatal_error("RPC framing error");
-        auto err = err_msg.SerializeAsArray();
-        rpc_response_fn_(err.data(), static_cast<uint32_t>(err.size()));
-        rpc_response_fn_(nullptr, 0);  // Disconnect.
+        stream.outbox_->Send(err_msg.TakeSlices());
+        stream.outbox_->Close();
       }
       break;
     }
-    ParseRpcRequest(msg.start, msg.len);
+    ParseRpcRequest(*stream.outbox_, std::move(msg));
   }
 }
 
@@ -186,8 +366,11 @@ TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
 
 // [data, len] here is a tokenized TraceProcessorRpc proto message, without the
 // size header.
-void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
-  RpcProto::Decoder req(data, len);
+void Rpc::ParseRpcRequest(Outbox& outbox,
+                          protozero::ProtoRingBuffer::Message message) {
+  RpcProto::Decoder req(message.data(), message.size());
+  // Captured up front: TPM_APPEND_TRACE_DATA hands |message| to the parser.
+  const size_t len = message.size();
 
   // We allow restarting the sequence from 0. This happens when refreshing the
   // browser while using the external trace_processor_shell --httpd.
@@ -201,9 +384,8 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     PERFETTO_ELOG("%s", err_str);
     protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
     err_msg->add_msg()->set_fatal_error(err_str);
-    auto err = err_msg.SerializeAsArray();
-    rpc_response_fn_(err.data(), static_cast<uint32_t>(err.size()));
-    rpc_response_fn_(nullptr, 0);  // Disconnect.
+    outbox.Send(err_msg.TakeSlices());
+    outbox.Close();
     return;
   }
   rx_seq_id_ = req.seq();
@@ -219,12 +401,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         result->set_error(kErrFieldNotSet);
       } else {
         protozero::ConstBytes byte_range = req.append_trace_data();
-        base::Status res = Parse(byte_range.data, byte_range.size);
+        base::Status res = Parse(TraceBlobView(TraceBlob::Adopt(
+            byte_range.data, byte_range.size, std::move(message))));
         if (!res.ok()) {
           result->set_error(res.message());
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_FINALIZE_TRACE_DATA: {
@@ -234,7 +417,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       if (!res.ok()) {
         result->set_error(res.message());
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_QUERY_STREAMING: {
@@ -242,7 +425,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         Response resp(tx_seq_id_++, req_type);
         auto* result = resp->set_query_result();
         result->set_error(kErrFieldNotSet);
-        resp.Send(rpc_response_fn_);
+        resp.Send(outbox);
       } else {
         protozero::ConstBytes args = req.query_args();
         protos::pbzero::QueryArgs::Decoder query(args.data, args.size);
@@ -260,36 +443,60 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         auto it = trace_processor_->ExecuteQuery(sql);
 
         QueryResultSerializer serializer(std::move(it), t_start);
-        for (bool has_more = true; has_more;) {
-          const auto seq_id = tx_seq_id_++;
-          Response resp(seq_id, req_type);
-          has_more = serializer.Serialize(resp->set_query_result());
-          const uint32_t resp_size = resp->Finalize();
-          if (resp_size < protozero::proto_utils::kMaxMessageLength) {
-            // This is the nominal case.
-            resp.Send(rpc_response_fn_);
-            continue;
-          }
-          // In rare cases a query can end up with a batch which is too big.
-          // Normally batches are automatically split before hitting the limit,
-          // but one can come up with a query where a single cell is > 256MB.
-          // If this happens, just bail out gracefully rather than creating an
-          // unparsable proto which will cause a RPC framing error.
-          // If we hit this, we have to discard `resp` because it's
-          // unavoidably broken (due to have overflown the 4-bytes size) and
-          // can't be parsed. Instead create a new response with the error.
-          Response err_resp(seq_id, req_type);
-          auto* qres = err_resp->set_query_result();
-          qres->add_batch()->set_is_last_batch(true);
-          qres->set_error(
-              "The query ended up with a response that is too big (" +
-              std::to_string(resp_size) +
-              " bytes). This usually happens when a single row is >= 256 MiB. "
-              "See also WRITE_FILE for dealing with large rows.");
-          err_resp.Send(rpc_response_fn_);
-          break;
-        }
+        StreamSerializerResponses(&serializer, req_type, &tx_seq_id_, outbox,
+                                  /*header=*/nullptr);
       }
+      break;
+    }
+    case RpcProto::TPM_STATEMENT_STREAMING: {
+      if (!req.has_statement_args()) {
+        SendSingleStatementResponse(req_type, &tx_seq_id_, outbox,
+                                    /*header=*/nullptr, kErrFieldNotSet);
+        break;
+      }
+      protozero::ConstBytes args = req.statement_args();
+      protos::pbzero::StatementArgs::Decoder stmt_args(args.data, args.size);
+      std::string sql = stmt_args.sql().ToStdString();
+      uint32_t offset = stmt_args.start_offset();
+
+      PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_STATEMENT",
+                        [&](metatrace::Record* r) {
+                          r->AddArg("SQL", sql);
+                          r->AddArg("start_offset", std::to_string(offset));
+                          if (stmt_args.has_tag()) {
+                            r->AddArg("tag", stmt_args.tag());
+                          }
+                        });
+
+      const auto t_start = base::GetWallTimeNs();
+      // Offsets are defined against the server's normalized SQL, which is
+      // never longer than |sql| as sent, so this only rejects offsets that
+      // are invalid in both forms. Offsets in the gap between the two sizes
+      // are rejected by ExecuteNextStatement's own range check below.
+      if (offset > sql.size()) {
+        SendSingleStatementResponse(req_type, &tx_seq_id_, outbox,
+                                    /*header=*/nullptr,
+                                    "StatementArgs.start_offset out of range");
+        break;
+      }
+      std::optional<Iterator> it =
+          trace_processor_->ExecuteNextStatement(sql, &offset);
+      if (!it.has_value()) {
+        StatementStreamHeader header{offset, /*statement_executed=*/false};
+        SendSingleStatementResponse(req_type, &tx_seq_id_, outbox, &header,
+                                    /*error=*/nullptr);
+        break;
+      }
+
+      // A pre-execution failure (bad offset, statement failed to prepare)
+      // surfaces as an iterator carrying an error: nothing executed and
+      // |offset| is unchanged, so the header must not claim otherwise.
+      // Runtime errors (surfacing during serialization) did execute.
+      const bool statement_executed = it->Status().ok();
+      QueryResultSerializer serializer(std::move(*it), t_start);
+      StatementStreamHeader header{offset, statement_executed};
+      StreamSerializerResponses(&serializer, req_type, &tx_seq_id_, outbox,
+                                &header);
       break;
     }
     case RpcProto::TPM_COMPUTE_METRIC: {
@@ -301,7 +508,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         protozero::ConstBytes args = req.compute_metric_args();
         ComputeMetricInternal(args.data, args.size, result);
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_SUMMARIZE_TRACE: {
@@ -313,7 +520,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         protozero::ConstBytes args = req.trace_summary_args();
         ComputeTraceSummaryInternal(args.data, args.size, result);
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_GET_METRIC_DESCRIPTORS: {
@@ -321,13 +528,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       auto descriptor_set = trace_processor_->GetMetricDescriptors();
       auto* result = resp->set_metric_descriptors();
       result->AppendRawProtoBytes(descriptor_set.data(), descriptor_set.size());
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_RESTORE_INITIAL_TABLES: {
       trace_processor_->RestoreInitialTables();
       Response resp(tx_seq_id_++, req_type);
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_ENABLE_METATRACE: {
@@ -336,27 +543,27 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       EnableMetatrace(args.data, args.size);
 
       Response resp(tx_seq_id_++, req_type);
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_DISABLE_AND_READ_METATRACE: {
       Response resp(tx_seq_id_++, req_type);
       DisableAndReadMetatraceInternal(resp->set_metatrace());
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_GET_STATUS: {
       Response resp(tx_seq_id_++, req_type);
       std::vector<uint8_t> status = GetStatus();
       resp->set_status()->AppendRawProtoBytes(status.data(), status.size());
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_RESET_TRACE_PROCESSOR: {
       Response resp(tx_seq_id_++, req_type);
       protozero::ConstBytes args = req.reset_trace_processor_args();
       ResetTraceProcessor(args.data, args.size);
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_REGISTER_SQL_PACKAGE: {
@@ -366,7 +573,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       if (!status.ok()) {
         res->set_error(status.message());
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_CREATE_SUMMARIZER: {
@@ -389,7 +596,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
           result->set_summarizer_id(summarizer_id);
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_UPDATE_SUMMARIZER_SPEC: {
@@ -422,7 +629,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
           query->set_was_dropped(sync_info.was_dropped);
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     case RpcProto::TPM_QUERY_SUMMARIZER: {
@@ -456,7 +663,34 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
           result->set_standalone_sql(query_result.standalone_sql);
         }
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
+      break;
+    }
+    case RpcProto::TPM_EXPORT: {
+      protos::pbzero::ExportArgs::Decoder args(req.export_args());
+      std::optional<TraceProcessor::ExportFormat> format =
+          ParseExportFormat(args.format());
+      base::Status status =
+          format ? Export(*format,
+                          [&](const uint8_t* chunk, size_t chunk_len,
+                              bool has_more) {
+                            Response resp(tx_seq_id_++, req_type);
+                            auto* result = resp->set_export_result();
+                            if (chunk && chunk_len > 0) {
+                              result->set_data(chunk, chunk_len);
+                            }
+                            result->set_has_more(has_more);
+                            resp.Send(outbox);
+                            return base::OkStatus();
+                          })
+                 : base::ErrStatus("Export format is required");
+      if (!status.ok()) {
+        Response resp(tx_seq_id_++, req_type);
+        auto* result = resp->set_export_result();
+        result->set_error(status.message());
+        result->set_has_more(false);
+        resp.Send(outbox);
+      }
       break;
     }
     case RpcProto::TPM_DESTROY_SUMMARIZER: {
@@ -473,7 +707,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         // Erasing will call the Summarizer destructor which drops all tables.
         summarizers_.Erase(summarizer_id);
       }
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
     default: {
@@ -484,13 +718,14 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       Response resp(tx_seq_id_++, req_type);
       resp->set_invalid_request(
           static_cast<RpcProto::TraceProcessorMethod>(req_type));
-      resp.Send(rpc_response_fn_);
+      resp.Send(outbox);
       break;
     }
   }  // switch(req_type)
 }
 
-base::Status Rpc::Parse(const uint8_t* data, size_t len) {
+base::Status Rpc::Parse(TraceBlobView blob) {
+  const size_t len = blob.size();
   PERFETTO_TP_TRACE(
       metatrace::Category::API_TIMELINE, "RPC_PARSE",
       [&](metatrace::Record* r) { r->AddArg("length", std::to_string(len)); });
@@ -507,10 +742,7 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   if (len == 0)
     return base::OkStatus();
 
-  // TraceProcessor needs take ownership of the memory chunk.
-  std::unique_ptr<uint8_t[]> data_copy(new uint8_t[len]);
-  memcpy(data_copy.get(), data, len);
-  return trace_processor_->Parse(std::move(data_copy), len);
+  return trace_processor_->Parse(std::move(blob));
 }
 
 base::Status Rpc::NotifyEndOfFile() {
@@ -636,6 +868,60 @@ void Rpc::Query(const uint8_t* args,
     }
     buffered.Reset();
   }
+}
+
+std::optional<TraceProcessor::ExportFormat> Rpc::ParseExportFormat(
+    int32_t format) {
+  if (format == protos::pbzero::ExportArgs::PERFETTO) {
+    return TraceProcessor::ExportFormat::kPerfetto;
+  }
+  if (format == protos::pbzero::ExportArgs::ARROW_TAR) {
+    return TraceProcessor::ExportFormat::kArrowTar;
+  }
+  if (format == protos::pbzero::ExportArgs::SQLITE) {
+    return TraceProcessor::ExportFormat::kSqlite;
+  }
+  return std::nullopt;
+}
+
+base::Status Rpc::Export(TraceProcessor::ExportFormat format,
+                         const ExportCallback& callback) {
+  if (format == TraceProcessor::ExportFormat::kSqlite) {
+    return ExportSqlite(callback);
+  }
+  RpcExportOutput output(callback);
+  RETURN_IF_ERROR(trace_processor_->Export(format, &output));
+  return callback(nullptr, 0, /*has_more=*/false);
+}
+
+base::Status Rpc::ExportSqlite(const ExportCallback& callback) {
+  // SQLite export needs random-access output, so the server materializes the
+  // database in a server-controlled temporary file and streams the bytes back
+  // to the client. The client never names a path on the server, so this does
+  // not expose the server's filesystem.
+  base::TempFile file = base::TempFile::Create();
+
+  RpcExportOutput output(callback, file.path());
+  RETURN_IF_ERROR(
+      trace_processor_->Export(TraceProcessor::ExportFormat::kSqlite, &output));
+
+  base::ScopedFile fd = base::OpenFile(file.path(), O_RDONLY);
+  if (!fd) {
+    return base::ErrStatus("Failed to open exported SQLite database");
+  }
+  std::vector<uint8_t> buffer(64 * 1024);
+  for (;;) {
+    ssize_t read = base::Read(fd.get(), buffer.data(), buffer.size());
+    if (read < 0) {
+      return base::ErrStatus("Failed to read exported SQLite database");
+    }
+    if (read == 0) {
+      break;
+    }
+    RETURN_IF_ERROR(callback(buffer.data(), static_cast<size_t>(read),
+                             /*has_more=*/true));
+  }
+  return callback(nullptr, 0, /*has_more=*/false);
 }
 
 void Rpc::RestoreInitialTables() {

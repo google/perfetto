@@ -22,11 +22,12 @@ perfetto_component("deobfuscator") {
     "deobfuscator.h",
   ]
   deps = [
+    "..:simple_json_parser",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
-    "../../../../src/protozero:protozero",
+    "../../../../src/protozero",
   ]
 }
 
@@ -36,6 +37,8 @@ perfetto_unittest_source_set("unittests") {
     ":deobfuscator",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
     "../../../base:test_support",
   ]

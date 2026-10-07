@@ -16,11 +16,11 @@ import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {Icons} from '../../base/semantic_icons';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
-import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
-import type {
-  ColumnSchema,
-  SchemaRegistry,
+import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
+import {
+  escapePath,
+  type ColumnSchema,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import type {Trace} from '../../public/trace';
 import type {Row} from '../../trace_processor/query_result';
@@ -64,7 +64,6 @@ interface ResultsSuccess {
   readonly kind: 'success';
   readonly columns: string[];
   readonly rows: Row[];
-  readonly dataSource: DataSource;
   readonly rowCount: number;
   readonly queryTimeMs: number;
   readonly query: string;
@@ -88,9 +87,28 @@ export interface ResultsTableAttrs {
   ) => void;
 }
 
+/**
+ * Component for rendering SQL query results in a table, or showing an error
+ * message if the query failed.
+ *
+ * Each instance is valid for a single query result. The DataGrid holds
+ * uncontrolled state tied to the result's columns - sort order, column
+ * reordering - and the DataSource caches results derived from those rows.
+ * Callers must therefore key this component by the query result, so that a new
+ * query remounts it: rebuilding the DataSource and clearing the DataGrid's
+ * uncontrolled state.
+ */
 export class ResultsTable implements m.Component<ResultsTableAttrs> {
   // The selected table for linking ID column values.
   private selectedIdTable = ID_TABLE_OPTIONS[0].sqlTable;
+
+  // DataSource backing the grid. Built lazily from the result rows  and cached
+  // for the lifetime of this instance.
+  private dataSource?: InMemoryDataSource;
+
+  private getDataSource(rows: Row[]): InMemoryDataSource {
+    return (this.dataSource ??= new InMemoryDataSource(rows));
+  }
 
   view({attrs}: m.Vnode<ResultsTableAttrs>) {
     const {data, fillHeight} = attrs;
@@ -125,25 +143,23 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     attrs: ResultsTableAttrs,
     data: ResultsSuccess,
   ): m.Children {
-    const schema: SchemaRegistry = {};
-    const rootSchema: ColumnSchema = {};
-
+    const schema: ColumnSchema = {};
     const hasIdColumn = data.columns.includes('id');
     const autoDetected = this.detectAutoTable(data.columns);
     const resolvedTable = this.resolveIdTable(data.columns);
 
     for (const col of data.columns) {
+      const field = escapePath(col);
       const cellRenderer =
         col === 'id' && attrs.onIdClick
           ? (value: Row[string]) =>
               this.renderIdCell(value, resolvedTable, attrs.onIdClick!)
           : undefined;
-      rootSchema[col] = {
+      schema[field] = {
         title: col,
         cellRenderer,
       };
     }
-    schema['root'] = rootSchema;
 
     const selectedLabel =
       this.selectedIdTable === 'auto'
@@ -211,11 +227,9 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     return [
       multiStatementWarning,
       m(DataGrid, {
-        enablePivotControls: false, // In-memory datasource does not support pivoting
-        columns: data.columns.map((col) => ({id: col, field: col})),
+        disablePivotControls: true, // In-memory datasource does not support pivoting
         schema: schema,
-        rootSchema: 'root',
-        data: data.dataSource,
+        data: this.getDataSource(data.rows),
         fillHeight: true,
         emptyStateMessage: 'Query returned no rows',
         toolbarItemsLeft: toolbarLeft,

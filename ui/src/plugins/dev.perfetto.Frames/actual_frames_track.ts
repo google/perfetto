@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import './styles.scss';
+import m from 'mithril';
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 import type {ColorScheme} from '../../base/color_scheme';
@@ -20,6 +22,7 @@ import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {sqlValueToSqliteString} from '../../trace_processor/sql_utils';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -38,18 +41,87 @@ const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
 const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
 const WHITE_200 = makeColorScheme(new HSLColor('#F5F5F5'));
 
+const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
+  'App Deadline Missed':
+    'The application failed to finish rendering the frame within its deadline.',
+  'SurfaceFlinger CPU Deadline Missed':
+    'SurfaceFlinger composition work failed to finish within the deadline in HWC composition.',
+  'SurfaceFlinger GPU Deadline Missed':
+    'SurfaceFlinger composition work failed to finish within the deadline in GPU composition.',
+  'SurfaceFlinger Scheduling':
+    'The frame was presented at an unexpected time due to reasons within SurfaceFlinger.',
+  'Prediction Error':
+    'Discrepancy between predicted VSYNC timestamp and actual display hardware presentation timestamp.',
+  'Display HAL':
+    'The frame was presented at an unexpected time due to reasons within Hardware Composer.',
+  'Buffer Stuffing':
+    'The frame was presented late as there was a prior frame in the queue that was presented instead.',
+  'SurfaceFlinger Stuffing':
+    'A SurfaceFlinger composited frame was presented late as there was a prior frame in the HWC queue that was presented instead.',
+  'App Resynced Jitter':
+    'The application shifted/changed its animation time due to delays in Choreographer execution.',
+  'Dropped Frame': 'The frame buffer was not presented on display.',
+  'Non Animating':
+    'The frame was not presented on time, but it is not causing a perceivable jank as it is not part of an animation (e.g. a cursor blinking).',
+  'Display not ON':
+    'The frame was presented while the display was not on (off or doze).',
+  'ModeChange in progress':
+    'The frame was not presented on time due to a display mode change (refresh rate or resolution).',
+  'PowerModeChange in progress':
+    'The frame was not presented on time due to an active display power state transition.',
+  'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
+};
+
+/**
+ * Layer tracks are filtered views of the frames of their process' timeline, so
+ * they don't claim ownership of their slices: only the process level tracks
+ * set `rootTableName`. As a result, selecting a slice by id (e.g. from a query
+ * result) and flows always resolve to the process level timelines, and
+ * selecting a slice on a layer track doesn't show its flows.
+ */
+export function frameTrackRootTableName(
+  layerName: string | undefined,
+): string | undefined {
+  return layerName === undefined ? 'slice' : undefined;
+}
+
+/**
+ * Creates a track renderer for Actual Frame Timeline slices.
+ *
+ * The process is selected in the dataset's source query rather than with a
+ * dataset filter on upid: dataset filters are used to map events back to their
+ * track, and the expected and actual timelines of a process would both claim
+ * the same upid.
+ *
+ * @param trace - The trace context.
+ * @param uri - Unique URI for the track.
+ * @param maxDepth - Initial best guess of the depth of the track, used to
+ * avoid pop-in while the track loads. Replaced by the actual depth once known.
+ * @param upid - The process whose frames to show.
+ * @param useExperimentalJankForClassification - Whether to use experimental
+ * jank classification tags to color and classify slices instead of standard tags.
+ * @param layerName - If set, only show the frames of this layer of the process.
+ */
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
   maxDepth: number,
-  trackIds: ReadonlyArray<number>,
+  upid: number,
   useExperimentalJankForClassification: boolean,
+  layerName?: string,
 ) {
+  const layerClause =
+    layerName === undefined
+      ? ''
+      : `and layer_name = ${sqlValueToSqliteString(layerName)}`;
   return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
-      src: 'actual_frame_timeline_slice',
+      src: `
+        select * from actual_frame_timeline_slice
+        where upid = ${upid} ${layerClause}
+      `,
       schema: {
         id: NUM,
         name: STR,
@@ -62,11 +134,44 @@ export function createActualFramesTrack(
         arg_set_id: NUM,
         track_id: NUM,
       },
-      filter: {
-        col: 'track_id',
-        in: trackIds,
-      },
     }),
+    tooltip: (slice) => {
+      const row = slice.row;
+      const tag = useExperimentalJankForClassification
+        ? row.jank_tag_experimental
+        : row.jank_tag;
+      const jankType = row.jank_type;
+
+      if (tag && tag !== 'No Jank' && tag !== 'None') {
+        const elements: m.Vnode[] = [];
+        elements.push(
+          m('div', {class: 'pf-actual-frames-tooltip__header'}, tag),
+        );
+
+        if (jankType && jankType !== 'None' && jankType !== 'Unspecified') {
+          const reasons = jankType
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean);
+          for (const reason of reasons) {
+            const desc = JANK_TYPE_DESCRIPTIONS[reason];
+            elements.push(
+              m('div', {class: 'pf-actual-frames-tooltip__reason'}, [
+                m(
+                  'span',
+                  {class: 'pf-actual-frames-tooltip__reason-name'},
+                  `${reason}: `,
+                ),
+                m('span', desc || 'Rendering performance delay.'),
+              ]),
+            );
+          }
+        }
+
+        return elements;
+      }
+      return undefined;
+    },
     colorizer: (row) => {
       return getColorSchemeForJank(
         useExperimentalJankForClassification
@@ -76,7 +181,7 @@ export function createActualFramesTrack(
       );
     },
     initialMaxDepth: maxDepth,
-    rootTableName: 'slice',
+    rootTableName: frameTrackRootTableName(layerName),
     detailsPanel: () => new ThreadSliceDetailsPanel(trace),
   });
 }

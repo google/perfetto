@@ -86,8 +86,18 @@ void StructuralTreePartition::StructuralTreePartition::Step(
 
   // For performance reasons, we don't typecheck the arguments and assume they
   // are longs.
-  auto id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-  auto group = static_cast<uint32_t>(sqlite::value::Int64(argv[2]));
+  int64_t raw_id = sqlite::value::Int64(argv[0]);
+  int64_t raw_group = sqlite::value::Int64(argv[2]);
+  if (raw_id < 0 || raw_id > std::numeric_limits<int32_t>::max()) {
+    return sqlite::result::Error(
+        ctx, "tree_partition: node ids must be non-negative 32-bit integers");
+  }
+  if (raw_group < 0 || raw_group > std::numeric_limits<int32_t>::max()) {
+    return sqlite::result::Error(
+        ctx, "tree_partition: group keys must be non-negative 32-bit integers");
+  }
+  auto id = static_cast<uint32_t>(raw_id);
+  auto group = static_cast<uint32_t>(raw_group);
 
   // Keep track of the maximum group seen.
   agg_ctx.max_group = std::max(agg_ctx.max_group, group);
@@ -103,16 +113,22 @@ void StructuralTreePartition::StructuralTreePartition::Step(
     }
     agg_ctx.root = Row{id, kNullParentId, group};
     if (id >= agg_ctx.child_count_by_id.size()) {
-      agg_ctx.child_count_by_id.resize(id + 1);
+      agg_ctx.child_count_by_id.resize(static_cast<size_t>(id) + 1);
     }
     return;
   }
 
   // Otherwise, this is a non-root. Increment the child count of its parent.
-  auto parent_id = static_cast<uint32_t>(sqlite::value::Int64(parent_id_value));
+  int64_t raw_parent_id = sqlite::value::Int64(parent_id_value);
+  if (raw_parent_id < 0 ||
+      raw_parent_id > std::numeric_limits<int32_t>::max()) {
+    return sqlite::result::Error(
+        ctx, "tree_partition: node ids must be non-negative 32-bit integers");
+  }
+  auto parent_id = static_cast<uint32_t>(raw_parent_id);
   uint32_t max_id = std::max(id, parent_id);
   if (max_id >= agg_ctx.child_count_by_id.size()) {
-    agg_ctx.child_count_by_id.resize(max_id + 1);
+    agg_ctx.child_count_by_id.resize(static_cast<size_t>(max_id) + 1);
   }
   agg_ctx.child_count_by_id[parent_id]++;
 
@@ -168,7 +184,7 @@ void StructuralTreePartition::Final(sqlite3_context* ctx) {
     LookupHelper helper{sorted, agg_ctx->child_count_by_id};
     std::vector<StackState> stack{{*agg_ctx->root, std::nullopt, false}};
     std::vector<std::optional<uint32_t>> ancestor_id_for_group(
-        agg_ctx->max_group + 1, std::nullopt);
+        static_cast<size_t>(agg_ctx->max_group) + 1, std::nullopt);
     while (!stack.empty()) {
       StackState& ss = stack.back();
       if (ss.first_pass_done) {

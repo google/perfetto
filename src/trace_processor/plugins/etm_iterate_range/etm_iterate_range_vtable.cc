@@ -20,8 +20,8 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
 
-#include "src/trace_processor/plugins/etm_iterate_range/etm_iterate_range_vtable.h"
 #include <opencsd/ocsd_if_types.h>
+#include "src/trace_processor/plugins/etm_iterate_range/etm_iterate_range_vtable.h"
 
 #include <cstring>
 #include <memory>

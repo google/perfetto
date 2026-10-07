@@ -180,3 +180,77 @@ class GeckoParser(TestSuite):
           "main","Boot",20000000,5000000,"Other","",""
           "main","DOMEvent",30000000,5000000,"DOM","","btn"
         '''))
+
+  def test_gecko_unsymbolicated_native_frames(self):
+    return DiffTestBlueprint(
+        trace=Json(contents="""{
+          "meta": {
+            "categories": [
+              {"name": "Other", "color": "grey", "subcategories": ["Other"]}
+            ],
+            "symbolicated": false
+          },
+          "libs": [
+            {
+              "name": "busy",
+              "path": "/home/user/busy",
+              "debugName": "busy",
+              "codeId": "2c942a16f8e09a74dd783d537f2f36d98c740484"
+            },
+            {
+              "name": "bad",
+              "path": "/home/user/bad",
+              "codeId": "not-a-build-id"
+            }
+          ],
+          "threads": [
+            {
+              "name": "busy",
+              "tid": 100,
+              "pid": 100,
+              "stringArray": ["0x4b2", "0x4fa", "main", "0x10"],
+              "frameTable": {
+                "func":    [0, 1, 2, 3],
+                "address": [1202, 1274, -1, 16],
+                "length": 4
+              },
+              "funcTable": {
+                "name":     [0, 1, 2, 3],
+                "resource": [0, 0, -1, 1],
+                "length": 4
+              },
+              "resourceTable": {
+                "lib":  [0, 1],
+                "name": [0, 0],
+                "length": 2
+              },
+              "stackTable": {
+                "prefix": [null, 0, 1, 1],
+                "frame":  [2, 1, 0, 3],
+                "length": 4
+              },
+              "samples": {
+                "stack": [2, 3],
+                "time":  [1.0, 2.0],
+                "length": 2
+              }
+            }
+          ]
+        }"""),
+        query="""
+          SELECT
+            f.name,
+            printf('0x%x', f.rel_pc) AS rel_pc,
+            m.name AS mapping,
+            m.build_id
+          FROM stack_profile_frame f
+          JOIN stack_profile_mapping m ON f.mapping = m.id
+          ORDER BY f.name
+        """,
+        out=Csv('''
+          "name","rel_pc","mapping","build_id"
+          "0x10","0x0","gecko",""
+          "0x4b2","0x4b2","/home/user/busy","2c942a16f8e09a74dd783d537f2f36d98c740484"
+          "0x4fa","0x4fa","/home/user/busy","2c942a16f8e09a74dd783d537f2f36d98c740484"
+          "main","0x0","gecko",""
+        '''))

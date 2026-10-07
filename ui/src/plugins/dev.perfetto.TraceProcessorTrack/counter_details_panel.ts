@@ -38,7 +38,6 @@ import {
   counterDisplayUnit,
   counterValueExpression,
 } from '../../components/tracks/counter_track';
-import {assertUnreachable} from '../../base/assert';
 
 interface CounterDetails {
   // The "left" timestamp of the counter sample T(N)
@@ -54,7 +53,8 @@ interface CounterDetails {
   delta: number;
 
   // The rate: (F(N+1) - F(N)) / dt
-  rate: number;
+  // This can be null if the samples share the same timestamp.
+  rate: number | null;
 
   args?: ArgsDict;
 }
@@ -64,7 +64,6 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   private readonly engine: Engine;
   private readonly sqlSource: string;
   private readonly trackName: string;
-  private readonly getMode: () => YMode;
   private readonly unit: string;
   private readonly rateUnit: string;
   private counterDetails?: CounterDetails;
@@ -72,7 +71,6 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   constructor(
     trace: Trace,
     trackName: string,
-    getMode: () => YMode,
     unit: string,
     rateUnit: string,
     sqlSource: string,
@@ -80,7 +78,6 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
     this.trace = trace;
     this.engine = trace.engine;
     this.trackName = trackName;
-    this.getMode = getMode;
     this.unit = unit;
     this.rateUnit = rateUnit;
     this.sqlSource = sqlSource;
@@ -102,42 +99,23 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderValueNodes(info: CounterDetails): m.Children {
-    const mode = this.getMode();
-    switch (mode) {
-      case 'value':
-        return [
-          m(TreeNode, {
-            left: 'Value',
-            right: this.formatWithUnit(info.value, 'value'),
-          }),
-          m(TreeNode, {
-            left: 'Delta',
-            right: this.formatWithUnit(info.delta, 'delta'),
-          }),
-          m(TreeNode, {
-            left: 'Rate',
-            right: this.formatWithUnit(info.rate, 'rate'),
-          }),
-        ];
-      case 'delta':
-        return [
-          m(TreeNode, {
-            left: 'Value',
-            right: this.formatWithUnit(info.value, 'value'),
-          }),
-          m(TreeNode, {
-            left: 'Delta',
-            right: this.formatWithUnit(info.delta, 'delta'),
-          }),
-        ];
-      case 'rate':
-        return m(TreeNode, {
-          left: 'Rate',
-          right: this.formatWithUnit(info.rate, 'rate'),
-        });
-      default:
-        assertUnreachable(mode);
-    }
+    return [
+      m(TreeNode, {
+        left: 'Value',
+        right: this.formatWithUnit(info.value, 'value'),
+      }),
+      m(TreeNode, {
+        left: 'Delta',
+        right: this.formatWithUnit(info.delta, 'delta'),
+      }),
+      m(TreeNode, {
+        left: 'Rate',
+        right:
+          info.rate === null
+            ? 'N/A (next sample has same timestamp)'
+            : this.formatWithUnit(info.rate, 'rate'),
+      }),
+    ];
   }
 
   render() {
@@ -232,7 +210,7 @@ async function loadCounterDetails(
   const row = counter.iter({
     value: NUM,
     delta: NUM,
-    rate: NUM,
+    rate: NUM_NULL,
     leftTs: LONG,
     rightTs: LONG_NULL,
     argSetId: NUM_NULL,

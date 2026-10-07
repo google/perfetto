@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,6 +38,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -67,6 +69,7 @@
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -102,6 +105,10 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
   if (record.header.type != PERF_RECORD_SAMPLE) {
     std::optional<size_t> offset = record.attr->time_offset_from_end();
     if (!offset.has_value()) {
+      if (record.header.type == PERF_RECORD_FORK ||
+          record.header.type == PERF_RECORD_EXIT) {
+        return reader.Skip(4 * sizeof(uint32_t)) && reader.ReadOptional(time);
+      }
       time = std::nullopt;
       return true;
     }
@@ -213,8 +220,22 @@ PerfDataTokenizer::ParseHeader() {
   return ParsingResult::kSuccess;
 }
 
+// Rejects a section whose attacker-controlled `offset + size` overflows. Such a
+// range can never be satisfied by more data, so it must reject the trace rather
+// than be treated as "more data needed" (an empty/absent slice).
+static base::Status CheckSectionInBounds(const PerfFile::Section& section,
+                                         const char* name) {
+  if (section.size > std::numeric_limits<uint64_t>::max() - section.offset) {
+    return base::ErrStatus("Invalid %s section: offset (%" PRIu64
+                           ") + size (%" PRIu64 ") exceeds uint64 max",
+                           name, section.offset, section.size);
+  }
+  return base::OkStatus();
+}
+
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseAttrs() {
+  RETURN_IF_ERROR(CheckSectionInBounds(header_.attrs, "attrs"));
   std::optional<TraceBlobView> tbv =
       buffer_.SliceOff(header_.attrs.offset, header_.attrs.size);
   if (!tbv) {
@@ -233,6 +254,7 @@ PerfDataTokenizer::ParseAttrs() {
       return base::ErrStatus("Invalid id section size: %" PRIu64,
                              entry.ids.size);
     }
+    RETURN_IF_ERROR(CheckSectionInBounds(entry.ids, "id"));
 
     tbv = buffer_.SliceOff(entry.ids.offset, entry.ids.size);
     if (!tbv) {
@@ -297,6 +319,9 @@ base::Status PerfDataTokenizer::ProcessRecord(Record record) {
 
     case PERF_RECORD_AUXTRACE_INFO:
       return ProcessAuxtraceInfoRecord(std::move(record));
+
+    case PERF_RECORD_ID_INDEX:
+      return ProcessIdIndexRecord(std::move(record));
 
     case PERF_RECORD_AUX:
       return ProcessAuxRecord(std::move(record));
@@ -396,6 +421,8 @@ void PerfDataTokenizer::MaybePushRecord(Record record) {
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseFeatureSections() {
   PERFETTO_CHECK(buffer_.start_offset() == header_.data.end());
+  RETURN_IF_ERROR(
+      CheckSectionInBounds(feature_headers_section_, "feature headers"));
   auto tbv = buffer_.SliceOff(feature_headers_section_.offset,
                               feature_headers_section_.size);
   if (!tbv) {
@@ -433,6 +460,7 @@ PerfDataTokenizer::ParseFeatures() {
   while (!feature_sections_.empty()) {
     const auto feature_id = feature_sections_.back().first;
     const auto& section = feature_sections_.back().second;
+    RETURN_IF_ERROR(CheckSectionInBounds(section, "feature"));
     auto tbv = buffer_.SliceOff(section.offset, section.size);
     if (!tbv) {
       return ParsingResult::kMoreDataNeeded;
@@ -496,6 +524,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       perf_invocation_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
+      perf_invocation_->SetSimpleperfCounterScope(meta_info.entries);
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
         perf_invocation_->SetEventName(it.key().type, it.key().config,
                                        it.value());
@@ -518,6 +547,28 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           stats::perf_features_skipped, feature_id);
   }
 
+  return base::OkStatus();
+}
+
+base::Status PerfDataTokenizer::ProcessIdIndexRecord(Record record) {
+  struct IdIndexEntry {
+    uint64_t id;
+    uint64_t idx;
+    int64_t cpu;
+    int64_t tid;
+  };
+  Reader reader(std::move(record.payload));
+  uint64_t nr = 0;
+  if (!reader.Read(nr)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX");
+  }
+  for (uint64_t i = 0; i < nr; ++i) {
+    IdIndexEntry entry;
+    if (!reader.Read(entry)) {
+      return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX entry");
+    }
+    perf_invocation_->SetEventIdBinding(entry.id, entry.cpu, entry.tid);
+  }
   return base::OkStatus();
 }
 
@@ -576,7 +627,7 @@ base::Status PerfDataTokenizer::ProcessItraceStartRecord(Record record) {
 base::Status PerfDataTokenizer::OnPushDataToSorter() {
   // Phase 1: Validate parsing is complete
   if (parsing_state_ != ParsingState::kDone) {
-    return base::ErrStatus("Premature end of perf file.");
+    return base::ErrStatus("Premature end of perf file. (ERR:tp-corrupt)");
   }
 
   // Flush all buffered COMM records in file order
@@ -602,3 +653,44 @@ void PerfDataTokenizer::OnEventsFullyExtracted() {
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Linux perf.data format.
+class PerfDataImporter : public TraceImporter<PerfDataImporter> {
+ public:
+  PerfDataImporter() : TraceImporter(MakeDescriptor()) {}
+  ~PerfDataImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'P', 'E', 'R', 'F', 'I', 'L', 'E', '2'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<perf_importer::PerfDataTokenizer>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "perf";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.detection_priority = 30;
+    return d;
+  }
+};
+
+PerfDataImporter::~PerfDataImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreatePerfDataImporter() {
+  return std::make_unique<PerfDataImporter>();
+}
+
+}  // namespace perfetto::trace_processor

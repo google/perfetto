@@ -41,8 +41,10 @@ source_set("gecko") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:build_id",
     "../../util:json_args",
     "../../util:json_parser",
     "../../util:simple_json_parser",
+    "../../util:trace_type",
   ]
 }

@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import './styles.scss';
 import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
-
-function formatMillis(millis: number) {
-  return millis.toFixed(1);
-}
+import {QueryTab} from './query_log';
+import './styles.scss';
 
 export default class QueryLogPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.QueryLog';
@@ -42,41 +39,7 @@ export default class QueryLogPlugin implements PerfettoPlugin {
           return 'Query Log';
         },
         render() {
-          // Show the logs in reverse order
-          const queryLog = Array.from(trace.engine.queryLog).reverse();
-          return m(
-            'table.pf-query-log-table',
-            m(
-              'tr',
-              m('th', 'Query'),
-              m('th', 'Tag'),
-              m('th', 'Status'),
-              m('th', 'Start time (ms)'),
-              m('th', 'Duration (ms)'),
-            ),
-            queryLog.map((ql) =>
-              m(
-                'tr',
-                m('td', m('pre', ql.query.trim())),
-                m('td', ql.tag),
-                m(
-                  'td',
-                  ql.success === undefined
-                    ? 'Running...'
-                    : ql.success
-                      ? 'Completed'
-                      : 'Failed',
-                ),
-                m('td', formatMillis(ql.startTime)),
-                m(
-                  'td',
-                  ql.elapsedTimeMs === undefined
-                    ? '...'
-                    : formatMillis(ql.elapsedTimeMs),
-                ),
-              ),
-            ),
-          );
+          return m(QueryTab, {trace});
         },
       },
     });

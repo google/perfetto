@@ -1,0 +1,561 @@
+node PerfettoArgDef {
+  arg_name: index Name
+  arg_type: inline SyntaqliteTextSpan
+  is_variadic: inline Bool
+
+  semantic { column_def(name: arg_name, type: arg_type) }
+
+  fmt {
+    child(arg_name) space span(arg_type)
+    if_flag(is_variadic) { "..." }
+  }
+}
+
+list PerfettoArgDefList {
+  PerfettoArgDef
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+node PerfettoMacroArg {
+  arg_name: inline SyntaqliteTextSpan
+  arg_type: inline SyntaqliteTextSpan
+
+  fmt {
+    span(arg_name) space span(arg_type)
+  }
+}
+
+list PerfettoMacroArgList {
+  PerfettoMacroArg
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+node PerfettoIndexedColumn {
+  column_name: inline SyntaqliteTextSpan
+
+  fmt { span(column_name) }
+}
+
+list PerfettoIndexedColumnList {
+  PerfettoIndexedColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+enum PerfettoReturnKind { SCALAR TABLE }
+
+node PerfettoReturnType {
+  kind: inline PerfettoReturnKind
+  scalar_type: inline SyntaqliteTextSpan
+  table_columns: index PerfettoArgDefList
+
+  semantic { return_spec(table_columns: table_columns) }
+
+  fmt {
+    switch(kind) {
+      SCALAR { span(scalar_type) }
+      TABLE  {
+        group {
+          "TABLE("
+          nest {
+            softline
+            child(table_columns)
+          }
+          softline ")"
+        }
+      }
+    }
+  }
+}
+
+node PerfettoTableImpl {
+  name: inline SyntaqliteTextSpan
+
+  fmt { span(name) }
+}
+
+node CreatePerfettoTableStmt {
+  table_name: inline SyntaqliteTextSpan
+  or_replace: inline Bool
+  table_impl: index PerfettoTableImpl
+  schema: index PerfettoArgDefList
+  select: index Select
+  select_span: inline SyntaqliteTextSpan
+  pipeline: index PerfettoPipeline
+
+  semantic { define_table(name: table_name, columns: schema, select: select) }
+
+  fmt {
+    group {
+      "CREATE"
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "TABLE" space span(table_name)
+      if_set(table_impl) {
+        space "USING" space
+        child(table_impl)
+      }
+      if_set(schema) {
+        "("
+        nest {
+          softline
+          child(schema)
+        }
+        softline ")"
+      }
+      if_set(select) { line "AS" }
+      if_set(pipeline) { line "AS" }
+    }
+    if_set(select) { hardline child(select) }
+    if_set(pipeline) { hardline child(pipeline) }
+  }
+}
+
+node CreatePerfettoViewStmt {
+  view_name: inline SyntaqliteTextSpan
+  or_replace: inline Bool
+  schema: index PerfettoArgDefList
+  select: index Select
+  select_span: inline SyntaqliteTextSpan
+
+  semantic { define_view(name: view_name, columns: schema, select: select) }
+
+  fmt {
+    group {
+      "CREATE"
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "VIEW" space span(view_name)
+      if_set(schema) {
+        "("
+        nest {
+          softline
+          child(schema)
+        }
+        softline ")"
+      }
+      line "AS"
+    }
+    hardline child(select)
+  }
+}
+
+node CreatePerfettoFunctionStmt {
+  function_name: inline SyntaqliteTextSpan
+  or_replace: inline Bool
+  args: index PerfettoArgDefList
+  return_type: index PerfettoReturnType
+  select: index Select
+  select_span: inline SyntaqliteTextSpan
+
+  semantic { define_function(name: function_name, args: args, return_type: return_type, select: select) }
+
+  fmt {
+    group {
+      "CREATE"
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "FUNCTION" space span(function_name)
+      "("
+      if_set(args) {
+        nest {
+          softline
+          child(args)
+        }
+        softline
+      }
+      ")"
+    }
+    hardline "RETURNS" space child(return_type)
+    hardline "AS"
+    hardline child(select)
+  }
+}
+
+node CreatePerfettoDelegatingFunctionStmt {
+  function_name: inline SyntaqliteTextSpan
+  or_replace: inline Bool
+  args: index PerfettoArgDefList
+  return_type: index PerfettoReturnType
+  delegate_to: inline SyntaqliteTextSpan
+
+  fmt {
+    group {
+      "CREATE"
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "FUNCTION" space span(function_name)
+      "("
+      if_set(args) {
+        nest {
+          softline
+          child(args)
+        }
+        softline
+      }
+      ")"
+    }
+    hardline "RETURNS" space child(return_type)
+    hardline "DELEGATES" "TO" space span(delegate_to)
+  }
+}
+
+node CreatePerfettoIndexStmt {
+  index_name: inline SyntaqliteTextSpan
+  or_replace: inline Bool
+  table_name: inline SyntaqliteTextSpan
+  columns: index PerfettoIndexedColumnList
+
+  fmt {
+    group {
+      "CREATE"
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "INDEX" space span(index_name)
+      space "ON" space span(table_name)
+      "("
+      nest {
+        softline
+        child(columns)
+      }
+      softline ")"
+    }
+  }
+}
+
+node CreatePerfettoMacroStmt {
+  macro_name: inline SyntaqliteTextSpan
+  or_replace: inline Bool
+  return_type: inline SyntaqliteTextSpan
+  body: inline SyntaqliteTextSpan
+  args: index PerfettoMacroArgList
+
+  macro_def(name: macro_name, body: body, args: args, arg_name: arg_name)
+
+  fmt {
+    group {
+      "CREATE"
+      if_flag(or_replace) { space "OR" "REPLACE" }
+      space "PERFETTO" "MACRO" space span(macro_name)
+      "("
+      if_set(args) {
+        nest {
+          softline
+          child(args)
+        }
+        softline
+      }
+      ")"
+    }
+    hardline "RETURNS" space span(return_type)
+    hardline "AS" space span(body)
+  }
+}
+
+node IncludePerfettoModuleStmt {
+  module_name: inline SyntaqliteTextSpan
+
+  semantic { import(module: module_name) }
+
+  fmt {
+    "INCLUDE" "PERFETTO" "MODULE" space span(module_name)
+  }
+}
+
+node DropPerfettoIndexStmt {
+  index_name: inline SyntaqliteTextSpan
+  table_name: inline SyntaqliteTextSpan
+
+  fmt {
+    "DROP" "PERFETTO" "INDEX" space span(index_name) space "ON" space span(table_name)
+  }
+}
+
+// `PERFETTO PRAGMA name = value`: a setting of the engine.
+node PerfettoPragmaStmt {
+  name: inline SyntaqliteTextSpan
+  value: index Expr
+
+  fmt { "PERFETTO" "PRAGMA" space span(name) space "=" space child(value) }
+}
+
+// ---------- Pipelines ----------
+
+// What a pipeline starts from: a table, or a subquery in parentheses.
+node PerfettoPipeSource {
+  table_name: inline SyntaqliteTextSpan
+  schema: inline SyntaqliteTextSpan
+  select: index Select
+  alias: index Name
+  alias_as: inline Bool
+
+  fmt {
+    if_set(select) {
+      group { "(" nest { softline child(select) } softline ")" }
+    } else {
+      if_span(schema) { span(schema) "." }
+      span(table_name)
+    }
+    if_set(alias) {
+      if_flag(alias_as) { space "AS" space child(alias) } else { space child(alias) }
+    }
+  }
+}
+
+enum PerfettoTreeDirection { UP DOWN }
+
+// One aggregate of a stage which computes them: `SUM(col) AS name`. Any
+// expression parses; the compiler rejects the ones it cannot run.
+node PerfettoAggregate {
+  expr: index Expr
+  name: inline SyntaqliteTextSpan
+
+  fmt { child(expr) space "AS" space span(name) }
+}
+
+list PerfettoAggregateList {
+  PerfettoAggregate
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `TREE ACCUMULATE UP | DOWN agg AS name, ...`
+node PerfettoTreeAccumulate {
+  direction: inline PerfettoTreeDirection
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "TREE" "ACCUMULATE" space
+      enum_display(direction, { UP="UP" DOWN="DOWN" })
+      nest { line child(aggregates) }
+    }
+  }
+}
+
+// A column a stage names, as `column` or `alias.column`, optionally renamed.
+node PerfettoPipeColumn {
+  qualifier: inline SyntaqliteTextSpan
+  name: inline SyntaqliteTextSpan
+  alias: inline SyntaqliteTextSpan
+
+  fmt {
+    if_span(qualifier) { span(qualifier) "." }
+    span(name)
+    if_span(alias) { space "AS" space span(alias) }
+  }
+}
+
+list PerfettoPipeColumnList {
+  PerfettoPipeColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// A bare column name, as listed by DROP or a star's EXCEPT.
+node PerfettoPipeName {
+  name: inline SyntaqliteTextSpan
+
+  fmt { span(name) }
+}
+
+list PerfettoPipeNameList {
+  PerfettoPipeName
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `*` or `alias.*`, optionally without some columns and with others replaced:
+// `* EXCEPT (a, b) REPLACE (c AS d)`.
+node PerfettoPipeStar {
+  qualifier: inline SyntaqliteTextSpan
+  except: index PerfettoPipeNameList
+  replace: index PerfettoPipeColumnList
+
+  fmt {
+    if_span(qualifier) { span(qualifier) "." }
+    "*"
+    if_set(except) { space "EXCEPT" space "(" child(except) ")" }
+    if_set(replace) { space "REPLACE" space "(" child(replace) ")" }
+  }
+}
+
+abstract PerfettoPipeSelectItem {
+  PerfettoPipeColumn
+  PerfettoPipeStar
+}
+
+list PerfettoPipeSelectItemList {
+  PerfettoPipeSelectItem
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `SELECT item, ...`: picks, orders and renames columns. A computed column
+// has no spelling here yet.
+node PerfettoPipeSelect {
+  columns: index PerfettoPipeSelectItemList
+
+  fmt { group { "SELECT" nest { line child(columns) } } }
+}
+
+// `EXTEND item, ...`: adds columns to the row.
+node PerfettoPipeExtend {
+  columns: index PerfettoPipeSelectItemList
+
+  fmt { group { "EXTEND" nest { line child(columns) } } }
+}
+
+// `DROP name, ...`: removes columns from the row.
+node PerfettoPipeDrop {
+  columns: index PerfettoPipeNameList
+
+  fmt { group { "DROP" nest { line child(columns) } } }
+}
+
+// `RENAME old AS new, ...`
+node PerfettoPipeRename {
+  columns: index PerfettoPipeColumnList
+
+  fmt { group { "RENAME" nest { line child(columns) } } }
+}
+
+// One assignment of a SET stage: `name = column`.
+node PerfettoPipeSetItem {
+  name: inline SyntaqliteTextSpan
+  value: index PerfettoPipeColumn
+
+  fmt { span(name) space "=" space child(value) }
+}
+
+list PerfettoPipeSetItemList {
+  PerfettoPipeSetItem
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `SET name = column, ...`: replaces the values of columns.
+node PerfettoPipeSet {
+  items: index PerfettoPipeSetItemList
+
+  fmt { group { "SET" nest { line child(items) } } }
+}
+
+// `AS alias`: gives the whole row a new table alias.
+node PerfettoPipeAs {
+  alias: inline SyntaqliteTextSpan
+
+  fmt { "AS" space span(alias) }
+}
+
+// One key of an ORDER BY stage: `column [ASC | DESC]`.
+node PerfettoPipeOrderTerm {
+  column: index PerfettoPipeColumn
+  sort_order: inline SortOrder
+
+  fmt {
+    child(column)
+    switch(sort_order) {
+      ASC { space "ASC" }
+      DESC { space "DESC" }
+    }
+  }
+}
+
+list PerfettoPipeOrderTermList {
+  PerfettoPipeOrderTerm
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `ORDER BY column [ASC | DESC], ...`: sorts the rows.
+node PerfettoPipeOrderBy {
+  terms: index PerfettoPipeOrderTermList
+
+  fmt { group { "ORDER" "BY" nest { line child(terms) } } }
+}
+
+// `AGGREGATE agg AS name, ... [GROUP BY column, ...]`: collapses each group of
+// rows agreeing on the columns into one row, or all rows without GROUP BY.
+node PerfettoPipeAggregate {
+  aggregates: index PerfettoAggregateList
+  group_by: index PerfettoPipeColumnList
+
+  fmt {
+    group {
+      "AGGREGATE"
+      nest { line child(aggregates) }
+      if_set(group_by) { line "GROUP" "BY" nest { line child(group_by) } }
+    }
+  }
+}
+
+abstract PerfettoPipeStage {
+  PerfettoTreeAccumulate
+  PerfettoIntervalFlatten
+  PerfettoPipeOrderBy
+  PerfettoPipeAggregate
+  PerfettoPipeSelect
+  PerfettoPipeExtend
+  PerfettoPipeDrop
+  PerfettoPipeRename
+  PerfettoPipeSet
+  PerfettoPipeAs
+}
+
+list PerfettoPipeStageList {
+  PerfettoPipeStage
+  fmt { for_each(sep: hardline "|>" space) { child(_item) } }
+}
+
+list PerfettoPipeSourceList {
+  PerfettoPipeSource
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// A column named after PER, which confines an operator to each group of
+// rows agreeing on it.
+node PerfettoPerColumn {
+  name: inline SyntaqliteTextSpan
+
+  fmt { span(name) }
+}
+
+list PerfettoPerColumnList {
+  PerfettoPerColumn
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `INTERVAL FLATTEN [PER cols] AGGREGATE agg AS name, ...`: cuts overlapping
+// rows at every boundary into disjoint segments, one row per segment.
+node PerfettoIntervalFlatten {
+  per: index PerfettoPerColumnList
+  aggregates: index PerfettoAggregateList
+
+  fmt {
+    group {
+      "INTERVAL" "FLATTEN"
+      if_set(per) { space "PER" space child(per) }
+      nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+// `INTERVAL INTERSECTION OF (rel AS a, rel AS b, ...) [PER cols]`: the
+// regions every operand covers, one row per region carrying all of their
+// columns.
+node PerfettoIntervalIntersection {
+  operands: index PerfettoPipeSourceList
+  per: index PerfettoPerColumnList
+
+  fmt {
+    group {
+      "INTERVAL" "INTERSECTION" "OF" space "("
+      nest { softline child(operands) }
+      softline ")"
+    }
+    if_set(per) { space "PER" space child(per) }
+  }
+}
+
+// A pipeline: a source followed by `|>` stages. Exactly one of `from` and
+// `intersection` names the source.
+node PerfettoPipeline {
+  from: index PerfettoPipeSource
+  intersection: index PerfettoIntervalIntersection
+  stages: index PerfettoPipeStageList
+
+  fmt {
+    if_set(from) { "FROM" space child(from) }
+    if_set(intersection) { child(intersection) }
+    if_set(stages) { hardline "|>" space child(stages) }
+  }
+}

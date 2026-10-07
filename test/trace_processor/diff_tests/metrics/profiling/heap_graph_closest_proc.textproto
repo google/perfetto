@@ -17,7 +17,7 @@ packet {
 packet {
   trusted_packet_sequence_id: 999
   timestamp: 200000000
-  heap_graph {
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
     pid: 2
     roots {
       root_type: ROOT_JAVA_FRAME
@@ -35,7 +35,7 @@ packet {
 packet {
   trusted_packet_sequence_id: 999
   timestamp: 200000000
-  heap_graph {
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
     pid: 2
     location_names {
       iid: 1
@@ -80,7 +80,7 @@ packet {
 packet {
   trusted_packet_sequence_id: 999
   timestamp: 1500000000
-  heap_graph {
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
     pid: 3
     roots {
       root_type: ROOT_JAVA_FRAME
@@ -98,7 +98,7 @@ packet {
 packet {
   trusted_packet_sequence_id: 999
   timestamp: 1500000000
-  heap_graph {
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
     pid: 3
     location_names {
       iid: 2

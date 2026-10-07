@@ -13,43 +13,42 @@
 // limitations under the License.
 
 import {
-  type QueryResult,
-  QuerySlot,
-  type SerialTaskQueue,
-} from '../../../../base/query_slot';
+  type AsyncMemoResult,
+  AsyncMemo,
+  type AtomicTaskQueue,
+} from '../../../../base/async_memo';
 import type {Engine} from '../../../../trace_processor/engine';
 import {NUM, type Row} from '../../../../trace_processor/query_result';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import type {DataSourceRows, FlatModel} from '../data_source';
-import {type SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, toAlias} from '../sql_utils';
+import {type SQLTableSchema, SQLSchemaResolver} from '../sql_schema';
+import {filterToSql, quoteIdentifier} from '../sql_utils';
 
 export class SQLDataSourceFlat {
-  private readonly rowCountSlot: QuerySlot<number>;
-  private readonly rowsSlot: QuerySlot<{
+  private readonly rowCountSlot: AsyncMemo<number>;
+  private readonly rowsSlot: AsyncMemo<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
   }>;
-  private readonly summariesSlot: QuerySlot<Row>;
+  private readonly summariesSlot: AsyncMemo<Row>;
 
   constructor(
-    queue: SerialTaskQueue,
+    queue: AtomicTaskQueue,
     private readonly engine: Engine,
-    private readonly sqlSchema: SQLSchemaRegistry,
-    private readonly rootSchemaName: string,
+    private readonly sqlSchema: SQLTableSchema,
   ) {
-    this.rowCountSlot = new QuerySlot<number>(queue);
-    this.rowsSlot = new QuerySlot<{
+    this.rowCountSlot = new AsyncMemo<number>(queue);
+    this.rowsSlot = new AsyncMemo<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
     }>(queue);
-    this.summariesSlot = new QuerySlot<Row>(queue);
+    this.summariesSlot = new AsyncMemo<Row>(queue);
   }
 
   /**
    * Returns aggregate summaries for columns that have an aggregate function defined.
    */
-  getSummaries(model: FlatModel): QueryResult<Row> {
+  getSummaries(model: FlatModel): AsyncMemoResult<Row> {
     const {columns, filters = []} = model;
 
     // Find columns with aggregate functions
@@ -57,7 +56,7 @@ export class SQLDataSourceFlat {
 
     // If no aggregate columns, return empty result
     if (aggColumns.length === 0) {
-      return {data: undefined, isPending: false, isFresh: true};
+      return {data: {}, isPending: false};
     }
 
     return this.summariesSlot.use({
@@ -65,11 +64,8 @@ export class SQLDataSourceFlat {
         columns: aggColumns,
         filters: serializeFilters(filters),
       },
-      queryFn: async () => {
-        const resolver = new SQLSchemaResolver(
-          this.sqlSchema,
-          this.rootSchemaName,
-        );
+      compute: async () => {
+        const resolver = new SQLSchemaResolver(this.sqlSchema);
 
         // Build aggregate expressions
         const selectExprs: string[] = [];
@@ -77,7 +73,9 @@ export class SQLDataSourceFlat {
           const sqlExpr = resolver.resolveColumnPath(col.field);
           const field = sqlExpr ?? col.field;
           const aggFunc = col.aggregate!;
-          selectExprs.push(`${aggFunc}(${field}) AS ${toAlias(col.alias)}`);
+          selectExprs.push(
+            `${aggFunc}(${field}) AS ${quoteIdentifier(col.alias)}`,
+          );
         }
 
         let sql = `SELECT ${selectExprs.join(', ')}`;
@@ -100,8 +98,8 @@ export class SQLDataSourceFlat {
         columns,
         filters: serializeFilters(filters),
       },
-      queryFn: async () => {
-        const query = buildQuery(this.sqlSchema, this.rootSchemaName, {
+      compute: async () => {
+        const query = buildQuery(this.sqlSchema, {
           mode: 'flat',
           columns,
           filters,
@@ -121,8 +119,8 @@ export class SQLDataSourceFlat {
         sort,
       },
       retainOn: ['pagination', 'sort'],
-      queryFn: async () => {
-        const query = buildQuery(this.sqlSchema, this.rootSchemaName, model);
+      compute: async () => {
+        const query = buildQuery(this.sqlSchema, model);
         const result = await runQueryForQueryTable(query, this.engine);
         const rows = result.rows;
         return {rows, rowOffset: pagination?.offset ?? 0};
@@ -139,11 +137,19 @@ export class SQLDataSourceFlat {
   }
 
   /**
+   * Returns the SQL query that `getRows` would execute for this model,
+   * without running it. Useful for debugging/inspection.
+   */
+  getQuery(model: FlatModel): string {
+    return buildQuery(this.sqlSchema, model);
+  }
+
+  /**
    * Export all data with current filters/sorting applied (no pagination).
    */
   async exportData(model: FlatModel): Promise<readonly Row[]> {
     // Build query without pagination
-    const query = buildQuery(this.sqlSchema, this.rootSchemaName, {
+    const query = buildQuery(this.sqlSchema, {
       ...model,
       pagination: undefined,
     });
@@ -168,11 +174,10 @@ function serializeFilters(filters: FlatModel['filters']) {
 }
 
 function buildQuery(
-  sqlSchema: SQLSchemaRegistry,
-  rootSchemaName: string,
+  sqlSchema: SQLTableSchema,
   {columns, filters, pagination, sort}: FlatModel,
 ): string {
-  const resolver = new SQLSchemaResolver(sqlSchema, rootSchemaName);
+  const resolver = new SQLSchemaResolver(sqlSchema);
 
   let sql = buildSelectClause(resolver, columns);
   sql = addFromClause(sql, resolver);
@@ -192,7 +197,7 @@ function buildSelectClause(
   for (const col of columns) {
     const sqlExpr = resolver.resolveColumnPath(col.field);
     if (sqlExpr) {
-      const alias = toAlias(col.alias);
+      const alias = quoteIdentifier(col.alias);
       selectExprs.push(`${sqlExpr} AS ${alias}`);
     }
   }
@@ -205,11 +210,11 @@ function buildSelectClause(
 }
 
 function addFromClause(sql: string, resolver: SQLSchemaResolver): string {
-  const baseTable = resolver.getBaseTable();
+  const baseTable = resolver.getBaseTableOrSubquery();
   const baseAlias = resolver.getBaseAlias();
   const joinClauses = resolver.buildJoinClauses();
 
-  sql += `\nFROM ${baseTable} AS ${baseAlias}`;
+  sql += `\nFROM (${baseTable}) AS ${baseAlias}`;
   if (joinClauses) {
     sql += `\n${joinClauses}`;
   }

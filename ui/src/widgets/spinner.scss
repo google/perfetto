@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../assets/theme";
+@use "../assets/theme" as *;
 
 @keyframes pf-spinner-rotation {
   from {
@@ -31,7 +31,7 @@
   border: solid 0.2em var(--pf-color-border);
   border-top: solid 0.2em var(--pf-color-primary);
   border-radius: 50%;
-  animation: pf-spinner-rotation 1s infinite linear;
+  animation: pf-spinner-rotation 0.6s infinite linear;
 
   &.easing {
     animation-timing-function: ease-in-out;

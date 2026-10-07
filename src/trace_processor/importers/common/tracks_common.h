@@ -210,6 +210,18 @@ inline constexpr auto kAndroidScreenStateBlueprint =
                              tracks::DimensionBlueprints(),
                              tracks::StaticNameBlueprint("ScreenState"));
 
+inline constexpr auto kAndroidBatteryStatusBlueprint =
+    tracks::CounterBlueprint("battery_status",
+                             tracks::UnknownUnitBlueprint(),
+                             tracks::DimensionBlueprints(),
+                             tracks::StaticNameBlueprint("BatteryStatus"));
+
+inline constexpr auto kAndroidPlugTypeBlueprint =
+    tracks::CounterBlueprint("plug_type",
+                             tracks::UnknownUnitBlueprint(),
+                             tracks::DimensionBlueprints(),
+                             tracks::StaticNameBlueprint("PlugType"));
+
 inline constexpr auto kAndroidBatteryStatsBlueprint = tracks::CounterBlueprint(
     "battery_stats",
     tracks::UnknownUnitBlueprint(),
@@ -279,6 +291,25 @@ inline constexpr auto kPerfCpuCounterBlueprint = tracks::CounterBlueprint(
     "perf_cpu_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
+        tracks::kCpuDimensionBlueprint,
+        tracks::UintDimensionBlueprint("perf_session_id"),
+        tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
+
+inline constexpr auto kPerfThreadCounterBlueprint = tracks::CounterBlueprint(
+    "perf_thread_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kThreadDimensionBlueprint,
+        tracks::UintDimensionBlueprint("perf_session_id"),
+        tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
+
+inline constexpr auto kPerfThreadCpuCounterBlueprint = tracks::CounterBlueprint(
+    "perf_thread_cpu_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kThreadDimensionBlueprint,
         tracks::kCpuDimensionBlueprint,
         tracks::UintDimensionBlueprint("perf_session_id"),
         tracks::kNameFromTraceDimensionBlueprint),

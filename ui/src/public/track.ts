@@ -256,6 +256,7 @@ export interface TrackRenderer {
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
+  onMouseDoubleClick?(event: TrackMouseEvent): boolean;
   onMouseOut?(): void;
 
   /**
@@ -354,5 +355,6 @@ export interface Overlay {
     size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
     theme: CanvasColors,
+    rootNode: TrackNode,
   ): void;
 }

@@ -16,16 +16,15 @@ import m from 'mithril';
 import {valueIfAllEqual} from '../../base/array_utils';
 import {assertUnreachable} from '../../base/assert';
 import {searchSegment} from '../../base/binary_search';
-import {deferChunkedTask} from '../../base/chunked_task';
 import {HSLColor} from '../../base/color';
 import type {Point2D} from '../../base/geom';
 import {formatNumber} from '../../base/number_format';
 import {
   type CancellationSignal,
-  QUERY_CANCELLED,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../base/query_slot';
+  TASK_CANCELLED,
+  AsyncMemo,
+  AtomicTaskQueue,
+} from '../../base/async_memo';
 import {Icons} from '../../base/semantic_icons';
 import type {duration, time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
@@ -45,7 +44,6 @@ import {
 import {MenuItem} from '../../widgets/menu';
 import {checkerboardExcept} from '../checkerboard';
 import {BufferedBounds} from './buffered_bounds';
-import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {RangeSharer} from './range_sharer';
 
 export type ChartHeightSize = 1 | 2 | 4 | 8 | 16 | 32;
@@ -268,10 +266,10 @@ export interface CounterTrackAttrs {
 
 export class CounterTrack implements TrackRenderer {
   // QuerySlot infrastructure
-  private readonly queue = new SerialTaskQueue();
-  private readonly initSlot = new QuerySlot<AsyncDisposable | void>(this.queue);
-  private readonly tableSlot = new QuerySlot<MipmapTableResult>(this.queue);
-  private readonly dataSlot = new QuerySlot<DataFrame>(this.queue);
+  private readonly queue = new AtomicTaskQueue();
+  private readonly initSlot = new AsyncMemo<AsyncDisposable | void>(this.queue);
+  private readonly tableSlot = new AsyncMemo<MipmapTableResult>(this.queue);
+  private readonly dataSlot = new AsyncMemo<DataFrame>(this.queue);
 
   // Buffered bounds tracking
   private readonly bufferedBounds = new BufferedBounds();
@@ -649,7 +647,7 @@ export class CounterTrack implements TrackRenderer {
     // Step 0: Call onInit with a constant key
     const initResult = this.initSlot.use({
       key: {init: true},
-      queryFn: () => this.onInitFn?.() ?? Promise.resolve(),
+      compute: () => this.onInitFn?.() ?? Promise.resolve(),
     });
 
     if (initResult.isPending) {
@@ -665,7 +663,7 @@ export class CounterTrack implements TrackRenderer {
         yMode,
         yDisplay,
       },
-      queryFn: () => this.createMipmapTable(),
+      compute: () => this.createMipmapTable(),
     });
 
     const table = tableResult.data;
@@ -691,7 +689,7 @@ export class CounterTrack implements TrackRenderer {
         yMode,
         yDisplay,
       },
-      queryFn: async (signal) => {
+      compute: async (signal) => {
         return await this.trace.taskTracker.track(
           this.fetchCounterData(
             table.tableName,
@@ -908,48 +906,37 @@ export class CounterTrack implements TrackRenderer {
       );
     `);
 
-    if (signal.isCancelled) throw QUERY_CANCELLED;
+    if (signal.isCancelled) throw TASK_CANCELLED;
 
-    const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
-      ? 'background'
-      : undefined;
-    const task = await deferChunkedTask({priority});
-
-    const it = queryRes.iter({
+    const cols = queryRes.decodeColumns({
       tsRel: NUM,
       minDisplayValue: NUM,
       maxDisplayValue: NUM,
       lastDisplayValue: NUM,
     });
+    const tsRelCol = cols.tsRel;
+    const minCol = cols.minDisplayValue;
+    const maxCol = cols.maxDisplayValue;
+    const lastCol = cols.lastDisplayValue;
 
     const numRows = queryRes.numRows();
-    const timestampsRel = new Float32Array(numRows);
-    const timestampsRelNext = new Float32Array(numRows);
-    const minDisplayValues = new Float32Array(numRows);
-    const maxDisplayValues = new Float32Array(numRows);
-    const lastDisplayValues = new Float32Array(numRows);
+    const timestampsRel = new Float32Array(tsRelCol);
+    const minDisplayValues = new Float32Array(minCol);
+    const maxDisplayValues = new Float32Array(maxCol);
+    const lastDisplayValues = new Float32Array(lastCol);
+
     let min = 0;
     let max = 0;
-
-    for (let row = 0; it.valid(); it.next(), row++) {
-      if (signal.isCancelled) throw QUERY_CANCELLED;
-      if (row % 50 === 0 && task.shouldYield()) {
-        await task.yield();
-      }
-
-      timestampsRel[row] = it.tsRel;
-      minDisplayValues[row] = it.minDisplayValue;
-      maxDisplayValues[row] = it.maxDisplayValue;
-      lastDisplayValues[row] = it.lastDisplayValue;
-      min = Math.min(min, it.minDisplayValue);
-      max = Math.max(max, it.maxDisplayValue);
-
-      if (row > 0) {
-        // Fill in the next
-        timestampsRelNext[row - 1] = it.tsRel;
-      }
+    for (let row = 0; row < numRows; row++) {
+      min = Math.min(min, minCol[row]);
+      max = Math.max(max, maxCol[row]);
     }
 
+    // timestampsRelNext[i] = timestampsRel[i+1], last element = end - start.
+    const timestampsRelNext = new Float32Array(numRows);
+    if (numRows > 1) {
+      timestampsRelNext.set(timestampsRel.subarray(1));
+    }
     if (numRows > 0) {
       timestampsRelNext[numRows - 1] = Number(end - start);
     }

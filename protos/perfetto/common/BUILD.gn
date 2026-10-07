@@ -30,7 +30,6 @@ perfetto_proto_library("@TYPE@") {
     "interceptor_descriptor.proto",
     "observable_events.proto",
     "perf_events.proto",
-    "protolog_common.proto",
     "sys_stats_counters.proto",
     "system_info.proto",
     "trace_attributes.proto",
@@ -53,6 +52,16 @@ perfetto_proto_library("semantic_type_@TYPE@") {
   sources = [ "semantic_type.proto" ]
   proto_generators = [
     "cpp",
+    "lite",
+    "zero",
+  ]
+}
+
+# Passthrough annotation for proto merging and filtering.
+perfetto_proto_library("passthrough_@TYPE@") {
+  sources = [ "passthrough.proto" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  proto_generators = [
     "lite",
     "zero",
   ]

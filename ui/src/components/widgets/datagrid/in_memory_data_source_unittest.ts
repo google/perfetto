@@ -20,53 +20,67 @@ import type {Filter} from './model';
 describe('InMemoryDataSource', () => {
   const sampleData: ReadonlyArray<Row> = [
     {
-      id: 1,
-      name: 'Alice',
-      value: 100,
-      active: 1,
-      tag: 'A',
-      blob: new Uint8Array([1, 2]),
+      'id': 1,
+      'name': 'Alice',
+      'value': 100,
+      'active': 1,
+      'tag': 'A',
+      'blob': new Uint8Array([1, 2]),
+      'foo.bar': 'foo.bar value 1',
     },
     {
-      id: 2,
-      name: 'Bob',
-      value: 200,
-      active: 0,
-      tag: 'B',
-      blob: new Uint8Array([3, 4, 5]),
-    },
-    {id: 3, name: 'Charlie', value: 150, active: 1, tag: 'A', blob: null},
-    {
-      id: 4,
-      name: 'David',
-      value: null,
-      active: 0,
-      tag: 'C',
-      blob: new Uint8Array([6]),
+      'id': 2,
+      'name': 'Bob',
+      'value': 200,
+      'active': 0,
+      'tag': 'B',
+      'blob': new Uint8Array([3, 4, 5]),
+      'foo.bar': 'foo.bar value 2',
     },
     {
-      id: 5,
-      name: 'Eve',
-      value: 100,
-      active: 1,
-      tag: 'B',
-      blob: new Uint8Array([7, 8, 9, 0]),
+      'id': 3,
+      'name': 'Charlie',
+      'value': 150,
+      'active': 1,
+      'tag': 'A',
+      'blob': null,
+      'foo.bar': 'foo.bar value 3',
     },
     {
-      id: 6,
-      name: 'Mallory',
-      value: 300n,
-      active: 0,
-      tag: 'C',
-      blob: new Uint8Array([0]),
+      'id': 4,
+      'name': 'David',
+      'value': null,
+      'active': 0,
+      'tag': 'C',
+      'blob': new Uint8Array([6]),
+      'foo.bar': 'foo.bar value 1',
     },
     {
-      id: 7,
-      name: 'Trent',
-      value: 250n,
-      active: 1,
-      tag: 'A',
-      blob: new Uint8Array([1, 1]),
+      'id': 5,
+      'name': 'Eve',
+      'value': 100,
+      'active': 1,
+      'tag': 'B',
+      'blob': new Uint8Array([7, 8, 9, 0]),
+      'foo.bar': 'foo.bar value 2',
+    },
+    {
+      'id': 6,
+      'name': 'Mallory',
+      'value': 300n,
+      'active': 0,
+      'tag': 'C',
+      'blob': new Uint8Array([0]),
+      'foo.bar': 'foo.bar value 3',
+    },
+    {
+      'id': 7,
+      'name': 'Trent',
+      'value': 250n,
+      'active': 1,
+      'tag': 'A',
+      'blob': new Uint8Array([1, 1]),
+      'foo.bar': 'foo.bar value 4',
     },
   ];
 
@@ -378,5 +392,52 @@ describe('InMemoryDataSource', () => {
     );
     expect(resultAfterUpdate.totalRows).toBe(0);
     expect(resultAfterUpdate.rows).toEqual([]);
+  });
+
+  test('can index field with dot in the name as well as escaped dots in the name', () => {
+    const result = dataSource.useRows(
+      makeModel({
+        columns: [
+          {field: 'foo.bar', alias: 'straight'},
+          {field: 'foo..bar', alias: 'escaped'},
+        ],
+      }),
+    );
+    expect(result.rows?.[0]).toEqual({
+      straight: 'foo.bar value 1',
+      escaped: 'foo.bar value 1',
+    });
+  });
+
+  test('can filter on a field with a dot in the name', () => {
+    const filters: Filter[] = [
+      {field: 'foo.bar', op: '=', value: 'foo.bar value 2'},
+    ];
+    const result = dataSource.useRows(
+      makeModel({
+        columns: [
+          {field: 'id', alias: 'id'},
+          {field: 'foo.bar', alias: 'fooBar'},
+        ],
+        filters,
+      }),
+    );
+    expect(result.rows?.map((r) => r.id).sort()).toEqual([2, 5]); // Bob, Eve
+  });
+
+  test('can filter on a field with a dot in the name using glob', () => {
+    const filters: Filter[] = [
+      {field: 'foo.bar', op: 'glob', value: '*value 3'},
+    ];
+    const result = dataSource.useRows(
+      makeModel({
+        columns: [
+          {field: 'id', alias: 'id'},
+          {field: 'foo.bar', alias: 'fooBar'},
+        ],
+        filters,
+      }),
+    );
+    expect(result.rows?.map((r) => r.id).sort()).toEqual([3, 6]); // Charlie, Mallory
   });
 });

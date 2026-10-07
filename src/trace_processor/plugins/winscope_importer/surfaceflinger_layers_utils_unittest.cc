@@ -27,12 +27,14 @@ namespace perfetto::trace_processor::winscope::surfaceflinger_layers::test {
 namespace {
 const Color test_color{0, 0, 0, 1};
 
-protos::pbzero::LayerProto::Decoder ConvertToLayerProto(std::string& snapshot) {
-  protos::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(snapshot);
-  protos::pbzero::LayersProto::Decoder layers_decoder(
+com::android::internal::pbzero::LayerProto::Decoder ConvertToLayerProto(
+    std::string& snapshot) {
+  com::android::internal::pbzero::LayersSnapshotProto::Decoder snapshot_decoder(
+      snapshot);
+  com::android::internal::pbzero::LayersProto::Decoder layers_decoder(
       snapshot_decoder.layers());
   auto it = layers_decoder.layers();
-  protos::pbzero::LayerProto::Decoder layer_decoder(*it);
+  com::android::internal::pbzero::LayerProto::Decoder layer_decoder(*it);
   return layer_decoder;
 }
 }  // namespace

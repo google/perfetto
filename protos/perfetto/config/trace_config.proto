@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/common/builtin_clock.proto";
 import "protos/perfetto/common/semantic_type.proto";
+import "protos/perfetto/common/trace_attributes.proto";
 import "protos/perfetto/config/data_source_config.proto";
 import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 
@@ -28,7 +29,7 @@ import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 47.
+// Next id: 50.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -87,10 +88,9 @@ message TraceConfig {
       // Use TraceBufferV2.
       TRACE_BUFFER_V2 = 1;
 
-      // Use both V1 and V2 in shadow mode. Data is written to both buffers,
-      // but only V1 data is returned. Comparison stats are reported to
-      // validate V2 returns equivalent data.
-      TRACE_BUFFER_V2_SHADOW_MODE = 2;
+      // Was TRACE_BUFFER_V2_SHADOW_MODE, a testing-only mode used to validate
+      // V2 against V1.
+      reserved 2;
     }
     optional ExperimentalMode experimental_mode = 8;
   }
@@ -175,6 +175,12 @@ message TraceConfig {
 
     // Disable emitting extension descriptors into the trace.
     optional bool disable_extension_descriptors = 9;
+
+    // Emit state changes of other tracing sessions running concurrently
+    // with this one (see ConcurrentSessionEvent).
+    //
+    // Introduced in v58 / Android 26Q3+.
+    optional bool enable_concurrent_session_events = 10;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -384,11 +390,11 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 4;
-
+      //
       // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
       // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
+      CLONE_SNAPSHOT = 4;
     }
     optional TriggerMode trigger_mode = 1;
 
@@ -488,12 +494,39 @@ message TraceConfig {
   // with this key.
   optional string unique_session_name = 22;
 
-  // Compress trace with the given method. Best effort.
+  // Deprecated: use |compression| (CompressionConfig) instead. Legacy selector
+  // that only ever selects deflate. Kept for backwards compatibility with
+  // Perfetto <= v57, whose services predate |compression|. Best effort.
   enum CompressionType {
     COMPRESSION_TYPE_UNSPECIFIED = 0;
     COMPRESSION_TYPE_DEFLATE = 1;
   }
-  optional CompressionType compression_type = 24;
+  optional CompressionType compression_type = 24 [deprecated = true];
+
+  // Selects and configures the compression codec, superseding
+  // |compression_type|. The codec is chosen by which sub-message is set; when
+  // several are set the service picks the highest-numbered one it supports and
+  // ignores codecs it doesn't know, so a single config can target old and new
+  // services. Falls back to |compression_type| (deflate-only), if given.
+  //
+  // Introduced in: perfetto v58.
+  // Supported on: Android 26Q3+.
+  message CompressionConfig {
+    // Deflate (zlib), equivalent to the legacy `COMPRESSION_TYPE_DEFLATE`.
+    message Deflate {}
+    message Zstd {
+      // Compression level, 1 (fast) to 22 (smallest); 0/unset uses zstd's
+      // default (3). Levels above the max are clamped; negatives are valid
+      // faster, lower-ratio modes.
+      optional int32 level = 1;
+    }
+    // If a config sets more than one of these, the service picks the one with
+    // the highest field number (see the rule above): e.g. with deflate (1) and
+    // zstd (2) both set, zstd wins.
+    optional Deflate deflate = 1;
+    optional Zstd zstd = 2;
+  }
+  optional CompressionConfig compression = 47;
 
   // DEPRECATED, was compress_from_cli.
   reserved 37;
@@ -502,12 +535,11 @@ message TraceConfig {
   // incident. This field is read by perfetto_cmd, rather than the tracing
   // service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * all of |destination_package|, |destination_class| and |privacy_level|
+  //    must be set.
+  //  * |skip_incidentd| must be explicitly set to true.
   message IncidentReportConfig {
-    // In this message, either:
-    //  * all of |destination_package|, |destination_class| and |privacy_level|
-    //    must be set.
-    //  * |skip_incidentd| must be explicitly set to true.
-
     optional string destination_package = 1;
     optional string destination_class = 2;
     // Level of filtering in the requested incident. See |Destination| in
@@ -566,6 +598,15 @@ message TraceConfig {
   // Introduced in Android S, but it was broken (b/195065199). Reintroduced in
   // Android T with a different field number. Updated in Android U with a new
   // bytecode version which supports string filtering.
+  //
+  // The principles and terminology of string filtering is heavily inspired by
+  // iptables. A "rule" decide how strings should be filtered. Each rule
+  // contains a "policy" which indicates the algorithm to use for filtering.
+  // A "chain" is a list of rules which will be sequentially checked against
+  // each string.
+  //
+  // The first rule which applies to the string terminates filtering for that
+  // string. If no rules apply, the string is left unchanged.
   message TraceFilter {
     // =========================
     // Filter bytecode.
@@ -581,15 +622,6 @@ message TraceConfig {
     // =========================
     // String filtering
     // =========================
-
-    // The principles and terminology of string filtering is heavily inspired by
-    // iptables. A "rule" decide how strings should be filtered. Each rule
-    // contains a "policy" which indicates the algorithm to use for filtering.
-    // A "chain" is a list of rules which will be sequentially checked against
-    // each string.
-    //
-    // The first rule which applies to the string terminates filtering for that
-    // string. If no rules apply, the string is left unchanged.
 
     // A policy specifies which algorithm should be used for filtering the
     // string.
@@ -740,11 +772,10 @@ message TraceConfig {
   // Android framework. This field is read by perfetto_cmd, rather than the
   // tracing service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * |reporter_service_package| and |reporter_service_class| must be set.
+  //  * |skip_reporting| must be explicitly set to true.
   message AndroidReportConfig {
-    // In this message, either:
-    //  * |reporter_service_package| and |reporter_service_class| must be set.
-    //  * |skip_reporting| must be explicitly set to true.
-
     optional string reporter_service_package = 1;
     optional string reporter_service_class = 2;
 
@@ -881,7 +912,7 @@ message TraceConfig {
 
     // The following modes are intended for advanced usage and not recommended
     // for general use.
-
+    //
     // Do not flush buffers before periodic writes into the file.
     // Use this mode if you want to minimize the performance impact of flushes
     // and can tolerate potentially missing the most recent data in the trace
@@ -943,12 +974,24 @@ message TraceConfig {
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
 
-  // Allow key, value pairs to save arbitrary data about trace.
-  message Note {
-    // Required.
-    optional string key = 1;
-    // Required.
-    optional string value = 2;
-  }
-  repeated Note notes = 46;
+  // |notes|, replaced by |trace_attributes|.
+  reserved 46;
+  reserved "notes";
+
+  // Trace attributes: arbitrary key/value pairs describing the trace, saved
+  // into it and surfaced by trace_processor in the `metadata` table (see
+  // common/trace_attributes.proto). Typically set via
+  // `perfetto --add-attribute key=value`.
+  //
+  // Introduced in: perfetto v58.
+  optional TraceAttributes trace_attributes = 48;
+
+  // Android-only. Not for general use. If set to true, writes trace chunks to a
+  // persistent file
+  // (/data/misc/perfetto-traces/persistent/$unique_session_name.tmp) that
+  // survives device reboots (e.g. during OTA updates or battery depletion).
+  //
+  // Introduced in: perfetto v59.
+  // Supported on: Android 26Q4+.
+  optional bool persist_trace_across_reboots = 49;
 }

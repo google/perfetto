@@ -21,7 +21,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import type {IdleDetectorWindow} from '../frontend/idle_detector_interface';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import type {Size2D} from '../base/geom';
 import type {AppImpl} from '../core/app_impl';
 
@@ -37,7 +37,7 @@ export class PerfettoTestHelper {
   async sidebarSize(): Promise<Size2D> {
     if (this.cachedSidebarSize === undefined) {
       const size = await this.page.locator('main > .pf-sidebar').boundingBox();
-      this.cachedSidebarSize = assertExists(size);
+      this.cachedSidebarSize = ensureExists(size);
     }
     return this.cachedSidebarSize;
   }
@@ -62,7 +62,7 @@ export class PerfettoTestHelper {
       localStorage.setItem('dismissedPanningHint', 'true'),
     );
     const tracePath = this.getTestTracePath(traceName);
-    await assertExists(file).setInputFiles(tracePath);
+    await ensureExists(file).setInputFiles(tracePath);
     await this.waitForPerfettoIdle();
     await this.applyTestingStyles();
     await this.page.mouse.move(0, 0);
@@ -118,6 +118,14 @@ export class PerfettoTestHelper {
   async toggleTrackGroup(locator: Locator) {
     await locator.locator('.pf-track__shell').first().click();
     await this.waitForPerfettoIdle();
+  }
+
+  async expandTrackGroup(locator: Locator) {
+    const header = locator.locator(':scope > .pf-track__header');
+    const classes = await header.getAttribute('class');
+    if (!classes?.includes('pf-track__header--expanded')) {
+      await this.toggleTrackGroup(locator);
+    }
   }
 
   locateTrack(name: string, trackGroup?: Locator): Locator {

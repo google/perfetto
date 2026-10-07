@@ -10,7 +10,7 @@ developers to investigate memory issues.
 
 By default, the tool records native allocations and deallocations done with
 malloc/free (or new/delete). It can be configured to record java heap memory
-allocations instead: see [Java heap sampling](#java-heap-sampling) below.
+allocations instead: see [ART allocation profiling](#art-allocation-profiling) below.
 
 On debug Android builds, you can profile all apps and most system services.
 On "user" builds, you can only use it on apps with the debuggable or
@@ -87,10 +87,10 @@ dumps as slices on the timeline, click any of them to get a flamegraph.
 #### Using the Recording page of Perfetto UI
 
 You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record/memory)
-to record heapprofd profiles. Tick "Heap profiling" in the trace configuration,
-enter the processes you want to target, click "Add Device" to pair your phone,
-and record profiles straight from your browser. This is also possible on
-Windows.
+to record heapprofd profiles. Tick "Native heap profiling" in the trace
+configuration, enter the processes you want to target, click "Connect new
+device" to pair your phone, and record profiles straight from your browser.
+This is also possible on Windows.
 
 ## Viewing the data
 
@@ -107,9 +107,8 @@ The resulting profile proto contains four views on the data, for each slice.
 * **Total malloc count**: how many allocations (including ones with matching
   frees) were done at this callstack, throughout the duration of the slice.
 
-TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
-
-TIP: Click Left Heavy on the top left for a good visualization.
+TIP: you might want to put `libart.so` as a "Hide Frame" filter when profiling
+apps.
 
 ## Continuous dumps
 
@@ -120,7 +119,7 @@ which summarizes all allocations/frees.
 It is possible to configure the heap profiler to periodically (not just at the
 end of the trace) store snapshots (continuous dumps), for example every 5000ms
 
-* By setting "Continuous dumps interval" in the UI to 5000.
+* By setting "Continuous dump interval" in the UI to 5000.
 * By adding
   ```
   continuous_dump_config {
@@ -253,7 +252,7 @@ the `<application>` section of the app manifest.
 </manifest>
 ```
 
-## {#java-heap-sampling} Java Allocation Profiling (Churn Profiling)
+## {#art-allocation-profiling} ART Allocation Profiling (Churn Profiling)
 
 NOTE: **Java allocation profiling is available on Android 12 or higher**
 
@@ -266,11 +265,11 @@ Heapprofd can be configured to track Java allocations instead of native ones.
 * By adding `--heaps com.android.art` to the invocation of
   [`tools/heap_profile android`](/docs/reference/heap_profile-cli).
 
-Unlike java heap dumps (which show the retention graph of a snapshot of the live
-objects) but like native heap profiles, java heap samples show callstacks of
+Unlike ART heap dumps (which show the retention graph of a snapshot of the live
+objects) but like native heap profiles, ART allocation samples show callstacks of
 allocations over time of the entire profile.
 
-Java heap samples only show callstacks of when objects are created, not when
+ART allocation samples only show callstacks of when objects are created, not when
 they're deleted or garbage collected.
 
 ![javaheapsamples](/docs/images/java-heap-samples.png)
@@ -284,7 +283,7 @@ The resulting profile proto contains two views on the data:
   over time of the profile until this point. The objects might have been freed
   or not, the tool does not keep track of that.
 
-Java heap samples are useful to understand memory churn showing the call stack
+ART allocation samples are useful to understand memory churn showing the call stack
 of which parts of the code large allocations are attributed to as well as the
 allocation type from the ART runtime.
 
@@ -311,7 +310,7 @@ enumerated in the output directory.
 ## Symbolization and deobfuscation
 
 If your profile shows raw addresses or obfuscated Java/Kotlin names, run
-`traceconv bundle` against the collected trace to produce an enriched
+`trace_processor bundle` against the collected trace to produce an enriched
 archive. See [Symbolization and deobfuscation](/docs/learning-more/symbolization.md)
 for the full workflow, including the legacy `PERFETTO_BINARY_PATH` /
 `PERFETTO_PROGUARD_MAP` approach.
@@ -369,7 +368,7 @@ The script:
    blocks the very first `malloc` until heapprofd has fully attached, so
    every allocation is correctly tracked.
 4. Waits for the target to exit (or `Ctrl-C` from you), then runs
-   `traceconv` to produce gzipped pprof files alongside the raw trace.
+   `trace_processor` to produce gzipped pprof files alongside the raw trace.
 
 If `-n` / `--name` is omitted, the process name defaults to the basename of
 the binary you passed after `--`.
@@ -496,11 +495,11 @@ you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
-You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap
+You can use [trace_processor](/docs/quickstart/traceconv.md) to convert the heap
 dumps in a trace into the [pprof](https://github.com/google/pprof) format:
 
 ```bash
-tools/traceconv profile /tmp/profile
+tools/trace_processor convert profile /tmp/profile
 ```
 
 This will create a directory in `/tmp/` containing the heap dumps. Run:
@@ -560,7 +559,7 @@ SELECT
   -- The amount of memory allocated and *not freed* with this
   -- function appearing anywhere on the callstack.
   cumulative_size
-FROM android_heap_profile_summary_tree;
+FROM android_heap_profile_summary_tree
 order by abs(cumulative_size) desc;
 ```
 

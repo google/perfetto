@@ -19,6 +19,9 @@
 
 #include <string>
 #include <vector>
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
+
+#include "perfetto/base/status.h"
 
 namespace perfetto::trace_to_text {
 
@@ -30,6 +33,7 @@ struct ProguardMapSpec {
 
 // Context structure for bundle configuration
 struct BundleContext {
+  profiling::DebuginfodConfig debuginfod;
   // Additional paths to search for symbols (beyond automatic discovery)
   std::vector<std::string> symbol_paths;
 
@@ -44,6 +48,9 @@ struct BundleContext {
 
   // If true, output verbose details (all paths tried, etc.)
   bool verbose = false;
+
+  // If true, suppress routine status output; warnings are still printed.
+  bool quiet = false;
 
   // Value of ANDROID_PRODUCT_OUT for AOSP builds symbol discovery
   std::string android_product_out;
@@ -61,10 +68,14 @@ struct BundleContext {
 // Creates a bundle from the input trace with symbolization,
 // deobfuscation, and potentially other enhancements. Outputs a TAR file
 // containing everything needed for the trace to be self-contained.
-// Returns 0 on success, non-zero on failure.
-int TraceToBundle(const std::string& input_file_path,
-                  const std::string& output_file_path,
-                  const BundleContext& context);
+//
+// Returns OkStatus() if the bundle was created, even when some enrichment
+// was not possible (the details are printed to stderr). Returns an error
+// only for genuine failures: unreadable input, unwritable output, or an
+// explicitly-provided ProGuard/R8 map that could not be read.
+base::Status TraceToBundle(const std::string& input_file_path,
+                           const std::string& output_file_path,
+                           const BundleContext& context);
 
 }  // namespace perfetto::trace_to_text
 

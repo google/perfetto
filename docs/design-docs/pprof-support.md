@@ -235,7 +235,7 @@ $ trace_processor_shell profile.pprof
 
 1. **File loading**: Drag and drop pprof file into Perfetto UI or use file picker
 2. **Automatic detection**: Perfetto recognizes pprof format and imports data
-3. **Navigation**: Go to "Pprof" page from main navigation
+3. **Navigation**: Go to "Aggregate Profiles" page from main navigation
 4. **Interactive analysis**: Select scope/metric and explore flame graph
 
 #### Multi-metric Files

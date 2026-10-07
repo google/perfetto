@@ -182,6 +182,9 @@ message TraceMetricV2Spec {
     // A URL linking to more detailed documentation about this dimension.
     // Optional.
     optional string doc_link = 5;
+    // Whether or not the dimension is aggregatable (values are disjoint
+    // and can be aggregated without double counting). Optional.
+    optional bool is_aggregatable = 6;
   }
   repeated DimensionSpec dimensions_specs = 5;
   repeated string dimensions = 2;
@@ -231,8 +234,9 @@ message TraceMetricV2Spec {
   // `MetricUnit` enum or a custom unit as a string. This helps in consistently
   // interpreting and displaying metric values across different tools and
   // surfaces.
+  //
+  // Next value: 33
   enum MetricUnit {
-    // Next value: 33
     METRIC_UNIT_UNSPECIFIED = 0;
     // A unitless count of items or events.
     COUNT = 1;
@@ -311,8 +315,9 @@ message TraceMetricV2Spec {
   // This helps determine whether an increase or decrease in the metric's value
   // is a regression or an improvement, which is crucial for automated
   // analysis and reporting.
+  //
+  // Next value: 4
   enum MetricPolarity {
-    // Next value: 4
     POLARITY_UNSPECIFIED = 0;
     // An increase in the metric's value is considered an improvement.
     HIGHER_IS_BETTER = 1;

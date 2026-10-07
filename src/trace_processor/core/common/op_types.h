@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_COMMON_OP_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_COMMON_OP_TYPES_H_
 
-#include "src/trace_processor/core/util/type_set.h"
+#include "perfetto/ext/base/type_set.h"
 
 namespace perfetto::trace_processor::core {
 
@@ -56,7 +56,31 @@ struct In {};
 
 // TypeSet of all possible operations for filter conditions.
 using Op =
-    core::TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull, In>;
+    base::TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull, In>;
+
+// Subsets of Op describing which operations a given kind of value or access
+// path supports. Used to pick how a filter is evaluated.
+
+// Set of operations applicable to non-null values.
+using NonNullOp = base::TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
+
+// Set of operations applicable to non-string values.
+using NonStringOp = base::TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
+
+// Set of operations applicable to string values.
+using StringOp = base::TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
+
+// Set of operations applicable to only string values.
+using OnlyStringOp = base::TypeSet<Glob, Regex>;
+
+// Set of operations applicable to ranges.
+using RangeOp = base::TypeSet<Eq, Lt, Le, Gt, Ge>;
+
+// Set of inequality operations (Lt, Le, Gt, Ge).
+using InequalityOp = base::TypeSet<Lt, Le, Gt, Ge>;
+
+// Set of null operations (IsNotNull, IsNull).
+using NullOp = base::TypeSet<IsNotNull, IsNull>;
 
 }  // namespace perfetto::trace_processor::core
 

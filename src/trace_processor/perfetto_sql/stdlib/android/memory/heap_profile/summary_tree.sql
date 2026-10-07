@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
-INCLUDE PERFETTO MODULE graphs.scan;
-
 CREATE PERFETTO TABLE _android_heap_profile_raw_callstacks AS
 WITH
   metrics AS MATERIALIZED (
@@ -41,40 +39,10 @@ FROM _callstacks_for_stack_profile_samples!(metrics) AS c
 LEFT JOIN metrics AS m USING (callsite_id);
 
 CREATE PERFETTO TABLE _android_heap_profile_cumulatives AS
-SELECT a.*
-FROM _graph_aggregating_scan!(
-  (
-    SELECT id AS source_node_id, parent_id AS dest_node_id
-    FROM _android_heap_profile_raw_callstacks
-    WHERE parent_id IS NOT NULL
-  ),
-  (
-    SELECT
-      p.id,
-      p.self_size AS cumulative_size,
-      p.self_alloc_size AS cumulative_alloc_size
-    FROM _android_heap_profile_raw_callstacks p
-    LEFT JOIN _android_heap_profile_raw_callstacks c ON c.parent_id = p.id
-    WHERE c.id IS NULL
-  ),
-  (cumulative_size, cumulative_alloc_size),
-  (
-    WITH agg AS (
-      SELECT
-        t.id,
-        SUM(t.cumulative_size) AS child_size,
-        SUM(t.cumulative_alloc_size) AS child_alloc_size
-      FROM $table t
-      GROUP BY t.id
-    )
-    SELECT
-      a.id,
-      a.child_size + r.self_size as cumulative_size,
-      a.child_alloc_size + r.self_alloc_size AS cumulative_alloc_size
-    FROM agg a
-    JOIN _android_heap_profile_raw_callstacks r USING (id)
-  )
-) AS a;
+FROM _android_heap_profile_raw_callstacks
+|> TREE ACCUMULATE UP
+  SUM(self_size) AS cumulative_size,
+  SUM(self_alloc_size) AS cumulative_alloc_size;
 
 -- Table summarising the amount of memory allocated by each
 -- callstack as seen by Android native heap profiling (i.e.
@@ -123,5 +91,6 @@ SELECT
   cumulative_size,
   self_alloc_size,
   cumulative_alloc_size
-FROM _android_heap_profile_raw_callstacks AS r
-JOIN _android_heap_profile_cumulatives AS a USING (id);
+FROM _android_heap_profile_cumulatives
+ORDER BY
+  id;

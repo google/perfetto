@@ -37,6 +37,7 @@
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 #include "src/protozero/multifile_error_collector.h"
 
+#include "protos/perfetto/common/passthrough.pb.h"
 #include "protos/perfetto/common/semantic_type.pbzero.h"
 #include "protos/perfetto/proto_filtering/proto_filter_options.pb.h"
 
@@ -61,9 +62,12 @@ ProtoFilterOptions ReadProtoFilterAnnotation(
     const auto& ext = options.GetExtension(perfetto::protos::proto_filter);
     opts.semantic_type = static_cast<uint32_t>(ext.semantic_type());
     opts.filter_string = ext.filter_string();
-    opts.passthrough = ext.passthrough();
     opts.allow_v2_with_semantic_type = ext.allow_v2_with_semantic_type();
     opts.allow_v1_with_filter_string = ext.allow_v1_with_filter_string();
+  }
+  if (options.HasExtension(perfetto::protos::proto_filter_merge_passthrough)) {
+    opts.passthrough =
+        options.GetExtension(perfetto::protos::proto_filter_merge_passthrough);
   }
   return opts;
 }

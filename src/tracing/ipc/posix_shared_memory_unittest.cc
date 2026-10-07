@@ -80,7 +80,8 @@ TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
   ASSERT_EQ(7, base::WriteAll(fd_num, "foobar", 7));
 
   std::unique_ptr<PosixSharedMemory> shm = PosixSharedMemory::AttachToFd(
-      tmp_file.ReleaseFD(), /*require_seals_if_supported=*/false);
+      tmp_file.ReleaseFD(), /*require_seals_if_supported=*/false,
+      base::GetSysPageSize());
   ASSERT_NE(shm.get(), nullptr);
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
@@ -100,8 +101,9 @@ TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
   const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, static_cast<off_t>(base::GetSysPageSize())));
 
-  std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::AttachToFd(tmp_file.ReleaseFD());
+  std::unique_ptr<PosixSharedMemory> shm = PosixSharedMemory::AttachToFd(
+      tmp_file.ReleaseFD(), /*require_seals_if_supported=*/true,
+      base::GetSysPageSize());
 
   if (HasMemfdSupport()) {
     EXPECT_EQ(shm.get(), nullptr);
@@ -109,6 +111,46 @@ TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
     ASSERT_NE(shm.get(), nullptr);
     EXPECT_NE(shm->start(), nullptr);
   }
+}
+
+TEST(PosixSharedMemoryTest, AttachToFdRejectsNullAndEmpty) {
+  EXPECT_FALSE(PosixSharedMemory::AttachToFd(
+      base::ScopedFile(), /*require_seals_if_supported=*/false, 4096));
+  auto empty = base::TempFile::CreateUnlinked();
+  int fd = empty.fd();
+  EXPECT_FALSE(PosixSharedMemory::AttachToFd(
+      empty.ReleaseFD(), /*require_seals_if_supported=*/false, 4096));
+  EXPECT_TRUE(IsFileDescriptorClosed(fd));
+}
+
+TEST(PosixSharedMemoryTest, AttachToFdRejectsReadOnly) {
+  auto file = base::TempFile::Create();
+  ASSERT_EQ(ftruncate(file.fd(), 4096), 0);
+  auto read_only = base::OpenFile(file.path(), O_RDONLY);
+  ASSERT_TRUE(read_only);
+  int fd = read_only.get();
+  EXPECT_FALSE(PosixSharedMemory::AttachToFd(
+      std::move(read_only), /*require_seals_if_supported=*/false, 4096));
+  EXPECT_TRUE(IsFileDescriptorClosed(fd));
+}
+
+TEST(PosixSharedMemoryTest, AttachToFdEnforcesMaxSize) {
+  auto memory = PosixSharedMemory::Create(4096);
+  for (size_t max_size : {size_t{0}, size_t{4095}}) {
+    auto fd = base::DupFile(memory->fd());
+    ASSERT_TRUE(fd);
+    int fd_num = fd.get();
+    EXPECT_FALSE(PosixSharedMemory::AttachToFd(
+        std::move(fd), /*require_seals_if_supported=*/true, max_size));
+    EXPECT_TRUE(IsFileDescriptorClosed(fd_num));
+  }
+
+  memcpy(memory->start(), "published", 10);
+  auto attached = PosixSharedMemory::AttachToFd(
+      base::DupFile(memory->fd()), /*require_seals_if_supported=*/true, 4096);
+  ASSERT_TRUE(attached);
+  EXPECT_EQ(attached->size(), 4096u);
+  EXPECT_EQ(memcmp(attached->start(), "published", 10), 0);
 }
 
 TEST(PosixSharedMemoryTest, CreateAndMap) {
@@ -126,8 +168,8 @@ TEST(PosixSharedMemoryTest, CreateAndMap) {
   ASSERT_TRUE(base::vm_test_utils::IsMapped(shm_start, shm_size));
 
   base::ScopedFile shm_fd2(dup(shm->fd()));
-  std::unique_ptr<PosixSharedMemory> shm2 =
-      PosixSharedMemory::AttachToFd(std::move(shm_fd2));
+  std::unique_ptr<PosixSharedMemory> shm2 = PosixSharedMemory::AttachToFd(
+      std::move(shm_fd2), /*require_seals_if_supported=*/true, kLessThanAPage);
   ASSERT_NE(shm2.get(), nullptr);
   void* const shm2_start = shm2->start();
   const size_t shm2_size = shm2->size();

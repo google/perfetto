@@ -49,7 +49,7 @@ bool IsEqual(double a, double b) {
 
 Rect::Rect() = default;
 
-Rect::Rect(const protos::pbzero::RectProto::Decoder& rect) {
+Rect::Rect(const com::android::internal::pbzero::RectProto::Decoder& rect) {
   x = rect.has_left() ? rect.left() : 0;
   y = rect.has_top() ? rect.top() : 0;
   auto right = rect.has_right() ? rect.right() : 0;
@@ -58,7 +58,8 @@ Rect::Rect(const protos::pbzero::RectProto::Decoder& rect) {
   h = bottom - y;
 }
 
-Rect::Rect(const protos::pbzero::FloatRectProto::Decoder& rect) {
+Rect::Rect(
+    const com::android::internal::pbzero::FloatRectProto::Decoder& rect) {
   x = rect.has_left() ? static_cast<double>(rect.left()) : 0;
   y = rect.has_top() ? static_cast<double>(rect.top()) : 0;
   auto right = rect.has_right() ? static_cast<double>(rect.right()) : 0;

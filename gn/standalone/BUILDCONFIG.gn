@@ -69,13 +69,14 @@ declare_args() {
 }
 default_configs = [
   "//gn/standalone:default",
+  "//gn/standalone:x64_cpu_opt",
   "//gn/standalone:extra_warnings",
   "//gn/standalone:no_exceptions",
   "//gn/standalone:rtti_cflags",
   "//gn/standalone:visibility_hidden",
   "//gn/standalone/libc++:config",
   "//gn/standalone/sanitizers:sanitizers_cflags",
-  "//gn/standalone:c++17",
+  "//gn/standalone:cxx_standard",
 ]
 
 if (is_debug) {

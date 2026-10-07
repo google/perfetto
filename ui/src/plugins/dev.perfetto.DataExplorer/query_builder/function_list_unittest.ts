@@ -179,7 +179,7 @@ describe('FunctionList search logic', () => {
       const query = 'nanoseconds';
       const results = allFunctions.filter(
         (f) =>
-          f.fn.description &&
+          f.fn.description !== undefined &&
           f.fn.description.toLowerCase().includes(query.toLowerCase()),
       );
 

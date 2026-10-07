@@ -302,7 +302,7 @@ message TopProcesses {
 ```
 
 Finally, define an extension to the root proto for all metrics (the
-[TraceMetrics](https://github.com/google/perfetto/blob/main/protos/perfetto/metrics/metrics.proto#L39)
+[TraceMetrics](https://github.com/google/perfetto/blob/main/protos/perfetto/metrics/metrics.proto#L143)
 proto).
 
 ```protobuf
@@ -316,7 +316,7 @@ metric to the `TraceMetrics` proto.
 
 _Notes:_
 
-- The field ids 450-500 are reserved for local development so any of them can be
+- The field ids 450-499 are reserved for local development so any of them can be
   used as the field id for the extension field.
 - The choice of field name here is important as the SQL file and the final table
   generated in SQL will be based on this name.

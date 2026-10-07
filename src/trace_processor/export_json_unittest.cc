@@ -61,12 +61,16 @@ namespace perfetto::trace_processor::json {
 namespace {
 
 std::string ReadFile(FILE* input) {
+  fseek(input, 0, SEEK_END);
+  long size = ftell(input);
   fseek(input, 0, SEEK_SET);
-  const int kBufSize = 10000;
-  char buffer[kBufSize];
-  size_t ret = fread(buffer, sizeof(char), kBufSize, input);
-  EXPECT_GT(ret, 0u);
-  return {buffer, ret};
+  if (size <= 0)
+    return "";
+  std::string buffer(static_cast<size_t>(size), '\0');
+  size_t ret =
+      fread(&buffer[0], sizeof(char), static_cast<size_t>(size), input);
+  EXPECT_EQ(ret, static_cast<size_t>(size));
+  return buffer;
 }
 
 class StringOutputWriter : public OutputWriter {
@@ -448,6 +452,9 @@ TEST_F(ExportJsonTest, StorageWithStatsFromGzipWrappedProto) {
       MachineId(kDefaultMachineId), inner_id, stats::traced_producers_connected,
       kProducers);
 
+  context_.storage->mutable_trace_file_table()->Finalize();
+  context_.storage->mutable_stats_table()->Finalize();
+
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
@@ -473,6 +480,8 @@ TEST_F(ExportJsonTest, StorageWithStatsFromMultipleNonContainerTracesFails) {
       {/*parent_id=*/std::nullopt, /*name=*/std::nullopt, /*size=*/0,
        context_.storage->InternString("proto"),
        /*processing_order=*/std::nullopt, /*is_container=*/0});
+
+  context_.storage->mutable_trace_file_table()->Finalize();
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -1669,9 +1678,9 @@ TEST_F(ExportJsonTest, ArgumentFilter) {
   StringId val_id = context_.storage->InternString(base::StringView("val"));
 
   auto* slices = context_.storage->mutable_slice_table();
-  std::vector<ArgsTracker::BoundInserter> slice_inserters;
   {
     ArgsTracker args_tracker(&context_);
+    std::vector<ArgsTracker::BoundInserter> slice_inserters;
     for (auto& name_id : name_ids) {
       auto id = slices->Insert({0, 0, track, cat_id, name_id, 0}).id;
       slice_inserters.emplace_back(args_tracker.AddArgsTo(id));
@@ -1859,12 +1868,30 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   }
 
   context_.storage->mutable_profiler_smaps_table()->Insert(
-      {upid, kTimestamp, kNullStringId, kSizeKb, kPrivateDirtyKb, kSwapKb,
-       context_.storage->InternString(kFileName), kStartAddress,
-       kModuleTimestamp, context_.storage->InternString(kModuleDebugid),
-       context_.storage->InternString(kModuleDebugPath), kProtectionFlags,
-       kPrivateCleanResidentKb, kSharedDirtyResidentKb, kSharedCleanResidentKb,
-       0, kProportionalResidentKb});
+      {upid,
+       kTimestamp,
+       kNullStringId,
+       /*path_trimmed=*/kNullStringId,
+       /*aggregate_count=*/0u,
+       /*is_deleted=*/0u,
+       kSizeKb,
+       kPrivateDirtyKb,
+       kSwapKb,
+       context_.storage->InternString(kFileName),
+       kStartAddress,
+       kModuleTimestamp,
+       context_.storage->InternString(kModuleDebugid),
+       context_.storage->InternString(kModuleDebugPath),
+       kProtectionFlags,
+       kPrivateCleanResidentKb,
+       kSharedDirtyResidentKb,
+       kSharedCleanResidentKb,
+       0,
+       kProportionalResidentKb,
+       /*rss_kb=*/0,
+       /*anonymous_kb=*/0,
+       /*pss_dirty_kb=*/0,
+       /*swap_pss_kb=*/0});
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -1982,15 +2009,15 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   {
     ArgsTracker args_tracker(&context_);
-    args_tracker.AddArgsTo(node1_id).AddArg(
-        context_.storage->InternString(
-            base::StringView(kScalarAttrName + ".value")),
-        Variadic::Integer(kScalarAttrValue));
-    args_tracker.AddArgsTo(node1_id).AddArg(
+    auto inserter = args_tracker.AddArgsTo(node1_id);
+    inserter.AddArg(context_.storage->InternString(
+                        base::StringView(kScalarAttrName + ".value")),
+                    Variadic::Integer(kScalarAttrValue));
+    inserter.AddArg(
         context_.storage->InternString(
             base::StringView(kScalarAttrName + ".unit")),
         Variadic::String(context_.storage->InternString(kScalarAttrUnits)));
-    args_tracker.AddArgsTo(node1_id).AddArg(
+    inserter.AddArg(
         context_.storage->InternString(
             base::StringView(kStringAttrName + ".value")),
         Variadic::String(context_.storage->InternString(kStringAttrValue)));

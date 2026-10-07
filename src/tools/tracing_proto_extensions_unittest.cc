@@ -16,7 +16,12 @@
 
 #include "src/tools/tracing_proto_extensions.h"
 
+#include <map>
+#include <string>
+
 #include "perfetto/base/status.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -403,13 +408,63 @@ TEST(GenProtoExtensionsTest, ValidateRegistryMissingScope) {
 TEST(GenProtoExtensionsTest, ValidateRegistryWrongScope) {
   Registry reg;
   reg.source_path = "test.json";
-  reg.scope = "perfetto.protos.TracePacket";
+  // Scopes other than TrackEvent / TracePacket / InternedData are rejected.
+  reg.scope = "perfetto.protos.SomeOtherType";
   reg.ranges = {{100, 199}};
   reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
 
   auto status = ValidateRegistry(reg);
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.message(), testing::HasSubstr("scope"));
+}
+
+TEST(GenProtoExtensionsTest, ValidateRegistryAcceptsTracePacketScope) {
+  Registry reg;
+  reg.source_path = "test.json";
+  reg.scope = "perfetto.protos.TracePacket";
+  reg.ranges = {{100, 199}};
+  reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
+
+  EXPECT_TRUE(ValidateRegistry(reg).ok());
+}
+
+TEST(GenProtoExtensionsTest, ValidateRegistryAcceptsInternedDataScope) {
+  Registry reg;
+  reg.source_path = "test.json";
+  reg.scope = "perfetto.protos.InternedData";
+  reg.ranges = {{100, 199}};
+  reg.allocations.push_back({"a", {{100, 199}}, "", "", "", "a.proto", ""});
+
+  EXPECT_TRUE(ValidateRegistry(reg).ok());
+}
+
+TEST(GenProtoExtensionsTest, ValidateScopesUniqueAccepts) {
+  Registry track_event;
+  track_event.source_path = "test.json";
+  track_event.scope = "perfetto.protos.TrackEvent";
+  Registry trace_packet;
+  trace_packet.source_path = "test.json";
+  trace_packet.scope = "perfetto.protos.TracePacket";
+  Registry interned_data;
+  interned_data.source_path = "test.json";
+  interned_data.scope = "perfetto.protos.InternedData";
+
+  EXPECT_TRUE(
+      ValidateScopesUnique({track_event, trace_packet, interned_data}).ok());
+}
+
+TEST(GenProtoExtensionsTest, ValidateScopesUniqueRejectsDuplicates) {
+  Registry first;
+  first.source_path = "test.json";
+  first.scope = "perfetto.protos.TrackEvent";
+  Registry second;
+  second.source_path = "test.json";
+  second.scope = "perfetto.protos.TrackEvent";
+
+  auto status = ValidateScopesUnique({first, second});
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.message(),
+              testing::HasSubstr("'perfetto.protos.TrackEvent'"));
 }
 
 TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
@@ -450,17 +505,195 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
               testing::HasSubstr("no extensions targeting"));
 }
 
-TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithTestProto) {
-  // This test uses the real test_extensions.proto from the repo.
-  // It requires proto include paths to work.
-  std::string proto_path = base::GetTestDataPath(
-      "protos/perfetto/trace/track_event/track_event_extensions.json");
-  auto result = GenerateExtensionDescriptors(proto_path, {"."}, ".");
-  // This should succeed for local protos (test_extensions.proto). Remote
-  // entries (chromium, android-internal) are skipped.
+TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithUnifiedRegistry) {
+  // End-to-end smoke test for GenerateExtensionDescriptors: feed it the
+  // real extensions.json and let it compile the in-repo protos it points at.
+  // Remote entries (chromium / android-internal) are skipped automatically.
+  //
+  // Both the -I include path and the registry root_dir need to be the
+  // perfetto repo root. Compute it from the JSON's resolved path so the
+  // test works regardless of cwd.
+  constexpr char kRel[] = "protos/perfetto/trace/extensions.json";
+  std::string json_path = base::GetTestDataPath(kRel);
+  ASSERT_GE(json_path.size(), std::char_traits<char>::length(kRel));
+  std::string repo_root = json_path.substr(
+      0, json_path.size() - std::char_traits<char>::length(kRel));
+  if (!repo_root.empty() && repo_root.back() == '/') {
+    repo_root.pop_back();
+  }
+  if (repo_root.empty()) {
+    repo_root = ".";
+  }
+
+  auto result = GenerateExtensionDescriptors(json_path, {repo_root}, repo_root);
   ASSERT_TRUE(result.ok()) << result.status().message();
   // The output should be a non-empty FileDescriptorSet.
   EXPECT_GT(result->size(), 0u);
+}
+
+TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsExcludesCoreProtos) {
+  // The output carries the extension files and the types they define, but not
+  // the core Perfetto protos (the extendee and what it imports). Here a core
+  // extendee references a leaf type in a separate core file; both core files
+  // must be excluded from the output.
+  base::TmpDirTree tmp;
+  tmp.AddDir("protos");
+  tmp.AddDir("protos/perfetto");
+  tmp.AddDir("protos/perfetto/trace");
+  tmp.AddDir("protos/perfetto/trace/track_event");
+  tmp.AddDir("ext");
+  // A leaf type in its own core file.
+  tmp.AddFile("protos/perfetto/trace/track_event/leaf.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    message CoreLeaf { optional int32 x = 1; }
+  )");
+  // A core extendee that references the leaf from the separate file.
+  tmp.AddFile("protos/perfetto/trace/track_event/track_event.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    import "protos/perfetto/trace/track_event/leaf.proto";
+    message TrackEvent {
+      extensions 9900 to 9999;
+      optional CoreLeaf core_leaf = 1;
+    }
+  )");
+  // Out-of-tree extension: its own payload, extending the core TrackEvent.
+  tmp.AddFile("ext/my_ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "protos/perfetto/trace/track_event/track_event.proto";
+    message MyPayload { optional int32 y = 1; }
+    message MyExt {
+      extend perfetto.protos.TrackEvent {
+        optional MyPayload my_payload = 9900;
+      }
+    }
+  )");
+  tmp.AddFile("registry.json", R"({
+    "extensions": [
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [9900, 9999],
+        "allocations": [
+          {"name": "ext", "range": [9900, 9999], "proto": "ext/my_ext.proto"}
+        ]
+      }
+    ]
+  })");
+
+  auto result = GenerateExtensionDescriptors(tmp.AbsolutePath("registry.json"),
+                                             {tmp.path()}, tmp.path());
+  ASSERT_TRUE(result.ok()) << result.status().message();
+
+  std::vector<std::string> files;
+  protos::pbzero::FileDescriptorSet::Decoder fds(result->data(),
+                                                 result->size());
+  for (auto it = fds.file(); it; ++it) {
+    protos::pbzero::FileDescriptorProto::Decoder f(*it);
+    files.push_back(f.name().ToStdString());
+  }
+
+  // Extension file is present; the core extendee and core leaf are not.
+  EXPECT_THAT(files, testing::Contains("ext/my_ext.proto"));
+  EXPECT_THAT(files,
+              testing::Not(testing::Contains(
+                  "protos/perfetto/trace/track_event/track_event.proto")));
+  EXPECT_THAT(files, testing::Not(testing::Contains(
+                         "protos/perfetto/trace/track_event/leaf.proto")));
+}
+
+TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsKeepsFieldOptions) {
+  // Both builtin (packed) and custom (is_pid) field options on extension
+  // payloads must survive into the output: trace_processor relies on the
+  // custom ones to annotate args.
+  base::TmpDirTree tmp;
+  tmp.AddDir("google");
+  tmp.AddDir("google/protobuf");
+  tmp.AddDir("protos");
+  tmp.AddDir("protos/perfetto");
+  tmp.AddDir("protos/perfetto/trace");
+  tmp.AddDir("protos/perfetto/trace/track_event");
+  tmp.AddDir("ext");
+  // Just enough of descriptor.proto for protoc to resolve both options.
+  tmp.AddFile("google/protobuf/descriptor.proto", R"(
+    syntax = "proto2";
+    package google.protobuf;
+    message FieldOptions {
+      optional bool packed = 2;
+      extensions 1000 to max;
+    }
+  )");
+  tmp.AddFile("protos/perfetto/trace/field_options.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    import "google/protobuf/descriptor.proto";
+    extend google.protobuf.FieldOptions { optional bool is_pid = 73922; }
+  )");
+  tmp.AddFile("protos/perfetto/trace/track_event/track_event.proto", R"(
+    syntax = "proto2";
+    package perfetto.protos;
+    message TrackEvent { extensions 9900 to 9999; }
+  )");
+  tmp.AddFile("ext/my_ext.proto", R"(
+    syntax = "proto2";
+    package com.android.internal;
+    import "protos/perfetto/trace/field_options.proto";
+    import "protos/perfetto/trace/track_event/track_event.proto";
+    message MyPayload {
+      optional int32 pid = 1 [(perfetto.protos.is_pid) = true];
+      repeated int32 values = 2 [packed = true];
+    }
+    message MyExt {
+      extend perfetto.protos.TrackEvent {
+        optional MyPayload my_payload = 9900;
+      }
+    }
+  )");
+  tmp.AddFile("registry.json", R"({
+    "extensions": [
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [9900, 9999],
+        "allocations": [
+          {"name": "ext", "range": [9900, 9999], "proto": "ext/my_ext.proto"}
+        ]
+      }
+    ]
+  })");
+
+  auto result = GenerateExtensionDescriptors(tmp.AbsolutePath("registry.json"),
+                                             {tmp.path()}, tmp.path());
+  ASSERT_TRUE(result.ok()) << result.status().message();
+
+  // Maps each MyPayload field name to its serialized FieldOptions.
+  std::map<std::string, std::string> options_by_field;
+  protos::pbzero::FileDescriptorSet::Decoder fds(result->data(),
+                                                 result->size());
+  for (auto file_it = fds.file(); file_it; ++file_it) {
+    protos::pbzero::FileDescriptorProto::Decoder file(*file_it);
+    for (auto msg_it = file.message_type(); msg_it; ++msg_it) {
+      protos::pbzero::DescriptorProto::Decoder msg(*msg_it);
+      if (msg.name().ToStdString() != "MyPayload")
+        continue;
+      for (auto field_it = msg.field(); field_it; ++field_it) {
+        protos::pbzero::FieldDescriptorProto::Decoder field(*field_it);
+        options_by_field[field.name().ToStdString()] =
+            field.options().ToStdString();
+      }
+    }
+  }
+  ASSERT_EQ(options_by_field.size(), 2u);
+
+  protozero::ProtoDecoder pid_options(options_by_field["pid"]);
+  protozero::Field is_pid = pid_options.FindField(73922);
+  ASSERT_TRUE(is_pid.valid());
+  EXPECT_TRUE(is_pid.as_bool());
+
+  protos::pbzero::FieldOptions::Decoder values_options(
+      options_by_field["values"]);
+  ASSERT_TRUE(values_options.has_packed());
+  EXPECT_TRUE(values_options.packed());
 }
 
 }  // namespace

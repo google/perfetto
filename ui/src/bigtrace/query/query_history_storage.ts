@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {endpointStorage} from '../settings/endpoint_storage';
-import {BigtraceQueryClient} from './bigtrace_query_client';
+import {getBigtraceEndpoint} from '../settings/endpoint_storage';
+import {
+  BigtraceQueryClient,
+  type ExperimentFilterSpec,
+} from './bigtrace_query_client';
 import type {QueryExecution} from './query_store';
+import type {BigtraceColumnSchema} from './column_types';
+import type {Filter} from '../../components/widgets/datagrid/model';
+import type {SettingFilter} from '../settings/settings_types';
 
 // Wire shape from /query_executions[*].
 // Times are ISO-8601; `readonly` marks the wire boundary.
@@ -30,9 +36,55 @@ export interface RawQueryExecution {
   readonly errorMessage?: string;
   readonly perfettoSql?: string;
   readonly limit?: number;
+  readonly traceLimit?: number;
   readonly materialized?: boolean;
   readonly tableName?: string;
   readonly tableLink?: string;
+  readonly schema?: ReadonlyArray<BigtraceColumnSchema>;
+  // Submit-time snapshot — what the query ran with. Echoed on the full GET
+  // /query_executions/{uuid}; omitted from :status and the list response.
+  // `settings` uses the camelCase wire shape (`settingId`); convert with
+  // snapshotSettingsToFilters before handing to the settings layer.
+  readonly settings?: ReadonlyArray<SnapshotSettingEntry>;
+  readonly traceFilters?: ReadonlyArray<Filter>;
+  readonly traceMetadataColumns?: ReadonlyArray<string>;
+  readonly traceOrderBy?: string;
+  readonly experimentFilter?: ExperimentFilterSpec;
+}
+
+// Snapshot settings as echoed on the wire. Responses are camelCase (like every
+// other response field — queryUuid, perfettoSql, …), so the setting id arrives
+// as `settingId`. `values` is permissive — the wire echoes back whatever the
+// client sent. Convert to SettingFilter via snapshotSettingsToFilters.
+export interface SnapshotSettingEntry {
+  readonly settingId: string;
+  readonly values: ReadonlyArray<string | number | boolean | null>;
+  readonly category: string;
+}
+
+// Convert the wire snapshot settings into SettingFilter[] (string values) so
+// the settings layer sees the shape it serialized. Skips malformed entries;
+// coerces non-string values back to strings (null → '').
+export function snapshotSettingsToFilters(
+  raw: ReadonlyArray<SnapshotSettingEntry> | undefined,
+): SettingFilter[] {
+  if (!raw) return [];
+  const out: SettingFilter[] = [];
+  for (const s of raw) {
+    if (
+      typeof s?.settingId !== 'string' ||
+      !Array.isArray(s?.values) ||
+      typeof s?.category !== 'string'
+    ) {
+      continue;
+    }
+    out.push({
+      settingId: s.settingId,
+      values: s.values.map((v) => (v === null ? '' : String(v))),
+      category: s.category as SettingFilter['category'],
+    });
+  }
+  return out;
 }
 
 // ISO-8601 → epoch ms; invalid/missing → undefined (never NaN).
@@ -45,16 +97,12 @@ export function isoToEpochMs(iso: string | undefined): number | undefined {
 export class QueryHistoryStorage {
   // Fresh client per call so endpoint changes apply without restart.
   private client(): BigtraceQueryClient {
-    const setting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = setting ? (setting.get() as string) : '';
-    return new BigtraceQueryClient(endpoint);
+    return new BigtraceQueryClient(getBigtraceEndpoint());
   }
 
   async getAllHistory(): Promise<QueryExecution[]> {
     // No endpoint → empty, so the sidebar shows its empty state, not a 404.
-    const setting = endpointStorage.get('bigtraceEndpoint');
-    const endpoint = setting ? (setting.get() as string) : '';
-    if (endpoint.trim() === '') return [];
+    if (getBigtraceEndpoint().trim() === '') return [];
     const list = await this.client().listQueryExecutions();
     const mapped = list.map(toQueryExecution);
     mapped.sort((a, b) => (b.startTime ?? 0) - (a.startTime ?? 0));
@@ -73,6 +121,7 @@ export class QueryHistoryStorage {
     );
   }
 
+  // Takes the query's table with it; see deleteQueryExecution.
   async deleteQuery(uuid: string): Promise<void> {
     await this.client().deleteQueryExecution(uuid);
   }
@@ -101,6 +150,7 @@ function toQueryExecution(raw: RawQueryExecution): QueryExecution {
     materialized: raw.materialized,
     tableName: raw.tableName,
     tableLink: raw.tableLink,
+    schema: raw.schema,
   };
 }
 

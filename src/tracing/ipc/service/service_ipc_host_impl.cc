@@ -77,8 +77,9 @@ bool ServiceIPCHostImpl::Start(std::list<ListenEndpoint> producer_sockets,
 
   // Initialize the IPC transport.
   for (auto& sock : producer_sockets) {
-    producer_ipc_ports_.emplace_back(
-        CreateIpcHost(task_runner_, std::move(sock)));
+    bool expose_relay = sock.expose_relay_endpoint;
+    producer_ipc_ports_.push_back(
+        {CreateIpcHost(task_runner_, std::move(sock)), expose_relay});
   }
   consumer_ipc_port_ = CreateIpcHost(task_runner_, std::move(consumer_socket));
 
@@ -98,10 +99,9 @@ bool ServiceIPCHostImpl::DoStart() {
                                         init_opts_);
 
   if (producer_ipc_ports_.empty() || !consumer_ipc_port_ ||
-      std::any_of(producer_ipc_ports_.begin(), producer_ipc_ports_.end(),
-                  [](const std::unique_ptr<ipc::Host>& port) {
-                    return port == nullptr;
-                  })) {
+      std::any_of(
+          producer_ipc_ports_.begin(), producer_ipc_ports_.end(),
+          [](const ProducerIPCPort& port) { return port.host == nullptr; })) {
     Shutdown();
     return false;
   }
@@ -115,20 +115,20 @@ bool ServiceIPCHostImpl::DoStart() {
   // consumer port ipcs might exhaust the send buffer under normal operation
   // due to large messages such as ReadBuffersResponse.
   for (auto& producer_ipc_port : producer_ipc_ports_)
-    producer_ipc_port->SetSocketSendTimeoutMs(kProducerSocketTxTimeoutMs);
+    producer_ipc_port.host->SetSocketSendTimeoutMs(kProducerSocketTxTimeoutMs);
 
   // TODO(fmayer): add a test that destroys the ServiceIPCHostImpl soon after
   // Start() and checks that no spurious callbacks are issued.
   for (auto& producer_ipc_port : producer_ipc_ports_) {
-    bool producer_service_exposed = producer_ipc_port->ExposeService(
+    bool producer_service_exposed = producer_ipc_port.host->ExposeService(
         std::unique_ptr<ipc::Service>(new ProducerIPCService(svc_.get())));
     PERFETTO_CHECK(producer_service_exposed);
 
-    if (!init_opts_.enable_relay_endpoint)
+    // Optionally also expose the RelayPort service on this port, when the
+    // caller has explicitly opted in for cross-machine relay traffic.
+    if (!producer_ipc_port.expose_relay_endpoint)
       continue;
-    // Expose a secondary service for sync with remote relay service
-    // if requested.
-    bool relay_service_exposed = producer_ipc_port->ExposeService(
+    bool relay_service_exposed = producer_ipc_port.host->ExposeService(
         std::unique_ptr<ipc::Service>(new RelayIPCService(svc_.get())));
     PERFETTO_CHECK(relay_service_exposed);
   }

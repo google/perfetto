@@ -1,0 +1,39 @@
+<%- include('template_header.html'); -%>
+<div class="blog blog-index">
+  <div class="blog-head">
+    <p>Release notes, performance investigations and deep dives from the people
+       who build Perfetto.</p>
+    <a class="blog-feed" href="/blog/atom.xml">
+      <i class="material-icons-round">rss_feed</i> Atom feed
+    </a>
+  </div>
+
+  <% const posts = post.posts; %>
+  <% if (posts.length === 0) { %>
+  <p class="blog-empty">No posts yet.</p>
+  <% } %>
+
+  <div class="blog-grid">
+    <% posts.forEach(function(p) { %>
+    <a class="blog-card" href="/blog/<%= p.slug %>">
+      <div class="blog-card-img">
+        <img src="<%= p.cardUrl %>" alt="" width="320" height="180" loading="lazy">
+      </div>
+      <div class="blog-card-body">
+        <h2><%= p.title %></h2>
+        <p><%= p.summary %></p>
+      </div>
+      <div class="blog-card-meta">
+        <span class="blog-card-author"><% p.authors.forEach(function(a, i) { %>@<%= a.handle %><%= i < p.authors.length - 1 ? ' ' : '' %><% }); %></span>
+        <span class="blog-card-dot">·</span>
+        <time datetime="<%= p.isoDate %>"><%= p.isoDate %></time>
+      </div>
+    </a>
+    <% }); %>
+  </div>
+
+  <%- include('template_footer.html'); -%>
+</div>
+
+</body>
+</html>

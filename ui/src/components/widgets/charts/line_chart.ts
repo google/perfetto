@@ -196,6 +196,13 @@ export interface LineChartAttrs {
    * Callback when a series is clicked. Called with the series name.
    */
   readonly onSeriesClick?: (seriesName: string) => void;
+
+  /**
+   * Callback when the plot area is clicked without dragging (a point-in-time
+   * select, as opposed to `onBrush`'s range drag). Called with the X value at
+   * the cursor. Only wired up by the SVG renderer.
+   */
+  readonly onPointClick?: (x: number) => void;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {

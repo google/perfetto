@@ -179,6 +179,55 @@ class NamedTrack {
   PerfettoTeHlExtraNamedTrack track_;
 };
 
+// Root scope of a nested-track chain. Values match PerfettoTrack (Java) and are
+// passed verbatim over JNI.
+enum class RootType : int {
+  kGlobal = 0,
+  kProcess = 1,
+  kThread = 2,
+};
+
+// One named level of a nested-track chain. The merge key is a oneof: the
+// string one if set, the integer one otherwise. The enum-like fields mirror
+// the PERFETTO_TE_HL_* ABI constants.
+struct NestedLevel {
+  std::string name;
+  uint64_t id;
+  int32_t sibling_order_rank;
+  uint32_t child_ordering;
+  uint32_t sibling_merge_behavior;
+  std::optional<std::string> sibling_merge_key_str;
+  uint64_t sibling_merge_key_int;
+};
+
+/**
+ * @brief A nested chain of named tracks (the HL NESTED_TRACKS extra).
+ *
+ * The chain is, outermost first: an optional root (process or thread; global
+ * roots have none) followed by one named level per entry in `levels`. The
+ * native HL path derives the per-level uuids and emits a descriptor for each
+ * level.
+ */
+class NestedTracks {
+ public:
+  NestedTracks(RootType root_type, std::vector<NestedLevel> levels);
+
+  static void delete_track(NestedTracks* track);
+
+  const PerfettoTeHlExtraNestedTracks* get() const { return &extra_; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(NestedTracks);
+  // named_[i] borrows level i's name and merge key, ptrs_ point into
+  // named_/root_; nothing is resized after construction, so the pointers and
+  // the strings they reference stay valid for the object's lifetime.
+  std::vector<NestedLevel> levels_;
+  PerfettoTeHlNestedTrack root_;
+  std::vector<PerfettoTeHlNestedTrackNamed> named_;
+  std::vector<PerfettoTeHlNestedTrack*> ptrs_;
+  PerfettoTeHlExtraNestedTracks extra_;
+};
+
 /**
  * @brief Represents a registered track.
  */
@@ -188,7 +237,8 @@ class RegisteredTrack {
                   uint64_t parent_uuid,
                   const std::string& name,
                   bool is_counter,
-                  bool is_name_static_);
+                  bool is_name_static_,
+                  bool is_state);
 
   ~RegisteredTrack();
 
@@ -207,6 +257,7 @@ class RegisteredTrack {
   const uint64_t parent_uuid_;
   const bool is_counter_;
   const bool is_name_static_;
+  const bool is_state_;
 };
 
 /**
@@ -223,6 +274,23 @@ class Counter {
  private:
   DISALLOW_COPY_AND_ASSIGN(Counter);
   PerfettoTeHlExtraCounterUnion counter_;
+};
+
+/**
+ * @brief A correlation id linking an event with others in the same logical
+ * operation (TrackEvent's correlation_id / correlation_id_str).
+ */
+class CorrelationId {
+ public:
+  CorrelationId() : correlation_id_{} {}
+
+  static void delete_correlation_id(CorrelationId* ptr) { delete ptr; }
+
+  PerfettoTeHlExtraCorrelationIdUnion* get() { return &correlation_id_; }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CorrelationId);
+  PerfettoTeHlExtraCorrelationIdUnion correlation_id_;
 };
 
 /**

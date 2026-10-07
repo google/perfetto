@@ -45,6 +45,7 @@ bitflags! {
 pub struct ProducerInitArgs {
     backends: Backends,
     shmem_size_hint_kb: u32,
+    machine_id: u32,
 }
 
 /// Producer arguments builder.
@@ -78,6 +79,17 @@ impl ProducerInitArgsBuilder {
         self
     }
 
+    /// Sets the machine id this process's trace data is attributed to. Only
+    /// honored by the in-process backend; the system backend derives the
+    /// machine id service-side and ignores this. Lets separate in-process
+    /// traces be recorded under distinct machine ids. 0 (the default) means the
+    /// host machine.
+    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
+    pub fn machine_id(mut self, machine_id: u32) -> Self {
+        self.args.machine_id = machine_id;
+        self
+    }
+
     /// Returns producer arguments struct.
     pub fn build(&self) -> &ProducerInitArgs {
         &self.args
@@ -102,6 +114,7 @@ impl Producer {
                 backend_args,
                 args.shmem_size_hint_kb,
             );
+            PerfettoProducerBackendInitArgsSetMachineId(backend_args, args.machine_id);
             if args.backends.contains(Backends::IN_PROCESS) {
                 PerfettoProducerInProcessInit(backend_args);
             }

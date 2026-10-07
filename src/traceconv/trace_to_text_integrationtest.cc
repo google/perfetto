@@ -55,7 +55,7 @@ TEST(TraceToText, DISABLED_Basic) {
       std::ofstream output_f(tmp_file, std::ios::out | std::ios::binary);
       TraceToTextOptions options;
       options.skip_unknown_fields = true;
-      EXPECT_TRUE(TraceToText(&input_f, &output_f, options));
+      EXPECT_TRUE(TraceToText(&input_f, &output_f, options).ok());
       PERFETTO_LOG("Processed %s", filename);
     }
     EXPECT_EQ(0xCD794377594BC7DCull, FileHash(tmp_file));

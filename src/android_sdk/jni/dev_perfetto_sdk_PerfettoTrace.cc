@@ -180,7 +180,14 @@ int register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
 }  // namespace jni
 }  // namespace perfetto
 
-JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
+#ifdef PERFETTO_JNI_ART_STATIC_INTEGRATION
+// If building for ART static integration (e.g. Libcore), give it a unique name
+// so we can call it manually
+extern "C" jint JNI_OnLoad_Perfetto(JavaVM* vm, void* /*reserved*/) {
+#else
+// If building as a standalone library, keep the standard name
+JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
+#endif
   JNIEnv* env;
   if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
     return JNI_ERR;

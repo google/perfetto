@@ -12,68 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme.scss";
+@use "../../assets/theme.scss" as *;
+
+$padding-inline: 4px;
 
 .pf-multi-trace-modal {
-  &__description-panel {
+  .pf-text-paragraph {
+    padding-block: 8px;
+  }
+
+  &__description {
     border-bottom: 1px solid var(--pf-color-border);
-    margin-bottom: 0px;
-    padding-bottom: 0px;
-  }
-
-  &__tabs {
-    margin-bottom: 16px;
-  }
-
-  &__description-content {
-    padding: 0 8px;
-    width: 550px;
-    box-sizing: border-box;
-
-    .pf-text-paragraph {
-      padding-top: 0;
-      padding-bottom: 16px;
-      font-size: 0.9em;
-      color: var(--pf-color-text-secondary);
-      line-height: 1.4;
-    }
+    padding: 0 $padding-inline;
+    font-size: var(--pf-font-size-s);
   }
 
   &__list-panel {
-    border: none;
     overflow-y: auto;
-    width: 550px;
     max-height: 700px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-
-  &__card {
-    padding: 16px;
-    justify-content: space-between;
-    align-items: center;
+    padding-block: 8px;
+    padding-inline: $padding-inline;
   }
 
   &__name {
-    color: var(--pf-color-text);
-    font-size: 0.95em;
     font-weight: 600;
   }
 
-  &__size,
-  &__status,
-  &__format {
-    color: var(--pf-color-text-secondary);
-    font-size: 0.9em;
-  }
-
-  &__size strong,
-  &__format strong {
-    font-weight: 600;
-  }
-
-  &__actions {
-    min-width: 50px;
+  &__meta {
+    font-size: var(--pf-font-size-s);
   }
 
   &__status {
@@ -106,48 +72,78 @@
 
   &__add-card {
     border: 1px dashed var(--pf-color-border);
-    background-color: var(--pf-color-background-secondary);
-    cursor: pointer;
-    padding: 8px;
-    color: var(--pf-color-text-secondary);
-    font-family: var(--pf-font);
-    font-size: 0.9em;
-    font-weight: bold;
+    border-radius: $border-radius-medium;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
 
     &:hover {
-      background: color_hover(var(--pf-color-background-secondary));
+      background: color_hover(transparent);
     }
+
+    &:focus-visible {
+      @include focus;
+    }
+
+    .pf-icon {
+      font-size: var(--pf-font-size-l);
+    }
+  }
+
+  // Invalid free-text offset: flag it instead of silently dropping the value.
+  &__offset--invalid {
+    outline: 1px solid var(--pf-color-danger);
+  }
+
+  &__hint {
+    color: var(--pf-color-danger);
+    font-size: var(--pf-font-size-xs);
+  }
+
+  &__help-icon {
+    color: var(--pf-color-text-muted);
+    cursor: help;
+    align-self: center;
+  }
+
+  // Stacked vertically: each control (Machine, Align, ...) on its own line.
+  &__config {
+    padding-top: 8px;
+    margin-top: 8px;
+    border-top: 1px solid var(--pf-color-border);
+    font-size: var(--pf-font-size-s);
+  }
+
+  &__note {
+    font-style: italic;
+  }
+
+  // Reserved status line: min-height keeps the layout stable as the state
+  // cycles through processing / verdict / ready.
+  &__status-panel {
+    padding-block: 12px 4px;
+    padding-inline: $padding-inline;
+    min-height: 60px;
   }
 
   &__footer {
     border-top: 1px solid var(--pf-color-border);
     padding-top: 8px;
-    margin-top: 0px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  &__footer-error {
-    flex: 0 0 auto;
-    font-family: var(--pf-font);
-    word-wrap: break-word;
-    white-space: normal;
-    max-width: 450px;
-  }
-
-  &__footer-spacer {
-    flex: 1;
   }
 }
 
 .pf-multi-trace-modal-override {
   main {
     margin-top: 16px;
+    max-width: 550px;
   }
   padding: 16px;
-  overflow-y: hidden;
+  // Both axes: overflow-y:hidden alone computes overflow-x to auto, adding a
+  // spurious horizontal scrollbar when a dropdown mounts inside the modal.
+  overflow: hidden;
   max-width: none;
   max-height: none;
 }

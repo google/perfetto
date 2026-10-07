@@ -1,0 +1,193 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_OPERATOR_H_
+#define SRC_TRACE_PROCESSOR_CORE_EXEC_OPERATOR_H_
+
+#include <cstdint>
+#include <memory>
+
+#include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/row_batch.h"
+
+namespace perfetto::trace_processor::core::exec {
+
+// The mutable state of one execution of a plan.
+//
+// Operators and Sources are plan nodes: they stay const while running and hold
+// no values. Everything which changes as a query runs lives here, created by
+// the plan node and owned by the executor. A plan can be run more than once or
+// concurrently, but it and its borrowed dependencies must outlive each run.
+class OperatorState {
+ public:
+  OperatorState() = default;
+  virtual ~OperatorState();
+
+  OperatorState(const OperatorState&) = delete;
+  OperatorState& operator=(const OperatorState&) = delete;
+
+  // Only ever called on a state this plan node created.
+  template <typename T>
+  T& Cast() {
+    return static_cast<T&>(*this);
+  }
+  template <typename T>
+  const T& Cast() const {
+    return static_cast<const T&>(*this);
+  }
+
+  // A state keeping data across the batches of a run is made with
+  // ResetEachRun, and Reset() before every run but the first.
+  virtual void Reset() {}
+  bool reset_each_run() const { return reset_each_run_; }
+
+ protected:
+  struct ResetEachRun {};
+  explicit OperatorState(ResetEachRun) : reset_each_run_(true) {}
+
+ private:
+  bool reset_each_run_ = false;
+};
+
+// Produces the batches a plan runs over.
+class Source {
+ public:
+  virtual ~Source();
+  Source(const Source&) = delete;
+  Source& operator=(const Source&) = delete;
+
+  // A source wrapping another source creates that source's state too, so one
+  // call builds the whole chain.
+  virtual std::unique_ptr<OperatorState> MakeState() const = 0;
+
+  // Fills `out` and returns true, or returns false when no batches are left.
+  // Owned columns remain valid while retained by a RowBatch. Unowned columns
+  // are borrowed until the next call; retaining consumers must materialize
+  // them. A successful empty batch is not exhaustion.
+  virtual bool GetData(RowBatch& out, OperatorState& state) const = 0;
+
+  // The next batch, or null when none are left: `scratch` filled by
+  // GetData(), unless the source has a batch of its own. Valid until the next
+  // call.
+  virtual RowBatch* Next(RowBatch& scratch, OperatorState& state) const {
+    return GetData(scratch, state) ? &scratch : nullptr;
+  }
+
+  // Restarts from the first batch.
+  virtual void Rewind(OperatorState& state) const = 0;
+
+  // After GetData() returns false, distinguishes exhaustion from failure.
+  virtual base::Status status(const OperatorState&) const {
+    return base::OkStatus();
+  }
+
+ protected:
+  Source() = default;
+};
+
+// A step changing the batch it is given in place. Unlike an Operator it never
+// holds rows back, so a pipeline runs it with nothing copied or buffered.
+class Transform {
+ public:
+  virtual ~Transform();
+  Transform(const Transform&) = delete;
+  Transform& operator=(const Transform&) = delete;
+
+  virtual std::unique_ptr<OperatorState> MakeState() const {
+    return std::make_unique<OperatorState>();
+  }
+
+  // False on failure, with status() saying why.
+  virtual bool Process(RowBatch& batch, OperatorState& state) const = 0;
+
+  // Why Process() returned false.
+  virtual base::Status status(const OperatorState&) const {
+    return base::OkStatus();
+  }
+
+ protected:
+  Transform() = default;
+};
+
+enum class BatchPreference : uint8_t { kLatency, kThroughput };
+
+enum class OpResult : uint8_t {
+  // `out` holds all the output for this input. An empty `out` means the input
+  // produced no rows.
+  kNeedMoreInput,
+  // `out` holds part of the output for this input. Call Execute() again with
+  // the same input for the rest.
+  kHaveMoreOutput,
+  // The operator failed; status() says why.
+  kError,
+};
+
+// A streaming step in a plan.
+//
+// One input batch can produce more than one output batch: an operator which
+// fans out returns kHaveMoreOutput and is called again with the same input.
+// This is why input and output are separate batches: the input has to survive
+// being read more than once. Output can also come after the last input, from
+// Finish().
+class Operator {
+ public:
+  // Fixed when the operator is built.
+  struct Traits {
+    // A preference, never permission to change row order. Downstream finite
+    // demand overrides throughput batching. Blocking remains intrinsic to an
+    // op.
+    BatchPreference preference = BatchPreference::kLatency;
+  };
+
+  virtual ~Operator();
+  Operator(const Operator&) = delete;
+  Operator& operator=(const Operator&) = delete;
+
+  const Traits& traits() const { return traits_; }
+
+  virtual std::unique_ptr<OperatorState> MakeState() const {
+    return std::make_unique<OperatorState>();
+  }
+
+  virtual OpResult Execute(const RowBatch& in,
+                           RowBatch& out,
+                           OperatorState& state) const = 0;
+
+  // Called once after the last input batch, for an operator which holds rows
+  // back to let them go. The results mean what they do for Execute(): keep
+  // returning kHaveMoreOutput to be called again. An operator which holds
+  // nothing back leaves `out` empty.
+  virtual OpResult Finish(RowBatch& out, OperatorState&) const {
+    out.Reset();
+    return OpResult::kNeedMoreInput;
+  }
+
+  // Why Execute() or Finish() returned kError.
+  virtual base::Status status(const OperatorState&) const {
+    return base::OkStatus();
+  }
+
+ protected:
+  Operator() = default;
+  explicit Operator(Traits traits) : traits_(traits) {}
+
+ private:
+  Traits traits_;
+};
+
+}  // namespace perfetto::trace_processor::core::exec
+
+#endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_OPERATOR_H_

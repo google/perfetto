@@ -16,6 +16,9 @@
 
 #include "src/trace_processor/util/zip_reader.h"
 
+#include <algorithm>
+#include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <ctime>
@@ -34,7 +37,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/gzip_decompressor.h"
 #include "src/trace_processor/util/streaming_line_reader.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -58,6 +61,24 @@ constexpr uint32_t kDataDescriptorSig = 0x08074b50;
 // size.
 constexpr uint32_t kDataDescriptorSize = 4 * 4;
 
+// Same as above but for zip64: the compressed and uncompressed sizes are 8
+// bytes each instead of 4.
+constexpr uint32_t kZip64DataDescriptorSize = 4 + 4 + 8 + 8;
+
+// Header id of the Zip64 Extended Information extra field, and the 32-bit
+// sentinel that signals a size field lives in that extra field instead.
+constexpr uint16_t kZip64ExtraFieldId = 0x0001;
+constexpr uint64_t kZip64SizeSentinel = 0xFFFFFFFF;
+constexpr size_t kExtraFieldHdrSize = 4;
+
+// zlib's avail_in, avail_out, and crc32 length use 32-bit uInt. Process in
+// 1 GiB chunks so Zip64 entries >= 4 GiB do not truncate.
+constexpr size_t kMaxZlibChunk = 1u << 30;
+
+// Highest "version needed to extract" we understand: 4.5 (45), which is the
+// version that introduces zip64.
+constexpr uint16_t kMaxSupportedVersion = 45;
+
 enum GeneralPurposeBitFlag : uint32_t {
   kEncrypted = 1 << 0,
   k8kSlidingDictionary = 1u << 1,
@@ -71,12 +92,6 @@ enum GeneralPurposeBitFlag : uint32_t {
 // Compression flags.
 const uint16_t kNoCompression = 0;
 const uint16_t kDeflate = 8;
-
-// Zip64 constants.
-constexpr uint16_t kZip64ExtendedInfoId = 0x0001;
-constexpr uint32_t kZip64Marker = 0xFFFFFFFFu;
-constexpr size_t kExtraFieldHdrSize = 4;
-constexpr size_t kZip64LocalFieldPayloadSize = 16;
 
 template <typename T>
 T ReadAndAdvance(const uint8_t** ptr) {
@@ -118,8 +133,8 @@ base::Status ZipReader::Parse(TraceBlobView tbv) {
       case FileParseState::kFilename:
         RETURN_IF_ERROR(TryParseFilename());
         break;
-      case FileParseState::kExtraFields:
-        RETURN_IF_ERROR(TryParseExtraFields());
+      case FileParseState::kExtraField:
+        RETURN_IF_ERROR(TryParseExtraField());
         break;
       case FileParseState::kSkipBytes:
         RETURN_IF_ERROR(TrySkipBytes());
@@ -183,11 +198,11 @@ base::Status ZipReader::TryParseHeader() {
   cur_.hdr.extra_field_len = ReadAndAdvance<uint16_t>(&hdr_it);
   PERFETTO_DCHECK(static_cast<size_t>(hdr_it - hdr->data()) == kZipFileHdrSize);
 
-  // We support only up to version 4.5 (45). Higher versions define
-  // more advanced features that we don't support (encryption).
+  // We support up to version 4.5 (45), which introduces zip64. Higher versions
+  // define more advanced features that we don't support (e.g. encryption).
   // Disallow encryption or any flags we don't know how to handle.
-  if ((cur_.hdr.version > 45) || (cur_.hdr.flags & kEncrypted) ||
-      (cur_.hdr.flags & kUnknown)) {
+  if ((cur_.hdr.version > kMaxSupportedVersion) ||
+      (cur_.hdr.flags & kEncrypted) || (cur_.hdr.flags & kUnknown)) {
     return base::ErrStatus(
         "Unsupported zip features at offset 0x%zx. version=%x, flags=%x",
         reader_.start_offset(), cur_.hdr.version, cur_.hdr.flags);
@@ -205,20 +220,13 @@ base::Status ZipReader::TryParseHeader() {
         "deflate supported for ZIPs compressed in a streaming fashion.",
         reader_.start_offset(), cur_.hdr.compression);
   }
-  if ((cur_.hdr.flags & kDataDescriptor) &&
-      (cur_.hdr.compressed_size == kZip64Marker ||
-       cur_.hdr.uncompressed_size == kZip64Marker || cur_.hdr.version >= 45)) {
-    return base::ErrStatus(
-        "Zip64 Data Descriptors are not supported at offset 0x%zx.",
-        reader_.start_offset());
-  }
   cur_.parse_state = FileParseState::kFilename;
   return base::OkStatus();
 }
 
 base::Status ZipReader::TryParseFilename() {
   if (cur_.hdr.fname_len == 0) {
-    cur_.parse_state = FileParseState::kExtraFields;
+    cur_.parse_state = FileParseState::kExtraField;
     return base::OkStatus();
   }
   PERFETTO_CHECK(cur_.hdr.fname.empty());
@@ -231,65 +239,83 @@ base::Status ZipReader::TryParseFilename() {
   PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.fname_len));
   cur_.hdr.fname = std::string(reinterpret_cast<const char*>(fname_tbv->data()),
                                cur_.hdr.fname_len);
-  cur_.parse_state = FileParseState::kExtraFields;
+  cur_.parse_state = FileParseState::kExtraField;
   return base::OkStatus();
 }
 
-base::Status ZipReader::TryParseExtraFields() {
+// Reads the local-header extra field and, if a Zip64 Extended Information
+// record (id 0x0001) is present, replaces the 0xFFFFFFFF size sentinels with
+// the 64-bit values it carries. The 8-byte fields appear in a fixed order
+// (uncompressed size, then compressed size) and only for the base fields set
+// to the sentinel.
+base::Status ZipReader::TryParseExtraField() {
   if (cur_.hdr.extra_field_len != 0) {
-    std::optional<TraceBlobView> extra_tbv =
+    std::optional<TraceBlobView> extra =
         reader_.SliceOff(reader_.start_offset(), cur_.hdr.extra_field_len);
-    if (!extra_tbv) {
+    if (!extra) {
       return base::OkStatus();
     }
     PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.extra_field_len));
-    RETURN_IF_ERROR(ParseExtraFields(extra_tbv->data(), extra_tbv->size()));
+
+    const uint8_t* it = extra->data();
+    const uint8_t* const end = it + extra->size();
+    bool zip64_field_seen = false;
+    while (end - it >= static_cast<ptrdiff_t>(kExtraFieldHdrSize)) {
+      uint16_t id = ReadAndAdvance<uint16_t>(&it);
+      uint16_t size = ReadAndAdvance<uint16_t>(&it);
+      if (end - it < size) {
+        return base::ErrStatus(
+            "Malformed ZIP at offset 0x%zx. Extra field size (%u) exceeds "
+            "remaining extra field bytes (%zu).",
+            reader_.start_offset(), size, static_cast<size_t>(end - it));
+      }
+      if (id == kZip64ExtraFieldId) {
+        if (zip64_field_seen) {
+          return base::ErrStatus(
+              "Malformed ZIP at offset 0x%zx. Duplicate Zip64 extra field.",
+              reader_.start_offset());
+        }
+        zip64_field_seen = true;
+        cur_.is_zip64 = true;
+        const uint8_t* f = it;
+        const uint8_t* const fend = it + size;
+        if (cur_.hdr.uncompressed_size == kZip64SizeSentinel) {
+          if (fend - f < 8) {
+            return base::ErrStatus(
+                "Malformed ZIP at offset 0x%zx. Zip64 extra field is too short "
+                "to hold the uncompressed size.",
+                reader_.start_offset());
+          }
+          cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&f);
+        } else if (cur_.hdr.compressed_size == kZip64SizeSentinel &&
+                   size >= 16) {
+          // Per APPNOTE.TXT 4.5.3, a Zip64 extra field in the local header
+          // MUST include both 8-byte uncompressed and compressed size fields.
+          f += 8;
+        }
+        if (cur_.hdr.compressed_size == kZip64SizeSentinel) {
+          if (fend - f < 8) {
+            return base::ErrStatus(
+                "Malformed ZIP at offset 0x%zx. Zip64 extra field is too short "
+                "to hold the compressed size.",
+                reader_.start_offset());
+          }
+          cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&f);
+        }
+      }
+      it += size;
+    }
   }
 
-  if (cur_.hdr.uncompressed_size == kZip64Marker ||
-      cur_.hdr.compressed_size == kZip64Marker) {
+  if (cur_.hdr.uncompressed_size == kZip64SizeSentinel ||
+      cur_.hdr.compressed_size == kZip64SizeSentinel) {
     return base::ErrStatus(
-        "Zip64 marker present but no valid 0x0001 extra field found");
+        "Malformed ZIP at offset 0x%zx. Zip64 size sentinel present without a "
+        "matching Zip64 extra field.",
+        reader_.start_offset());
   }
 
   cur_.parse_state = FileParseState::kCompressedData;
-  return base::OkStatus();
-}
-
-base::Status ZipReader::ParseExtraFields(const uint8_t* data, size_t size) {
-  const uint8_t* it = data;
-  const uint8_t* end = data + size;
-  bool zip64_field_seen = false;
-  while (it + kExtraFieldHdrSize <= end) {
-    uint16_t field_id = ReadAndAdvance<uint16_t>(&it);
-    uint16_t field_size = ReadAndAdvance<uint16_t>(&it);
-    if (it + field_size > end) {
-      return base::ErrStatus("Invalid extra field size");
-    }
-    if (field_id == kZip64ExtendedInfoId) {
-      if (zip64_field_seen) {
-        return base::ErrStatus("Duplicate Zip64 extra field found");
-      }
-      zip64_field_seen = true;
-      const uint8_t* field_it = it;
-      const uint8_t* field_end = it + field_size;
-      // Only override sizes if the Zip64 marker is present
-      // which implies the size in the extra fields.
-      if (cur_.hdr.uncompressed_size == kZip64Marker ||
-          cur_.hdr.compressed_size == kZip64Marker) {
-        if (field_it + kZip64LocalFieldPayloadSize > field_end) {
-          return base::ErrStatus("Malformed Zip64 extra field");
-        }
-        cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&field_it);
-        cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&field_it);
-        // Parse local header offset if present in the Zip64 extra field.
-        if (field_it + sizeof(uint64_t) <= field_end) {
-          ReadAndAdvance<uint64_t>(&field_it);  // Local header offset
-        }
-      }
-    }
-    it += field_size;
-  }
   return base::OkStatus();
 }
 
@@ -322,12 +348,14 @@ base::Status ZipReader::TryParseCompressedData() {
       cur_.compressed = std::move(compressed);
     }
 
+    uint32_t desc_size =
+        cur_.is_zip64 ? kZip64DataDescriptorSize : kDataDescriptorSize;
     std::optional<TraceBlobView> data_descriptor =
-        reader_.SliceOff(reader_.start_offset(), kDataDescriptorSize);
+        reader_.SliceOff(reader_.start_offset(), desc_size);
     if (!data_descriptor) {
       return base::OkStatus();
     }
-    PERFETTO_CHECK(reader_.PopFrontBytes(kDataDescriptorSize));
+    PERFETTO_CHECK(reader_.PopFrontBytes(desc_size));
 
     const auto* desc_it = data_descriptor->data();
     auto desc_sig = ReadAndAdvance<uint32_t>(&desc_it);
@@ -338,17 +366,35 @@ base::Status ZipReader::TryParseCompressedData() {
           reader_.start_offset(), desc_sig, kDataDescriptorSig);
     }
     cur_.hdr.checksum = ReadAndAdvance<uint32_t>(&desc_it);
-    cur_.hdr.compressed_size = ReadAndAdvance<uint32_t>(&desc_it);
-    cur_.hdr.uncompressed_size = ReadAndAdvance<uint32_t>(&desc_it);
+    if (cur_.is_zip64) {
+      cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&desc_it);
+      cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&desc_it);
+    } else {
+      cur_.hdr.compressed_size = ReadAndAdvance<uint32_t>(&desc_it);
+      cur_.hdr.uncompressed_size = ReadAndAdvance<uint32_t>(&desc_it);
+    }
+    if (cur_.compressed->size() != cur_.hdr.compressed_size) {
+      return base::ErrStatus(
+          "Compressed size mismatch in data descriptor at offset 0x%zx. "
+          "Actual=%zu, descriptor=%" PRIu64,
+          reader_.start_offset(), cur_.compressed->size(),
+          cur_.hdr.compressed_size);
+    }
   } else {
     PERFETTO_CHECK(!cur_.compressed);
+    auto compressed_size = static_cast<size_t>(cur_.hdr.compressed_size);
+    if (compressed_size != cur_.hdr.compressed_size) {
+      return base::ErrStatus("Zip entry compressed size (%" PRIu64
+                             ") exceeds address space.",
+                             cur_.hdr.compressed_size);
+    }
     std::optional<TraceBlobView> raw_compressed =
-        reader_.SliceOff(reader_.start_offset(), cur_.hdr.compressed_size);
+        reader_.SliceOff(reader_.start_offset(), compressed_size);
     if (!raw_compressed) {
       return base::OkStatus();
     }
     cur_.compressed = *std::move(raw_compressed);
-    PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.compressed_size));
+    PERFETTO_CHECK(reader_.PopFrontBytes(compressed_size));
   }
 
   // We have accumulated the whole header, file name and compressed payload.
@@ -368,39 +414,42 @@ base::StatusOr<std::optional<TraceBlobView>>
 ZipReader::TryParseUnsizedCompressedData() {
   PERFETTO_CHECK(cur_.hdr.compression == kDeflate);
 
-  auto start = reader_.start_offset() + cur_.decompressor_bytes_fed;
-  auto end = reader_.end_offset();
-  auto slice = reader_.SliceOff(start, end - start);
-  PERFETTO_CHECK(slice);
-  auto res_code = cur_.decompressor.FeedAndExtract(slice->data(), slice->size(),
-                                                   [](const uint8_t*, size_t) {
-                                                     // Intentionally do
-                                                     // nothing: we are only
-                                                     // looking for the bounds
-                                                     // of the deflate stream,
-                                                     // we are not actually
-                                                     // interested in the
-                                                     // output.
-                                                   });
-  switch (res_code) {
-    case GzipDecompressor::ResultCode::kNeedsMoreInput:
-      cur_.decompressor_bytes_fed += slice->size();
-      return {std::nullopt};
-    case GzipDecompressor::ResultCode::kError:
-      return base::ErrStatus(
-          "Failed decompressing stream in ZIP file at offset 0x%zx",
-          reader_.start_offset());
-    case GzipDecompressor::ResultCode::kOk:
-      PERFETTO_FATAL("Unexpected result code");
-    case GzipDecompressor::ResultCode::kEof:
-      break;
+  while (reader_.start_offset() + cur_.decompressor_bytes_fed <
+         reader_.end_offset()) {
+    auto start = reader_.start_offset() + cur_.decompressor_bytes_fed;
+    auto end = reader_.end_offset();
+    auto slice = reader_.SliceOff(start, std::min(end - start, kMaxZlibChunk));
+    PERFETTO_CHECK(slice);
+    // Intentionally do nothing: we are only looking for the bounds of the
+    // deflate stream, we are not actually interested in the output.
+    cur_.decompressor->Feed(slice->data(), slice->size());
+    GzipDecompressor::Result result;
+    uint8_t scratch[4096];
+    do {
+      result = cur_.decompressor->ExtractOutput(scratch, sizeof(scratch));
+    } while (result.ret == GzipDecompressor::ResultCode::kOk);
+    auto res_code = result.ret;
+    switch (res_code) {
+      case GzipDecompressor::ResultCode::kNeedsMoreInput:
+        cur_.decompressor_bytes_fed += slice->size();
+        continue;
+      case GzipDecompressor::ResultCode::kError:
+        return base::ErrStatus(
+            "Failed decompressing stream in ZIP file at offset 0x%zx",
+            reader_.start_offset());
+      case GzipDecompressor::ResultCode::kOk:
+        PERFETTO_FATAL("Unexpected result code");
+      case GzipDecompressor::ResultCode::kEof:
+        cur_.decompressor_bytes_fed +=
+            slice->size() - cur_.decompressor->AvailIn();
+        auto raw_compressed = reader_.SliceOff(reader_.start_offset(),
+                                               cur_.decompressor_bytes_fed);
+        PERFETTO_CHECK(raw_compressed);
+        PERFETTO_CHECK(reader_.PopFrontBytes(cur_.decompressor_bytes_fed));
+        return {std::move(raw_compressed)};
+    }
   }
-  cur_.decompressor_bytes_fed += slice->size() - cur_.decompressor.AvailIn();
-  auto raw_compressed =
-      reader_.SliceOff(reader_.start_offset(), cur_.decompressor_bytes_fed);
-  PERFETTO_CHECK(raw_compressed);
-  PERFETTO_CHECK(reader_.PopFrontBytes(cur_.decompressor_bytes_fed));
-  return {std::move(raw_compressed)};
+  return {std::nullopt};
 }
 
 ZipFile* ZipReader::Find(const std::string& path) {
@@ -420,6 +469,13 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   out_data->clear();
   RETURN_IF_ERROR(DoDecompressionChecks());
 
+  auto uncompressed_size = static_cast<size_t>(hdr_.uncompressed_size);
+  if (uncompressed_size != hdr_.uncompressed_size) {
+    return base::ErrStatus("Zip entry uncompressed size (%" PRIu64
+                           ") exceeds address space.",
+                           hdr_.uncompressed_size);
+  }
+
   if (hdr_.compression == kNoCompression) {
     const uint8_t* data = compressed_data_.data();
     out_data->insert(out_data->end(), data, data + hdr_.compressed_size);
@@ -432,26 +488,55 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
 
   PERFETTO_DCHECK(hdr_.compression == kDeflate);
   GzipDecompressor dec(GzipDecompressor::InputMode::kRawDeflate);
-  dec.Feed(compressed_data_.data(), hdr_.compressed_size);
+  out_data->resize(static_cast<size_t>(hdr_.uncompressed_size));
 
-  out_data->resize(hdr_.uncompressed_size);
-  auto dec_res = dec.ExtractOutput(out_data->data(), out_data->size());
+  const uint8_t* in_ptr = compressed_data_.data();
+  size_t in_remaining = static_cast<size_t>(hdr_.compressed_size);
+  uint8_t* out_ptr = out_data->data();
+  size_t out_remaining = out_data->size();
+  size_t total_written = 0;
+
+  GzipDecompressor::Result dec_res{};
+  do {
+    if (dec.AvailIn() == 0 && in_remaining > 0) {
+      size_t feed_chunk = std::min(in_remaining, kMaxZlibChunk);
+      dec.Feed(in_ptr, feed_chunk);
+      in_ptr += feed_chunk;
+      in_remaining -= feed_chunk;
+    }
+    size_t out_chunk = std::min(out_remaining, kMaxZlibChunk);
+    dec_res = dec.ExtractOutput(out_ptr, out_chunk);
+    out_ptr += dec_res.bytes_written;
+    out_remaining -= dec_res.bytes_written;
+    total_written += dec_res.bytes_written;
+  } while (dec_res.ret == GzipDecompressor::ResultCode::kOk ||
+           (dec_res.ret == GzipDecompressor::ResultCode::kNeedsMoreInput &&
+            in_remaining > 0 && dec.AvailIn() == 0));
+
   if (dec_res.ret != GzipDecompressor::ResultCode::kEof) {
-    return base::ErrStatus(
-        "Zip decompression error (%d) on %s (c=%llu, u=%llu)",
-        static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
-        static_cast<unsigned long long>(hdr_.compressed_size),
-        static_cast<unsigned long long>(hdr_.uncompressed_size));
+    return base::ErrStatus("Zip decompression error (%d) on %s (c=%" PRIu64
+                           ", u=%" PRIu64 ") (ERR:tp-corrupt)",
+                           static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
+                           hdr_.compressed_size, hdr_.uncompressed_size);
   }
-  out_data->resize(dec_res.bytes_written);
+  out_data->resize(total_written);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   const auto* crc_data = reinterpret_cast<const ::Bytef*>(out_data->data());
-  auto crc_len = static_cast<::uInt>(out_data->size());
-  auto actual_crc32 = static_cast<uint32_t>(::crc32(0u, crc_data, crc_len));
+  size_t crc_remaining = out_data->size();
+  ::uLong crc = ::crc32(0u, nullptr, 0u);
+  while (crc_remaining > 0) {
+    auto crc_chunk =
+        static_cast<::uInt>(std::min(crc_remaining, kMaxZlibChunk));
+    crc = ::crc32(crc, crc_data, crc_chunk);
+    crc_data += crc_chunk;
+    crc_remaining -= crc_chunk;
+  }
+  auto actual_crc32 = static_cast<uint32_t>(crc);
   if (actual_crc32 != hdr_.checksum) {
-    return base::ErrStatus("Zip CRC32 failure on %s (actual: %x, expected: %x)",
-                           hdr_.fname.c_str(), actual_crc32, hdr_.checksum);
+    return base::ErrStatus(
+        "Zip CRC32 failure on %s (actual: %x, expected: %x) (ERR:tp-corrupt)",
+        hdr_.fname.c_str(), actual_crc32, hdr_.checksum);
   }
 #endif
 
@@ -467,27 +552,36 @@ base::Status ZipFile::DecompressLines(LinesCallback callback) const {
   if (hdr_.compression == kNoCompression) {
     line_reader.Tokenize(
         base::StringView(reinterpret_cast<const char*>(compressed_data_.data()),
-                         hdr_.compressed_size));
+                         static_cast<size_t>(hdr_.compressed_size)));
     return base::OkStatus();
   }
 
   PERFETTO_DCHECK(hdr_.compression == kDeflate);
   GzipDecompressor dec(GzipDecompressor::InputMode::kRawDeflate);
-  dec.Feed(compressed_data_.data(), hdr_.compressed_size);
 
   static constexpr size_t kChunkSize = 32768;
+  const uint8_t* in_ptr = compressed_data_.data();
+  size_t in_remaining = static_cast<size_t>(hdr_.compressed_size);
   GzipDecompressor::Result dec_res;
   do {
+    if (dec.AvailIn() == 0 && in_remaining > 0) {
+      size_t feed_chunk = std::min(in_remaining, kMaxZlibChunk);
+      dec.Feed(in_ptr, feed_chunk);
+      in_ptr += feed_chunk;
+      in_remaining -= feed_chunk;
+    }
     auto* wptr = reinterpret_cast<uint8_t*>(line_reader.BeginWrite(kChunkSize));
     dec_res = dec.ExtractOutput(wptr, kChunkSize);
     if (dec_res.ret == ResultCode::kError ||
-        dec_res.ret == ResultCode::kNeedsMoreInput) {
+        (dec_res.ret == ResultCode::kNeedsMoreInput &&
+         (in_remaining == 0 || dec.AvailIn() > 0))) {
       return base::ErrStatus("zlib decompression error on %s (%d)",
                              name().c_str(), static_cast<int>(dec_res.ret));
     }
     PERFETTO_DCHECK(dec_res.bytes_written <= kChunkSize);
     line_reader.EndWrite(dec_res.bytes_written);
-  } while (dec_res.ret == ResultCode::kOk);
+  } while (dec_res.ret == ResultCode::kOk ||
+           dec_res.ret == ResultCode::kNeedsMoreInput);
   return base::OkStatus();
 }
 

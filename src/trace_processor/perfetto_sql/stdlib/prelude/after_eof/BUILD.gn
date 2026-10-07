@@ -24,6 +24,8 @@ perfetto_sql_source_set("after_eof") {
     "gpu.sql",
     "memory.sql",
     "slices.sql",
+    "stack_samples.sql",
+    "state.sql",
     "tracks.sql",
     "views.sql",
   ]

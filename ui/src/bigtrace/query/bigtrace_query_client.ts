@@ -15,24 +15,156 @@
 import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {SettingFilter} from '../settings/settings_types';
-import {encodeFilters} from './filter_encoding';
+import {type BigtraceColumnSchema, parseCellValue} from './column_types';
+import {coerceFiltersForWire} from './filter_encoding';
 import type {RawQueryExecution} from './query_history_storage';
 
-// Tabular wire shape. Values are always strings, 'null' denotes SQL NULL.
+// Tabular wire shape for QueryResponse (`/execute_*` and `:fetch_results`).
+// Values are always strings; JSON null or "NULL" denotes SQL NULL.
 interface QueryResponsePayload {
   queryUuid?: string;
-  columnNames?: string[];
+  schema?: BigtraceColumnSchema[];
   rows?: Array<{values: Array<string | null>}>;
   // Filtered count for scrollbar sizing.
+  totalFilteredRows?: number;
+  // Every column the client could project (result + metadata columns), so the
+  // picker can offer ones the current projection omits. `:fetch_results`-only.
+  availableColumnNames?: string[];
+}
+
+// Wire shape for TraceMetadataResponse (`/trace_metadata`), whose schema comes
+// from the separate `/trace_metadata_schema` endpoint.
+interface TraceMetadataResponsePayload {
+  columnNames?: Array<string | null>;
+  rows?: Array<{values: Array<string | null>}>;
   totalFilteredRows?: number;
 }
 
 export interface QueryResultPage {
   readonly rows: ReadonlyArray<DataGridRow>;
   readonly columns: ReadonlyArray<string>;
+  readonly schema: ReadonlyArray<BigtraceColumnSchema>;
   readonly queryUuid?: string;
   // Post-filter count from `:fetch_results`; undefined elsewhere.
   readonly totalFilteredRows?: number;
+  // Every projectable column (result + metadata columns); `:fetch_results`-only.
+  readonly availableColumnNames?: ReadonlyArray<string>;
+}
+
+// One column the `/trace_metadata` endpoint can return for the current trace
+// source. `defaultVisible` flags the columns the grid shows on first render;
+// `type` is informational (the wire is always-strings).
+export interface TraceColumnDescriptor {
+  readonly name: string;
+  readonly type: string;
+  readonly defaultVisible: boolean;
+  readonly description?: string;
+}
+
+// `/trace_metadata_schema` response: the column catalog for the trace-list
+// grid + the column-picker widget.
+export interface TracesSchemaResponse {
+  readonly columns: ReadonlyArray<TraceColumnDescriptor>;
+}
+
+// Which experiment/control pair a query runs over, and which arm of it.
+// Ids are numbers on the wire in both directions, so they stay numbers here —
+// no coercion, nothing to get out of step.
+export interface ExperimentFilterSpec {
+  readonly experimentId: number;
+  readonly controlId: number;
+  // true = the experiment (treatment) arm, false = the control arm.
+  readonly isTreatment: boolean;
+}
+
+// One entry of the experiment catalog: both arms, named, each flagged when it
+// isn't available in Telemetry datasets.
+export interface ExperimentMetadataItem {
+  readonly experimentId: number;
+  readonly experimentName: string;
+  readonly controlId: number;
+  readonly controlName: string;
+  readonly isExperimentDenied: boolean;
+  readonly isControlDenied: boolean;
+}
+
+// The catalog search is paged, but the picker shows one page of matches and
+// asks the user to narrow instead of scrolling a corpus-sized list.
+const EXPERIMENT_SEARCH_LIMIT = 50;
+
+// Narrows a filter to what travels: display names picked up along the way
+// never reach the wire, a preset, or a setup comparison.
+export function toExperimentFilterSpec(
+  filter: ExperimentFilterSpec | undefined,
+): ExperimentFilterSpec | undefined {
+  if (filter === undefined) return undefined;
+  return {
+    experimentId: filter.experimentId,
+    controlId: filter.controlId,
+    isTreatment: filter.isTreatment,
+  };
+}
+
+// The submit-time trace-selection snapshot shipped as top-level fields on
+// /execute_*. Each is omitted from the wire when empty / default, so a query
+// run with no trace selection sends just the base limit/perfetto_sql/settings.
+export interface ExecuteOptions {
+  // Structured filter picking which traces the query runs over. Shipped as a
+  // native JSON array via coerceFiltersForWire.
+  readonly traceFilters?: ReadonlyArray<Filter>;
+  // Trace-metadata columns to attach to each result row.
+  readonly traceMetadataColumns?: ReadonlyArray<string>;
+  // AIP-132 ordering for the trace processing order.
+  readonly traceOrderBy?: string;
+  // Cap on how many traces the query fans out to, applied after the trace
+  // selection. A first-class field like `limit`, not a setting.
+  readonly traceLimit?: number;
+  // Experiment/control pair and arm the query runs over.
+  readonly experimentFilter?: ExperimentFilterSpec;
+  // What to call the table a persistent run writes to. Absent = let the
+  // backend name it.
+  readonly tableName?: string;
+  // How many days that table lives for. Independent of the name: the table
+  // exists either way.
+  readonly tableTtlDays?: number;
+}
+
+// What `/check_table_exists` says about a name before it is used.
+export interface TableNameCheck {
+  readonly exists: boolean;
+  // The name the backend would actually create, which may namespace or
+  // normalise what was asked for.
+  readonly resolvedTableName: string;
+}
+
+// One analysis preset from `GET /trace_presets`: display metadata plus a
+// frozen execution snapshot (the same fields a Run submits).
+export interface TracePreset {
+  readonly id: string;
+  readonly category: string;
+  readonly name: string;
+  readonly description: string;
+  // Empty for a setup-only preset: it configures the run and leaves the query
+  // alone (an empty editor when starting from it).
+  readonly perfettoSql: string;
+  // Optional; the UI fills defaults when a minimal backend omits them
+  // (generic icon; empty settings/filters/columns; limit 1000; materialized).
+  readonly icon?: string;
+  // Wire shape mirrors the execute body's `settings`: snake-cased `settingId`,
+  // always-string `values`. Mapped to SettingFilter when applied to a tab.
+  readonly settings?: ReadonlyArray<{
+    readonly settingId: string;
+    readonly values: string[];
+    readonly category: string;
+  }>;
+  readonly traceFilters?: ReadonlyArray<Filter>;
+  readonly traceMetadataColumns?: ReadonlyArray<string>;
+  readonly traceOrderBy?: string;
+  // Ids and arm only — a preset never carries display names, which the UI
+  // resolves from the catalog when the preset is applied.
+  readonly experimentFilter?: ExperimentFilterSpec;
+  readonly limit?: number;
+  readonly materialized?: boolean;
 }
 
 // Request aborted via AbortSignal — treat as cancellation, not an error.
@@ -52,6 +184,21 @@ export class QueryNotFoundError extends Error {
   }
 }
 
+// Backend returned a non-OK HTTP status (other than 404, which maps to
+// QueryNotFoundError). `detail` is the human-readable `detail` from the error
+// body (or the raw body when it isn't JSON); `status` is the HTTP status, so
+// callers can render the detail and branch on the status instead of scraping
+// the message string.
+export class BigtraceHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly detail: string,
+  ) {
+    super(`HTTP ${status}: ${detail}`);
+    this.name = 'BigtraceHttpError';
+  }
+}
+
 // Single funnel for the BigTrace HTTP API.
 export class BigtraceQueryClient {
   constructor(private readonly endpoint: string) {}
@@ -63,6 +210,7 @@ export class BigtraceQueryClient {
     limit: number,
     settings: ReadonlyArray<SettingFilter>,
     signal?: AbortSignal,
+    options?: ExecuteOptions,
   ): Promise<QueryResultPage> {
     return this.executeAt(
       '/execute_bigtrace_query',
@@ -70,6 +218,7 @@ export class BigtraceQueryClient {
       limit,
       settings,
       signal,
+      options,
     );
   }
 
@@ -78,6 +227,7 @@ export class BigtraceQueryClient {
     limit: number,
     settings: ReadonlyArray<SettingFilter>,
     signal?: AbortSignal,
+    options?: ExecuteOptions,
   ): Promise<QueryResultPage> {
     return this.executeAt(
       '/execute_bigtrace_query_async',
@@ -85,6 +235,7 @@ export class BigtraceQueryClient {
       limit,
       settings,
       signal,
+      options,
     );
   }
 
@@ -107,9 +258,10 @@ export class BigtraceQueryClient {
     });
   }
 
-  // Page the materialized table; `limit`/`offset` apply after orderBy/filter.
-  // `orderBy` is AIP-132; `filter` is the DataGrid `Filter[]` shape encoded
-  // via `encodeFilters`. Mid-flight calls return whatever rows have merged.
+  // Page a query's results. POST body: `limit`/`offset` plus optional
+  // `order_by` (AIP-132), `filters` (native Filter[]), and `columns` field-mask
+  // over (result cols + metadata columns). The response echoes that set as
+  // `availableColumnNames`. Mid-flight calls return whatever rows are ready.
   async fetchResults(
     uuid: string,
     limit: number,
@@ -117,16 +269,33 @@ export class BigtraceQueryClient {
     signal?: AbortSignal,
     orderBy?: string,
     filter?: ReadonlyArray<Filter>,
+    columns?: ReadonlyArray<string>,
   ): Promise<QueryResultPage> {
-    let path = `/query_executions/${uuid}:fetch_results?limit=${limit}&offset=${offset}`;
+    const body: Record<string, unknown> = {limit, offset};
     if (orderBy && orderBy.length > 0) {
-      path += `&order_by=${encodeURIComponent(orderBy)}`;
+      body.order_by = orderBy;
     }
     if (filter && filter.length > 0) {
-      path += `&filter=${encodeURIComponent(encodeFilters(filter))}`;
+      body.filters = coerceFiltersForWire(filter);
     }
-    const result = await this.requestJson<QueryResponsePayload>(path, {signal});
-    return parseQueryResponse(result);
+    if (columns && columns.length > 0) {
+      body.columns = [...columns];
+    }
+    const result = await this.requestJson<QueryResponsePayload>(
+      `/query_executions/${uuid}:fetch_results`,
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+        signal,
+      },
+    );
+    // `availableColumnNames` is `:fetch_results`-only, so the shared parser
+    // stays endpoint-agnostic and only this call site exposes the field.
+    return {
+      ...parseQueryResponse(result),
+      availableColumnNames: result.availableColumnNames,
+    };
   }
 
   async cancelQuery(uuid: string, signal?: AbortSignal): Promise<void> {
@@ -147,12 +316,160 @@ export class BigtraceQueryClient {
     return result.queryExecutions ?? [];
   }
 
+  // The analysis-presets catalog. Backends that don't implement it 404;
+  // callers treat that (and any failure) as "no presets".
+  // Catalog search behind the trace grid's experiment picker. Never called
+  // with an empty query: matching the whole corpus is a round-trip the user
+  // can't use.
+  async listExperiments(
+    searchQuery: string,
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<ExperimentMetadataItem>> {
+    const result = await this.requestJson<{
+      experiments?: ExperimentMetadataItem[];
+    }>('/experiments', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        search_query: searchQuery,
+        limit: EXPERIMENT_SEARCH_LIMIT,
+        offset: 0,
+      }),
+      signal,
+    });
+    return result.experiments ?? [];
+  }
+
+  // One experiment by id, to put names on a filter restored from ids alone
+  // (history, a preset, a reloaded tab). An id the backend doesn't know is
+  // not an error: the response simply carries no experiment.
+  async getExperimentMetadata(
+    experimentId: number,
+    signal?: AbortSignal,
+  ): Promise<ExperimentMetadataItem | undefined> {
+    const result = await this.requestJson<{
+      experiment?: ExperimentMetadataItem;
+    }>('/experiment_metadata', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({experiment_id: experimentId}),
+      signal,
+    });
+    return result.experiment;
+  }
+
+  // Whether a name is taken, and what the backend would really call it. Asked
+  // while the user types a table name.
+  async checkTableExists(
+    tableName: string,
+    signal?: AbortSignal,
+  ): Promise<TableNameCheck> {
+    const result = await this.requestJson<Partial<TableNameCheck>>(
+      '/check_table_exists',
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({table_name: tableName}),
+        signal,
+      },
+    );
+    return {
+      exists: result.exists === true,
+      resolvedTableName: result.resolvedTableName ?? tableName,
+    };
+  }
+
+  async listTracePresets(
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<TracePreset>> {
+    // GET: the catalog is not request-dependent.
+    const result = await this.requestJson<{tracePresets?: TracePreset[]}>(
+      '/trace_presets',
+      {
+        method: 'GET',
+        signal,
+      },
+    );
+    return result.tracePresets ?? [];
+  }
+
+  // Deleting an execution takes its table with it: the results are the
+  // query's, so keeping them under a name whose execution is gone would
+  // leave a table nobody can trace back. `drop_table` rides as a query
+  // parameter — DELETE carries no body under HTTP/gRPC transcoding.
   async deleteQueryExecution(
     uuid: string,
     signal?: AbortSignal,
   ): Promise<void> {
-    await this.request(`/query_executions/${uuid}`, {
+    await this.request(`/query_executions/${uuid}?drop_table=true`, {
       method: 'DELETE',
+      signal,
+    });
+  }
+
+  // Paginated trace metadata for the current trace source — the data behind
+  // the Settings-page trace-selection grid. `filter` / `order_by` / `columns`
+  // mirror `:fetch_results`; `filter` ships as a native JSON array, NOT a
+  // JSON-encoded string.
+  async listTraceMetadata(
+    settings: ReadonlyArray<SettingFilter>,
+    limit: number,
+    offset: number,
+    signal?: AbortSignal,
+    orderBy?: string,
+    filter?: ReadonlyArray<Filter>,
+    columns?: ReadonlyArray<string>,
+    experimentFilter?: ExperimentFilterSpec,
+  ): Promise<QueryResultPage> {
+    const body: Record<string, unknown> = {
+      settings: this.settingsToWire(settings),
+      limit,
+      offset,
+    };
+    if (experimentFilter !== undefined) {
+      body.experiment_filter = experimentFilterToWire(experimentFilter);
+    }
+    if (orderBy && orderBy.length > 0) {
+      body.order_by = orderBy;
+    }
+    if (filter && filter.length > 0) {
+      body.filters = coerceFiltersForWire(filter);
+    }
+    if (columns && columns.length > 0) {
+      body.columns = [...columns];
+    }
+    const result = await this.requestJson<TraceMetadataResponsePayload>(
+      '/trace_metadata',
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+        signal,
+      },
+    );
+    const schema = (result.columnNames ?? [])
+      .filter((h): h is string => h !== null)
+      .map((name) => ({name, type: 'STRING'}));
+    return parseQueryResponse({
+      schema,
+      rows: result.rows,
+      totalFilteredRows: result.totalFilteredRows,
+    });
+  }
+
+  // Column catalog for `/trace_metadata`, fetched once on Settings-page load
+  // to build the grid's schema + the column-picker. `settings` lets the
+  // response vary when the schema depends on the trace source.
+  async listTraceMetadataSchema(
+    settings: ReadonlyArray<SettingFilter>,
+    signal?: AbortSignal,
+  ): Promise<TracesSchemaResponse> {
+    return this.requestJson<TracesSchemaResponse>('/trace_metadata_schema', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        settings: this.settingsToWire(settings),
+      }),
       signal,
     });
   }
@@ -165,23 +482,58 @@ export class BigtraceQueryClient {
     limit: number,
     settings: ReadonlyArray<SettingFilter>,
     signal: AbortSignal | undefined,
+    options?: ExecuteOptions,
   ): Promise<QueryResultPage> {
-    const body = JSON.stringify({
+    const body: Record<string, unknown> = {
       limit,
       perfetto_sql: query,
-      settings: settings.map((s) => ({
-        setting_id: s.settingId,
-        values: s.values,
-        category: s.category,
-      })),
-    });
+      settings: this.settingsToWire(settings),
+    };
+    // Each trace-selection field rides only when non-default.
+    if (options?.traceFilters && options.traceFilters.length > 0) {
+      body.trace_filters = coerceFiltersForWire(options.traceFilters);
+    }
+    if (
+      options?.traceMetadataColumns &&
+      options.traceMetadataColumns.length > 0
+    ) {
+      body.trace_metadata_columns = [...options.traceMetadataColumns];
+    }
+    if (options?.traceOrderBy && options.traceOrderBy.length > 0) {
+      body.trace_order_by = options.traceOrderBy;
+    }
+    if (options?.traceLimit !== undefined && options.traceLimit > 0) {
+      body.trace_limit = options.traceLimit;
+    }
+    if (options?.experimentFilter !== undefined) {
+      body.experiment_filter = experimentFilterToWire(options.experimentFilter);
+    }
+    // An empty name is the user asking the backend to choose one, which is
+    // what omitting the field means.
+    if (options?.tableName !== undefined && options.tableName !== '') {
+      body.table_name = options.tableName;
+    }
+    if (options?.tableTtlDays !== undefined && options.tableTtlDays > 0) {
+      body.table_ttl_days = options.tableTtlDays;
+    }
     const result = await this.requestJson<QueryResponsePayload>(path, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body,
+      body: JSON.stringify(body),
       signal,
     });
     return parseQueryResponse(result);
+  }
+
+  // camelCase SettingFilter[] -> the snake_case {setting_id, values, category}
+  // shape every POST body that ships settings uses (/trace_metadata,
+  // /trace_metadata_schema, /execute_*).
+  private settingsToWire(settings: ReadonlyArray<SettingFilter>) {
+    return settings.map((s) => ({
+      setting_id: s.settingId,
+      values: s.values,
+      category: s.category,
+    }));
   }
 
   private async request(path: string, init?: RequestInit): Promise<Response> {
@@ -219,15 +571,15 @@ export class BigtraceQueryClient {
         throw new QueryNotFoundError(m ? m[1] : path);
       }
       if (response.status === 403) {
-        throw new Error(
-          `HTTP error! status: ${response.status}, message: ${detail}. ` +
-            `This might be an authentication issue. Please ensure you ` +
-            `are logged in with the correct credentials.`,
+        // Most 403s here are an unauthenticated session; fold the hint into
+        // the detail so it reaches the user with the rest of the message.
+        throw new BigtraceHttpError(
+          403,
+          `${detail} (this may be an authentication issue — make sure you ` +
+            `are logged in with the correct credentials)`,
         );
       }
-      throw new Error(
-        `HTTP error! status: ${response.status}, message: ${detail}`,
-      );
+      throw new BigtraceHttpError(response.status, detail);
     }
     return response;
   }
@@ -238,29 +590,40 @@ export class BigtraceQueryClient {
   }
 }
 
-// Preserves wire strings as-is (no numeric coercion — would corrupt 64-bit
-// ids/timestamps). Only translates 'NULL' to JS null.
+// Passes wire values through as-is: no numeric coercion (would corrupt 64-bit
+// ids/timestamps past 2^53), and SQL NULL arrives as JSON null. Do NOT
+// special-case the literal string "NULL" — that would corrupt a genuine "NULL"
+// string value into SQL NULL.
+// camelCase spec -> the snake_case triple every request body carries.
+function experimentFilterToWire(filter: ExperimentFilterSpec) {
+  return {
+    experiment_id: filter.experimentId,
+    control_id: filter.controlId,
+    is_treatment: filter.isTreatment,
+  };
+}
+
 export function parseQueryResponse(
   result: QueryResponsePayload,
 ): QueryResultPage {
-  const colNames = result.columnNames;
-  if (
-    colNames === undefined ||
-    colNames === null ||
-    result.rows === undefined ||
-    result.rows === null
-  ) {
-    return {rows: [], columns: [], queryUuid: result.queryUuid};
+  const schema = result.schema ?? [];
+  const columns = schema.map((s) => s.name);
+
+  if (columns.length === 0) {
+    return {
+      rows: [],
+      columns: [],
+      queryUuid: result.queryUuid,
+      totalFilteredRows: result.totalFilteredRows,
+      schema: [],
+    };
   }
 
-  const columns = colNames.filter((h): h is string => h !== null);
-  const rows = result.rows.map((row) => {
+  const rows = (result.rows ?? []).map((row) => {
     const out: DataGridRow = {};
-    for (let i = 0; i < colNames.length; i++) {
-      const header = colNames[i];
-      if (header === null) continue;
-      const value = row.values[i];
-      out[header] = value === 'NULL' ? null : value;
+    for (let i = 0; i < schema.length; i++) {
+      const {name, type} = schema[i];
+      out[name] = parseCellValue(row.values[i], type);
     }
     return out;
   });
@@ -269,5 +632,6 @@ export function parseQueryResponse(
     columns,
     queryUuid: result.queryUuid,
     totalFilteredRows: result.totalFilteredRows,
+    schema,
   };
 }

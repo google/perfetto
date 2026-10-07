@@ -23,7 +23,7 @@ export interface TextareaAttrs {
   docsLink?: string;
   cssClass?: string;
   default?: string;
-  disabled?: boolean;
+  disabled?: boolean | (() => boolean);
   onChange?: (text: string) => void;
 }
 
@@ -35,7 +35,7 @@ export class Textarea implements ProbeSetting {
   }
 
   setText(text: string | undefined) {
-    this._text = text ?? '';
+    this._text = text ?? this.attrs.default ?? '';
     return this._text;
   }
 
@@ -48,12 +48,14 @@ export class Textarea implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
-    if (typeof state === 'string') {
-      this._text = state;
-    }
+    this.setText(typeof state === 'string' ? state : undefined);
   }
 
   render() {
+    const disabled =
+      typeof this.attrs.disabled === 'function'
+        ? this.attrs.disabled()
+        : this.attrs.disabled;
     return m(
       '.textarea-holder',
       m(
@@ -73,7 +75,7 @@ export class Textarea implements ProbeSetting {
           this.setText((e.target as HTMLTextAreaElement).value);
           this.attrs.onChange?.(this._text);
         },
-        disabled: this.attrs.disabled,
+        disabled,
         placeholder: this.attrs.placeholder,
         value: this._text,
       }),

@@ -124,7 +124,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
 
 uint32_t FindIdColumnIndex(const std::vector<std::string>& names) {
   for (uint32_t i = 0; i < names.size(); ++i) {
-    if (names[i] == "id" || names[i] == "_auto_id") {
+    if (names[i] == "id" || names[i] == dataframe::kAutoIdColumnName) {
       return i;
     }
   }
@@ -137,7 +137,7 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
                    ToSqliteCreateTableType(spec.column_specs[i].type);
-    if (spec.column_names[i] == "_auto_id") {
+    if (dataframe::IsHiddenColumn(spec.column_names[i])) {
       create_stmt += " HIDDEN";
     }
     create_stmt += ", ";
@@ -290,6 +290,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         break;
       case 2: /* distinct */
       case 3: /* distinct + order by */ {
+        // The contract lets us dedup over the colUsed columns.
         uint64_t cols_used_it = info->colUsed;
         for (uint32_t i = 0; i < 64; ++i) {
           if (cols_used_it & 1u) {
@@ -297,7 +298,18 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           }
           cols_used_it >>= 1;
         }
+        // SQLite's DISTINCT handling for virtual tables changed between 3.50.3
+        // and 3.53. Newer SQLite trusts
+        // orderByConsumed and, for a plain DISTINCT, performs only an
+        // adjacent-row dedup (WHERE_DISTINCT_ORDERED) assuming we grouped equal
+        // rows; deduping over colUsed alone does not do that, so we must sort
+        // by aOrderBy ourselves. Older SQLite re-dedups regardless, so we only
+        // sort when there is also an ORDER BY to satisfy (vtab_distinct == 3).
+#if SQLITE_VERSION_NUMBER > 3050300
+        should_sort_using_order_by = true;
+#else
         should_sort_using_order_by = (vtab_distinct == 3);
+#endif
         break;
       }
       default:

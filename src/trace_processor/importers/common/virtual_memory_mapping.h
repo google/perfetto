@@ -61,7 +61,9 @@ class VirtualMemoryMapping {
   const std::optional<BuildId>& build_id() const { return build_id_; }
 
   // Whether this maps to a region that holds jitted code.
-  bool is_jitted() const { return jit_cache_ != nullptr; }
+  bool is_jitted() const { return is_jitted_; }
+
+  virtual std::optional<UniquePid> GetUpid() const { return std::nullopt; }
 
   // Converts an absolute address into a relative one.
   uint64_t ToRelativePc(uint64_t address) const {
@@ -79,6 +81,16 @@ class VirtualMemoryMapping {
   // returned `FrameId` should not be cached.
   // Optionally accepts source_file and line_number for online symbolization.
   FrameId InternFrame(
+      uint64_t rel_pc,
+      base::StringView function_name,
+      std::optional<base::StringView> source_file = std::nullopt,
+      std::optional<uint32_t> line_number = std::nullopt);
+
+  // Same as `InternFrame` but also returns whether this call created the
+  // frame, as opposed to returning an already interned one. Callers that
+  // populate a frame after interning it (e.g. with a symbol set) use this to
+  // do so exactly once.
+  std::pair<FrameId, bool> InternFrameAndCheckIfNew(
       uint64_t rel_pc,
       base::StringView function_name,
       std::optional<base::StringView> source_file = std::nullopt,
@@ -109,7 +121,7 @@ class VirtualMemoryMapping {
       std::optional<base::StringView> source_file,
       std::optional<uint32_t> line_number);
 
-  void SetJitCache(JitCache* jit_cache) { jit_cache_ = jit_cache; }
+  void SetIsJitted() { is_jitted_ = true; }
 
   TraceProcessorContext* const context_;
   const MappingId mapping_id_;
@@ -118,7 +130,7 @@ class VirtualMemoryMapping {
   const uint64_t load_bias_;
   const std::string name_;
   std::optional<BuildId> const build_id_;
-  JitCache* jit_cache_ = nullptr;
+  bool is_jitted_ = false;
 
   struct FrameKey {
     uint64_t rel_pc;
@@ -155,6 +167,7 @@ class UserMemoryMapping : public VirtualMemoryMapping {
  public:
   ~UserMemoryMapping() override;
   UniquePid upid() const { return upid_; }
+  std::optional<UniquePid> GetUpid() const override { return upid_; }
 
  private:
   friend class MappingTracker;

@@ -26,6 +26,7 @@ template("perfetto_android_jni_library") {
     "testonly",
     "visibility",
   ]
+
   shared_library(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
     metadata = {
@@ -49,6 +50,7 @@ template("perfetto_android_library") {
     "testonly",
     "visibility",
   ]
+
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
     out_file_name = target_name + "_stub.txt"
@@ -89,6 +91,7 @@ template("perfetto_android_app") {
     "testonly",
     "visibility",
   ]
+
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
     out_file_name = target_name + "_stub.txt"
@@ -121,6 +124,7 @@ template("perfetto_android_instrumentation_test") {
     "testonly",
     "visibility",
   ]
+
   action(target_name) {
     forward_variables_from(invoker, _vars_to_forward)
     out_file_name = target_name + "_stub.txt"

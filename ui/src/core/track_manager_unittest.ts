@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type {Mock} from 'vitest';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {Duration} from '../base/time';
 import {TimeScale} from '../base/time_scale';
 import type {Track, TrackRenderContext} from '../public/track';
@@ -100,7 +100,7 @@ beforeEach(() => {
 
 describe('TrackManager', () => {
   it('calls render on the track', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
 
     entry.render(dummyCtx);
     expect(mockTrack.render).toHaveBeenCalledTimes(1);
@@ -108,10 +108,10 @@ describe('TrackManager', () => {
   });
 
   it('reuses tracks across render cycles', () => {
-    const first = assertExists(trackManager.getWrappedTrack(td.uri));
+    const first = ensureExists(trackManager.getWrappedTrack(td.uri));
     first.render(dummyCtx);
 
-    const second = assertExists(trackManager.getWrappedTrack(td.uri));
+    const second = ensureExists(trackManager.getWrappedTrack(td.uri));
     second.render(dummyCtx);
 
     expect(first).toBe(second);
@@ -119,7 +119,7 @@ describe('TrackManager', () => {
   });
 
   it('contains crash inside render()', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     const e = new Error('test error');
 
     // Mock crash inside render
@@ -134,7 +134,7 @@ describe('TrackManager', () => {
   });
 
   it('does not call render after crash', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     const e = new Error('test error');
 
     // Mock crash inside render
@@ -151,12 +151,12 @@ describe('TrackManager', () => {
   });
 
   it('exposes the track renderer', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     expect(entry.track).toBe(mockTrack);
   });
 
   it('exposes the track descriptor', () => {
-    const entry = assertExists(trackManager.getWrappedTrack(td.uri));
+    const entry = ensureExists(trackManager.getWrappedTrack(td.uri));
     expect(entry.desc).toBe(td);
   });
 });

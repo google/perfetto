@@ -20,10 +20,10 @@
 
 #include "test/gtest_and_gmock.h"
 
+#include "src/protovm/compiler/android_extension.descriptor.h"
 #include "src/protovm/compiler/compiler.h"
 #include "src/protovm/compiler/trace.descriptor.h"
 #include "src/protovm/compiler/vm_program.descriptor.h"
-#include "src/protovm/compiler/winscope.descriptor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
@@ -51,9 +51,9 @@ class CompilerTest : public ::testing::Test {
         std::string(
             reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
             perfetto::kTraceDescriptor.size()) +
-        std::string(
-            reinterpret_cast<const char*>(perfetto::kWinscopeDescriptor.data()),
-            perfetto::kWinscopeDescriptor.size());
+        std::string(reinterpret_cast<const char*>(
+                        perfetto::kAndroidExtensionDescriptor.data()),
+                    perfetto::kAndroidExtensionDescriptor.size());
     base::StatusOr<std::string> actual_instructions_binary =
         compiler.Compile(config_textproto, combined_descriptors);
     EXPECT_TRUE(actual_instructions_binary.ok())
@@ -571,9 +571,9 @@ TEST_F(CompilerTest, ErrorInvalidFieldName) {
       std::string(
           reinterpret_cast<const char*>(perfetto::kTraceDescriptor.data()),
           perfetto::kTraceDescriptor.size()) +
-      std::string(
-          reinterpret_cast<const char*>(perfetto::kWinscopeDescriptor.data()),
-          perfetto::kWinscopeDescriptor.size());
+      std::string(reinterpret_cast<const char*>(
+                      perfetto::kAndroidExtensionDescriptor.data()),
+                  perfetto::kAndroidExtensionDescriptor.size());
   auto status_or = compiler.Compile(config, combined_descriptors);
   EXPECT_FALSE(status_or.ok());
   EXPECT_THAT(

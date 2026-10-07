@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 #define SRC_TRACE_PROCESSOR_CORE_UTIL_BIT_VECTOR_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -82,6 +83,36 @@ struct BitVector {
     return BitVector(std::move(words), size);
   }
 
+  // Allocates a new BitVector of `size` bits from a packed bitmap of
+  // ceil(size / 8) bytes holding bit i at byte i / 8, bit i % 8. This is the
+  // layout of the words below, so the bitmap is taken verbatim.
+  static BitVector CreateFromBitmap(const uint8_t* bitmap, uint64_t size) {
+    static_assert(PERFETTO_IS_LITTLE_ENDIAN());
+    if (size == 0) {
+      return {};
+    }
+    auto words = FlexVector<uint64_t>::CreateWithSize((size + 63u) / 64u);
+    size_t bitmap_bytes = static_cast<size_t>((size + 7u) / 8u);
+    size_t word_bytes = words.size() * sizeof(uint64_t);
+    memcpy(words.data(), bitmap, bitmap_bytes);
+    memset(reinterpret_cast<uint8_t*>(words.data()) + bitmap_bytes, 0,
+           word_bytes - bitmap_bytes);
+    // Bits past `size` are unspecified in the source bitmap.
+    if (size % 64u != 0u) {
+      words.back() &= (1ull << (size % 64u)) - 1ull;
+    }
+    return BitVector(std::move(words), size);
+  }
+
+  // Returns the number of set bits in the vector.
+  PERFETTO_ALWAYS_INLINE uint64_t CountSetBits() const {
+    uint64_t count = 0;
+    for (uint64_t i = 0; i < (size_ + 63ull) / 64ull; ++i) {
+      count += static_cast<uint64_t>(PERFETTO_POPCOUNT(words_[i]));
+    }
+    return count;
+  }
+
   // Adds a bit to the end of the vector.
   //
   // bit: The boolean value to add to the end of the BitVector.
@@ -91,6 +122,14 @@ struct BitVector {
     }
     words_[size_ / 64ull] |= static_cast<uint64_t>(bit) << (size_ % 64ull);
     ++size_;
+  }
+
+  // Appends 64 bits to a word-aligned vector, least significant bit first.
+  // Callers building a bitmap in words can resize the last partial word away.
+  PERFETTO_ALWAYS_INLINE void AppendWord(uint64_t word) {
+    PERFETTO_DCHECK(size_ % 64 == 0);
+    words_.push_back(word);
+    size_ += 64;
   }
 
   // Adds n bits with the given value to the end of the vector.
@@ -238,6 +277,68 @@ struct BitVector {
   // The && qualifier allows reusing the existing words_ buffer in-place.
   BitVector Compact(const BitVector& keep) && { return CompactInPlace(keep); }
 
+  // Sets bits [at, at + count) to `value`.
+  void FillBits(uint64_t at, uint64_t count, bool value) {
+    PERFETTO_DCHECK(at + count <= size_);
+    if (count == 0) {
+      return;
+    }
+    constexpr uint64_t kAll = std::numeric_limits<uint64_t>::max();
+    uint64_t end = at + count;
+    uint64_t first = at / 64;
+    uint64_t last = (end - 1) / 64;
+    uint64_t head = kAll << (at % 64);
+    uint64_t tail = kAll >> (63 - ((end - 1) % 64));
+    if (first == last) {
+      head &= tail;
+      tail = 0;
+    }
+    uint64_t* words = words_.data();
+    size_t whole = (last > first) ? ((last - first - 1) * sizeof(uint64_t)) : 0;
+    if (value) {
+      words[first] |= head;
+      memset(&words[first + 1], 0xFF, whole);
+      words[last] |= tail;
+    } else {
+      words[first] &= ~head;
+      memset(&words[first + 1], 0, whole);
+      words[last] &= ~tail;
+    }
+  }
+
+  // Sets bits [at, at + count) from `src` bits [from, from + count). Bits in
+  // the destination range which are unset in the source are left alone, so the
+  // range has to start clear to be a copy rather than a merge.
+  //
+  // A partial first word, whole destination words, then a partial last word:
+  // each destination word costs one read-modify-write, where a bit at a time
+  // would serialise on it.
+  void SetBitsFrom(uint64_t at,
+                   const BitVector& src,
+                   uint64_t from,
+                   uint64_t count) {
+    PERFETTO_DCHECK(at + count <= size_);
+    PERFETTO_DCHECK(from + count <= src.size_);
+    if (count == 0) {
+      return;
+    }
+    uint64_t done = 0;
+    // Up to the destination's next word boundary.
+    if (at % 64 != 0) {
+      uint64_t n = std::min(count, 64 - at % 64);
+      words_[at / 64] |= src.ReadBits(from, n) << (at % 64);
+      done = n;
+    }
+    // Whole destination words.
+    for (; count - done >= 64; done += 64) {
+      words_[(at + done) / 64] |= src.ReadBits(from + done, 64);
+    }
+    // The tail short of a word.
+    if (done < count) {
+      words_[(at + done) / 64] |= src.ReadBits(from + done, count - done);
+    }
+  }
+
   // Clears all bits in the vector, resetting it to an empty state.
   void clear() {
     words_.clear();
@@ -285,6 +386,17 @@ struct BitVector {
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
 
  private:
+  // Reads `n` (1..=64) bits starting at `bit`, packed at the bottom of the
+  // returned word.
+  uint64_t ReadBits(uint64_t bit, uint64_t n) const {
+    uint64_t shift = bit % 64;
+    uint64_t value = words_[bit / 64] >> shift;
+    if (shift != 0 && shift + n > 64) {
+      value |= words_[bit / 64 + 1] << (64 - shift);
+    }
+    return n == 64 ? value : value & ((uint64_t{1} << n) - 1);
+  }
+
   // Software emulation of the x64 PEXT instruction. Extracts bits from |word|
   // at positions where |mask| has set bits, packing them into the low bits.
   // See https://www.felixcloutier.com/x86/pext for details.

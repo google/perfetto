@@ -19,7 +19,9 @@ import type {HTMLAttrs} from '../../../widgets/common';
 export interface ChartLegendEntryAttrs {
   readonly name: string;
   /** Optional trailing value (e.g. last data point). */
-  readonly value?: string;
+  readonly value?: m.Children;
+  /** Optional CSS colour for the value text. */
+  readonly valueColor?: string;
   /** Optional colour swatch (CSS colour). */
   readonly swatch?: string;
   /** Render with the hidden/struck-through style. */
@@ -37,20 +39,26 @@ export interface ChartLegendEntryAttrs {
  * `ChartLegend` is just the styled container; `ChartLegend.Entry` is one
  * swatch+name+value row inside it.
  */
-export const ChartLegend = {
-  view({attrs, children}: m.Vnode<HTMLAttrs>) {
-    const {className, ...rest} = attrs;
-    return m(
-      '.pf-chart-svg__legend',
-      {...rest, className: classNames(className)},
-      children,
-    );
-  },
-  Entry: {
+export function ChartLegend(): m.Component<HTMLAttrs> {
+  return {
+    view({attrs, children}: m.Vnode<HTMLAttrs>) {
+      const {className, ...rest} = attrs;
+      return m(
+        '.pf-chart-svg__legend',
+        {...rest, className: classNames(className)},
+        children,
+      );
+    },
+  };
+}
+
+export namespace ChartLegend {
+  export const Entry: m.Component<ChartLegendEntryAttrs> = {
     view({attrs}: m.Vnode<ChartLegendEntryAttrs>) {
       const {
         name,
         value,
+        valueColor,
         swatch,
         hidden,
         onToggle,
@@ -71,8 +79,15 @@ export const ChartLegend = {
             style: {backgroundColor: swatch},
           }),
         m('.pf-chart-svg__legend-name', name),
-        value !== undefined && m('.pf-chart-svg__legend-value', value),
+        value !== undefined &&
+          m(
+            '.pf-chart-svg__legend-value',
+            {
+              style: valueColor ? {color: valueColor} : undefined,
+            },
+            value,
+          ),
       );
     },
-  },
-};
+  };
+}

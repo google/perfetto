@@ -31,7 +31,7 @@ jobs:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-android
       PERFETTO_TEST_GN_ARGS: 'is_debug=false target_os=\"android\" target_cpu=\"arm\" cc_wrapper=\"ccache\"'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: ./.github/actions/install-build-deps
         with:

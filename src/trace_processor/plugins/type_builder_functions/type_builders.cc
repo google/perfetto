@@ -171,12 +171,35 @@ struct NodeAgg : public sqlite::AggregateFunction<NodeAgg> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
 
-    auto source_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-    auto target_id = static_cast<uint32_t>(sqlite::value::Int64(argv[1]));
-    uint32_t max_id = std::max(source_id, target_id);
+    int64_t raw_source_id = sqlite::value::Int64(argv[0]);
+    if (raw_source_id < 0 ||
+        raw_source_id > std::numeric_limits<int32_t>::max()) {
+      return sqlite::result::Error(
+          ctx, "GRAPH: node ids must be non-negative 32-bit integers");
+    }
+    auto source_id = static_cast<uint32_t>(raw_source_id);
     auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
+
+    // A NULL target means the source node has no edge (e.g. a root in a tree
+    // whose parent_id is NULL). Without this check, Int64() would coerce the
+    // NULL to 0 and create a spurious edge to node 0.
+    if (sqlite::value::IsNull(argv[1])) {
+      if (source_id >= agg_ctx.graph.size()) {
+        agg_ctx.graph.resize(static_cast<size_t>(source_id) + 1);
+      }
+      return;
+    }
+
+    int64_t raw_target_id = sqlite::value::Int64(argv[1]);
+    if (raw_target_id < 0 ||
+        raw_target_id > std::numeric_limits<int32_t>::max()) {
+      return sqlite::result::Error(
+          ctx, "GRAPH: node ids must be non-negative 32-bit integers");
+    }
+    auto target_id = static_cast<uint32_t>(raw_target_id);
+    uint32_t max_id = std::max(source_id, target_id);
     if (max_id >= agg_ctx.graph.size()) {
-      agg_ctx.graph.resize(max_id + 1);
+      agg_ctx.graph.resize(static_cast<size_t>(max_id) + 1);
     }
     agg_ctx.graph[source_id].outgoing_edges.push_back(target_id);
   }
@@ -359,18 +382,20 @@ struct IntervalTreeIntervalsAgg
     agg_ctx.last_interval_start = interval.start;
     interval.end = interval.start + static_cast<uint64_t>(dur);
 
+    // Appends |interval|, clearing |is_nonoverlapping| if it overlaps the
+    // previous interval. Intervals arrive sorted by start, so comparing with
+    // the previous one is enough.
+    auto push_interval = [&interval](perfetto_sql::Partition& p) {
+      if (p.is_nonoverlapping && !p.intervals.empty()) {
+        p.is_nonoverlapping = !IsOverlapping(p.intervals.back(), interval);
+      }
+      p.intervals.push_back(interval);
+    };
+
     // Fast path for no partitions.
     auto& parts = agg_ctx.partitions;
     if (argc == kMinArgCount) {
-      auto& part = parts.partitions_map[0];
-      part.intervals.push_back(interval);
-      if (part.is_nonoverlapping) {
-        if (interval.start < part.last_interval) {
-          part.is_nonoverlapping = false;
-        } else {
-          part.last_interval = interval.end;
-        }
-      }
+      push_interval(parts.partitions_map[0]);
       return;
     }
 
@@ -402,29 +427,11 @@ struct IntervalTreeIntervalsAgg
       j++;
     }
 
-    uint64_t key = h.digest();
-    auto* part = parts.partitions_map.Find(key);
-
-    // If we encountered this partition before we only have to push the interval
-    // into it.
-    if (part) {
-      part->intervals.push_back(interval);
-      if (part->is_nonoverlapping) {
-        if (interval.start < part->last_interval) {
-          part->is_nonoverlapping = false;
-        } else {
-          part->last_interval = interval.end;
-        }
-      }
-      return;
+    auto& part = parts.partitions_map[h.digest()];
+    if (part.intervals.empty()) {
+      part.sql_values = agg_ctx.tmp_vals;
     }
-
-    perfetto_sql::Partition new_partition;
-    new_partition.sql_values = agg_ctx.tmp_vals;
-    new_partition.last_interval = interval.end;
-    new_partition.intervals = {interval};
-
-    parts.partitions_map[key] = std::move(new_partition);
+    push_interval(part);
   }
 
   static void Final(sqlite3_context* ctx) {

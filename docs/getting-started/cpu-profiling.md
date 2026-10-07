@@ -99,7 +99,7 @@ data_sources: {
 ```
 
 Which should look similar to the following in the UI, after expanding the "Perf
-Counters" track groups. The counter tracks show the values as counting rates by
+counters" track groups. The counter tracks show the values as counting rates by
 default.
 
 ![Perf counter trace in the UI](/docs/images/perf-counter-ui.png)
@@ -305,7 +305,7 @@ If your profiles are missing native libraries' function names, but you have
 access to the debug version of the libraries (with symbol data), you can
 symbolise the profile on the host by following the
 [symbolization and deobfuscation guide](/docs/learning-more/symbolization.md).
-`traceconv bundle` is the recommended entry point.
+`trace_processor bundle` is the recommended entry point.
 
 
 TAB: Linux (command line)
@@ -339,10 +339,10 @@ Once the recording stops, open the `/tmp/trace.pb` file in the [Perfetto
 UI](https://ui.perfetto.dev).
 
 To convert the trace into per-process profiles in the "pprof" format, you can
-use the `traceconv` script as follows:
+use the `trace_processor` tool as follows:
 
 ```bash
-python3 traceconv profile --perf /tmp/trace.pb
+python3 trace_processor convert profile --perf /tmp/trace.pb
 ```
 
 #### Missing symbols and deobfuscation
@@ -351,7 +351,7 @@ If your profiles are missing native libraries' function names, but you have
 access to the debug version of the libraries (with symbol data), you can
 symbolise the profile after the fact by following the
 [symbolization and deobfuscation guide](/docs/learning-more/symbolization.md).
-`traceconv bundle` is the recommended entry point.
+`trace_processor bundle` is the recommended entry point.
 
 </tabs?>
 

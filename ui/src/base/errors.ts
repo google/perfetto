@@ -47,7 +47,7 @@ export function getErrorMessage(e: unknown | undefined | null) {
   if (asString === '[object Object]') {
     try {
       return JSON.stringify(e);
-    } catch (stringifyError) {
+    } catch {
       // ignore failures and just fall through
     }
   }

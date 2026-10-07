@@ -14,11 +14,13 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
 SURFACE_FLINGER_HIERARCHY_PATH_TABLE = Table(
     python_module=__file__,
     class_name="WinscopeSurfaceFlingerHierarchyPathTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="__intrinsic_winscope_surfaceflinger_hierarchy_path",
     columns=[
         C('snapshot_id', CppUint32()),

@@ -21,23 +21,36 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
-// Per-incremental-state cache of which interned counter descriptors have
-// already had their custom counter groups inserted. Lives on
-// `IncrementalState` so it shares scope with the interned-data table that
-// the descriptors themselves are looked up from — keying by iid alone is
-// safe here because two distinct producers necessarily live on distinct
-// packet sequences (and therefore distinct IncrementalStates), so they each
-// get their own cache.
+// Per-incremental-state result of parsing interned GPU counter descriptors.
+// The descriptors are parsed once at tokenization time (tracks interned,
+// counter groups inserted) and the resulting `counter_id -> track` mapping is
+// cached here for the parse stage to look up.
+//
+// Lives on `IncrementalState` so it shares scope with the interned-data table
+// that the descriptors themselves are looked up from — keying by iid alone is
+// safe here because two distinct producers necessarily live on distinct packet
+// sequences (and therefore distinct IncrementalStates), so they each get their
+// own cache.
 struct GpuCounterSequenceState : PacketSequenceStateGeneration::CustomState {
   explicit GpuCounterSequenceState(TraceProcessorContext*);
   ~GpuCounterSequenceState() override;
 
-  base::FlatHashMap<uint64_t, bool> custom_groups_inserted;
+  struct CounterTrackInfo {
+    TrackId track_id;
+    bool forwards_looking;
+  };
+
+  // Key: counter_descriptor_iid. Value: per-descriptor map of counter_id ->
+  // track info. Presence of an iid key means the descriptor has already been
+  // parsed (tracks interned, groups inserted) at tokenization time.
+  base::FlatHashMap<uint64_t, base::FlatHashMap<uint32_t, CounterTrackInfo>>
+      descriptors;
 };
 
 }  // namespace perfetto::trace_processor

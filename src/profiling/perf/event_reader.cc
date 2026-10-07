@@ -47,10 +47,6 @@ const char* ReadValues(T* out, const char* ptr, size_t num_values) {
   return ptr + sz;
 }
 
-bool IsPowerOfTwo(size_t v) {
-  return (v != 0 && ((v & (v - 1)) == 0));
-}
-
 static int perf_event_open(perf_event_attr* attr,
                            pid_t pid,
                            int cpu,
@@ -117,7 +113,7 @@ PerfRingBuffer::~PerfRingBuffer() {
 std::optional<PerfRingBuffer> PerfRingBuffer::Allocate(int perf_fd,
                                                        size_t data_page_count) {
   // perf_event_open requires the ring buffer to be a power of two in size.
-  PERFETTO_DCHECK(IsPowerOfTwo(data_page_count));
+  PERFETTO_DCHECK(base::IsPowerOfTwo(data_page_count));
 
   PerfRingBuffer ret;
 
@@ -139,7 +135,7 @@ std::optional<PerfRingBuffer> PerfRingBuffer::Allocate(int perf_fd,
   PERFETTO_CHECK(ret.metadata_page_->data_offset == base::GetSysPageSize());
   PERFETTO_CHECK(ret.metadata_page_->data_size == ret.data_buf_sz_);
 
-  PERFETTO_DCHECK(IsPowerOfTwo(ret.data_buf_sz_));
+  PERFETTO_DCHECK(base::IsPowerOfTwo(ret.data_buf_sz_));
 
   return std::make_optional(std::move(ret));
 }

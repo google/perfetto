@@ -95,6 +95,8 @@ class FtraceParser {
   void ParseCpuFreqThrottle(int64_t timestamp, protozero::ConstBytes);
   void ParseGpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseKgslGpuFreq(int64_t timestamp, protozero::ConstBytes);
+  void ParseKgslAdrenoCmdbatchQueued(uint32_t pid, protozero::ConstBytes);
+  void ParseKgslAdrenoCmdbatchRetired(int64_t ts, protozero::ConstBytes);
   void ParseCpuIdle(int64_t timestamp, protozero::ConstBytes);
   void ParsePrint(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseZero(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
@@ -327,6 +329,8 @@ class FtraceParser {
   void ParsePanelWriteGeneric(int64_t timestamp,
                               uint32_t pid,
                               protozero::ConstBytes);
+  void ParsePanelSettingsFull(int64_t timestamp, protozero::ConstBytes);
+  void ParsePanelSettingsLite(int64_t timestamp, protozero::ConstBytes);
   void ParseGoogleIccEvent(int64_t timestamp, protozero::ConstBytes);
   void ParseGoogleIrmEvent(int64_t timestamp, protozero::ConstBytes);
   void ParseDeviceFrequency(int64_t ts, protozero::ConstBytes blob);
@@ -463,7 +467,13 @@ class FtraceParser {
   const StringId gpu_power_state_off_id_;
   const StringId gpu_power_state_pg_id_;
   const StringId gpu_power_state_on_id_;
+
+  base::FlatHashMap<uint32_t, uint32_t> adreno_cmdbatch_ctx_tids_;
+  const StringId gpu_cmdbatch_slice_name_id_;
+
   const StringId ddic_underrun_id_;
+  const StringId panel_settings_full_id_;
+  const StringId panel_settings_lite_id_;
   std::array<StringId, 8> f2fs_checkpoint_reason_ids_;
 
   std::vector<StringId> syscall_arg_name_ids_;

@@ -13,85 +13,31 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppString
+from python.generators.trace_processor_table.public import Purpose
 from python.generators.trace_processor_table.public import Table
 
-STDLIB_DOCS_MODULES_TABLE = Table(
+STDLIB_DOCS_OBJECTS_TABLE = Table(
     python_module=__file__,
-    class_name="StdlibDocsModulesTable",
-    sql_name="__intrinsic_stdlib_modules",
-    columns=[
-        C("module", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("package", CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-    ],
-)
-
-STDLIB_DOCS_TABLES_TABLE = Table(
-    python_module=__file__,
-    class_name="StdlibDocsTablesTable",
+    class_name="StdlibDocsObjectsTable",
+    purpose=Purpose.STATIC_TABLE_FUNCTION,
     sql_name="not_exposed_to_sql",
     columns=[
-        C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("type", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("description",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("exposed", CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("cols", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C("package", CppString()),
+        C("module", CppString()),
+        C("name", CppString()),
+        C("qualified_name", CppString()),
+        C("object_type", CppString()),
+        C("exposed", CppInt64()),
+        C("short_description", CppString()),
+        C("summary", CppString()),
+        C("description", CppString()),
+        C("return_type", CppString()),
+        C("return_description", CppString()),
+        C("args", CppString()),
+        C("cols", CppString()),
     ],
 )
 
-STDLIB_DOCS_FUNCTIONS_TABLE = Table(
-    python_module=__file__,
-    class_name="StdlibDocsFunctionsTable",
-    sql_name="not_exposed_to_sql",
-    columns=[
-        C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("description",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("exposed", CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("is_table_function",
-          CppInt64(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("return_type",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("return_description",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("args", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("cols", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-    ],
-)
-
-STDLIB_DOCS_MACROS_TABLE = Table(
-    python_module=__file__,
-    class_name="StdlibDocsMacrosTable",
-    sql_name="not_exposed_to_sql",
-    columns=[
-        C("name", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("description",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("exposed", CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("return_type",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("return_description",
-          CppString(),
-          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-        C("args", CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
-    ],
-)
-
-# Keep this list sorted.
-ALL_TABLES = [
-    STDLIB_DOCS_FUNCTIONS_TABLE,
-    STDLIB_DOCS_MACROS_TABLE,
-    STDLIB_DOCS_MODULES_TABLE,
-    STDLIB_DOCS_TABLES_TABLE,
-]
+ALL_TABLES = [STDLIB_DOCS_OBJECTS_TABLE]

@@ -40,6 +40,7 @@
 #include "src/tracing/service/clock.h"
 #include "src/tracing/service/dependencies.h"
 #include "src/tracing/service/random.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
@@ -54,20 +55,21 @@ namespace protos {
 namespace gen {
 enum TraceStats_FinalFlushOutcome : int;
 }
+namespace pbzero {
+class TracePacket;
+}
 }  // namespace protos
 
 class Consumer;
 class Producer;
 class SharedMemory;
 class SharedMemoryArbiterImpl;
-class TraceBuffer;
 class TracePacket;
 
 namespace tracing_service {
 // The tracing service business logic.
 class TracingServiceImpl : public TracingService {
  public:
-  static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
   static constexpr uint8_t kSyncMarker[] = {0x82, 0x47, 0x7a, 0x76, 0xb2, 0x8d,
                                             0x42, 0xba, 0x81, 0xdc, 0x33, 0x32,
                                             0x6d, 0x57, 0xa0, 0x79};
@@ -171,7 +173,12 @@ class TracingServiceImpl : public TracingService {
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
-      const std::string& machine_name = {}) override;
+      const std::string& machine_name = {},
+      uint32_t protocol_abi_versions = kProtocolAbiV1) override;
+
+  // The endpoint reports discarded ring buffer chunks on the service
+  // sequence. Adds them to chunks_discarded.
+  void OnRingBufferChunksDiscarded(uint64_t count);
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -262,10 +269,18 @@ class TracingServiceImpl : public TracingService {
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
+  // The only way to change a session's state. Broadcasts the change into the
+  // other opted-in sessions' concurrent_session_events.
+  void SetSessionState(TracingSession*, TracingSession::State);
+  void EmitConcurrentSessionEvents(TracingSession*, std::vector<TracePacket>*);
   void EmitUuid(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void EmitSystemInfo(std::vector<TracePacket>*);
   void EmitTraceProvenance(TracingSession*, std::vector<TracePacket>*);
+  // Sets the common header fields on a service-emitted packet (trusted uid +
+  // service sequence id), and, for a single-machine in-process session, stamps
+  // the local machine id so the trace has no separate host machine.
+  void SetServiceTracePacketHeader(protos::pbzero::TracePacket*);
   void MaybeEmitRemoteSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitCloneTrigger(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
@@ -284,7 +299,11 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
-  TraceBuffer* GetBufferByID(BufferID);
+  // Returns nullptr if there is no buffer with this ID, or if |type| is set
+  // and does not match the buffer type.
+  TraceBuffer* GetBufferByID(
+      BufferID,
+      std::optional<TraceBuffer::BufType> type = std::nullopt);
   void FlushDataSourceInstances(
       TracingSession*,
       uint32_t timeout_ms,
@@ -332,8 +351,11 @@ class TracingServiceImpl : public TracingService {
                           std::vector<TracePacket>* packets);
 
   // If `*tracing_session` has compression enabled, compress `*packets`.
+  // `skip_compression_of_first_n_packets` is the number of packets to skip
+  // compression of (i.e. TraceConfig, UUID packets).
   void MaybeCompressPackets(TracingSession* tracing_session,
-                            std::vector<TracePacket>* packets);
+                            std::vector<TracePacket>* packets,
+                            size_t skip_compression_of_first_n_packets);
 
   // If `*tracing_session` is configured to write into a file, writes `packets`
   // into the file.
@@ -372,6 +394,12 @@ class TracingServiceImpl : public TracingService {
   std::multimap<std::string /*name*/, RegisteredDataSource> data_sources_;
   std::map<ProducerID, ProducerEndpointImpl*> producers_;
   std::map<RelayClientID, RelayEndpointImpl*> relay_clients_;
+
+  // Machine to attribute the service's own packets to. Adopted from an
+  // in-process producer (see ConnectProducer) so a single-machine in-process
+  // trace carries no separate host machine. Stays kDefaultMachineID for regular
+  // host/relay sessions, where service packets remain on the host machine.
+  MachineID local_machine_id_ = kDefaultMachineID;
   std::map<TracingSessionID, TracingSession> tracing_sessions_;
   std::map<BufferID, std::unique_ptr<TraceBuffer>> buffers_;
   std::map<std::string, int64_t> session_to_last_trace_s_;

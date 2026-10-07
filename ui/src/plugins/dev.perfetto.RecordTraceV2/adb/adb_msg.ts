@@ -78,7 +78,9 @@ export function encodeAdbMsg(
   return buf;
 }
 
-export function encodeAdbData(data?: Uint8Array | string): Uint8Array {
+export function encodeAdbData(
+  data?: Uint8Array<ArrayBuffer> | string,
+): Uint8Array<ArrayBuffer> {
   if (data === undefined) return new Uint8Array([]);
   if (isString(data)) return utf8Encode(data + '\0');
   return data;

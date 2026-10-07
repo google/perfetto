@@ -22,7 +22,9 @@ import type {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {createAdbTracingSession} from '../../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
 import type {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
 import type {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
+import {isDebuggableAndroidBuild} from '../utils';
 import type {ConnectionResult} from '../views/connection';
+import {download} from '../../../base/download_utils';
 import {ProfileSession, type ProfileState} from './profile_session';
 
 export interface ProfileView {
@@ -204,8 +206,29 @@ export class LiveSession {
     this.profileImpl = undefined;
     if (traceData) {
       const fileName = `heap-${processName}-${pid}.perfetto-trace`;
-      const buffer = traceData.buffer as ArrayBuffer;
-      this.app.openTraceFromBuffer({buffer, title: fileName, fileName});
+      this.app.openTraceFromBuffer({
+        buffer: traceData,
+        title: fileName,
+        fileName,
+      });
+    }
+  }
+
+  /** Stops the active profile and downloads the trace file. */
+  async stopAndDownloadProfile(): Promise<void> {
+    const profile = this.profileImpl?.session;
+    if (!profile) return;
+    const processName = profile.processName;
+    const pid = profile.pid;
+    await profile.stop();
+    const traceData = profile.getTraceData();
+    this.profileImpl = undefined;
+    if (traceData) {
+      const fileName = `heap-${processName}-${pid}.perfetto-trace`;
+      await download({
+        content: new Uint8Array(traceData),
+        fileName,
+      });
     }
   }
 
@@ -426,7 +449,7 @@ function createMonitoringConfig(
               'task/task_newtask',
               'task/task_rename',
               'lowmemorykiller/lowmemory_kill',
-              'oom/oom_score_adj_update',
+              // 'oom/oom_score_adj_update',
             ],
             atraceApps: ['lmkd'],
             disableGenericEvents: true,
@@ -690,9 +713,9 @@ async function extractSnapshotData(
     });
   }
 
-  // Check if device is userdebug.
+  // Check if device is userdebug / eng.
   const buildRow = buildResult.maybeFirstRow({fingerprint: STR});
-  const isUserDebug = buildRow?.fingerprint?.includes('userdebug') ?? false;
+  const isUserDebug = isDebuggableAndroidBuild(buildRow?.fingerprint);
 
   return {
     data: {

@@ -77,8 +77,12 @@ const uint8_t kTestZip[] = {
     0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0xa8, 0x00, 0x00, 0x00,
     0xc8, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-// Generated using Python zipfile with ZIP64_LIMIT = 0 matching the
-// kTestZip contents.
+// Same logical contents as kTestZip, but written as a zip64 archive: the local
+// file headers use version 4.5 (45), set the 32-bit size fields to the
+// 0xFFFFFFFF sentinel and carry the real sizes in a Zip64 Extended Information
+// extra field (header id 0x0001).
+// stored_file       content: "foo\n"
+// dir/deflated_file content: 2x "The quick brown fox jumps over the lazy dog\n"
 const uint8_t kTestZip64[] = {
     0x50, 0x4b, 0x03, 0x04, 0x2d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6a, 0x85,
     0xf9, 0x54, 0xa8, 0x65, 0x32, 0x7e, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -118,6 +122,56 @@ const uint8_t kTestZip64[] = {
     0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x50, 0x4b, 0x05, 0x06,
     0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0xa8, 0x00, 0x00, 0x00,
     0xb8, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+// A zip64 archive written to a non-seekable stream: the single deflated entry
+// uses general-purpose flag bit 3 (data descriptor), so the local header sizes
+// are placeholders and the real 8-byte compressed/uncompressed sizes live in a
+// trailing zip64 data descriptor.
+// dir/deflated_file content: 2x "The quick brown fox jumps over the lazy dog\n"
+const uint8_t kTestZip64DataDescriptor[] = {
+    0x50, 0x4b, 0x03, 0x04, 0x2d, 0x00, 0x08, 0x00, 0x08, 0x00, 0x47, 0x94,
+    0xf9, 0x54, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0x11, 0x00, 0x14, 0x00, 0x64, 0x69, 0x72, 0x2f, 0x64, 0x65,
+    0x66, 0x6c, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x66, 0x69, 0x6c, 0x65, 0x01,
+    0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0b, 0xc9, 0x48, 0x55, 0x28,
+    0x2c, 0xcd, 0x4c, 0xce, 0x56, 0x48, 0x2a, 0xca, 0x2f, 0xcf, 0x53, 0x48,
+    0xcb, 0xaf, 0x50, 0xc8, 0x2a, 0xcd, 0x2d, 0x28, 0x56, 0xc8, 0x2f, 0x4b,
+    0x2d, 0x52, 0x28, 0xc9, 0x48, 0x55, 0xc8, 0x49, 0xac, 0xaa, 0x54, 0x48,
+    0xc9, 0x4f, 0xe7, 0x0a, 0x21, 0x52, 0x6d, 0x5a, 0x51, 0x7e, 0x3a, 0x17,
+    0x00, 0x50, 0x4b, 0x07, 0x08, 0xf2, 0x03, 0x92, 0x3c, 0x36, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x50, 0x4b, 0x01, 0x02, 0x2d, 0x03, 0x2d, 0x00, 0x08, 0x00, 0x08,
+    0x00, 0x47, 0x94, 0xf9, 0x54, 0xf2, 0x03, 0x92, 0x3c, 0x36, 0x00, 0x00,
+    0x00, 0x59, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x64,
+    0x69, 0x72, 0x2f, 0x64, 0x65, 0x66, 0x6c, 0x61, 0x74, 0x65, 0x64, 0x5f,
+    0x66, 0x69, 0x6c, 0x65, 0x50, 0x4b, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x01, 0x00, 0x3f, 0x00, 0x00, 0x00, 0x91, 0x00, 0x00, 0x00,
+    0x00, 0x00,
+};
+
+// A single local file header whose 32-bit sizes are the 0xFFFFFFFF sentinel,
+// but whose Zip64 extra field (id 0x0001) declares a length of 4 bytes: too
+// short to carry the 8-byte size it promises. A conforming reader must reject
+// this rather than leave the sentinel in place as a real size.
+const uint8_t kTestZip64TruncatedExtraField[] = {
+    0x50, 0x4b, 0x03, 0x04,  // signature
+    0x2d, 0x00,              // version needed 4.5
+    0x00, 0x00,              // flags
+    0x00, 0x00,              // compression: store
+    0x6a, 0x85, 0xf9, 0x54,  // mod time + date
+    0xa8, 0x65, 0x32, 0x7e,  // crc32
+    0xff, 0xff, 0xff, 0xff,  // compressed size sentinel
+    0xff, 0xff, 0xff, 0xff,  // uncompressed size sentinel
+    0x0b, 0x00,              // fname_len = 11
+    0x08, 0x00,              // extra_field_len = 8
+    0x73, 0x74, 0x6f, 0x72, 0x65, 0x64, 0x5f, 0x66,  // "stored_f"
+    0x69, 0x6c, 0x65,                                // "ile"
+    0x01, 0x00,                                      // extra id 0x0001
+    0x04, 0x00,                                      // extra size = 4 (< 8)
+    0x00, 0x00, 0x00, 0x00,                          // 4 bytes of payload
+};
 
 std::string vec2str(const std::vector<uint8_t>& vec) {
   return {reinterpret_cast<const char*>(vec.data()), vec.size()};
@@ -240,6 +294,54 @@ TEST(ZipReaderTest, TruncatedZip64) {
   ASSERT_EQ(zr.files().size(), 0u);
 }
 
+TEST(ZipReaderTest, MalformedZip64_TruncatedExtraField) {
+  ZipReader zr;
+  ASSERT_THAT(zr.Parse(TraceBlobView(
+                  TraceBlob::CopyFrom(kTestZip64TruncatedExtraField,
+                                      sizeof(kTestZip64TruncatedExtraField)))),
+              IsError());
+}
+
+TEST(ZipReaderTest, MalformedZip64_MissingExtraField) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64TruncatedExtraField)];
+  memcpy(content, kTestZip64TruncatedExtraField, sizeof(content));
+  content[28] = 0x00;  // extra_field_len = 0, leaving 0xFFFFFFFF sentinels
+  ASSERT_THAT(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, 41))),
+              IsError());
+}
+
+TEST(ZipReaderTest, MalformedZip64_OversizedExtraFieldRecord) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64TruncatedExtraField)];
+  memcpy(content, kTestZip64TruncatedExtraField, sizeof(content));
+  content[43] = 0x10;  // extra record size = 16, but extra_field_len = 8
+  ASSERT_THAT(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))),
+      IsError());
+}
+
+TEST(ZipReaderTest, MalformedZip64_DuplicateExtraField) {
+  // Local header with two 0x0001 extra fields (each 16 bytes, total 40 bytes).
+  uint8_t content[101]{};
+  memcpy(content, kTestZip64, 61);  // Copy 1st file header + fname + 1st extra
+  content[28] = 40;                 // extra_field_len = 40 (2 * 20 bytes)
+  memcpy(content + 61, kTestZip64 + 41, 20);  // 2nd duplicate 0x0001 extra
+  memcpy(content + 81, kTestZip64 + 61, 4);   // "foo\n"
+  ASSERT_THAT(
+      ZipReader().Parse(TraceBlobView(TraceBlob::CopyFrom(content, 85))),
+      IsError());
+}
+
+TEST(ZipReaderTest, ValidZip64_EmptyArchive) {
+  // Empty Zip64 archive starting directly with the 98-byte Zip64 EOCD record +
+  // Zip64 EOCD locator + standard EOCD from kTestZip64.
+  ZipReader zr;
+  const uint8_t* eocd64 = kTestZip64 + sizeof(kTestZip64) - 98;
+  ASSERT_OK(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(eocd64, 98))));
+  ASSERT_EQ(zr.files().size(), 0u);
+}
+
 TEST(ZipReaderTest, Find) {
   ZipReader zr;
   ASSERT_OK(
@@ -301,6 +403,63 @@ TEST(ZipReaderTest, ValidZip64_DecompressLines) {
       });
 
   ASSERT_EQ(num_callbacks, 1);
+}
+
+TEST(ZipReaderTest, ValidZip64DataDescriptor) {
+  ZipReader zr;
+  ASSERT_OK(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(
+      kTestZip64DataDescriptor, sizeof(kTestZip64DataDescriptor)))));
+  ASSERT_EQ(zr.files().size(), 1u);
+  ASSERT_EQ(zr.files()[0].name(), "dir/deflated_file");
+
+  std::vector<uint8_t> dec;
+  auto res = zr.files()[0].Decompress(&dec);
+  ASSERT_TRUE(res.ok()) << res.message();
+  ASSERT_EQ(dec.size(), 89u);
+  ASSERT_EQ(vec2str(dec),
+            "The quick brown fox jumps over the lazy dog\n"
+            "The quick brown fox jumps over the lazy frog\n");
+}
+
+TEST(ZipReaderTest, ValidZip64DataDescriptor_OneByteChunks) {
+  ZipReader zr;
+  for (auto i : kTestZip64DataDescriptor) {
+    ASSERT_OK(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(&i, 1))));
+  }
+  ASSERT_EQ(zr.files().size(), 1u);
+
+  std::vector<uint8_t> dec;
+  ASSERT_OK(zr.files()[0].Decompress(&dec));
+  ASSERT_EQ(dec.size(), 89u);
+}
+
+TEST(ZipReaderTest, MalformedZip64DataDescriptor_SizeMismatch) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64DataDescriptor)];
+  memcpy(content, kTestZip64DataDescriptor, sizeof(content));
+  content[129] = 0x99;  // Corrupt compressed_size in the 64-bit data descriptor
+  ASSERT_THAT(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))),
+      IsError());
+}
+
+TEST(ZipReaderTest, ValidZip64_OnlyCompressedSizeSentinel) {
+  // Per APPNOTE.TXT 4.5.3, a local header 0x0001 extra field carries both
+  // 8-byte uncompressed and compressed sizes even if only compressed_size in
+  // the local header is 0xFFFFFFFF.
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64)];
+  memcpy(content, kTestZip64, sizeof(content));
+  // 2nd file header starts at offset 65; uncompressed_size is at 65 + 22 = 87.
+  // Set 32-bit uncompressed_size to 89 (non-sentinel) while compressed_size
+  // remains 0xFFFFFFFF.
+  content[87] = 89;
+  content[88] = 0;
+  content[89] = 0;
+  content[90] = 0;
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))));
+  ValidateTestZip(zr);
 }
 
 TEST(ZipReaderTest, MalformedZip_DecomprError) {

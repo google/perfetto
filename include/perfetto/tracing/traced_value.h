@@ -473,15 +473,35 @@ class has_traced_value_support {
 
 }  // namespace internal
 
+// A type T is writable into a trace if one of the following is defined:
+// - T::WriteIntoTracedValue(TracedValue) const
+// - T::WriteIntoTrace(TracedValue) const
+// - perfetto::TraceFormatTraits<T>::WriteIntoTracedValue(TracedValue, const T&)
+// - perfetto::TraceFormatTraits<T>::WriteIntoTrace(TracedValue, const T&)
+// The member forms are preferred for code that can depend on perfetto directly;
+// the TraceFormatTraits forms are for types owned by code that cannot. See the
+// examples at the top of this file. Primitives, strings, pointers, STL
+// containers and protozero enums are supported out of the box.
+//
+// If the static_assert below fires, the most common causes are:
+// - No conversion is defined for T.
+// - The conversion method is not const, or does not take TracedValue by value.
+// - The method name is misspelled: only WriteIntoTrace and WriteIntoTracedValue
+//   are recognised.
+// - The TraceFormatTraits<T> specialisation is not in the perfetto namespace.
+// - The header defining the conversion is not included at the TRACE_EVENT call
+//   site.
+// - T is a pointer or smart pointer to a type that is itself not writable.
+// - T is a plain enum with no conversion (only protozero enums are automatic).
 template <typename T>
 void WriteIntoTracedValue(TracedValue context, T&& value) {
-  // TODO(altimin): Add a URL to documentation and a list of common failure
-  // patterns.
   static_assert(
       internal::has_traced_value_support<T>::value,
       "The provided type (passed to TRACE_EVENT argument / TracedArray::Append "
       "/ TracedDictionary::Add) does not support being written in a trace "
-      "format. Please see the comment in traced_value.h for more details.");
+      "format. Please see the comment above WriteIntoTracedValue in "
+      "traced_value.h for the list of supported conversions and common "
+      "failure patterns.");
 
   // Should be kept in sync with check_traced_value_support_t!
   internal::WriteImpl(base::priority_tag<internal::kMaxWriteImplPriority>(),

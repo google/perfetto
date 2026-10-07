@@ -21,6 +21,8 @@ export enum ProfileType {
   JAVA_HEAP_GRAPH,
   // Catch-all renderer for custom API implementations
   GENERIC_HEAP_PROFILE,
+  // OOME Callstack
+  OOME_CALLSTACK,
 }
 
 export interface ProfileDescriptor {
@@ -31,14 +33,24 @@ export interface ProfileDescriptor {
 }
 
 export function isProfileDescriptor(type: string): boolean {
-  return type === 'java_heap_graph' || type.startsWith('heap_profile:');
+  return (
+    type === 'java_heap_graph' ||
+    type === 'oome_callstack' ||
+    type.startsWith('heap_profile:')
+  );
 }
 
 export function profileDescriptor(type: string): ProfileDescriptor {
   if (type === 'java_heap_graph') {
     return {
       type: ProfileType.JAVA_HEAP_GRAPH,
-      label: 'Java heap dump',
+      label: 'ART heap dump',
+    };
+  }
+  if (type === 'oome_callstack') {
+    return {
+      type: ProfileType.OOME_CALLSTACK,
+      label: 'OOME Callstack',
     };
   }
   // libc.malloc heap_name introduced in aosp/1428871 (Sep 2020)
@@ -52,7 +64,7 @@ export function profileDescriptor(type: string): ProfileDescriptor {
   if (type === 'heap_profile:com.android.art') {
     return {
       type: ProfileType.JAVA_HEAP_SAMPLES,
-      label: 'Java heap profile',
+      label: 'ART allocation profile',
       heapName: 'com.android.art',
     };
   }

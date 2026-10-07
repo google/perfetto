@@ -18,8 +18,7 @@ import type {SqlValue} from '../../../trace_processor/query_result';
 import {EmptyState} from '../../../widgets/empty_state';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {fmtHex} from '../format';
 import {
@@ -32,6 +31,8 @@ import {
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 function buildQuery(activeDump: HeapDump): string {
   return `
@@ -52,55 +53,52 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): SchemaRegistry {
+function makeUiSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      id: {
-        title: 'Object',
-        columnType: 'identifier',
-        cellRenderer: (value: SqlValue, row) => {
-          const id = Number(value);
-          const cls = String(row.cls ?? '');
-          const display = `${shortClassName(cls)} ${fmtHex(id)}`;
-          return m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () => navigate('object', {id, label: display}),
-            },
-            display,
-          );
-        },
+    id: {
+      title: 'Object',
+      columnType: 'identifier',
+      cellRenderer: (value: SqlValue, row) => {
+        const id = Number(value);
+        const cls = String(row.cls ?? '');
+        const display = `${shortClassName(cls)} ${fmtHex(id)}`;
+        return m(
+          Anchor,
+          {
+            onclick: () => navigate('object', {id, label: display}),
+          },
+          display,
+        );
       },
-      cls: {
-        title: 'Class',
-        columnType: 'text',
-      },
-      self_size: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      native_size: {
-        title: colHeader('Native', COL_INFO.shallowNative),
-        titleString: 'Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      element_count: {
-        title: 'Elements',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      heap: {
-        title: 'Heap',
-        columnType: 'text',
-      },
-      array_hash: {
-        title: 'Content Hash',
-        columnType: 'text',
-      },
+    },
+    cls: {
+      title: 'Class',
+      columnType: 'text',
+    },
+    self_size: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    native_size: {
+      title: colHeader('Native', COL_INFO.shallowNative),
+      titleString: 'Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    element_count: {
+      title: 'Elements',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    heap: {
+      title: 'Heap',
+      columnType: 'text',
+    },
+    array_hash: {
+      title: 'Content Hash',
+      columnType: 'text',
     },
   };
 }
@@ -114,9 +112,17 @@ interface ArraysViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-function ArraysView(): m.Component<ArraysViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+export function ArraysView({
+  attrs: {engine, activeDump},
+}: m.Vnode<ArraysViewAttrs>): m.Component<ArraysViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+  });
   const counter = new RowCounter();
+  counter.init(engine, query);
+
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -131,37 +137,37 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        sqlSchema: createSimpleSchema(query),
-        rootSchemaName: 'query',
-      });
-      counter.init(engine, query);
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     onupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
+    onremove() {
+      datasource.dispose();
+    },
     view(vnode) {
       const {navigate} = vnode.attrs;
       if (vnode.attrs.hasFieldValues === false) {
-        return m(EmptyState, {
-          icon: 'data_array',
-          title: 'Array data requires an ART heap dump (.hprof)',
-          fillHeight: true,
-        });
+        return m(
+          DetailsShell,
+          {title: 'Arrays', fillHeight: true},
+          m(EmptyState, {
+            icon: 'data_array',
+            title: 'Array data requires an ART heap dump (.hprof)',
+            fillHeight: true,
+          }),
+        );
       }
 
-      if (!dataSource) return null;
-
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Arrays')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Arrays'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          rootSchema: 'query',
-          data: dataSource,
+          data: datasource,
           fillHeight: true,
           initialColumns: [
             {id: 'id', field: 'id'},
@@ -178,9 +184,7 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
             counter.onFiltersChanged(f);
           },
         }),
-      ]);
+      );
     },
   };
 }
-
-export default ArraysView;

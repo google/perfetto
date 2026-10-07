@@ -209,3 +209,22 @@
     flex-grow: 1;
   }
 }
+
+.pf-datagrid-cell--missing {
+  $missing-cell-stripe: color-mix(
+    in srgb,
+    var(--pf-color-danger) 10%,
+    transparent
+  );
+
+  // Patterned background to indicate missing data, similar to how Excel does it.
+  background-image: repeating-linear-gradient(
+    45deg,
+    $missing-cell-stripe,
+    $missing-cell-stripe 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  color: var(--pf-color-danger);
+  font-style: italic;
+}

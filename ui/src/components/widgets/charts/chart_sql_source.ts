@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../base/assert';
-import {QuerySlot} from '../../../base/query_slot';
+import {AsyncMemo} from '../../../base/async_memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {QueryResult as TPQueryResult} from '../../../trace_processor/query_result';
 import type {Filter} from '../datagrid/model';
@@ -180,9 +180,7 @@ export interface HistogramQueryConfig {
 
 /** Union of all query config types. */
 export type QueryConfig =
-  | AggregatedQueryConfig
-  | PointsQueryConfig
-  | HistogramQueryConfig;
+  AggregatedQueryConfig | PointsQueryConfig | HistogramQueryConfig;
 
 // ---------------------------------------------------------------------------
 // ChartSource
@@ -693,7 +691,7 @@ export interface ChartLoaderResult<TData> {
 export abstract class SQLChartLoader<TConfig, TData> {
   private readonly engine: Engine;
   protected readonly source: ChartSource;
-  private readonly querySlot = new QuerySlot<TData>();
+  private readonly querySlot = new AsyncMemo<TData>();
 
   constructor(engine: Engine, source: ChartSource) {
     this.engine = engine;
@@ -707,7 +705,7 @@ export abstract class SQLChartLoader<TConfig, TData> {
     const key = {sql, ...extra};
     const result = this.querySlot.use({
       key,
-      queryFn: async () => {
+      compute: async () => {
         const queryResult = await this.engine.query(sql);
         return this.parseResult(queryResult, config);
       },

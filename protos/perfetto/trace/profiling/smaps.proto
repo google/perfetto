@@ -27,7 +27,8 @@ message SmapsEntry {
   // for field upload (instead of path).
   optional string file_name = 5;
 
-  // TODO(crbug.com/1098746): Consider encoding this as incremental values.
+  // Fields below added and used only for Chromium memory infra, see
+  // crbug.com/1098746.
   optional uint64 start_address = 6;
   optional uint64 module_timestamp = 7;
   optional string module_debugid = 8;
@@ -44,6 +45,9 @@ message SmapsEntry {
 // Structure-of-arrays style smaps packet of a single process. All packed
 // repeated fields, if set, must have the same length.
 message PackedSmaps {
+  // Table of path names. Notes:
+  // * first element is the empty string, serialised explicitly.
+  // * the table might contain duplicates.
   repeated string string_table = 1;
 
   // Interned file paths as an index into |string_table|.
@@ -75,4 +79,24 @@ message SmapsPacket {
   optional uint32 pid = 1;
   repeated SmapsEntry entries = 2;
   optional PackedSmaps packed_entries = 3;
+
+  // Records how the snapshot was generated, as the message is shared by
+  // multiple smaps writers.
+  // If populating |packed_entries|, set explicitly to RECORDING_TYPE_STANDALONE
+  // as otherwise the trace importer might transform the data.
+  enum RecordingType {
+    RECORDING_TYPE_UNKNOWN = 0;
+    // Normal recording.
+    RECORDING_TYPE_STANDALONE = 1;
+    // Android: recorded in the perfetto_hprof ART plugin as part of a managed
+    // heap dump. Recording is done inside of a forked child process, which
+    // means private/shared and pss fields are misleading as there is
+    // copy-on-write page sharing with the forked child.
+    RECORDING_TYPE_ART_HPROF_POSTFORK = 2;
+    // Android: recorded in the perfetto_hprof ART plugin as part of a managed
+    // heap dump, but with the original smaps calculated before forking in the
+    // plugin.
+    RECORDING_TYPE_ART_HPROF_PREFORK = 3;
+  }
+  optional RecordingType recording_type = 4;
 }

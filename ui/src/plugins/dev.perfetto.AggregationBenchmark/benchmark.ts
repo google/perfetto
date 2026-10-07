@@ -18,10 +18,7 @@ import type {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
 export type ApproachType =
-  | 'uri_string'
-  | 'track_index'
-  | 'groupid'
-  | 'no_lineage';
+  'uri_string' | 'track_index' | 'groupid' | 'no_lineage';
 
 export interface BenchmarkResult {
   approach: ApproachType;

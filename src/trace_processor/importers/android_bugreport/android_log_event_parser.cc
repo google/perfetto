@@ -17,11 +17,13 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/log_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -29,13 +31,15 @@ namespace perfetto::trace_processor {
 AndroidLogEventParser::~AndroidLogEventParser() = default;
 
 void AndroidLogEventParser::Parse(int64_t ts, AndroidLogEvent event) {
-  tables::AndroidLogTable::Row row;
+  tables::LogTable::Row row;
   row.ts = ts;
-  row.utid = context_->process_tracker->UpdateThread(event.tid, event.pid);
+  row.utid = std::make_optional(
+      context_->process_tracker->UpdateThread(event.tid, event.pid));
   row.prio = event.prio;
-  row.tag = event.tag;
+  row.log_source = context_->storage->InternString("android_logcat");
+  row.tag = std::make_optional(event.tag);
   row.msg = event.msg;
-  context_->storage->mutable_android_log_table()->Insert(std::move(row));
+  context_->storage->mutable_log_table()->Insert(std::move(row));
 }
 
 }  // namespace perfetto::trace_processor

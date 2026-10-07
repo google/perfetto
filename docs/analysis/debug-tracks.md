@@ -10,11 +10,12 @@ a debug track can be created from it.
 For a result table to be visualised, it should
 include:
 
-1. A name (the name of the slice) column.
+1. (For `slice` tracks) a name (the name of the slice) column.
 1. A non-null timestamp (the timestamp, in nanoseconds, at the start of the
   slice) column.
 1. (For `slice` tracks) a duration (the duration, in nanoseconds, of the slice)
    column.
+1. (For `counter` tracks) a value column.
 1. (Optionally) the name of a column to pivot
 
     Note: Pivoting means allows you to create a single debug track per distinct
@@ -27,8 +28,8 @@ To create `slice` tracks:
 1. Run a SQL query, and ensure its results are `slice`-like (as described
   above).
   ![Query for debug slice track](/docs/images/debug-tracks/slice-track-query.png)
-1. Navigate to the "Show Timeline" view, and click on "Show debug track" to set
-   up a new debug track. Select "slice" from the Track type dropdown.
+1. Navigate to the "Timeline" view, and click on "Add debug track" to set
+   up a new debug track. Select "Slice Track" as the Track type.
 
    Note that the names of the columns in the result table do
    not necessarily have to be `name`, `ts`, or `dur`. Columns which
@@ -44,8 +45,8 @@ To create `slice` tracks:
    unpinned tracks.
    ![Resultant debug track](/docs/images/debug-tracks/slice-track-result.png)
 
-1. (Optional) Pivoted `slice` tracks are created by selecting a value from the
-   "pivot" column.
+1. (Optional) Pivoted `slice` tracks are created by selecting a column in the
+   "Pivot on" dropdown.
 
    Note: You can enter queries into the search box directly by typing `:` to
    enter SQL mode.
@@ -66,8 +67,8 @@ mentioned above:
    above).
 
    ![Query for debug counter track](/docs/images/debug-tracks/counter-tracks-query.png)
-1. Navigate to the Timeline view, and click on "Show debug track" to set up a
-   new debug track. Select "counter" from the Track type dropdown and the
+1. Navigate to the Timeline view, and click on "Add debug track" to set up a
+   new debug track. Select "Counter Track" as the Track type and the
    semantically matching column names of interest.
 
    ![Create a new debug counter track](/docs/images/debug-tracks/counter-tracks-create.png)
@@ -76,8 +77,8 @@ mentioned above:
 
    ![Resultant pivoted debug counter track](/docs/images/debug-tracks/counter-tracks-results.png)
 
-1. (Optional) Pivoted `counter` tracks are created by selecting a value from the
-   "pivot" column.
+1. (Optional) Pivoted `counter` tracks are created by selecting a column in the
+   "Pivot on" dropdown.
 
    ![Create a new debug counter track](/docs/images/debug-tracks/pivot-counter-tracks-create.png)
 

@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package protozero.test.protos;
 
+import public "src/protozero/test/example_proto/extensions.proto";
 import "src/protozero/test/example_proto/library.proto";
 import "src/protozero/test/example_proto/other_package/test_messages.proto";
 import "src/protozero/test/example_proto/subpackage/test_messages.proto";

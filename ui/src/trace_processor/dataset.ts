@@ -17,6 +17,7 @@ import {getOrCreate} from '../base/utils';
 import {
   checkExtends,
   NUM,
+  type SpecType,
   type SqlValue,
   unionTypes,
   UNKNOWN,
@@ -66,9 +67,10 @@ export interface Dataset<T extends DatasetSchema = DatasetSchema> {
 
 /**
  * Defines a list of columns and types that define the shape of the data
- * represented by a dataset.
+ * represented by a dataset. Uses the same type as the query result spec
+ * so that dataset schemas can be passed directly to iter()/decodeColumns().
  */
-export type DatasetSchema = Readonly<Record<string, SqlValue>>;
+export type DatasetSchema = SpecType;
 
 /**
  * A filter used to express that a column must equal a value.
@@ -155,9 +157,9 @@ interface SourceDatasetConfig<T extends DatasetSchema> {
  * Defines a dataset with a source SQL select statement of table name, a
  * schema describing the columns, and an optional filter.
  */
-export class SourceDataset<T extends DatasetSchema = DatasetSchema>
-  implements Dataset<T>
-{
+export class SourceDataset<
+  T extends DatasetSchema = DatasetSchema,
+> implements Dataset<T> {
   readonly src: string;
   readonly schema: T;
   readonly filter?: Filter;
@@ -277,9 +279,9 @@ const MAX_SUBQUERIES_PER_UNION = 500;
 /**
  * A dataset that represents the union of multiple datasets.
  */
-export class UnionDataset<T extends DatasetSchema = DatasetSchema>
-  implements Dataset<T>
-{
+export class UnionDataset<
+  T extends DatasetSchema = DatasetSchema,
+> implements Dataset<T> {
   /**
    * This factory method creates a new union dataset but retains the specific
    * types of the input datasets. It's a factory function because it's not
@@ -300,14 +302,14 @@ export class UnionDataset<T extends DatasetSchema = DatasetSchema>
   get schema(): T {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
-    let unionSchema: Record<string, SqlValue> | undefined = undefined;
+    let unionSchema: SpecType | undefined = undefined;
     this.union.forEach((ds) => {
       const dsSchema = ds.schema;
       if (unionSchema === undefined) {
         // First time just use this one
         unionSchema = dsSchema;
       } else {
-        const newSch: Record<string, SqlValue> = {};
+        const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
             const commonType = unionTypes(value, dsSchema[key]);
@@ -538,9 +540,9 @@ interface PartitionMapWithUnfiltered<T> {
  * }
  * ```
  */
-export class UnionDatasetWithLineage<T extends DatasetSchema>
-  implements Dataset<T>
-{
+export class UnionDatasetWithLineage<
+  T extends DatasetSchema,
+> implements Dataset<T> {
   readonly sourceDatasets: ReadonlyArray<Dataset>;
   private readonly sourceGroupArray: Array<[string, Array<{dataset: Dataset}>]>;
   private readonly partitionMaps: Map<
@@ -584,13 +586,13 @@ export class UnionDatasetWithLineage<T extends DatasetSchema>
 
   get schema(): T {
     // Compute union schema from all datasets
-    let unionSchema: Record<string, SqlValue> | undefined = undefined;
+    let unionSchema: SpecType | undefined = undefined;
     this.sourceDatasets.forEach((ds) => {
       const dsSchema = ds.schema;
       if (unionSchema === undefined) {
         unionSchema = dsSchema;
       } else {
-        const newSch: Record<string, SqlValue> = {};
+        const newSch: SpecType = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
             const commonType = unionTypes(value, dsSchema[key]);
@@ -709,7 +711,10 @@ ${indent(chunk.join('\nUNION ALL\n'), 2)}
    * @param row - A row object containing __groupid and __partition values
    * @returns The source dataset(s) that produced this row
    */
-  resolveLineage(row: typeof lineageSchema): readonly Dataset[] {
+  resolveLineage(row: {
+    __groupid: number;
+    __partition: SqlValue;
+  }): readonly Dataset[] {
     const groupId = row.__groupid as number;
     const partitionValue = row.__partition;
 

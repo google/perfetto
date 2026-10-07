@@ -164,6 +164,19 @@ export function colorForThread(thread?: {
   return colorForTid(tid);
 }
 
+export function colorForPriority(priority: number): ColorScheme {
+  if (priority < 100) {
+    // Realtime scheduling priorities (0..99) -> Red
+    return MD_PALETTE[0];
+  }
+  if (priority < 120) {
+    // High priority CFS tasks (100..119) -> Yellow
+    return MD_PALETTE[17];
+  }
+  // Priority 120 onwards (nice >= 0) -> Blue
+  return MD_PALETTE[5];
+}
+
 export function colorForCpu(cpu: number): Color {
   if (USE_CONSISTENT_COLORS.get()) {
     return materialColorScheme(cpu.toString()).base;

@@ -3,7 +3,7 @@
 In this guide, you'll learn how to:
 
 - Understand the different memory profiling modes and when to use them.
-- Record native and Java heap profiles with Perfetto.
+- Record native and ART (Java/Kotlin) heap profiles with Perfetto.
 - Visualize and analyze allocation profiles in the Perfetto UI.
 
 The memory use of a process plays a key role in the performance of processes and
@@ -32,7 +32,7 @@ Tool | Language | What is instrumented | Usage
 -----|----------|----------------------|------
 [ART Heap Dumps](#art-heap-dumps) | Java/Kotlin | Reference graph of all allocated objects | Breakdown memory usage, and find leaks.
 [Native Allocation Profiling](#native-heap-profiling) | Native C/C++/Rust | `malloc` + `free` | Reduce native allocation churn, breakdown memory usage and find leaks **after profiling started**.
-[ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#java-heap-sampling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
+[ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#art-allocation-profiling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
 
 ## {#native-heap-profiling} Native (C/C++/Rust) Allocation Profiling (aka native heap profiling)
 
@@ -86,7 +86,7 @@ implementation.
 - Select Android as target device and use one of the available transports.
   If in doubt, WebUSB is the easiest choice.
 - Click on the `Memory` probe on the left and then toggle the
-  `Native Heap Profiling` option.
+  `Native heap profiling` option.
 - Enter the process name in the `Names` box.
 - The process name you have to enter is (the first argument of the) the process
   cmdline. That is the right-most column (NAME) of `adb shell ps -A`.
@@ -155,7 +155,7 @@ them in /tmp/heap_profile-latest. Look for the message that says
 
 ```bash
 Wrote profiles to /tmp/53dace (symlink /tmp/heap_profile-latest)
-The raw-trace file can be viewed using https://ui.perfetto.dev
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
 ```
 
 TAB: Linux (Command line)
@@ -191,7 +191,7 @@ The script:
    first `malloc` until it has attached, so every allocation is captured.
 
 When your binary exits (or you press `Ctrl-C` to stop early) the script
-runs `traceconv` to produce gzipped pprof files alongside the raw trace and
+runs `trace_processor` to produce gzipped pprof files alongside the raw trace and
 prints the output directory. A typical end-to-end run looks like this:
 
 ```text
@@ -233,7 +233,7 @@ for more details.
 
 ### Visualizing your first heap profile
 
-Open the `/tmp/heap_profile-latest` file in the
+Open the `/tmp/heap_profile-latest/raw-trace` file in the
 [Perfetto UI](https://ui.perfetto.dev) and click on the slice in the UI
 track labeled _"Native heap profile"_.
 
@@ -262,177 +262,6 @@ You can also change the aggregation to the following modes:
   they release memory in the end.
 - **Total Malloc Count**: like the above, but aggregates by number of calls to
   `malloc()` and ignores the size of each allocation.
-
-### Querying your first heap profile
-
-As well as visualizing traces on a timeline, Perfetto has support for querying
-traces using SQL. The easiest way to do this is using the query engine available
-directly in the UI.
-
-1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
-
-    ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
-
-2.  This will open a two-part window. You can write your PerfettoSQL query in
-    the top section and view the results in the bottom section.
-
-    ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
-
-3.  You can then execute queries Ctrl/Cmd + Enter:
-
-For example, by running:
-
-```
-INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
-
-SELECT
-  -- Class name (deobfuscated if available)
-  type_name,
-  -- Count of class instances
-  obj_count,
-  -- Size of class instances
-  size_bytes,
-  -- Native size of class instances
-  native_size_bytes,
-  -- Count of reachable class instances
-  reachable_obj_count,
-  -- Size of reachable class instances
-  reachable_size_bytes,
-  -- Native size of reachable class instances
-  reachable_native_size_bytes
-FROM android_heap_graph_class_aggregation;
-```
-
-you can see a summary of the reachable aggregate object sizes and object counts.
-
-## ART Heap Dumps
-
-Java—and managed languages built on top of it, like Kotlin—use a runtime
-environment to handle memory management and garbage collection. In these
-languages, (almost) every object is a heap allocation. Memory is managed through
-object references: objects retain other objects, and memory is automatically
-reclaimed by the garbage collector once objects become unreachable. There is no
-free() call as in manual memory management.
-
-As a result, most profiling tools for the heap of a managed languages work by
-capturing and analyzing a complete heap dump, which includes all live objects
-and their retaining relationships—a full object graph.
-
-This approach has the advantage of retroactive analysis: it provides a
-consistent snapshot of the entire heap without requiring prior instrumentation.
-However, it comes with a trade-off: while you can see which objects are keeping
-others alive, you typically cannot see the exact call sites where those objects
-were allocated. This can make it harder to reason about memory usage, especially
-when the same type of object is allocated from multiple locations in the code.
-
-NOTE: ART heap dumps with Perfetto only works on Android. This is due to the
-deep integration with the JVM (Android Runtime - ART) required to efficiently
-capture a heap dump without impacting the performance of the process.
-
-### Collecting your first heap dump
-
-<?tabs>
-
-TAB: Android (Perfetto UI)
-
-On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
-implementation.
-
-#### Prerequisites
-
-* A device running Android 10+.
-* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
-  app. If you are running on a _"user"_ build of Android (as opposed to
-  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
-  debuggable in its manifest.
-
-#### Instructions
-- Open https://ui.perfetto.dev/#!/record
-- Select Android as target device and use one of the available transports.
-  If in doubt, WebUSB is the easiest choice.
-- Click on the `Memory` probe on the left and then toggle the
-  `Java heap dumps` option.
-- Enter the process name in the `Names` box.
-- The process name you have to enter is (the first argument of the) the process
-  cmdline. That is the right-most column (NAME) of `adb shell ps -A`.
-- Select a short duration in the `Buffers and duration` page (10 s or less).
-  The trace duration is meaningless for this particular data source, as it emits
-  a whole dump at the end of the trace. A longer trace will not lead to more
-  or better data.
-- Press the red button to start recording the trace.
-
-![UI Recording](/docs/images/jheapprof-ui.png)
-
-TAB: Android (Command line)
-
-On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
-implementation.
-
-#### Prerequisites
-
-* [ADB](https://developer.android.com/studio/command-line/adb) installed.
-* _Windows users_: Make sure that the downloaded adb.exe is in the PATH.
-  `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
-* A device running Android 10+.
-* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
-  app. If you are running on a _"user"_ build of Android (as opposed to
-  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
-  debuggable in its manifest.
-
-#### Instructions
-
-```bash
-$ adb devices -l
-List of devices attached
-24121FDH20006S         device usb:2-2.4.2 product:panther model:Pixel_7 device:panther transport_id:1
-```
-
-If more than one device or emulator is reported you must select one upfront as follows:
-
-```bash
-export ANDROID_SERIAL=24121FDH20006S
-```
-
-Download the `tools/java_heap_dump` (if you don't have a perfetto checkout):
-
-```bash
-curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/java_heap_dump
-```
-
-Then start the profile:
-
-```bash
-python3 java_heap_dump -n com.google.android.apps.nexuslauncher
-```
-The script will record a trace with the heap dump and print the path of the
-trace file (e.g. /tmp/tmpmhuvqmnqprofile)
-
-```bash
-Wrote profile to /tmp/tmpmhuvqmnqprofile
-This can be viewed using https://ui.perfetto.dev.
-```
-</tabs?>
-
-### Visualizing your first ART heap dump
-
-Open the `/tmp/xxxx` file in the Perfetto UI and click on the chevron marker in
-the UI track labeled "Heap profile".
-
-The UI will show a flattened version of the heap graph, in the shape of a
-flamegraph. The flamegraph aggregates together summing objects of the same type
-that share the same reachability path. Two flattening strategies are possible:
-
-- **Shortest path**: this is the default option when selecting `Object Size` in
-  the flamegraph header. This arranges objects based on heuristics that minimize
-  the distance between them.
-
-- **Dominator tree**: when selecting `Dominated Size`, it uses the dominator
-  tree algorithm to flatten the graph.
-
-You can learn more about them in the
-[Debugging memory usage](/docs/case-studies/memory#java-hprof) case study
-
-![Sample heap dump in the UI](/docs/images/jheapprof-dump.png)
 
 ### Querying your first heap profile
 
@@ -488,6 +317,177 @@ FROM android_heap_profile_summary_tree;
 ```
 
 you can see the memory allocated by every unique callstack in the trace.
+
+## ART Heap Dumps
+
+Java—and managed languages built on top of it, like Kotlin—use a runtime
+environment to handle memory management and garbage collection. In these
+languages, (almost) every object is a heap allocation. Memory is managed through
+object references: objects retain other objects, and memory is automatically
+reclaimed by the garbage collector once objects become unreachable. There is no
+free() call as in manual memory management.
+
+As a result, most profiling tools for the heap of a managed languages work by
+capturing and analyzing a complete heap dump, which includes all live objects
+and their retaining relationships—a full object graph.
+
+This approach has the advantage of retroactive analysis: it provides a
+consistent snapshot of the entire heap without requiring prior instrumentation.
+However, it comes with a trade-off: while you can see which objects are keeping
+others alive, you typically cannot see the exact call sites where those objects
+were allocated. This can make it harder to reason about memory usage, especially
+when the same type of object is allocated from multiple locations in the code.
+
+NOTE: ART heap dumps with Perfetto only works on Android. This is due to the
+deep integration with the JVM (Android Runtime - ART) required to efficiently
+capture a heap dump without impacting the performance of the process.
+
+### Collecting your first heap dump
+
+<?tabs>
+
+TAB: Android (Perfetto UI)
+
+On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
+implementation.
+
+#### Prerequisites
+
+* A device running Android 11+.
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+  app. If you are running on a _"user"_ build of Android (as opposed to
+  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
+  debuggable in its manifest.
+
+#### Instructions
+- Open https://ui.perfetto.dev/#!/record
+- Select Android as target device and use one of the available transports.
+  If in doubt, WebUSB is the easiest choice.
+- Click on the `Memory` probe on the left and then toggle the
+  `ART heap dumps` option.
+- Enter the process name in the `Names` box.
+- The process name you have to enter is (the first argument of the) the process
+  cmdline. That is the right-most column (NAME) of `adb shell ps -A`.
+- Select a short duration in the `Buffers and duration` page (10 s or less).
+  The trace duration is meaningless for this particular data source, as it emits
+  a whole dump at the end of the trace. A longer trace will not lead to more
+  or better data.
+- Press the red button to start recording the trace.
+
+![UI Recording](/docs/images/jheapprof-ui.png)
+
+TAB: Android (Command line)
+
+On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
+implementation.
+
+#### Prerequisites
+
+* [ADB](https://developer.android.com/studio/command-line/adb) installed.
+* _Windows users_: Make sure that the downloaded adb.exe is in the PATH.
+  `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
+* A device running Android 11+.
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+  app. If you are running on a _"user"_ build of Android (as opposed to
+  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
+  debuggable in its manifest.
+
+#### Instructions
+
+```bash
+$ adb devices -l
+List of devices attached
+24121FDH20006S         device usb:2-2.4.2 product:panther model:Pixel_7 device:panther transport_id:1
+```
+
+If more than one device or emulator is reported you must select one upfront as follows:
+
+```bash
+export ANDROID_SERIAL=24121FDH20006S
+```
+
+Download the `tools/java_heap_dump` (if you don't have a perfetto checkout):
+
+```bash
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/java_heap_dump
+```
+
+Then start the profile:
+
+```bash
+python3 java_heap_dump -n com.google.android.apps.nexuslauncher
+```
+The script will record a trace with the heap dump and print the path of the
+trace file (e.g. /tmp/tmpmhuvqmnqprofile)
+
+```bash
+Wrote profile to /tmp/tmpmhuvqmnqprofile
+This can be viewed using https://ui.perfetto.dev.
+```
+</tabs?>
+
+### Visualizing your first ART heap dump
+
+Open the `/tmp/xxxx` file in the Perfetto UI and click on the chevron marker in
+the UI track labeled "ART heap dump".
+
+The UI will show a flattened version of the heap graph, in the shape of a
+flamegraph. The flamegraph aggregates together summing objects of the same type
+that share the same reachability path. Two flattening strategies are possible:
+
+- **Shortest path**: this is the default option when selecting `Object Size` in
+  the flamegraph header. This arranges objects based on heuristics that minimize
+  the distance between them.
+
+- **Dominator tree**: when selecting `Dominated Object Size`, it uses the
+  dominator tree algorithm to flatten the graph.
+
+You can learn more about them in the
+[Debugging memory usage](/docs/case-studies/memory#java-hprof) case study
+
+![Sample heap dump in the UI](/docs/images/jheapprof-dump.png)
+
+### Querying your first heap profile
+
+As well as visualizing traces on a timeline, Perfetto has support for querying
+traces using SQL. The easiest way to do this is using the query engine available
+directly in the UI.
+
+1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
+
+    ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
+
+2.  This will open a two-part window. You can write your PerfettoSQL query in
+    the top section and view the results in the bottom section.
+
+    ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
+
+3.  You can then execute queries Ctrl/Cmd + Enter:
+
+For example, by running:
+
+```
+INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
+
+SELECT
+  -- Class name (deobfuscated if available)
+  type_name,
+  -- Count of class instances
+  obj_count,
+  -- Size of class instances
+  size_bytes,
+  -- Native size of class instances
+  native_size_bytes,
+  -- Count of reachable class instances
+  reachable_obj_count,
+  -- Size of reachable class instances
+  reachable_size_bytes,
+  -- Native size of reachable class instances
+  reachable_native_size_bytes
+FROM android_heap_graph_class_aggregation;
+```
+
+you can see a summary of the reachable aggregate object sizes and object counts.
 
 ## Other types of memory
 

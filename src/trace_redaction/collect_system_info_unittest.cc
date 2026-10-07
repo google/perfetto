@@ -22,6 +22,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
@@ -97,6 +98,16 @@ TEST(BuildSyntheticProcessTest, CreatesThreadsPerCpu) {
   // There should be one thread per CPU. Because we reserved CPU 7, it implies
   // there are CPUs 0 to 7 (i.e. 8 CPUs).
   ASSERT_EQ(synthetic_process.tids().size(), 8u);
+}
+
+TEST_F(CollectSystemInfoTest, ExtractsTracingStartedTimestamp) {
+  auto* service_event = packet_.mutable_service_event();
+  service_event->set_tracing_started(true);
+  packet_.set_timestamp(123456789u);
+
+  ASSERT_OK(Collect());
+  ASSERT_TRUE(context_.tracing_started_ts.has_value());
+  ASSERT_EQ(*context_.tracing_started_ts, 123456789u);
 }
 
 }  // namespace perfetto::trace_redaction

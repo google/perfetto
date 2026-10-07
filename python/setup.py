@@ -1,27 +1,61 @@
 import os
 import re
 
-from distutils.core import setup
+from setuptools import setup
 
 
 def _version_from_changelog():
-  """Derives the PyPI package version from the top entry of CHANGELOG.
+  """Derives the PyPI package version, e.g. '0.56.0'.
 
-  The CHANGELOG uses entries like 'vX.Y - YYYY-MM-DD:' for released versions
-  (and 'Unreleased:' at the top while a release is in flight). The first
-  matching 'vX.Y' line is mapped to the PyPI version '0.X.Y' — keeping the
-  package in the 0.x series while encoding the Perfetto release in the
-  minor/patch components.
+  Normally read from the top 'vX.Y' entry of the repo CHANGELOG, mapped to
+  '0.X.Y'. The CHANGELOG lives outside the package so it is not in the sdist;
+  when building from an sdist the CHANGELOG is absent, so fall back to the
+  version setuptools wrote into PKG-INFO when the sdist was created.
   """
-  changelog = os.path.join(
-      os.path.dirname(os.path.abspath(__file__)), os.pardir, 'CHANGELOG')
-  with open(changelog) as f:
-    for line in f:
-      m = re.match(r'^v(\d+)[.](\d+)\s', line)
-      if m:
-        return '0.%s.%s' % (m.group(1), m.group(2))
-  raise RuntimeError('No vX.Y entry found in %s' % changelog)
+  here = os.path.dirname(os.path.abspath(__file__))
+  changelog = os.path.join(here, os.pardir, 'CHANGELOG')
+  if os.path.exists(changelog):
+    with open(changelog) as f:
+      for line in f:
+        m = re.match(r'^v(\d+)[.](\d+)\s', line)
+        if m:
+          return '0.%s.%s' % (m.group(1), m.group(2))
+    raise RuntimeError('No vX.Y entry found in %s' % changelog)
 
+  pkg_info = os.path.join(here, 'PKG-INFO')
+  if os.path.exists(pkg_info):
+    with open(pkg_info) as f:
+      for line in f:
+        if line.startswith('Version:'):
+          return line.split(':', 1)[1].strip()
+  raise RuntimeError('Cannot determine version: no CHANGELOG or PKG-INFO')
+
+
+def _check_prebuilts_version(version):
+  """Refuses a release build whose pinned prebuilts do not match its version.
+
+  Only enforced when PERFETTO_PYPI_RELEASE is set: development trees lag
+  between a CHANGELOG bump and the prebuilt roll landing.
+  """
+  if not os.environ.get('PERFETTO_PYPI_RELEASE'):
+    return
+  here = os.path.dirname(os.path.abspath(__file__))
+  version_py = os.path.join(here, 'perfetto', 'prebuilts', 'manifests',
+                            'version.py')
+  with open(version_py) as f:
+    m = re.search(r"^PREBUILTS_VERSION = '([^']*)'$", f.read(), re.M)
+  if not m:
+    raise RuntimeError('No PREBUILTS_VERSION found in %s' % version_py)
+  expected = 'v' + version[len('0.'):]
+  if m.group(1) != expected:
+    raise RuntimeError(
+        'Package version %s pins prebuilts %s, expected %s. Run '
+        'tools/release/roll-prebuilts --manifests-only %s before building.' %
+        (version, m.group(1), expected, expected))
+
+
+_VERSION = _version_from_changelog()
+_check_prebuilts_version(_VERSION)
 
 setup(
     name='perfetto',
@@ -29,6 +63,8 @@ setup(
         'perfetto',
         'perfetto.batch_trace_processor',
         'perfetto.common',
+        'perfetto.prebuilts',
+        'perfetto.prebuilts.manifests',
         'perfetto.protos.perfetto.trace',
         'perfetto.trace_builder',
         'perfetto.trace_processor',
@@ -38,13 +74,13 @@ setup(
         'perfetto.trace_processor': ['*.descriptor'],
     },
     include_package_data=True,
-    version=_version_from_changelog(),
+    version=_VERSION,
     license='apache-2.0',
     description='Python APIs and bindings for Perfetto (perfetto.dev)',
     author='Perfetto',
     author_email='perfetto-pypi@google.com',
     url='https://perfetto.dev/',
-    download_url='https://github.com/google/perfetto/archive/bb5f4f019e2a1b5bc6e4c8203f05890d96467cf7.zip',
+    download_url='https://github.com/google/perfetto/archive/a760e3fc2f84d84225bfb4928d281c4b7c51d193.zip',
     keywords=['trace processor', 'tracing', 'perfetto'],
     install_requires=[
         'protobuf',

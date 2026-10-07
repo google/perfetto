@@ -14,27 +14,26 @@
 
 .pf-memscope-panel {
   border-radius: 8px;
-  background: var(--pf-color-background-secondary);
-  border: 1px solid var(--pf-color-border-secondary);
+  background: var(--pf-col-surface);
+  border: 0.5px solid var(--pf-col-border);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .pf-memscope-panel__title-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-
-  h2 {
-    flex: 1;
-  }
+  gap: 6px;
 }
 
 .pf-memscope-panel__header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--pf-color-border);
+  border-bottom: 1px solid var(--pf-col-border);
 
   h2 {
     margin: 0;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--pf-color-text);
   }
@@ -52,16 +51,40 @@
   gap: 8px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .pf-memscope-panel__body {
   padding: 12px;
 }
 
+// Content fades in when it mounts. The body keeps its DOM node across the
+// loading→loaded swap, but its single child is replaced, so this animation
+// fires once at that moment (and once for the initial placeholder). The
+// panel's height still snaps to the new content; the fade is what masks it.
+@keyframes pf-memscope-body-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.pf-memscope-panel__body > * {
+  animation: pf-memscope-body-fade 0.3s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-memscope-panel__body > * {
+    animation: none;
+  }
+}
+
 .pf-memscope-placeholder {
   color: var(--pf-color-text-muted);
   font-size: var(--pf-font-size-s);
-  font-style: italic;
   padding: 32px 0;
   text-align: center;
 }

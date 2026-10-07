@@ -21,6 +21,7 @@ if (perfetto_root_path == "//") {
   # For now just create a dummy template to avoid GN warnings.
   template("perfetto_fuzzer_test") {
     not_needed(invoker, "*")
+
     group(target_name) {
     }
   }

@@ -44,9 +44,7 @@ export default class MemoryViz implements PerfettoPlugin {
   static readonly dependencies = [StandardGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const memoryGroup = ctx.plugins
-      .getPlugin(StandardGroupsPlugin)
-      .getOrCreateStandardGroup(ctx.defaultWorkspace, 'MEMORY');
+    if (!(await MemoryViz.isAndroidTrace(ctx))) return;
 
     await ctx.engine.query(`
       INCLUDE PERFETTO MODULE intervals.overlap;
@@ -54,10 +52,22 @@ export default class MemoryViz implements PerfettoPlugin {
       INCLUDE PERFETTO MODULE android.memory.lmk;
     `);
 
-    await this.addKswapdTrack(ctx, memoryGroup);
-    await this.addDirectReclaimTracks(ctx, memoryGroup);
-    await this.addMemcgReclaimTracks(ctx, memoryGroup);
-    await this.addLmkTracks(ctx, memoryGroup);
+    const tracks = await Promise.all([
+      this.createKswapdTrack(ctx),
+      this.createDirectReclaimTracks(ctx),
+      this.createMemcgReclaimTracks(ctx),
+      this.createLmkTracks(ctx),
+    ]);
+
+    const activeTracks = tracks.filter((t) => t !== undefined);
+    if (activeTracks.length > 0) {
+      const memoryGroup = ctx.plugins
+        .getPlugin(StandardGroupsPlugin)
+        .getOrCreateStandardGroup(ctx.defaultWorkspace, 'MEMORY');
+      for (const track of activeTracks) {
+        memoryGroup.addChildInOrder(track);
+      }
+    }
 
     ctx.commands.registerCommand({
       id: `com.android.visualizeMemory`,
@@ -97,7 +107,14 @@ export default class MemoryViz implements PerfettoPlugin {
     });
   }
 
-  private async addKswapdTrack(ctx: Trace, parent: TrackNode): Promise<void> {
+  private static async isAndroidTrace(ctx: Trace): Promise<boolean> {
+    const result = await ctx.engine.query(`
+      SELECT 1 FROM process WHERE name = 'system_server' LIMIT 1
+    `);
+    return result.numRows() > 0;
+  }
+
+  private async createKswapdTrack(ctx: Trace): Promise<TrackNode | undefined> {
     const tableName = 'memory_viz_kswapd';
     await createPerfettoTable({
       engine: ctx.engine,
@@ -118,7 +135,7 @@ export default class MemoryViz implements PerfettoPlugin {
       `SELECT COUNT(*) AS n FROM ${tableName}`,
     );
     if (rowCount.firstRow({n: NUM}).n === 0) {
-      return;
+      return undefined;
     }
 
     const uri = `${MemoryViz.id}#kswapd`;
@@ -136,15 +153,12 @@ export default class MemoryViz implements PerfettoPlugin {
         colorizer: () => KSWAPD_COLOR,
       }),
     });
-    parent.addChildInOrder(
-      new TrackNode({uri, name: 'Kswapd', sortOrder: 101}),
-    );
+    return new TrackNode({uri, name: 'Kswapd', sortOrder: 101});
   }
 
-  private async addDirectReclaimTracks(
+  private async createDirectReclaimTracks(
     ctx: Trace,
-    parent: TrackNode,
-  ): Promise<void> {
+  ): Promise<TrackNode | undefined> {
     const tableName = 'memory_viz_direct_reclaim';
     await createPerfettoTable({
       engine: ctx.engine,
@@ -160,7 +174,7 @@ export default class MemoryViz implements PerfettoPlugin {
       `SELECT COUNT(*) AS n FROM ${tableName}`,
     );
     if (rowCount.firstRow({n: NUM}).n === 0) {
-      return;
+      return undefined;
     }
 
     const breakdowns = new BreakdownTracks({
@@ -188,13 +202,12 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const directReclaimNode = await breakdowns.createTracks();
     directReclaimNode.sortOrder = 102;
-    parent.addChildInOrder(directReclaimNode);
+    return directReclaimNode;
   }
 
-  private async addMemcgReclaimTracks(
+  private async createMemcgReclaimTracks(
     ctx: Trace,
-    parent: TrackNode,
-  ): Promise<void> {
+  ): Promise<TrackNode | undefined> {
     const tableName = 'memory_viz_memcg_reclaim';
     await createPerfettoTable({
       engine: ctx.engine,
@@ -212,7 +225,7 @@ export default class MemoryViz implements PerfettoPlugin {
       `SELECT COUNT(*) AS n FROM ${tableName}`,
     );
     if (rowCount.firstRow({n: NUM}).n === 0) {
-      return;
+      return undefined;
     }
 
     const breakdowns = new BreakdownTracks({
@@ -240,10 +253,10 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const memcgReclaimNode = await breakdowns.createTracks();
     memcgReclaimNode.sortOrder = 103;
-    parent.addChildInOrder(memcgReclaimNode);
+    return memcgReclaimNode;
   }
 
-  private async addLmkTracks(ctx: Trace, parent: TrackNode): Promise<void> {
+  private async createLmkTracks(ctx: Trace): Promise<TrackNode | undefined> {
     const tableName = 'memory_viz_lmk_slices';
     await createPerfettoTable({
       engine: ctx.engine,
@@ -255,7 +268,7 @@ export default class MemoryViz implements PerfettoPlugin {
           0 AS dur,
           upid,
           pid,
-          COALESCE(process_name, 'Unknown') AS process_name,
+          COALESCE(process_name, 'Unknown') AS name,
           oom_score_adj,
           android_oom_adj_score_to_bucket_name(oom_score_adj) AS oom_bucket,
           kill_reason
@@ -264,13 +277,14 @@ export default class MemoryViz implements PerfettoPlugin {
     });
 
     const buckets = await ctx.engine.query(`
-      SELECT DISTINCT oom_bucket
+      SELECT oom_bucket
       FROM ${tableName}
       WHERE oom_bucket IS NOT NULL
-      ORDER BY oom_bucket
+      GROUP BY oom_bucket
+      ORDER BY MIN(oom_score_adj) ASC
     `);
     if (buckets.numRows() === 0) {
-      return;
+      return undefined;
     }
 
     const lmkUri = `${MemoryViz.id}#lmk`;
@@ -290,13 +304,12 @@ export default class MemoryViz implements PerfettoPlugin {
             dur: LONG,
             upid: NUM_NULL,
             pid: NUM_NULL,
-            process_name: STR,
+            name: STR,
             oom_score_adj: NUM,
             oom_bucket: STR,
             kill_reason: STR_NULL,
           },
         }),
-        sliceName: (row) => row.process_name,
       }),
     });
     const lmkGroup = new TrackNode({
@@ -305,7 +318,6 @@ export default class MemoryViz implements PerfettoPlugin {
       isSummary: true,
       sortOrder: 100,
     });
-    parent.addChildInOrder(lmkGroup);
 
     for (const it = buckets.iter({oom_bucket: STR}); it.valid(); it.next()) {
       const bucket = it.oom_bucket;
@@ -324,18 +336,19 @@ export default class MemoryViz implements PerfettoPlugin {
               dur: LONG,
               upid: NUM_NULL,
               pid: NUM_NULL,
-              process_name: STR,
+              name: STR,
               oom_score_adj: NUM,
               oom_bucket: STR,
               kill_reason: STR_NULL,
             },
             filter: {col: 'oom_bucket', eq: bucket},
           }),
-          sliceName: (row) => row.process_name,
         }),
       });
       lmkGroup.addChildInOrder(new TrackNode({uri, name: bucket}));
     }
+
+    return lmkGroup;
   }
 
   private async createTrack(

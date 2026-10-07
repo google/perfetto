@@ -145,25 +145,28 @@ ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size) {
   return first_arg - start;
 }
 
-std::optional<std::vector<std::string>> NormalizeCmdlines(
+std::optional<CmdlinePatterns> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines) {
-  std::vector<std::string> normalized_cmdlines;
-  normalized_cmdlines.reserve(cmdlines.size());
-
-  for (size_t i = 0; i < cmdlines.size(); i++) {
-    std::string cmdline = cmdlines[i];  // mutable copy
+  CmdlinePatterns patterns;
+  for (const std::string& raw : cmdlines) {
+    if (raw.find('*') != std::string::npos) {
+      patterns.glob_patterns.push_back(raw);
+      continue;
+    }
+    std::string cmdline = raw;  // mutable copy
     // Add nullbyte to make sure it's a C string.
     cmdline.resize(cmdline.size() + 1, '\0');
     char* cmdline_cstr = &(cmdline[0]);
     ssize_t size = NormalizeCmdLine(&cmdline_cstr, cmdline.size());
     if (size == -1) {
       PERFETTO_PLOG("Failed to normalize cmdline %s. Stopping the parse.",
-                    cmdlines[i].c_str());
+                    raw.c_str());
       return std::nullopt;
     }
-    normalized_cmdlines.emplace_back(cmdline_cstr, static_cast<size_t>(size));
+    patterns.exact_patterns.emplace_back(cmdline_cstr,
+                                         static_cast<size_t>(size));
   }
-  return std::make_optional(normalized_cmdlines);
+  return std::make_optional(std::move(patterns));
 }
 
 // This is mostly the same as GetHeapprofdProgramProperty in
@@ -241,23 +244,45 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
 }
 
 namespace glob_aware {
+bool MatchCmdlineGlobPatterns(const std::string& cmdline,
+                              const std::vector<std::string>& patterns) {
+  if (patterns.empty())
+    return false;
+  const char* binname =
+      glob_aware::FindBinaryName(cmdline.c_str(), cmdline.size());
+  for (const std::string& pattern : patterns) {
+    if (glob_aware::MatchGlobPattern(pattern.c_str(), cmdline.c_str(),
+                                     binname)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool PidMatchesCmdlinePatterns(pid_t pid,
+                               const std::vector<std::string>& patterns) {
+  if (patterns.empty())
+    return false;
+  std::string cmdline;
+  if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
+    return false;
+  // A readable but empty cmdline indicates that this is a kthread or a
+  // zombie, which are of no interest to the calling profilers.
+  if (cmdline.empty())
+    return false;
+  return glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns);
+}
+
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids) {
-  ForEachPid([&patterns, pids](pid_t pid) {
-    if (pid == getpid())
+  if (patterns.empty())
+    return;
+  pid_t self_pid = getpid();
+  ForEachPid([&](pid_t pid) {
+    if (pid == self_pid)
       return;
-    std::string cmdline;
-    if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
-      return;
-    const char* binname =
-        glob_aware::FindBinaryName(cmdline.c_str(), cmdline.size());
-
-    for (const std::string& pattern : patterns) {
-      if (glob_aware::MatchGlobPattern(pattern.c_str(), cmdline.c_str(),
-                                       binname)) {
-        pids->insert(pid);
-      }
-    }
+    if (PidMatchesCmdlinePatterns(pid, patterns))
+      pids->insert(pid);
   });
 }
 }  // namespace glob_aware

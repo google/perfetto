@@ -23,12 +23,16 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
 
@@ -40,7 +44,9 @@
 namespace perfetto::trace_processor::instruments_importer {
 
 RowParser::RowParser(TraceProcessorContext* context, RowDataTracker& data)
-    : context_(context), data_(data) {}
+    : context_(context),
+      data_(data),
+      instruments_source_id_(context->storage->InternString("instruments")) {}
 
 RowParser::~RowParser() = default;
 
@@ -50,7 +56,17 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   }
 
   Thread* thread = data_.GetThread(row.thread);
+  if (!thread) {
+    context_->import_logs_tracker->RecordParserLog(
+        stats::instruments_row_missing_thread, ts);
+    return;
+  }
   Process* process = data_.GetProcess(thread->process);
+  if (!process) {
+    context_->import_logs_tracker->RecordParserLog(
+        stats::instruments_row_missing_process, ts);
+    return;
+  }
   uint32_t tid = static_cast<uint32_t>(thread->tid);
   uint32_t pid = static_cast<uint32_t>(process->pid);
 
@@ -67,16 +83,28 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   auto& stack_profile_tracker = *context_->stack_profile_tracker;
 
   Backtrace* backtrace = data_.GetBacktrace(row.backtrace);
+  if (!backtrace) {
+    context_->import_logs_tracker->RecordParserLog(
+        stats::instruments_row_missing_backtrace, ts);
+    return;
+  }
   std::optional<CallsiteId> parent;
   uint32_t depth = 0;
   auto leaf = backtrace->frames.rend() - 1;
   for (auto it = backtrace->frames.rbegin(); it != backtrace->frames.rend();
        ++it) {
     Frame* frame = data_.GetFrame(*it);
+    if (!frame) {
+      context_->import_logs_tracker->RecordParserLog(
+          stats::instruments_row_missing_frame, ts);
+      continue;
+    }
     Binary* binary = data_.GetBinary(frame->binary);
 
     uint64_t pc = static_cast<uint64_t>(frame->addr);
-    if (frame->binary) {
+    // GetBinary returns null for a null or out-of-range binary id, so gate the
+    // load_addr adjustment on the resolved pointer rather than the raw id.
+    if (binary) {
       pc -= static_cast<uint64_t>(binary->load_addr);
     }
 
@@ -114,8 +142,22 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
     depth++;
   }
 
-  context_->storage->mutable_instruments_sample_table()->Insert(
-      {ts, utid, parent, row.core_id});
+  tables::ProfilerSampleTable::Row sample_row;
+  sample_row.ts = ts;
+  sample_row.source = instruments_source_id_;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = utid;
+  task_context.upid = upid;
+  sample_row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
+  tables::ProfilerExecutionContextTable::Row execution_context;
+  execution_context.ucpu =
+      context_->cpu_tracker->GetOrCreateCpu(row.core_id).value;
+  sample_row.execution_context_id =
+      context_->profiler_sample_tracker->InternExecutionContext(
+          execution_context);
+  sample_row.callsite_id = parent;
+  context_->profiler_sample_tracker->AddSample(sample_row);
 }
 
 DummyMemoryMapping* RowParser::GetDummyMapping(UniquePid upid) {

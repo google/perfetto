@@ -5,4 +5,7 @@
 #
 # Syntax is the same as .github/CODEOWNERS but paths are relative to this directory.
 
-./ @dreveman @jon-rv @zytyz
+# The maintainers below own the Rust SDK. @google/perfetto-team is also listed
+# so the Perfetto team can approve cleanups and other simple changes; route
+# substantive changes to the maintainers.
+./ @dreveman @jon-rv @zytyz @google/perfetto-team

@@ -18,14 +18,18 @@
 
 #include <limits>
 #include <memory>
+#include <random>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/root_message.h"
 #include "src/base/test/utils.h"
+#include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/protozero/test/fake_scattered_buffer.h"
 #include "test/gtest_and_gmock.h"
 
@@ -142,7 +146,7 @@ class MessageTest : public ::testing::Test {
       msg->Finalize();
   }
 
- private:
+ protected:
   std::unique_ptr<FakeScatteredBuffer> buffer_;
   std::unique_ptr<ScatteredStreamWriter> stream_writer_;
   std::vector<std::unique_ptr<uint8_t[]>> messages_;
@@ -403,7 +407,7 @@ TEST_F(MessageTest, MessageHandle) {
   MessageHandle<FakeRootMessage> handle4(msg4);
   ASSERT_EQ(msg4, &*handle4);
   msg4->Finalize();
-  ASSERT_EQ(nullptr, &*handle4);
+  ASSERT_THAT(handle4.get(), testing::IsNull());
 #endif
 
   // Test also the behavior of handle with non-root (nested) messages.
@@ -468,6 +472,249 @@ TEST_F(MessageTest, FinalizeWithoutCompaction) {
   uint32_t size = msg->Finalize();
   EXPECT_EQ(24u, size);
   EXPECT_EQ(28u, GetNumSerializedBytes());
+}
+
+TEST_F(MessageTest, ProtoGroupGeneratedMessages) {
+  RootMessage<protozero::test::protos::pbzero::EveryField> root;
+  root.Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  auto* outer = root.add_field_nested();
+  auto* inner = outer->add_field_nested();
+  auto* leaf = inner->add_field_nested();
+  leaf->set_field_int32(150);
+  root.set_field_int32(42);
+  EXPECT_EQ(11u, root.Finalize());
+  EXPECT_EQ(11u, root.Finalize());
+  EXPECT_EQ("737373089601040404082A", GetNextSerializedBytes(11));
+}
+
+TEST_F(MessageTest, ProtoGroupEmptyAndReset) {
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  EXPECT_EQ(0u, root->Finalize());
+  EXPECT_EQ(0u, root->Finalize());
+  EXPECT_EQ(0u, GetNumSerializedBytes());
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  root->BeginNestedMessage<Message>(1);
+  EXPECT_EQ(2u, root->Finalize());
+  root->Reset(stream_writer_.get());
+  root->BeginNestedMessage<Message>(1);
+  EXPECT_EQ(2u, root->Finalize());
+  EXPECT_EQ("0B040A00", GetNextSerializedBytes(4));
+}
+
+TEST_F(MessageTest, LengthDelimitedRootWithErasedType) {
+  Message* root = NewMessage();
+  root->BeginNestedMessage<Message>(1)->AppendVarInt(1, 1);
+  EXPECT_EQ(root->Finalize(), 4u);
+  EXPECT_EQ(root->Finalize(), 4u);
+  EXPECT_EQ("0A020801", GetNextSerializedBytes(4));
+}
+
+TEST_F(MessageTest, ProtoGroupHighFieldIdAndSiblings) {
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  auto* child = root->BeginNestedMessage<Message>(100);
+  child->AppendVarInt(1, 0);
+
+  // The child's size excludes its closing byte. The parent writes that byte.
+  EXPECT_EQ(2u, child->Finalize());
+  EXPECT_EQ(2u, child->Finalize());
+
+  root->BeginNestedMessage<Message>(1)->AppendVarInt(2, 150);
+  root->AppendVarInt(2, 42);
+  EXPECT_EQ(12u, root->Finalize());
+  EXPECT_EQ("A3060800040B10960104102A", GetNextSerializedBytes(12));
+}
+
+TEST_F(MessageTest, ProtoGroupCloseAtChunkBoundary) {
+  SetChunkSize(4);
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  auto* child = root->BeginNestedMessage<Message>(1);
+  child->AppendVarInt(2, 150);
+  ASSERT_EQ(4u, GetNumSerializedBytes());
+  EXPECT_EQ(nullptr, child->size_field());
+
+  // The closing byte goes into the next chunk. The first chunk is unchanged.
+  const auto published = buffer_->GetChunkAsString(0);
+  EXPECT_EQ(5u, root->Finalize());
+  EXPECT_EQ(published, buffer_->GetChunkAsString(0));
+  EXPECT_EQ("0B10960104", GetNextSerializedBytes(5));
+}
+
+TEST_F(MessageTest, ProtoGroupBytesAcrossChunks) {
+  SetChunkSize(4);
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  auto* child = root->BeginNestedMessage<Message>(1);
+  child->AppendBytes(2, kTestBytes, sizeof(kTestBytes));
+  EXPECT_EQ(14u, root->Finalize());
+  EXPECT_EQ("0B120A00000000420142FF420004", GetNextSerializedBytes(14));
+}
+
+// Roots and nested messages share one Finalize(). A root gets no closing byte,
+// even through a plain Message*, because it has no parent.
+TEST_F(MessageTest, ProtoGroupRootThroughMessagePointerHasNoClosingByte) {
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  root->BeginNestedMessage<Message>(1)->AppendVarInt(2, 7);
+  Message* as_plain_message = root;
+  EXPECT_EQ(4u, as_plain_message->Finalize());
+  EXPECT_EQ(4u, GetNumSerializedBytes());
+  EXPECT_EQ("0B100704", GetNextSerializedBytes(4));
+}
+
+// A child finalized early, even twice, gets exactly one closing byte.
+// The parent writes it right after the child, before its own next field.
+TEST_F(MessageTest, ProtoGroupEarlyChildFinalizeClosesOnce) {
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  auto* child = root->BeginNestedMessage<Message>(1);
+  child->AppendVarInt(2, 7);
+  EXPECT_EQ(2u, child->Finalize());
+  EXPECT_EQ(2u, child->Finalize());
+
+  // The parent has not written the closing byte yet.
+  EXPECT_EQ(3u, GetNumSerializedBytes());
+
+  root->AppendVarInt(3, 1);
+  EXPECT_EQ(6u, root->Finalize());
+  EXPECT_EQ(6u, root->Finalize());
+  EXPECT_EQ("0B1007041801", GetNextSerializedBytes(6));
+}
+
+// A handle on a nested message finalizes the child.
+// The closing byte still comes from the parent, once.
+TEST_F(MessageTest, ProtoGroupNestedHandleClosesInParent) {
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  {
+    MessageHandle<Message> handle(root->BeginNestedMessage<Message>(1));
+    handle->AppendVarInt(2, 7);
+  }
+  EXPECT_EQ(3u, GetNumSerializedBytes());
+  EXPECT_EQ(4u, root->Finalize());
+  EXPECT_EQ("0B100704", GetNextSerializedBytes(4));
+}
+
+// Deep nesting closes innermost first, one byte per level.
+TEST_F(MessageTest, ProtoGroupDeepNesting) {
+  constexpr size_t kDepth = 100;
+  SetChunkSize(4096u);
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  Message* msg = root;
+  for (size_t i = 0; i < kDepth; ++i)
+    msg = msg->BeginNestedMessage<Message>(1);
+  EXPECT_EQ(2 * kDepth, root->Finalize());
+
+  std::string expected;
+  for (size_t i = 0; i < kDepth; ++i)
+    expected += "0B";
+  for (size_t i = 0; i < kDepth; ++i)
+    expected += "04";
+  EXPECT_EQ(expected, GetNextSerializedBytes(2 * kDepth));
+}
+
+// The encoding does not leak into a later length-delimited Reset(), and a
+// length-delimited child still gets its length field.
+TEST_F(MessageTest, LengthDelimitedAfterProtoGroupReset) {
+  auto* root = NewMessage();
+  root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+  root->BeginNestedMessage<Message>(1)->AppendVarInt(2, 7);
+  EXPECT_EQ(4u, root->Finalize());
+
+  root->Reset(stream_writer_.get());
+  EXPECT_EQ(Message::Encoding::kLengthDelimited, root->encoding());
+  root->BeginNestedMessage<Message>(1)->AppendVarInt(2, 7);
+  EXPECT_EQ(4u, root->Finalize());
+
+  EXPECT_EQ("0B100704", GetNextSerializedBytes(4));
+  EXPECT_EQ("0A021007", GetNextSerializedBytes(4));
+}
+
+// A random message tree: varint fields and nested messages.
+struct TreeNode {
+  struct Item {
+    uint32_t field_id = 0;
+    uint64_t value = 0;                // Varint fields only.
+    std::unique_ptr<TreeNode> nested;  // Set for a nested message.
+  };
+  std::vector<Item> items;
+};
+
+std::unique_ptr<TreeNode> RandomTree(std::minstd_rand* rnd, int depth) {
+  auto node = std::make_unique<TreeNode>();
+  const uint32_t num_items = (*rnd)() % 4;
+  for (uint32_t i = 0; i < num_items; ++i) {
+    TreeNode::Item item;
+    item.field_id = 1 + (*rnd)() % 300;  // One- and two-byte tags.
+    if (depth > 0 && (*rnd)() % 2)
+      item.nested = RandomTree(rnd, depth - 1);
+    else
+      item.value = (*rnd)();
+    node->items.push_back(std::move(item));
+  }
+  return node;
+}
+
+// The reference proto group encoding: a nested message is its start tag, its
+// content and a closing byte. The root has no framing.
+void EncodeReference(const TreeNode& node, std::vector<uint8_t>* out) {
+  uint8_t varint[proto_utils::kMaxSimpleFieldEncodedSize];
+  for (const TreeNode::Item& item : node.items) {
+    if (item.nested) {
+      uint8_t* end = proto_utils::WriteVarInt(
+          proto_utils::MakeTagStartGroup(item.field_id), varint);
+      out->insert(out->end(), varint, end);
+      EncodeReference(*item.nested, out);
+      out->push_back(proto_utils::kProtoGroupEndByte);
+    } else {
+      uint8_t* end = proto_utils::WriteVarInt(
+          proto_utils::MakeTagVarInt(item.field_id), varint);
+      end = proto_utils::WriteVarInt(item.value, end);
+      out->insert(out->end(), varint, end);
+    }
+  }
+}
+
+// Writes |node| through protozero. Each nested message is finalized early at
+// random, the way a nested MessageHandle finalizes it.
+void WriteTree(const TreeNode& node, Message* msg, std::minstd_rand* rnd) {
+  for (const TreeNode::Item& item : node.items) {
+    if (item.nested) {
+      Message* child = msg->BeginNestedMessage<Message>(item.field_id);
+      WriteTree(*item.nested, child, rnd);
+      if ((*rnd)() % 2)
+        child->Finalize();
+    } else {
+      msg->AppendVarInt(item.field_id, item.value);
+    }
+  }
+}
+
+// The closing byte lands in the right place for any tree, any early
+// finalization and any chunk size, including closes at a chunk boundary.
+TEST_F(MessageTest, ProtoGroupRandomTreesMatchReferenceEncoding) {
+  std::minstd_rand rnd(0x2545f491);
+  for (int i = 0; i < 500; ++i) {
+    SCOPED_TRACE(i);
+    SetChunkSize(4 + static_cast<size_t>(i % 29));
+    const std::unique_ptr<TreeNode> tree = RandomTree(&rnd, /*depth=*/5);
+    std::vector<uint8_t> expected;
+    EncodeReference(*tree, &expected);
+
+    auto* root = NewMessage();
+    root->Reset(stream_writer_.get(), Message::Encoding::kProtoGroup);
+    WriteTree(*tree, root, &rnd);
+    ASSERT_EQ(expected.size(), root->Finalize());
+    ASSERT_EQ(expected.size(), GetNumSerializedBytes());
+
+    const char* expected_data = reinterpret_cast<const char*>(expected.data());
+    const std::string expected_hex = perfetto::base::ToUpper(
+        perfetto::base::ToHex(expected_data, expected.size()));
+    ASSERT_EQ(expected_hex, GetNextSerializedBytes(expected.size()));
+  }
 }
 
 }  // namespace

@@ -1,0 +1,60 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Ratio: an uppercase label, a big % headline, and a two-tone ProportionBar.
+// The recessed chrome comes from the Inset this class is applied to.
+.pf-memscope-ratio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &__label {
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__headline {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  &__pct {
+    font-size: var(--pf-font-size-xl);
+    font-weight: 700;
+    color: var(--pf-color-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__text {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__pct-delta {
+    margin-left: auto;
+    font-size: var(--pf-font-size-xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--pf-color-text-muted);
+  }
+
+  &__legend-change {
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}

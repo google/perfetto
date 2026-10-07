@@ -14,26 +14,22 @@
 
 import m from 'mithril';
 import {Button} from '../../widgets/button';
-import {EmptyState} from '../../widgets/empty_state';
-import {SplitPanel} from '../../widgets/split_panel';
 import {Spinner} from '../../widgets/spinner';
+import {SplitPanel} from '../../widgets/split_panel';
 import {Tabs, type TabsTab} from '../../widgets/tabs';
 import {QueryHistoryComponent} from '../query/query_history';
 import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
-import {sqlTablesLoader} from '../query/sql_tables';
-import {TableList} from '../query/table_list';
 import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
 import {QueryTabsState} from './query_tabs_state';
-import {queryState} from '../query/query_state';
 
 interface QueryPageAttrs {
   useBigtraceBackend?: boolean;
 }
 
-// Lets the globally-registered keyboard command reach into the active
-// QueryPage instance. Same pattern as sidebarToggleFn in index.ts.
+// Lets the global keyboard command reach the active QueryPage instance
+// (same pattern as sidebarToggleFn in index.ts).
 export let queryRightSidebarToggleFn: (() => void) | undefined;
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
@@ -57,32 +53,14 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     if (this.useBigtraceBackend) {
       bigTraceSettingsStorage.loadSettings();
     }
-    sqlTablesLoader.load();
   }
 
   view() {
-    // Process initialQuery set by home-page example buttons.
-    // Read-and-clear: each value is consumed exactly once.
-    const initialQuery = queryState.initialQuery;
-    if (initialQuery !== undefined) {
-      queryState.initialQuery = undefined;
-      const activeTab = this.tabsState.getActiveTab();
-      if (activeTab && activeTab.editorText.trim() === '') {
-        activeTab.editorText = initialQuery;
-        this.tabsState.maybeAutoNameTab(activeTab.id, initialQuery);
-      } else {
-        this.tabsState.addNewTab(undefined, initialQuery);
-      }
-      this.tabsState.markDirty();
-    }
-
-    // Build editor tabs for the Tabs widget.
     const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({
       key: tab.id,
       title: tab.title,
-      // Spinner on tabs with a query in flight, so tab-switching
-      // doesn't make the running query "disappear".
-      leftIcon: tab.isLoading ? 'progress_activity' : 'code',
+      // Spinner on in-flight tabs so switching away doesn't hide the run.
+      leftIcon: tab.isLoading ? m(Spinner) : 'code',
       closeButton: this.tabsState.tabs.length > 1,
       content: m(EditorTabView, {
         tab,
@@ -103,11 +81,11 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       },
       onTabRename: (key, newTitle) => this.tabsState.renameTab(key, newTitle),
       onTabClose: async (key) => {
-        // closeTab is a no-op when only one tab remains; bail before
-        // the confirm so middle-click doesn't dead-end.
+        // closeTab is a no-op with one tab left; bail before the confirm
+        // so middle-click doesn't dead-end.
         if (this.tabsState.tabs.length <= 1) return;
         // Confirm only for ephemeral queries — closing loses the results.
-        // Persistent queries keep running on the backend (reopen from History).
+        // Persistent queries keep running and can be reopened from History.
         const tab = this.tabsState.tabs.find((t) => t.id === key);
         if (tab?.isLoading && !tab.materialize) {
           let confirmed = false;
@@ -153,53 +131,32 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       ],
     });
 
-    const sidebarPanel = m(Tabs, {
-      className: 'pf-bt-query-page__sidebar',
-      tabs: [
-        {
-          key: 'history',
-          // No leftIcon — the ~20px is better spent on the label at
-          // narrow viewports.
-          title: 'History',
-          content: m(QueryHistoryComponent, {
-            className: 'pf-bt-query-page__history',
-            refreshSignal: this.historyRefreshSignal,
-            openQuery: async (
-              query: string,
-              uuid: string,
-              materialize: boolean,
-              forceNew?: boolean,
-              limit?: number,
-              startTime?: number,
-            ) => {
-              const tab = this.tabsState.addNewTab(
-                undefined,
-                query,
-                limit,
-                uuid,
-                materialize,
-                forceNew,
-              );
-              this.tabsState.activeTabId = tab.id;
-              this.tabsState.markDirty();
-              if (startTime !== undefined && tab.execution) {
-                tab.execution.startTime = startTime;
-              }
-              await this.runner.resumeFromHistory(tab, query);
-            },
-          }),
-        },
-        {
-          key: 'tables',
-          // Hide the count until the loader settles so we don't
-          // flash "(0)" on mount.
-          title:
-            sqlTablesLoader.modules && !sqlTablesLoader.isLoading
-              ? `Stdlib Schemas (${sqlTablesLoader.modules.listTables().length})`
-              : 'Stdlib Schemas',
-          content: this.renderTablesTab(),
-        },
-      ],
+    const sidebarPanel = m(QueryHistoryComponent, {
+      className: 'pf-bt-query-page__history',
+      refreshSignal: this.historyRefreshSignal,
+      openQuery: async (
+        query: string,
+        uuid: string,
+        materialize: boolean,
+        forceNew?: boolean,
+        limit?: number,
+        startTime?: number,
+      ) => {
+        const tab = this.tabsState.addNewTab(
+          undefined,
+          query,
+          limit,
+          uuid,
+          materialize,
+          forceNew,
+        );
+        this.tabsState.activeTabId = tab.id;
+        this.tabsState.markDirty();
+        if (startTime !== undefined && tab.execution) {
+          tab.execution.startTime = startTime;
+        }
+        await this.runner.resumeFromHistory(tab, query);
+      },
     });
 
     if (!this.sidebarVisible) {
@@ -212,40 +169,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         direction: 'horizontal',
         initialSplit: {percent: 25},
         controlledPanel: 'second',
-        // Floor for the History meta-band layout; dismiss the
-        // sidebar entirely (Ctrl+Shift+B) for narrower screens.
+        // Floor for the History meta-band layout; dismiss the sidebar
+        // entirely (Ctrl+Shift+B) on narrower screens.
         minSize: 280,
         firstPanel: leftPanel,
         secondPanel: sidebarPanel,
       }),
     );
-  }
-
-  private renderTablesTab(): m.Children {
-    if (sqlTablesLoader.loadError) {
-      return m(EmptyState, {
-        title: `Failed to load tables: ${sqlTablesLoader.loadError}`,
-        icon: 'error',
-        fillHeight: true,
-      });
-    }
-    const modules = sqlTablesLoader.modules;
-    if (sqlTablesLoader.isLoading || !modules) {
-      return m(
-        EmptyState,
-        {
-          title: 'Loading tables...',
-          icon: 'hourglass_empty',
-          fillHeight: true,
-        },
-        m(Spinner),
-      );
-    }
-    return m(TableList, {
-      sqlModules: modules,
-      onQueryTable: (tableName, query) => {
-        this.tabsState.addNewTab(tableName, query);
-      },
-    });
   }
 }

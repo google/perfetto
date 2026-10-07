@@ -8,6 +8,42 @@ documents:
  - **Context**: why we are making the change i.e. why does it have to backwards incompatible?
  - **Migrations**: suggested changes you can make to your PerfettoSQL to not be broken by the changes
 
+## `graph_reachable_dfs`/`graph_reachable_bfs` return start nodes when the graph has no edges
+
+**Date/Version**
+
+2026-10-06/v59.0
+
+**Symptoms**
+
+- `graph_reachable_dfs` and `graph_reachable_bfs` returning rows (one per start
+  node, with a `NULL` `parent_node_id`) when the graph table is empty, where
+  previously they returned no rows.
+
+**Context**
+
+When the graph table had at least one edge, start nodes which did not appear
+in any edge were already returned (as every node is reachable from itself).
+However, when the graph table was empty, the start nodes were not returned at
+all. This inconsistency meant callers computing "the set of nodes reachable
+from X" got the wrong answer whenever there happened to be no edges (e.g.
+computing which slices are reachable from the root slices when no slice has
+a parent).
+
+The start nodes are now always returned, regardless of whether the graph has
+any edges.
+
+**Migrations**
+
+If you relied on an empty graph producing an empty result, check for the
+graph being empty explicitly. For example:
+
+```sql
+SELECT *
+FROM graph_reachable_dfs!(edges, start_nodes)
+WHERE EXISTS (SELECT 1 FROM edges)
+```
+
 ## Removal of `stack_id` and `parent_stack_id` columns from slice table
 
 **Date/Version**

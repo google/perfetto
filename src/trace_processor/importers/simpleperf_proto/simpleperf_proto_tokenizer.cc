@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tokenizer.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -29,6 +30,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
@@ -37,6 +39,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/third_party/simpleperf/cmd_report_sample.pbzero.h"
@@ -91,7 +94,8 @@ base::Status SimpleperfProtoTokenizer::Parse(TraceBlobView blob) {
 
 base::Status SimpleperfProtoTokenizer::OnPushDataToSorter() {
   if (state_ != State::kFinished) {
-    return base::ErrStatus("Unexpected end of simpleperf_proto file");
+    return base::ErrStatus(
+        "Unexpected end of simpleperf_proto file (ERR:tp-corrupt)");
   }
   return base::OkStatus();
 }
@@ -254,3 +258,46 @@ SimpleperfProtoTokenizer::ParseRecord() {
 }
 
 }  // namespace perfetto::trace_processor::simpleperf_proto_importer
+
+namespace perfetto::trace_processor {
+namespace {
+
+// Simpleperf protobuf report format.
+class SimpleperfProtoImporter : public TraceImporter<SimpleperfProtoImporter> {
+ public:
+  SimpleperfProtoImporter() : TraceImporter(MakeDescriptor()) {}
+  ~SimpleperfProtoImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    static constexpr char kMagic[] = {'S', 'I', 'M', 'P', 'L',
+                                      'E', 'P', 'E', 'R', 'F'};
+    return size >= sizeof(kMagic) && memcmp(data, kMagic, sizeof(kMagic)) == 0;
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<simpleperf_proto_importer::SimpleperfProtoTokenizer>(
+            context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "simpleperf_proto";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.detection_priority = 40;
+    return d;
+  }
+};
+
+SimpleperfProtoImporter::~SimpleperfProtoImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateSimpleperfProtoImporter() {
+  return std::make_unique<SimpleperfProtoImporter>();
+}
+
+}  // namespace perfetto::trace_processor

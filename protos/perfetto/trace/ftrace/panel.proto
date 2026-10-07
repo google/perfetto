@@ -30,3 +30,22 @@ message GramCollisionFtraceEvent {
   optional int32 panel_index = 1;
   optional uint32 collision_cnt = 2;
 }
+message PanelSettingsFullFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 hbm = 2;
+  optional uint32 irc = 3;
+  optional uint32 h_pwm = 4;
+  optional uint32 fi_auto = 5;
+  optional uint32 fi_manual = 6;
+  optional uint32 early_exit = 7;
+  optional uint32 min_rr = 8;
+  optional uint32 max_rr = 9;
+  optional uint32 te_freq = 10;
+}
+message PanelSettingsLiteFtraceEvent {
+  optional int32 panel_index = 1;
+  optional uint32 vrr = 2;
+  optional uint32 min_rr = 3;
+  optional uint32 max_rr = 4;
+  optional uint32 te_freq = 5;
+}

@@ -14,9 +14,14 @@
 
 import './editor.scss';
 import {indentWithTab} from '@codemirror/commands';
-import {EditorState, type Transaction} from '@codemirror/state';
+import {
+  Compartment,
+  EditorState,
+  type Extension,
+  type Transaction,
+} from '@codemirror/state';
 import {oneDark} from '@codemirror/theme-one-dark';
-import {keymap} from '@codemirror/view';
+import {keymap, tooltips} from '@codemirror/view';
 import {basicSetup, EditorView} from 'codemirror';
 import {javascript} from '@codemirror/lang-javascript';
 import m from 'mithril';
@@ -25,6 +30,7 @@ import {assertUnreachable} from '../base/assert';
 import {perfettoSql} from '../base/perfetto_sql_lang/language';
 import type {HTMLAttrs} from './common';
 import {classNames} from '../base/classnames';
+import {GateDetector} from '../base/mithril_utils';
 
 type EditorLanguage = 'perfetto-sql' | 'javascript';
 
@@ -44,6 +50,13 @@ export interface EditorAttrs extends HTMLAttrs {
   // Whether the editor should be focused on creation.
   readonly autofocus?: boolean;
 
+  // Whether the editor should be focused every time it becomes visible (e.g.
+  // when its tab is activated). The editor must be inside a Gate (see
+  // mithril_utils) for this to have any effect; otherwise it is ignored.
+  // Unlike `autofocus`, which fires only on first creation, this re-focuses on
+  // every visibility change.
+  readonly focusOnVisible?: boolean;
+
   // Whether the editor should fill the height of its container.
   readonly fillHeight?: boolean;
 
@@ -51,21 +64,29 @@ export interface EditorAttrs extends HTMLAttrs {
   readonly readonly?: boolean;
 
   // Callback for the Ctrl/Cmd + Enter key binding.
-  onExecute?: (text: string) => void;
+  readonly onExecute?: (text: string) => void;
 
   // Callback for the Ctrl/Cmd + S key binding.
-  onSave?: () => void;
+  readonly onSave?: () => void;
 
   // Callback for the Alt/Opt + Shift + F key binding.
-  onFormat?: (text: string) => void;
+  readonly onFormat?: (text: string) => void;
 
   // Callback for every change to the editor's content.
-  onUpdate?: (text: string) => void;
+  readonly onUpdate?: (text: string) => void;
+
+  // Extra CodeMirror extensions supplied by the caller (e.g. the LSP
+  // integration from the SqlLsp plugin).
+  readonly extensions?: Extension;
 }
 
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
   private latestText?: string;
+  // Caller extensions live in a compartment so they can be swapped in on a
+  // later render (e.g. a plugin registering them after this editor mounted).
+  private readonly callerExtensions = new Compartment();
+  private latestExtensions?: Extension;
 
   focus() {
     this.editorView?.focus();
@@ -73,6 +94,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     this.latestText = attrs.text;
+    this.latestExtensions = attrs.extensions;
     const keymaps = [indentWithTab];
     const onExecute = attrs.onExecute;
     const onSave = attrs.onSave;
@@ -171,6 +193,11 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         oneDark,
         basicSetup,
         lang,
+        // Float popups (autocomplete, hover tooltips) in a body portal so an
+        // `overflow: hidden` ancestor (e.g. the query page's split pane)
+        // doesn't clip them at the pane edge.
+        tooltips({parent: document.body, position: 'fixed'}),
+        this.callerExtensions.of(attrs.extensions ?? []),
       ]),
       parent: dom,
       dispatch,
@@ -179,9 +206,27 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     if (attrs.autofocus) {
       this.focus();
     }
+
+    if (attrs.focusOnVisible) {
+      // Cover the initial creation: the GateDetector (see view) handles later
+      // visibility changes, but its first callback cannot run yet because
+      // Mithril calls oncreate bottom-up, so editorView does not exist when it
+      // fires. Focus now if we are already inside an open Gate.
+      const gate = dom.closest('[data-gate-open]') as HTMLElement | null;
+      if (gate?.dataset.gateOpen === 'true') {
+        this.focus();
+      }
+    }
   }
 
   onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {
+    if (attrs.extensions !== this.latestExtensions) {
+      this.latestExtensions = attrs.extensions;
+      this.editorView?.dispatch({
+        effects: this.callerExtensions.reconfigure(attrs.extensions ?? []),
+      });
+    }
+
     // Uncontrolled mode: no need to do anything.
     if (attrs.text === undefined) {
       return;
@@ -211,9 +256,26 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       attrs.className,
       attrs.fillHeight && 'pf-editor--fill-height',
     );
-    return m('.pf-editor', {
+    const editor = m('.pf-editor', {
       className: className,
       ref: attrs.ref,
     });
+    if (!attrs.focusOnVisible) {
+      return editor;
+    }
+    // Re-focus whenever the enclosing Gate becomes visible (e.g. when this
+    // editor's tab is activated). The GateDetector finds the Gate via its
+    // `dom` (the .pf-editor element) and observes its data-gate-open attribute.
+    return m(
+      GateDetector,
+      {
+        onVisibilityChanged: (visible: boolean) => {
+          if (visible) {
+            this.focus();
+          }
+        },
+      },
+      editor,
+    );
   }
 }

@@ -18,8 +18,7 @@ import '../base/static_initializers';
 import '../assets/typefaces.scss';
 import '../assets/common.scss';
 import z from 'zod';
-import NON_CORE_PLUGINS from 'virtual:perfetto/all_plugins';
-import CORE_PLUGINS from 'virtual:perfetto/all_core_plugins';
+import {plugins, corePlugins} from './plugins';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
@@ -33,7 +32,7 @@ import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
-import {type Route, Router} from '../core/router';
+import {Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -65,6 +64,7 @@ import {
 } from '../core/command_manager';
 import {type HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {sleepMs} from '../base/utils';
+import type {Route} from '../public/app';
 
 // =============================================================================
 // UI INITIALIZATION STAGES
@@ -163,10 +163,11 @@ function setupContentSecurityPolicy() {
       'https://www.googletagmanager.com',
       'https://*.google-analytics.com',
     ],
-    'object-src': ['none'],
+    'object-src': [`'none'`],
     'connect-src': [
       `'self'`,
       'ws://127.0.0.1:8037', // For the adb websocket server.
+      'http://localhost:8080', // For local llama-server.
       'https:', // Allow any HTTPS; service worker firewall adds granular filtering.
       'blob:',
       'data:',
@@ -473,8 +474,8 @@ function onCssLoaded(app: AppImpl) {
 
   // Initialize plugins, now that we are ready to go.
   const pluginManager = app.plugins;
-  CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
-  NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
+  corePlugins.forEach((p) => pluginManager.registerPlugin(p, true));
+  plugins.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);

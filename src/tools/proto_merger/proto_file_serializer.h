@@ -22,6 +22,9 @@
 namespace perfetto {
 namespace proto_merger {
 
+inline constexpr char kDeletedCommentWarning[] =
+    "The following enums/messages/fields are not present upstream";
+
 // Serializes a ProtoFile struct into a .proto file which is
 // capable of being parsed by protoc.
 // For example:

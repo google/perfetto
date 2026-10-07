@@ -299,6 +299,18 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: undefined,
   },
   {
+    type: 'perf_thread_counter',
+    topLevelGroup: 'THREAD',
+    group: undefined,
+    mode: 'delta',
+  },
+  {
+    type: 'perf_thread_cpu_counter',
+    topLevelGroup: 'THREAD',
+    group: undefined,
+    mode: 'delta',
+  },
+  {
     type: 'pixel_cpm_counters',
     topLevelGroup: 'HARDWARE',
     group: 'CPM Counters',
@@ -336,7 +348,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   {
     type: 'screen_state',
     topLevelGroup: 'SYSTEM',
-    group: 'Screen State',
+    group: undefined,
   },
   {
     type: 'smaps',

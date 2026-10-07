@@ -103,6 +103,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     hasFtrace: false,
     uuid: '',
     cached: false,
+    shareable: false,
     downloadable: false,
   };
   AppImpl.instance.closeCurrentTrace();

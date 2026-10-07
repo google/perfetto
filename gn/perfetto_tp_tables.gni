@@ -57,6 +57,7 @@ template("perfetto_tp_tables") {
   if (defined(invoker.generate_docs) && invoker.generate_docs &&
       perfetto_build_standalone) {
     docs_name = target_name + "_docs"
+
     action(docs_name) {
       sources = invoker.sources
       script = "$perfetto_root_path/tools/gen_tp_table_docs.py"

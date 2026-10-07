@@ -12,13 +12,75 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {z} from 'zod';
 import {Registry} from '../base/registry';
+import {CommandError} from '../public/commands';
 import type {Command, CommandManager} from '../public/commands';
 import {raf} from './raf_scheduler';
 import type {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
 import {DisposableStack} from '../base/disposable_stack';
+import type {Hotkey} from '../base/hotkeys';
+import {closeModal, showModal} from '../widgets/modal';
+import {Callout} from '../widgets/callout';
+import {CodeSnippet} from '../widgets/code_snippet';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
+import {Intent} from '../widgets/common';
+import {Router} from './router';
+import {getErrorMessage} from '../base/errors';
+
+// A map of command id -> hotkey.
+export type HotkeyOverlay = Record<string, Hotkey>;
+
+// A hotkey overlay for firefox browser.
+const firefoxOverlay: HotkeyOverlay = {
+  'dev.perfetto.OpenCommandPalette': '!F1', // Mod+Shift+P is not overridable in firefox
+};
+
+// Work out whether we are running inside firefox or not. Safe to evaluate this
+// at module scope because the browser cannot change.
+// TODO(stevegolton): We should move this to a common place.
+const isFirefox =
+  typeof navigator !== 'undefined' && navigator.userAgent.includes('Firefox');
+
+// The list of overlays for this environment.
+// For now - only firefox has mods, but this could include other browsers or
+// keyboard mappings in the future.
+const hotkeyOverlays = isFirefox ? [firefoxOverlay] : [];
+
+/**
+ * Remaps command hotkeys using one or more overlays. Overlays are a map of
+ * command id -> hotkey. Overlays are applied sequentially so the later overlays
+ * take precedence.
+ *
+ * @param cmds Commands to remap.
+ * @param overlays Overlays to apply.
+ * @returns Remapped commands - 'cmd.defaultHotkey's updated.
+ */
+export function remapHotkeys(
+  cmds: readonly Command[],
+  overlays: readonly HotkeyOverlay[],
+): readonly Command[] {
+  if (overlays.length === 0) {
+    return cmds;
+  }
+  return cmds.map((cmd) => {
+    const overriddenHotkey = overlays.reduce(
+      (hotkey: Hotkey | undefined, overlay: HotkeyOverlay) => {
+        const overriddenHotkey = overlay[cmd.id];
+        return overriddenHotkey ?? hotkey;
+      },
+      undefined,
+    );
+    if (!overriddenHotkey) return cmd;
+    return {
+      ...cmd,
+      defaultHotkey: overriddenHotkey,
+    };
+  });
+}
 
 /**
  * Zod schema for a single command invocation.
@@ -103,7 +165,9 @@ export class CommandManagerImpl implements CommandManager {
   constructor(private omnibox: OmniboxManagerImpl) {}
 
   getCommand(commandId: string): Command | undefined {
-    return this.registry.tryGet(commandId);
+    const cmd = this.registry.tryGet(commandId);
+    if (!cmd) return undefined;
+    return remapHotkeys([cmd], hotkeyOverlays)[0];
   }
 
   hasCommand(commandId: string): boolean {
@@ -111,21 +175,26 @@ export class CommandManagerImpl implements CommandManager {
   }
 
   getCommands(): readonly Command[] {
-    return this.registry.valuesAsArray();
+    return remapHotkeys(this.registry.valuesAsArray(), hotkeyOverlays);
   }
 
   registerCommand(cmd: Command): Disposable {
     return this.registry.register(cmd);
   }
 
-  runCommand(id: string, ...args: unknown[]): unknown {
+  async runCommand(id: string, ...args: unknown[]): Promise<unknown> {
     if (this.isExecutingStartupCommands && !this.isStartupCommandAllowed(id)) {
       throw new StartupCommandNotAllowedError(id);
     }
     const cmd = this.registry.get(id);
-    const res = cmd.callback(...args);
-    Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
-    return res;
+    try {
+      return await cmd.callback(...args);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      throw new CommandError(cmd.id, cmd.name, cmd.source, error);
+    } finally {
+      raf.scheduleFullRedraw();
+    }
   }
 
   // Internal API: not part of the public CommandManager interface.
@@ -144,7 +213,15 @@ export class CommandManagerImpl implements CommandManager {
           // so we disable prompts during their execution.
           using _ = this.omnibox.disablePrompts();
           for (const command of run) {
-            await this.runCommand(command.id, ...command.args);
+            try {
+              await this.runCommand(command.id, ...command.args);
+            } catch (err) {
+              if (this.isExecutingStartupCommands) {
+                throw err;
+              }
+              showMacroErrorDialog(name, id, command.id, err);
+              return;
+            }
           }
         },
       }),
@@ -169,4 +246,71 @@ export class CommandManagerImpl implements CommandManager {
 
     return false;
   }
+}
+
+function showMacroErrorDialog(
+  macroName: string,
+  macroId: string,
+  failedCommandId: string,
+  error: unknown,
+) {
+  const errorMessage =
+    error instanceof Error ? error.toString() : getErrorMessage(error);
+  showModal({
+    title: `Macro failed: ${macroName}`,
+    content: () =>
+      m(
+        '.pf-error-dialog',
+        m(
+          Callout,
+          {
+            icon: Icons.Warning,
+            intent: Intent.Danger,
+          },
+          `Failed while executing command "${failedCommandId}" in macro "${macroName}" (${macroId}).`,
+        ),
+        m(CodeSnippet, {
+          text: errorMessage,
+          language: 'Error details',
+          class: 'pf-error-dialog__code',
+        }),
+        m(
+          'p.pf-error-dialog__note',
+          'Please check your macro configuration in ',
+          m(
+            Anchor,
+            {
+              href: `#!/settings/${encodeURIComponent('perfetto.CoreCommands#Macros')}`,
+              onclick: () => closeModal(),
+            },
+            'Settings > Macros',
+          ),
+          '. See the ',
+          m(
+            Anchor,
+            {
+              href: 'https://perfetto.dev/docs/visualization/commands-automation-reference',
+              target: '_blank',
+              icon: Icons.ExternalLink,
+            },
+            'Commands Automation Reference',
+          ),
+          ' for valid command IDs and arguments.',
+        ),
+      ),
+    buttons: [
+      {
+        text: 'Open Settings',
+        action: () => {
+          Router.navigate(
+            `#!/settings/${encodeURIComponent('perfetto.CoreCommands#Macros')}`,
+          );
+        },
+      },
+      {
+        text: 'Dismiss',
+        primary: true,
+      },
+    ],
+  });
 }

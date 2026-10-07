@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE stacks.cpu_profiling;
-
 -- On Linux/Android perfetto profilers (heapprofd, traced_perf) record the
 -- .note.gnu.build-id as build_id. Within Google, this can be used as a lookup
 -- key for most cases, but not for Chrome/Webview. Chrome is special and stores
@@ -71,16 +69,21 @@ CREATE PERFETTO TABLE _stacks_symbolization_candidates(
 )
 AS
 WITH
-  perf_callsites AS (
-    SELECT DISTINCT upid, callsite_id
-    FROM cpu_profiling_samples
-    JOIN thread USING (utid)
+  sample_callsites AS (
+    SELECT DISTINCT COALESCE(tc.upid, t.upid) AS upid, ss.callsite_id
+    FROM stack_sample AS ss
+    LEFT JOIN stack_sample_task_context AS tc
+      ON tc.id = ss.task_context_id
+    LEFT JOIN thread AS t
+      ON t.utid = tc.utid
+    WHERE
+      ss.callsite_id IS NOT NULL
   ),
   hprof_callsites AS (
     SELECT DISTINCT upid, callsite_id FROM heap_profile_allocation
   ),
   all_callsites AS (
-    SELECT * FROM perf_callsites
+    SELECT * FROM sample_callsites
     UNION ALL
     SELECT * FROM hprof_callsites
   ),

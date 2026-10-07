@@ -127,6 +127,7 @@ typedef void (*PerfettoDsOnDestroyCb)(struct PerfettoDsImpl*,
                                       void* inst_ctx);
 
 // Opaque handle used to perform operations from the OnFlush callback.
+// Pointers to this struct are valid only during the OnFlush callback.
 struct PerfettoDsOnFlushArgs;
 
 // Opaque handle used to signal when the data source flush operation is
@@ -143,6 +144,22 @@ PerfettoDsOnFlushArgsPostpone(struct PerfettoDsOnFlushArgs*);
 // source instance (whose stop operation was previously postponed with
 // PerfettoDsOnFlushArgsPostpone).
 PERFETTO_SDK_EXPORT void PerfettoDsFlushDone(struct PerfettoDsAsyncFlusher*);
+
+// Reason for the flush operation.
+// Mirrors `perfetto::FlushFlags::Reason` in
+// `perfetto/tracing/core/flush_flags.h`. Keep this enum aligned with it.
+enum PerfettoDsFlushReason {
+  PERFETTO_DS_FLUSH_REASON_UNKNOWN = 0,
+  PERFETTO_DS_FLUSH_REASON_PERIODIC = 1,
+  PERFETTO_DS_FLUSH_REASON_TRACE_STOP = 2,
+  PERFETTO_DS_FLUSH_REASON_TRACE_CLONE = 3,
+  PERFETTO_DS_FLUSH_REASON_EXPLICIT = 4,
+};
+
+// Returns the reason for the flush operation (see enum PerfettoDsFlushReason).
+// `args` is valid only during the OnFlush callback.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsOnFlushArgsGetReason(struct PerfettoDsOnFlushArgs* args);
 
 // Called when the tracing service requires all the pending tracing data to be
 // flushed for a data source instance. `user_arg` is the value passed to
@@ -374,6 +391,26 @@ PERFETTO_SDK_EXPORT void PerfettoDsTracerImplPacketEnd(
 // Called when a flush request is complete.
 typedef void (*PerfettoDsTracerOnFlushCb)(void* user_arg);
 
+enum PerfettoDsClockId {
+  // Builtin clock ids (see perfetto.common.BuiltinClock).
+  PERFETTO_DS_CLOCK_MONOTONIC = 3,
+  PERFETTO_DS_CLOCK_BOOTTIME = 6,
+};
+
+// Returns the clock id for the default trace clock.
+PERFETTO_SDK_EXPORT uint32_t PerfettoDsGetDefaultClockId(void);
+
+struct PerfettoDsTimestamp {
+  // PerfettoDsClockId
+  uint32_t clock_id;
+  uint64_t value;
+};
+
+// Returns the current timestamp in the preferred trace clock. The returned
+// clock_id indicates which clock was used and should be set on
+// TracePacket.timestamp_clock_id.
+PERFETTO_SDK_EXPORT struct PerfettoDsTimestamp PerfettoDsGetTimestamp(void);
+
 // Forces a commit of the thread-local tracing data written so far to the
 // service.
 //
@@ -387,6 +424,17 @@ PERFETTO_SDK_EXPORT void PerfettoDsTracerImplFlush(
     struct PerfettoDsTracerImpl* tracer,
     PerfettoDsTracerOnFlushCb cb,
     void* user_arg);
+
+// Returns the number of times `tracer` entered a mode in which it started
+// dropping data (e.g. because the shared memory buffer was exhausted and the
+// buffer exhausted policy is PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP).
+//
+// Note that this does *not* necessarily correspond to the number of dropped
+// packets, as multiple packets can be dropped on each entry into the drop
+// mode. A non-zero (or increased) value indicates that some data written on
+// this tracer was lost.
+PERFETTO_SDK_EXPORT uint64_t
+PerfettoDsTracerImplGetDropCount(struct PerfettoDsTracerImpl* tracer);
 
 #ifdef __cplusplus
 }

@@ -28,6 +28,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -81,8 +83,13 @@ class PerfettoSqlParser {
     bool replace;
     std::string name;
     std::vector<sql_argument::ArgumentDefinition> schema;
-    // SQL source for the select statement.
-    SqlSource sql;
+    using Body = std::variant<SqlSource, pipeline::LogicalPlan>;
+    Body body;
+  };
+  // Indicates that the specified SQL was a pipeline: FROM followed by `|>`
+  // stages.
+  struct Pipeline {
+    pipeline::LogicalPlan plan;
   };
   // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
   // with the following parameters.
@@ -124,6 +131,13 @@ class PerfettoSqlParser {
     SqlSource sql;
   };
 
+  // Indicates that the specified SQL was a PERFETTO PRAGMA statement with
+  // the following parameters.
+  struct Pragma {
+    std::string name;
+    int64_t value;
+  };
+
   using Statement = std::variant<CreateFunction,
                                  CreateIndex,
                                  CreateMacro,
@@ -131,12 +145,28 @@ class PerfettoSqlParser {
                                  CreateView,
                                  DropIndex,
                                  Include,
+                                 Pipeline,
+                                 Pragma,
                                  SqliteSql>;
 
-  // Creates a new SQL parser with the a block of PerfettoSQL statements.
-  // Concretely, the passed string can contain >1 statement.
-  explicit PerfettoSqlParser(SqlSource,
-                             const base::FlatHashMap<std::string, Macro>&);
+  // Reset(SqlSource) must be called before iterating. The underlying
+  // syntaqlite parser is created once and reused across Reset() calls.
+  //
+  // Pipelines are compiled against `catalog`. `pipelines_allowed` says whether
+  // the SQL read may use one at all; it is asked for separately because it
+  // varies between sources sharing one parser, not between catalogs.
+  explicit PerfettoSqlParser(
+      const base::FlatHashMap<std::string, Macro>& macros,
+      const pipeline::Catalog& catalog,
+      bool pipelines_allowed);
+
+  // Rebinds to a fresh source; keeps the syntaqlite parser instance.
+  void Reset(SqlSource);
+
+  // Whether the SQL read from here on may use a pipeline. Independent of the
+  // syntaqlite parser, so one instance serves sources which differ in whether
+  // they are allowed one.
+  void SetPipelinesAllowed(bool allowed);
 
   ~PerfettoSqlParser();
 
@@ -158,12 +188,32 @@ class PerfettoSqlParser {
   // called unless |Next()| returned true.
   const Statement& statement() const;
 
+  // Transfers the current statement to the caller. After this, statement()
+  // and TakeStatement() must not be called until Next() succeeds again.
+  // Statement SQL and end offset remain available.
+  Statement TakeStatement();
+
   // Returns the full statement which was parsed. This should return
   // |statement()| and Perfetto SQL code that's in front. This function *must
   // not* be called unless |Next()| returned true.
   const SqlSource& statement_sql() const {
     PERFETTO_CHECK(statement_sql_);
     return *statement_sql_;
+  }
+
+  // Returns the byte offset into the SQL passed to Reset() just past the end
+  // of the most recently parsed statement. This function *must not* be called
+  // unless |Next()| returned true.
+  uint32_t statement_end_offset() const;
+
+  // Like |statement_sql()| but moves the SqlSource out, leaving the parser
+  // with no current statement_sql. Callers must not call statement_sql()
+  // after this until the next successful Next() call.
+  SqlSource TakeStatementSql() {
+    PERFETTO_CHECK(statement_sql_);
+    SqlSource result = std::move(*statement_sql_);
+    statement_sql_.reset();
+    return result;
   }
 
   // Returns the error status for the parser. This will be |base::OkStatus()|

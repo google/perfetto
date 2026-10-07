@@ -35,6 +35,15 @@ export default defineConfig({
         open: 'never',
       },
     ],
+    // Must come after 'html': it writes inside the html report folder, which
+    // the html reporter wipes in its onEnd().
+    [
+      './src/test/screenshot_diff_reporter.ts',
+      {
+        outputFolder: `${outDir}/ui-test-artifacts/screenshot-diffs`,
+        htmlReportFolder: `${outDir}/ui-test-artifacts`,
+      },
+    ],
   ],
 
   expect: {
@@ -92,7 +101,7 @@ export default defineConfig({
   webServer: {
     // Just run the server without building
     command:
-      './run-dev-server --no-build --no-depscheck ' +
+      './build --serve --no-build --no-depscheck ' +
       (process.env.DEV_SERVER_ARGS ?? ''),
     url: 'http://127.0.0.1:10000',
     reuseExistingServer: true,

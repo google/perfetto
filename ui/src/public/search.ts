@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type {time} from '../base/time';
-import type {SqlValue} from '../trace_processor/query_result';
+import type {SpecValue} from '../trace_processor/query_result';
 import type {Track} from './track';
 
 export type SearchSource = 'cpu' | 'log' | 'slice' | 'track' | 'event';
@@ -45,7 +45,7 @@ export interface FilterExpression {
    * These columns will be available in the query for the WHERE clause to
    * reference, but won't be included in the final result set.
    */
-  readonly columns?: Readonly<Record<string, SqlValue>>;
+  readonly columns?: Readonly<Record<string, SpecValue>>;
 }
 
 export interface SearchProvider {

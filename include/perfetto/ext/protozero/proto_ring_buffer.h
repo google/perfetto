@@ -17,9 +17,12 @@
 #ifndef INCLUDE_PERFETTO_EXT_PROTOZERO_PROTO_RING_BUFFER_H_
 #define INCLUDE_PERFETTO_EXT_PROTOZERO_PROTO_RING_BUFFER_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
-#include "perfetto/ext/base/paged_memory.h"
+#include <memory>
+
+#include "perfetto/base/compiler.h"
 
 namespace protozero {
 
@@ -42,7 +45,8 @@ namespace protozero {
 //
 // This class maintains inbound requests in a ring buffer.
 // The expected usage is:
-// ring_buf.Append(data, len);
+// auto write = ring_buf.BeginWrite(len);
+// write.EndWrite(read(fd, write.data(), write.size()));
 // for (;;) {
 //   auto msg = ring_buf.ReadMessage();
 //   if (!msg.valid())
@@ -50,9 +54,9 @@ namespace protozero {
 //   Decode(msg);
 // }
 //
-// After each call to Append, the caller is expected to call ReadMessage() until
+// After each write, the caller is expected to call ReadMessage() until
 // it returns an invalid message (signalling no more messages could be decoded).
-// Note that a single Append can "unblock" > 1 messages, which is why the caller
+// Note that a single write can "unblock" > 1 messages, which is why the caller
 // needs to keep calling ReadMessage in a loop.
 //
 // Internal architecture
@@ -60,14 +64,14 @@ namespace protozero {
 // Internally this is similar to a ring-buffer, with the caveat that it never
 // wraps, it only expands. Expansions are rare. The deal is that in most cases
 // the read cursor follows very closely the write cursor. For instance, if the
-// underlying transport behaves as a dgram socket, after each Append, the read
+// underlying transport behaves as a dgram socket, after each write, the read
 // cursor will chase completely the write cursor. Even if the underlying stream
 // is not always atomic, the expectation is that the read cursor will eventually
 // reach the write one within few messages.
 // A visual example, imagine we have four messages: 2it 4will 2be 4fine
 // Visually:
 //
-// Append("2it4wi"): A message and a bit:
+// Write("2it4wi"): A message and a bit:
 // [ 2it 4wi                     ]
 // ^R       ^W
 //
@@ -75,77 +79,140 @@ namespace protozero {
 // [ 2it 4wi                     ]
 //      ^R ^W
 //
-// Append("ll2be4f")
+// Write("ll2be4f")
 // [ 2it 4will 2be 4f            ]
 //      ^R           ^W
 //
 // After the ReadMessage() loop:
 // [ 2it 4will 2be 4f            ]
 //                ^R ^W
-// Append("ine")
+// Write("ine")
 // [ 2it 4will 2be 4fine         ]
 //                ^R    ^W
 //
 // In the next ReadMessage() the R cursor will chase the W cursor. When this
 // happens (very frequent) we can just reset both cursors to 0 and restart.
-// If we are unlucky and get to the end of the buffer, two things happen:
-// 1. We try first to recompact the buffer, moving everything left by R.
-// 2. If still there isn't enough space, we expand the buffer.
+// If we reach the end of the buffer, we calculate the space required for the
+// unread bytes and the next write. If compaction provides enough space, we move
+// unread bytes left by R; otherwise we copy them directly into a larger buffer.
 // Given that each message is expected to be at most kMaxMsgSize (64 MB), the
 // expansion is bound at 2 * kMaxMsgSize.
+//
+// Rewinding and recompacting are only possible while no Message points into
+// the buffer. Messages own references to the underlying allocation. If it is
+// still shared when a write needs more room, unread bytes move to another
+// buffer. One previous buffer is kept for reuse, provided it is large enough.
+// This avoids repeated allocations when alternating between two buffers;
+// deeper queues of retained messages can still cause allocation churn.
 
-class RingBufferMessageReader {
+class ProtoRingBuffer {
+ private:
+  class Buffer;
+  struct BufferDeleter {
+    void operator()(Buffer*) const;
+  };
+  // Each handle owns one reference to the allocation, released by its deleter.
+  using BufferPtr = std::unique_ptr<Buffer, BufferDeleter>;
+
  public:
   static constexpr size_t kMaxMsgSize = 64 * 1024 * 1024;
-  struct Message {
-    const uint8_t* start = nullptr;
-    uint32_t len = 0;
-    uint32_t field_id = 0;
-    bool fatal_framing_error = false;
-    const uint8_t* end() const { return start + len; }
-    inline bool valid() const { return !!start; }
+  // The payload of one field, without its preamble. Keeps the buffer it points
+  // into alive, so it stays valid across further writes and can be moved to
+  // another thread.
+  class Message {
+   public:
+    Message() = default;
+    ~Message();
+    Message(Message&&) noexcept;
+    Message& operator=(Message&&) noexcept;
+    Message(const Message&) = delete;
+    Message& operator=(const Message&) = delete;
+
+    const uint8_t* data() const { return start_; }
+    const uint8_t* end() const { return start_ + len_; }
+    uint32_t size() const { return len_; }
+    uint32_t field_id() const { return field_id_; }
+    bool valid() const { return !!start_; }
+    bool fatal_framing_error() const { return fatal_framing_error_; }
+
+   private:
+    friend class ProtoRingBuffer;
+    BufferPtr buf_;
+    const uint8_t* start_ = nullptr;
+    uint32_t len_ = 0;
+    uint32_t field_id_ = 0;
+    bool fatal_framing_error_ = false;
   };
 
-  RingBufferMessageReader();
-  virtual ~RingBufferMessageReader();
-  RingBufferMessageReader(const RingBufferMessageReader&) = delete;
-  RingBufferMessageReader& operator=(const RingBufferMessageReader&) = delete;
+  ProtoRingBuffer();
+  ~ProtoRingBuffer();
+  ProtoRingBuffer(const ProtoRingBuffer&) = delete;
+  ProtoRingBuffer& operator=(const ProtoRingBuffer&) = delete;
 
-  // Appends data into the ring buffer, recompacting or resizing it if needed.
-  // Will invaildate the pointers previously handed out.
-  void Append(const void* data, size_t len);
+  // Returned by BeginWrite() and must be given back to EndWrite() (to keep
+  // what was written) or AbortWrite() (to discard it). It enforces that
+  // writes are neither left pending nor interleaved: only one handle can
+  // exist at a time, and letting it go out of scope without passing it to
+  // EndWrite()/AbortWrite() causes a CHECK. The buffer will not recompact or
+  // grow while a handle is outstanding.
+  class WriteHandle {
+   public:
+    WriteHandle() = default;
+    ~WriteHandle();
+
+    WriteHandle(WriteHandle&&) noexcept;
+    WriteHandle& operator=(WriteHandle&&) noexcept;
+    WriteHandle(const WriteHandle&) = delete;
+    WriteHandle& operator=(const WriteHandle&) = delete;
+
+    uint8_t* data() const { return data_; }
+    size_t size() const { return size_; }
+
+    void EndWrite(size_t size_written);
+    void AbortWrite();
+
+    explicit operator bool() const { return buffer_ != nullptr; }
+
+   private:
+    friend class ProtoRingBuffer;
+    WriteHandle(ProtoRingBuffer* buffer, uint8_t* data, size_t size)
+        : buffer_(buffer), data_(data), size_(size) {}
+
+    ProtoRingBuffer* buffer_ = nullptr;
+    uint8_t* data_ = nullptr;
+    size_t size_ = 0;
+  };
+
+  // The caller reads straight into the reservation (e.g. by passing data() to
+  // read(2)).
+  PERFETTO_WARN_UNUSED_RESULT WriteHandle BeginWrite(size_t size);
 
   // If a message can be read, it returns the boundaries of the message
   // (without including the preamble) and advances the read cursor.
   // If no message is available, returns a null range.
-  // The returned pointer is only valid until the next call to Append(), as
-  // that can recompact or resize the underlying buffer.
   Message ReadMessage();
 
-  // Exposed for testing.
-  size_t capacity() const { return buf_.size(); }
-  size_t avail() const { return buf_.size() - (wr_ - rd_); }
-
- protected:
-  // Subclasses must implement the header parsing.
-  virtual Message TryReadMessage(const uint8_t* start, const uint8_t* end) = 0;
+  // Exposed for testing: total allocations and bytes held by the spare buffer.
+  uint32_t num_buffers_for_testing() const { return num_buffers_; }
+  size_t cached_capacity_for_testing() const;
 
  private:
-  perfetto::base::PagedMemory buf_;
-  Message fastpath_{};
-  bool failed_ = false;  // Set in case of an unrecoverable framing faiulre.
+  friend class WriteHandle;
+
+  BufferPtr AcquireBuffer(size_t capacity);
+  void RecycleBuffer(BufferPtr buffer);
+  void FinishWrite(size_t size_written);
+
+  // Refcounted; the ring buffer holds one reference, each Message another.
+  BufferPtr buf_;
+  // At most one previous allocation, at least as large as the active buffer.
+  // It can be reused once all Messages referring to it have been released.
+  BufferPtr spare_;
+  bool failed_ = false;  // Set in case of an unrecoverable framing failure.
   size_t rd_ = 0;        // Offset of the read cursor in |buf_|.
   size_t wr_ = 0;        // Offset of the write cursor in |buf_|.
-};
-
-class ProtoRingBuffer final : public RingBufferMessageReader {
- public:
-  ProtoRingBuffer();
-  ~ProtoRingBuffer() override final;
-
- protected:
-  Message TryReadMessage(const uint8_t* start,
-                         const uint8_t* end) override final;
+  bool write_in_flight_ = false;
+  uint32_t num_buffers_ = 1;
 };
 
 }  // namespace protozero

@@ -379,6 +379,18 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
+      id: 'dev.perfetto.CopyMainThreadTracksToWorkspace',
+      name: 'Copy main thread tracks to workspace',
+      callback: (workspaceNameArg: unknown) => {
+        const workspaceName =
+          typeof workspaceNameArg === 'string'
+            ? workspaceNameArg
+            : 'Main threads';
+        copyMainThreadTracksToWorkspace(ctx, workspaceName);
+      },
+    });
+
+    ctx.commands.registerCommand({
       id: 'dev.perfetto.AddNoteAtUtcTimestamp',
       name: 'Add note at UTC timestamp',
       callback: async (utcTimestampArg: unknown, noteTextArg: unknown) => {
@@ -568,10 +580,10 @@ async function getQueryFromArgOrPrompt(
 }
 
 // DFS the workspace, returning all tracks matching the regex against `name` or
-// full `path`. When a headless node matches, its subtree is skipped: a
-// headless node has no header in the rendered tree, so its `fullPath` is
-// identical to its children's, and a deep clone of the headless node already
-// covers them — recursing further would yield duplicate matches.
+// full `path`. Headless nodes are never returned as matches: they have no
+// header in the rendered tree and no `uri`, so operating on one directly (e.g.
+// pinning it) does nothing useful. We still recurse into their children so the
+// real tracks nested inside a matching headless container get picked up.
 function findTracksMatchingRegex(
   workspace: Workspace,
   regex: RegExp,
@@ -581,9 +593,8 @@ function findTracksMatchingRegex(
   const visit = (node: TrackNode): void => {
     const target =
       nameOrPath === 'path' ? node.fullPath.join(' > ') : node.name;
-    if (regex.test(target)) {
+    if (!node.headless && regex.test(target)) {
       matches.push(node);
-      if (node.headless) return;
     }
     node.children.forEach(visit);
   };
@@ -673,4 +684,22 @@ async function resolveTracksFromSliceQuery(
   return resolved
     .map((event) => ctx.currentWorkspace.getTrackByUri(event.trackUri))
     .filter((track) => track !== undefined);
+}
+
+function copyMainThreadTracksToWorkspace(
+  ctx: Trace,
+  workspaceName: string,
+): void {
+  const tracks = ctx.tracks
+    .getAllTracks()
+    .filter((track) => track.tags?.isMainThread === true)
+    .map((track) => ctx.currentWorkspace.getTrackByUri(track.uri))
+    .filter(exists);
+
+  const targetWorkspace =
+    ctx.workspaces.all.find((ws) => ws.title === workspaceName) ??
+    ctx.workspaces.createEmptyWorkspace(workspaceName);
+
+  copyTracksWithAncestors(tracks, targetWorkspace);
+  ctx.workspaces.switchWorkspace(targetWorkspace);
 }

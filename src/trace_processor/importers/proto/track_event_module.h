@@ -38,29 +38,29 @@ class TrackEventModule : public ProtoImporterModule {
 
   ~TrackEventModule() override;
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData& data,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
   void OnFirstPacketOnSequence(uint32_t) override;
 
-  void ParseTrackEventData(const protos::pbzero::TracePacket::Decoder& decoder,
-                           int64_t ts,
-                           const TrackEventData& data);
+  void ParseTrackEventData(int64_t ts,
+                           const TrackEventData& data,
+                           protozero::ConstBytes event,
+                           uint32_t sequence_id) {
+    parser_.ParseTrackEvent(ts, &data, event, sequence_id);
+  }
 
   void OnEventsFullyExtracted() override;
+
+  TrackEventExtensionParserContext* mutable_extension_parser_context() {
+    return &extension_parser_context_;
+  }
 
  private:
   std::unique_ptr<TrackEventTracker> track_event_tracker_;
   TrackEventTokenizer tokenizer_;
+  TrackEventExtensionParserContext extension_parser_context_;
   TrackEventParser parser_;
 };
 

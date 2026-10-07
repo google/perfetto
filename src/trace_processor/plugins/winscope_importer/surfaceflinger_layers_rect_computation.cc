@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <optional>
 #include <unordered_map>
-#include "protos/perfetto/trace/android/graphics/rect.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.pbzero.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_utils.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
@@ -58,7 +58,7 @@ std::vector<geometry::Rect> MakeInvalidBoundsFromDisplays(
   }
   auto max_size = geometry::Size{0, 0};
   for (auto it = snapshot_decoder.displays(); it; ++it) {
-    protos::pbzero::DisplayProto::Decoder display(*it);
+    com::android::internal::pbzero::DisplayProto::Decoder display(*it);
     auto display_size = display::GetDisplaySize(display);
     for (const auto& rect : MakeInvalidBoundsFromSize(display_size)) {
       invalid_bounds.push_back(rect);
@@ -79,7 +79,7 @@ ExtractDisplayTransforms(const SnapshotDecoder& snapshot_decoder) {
   std::unordered_map<uint32_t, geometry::TransformMatrix> transforms;
 
   for (auto it = snapshot_decoder.displays(); it; ++it) {
-    protos::pbzero::DisplayProto::Decoder display(*it);
+    com::android::internal::pbzero::DisplayProto::Decoder display(*it);
     auto matrix = display::GetTransformMatrix(display);
     transforms[display.layer_stack()] = matrix;
   }
@@ -92,7 +92,8 @@ ExtractDisplayTransforms(const SnapshotDecoder& snapshot_decoder) {
 std::optional<double> GetLayerOpacity(const LayerDecoder& layer_decoder,
                                       bool is_computed_visible) {
   if (layer_decoder.has_color()) {
-    protos::pbzero::ColorProto::Decoder color(layer_decoder.color());
+    com::android::internal::pbzero::ColorProto::Decoder color(
+        layer_decoder.color());
     if (color.has_a()) {
       return color.a();
     }
@@ -106,13 +107,15 @@ std::optional<double> GetLayerOpacity(const LayerDecoder& layer_decoder,
 // Input window frames are in the layer space - we transform them to the
 // display space for comparison with other rects.
 geometry::Rect MakeFrameRect(
-    const protos::pbzero::InputWindowInfoProto::Decoder& input_window_info,
+    const com::android::internal::pbzero::InputWindowInfoProto::Decoder&
+        input_window_info,
     std::optional<geometry::TransformMatrix>& display_transform,
     geometry::TransformMatrix& inverse_layer_transform) {
   if (!input_window_info.has_frame()) {
     return geometry::Rect();
   }
-  protos::pbzero::RectProto::Decoder frame(input_window_info.frame());
+  com::android::internal::pbzero::RectProto::Decoder frame(
+      input_window_info.frame());
   auto frame_rect = geometry::Rect(frame);
   if (display_transform.has_value()) {
     frame_rect = display_transform->TransformRect(frame_rect);
@@ -123,7 +126,8 @@ geometry::Rect MakeFrameRect(
 // Input windows may be shaded in Winscope based on their touchable region.
 std::optional<geometry::Region> TryMakeFillRegion(
     uint32_t input_config,
-    const protos::pbzero::InputWindowInfoProto::Decoder& input_window_info,
+    const com::android::internal::pbzero::InputWindowInfoProto::Decoder&
+        input_window_info,
     std::optional<geometry::TransformMatrix>& display_transform,
     geometry::TransformMatrix& inverse_layer_transform,
     const std::optional<geometry::Rect>& display) {
@@ -135,10 +139,10 @@ std::optional<geometry::Region> TryMakeFillRegion(
   } else if (input_window_info.has_touchable_region()) {
     fill_region = geometry::Region{};
 
-    protos::pbzero::RegionProto::Decoder region(
+    com::android::internal::pbzero::RegionProto::Decoder region(
         input_window_info.touchable_region());
     for (auto it = region.rect(); it; ++it) {
-      protos::pbzero::RectProto::Decoder rect(*it);
+      com::android::internal::pbzero::RectProto::Decoder rect(*it);
       fill_region->rects.push_back(geometry::Rect(rect));
     }
 
@@ -166,7 +170,8 @@ std::optional<geometry::Region> TryMakeFillRegion(
 }  // namespace
 
 RectComputation::RectComputation(
-    const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder,
+    const com::android::internal::pbzero::LayersSnapshotProto::Decoder&
+        snapshot_decoder,
     const std::vector<LayerDecoder>& layers_top_to_bottom,
     const std::unordered_map<int32_t, VisibilityProperties>&
         computed_visibility,
@@ -260,8 +265,8 @@ std::optional<TraceRectTableId> RectComputation::TryInsertInputRect(
     return std::nullopt;
   }
 
-  protos::pbzero::InputWindowInfoProto::Decoder input_window_info(
-      layer.input_window_info());
+  com::android::internal::pbzero::InputWindowInfoProto::Decoder
+      input_window_info(layer.input_window_info());
   int32_t layer_stack = static_cast<int32_t>(layer.layer_stack());
   auto absolute_z = current_z_by_layer_stack[layer_stack];
 
@@ -342,7 +347,7 @@ TraceRectTableId RectComputation::InsertLayerTraceRectRow(
   }
 
   if (layer_decoder.has_border_settings()) {
-    protos::pbzero::BorderSettings::Decoder border_settings(
+    com::android::internal::pbzero::BorderSettings::Decoder border_settings(
         layer_decoder.border_settings());
     if (border_settings.stroke_width() > 0) {
       row.border_width = border_settings.stroke_width();

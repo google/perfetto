@@ -24,13 +24,15 @@ CREATE PERFETTO TABLE android_light_idle_state(
   ts TIMESTAMP,
   -- Duration.
   dur DURATION,
+  -- Machine whose light idle state is described.
+  machine_id JOINID(machine.id),
   -- Description of the light idle state.
   light_idle_state STRING
 )
 AS
 WITH
   _counter AS (
-    SELECT counter.id, ts, 0 AS track_id, value
+    SELECT counter.id, ts, counter.track_id, value
     FROM counter
     JOIN counter_track
       ON counter_track.id = counter.track_id
@@ -38,10 +40,11 @@ WITH
       name = 'DozeLightState'
   )
 SELECT
-  id,
-  ts,
-  dur,
-  CASE value
+  intervals.id,
+  intervals.ts,
+  intervals.dur,
+  counter_track.machine_id,
+  CASE intervals.value
     -- device is used or on power
     WHEN 0 THEN 'active'
     -- device is waiting to go idle
@@ -56,7 +59,9 @@ SELECT
     WHEN 7 THEN 'override'
     ELSE 'unmapped'
   END AS light_idle_state
-FROM counter_leading_intervals!(_counter);
+FROM counter_leading_intervals!(_counter) AS intervals
+JOIN counter_track
+  ON counter_track.id = intervals.track_id;
 
 -- Deep idle states. This is the state machine that more slowly detects deeper
 -- levels of device unuse and restricts background activity further.
@@ -68,13 +73,15 @@ CREATE PERFETTO TABLE android_deep_idle_state(
   ts TIMESTAMP,
   -- Duration.
   dur DURATION,
+  -- Machine whose deep idle state is described.
+  machine_id JOINID(machine.id),
   -- Description of the deep idle state.
   deep_idle_state STRING
 )
 AS
 WITH
   _counter AS (
-    SELECT counter.id, ts, 0 AS track_id, value
+    SELECT counter.id, ts, counter.track_id, value
     FROM counter
     JOIN counter_track
       ON counter_track.id = counter.track_id
@@ -82,10 +89,11 @@ WITH
       name = 'DozeDeepState'
   )
 SELECT
-  id,
-  ts,
-  dur,
-  CASE value
+  intervals.id,
+  intervals.ts,
+  intervals.dur,
+  counter_track.machine_id,
+  CASE intervals.value
     WHEN 0 THEN 'active'
     WHEN 1 THEN 'inactive'
     -- waiting for next idle period
@@ -101,4 +109,6 @@ SELECT
     WHEN 7 THEN 'quick_doze_delay'
     ELSE 'unmapped'
   END AS deep_idle_state
-FROM counter_leading_intervals!(_counter);
+FROM counter_leading_intervals!(_counter) AS intervals
+JOIN counter_track
+  ON counter_track.id = intervals.track_id;

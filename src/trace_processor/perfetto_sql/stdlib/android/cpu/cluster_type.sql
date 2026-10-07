@@ -46,13 +46,15 @@ SELECT * FROM data;
 CREATE PERFETTO TABLE android_cpu_cluster_mapping(
   -- Alias of `cpu.ucpu`.
   ucpu LONG,
+  -- Machine containing the CPU.
+  machine_id JOINID(machine.id),
   -- Alias of `cpu.cpu`.
   cpu LONG,
   -- The cluster type of the CPU.
   cluster_type STRING
 )
 AS
-SELECT ucpu, cpu, _cores.cluster_type AS cluster_type
+SELECT ucpu, cpu.machine_id, cpu, _cores.cluster_type AS cluster_type
 FROM cpu
 LEFT JOIN _cores
   ON _cores.cluster_id = cpu.cluster_id
@@ -66,6 +68,8 @@ CREATE PERFETTO FUNCTION _active_cpu_count_for_cluster_type(
 RETURNS TABLE(
   -- Timestamp when the number of active CPU changed.
   ts TIMESTAMP,
+  -- Machine whose active CPUs are counted.
+  machine_id JOINID(machine.id),
   -- Number of active CPUs, covering the range from this timestamp to the next
   -- row's timestamp.
   active_cpu_count LONG
@@ -82,13 +86,15 @@ WITH
   -- Filter sched events corresponding to running tasks.
   -- thread(s) with is_idle = 1 are the swapper threads / idle tasks.
   tasks AS (
-    SELECT ts, dur
+    SELECT sched.ts, sched.dur, cpu.machine_id
     FROM sched
+    JOIN cpu USING (ucpu)
     WHERE
       ucpu IN (SELECT ucpu FROM cluster)
       AND NOT (utid IN (SELECT utid FROM thread WHERE is_idle))
   )
-SELECT ts, value AS active_cpu_count
-FROM intervals_overlap_count!(tasks, ts, dur)
+SELECT ts, group_name AS machine_id, value AS active_cpu_count
+FROM intervals_overlap_count_by_group!(tasks, ts, dur, machine_id)
 ORDER BY
+  machine_id,
   ts;

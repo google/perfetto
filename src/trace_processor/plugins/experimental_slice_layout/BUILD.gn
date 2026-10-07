@@ -58,3 +58,19 @@ perfetto_unittest_source_set("unittests") {
     "../../tables",
   ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    sources = [ "experimental_slice_layout_benchmark.cc" ]
+    deps = [
+      ":experimental_slice_layout",
+      ":tables",
+      "../../../../gn:benchmark",
+      "../../../../gn:default_deps",
+      "../../../../include/perfetto/trace_processor:basic_types",
+      "../../containers",
+      "../../tables",
+    ]
+  }
+}

@@ -19,12 +19,8 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {
-  counterPoints,
-  formatKb,
-  maxSeriesKb,
-  niceKbInterval,
-} from '../../utils';
+import {counterPoints, maxSeriesKb, niceKbInterval} from '../../utils';
+import {formatBytesIec} from '../../../../base/bytes_format';
 import {Panel} from '../../components/panel';
 import {Grid, GridCell, GridHeaderCell} from '../../../../widgets/grid';
 
@@ -162,32 +158,39 @@ function renderLmkPanel(
 ): m.Children {
   return m(
     Panel,
-    {
+    m(Panel.Header, {
       title: `LMK Kills (${events.length})`,
       subtitle:
         'Low Memory Killer events recorded during this session. ' +
         'Source: lmkd atrace / lowmemorykiller ftrace.',
-    },
-    events.length > 0 &&
-      m(Grid, {
-        columns: [
-          {key: 'time', header: m(GridHeaderCell, 'Time')},
-          {key: 'pid', header: m(GridHeaderCell, 'PID')},
-          {
-            key: 'process',
-            header: m(GridHeaderCell, 'Process'),
-            maxInitialWidthPx: 400,
-          },
-          {key: 'oom', header: m(GridHeaderCell, 'OOM Adj')},
-        ],
-        rowData: events.map((ev) => [
-          m(GridCell, {align: 'right'}, `${((ev.ts - t0) / 1e9).toFixed(1)}s`),
-          m(GridCell, {align: 'right'}, String(ev.pid)),
-          m(GridCell, ev.processName || '(unknown)'),
-          m(GridCell, {align: 'right'}, String(ev.oomScoreAdj)),
-        ]),
-        fillHeight: false,
-      }),
+    }),
+    m(
+      Panel.Body,
+      events.length > 0 &&
+        m(Grid, {
+          columns: [
+            {key: 'time', header: m(GridHeaderCell, 'Time')},
+            {key: 'pid', header: m(GridHeaderCell, 'PID')},
+            {
+              key: 'process',
+              header: m(GridHeaderCell, 'Process'),
+              maxInitialWidthPx: 400,
+            },
+            {key: 'oom', header: m(GridHeaderCell, 'OOM Adj')},
+          ],
+          rowData: events.map((ev) => [
+            m(
+              GridCell,
+              {align: 'right'},
+              `${((ev.ts - t0) / 1e9).toFixed(1)}s`,
+            ),
+            m(GridCell, {align: 'right'}, String(ev.pid)),
+            m(GridCell, ev.processName || '(unknown)'),
+            m(GridCell, {align: 'right'}, String(ev.oomScoreAdj)),
+          ]),
+          fillHeight: false,
+        }),
+    ),
   );
 }
 
@@ -204,109 +207,121 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
   return [
     m(
       Panel,
-      {
+      m(Panel.Header, {
         title: 'Memory Pressure (PSI)',
         subtitle:
           'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full). ' +
           'Derived: cumulative \u00b5s converted to ms/s rate. ' +
           '"some" = at least one task stalled, "full" = all tasks stalled.',
-      },
-      psiChartData
-        ? m(LineChartSvg, {
-            data: psiChartData,
-            height: 200,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Stall (ms/s)',
-            showLegend: true,
-            showPoints: false,
-            gridLines: 'both',
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => `${v.toFixed(1)} ms/s`,
-            // TODO(stevegolton): Add markers back in when we support them in LineChartSvg.
-            //   x: (ev.ts - t0) / 1e9,
-            // })),
-          })
-        : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      }),
+      m(
+        Panel.Body,
+        psiChartData
+          ? m(LineChartSvg, {
+              data: psiChartData,
+              height: 200,
+              xAxisLabel: 'Time (s)',
+              yAxisLabel: 'Stall (ms/s)',
+              showLegend: true,
+              showPoints: false,
+              gridLines: 'both',
+              xAxisMin: data.xMin,
+              xAxisMax: data.xMax,
+              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              formatYValue: (v: number) => `${v.toFixed(1)} ms/s`,
+              // TODO(stevegolton): Add markers back in when we support them in LineChartSvg.
+              //   x: (ev.ts - t0) / 1e9,
+              // })),
+            })
+          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      ),
     ),
 
     m(
       Panel,
-      {
+      m(Panel.Header, {
         title: 'Page Faults',
         subtitle:
           'Source: /proc/vmstat counters pgfault, pgmajfault. ' +
           'Derived: cumulative counts converted to faults/s rate. ' +
           'Minor (pgfault) = page in RAM but not in TLB. Major (pgmajfault) = page must be read from disk.',
-      },
-      pageFaultChartData
-        ? m(LineChartSvg, {
-            data: pageFaultChartData,
-            height: 200,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Faults/s',
-            showLegend: true,
-            showPoints: false,
-            gridLines: 'both',
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => `${v.toFixed(0)} f/s`,
-          })
-        : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      }),
+      m(
+        Panel.Body,
+        pageFaultChartData
+          ? m(LineChartSvg, {
+              data: pageFaultChartData,
+              height: 200,
+              xAxisLabel: 'Time (s)',
+              yAxisLabel: 'Faults/s',
+              showLegend: true,
+              showPoints: false,
+              gridLines: 'both',
+              xAxisMin: data.xMin,
+              xAxisMax: data.xMax,
+              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              formatYValue: (v: number) => `${v.toFixed(0)} f/s`,
+            })
+          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      ),
     ),
 
     swapChartData &&
       m(
         Panel,
-        {
+        m(Panel.Header, {
           title: 'Swap Usage',
           subtitle:
             'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached. ' +
             'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
-        },
-        m(LineChartSvg, {
-          data: swapChartData,
-          height: 200,
-          xAxisMin: data.xMin,
-          xAxisMax: data.xMax,
-          xAxisLabel: 'Time (s)',
-          yAxisLabel: 'Swap',
-          showLegend: true,
-          showPoints: false,
-          stacked: true,
-          gridLines: 'both',
-          formatXValue: (v: number) => `${v.toFixed(0)}s`,
-          formatYValue: (v: number) => formatKb(v),
-          yAxisMinInterval: niceKbInterval(
-            maxSeriesKb(swapChartData?.series ?? []),
-          ),
         }),
+        m(
+          Panel.Body,
+          m(LineChartSvg, {
+            data: swapChartData,
+            height: 200,
+            xAxisMin: data.xMin,
+            xAxisMax: data.xMax,
+            xAxisLabel: 'Time (s)',
+            yAxisLabel: 'Swap',
+            showLegend: true,
+            showPoints: false,
+            stacked: true,
+            gridLines: 'both',
+            formatXValue: (v: number) => `${v.toFixed(0)}s`,
+            formatYValue: (v: number) => formatBytesIec(v * 1024),
+            yAxisMinInterval: niceKbInterval(
+              maxSeriesKb(swapChartData?.series ?? []),
+            ),
+          }),
+        ),
       ),
 
     vmstatChartData &&
       m(
         Panel,
-        {
+        m(Panel.Header, {
           title: 'Swap I/O (pswpin / pswpout)',
           subtitle:
             'Source: /proc/vmstat counters pswpin, pswpout. ' +
             'Derived: cumulative page counts converted to pages/s rate.',
-        },
-        m(LineChartSvg, {
-          data: vmstatChartData,
-          xAxisMin: data.xMin,
-          xAxisMax: data.xMax,
-          height: 200,
-          xAxisLabel: 'Time (s)',
-          yAxisLabel: 'Pages/s',
-          showLegend: true,
-          showPoints: false,
-          gridLines: 'both',
-          formatXValue: (v: number) => `${v.toFixed(0)}s`,
-          formatYValue: (v: number) => `${v.toFixed(0)} pg/s`,
         }),
+        m(
+          Panel.Body,
+          m(LineChartSvg, {
+            data: vmstatChartData,
+            xAxisMin: data.xMin,
+            xAxisMax: data.xMax,
+            height: 200,
+            xAxisLabel: 'Time (s)',
+            yAxisLabel: 'Pages/s',
+            showLegend: true,
+            showPoints: false,
+            gridLines: 'both',
+            formatXValue: (v: number) => `${v.toFixed(0)}s`,
+            formatYValue: (v: number) => `${v.toFixed(0)} pg/s`,
+          }),
+        ),
       ),
 
     renderLmkPanel(data.lmkEvents, t0),

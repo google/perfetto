@@ -20,15 +20,14 @@ import {
 } from '../../../../components/widgets/charts_svg/line_chart_svg';
 import type {LiveSession, SnapshotData} from '../../sessions/live_session';
 import {
-  billboardKb,
+  billboardBytes,
   counterPoints,
-  formatKb,
   maxSeriesKb,
   niceKbInterval,
 } from '../../utils';
-import {Billboard} from '../../components/billboard';
+import {formatBytesIec} from '../../../../base/bytes_format';
+import {Billboard, BillboardStrip} from '../../components/billboard';
 import {Panel} from '../../components/panel';
-import {Stack} from '../../../../widgets/stack';
 
 function buildPageCacheTimeSeries(
   data: SnapshotData,
@@ -222,23 +221,22 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
   const fileCacheActivityData = buildFileCacheActivityTimeSeries(data, t0);
   const bb = getPageCacheBillboards(fileCacheBreakdownData);
 
-  return m(Stack, {spacing: 'large'}, [
+  return m.fragment({}, [
     bb !== undefined &&
       m(
-        Stack,
-        {orientation: 'horizontal', spacing: 'large'},
+        BillboardStrip,
         m(Billboard, {
-          ...billboardKb(bb.total),
+          ...billboardBytes(bb.total * 1024),
           label: 'Total Page Cache',
           desc: 'Derived: Active(file) + Inactive(file) from /proc/meminfo',
         }),
         m(Billboard, {
-          ...billboardKb(bb.dirty),
+          ...billboardBytes(bb.dirty * 1024),
           label: 'Dirty',
           desc: 'Source: Dirty from /proc/meminfo',
         }),
         m(Billboard, {
-          ...billboardKb(bb.mapped),
+          ...billboardBytes(bb.mapped * 1024),
           label: 'Mapped',
           desc: 'Source: Mapped from /proc/meminfo',
         }),
@@ -246,58 +244,64 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
 
     m(
       Panel,
-      {
+      m(Panel.Header, {
         title: 'Page Cache',
         subtitle:
           'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem. ' +
           'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
-      },
-      pageCacheChartData
-        ? m(LineChartSvg, {
-            data: pageCacheChartData,
-            height: 250,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Cache',
-            showLegend: true,
-            showPoints: false,
-            stacked: true,
-            gridLines: 'both',
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => formatKb(v),
-            yAxisMinInterval: niceKbInterval(
-              maxSeriesKb(pageCacheChartData.series),
-            ),
-          })
-        : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      }),
+      m(
+        Panel.Body,
+        pageCacheChartData
+          ? m(LineChartSvg, {
+              data: pageCacheChartData,
+              height: 250,
+              xAxisLabel: 'Time (s)',
+              yAxisLabel: 'Cache',
+              showLegend: true,
+              showPoints: false,
+              stacked: true,
+              gridLines: 'both',
+              xAxisMin: data.xMin,
+              xAxisMax: data.xMax,
+              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              formatYValue: (v: number) => formatBytesIec(v * 1024),
+              yAxisMinInterval: niceKbInterval(
+                maxSeriesKb(pageCacheChartData.series),
+              ),
+            })
+          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      ),
     ),
 
     m(
       Panel,
-      {
+      m(Panel.Header, {
         title: 'Page Cache Activity',
         subtitle:
           'Source: /proc/vmstat counters, shown as rates (delta/s). ' +
           'Refaults = workingset_refault_file (evicted pages needed again). ' +
           'Stolen = pgsteal_file (pages reclaimed). ' +
           'Scanned = pgscan_file (pages considered for reclaim).',
-      },
-      fileCacheActivityData
-        ? m(LineChartSvg, {
-            data: fileCacheActivityData,
-            height: 200,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Pages/s',
-            showLegend: true,
-            showPoints: false,
-            gridLines: 'both',
-            xAxisMin: data.xMin,
-            xAxisMax: data.xMax,
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => v.toLocaleString(),
-          })
-        : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      }),
+      m(
+        Panel.Body,
+        fileCacheActivityData
+          ? m(LineChartSvg, {
+              data: fileCacheActivityData,
+              height: 200,
+              xAxisLabel: 'Time (s)',
+              yAxisLabel: 'Pages/s',
+              showLegend: true,
+              showPoints: false,
+              gridLines: 'both',
+              xAxisMin: data.xMin,
+              xAxisMax: data.xMax,
+              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              formatYValue: (v: number) => v.toLocaleString(),
+            })
+          : m('.pf-memscope-placeholder', 'Waiting for data\u2026'),
+      ),
     ),
   ]);
 }

@@ -15,7 +15,7 @@
 """Regenerate the amalgamated PerfettoSQL parser using the syntaqlite CLI.
 
 Reads the canonical grammar (`perfetto.y`) and AST node definitions
-(`perfetto.synq`) from `src/trace_processor/perfetto_sql/syntaqlite/` and
+(`perfetto.synq`) from `src/perfetto_sql/syntaqlite/` and
 writes the amalgamated `syntaqlite_perfetto.{c,h}` pair back into the same
 directory.
 
@@ -30,8 +30,7 @@ import subprocess
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SYNTAQLITE_DIR = os.path.join(ROOT_DIR, 'src', 'trace_processor',
-                              'perfetto_sql', 'syntaqlite')
+SYNTAQLITE_DIR = os.path.join(ROOT_DIR, 'src', 'perfetto_sql', 'syntaqlite')
 SYNTAQLITE_BIN_DIR = os.path.join(ROOT_DIR, 'buildtools', 'syntaqlite')
 
 

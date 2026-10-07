@@ -5,7 +5,7 @@ In this guide, you'll learn how to:
 - Use `dumpsys meminfo` to get a high-level overview of memory usage.
 - Understand the basics of Linux memory management.
 - Use Perfetto to investigate memory usage over time.
-- Analyze native heap profiles and Java heap dumps to identify memory leaks.
+- Analyze native heap profiles and ART heap dumps to identify memory leaks.
 
 ## Prerequisites
 
@@ -357,7 +357,7 @@ Then upload the `raw-trace` file from the output directory to the
 
 ![Profile Diamond](/docs/images/profile-diamond.png)
 
-The tabs that are available are
+The measures available in the **Measure** picker are
 
 - **Unreleased malloc size**: how many bytes were allocated but not freed at
   this callstack the moment the dump was created.
@@ -369,13 +369,13 @@ The tabs that are available are
   frees) were done at this callstack.
 
 The default view will show you all allocations that were done while the profile
-was running but that weren't freed (the **space** tab).
+was running but that weren't freed (**Unreleased malloc size**).
 
 ![Native Flamegraph](/docs/images/native-heap-prof.png)
 
 We can see that a lot of memory gets allocated in paths through
 `AssetManager.applyStyle`. To get the total memory that was allocated this way,
-we can enter "applyStyle" into the Focus textbox. This will only show callstacks
+we can enter "applyStyle" into the Filters box. This will only show callstacks
 where some frame matches "applyStyle".
 
 ![Native Flamegraph with Focus](/docs/images/native-heap-prof-focus.png)
@@ -469,11 +469,11 @@ adb shell 'simpleperf record -e raw_syscalls:sys_enter --tp-filter "id == 222" -
 
 ## {#java-hprof} Analyzing the Java Heap
 
-**Java Heap Dumps require Android 11.**
+**ART Heap Dumps require Android 11.**
 
-NOTE: For detailed instructions about capturing Java heap dumps and
+NOTE: For detailed instructions about capturing ART heap dumps and
 troubleshooting see the
-[Data sources > Java heap dumps](/docs/data-sources/java-heap-profiler.md) page.
+[Data sources > ART heap dumps](/docs/data-sources/java-heap-profiler.md) page.
 
 ### {#capture-profile-java} Dumping the java heap
 
@@ -491,7 +491,8 @@ This can be viewed using https://ui.perfetto.dev.
 ```
 
 We can also collect a snapshot of the object graph when allocations start
-failing with [java.lang.OutOfMemoryError](/docs/case-studies/android-outofmemoryerror.md).
+failing with
+[java.lang.OutOfMemoryError](/docs/getting-started/local-android-trace-recording.md#oom-heap-dump).
 
 ### Viewing the Data
 
@@ -502,41 +503,41 @@ diamond marker that shows.
 
 This will present a set of flamegraph views as explained below.
 
-#### "Size" and "Objects" tabs
+#### "Object Size" and "Object Count" tabs
 
-![Java Flamegraph: Size](/docs/images/java-heap-graph.png)
+![ART heap dump flamegraph: Object Size](/docs/images/java-heap-graph.png)
 
 These views show the memory attributed to the shortest path to a
 garbage-collection root. In general an object is reachable by many paths, we
 only show the shortest as that reduces the complexity of the data displayed and
-is generally the highest-signal. The rightmost `[merged]` stacks is the sum of
+is generally the highest-signal. The rightmost `(merged)` stacks is the sum of
 all objects that are too small to be displayed.
 
-- **Size**: how many bytes are retained via this path to the GC root.
-- **Objects**: how many objects are retained via this path to the GC root.
+- **Object Size**: how many bytes are retained via this path to the GC root.
+- **Object Count**: how many objects are retained via this path to the GC root.
 
 If we want to only see callstacks that have a frame that contains some string,
-we can use the Focus feature. If we want to know all allocations that have to do
-with notifications, we can put "notification" in the Focus box.
+we can use the Filters box. If we want to know all allocations that have to do
+with notifications, we can put "notification" in the Filters box.
 
 As with native heap profiles, if we want to focus on some specific aspect of the
 graph, we can filter by the names of the classes. If we wanted to see everything
-that could be caused by notifications, we can put "notification" in the Focus
+that could be caused by notifications, we can put "notification" in the Filters
 box.
 
-![Java Flamegraph with Focus](/docs/images/java-heap-graph-focus.png)
+![ART heap dump flamegraph with Focus](/docs/images/java-heap-graph-focus.png)
 
 We aggregate the paths per class name, so if there are multiple objects of the
 same type retained by a `java.lang.Object[]`, we will show one element as its
 child, as you can see in the leftmost stack above. This also applies to the
 dominator tree paths as described below.
 
-#### "Dominated Size" and "Dominated Objects" tabs
+#### "Dominated Object Size" and "Dominated Object Count" tabs
 
-![Java Flamegraph: Dominated Size](/docs/images/java-heap-graph-dominated-size.png)
+![ART heap dump flamegraph: Dominated Object Size](/docs/images/java-heap-graph-dominated-size.png)
 
 Another way to present the heap graph as a flamegraph (a tree) is to show its
-[dominator tree](/docs/analysis/stdlib-docs.autogen#memory-heap_graph_dominator_tree).
+[dominator tree](/docs/analysis/stdlib-docs.autogen#android-memory-heap_graph-dominator_tree).
 In a heap graph, an object `a` dominates an object `b` if `b` is reachable from
 the root only via paths that go through `a`. The dominators of an object form a
 chain from the root and the object is exclusvely retained by all objects on this
@@ -547,7 +548,7 @@ We aggregate the tree paths per class name, and each element (tree node)
 represents a set of objects that have the same class name and position in the
 dominator tree.
 
-- **Dominated Size**: how many bytes are exclusively retained by the objects in
-  a node.
-- **Dominated Objects**: how many objects are exclusively retained by the
+- **Dominated Object Size**: how many bytes are exclusively retained by the
+  objects in a node.
+- **Dominated Object Count**: how many objects are exclusively retained by the
   objects in a node.

@@ -36,7 +36,7 @@ DEPS_ALLOWLIST = [
     # Everything can depend on base/, protos and NPM packages.
     ('*', [
         '/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES,
-        'virtual:*'
+        '/virtual/*'
     ]),
 
     # Integration tests can depend on everything.
@@ -102,6 +102,7 @@ DEPS_ALLOWLIST = [
     ('/frontend/index', ['/gen/*']),
     ('/traceconv/index', '/gen/traceconv'),
     ('/engine/wasm_bridge', '/trace_processor/wasm_modules'),
+    ('/engine_bench/worker', '/engine/wasm_bridge'),
     ('/trace_processor/wasm_modules', '/gen/trace_processor*'),
     ('/trace_processor/sql_utils/*', '/trace_processor/*'),
     ('/protos/index', '/gen/protos'),
@@ -140,7 +141,6 @@ DEPS_ALLOWLIST = [
 
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),
-    ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
 ]
 
 

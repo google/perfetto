@@ -34,7 +34,19 @@ CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN(_cpu_gpu
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
 CREATE PERFETTO TABLE _system_state_mw AS
-SELECT * FROM _cpu_gpu_tpu_system_state_mw;
+WITH
+  has_extra AS (
+    SELECT
+      EXISTS (SELECT 1 FROM _gpu_estimates_mw)
+      OR EXISTS (SELECT 1 FROM _tpu_estimates_mw) AS val
+  )
+SELECT c.*, CAST(NULL AS REAL) AS gpu_mw, CAST(NULL AS REAL) AS tpu_mw
+FROM (SELECT 1 WHERE NOT (SELECT val FROM has_extra))
+CROSS JOIN _cpu_estimates_mw AS c
+UNION ALL
+SELECT g.*
+FROM (SELECT 1 WHERE (SELECT val FROM has_extra))
+CROSS JOIN _cpu_gpu_tpu_system_state_mw AS g;
 
 -- ========================================================
 -- MACRO: _wattson_base_components_avg_mw

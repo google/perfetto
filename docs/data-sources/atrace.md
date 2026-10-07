@@ -39,7 +39,7 @@ enable both system and app events.
 ATrace instrumentation a non-negligible cost of 1-10us per event.
 This is because each event involves a stringification, a JNI call if coming from
 a managed execution environment, and a user-space <-> kernel-space roundtrip to
-write the marker into `/sys/kernel/debug/tracing/trace_marker` (which is the
+write the marker into `/sys/kernel/tracing/trace_marker` (which is the
 most expensive part).
 
 Our team is looking into a migration path for Android, in light of the newly

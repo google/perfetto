@@ -72,6 +72,13 @@ AS (
   FROM (SELECT * FROM $tab ORDER BY $ts_col) input
 );
 
+-- Intersects intervals within matching partitions across the input tables.
+-- Positive durations describe half-open intervals [ts, ts + dur): the start
+-- is included and the end is excluded, so intervals touching only at an end
+-- do not intersect. A zero duration is a point (an instant), which intersects
+-- an interval covering its timestamp or another point at the same timestamp.
+-- Any intersection involving a point has duration zero. Negative durations
+-- are rejected; callers must filter them out before intersecting.
 CREATE PERFETTO MACRO _interval_intersect(
   tabs _TableNameList,
   agg_columns ColumnNameList
@@ -86,14 +93,15 @@ AS (
       __first_arg,
       (
         c2 AS id_0, c3 AS id_1, c4 AS id_2, c5 AS id_3, c6 AS id_4,
-        c7 AS id_5, c8 AS id_6, c9 AS id_7, c10 AS id_8, c11 AS id_9
+        c7 AS id_5, c8 AS id_6, c9 AS id_7, c10 AS id_8, c11 AS id_9,
+        c12 AS id_10, c13 AS id_11, c14 AS id_12, c15 AS id_13, c16 AS id_14
       ),
       $tabs
     )
     -- Columns for partitions, one for each column with partition.
     __intrinsic_token_apply_prefix!(
       _ii_df_select,
-      (c12, c13, c14, c15),
+      (c17, c18, c19, c20),
       $agg_columns
     )
   -- Interval intersect result table.
@@ -103,6 +111,7 @@ AS (
         _interval_agg,
         $tabs,
         (
+          $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns,
           $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns,
           $agg_columns, $agg_columns, $agg_columns, $agg_columns, $agg_columns
         )
@@ -125,11 +134,16 @@ AS (
     AND __intrinsic_table_ptr_bind(c9, 'id_7')
     AND __intrinsic_table_ptr_bind(c10, 'id_8')
     AND __intrinsic_table_ptr_bind(c11, 'id_9')
+    AND __intrinsic_table_ptr_bind(c12, 'id_10')
+    AND __intrinsic_table_ptr_bind(c13, 'id_11')
+    AND __intrinsic_table_ptr_bind(c14, 'id_12')
+    AND __intrinsic_table_ptr_bind(c15, 'id_13')
+    AND __intrinsic_table_ptr_bind(c16, 'id_14')
 
     -- Partition columns.
     __intrinsic_token_apply_and_prefix!(
       _ii_df_bind,
-      (c12, c13, c14, c15),
+      (c17, c18, c19, c20),
       $agg_columns
     )
 );

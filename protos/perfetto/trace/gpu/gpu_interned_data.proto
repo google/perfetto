@@ -22,7 +22,8 @@ import public "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/gpu/gpu_render_stage_event.proto";
 
 // GPU-specific extensions for InternedData. Field numbers are allocated
-// from the perfetto_gpu range (1000-1099) in interned_data_extensions.json.
+// from the perfetto_gpu range (1000-1099) in
+// protos/perfetto/trace/extensions.json.
 message GpuInternedData {
   extend InternedData {
     // Description of a compute kernel (name, demangled name, architecture).

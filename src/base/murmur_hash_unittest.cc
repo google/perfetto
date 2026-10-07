@@ -16,6 +16,9 @@
 
 #include "perfetto/ext/base/murmur_hash.h"
 
+#include <string>
+#include <string_view>
+
 #include "perfetto/ext/base/string_view.h"
 #include "test/gtest_and_gmock.h"
 
@@ -27,6 +30,18 @@ TEST(MurmurHashTest, StringView) {
   base::StringView b = "def";
   EXPECT_NE(murmur_internal::MurmurHashBytes(a.data(), a.size()),
             murmur_internal::MurmurHashBytes(b.data(), b.size()));
+}
+
+TEST(MurmurHashTest, HeterogeneousStringHash) {
+  MurmurHash<std::string> hasher;
+  const char* pointer = "abc";
+  const auto expected = hasher(std::string("abc"));
+  EXPECT_EQ(hasher(pointer), expected);
+  EXPECT_EQ(hasher(std::string_view("abc")), expected);
+  EXPECT_EQ(hasher("abc"), expected);
+  // Select the heterogeneous overload explicitly: the owning-key overload
+  // could otherwise hide missing array support via a string conversion.
+  EXPECT_EQ(hasher.operator()<char[4]>("abc"), expected);
 }
 
 }  // namespace

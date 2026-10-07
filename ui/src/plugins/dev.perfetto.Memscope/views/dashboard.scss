@@ -12,33 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-memscope--muted {
-  color: var(--pf-color-text-muted);
-}
-
-// Title bar sub-layout (left group, separator, device badge, actions).
+// Title bar sub-layout (left group, actions).
 .pf-memscope-title-bar__left {
   display: flex;
   align-items: baseline;
   gap: 12px;
   flex-shrink: 0;
-}
-
-// Thin vertical rule that separates logical groups in the toolbar.
-.pf-memscope-title-bar__sep {
-  width: 1px;
-  height: 18px;
-  background: var(--pf-color-border);
-  flex-shrink: 0;
-}
-
-.pf-memscope-title-bar__device {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: var(--pf-font-size-m);
-  font-weight: 500;
-  color: var(--pf-color-text-muted);
 }
 
 // Right-side cluster: device identity + button group.
@@ -55,27 +34,6 @@
   font-size: var(--pf-font-size-m);
   font-weight: 500;
   color: var(--pf-color-text-hint);
-}
-
-.pf-memscope-session-pill__sep {
-  width: 1px;
-  height: 18px;
-  background: var(--pf-color-border);
-  flex-shrink: 0;
-}
-
-.pf-memscope-session-pill__snapshot {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: var(--pf-font-size-s);
-  font-variant-numeric: tabular-nums;
-  color: var(--pf-color-text-muted);
-  cursor: help;
-
-  .material-icons {
-    font-size: 16px;
-  }
 }
 
 // Snapshot info popup content.
@@ -111,7 +69,7 @@
   &.pf-memscope-snapshot-info__sum {
     margin-top: 6px;
     padding-top: 8px;
-    border-top: 1px solid var(--pf-color-border);
+    border-top: 1px solid var(--pf-col-border);
     font-weight: 600;
     font-size: var(--pf-font-size-m);
 

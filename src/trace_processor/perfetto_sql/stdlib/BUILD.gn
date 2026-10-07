@@ -17,7 +17,7 @@ import("../../../../gn/perfetto_sql.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-perfetto_amalgamated_sql_header("stdlib") {
+perfetto_amalgamated_sql_header("amalgamated_stdlib") {
   deps = [
     "android",
     "appleos",
@@ -37,6 +37,8 @@ perfetto_amalgamated_sql_header("stdlib") {
     "stacks",
     "std/gpu",
     "std/metasql",
+    "std/stack_sample",
+    "std/thread",
     "std/traceinfo",
     "std/trees",
     "time",
@@ -45,7 +47,19 @@ perfetto_amalgamated_sql_header("stdlib") {
     "viz",
     "wattson",
   ]
-  generated_header = "stdlib.h"
+  generated_header = "amalgamated_stdlib.h"
   namespace = "stdlib"
   generate_docs = true
+}
+
+source_set("stdlib") {
+  sources = [
+    "stdlib.cc",
+    "stdlib.h",
+  ]
+  deps = [
+    ":amalgamated_stdlib",
+    "../../../../gn:default_deps",
+    "../../util:sql_bundle",
+  ]
 }

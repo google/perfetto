@@ -17,8 +17,6 @@
 #include "src/trace_processor/plugins/create_function/create_function.h"
 
 #include <memory>
-#include <queue>
-#include <stack>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
@@ -76,35 +74,13 @@ void CreateFunction::Step(sqlite3_context* ctx,
   }
 
   auto register_status = connection->RegisterLegacyRuntimeFunction(
-      true /* replace */, prototype, *type,
+      true /* replace */, prototype,
       SqlSource::FromTraceProcessorImplementation(std::move(sql_defn_str)));
   if (!register_status.ok()) {
     return sqlite::utils::SetError(ctx, register_status);
   }
 
   // CREATE_FUNCTION returns no value (void function)
-  return sqlite::utils::ReturnVoidFromFunction(ctx);
-}
-
-void ExperimentalMemoize::Step(sqlite3_context* ctx,
-                               int argc,
-                               sqlite3_value** argv) {
-  PERFETTO_DCHECK(argc == 1);
-
-  auto* connection = GetUserData(ctx);
-
-  if (sqlite::value::Type(argv[0]) != sqlite::Type::kText) {
-    return sqlite::utils::SetError(
-        ctx, "EXPERIMENTAL_MEMOIZE: function_name must be string");
-  }
-
-  std::string function_name = sqlite::value::Text(argv[0]);
-  auto status = connection->EnableSqlFunctionMemoization(function_name);
-  if (!status.ok()) {
-    return sqlite::utils::SetError(ctx, status);
-  }
-
-  // EXPERIMENTAL_MEMOIZE returns no value (void function)
   return sqlite::utils::ReturnVoidFromFunction(ctx);
 }
 
@@ -118,7 +94,6 @@ class CreateFunctionPlugin : public Plugin<CreateFunctionPlugin> {
   void RegisterFunctions(PerfettoSqlConnection* connection,
                          std::vector<FunctionRegistration>& out) override {
     out.push_back(MakeFunctionRegistration<CreateFunction>(connection));
-    out.push_back(MakeFunctionRegistration<ExperimentalMemoize>(connection));
   }
 };
 

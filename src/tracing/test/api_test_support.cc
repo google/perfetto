@@ -161,8 +161,8 @@ TestTempFile CreateTempFile() {
   PERFETTO_CHECK(_mktemp_s(temp_file.mutable_data(), temp_file.len() + 1) == 0);
   HANDLE handle =
       ::CreateFileA(temp_file.c_str(), GENERIC_READ | GENERIC_WRITE,
-                    FILE_SHARE_DELETE | FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
-                    FILE_ATTRIBUTE_TEMPORARY, nullptr);
+                    FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, nullptr);
   PERFETTO_CHECK(handle && handle != INVALID_HANDLE_VALUE);
   res.fd = _open_osfhandle(reinterpret_cast<intptr_t>(handle), 0);
   res.path = temp_file.ToStdString();

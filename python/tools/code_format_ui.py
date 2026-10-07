@@ -86,7 +86,8 @@ class Eslint(CodeFormatterBase):
       print(err, file=sys.stderr)
       return 127
     files = [os.path.relpath(os.path.abspath(f), ui_dir) for f in files]
-    cmd = [tool] + ([] if check_only else ['--fix']) + files
+    cmd = [tool, '--no-warn-ignored'
+          ] + ([] if check_only else ['--fix']) + files
     return self.check_call(cmd, cwd=ui_dir, env=node_env(repo_root))
 
   def print_fix_hint(self):

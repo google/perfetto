@@ -81,6 +81,9 @@ export class AddExtensionServerModal {
   private confirmLoad(): void {
     const modules = this.deferredInitialModules;
     this.deferredInitialModules = undefined;
+    // Clicking "Load modules" is the only thing that may contact a server
+    // configured from an untrusted prefill. Clear the gate before scheduling.
+    this.awaitingConfirmation = false;
     this.scheduleManifestFetch(modules);
   }
 
@@ -395,9 +398,7 @@ export class AddExtensionServerModal {
           disabled: this.isEmbedderManaged,
           onchange: (e: Event) => {
             const keyType = (e.target as HTMLSelectElement).value as
-              | 'bearer'
-              | 'x_api_key'
-              | 'custom';
+              'bearer' | 'x_api_key' | 'custom';
             input.auth = {
               ...auth,
               keyType,
@@ -528,7 +529,13 @@ export class AddExtensionServerModal {
   private scheduleManifestFetch(
     preserveEnabledModules?: ReadonlyArray<string>,
   ): void {
-    this.awaitingConfirmation = false;
+    // Never contact the server while waiting for the user to confirm an
+    // untrusted prefilled configuration (from a shared link). Edits to the
+    // form (which trigger debouncedFetch) and server-type switches must not
+    // bypass the consent gate; only confirmLoad() clears it.
+    if (this.awaitingConfirmation) {
+      return;
+    }
     this.loadedState = undefined;
     this.fetchLimiter.schedule(() => this.loadManifest(preserveEnabledModules));
   }

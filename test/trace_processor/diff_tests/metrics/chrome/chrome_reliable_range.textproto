@@ -2,6 +2,47 @@
 # 12, and 13. The third thread has first_packet_on_sequence, so it should be
 # ignored for the reliable range computation.
 
+# Process descriptors for each process.
+packet {
+  timestamp: 1
+  trusted_packet_sequence_id: 1
+  track_descriptor {
+    uuid: 5
+    process {
+      pid: 1
+    }
+    chrome_process {
+      process_type: 2 # Renderer
+    }
+  }
+}
+packet {
+  timestamp: 1
+  trusted_packet_sequence_id: 2
+  track_descriptor {
+    uuid: 4
+    process {
+      pid: 2
+    }
+    chrome_process {
+      process_type: 1 # Browser
+    }
+  }
+}
+packet {
+  timestamp: 1
+  trusted_packet_sequence_id: 3
+  track_descriptor {
+    uuid: 6
+    process {
+      pid: 3
+    }
+    chrome_process {
+      process_type: 2 # Renderer
+    }
+  }
+}
+
 # Track descriptors for each thread.
 packet {
   timestamp: 1
@@ -12,6 +53,7 @@ packet {
     thread {
       pid: 1
       tid: 1
+      thread_name: "CrRendererMain"
     }
     disallow_merging_with_system_tracks: true
   }
@@ -25,6 +67,7 @@ packet {
     thread {
       pid: 2
       tid: 2
+      thread_name: "CrBrowserMain"
     }
     disallow_merging_with_system_tracks: true
   }
@@ -39,6 +82,7 @@ packet {
     thread {
       pid: 3
       tid: 3
+      thread_name: "CrRendererMain"
     }
     parent_uuid: 0
   }

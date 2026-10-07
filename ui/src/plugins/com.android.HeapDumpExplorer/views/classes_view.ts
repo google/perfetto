@@ -17,8 +17,6 @@ import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
   type NavFn,
@@ -30,6 +28,9 @@ import {
 } from '../components';
 import * as queries from '../queries';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
+import {Anchor} from '../../../widgets/anchor';
+import {DetailsShell} from '../../../widgets/details_shell';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
@@ -57,65 +58,70 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): SchemaRegistry {
+function makeUiSchema(navigate: NavFn): ColumnSchema {
   return {
-    query: {
-      cls: {
-        title: 'Class',
-        columnType: 'text',
-        cellRenderer: (value: SqlValue) =>
-          m(
-            'button',
-            {
-              class: 'pf-hde-link',
-              onclick: () => navigate('objects', {cls: String(value)}),
-            },
-            String(value),
-          ),
-      },
-      cnt: {
-        title: 'Count',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
-      shallow: {
-        title: colHeader('Shallow', COL_INFO.shallow),
-        titleString: 'Shallow',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      native_shallow: {
-        title: colHeader('Shallow Native', COL_INFO.shallowNative),
-        titleString: 'Shallow Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained: {
-        title: colHeader('Retained', COL_INFO.retained),
-        titleString: 'Retained',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_native: {
-        title: colHeader('Retained Native', COL_INFO.retainedNative),
-        titleString: 'Retained Native',
-        columnType: 'quantitative',
-        cellRenderer: sizeRenderer,
-      },
-      retained_count: {
-        title: colHeader('Retained #', COL_INFO.retainedCount),
-        titleString: 'Retained #',
-        columnType: 'quantitative',
-        cellRenderer: countRenderer,
-      },
+    cls: {
+      title: 'Class',
+      columnType: 'text',
+      cellRenderer: (value: SqlValue) =>
+        m(
+          Anchor,
+          {
+            onclick: () => navigate('objects', {cls: String(value)}),
+          },
+          String(value),
+        ),
+    },
+    cnt: {
+      title: 'Count',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
+    },
+    shallow: {
+      title: colHeader('Shallow', COL_INFO.shallow),
+      titleString: 'Shallow',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    native_shallow: {
+      title: colHeader('Shallow Native', COL_INFO.shallowNative),
+      titleString: 'Shallow Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained: {
+      title: colHeader('Retained', COL_INFO.retained),
+      titleString: 'Retained',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_native: {
+      title: colHeader('Retained Native', COL_INFO.retainedNative),
+      titleString: 'Retained Native',
+      columnType: 'quantitative',
+      cellRenderer: sizeRenderer,
+    },
+    retained_count: {
+      title: colHeader('Retained #', COL_INFO.retainedCount),
+      titleString: 'Retained #',
+      columnType: 'quantitative',
+      cellRenderer: countRenderer,
     },
   };
 }
 
-function ClassesView(): m.Component<ClassesViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+export function ClassesView({
+  attrs: {engine, activeDump},
+}: m.Vnode<ClassesViewAttrs>): m.Component<ClassesViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+    preamble: PREAMBLE,
+  });
   let alive = true;
   const counter = new RowCounter();
+  counter.init(engine, query, PREAMBLE);
   let filters: Filter[] = [];
 
   async function applyNavFilter(
@@ -134,45 +140,38 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
   }
 
   return {
-    oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        sqlSchema: createSimpleSchema(query),
-        rootSchemaName: 'query',
-        preamble: PREAMBLE,
-      });
-      counter.init(engine, query, PREAMBLE);
+    oninit({attrs}) {
       applyNavFilter(
-        engine,
-        activeDump,
-        vnode.attrs.initialRootClass,
-        vnode.attrs.clearNavParam,
+        attrs.engine,
+        attrs.activeDump,
+        attrs.initialRootClass,
+        attrs.clearNavParam,
       ).catch(console.error);
     },
-    onupdate(vnode) {
+    onupdate({attrs}) {
       applyNavFilter(
-        vnode.attrs.engine,
-        vnode.attrs.activeDump,
-        vnode.attrs.initialRootClass,
-        vnode.attrs.clearNavParam,
+        attrs.engine,
+        attrs.activeDump,
+        attrs.initialRootClass,
+        attrs.clearNavParam,
       ).catch(console.error);
     },
     onremove() {
       alive = false;
+      datasource.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
 
-      if (!dataSource) return null;
-
-      return m('div', {class: 'pf-hde-view-content'}, [
-        m('h2', {class: 'pf-hde-view-heading'}, counter.heading('Classes')),
+      return m(
+        DetailsShell,
+        {
+          title: counter.heading('Classes'),
+          fillHeight: true,
+        },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          rootSchema: 'query',
-          data: dataSource,
+          data: datasource,
           fillHeight: true,
           initialColumns: [
             {id: 'cls', field: 'cls'},
@@ -190,9 +189,7 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
             counter.onFiltersChanged(f);
           },
         }),
-      ]);
+      );
     },
   };
 }
-
-export default ClassesView;

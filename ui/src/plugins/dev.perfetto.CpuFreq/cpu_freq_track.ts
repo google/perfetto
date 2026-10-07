@@ -23,10 +23,10 @@ import {assertTrue} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   type CancellationSignal,
-  QUERY_CANCELLED,
-  QuerySlot,
-  SerialTaskQueue,
-} from '../../base/query_slot';
+  TASK_CANCELLED,
+  AsyncMemo,
+  AtomicTaskQueue,
+} from '../../base/async_memo';
 import type {StepAreaBuffers} from '../../base/renderer';
 import {type duration, type time, Time} from '../../base/time';
 import type {TimeScale} from '../../base/time_scale';
@@ -122,9 +122,9 @@ export class CpuFreqTrack implements TrackRenderer {
   ]);
 
   // QuerySlot infrastructure
-  private readonly queue = new SerialTaskQueue();
-  private readonly tableSlot = new QuerySlot<MipmapTables>(this.queue);
-  private readonly dataSlot = new QuerySlot<Data>(this.queue);
+  private readonly queue = new AtomicTaskQueue();
+  private readonly tableSlot = new AsyncMemo<MipmapTables>(this.queue);
+  private readonly dataSlot = new AsyncMemo<Data>(this.queue);
 
   // Cached data for rendering (populated from dataSlot)
   private data?: Data;
@@ -238,7 +238,7 @@ export class CpuFreqTrack implements TrackRenderer {
     end: time,
     resolution: duration,
     signal: CancellationSignal,
-  ): Promise<Data | typeof QUERY_CANCELLED> {
+  ): Promise<Data | typeof TASK_CANCELLED> {
     // The resolution should always be a power of two for the logic of this
     // function to make sense.
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
@@ -256,7 +256,7 @@ export class CpuFreqTrack implements TrackRenderer {
       );
     `);
 
-    if (signal.isCancelled) return QUERY_CANCELLED;
+    if (signal.isCancelled) return TASK_CANCELLED;
 
     const idleResult = await this.trace.engine.query(`
       SELECT last_value as lastIdle
@@ -267,7 +267,7 @@ export class CpuFreqTrack implements TrackRenderer {
       );
     `);
 
-    if (signal.isCancelled) return QUERY_CANCELLED;
+    if (signal.isCancelled) return TASK_CANCELLED;
 
     const priority = CHUNKED_TASK_BACKGROUND_PRIORITY.get()
       ? 'background'
@@ -278,13 +278,6 @@ export class CpuFreqTrack implements TrackRenderer {
     const idleRows = idleResult.numRows();
     assertTrue(freqRows == idleRows);
 
-    // Allocate arrays for Data and StepAreaBuffers
-    const timestamps = new BigInt64Array(freqRows);
-    const minFreqKHz = new Uint32Array(freqRows);
-    const maxFreqKHz = new Uint32Array(freqRows);
-    const lastFreqKHz = new Uint32Array(freqRows);
-    const lastIdleValues = new Int8Array(freqRows);
-
     // StepAreaBuffers arrays (raw data values, transform applied at render time)
     const xs = new Float32Array(freqRows); // Relative timestamps in ns
     const xnext = new Float32Array(freqRows); // Next relative timestamp in ns
@@ -293,43 +286,55 @@ export class CpuFreqTrack implements TrackRenderer {
     const maxYs = new Float32Array(freqRows); // Min freq (lower value = higher Y after transform)
     const fills = new Float32Array(freqRows); // 1.0 when not idle, 0.0 when idle
 
-    const freqIt = freqResult.iter({
+    const freqCols = freqResult.decodeColumns({
       ts: LONG,
       minFreq: NUM,
       maxFreq: NUM,
       lastFreq: NUM,
     });
-    const idleIt = idleResult.iter({
+    const idleCols = idleResult.decodeColumns({
       lastIdle: NUM,
     });
-    for (let i = 0; freqIt.valid(); ++i, freqIt.next(), idleIt.next()) {
-      if (i % 50 === 0) {
-        if (signal.isCancelled) return QUERY_CANCELLED;
+    const tsCol = freqCols.ts;
+    const minFreqCol = freqCols.minFreq;
+    const maxFreqCol = freqCols.maxFreq;
+    const lastFreqCol = freqCols.lastFreq;
+    const lastIdleCol = idleCols.lastIdle;
+
+    const timestamps = tsCol;
+    const minFreqKHz = new Uint32Array(minFreqCol);
+    const maxFreqKHz = new Uint32Array(maxFreqCol);
+    const lastFreqKHz = new Uint32Array(lastFreqCol);
+    const lastIdleValues = new Int8Array(lastIdleCol);
+
+    for (let i = 0; i < freqRows; ++i) {
+      if (i % 64 === 0) {
+        if (signal.isCancelled) return TASK_CANCELLED;
         if (task.shouldYield()) {
           await task.yield();
         }
       }
 
-      timestamps[i] = freqIt.ts;
-      minFreqKHz[i] = freqIt.minFreq;
-      maxFreqKHz[i] = freqIt.maxFreq;
-      lastFreqKHz[i] = freqIt.lastFreq;
-      lastIdleValues[i] = idleIt.lastIdle;
+      const ts = tsCol[i];
+      const minFreq = minFreqCol[i];
+      const maxFreq = maxFreqCol[i];
+      const lastFreq = lastFreqCol[i];
+      const lastIdle = lastIdleCol[i];
 
       // Populate step area buffers with raw values
-      const x = Number(freqIt.ts - start);
+      const x = Number(ts - start);
       xs[i] = Math.max(0, x); // Clamp to the start of the frame
-      ys[i] = freqIt.lastFreq;
+      ys[i] = lastFreq;
 
-      fills[i] = idleIt.lastIdle < 0 ? 1.0 : 0.0;
+      fills[i] = lastIdle < 0 ? 1.0 : 0.0;
       if (i > 0) {
         xnext[i - 1] = x;
         const yprev = ys[i - 1];
-        minYs[i] = Math.min(freqIt.minFreq, yprev);
-        maxYs[i] = Math.max(freqIt.maxFreq, yprev);
+        minYs[i] = Math.min(minFreq, yprev);
+        maxYs[i] = Math.max(maxFreq, yprev);
       } else {
-        minYs[i] = freqIt.minFreq;
-        maxYs[i] = freqIt.maxFreq;
+        minYs[i] = minFreq;
+        maxYs[i] = maxFreq;
       }
     }
 
@@ -396,7 +401,7 @@ export class CpuFreqTrack implements TrackRenderer {
         freqTrackId: this.config.freqTrackId,
         idleTrackId: this.config.idleTrackId,
       },
-      queryFn: () => this.createMipmapTables(),
+      compute: () => this.createMipmapTables(),
     });
 
     // Step 2: Declaratively fetch data from the tables with buffered bounds
@@ -410,7 +415,7 @@ export class CpuFreqTrack implements TrackRenderer {
         end: bounds.end,
         resolution: bounds.resolution,
       },
-      queryFn: async (signal) => {
+      compute: async (signal) => {
         const result = await this.trace.taskTracker.track(
           this.fetchData(
             tableResult.data!.freqTableName,

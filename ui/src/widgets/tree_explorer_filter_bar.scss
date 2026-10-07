@@ -1,0 +1,145 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-tree-explorer-filter-bar {
+  margin: 6px 8px;
+  display: flex;
+  column-gap: 6px;
+  row-gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+
+  > .pf-tag-input {
+    flex-grow: 1;
+  }
+
+  .pf-select {
+    flex-shrink: 0;
+  }
+
+  .pf-radio-group__button {
+    padding-block: 1px;
+  }
+
+  .pf-tag-input {
+    flex: 1 1 0;
+    min-width: 0;
+    max-height: 60px;
+    overflow-y: auto;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    // Override the inner Stack to allow wrapping and add gaps.
+    .pf-stack {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .pf-chip {
+      max-width: 200px;
+      min-width: auto;
+    }
+
+    input {
+      min-width: 80px;
+    }
+  }
+
+  &__secondary-row {
+    flex: 1 0 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  &__label {
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+}
+
+.pf-tree-explorer-highlight-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 416px;
+  min-width: 280px;
+
+  .pf-text-input {
+    min-width: 180px;
+    width: 100%;
+  }
+
+  &__count {
+    flex-shrink: 0;
+    color: var(--pf-color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-filter-builder {
+  &.pf-popup {
+    min-width: 300px;
+    > .pf-popup-content {
+      padding: 12px;
+    }
+  }
+  &__separator {
+    height: 1px;
+    background: var(--pf-color-border);
+    margin: 12px 0 8px 0;
+  }
+  &__tip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: smaller;
+    color: var(--pf-color-text-muted);
+    padding-bottom: 8px;
+  }
+  &__help {
+    font-size: 13px;
+  }
+  &__help-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  &__help-row {
+    margin: 4px 0;
+  }
+  &__desc,
+  &__warn,
+  &__hint {
+    font-size: smaller;
+    margin-bottom: 8px;
+  }
+  &__desc,
+  &__hint {
+    color: var(--pf-color-text-muted);
+  }
+  &__hint {
+    margin-top: 4px;
+  }
+  code {
+    font-family: var(--pf-font-monospace, monospace);
+    background: var(--pf-color-background-secondary, rgba(0, 0, 0, 0.06));
+    border-radius: 3px;
+    padding: 0 3px;
+  }
+  &__warn {
+    color: var(--pf-color-warning);
+  }
+}

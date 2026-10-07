@@ -23,16 +23,14 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-
-namespace protozero {
-struct ConstBytes;
-}
+#include "perfetto/protozero/field.h"
 
 namespace perfetto::trace_processor {
 
@@ -53,9 +51,17 @@ class FieldDescriptor {
   uint32_t type() const { return type_; }
   const std::string& raw_type_name() const { return raw_type_name_; }
   const std::string& resolved_type_name() const { return resolved_type_name_; }
+  std::optional<uint32_t> flags_enum_descriptor_idx() const {
+    return flags_enum_descriptor_idx_;
+  }
+  bool is_pid() const { return is_pid_; }
+  bool is_tid() const { return is_tid_; }
   bool is_repeated() const { return is_repeated_; }
   bool is_packed() const { return is_packed_; }
   bool is_extension() const { return is_extension_; }
+  const std::string& extension_full_name() const {
+    return extension_full_name_;
+  }
 
   const std::vector<uint8_t>& options() const { return options_; }
   std::vector<uint8_t>* mutable_options() { return &options_; }
@@ -67,17 +73,32 @@ class FieldDescriptor {
     resolved_type_name_ = resolved_type_name;
   }
 
+  void set_flags_enum_descriptor_idx(uint32_t idx) {
+    flags_enum_descriptor_idx_ = idx;
+  }
+
+  void set_is_pid(bool is_pid) { is_pid_ = is_pid; }
+  void set_is_tid(bool is_tid) { is_tid_ = is_tid; }
+
+  void set_extension_full_name(const std::string& extension_full_name) {
+    extension_full_name_ = extension_full_name;
+  }
+
  private:
   std::string name_;
   uint32_t number_;
   uint32_t type_;
   std::string raw_type_name_;
   std::string resolved_type_name_;
+  std::optional<uint32_t> flags_enum_descriptor_idx_;
+  bool is_pid_ = false;
+  bool is_tid_ = false;
   std::vector<uint8_t> options_;
   std::optional<std::string> default_value_;
   bool is_repeated_;
   bool is_packed_;
   bool is_extension_;
+  std::string extension_full_name_;
 };
 
 class ProtoDescriptor {
@@ -92,7 +113,7 @@ class ProtoDescriptor {
 
   void AddField(FieldDescriptor descriptor) {
     PERFETTO_DCHECK(type_ == Type::kMessage);
-    fields_.emplace(descriptor.number(), std::move(descriptor));
+    fields_.insert_or_assign(descriptor.number(), std::move(descriptor));
   }
 
   void AddEnumValue(int32_t integer_representation,
@@ -171,7 +192,12 @@ class ProtoDescriptor {
   std::unordered_map<std::string, int32_t> enum_values_by_name_;
 };
 
-using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
+struct ExtensionInfo {
+  std::string package_name;
+  // Enclosing message's full name. Empty for file-scope extends.
+  std::string parent_full_name;
+  protozero::ConstBytes field_desc_proto;
+};
 
 // Sometimes the same extension field number shows up twice with two
 // different type names (this happens during a package rename). We can't
@@ -183,7 +209,7 @@ using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
 struct ExtensionTypeCheck {
   std::string extendee_full_name;
   std::string field_name;
-  std::string existing_raw_type;
+  FieldDescriptor existing_field;
   std::string new_raw_type;
 };
 
@@ -220,13 +246,42 @@ class DescriptorPool {
 
   std::vector<uint8_t> SerializeAsDescriptorSet() const;
 
+  // Bumped whenever a descriptor is added or changed, so that state derived
+  // from the pool can tell it is stale.
+  uint32_t generation() const { return generation_; }
+
   void AddProtoDescriptorForTesting(ProtoDescriptor descriptor) {
+    generation_++;
     AddProtoDescriptor(std::move(descriptor));
   }
 
   const std::vector<ProtoDescriptor>& descriptors() const {
     return descriptors_;
   }
+
+  // Opaque memo of a resolved descriptor, reused across FindEnumString calls.
+  class CachedDescriptor {
+   public:
+    CachedDescriptor() = default;
+
+   private:
+    friend class DescriptorPool;
+    std::optional<uint32_t> descriptor_idx_;
+  };
+
+  // Returns the name of enum value |value| within enum |enum_name|, or nullopt
+  // if the enum or the value is unknown. |cache| stores the resolved descriptor
+  // so later calls skip the by-name lookup.
+  std::optional<std::string> FindEnumString(CachedDescriptor& cache,
+                                            std::string_view enum_name,
+                                            int32_t value) const;
+
+  // Appends the name of each single-bit flag set in |mask| to |*out| (views
+  // into the pool's storage), for the flags enum at |enum_descriptor_idx|.
+  // Returns the set bits that matched no flag.
+  int64_t FlagSetToViews(uint32_t enum_descriptor_idx,
+                         int64_t mask,
+                         std::vector<std::string_view>* out) const;
 
  private:
   base::Status AddNestedProtoDescriptors(
@@ -244,8 +299,7 @@ class DescriptorPool {
                                        bool merge_existing_messages);
 
   base::Status AddExtensionField(
-      const std::string& package_name,
-      protozero::ConstBytes field_desc_proto,
+      const ExtensionInfo& extension,
       std::vector<ExtensionTypeCheck>* extension_type_checks);
 
   // Recursively searches for the given short type in all parent messages
@@ -257,9 +311,26 @@ class DescriptorPool {
                                           const FieldDescriptor&,
                                           std::vector<uint8_t>&);
 
+  void ResolveFlagsEnumOption(const ProtoDescriptor& descriptor,
+                              uint32_t option_number,
+                              FieldDescriptor* field);
+
+  // The field numbers of Perfetto's custom field options, looked up once.
+  struct CustomOptionNumbers {
+    std::optional<uint32_t> flags_enum;
+    std::optional<uint32_t> pid;
+    std::optional<uint32_t> tid;
+  };
+  CustomOptionNumbers FindCustomOptionNumbers() const;
+  void ResolveCustomFieldOptions(const ProtoDescriptor& descriptor,
+                                 const CustomOptionNumbers& numbers,
+                                 FieldDescriptor* field);
+
   // Adds a new descriptor to the pool and returns its index. There must not be
   // already a descriptor with the same full_name in the pool.
   uint32_t AddProtoDescriptor(ProtoDescriptor descriptor);
+
+  uint32_t generation_ = 0;
 
   bool DescriptorsStructurallyEqual(
       uint32_t root_existing_idx,

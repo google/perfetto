@@ -157,7 +157,19 @@ export default class implements PerfettoPlugin {
               google3.wireless.android.telemetry.trace_extractor.modules.atom_counters_slices`,
       );
       features.add('google3');
-    } catch (e) {}
+    } catch {}
+
+    // Check if JobScheduler track events are present in the trace
+    try {
+      const jsEvents = await e.query(`
+        SELECT 1 FROM __intrinsic_android_job_scheduler_track_events LIMIT 1
+      `);
+      if (jsEvents.numRows() > 0) {
+        features.add('track_event.jobscheduler');
+      }
+    } catch {
+      // Gracefully handle engines where __intrinsic_android_job_scheduler_track_events is not registered
+    }
 
     return features;
   }

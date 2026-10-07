@@ -69,6 +69,17 @@ struct SubcommandContext {
   std::vector<std::string> positional_args;
 };
 
+// Returns an error if `ctx.positional_args` has more than `max_positionals`
+// entries. Extra positional arguments are almost always a mistake (e.g.
+// passing each path intended for a value-taking flag such as --symbol-paths
+// as a separate argument); rejecting them surfaces the typo instead of
+// silently misinterpreting the command line. |hint|, if non-null, is
+// appended to the error message.
+base::Status RejectExtraPositionals(const SubcommandContext& ctx,
+                                    const char* subcommand,
+                                    size_t max_positionals,
+                                    const char* hint = nullptr);
+
 // Base class for all subcommands (query, export, serve, etc.).
 class Subcommand {
  public:

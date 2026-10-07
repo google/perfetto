@@ -76,6 +76,10 @@ class PERFETTO_EXPORT_COMPONENT ScatteredHeapBuffer
   // writer has written.
   const std::vector<Slice>& GetSlices();
 
+  // Like GetSlices() but hands them over, leaving this empty. The writer is
+  // reset so it no longer points into the handed-over memory.
+  std::vector<Slice> TakeSlices();
+
   // Stitch all the slices into a single contiguous buffer.
   std::vector<uint8_t> StitchSlices();
 
@@ -173,6 +177,16 @@ class HeapBuffered {
   const std::vector<ScatteredHeapBuffer::Slice>& GetSlices() {
     msg_.Finalize();
     return shb_.GetSlices();
+  }
+
+  // Finalizes the message and hands over its slices, leaving this empty and
+  // reusable.
+  std::vector<ScatteredHeapBuffer::Slice> TakeSlices() {
+    msg_.Finalize();
+    std::vector<ScatteredHeapBuffer::Slice> slices = shb_.TakeSlices();
+    msg_.Reset(&writer_);
+    PERFETTO_DCHECK(empty());
+    return slices;
   }
 
   void Reset() {

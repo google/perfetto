@@ -166,47 +166,57 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
         key_to_row_(key_to_row),
         interned_data_(interned_data) {}
 
-  void AddInteger(const Key& key, int64_t res) override {
+  using Id = StringPool::Id;
+  Id InternString(base::StringView s) override {
+    return pool_->InternString(s);
+  }
+  void AddInteger(Id flat_key, Id key_id, int64_t res) override {
+    Key key = KeyFromIds(flat_key, key_id);
     if (TryAddDeinternedString(key, res)) {
       return;
     }
     RowReference r = GetOrCreateRow(key);
     r.set_int_value(res);
   }
-  void AddUnsignedInteger(const Key& key, uint64_t res) override {
+  void AddUnsignedInteger(Id flat_key, Id key_id, uint64_t res) override {
+    Key key = KeyFromIds(flat_key, key_id);
     if (TryAddDeinternedString(key, static_cast<int64_t>(res))) {
       return;
     }
     RowReference r = GetOrCreateRow(key);
     r.set_int_value(int64_t(res));
   }
-  void AddString(const Key& key, const protozero::ConstChars& res) override {
-    RowReference r = GetOrCreateRow(key);
+  void AddString(Id flat_key,
+                 Id key_id,
+                 const protozero::ConstChars& res) override {
+    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
     r.set_string_value(
         pool_->InternString(base::StringView((res.ToStdString()))));
   }
-  void AddString(const Key& key, const std::string& res) override {
-    RowReference r = GetOrCreateRow(key);
+  void AddString(Id flat_key, Id key_id, const std::string& res) override {
+    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
     r.set_string_value(pool_->InternString(base::StringView(res)));
   }
-  void AddDouble(const Key& key, double res) override {
-    RowReference r = GetOrCreateRow(key);
+  void AddDouble(Id flat_key, Id key_id, double res) override {
+    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
     r.set_real_value(res);
   }
-  void AddBoolean(const Key& key, bool res) override {
-    RowReference r = GetOrCreateRow(key);
+  void AddBoolean(Id flat_key, Id key_id, bool res) override {
+    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
     r.set_int_value(res);
   }
-  void AddBytes(const Key& key, const protozero::ConstBytes& res) override {
-    RowReference r = GetOrCreateRow(key);
+  void AddBytes(Id flat_key,
+                Id key_id,
+                const protozero::ConstBytes& res) override {
+    RowReference r = GetOrCreateRow(KeyFromIds(flat_key, key_id));
     r.set_string_value(
         pool_->InternString(base::StringView((res.ToStdString()))));
   }
-  void AddNull(const Key& key) override { GetOrCreateRow(key); }
-  void AddPointer(const Key&, uint64_t) override {
-    PERFETTO_FATAL("Unsupported");
+  void AddNull(Id flat_key, Id key_id) override {
+    GetOrCreateRow(KeyFromIds(flat_key, key_id));
   }
-  bool AddJson(const Key&, const protozero::ConstChars&) override {
+  void AddPointer(Id, Id, uint64_t) override { PERFETTO_FATAL("Unsupported"); }
+  bool AddJson(Id, Id, const protozero::ConstChars&) override {
     PERFETTO_FATAL("Unsupported");
   }
   size_t GetArrayEntryIndex(const std::string&) override {
@@ -229,6 +239,11 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
  private:
   InternedMessageView* GetInternedMessageView(uint32_t, uint64_t) override {
     return nullptr;
+  }
+
+  Key KeyFromIds(Id flat_key, Id key) const {
+    return Key{pool_->Get(flat_key).ToStdString(),
+               pool_->Get(key).ToStdString()};
   }
 
   RowReference GetOrCreateRow(const Key& key) {
@@ -259,16 +274,17 @@ class Delegate : public util::ProtoToArgsParser::Delegate {
     if (!interned_data_ || !base::EndsWith(key.key, "_iid")) {
       return false;
     }
-    const auto deinterned_key =
-        Key{key.flat_key.substr(0, key.flat_key.size() - 4),
-            key.key.substr(0, key.key.size() - 4)};
+    const Id deinterned_flat_key = pool_->InternString(
+        base::StringView(key.flat_key.substr(0, key.flat_key.size() - 4)));
+    const Id deinterned_key = pool_->InternString(
+        base::StringView(key.key.substr(0, key.key.size() - 4)));
     const auto deinterned_value = TryDeinternString(key, iid);
     if (!deinterned_value) {
-      AddString(deinterned_key,
+      AddString(deinterned_flat_key, deinterned_key,
                 protozero::ConstChars{kDeinternError, sizeof(kDeinternError)});
       return false;
     }
-    AddString(deinterned_key, *deinterned_value);
+    AddString(deinterned_flat_key, deinterned_key, *deinterned_value);
     return true;
   }
 
@@ -302,7 +318,7 @@ base::Status InsertRows(
     StringPool* string_pool,
     const ProtoToInternedData& proto_to_interned_data,
     const std::string& table_name) {
-  util::ProtoToArgsParser args_parser{descriptor_pool};
+  util::ProtoToArgsParser args_parser{descriptor_pool, *string_pool};
 
   auto it = static_table.IndexOfColumnLegacy("base64_proto_id");
   if (!it) {

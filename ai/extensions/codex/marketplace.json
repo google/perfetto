@@ -1,0 +1,20 @@
+{
+  "name": "perfetto",
+  "interface": {
+    "displayName": "Perfetto"
+  },
+  "plugins": [
+    {
+      "name": "perfetto",
+      "source": {
+        "source": "local",
+        "path": "./plugins/perfetto"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "development"
+    }
+  ]
+}

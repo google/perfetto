@@ -25,14 +25,19 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/httpd.h"
 #include "src/trace_processor/rpc/rpc.h"
+#include "src/trace_processor/rpc/session_lifecycle.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -50,24 +55,56 @@ const char* kDefaultAllowedCORSOrigins[] = {
     "http://127.0.0.1:10000",
 };
 
+// base::MurmurHash refuses raw pointers; here identity is exactly the key.
+struct ConnHasher {
+  size_t operator()(const base::HttpServerConnection* conn) const {
+    return static_cast<size_t>(
+        base::MurmurHashValue(reinterpret_cast<uintptr_t>(conn)));
+  }
+};
+
 class Httpd : public base::HttpRequestHandler {
  public:
   explicit Httpd(Rpc& rpc);
   ~Httpd() override;
   void Run(const std::string& listen_ip,
            int port,
-           const std::vector<std::string>& additional_cors_origins);
+           const std::vector<std::string>& additional_cors_origins,
+           uint32_t idle_timeout_ms,
+           IdleStart idle_start,
+           bool quiet);
 
  private:
   // HttpRequestHandler implementation.
+  uint8_t* OnHttpRequestBody(const base::HttpRequest&, size_t size) override;
+  uint8_t* OnWebsocketPayload(base::HttpServerConnection*,
+                              size_t size) override;
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
+  void OnHttpConnectionClosed(base::HttpServerConnection*) override;
+
+  // The server can be part-way through a payload on several connections at
+  // once, so none of this can be shared.
+  struct ConnState {
+    // Created on first use: most connections never carry an RPC byte-pipe.
+    std::unique_ptr<Rpc::Stream> stream;
+    // Open from OnHttpRequestBody()/OnWebsocketPayload() until the matching
+    // OnHttpRequest()/OnWebsocketMessage(), spanning several socket reads.
+    Rpc::RequestHandle pending;
+    // Bodies of the non-RPC endpoints.
+    std::unique_ptr<uint8_t[]> payload;
+    size_t payload_size = 0;
+  };
+
+  Rpc::Stream& GetRpcStream(base::HttpServerConnection* conn);
 
   static void ServeHelpPage(const base::HttpRequest&);
 
   Rpc& global_trace_processor_rpc_;
+  base::FlatHashMap<base::HttpServerConnection*, ConnState, ConnHasher> conns_;
   base::MaybeLockFreeTaskRunner task_runner_;
   base::HttpServer http_srv_;
+  std::unique_ptr<IdleReaper> reaper_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -101,23 +138,57 @@ Httpd::~Httpd() = default;
 
 void Httpd::Run(const std::string& listen_ip,
                 int port,
-                const std::vector<std::string>& additional_cors_origins) {
+                const std::vector<std::string>& additional_cors_origins,
+                uint32_t idle_timeout_ms,
+                IdleStart idle_start,
+                bool quiet) {
   for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
     http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
   }
   for (const auto& additional_cors_origin : additional_cors_origins) {
     http_srv_.AddAllowedOrigin(additional_cors_origin);
   }
+  http_srv_.SetQuiet(quiet);
   http_srv_.Start(listen_ip, port);
-  PERFETTO_ILOG(
-      "[HTTP] This server can be used by reloading https://ui.perfetto.dev and "
-      "clicking on YES on the \"Trace Processor native acceleration\" dialog "
-      "or through the Python API (see "
-      "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
+  if (!quiet) {
+    PERFETTO_ILOG(
+        "[HTTP] This server can be used by reloading https://ui.perfetto.dev "
+        "and clicking on YES on the \"Trace Processor native acceleration\" "
+        "dialog or through the Python API (see "
+        "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
+  }
+  reaper_ =
+      std::make_unique<IdleReaper>(&task_runner_, idle_timeout_ms, idle_start,
+                                   [this] { task_runner_.Quit(); });
+  reaper_->Start();
   task_runner_.Run();
 }
 
+uint8_t* Httpd::OnHttpRequestBody(const base::HttpRequest& req, size_t size) {
+  ConnState& state = conns_[req.conn];
+  if (req.uri == "/rpc") {
+    state.pending = GetRpcStream(req.conn).BeginRequest(size);
+    return state.pending.data();
+  }
+  if (size > state.payload_size) {
+    // Deliberately not value-initialized: |size| comes from Content-Length, so
+    // touching it here would make an unsent body resident.
+    state.payload.reset(new uint8_t[size]);
+    state.payload_size = size;
+  }
+  return state.payload.get();
+}
+
+uint8_t* Httpd::OnWebsocketPayload(base::HttpServerConnection* conn,
+                                   size_t size) {
+  ConnState& state = conns_[conn];
+  state.pending = GetRpcStream(conn).BeginRequest(size);
+  return state.pending.data();
+}
+
 void Httpd::OnHttpRequest(const base::HttpRequest& req) {
+  if (reaper_)
+    reaper_->OnActivity();
   base::HttpServerConnection& conn = *req.conn;
   if (req.uri == "/") {
     // If a user tries to open http://127.0.0.1:9001/ show a minimal help page.
@@ -169,13 +240,9 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Start the chunked reply.
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
-    global_trace_processor_rpc_.SetRpcResponseFunction(
-        [&](const void* data, uint32_t len) {
-          SendRpcChunk(&conn, data, len);
-        });
-    // OnRpcRequest() will call SendRpcChunk() one or more times.
-    global_trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
-    global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+    if (!req.body.empty()) {
+      conns_[&conn].pending.EndRequest(req.body.size());
+    }
 
     // Terminate chunked stream.
     conn.SendResponseBody("0\r\n\r\n", 5);
@@ -183,8 +250,18 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/parse") {
-    base::Status status = global_trace_processor_rpc_.Parse(
-        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    // The body lives in |state.payload| (see OnHttpRequestBody()), so hand the
+    // buffer over rather than copying it; the next body gets a fresh one.
+    ConnState& state = conns_[&conn];
+    TraceBlobView blob;
+    if (!req.body.empty()) {
+      PERFETTO_DCHECK(reinterpret_cast<const uint8_t*>(req.body.data()) ==
+                      state.payload.get());
+      blob = TraceBlobView(
+          TraceBlob::TakeOwnership(std::move(state.payload), req.body.size()));
+      state.payload_size = 0;
+    }
+    base::Status status = global_trace_processor_rpc_.Parse(std::move(blob));
     protozero::HeapBuffered<protos::pbzero::AppendTraceDataResult> result;
     if (!status.ok()) {
       result->set_error(status.c_message());
@@ -255,17 +332,74 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
+  if (req.uri == "/export") {
+    protos::pbzero::ExportArgs::Decoder args(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    std::optional<TraceProcessor::ExportFormat> format =
+        Rpc::ParseExportFormat(args.format());
+    if (!format) {
+      return conn.SendResponseAndClose("400 Bad Request", default_headers,
+                                       "Export format is required");
+    }
+
+    // Stream raw export bytes directly, using the same framing as /query.
+    conn.SendResponseHeaders("200 OK", chunked_headers,
+                             base::HttpServerConnection::kOmitContentLength);
+    auto on_chunk = [&](const uint8_t* buf, size_t len,
+                        bool has_more) -> base::Status {
+      PERFETTO_DLOG("Sending export chunk, len=%zu eof=%d", len, !has_more);
+      if (buf && len > 0) {
+        base::StackString<32> chunk_hdr("%zx\r\n", len);
+        if (!conn.SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len()) ||
+            !conn.SendResponseBody(buf, len) ||
+            !conn.SendResponseBody("\r\n", 2)) {
+          return base::ErrStatus("HTTP client disconnected during export");
+        }
+      }
+      if (!has_more && !conn.SendResponseBody("0\r\n\r\n", 5)) {
+        return base::ErrStatus("HTTP client disconnected during export");
+      }
+      return base::OkStatus();
+    };
+    base::Status status = global_trace_processor_rpc_.Export(*format, on_chunk);
+    if (!status.ok()) {
+      // The 200 response has already started, so a second HTTP response cannot
+      // be sent. Leave the chunked body incomplete to signal the failure.
+      PERFETTO_DLOG("Export failed: %s", status.c_message());
+      return conn.Close();
+    }
+    return;
+  }
+
   return conn.SendResponseAndClose("404 Not Found", default_headers);
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  global_trace_processor_rpc_.SetRpcResponseFunction(
-      [&](const void* data, uint32_t len) {
-        SendRpcChunk(msg.conn, data, len);
-      });
-  // OnRpcRequest() will call SendRpcChunk() one or more times.
-  global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-  global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+  if (reaper_)
+    reaper_->OnActivity();
+  if (msg.data.empty())
+    return;
+  conns_[msg.conn].pending.EndRequest(msg.data.size());
+}
+
+Rpc::Stream& Httpd::GetRpcStream(base::HttpServerConnection* conn) {
+  auto& stream = conns_[conn].stream;
+  if (!stream) {
+    stream = std::make_unique<Rpc::Stream>(
+        global_trace_processor_rpc_, [conn](const void* data, uint32_t len) {
+          SendRpcChunk(conn, data, len);
+        });
+  }
+  return *stream;
+}
+
+void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
+  // A peer that goes away mid-payload leaves a reservation open; the bytes it
+  // managed to send are an incomplete message and are dropped with it.
+  ConnState* state = conns_.Find(conn);
+  if (state && state->pending)
+    state->pending.AbortRequest();
+  conns_.Erase(conn);
 }
 
 }  // namespace
@@ -273,12 +407,16 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 void RunHttpRPCServer(Rpc& rpc,
                       const std::string& listen_ip,
                       const std::string& port_number,
-                      const std::vector<std::string>& additional_cors_origins) {
+                      const std::vector<std::string>& additional_cors_origins,
+                      uint32_t idle_timeout_ms,
+                      IdleStart idle_start,
+                      bool quiet) {
   Httpd srv(rpc);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port, additional_cors_origins);
+  srv.Run(ip, port, additional_cors_origins, idle_timeout_ms, idle_start,
+          quiet);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {

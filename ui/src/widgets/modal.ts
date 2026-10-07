@@ -47,26 +47,26 @@ import {Intent} from './common';
 // showModal()/closeModal() are irrelevant in this case.
 
 export interface ModalAttrs {
-  title: string;
-  icon?: string;
-  className?: string;
-  buttons?: ModalButton[];
-  vAlign?: 'MIDDLE' /* default */ | 'TOP';
+  readonly title: string;
+  readonly icon?: string;
+  readonly className?: string;
+  readonly buttons?: ModalButton[];
+  readonly vAlign?: 'MIDDLE' /* default */ | 'TOP';
 
   // Used to disambiguate between different modal dialogs that might overlap
   // due to different client showing modal dialogs at the same time. This needs
   // to match the key passed to closeModal() (if non-undefined). If the key is
   // not provided, showModal will make up a random key in the showModal() call.
-  key?: string;
+  readonly key?: string;
 
   // A callback that is called when the dialog is closed, whether by pressing
   // any buttons or hitting ESC or clicking outside of the modal.
-  onClose?: () => void;
+  readonly onClose?: () => void;
 
   // The content/body of the modal dialog. This can be either:
   // 1. A static set of children, for simple dialogs which content never change.
   // 2. A factory method that returns a m() vnode for dyamic content.
-  content?: m.Children | (() => m.Children);
+  readonly content?: m.Children | (() => m.Children);
 }
 
 export interface ModalButton {

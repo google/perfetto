@@ -30,8 +30,8 @@
 #include <utility>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
@@ -40,8 +40,8 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter.h"
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_state.h"
@@ -104,24 +104,6 @@ struct StringLessInvert {
 }  // namespace comparators
 
 namespace ops {
-
-// Outlined implementation of SortRowLayout bytecode.
-// Sorts indices based on row layout data in buffer.
-void SortRowLayoutImpl(const Slab<uint8_t>& buffer,
-                       uint32_t stride,
-                       Span<uint32_t>& indices);
-
-// Outlined implementation of FinalizeRanksInMap bytecode.
-// Sorts string IDs and assigns ranks in the map.
-void FinalizeRanksInMapImpl(
-    const StringPool* string_pool,
-    std::unique_ptr<base::FlatHashMap<StringPool::Id, uint32_t>>& rank_map_ptr);
-
-// Outlined implementation of Distinct bytecode.
-// Removes duplicate rows based on row layout data.
-void DistinctImpl(const Slab<uint8_t>& buffer,
-                  uint32_t stride,
-                  Span<uint32_t>& indices);
 
 // Outlined implementation of glob filtering for strings.
 // Returns pointer past last written output index.
@@ -241,42 +223,6 @@ template <typename Comparator, typename ValueType>
     }
   }
   return o_write;
-}
-
-template <typename T>
-inline PERFETTO_ALWAYS_INLINE auto GetComparableRowLayoutReprInteger(T x) {
-  // The inspiration behind this function comes from:
-  // https://arrow.apache.org/blog/2022/11/07/multi-column-sorts-in-arrow-rust-part-2/
-  if constexpr (std::is_same_v<T, uint32_t>) {
-    return base::HostToBE32(x);
-  } else if constexpr (std::is_same_v<T, int32_t>) {
-    return base::HostToBE32(
-        static_cast<uint32_t>(x ^ static_cast<int32_t>(0x80000000)));
-  } else if constexpr (std::is_same_v<T, int64_t>) {
-    return base::HostToBE64(
-        static_cast<uint64_t>(x ^ static_cast<int64_t>(0x8000000000000000)));
-  } else {
-    static_assert(std::is_same_v<T, uint32_t>,
-                  "Unsupported type for row layout representation");
-  }
-}
-
-template <typename T>
-inline PERFETTO_ALWAYS_INLINE auto GetComparableRowLayoutRepr(T x) {
-  // The inspiration behind this function comes from:
-  // https://arrow.apache.org/blog/2022/11/07/multi-column-sorts-in-arrow-rust-part-2/
-  if constexpr (std::is_same_v<T, uint32_t> || std::is_same_v<T, int32_t> ||
-                std::is_same_v<T, int64_t>) {
-    return GetComparableRowLayoutReprInteger(x);
-  } else if constexpr (std::is_same_v<T, double>) {
-    int64_t bits;
-    memcpy(&bits, &x, sizeof(double));
-    bits ^= static_cast<int64_t>(static_cast<uint64_t>(bits >> 63) >> 1);
-    return GetComparableRowLayoutReprInteger(bits);
-  } else {
-    static_assert(std::is_same_v<T, uint32_t>,
-                  "Unsupported type for row layout representation");
-  }
 }
 
 inline PERFETTO_ALWAYS_INLINE void InitRange(InterpreterState& state,
@@ -1601,8 +1547,6 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
 
   auto& dest_buffer =
       state.ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-  uint8_t* dest = dest_buffer.data() + bytecode.arg<B::row_layout_offset>();
-  uint32_t stride = bytecode.arg<B::row_layout_stride>();
 
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
@@ -1612,69 +1556,67 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
       state.MaybeReadFromRegister(bytecode.arg<B::rank_map_register>());
   [[maybe_unused]] const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
-  for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
-    uint32_t table_index = *ptr;
-    uint32_t storage_index;
-    bool is_non_null;
-    uint32_t offset;
+
+  // False if the row is null.
+  auto storage_index = [&](uint32_t i, uint32_t* out) {
+    uint32_t table_index = source.b[i];
     if constexpr (std::is_same_v<Nullability, NonNull>) {
-      is_non_null = true;
-      storage_index = table_index;
-      offset = 0;
+      *out = table_index;
+      return true;
     } else if constexpr (std::is_same_v<Nullability, SparseNull>) {
       PERFETTO_DCHECK(nbv && nbv->popcount.size() > 0);
-      is_non_null = nbv->bv->is_set(table_index);
-      storage_index = is_non_null
-                          ? static_cast<uint32_t>(
-                                nbv->popcount[*ptr / 64] +
-                                nbv->bv->count_set_bits_until_in_word(*ptr))
-                          : std::numeric_limits<uint32_t>::max();
-      uint8_t res = is_non_null ? 0xFF : 0;
-      *dest = invert ? ~res : res;
-      offset = 1;
+      if (!nbv->bv->is_set(table_index)) {
+        return false;
+      }
+      *out = static_cast<uint32_t>(
+          nbv->popcount[table_index / 64] +
+          nbv->bv->count_set_bits_until_in_word(table_index));
+      return true;
     } else if constexpr (std::is_same_v<Nullability, DenseNull>) {
-      is_non_null = nbv->bv->is_set(table_index);
-      storage_index = table_index;
-      uint8_t res = is_non_null ? 0xFF : 0;
-      *dest = invert ? ~res : res;
-      offset = 1;
+      *out = table_index;
+      return nbv->bv->is_set(table_index);
     } else {
       static_assert(std::is_same_v<Nullability, NonNull>,
                     "Unsupported Nullability type");
     }
-    if constexpr (std::is_same_v<T, Id>) {
-      if (is_non_null) {
-        uint32_t res = GetComparableRowLayoutRepr(storage_index);
-        res = invert ? ~res : res;
-        memcpy(dest + offset, &res, sizeof(uint32_t));
-      } else {
-        memset(dest + offset, 0, sizeof(uint32_t));
-      }
-    } else if constexpr (std::is_same_v<T, String>) {
-      if (is_non_null) {
-        uint32_t res;
-        if (rank_map_ptr) {
-          auto* rank = (*rank_map_ptr)->Find(data[storage_index]);
-          PERFETTO_DCHECK(rank);
-          res = GetComparableRowLayoutRepr(*rank);
-        } else {
-          res = GetComparableRowLayoutRepr(data[storage_index].raw_id());
-        }
-        res = invert ? ~res : res;
-        memcpy(dest + offset, &res, sizeof(uint32_t));
-      } else {
-        memset(dest + offset, 0, sizeof(uint32_t));
-      }
-    } else {
-      if (is_non_null) {
-        auto res = GetComparableRowLayoutRepr(data[storage_index]);
-        res = invert ? ~res : res;
-        memcpy(dest + offset, &res, sizeof(res));
-      } else {
-        memset(dest + offset, 0, sizeof(decltype(*data)));
-      }
-    }
-    dest += stride;
+  };
+  RowLayout::Slot slot{bytecode.arg<B::row_layout_offset>(),
+                       bytecode.arg<B::row_layout_stride>(),
+                       !std::is_same_v<Nullability, NonNull>, invert};
+  auto count = static_cast<uint32_t>(source.size());
+  if constexpr (std::is_same_v<T, Id>) {
+    RowLayout::Write<uint32_t>(slot, count, storage_index, dest_buffer.data());
+  } else if constexpr (std::is_same_v<T, String>) {
+    RowLayout::Write<uint32_t>(
+        slot, count,
+        [&](uint32_t i, uint32_t* out) {
+          uint32_t index;
+          if (!storage_index(i, &index)) {
+            return false;
+          }
+          if (rank_map_ptr) {
+            const uint32_t* rank = (*rank_map_ptr)->Find(data[index]);
+            PERFETTO_DCHECK(rank);
+            *out = *rank;
+          } else {
+            *out = data[index].raw_id();
+          }
+          return true;
+        },
+        dest_buffer.data());
+  } else {
+    using V = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+    RowLayout::Write<V>(
+        slot, count,
+        [&](uint32_t i, V* out) {
+          uint32_t index;
+          if (!storage_index(i, &index)) {
+            return false;
+          }
+          *out = data[index];
+          return true;
+        },
+        dest_buffer.data());
   }
 }
 
@@ -1720,17 +1662,6 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
   *indices.b = best_idx;
   indices.e = indices.b + 1;
 }
-
-// Reparents and compacts a tree based on pre-filtered indices.
-// Also compacts all column storage and null bitvectors registered in
-// the TreeState, and resets the indices span to [0..new_row_count-1].
-void FilterTreeState(InterpreterState& state, const struct FilterTreeState& bc);
-
-// Propagates column values from roots toward leaves using BFS.
-// For each parent→child edge, applies the aggregate operation from
-// TreeState::propagate_down_specs.
-void PropagateTreeDown(InterpreterState& state,
-                       const struct PropagateTreeDown& bc);
 
 }  // namespace ops
 

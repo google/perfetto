@@ -17,8 +17,12 @@
 #ifndef SRC_TRACE_REDACTION_PROTO_UTIL_H_
 #define SRC_TRACE_REDACTION_PROTO_UTIL_H_
 
+#include <string>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/message.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 
 namespace perfetto::trace_redaction {
 
@@ -30,6 +34,18 @@ namespace proto_util {
 void AppendField(const protozero::Field& field, protozero::Message* message);
 
 void AppendFields(const protozero::Field& field, protozero::Message* message);
+
+// Appends the serialized slices from a protozero::HeapBuffered message into
+// |packet| without intermediate copies or heap allocations.
+template <typename T>
+void AppendMessage(protozero::HeapBuffered<T>& message, std::string* packet) {
+  PERFETTO_DCHECK(packet);
+  for (const auto& slice : message.GetSlices()) {
+    const auto used_range = slice.GetUsedRange();
+    packet->append(reinterpret_cast<const char*>(used_range.begin),
+                   used_range.size());
+  }
+}
 
 }  // namespace proto_util
 

@@ -31,14 +31,18 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidInputEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidPolledStateConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidPowerConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidProcessStateConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSdkSyspropGuardConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemPropertyConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidUserListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelocksConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumHistogramSamplesConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumSamplingHeapProfilerConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumStackSamplingProfilerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumSystemMetricsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_DisplayVideoConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrozenFtraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceConfig);
@@ -55,6 +59,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PixelModemConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessSmapsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoVmConfig);
@@ -64,6 +69,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerLayersConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerTransactionsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SysStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SystemInfoConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_SystemdJournaldConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TestConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_V8Config);
@@ -150,6 +156,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_ProtoVmConfig,
                   protovm_config,
                   12);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  VARINT,
+                  bool,
+                  supports_tracing_v2,
+                  147);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,
@@ -350,6 +361,36 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AndroidAflagsConfig,
                   android_aflags_config,
                   140);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_SystemdJournaldConfig,
+                  journald_config,
+                  141);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_DisplayVideoConfig,
+                  display_video_config,
+                  142);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ChromiumStackSamplingProfilerConfig,
+                  chromium_stack_sampling_profiler,
+                  143);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ChromiumSamplingHeapProfilerConfig,
+                  chromium_sampling_heap_profiler,
+                  144);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_AndroidProcessStateConfig,
+                  android_process_state_config,
+                  145);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ProcessSmapsConfig,
+                  process_smaps_config,
+                  146);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_QnxConfig,

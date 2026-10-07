@@ -46,9 +46,7 @@ export class Slider implements ProbeSetting {
   }
 
   deserialize(state: unknown): void {
-    if (typeof state === 'number') {
-      this._value = state;
-    }
+    this.setValue(typeof state === 'number' ? state : undefined);
   }
 
   get value(): number {
@@ -60,7 +58,7 @@ export class Slider implements ProbeSetting {
     // otherwise fall back on the first value of the fixed range... otherwise 0.
     this._value = exists(value)
       ? value
-      : this.attrs.default ?? this.attrs.values[0] ?? 0;
+      : (this.attrs.default ?? this.attrs.values[0] ?? 0);
     return this._value;
   }
 

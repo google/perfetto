@@ -103,3 +103,19 @@ export const maybeUndefined = <T>(value: T) => value as T | undefined;
 export function isNumeric(value: unknown): value is number | bigint {
   return typeof value === 'number' || typeof value === 'bigint';
 }
+
+// Normalizes an ArrayBuffer or ArrayBufferView into a pure ArrayBuffer spanning
+// exactly the view's bytes. Parts of the codebase assume byteOffset 0 and break
+// subtly on a view (see b/390473162).
+export function toArrayBuffer(buf: ArrayBuffer | ArrayBufferView): ArrayBuffer {
+  if (!ArrayBuffer.isView(buf)) {
+    return buf;
+  }
+  if (buf.byteOffset === 0 && buf.byteLength === buf.buffer.byteLength) {
+    return buf.buffer as ArrayBuffer;
+  }
+  return buf.buffer.slice(
+    buf.byteOffset,
+    buf.byteOffset + buf.byteLength,
+  ) as ArrayBuffer;
+}

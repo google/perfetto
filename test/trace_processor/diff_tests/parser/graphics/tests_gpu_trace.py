@@ -48,6 +48,24 @@ class GraphicsGpuTrace(TestSuite):
         34,0.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","Triangle/ms:ms"
         """))
 
+  def test_gpu_counters_forwards_looking(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counters_forwards_looking.py'),
+        query="""
+        SELECT ts, value
+        FROM counter
+        JOIN gpu_counter_track ON counter.track_id = gpu_counter_track.id
+        WHERE gpu_counter_track.name = 'forward_counter'
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","value"
+        10,100.000000
+        20,0.000000
+        30,0.000000
+        40,50.000000
+        """))
+
   def test_gpu_table(self):
     return DiffTestBlueprint(
         trace=Path('gpu_counters.py'),
@@ -106,8 +124,8 @@ class GraphicsGpuTrace(TestSuite):
         """,
         out=Csv("""
         "gpu","machine_id"
-        0,1
-        1,1
+        0,0
+        1,0
         """))
 
   def test_gpu_counter_specs(self):
@@ -204,6 +222,7 @@ class GraphicsGpuTrace(TestSuite):
               'hw_queue_id',
               'render_subpasses',
               'render_stage_category',
+              'render_stage_name',
               'upid'
             )
           ) args USING (arg_set_id)
@@ -274,6 +293,7 @@ class GraphicsGpuTrace(TestSuite):
               'hw_queue_id',
               'render_subpasses',
               'render_stage_category',
+              'render_stage_name',
               'upid'
             )
           ) args USING (arg_set_id)
@@ -561,6 +581,94 @@ class GraphicsGpuTrace(TestSuite):
           20,0.000000,"CounterB",1
         """))
 
+  def test_gpu_counter_missing_timestamp_dropped(self):
+    # A GpuCounterEvent packet without a timestamp on the containing TracePacket
+    # cannot be placed on the timeline, so it is dropped at tokenization time
+    # and counted in the gpu_counters_missing_timestamp stat.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 10
+            gpu_counter_event {
+              gpu_id: 0
+              counter_descriptor {
+                specs {
+                  counter_id: 1
+                  name: "CounterA"
+                  description: "desc A"
+                }
+              }
+              counters { counter_id: 1 int_value: 100 }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            gpu_counter_event {
+              gpu_id: 0
+              counters { counter_id: 1 int_value: 200 }
+            }
+          }
+        """),
+        query="""
+          SELECT
+            (SELECT count(*) FROM counter
+             JOIN gpu_counter_track ON counter.track_id = gpu_counter_track.id)
+              AS sample_count,
+            (SELECT value FROM stats
+             WHERE name = 'gpu_counters_missing_timestamp') AS dropped;
+        """,
+        out=Csv("""
+          "sample_count","dropped"
+          1,1
+        """))
+
+  def test_gpu_counter_descriptor_parsed_without_timestamp(self):
+    # The descriptor section of a GpuCounterEvent is handled at tokenization
+    # time independently of the event section. Even though the descriptor packet
+    # has no timestamp (so it is dropped as a sample-bearing event), the track is
+    # still set up, so a later timestamped sample resolves to it.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            trusted_packet_sequence_id: 1
+            gpu_counter_event {
+              gpu_id: 0
+              counter_descriptor {
+                specs {
+                  counter_id: 1
+                  name: "CounterA"
+                  description: "desc A"
+                  # VALUE_DIRECTION_FORWARDS_LOOKING, so the sample value lands on
+                  # its own timestamp (avoids the backwards-looking placeholder).
+                  value_direction: 2
+                }
+              }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 10
+            gpu_counter_event {
+              gpu_id: 0
+              counters { counter_id: 1 int_value: 100 }
+            }
+          }
+        """),
+        query="""
+          SELECT
+            (SELECT value FROM stats
+             WHERE name = 'gpu_counters_missing_timestamp') AS dropped,
+            ts, value, name, gpu_id
+          FROM counter
+          JOIN gpu_counter_track ON counter.track_id = gpu_counter_track.id
+          ORDER BY ts;
+        """,
+        out=Csv("""
+          "dropped","ts","value","name","gpu_id"
+          0,10,100.000000,"CounterA",0
+        """))
+
   def test_gpu_render_stages_flow(self):
     return DiffTestBlueprint(
         trace=Path('gpu_render_stages_flow.textproto'),
@@ -639,6 +747,106 @@ class GraphicsGpuTrace(TestSuite):
         out=Csv('''
           "slice_name","kernel_name","grid_x","grid_y","grid_z","wg_x","wg_y","wg_z","regs","shmem"
           "vectorAdd","_Z9vectorAddPfS_S_i",256,1,1,128,1,1,32,4096
+        '''))
+
+  # A named render stage event's slice takes the event's name, so the stage
+  # name must survive as an arg.
+  def test_gpu_render_stage_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 0
+            interned_data {
+              gpu_specifications {
+                iid: 1
+                name: "Compute Queue"
+                category: COMPUTE
+              }
+              gpu_specifications {
+                iid: 2
+                name: "Kernel"
+                category: COMPUTE
+              }
+              gpu_specifications {
+                iid: 3
+                name: "MemoryTransfer"
+                category: OTHER
+              }
+            }
+            sequence_flags: 1
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 100
+            gpu_render_stage_event {
+              event_id: 0
+              duration: 10
+              hw_queue_iid: 1
+              stage_iid: 2
+              name: "vectorAdd"
+            }
+            sequence_flags: 2
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 200
+            gpu_render_stage_event {
+              event_id: 1
+              duration: 10
+              hw_queue_iid: 1
+              stage_iid: 3
+              name: "Memcpy HtoD"
+            }
+            sequence_flags: 2
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 300
+            gpu_render_stage_event {
+              event_id: 2
+              duration: 10
+              hw_queue_iid: 1
+              stage_iid: 2
+            }
+            sequence_flags: 2
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 0
+            gpu_render_stage_event {
+              specifications {
+                hw_queue { name: "queue 0" }
+                stage { name: "MemorySet" }
+              }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 400
+            gpu_render_stage_event {
+              event_id: 3
+              duration: 10
+              hw_queue_id: 0
+              stage_id: 0
+              name: "Memset"
+            }
+          }
+        """),
+        query='''
+          SELECT
+            s.ts,
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'render_stage_name') AS render_stage_name
+          FROM gpu_slice s
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "ts","slice_name","render_stage_name"
+          100,"vectorAdd","Kernel"
+          200,"Memcpy HtoD","MemoryTransfer"
+          300,"Kernel","Kernel"
+          400,"Memset","MemorySet"
         '''))
 
   def test_gpu_frequency_event(self):

@@ -102,6 +102,40 @@ std::pair<TrackId*, uint32_t> TrackCompressor::ScopedInternal(TrackSet& set,
   return std::make_pair(&set.tracks.back().track_id, idx);
 }
 
+std::pair<TrackId*, uint32_t> TrackCompressor::LegacyOverlappingScopedInternal(
+    TrackSet& set,
+    int64_t ts,
+    int64_t dur) {
+  int64_t ts_end = ts + dur;
+
+  // First lane on which this slice either nests inside the innermost open slice
+  // or sits after all open slices; a partial overlap forces it to the next
+  // lane. Relies on non-decreasing |ts|, so closed slices can be popped
+  // eagerly.
+  for (uint32_t i = 0; i < set.tracks.size(); ++i) {
+    TrackState& state = set.tracks[i];
+    if (state.slice_type != TrackState::SliceType::kNestableTimestamp) {
+      continue;
+    }
+    while (!state.open_ends.empty() && state.open_ends.back() <= ts) {
+      state.open_ends.pop_back();
+    }
+    if (state.open_ends.empty() || ts_end <= state.open_ends.back()) {
+      state.open_ends.push_back(ts_end);
+      return std::make_pair(&state.track_id, i);
+    }
+  }
+
+  TrackState state;
+  state.slice_type = TrackState::SliceType::kNestableTimestamp;
+  state.open_ends.push_back(ts_end);
+  state.track_id = kInvalidTrackId;
+  set.tracks.emplace_back(std::move(state));
+
+  uint32_t idx = static_cast<uint32_t>(set.tracks.size() - 1);
+  return std::make_pair(&set.tracks.back().track_id, idx);
+}
+
 uint32_t TrackCompressor::GetOrCreateTrackForCookie(
     std::vector<TrackState>& tracks,
     int64_t cookie) {

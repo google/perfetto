@@ -28,7 +28,6 @@ import {
   createMockNodeWithStructuredQuery,
   expectValidationSuccess,
 } from '../testing/test_utils';
-import {isColumnDef} from '../../../../components/widgets/datagrid/datagrid_schema';
 import protos from '../../../../protos';
 
 // Helper to build a minimal valid state with one value column.
@@ -1418,18 +1417,18 @@ describe('parseMetricBundleForValue', () => {
 
     expect(result).toBeDefined();
     if (result !== undefined) {
-      const schema = result.schema[result.metricId];
+      const schema = result.schema;
       const processEntry = schema['process'];
       const threadEntry = schema['thread'];
       const cpuEntry = schema['cpu'];
       // Schema values for leaf columns are ColumnDef objects with columnType.
       expect(
-        isColumnDef(processEntry) ? processEntry.columnType : undefined,
+        'columnType' in processEntry ? processEntry.columnType : undefined,
       ).toBe('text');
       expect(
-        isColumnDef(threadEntry) ? threadEntry.columnType : undefined,
+        'columnType' in threadEntry ? threadEntry.columnType : undefined,
       ).toBe('text');
-      expect(isColumnDef(cpuEntry) ? cpuEntry.columnType : undefined).toBe(
+      expect('columnType' in cpuEntry ? cpuEntry.columnType : undefined).toBe(
         'quantitative',
       );
     }

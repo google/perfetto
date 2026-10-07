@@ -38,12 +38,12 @@ async function getCache(): Promise<Cache | undefined> {
   return LAZY_CACHE;
 }
 
-async function cacheDelete(key: Request): Promise<boolean> {
+async function cacheDelete(key: Request | string): Promise<boolean> {
   try {
     const cache = await getCache();
     if (cache === undefined) return false; // Cache storage not supported.
     return await cache.delete(key);
-  } catch (_) {
+  } catch {
     // TODO(288483453): Reinstate:
     // return ignoreCacheUnactionableErrors(e, false);
     return false;
@@ -55,7 +55,7 @@ async function cachePut(key: string, value: Response): Promise<void> {
     const cache = await getCache();
     if (cache === undefined) return; // Cache storage not supported.
     await cache.put(key, value);
-  } catch (_) {
+  } catch {
     // TODO(288483453): Reinstate:
     // ignoreCacheUnactionableErrors(e, undefined);
   }
@@ -68,7 +68,7 @@ async function cacheMatch(
     const cache = await getCache();
     if (cache === undefined) return undefined; // Cache storage not supported.
     return await cache.match(key);
-  } catch (_) {
+  } catch {
     // TODO(288483453): Reinstate:
     // ignoreCacheUnactionableErrors(e, undefined);
     return undefined;
@@ -80,7 +80,7 @@ async function cacheKeys(): Promise<readonly Request[]> {
     const cache = await getCache();
     if (cache === undefined) return []; // Cache storage not supported.
     return await cache.keys();
-  } catch (e) {
+  } catch {
     // TODO(288483453): Reinstate:
     // return ignoreCacheUnactionableErrors(e, []);
     return [];
@@ -96,7 +96,8 @@ export async function cacheTrace(
   let fileName = '';
   let url = '';
   let contentLength = 0;
-  let localOnly = false;
+  let shareable = true;
+  let downloadable = true;
   switch (traceSource.type) {
     case 'ARRAY_BUFFER':
       trace = traceSource.buffer;
@@ -104,7 +105,10 @@ export async function cacheTrace(
       fileName = traceSource.fileName ?? '';
       url = traceSource.url ?? '';
       contentLength = traceSource.buffer.byteLength;
-      localOnly = traceSource.localOnly || false;
+      // shareable/downloadable default to true when unset (mirroring
+      // load_trace.ts); the postMessage handler sets them explicitly.
+      shareable = traceSource.shareable ?? true;
+      downloadable = traceSource.downloadable ?? true;
       break;
     case 'FILE':
       trace = traceSource.file.stream();
@@ -119,7 +123,8 @@ export async function cacheTrace(
     ['x-trace-title', encodeURI(title)],
     ['x-trace-url', url],
     ['x-trace-filename', fileName],
-    ['x-trace-local-only', `${localOnly}`],
+    ['x-trace-shareable', `${shareable}`],
+    ['x-trace-downloadable', `${downloadable}`],
     ['content-type', 'application/octet-stream'],
     ['content-length', `${contentLength}`],
     [
@@ -154,6 +159,12 @@ export async function tryGetTrace(
   const response = await cacheMatch(`/_${TRACE_CACHE_NAME}/${traceUuid}`);
 
   if (!response) return undefined;
+
+  // Legacy entries only carry the |x-trace-local-only| header; derive both
+  // flags from it. Newer entries have the split headers.
+  const localOnly = response.headers.get('x-trace-local-only') === 'true';
+  const shareableHeader = response.headers.get('x-trace-shareable');
+  const downloadableHeader = response.headers.get('x-trace-downloadable');
   return {
     type: 'ARRAY_BUFFER',
     buffer: await response.arrayBuffer(),
@@ -161,7 +172,10 @@ export async function tryGetTrace(
     fileName: response.headers.get('x-trace-filename') ?? undefined,
     url: response.headers.get('x-trace-url') ?? undefined,
     uuid: traceUuid,
-    localOnly: response.headers.get('x-trace-local-only') === 'true',
+    shareable:
+      shareableHeader !== null ? shareableHeader === 'true' : !localOnly,
+    downloadable:
+      downloadableHeader !== null ? downloadableHeader === 'true' : !localOnly,
   };
 }
 
@@ -205,4 +219,53 @@ async function deleteStaleEntries() {
   // TODO(hjd): Wrong Promise.all here, should use the one that
   // ignores failures but need to upgrade TypeScript for that.
   await Promise.all(deletions);
+}
+
+export interface CachedTraceEntry {
+  readonly uuid: string;
+  readonly title: string;
+  readonly fileName?: string;
+  readonly url?: string;
+  readonly sizeBytes?: number;
+  readonly expires?: string;
+}
+
+export async function getRecentCachedTraces(): Promise<
+  ReadonlyArray<CachedTraceEntry>
+> {
+  await deleteStaleEntries();
+  const keys = await cacheKeys();
+  const entries: CachedTraceEntry[] = [];
+
+  for (const key of keys) {
+    const response = await cacheMatch(key);
+    if (!response) continue;
+
+    // Key URL format: /_cached_traces/${uuid}
+    const uuid = key.url.split('/').pop() ?? '';
+    const rawTitle = response.headers.get('x-trace-title');
+    const title = rawTitle ? decodeURI(rawTitle) : 'Untitled trace';
+    const fileName = response.headers.get('x-trace-filename') ?? undefined;
+    const url = response.headers.get('x-trace-url') ?? undefined;
+    const contentLength = response.headers.get('content-length');
+    const sizeBytes = contentLength ? parseInt(contentLength, 10) : undefined;
+    const expires = response.headers.get('expires') ?? undefined;
+
+    entries.push({
+      uuid,
+      title,
+      fileName,
+      url,
+      sizeBytes,
+      expires,
+    });
+  }
+
+  // Sort descending by expires string
+  entries.sort((a, b) => (b.expires ?? '').localeCompare(a.expires ?? ''));
+  return entries;
+}
+
+export async function deleteCachedTrace(uuid: string): Promise<boolean> {
+  return await cacheDelete(`/_${TRACE_CACHE_NAME}/${uuid}`);
 }

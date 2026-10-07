@@ -16,10 +16,26 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
 class DominatorTree(TestSuite):
+
+  def test_rejects_negative_node_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.dominator_tree;
+          WITH edges AS (
+            SELECT -1 AS source_node_id, 0 AS dest_node_id
+            UNION ALL
+            SELECT 1, 2
+          )
+          SELECT * FROM graph_dominator_tree!(edges, 0);
+        """,
+        out=ExpectedError(
+            'dominator_tree: node ids must be non-negative 32-bit integers'))
 
   def test_empty_table(self):
     return DiffTestBlueprint(
@@ -157,6 +173,31 @@ class DominatorTree(TestSuite):
         10,1
         11,10
         12,10
+        """))
+
+  def test_unreachable_predecessor(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.dominator_tree;
+
+          CREATE PERFETTO TABLE foo AS
+          SELECT NULL AS source_node_id, NULL AS dest_node_id WHERE FALSE
+          UNION ALL
+          VALUES (0, 1), (1, 2), (2, 3)
+          UNION ALL
+          VALUES (99, 2), (98, 99);
+
+          SELECT *
+          FROM graph_dominator_tree!(foo, 0)
+          ORDER BY node_id;
+        """,
+        out=Csv("""
+        "node_id","dominator_node_id"
+        0,"[NULL]"
+        1,0
+        2,1
+        3,2
         """))
 
   def test_forest(self):

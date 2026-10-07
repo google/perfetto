@@ -86,6 +86,7 @@ perfetto_unittest_source_set("unittests") {
     "../base:test_support",
     "descriptor_diff:unittests",
     "filtering:unittests",
+    "text_to_proto:unittests",
   ]
   sources = [
     "copyable_ptr_unittest.cc",
@@ -95,6 +96,7 @@ perfetto_unittest_source_set("unittests") {
     "proto_decoder_unittest.cc",
     "proto_ring_buffer_unittest.cc",
     "proto_utils_unittest.cc",
+    "scattered_heap_buffer_unittest.cc",
     "scattered_stream_writer_unittest.cc",
     "test/cppgen_conformance_unittest.cc",
     "test/fake_scattered_buffer.cc",
@@ -153,10 +155,14 @@ if (enable_perfetto_benchmarks) {
       ":testing_messages_zero",
       "../../gn:benchmark",
       "../../gn:default_deps",
+      "../../protos/perfetto/trace:zero",
+      "../../protos/perfetto/trace/ftrace:zero",
+      "../../protos/perfetto/trace/track_event:zero",
       "../base",
       "../base:test_support",
     ]
     sources = [
+      "test/proto_decoder_benchmark.cc",
       "test/proto_ring_buffer_benchmark.cc",
       "test/protozero_benchmark.cc",
     ]

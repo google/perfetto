@@ -131,10 +131,10 @@ event arguments. For more complex arguments, you can define [your own
 protobuf messages](/protos/perfetto/trace/track_event/track_event.proto) and
 emit them as a parameter for the event.
 
-NOTE: Currently custom protobuf messages need to be added directly to the
+NOTE: The approach below adds custom protobuf messages directly to the
       Perfetto repository under `protos/perfetto/trace`, and Perfetto itself
-      must also be rebuilt. We are working
-      [to lift this limitation](https://github.com/google/perfetto/issues/11).
+      must also be rebuilt. To avoid this, define them as
+      [TrackEvent extensions](extensions.md) instead.
 
 As an example of a custom track event argument type, save the following as
 `protos/perfetto/trace/track_event/player_info.proto`:
@@ -167,8 +167,9 @@ import "protos/perfetto/trace/track_event/player_info.proto";
 
 message TrackEvent {
   ...
-  // New argument types go here.
-  optional PlayerInfo player_info = 1000;
+  // New argument types go here. Use the "Next id" from the comment above
+  // TrackEvent.
+  optional PlayerInfo player_info = 58;
 }
 ```
 
@@ -179,7 +180,7 @@ Player my_player;
 TRACE_EVENT("category", "MyEvent", [&](perfetto::EventContext ctx) {
   auto player = ctx.event()->set_player_info();
   player->set_name(my_player.name());
-  player->set_player_score(my_player.score());
+  player->set_score(my_player.score());
 });
 ```
 
@@ -392,10 +393,9 @@ Some examples of valid combinations:
      });
    ```
 
-   |time_in_nanoseconds| should be an uint64_t by default. To support custom
-   timestamp types,
-   |perfetto::TraceTimestampTraits<MyTimestamp>::ConvertTimestampToTraceTimeNs|
-   should be defined. See |ConvertTimestampToTraceTimeNs| for more details.
+   `time_in_nanoseconds` is a `uint64_t` on the trace clock by default. To pass
+   your own timestamp type, or a timestamp on a different clock, see
+   [Custom timestamps and clocks](#custom-timestamps-and-clocks).
 
 3. Arbitrary number of debug annotations:
 
@@ -609,8 +609,8 @@ as kilobytes (to reduce trace binary size) can be defined like this:
 
 ```C++
 perfetto::CounterTrack memory_track = perfetto::CounterTrack("Memory")
-    .set_unit("bytes")
-    .set_multiplier(1024);
+    .set_unit_name("bytes")
+    .set_unit_multiplier(1024);
 TRACE_COUNTER("category", memory_track, 4 /* = 4096 bytes */);
 ```
 
@@ -630,6 +630,129 @@ int64_t value = 1234;
 // Later, emit a sample at that point in time.
 TRACE_COUNTER("category", "MyCounter", timestamp, value);
 ```
+
+### Custom timestamps and clocks
+
+By default, any `TRACE_EVENT`, `TRACE_COUNTER` or similar macro that accepts a
+timestamp expects a `uint64_t` number of nanoseconds on Perfetto's default trace
+clock (the same clock as `perfetto::TrackEvent::GetTraceTimeNs()`). Two
+customizations are possible:
+
+1. Passing your own timestamp *type* (e.g. an opaque wrapper such as Chromium's
+   `base::TimeTicks`) instead of a raw `uint64_t`.
+2. Passing a timestamp that lives on a *different clock domain* than the default
+   trace clock.
+
+Both are driven by the same extension point: the `perfetto::TraceTimestampTraits`
+template. By specializing it for your type and defining a static
+`ConvertTimestampToTraceTimeNs` function, you teach the SDK how to turn your type
+into a `perfetto::TraceTimestamp`:
+
+```C++
+namespace perfetto {
+
+// Represents a point in time on some clock: a value plus the clock it is
+// measured against.
+struct TraceTimestamp {
+  uint32_t clock_id;  // See BuiltinClock in builtin_clock.proto.
+  uint64_t value;     // Always in nanoseconds.
+};
+
+}  // namespace perfetto
+```
+
+The `value` must always be in nanoseconds. The `clock_id` selects the clock
+domain and follows these ranges (see
+[`clock_snapshot.proto`](/protos/perfetto/trace/clock_snapshot.proto)):
+
+- `[1, 63]`: builtin clocks, see
+  [`builtin_clock.proto`](/protos/perfetto/common/builtin_clock.proto).
+- `[64, 127]`: user-defined, sequence-scoped clocks. These are only valid for
+  packets emitted by the same thread (`TraceWriter`) that emitted the clock
+  snapshot.
+- `[128, MAX]`: reserved for future use.
+
+#### Custom timestamp type on the trace clock
+
+If your timestamps are already on the default trace clock and you only want to
+pass a custom type, specialize the trait and report
+`perfetto::TrackEvent::GetTraceClockId()` as the clock:
+
+```C++
+// An opaque timestamp type used by your codebase.
+class MyTimestamp {
+ public:
+  explicit MyTimestamp(uint64_t ns) : ns_(ns) {}
+  uint64_t ns() const { return ns_; }
+
+ private:
+  uint64_t ns_;
+};
+
+namespace perfetto {
+
+template <>
+struct TraceTimestampTraits<MyTimestamp> {
+  static TraceTimestamp ConvertTimestampToTraceTimeNs(const MyTimestamp& ts) {
+    return {static_cast<uint32_t>(TrackEvent::GetTraceClockId()), ts.ns()};
+  }
+};
+
+}  // namespace perfetto
+```
+
+With the trait in scope, `MyTimestamp` can be passed anywhere a timestamp is
+expected:
+
+```C++
+TRACE_EVENT_INSTANT("category", "Event", MyTimestamp{123456789});
+TRACE_EVENT("category", "Scope", MyTimestamp{123456789});
+```
+
+#### Timestamps on a custom clock
+
+If your timestamps are measured against a clock that is *not* the trace clock
+(for example a hardware counter, or a clock that runs at a different offset), you
+must tell Trace Processor how that clock relates to trace time. Do this by
+emitting a `ClockSnapshot` that maps your clock to a reference clock **before**
+emitting any event that references it. The snapshot only needs to be emitted
+once per clock (per `TraceWriter`).
+
+```C++
+// Pick a clock id in the sequence-scoped range [64, 127], or a builtin clock.
+static constexpr uint32_t kMyClockId = 64;
+
+// Emit the clock snapshot before any event that uses kMyClockId.
+perfetto::TrackEvent::Trace([](perfetto::TrackEvent::TraceContext ctx) {
+  auto packet = ctx.NewTracePacket();
+  packet->set_timestamp(perfetto::TrackEvent::GetTraceTimeNs());
+  packet->set_timestamp_clock_id(
+      static_cast<uint32_t>(perfetto::TrackEvent::GetTraceClockId()));
+
+  auto* clock_snapshot = packet->set_clock_snapshot();
+
+  // The reference clock: the default trace clock and its current value.
+  auto* reference_clock = clock_snapshot->add_clocks();
+  reference_clock->set_clock_id(
+      static_cast<uint32_t>(perfetto::TrackEvent::GetTraceClockId()));
+  reference_clock->set_timestamp(perfetto::TrackEvent::GetTraceTimeNs());
+
+  // Your clock's value at the same instant. Trace Processor uses the two
+  // (clock, timestamp) pairs to align your clock onto the trace timeline.
+  auto* my_clock = clock_snapshot->add_clocks();
+  my_clock->set_clock_id(kMyClockId);
+  my_clock->set_timestamp(MyClockNow());
+});
+
+// From now on, events can use timestamps on kMyClockId.
+TRACE_EVENT_INSTANT("category", "Event",
+                    perfetto::TraceTimestamp{kMyClockId, MyClockNow()});
+```
+
+The clock alignment itself is resolved offline by Trace Processor, so the emitted
+events simply carry the raw `(clock_id, value)` pair. If you wrap the clock in a
+custom type, combine both techniques: return `{kMyClockId, value}` from your
+`TraceTimestampTraits` specialization.
 
 ### Interning
 
@@ -731,7 +854,7 @@ class Observer : public perfetto::TrackEventSessionObserver {
 };
 
 Observer observer;
-observer.WaitForTracingToStart();
+observer.WaitForTracingStart();
 ```
 
 [RAII]: https://en.cppreference.com/w/cpp/language/raii

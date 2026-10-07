@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type protos from '../../../protos';
-import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
+import {ensureExists, assertFalse, assertTrue} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
 import type {ProbesSchema} from '../serialization_schema';
 import type {TargetPlatformId} from '../interfaces/target_platform';
@@ -39,13 +39,8 @@ export class ConfigManager {
   private _traceConfig = new TraceConfigBuilder();
   private enabledProbes = new Map<string, boolean>();
   private indirectlyEnabledProbes = new Map<string, Set<string>>();
-  private _generation = 0;
 
   constructor() {}
-
-  get generation() {
-    return this._generation;
-  }
 
   get traceConfig() {
     return this._traceConfig;
@@ -59,7 +54,7 @@ export class ConfigManager {
   }
 
   setProbeEnabled(probeId: string, enabled: boolean) {
-    const probe = assertExists(this.probesById.get(probeId));
+    const probe = ensureExists(this.probesById.get(probeId));
     this.enabledProbes.set(probeId, enabled);
     for (const depProbeId of probe.dependencies ?? []) {
       assertTrue(this.probesById.has(depProbeId));
@@ -74,8 +69,6 @@ export class ConfigManager {
         depSet.delete(probeId);
       }
     }
-    // Notify that probe settings changed
-    this._generation++;
   }
 
   isProbeEnabled(probeId: string): boolean {
@@ -102,7 +95,7 @@ export class ConfigManager {
    */
   getProbeEnableDependants(probeId: string): string[] {
     return Array.from(this.indirectlyEnabledProbes.get(probeId) ?? []).map(
-      (id) => assertExists(this.probesById.get(id)).title,
+      (id) => ensureExists(this.probesById.get(id)).title,
     );
   }
 
@@ -157,19 +150,17 @@ export class ConfigManager {
     this.indirectlyEnabledProbes.clear();
     this.getProbesOrderedByDep().forEach((probe) => {
       const probeState = state[probe.id];
-      if (probeState === undefined || probeState.settings === undefined) {
-        return;
+      // A probe is enabled iff it appears in the serialized state.
+      if (probeState !== undefined) {
+        this.setProbeEnabled(probe.id, true);
       }
-      this.setProbeEnabled(probe.id, true);
-      if (probe.settings === undefined) {
-        // The probe has no settings, there is nothing to restore.
-        // This return is theoretically redundant but is here to make tsc happy.
-        return;
-      }
-      for (const [key, settingState] of Object.entries(probeState.settings)) {
-        if (key in probe.settings) {
-          probe.settings[key].deserialize(settingState);
-        }
+      // Restore ALL the settings the probe declares, not just the ones present
+      // in the config: a setting the config doesn't mention gets undefined,
+      // which puts it back to its default (@see ProbeSetting.deserialize).
+      // Otherwise it would keep the value from the previously loaded config.
+      const settingsState = probeState?.settings ?? {};
+      for (const [key, setting] of Object.entries(probe.settings ?? {})) {
+        setting.deserialize(settingsState[key]);
       }
     });
   }
@@ -179,7 +170,7 @@ export class ConfigManager {
     const seenIds = new Set<string>();
     const queueProbe = (probeId: string) => {
       if (enabledOnly && !this.isProbeEnabled(probeId)) return;
-      const probe = assertExists(this.probesById.get(probeId));
+      const probe = ensureExists(this.probesById.get(probeId));
       if (orderedProbes.includes(probe)) return; // Already added.
       if (seenIds.has(probeId)) {
         throw new Error('Cycle detected in probe ' + probeId);

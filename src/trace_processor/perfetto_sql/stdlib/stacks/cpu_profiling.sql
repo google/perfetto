@@ -16,17 +16,17 @@
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
 -- Table containing all the timestamped samples of CPU profiling which occurred
--- during the trace.
+-- during the trace: a convenience projection of the `stack_sample` view with
+-- thread and cpu information denormalized.
 --
--- Currently, this table is backed by the following data sources:
---  * Linux perf
---  * Simpleperf proto format
---  * macOS instruments
---  * Chrome CPU profiling
---  * Legacy V8 CPU profiling
---  * Profiling data in Gecko traces
+-- This covers every callstack profiler source (linux perf, simpleperf, macOS
+-- instruments, Chrome, legacy V8, gecko, the StackSample packet, ...) but only
+-- samples from what is generally considered CPU profiling: sampling on time,
+-- cpu cycles or instructions. Samples from sessions known to sample on some
+-- other quantity (off-cpu sampling, tracepoint-based sampling, ...) are
+-- excluded.
 CREATE PERFETTO TABLE cpu_profiling_samples(
-  -- The id of the sample.
+  -- The id of the sample. Joinable with stack_sample.id.
   id LONG,
   -- The timestamp of the sample.
   ts TIMESTAMP,
@@ -41,39 +41,41 @@ CREATE PERFETTO TABLE cpu_profiling_samples(
   -- The cpu of the sample, if available.
   cpu LONG,
   -- The callsite id of the sample.
-  callsite_id LONG
+  callsite_id LONG,
+  -- The profiler that produced the sample (e.g. "linux.perf", "chrome").
+  source STRING
 )
 AS
-WITH
-  raw_samples AS (
-    -- Linux perf samples.
-    SELECT p.ts, p.utid, p.cpu AS ucpu, p.callsite_id FROM perf_sample AS p
-    UNION ALL
-    -- Instruments samples.
-    SELECT p.ts, p.utid, p.cpu AS ucpu, p.callsite_id
-    FROM instruments_sample AS p
-    UNION ALL
-    -- All other CPU profiling.
-    SELECT s.ts, s.utid, NULL AS ucpu, s.callsite_id
-    FROM cpu_profile_stack_sample AS s
-  )
 SELECT
-  row_number() OVER (ORDER BY ts) AS id,
-  r.*,
+  ss.id,
+  ss.ts,
+  tc.utid,
   t.tid,
   t.name AS thread_name,
-  c.cpu
-FROM raw_samples AS r
-LEFT JOIN thread AS t USING (utid)
-LEFT JOIN cpu AS c USING (ucpu)
+  ec.ucpu,
+  c.cpu,
+  ss.callsite_id,
+  ss.source
+FROM stack_sample AS ss
+LEFT JOIN stack_sample_task_context AS tc
+  ON tc.id = ss.task_context_id
+LEFT JOIN stack_sample_execution_context AS ec
+  ON ec.id = ss.execution_context_id
+LEFT JOIN stack_sample_session AS s
+  ON s.id = ss.session_id
+LEFT JOIN thread AS t
+  ON t.utid = tc.utid
+LEFT JOIN cpu AS c
+  ON c.id = ec.ucpu
+WHERE
+  s.timebase_unit IS NULL
+  OR s.timebase_unit IN ('ns', 'cycles', 'instructions')
 ORDER BY
-  ts;
+  ss.ts;
 
-CREATE PERFETTO TABLE _cpu_profiling_self_callsites AS
-SELECT *
+CREATE PERFETTO TABLE _cpu_profiling_callstacks AS
 FROM _callstacks_for_callsites!((SELECT callsite_id FROM cpu_profiling_samples))
-ORDER BY
-  id;
+|> TREE ACCUMULATE UP SUM(self_count) AS cumulative_count;
 
 -- Table summarising the callstacks captured during any CPU profiling which
 -- occurred during the trace.
@@ -113,17 +115,8 @@ SELECT
   mapping_name,
   source_file,
   line_number,
-  sum(self_count) AS self_count,
-  sum(cumulative_count) AS cumulative_count
-FROM (
-  SELECT r.*, a.cumulative_count
-  FROM _cpu_profiling_self_callsites AS r
-  JOIN _callstacks_self_to_cumulative!((
-    SELECT id, parent_id, self_count
-    FROM _cpu_profiling_self_callsites
-  )) AS a USING (
-    id
-  )
-)
-GROUP BY
+  self_count,
+  cumulative_count
+FROM _cpu_profiling_callstacks
+ORDER BY
   id;

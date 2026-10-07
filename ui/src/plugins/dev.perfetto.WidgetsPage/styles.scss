@@ -121,12 +121,31 @@
   &__content-container {
     flex: 1;
     overflow-y: auto;
+
+    // Full-width pages own their own scrolling (e.g. a fillHeight DataGrid), so
+    // clip here instead of letting content grow this scroll region unbounded.
+    // Combined with min-height:0 down the chain, this bounds the height so a
+    // fillHeight child can't feed its own content back into its available
+    // space and thrash layout forever.
+    &--full-width {
+      overflow: hidden;
+      display: flex;
+      min-height: 0;
+    }
   }
 
   &__content {
     flex: 1;
     padding-inline: 16px;
+    padding-bottom: 16px;
     max-width: 900px;
-    padding-bottom: 32px;
+
+    &--full-width {
+      max-width: none;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
   }
 }

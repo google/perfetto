@@ -32,7 +32,7 @@ source_set("repository_policies") {
     "../../../../gn:default_deps",
     "../../../../gn:grpc",
     "../../../../src/trace_processor",
-    "../../../../src/trace_processor/rpc:rpc",
+    "../../../../src/trace_processor/rpc",
     "../../../../src/trace_processor/util:json_value",
     "../../../base",
   ]

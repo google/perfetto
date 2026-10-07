@@ -73,6 +73,21 @@ def gh_req(url, headers={}, params={}):
   return resp.content.decode('utf-8')
 
 
+def gh_proxy(url, params={}):
+  return flask.Response(gh_req(url, params=params), mimetype='application/json')
+
+
+# The /gh/ endpoints proxy GitHub API responses which contain user-controlled
+# text (PR bodies, commit messages). They must never be interpreted as HTML.
+@app.after_request
+def add_security_headers(resp):
+  if flask.request.path.startswith('/gh/'):
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Content-Security-Policy'] = (
+        "default-src 'none'; frame-ancestors 'none'; sandbox")
+  return resp
+
+
 @app.route('/_ah/start', methods=['GET', 'POST'])
 async def http_start():
   await create_stackdriver_metric_definitions()
@@ -95,7 +110,7 @@ async def gh_pulls():
       'sort': 'updated',
       'direction': 'desc'
   }
-  return gh_req(url, params=params)
+  return gh_proxy(url, params=params)
 
 
 @app.route('/gh/checks/<string:sha>')
@@ -103,27 +118,27 @@ async def gh_checks(sha):
   if not HEX_RE.fullmatch(sha):
     flask.abort(400, description="Invalid hex string")
   url = f'https://api.github.com/repos/{GITHUB_REPO}/commits/{sha}/check-runs'
-  return gh_req(url)
+  return gh_proxy(url)
 
 
 @app.route('/gh/patchsets/<int:pr>')
 async def gh_patchsets(pr):
   url = f'https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr}/commits'
-  return gh_req(url)
+  return gh_proxy(url)
 
 
 @app.route('/gh/commits/main')
 async def gh_commits_main():
   url = f'https://api.github.com/repos/{GITHUB_REPO}/commits'
   params = {'sha': 'main'}
-  return gh_req(url, params=params)
+  return gh_proxy(url, params=params)
 
 
 @app.route('/gh/runners')
 async def gh_runners():
   params = {'per_page': 100}
   url = f'https://api.github.com/repos/{GITHUB_REPO}/actions/runners'
-  return gh_req(url, params=params)
+  return gh_proxy(url, params=params)
 
 
 async def get_jobs_for_workflow_run(id):

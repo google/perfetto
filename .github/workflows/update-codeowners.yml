@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: main  # Always use main branch to avoid running modified scripts from PRs
           fetch-depth: 0

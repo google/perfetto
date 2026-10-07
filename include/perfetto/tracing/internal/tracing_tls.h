@@ -64,7 +64,8 @@ namespace internal {
 // So for each data source, for each instance, for each thread we keep one
 // TraceWriter.
 // The lookup is O(1): Given the TLS object, the TraceWriter is just tls[M][N].
-class TracingTLS : public Platform::ThreadLocalObject {
+class PERFETTO_EXPORT_COMPONENT TracingTLS
+    : public Platform::ThreadLocalObject {
  public:
   ~TracingTLS() override;
 

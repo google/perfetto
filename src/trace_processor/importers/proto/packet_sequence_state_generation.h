@@ -22,8 +22,10 @@
 #include <type_traits>
 #include <utility>
 
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/incremental_state.h"
 #include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/util/interned_message_view.h"
@@ -81,6 +83,37 @@ class PacketSequenceStateGeneration : public RefCounted {
     return incremental_state_->GetInternedMessageView(field_id, iid);
   }
 
+  // Resolves a "string-like" interned message - one whose iid is field 1 and
+  // whose string value is field 2 (i.e. InternedString, and the EventName /
+  // EventCategory / DebugAnnotationName / LogMessageBody / ... family) - to the
+  // StringId of its value. The resolved StringId is memoized on the interned
+  // entry, so repeated lookups of the same iid (the common case: a few distinct
+  // names referenced by very many events) are O(1) and avoid re-decoding and
+  // re-interning. Returns nullopt if no entry with |iid| exists for |field_id|.
+  //
+  // The hot path (cache hit) is kept inline; only the first-time decode and
+  // intern is out of line.
+  std::optional<StringPool::Id> InternedStringId(uint32_t field_id,
+                                                 uint64_t iid) {
+    InternedMessageView* view = GetInternedMessageView(field_id, iid);
+    if (!view) {
+      return std::nullopt;
+    }
+    if (std::optional<uint32_t> cached = view->cached_value()) {
+      return StringPool::Id::Raw(*cached);
+    }
+    return InternAndCacheStringValue(view);
+  }
+
+  // Like InternedStringId, but returns the value of the string-like interned
+  // message as a view over the interned message bytes (no interning). Use this
+  // when the raw string is needed - e.g. to compare it, concatenate it or hand
+  // it to something that interns itself - rather than its StringId. The view is
+  // valid for as long as the interned entry (this generation). Returns nullopt
+  // if no entry with |iid| exists for |field_id|.
+  std::optional<base::StringView> InternedStringView(uint32_t field_id,
+                                                     uint64_t iid);
+
   // Returns |nullptr| if no defaults were set.
   InternedMessageView* GetTracePacketDefaultsView() {
     if (!trace_packet_defaults_.has_value()) {
@@ -89,17 +122,29 @@ class PacketSequenceStateGeneration : public RefCounted {
     return &*trace_packet_defaults_;
   }
 
-  // Returns |nullptr| if no defaults were set.
+  // Returns |nullptr| if no defaults were set. The defaults are fixed for
+  // the lifetime of a generation, so the decoder is resolved once.
   protos::pbzero::TracePacketDefaults::Decoder* GetTracePacketDefaults() {
+    if (PERFETTO_LIKELY(trace_packet_defaults_resolved_)) {
+      return trace_packet_defaults_decoder_;
+    }
+    trace_packet_defaults_resolved_ = true;
     if (!trace_packet_defaults_.has_value()) {
       return nullptr;
     }
-    return trace_packet_defaults_
-        ->GetOrCreateDecoder<protos::pbzero::TracePacketDefaults>();
+    trace_packet_defaults_decoder_ =
+        trace_packet_defaults_
+            ->GetOrCreateDecoder<protos::pbzero::TracePacketDefaults>();
+    return trace_packet_defaults_decoder_;
   }
 
-  // Returns |nullptr| if no TrackEventDefaults were set.
+  // Returns |nullptr| if no TrackEventDefaults were set. The defaults are
+  // fixed for the lifetime of a generation, so the lookup is memoized.
   protos::pbzero::TrackEventDefaults::Decoder* GetTrackEventDefaults() {
+    if (PERFETTO_LIKELY(track_event_defaults_resolved_)) {
+      return track_event_defaults_;
+    }
+    track_event_defaults_resolved_ = true;
     auto* packet_defaults_view = GetTracePacketDefaultsView();
     if (packet_defaults_view) {
       auto* track_event_defaults_view =
@@ -108,11 +153,12 @@ class PacketSequenceStateGeneration : public RefCounted {
                                           protos::pbzero::TracePacketDefaults::
                                               kTrackEventDefaultsFieldNumber>();
       if (track_event_defaults_view) {
-        return track_event_defaults_view
-            ->GetOrCreateDecoder<protos::pbzero::TrackEventDefaults>();
+        track_event_defaults_ =
+            track_event_defaults_view
+                ->GetOrCreateDecoder<protos::pbzero::TrackEventDefaults>();
       }
     }
-    return nullptr;
+    return track_event_defaults_;
   }
 
   // Extension point for custom incremental state. Custom state classes need
@@ -128,6 +174,11 @@ class PacketSequenceStateGeneration : public RefCounted {
 
  private:
   friend class PacketSequenceStateBuilder;
+
+  // Slow path of InternedStringId: decodes the value field of |view|, interns
+  // it and memoizes the result on |view|. Out of line to keep the common cache
+  // hit small.
+  StringPool::Id InternAndCacheStringValue(InternedMessageView* view);
 
   PacketSequenceStateGeneration(
       RefPtr<IncrementalState> incremental_state,
@@ -152,6 +203,11 @@ class PacketSequenceStateGeneration : public RefCounted {
 
   // Per-slice state.
   std::optional<InternedMessageView> trace_packet_defaults_;
+  bool trace_packet_defaults_resolved_ = false;
+  protos::pbzero::TracePacketDefaults::Decoder* trace_packet_defaults_decoder_ =
+      nullptr;
+  bool track_event_defaults_resolved_ = false;
+  protos::pbzero::TrackEventDefaults::Decoder* track_event_defaults_ = nullptr;
   // TODO(carlscab): Should not be needed as clients of this class should not
   // care about validity.
   bool is_incremental_state_valid_ = true;

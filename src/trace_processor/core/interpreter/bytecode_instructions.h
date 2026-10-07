@@ -619,40 +619,6 @@ struct Reverse : Bytecode {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_1(RwHandle<Span<uint32_t>>, update_register);
 };
 
-// Reparents and compacts a tree based on pre-filtered indices.
-//
-// Takes a span of filtered indices (produced by standard filter bytecodes)
-// and uses them to determine which tree nodes survive. Filtered-out nodes
-// have their children reparented to the closest surviving ancestor.
-//
-// Compacts parent, original_rows, all registered column storage and null
-// bitvectors in the TreeState. After compaction, resets indices_register
-// to [0..new_row_count-1] for subsequent operations.
-struct FilterTreeState : Bytecode {
-  static constexpr Cost kCost = LinearPerRowCost{20};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(RwHandle<std::unique_ptr<TreeState>>,
-                                     tree_state_register,
-                                     RwHandle<Span<uint32_t>>,
-                                     indices_register);
-};
-
-// Propagates values from root toward leaves using BFS. For each spec in the
-// range [spec_start, spec_start + spec_count), copies source column data to
-// the dest column, then applies the aggregate operation downward via BFS.
-//
-// Requires the P2C CSR cache to be rebuilt if stale.
-struct PropagateTreeDown : Bytecode {
-  static constexpr Cost kCost = LinearPerRowCost{20};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(RwHandle<std::unique_ptr<TreeState>>,
-                                     tree_state_register,
-                                     uint32_t,
-                                     spec_start,
-                                     uint32_t,
-                                     spec_count);
-};
-
 // Bytecode ops that require FilterValueFetcher access.
 #define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
   X(CastFilterValue<Id>)                        \
@@ -814,9 +780,7 @@ struct PropagateTreeDown : Bytecode {
   X(CollectIdIntoRankMap)                              \
   X(FinalizeRanksInMap)                                \
   X(SortRowLayout)                                     \
-  X(Reverse)                                           \
-  X(FilterTreeState)                                   \
-  X(PropagateTreeDown)
+  X(Reverse)
 
 // Combined list of all bytecode instruction types.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \

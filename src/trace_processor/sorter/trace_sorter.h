@@ -364,12 +364,15 @@ class TraceSorter::Stream {
  public:
   // Public API for tokenizers.
   void Push(int64_t ts, T data) {
-    if (PERFETTO_UNLIKELY(sorter_->event_handling_ == EventHandling::kDrop)) {
-      return;
-    }
+    // Record the negative timestamp drop even when events are dropped
+    // (tokenize-only mode): the UI's merge dialog dry-runs a tokenize-only
+    // pass and relies on this stat to warn about misconfigured offsets.
     if (PERFETTO_UNLIKELY(ts < 0)) {
       sorter_->global_stats_tracker_->IncrementGlobalStats(
           stats::trace_sorter_negative_timestamp_dropped);
+      return;
+    }
+    if (PERFETTO_UNLIKELY(sorter_->event_handling_ == EventHandling::kDrop)) {
       return;
     }
     if constexpr (std::is_same_v<T, JsonEvent>) {

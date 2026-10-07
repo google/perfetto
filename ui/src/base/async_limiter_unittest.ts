@@ -62,7 +62,7 @@ test('error in callback bubbles up to caller', async () => {
     throw Error();
   };
 
-  expect(async () => await limiter.schedule(failingCallback)).rejects.toThrow();
+  await expect(limiter.schedule(failingCallback)).rejects.toThrow();
 });
 
 test('chain continues even when one callback fails', async () => {

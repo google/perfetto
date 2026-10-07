@@ -112,6 +112,16 @@ export interface Pivot {
   readonly collapsedGroups?: readonly GroupPath[];
 }
 
+export function getPivotDrillDownFilters(
+  pivot: Pivot | undefined,
+): readonly Filter[] {
+  return (
+    pivot?.drillDown?.map(({field, value}): Filter => {
+      return value === null ? {field, op: 'is null'} : {field, op: '=', value};
+    }) ?? []
+  );
+}
+
 // ID-based tree configuration for displaying hierarchical data using
 // id/parent_id columns. Uses recursive CTE for efficient tree traversal with
 // sorting. Unlike path-based pivot tree, this expects the data to have explicit

@@ -16,6 +16,7 @@
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
+from python.generators.diff_tests.testing import ExpectedError, RawText
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -27,7 +28,23 @@ class Parsing(TestSuite):
   # http://perfetto/dev/docs/analysis/trace-processor#diff-tests for choosing
   # folder to add a new test to. TODO(lalitm): some tests here should be moved
   # of here and into the area folders; they are only here because they predate
-  # modularisation of diff tests. Sched
+  # modularisation of diff tests.
+
+  # Feeding trace_processor a file which is not a trace in any known format
+  # should fail the load with a clear error.
+  def test_unknown_trace_type_load_error(self):
+    return DiffTestBlueprint(
+        trace=RawText('this is garbage and not a trace in any known format'),
+        query='SELECT 1;',
+        out=ExpectedError('Unknown trace type provided (ERR:fmt)'))
+
+  def test_to_ftrace_rejects_out_of_bounds_row(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query='SELECT to_ftrace(-1);',
+        out=ExpectedError('to_ftrace: row id out of bounds'))
+
+  # Sched
   def test_ts_desc_filter_android_sched_and_ps(self):
     return DiffTestBlueprint(
         trace=DataPath('android_sched_and_ps.pb'),
@@ -484,56 +501,6 @@ class Parsing(TestSuite):
         """,
         out=Path('android_sched_and_ps_stats.out'))
 
-  def test_shadow_buf_stats(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r"""
-          packet {
-            trusted_uid: 158158
-            trusted_packet_sequence_id: 1
-            trace_stats {
-              buffer_stats {
-                buffer_size: 131072
-                bytes_written: 55459840
-                bytes_overwritten: 55328768
-                bytes_read: 131072
-                padding_bytes_cleared: 0
-                chunks_written: 13540
-                chunks_overwritten: 13508
-                chunks_read: 32
-                write_wrap_count: 423
-                patches_succeeded: 1861
-                patches_failed: 12349
-                readaheads_succeeded: 11
-                shadow_buffer_stats {
-                  packets_seen: 57
-                  packets_in_both: 55
-                  packets_only_v1: 0
-                  packets_only_v2: 0
-                  patches_attempted: 13499
-                  v1_patches_succeeded: 1150
-                  v2_patches_succeeded: 1150
-                  stats_version: 2
-                }
-              }
-            }
-          }
-        """),
-        query="""
-        SELECT name, source, value
-        FROM stats WHERE name GLOB 'traced_buf_v2s*';
-        """,
-        out=Csv("""
-        "name","source","value"
-        "traced_buf_v2s_packets_seen","trace",57
-        "traced_buf_v2s_packets_in_both","trace",55
-        "traced_buf_v2s_packets_only_v1","trace",0
-        "traced_buf_v2s_packets_only_v2","trace",0
-        "traced_buf_v2s_patches_attempted","trace",13499
-        "traced_buf_v2s_v1_patches_succeeded","trace",1150
-        "traced_buf_v2s_v2_patches_succeeded","trace",1150
-        "traced_buf_v2s_stats_version","trace",2
-        """))
-
   # Syscalls
   def test_sys_syscall(self):
     return DiffTestBlueprint(
@@ -650,6 +617,37 @@ class Parsing(TestSuite):
         "trace_time_clock_id","[NULL]",6
         "trace_type","proto","[NULL]"
         "trace_uuid","123e4567-e89b-12d3-a456-426655443322","[NULL]"
+        """))
+
+  # TraceConfig.trace_attributes and TraceAttributes packets both become
+  # trace_attribute.* metadata rows; the last value wins on key collisions.
+  def test_config_trace_attributes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trace_config {
+            trace_attributes {
+              attribute { key: "myapp.build_id" string_value: "b123" }
+              attribute { key: "myapp.variant" string_value: "arm64" }
+            }
+          }
+        }
+        packet {
+          trace_attributes {
+            attribute { key: "myapp.variant" string_value: "arm64-override" }
+            attribute { key: "myapp.iterations" long_value: 10 }
+          }
+        }
+        """),
+        query="""
+        SELECT name, str_value, int_value FROM metadata
+        WHERE name GLOB 'trace_attribute.*' ORDER BY name;
+        """,
+        out=Csv("""
+        "name","str_value","int_value"
+        "trace_attribute.myapp.build_id","b123","[NULL]"
+        "trace_attribute.myapp.iterations","[NULL]",10
+        "trace_attribute.myapp.variant","arm64-override","[NULL]"
         """))
 
   def test_triggers_packets_trigger_packet_trace(self):
@@ -931,6 +929,41 @@ class Parsing(TestSuite):
         5,0,"AArch64 Processor rev 13 (aarch64)"
         6,1,"AArch64 Processor rev 13 (aarch64)"
         7,1,"AArch64 Processor rev 13 (aarch64)"
+        """))
+
+  def test_cpu_features(self):
+    return DiffTestBlueprint(
+        trace=Path('cpu_info.textproto'),
+        query="""
+        SELECT
+          cpu,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.mte') AS mte,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.mte3') AS mte3,
+          EXTRACT_ARG(arg_set_id, 'cpu_features.raw_bitmap') AS raw_bitmap,
+          EXTRACT_ARG(arg_set_id, 'arm_cpu_part') AS arm_cpu_part
+        FROM cpu;
+        """,
+        out=Csv("""
+        "cpu","mte","mte3","raw_bitmap","arm_cpu_part"
+        0,"[NULL]","[NULL]","[NULL]","[NULL]"
+        1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        2,"[NULL]","[NULL]","[NULL]","[NULL]"
+        3,"[NULL]","[NULL]","[NULL]","[NULL]"
+        4,"[NULL]","[NULL]","[NULL]","[NULL]"
+        5,1,"[NULL]",1,"[NULL]"
+        6,1,1,3,"[NULL]"
+        7,1,1,4611686018427387907,3336
+        """))
+
+  def test_cpu_features_unknown_stat(self):
+    return DiffTestBlueprint(
+        trace=Path('cpu_info.textproto'),
+        query="""
+        SELECT value FROM stats WHERE name = 'cpu_info_unknown_cpu_features';
+        """,
+        out=Csv("""
+        "value"
+        1
         """))
 
   def test_cpu_freq(self):
@@ -1448,7 +1481,7 @@ class Parsing(TestSuite):
           trusted_uid: 9999
           trusted_packet_sequence_id: 2
           trusted_pid: 521
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""
@@ -1525,6 +1558,43 @@ class Parsing(TestSuite):
         "name","int_value"
         "all_data_source_flushed_ns",12344
         "all_data_source_flushed_ns",12345
+        """))
+
+  def test_service_event_timestamp_converted_to_trace_time(self):
+    # TracingServiceImpl stamps service events with GetBootTimeNs() and, when
+    # primary_trace_clock is not BOOTTIME, Trace Processor must convert the
+    # event timestamp to the trace-time domain
+    # (https://github.com/google/perfetto/discussions/7112). BOOTTIME 1050 maps to
+    # MONOTONIC_RAW 150 via the snapshot below.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          clock_snapshot {
+            primary_trace_clock: 5  # BUILTIN_CLOCK_MONOTONIC_RAW
+            clocks {
+              clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+              timestamp: 1000
+            }
+            clocks {
+              clock_id: 5  # BUILTIN_CLOCK_MONOTONIC_RAW
+              timestamp: 100
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1050
+          service_event {
+            tracing_started: true
+          }
+        }
+        """),
+        query="""
+        SELECT name, int_value FROM metadata WHERE name = 'tracing_started_ns'""",
+        out=Csv("""
+        "name","int_value"
+        "tracing_started_ns",150
         """))
 
   def test_slow_starting_data_sources(self):
@@ -1784,6 +1854,36 @@ class Parsing(TestSuite):
         5230425693562,0,49,1
         """))
 
+  # remote_clock_sync offsets are recorded as synthetic cross-machine clock
+  # snapshots. These used to be anchored at a literal host value of 0, so the
+  # materialised rows for absolute clocks (REALTIME, REALTIME_COARSE) converted
+  # the 1970 epoch into a wildly negative trace time. Anchoring at a real host
+  # reading keeps every remote clock snapshot at a sane, positive timestamp.
+  #
+  # The output aggregates over all machines deliberately: machine_id is an
+  # unstable surrogate id, so filtering or grouping by it would make the test
+  # flaky. Asserting the min/max trace time per clock is enough to catch the
+  # regression (a negative min_ts would mean the epoch leaked back in).
+  def test_remote_clock_sync_snapshot_timestamps(self):
+    return DiffTestBlueprint(
+        trace=DataPath('multi_machine_trace.pb'),
+        query="""
+        SELECT clock_name, MIN(ts) AS min_ts, MAX(ts) AS max_ts
+        FROM clock_snapshot
+        WHERE clock_name IS NOT NULL
+        GROUP BY clock_name
+        ORDER BY clock_name
+        """,
+        out=Csv("""
+        "clock_name","min_ts","max_ts"
+        "BOOTTIME",5218684183615,5232377520710
+        "MONOTONIC",5218684183776,5232377520710
+        "MONOTONIC_COARSE",5218684036772,5232377520710
+        "MONOTONIC_RAW",5218684183843,5232377520710
+        "REALTIME",5218684183748,5232377520710
+        "REALTIME_COARSE",5218684036772,5232377520710
+        """))
+
   # Kernel idle tasks created by /sbin/init should be filtered.
   def test_task_newtask_swapper_by_init(self):
     return DiffTestBlueprint(
@@ -1846,7 +1946,7 @@ class Parsing(TestSuite):
           trusted_uid: 9999
           trusted_packet_sequence_id: 2
           trusted_pid: 521
-          previous_packet_dropped: true
+          previous_packet_dropped: 1
         }
         """),
         query="""

@@ -26,7 +26,7 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(ROOT_DIR)
 
-from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_docs
+from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_docs, format_metadata
 
 
 def main():
@@ -38,6 +38,13 @@ def main():
       '--minify',
       action='store_true',
       help='Minify JSON output (removes indentation and whitespace)')
+  parser.add_argument(
+      '--metadata-only',
+      action='store_true',
+      help='Emit only the metadata not available from the TP table functions '
+      '(keyed by module name). Used by the UI, which sources doc content from '
+      'trace_processor. Without this flag the full documentation is emitted '
+      '(used by the offline perfetto.dev docs build).')
   parser.add_argument(
       '--with-internal',
       action='store_true',
@@ -84,8 +91,13 @@ def main():
         include_internal=args.with_internal,
         name_filter=None)
 
-    # Format as docs JSON
-    output_data = format_docs(modules)
+    # The UI passes --metadata-only and sources doc content from the TP
+    # __intrinsic_stdlib_* table functions; the offline docs build needs the
+    # full documentation emitted here.
+    if args.metadata_only:
+      output_data = format_metadata(modules)
+    else:
+      output_data = format_docs(modules)
 
     # Write output
     with open(args.json_out, 'w', encoding='utf-8') as f:

@@ -114,6 +114,10 @@ message SchedWakeupTaskAttrFtraceEvent {
   optional uint64 task_util = 3;
   optional uint64 uclamp_min = 4;
   optional uint64 vruntime = 5;
+  optional uint64 sched_qos_user_defined_flag = 6;
+  optional uint32 rampup_multiplier = 7;
+  optional uint32 effect_rampup_multiplier = 8;
+  optional int32 tag_nice = 9;
 }
 message SchedGroupTrackerFtraceEvent {
   optional string comm = 1;

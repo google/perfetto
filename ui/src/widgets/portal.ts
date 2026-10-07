@@ -24,20 +24,20 @@ export interface MountOptions {
 
 export interface PortalAttrs {
   // Space delimited class list forwarded to our portal element.
-  className?: string;
+  readonly className?: string;
   // Inline styles forwarded to our portal element.
-  style?: Style;
+  readonly style?: Style;
   // Called before our portal is created, allowing customization of where in the
   // DOM the portal is mounted.
   // The dom parameter is a dummy element representing where the portal would be
   // located if it were rendered into the normal tree hierarchy.
-  onBeforeContentMount?: (dom: Element) => MountOptions;
+  readonly onBeforeContentMount?: (dom: Element) => MountOptions;
   // Called after our portal is created and its content rendered.
-  onContentMount?: (portalElement: HTMLElement) => void;
+  readonly onContentMount?: (portalElement: HTMLElement) => void;
   // Called after our portal's content is updated.
-  onContentUpdate?: (portalElement: HTMLElement) => void;
+  readonly onContentUpdate?: (portalElement: HTMLElement) => void;
   // Called before our portal is removed.
-  onContentUnmount?: (portalElement: HTMLElement) => void;
+  readonly onContentUnmount?: (portalElement: HTMLElement) => void;
 }
 
 // A portal renders children into a a div outside of the normal hierarchy of the

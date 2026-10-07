@@ -34,7 +34,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/core/plugin/registration.h"
-#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/plugins/experimental_flamegraph/flamegraph_construction_algorithms.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -59,15 +59,18 @@ class ExperimentalFlamegraph : public StaticTableFunction {
 
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(TraceProcessorContext* context);
+    explicit Cursor(PerfettoSqlConnection* connection,
+                    TraceProcessorContext* context);
     bool Run(const std::vector<SqlValue>& arguments) override;
 
    private:
+    PerfettoSqlConnection* connection_ = nullptr;
     TraceProcessorContext* context_ = nullptr;
     tables::ExperimentalFlamegraphTable table_;
   };
 
-  explicit ExperimentalFlamegraph(TraceProcessorContext* context);
+  explicit ExperimentalFlamegraph(PerfettoSqlConnection* connection,
+                                  TraceProcessorContext* context);
   ~ExperimentalFlamegraph() override;
 
   std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
@@ -76,6 +79,7 @@ class ExperimentalFlamegraph : public StaticTableFunction {
   uint32_t GetArgumentCount() const override;
 
  private:
+  PerfettoSqlConnection* connection_ = nullptr;
   TraceProcessorContext* context_ = nullptr;
 };
 
@@ -352,8 +356,11 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> FocusTable(
   return tbl;
 }
 
-ExperimentalFlamegraph::Cursor::Cursor(TraceProcessorContext* context)
-    : context_(context), table_(context_->storage->mutable_string_pool()) {}
+ExperimentalFlamegraph::Cursor::Cursor(PerfettoSqlConnection* connection,
+                                       TraceProcessorContext* context)
+    : connection_(connection),
+      context_(context),
+      table_(context->storage->mutable_string_pool()) {}
 
 bool ExperimentalFlamegraph::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
@@ -371,8 +378,11 @@ bool ExperimentalFlamegraph::Cursor::Run(
             "experimental_flamegraph: ts and upid must be present for heap "
             "graph"));
       }
-      constructed_table = HeapGraphTracker::Get(context_)->BuildFlamegraph(
-          *values.ts, *values.upid);
+      constructed_table = BuildHeapGraphFlamegraph(
+          connection_, context_->storage.get(), *values.ts, *values.upid);
+      if (!constructed_table || constructed_table->row_count() == 0) {
+        return OnFailure(base::ErrStatus("Failed to build flamegraph"));
+      }
       break;
     }
     case ProfileType::kHeapProfile: {
@@ -404,14 +414,16 @@ bool ExperimentalFlamegraph::Cursor::Run(
   return OnSuccess(&table_.dataframe());
 }
 
-ExperimentalFlamegraph::ExperimentalFlamegraph(TraceProcessorContext* context)
-    : context_(context) {}
+ExperimentalFlamegraph::ExperimentalFlamegraph(
+    PerfettoSqlConnection* connection,
+    TraceProcessorContext* context)
+    : connection_(connection), context_(context) {}
 
 ExperimentalFlamegraph::~ExperimentalFlamegraph() = default;
 
 std::unique_ptr<StaticTableFunction::Cursor>
 ExperimentalFlamegraph::MakeCursor() {
-  return std::make_unique<Cursor>(context_);
+  return std::make_unique<Cursor>(connection_, context_);
 }
 
 dataframe::DataframeSpec ExperimentalFlamegraph::CreateSpec() {
@@ -432,9 +444,10 @@ class ExperimentalFlamegraphPlugin
   ~ExperimentalFlamegraphPlugin() override;
 
   void RegisterStaticTableFunctions(
-      PerfettoSqlConnection*,
+      PerfettoSqlConnection* connection,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns) override {
-    fns.emplace_back(std::make_unique<ExperimentalFlamegraph>(trace_context_));
+    fns.emplace_back(
+        std::make_unique<ExperimentalFlamegraph>(connection, trace_context_));
   }
 };
 

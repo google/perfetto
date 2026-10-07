@@ -16,10 +16,37 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import ExpectedError
 from python.generators.diff_tests.testing import TestSuite
 
 
 class TreeRoundtrip(TestSuite):
+
+  def test_dominator_summary_rejects_non_integer_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          SELECT __intrinsic_tree_dominator_summary(
+            __intrinsic_tree_from_table(
+              'id', id,
+              'parent_id', parent_id,
+              'self_size', self_size,
+              'native_size', native_size,
+              'self_count', self_count
+            )
+          )
+          FROM (
+            SELECT
+              1 AS id,
+              NULL AS parent_id,
+              1.5 AS self_size,
+              0 AS native_size,
+              1 AS self_count
+          );
+        """,
+        out=ExpectedError(
+            '__intrinsic_tree_dominator_summary: expected id, self_size, '
+            'native_size, and self_count columns to be integers'))
 
   def test_basic(self):
     return DiffTestBlueprint(
@@ -101,3 +128,42 @@ class TreeRoundtrip(TestSuite):
         2,0,3,1,"child1"
         3,1,4,2,"child2"
         """))
+
+  def test_sparse_int64_ids(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT -10 AS id, NULL AS parent_id, 'root' AS name
+          UNION ALL SELECT 10000000000, -10, 'child';
+
+          SELECT _tree_id, _tree_parent_id, id, parent_id, name
+          FROM _tree_to_table!(
+            _tree_from_table!((SELECT * FROM input_tree), (name)),
+            (name)
+          );
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","parent_id","name"
+        0,"[NULL]",-10,"[NULL]","root"
+        1,0,10000000000,-10,"child"
+        """))
+
+  def test_duplicate_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+
+          SELECT *
+          FROM _tree_to_table!(
+            _tree_from_table!((
+              SELECT 1 AS id, NULL AS parent_id, 'a' AS name
+              UNION ALL SELECT 1, NULL, 'b'
+            ), (name)),
+            (name)
+          );
+        """,
+        out=ExpectedError('tree: duplicate id'))

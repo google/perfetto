@@ -15,6 +15,7 @@
 // TODO(ivankc) Consider moving this to stdlib
 export const LOCK_CONTENTION_SQL = `
 INCLUDE PERFETTO MODULE intervals.intersect;
+INCLUDE PERFETTO MODULE intervals.overlap;
 INCLUDE PERFETTO MODULE android.monitor_contention;
 INCLUDE PERFETTO MODULE slices.with_context;
 
@@ -27,6 +28,7 @@ WITH raw_contentions AS (
     s.dur,
     s.name,
     s.utid,
+    s.parent_id,
     cast_int!(STR_SPLIT(STR_SPLIT(s.name, '(owner tid: ', 1), ')', 0)) AS owner_tid
   FROM thread_slice AS s
   WHERE
@@ -39,9 +41,12 @@ SELECT
   r.name,
   r.owner_tid,
   obt.utid AS owner_utid,
+  bt.utid AS blocked_utid,
+  bt.tid AS blocked_tid,
   bt.name AS blocked_thread_name,
   obt.name AS blocking_thread_name,
-  regexp_extract(r.name, 'Lock contention on (?:a )?(.*) lock') AS lock_type
+  regexp_extract(r.name, 'Lock contention on (?:a )?(.*?)(?: lock)? \\(owner tid:') AS lock_type,
+  r.parent_id
 FROM raw_contentions AS r
 JOIN thread AS bt
   ON r.utid = bt.utid
@@ -51,6 +56,11 @@ LEFT JOIN thread AS obt
 
 -- Contains the union of all lock contention events from both ART and Monitor contention sources.
 CREATE OR REPLACE PERFETTO TABLE android_all_lock_contentions AS
+WITH valid_monitor_contentions AS (
+  SELECT id
+  FROM android_monitor_contention
+  WHERE blocking_utid IS NOT NULL AND dur > 0
+)
 SELECT
   id,
   ts,
@@ -58,12 +68,20 @@ SELECT
   name AS lock_name,
   owner_tid,
   owner_utid,
+  blocked_utid,
+  blocked_tid,
   blocked_thread_name,
   blocking_thread_name,
   0 AS is_monitor,
   lock_type
 FROM android_lock_contention
 WHERE owner_utid IS NOT NULL AND dur > 0
+  -- Exclude child ART lock contention slices nested within an outer monitor contention
+  -- slice to avoid duplicating events already captured by android_monitor_contention.
+  AND NOT (
+    lock_type = 'monitor'
+    AND parent_id IN (SELECT id FROM valid_monitor_contentions)
+  )
 UNION ALL
 SELECT
   id,
@@ -72,6 +90,8 @@ SELECT
   lock_name,
   blocking_tid AS owner_tid,
   blocking_utid AS owner_utid,
+  blocked_utid,
+  blocked_thread_tid AS blocked_tid,
   blocked_thread_name,
   blocking_thread_name,
   1 AS is_monitor,
@@ -85,6 +105,8 @@ WITH unique_events AS (
   SELECT DISTINCT
     id,
     owner_tid,
+    blocked_utid,
+    blocked_tid,
     ts,
     dur,
     lock_name,
@@ -101,6 +123,9 @@ WITH unique_events AS (
 SELECT 
   id,
   owner_tid,
+  blocked_utid,
+  blocked_tid,
+  owner_tid || '_' || blocked_utid AS owner_blocked_key,
   ts,
   dur,
   lock_name,
@@ -108,8 +133,21 @@ SELECT
   blocked_thread_name,
   blocking_thread_name,
   name,
-  internal_layout(ts, dur) OVER (PARTITION BY owner_tid ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth
+  internal_layout(ts, dur) OVER (PARTITION BY owner_tid, blocked_utid ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth
 FROM unique_events;
+
+-- Contains cumulative contention counts over time partitioned by owner_tid for counter tracks.
+CREATE OR REPLACE PERFETTO TABLE __android_lock_contention_counters AS
+SELECT
+  ts,
+  value,
+  group_name AS owner_tid
+FROM intervals_overlap_count_by_group!(
+  (SELECT ts, dur, owner_tid FROM __android_lock_contention_owner_events WHERE owner_tid IS NOT NULL),
+  ts,
+  dur,
+  owner_tid
+);
 
 -- Extract all unique utids that act as lock owners
 CREATE OR REPLACE PERFETTO TABLE _all_lock_blocking_utids AS

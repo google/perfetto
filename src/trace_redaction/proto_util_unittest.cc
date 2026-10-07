@@ -22,6 +22,7 @@
 #include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/config/test_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
@@ -264,6 +265,21 @@ INSTANTIATE_TEST_SUITE_P(Reserialize,
                                          "a",
                                          "abcdefghijklmonpqrstuvwxyz",
                                          std::string(1024, 'a')));
+
+TEST(ProtoUtilTest, AppendMessageAppendsDirectlyWithoutCopies) {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
+  message->set_timestamp(12345);
+  message->set_trusted_uid(42);
+
+  std::string output = "prefix_";
+  AppendMessage(message, &output);
+
+  EXPECT_EQ(output.substr(0, 7), "prefix_");
+
+  protos::pbzero::TracePacket::Decoder decoder(output.substr(7));
+  EXPECT_EQ(decoder.timestamp(), 12345u);
+  EXPECT_EQ(decoder.trusted_uid(), 42);
+}
 
 }  // namespace proto_util
 

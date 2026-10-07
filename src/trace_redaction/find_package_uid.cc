@@ -57,12 +57,10 @@ base::Status FindPackageUid::Collect(
       continue;
     }
 
-    // Package names should be lowercase, but this check is meant to be more
-    // forgiving.
     base::StringView expected_name(context->package_name.data(),
                                    context->package_name.size());
     base::StringView actual_name(info.name().data, info.name().size);
-    if (!actual_name.CaseInsensitiveEq(expected_name)) {
+    if (actual_name != expected_name) {
       continue;
     }
 

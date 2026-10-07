@@ -58,6 +58,11 @@ struct ListenEndpoint {
   std::string sock_name;
   base::ScopedSocketHandle sock_handle;
   std::unique_ptr<ipc::Host> ipc_host;
+
+  // If true, the RelayPort IPC service is also exposed on this endpoint.
+  // Should only be set on endpoints reserved for cross-machine peers (e.g.
+  // vsock, TCP), not on local sockets shared with unprivileged producers.
+  bool expose_relay_endpoint = false;
 };
 
 // Creates an instance of the service (business logic + UNIX socket transport).

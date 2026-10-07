@@ -17,6 +17,9 @@
 #include "src/trace_processor/util/descriptors.h"
 
 #include <cstdint>
+#include <optional>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -214,6 +217,56 @@ std::vector<uint8_t> BuildReDeclDescriptorSet(bool second_is_scalar_mismatch) {
     ext2->set_type(FieldDescriptorProto::TYPE_MESSAGE);
     ext2->set_type_name(".test.ExtMsg");
   }
+
+  return fds.SerializeAsArray();
+}
+
+// Two scalar extensions at the same tag with the given types, re-declaring a
+// field with a possibly-widened scalar type (e.g. bool -> uint32).
+std::vector<uint8_t> BuildScalarReDeclDescriptorSet(
+    protos::pbzero::FieldDescriptorProto::Type type_a,
+    protos::pbzero::FieldDescriptorProto::Type type_b) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* ext1 = file->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(type_a);
+  ext1->set_extendee(".test.BaseMessage");
+
+  auto* ext2 = file->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(type_b);
+  ext2->set_extendee(".test.BaseMessage");
+
+  return fds.SerializeAsArray();
+}
+
+// A message with one message-typed field pointing at `type_name` that is never
+// defined, leaving a dangling reference for the resolution pass to handle.
+std::vector<uint8_t> BuildDanglingTypeDescriptorSet(const char* type_name) {
+  protozero::HeapBuffered<FileDescriptorSet> fds;
+  auto* file = fds->add_file();
+  file->set_name("test.proto");
+  file->set_package("test");
+
+  auto* base_msg = file->add_message_type();
+  base_msg->set_name("BaseMessage");
+  auto* field = base_msg->add_field();
+  field->set_name("removed_field");
+  field->set_number(81);
+  field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  field->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  field->set_type_name(type_name);
 
   return fds.SerializeAsArray();
 }
@@ -506,6 +559,51 @@ TEST(DescriptorsTest, ExtensionReDeclaredWithDifferentFundamentalTypeRejected) {
               testing::HasSubstr("re-introduced with different type"));
 }
 
+// A field naming an intentionally-removed type is tolerated and left
+// unresolved rather than failing the trace.
+TEST(DescriptorsTest, RemovedTypeReferenceTolerated) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildDanglingTypeDescriptorSet(
+      ".perfetto.protos.AndroidCameraSessionStats");
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  const auto* field = pool.descriptors()[base_idx.value()].FindFieldByTag(81);
+  ASSERT_NE(field, nullptr);
+  // The removed type could not be resolved, so it stays empty.
+  EXPECT_TRUE(field->resolved_type_name().empty());
+}
+
+// A field naming an unresolvable type not on the allowlist still fails, so
+// genuine missing types are not masked.
+TEST(DescriptorsTest, UnknownTypeReferenceRejected) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes =
+      BuildDanglingTypeDescriptorSet(".perfetto.protos.SomeTypoedType");
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_FALSE(status.ok());
+  EXPECT_THAT(status.c_message(),
+              testing::HasSubstr("Unable to find short type"));
+}
+
+// Same wire type (bool -> uint32, both kVarInt) is accepted: the
+// previous_packet_dropped case where an old trace still declares the field as
+// bool.
+TEST(DescriptorsTest, ScalarReDeclaredWithSameWireTypeAllowed) {
+  DescriptorPool pool;
+  std::vector<uint8_t> fds_bytes = BuildScalarReDeclDescriptorSet(
+      FieldDescriptorProto::TYPE_BOOL, FieldDescriptorProto::TYPE_UINT32);
+  auto status =
+      pool.AddFromFileDescriptorSet(fds_bytes.data(), fds_bytes.size());
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  EXPECT_NE(pool.descriptors()[base_idx.value()].FindFieldByTag(10), nullptr);
+}
+
 // CheckExtensionField: re-declaring an extension at the same tag with an
 // identical type (same name, same kind) is accepted and does not trigger a
 // deferred structural check.
@@ -680,6 +778,271 @@ TEST(DescriptorsTest, DifferentFixedWidthScalarChangeRejected) {
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.c_message(),
               testing::HasSubstr("not structurally identical"));
+}
+
+TEST(DescriptorsTest, FlagSetToViews) {
+  DescriptorPool pool;
+  ProtoDescriptor flags("f.proto", "pkg", "pkg.MyFlags",
+                        ProtoDescriptor::Type::kEnum, std::nullopt);
+  flags.AddEnumValue(1, "FLAG_A");
+  flags.AddEnumValue(2, "FLAG_B");
+  flags.AddEnumValue(4, "FLAG_C");
+  flags.AddEnumValue(7, "FLAG_ALL");         // Composite: must be ignored.
+  flags.AddEnumValue(INT32_MIN, "FLAG_31");  // Bit 31 (the int32 sign bit).
+  pool.AddProtoDescriptorForTesting(std::move(flags));
+
+  auto idx = pool.FindDescriptorIdx("pkg.MyFlags");
+  ASSERT_TRUE(idx.has_value());
+  std::vector<std::string_view> out;
+
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 5, &out), 0);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_A", "FLAG_C"));
+
+  // The composite value 7 is not emitted; its individual bits are.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 7, &out), 0);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_A", "FLAG_B", "FLAG_C"));
+
+  // A set bit with no named single-bit value is returned as unmatched.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 9, &out), 0x8);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_A"));
+
+  // Bit 31 is a valid int32 value (INT32_MIN), so it can name a flag.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, 0x80000000LL, &out), 0);
+  EXPECT_THAT(out, testing::ElementsAre("FLAG_31"));
+
+  // Bits >= 32 aren't int32 values, so they can't be named -> unmatched.
+  out.clear();
+  EXPECT_EQ(pool.FlagSetToViews(*idx, int64_t{1} << 32, &out),
+            int64_t{1} << 32);
+  EXPECT_THAT(out, testing::IsEmpty());
+}
+
+// Re-declaring a scalar int32 extension as an enum (same wire type kVarInt)
+// must be accepted without triggering an assertion failure or structural check
+// crash.
+TEST(DescriptorsTest, ScalarToEnumExtensionReDeclarationAllowed) {
+  // Pass 1: Base descriptor where ext_field (tag 10) is TYPE_INT32
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* file1 = fds1->add_file();
+  file1->set_name("base.proto");
+  file1->set_package("test");
+
+  auto* base_msg = file1->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* ext1 = file1->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext1->set_extendee(".test.BaseMessage");
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  // Pass 2: Incoming descriptor where ext_field (tag 10) is re-declared as
+  // TYPE_ENUM
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* file2 = fds2->add_file();
+  file2->set_name("extension.proto");
+  file2->set_package("test");
+
+  auto* enum_type = file2->add_enum_type();
+  enum_type->set_name("MyEnum");
+  auto* val0 = enum_type->add_value();
+  val0->set_name("VAL_0");
+  val0->set_number(0);
+
+  auto* ext2 = file2->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(FieldDescriptorProto::TYPE_ENUM);
+  ext2->set_type_name(".test.MyEnum");
+  ext2->set_extendee(".test.BaseMessage");
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+
+  EXPECT_TRUE(status.ok()) << status.message();
+  auto base_idx = pool.FindDescriptorIdx(".test.BaseMessage");
+  ASSERT_TRUE(base_idx.has_value());
+  EXPECT_NE(pool.descriptors()[base_idx.value()].FindFieldByTag(10), nullptr);
+}
+
+// Re-declaring an enum extension as a scalar int32 (same wire type kVarInt)
+// must also be accepted.
+TEST(DescriptorsTest, EnumToScalarExtensionReDeclarationAllowed) {
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* file1 = fds1->add_file();
+  file1->set_name("base.proto");
+  file1->set_package("test");
+
+  auto* base_msg = file1->add_message_type();
+  base_msg->set_name("BaseMessage");
+
+  auto* enum_type = file1->add_enum_type();
+  enum_type->set_name("MyEnum");
+  auto* val0 = enum_type->add_value();
+  val0->set_name("VAL_0");
+  val0->set_number(0);
+
+  auto* ext1 = file1->add_extension();
+  ext1->set_name("ext_field");
+  ext1->set_number(10);
+  ext1->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext1->set_type(FieldDescriptorProto::TYPE_ENUM);
+  ext1->set_type_name(".test.MyEnum");
+  ext1->set_extendee(".test.BaseMessage");
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* file2 = fds2->add_file();
+  file2->set_name("extension.proto");
+  file2->set_package("test");
+
+  auto* ext2 = file2->add_extension();
+  ext2->set_name("ext_field");
+  ext2->set_number(10);
+  ext2->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext2->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext2->set_extendee(".test.BaseMessage");
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+
+  EXPECT_TRUE(status.ok()) << status.message();
+}
+
+// A trace's descriptor can annotate a field TP already knows (e.g. adding
+// is_pid to an out-of-tree proto); the annotation must apply after merging.
+TEST(DescriptorsTest, MergedFieldTakesIncomingOptions) {
+  constexpr uint32_t kIsPidOption = 73922;
+
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* options_file = fds1->add_file();
+  options_file->set_name("google/protobuf/descriptor.proto");
+  options_file->set_package("google.protobuf");
+  options_file->add_message_type()->set_name("FieldOptions");
+
+  auto* is_pid_file = fds1->add_file();
+  is_pid_file->set_name("field_options.proto");
+  is_pid_file->set_package("perfetto.protos");
+  auto* is_pid = is_pid_file->add_extension();
+  is_pid->set_name("is_pid");
+  is_pid->set_number(kIsPidOption);
+  is_pid->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  is_pid->set_type(FieldDescriptorProto::TYPE_BOOL);
+  is_pid->set_extendee(".google.protobuf.FieldOptions");
+
+  auto* base_file = fds1->add_file();
+  base_file->set_name("base.proto");
+  base_file->set_package("test");
+  auto* base_msg = base_file->add_message_type();
+  base_msg->set_name("Event");
+  auto* base_field = base_msg->add_field();
+  base_field->set_name("pid");
+  base_field->set_number(1);
+  base_field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  base_field->set_type(FieldDescriptorProto::TYPE_INT32);
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  auto event_idx = pool.FindDescriptorIdx(".test.Event");
+  ASSERT_TRUE(event_idx.has_value());
+  EXPECT_FALSE(pool.descriptors()[*event_idx].FindFieldByTag(1)->is_pid());
+
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* ext_file = fds2->add_file();
+  ext_file->set_name("ext.proto");
+  ext_file->set_package("test");
+  auto* ext_msg = ext_file->add_message_type();
+  ext_msg->set_name("Event");
+  auto* ext_field = ext_msg->add_field();
+  ext_field->set_name("pid");
+  ext_field->set_number(1);
+  ext_field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext_field->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext_field->set_options()->AppendVarInt(kIsPidOption, 1);
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_TRUE(pool.descriptors()[*event_idx].FindFieldByTag(1)->is_pid());
+}
+
+// Android's /etc/tracing_descriptors.gz re-declares InternedData with its
+// pre-migration field types (e.g. .perfetto.protos.NetworkPacketContext) but
+// doesn't define them. TP's own definition of the field must be kept rather
+// than failing the whole trace.
+TEST(DescriptorsTest, MergedFieldWithUnresolvableTypeKeepsExisting) {
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* interned_file = fds1->add_file();
+  interned_file->set_name("interned_data.proto");
+  interned_file->set_package("perfetto.protos");
+  interned_file->add_message_type()->set_name("InternedData");
+
+  auto* oot_file = fds1->add_file();
+  oot_file->set_name("network_trace.proto");
+  oot_file->set_package("android.net");
+  oot_file->add_message_type()->set_name("NetworkPacketContext");
+  auto* oot_ext = oot_file->add_extension();
+  oot_ext->set_name("packet_context");
+  oot_ext->set_number(30);
+  oot_ext->set_label(FieldDescriptorProto::LABEL_REPEATED);
+  oot_ext->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  oot_ext->set_type_name(".android.net.NetworkPacketContext");
+  oot_ext->set_extendee(".perfetto.protos.InternedData");
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* trace_file = fds2->add_file();
+  trace_file->set_name(
+      "protos/perfetto/trace/interned_data/interned_data.proto");
+  trace_file->set_package("perfetto.protos");
+  auto* trace_msg = trace_file->add_message_type();
+  trace_msg->set_name("InternedData");
+  auto* trace_field = trace_msg->add_field();
+  trace_field->set_name("packet_context");
+  trace_field->set_number(30);
+  trace_field->set_label(FieldDescriptorProto::LABEL_REPEATED);
+  trace_field->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  trace_field->set_type_name(".perfetto.protos.NetworkPacketContext");
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  auto interned_idx = pool.FindDescriptorIdx(".perfetto.protos.InternedData");
+  ASSERT_TRUE(interned_idx.has_value());
+  const auto* field = pool.descriptors()[*interned_idx].FindFieldByTag(30);
+  ASSERT_NE(field, nullptr);
+  EXPECT_EQ(field->resolved_type_name(), ".android.net.NetworkPacketContext");
+  EXPECT_TRUE(field->is_extension());
 }
 
 }  // namespace

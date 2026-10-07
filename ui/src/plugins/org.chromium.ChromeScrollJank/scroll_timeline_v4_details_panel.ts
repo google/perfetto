@@ -18,7 +18,7 @@ import type {Trace} from '../../public/trace';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {assertExists, assertTrue} from '../../base/assert';
+import {assertExists, ensureExists, assertTrue} from '../../base/assert';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {
@@ -215,7 +215,7 @@ export class ScrollTimelineV4DetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderRelatedTrackReferences(): m.Child {
-    const frameData = assertExists(this.frameData);
+    const frameData = ensureExists(this.frameData);
     const children: m.Children = [];
     if (frameData.firstEventLatencyPluginSliceId !== undefined) {
       children.push(
@@ -248,7 +248,7 @@ export class ScrollTimelineV4DetailsPanel implements TrackEventDetailsPanel {
   }
 
   private renderStdlibReferences(): m.Child {
-    const frameData = assertExists(this.frameData);
+    const frameData = ensureExists(this.frameData);
     return m(
       TreeNode,
       {

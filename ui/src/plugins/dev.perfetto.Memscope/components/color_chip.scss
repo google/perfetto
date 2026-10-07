@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Colored category chip — shape only; colors injected via inline styles.
+// Colored category chip. The hue is injected per-instance via the
+// --pf-memscope-chip-color custom property (set inline); it gets softened
+// against the page background so the chip reads as a tint rather than a
+// saturated block.
 .pf-memscope-color-chip {
   display: inline-flex;
   align-items: center;
@@ -23,4 +26,13 @@
   border: 1px solid transparent;
   white-space: nowrap;
   line-height: 1.4;
+
+  --_mixed: color-mix(
+    in srgb,
+    var(--pf-memscope-chip-color, var(--pf-color-text)) 75%,
+    var(--pf-color-background)
+  );
+  color: var(--pf-chart-color-on);
+  background: var(--_mixed);
+  border-color: var(--_mixed);
 }

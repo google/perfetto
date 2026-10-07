@@ -21,30 +21,36 @@
 #include <string>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/android/graphics/rect.pbzero.h"
-#include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
-#include "protos/perfetto/trace/android/view/displayinfo.pbzero.h"
-#include "protos/perfetto/trace/android/view/windowlayoutparams.pbzero.h"
-#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/server/windowmanagerservice.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/view/displayinfo.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/view/windowlayoutparams.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/windowmanager.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/common/rect.pbzero.h"
 
 namespace perfetto::trace_processor::winscope {
 
 class WindowManagerSampleProtos {
  public:
   static std::string EmptyHierarchy() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
     entry->set_window_manager_service();
     return entry.SerializeAsString();
   }
 
   static std::string HierarchyWithRootOnly() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
     AddRoot(&entry);
     return entry.SerializeAsString();
   }
 
   static std::string HierarchyWithWindowContainer() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -59,7 +65,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithDisplayContentAndWindowState() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -107,7 +115,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithWindowStateNameOverrides() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -126,7 +136,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithDisplayArea() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -142,7 +154,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithTask() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -158,7 +172,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithTaskIdAndName() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -175,7 +191,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithTaskContainerFallback() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -193,7 +211,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithActivityRecord() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -210,7 +230,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithWindowToken() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -226,7 +248,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithTaskFragment() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -242,7 +266,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string HierarchyWithSiblings() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
 
@@ -260,7 +286,9 @@ class WindowManagerSampleProtos {
   }
 
   static std::string InvalidWindowContainerChildProto() {
-    protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
+    protozero::HeapBuffered<
+        com::android::internal::pbzero::WindowManagerTraceEntry>
+        entry;
 
     auto* root = AddRoot(&entry);
     auto* child = root->add_children();
@@ -270,8 +298,9 @@ class WindowManagerSampleProtos {
   }
 
  private:
-  static protos::pbzero::WindowContainerProto* AddRoot(
-      protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry>* entry) {
+  static com::android::internal::pbzero::WindowContainerProto* AddRoot(
+      protozero::HeapBuffered<
+          com::android::internal::pbzero::WindowManagerTraceEntry>* entry) {
     auto* root = (*entry)
                      ->set_window_manager_service()
                      ->set_root_window_container()
@@ -282,8 +311,8 @@ class WindowManagerSampleProtos {
     return root;
   }
 
-  static protos::pbzero::WindowContainerProto* AddGrandchild(
-      protos::pbzero::WindowContainerProto* window_container) {
+  static com::android::internal::pbzero::WindowContainerProto* AddGrandchild(
+      com::android::internal::pbzero::WindowContainerProto* window_container) {
     auto* grandchild = window_container->add_children()->set_window_container();
     auto* grandchild_identifier = grandchild->set_identifier();
     grandchild_identifier->set_hash_code(3);

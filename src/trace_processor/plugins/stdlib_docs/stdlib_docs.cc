@@ -16,10 +16,12 @@
 
 #include "src/trace_processor/plugins/stdlib_docs/stdlib_docs.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -48,22 +50,112 @@ template <typename Entry>
 std::string SerializeEntries(const std::vector<Entry>& entries) {
   return json::SerializeJson([&](json::JsonValueSerializer&& writer) {
     std::move(writer).WriteArray([&](json::JsonArraySerializer& array) {
-      for (const auto& e : entries) {
+      for (const auto& entry : entries) {
         array.AppendDict([&](json::JsonDictSerializer& dict) {
-          dict.AddString("name", e.name);
-          dict.AddString("type", e.type);
-          dict.AddString("description", e.description);
+          dict.AddString("name", entry.name);
+          dict.AddString("type", entry.type);
+          dict.AddString("description", entry.description);
         });
       }
     });
   });
 }
 
+template <typename Entry>
+void AppendSummaryEntries(const char* heading,
+                          const std::vector<Entry>& entries,
+                          std::string* summary) {
+  if (entries.empty()) {
+    return;
+  }
+  summary->append("\n").append(heading).append(":");
+  for (const auto& entry : entries) {
+    summary->append("\n- ")
+        .append(entry.name)
+        .append(" (")
+        .append(entry.type)
+        .append(")");
+    if (!entry.description.empty()) {
+      summary->append(": ").append(entry.description);
+    }
+  }
+}
+
+std::string_view ShortDescription(std::string_view description) {
+  size_t size = std::min<size_t>(description.size(), 160);
+  while (size > 0 && size < description.size() &&
+         (static_cast<uint8_t>(description[size]) & 0xc0) == 0x80) {
+    --size;
+  }
+  return description.substr(0, size);
+}
+
+std::string HumanizeName(std::string_view package,
+                         std::string_view module,
+                         std::string_view name) {
+  std::string humanized;
+  humanized.reserve(package.size() + module.size() + name.size() + 2);
+  humanized.append(package);
+  humanized.push_back(' ');
+  humanized.append(module);
+  if (!name.empty() && name != module) {
+    humanized.push_back(' ');
+    humanized.append(name);
+  }
+  for (char& c : humanized) {
+    if (c == '.' || c == '_') {
+      c = ' ';
+    }
+  }
+  return humanized;
+}
+
+template <typename Arg, typename Column>
+std::string BuildSummary(std::string_view package,
+                         std::string_view module,
+                         std::string_view name,
+                         std::string_view qualified_name,
+                         std::string_view object_type,
+                         bool exposed,
+                         std::string_view description,
+                         std::string_view return_type,
+                         std::string_view return_description,
+                         const std::vector<Arg>& args,
+                         const std::vector<Column>& columns) {
+  std::string summary;
+  summary.reserve(package.size() + module.size() + name.size() +
+                  description.size() + return_description.size() + 128);
+  summary.append("Package: ").append(package);
+  summary.append("\nModule: ").append(module);
+  if (object_type != "MODULE") {
+    summary.append("\nName: ").append(name);
+  }
+  summary.append("\nQualified name: ").append(qualified_name);
+  summary.append("\nSearch aliases: ")
+      .append(HumanizeName(package, module, name))
+      .append("\nKind: ")
+      .append(exposed ? "public " : "internal ");
+  summary.append(object_type);
+  if (!description.empty()) {
+    summary.append("\nDescription: ").append(description);
+  }
+  AppendSummaryEntries("Arguments", args, &summary);
+  if (!return_type.empty()) {
+    summary.append("\nReturns: ").append(return_type);
+    if (!return_description.empty()) {
+      summary.append(": ").append(return_description);
+    }
+  }
+  AppendSummaryEntries("Columns", columns, &summary);
+  return summary;
+}
+
+// Parses |module_key| in the caller-resolved |package|. The package must not
+// be re-derived from the key: names can contain dots (e.g. "dev.perfetto.test"
+// owns "dev.perfetto.test.common").
 base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
-    const PerfettoSqlConnection* connection,
+    const sql_modules::RegisteredPackage* package,
     const std::string& module_key) {
-  const auto* package =
-      connection->FindPackage(sql_modules::GetPackageName(module_key));
   if (!package) {
     return base::ErrStatus("Module not found: %s", module_key.c_str());
   }
@@ -81,326 +173,117 @@ base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
   return parsed;
 }
 
-// __intrinsic_stdlib_modules() — lists all (module, package) pairs.
-class StdlibDocsModules : public StaticTableFunction {
+// __intrinsic_stdlib_objects is a zero-argument, table-like intrinsic.
+class StdlibDocsObjects : public StaticTableFunction {
  public:
   class Cursor : public StaticTableFunction::Cursor {
    public:
-    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
-    bool Run(const std::vector<SqlValue>& arguments) override;
+    Cursor(StringPool* pool, const PerfettoSqlConnection* connection)
+        : string_pool_(pool), engine_(connection), table_(pool) {}
+
+    bool Run(const std::vector<SqlValue>& arguments) override {
+      PERFETTO_DCHECK(arguments.empty());
+      auto dataframe = GetDataframe();
+      if (!dataframe.ok()) {
+        return OnFailure(dataframe.status());
+      }
+      return OnSuccess(*dataframe);
+    }
 
    private:
+    base::StatusOr<dataframe::Dataframe*> GetDataframe() {
+      table_.Clear();
+      const std::vector<stdlib_doc::Arg> no_args;
+      const std::vector<stdlib_doc::Column> no_columns;
+      for (const auto& package_and_module : engine_->GetModules()) {
+        const std::string& package = package_and_module.first;
+        const std::string& module = package_and_module.second;
+        auto parsed = ParseModule(engine_->FindPackage(package), module);
+        if (!parsed.ok()) {
+          return parsed.status();
+        }
+
+        auto insert = [&](std::string_view name,
+                          std::string_view qualified_name,
+                          std::string_view object_type, bool exposed,
+                          std::string_view description,
+                          std::string_view return_type,
+                          std::string_view return_description, const auto& args,
+                          const auto& columns) {
+          tables::StdlibDocsObjectsTable::Row row;
+          row.package = string_pool_->InternString(base::StringView(package));
+          row.module = string_pool_->InternString(base::StringView(module));
+          row.name = string_pool_->InternString(base::StringView(name));
+          row.qualified_name =
+              string_pool_->InternString(base::StringView(qualified_name));
+          row.object_type =
+              string_pool_->InternString(base::StringView(object_type));
+          row.exposed = exposed ? 1 : 0;
+          row.short_description = string_pool_->InternString(
+              base::StringView(ShortDescription(description)));
+          row.summary = string_pool_->InternString(base::StringView(
+              BuildSummary(package, module, name, qualified_name, object_type,
+                           exposed, description, return_type,
+                           return_description, args, columns)));
+          row.description =
+              string_pool_->InternString(base::StringView(description));
+          row.return_type =
+              string_pool_->InternString(base::StringView(return_type));
+          row.return_description =
+              string_pool_->InternString(base::StringView(return_description));
+          row.args = string_pool_->InternString(
+              base::StringView(SerializeEntries(args)));
+          row.cols = string_pool_->InternString(
+              base::StringView(SerializeEntries(columns)));
+          table_.Insert(row);
+        };
+
+        insert(module, module, "MODULE", true, "", "", "", no_args, no_columns);
+        for (const auto& table_view : parsed->table_views) {
+          insert(table_view.name, module + "." + table_view.name,
+                 table_view.type, table_view.exposed, table_view.description,
+                 "", "", no_args, table_view.columns);
+        }
+        for (const auto& function : parsed->functions) {
+          insert(function.name, module + "." + function.name,
+                 function.is_table_function ? "TABLE_FUNCTION" : "FUNCTION",
+                 function.exposed, function.description, function.return_type,
+                 function.return_description, function.args, function.columns);
+        }
+        for (const auto& macro : parsed->macros) {
+          insert(macro.name, module + "." + macro.name, "MACRO", macro.exposed,
+                 macro.description, macro.return_type, macro.return_description,
+                 macro.args, no_columns);
+        }
+      }
+
+      return &table_.dataframe();
+    }
+
     StringPool* string_pool_ = nullptr;
     const PerfettoSqlConnection* engine_ = nullptr;
-    tables::StdlibDocsModulesTable table_;
+    tables::StdlibDocsObjectsTable table_;
   };
 
-  explicit StdlibDocsModules(StringPool*, const PerfettoSqlConnection*);
-  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
-  dataframe::DataframeSpec CreateSpec() override;
-  std::string TableName() override;
-  uint32_t GetArgumentCount() const override;
+  StdlibDocsObjects(StringPool* pool, const PerfettoSqlConnection* connection)
+      : string_pool_(pool), engine_(connection) {}
+
+  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override {
+    return std::make_unique<Cursor>(string_pool_, engine_);
+  }
+
+  dataframe::DataframeSpec CreateSpec() override {
+    return tables::StdlibDocsObjectsTable::kSpec.ToUntypedDataframeSpec();
+  }
+
+  std::string TableName() override { return "__intrinsic_stdlib_objects"; }
+
+  uint32_t GetArgumentCount() const override { return 0; }
 
  private:
   StringPool* string_pool_ = nullptr;
   const PerfettoSqlConnection* engine_ = nullptr;
 };
-
-// __intrinsic_stdlib_tables(module) — table/view metadata for a module.
-class StdlibDocsTables : public StaticTableFunction {
- public:
-  class Cursor : public StaticTableFunction::Cursor {
-   public:
-    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
-    bool Run(const std::vector<SqlValue>& arguments) override;
-
-   private:
-    StringPool* string_pool_ = nullptr;
-    const PerfettoSqlConnection* engine_ = nullptr;
-    tables::StdlibDocsTablesTable table_;
-  };
-
-  explicit StdlibDocsTables(StringPool*, const PerfettoSqlConnection*);
-  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
-  dataframe::DataframeSpec CreateSpec() override;
-  std::string TableName() override;
-  uint32_t GetArgumentCount() const override;
-
- private:
-  StringPool* string_pool_ = nullptr;
-  const PerfettoSqlConnection* engine_ = nullptr;
-};
-
-// __intrinsic_stdlib_functions(module) — function metadata for a module.
-class StdlibDocsFunctions : public StaticTableFunction {
- public:
-  class Cursor : public StaticTableFunction::Cursor {
-   public:
-    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
-    bool Run(const std::vector<SqlValue>& arguments) override;
-
-   private:
-    StringPool* string_pool_ = nullptr;
-    const PerfettoSqlConnection* engine_ = nullptr;
-    tables::StdlibDocsFunctionsTable table_;
-  };
-
-  explicit StdlibDocsFunctions(StringPool*, const PerfettoSqlConnection*);
-  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
-  dataframe::DataframeSpec CreateSpec() override;
-  std::string TableName() override;
-  uint32_t GetArgumentCount() const override;
-
- private:
-  StringPool* string_pool_ = nullptr;
-  const PerfettoSqlConnection* engine_ = nullptr;
-};
-
-// __intrinsic_stdlib_macros(module) — macro metadata for a module.
-class StdlibDocsMacros : public StaticTableFunction {
- public:
-  class Cursor : public StaticTableFunction::Cursor {
-   public:
-    explicit Cursor(StringPool*, const PerfettoSqlConnection*);
-    bool Run(const std::vector<SqlValue>& arguments) override;
-
-   private:
-    StringPool* string_pool_ = nullptr;
-    const PerfettoSqlConnection* engine_ = nullptr;
-    tables::StdlibDocsMacrosTable table_;
-  };
-
-  explicit StdlibDocsMacros(StringPool*, const PerfettoSqlConnection*);
-  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
-  dataframe::DataframeSpec CreateSpec() override;
-  std::string TableName() override;
-  uint32_t GetArgumentCount() const override;
-
- private:
-  StringPool* string_pool_ = nullptr;
-  const PerfettoSqlConnection* engine_ = nullptr;
-};
-
-// ============================================================================
-// StdlibDocsModules
-// ============================================================================
-
-StdlibDocsModules::Cursor::Cursor(StringPool* pool,
-                                  const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection), table_(pool) {}
-
-bool StdlibDocsModules::Cursor::Run(const std::vector<SqlValue>& arguments) {
-  PERFETTO_DCHECK(arguments.empty());
-  table_.Clear();
-  for (const auto& [pkg, mod] : engine_->GetModules()) {
-    tables::StdlibDocsModulesTable::Row row;
-    row.module = string_pool_->InternString(base::StringView(mod));
-    row.package = string_pool_->InternString(base::StringView(pkg));
-    table_.Insert(row);
-  }
-  return OnSuccess(&table_.dataframe());
-}
-
-StdlibDocsModules::StdlibDocsModules(StringPool* pool,
-                                     const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection) {}
-
-std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsModules::MakeCursor() {
-  return std::make_unique<Cursor>(string_pool_, engine_);
-}
-
-dataframe::DataframeSpec StdlibDocsModules::CreateSpec() {
-  return tables::StdlibDocsModulesTable::kSpec.ToUntypedDataframeSpec();
-}
-
-std::string StdlibDocsModules::TableName() {
-  return "__intrinsic_stdlib_modules";
-}
-
-uint32_t StdlibDocsModules::GetArgumentCount() const {
-  return 0;
-}
-
-// ============================================================================
-// StdlibDocsTables
-// ============================================================================
-
-StdlibDocsTables::Cursor::Cursor(StringPool* pool,
-                                 const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection), table_(pool) {}
-
-bool StdlibDocsTables::Cursor::Run(const std::vector<SqlValue>& arguments) {
-  PERFETTO_DCHECK(arguments.size() == 1);
-  table_.Clear();
-  if (arguments[0].is_null()) {
-    return OnSuccess(&table_.dataframe());
-  }
-  if (arguments[0].type != SqlValue::kString) {
-    return OnFailure(
-        base::ErrStatus("__intrinsic_stdlib_tables: module must be a string"));
-  }
-  std::string module_key = arguments[0].AsString();
-  auto parsed_or = ParseModule(engine_, module_key);
-  if (!parsed_or.ok()) {
-    return OnFailure(parsed_or.status());
-  }
-  for (const auto& tv : parsed_or->table_views) {
-    tables::StdlibDocsTablesTable::Row row;
-    row.name = string_pool_->InternString(base::StringView(tv.name));
-    row.type = string_pool_->InternString(base::StringView(tv.type));
-    row.description =
-        string_pool_->InternString(base::StringView(tv.description));
-    row.exposed = tv.exposed ? 1 : 0;
-    row.cols = string_pool_->InternString(
-        base::StringView(SerializeEntries(tv.columns)));
-    table_.Insert(row);
-  }
-  return OnSuccess(&table_.dataframe());
-}
-
-StdlibDocsTables::StdlibDocsTables(StringPool* pool,
-                                   const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection) {}
-
-std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsTables::MakeCursor() {
-  return std::make_unique<Cursor>(string_pool_, engine_);
-}
-
-dataframe::DataframeSpec StdlibDocsTables::CreateSpec() {
-  return tables::StdlibDocsTablesTable::kSpec.ToUntypedDataframeSpec();
-}
-
-std::string StdlibDocsTables::TableName() {
-  return "__intrinsic_stdlib_tables";
-}
-
-uint32_t StdlibDocsTables::GetArgumentCount() const {
-  return 1;
-}
-
-// ============================================================================
-// StdlibDocsFunctions
-// ============================================================================
-
-StdlibDocsFunctions::Cursor::Cursor(StringPool* pool,
-                                    const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection), table_(pool) {}
-
-bool StdlibDocsFunctions::Cursor::Run(const std::vector<SqlValue>& arguments) {
-  PERFETTO_DCHECK(arguments.size() == 1);
-  table_.Clear();
-  if (arguments[0].is_null()) {
-    return OnSuccess(&table_.dataframe());
-  }
-  if (arguments[0].type != SqlValue::kString) {
-    return OnFailure(base::ErrStatus(
-        "__intrinsic_stdlib_functions: module must be a string"));
-  }
-  std::string module_key = arguments[0].AsString();
-  auto parsed_or = ParseModule(engine_, module_key);
-  if (!parsed_or.ok()) {
-    return OnFailure(parsed_or.status());
-  }
-  for (const auto& fn : parsed_or->functions) {
-    tables::StdlibDocsFunctionsTable::Row row;
-    row.name = string_pool_->InternString(base::StringView(fn.name));
-    row.description =
-        string_pool_->InternString(base::StringView(fn.description));
-    row.exposed = fn.exposed ? 1 : 0;
-    row.is_table_function = fn.is_table_function ? 1 : 0;
-    row.return_type =
-        string_pool_->InternString(base::StringView(fn.return_type));
-    row.return_description =
-        string_pool_->InternString(base::StringView(fn.return_description));
-    row.args =
-        string_pool_->InternString(base::StringView(SerializeEntries(fn.args)));
-    row.cols = string_pool_->InternString(
-        base::StringView(SerializeEntries(fn.columns)));
-    table_.Insert(row);
-  }
-  return OnSuccess(&table_.dataframe());
-}
-
-StdlibDocsFunctions::StdlibDocsFunctions(
-    StringPool* pool,
-    const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection) {}
-
-std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsFunctions::MakeCursor() {
-  return std::make_unique<Cursor>(string_pool_, engine_);
-}
-
-dataframe::DataframeSpec StdlibDocsFunctions::CreateSpec() {
-  return tables::StdlibDocsFunctionsTable::kSpec.ToUntypedDataframeSpec();
-}
-
-std::string StdlibDocsFunctions::TableName() {
-  return "__intrinsic_stdlib_functions";
-}
-
-uint32_t StdlibDocsFunctions::GetArgumentCount() const {
-  return 1;
-}
-
-// ============================================================================
-// StdlibDocsMacros
-// ============================================================================
-
-StdlibDocsMacros::Cursor::Cursor(StringPool* pool,
-                                 const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection), table_(pool) {}
-
-bool StdlibDocsMacros::Cursor::Run(const std::vector<SqlValue>& arguments) {
-  PERFETTO_DCHECK(arguments.size() == 1);
-  table_.Clear();
-  if (arguments[0].is_null()) {
-    return OnSuccess(&table_.dataframe());
-  }
-  if (arguments[0].type != SqlValue::kString) {
-    return OnFailure(
-        base::ErrStatus("__intrinsic_stdlib_macros: module must be a string"));
-  }
-  std::string module_key = arguments[0].AsString();
-  auto parsed_or = ParseModule(engine_, module_key);
-  if (!parsed_or.ok()) {
-    return OnFailure(parsed_or.status());
-  }
-  for (const auto& macro : parsed_or->macros) {
-    tables::StdlibDocsMacrosTable::Row row;
-    row.name = string_pool_->InternString(base::StringView(macro.name));
-    row.description =
-        string_pool_->InternString(base::StringView(macro.description));
-    row.exposed = macro.exposed ? 1 : 0;
-    row.return_type =
-        string_pool_->InternString(base::StringView(macro.return_type));
-    row.return_description =
-        string_pool_->InternString(base::StringView(macro.return_description));
-    row.args = string_pool_->InternString(
-        base::StringView(SerializeEntries(macro.args)));
-    table_.Insert(row);
-  }
-  return OnSuccess(&table_.dataframe());
-}
-
-StdlibDocsMacros::StdlibDocsMacros(StringPool* pool,
-                                   const PerfettoSqlConnection* connection)
-    : string_pool_(pool), engine_(connection) {}
-
-std::unique_ptr<StaticTableFunction::Cursor> StdlibDocsMacros::MakeCursor() {
-  return std::make_unique<Cursor>(string_pool_, engine_);
-}
-
-dataframe::DataframeSpec StdlibDocsMacros::CreateSpec() {
-  return tables::StdlibDocsMacrosTable::kSpec.ToUntypedDataframeSpec();
-}
-
-std::string StdlibDocsMacros::TableName() {
-  return "__intrinsic_stdlib_macros";
-}
-
-uint32_t StdlibDocsMacros::GetArgumentCount() const {
-  return 1;
-}
 
 class StdlibDocsPlugin : public Plugin<StdlibDocsPlugin> {
  public:
@@ -408,12 +291,10 @@ class StdlibDocsPlugin : public Plugin<StdlibDocsPlugin> {
 
   void RegisterStaticTableFunctions(
       PerfettoSqlConnection* connection,
-      std::vector<std::unique_ptr<StaticTableFunction>>& fns) override {
+      std::vector<std::unique_ptr<StaticTableFunction>>& functions) override {
     StringPool* pool = trace_context_->storage->mutable_string_pool();
-    fns.emplace_back(std::make_unique<StdlibDocsModules>(pool, connection));
-    fns.emplace_back(std::make_unique<StdlibDocsTables>(pool, connection));
-    fns.emplace_back(std::make_unique<StdlibDocsFunctions>(pool, connection));
-    fns.emplace_back(std::make_unique<StdlibDocsMacros>(pool, connection));
+    functions.emplace_back(
+        std::make_unique<StdlibDocsObjects>(pool, connection));
   }
 };
 

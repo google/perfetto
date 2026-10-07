@@ -82,7 +82,11 @@ uint32_t trace_config_pb_to_txt(uint32_t size) {
 
 uint32_t EMSCRIPTEN_KEEPALIVE trace_config_txt_to_pb(uint32_t size);
 uint32_t trace_config_txt_to_pb(uint32_t size) {
-  return txt_to_pb(perfetto::TraceConfigTxtToPb, size);
+  auto fn = [](const std::string& input, const std::string& file_name) {
+    return perfetto::TraceConfigTxtToPb(input, file_name,
+                                        /*allow_unknown_fields=*/false);
+  };
+  return txt_to_pb(fn, size);
 }
 
 uint32_t EMSCRIPTEN_KEEPALIVE trace_summary_spec_to_text(uint32_t size);

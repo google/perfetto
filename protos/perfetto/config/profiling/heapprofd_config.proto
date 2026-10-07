@@ -59,13 +59,26 @@ message HeapprofdConfig {
   // this value.
   optional uint64 adaptive_sampling_max_sampling_interval_bytes = 25;
 
-  // E.g. surfaceflinger, com.android.phone
+  // Names of process cmdlines to profile. The semantics before perfetto v57 are
+  // as the following section (A), and on newer versions are both (A) and (B):
+  //
+  // (A) E.g. surfaceflinger, com.android.phone
   // This input is normalized in the following way: if it contains slashes,
   // everything up to the last slash is discarded. If it contains "@",
   // everything after the first @ is discared.
   // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
   // This transformation is also applied to the processes' command lines when
   // matching.
+  //
+  // (B) Perfetto v57+: a pattern may also contain a wildcard ('*'), in which
+  // case it is matched against running processes' command lines using glob
+  // semantics. If the pattern starts with '/' it is matched against the full
+  // argv0 (e.g. "/system/bin/*"), otherwise it is matched against the binary
+  // name part of argv0 (e.g. "system_*"). Wildcard patterns are *not*
+  // normalized as described above.
+  // Wildcard patterns are supported only for profiling already-running
+  // processes. A config must set no_startup=true if using wildcards, or it will
+  // be rejected.
   repeated string process_cmdline = 2;
 
   // For watermark based triggering or local debugging.

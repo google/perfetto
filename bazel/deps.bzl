@@ -58,18 +58,18 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_sqlite",
-        url = "https://storage.googleapis.com/perfetto/sqlite-amalgamation-3500300.zip",
-        sha256 = "9ad6d16cbc1df7cd55c8b55127c82a9bca5e9f287818de6dc87e04e73599d754",
-        strip_prefix = "sqlite-amalgamation-3500300",
+        url = "https://storage.googleapis.com/perfetto/sqlite-amalgamation-3530400.zip",
+        sha256 = "1e71ddf93849c6a6ecf58b827c0692073d2dd7ee40196158068f7b29f422e87d",
+        strip_prefix = "sqlite-amalgamation-3530400",
         build_file = "//bazel:sqlite.BUILD",
     )
 
     _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_sqlite_src",
-        url = "https://storage.googleapis.com/perfetto/sqlite-src-3500300.zip",
-        sha256 = "119862654b36e252ac5f8add2b3d41ba03f4f387b48eb024956c36ea91012d3f",
-        strip_prefix = "sqlite-src-3500300",
+        url = "https://storage.googleapis.com/perfetto/sqlite-src-3530400.zip",
+        sha256 = "d18fa15aec74d8c17e1463f861095adc01b5ad190256acb4f91d22f0368d232b",
+        strip_prefix = "sqlite-src-3530400",
         build_file = "//bazel:sqlite.BUILD",
     )
 
@@ -95,6 +95,16 @@ def perfetto_deps():
         remote = "https://chromium.googlesource.com/chromium/src/third_party/zlib.git",
         commit = "6f9b4e61924021237d474569027cfb8ac7933ee6",
         build_file = "//bazel:zlib.BUILD",
+    )
+
+    # Zstd, for the legacy WORKSPACE path (bzlmod uses the BCR module, see
+    # MODULE.bazel). Upstream ships no Bazel BUILD (facebook/zstd#3123).
+    _add_repo_if_not_existing(
+        new_git_repository,
+        name = "zstd",
+        remote = "https://chromium.googlesource.com/external/github.com/facebook/zstd.git",
+        commit = "ac66b19e6bd6b83238bf008eecc1298105298532",  # refs/tags/upstream/v1.5.7
+        build_file = "//bazel:zstd.BUILD",
     )
 
     _add_repo_if_not_existing(

@@ -17,7 +17,7 @@
 #include <string_view>
 
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/winscope/server/windowmanagerservice.pbzero.h"
 #include "src/trace_processor/plugins/winscope_importer/test/windowmanager_sample_protos.h"
 #include "src/trace_processor/plugins/winscope_importer/windowmanager_hierarchy_walker.h"
 #include "test/gtest_and_gmock.h"
@@ -93,68 +93,72 @@ class WindowManagerHierarchyWalkerTest : public ::testing::Test {
 
   void CheckRootWindowContainerProtoIsPruned(
       const std::vector<uint8_t>& bytes) const {
-    protos::pbzero::RootWindowContainerProto::Decoder root(bytes.data(),
-                                                           bytes.size());
+    com::android::internal::pbzero::RootWindowContainerProto::Decoder root(
+        bytes.data(), bytes.size());
     EXPECT_TRUE(root.has_window_container());
-    protos::pbzero::WindowContainerProto::Decoder window_container(
-        root.window_container());
+    com::android::internal::pbzero::WindowContainerProto::Decoder
+        window_container(root.window_container());
     EXPECT_FALSE(window_container.has_children());
   }
 
   void CheckWindowContainerChildProtoIsPruned(
       const std::vector<uint8_t>& bytes) const {
-    protos::pbzero::WindowContainerChildProto::Decoder child(
+    com::android::internal::pbzero::WindowContainerChildProto::Decoder child(
         protozero::ConstBytes{bytes.data(), bytes.size()});
 
     if (child.has_window_container()) {
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          child.window_container());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(child.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else if (child.has_display_content()) {
-      protos::pbzero::DisplayContentProto::Decoder display_content(
-          child.display_content());
-      protos::pbzero::DisplayAreaProto::Decoder display_area(
+      com::android::internal::pbzero::DisplayContentProto::Decoder
+          display_content(child.display_content());
+      com::android::internal::pbzero::DisplayAreaProto::Decoder display_area(
           display_content.root_display_area());
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          display_area.window_container());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(display_area.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else if (child.has_display_area()) {
-      protos::pbzero::DisplayAreaProto::Decoder display_area(
+      com::android::internal::pbzero::DisplayAreaProto::Decoder display_area(
           child.display_area());
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          display_area.window_container());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(display_area.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else if (child.has_task()) {
-      protos::pbzero::TaskProto::Decoder task(child.task());
-      protos::pbzero::WindowContainerProto::Decoder deprecated_window_container(
-          task.window_container());
+      com::android::internal::pbzero::TaskProto::Decoder task(child.task());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          deprecated_window_container(task.window_container());
       EXPECT_FALSE(deprecated_window_container.has_children());
-      protos::pbzero::TaskFragmentProto::Decoder task_fragment(
+      com::android::internal::pbzero::TaskFragmentProto::Decoder task_fragment(
           task.task_fragment());
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          task_fragment.window_container());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(task_fragment.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else if (child.has_activity()) {
-      protos::pbzero::ActivityRecordProto::Decoder activity(child.activity());
-      protos::pbzero::WindowTokenProto::Decoder token(activity.window_token());
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          token.window_container());
+      com::android::internal::pbzero::ActivityRecordProto::Decoder activity(
+          child.activity());
+      com::android::internal::pbzero::WindowTokenProto::Decoder token(
+          activity.window_token());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(token.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else if (child.has_window_token()) {
-      protos::pbzero::WindowTokenProto::Decoder token(child.window_token());
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          token.window_container());
+      com::android::internal::pbzero::WindowTokenProto::Decoder token(
+          child.window_token());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(token.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else if (child.has_window()) {
-      protos::pbzero::WindowStateProto::Decoder window_state(child.window());
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          window_state.window_container());
+      com::android::internal::pbzero::WindowStateProto::Decoder window_state(
+          child.window());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(window_state.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else if (child.has_task_fragment()) {
-      protos::pbzero::TaskFragmentProto::Decoder task_fragment(
+      com::android::internal::pbzero::TaskFragmentProto::Decoder task_fragment(
           child.task_fragment());
-      protos::pbzero::WindowContainerProto::Decoder window_container(
-          task_fragment.window_container());
+      com::android::internal::pbzero::WindowContainerProto::Decoder
+          window_container(task_fragment.window_container());
       EXPECT_FALSE(window_container.has_children());
     } else {
       FAIL();
@@ -167,7 +171,7 @@ class WindowManagerHierarchyWalkerTest : public ::testing::Test {
 
 TEST_F(WindowManagerHierarchyWalkerTest, EmptyHierarchy) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::EmptyHierarchy()));
   EXPECT_TRUE(result.has_parse_error);
 }
@@ -176,7 +180,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, EmptyHierarchy) {
 // RootWindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithRootOnly) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithRootOnly()));
   EXPECT_FALSE(result.has_parse_error);
   CheckWindowContainers(result.window_containers,
@@ -190,7 +194,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithRootOnly) {
 // RootWindowContainerProto -> WindowContainerProto -> WindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowContainerProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithWindowContainer()));
   EXPECT_FALSE(result.has_parse_error);
   CheckWindowContainers(result.window_containers,
@@ -210,7 +214,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowContainerProto) {
 TEST_F(WindowManagerHierarchyWalkerTest,
        HierarchyWithDisplayContentProtoAndWindowStateProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::
               HierarchyWithDisplayContentAndWindowState()));
   EXPECT_FALSE(result.has_parse_error);
@@ -239,7 +243,7 @@ TEST_F(WindowManagerHierarchyWalkerTest,
 // RootWindowContainerProto -> DisplayAreaProto -> WindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithDisplayAreaProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithDisplayArea()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -258,7 +262,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithDisplayAreaProto) {
 // RootWindowContainerProto -> TaskProto -> WindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithTask()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -277,7 +281,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskProto) {
 // RootWindowContainerProto -> ActivityRecordProto -> WindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithActivityRecordProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithActivityRecord()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -296,7 +300,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithActivityRecordProto) {
 // RootWindowContainerProto -> WindowTokenProto -> WindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowTokenProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithWindowToken()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -315,7 +319,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowTokenProto) {
 // RootWindowContainerProto -> TaskFragmentProto -> WindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskFragmentProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithTaskFragment()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -339,7 +343,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskFragmentProto) {
 // WindowContainerProto     WindowContainerProto
 TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithSiblings) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithSiblings()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -356,7 +360,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithSiblings) {
 
 TEST_F(WindowManagerHierarchyWalkerTest, InvalidWindowContainerChildProto) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::InvalidWindowContainerChildProto()));
   EXPECT_TRUE(result.has_parse_error);
 
@@ -369,7 +373,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, InvalidWindowContainerChildProto) {
 
 TEST_F(WindowManagerHierarchyWalkerTest, TaskNameOverride) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithTaskIdAndName()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -384,7 +388,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, TaskNameOverride) {
 
 TEST_F(WindowManagerHierarchyWalkerTest, TaskWindowContainerFallback) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithTaskContainerFallback()));
   EXPECT_FALSE(result.has_parse_error);
 
@@ -401,7 +405,7 @@ TEST_F(WindowManagerHierarchyWalkerTest, TaskWindowContainerFallback) {
 
 TEST_F(WindowManagerHierarchyWalkerTest, WindowStateNameOverrides) {
   auto result = walker_.ExtractWindowContainers(
-      protos::pbzero::WindowManagerTraceEntry::Decoder(
+      com::android::internal::pbzero::WindowManagerTraceEntry::Decoder(
           WindowManagerSampleProtos::HierarchyWithWindowStateNameOverrides()));
   EXPECT_FALSE(result.has_parse_error);
 

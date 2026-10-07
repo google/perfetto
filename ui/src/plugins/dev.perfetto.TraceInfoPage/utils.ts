@@ -14,7 +14,11 @@
 
 import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
-import {NUM_NULL, STR} from '../../trace_processor/query_result';
+import {
+  NUM_NULL,
+  STR,
+  type InferRowType,
+} from '../../trace_processor/query_result';
 import {Icon} from '../../widgets/icon';
 import {Tooltip} from '../../widgets/tooltip';
 import {Card} from '../../widgets/card';
@@ -23,13 +27,16 @@ import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
 // All possible tab keys - single source of truth
 export const ALL_TAB_KEYS = [
   'overview',
+  'trace_doctor',
   'config',
   'android',
   'traces',
   'machines',
+  'metadata',
   'import_errors',
   'trace_errors',
   'data_losses',
+  'notices',
   'ui_loading_errors',
   'stats',
 ] as const;
@@ -54,7 +61,7 @@ export const statsSpec = {
   traceId: NUM_NULL,
 };
 
-export type StatsSectionRow = typeof statsSpec;
+export type StatsSectionRow = InferRowType<typeof statsSpec>;
 
 export interface TraceInfo {
   readonly id: number;
@@ -152,7 +159,7 @@ export function groupByCategory(stats: StatsSectionRow[]): ErrorCategory[] {
 // Render an error category card
 export function renderErrorCategoryCard(
   category: ErrorCategory,
-  severity: 'danger' | 'warning',
+  severity: 'danger' | 'warning' | 'notice',
   icon: string,
 ): m.Children {
   const scrollToSection = () => {

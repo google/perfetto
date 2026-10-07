@@ -31,6 +31,24 @@ TEST(BitVectorTest, DefaultConstructor) {
   EXPECT_EQ(bits.size(), 0u);
 }
 
+TEST(BitVectorTest, AppendWordsTrimAndReuse) {
+  BitVector bits;
+  for (uint64_t word : {uint64_t{0}, ~uint64_t{0}, uint64_t{1} << 63}) {
+    bits.clear();
+    bits.AppendWord(word);
+    bits.AppendWord(~word);
+    ASSERT_EQ(bits.size(), 128u);
+    for (uint32_t i = 0; i < 128; ++i)
+      EXPECT_EQ(bits.is_set(i),
+                static_cast<bool>(((i < 64 ? word : ~word) >> (i % 64)) & 1));
+    bits.resize(65);
+    bits.push_back(true);
+    EXPECT_EQ(bits.size(), 66u);
+    EXPECT_EQ(bits.is_set(64), !(word & 1));
+    EXPECT_TRUE(bits.is_set(65));
+  }
+}
+
 TEST(BitVectorTest, CreateWithSize) {
   {
     auto bits = BitVector::CreateWithSize(31);
@@ -567,6 +585,73 @@ TEST(BitVectorTest, CompactSingleWord) {
   EXPECT_EQ(result.size(), 32u);
   for (uint32_t i = 0; i < 32; ++i) {
     EXPECT_EQ(result.is_set(i), (i % 2 == 0)) << "bit " << i;
+  }
+}
+
+// Every alignment of source and destination against the word boundary, and a
+// count long enough to span several words.
+TEST(BitVectorTest, SetBitsFromEveryAlignment) {
+  constexpr uint64_t kSize = 400;
+  BitVector src = BitVector::CreateWithSize(kSize);
+  for (uint64_t i = 0; i < kSize; ++i) {
+    if (i % 7 == 0 || i % 11 == 3) {
+      src.set(i);
+    }
+  }
+  for (uint64_t from : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+    for (uint64_t at : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+      uint64_t count = kSize - std::max(from, at);
+      BitVector dst = BitVector::CreateWithSize(kSize);
+      dst.SetBitsFrom(at, src, from, count);
+      for (uint64_t i = 0; i < kSize; ++i) {
+        bool expected = i >= at && i < at + count && src.is_set(from + i - at);
+        EXPECT_EQ(dst.is_set(i), expected)
+            << "from=" << from << " at=" << at << " bit=" << i;
+      }
+    }
+  }
+}
+
+TEST(BitVectorTest, SetBitsFromMergesRatherThanOverwrites) {
+  BitVector src = BitVector::CreateWithSize(64);
+  BitVector dst = BitVector::CreateWithSize(64);
+  src.set(1);
+  dst.set(2);
+  dst.SetBitsFrom(0, src, 0, 64);
+  EXPECT_TRUE(dst.is_set(1));
+  EXPECT_TRUE(dst.is_set(2));
+}
+
+TEST(BitVectorTest, SetBitsFromNothing) {
+  BitVector src = BitVector::CreateWithSize(64, true);
+  BitVector dst = BitVector::CreateWithSize(64);
+  dst.SetBitsFrom(0, src, 0, 0);
+  EXPECT_EQ(dst.CountSetBits(), 0u);
+}
+
+TEST(BitVectorTest, FillBitsEveryAlignment) {
+  constexpr uint64_t kSize = 300;
+  for (bool value : {true, false}) {
+    for (uint64_t at : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+      for (uint64_t count :
+           {uint64_t{0}, uint64_t{1}, uint64_t{2}, uint64_t{63}, uint64_t{64},
+            uint64_t{65}, uint64_t{128}, kSize - at}) {
+        if (at + count > kSize) {
+          continue;
+        }
+        BitVector bv = BitVector::CreateWithSize(kSize, !value);
+        bv.FillBits(at, count, value);
+        for (uint64_t i = 0; i < kSize; ++i) {
+          bool inside = i >= at && i < at + count;
+          EXPECT_EQ(bv.is_set(i), inside ? value : !value)
+              << "value=" << value << " at=" << at << " count=" << count
+              << " bit=" << i;
+        }
+      }
+    }
   }
 }
 

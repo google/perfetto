@@ -128,6 +128,13 @@ export interface ProbeSetting {
   // The two methods below are supposed to save/restore the state of the setting
   // in a JSON-serializable entity (object | number | string | boolean). This is
   // to support saving configs into localstorage and sharing them.
+  //
+  // deserialize() must ALWAYS end up setting the value. `state` is undefined
+  // when the config being loaded doesn't mention this setting, and can be
+  // malformed when it comes from a config saved by another version of the UI:
+  // in both cases the setting must go back to its default. A deserialize()
+  // that just ignores the input leaves the setting showing the value from the
+  // config that was loaded before, which is the bug in #7347.
   serialize(): unknown;
   deserialize(state: unknown): void;
 }

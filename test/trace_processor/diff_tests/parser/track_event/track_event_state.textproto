@@ -1,0 +1,99 @@
+# Process descriptor.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 3
+    process {
+      pid: 5
+      process_name: "Browser"
+    }
+  }
+}
+
+# Thread descriptor.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 1
+    parent_uuid: 3
+    thread {
+      pid: 5
+      tid: 10
+      thread_name: "t1"
+    }
+  }
+}
+
+# Process state track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 20
+    parent_uuid: 3
+    name: "ProcState"
+    state {}
+  }
+}
+
+# Thread state track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 21
+    parent_uuid: 1
+    name: "ThreadState"
+    state {}
+  }
+}
+
+# Global state track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 22
+    name: "GlobalState"
+    state {}
+  }
+}
+
+# State events on process state track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    track_uuid: 20
+    type: 5
+    categories: "cat"
+    name: "Foreground"
+  }
+}
+
+# State event on thread state track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    track_uuid: 21
+    type: 5
+    categories: "cat"
+    name: "Running"
+  }
+}
+
+# State event on global state track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    track_uuid: 22
+    type: 5
+    categories: "cat"
+    name: "Active"
+  }
+}

@@ -1,0 +1,85 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Base preview canvas. max-width keeps it within its container; the shell
+// rules below bound the height in the details panel.
+.pf-video-frame-preview {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+}
+
+// Hover-preview shown in the track tooltip, same UX as the Screenshots
+// track's thumbnail: just the decoded frame sized to itself and capped,
+// with no wrapper box -- so there is no letterbox / white padding around
+// the image. A smaller cap keeps the preview compact so it minimises how
+// far it extends over the ruler above the (short) slice track row.
+.pf-video-frame-tooltip__img {
+  display: block;
+  max-width: 180px;
+  max-height: 180px;
+}
+
+// Layout scoping for the VideoFrame details panel. DetailsShell
+// (fillHeight) already gives a fixed-height, non-scrolling shell with a
+// flex-column body; these rules make the height chain down to the preview
+// canvas *definite* so the canvas is bounded to the available height
+// (never scrolls) and rescales to fit -- preserving aspect ratio via
+// object-fit -- as the panel is resized.
+.pf-video-frame-shell {
+  // The panel body never scrolls; the preview rescales to fit instead.
+  .pf-content {
+    overflow: hidden;
+  }
+
+  // Fill the body and shrink below intrinsic content height (the standard
+  // flex/grid min-height:0 fix). box-sizing + the default 8px grid margin
+  // would otherwise push total content 16px past the box and re-introduce
+  // a scrollbar, so the grid fills the content box exactly: height 100%
+  // minus its own vertical margins. stretch gives each column the full row
+  // height, so the preview column has a definite height to scale into.
+  .pf-grid-layout {
+    box-sizing: border-box;
+    height: calc(100% - 16px);
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  // Only the preview section fills + centers; the details (table) section
+  // keeps its natural height.
+  .pf-video-frame-preview-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+
+    article {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    // Within the bounded section, fill the box and letterbox the decoded
+    // frame to preserve aspect ratio. The canvas *buffer* stays native
+    // resolution (set in drawFrame); this only controls displayed size.
+    .pf-video-frame-preview {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      object-fit: contain;
+    }
+  }
+}

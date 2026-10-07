@@ -15,18 +15,9 @@
 
 INCLUDE PERFETTO MODULE callstacks.stack_profile;
 
-CREATE PERFETTO TABLE _linux_perf_raw_callstacks AS
-SELECT *
-FROM _callstacks_for_callsites!((
-  SELECT p.callsite_id
-  FROM perf_sample p
-)) AS c
-ORDER BY
-  c.id;
-
-CREATE PERFETTO INDEX _linux_perf_raw_callstacks_parent_id_idx ON _linux_perf_raw_callstacks(
-  parent_id
-);
+CREATE PERFETTO TABLE _linux_perf_callstacks AS
+FROM _callstacks_for_callsites!((SELECT callsite_id FROM perf_sample))
+|> TREE ACCUMULATE UP SUM(self_count) AS cumulative_count;
 
 -- Table summarising the callstacks captured during all
 -- perf samples in the trace.
@@ -59,11 +50,15 @@ CREATE PERFETTO TABLE linux_perf_samples_summary_tree(
   cumulative_count LONG
 )
 AS
-SELECT r.*, a.cumulative_count
-FROM _callstacks_self_to_cumulative!((
-  SELECT id, parent_id, self_count
-  FROM _linux_perf_raw_callstacks
-)) AS a
-JOIN _linux_perf_raw_callstacks AS r USING (id)
+SELECT
+  id,
+  parent_id,
+  name,
+  mapping_name,
+  source_file,
+  line_number,
+  self_count,
+  cumulative_count
+FROM _linux_perf_callstacks
 ORDER BY
-  r.id;
+  id;

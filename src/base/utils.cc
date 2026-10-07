@@ -31,7 +31,11 @@
     PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <limits.h>
 #include <stdlib.h>  // For _exit()
-#include <unistd.h>  // For getpagesize() and geteuid() & fork() & sysconf()
+#endif
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// For isatty(), getpagesize(), geteuid(), fork() & sysconf().
+#include <unistd.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
@@ -92,75 +96,6 @@ using MalloptType = int (*)(int, int);
 }
 }  // namespace
 #endif  // OS_ANDROID
-
-namespace {
-
-#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
-
-// Preserve the %rbx register via %rdi to work around a clang bug
-// https://bugs.llvm.org/show_bug.cgi?id=17907 (%rbx in an output constraint
-// is not considered a clobbered register).
-#define PERFETTO_GETCPUID(a, b, c, d, a_inp, c_inp) \
-  asm("mov %%rbx, %%rdi\n"                          \
-      "cpuid\n"                                     \
-      "xchg %%rdi, %%rbx\n"                         \
-      : "=a"(a), "=D"(b), "=c"(c), "=d"(d)          \
-      : "a"(a_inp), "2"(c_inp))
-
-uint32_t GetXCR0EAX() {
-  uint32_t eax = 0, edx = 0;
-  asm("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0));
-  return eax;
-}
-
-// If we are building with -msse4 check that the CPU actually supports it.
-// This file must be kept in sync with gn/standalone/BUILD.gn.
-void PERFETTO_EXPORT_COMPONENT __attribute__((constructor))
-CheckCpuOptimizations() {
-  uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
-  PERFETTO_GETCPUID(eax, ebx, ecx, edx, 1, 0);
-
-  static constexpr uint64_t xcr0_xmm_mask = 0x2;
-  static constexpr uint64_t xcr0_ymm_mask = 0x4;
-  static constexpr uint64_t xcr0_avx_mask = xcr0_xmm_mask | xcr0_ymm_mask;
-
-  const bool have_popcnt = ecx & (1u << 23);
-  const bool have_sse4_2 = ecx & (1u << 20);
-  const bool have_avx =
-      // Does the OS save/restore XMM and YMM state?
-      (ecx & (1u << 27)) &&  // OS support XGETBV.
-      (ecx & (1u << 28)) &&  // AVX supported in hardware
-      ((GetXCR0EAX() & xcr0_avx_mask) == xcr0_avx_mask);
-
-  // Get level 7 features (eax = 7 and ecx= 0), to check for AVX2 support.
-  // (See Intel 64 and IA-32 Architectures Software Developer's Manual
-  //  Volume 2A: Instruction Set Reference, A-M CPUID).
-  PERFETTO_GETCPUID(eax, ebx, ecx, edx, 7, 0);
-  const bool have_avx2 = have_avx && ((ebx >> 5) & 0x1);
-  const bool have_bmi = (ebx >> 3) & 0x1;
-  const bool have_bmi2 = (ebx >> 8) & 0x1;
-
-  // Get extended features for LZCNT.
-  PERFETTO_GETCPUID(eax, ebx, ecx, edx, 0x80000001, 0);
-  const bool have_lzcnt = ecx & (1u << 5);
-
-  if (!have_sse4_2 || !have_popcnt || !have_avx2 || !have_bmi || !have_bmi2 ||
-      !have_lzcnt) {
-    fprintf(
-        stderr,
-        "This executable requires a x86_64 cpu that supports SSE4.2, BMI2, "
-        "AVX2 and LZCNT.\n"
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-        "On MacOS, this might be caused by running x86_64 binaries on arm64.\n"
-        "See https://github.com/google/perfetto/issues/294 for more.\n"
-#endif
-        "Rebuild with enable_perfetto_x64_cpu_opt=false.\n");
-    _exit(126);
-  }
-}
-#endif
-
-}  // namespace
 
 namespace perfetto {
 namespace base {
@@ -243,7 +178,23 @@ void UnsetEnv(const std::string& key) {
 #endif
 }
 
-void Daemonize(std::function<int()> parent_cb) {
+bool IsTty(int fd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return ::_isatty(fd) != 0;
+#else
+  return ::isatty(fd) != 0;
+#endif
+}
+
+bool IsTty(FILE* stream) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return IsTty(::_fileno(stream));
+#else
+  return IsTty(::fileno(stream));
+#endif
+}
+
+void Daemonize(std::function<int(pid_t)> parent_cb) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
@@ -279,8 +230,7 @@ void Daemonize(std::function<int()> parent_cb) {
       pipe.wr.reset();
       char one = '\0';
       PERFETTO_CHECK(Read(*pipe.rd, &one, sizeof(one)) == 1 && one == '1');
-      printf("%d\n", pid);
-      int err = parent_cb();
+      int err = parent_cb(pid);
       exit(err);
     }
   }

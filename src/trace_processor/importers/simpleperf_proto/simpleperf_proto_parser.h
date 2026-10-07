@@ -22,6 +22,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::simpleperf_proto_importer {
@@ -43,6 +44,7 @@ class SimpleperfProtoParser
  private:
   TraceProcessorContext* const context_;
   SimpleperfProtoTracker* const tracker_;
+  const StringPool::Id simpleperf_source_id_;
 };
 
 }  // namespace perfetto::trace_processor::simpleperf_proto_importer

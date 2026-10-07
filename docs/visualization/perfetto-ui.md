@@ -6,11 +6,15 @@ the perfetto proto trace format and the legacy json trace format.
 
 ## Loading a Trace
 
-Click one of the examples in the 'Example Traces' section of the taskbar to get
+Click one of the examples in the 'New Trace' section of the sidebar to get
 going.
 
 Drag and drop a trace from your file explorer, or click 'Open trace file' in the
 sidebar to open a local trace file.
+
+Selecting or dropping several files at once merges them onto a single shared
+timeline via a configuration dialog: see
+[Merging traces in the UI](/docs/visualization/merging-traces.md).
 
 ## Navigating the Timeline
 
@@ -46,9 +50,9 @@ Use '.' and ',' to navigate between adjacent slices on the same track.
   <source src="https://storage.googleapis.com/perfetto-misc/next-prev-events.webm" type="video/webm">
 </video>
 
-Press 'F' to center the selected entity in the viewport, and press 'F' again to
-fit that slice to the viewport. This can be useful for really short events that
-cannot otherwise be seen clearly at the current zoom level.
+Press 'F' to fit the selected entity to the viewport. This can be useful for
+really short events that cannot otherwise be seen clearly at the current zoom
+level.
 
 <video width="800" controls>
   <source src="https://storage.googleapis.com/perfetto-misc/focus-event.webm" type="video/webm">
@@ -96,11 +100,24 @@ Press 'Q' to toggle the tab drawer.
 
 ## Finding Tracks
 
-Press 'Ctrl+P' (or 'Cmd+Shift+P on Mac) to open the track finder and start
+Press 'Ctrl+P' (or 'Cmd+P' on Mac) to open the track finder and start
 typing to fuzzy find tracks.
 
 <video width="800" controls>
   <source src="https://storage.googleapis.com/perfetto-misc/finding-tracks.webm" type="video/webm">
+</video>
+
+## Filtering Tracks
+
+Click the filter icon in the timeline toolbar to filter which tracks are shown
+on the timeline. Type comma separated terms to filter tracks by name, or use
+the dropdowns to only show tracks belonging to specific processes or threads.
+
+Filters are non-destructive: press 'Clear All Filters' to show all tracks
+again. While filters are active, the filter icon appears filled.
+
+<video width="800" controls>
+  <source src="https://storage.googleapis.com/perfetto-misc/filtering-tracks.webm" type="video/webm">
 </video>
 
 ## Pinning Tracks

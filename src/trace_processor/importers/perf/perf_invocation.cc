@@ -49,6 +49,38 @@ bool OffsetsMatch(const PerfEventAttr& attr, const PerfEventAttr& other) {
          (!attr.sample_id_all() ||
           attr.id_offset_from_end() == other.id_offset_from_end());
 }
+
+// Unit of the quantity the event counts. Returns nullptr if the unit cannot
+// be determined (e.g. raw PMU events).
+const char* TimebaseUnit(const perf_event_attr& attr) {
+  switch (attr.type) {
+    case PERF_TYPE_SOFTWARE:
+      switch (attr.config) {
+        case PERF_COUNT_SW_CPU_CLOCK:
+        case PERF_COUNT_SW_TASK_CLOCK:
+          return "ns";
+        default:
+          return "count";
+      }
+    case PERF_TYPE_HARDWARE:
+      switch (attr.config) {
+        case PERF_COUNT_HW_CPU_CYCLES:
+        case PERF_COUNT_HW_BUS_CYCLES:
+        case PERF_COUNT_HW_REF_CPU_CYCLES:
+          return "cycles";
+        case PERF_COUNT_HW_INSTRUCTIONS:
+          return "instructions";
+        default:
+          return "count";
+      }
+    case PERF_TYPE_TRACEPOINT:
+    case PERF_TYPE_HW_CACHE:
+    case PERF_TYPE_BREAKPOINT:
+      return "count";
+    default:
+      return nullptr;
+  }
+}
 }  // namespace
 
 base::StatusOr<RefPtr<PerfInvocation>> PerfInvocation::Builder::Build() {
@@ -64,8 +96,14 @@ base::StatusOr<RefPtr<PerfInvocation>> PerfInvocation::Builder::Build() {
     // recording was using leader sampling (this would require proper handling
     // of HEADER_GROUP_DESC). But this is fine since the samples will still be
     // attributed to the first counter in the group.
-    auto perf_session_id =
-        context_->storage->mutable_perf_session_table()->Insert({}).id;
+    tables::ProfilerSessionTable::Row session_row;
+    session_row.source = context_->storage->InternString("linux.perf");
+    if (const char* unit = TimebaseUnit(entry.attr); unit) {
+      session_row.timebase_unit = context_->storage->InternString(unit);
+    }
+    auto perf_session_id = context_->storage->mutable_profiler_session_table()
+                               ->Insert(session_row)
+                               .id;
     RefPtr<PerfEventAttr> attr(
         new PerfEventAttr(context_, perf_session_id, entry.attr));
     if (!first_attr) {
@@ -155,6 +193,22 @@ RefPtr<PerfEventAttr> PerfInvocation::FindAttrForEventId(uint64_t id) const {
   return RefPtr<PerfEventAttr>(it->get());
 }
 
+void PerfInvocation::SetEventIdBinding(uint64_t id, int64_t cpu, int64_t tid) {
+  auto* it = attrs_by_id_.Find(id);
+  if (!it) {
+    return;
+  }
+  if (tid >= 0 && cpu >= 0) {
+    (*it)->set_counter_scope(CounterScope::kThreadAndCpu);
+  } else if (tid >= 0) {
+    (*it)->set_counter_scope(CounterScope::kThread);
+  } else if (cpu >= 0) {
+    (*it)->set_counter_scope(CounterScope::kCpu);
+  } else {
+    (*it)->set_counter_scope(CounterScope::kGlobal);
+  }
+}
+
 void PerfInvocation::SetEventName(uint64_t event_id, std::string name) {
   auto* it = attrs_by_id_.Find(event_id);
   if (!it) {
@@ -194,9 +248,38 @@ std::optional<BuildId> PerfInvocation::LookupBuildId(
 void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
   for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
     auto session_id = it.value()->perf_session_id();
-    (*context_->storage->mutable_perf_session_table())[session_id].set_cmdline(
-        context_->storage->InternString(
+    (*context_->storage->mutable_profiler_session_table())[session_id]
+        .set_cmdline(context_->storage->InternString(
             base::StringView(base::Join(args, " "))));
+  }
+}
+
+void PerfInvocation::SetSimpleperfCounterScope(
+    const base::FlatHashMap<std::string, std::string>& entries) {
+  // perf_event_attr does not store the target pid/cpu passed to
+  // perf_event_open. While Linux perf emits PERF_RECORD_ID_INDEX to map each
+  // event ID to its (tid, cpu), simpleperf omits PERF_RECORD_ID_INDEX and
+  // instead records whether collection was system-wide or target-scoped in
+  // FEATURE_SIMPLEPERF_META_INFO.
+  if (const auto* app = entries.Find("app_package_name");
+      app && !app->empty()) {
+    SetCounterScope(CounterScope::kThreadAndCpu);
+  }
+  if (const auto* sys = entries.Find("system_wide_collection")) {
+    if (*sys == "true") {
+      SetCounterScope(CounterScope::kCpu);
+    } else if (*sys == "false") {
+      SetCounterScope(CounterScope::kThreadAndCpu);
+    }
+  }
+}
+
+void PerfInvocation::SetCounterScope(CounterScope scope) {
+  if (first_attr_) {
+    first_attr_->set_counter_scope(scope);
+  }
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    it.value()->set_counter_scope(scope);
   }
 }
 

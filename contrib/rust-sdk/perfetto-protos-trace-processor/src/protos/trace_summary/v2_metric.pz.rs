@@ -168,4 +168,5 @@ pb_msg!(TraceMetricV2SpecDimensionSpec {
     display_name: String, primitive, 3,
     display_help: String, primitive, 4,
     doc_link: String, primitive, 5,
+    is_aggregatable: bool, primitive, 6,
 });

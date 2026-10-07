@@ -32,4 +32,8 @@ BuildPrimitive::~BuildPrimitive() = default;
 
 TransformPrimitive::~TransformPrimitive() = default;
 
+AugmentPrimitive::~AugmentPrimitive() = default;
+
+ValidatorPrimitive::~ValidatorPrimitive() = default;
+
 }  // namespace perfetto::trace_redaction

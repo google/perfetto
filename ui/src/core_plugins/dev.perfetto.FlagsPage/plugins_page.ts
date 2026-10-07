@@ -25,7 +25,7 @@ import {Intent} from '../../widgets/common';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {SettingsCard, SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
-import {FuzzyFinder} from '../../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../../base/fuzzy';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {TextInput} from '../../widgets/text_input';
 import {EmptyState} from '../../widgets/empty_state';
@@ -34,8 +34,9 @@ import {Box} from '../../widgets/box';
 import {Anchor} from '../../widgets/anchor';
 import {Icon} from '../../widgets/icon';
 import {Icons} from '../../base/semantic_icons';
-import {GateDetector} from '../../base/mithril_utils';
+import {GateDetector, renderSegments} from '../../base/mithril_utils';
 import {findRef} from '../../base/dom_utils';
+import {Callout} from '../../widgets/callout';
 
 const SEARCH_BOX_REF = 'plugin-search-box';
 
@@ -137,12 +138,24 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
     const sorted = sortPlugins(registeredPlugins);
 
     const isFiltering = this.filterText !== '';
-    const finder = new FuzzyFinder(sorted, (p) => {
-      return `${p.desc.id} ${p.desc.description ?? ''}`;
-    });
     const filteredPlugins = isFiltering
-      ? finder.find(this.filterText)
-      : sorted.map((item) => ({item, segments: []}));
+      ? fuzzySearch(
+          sorted,
+          [
+            (p: PluginWrapper) => p.desc.id,
+            (p: PluginWrapper) => p.desc.description ?? '',
+          ],
+          this.filterText,
+        ).map((res) => ({
+          item: res.item,
+          idSegments: res.segments[0],
+          descriptionSegments: res.segments[1],
+        }))
+      : sorted.map((item) => ({
+          item,
+          idSegments: item.desc.id,
+          descriptionSegments: item.desc.description?.trim(),
+        }));
     const subpage = decodeURIComponent(attrs.subpage ?? '');
 
     const page = m(
@@ -234,12 +247,16 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
         filteredPlugins.length > 0
           ? m(
               CardStack,
-              filteredPlugins.map(({item: plugin}) => {
-                return this.renderPluginCard(
-                  plugin,
-                  subpage === `/${plugin.desc.id}`,
-                );
-              }),
+              filteredPlugins.map(
+                ({item: plugin, idSegments, descriptionSegments}) => {
+                  return this.renderPluginCard(
+                    plugin,
+                    subpage === `/${plugin.desc.id}`,
+                    idSegments,
+                    descriptionSegments,
+                  );
+                },
+              ),
             )
           : this.renderEmptyState(isFiltering),
       ),
@@ -294,23 +311,40 @@ export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
   private renderPluginCard(
     plugin: PluginWrapper,
     focused: boolean,
+    idSegments?: readonly FuzzySegment[] | string,
+    descriptionSegments?: readonly FuzzySegment[] | string,
   ): m.Children {
     const loadTime = plugin.traceContext?.loadTimeMs;
     const dependencyPlugins =
       this.dependenciesByPluginId.get(plugin.desc.id) ?? [];
     const dependantPlugins =
       this.dependantsByPluginId.get(plugin.desc.id) ?? [];
+    const isExperimental = plugin.desc.status === 'experimental';
+    const descText = plugin.desc.description?.trim();
     return m(SettingsCard, {
       key: plugin.desc.id,
       id: plugin.desc.id,
       className: classNames(
         'pf-plugins-page__card',
         plugin.enableFlag.get() && 'pf-plugins-page__card--enabled',
+        isExperimental && 'pf-plugins-page__card--experimental',
       ),
-      title: plugin.desc.id,
+      title: renderSegments(idSegments ?? plugin.desc.id),
       linkHref: `#!/plugins/${encodeURIComponent(plugin.desc.id)}`,
       description: [
-        plugin.desc.description?.trim(),
+        isExperimental &&
+          m(
+            Callout,
+            {
+              className: 'pf-plugins-page__warning',
+              icon: 'warning',
+              intent: Intent.Danger,
+            },
+            ' This plugin is experimental and may contain unstable features.',
+          ),
+        exists(descriptionSegments)
+          ? renderSegments(descriptionSegments)
+          : descText,
         this.renderPluginIdList(
           'Requires',
           'account_tree',

@@ -25,9 +25,10 @@
 
 namespace perfetto::trace_processor {
 
-// package_lookup(uid) returns an approprioate display name for a given uid.
+// _intrinsic_package_lookup(uid) returns an approprioate display name for a
+// given uid. Use the android.package_lookup module to import the public symbol.
 struct PackageLookup : public sqlite::Function<PackageLookup> {
-  static constexpr char kName[] = "package_lookup";
+  static constexpr char kName[] = "_intrinsic_package_lookup";
   static constexpr int kArgCount = 1;
 
   struct Context {

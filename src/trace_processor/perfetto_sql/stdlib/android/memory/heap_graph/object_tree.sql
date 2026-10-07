@@ -15,45 +15,23 @@
 
 INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
 
-INCLUDE PERFETTO MODULE graphs.scan;
+CREATE PERFETTO TABLE _heap_graph_object_tree_cumulatives AS
+FROM (
+  SELECT o.id, t.parent_id, o.self_size, o.native_size, 1 AS self_count
+  FROM heap_graph_object AS o
+  LEFT JOIN _heap_graph_object_min_depth_tree AS t USING (id)
+)
+|> TREE ACCUMULATE UP
+  SUM(self_size) AS cumulative_size,
+  SUM(native_size) AS cumulative_native_size,
+  SUM(self_count) AS cumulative_count;
 
--- Aggregates cumulative sizes for each object in the heap graph tree.
--- This performs an expensive bottom-up traversal of the tree to compute
--- cumulative sizes, native sizes, and object counts for each node.
+-- The cumulative size, native size and object count of every object in the
+-- heap graph: the totals over the object and everything below it in the min
+-- depth tree. Objects which are not part of the tree only count themselves.
 CREATE PERFETTO TABLE _heap_graph_object_tree_aggregation AS
-SELECT
-  id,
-  max(cumulative_size) AS cumulative_size,
-  max(cumulative_native_size) AS cumulative_native_size,
-  max(cumulative_count) AS cumulative_count
-FROM _graph_aggregating_scan!(
-  (
-    SELECT id AS source_node_id, parent_id AS dest_node_id
-    FROM _heap_graph_object_min_depth_tree
-    WHERE parent_id IS NOT NULL
-  ),
-  (
-    SELECT
-    id,
-    self_size AS cumulative_size,
-    native_size AS cumulative_native_size,
-    1 AS cumulative_count
-    FROM heap_graph_object
-  ),
-  (cumulative_size, cumulative_native_size, cumulative_count),
-  (
-    SELECT
-    t.id,
-    SUM(t.cumulative_size) AS cumulative_size,
-    SUM(t.cumulative_native_size) AS cumulative_native_size,
-    SUM(t.cumulative_count) AS cumulative_count
-    FROM $table t
-    JOIN heap_graph_object o
-    ON t.id = o.id
-    GROUP BY t.id
-))
-GROUP BY
-  id
+SELECT id, cumulative_size, cumulative_native_size, cumulative_count
+FROM _heap_graph_object_tree_cumulatives
 ORDER BY
   id;
 

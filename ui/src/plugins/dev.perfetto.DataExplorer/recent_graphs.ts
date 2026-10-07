@@ -407,9 +407,7 @@ class RecentGraphCard implements m.ClassComponent<RecentGraphCardAttrs> {
  * Starred graphs appear first, followed by unstarred graphs.
  * Always shows the section header, even when empty.
  */
-export class RecentGraphsSection
-  implements m.ClassComponent<RecentGraphsSectionAttrs>
-{
+export class RecentGraphsSection implements m.ClassComponent<RecentGraphsSectionAttrs> {
   view({attrs}: m.CVnode<RecentGraphsSectionAttrs>): m.Children {
     const recentGraphs = recentGraphsStorage.data;
 

@@ -151,7 +151,7 @@ TABLE_DATA_CHECK_SQL = {
 
     # From prelude.after_eof.views (profiling / virtualization)
     'cpu_profile_stack_sample':
-        'SELECT 1 FROM __intrinsic_cpu_profile_stack_sample',
+        'SELECT 1 FROM cpu_profile_stack_sample',
     'pkvm_hypervisor_events':
         'SELECT 1 FROM slice WHERE category = \'pkvm_hyp\'',
 

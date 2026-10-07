@@ -19,7 +19,7 @@ import m from 'mithril';
 import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import type {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
@@ -49,33 +49,33 @@ type OnChangeCallback = (shouldOpen: boolean) => void;
 export interface PopupAttrs {
   // Which side of the trigger to place to popup.
   // Defaults to "Auto"
-  position?: PopupPosition;
+  readonly position?: PopupPosition;
   // The element used to open and close the popup, and the target which the near
   // which the popup should hover.
   // Beware this element will have its `onclick`, `ref`, and `active` attributes
   // overwritten.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trigger: m.Vnode<any, any>;
+  readonly trigger: m.Vnode<any, any>;
   // Close when the escape key is pressed
   // Defaults to true.
-  closeOnEscape?: boolean;
+  readonly closeOnEscape?: boolean;
   // Close on mouse down somewhere other than the popup or trigger.
   // Defaults to true.
-  closeOnOutsideClick?: boolean;
+  readonly closeOnOutsideClick?: boolean;
   // Controls whether the popup is open or not.
   // When provided, the popup operates in controlled mode and will not
   // automatically toggle on trigger clicks. The parent component must
   // handle opening the popup (e.g., via the trigger's onclick handler).
   // When omitted, the popup operates in uncontrolled mode and
   // automatically toggles when the trigger is clicked.
-  isOpen?: boolean;
+  readonly isOpen?: boolean;
   // Called when the popup isOpen state should be changed in controlled mode.
-  onChange?: OnChangeCallback;
+  readonly onChange?: OnChangeCallback;
   // Space delimited class names applied to the popup div.
-  className?: string;
+  readonly className?: string;
   // Whether to show a little arrow pointing to our trigger element.
   // Defaults to true.
-  showArrow?: boolean;
+  readonly showArrow?: boolean;
   // Whether this popup should form a new popup group.
   // When nesting popups, grouping controls how popups are closed.
   // When closing popups via the Escape key, each group is closed one by one,
@@ -83,34 +83,34 @@ export interface PopupAttrs {
   // When using a magic button to close groups (see DISMISS_POPUP_GROUP_CLASS),
   // only the group in which the button lives and it's children will be closed.
   // Defaults to true.
-  createNewGroup?: boolean;
+  readonly createNewGroup?: boolean;
   // Called when the popup mounts, passing the popup's dom element.
-  onPopupMount?: (dom: HTMLElement) => void;
+  readonly onPopupMount?: (dom: HTMLElement) => void;
   // Called when the popup unmounts, padding the popup's dom element.
-  onPopupUnMount?: (dom: HTMLElement) => void;
+  readonly onPopupUnMount?: (dom: HTMLElement) => void;
   // Popup matches the width of the trigger element. Default = false.
-  matchWidth?: boolean;
+  readonly matchWidth?: boolean;
   // Distance in px between the popup and its trigger. Default = 0.
-  offset?: number;
+  readonly offset?: number;
   // Cross-axial popup offset in px. Defaults to 0.
   // When position is *-end or *-start, this setting specifies where start and
   // end is as an offset from the edge of the popup.
   // Positive values move the positioning away from the edge towards the center
   // of the popup.
   // If position is not *-end or *-start, this setting has no effect.
-  edgeOffset?: number;
+  readonly edgeOffset?: number;
   // If true, the popup will not have a maximum width and will instead fit its
   // content. This is useful for popups that have a lot of buttons or other
   // content that should not be constrained by a maximum width.
   // Defaults to false.
-  fitContent?: boolean;
+  readonly fitContent?: boolean;
   // If true, the popup will appear when the trigger is on right clicked rather
   // than when it's left clicked.
-  isContextMenu?: boolean;
+  readonly isContextMenu?: boolean;
   // If true, position the popup at the cursor location rather than the trigger
   // element. When omitted with isContextMenu=true, defaults to true. When omitted
   // with isContextMenu=false, defaults to false.
-  positionAtCursor?: boolean;
+  readonly positionAtCursor?: boolean;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -257,7 +257,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       },
       onContentMount: (dom: HTMLElement) => {
         const popupElement = toHTMLElement(
-          assertExists(findRef(dom, Popup.POPUP_REF)),
+          ensureExists(findRef(dom, Popup.POPUP_REF)),
         );
         this.popupElement = popupElement;
         this.createOrUpdatePopper(attrs);
@@ -305,7 +305,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<PopupAttrs, this>) {
-    this.triggerElement = assertExists(findRef(dom, Popup.TRIGGER_REF));
+    this.triggerElement = ensureExists(findRef(dom, Popup.TRIGGER_REF));
   }
 
   onupdate({attrs}: m.VnodeDOM<PopupAttrs, this>) {
@@ -477,8 +477,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
 
   private eventInPopupOrTrigger(e: Event): boolean {
     const target = e.target as HTMLElement;
-    const onTrigger = isOrContains(assertExists(this.triggerElement), target);
-    const onPopup = isOrContains(assertExists(this.popupElement), target);
+    const onTrigger = isOrContains(ensureExists(this.triggerElement), target);
+    const onPopup = isOrContains(ensureExists(this.popupElement), target);
     return onTrigger || onPopup;
   }
 

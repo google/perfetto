@@ -24,48 +24,17 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/type_set.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::interpreter {
-
-// Type categories for column content and operations.
-// These define which operations can be applied to which content types.
-
-// Set of content types that aren't string-based.
-using NonStringType = TypeSet<Id, Uint32, Int32, Int64, Double>;
-
-// Set of content types that are numeric in nature.
-using IntegerOrDoubleType = TypeSet<Uint32, Int32, Int64, Double>;
-
-// Set of operations applicable to non-null values.
-using NonNullOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
-
-// Set of operations applicable to non-string values.
-using NonStringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge>;
-
-// Set of operations applicable to string values.
-using StringOp = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex>;
-
-// Set of operations applicable to only string values.
-using OnlyStringOp = TypeSet<Glob, Regex>;
-
-// Set of operations applicable to ranges.
-using RangeOp = TypeSet<Eq, Lt, Le, Gt, Ge>;
-
-// Set of inequality operations (Lt, Le, Gt, Ge).
-using InequalityOp = TypeSet<Lt, Le, Gt, Ge>;
-
-// Set of null operations (IsNotNull, IsNull).
-using NullOp = TypeSet<IsNotNull, IsNull>;
 
 // Indicates an operation applies to both bounds of a range.
 struct BothBounds {};
@@ -77,7 +46,7 @@ struct BeginBound {};
 struct EndBound {};
 
 // Which bounds should be modified by a range operation.
-using BoundModifier = TypeSet<BothBounds, BeginBound, EndBound>;
+using BoundModifier = base::TypeSet<BothBounds, BeginBound, EndBound>;
 
 // Represents a filter operation where we are performing an equality operation
 // on a sorted column.
@@ -93,7 +62,7 @@ struct UpperBound {};
 
 // Set of operations that can be applied to a sorted column.
 using EqualRangeLowerBoundUpperBound =
-    TypeSet<EqualRange, LowerBound, UpperBound>;
+    base::TypeSet<EqualRange, LowerBound, UpperBound>;
 
 // Type tag indicating nulls should be placed at the start during
 // partitioning/sorting.
@@ -104,7 +73,7 @@ struct NullsAtStart {};
 struct NullsAtEnd {};
 
 // TypeSet defining the possible placement locations for nulls.
-using NullsLocation = TypeSet<NullsAtStart, NullsAtEnd>;
+using NullsLocation = base::TypeSet<NullsAtStart, NullsAtEnd>;
 
 // Type tag for finding the minimum value.
 struct MinOp {};
@@ -113,14 +82,12 @@ struct MinOp {};
 struct MaxOp {};
 
 // TypeSet combining Min and Max operations.
-using MinMaxOp = TypeSet<MinOp, MaxOp>;
-
-// TypeSet containing all the non-id storage types.
-using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
+using MinMaxOp = base::TypeSet<MinOp, MaxOp>;
 
 // TypeSet which collapses all of the sparse nullability types into a single
 // type.
-using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
+using SparseNullCollapsedNullability =
+    base::TypeSet<NonNull, SparseNull, DenseNull>;
 
 // Handle for referring to a filter value during query execution.
 struct FilterValueHandle {
@@ -231,53 +198,6 @@ struct CastFilterValueListResult {
   // Deduplicated typed values for linear scan (small lists) and indexed
   // binary search paths. Empty for large lists.
   ValueList value_list;
-};
-
-// Opaque state for tree operations. Bundles tree structure, column data
-// copies, P2C cache, and scratch buffers into a single object that
-// bytecodes modify in-place.
-//
-// Column data and null bitvectors are registered by the TreeTransformer
-// and compacted alongside the tree structure by FilterTreeState.
-struct TreeState {
-  // Tree structure.
-  Slab<uint32_t> parent;  // parent[i] = row index (kNullParent for roots)
-  Slab<uint32_t> original_rows;  // original_rows[i] = original df row index
-  uint32_t row_count = 0;
-
-  // Column data copies (compacted alongside parent by FilterTreeState).
-  struct ColumnStorage {
-    Slab<uint8_t> data;
-    uint32_t elem_size;
-  };
-  std::vector<ColumnStorage> columns;
-
-  // Null bitvector copies (compacted alongside parent by FilterTreeState).
-  std::vector<BitVector> null_bitvectors;
-
-  // Reusable keep bitvector (allocated once at max size, cleared each use).
-  BitVector keep_bv;
-
-  // P2C CSR cache (rebuilt lazily).
-  Slab<uint32_t> p2c_offsets;
-  Slab<uint32_t> p2c_children;
-  Slab<uint32_t> p2c_roots;
-  uint32_t p2c_root_count = 0;
-  bool p2c_valid = false;
-
-  // Scratch buffers (allocated once at max size, reused).
-  Slab<uint32_t> scratch1;  // initial_row_count * 2
-  Slab<uint32_t> scratch2;  // initial_row_count
-
-  // Propagation specs: set by TreeTransformer, consumed by PropagateTreeDown.
-  // Each PropagateTreeDown bytecode processes a contiguous range of specs.
-  struct PropagateDownSpec {
-    PropagateAggOp agg_op;
-    uint32_t source_ts_col;  // index into |columns| to copy FROM
-    uint32_t dest_ts_col;    // index into |columns| to propagate INTO
-    StorageType storage_type;
-  };
-  std::vector<PropagateDownSpec> propagate_down_specs;
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

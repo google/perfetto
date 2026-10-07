@@ -16,16 +16,16 @@ At the UI level, game interventions are shown as a table in trace info page.
 
 At the SQL level, game interventions data is written in the following table:
 
-* [`android_game_intervention_list`](docs/analysis/sql-tables.autogen#android_game_intervention_list)
+* [`android_game_intervention_list`](/docs/analysis/sql-tables.autogen#android_game_intervention_list)
 
 Below is an example of querying what modes are supported (with interventions) and the current game mode of each game.
 
 ```sql
-select package_name, current_mode, standard_mode_supported, performance_mode_supported, battery_mode_supported
+select package_name, current_mode, standard_mode_supported, perf_mode_supported, battery_mode_supported
 from android_game_intervention_list
 order by package_name
 ```
-package_name | current_mode | standard_mode_supported | performance_mode_supported | battery_mode_supported
+package_name | current_mode | standard_mode_supported | perf_mode_supported | battery_mode_supported
 -------------|--------------|-------------------------|---------------------------|-----------------------
 com.supercell.clashofclans | 1 | 1 | 0 | 1
 com.mobile.legends | 3 | 1 | 0 | 1

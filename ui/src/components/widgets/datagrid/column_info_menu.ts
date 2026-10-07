@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {MenuItem} from '../../../widgets/menu';
-import {type ColumnInfo, isParameterizedColumnDef} from './datagrid_schema';
+import type {ColumnInfo} from './datagrid_schema';
 
 interface ColumnInfoMenuAttrs {
   readonly id: string;
@@ -70,7 +70,7 @@ export class ColumnInfoMenu implements m.ClassComponent<ColumnInfoMenuAttrs> {
       }
 
       // Parameterized column info
-      if (isParameterizedColumnDef(colInfo.def)) {
+      if ('parameterized' in colInfo.def) {
         infoItems.push(
           m(MenuItem, {
             label: 'Parameterized: yes',

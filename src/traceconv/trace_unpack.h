@@ -19,12 +19,14 @@
 
 #include <iostream>
 
+#include "perfetto/base/status.h"
+
 namespace perfetto {
 namespace trace_to_text {
 
 // Serialised trace with compressed_packets -> serialised trace with those
 // packets in their decompressed form. Mostly for use with protoprofile.
-bool UnpackCompressedPackets(std::istream* input, std::ostream* output);
+base::Status UnpackCompressedPackets(std::istream* input, std::ostream* output);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

@@ -23,10 +23,12 @@ perfetto_sql_source_set("heap_graph") {
     "dominator_class_tree.sql",
     "dominator_tree.sql",
     "excluded_refs.sql",
+    "experimental_flamegraph.sql",
     "heap_graph_class_aggregation.sql",
     "heap_graph_stats.sql",
     "helpers.sql",
     "object_tree.sql",
+    "oome.sql",
     "raw_dominator_tree.sql",
   ]
 }

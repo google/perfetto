@@ -19,184 +19,168 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
+#include <new>
 #include <optional>
-#include <tuple>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 
-ArgsTracker::ArgsTracker(TraceProcessorContext* context) : context_(context) {}
+namespace {
 
-ArgsTracker::~ArgsTracker() {
-  Flush();
+// Writes |set_id| into the arg_set_id cell at (|col|, |row|) of |df|, handling
+// whichever nullability the target column happens to use.
+void WriteArgSetId(dataframe::Dataframe* df,
+                   uint32_t col,
+                   uint32_t row,
+                   ArgSetId set_id) {
+  auto n = df->GetNullabilityLegacy(col);
+  if (n.Is<dataframe::NonNull>()) {
+    df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::NonNull>(col, row,
+                                                                      set_id);
+  } else if (n.Is<dataframe::DenseNull>()) {
+    df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::DenseNull>(
+        col, row, std::make_optional(set_id));
+  } else if (n.Is<dataframe::SparseNullWithPopcountAlways>()) {
+    df->SetCellUncheckedLegacy<dataframe::Uint32,
+                               dataframe::SparseNullWithPopcountAlways>(
+        col, row, std::make_optional(set_id));
+  } else if (n.Is<dataframe::SparseNullWithPopcountUntilFinalization>()) {
+    df->SetCellUncheckedLegacy<
+        dataframe::Uint32, dataframe::SparseNullWithPopcountUntilFinalization>(
+        col, row, std::make_optional(set_id));
+  } else {
+    PERFETTO_FATAL("Unsupported nullability type for args.");
+  }
 }
 
-void ArgsTracker::AddArg(void* ptr,
-                         uint32_t col,
-                         uint32_t row,
-                         StringId flat_key,
-                         StringId key,
-                         Variadic value,
-                         UpdatePolicy update_policy) {
-  args_.emplace_back();
+}  // namespace
 
-  auto* rid_arg = &args_.back();
-  rid_arg->ptr = ptr;
-  rid_arg->col = col;
-  rid_arg->row = row;
-  rid_arg->flat_key = flat_key;
-  rid_arg->key = key;
-  rid_arg->value = value;
-  rid_arg->update_policy = update_policy;
+ArgsInserter::ArgsInserter(GlobalArgsTracker* global,
+                           dataframe::Dataframe* df,
+                           uint32_t col,
+                           uint32_t row,
+                           uint32_t id)
+    : global_(global),
+      buffer_(global->AcquireArgsBuffer()),
+      df_(df),
+      col_(col),
+      row_(row),
+      id_(id) {}
+
+ArgsInserter::ArgsInserter(ArgsInserter&& other) noexcept
+    : global_(other.global_),
+      buffer_(other.buffer_),
+      df_(other.df_),
+      col_(other.col_),
+      row_(other.row_),
+      id_(other.id_) {
+  other.global_ = nullptr;
+  other.buffer_ = nullptr;
 }
 
-void ArgsTracker::Flush() {
-  using Arg = GlobalArgsTracker::Arg;
+ArgsInserter& ArgsInserter::operator=(ArgsInserter&& other) noexcept {
+  if (this != &other) {
+    // Destroy our current state (commits + releases the buffer), then
+    // move-construct from other in place.
+    this->~ArgsInserter();
+    new (this) ArgsInserter(std::move(other));
+  }
+  return *this;
+}
 
-  if (args_.empty())
+ArgsInserter::~ArgsInserter() {
+  if (!global_)  // Empty, moved-from, or a test mock: nothing to commit.
     return;
-
-  // We need to ensure that the args with the same arg set (arg_set_id + row)
-  // and key are grouped together. This is important for joining the args from
-  // different events (e.g. trace event begin and trace event end might both
-  // have arguments).
-  //
-  // To achieve that (and do it quickly) we do two steps:
-  // - First, group all of the values within the same key together and compute
-  // the smallest index for each key.
-  // - Then we sort the args by column, row, smallest_index_for_key (to group
-  // keys) and index (to preserve the original ordering).
-
-  struct Entry {
-    size_t index;
-    StringId key;
-    size_t smallest_index_for_key = 0;
-
-    Entry(size_t i, StringId k) : index(i), key(k) {}
-  };
-
-  base::SmallVector<Entry, 16> entries;
-  for (const auto& arg : args_) {
-    entries.emplace_back(entries.size(), arg.key);
-  }
-
-  // Step 1: Compute the `smallest_index_for_key`.
-  std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
-    return std::tie(a.key, a.index) < std::tie(b.key, b.index);
-  });
-
-  // As the data is sorted by (`key`, `index`) now, then the objects with the
-  // same key will be contiguous and within this block it will be sorted by
-  // index. That means that `smallest_index_for_key` for the entire block should
-  // be the value of the first index in the block.
-  entries[0].smallest_index_for_key = entries[0].index;
-  for (size_t i = 1; i < entries.size(); ++i) {
-    entries[i].smallest_index_for_key =
-        entries[i].key == entries[i - 1].key
-            ? entries[i - 1].smallest_index_for_key
-            : entries[i].index;
-  }
-
-  // Step 2: sort in the desired order: grouping by arg set first (column, row),
-  // then ensuring that the args with the same key are grouped together
-  // (smallest_index_for_key) and then preserving the original order within
-  // these group (index).
-  std::sort(entries.begin(), entries.end(),
-            [&](const Entry& a, const Entry& b) {
-              const Arg& first_arg = args_[a.index];
-              const Arg& second_arg = args_[b.index];
-              return std::tie(first_arg.ptr, first_arg.col, first_arg.row,
-                              a.smallest_index_for_key, a.index) <
-                     std::tie(second_arg.ptr, second_arg.col, second_arg.row,
-                              b.smallest_index_for_key, b.index);
-            });
-
-  // Apply permutation of entries[].index to args.
-  base::SmallVector<Arg, 16> sorted_args;
-  for (auto& entry : entries) {
-    sorted_args.emplace_back(args_[entry.index]);
-  }
-
-  // Insert args.
-  for (uint32_t i = 0; i < args_.size();) {
-    const GlobalArgsTracker::Arg& arg = sorted_args[i];
-    void* ptr = arg.ptr;
-    uint32_t col = arg.col;
-    uint32_t row = arg.row;
-
-    uint32_t next_rid_idx = i + 1;
-    while (next_rid_idx < sorted_args.size() &&
-           ptr == sorted_args[next_rid_idx].ptr &&
-           col == sorted_args[next_rid_idx].col &&
-           row == sorted_args[next_rid_idx].row) {
-      next_rid_idx++;
-    }
-
-    ArgSetId set_id = context_->global_args_tracker->AddArgSet(
-        sorted_args.data(), i, next_rid_idx);
-    auto* df = static_cast<dataframe::Dataframe*>(ptr);
-    auto n = df->GetNullabilityLegacy(col);
-    if (n.Is<dataframe::NonNull>()) {
-      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::NonNull>(
-          arg.col, row, set_id);
-    } else if (n.Is<dataframe::DenseNull>()) {
-      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::DenseNull>(
-          arg.col, row, std::make_optional(set_id));
-    } else if (n.Is<dataframe::SparseNullWithPopcountAlways>()) {
-      df->SetCellUncheckedLegacy<dataframe::Uint32,
-                                 dataframe::SparseNullWithPopcountAlways>(
-          arg.col, row, std::make_optional(set_id));
-    } else if (n.Is<dataframe::SparseNullWithPopcountUntilFinalization>()) {
-      df->SetCellUncheckedLegacy<
-          dataframe::Uint32,
-          dataframe::SparseNullWithPopcountUntilFinalization>(
-          arg.col, row, std::make_optional(set_id));
-    } else {
-      PERFETTO_FATAL("Unsupported nullability type for args.");
-    }
-
-    i = next_rid_idx;
-  }
-  args_.clear();
+  Commit();
+  global_->ReleaseArgsBuffer(buffer_);
 }
 
-ArgsTracker::CompactArgSet ArgsTracker::ToCompactArgSet(
-    const dataframe::Dataframe& dataframe,
-    uint32_t col,
-    uint32_t row) && {
-  CompactArgSet compact_args;
-  for (const auto& arg : args_) {
-    PERFETTO_DCHECK(arg.ptr == &dataframe);
-    PERFETTO_DCHECK(arg.col == col);
-    PERFETTO_DCHECK(arg.row == row);
-    compact_args.emplace_back(arg.ToCompactArg());
+ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
+                                   StringId key,
+                                   Variadic value,
+                                   UpdatePolicy update_policy) {
+  std::vector<CompactArg>& args = buffer_->args;
+  base::FlatHashMap<StringId, uint32_t>& key_index = buffer_->key_index;
+
+  // Collapse same-key duplicates in place (kSkipIfExists keeps the first value,
+  // kAddOrUpdate the last) so AddArgSet never sees two args with the same key.
+  // Small sets use a linear scan; past a threshold we build `key_index` to keep
+  // large sets (e.g. array args) O(n) rather than O(n^2). Empty index => still
+  // scanning linearly.
+  constexpr size_t kKeyIndexThreshold = 32;
+  CompactArg* existing = nullptr;
+  if (key_index.size() != 0) {
+    if (uint32_t* idx = key_index.Find(key)) {
+      existing = &args[*idx];
+    }
+  } else {
+    for (CompactArg& arg : args) {
+      if (arg.key == key) {
+        existing = &arg;
+        break;
+      }
+    }
   }
-  args_.clear();
+  if (existing) {
+    if (update_policy == UpdatePolicy::kSkipIfExists) {
+      return *this;
+    }
+    PERFETTO_DCHECK(update_policy == UpdatePolicy::kAddOrUpdate);
+    existing->flat_key = flat_key;
+    existing->value = value;
+    existing->update_policy = update_policy;
+    return *this;
+  }
+
+  auto new_index = static_cast<uint32_t>(args.size());
+  args.emplace_back(CompactArg{flat_key, key, value, update_policy});
+  if (key_index.size() != 0) {
+    key_index.Insert(key, new_index);
+  } else if (args.size() >= kKeyIndexThreshold) {
+    for (uint32_t i = 0; i < args.size(); ++i) {
+      key_index.Insert(args[i].key, i);
+    }
+  }
+  return *this;
+}
+
+bool ArgsInserter::NeedsTranslation(const ArgsTranslationTable& table) const {
+  return std::any_of(buffer_->args.begin(), buffer_->args.end(),
+                     [&table](const CompactArg& arg) {
+                       return table.NeedsTranslation(arg.flat_key, arg.key,
+                                                     arg.value.type);
+                     });
+}
+
+ArgsInserter::CompactArgSet ArgsInserter::ToCompactArgSet() && {
+  CompactArgSet compact_args;
+  for (const CompactArg& arg : buffer_->args) {
+    compact_args.emplace_back(arg);
+  }
+  // Leave the buffer empty so Commit() is a no-op: the caller now owns the
+  // args.
+  buffer_->args.clear();
+  buffer_->key_index.Clear();
   return compact_args;
 }
 
-bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
-  return std::any_of(
-      args_.begin(), args_.end(), [&table](const GlobalArgsTracker::Arg& arg) {
-        return table.NeedsTranslation(arg.flat_key, arg.key, arg.value.type);
-      });
+void ArgsInserter::Commit() {
+  std::vector<CompactArg>& args = buffer_->args;
+  if (args.empty()) {
+    return;
+  }
+  ArgSetId set_id =
+      global_->AddArgSet(args.data(), 0, static_cast<uint32_t>(args.size()));
+  WriteArgSetId(df_, col_, row_, set_id);
 }
-
-ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
-                                          dataframe::Dataframe* dataframe,
-                                          uint32_t col,
-                                          uint32_t row)
-    : args_tracker_(args_tracker), ptr_(dataframe), col_(col), row_(row) {}
-
-ArgsTracker::BoundInserter::~BoundInserter() = default;
 
 }  // namespace perfetto::trace_processor

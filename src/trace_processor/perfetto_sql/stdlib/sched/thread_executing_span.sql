@@ -534,6 +534,7 @@ RETURNS TABLE(
 )
 AS
 SELECT root_utid, root_id, id, ts, dur, utid
-FROM _critical_path_by_intervals!((
-    SELECT $root_utid AS utid, $ts AS ts, $dur AS dur
-  ), _wakeup_graph);
+FROM _critical_path_by_intervals!(
+  (SELECT $root_utid AS utid, $ts AS ts, $dur AS dur),
+  _wakeup_graph
+);

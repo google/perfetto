@@ -27,13 +27,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/progress_reporter.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
-#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -41,7 +42,6 @@
 namespace perfetto {
 namespace trace_to_text {
 namespace {
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 constexpr size_t kCompressionBufferSize = 500 * 1024;
 #endif
@@ -50,6 +50,7 @@ constexpr size_t kCompressionBufferSize = 500 * 1024;
 
 bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
                           std::istream* input) {
+  auto& progress = base::ProgressReporter::GetInstance();
   // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
   constexpr size_t kChunkSize = 1024 * 1024;
 
@@ -64,9 +65,9 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
 
   for (int i = 0;; i++) {
     if (i % kStderrRate == 0) {
-      fprintf(stderr, "Loading trace %.2f MB%c",
-              static_cast<double>(file_size) / 1.0e6, kProgressChar);
-      fflush(stderr);
+      base::StackString<128> msg("Loading trace %.2f MB",
+                                 static_cast<double>(file_size) / 1.0e6);
+      progress.Update(msg.ToStdStringView());
     }
 
     std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
@@ -83,8 +84,7 @@ bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
     tp->Parse(std::move(buf), static_cast<size_t>(rsize));
   }
 
-  fprintf(stderr, "Loaded trace%c", kProgressChar);
-  fflush(stderr);
+  progress.Clear();
   return true;
 }
 

@@ -87,12 +87,15 @@ const cfg = {
   verbose: false,
   debug: false,
   bigtrace: false,
+  engineBench: false,
   startHttpServer: false,
+  useHmr: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: undefined,
   onlyWasmMemory64: false,
   wasmModules: [],
   crossOriginIsolation: false,
+  allowAllHosts: false,
   testFilter: '',
   noOverrideGnArgs: false,
 
@@ -123,6 +126,8 @@ const RULES = [
   {r: /ui\/src\/assets\/index.html/, f: copyIndexHtml},
   {r: /ui\/src\/assets\/bigtrace.html/, f: copyBigtraceHtml},
   {r: /ui\/src\/open_perfetto_trace\/index.html/, f: copyOpenPerfettoTraceHtml},
+  // engine_bench page; no-op without --enable-engine-bench.
+  {r: /ui\/src\/engine_bench\/bench\.html$/, f: copyEngineBenchHtml},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/base-page\.json)/, f: copyAssets},
   {r: /ui\/src\/assets\/(data_explorer\/examples\/(.*)[.]json)/, f: copyAssets},
@@ -212,11 +217,22 @@ Env-var overrides:
   parser.add_argument('--run-unittests', '-t', {action: 'store_true'});
   parser.add_argument('--debug', '-d', {action: 'store_true'});
   parser.add_argument('--bigtrace', {action: 'store_true'});
+  parser.add_argument('--enable-engine-bench', {
+    action: 'store_true',
+    help: 'Build the engine startup benchmark page (engine_bench.html) and ' +
+          'its dedicated worker bundle. Off by default.',
+  });
   parser.add_argument('--open-perfetto-trace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
   parser.add_argument('--rebaseline', '-r', {action: 'store_true'});
   parser.add_argument('--no-depscheck', {action: 'store_true'});
   parser.add_argument('--cross-origin-isolation', {action: 'store_true'});
+  parser.add_argument('--allow-all-hosts', {
+    action: 'store_true',
+    help: 'Accept requests for any Host header on the Vite dev server, so it ' +
+          'can sit behind an arbitrary reverse proxy. Disables Vite\'s ' +
+          'DNS-rebind host-check protection.',
+  });
   parser.add_argument('--test-filter', '-f', {
     help: "filter Jest tests by regex, e.g. 'chrome_render'",
   });
@@ -224,6 +240,11 @@ Env-var overrides:
   parser.add_argument('--typecheck', {
     action: 'store_true',
     help: 'Only type-check (tsc --noEmit), skip bundling',
+  });
+  parser.add_argument('--bundle', {
+    action: 'store_true',
+    help: 'Serve the bundled frontend instead of the Vite HMR server ' +
+          '(fewer requests, better over a remote/SSH dev server)',
   });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
@@ -276,6 +297,7 @@ Env-var overrides:
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.bigtrace = !!args.bigtrace;
+  cfg.engineBench = !!args.enable_engine_bench;
   cfg.openPerfettoTrace = !!args.open_perfetto_trace;
   cfg.startHttpServer = args.serve;
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
@@ -307,7 +329,9 @@ Env-var overrides:
   if (args.cross_origin_isolation) {
     cfg.crossOriginIsolation = true;
   }
+  cfg.allowAllHosts = !!args.allow_all_hosts;
   cfg.check = !!args.typecheck;
+  cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
@@ -383,7 +407,6 @@ Env-var overrides:
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     compileProtos();
-    genVersion();
     generateStdlibDocs();
 
     const tsProjects = ['ui', 'ui/src/service_worker'];
@@ -391,6 +414,9 @@ Env-var overrides:
     if (cfg.openPerfettoTrace) {
       scanDir('ui/src/open_perfetto_trace');
       tsProjects.push('ui/src/open_perfetto_trace');
+    }
+    if (cfg.engineBench) {
+      scanDir('ui/src/engine_bench');
     }
 
     if (cfg.check) {
@@ -442,7 +468,7 @@ Env-var overrides:
   if (cfg.watch) console.log('\nFirst build completed!');
 
   if (cfg.startHttpServer) {
-    if (cfg.watch) {
+    if (cfg.useHmr) {
       await startViteDevServer();
     } else {
       startServer();
@@ -517,6 +543,26 @@ function copyOpenPerfettoTraceHtml(src) {
   }
 }
 
+function copyEngineBenchHtml(src) {
+  if (!cfg.engineBench) return;
+  // Goes next to engine_bench_bundle.js so its relative <script> resolves.
+  addTask(cp, [src, pjoin(cfg.outDistDir, 'engine_bench.html')]);
+  addTask(makeEngineBenchRedirect, []);
+}
+
+function makeEngineBenchRedirect() {
+  const target = `${cfg.version}/engine_bench.html`;
+  // Redirect via JS so the bench knob query string is preserved.
+  const html =
+    '<!DOCTYPE html><meta charset="utf-8">' +
+    '<title>Perfetto engine bench (redirect)</title>' +
+    `<script>location.replace(${JSON.stringify(target)} + location.search + ` +
+    'location.hash);</script>' +
+    `<noscript><meta http-equiv="refresh" content="0; url=${target}">` +
+    `<p>Redirecting to <a href="${target}">${target}</a>.</p></noscript>\n`;
+  fs.writeFileSync(pjoin(cfg.outDistRootDir, 'engine_bench.html'), html);
+}
+
 function copyAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outDistDir, 'assets', dst)]);
   if (cfg.bigtrace) {
@@ -526,6 +572,13 @@ function copyAssets(src, dst) {
 
 function copyUiTestArtifactsAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outUiTestArtifactsDir, dst)]);
+}
+
+function postProcessProtosDts() {
+  const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
+  let content = fs.readFileSync(dstTs, 'utf8');
+  content = content.replace(/import Long = require\("long"\);\r?\n/g, '');
+  fs.writeFileSync(dstTs, content, 'utf8');
 }
 
 function compileProtos() {
@@ -562,17 +615,7 @@ function compileProtos() {
   // pinning a CPU core the whole time.
   const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execModule, ['pbts', pbtsArgs]);
-}
-
-// Generates a .ts source that defines the VERSION and SCM_REVISION constants.
-function genVersion() {
-  const cmd = 'python3';
-  const args = [
-    VERSION_SCRIPT,
-    '--ts_out',
-    pjoin(cfg.outGenDir, 'perfetto_version.ts'),
-  ];
-  addTask(exec, [cmd, args]);
+  addTask(postProcessProtosDts, []);
 }
 
 function generateStdlibDocs() {
@@ -588,6 +631,7 @@ function generateStdlibDocs() {
     [
       '--json-out',
       pjoin(cfg.outDistDir, 'stdlib_docs.json'),
+      '--metadata-only',
       '--minify',
       ...stdlibFiles,
     ],
@@ -656,15 +700,29 @@ function buildWasm(skipWasmBuild) {
 
 function copySyntaqliteRuntime() {
   const srcDir = pjoin(ROOT_DIR, 'ui/node_modules/syntaqlite/wasm');
-  const dstDir = pjoin(cfg.outDistRootDir, 'assets');
+  const dstDir = pjoin(cfg.outDistDir, 'assets');
   for (const fname of [
     'syntaqlite-runtime.js',
     'syntaqlite-runtime.wasm',
     'syntaqlite-sqlite.wasm',
   ]) {
     addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
+    // The bigtrace bundle resolves assets against its own serving root.
+    if (cfg.bigtrace) {
+      addTask(cp, [
+        pjoin(srcDir, fname),
+        pjoin(cfg.outBigtraceDistDir, 'assets', fname),
+      ]);
+    }
   }
   addTask(buildSyntaqlitePerfettoDialect, []);
+  if (cfg.bigtrace) {
+    // Tasks run in queue order, so this copies the freshly-built dialect.
+    addTask(cp, [
+      pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+      pjoin(cfg.outBigtraceDistDir, 'assets', 'syntaqlite-perfetto.wasm'),
+    ]);
+  }
 }
 
 function getBuildToolsBinDir() {
@@ -687,9 +745,9 @@ function buildSyntaqlitePerfettoDialect() {
   const emcc = pjoin(buildToolsBinDir, 'emsdk/emscripten/emcc');
   const src = pjoin(
     ROOT_DIR,
-    'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
+    'src/perfetto_sql/syntaqlite/syntaqlite_perfetto.c',
   );
-  const dst = pjoin(cfg.outDistRootDir, 'assets', 'syntaqlite-perfetto.wasm');
+  const dst = pjoin(cfg.outDistDir, 'assets', 'syntaqlite-perfetto.wasm');
   try {
     const srcMtime = fs.statSync(src).mtimeMs;
     const dstMtime = fs.statSync(dst).mtimeMs;
@@ -757,10 +815,10 @@ function runVite() {
     MINIFY_JS: cfg.minifyJs || '',
     IS_MEMORY64_ONLY: cfg.onlyWasmMemory64 ? 'true' : '',
   };
-  const useDevServer = cfg.watch && cfg.startHttpServer;
   const bundles = ['engine', 'traceconv', 'service_worker', 'chrome_extension'];
-  if (!useDevServer) bundles.unshift('frontend');
+  if (!cfg.useHmr) bundles.unshift('frontend');
   if (cfg.bigtrace) bundles.push('bigtrace');
+  if (cfg.engineBench) bundles.push('engine_bench', 'engine_bench_worker');
   if (cfg.openPerfettoTrace) bundles.push('open_perfetto_trace');
   for (const bundle of bundles) {
     const args = ['build', '--config', pjoin(ROOT_DIR, 'ui/vite.config.mjs')];
@@ -831,6 +889,12 @@ async function startViteDevServer() {
       port,
       strictPort: false,
       headers,
+      // By default Vite only accepts requests whose Host header matches the
+      // bind host, to guard against DNS-rebind attacks. When --allow-all-hosts
+      // is passed, accept any Host header so the dev server can sit behind an
+      // arbitrary reverse proxy. This is safe for us: the app is client-only
+      // and the source is open, so there's nothing to rebind against.
+      allowedHosts: cfg.allowAllHosts ? true : undefined,
       // Vite needs to read source files outside its root (ui/src/assets,
       // ui/src/gen via the symlink to out/, buildtools/, etc.).
       fs: {allow: [ROOT_DIR]},
@@ -1117,9 +1181,8 @@ function isDistComplete() {
   // In watch+serve mode the frontend bundle and its CSS are served live by
   // the Vite dev server, never materialised on disk. Only require the
   // artifacts that genuinely have to exist before the user can load a trace.
-  const useDevServer = cfg.watch && cfg.startHttpServer;
   const requiredArtifacts = [
-    ...(useDevServer ? [] : ['frontend_bundle.js', 'frontend.css']),
+    ...(cfg.useHmr ? [] : ['frontend_bundle.js', 'frontend.css']),
     'engine_bundle.js',
     'traceconv_bundle.js',
     ...cfg.wasmModules.map((wasmMod) => `${wasmMod}.wasm`),

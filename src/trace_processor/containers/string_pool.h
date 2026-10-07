@@ -210,14 +210,19 @@ class StringPool {
     // Perform a hashtable insertion with a null ID just to check if the string
     // is already inserted. If it's not, overwrite 0 with the actual Id.
     auto hash = base::MurmurHashValue(str);
-    MaybeLockGuard guard{mutex_, should_acquire_mutex_};
-    auto [id, inserted] = string_index_.Insert(hash, Id());
-    if (PERFETTO_LIKELY(!inserted)) {
-      PERFETTO_DCHECK(Get(*id) == str);
-      return *id;
+    Id result;
+    {
+      MaybeLockGuard guard{mutex_, should_acquire_mutex_};
+      auto [id, inserted] = string_index_.Insert(hash, Id());
+      if (PERFETTO_UNLIKELY(inserted)) {
+        *id = InsertString(str);
+        return *id;
+      }
+      result = *id;
     }
-    *id = InsertString(str);
-    return *id;
+    // Get() takes the mutex for large strings, so validate after unlocking.
+    PERFETTO_DCHECK(Get(result) == str);
+    return result;
   }
 
   // Given a string, returns the id for the string if it exists in the string
@@ -227,11 +232,38 @@ class StringPool {
       return Id::Null();
     }
     auto hash = base::MurmurHashValue(str);
+    Id result;
+    {
+      MaybeLockGuard guard{mutex_, should_acquire_mutex_};
+      Id* id = string_index_.Find(hash);
+      if (!id) {
+        return std::nullopt;
+      }
+      result = *id;
+    }
+    // Copy the id before unlocking: concurrent interns can rehash the index.
+    PERFETTO_DCHECK(Get(result) == str);
+    return result;
+  }
+
+  // Returns the id of the pooled string whose characters start at `str`, or
+  // nullopt if no pooled string starts there. Unlike InternString(), neither
+  // measures nor hashes it. `block` is looked in first, and set to the block
+  // the string was found in.
+  std::optional<Id> FindPooledString(const char* str, uint32_t* block) const {
+    const auto* chars = reinterpret_cast<const uint8_t*>(str);
     MaybeLockGuard guard{mutex_, should_acquire_mutex_};
-    Id* id = string_index_.Find(hash);
-    if (id) {
-      PERFETTO_DCHECK(Get(*id) == str);
-      return *id;
+    if (std::optional<Id> id = FindInBlock(chars, *block)) {
+      return id;
+    }
+    for (uint32_t b = 0; b <= block_index_; ++b) {
+      if (b == *block) {
+        continue;
+      }
+      if (std::optional<Id> id = FindInBlock(chars, b)) {
+        *block = b;
+        return id;
+      }
     }
     return std::nullopt;
   }
@@ -290,6 +322,13 @@ class StringPool {
   }
 
   // Sets the locking mode of the string pool.
+  //
+  // With locking enabled, any number of threads may read (Get/GetId/...) and
+  // intern concurrently. Interns are serialized by |mutex_|. Get() of an
+  // already interned small string is lock-free and safe against concurrent
+  // interns: |blocks_| never reallocates, a new block lands in a different slot
+  // than the one being read, and a block's bytes are written once before its
+  // Id is published. Large strings are always read and written under |mutex_|.
   void set_locking(bool should_lock) { should_acquire_mutex_ = should_lock; }
 
  private:
@@ -347,6 +386,33 @@ class StringPool {
     const uint8_t* ptr =
         PERFETTO_TS_UNCHECKED_READ(blocks_)[id.block_index()].get();
     return ptr + id.block_offset();
+  }
+
+  // FindPooledString() for one block.
+  PERFETTO_ALWAYS_INLINE std::optional<Id> FindInBlock(const uint8_t* chars,
+                                                       uint32_t block) const
+      PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    const uint8_t* start = blocks_[block].get();
+    if (!start) {
+      return std::nullopt;
+    }
+    // Compared as integers: `chars` may point into another allocation.
+    auto at = reinterpret_cast<uintptr_t>(chars);
+    auto begin = reinterpret_cast<uintptr_t>(start);
+    if (at < begin + sizeof(uint32_t) || at >= begin + kBlockSizeBytes) {
+      return std::nullopt;
+    }
+    uint32_t offset = static_cast<uint32_t>(at - begin - sizeof(uint32_t));
+    // The null string's slot is not the id of any string.
+    if (block == 0 && offset == 0) {
+      return std::nullopt;
+    }
+    uint32_t size;
+    memcpy(&size, chars - sizeof(uint32_t), sizeof(uint32_t));
+    if (size >= kBlockSizeBytes - (at - begin) || chars[size] != 0) {
+      return std::nullopt;
+    }
+    return Id::BlockString(block, offset);
   }
 
   // |ptr| should point to the start of the string metadata (i.e. the first byte

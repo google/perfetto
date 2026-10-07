@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {time} from '../../base/time';
+import type {OomeDetails} from '../dev.perfetto.HeapProfile/oome_callstack_common';
+
+export type {OomeDetails};
+
 export interface HeapInfo {
   name: string;
   java: number;
@@ -43,6 +48,12 @@ export interface DuplicateArrayGroup {
   wastedBytes: number;
 }
 
+export interface OomeData {
+  upid: number;
+  ts: time;
+  details: OomeDetails;
+}
+
 export interface OverviewData {
   reachableInstanceCount: number;
   unreachableInstanceCount: number;
@@ -53,6 +64,18 @@ export interface OverviewData {
   duplicateArrays?: DuplicateArrayGroup[];
   /** True when HPROF field values are available (heap_graph_primitive). */
   hasFieldValues: boolean;
+  /** Process oom_score_adj at the dump instant; null if the trace has none. */
+  oomScore: number | null;
+  /** oom_adj bucket name from the stdlib (e.g. "cached"); null if unavailable. */
+  oomBucket: string | null;
+  /** The anon RSS + swap size of the process (in bytes) at the time of the heap dump. */
+  anonRssAndSwapSize: bigint | null;
+  /** The dmabuf size of the process (in bytes) at the time of the heap dump. */
+  dmabufRssSize: bigint | null;
+  /** The process uptime at the time of the heap dump. */
+  processUptime: bigint | null;
+  /** OOME details, if the dump was triggered by an OutOfMemoryError. */
+  oome: OomeDetails | undefined;
 }
 
 export type PrimOrRef =
@@ -116,26 +139,12 @@ export interface InstanceDetail {
     width: number;
     height: number;
     format: string;
-    data: Uint8Array;
+    data: Uint8Array<ArrayBuffer>;
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];
   dominatorPath: PathEntry[] | null;
   shortestPath: PathEntry[] | null;
-}
-
-export interface ClassRow {
-  className: string;
-  count: number;
-  shallowSize: number;
-  nativeSize: number;
-  retainedSize: number;
-  retainedNativeSize: number;
-  retainedCount: number;
-  reachableSize: number | null;
-  reachableNativeSize: number | null;
-  reachableCount: number | null;
-  heap: string;
 }
 
 export interface BitmapListRow {

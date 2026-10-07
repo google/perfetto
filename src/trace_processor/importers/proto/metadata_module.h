@@ -36,17 +36,9 @@ class MetadataModule : public ProtoImporterModule {
   explicit MetadataModule(ProtoImporterModuleContext* module_context,
                           TraceProcessorContext* context);
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseField(const ParseFieldArgs& args) override;
 
   void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&) override;
 

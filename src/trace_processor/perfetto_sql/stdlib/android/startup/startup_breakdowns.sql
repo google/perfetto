@@ -100,7 +100,10 @@ WITH
     -- we have concurrent startups on the same utid. Filtering out the |count| > 1
     -- leaves us with non concurrent startups per utid.
     SELECT id_0 AS id, count() AS count
-    FROM _interval_intersect!((possibly_overlapping, possibly_overlapping), (utid))
+    FROM _interval_intersect!(
+      (possibly_overlapping, possibly_overlapping),
+      (utid)
+    )
     GROUP BY
       utid,
       ts
@@ -111,34 +114,35 @@ SELECT possibly_overlapping.*
 FROM possibly_overlapping
 JOIN unique_startups USING (id);
 
+-- Startup slices overlapping a startup on its main thread, normalized with
+-- _normalize_android_string. Materialized once because it is referenced
+-- multiple times below (and inside _slice_remove_nulls_and_reparent), and the
+-- overlap join against the thread_slice view is expensive to re-evaluate.
+CREATE PERFETTO TABLE _startup_relevant_slices AS
+SELECT
+  slice.id,
+  slice.parent_id,
+  slice.depth,
+  _normalize_android_string(slice.name) AS name,
+  slice.ts,
+  slice.dur,
+  slice.utid
+FROM thread_slice AS slice
+JOIN _startup_root_slices AS startup
+  ON slice.utid = startup.utid
+  AND max(slice.ts, startup.ts)
+  < min(slice.ts + slice.dur, startup.ts + startup.dur)
+WHERE
+  slice.dur > 0;
+
 -- All relevant startup slices normalized with _normalize_android_string.
 CREATE PERFETTO TABLE _startup_normalized_slices AS
-WITH
-  relevant_startup_slices AS (
-    SELECT slice.*
-    FROM thread_slice AS slice
-    JOIN _startup_root_slices AS startup
-      ON slice.utid = startup.utid
-      AND max(slice.ts, startup.ts)
-      < min(slice.ts + slice.dur, startup.ts + startup.dur)
-  )
-SELECT
-  p.id,
-  p.parent_id,
-  p.depth,
-  p.name,
-  thread_slice.ts,
-  thread_slice.dur,
-  thread_slice.utid
+SELECT p.id, p.parent_id, p.depth, p.name, s.ts, s.dur, s.utid
 FROM _slice_remove_nulls_and_reparent
     !(
-      (
-        SELECT id, parent_id, depth, _normalize_android_string(name) AS name
-        FROM relevant_startup_slices
-        WHERE dur > 0
-      ),
+      (SELECT id, parent_id, depth, name FROM _startup_relevant_slices),
       name) AS p
-JOIN thread_slice USING (id)
+JOIN _startup_relevant_slices AS s USING (id)
 ORDER BY
   p.id;
 
@@ -146,7 +150,11 @@ ORDER BY
 -- Their timestamps and durations are chopped to fit within the respective app startup duration.
 CREATE PERFETTO TABLE _startup_slices_breakdown AS
 SELECT *
-FROM _intervals_merge_root_and_children_by_intersection!(_startup_root_slices, _startup_normalized_slices, utid);
+FROM _intervals_merge_root_and_children_by_intersection!(
+  _startup_root_slices,
+  _startup_normalized_slices,
+  utid
+);
 
 -- Flattened slice version of _startup_slices_breakdown. This selects the leaf slice at every region
 -- of the slice stack.

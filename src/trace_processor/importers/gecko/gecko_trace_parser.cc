@@ -21,6 +21,7 @@
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/profiler_sample_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -63,7 +64,8 @@ constexpr auto kFirefoxMarkerBlueprint = tracks::SliceBlueprint(
 }  // namespace
 
 GeckoTraceParser::GeckoTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      gecko_source_id_(context->storage->InternString("gecko")) {}
 
 GeckoTraceParser::~GeckoTraceParser() = default;
 
@@ -77,12 +79,15 @@ void GeckoTraceParser::ParseThreadMetadata(
 
 void GeckoTraceParser::ParseStackSample(int64_t ts,
                                         const GeckoEvent::StackSample& sample) {
-  auto* ss = context_->storage->mutable_cpu_profile_stack_sample_table();
-  tables::CpuProfileStackSampleTable::Row row;
+  tables::ProfilerSampleTable::Row row;
   row.ts = ts;
+  row.source = gecko_source_id_;
+  tables::ProfilerTaskContextTable::Row task_context;
+  task_context.utid = context_->process_tracker->GetOrCreateThread(sample.tid);
+  row.task_context_id =
+      context_->profiler_sample_tracker->InternTaskContext(task_context);
   row.callsite_id = sample.callsite_id;
-  row.utid = context_->process_tracker->GetOrCreateThread(sample.tid);
-  ss->Insert(row);
+  context_->profiler_sample_tracker->AddSample(row);
 }
 
 void GeckoTraceParser::ParseMarker(int64_t ts,

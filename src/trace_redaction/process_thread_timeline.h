@@ -91,6 +91,8 @@ class ProcessThreadTimeline {
 
   void Append(const Event& event);
 
+  bool empty() const { return events_.empty(); }
+
   // REQUIRED: Sorts all events by pid, making it possible to locate the subset
   // of events connected to a pid. Events are not sorted by time because the
   // subset of events will, on average, be trivially small.

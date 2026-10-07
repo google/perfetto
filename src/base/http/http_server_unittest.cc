@@ -36,6 +36,19 @@ constexpr int kTestPort = 5127;  // Chosen with a fair dice roll.
 
 class MockHttpHandler : public HttpRequestHandler {
  public:
+  // The tests drive one connection at a time, so one buffer is enough.
+  uint8_t* OnHttpRequestBody(const HttpRequest&, size_t size) override {
+    return Alloc(size);
+  }
+  uint8_t* OnWebsocketPayload(HttpServerConnection*, size_t size) override {
+    return Alloc(size);
+  }
+  uint8_t* Alloc(size_t size) {
+    payload_.reset(new uint8_t[size]);
+    return payload_.get();
+  }
+  std::unique_ptr<uint8_t[]> payload_;
+
   MOCK_METHOD(void, OnHttpRequest, (const HttpRequest&), (override));
   MOCK_METHOD(void,
               OnHttpConnectionClosed,

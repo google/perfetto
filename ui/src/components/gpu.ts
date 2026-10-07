@@ -22,6 +22,9 @@ export class Gpu {
     readonly gpu: number,
     readonly machine: number,
     readonly name?: string,
+    readonly machineName?: string,
+    readonly labelIndex?: number,
+    readonly numMachines?: number,
   ) {}
 
   get displayName(): string {
@@ -29,7 +32,11 @@ export class Gpu {
   }
 
   public maybeMachineLabel(): string {
-    return maybeMachineLabel(this.machine);
+    return maybeMachineLabel(
+      this.labelIndex,
+      this.machineName,
+      this.numMachines,
+    );
   }
 
   // Sort order for deterministic track ordering: machine first (unbounded),

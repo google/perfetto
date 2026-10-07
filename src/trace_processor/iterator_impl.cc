@@ -22,77 +22,66 @@
 #include <utility>
 
 #include "perfetto/base/status.h"
-#include "perfetto/base/time.h"
-#include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_processor_impl.h"
+#include "src/trace_processor/sqlite_iterator_impl.h"
 
 namespace perfetto::trace_processor {
 
-IteratorImpl::IteratorImpl(
-    TraceProcessorImpl* trace_processor,
-    base::StatusOr<PerfettoSqlConnection::ExecutionResult> result,
-    uint32_t sql_stats_row)
-    : trace_processor_(trace_processor),
-      result_(std::move(result)),
-      sql_stats_row_(sql_stats_row) {}
-
-IteratorImpl::~IteratorImpl() {
-  if (trace_processor_) {
-    base::TimeNanos t_end = base::GetWallTimeNs();
-    auto* sql_stats =
-        trace_processor_.get()->context()->storage->mutable_sql_stats();
-    sql_stats->RecordQueryEnd(sql_stats_row_, t_end.count());
-  }
-}
-
-void IteratorImpl::RecordFirstNextInSqlStats() {
-  base::TimeNanos t_first_next = base::GetWallTimeNs();
-  auto* sql_stats =
-      trace_processor_.get()->context()->storage->mutable_sql_stats();
-  sql_stats->RecordQueryFirstNext(sql_stats_row_, t_first_next.count());
-}
+// Out-of-line anchor for the abstract base's vtable.
+IteratorImpl::~IteratorImpl() = default;
 
 Iterator::Iterator(std::unique_ptr<IteratorImpl> iterator)
-    : iterator_(std::move(iterator)) {}
+    : iterator_(std::move(iterator)),
+      sqlite_fast_path_(iterator_ ? iterator_->AsSqlite() : nullptr) {}
 Iterator::~Iterator() = default;
 
 Iterator::Iterator(Iterator&&) noexcept = default;
 Iterator& Iterator::operator=(Iterator&&) noexcept = default;
 
 bool Iterator::Next() {
-  return iterator_->Next();
+  return PERFETTO_LIKELY(sqlite_fast_path_) ? sqlite_fast_path_->Next()
+                                            : iterator_->Next();
 }
 
 SqlValue Iterator::Get(uint32_t col) {
-  return iterator_->Get(col);
+  return PERFETTO_LIKELY(sqlite_fast_path_) ? sqlite_fast_path_->Get(col)
+                                            : iterator_->Get(col);
 }
 
 std::string Iterator::GetColumnName(uint32_t col) {
-  return iterator_->GetColumnName(col);
+  return PERFETTO_LIKELY(sqlite_fast_path_)
+             ? sqlite_fast_path_->GetColumnName(col)
+             : iterator_->GetColumnName(col);
 }
 
 uint32_t Iterator::ColumnCount() {
-  return iterator_->ColumnCount();
+  return PERFETTO_LIKELY(sqlite_fast_path_) ? sqlite_fast_path_->ColumnCount()
+                                            : iterator_->ColumnCount();
 }
 
 base::Status Iterator::Status() {
-  return iterator_->Status();
+  return PERFETTO_LIKELY(sqlite_fast_path_) ? sqlite_fast_path_->Status()
+                                            : iterator_->Status();
 }
 
 uint32_t Iterator::StatementCount() {
-  return iterator_->StatementCount();
+  return PERFETTO_LIKELY(sqlite_fast_path_)
+             ? sqlite_fast_path_->StatementCount()
+             : iterator_->StatementCount();
 }
 
 uint32_t Iterator::StatementWithOutputCount() {
-  return iterator_->StatementCountWithOutput();
+  return PERFETTO_LIKELY(sqlite_fast_path_)
+             ? sqlite_fast_path_->StatementCountWithOutput()
+             : iterator_->StatementCountWithOutput();
 }
 
 std::string Iterator::LastStatementSql() {
-  return iterator_->LastStatementSql();
+  return PERFETTO_LIKELY(sqlite_fast_path_)
+             ? sqlite_fast_path_->LastStatementSql()
+             : iterator_->LastStatementSql();
 }
 
 }  // namespace perfetto::trace_processor

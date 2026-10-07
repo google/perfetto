@@ -17,6 +17,7 @@ from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import Zip
 
 
 class Tables(TestSuite):
@@ -131,23 +132,26 @@ class Tables(TestSuite):
         query=Metric('trace_metadata'),
         out=Path('trace_metadata.json.out'))
 
-  # Ftrace stats imports in metadata and stats tables
+  # Ftrace setup errors surface as a stat count plus per-error trace import logs.
   def test_ftrace_setup_errors(self):
     return DiffTestBlueprint(
         trace=DataPath('ftrace_error_stats.pftrace'),
         query="""
         SELECT value FROM stats WHERE name = 'ftrace_setup_errors'
         UNION ALL
-        SELECT str_value FROM metadata WHERE name = 'ftrace_setup_errors';
+        SELECT extract_arg(arg_set_id, 'message')
+        FROM _trace_import_logs
+        WHERE name = 'ftrace_setup_errors'
+        ORDER BY 1;
         """,
         out=Csv("""
         "value"
         3
-        "Ftrace event unknown: foo/bar
-        Ftrace event unknown: sched/foobar
-        Atrace failures: error: unknown tracing category "bar"
+        "Atrace failures: error: unknown tracing category "bar"
         error enabling tracing category "bar"
         "
+        "Ftrace event unknown: foo/bar"
+        "Ftrace event unknown: sched/foobar"
         """))
 
   # Ftrace stats imports in metadata and stats tables
@@ -711,8 +715,8 @@ class Tables(TestSuite):
         """,
         out=Csv("""
         "ucpu","cpu","machine_id"
-        4096,0,1
-        4097,1,1
+        0,0,0
+        1,1,0
         """))
 
   def test_async_slice_utid_arg_set_id(self):
@@ -725,7 +729,7 @@ class Tables(TestSuite):
         """,
         out=Csv("""
         "utid_count","end_utid_count"
-        89,0
+        336,0
         """))
 
   def test_machine(self):
@@ -774,9 +778,50 @@ class Tables(TestSuite):
         SELECT * FROM machine
         """,
         out=Csv("""
-        "id","raw_id","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version","system_ram_bytes","system_ram_gb"
-        0,0,"Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]",126598774784,127
-        1,2420838448,"Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33,12008292352,12
+        "id","raw_id","name","sysname","release","version","arch","num_cpus","android_build_fingerprint","android_device_manufacturer","android_sdk_version","system_ram_bytes","system_ram_gb","label_index"
+        0,0,"[NULL]","Darwin","22.6.0","Foobar","x86_64",4,"[NULL]","[NULL]","[NULL]",126598774784,127,0
+        1,2420838448,"[NULL]","Linux","6.6.82-android15-8-g1a7680db913a-ab13304129","#1 SMP PREEMPT Wed Apr  2 01:42:00 UTC 2025","x86_64",8,"android_test_fingerprint","Android",33,12008292352,12,1
+        """))
+
+  # Two co-located traces (an archive of two proto files) carrying the same
+  # embedded machine id must resolve to a single machine row. Regression test:
+  # adopting the id onto the host row while a later fork inserted a second row
+  # for it surfaced one physical machine as two in the UI.
+  def test_same_machine_id_across_traces_not_duplicated(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'a.pb':
+                TextProto(r'''
+                packet { machine_id: 7
+                  clock_snapshot { clocks { clock_id: 6 timestamp: 1000000000 } } }
+                packet { machine_id: 7 trusted_packet_sequence_id: 2
+                  track_descriptor { uuid: 71 } }
+                packet { machine_id: 7 trusted_packet_sequence_id: 2 timestamp: 1000000000
+                  track_event { type: TYPE_SLICE_BEGIN track_uuid: 71 name: "a_slice" } }
+                packet { machine_id: 7 trusted_packet_sequence_id: 2 timestamp: 1100000000
+                  track_event { type: TYPE_SLICE_END track_uuid: 71 } }
+                '''),
+            'b.pb':
+                TextProto(r'''
+                packet { machine_id: 7
+                  clock_snapshot { clocks { clock_id: 6 timestamp: 2000000000 } } }
+                packet { machine_id: 7 trusted_packet_sequence_id: 3
+                  track_descriptor { uuid: 72 } }
+                packet { machine_id: 7 trusted_packet_sequence_id: 3 timestamp: 2000000000
+                  track_event { type: TYPE_SLICE_BEGIN track_uuid: 72 name: "b_slice" } }
+                packet { machine_id: 7 trusted_packet_sequence_id: 3 timestamp: 2100000000
+                  track_event { type: TYPE_SLICE_END track_uuid: 72 } }
+                '''),
+        }),
+        query="""
+        SELECT raw_id, count(*) AS row_count
+        FROM machine
+        GROUP BY raw_id
+        ORDER BY raw_id
+        """,
+        out=Csv("""
+        "raw_id","row_count"
+        7,1
         """))
 
   # user list table
@@ -798,4 +843,56 @@ class Tables(TestSuite):
         0,"android.os.usertype.system.HEADLESS" 
         10,"android.os.usertype.full.SECONDARY" 
         11,"android.os.usertype.full.GUEST"
+        """))
+
+  # trace start and end time
+  def test_trace_bounds(self):
+    return DiffTestBlueprint(
+        trace=Path('../common/synth_1.py'),
+        query="""
+        SELECT * FROM trace_bounds;
+        """,
+        out=Csv("""
+        "start_ts","end_ts"
+        1,400
+        """))
+
+  # trace start and end time
+  def test_trace_bounds_unfinished_end(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet {
+            timestamp: 1000
+            trusted_packet_sequence_id: 1
+            track_event {
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 1
+              name: "foo"
+            }
+          }
+          packet {
+            timestamp: 2000
+            trusted_packet_sequence_id: 1
+            track_event {
+              type: TYPE_SLICE_END
+              track_uuid: 1
+              name: "foo"
+            }
+          }
+          packet {
+            timestamp: 3000
+            trusted_packet_sequence_id: 1
+            track_event {
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 1
+              name: "foo"
+            }
+          }
+        """),
+        query="""
+        SELECT * FROM trace_bounds;
+        """,
+        out=Csv("""
+        "start_ts","end_ts"
+        1000,3000
         """))

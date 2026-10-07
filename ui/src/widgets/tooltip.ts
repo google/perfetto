@@ -13,47 +13,52 @@
 // limitations under the License.
 
 import './tooltip.scss';
-import {createPopper, type Instance, type OptionsGeneric} from '@popperjs/core';
+import {
+  createPopper,
+  type Modifier,
+  type Instance,
+  type OptionsGeneric,
+} from '@popperjs/core';
 import m from 'mithril';
 import {type MountOptions, Portal, type PortalAttrs} from './portal';
 import {classNames} from '../base/classnames';
 import {findRef, toHTMLElement} from '../base/dom_utils';
-import {assertExists} from '../base/assert';
+import {ensureExists} from '../base/assert';
 import {PopupPosition} from './popup';
 import type {ExtendedModifiers} from './popper_utils';
 
 export interface TooltipAttrs {
   // Which side of the trigger to place to tooltip.
   // Defaults to "Auto"
-  position?: PopupPosition;
+  readonly position?: PopupPosition;
   // The element used to open and close the tooltip, and to which the tooltip
   // will be anchored. Beware this element will have its `onmouseenter`,
   // `onmouseleave`, `ref` attributes overwritten.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  trigger: m.Vnode<any, any>;
+  readonly trigger: m.Vnode<any, any>;
   // Space delimited class names applied to the tooltip div.
-  className?: string;
+  readonly className?: string;
   // Whether to show a little arrow pointing to our trigger element.
   // Defaults to true.
-  showArrow?: boolean;
+  readonly showArrow?: boolean;
   // Called when the tooltip mounts, passing the tooltip's dom element.
-  onTooltipMount?: (dom: HTMLElement) => void;
+  readonly onTooltipMount?: (dom: HTMLElement) => void;
   // Called when the tooltip unmounts, padding the tooltip's dom element.
-  onTooltipUnMount?: (dom: HTMLElement) => void;
+  readonly onTooltipUnMount?: (dom: HTMLElement) => void;
   // Distance in px between the tooltip and its trigger. Default = 0.
-  offset?: number;
+  readonly offset?: number;
   // Cross-axial tooltip offset in px. Defaults to 0.
   // When position is *-end or *-start, this setting specifies where start and
   // end is as an offset from the edge of the tooltip.
   // Positive values move the positioning away from the edge towards the center
   // of the tooltip.
   // If position is not *-end or *-start, this setting has no effect.
-  edgeOffset?: number;
+  readonly edgeOffset?: number;
   // If true, the tooltip will not have a maximum width and will instead fit its
   // content. This is useful for tooltips that have a lot of buttons or other
   // content that should not be constrained by a maximum width.
   // Defaults to false.
-  fitContent?: boolean;
+  readonly fitContent?: boolean;
 }
 
 // A tooltip is a portal whose position is dynamically updated so that it floats
@@ -128,7 +133,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
       },
       onContentMount: (dom: HTMLElement) => {
         const popupElement = toHTMLElement(
-          assertExists(findRef(dom, Tooltip.TOOLTIP_REF)),
+          ensureExists(findRef(dom, Tooltip.TOOLTIP_REF)),
         );
         this.tooltipElement = popupElement;
         this.createOrUpdatePopper(attrs);
@@ -163,7 +168,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
   }
 
   oncreate({dom}: m.VnodeDOM<TooltipAttrs, this>) {
-    this.triggerElement = assertExists(findRef(dom, Tooltip.TRIGGER_REF));
+    this.triggerElement = ensureExists(findRef(dom, Tooltip.TRIGGER_REF));
   }
 
   onupdate({attrs}: m.VnodeDOM<TooltipAttrs, this>) {
@@ -181,6 +186,48 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
       offset = 0,
       edgeOffset = 0,
     } = attrs;
+
+    // Custom modifier to hide popup when trigger is not visible. This can be
+    // due to the trigger or one of its ancestors having display:none.
+    const hideOnInvisible: Modifier<'hideOnInvisible', {}> = {
+      name: 'hideOnInvisible',
+      enabled: true,
+      phase: 'main',
+      fn({state}) {
+        const reference = state.elements.reference;
+        if (!(reference instanceof HTMLElement)) {
+          return;
+        }
+
+        // Check if checkVisibility is supported
+        if (typeof reference.checkVisibility === 'function') {
+          const isVisible = reference.checkVisibility();
+
+          if (!isVisible) {
+            // Hide the popper by setting display to none
+            state.elements.popper.style.display = 'none';
+          } else {
+            // Show the popper
+            state.elements.popper.style.display = '';
+          }
+        } else {
+          // Fallback for browsers that don't support checkVisibility()
+          // Use intersection observer or other visibility checks
+          const rect = reference.getBoundingClientRect();
+          const isVisible =
+            rect.top >= 0 &&
+            rect.left >= 0 &&
+            rect.bottom <=
+              (window.innerHeight || document.documentElement.clientHeight) &&
+            rect.right <=
+              (window.innerWidth || document.documentElement.clientWidth) &&
+            window.getComputedStyle(reference).visibility !== 'hidden' &&
+            window.getComputedStyle(reference).display !== 'none';
+
+          state.elements.popper.style.display = isVisible ? '' : 'none';
+        }
+      },
+    };
 
     const options: Partial<OptionsGeneric<ExtendedModifiers>> = {
       placement: position,
@@ -201,6 +248,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
         },
         {name: 'preventOverflow', options: {padding: 8}},
         {name: 'arrow', options: {padding: 2}},
+        hideOnInvisible,
       ],
     };
 

@@ -28,10 +28,8 @@ perfetto_unittest_source_set("test_support") {
     "../../../protos/perfetto/common:cpp",
     "../../../protos/perfetto/protovm:cpp",
     "../../../protos/perfetto/trace:cpp",
-    "../../../protos/perfetto/trace:lite",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/ftrace:cpp",
-    "../../../protos/perfetto/trace/track_event:lite",
     "../../base",
     "../../base:test_support",
     "../core",
@@ -71,12 +69,17 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "..:client_api_without_backends",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
+      "../../../include/perfetto/ext/ipc",
+      "../../../protos/perfetto/ipc:cpp",
       "../../base",
       "../../base:test_support",
+      "../ipc:common",
       "../ipc/consumer",
       "../ipc/producer",
       "../ipc/service",
       "../service",
+      "../v2",
+      "../v2:test_support",
     ]
     sources = [ "tracing_integration_test.cc" ]
 

@@ -104,6 +104,7 @@ source_set("filter_util") {
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
+    "../../../protos/perfetto/common:passthrough_lite",
     "../../../protos/perfetto/common:semantic_type_zero",
     "../../../protos/perfetto/proto_filtering:lite",
     "../../base",
@@ -113,7 +114,10 @@ source_set("filter_util") {
 perfetto_proto_library("filter_util_test_messages_@TYPE@") {
   testonly = true
   sources = [ "filter_util_test_messages.proto" ]
-  deps = [ "../../../protos/perfetto/proto_filtering:@TYPE@" ]
+  deps = [
+    "../../../protos/perfetto/common:passthrough_@TYPE@",
+    "../../../protos/perfetto/proto_filtering:@TYPE@",
+  ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
   proto_generators = []
   generate_descriptor = "filter_util_test_messages.descriptor"

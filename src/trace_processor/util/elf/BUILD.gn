@@ -17,7 +17,7 @@ import("../../../../gn/perfetto.gni")
 source_set("elf") {
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/base:base",
+    "../../../../include/perfetto/base",
     "../../../../include/perfetto/ext/base",
   ]
   sources = [

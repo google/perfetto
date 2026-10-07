@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 611> descriptors{{
+std::array<FtraceMessageDescriptor, 618> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3821,12 +3821,27 @@ std::array<FtraceMessageDescriptor, 611> descriptors{{
     },
     {
         "sde_sde_evtlog",
-        3,
+        18,
         {
             {},
             {"evtlog_tag", ProtoSchemaType::kString},
             {"pid", ProtoSchemaType::kInt32},
             {"tag_id", ProtoSchemaType::kUint32},
+            {"d00", ProtoSchemaType::kUint32},
+            {"d01", ProtoSchemaType::kUint32},
+            {"d02", ProtoSchemaType::kUint32},
+            {"d03", ProtoSchemaType::kUint32},
+            {"d04", ProtoSchemaType::kUint32},
+            {"d05", ProtoSchemaType::kUint32},
+            {"d06", ProtoSchemaType::kUint32},
+            {"d07", ProtoSchemaType::kUint32},
+            {"d08", ProtoSchemaType::kUint32},
+            {"d09", ProtoSchemaType::kUint32},
+            {"d10", ProtoSchemaType::kUint32},
+            {"d11", ProtoSchemaType::kUint32},
+            {"d12", ProtoSchemaType::kUint32},
+            {"d13", ProtoSchemaType::kUint32},
+            {"d14", ProtoSchemaType::kUint32},
         },
     },
     {
@@ -5986,7 +6001,7 @@ std::array<FtraceMessageDescriptor, 611> descriptors{{
     },
     {
         "sched_wakeup_task_attr",
-        5,
+        9,
         {
             {},
             {"pid", ProtoSchemaType::kInt32},
@@ -5994,6 +6009,10 @@ std::array<FtraceMessageDescriptor, 611> descriptors{{
             {"task_util", ProtoSchemaType::kUint64},
             {"uclamp_min", ProtoSchemaType::kUint64},
             {"vruntime", ProtoSchemaType::kUint64},
+            {"sched_qos_user_defined_flag", ProtoSchemaType::kUint64},
+            {"rampup_multiplier", ProtoSchemaType::kUint32},
+            {"effect_rampup_multiplier", ProtoSchemaType::kUint32},
+            {"tag_nice", ProtoSchemaType::kInt32},
         },
     },
     {
@@ -6802,6 +6821,85 @@ std::array<FtraceMessageDescriptor, 611> descriptors{{
             {"output_id", ProtoSchemaType::kUint32},
             {"frames_pending", ProtoSchemaType::kInt32},
             {"te_count", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "panel_settings_full",
+        10,
+        {
+            {},
+            {"panel_index", ProtoSchemaType::kInt32},
+            {"hbm", ProtoSchemaType::kUint32},
+            {"irc", ProtoSchemaType::kUint32},
+            {"h_pwm", ProtoSchemaType::kUint32},
+            {"fi_auto", ProtoSchemaType::kUint32},
+            {"fi_manual", ProtoSchemaType::kUint32},
+            {"early_exit", ProtoSchemaType::kUint32},
+            {"min_rr", ProtoSchemaType::kUint32},
+            {"max_rr", ProtoSchemaType::kUint32},
+            {"te_freq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "panel_settings_lite",
+        5,
+        {
+            {},
+            {"panel_index", ProtoSchemaType::kInt32},
+            {"vrr", ProtoSchemaType::kUint32},
+            {"min_rr", ProtoSchemaType::kUint32},
+            {"max_rr", ProtoSchemaType::kUint32},
+            {"te_freq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "dpu_disp_dpu_line_underrun",
+        3,
+        {
+            {},
+            {"id", ProtoSchemaType::kInt32},
+            {"frames_pending", ProtoSchemaType::kInt32},
+            {"vsync_count", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "psci_domain_idle_exit",
+        3,
+        {
+            {},
+            {"cpu_id", ProtoSchemaType::kUint32},
+            {"state", ProtoSchemaType::kUint32},
+            {"s2idle", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "psci_domain_idle_enter",
+        3,
+        {
+            {},
+            {"cpu_id", ProtoSchemaType::kUint32},
+            {"state", ProtoSchemaType::kUint32},
+            {"s2idle", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "long_irq",
+        3,
+        {
+            {},
+            {"irq", ProtoSchemaType::kInt32},
+            {"latency", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "long_softirq",
+        3,
+        {
+            {},
+            {"vec_nr", ProtoSchemaType::kInt32},
+            {"latency", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
         },
     },
 }};

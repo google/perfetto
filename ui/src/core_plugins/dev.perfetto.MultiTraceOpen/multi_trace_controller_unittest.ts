@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import type {Mock} from 'vitest';
-import {assertExists} from '../../base/assert';
+import {ensureExists} from '../../base/assert';
 import {MultiTraceController} from './multi_trace_controller';
 import type {
+  FileAnalysis,
   TraceFileAnalyzed,
   TraceFileAnalyzing,
   TraceFileError,
 } from './multi_trace_types';
-import type {TraceAnalysisResult, TraceAnalyzer} from './trace_analyzer';
+import type {AlignmentVerdict, TraceAnalyzer} from './trace_analyzer';
 
 // Helper to create a mock TraceFileAnalyzed object for tests
 function createMockAnalyzedTrace(
@@ -31,7 +32,7 @@ function createMockAnalyzedTrace(
     uuid,
     file: new File([], `${uuid}.pftrace`),
     status: 'analyzed',
-    format,
+    analysis: {format},
   };
 }
 
@@ -60,10 +61,10 @@ function createMockErrorTrace(uuid: string, error: string): TraceFileError {
 
 // A fake TraceAnalyzer for testing purposes.
 class FakeTraceAnalyzer implements TraceAnalyzer {
-  private results = new Map<string, TraceAnalysisResult>();
+  private results = new Map<string, FileAnalysis>();
   private errors = new Map<string, Error>();
 
-  setResult(fileName: string, result: TraceAnalysisResult) {
+  setResult(fileName: string, result: FileAnalysis) {
     this.results.set(fileName, result);
   }
 
@@ -74,19 +75,25 @@ class FakeTraceAnalyzer implements TraceAnalyzer {
   async analyze(
     file: File,
     onProgress: (progress: number) => void,
-  ): Promise<TraceAnalysisResult> {
+  ): Promise<FileAnalysis> {
     // Simulate progress
     onProgress(0.5);
     onProgress(1.0);
 
     if (this.errors.has(file.name)) {
-      throw new Error(assertExists(this.errors.get(file.name)?.message));
+      throw new Error(ensureExists(this.errors.get(file.name)?.message));
     }
     const result = this.results.get(file.name);
     if (result) {
       return result;
     }
     throw new Error(`No mock result set for ${file.name}`);
+  }
+
+  async analyzeMergedAlignment(
+    _files: ReadonlyArray<File>,
+  ): Promise<AlignmentVerdict> {
+    return {ok: true, droppedEvents: 0};
   }
 }
 
@@ -263,7 +270,7 @@ describe('MultiTraceController', () => {
 
       expect(controller.traces[0].status).toBe('analyzed');
       if (controller.traces[0].status === 'analyzed') {
-        expect(controller.traces[0].format).toBe('Perfetto');
+        expect(controller.traces[0].analysis.format).toBe('Perfetto');
       }
     });
 
@@ -284,6 +291,103 @@ describe('MultiTraceController', () => {
       if (controller.traces[0].status === 'error') {
         expect(controller.traces[0].error).toBe('Test analysis error');
       }
+    });
+  });
+
+  describe('manifest serialization', () => {
+    // A single-machine, single-clock (BOOTTIME) analyzed trace.
+    function analyzed(uuid: string, name: string): TraceFileAnalyzed {
+      return {
+        uuid,
+        file: new File([], name),
+        status: 'analyzed',
+        analysis: {
+          format: 'Perfetto',
+          singleClock: true,
+          singleMachine: true,
+          builtinClockIds: [6],
+        },
+      };
+    }
+
+    function manifest(): {files?: Array<Record<string, unknown>>} {
+      return JSON.parse(controller.getManifestJson()).perfetto_manifest;
+    }
+
+    beforeEach(() => {
+      controller.setTracesForTesting([
+        analyzed('u1', 'a.pftrace'),
+        analyzed('u2', 'b.pftrace'),
+      ]);
+    });
+
+    it('is trivial until a file carries config', () => {
+      expect(controller.hasManifestConfig()).toBe(false);
+      expect(manifest().files).toBeUndefined();
+    });
+
+    it('manual mode emits nothing until an offset is set', () => {
+      controller.updateConfig('u2', {alignMode: 'manual'});
+      expect(controller.hasManifestConfig()).toBe(false);
+    });
+
+    it('serializes a manual offset against the baseline clock', () => {
+      controller.updateConfig('u2', {alignMode: 'manual', offsetText: '500'});
+      const entry = manifest().files?.find((f) => f.path === 'b.pftrace');
+      // b's own BOOTTIME relates to a's BOOTTIME at +500ns.
+      expect(entry?.clocks).toEqual({
+        clock: 'BOOTTIME',
+        sync_to: {file: 'a.pftrace', clock: 'BOOTTIME'},
+        offset_ns: 500,
+      });
+    });
+
+    it('ignores a non-integer offset (free-text not yet valid)', () => {
+      controller.updateConfig('u2', {alignMode: 'manual', offsetText: '-'});
+      expect(controller.hasManifestConfig()).toBe(false);
+    });
+
+    it('flags an offset that shares a machine with the baseline', () => {
+      controller.updateConfig('u2', {alignMode: 'manual', offsetText: '500'});
+      // Both on the default machine: relating BOOTTIME to itself is rejected.
+      expect(controller.configError()).toContain('its own machine');
+
+      // Put u2 on its own machine: the offset is now valid.
+      const id = controller.addMachine();
+      controller.renameMachine(id, 'phone');
+      controller.updateConfig('u2', {machineId: id});
+      expect(controller.configError()).toBeUndefined();
+    });
+
+    it('assigns a file to a named machine', () => {
+      const id = controller.addMachine();
+      controller.renameMachine(id, 'phone');
+      controller.updateConfig('u2', {machineId: id});
+      const entry = manifest().files?.find((f) => f.path === 'b.pftrace');
+      expect(entry?.machine).toEqual({name: 'phone'});
+    });
+
+    it('emits machines[] only once every embedded id is named', () => {
+      controller.updateConfig('u1', {
+        machines: [
+          {id: 0, name: ''},
+          {id: 1, name: 'server'},
+        ],
+      });
+      // One id still blank: the importer rejects a partial remap, so emit none.
+      expect(controller.hasManifestConfig()).toBe(false);
+
+      controller.updateConfig('u1', {
+        machines: [
+          {id: 0, name: 'host'},
+          {id: 1, name: 'server'},
+        ],
+      });
+      const entry = manifest().files?.find((f) => f.path === 'a.pftrace');
+      expect(entry?.machines).toEqual([
+        {id: 0, name: 'host'},
+        {id: 1, name: 'server'},
+      ]);
     });
   });
 });

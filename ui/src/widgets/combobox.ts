@@ -16,7 +16,7 @@ import './combobox.scss';
 import m from 'mithril';
 import {Popup, PopupPosition} from './popup';
 import {TextInput} from './text_input';
-import {FuzzyFinder, type FuzzySegment} from '../base/fuzzy';
+import {fuzzySearch, type FuzzySegment} from '../base/fuzzy';
 import {classNames} from '../base/classnames';
 import {HotkeyGlyphs, Keycap} from './hotkey_glyphs';
 import {Menu, MenuDivider, MenuItem} from './menu';
@@ -257,7 +257,7 @@ function SuggestionItem(): m.Component<SuggestionItemAttrs> {
   };
 }
 
-function formatSegments(segments: FuzzySegment[]): m.Children {
+function formatSegments(segments: readonly FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('b', value) : value,
   );
@@ -292,8 +292,7 @@ function buildFilteredItems(
     const normalize = (s: ComboboxSuggestion | string) =>
       typeof s === 'string' ? {value: s} : s;
     const norm = suggestions.map(normalize);
-    const fuzzy = new FuzzyFinder(norm, (s) => s.value);
-    return fuzzy.find(value).map(({item, segments}) => ({
+    return fuzzySearch(norm, (s) => s.value, value).map(({item, segments}) => ({
       value: item.value,
       content: formatSegments(segments),
       icon: item.icon,

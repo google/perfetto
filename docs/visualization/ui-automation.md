@@ -71,7 +71,7 @@ command:
   {
     "id": "dev.perfetto.AddDebugSliceTrack",
     "args": [
-      "SELECT ts, dur FROM android_screen_state WHERE simple_screen_state = 'on'",
+      "SELECT ts, dur, simple_screen_state AS name FROM android_screen_state WHERE simple_screen_state = 'on'",
       "Screen On Events"
     ]
   }
@@ -81,7 +81,7 @@ command:
 Debug tracks visualize SQL query results on the timeline. The query must return:
 
 - `ts` (timestamp)
-- For slice tracks: `dur` (duration)
+- For slice tracks: `dur` (duration) and `name` (slice label)
 - For counter tracks: `value` (the metric value)
 - Optional pivot column — results are grouped by unique values, each in its own
   track.
@@ -177,7 +177,7 @@ This macro creates a workspace to isolate memory-related tracks:
       {
         "id": "dev.perfetto.AddDebugCounterTrackWithPivot",
         "args": [
-          "SELECT ts, process.name as process, value FROM counter JOIN process_counter_track ON counter.track_id = process_counter_track.id JOIN process USING (upid) WHERE counter.name = 'mem.rss' AND value > 50000000",
+          "SELECT ts, process.name as process, value FROM counter JOIN process_counter_track ON counter.track_id = process_counter_track.id JOIN process USING (upid) WHERE process_counter_track.name = 'mem.rss' AND value > 50000000",
           "process",
           "High Memory Processes (>50MB)"
         ]
@@ -229,7 +229,7 @@ When recording traces, specify startup commands that run when the trace opens:
   --app com.example.app \
   --ui-startup-commands '[
     {"id":"dev.perfetto.PinTracksByRegex","args":[".*CPU.*"]},
-    {"id":"dev.perfetto.AddDebugSliceTrackWithPivot","args":["SELECT ts, thread.name, dur FROM thread_state JOIN thread USING(utid) WHERE state = \"R\"","thread","Runnable Time"]}
+    {"id":"dev.perfetto.AddDebugSliceTrackWithPivot","args":["SELECT ts, thread.name, dur FROM thread_state JOIN thread USING(utid) WHERE state = \"R\"","name","Runnable Time"]}
   ]'
 ```
 
@@ -253,7 +253,7 @@ When recording traces, specify startup commands that run when the trace opens:
    - Match beginning/end: `^` and `$`
 
 6. **Debug tracks need good queries.** Ensure SQL returns `ts` and either `dur`
-   (for slices) or `value` (for counters). For Android use cases, see
+   and `name` (for slices) or `value` (for counters). For Android use cases, see
    [Android Trace Analysis Cookbook](/docs/getting-started/android-trace-analysis.md).
 
 ## Sharing with your team

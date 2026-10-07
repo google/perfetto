@@ -64,7 +64,9 @@ class SqliteConnection {
     bool IsDone() const;
 
     const char* original_sql() const;
-    const char* sql() const;
+
+    // Computed and cached on first call.
+    const char* sql();
 
     const base::Status& status() const { return status_; }
     sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }

@@ -53,12 +53,14 @@ using HeapprofdConfig = protos::gen::HeapprofdConfig;
 
 struct Process {
   pid_t pid;
+  // Normalized cmdline (see process_cmdline in heapprofd_config.proto). Matched
+  // verbatim against CmdlinePatterns::exact_patterns.
   std::string cmdline;
+  // Full cmdline (capped to 511 chars). Used for glob matching against
+  // CmdlinePatterns::glob_patterns.
+  std::string raw_cmdline;
 };
 
-// TODO(rsavitski): central daemon can do less work if it knows that the global
-// operating mode is fork-based, as it then will not be interacting with the
-// clients. This can be implemented as an additional mode here.
 enum class HeapprofdMode { kCentral, kChild };
 
 bool HeapprofdConfigToClientConfiguration(
@@ -181,9 +183,14 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
       std::string heap_name;
       uint64_t sampling_interval = 0u;
       uint64_t orig_sampling_interval = 0u;
+      // End of the previous dump for this heap, used as the start of the next
+      // dump's window. 0 before the first dump (process start is used instead).
+      uint64_t last_window_end = 0u;
     };
     ProcessState(GlobalCallstackTrie* c, bool d)
         : callsites(c), dump_at_max_mode(d) {}
+    // Start of the first dump's window (MONOTONIC_COARSE).
+    uint64_t profiling_start_timestamp = 0;
     bool disconnected = false;
     SharedRingBuffer::ErrorState error_state =
         SharedRingBuffer::ErrorState::kNoError;
@@ -231,7 +238,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::set<pid_t> signaled_pids;
     std::set<pid_t> rejected_pids;
     std::map<pid_t, ProcessState> process_states;
-    std::vector<std::string> normalized_cmdlines;
+    CmdlinePatterns cmdline_patterns;
     InterningOutputTracker intern_state;
     bool shutting_down = false;
     bool started = false;
@@ -321,7 +328,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   std::map<DataSourceInstanceID, DataSource> data_sources_;
 
   // Specific to mode_ == kChild
-  Process target_process_{base::kInvalidPid, ""};
+  Process target_process_{base::kInvalidPid, /*cmdline=*/"",
+                          /*raw_cmdline=*/""};
   std::optional<std::function<void()>> data_source_callback_;
 
   SocketDelegate socket_delegate_;

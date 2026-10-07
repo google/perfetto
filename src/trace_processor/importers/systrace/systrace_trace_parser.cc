@@ -33,8 +33,8 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/common/builtin_trace_importers.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -187,10 +187,13 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
         SystraceLine line;
         base::Status status = line_tokenizer_.Tokenize(buffer, &line);
         if (status.ok()) {
-          auto trace_ts = ctx_->clock_tracker->ToTraceTime(
-              ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
-              line.ts);
+          auto trace_ts =
+              ctx_->clock_tracker->ConvertDefaultClockToTraceTime(line.ts);
           if (trace_ts) {
+            // The converted timestamp is both the sorting key and the value
+            // the parser stage reads: SystraceLineParser populates tables
+            // from line.ts, so the conversion must be written back.
+            line.ts = *trace_ts;
             stream_->Push(*trace_ts, std::move(line));
           }
         } else {
@@ -230,8 +233,7 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
               ctx_->process_tracker->GetOrCreateProcess(ppid.value());
           UniquePid upid =
               ctx_->process_tracker->GetOrCreateProcess(pid.value());
-          upid =
-              ctx_->process_tracker->UpdateProcessWithParent(upid, pupid, true);
+          ctx_->process_tracker->SetProcessParent(upid, pupid);
           ctx_->process_tracker->SetProcessMetadata(upid, name,
                                                     base::StringView());
         } else if (state_ == ParseState::kProcessDumpShort &&
@@ -273,6 +275,56 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
     partial_buf_.erase(partial_buf_.begin(), start_it);
   }
   return base::OkStatus();
+}
+
+namespace {
+
+// Systrace / atrace text format. Runs after ctrace so a compressed atrace
+// ("TRACE:\n\x78\x9c") is claimed by ctrace before the bare "TRACE:\n" check.
+class SystraceImporter : public TraceImporter<SystraceImporter> {
+ public:
+  SystraceImporter() : TraceImporter(MakeDescriptor()) {}
+  ~SystraceImporter() override;
+
+  bool Sniff(const uint8_t* data, size_t size) const override {
+    std::string start(reinterpret_cast<const char*>(data),
+                      std::min<size_t>(size, kGuessTraceMaxLookahead));
+    if (base::Contains(start, "# tracer")) {
+      return true;
+    }
+    std::string lower = base::ToLower(start);
+    if (base::StartsWith(lower, "<!doctype html>") ||
+        base::StartsWith(lower, "<html>")) {
+      return true;
+    }
+    return base::Contains(start, "TRACE:\n") ||
+           base::StartsWith(start, "cpus=") || base::StartsWith(start, " ");
+  }
+
+  base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateReader(
+      TraceProcessorContext* context,
+      uint32_t) const override {
+    return std::unique_ptr<ChunkedTraceReader>(
+        std::make_unique<SystraceTraceParser>(context));
+  }
+
+ private:
+  static TraceTypeDescriptor MakeDescriptor() {
+    TraceTypeDescriptor d;
+    d.name = "systrace";
+    d.clock_policy = TraceClockPolicy::kMonotonic;
+    d.pid_zero_is_idle = true;
+    d.detection_priority = 200;
+    return d;
+  }
+};
+
+SystraceImporter::~SystraceImporter() = default;
+
+}  // namespace
+
+std::unique_ptr<TraceImporterBase> CreateSystraceImporter() {
+  return std::make_unique<SystraceImporter>();
 }
 
 }  // namespace perfetto::trace_processor

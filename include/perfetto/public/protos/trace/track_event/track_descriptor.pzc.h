@@ -29,6 +29,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeThreadDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StateDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ThreadDescriptor);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, ChildTracksOrdering){
@@ -51,6 +52,20 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, SiblingMergeBehavior){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
                                   SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY) =
         3,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, ProcessOrdering){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  PROCESS_ORDERING_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  PROCESS_ORDERING_EXPLICIT) = 1,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, ThreadOrdering){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  THREAD_ORDERING_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  THREAD_ORDERING_EXPLICIT) = 1,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_TrackDescriptor);
@@ -106,6 +121,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   counter,
                   8);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  MSG,
+                  perfetto_protos_StateDescriptor,
+                  state,
+                  18);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   VARINT,
                   bool,
                   disallow_merging_with_system_tracks,
@@ -135,5 +155,15 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   uint64_t,
                   sibling_merge_key_int,
                   17);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  VARINT,
+                  enum perfetto_protos_TrackDescriptor_ProcessOrdering,
+                  process_ordering,
+                  19);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  VARINT,
+                  enum perfetto_protos_TrackDescriptor_ThreadOrdering,
+                  thread_ordering,
+                  20);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACK_EVENT_TRACK_DESCRIPTOR_PZC_H_

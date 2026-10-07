@@ -13,12 +13,12 @@
 # limitations under the License.
 
 load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 cc_library(
     name = "zlib",
     srcs = [
         "adler32.c",
-        "chromeconf.h",
         "compress.c",
         "contrib/optimizations/insert_string.h",
         "cpu_features.c",
@@ -51,13 +51,14 @@ cc_library(
         "zlib.h",
     ],
     copts = select({
-      "@perfetto//bazel:os_windows": ["-DX86_WINDOWS"],
-      "//conditions:default": [],
+        "@perfetto//bazel:os_windows": ["-DX86_WINDOWS"],
+        "//conditions:default": [],
     }) + [
         "-Wno-unused-function",
-        "-DZLIB_IMPLEMENTATION",
-        "-DCHROMIUM_ZLIB_NO_CHROMECONF",
     ] + PERFETTO_CONFIG.deps_copts.zlib,
-    includes = ["zlib"],
+    defines = [
+        "CHROMIUM_ZLIB_NO_CHROMECONF",
+    ],
+    includes = ["."],
     visibility = ["//visibility:public"],
 )

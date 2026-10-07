@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE std.thread.with_context;
+
 -- View of scheduling slices with extended information.
 -- It holds slices with kernel thread scheduling information. These slices are
 -- collected when the Linux "ftrace" data source is used with the
@@ -56,11 +58,16 @@ SELECT
   sched.dur,
   utid,
   upid,
-  thread.name AS thread_name,
-  process.name AS process_name,
+  _thread_with_process.thread_name,
+  _thread_with_process.process_name,
   sched.cpu,
   sched.end_state,
   sched.priority
-FROM sched
-JOIN thread USING (utid)
-LEFT JOIN process USING (upid);
+-- Join order matters. The thread/process context is pre-joined in
+-- `_thread_with_process` so that all joins here are INNER (the `thread LEFT JOIN
+-- process` is materialized in that table): SQLite will not reorder a virtual
+-- table across a LEFT JOIN, which would stop the planner from driving an
+-- id-keyed join into this view off `sched.id`. Dimensions first, the large fact
+-- table (sched) last, so the planner can drive from whichever side is filtered.
+FROM _thread_with_process
+JOIN sched USING (utid);

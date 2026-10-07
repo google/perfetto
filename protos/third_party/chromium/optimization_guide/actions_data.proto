@@ -53,6 +53,12 @@ message ClickAction {
 
     // Right mouse click.
     RIGHT = 2;
+
+    // Automatically set by the server-side tool bridge when the model selects
+    // a standard LEFT click on a target that is occluded by an eligible panel.
+    // Only supported for target-by-ID clicks; coordinate-based clicks cannot
+    // be upgraded.
+    LEFT_ON_OCCLUDED_TARGET = 3;
   }
 
   // Represents the number of times the target was clicked, for now only
@@ -292,14 +298,11 @@ message AttemptLoginAction {
 // This FormFillingRequest in development and future changes are possible once
 // the model constraings/performance are understood.
 //
-// Next ID: 3
+// Next ID: 4
 message FormFillingRequest {
   // Specifies a field that is part of the form. Autofill will be triggered from
   // this field, but will fill other fields of the same autofill section with
   // the available data.
-  //
-  // TODO(crbug.com/452946211): This field is repeated to be able to support a form that
-  // is spread over multiple autofill sections.
   repeated ActionTarget trigger_fields = 1;
 
   // Specifies which data is requested. The requested data type will be
@@ -307,9 +310,14 @@ message FormFillingRequest {
   // "shipping address").
   RequestedData requested_data = 2 [features = { field_presence: EXPLICIT }];
 
+  // Specifies the section label that this form is part of. The section will be
+  // presented in the UI over the form selector in the UI to the user (e.g.
+  // "Emergency Contact Info" above an email-and-phone selector.)
+  string section_label = 3 [features = { field_presence: EXPLICIT }];
+
   // Enumerates the purposes for forms. Note that although the type of data
   // (address or credit card) is encoded that autofill already detects the type,
-  // but does not detect the purpose (e.g. shipping v.s. billing address)
+  // but does not detect the purpose (e.g. shipping vs. billing address)
   // provide here.
   enum RequestedData {
     // The requested data is not specified.
@@ -355,7 +363,7 @@ message AttemptFormFillingAction {
 
 // Attempts to fill One-Time Password (OTP) /verification codes in the tab. This
 // action is used for OTP filling, which is different from the general form
-// filling action above. Next ID: 4
+// filling action above. Next ID: 5
 message AttemptOtpFillingAction {
   // The tab ID in which to attempt OTP filling.
   int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
@@ -368,6 +376,47 @@ message AttemptOtpFillingAction {
   // filling the OTP/verification code. A dialog is shown only when
   // `for_signin` is false.
   bool for_signin = 3 [features = { field_presence: EXPLICIT }];
+
+  // The type of the OTP.
+  OtpType predicted_otp_type = 4 [features = { field_presence: EXPLICIT }];
+
+  enum OtpType {
+    OTP_TYPE_UNSPECIFIED = 0;
+
+    OTP_TYPE_SMS = 1;
+
+    OTP_TYPE_EMAIL = 2;
+
+    OTP_TYPE_AUTHENTICATOR_APP = 3;
+  }
+}
+
+// Special change password action. Fills in the old password
+// and generates a new password on a change password page.
+// It also updates the stored passwords.
+//
+// This is NOT SAFE to use and should never be exposed to the user
+// through the chat panel. Instead, the underlying tool should only be used
+// in the specialized Automated Password Change flow.
+//
+// This action is only here to allow testing from the chat panel.
+// Next ID: 6
+message ChangePasswordAction {
+  // The tab ID in which to perform password change.
+  int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
+
+  // The input field for the current password, if present.
+  ActionTarget current_password_field = 2 [features = { field_presence: EXPLICIT }];
+
+  // The input field for the new password, if present.
+  ActionTarget new_password_field = 3 [features = { field_presence: EXPLICIT }];
+
+  // The input field to confirm the new password, if present.
+  ActionTarget confirm_new_password_field = 4 [features = { field_presence: EXPLICIT }];
+
+  // The button, if present, which will confirm the password change or proceed
+  // in a multi-step form.
+  ActionTarget confirm_button = 5 [features = { field_presence: EXPLICIT }];
 }
 
 // Scrolls the DOM element into viewport.
@@ -441,9 +490,55 @@ message LoadAndExtractContentAction {
   repeated string urls = 1;
 }
 
+// Translates the page in a tab.
+// Note: This action is not currently used by Gemini in Chrome (GiC).
+// Next ID: 3
+message TranslatePageAction {
+  // The BCP-47 language tag of the language to translate to. If empty or
+  // not set, the default translation target language is used.
+  string target_language = 1 [features = { field_presence: EXPLICIT }];
+
+  // The id of the tab to translate.
+  int32 tab_id = 2 [features = { field_presence: EXPLICIT }];
+}
+
+// Clicks a file upload target and attaches the specified files.
+// Next ID: 4
+message ClickToUploadAction {
+  // The file input element, or the control that opens the file chooser.
+  ActionTarget target = 1 [features = { field_presence: EXPLICIT }];
+
+  // Files to attach.
+  repeated File files = 2;
+
+  // The id of the tab containing the target.
+  int32 tab_id = 3 [features = { field_presence: EXPLICIT }];
+
+  // A file to attach.
+  // Next ID: 4
+  message File {
+    // Opaque server-assigned identifier for the file (e.g. "file_1"), used for
+    // logging and tracing.
+    string file_alias = 1 [features = { field_presence: EXPLICIT }];
+
+    // URL from which the client fetches the file contents.
+    // Access control: It only encodes the file's storage identifier, which is
+    // keyed to the uploading user's Gaia. The storage backend (ContribService)
+    // enforces the file's ACL against the fetching request's EUC. The client
+    // must fetch this URL with the end user's credentials (EUC/cookies): an
+    // anonymous fetch, or one by a Gaia other than the file's owner is denied.
+    string download_url = 2 [features = { field_presence: EXPLICIT }];
+
+    // The original name of the file as uploaded by the user (e.g.
+    // "resume.pdf"), for display in the client UI (e.g. the upload chip or
+    // file list). Not used to identify or fetch the file.
+    string file_name = 3 [features = { field_presence: EXPLICIT }];
+  }
+}
+
 // All of the actions that can be taken.
 // Only one of these is allowed per action.
-// Next ID: 25
+// Next ID: 28
 message Action {
 
   oneof action {
@@ -494,6 +589,12 @@ message Action {
     LoadAndExtractContentAction load_and_extract_content = 23;
 
     AttemptOtpFillingAction attempt_otp_filling = 24;
+
+    TranslatePageAction translate_page = 25;
+
+    ClickToUploadAction click_to_upload = 26;
+
+    ChangePasswordAction change_password = 27;
   }
 }
 
@@ -587,7 +688,7 @@ message WindowObservation {
 }
 
 // Information about a chrome tab.
-// Next ID: 9
+// Next ID: 10
 message TabObservation {
   // Unique id
   int32 id = 1 [features = { field_presence: EXPLICIT }];
@@ -619,6 +720,11 @@ message TabObservation {
   AnnotatedPageContentResult annotated_page_content_result = 7 [features = { field_presence: EXPLICIT }];
 
   ScreenshotResult screenshot_result = 8 [features = { field_presence: EXPLICIT }];
+
+  // Metadata about the screenshot.
+  // This field is only populated if skip_async_observation_collection is false
+  // in the Actions message.
+  ScreenshotInfo screenshot_info = 9 [features = { field_presence: EXPLICIT }];
 
   // Result codes of a tab observation as a whole. It may be possible to retry
   // an observation given specific error codes.
@@ -675,7 +781,7 @@ message TabObservation {
 
 // All relevant state in chrome after the actions are taken or an error has
 // occurred.
-// Next ID: 8
+// Next ID: 9
 message ActionsResult {
   // The result of the actions. See
   // https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/actor.mojom
@@ -688,6 +794,13 @@ message ActionsResult {
 
   // A human-readable error message from first failed action, if any.
   string error_message = 7 [features = { field_presence: EXPLICIT }];
+
+  // Human-readable extra information of operations that succeeded. If `n`
+  // actions were sent for actuation, `extra_information` will return for up to
+  // `n` entries. Entry `idx` corresponds to the returned message of action
+  // `idx`. Actions that did not return a message are represented by empty
+  // strings. Error messages are always stored in `error_message`.
+  repeated string extra_information = 8;
 
   // Observations after all actions are finished or an error has occurred. The
   // client will determine the relevant windows and tabs.
@@ -760,9 +873,6 @@ message ActionsResult {
 message BrowserStartTask {
   // The id of the tab the task should be started in. If not set, the task
   // will be started in a new tab.
-  // TODO(crbug.com/421441072): Remove this field. This is only needed in the short term
-  // since we need a mechanism to start tasks in a new tab, and the model has
-  // not yet been trained to use CreateTabAction.
   int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
 }
 

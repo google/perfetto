@@ -72,6 +72,9 @@ bool HasFieldOptions(const FieldDescriptor& field_desc) {
 
 std::string FulllyQualifiedFieldName(const ProtoDescriptor& desc,
                                      const FieldDescriptor& field_desc) {
+  if (field_desc.is_extension()) {
+    return field_desc.extension_full_name();
+  }
   return desc.package_name().substr(1) + "." + field_desc.name();
 }
 

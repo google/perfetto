@@ -27,7 +27,6 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -791,44 +790,31 @@ size_t SysStatsDataSource::ReadFile(base::ScopedFile* fd, const char* path) {
   if (!*fd)
     return 0;
 
-  if constexpr (PERFETTO_FLAGS_SYS_STATS_LARGE_READ) {
-    if (lseek(**fd, 0, SEEK_SET) == static_cast<off_t>(-1)) {
-      PERFETTO_PLOG("Failed lseek %s", path);
-      fd->reset();
-      return 0;
-    }
-
-    char* buf = static_cast<char*>(read_buf_.Get());
-    size_t total_read = 0;
-    ssize_t res = 0;
-    while (total_read < kReadBufSize - 1) {
-      // read() is not guaranteed to return the same number of bytes requested,
-      // so continuously call read() until it returns 0, indicating EOF.
-      size_t remaining_buf_size = kReadBufSize - 1 - total_read;
-      res = PERFETTO_EINTR(read(**fd, buf + total_read, remaining_buf_size));
-      if (res <= 0)
-        break;
-      total_read += static_cast<size_t>(res);
-    }
-    if (total_read == 0 || res < 0) {
-      PERFETTO_PLOG("Failed reading %s after %zu bytes", path, total_read);
-      fd->reset();
-      return 0;
-    }
-    buf[total_read] = '\0';
-    return total_read + 1;  // Include null terminator in the count.
-  }
-
-  // Legacy behavior: single pread.
-  ssize_t res = pread(**fd, read_buf_.Get(), kReadBufSize - 1, 0);
-  if (res <= 0) {
-    PERFETTO_PLOG("Failed reading %s", path);
+  if (lseek(**fd, 0, SEEK_SET) == static_cast<off_t>(-1)) {
+    PERFETTO_PLOG("Failed lseek %s", path);
     fd->reset();
     return 0;
   }
-  size_t rsize = static_cast<size_t>(res);
-  static_cast<char*>(read_buf_.Get())[rsize] = '\0';
-  return rsize + 1;  // Include null terminator in the count.
+
+  char* buf = static_cast<char*>(read_buf_.Get());
+  size_t total_read = 0;
+  ssize_t res = 0;
+  while (total_read < kReadBufSize - 1) {
+    // read() is not guaranteed to return the same number of bytes requested,
+    // so continuously call read() until it returns 0, indicating EOF.
+    size_t remaining_buf_size = kReadBufSize - 1 - total_read;
+    res = PERFETTO_EINTR(read(**fd, buf + total_read, remaining_buf_size));
+    if (res <= 0)
+      break;
+    total_read += static_cast<size_t>(res);
+  }
+  if (total_read == 0 || res < 0) {
+    PERFETTO_PLOG("Failed reading %s after %zu bytes", path, total_read);
+    fd->reset();
+    return 0;
+  }
+  buf[total_read] = '\0';
+  return total_read + 1;  // Include null terminator in the count.
 }
 
 }  // namespace perfetto

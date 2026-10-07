@@ -19,7 +19,8 @@ import sys
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 from python.generators.diff_tests.testing import (BinaryProto, Csv, DataPath,
-                                                  DiffTestBlueprint, Json, Path,
+                                                  DiffTestBlueprint,
+                                                  ExpectedError, Json, Path,
                                                   Systrace, TextProto)
 from python.generators.diff_tests.models import DiscoveredTests, TestCase, TestType
 
@@ -162,6 +163,9 @@ class TestLoader:
       assert expected_path
       with open(expected_path, 'r') as expected_file:
         return expected_file.read()
+    if blueprint.is_out_expected_error():
+      assert isinstance(blueprint.out, ExpectedError)
+      return blueprint.out.contains
     assert isinstance(blueprint.out, (
         TextProto,
         Json,

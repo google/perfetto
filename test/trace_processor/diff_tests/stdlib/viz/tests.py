@@ -78,6 +78,77 @@ class Viz(TestSuite):
         }
         """)
 
+  def test_track_event_summary_groups_are_partitioned_by_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor { uuid: 1 name: "Shared global track" }
+        }
+        packet {
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            name: "same event"
+          }
+        }
+        packet {
+          timestamp: 200
+          trusted_packet_sequence_id: 1
+          track_event { type: TYPE_SLICE_END track_uuid: 1 }
+        }
+        packet {
+          machine_id: 1001
+          remote_clock_sync {
+            synced_clocks {
+              client_clocks { clocks { clock_id: 6 timestamp: 0 } }
+              host_clocks { clocks { clock_id: 6 timestamp: 0 } }
+            }
+          }
+        }
+        packet {
+          machine_id: 1001
+          trusted_packet_sequence_id: 1
+          track_descriptor { uuid: 1 name: "Shared global track" }
+        }
+        packet {
+          machine_id: 1001
+          timestamp: 100
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            name: "same event"
+          }
+        }
+        packet {
+          machine_id: 1001
+          timestamp: 200
+          trusted_packet_sequence_id: 1
+          track_event { type: TYPE_SLICE_END track_uuid: 1 }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+
+        SELECT
+          m.raw_id AS raw_machine_id,
+          g.name,
+          count(*) AS group_count
+        FROM _track_event_tracks_ordered_groups g
+        JOIN machine m ON m.id = g.machine_id
+        WHERE g.name = 'Shared global track'
+        GROUP BY g.machine_id, g.name
+        ORDER BY g.machine_id;
+        """,
+        out=Csv("""
+        "raw_machine_id","name","group_count"
+        0,"Shared global track",1
+        1001,"Shared global track",1
+        """))
+
   explicit_trace = TextProto(r"""
         packet {
           track_descriptor {

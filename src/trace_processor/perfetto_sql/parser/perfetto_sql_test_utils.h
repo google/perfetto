@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan_test_utils.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "test/gtest_and_gmock.h"
@@ -65,7 +66,20 @@ inline bool operator==(const PerfettoSqlParser::CreateFunction& a,
 
 inline bool operator==(const PerfettoSqlParser::CreateTable& a,
                        const PerfettoSqlParser::CreateTable& b) {
-  return std::tie(a.name, a.sql) == std::tie(b.name, b.sql);
+  if (a.name != b.name || a.body.index() != b.body.index())
+    return false;
+  if (const auto* sql = std::get_if<SqlSource>(&a.body)) {
+    return *sql == std::get<SqlSource>(b.body);
+  }
+  return pipeline::LogicalPlanToString(
+             std::get<pipeline::LogicalPlan>(a.body)) ==
+         pipeline::LogicalPlanToString(std::get<pipeline::LogicalPlan>(b.body));
+}
+
+inline bool operator==(const PerfettoSqlParser::Pipeline& a,
+                       const PerfettoSqlParser::Pipeline& b) {
+  return pipeline::LogicalPlanToString(a.plan) ==
+         pipeline::LogicalPlanToString(b.plan);
 }
 
 inline bool operator==(const PerfettoSqlParser::CreateView& a,
@@ -94,6 +108,11 @@ constexpr bool operator==(const PerfettoSqlParser::CreateIndex& a,
 constexpr bool operator==(const PerfettoSqlParser::DropIndex& a,
                           const PerfettoSqlParser::DropIndex& b) {
   return std::tie(a.name, a.table_name) == std::tie(b.name, b.table_name);
+}
+
+constexpr bool operator==(const PerfettoSqlParser::Pragma& a,
+                          const PerfettoSqlParser::Pragma& b) {
+  return std::tie(a.name, a.value) == std::tie(b.name, b.value);
 }
 
 inline std::ostream& operator<<(std::ostream& stream, const SqlSource& sql) {
@@ -129,8 +148,21 @@ inline std::ostream& operator<<(std::ostream& stream,
                   << ", replace=" << testing::PrintToString(fn->replace) << ")";
   }
   if (const auto* tab = std::get_if<PerfettoSqlParser::CreateTable>(&line)) {
+    const auto* sql = std::get_if<SqlSource>(&tab->body);
     return stream << "CreateTable(name=" << testing::PrintToString(tab->name)
-                  << ", sql=" << testing::PrintToString(tab->sql) << ")";
+                  << ", body="
+                  << (sql ? testing::PrintToString(*sql)
+                          : pipeline::LogicalPlanToString(
+                                std::get<pipeline::LogicalPlan>(tab->body)))
+                  << ")";
+  }
+  if (const auto* pipe = std::get_if<PerfettoSqlParser::Pipeline>(&line)) {
+    return stream << "Pipeline(" << pipeline::LogicalPlanToString(pipe->plan)
+                  << ")";
+  }
+  if (const auto* pragma = std::get_if<PerfettoSqlParser::Pragma>(&line)) {
+    return stream << "Pragma(name=" << testing::PrintToString(pragma->name)
+                  << ", value=" << pragma->value << ")";
   }
   if (const auto* tab = std::get_if<PerfettoSqlParser::CreateView>(&line)) {
     return stream << "CreateView(name=" << testing::PrintToString(tab->name)

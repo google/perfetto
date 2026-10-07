@@ -37,11 +37,11 @@ class TraceProcessorContext;
 class PerfSampleTracker {
  public:
   struct SamplingStreamInfo {
-    tables::PerfSessionTable::Id perf_session_id;
+    tables::ProfilerSessionTable::Id perf_session_id;
     TrackId timebase_track_id = kInvalidTrackId;
     std::vector<TrackId> follower_track_ids;
 
-    SamplingStreamInfo(tables::PerfSessionTable::Id _perf_session_id,
+    SamplingStreamInfo(tables::ProfilerSessionTable::Id _perf_session_id,
                        TrackId _timebase_track_id,
                        std::vector<TrackId> _follower_track_ids)
         : perf_session_id(_perf_session_id),
@@ -68,14 +68,14 @@ class PerfSampleTracker {
   };
 
   struct SequenceState {
-    tables::PerfSessionTable::Id perf_session_id;
+    tables::ProfilerSessionTable::Id perf_session_id;
     std::unordered_map<uint32_t, CpuSequenceState> per_cpu;
 
-    explicit SequenceState(tables::PerfSessionTable::Id _perf_session_id)
+    explicit SequenceState(tables::ProfilerSessionTable::Id _perf_session_id)
         : perf_session_id(_perf_session_id) {}
   };
 
-  tables::PerfSessionTable::Id CreatePerfSession();
+  tables::ProfilerSessionTable::Id CreatePerfSession();
 
   std::unordered_map<uint32_t, SequenceState> seq_state_;
   const StringId is_timebase_id_;

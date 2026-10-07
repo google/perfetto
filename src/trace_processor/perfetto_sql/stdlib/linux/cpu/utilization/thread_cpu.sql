@@ -98,8 +98,10 @@ SELECT
   sum(ii.dur) AS runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000))
-    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
+  cast_int!(
+    SUM((ii.dur * freq / 1000))
+    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)
+  ) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, _cpu_freq_per_thread) AS ii
 JOIN _cpu_freq_per_thread AS c USING (id)
 JOIN cpu USING (ucpu)

@@ -30,29 +30,23 @@ INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 --      slice, there needs to be 2 entries for that slice, one for each cuj id.
 --  (2) each slice needs to be trimmed to be fully inside the cuj associated
 --      (as we don't care about what's outside cujs)
+-- Legacy table name preserved for backwards compatibility with external analytical pipelines.
 DROP TABLE IF EXISTS blocking_call_slices_scoped_to_cujs;
 CREATE PERFETTO TABLE blocking_call_slices_scoped_to_cujs AS
 SELECT
-    s.id,
-    s.id AS slice_id,
-    s.name,
-    max(s.ts, cuj.ts) AS ts,
-    min(s.ts + s.dur, cuj.ts_end) as ts_end,
-    min(s.ts + s.dur, cuj.ts_end) - max(s.ts, cuj.ts) AS dur,
-    cuj.cuj_id,
-    cuj.cuj_name,
-    s.process_name,
-    s.upid,
-    s.utid
-FROM _android_critical_blocking_calls s
-    JOIN  android_jank_latency_cujs cuj
-    -- only when there is an overlap
-    ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
-        -- and are from the same process
-        AND s.upid = cuj.upid
-    LEFT JOIN _render_thread_per_process rt
-        ON rt.upid = cuj.upid
-    WHERE s.utid = cuj.ui_thread OR s.utid = rt.render_thread_utid;
+    slice_id AS id,
+    slice_id,
+    name,
+    ts,
+    ts_end,
+    dur,
+    cuj_id,
+    cuj_name,
+    process_name,
+    upid,
+    utid,
+    cuj_type
+FROM android_cuj_blocking_calls;
 
 
 DROP TABLE IF EXISTS android_blocking_calls_cuj_calls;
@@ -66,10 +60,11 @@ SELECT
     upid,
     cuj_id,
     cuj_name,
+    cuj_type,
     process_name
 FROM
     blocking_call_slices_scoped_to_cujs
-GROUP BY name, upid, cuj_id, cuj_name, process_name
+GROUP BY name, upid, cuj_id, cuj_name, cuj_type, process_name
 ORDER BY cuj_id;
 
 
@@ -94,14 +89,12 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
                         'total_dur_ns', b.total_dur_ns,
                         'max_dur_ns', b.max_dur_ns,
                         'min_dur_ns', b.min_dur_ns
-                    )
+                    ) ORDER BY b.total_dur_ns DESC, b.name
                 )
                 FROM android_blocking_calls_cuj_calls b
-                WHERE b.cuj_id = cuj.cuj_id and b.upid = cuj.upid
-                ORDER BY total_dur_ns DESC
+                WHERE b.cuj_id = cuj.cuj_id AND b.cuj_type = cuj.cuj_type AND b.upid = cuj.upid
             )
-        )
+        ) ORDER BY cuj.cuj_id ASC
     )
     FROM android_jank_latency_cujs cuj
-    ORDER BY cuj.cuj_id ASC
 ));

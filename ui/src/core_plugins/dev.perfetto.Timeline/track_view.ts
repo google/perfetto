@@ -60,9 +60,14 @@ export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
 export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
 export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
 
-function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
-  // Headless tracks have an effective height of 0.
-  if (node.headless) return 0;
+function getTrackHeight(
+  node: TrackNode,
+  track?: TrackRenderer,
+  showHeadless = false,
+) {
+  // Headless tracks have an effective height of 0, unless we're explicitly
+  // showing them.
+  if (node.headless && !showHeadless) return 0;
 
   const TRACK_HEIGHT_MIN_PX =
     (AppImpl.instance.settings
@@ -114,7 +119,12 @@ export class TrackView {
   private readonly trace: TraceImpl;
   private readonly descriptor?: Track;
 
-  constructor(trace: TraceImpl, node: TrackNode, top: number) {
+  constructor(
+    trace: TraceImpl,
+    node: TrackNode,
+    top: number,
+    showHeadless = false,
+  ) {
     this.trace = trace;
     this.node = node;
 
@@ -123,7 +133,7 @@ export class TrackView {
       this.renderer = this.trace.tracks.getWrappedTrack(node.uri);
     }
 
-    const heightPx = getTrackHeight(node, this.renderer?.track);
+    const heightPx = getTrackHeight(node, this.renderer?.track, showHeadless);
     this.height = heightPx;
     this.verticalBounds = {top, bottom: top + heightPx};
   }
@@ -191,6 +201,7 @@ export class TrackView {
         collapsible: collapsible && node.hasChildren,
         collapsed: collapsible && node.collapsed,
         highlight: this.isHighlighted(),
+        selected: this.isSelected(),
         summary: node.isSummary,
         reorderable,
         depth: attrs.depth,
@@ -219,6 +230,16 @@ export class TrackView {
           raf.scheduleCanvasRedraw();
           return (
             renderer?.track.onMouseClick?.({
+              ...pos,
+              timescale,
+            }) ?? false
+          );
+        },
+        onTrackContentDoubleClick: (pos, bounds) => {
+          const timescale = this.getTimescaleForBounds(bounds);
+          raf.scheduleCanvasRedraw();
+          return (
+            renderer?.track.onMouseDoubleClick?.({
               ...pos,
               timescale,
             }) ?? false
@@ -446,6 +467,30 @@ export class TrackView {
     }
 
     return false;
+  }
+
+  // Returns true if this track is part of the current selection, either because
+  // it's directly selected, or - for summary tracks - because one of its
+  // children is.
+  private isSelected() {
+    const {node, trace} = this;
+    const selection = trace.selection.selection;
+
+    switch (selection.kind) {
+      case 'area':
+        if (node.isSummary) {
+          return selection.trackUris.some((uri) => node.getTrackByUri(uri));
+        }
+        return node.uri !== undefined && selection.trackUris.includes(node.uri);
+      case 'track':
+      case 'track_event':
+        if (node.isSummary) {
+          return Boolean(node.getTrackByUri(selection.trackUri));
+        }
+        return node.uri === selection.trackUri;
+      default:
+        return false;
+    }
   }
 
   private renderAreaSelectionCheckbox(): m.Children {

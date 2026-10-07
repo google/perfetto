@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!--
+ Copyright (C) 2026 The Android Open Source Project
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+-->
+<!--
+ Engine startup benchmark page. Spawns N standalone bench workers
+ (engine_bench_worker_bundle.js) sequentially and records per-phase
+ startup latencies. Only built when ui/build is run with
+ --enable-engine-bench.
+
+ Query string:
+   n=<int>          number of iterations (default 10)
+   warmup=<int>     warmup iterations not included in stats (default 1)
+   cache=cold       append a cache-busting query string to the worker URL
+   auto=1           run immediately on load (Playwright sets this)
+   precompile=0     disable main-thread compileStreaming sharing
+
+ Results are exposed at window.__benchResults after the run completes.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>Perfetto engine startup benchmark</title>
+<style>
+  body { font-family: monospace; margin: 16px; }
+  h1 { font-size: 16px; }
+  button { font-family: monospace; padding: 4px 10px; }
+  table { border-collapse: collapse; margin-top: 12px; }
+  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .controls { margin-bottom: 12px; }
+  .controls label { margin-right: 12px; }
+  pre#log { background: #f4f4f4; padding: 8px; max-height: 200px; overflow: auto; }
+</style>
+</head>
+<body>
+<h1>Perfetto engine startup benchmark</h1>
+<div class="controls">
+  <label>Iterations: <input id="n" type="number" value="10" min="1" max="200"></label>
+  <label>Warmup: <input id="warmup" type="number" value="1" min="0" max="50"></label>
+  <label><input id="cold" type="checkbox"> Cache-bust each iter (cold-cache mode)</label>
+  <button id="run">Run</button>
+</div>
+<div id="status">Idle.</div>
+<table id="results" style="display:none">
+  <thead>
+    <tr><th>Phase</th><th>min</th><th>p50</th><th>p95</th><th>max</th><th>mean</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+<h2 style="font-size:14px">Log</h2>
+<pre id="log"></pre>
+<script src="./engine_bench_bundle.js"></script>
+</body>
+</html>

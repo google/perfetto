@@ -81,6 +81,7 @@ MODULE_TAGS = {
 
     # Android - CPU
     'android.cpu.cluster_type': ['android', 'cpu'],
+    'android.cpu.cluster_utilization': ['android', 'cpu'],
     'android.cpu.cpu_per_uid': ['android', 'cpu'],
     'android.dvfs': ['android', 'cpu', 'power'],
 
@@ -162,6 +163,7 @@ MODULE_TAGS = {
     'android.process_metadata': ['android', 'metadata'],
     'android.thread': ['android', 'metadata'],
     'android.monitor_contention': ['android', 'performance'],
+    'android.lock_held': ['android', 'performance'],
     'android.oom_adjuster': ['android', 'app-lifecycle', 'memory'],
     'android.kernel_wakelocks': ['android', 'power'],
     'android.statsd': ['android', 'metadata'],

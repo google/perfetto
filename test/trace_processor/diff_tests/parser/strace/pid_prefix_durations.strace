@@ -1,0 +1,10 @@
+[pid    74] 1787734451.075961 execve("/usr/bin/sh", ["sh", "-c", "sleep 0.3"], 0xffffc6bf4618 /* 4 vars */) = 0 <0.001261>
+strace: Process 75 attached
+[pid    75] 1787734451.084425 execve("/usr/bin/sleep", ["sleep", "0.3"], 0xaaaacd792868 /* 4 vars */ <unfinished ...>
+[pid    74] 1787734451.084774 wait4(-1,  <unfinished ...>
+[pid    75] 1787734451.084796 <... execve resumed>) = 0 <0.000328>
+[pid    75] 1787734451.088553 clock_nanosleep(CLOCK_REALTIME, 0, {tv_sec=0, tv_nsec=300000001}, 0xfffff6d40e78) = 0 <0.305284>
+[pid    75] 1787734451.395296 +++ exited with 0 +++
+[pid    74] 1787734451.395359 <... wait4 resumed>[{WIFEXITED(s) && WEXITSTATUS(s) == 0}], 0, NULL) = 75 <0.310566>
+[pid    74] 1787734451.395906 --- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=75, si_uid=0, si_status=0} ---
+[pid    74] 1787734451.396054 wait4(-1, 0xffffc28a5b9c, WNOHANG, NULL) = -1 ECHILD (No child processes) <0.000027>

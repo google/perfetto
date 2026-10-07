@@ -22,6 +22,7 @@
 #include <limits>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -62,7 +63,7 @@ bool ParseAndVerifyChecksum(const uint8_t* data,
       break;
     }
     words->emplace_back(word);
-    hasher.Update(word);
+    hasher.Update(perfetto::base::HostToLE(word));
   }
   if (packed_parse_err || !has_checksum) {
     words->clear();

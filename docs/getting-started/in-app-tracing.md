@@ -15,15 +15,12 @@ the Perfetto UI and Trace Processor.
 
 ### Setup
 
-Checkout the latest SDK release
+Download `perfetto-cpp-sdk-src.zip` from the latest Perfetto release at
+https://github.com/google/perfetto/releases/latest and extract it.
 
-```
-git clone https://github.com/google/perfetto.git -b v50.1
-```
-
-The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
-an amalgamation of the Client API designed to easy to integrate to existing
-build systems. The sources are self-contained and require only a C++17 compliant
+The SDK consists of two files, `perfetto.h` and `perfetto.cc`. These are an
+amalgamation of the Client API designed to easy to integrate to existing build
+systems. The sources are self-contained and require only a C++17 compliant
 standard library.
 
 Copy them in your project. The next steps assume they're in the `perfetto/sdk`

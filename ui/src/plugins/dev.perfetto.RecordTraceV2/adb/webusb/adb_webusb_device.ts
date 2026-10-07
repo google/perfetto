@@ -185,7 +185,7 @@ export class AdbWebusbDevice extends AdbDevice {
 
   streamWrite(
     stream: AdbWebusbStream,
-    data: string | Uint8Array,
+    data: string | Uint8Array<ArrayBuffer>,
   ): Promise<void> {
     const promise = defer<void>();
     const raw = isString(data) ? utf8Encode(data) : data;
@@ -357,7 +357,7 @@ export class AdbWebusbDevice extends AdbDevice {
     cmd: string,
     arg0: number,
     arg1: number,
-    data?: Uint8Array | string,
+    data?: Uint8Array<ArrayBuffer> | string,
   ): Promise<void> {
     if (!this.connected) return Promise.resolve();
     const useCksum = this.useChecksum;
@@ -369,7 +369,7 @@ export class AdbWebusbDevice extends AdbDevice {
     cmd: string,
     arg0: number,
     arg1: number,
-    data?: Uint8Array | string,
+    data?: Uint8Array<ArrayBuffer> | string,
     useChecksum = false,
   ): Promise<void> {
     const payload = encodeAdbData(data);
@@ -398,7 +398,7 @@ enum AuthCmd {
 
 interface TxQueueEntry {
   stream: AdbWebusbStream;
-  data: Uint8Array;
+  data: Uint8Array<ArrayBuffer>;
   promise?: Deferred<void>;
 }
 

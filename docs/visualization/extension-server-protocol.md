@@ -44,7 +44,7 @@ Returns server metadata, supported features, and available modules.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Human-readable server name, shown in Settings and command palette source chips. |
+| `name` | string | Yes | Human-readable server name, shown in command palette source chips. |
 | `namespace` | string | Yes | Unique identifier in reverse-domain notation (e.g., `com.acme`). Used to enforce naming constraints on macros and SQL modules. |
 | `features` | array | Yes | Features this server supports. Each entry has a `name` field. Valid names: `macros`, `sql_modules`, `proto_descriptors`. |
 | `modules` | array | Yes | Available modules. Each entry has an `id` (used in URL paths and settings) and a `name` (human-readable display name). |

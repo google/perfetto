@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_LAYERS_PARSER_H_
 #define SRC_TRACE_PROCESSOR_PLUGINS_WINSCOPE_IMPORTER_SURFACEFLINGER_LAYERS_PARSER_H_
 
-#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
+#include "protos/third_party/android/frameworks/native/tracing/winscope/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_rect_computation.h"
 #include "src/trace_processor/plugins/winscope_importer/surfaceflinger_layers_visibility_computation.h"
@@ -32,8 +32,8 @@ namespace perfetto::trace_processor::winscope {
 
 namespace {
 using SnapshotId = tables::SurfaceFlingerLayersSnapshotTable::Id;
-using LayerDecoder = protos::pbzero::LayerProto::Decoder;
-using DisplayDecoder = protos::pbzero::DisplayProto::Decoder;
+using LayerDecoder = com::android::internal::pbzero::LayerProto::Decoder;
+using DisplayDecoder = com::android::internal::pbzero::DisplayProto::Decoder;
 }  // namespace
 
 class SurfaceFlingerLayersParser {

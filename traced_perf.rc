@@ -19,6 +19,9 @@
 # * KILL capability for sending BIONIC_SIGNAL_PROFILER.
 # * DAC_READ_SEARCH capability for stack unwinding and on-device symbolization (requires
 #   opening libraries/executables for sections not already mapped in).
+# * CAP_SYS_PTRACE capability to pass PTRACE_MODE_READ level checks to open and
+#   read /proc/pid/maps and /proc/pid/smaps. NB: PTRACE_MODE_ATTACH is still disallowed
+#   via selinux.
 # * foreground task group as unwinding based on minidebug info is a heavyweight action.
 service traced_perf /system/bin/traced_perf
     class late_start
@@ -26,22 +29,21 @@ service traced_perf /system/bin/traced_perf
     socket traced_perf stream 0666 root root
     user nobody
     group nobody readproc readtracefs
-    capabilities KILL DAC_READ_SEARCH
+    capabilities KILL DAC_READ_SEARCH SYS_PTRACE
     task_profiles ProcessCapacityHigh
     shared_kallsyms
 
 # Daemon run state:
 # * initially off
 # * |persist.traced_perf.enable| forces daemon to run unconditionally
-# * if kernel doesn't have perf_event_open LSM hooks, daemon is stopped
 # * otherwise, follow |traced.lazy.traced_perf| as an on-demand service
 on property:persist.traced_perf.enable=1
     start traced_perf
-on property:persist.traced_perf.enable="" && property:sys.init.perf_lsm_hooks=""
+on property:persist.traced_perf.enable=""
     stop traced_perf
-on property:persist.traced_perf.enable="" && property:sys.init.perf_lsm_hooks=1 && property:traced.lazy.traced_perf=1
+on property:persist.traced_perf.enable="" && property:traced.lazy.traced_perf=1
     start traced_perf
-on property:persist.traced_perf.enable="" && property:sys.init.perf_lsm_hooks=1 && property:traced.lazy.traced_perf=""
+on property:persist.traced_perf.enable="" && property:traced.lazy.traced_perf=""
     stop traced_perf
 
 on property:persist.traced_perf.enable=0

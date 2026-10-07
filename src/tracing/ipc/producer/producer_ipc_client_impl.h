@@ -39,6 +39,10 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
+namespace test {
+class ProducerIPCClientTestPeer;
+}  // namespace test
+
 class Producer;
 class SharedMemoryArbiter;
 
@@ -48,6 +52,10 @@ class SharedMemoryArbiter;
 // actual IPC transport.
 // If create_socket_async is set, it will be called to create and connect to a
 // socket to the service. If unset, the producer will create and connect itself.
+//
+// TODO(sashwinbalaji): Check all paths through Disconnect(), OnDisconnect(),
+// and ScheduleDisconnect() again. Check for unnecessary steps, incorrect
+// cleanup or callback order, and object lifetime errors.
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
@@ -77,6 +85,10 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void NotifyDataSourceStopped(DataSourceInstanceID) override;
   void ActivateTriggers(const std::vector<std::string>&) override;
   void Sync(std::function<void()> callback) override;
+  void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
+                          uint32_t chunk_size_bytes,
+                          std::function<void(bool)> callback) override;
+  void DrainV2RingBuffer() override;
 
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
@@ -96,15 +108,22 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
+  // Defined in tracing_integration_test.cc.
+  friend class test::ProducerIPCClientTestPeer;
+
   // Drops the provider connection if a protocol error was detected while
   // processing an IPC command.
   void ScheduleDisconnect();
 
   // Invoked soon after having established the connection with the service.
-  void OnConnectionInitialized(bool connection_succeeded,
-                               bool using_shmem_provided_by_producer,
-                               bool direct_smb_patching_supported,
-                               bool use_shmem_emulation);
+  // |offered_versions| is the bitmask sent in the request.
+  void OnConnectionInitialized(
+      uint32_t offered_versions,
+      ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response);
+
+  bool HasNegotiatedV2Abi() const {
+    return !!(protocol_abi_versions_ & kProtocolAbiV2);
+  }
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
@@ -132,6 +151,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   std::map<WriterID, BufferID> writers_for_scraping_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
+  // Bitmask of the versions agreed in InitializeConnection. Zero until then,
+  // and after disconnect.
+  uint32_t protocol_abi_versions_ = 0;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
   size_t shared_buffer_page_size_kb_ = 0;
   std::set<DataSourceInstanceID> data_sources_setup_;

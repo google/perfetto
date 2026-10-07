@@ -81,7 +81,8 @@ void EnsureSqliteInitialized() {
 
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
+  sqlite3_exec(db, "PRAGMA temp_store=2; PRAGMA locking_mode=NORMAL", nullptr,
+               nullptr, &error);
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
@@ -125,6 +126,21 @@ SqliteConnection::SqliteConnection(std::shared_ptr<SqliteDatabase> database)
   EnsureSqliteInitialized();
   PERFETTO_CHECK(sqlite3_open_v2(database_->shared_filename().c_str(), &db,
                                  kSqliteOpenFlags, nullptr) == SQLITE_OK);
+  // Bump the per-connection lookaside slab above the SQLite default of
+  // sz=1200 bytes, cnt=40 slots (~48 KB). At startup we measured ~10K
+  // lookaside hits and ~1.4K spillovers to malloc; the spilled
+  // allocations all fit in a 1200-byte slot, so growing cnt (not sz) is
+  // what helps. sz=1200, cnt=1000 (~1.2 MB / connection) trades RAM for
+  // ~1400 fewer mallocs per CreateInstance and leaves headroom for user
+  // queries.
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_LOOKASIDE, nullptr,
+                                   /*sz=*/1200, /*cnt=*/1000) == SQLITE_OK);
+#ifdef SQLITE_DBCONFIG_FP_DIGITS
+  // SQLite 3.52 went from 15 to 17 significant digits when turning a double
+  // into text. Keep the 15 older versions produce.
+  PERFETTO_CHECK(sqlite3_db_config(db, SQLITE_DBCONFIG_FP_DIGITS, 15,
+                                   nullptr) == SQLITE_OK);
+#endif
   InitializeSqlite(db);
   db_.reset(db);
 }
@@ -258,9 +274,7 @@ void* SqliteConnection::SetRollbackCallback(RollbackCallback callback,
 
 SqliteConnection::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                        SqlSource source)
-    : stmt_(std::move(stmt)),
-      expanded_sql_(sqlite3_expanded_sql(stmt_.get())),
-      sql_source_(std::move(source)) {}
+    : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
 
 bool SqliteConnection::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",
@@ -294,7 +308,10 @@ const char* SqliteConnection::PreparedStatement::original_sql() const {
   return sql_source_.original_sql().c_str();
 }
 
-const char* SqliteConnection::PreparedStatement::sql() const {
+const char* SqliteConnection::PreparedStatement::sql() {
+  if (!expanded_sql_) {
+    expanded_sql_.reset(sqlite3_expanded_sql(stmt_.get()));
+  }
   return expanded_sql_.get();
 }
 

@@ -120,12 +120,11 @@ tools/ninja -C <out directory>
 tools/diff_test_trace_processor.py <out directory>/trace_processor_shell
 ```
 
-TIP: Query diff tests are expected to only have a single query which produces
-output in the whole file (usually at the end). Calling
-`SELECT RUN_METRIC('metric file')` can trip up this check as this query
-generates some hidden output. To address this issue, if a query only has
-column is named `suppress_query_output`, even if it has output, this will
-be ignored (for example,
+TIP: Every statement which produces output has its result set printed, with
+consecutive result sets separated by a blank line. Calling
+`SELECT RUN_METRIC('metric file')` can trip this up as this query generates
+some hidden output. To address this issue, if a query's only column is named
+`suppress_query_output`, its output will be ignored (for example,
 `SELECT RUN_METRIC('metric file') as suppress_query_output`)
 
 ### Adding a new diff test
@@ -138,17 +137,31 @@ Methods cannot take arguments and have to return a `DiffTestBlueprint`:
 
 ```python
 class DiffTestBlueprint:
-  trace: Union[Path, Json, Systrace, TextProto]
+  trace: Union[Path, Json, Systrace, TextProto, Zip, Tar]
   query: Union[str, Path, Metric]
-  out: Union[Path, Json, Csv, TextProto]
+  out: Union[Path, Json, Csv, TextProto, ExpectedError]
 ```
 
 _Trace_ and _Out_: For every type apart from `Path`, contents of the object
 will be treated as file contents so it has to follow the same rules.
 
+_Zip_ and _Tar_: traces can also be archives assembled inline from a dict of
+members, keyed by the path within the archive. Each member is either a `str`
+(written verbatim, e.g. a JSON trace or systrace), a `TextProto` (serialized
+as a binary proto trace) or a `Path`/`DataPath` (raw bytes of an external
+file). This is how [trace merging](/docs/analysis/merging-traces.md) and
+[perfetto_manifest](/docs/reference/perfetto-manifest.md) handling are
+tested; see `diff_tests/parser/trace_manifest/` for examples.
+
 _Query_: For metric tests it is enough to provide the metric name. For query
 tests there can be a raw SQL statement, for example `"SELECT * FROM SLICE"`,
 or a path to an `.sql` file.
+
+_ExpectedError_: Setting `out=ExpectedError('error substring')` inverts the
+test: it passes if and only if loading the trace fails and the error message
+printed by `trace_processor_shell` contains the given substring. Use this to
+test strict parsing/import errors where the whole trace load is expected to
+fail. The query is still required but is never executed.
 
 NOTE: `trace_processor_shell` and the associated proto descriptors need to
 be built before running `tools/diff_test_trace_processor.py`. The easiest
@@ -188,7 +201,7 @@ _Answer_: Add the test to `stdlib/dynamic_tables`.
 test is to ensure Trace Processor is correctly filtering/sorting important
 built-in tables.
 
-_Answer_: Add the test to `parser/core_tables`.
+_Answer_: Add the test to `tables`.
 
 ## UI pixel diff tests
 
@@ -218,10 +231,25 @@ tools/test_data upload
 Once finished you can commit and upload as part of your CL to cause the CI to
 use your new screenshots.
 
-NOTE: If you see a failing diff test you can see the pixel differences on the CI
-by using a link ending with `ui-test-artifacts/index.html`. Report located on
-that page contains changed screenshots as well as a command to accept the
-changes if these are desirable.
+NOTE: If screenshot tests fail on the CI, the job summary of the `ui` job and
+the "Perfetto UI Builds & Tests" comment on the pull request link to two
+reports:
+
+- `ui-test-artifacts/screenshot-diffs/index.html` shows every failing
+  screenshot on a single page, with the Before, After and Diff images side by
+  side. Each card links to the corresponding test in the full Playwright
+  report.
+- `ui-test-artifacts/index.html` is the full Playwright report, with errors,
+  test steps and retries for each test.
+
+If the changes are desirable, accept them by running the command shown at the
+top of the screenshot diffs page from your checkout, then upload and commit the
+new screenshots:
+
+```
+tools/download_changed_screenshots.py <CI job id>
+tools/test_data upload
+```
 
 ## Android CTS tests
 

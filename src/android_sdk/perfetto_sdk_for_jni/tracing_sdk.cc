@@ -20,6 +20,7 @@
 
 #include <cstdarg>
 #include <mutex>
+#include <utility>
 
 #include "perfetto/public/abi/producer_abi.h"
 #include "perfetto/public/producer.h"
@@ -157,11 +158,61 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
 }
 
+NestedTracks::NestedTracks(RootType root_type, std::vector<NestedLevel> levels)
+    : levels_(std::move(levels)), root_{}, extra_{} {
+  const size_t count = levels_.size();
+  named_.reserve(count);
+  ptrs_.reserve(count + 2);
+
+  // Outermost entry: the root scope. A process or thread root prepends one
+  // entry; a global root has none -- its first named level hangs off uuid 0.
+  switch (root_type) {
+    case RootType::kProcess:
+      root_.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS;
+      ptrs_.push_back(&root_);
+      break;
+    case RootType::kThread:
+      root_.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD;
+      ptrs_.push_back(&root_);
+      break;
+    case RootType::kGlobal:
+      break;  // No root entry; the chain hangs off uuid 0.
+  }
+
+  // reserve(count) above prevents reallocation, so the &named_.back() pointers
+  // stay valid.
+  for (const NestedLevel& level : levels_) {
+    PerfettoTeHlNestedTrackNamed entry{};
+    entry.header.type = PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED;
+    entry.name = level.name.c_str();
+    entry.id = level.id;
+    entry.is_name_static = true;
+    entry.sibling_order_rank = level.sibling_order_rank;
+    entry.child_ordering = level.child_ordering;
+    entry.sibling_merge_behavior = level.sibling_merge_behavior;
+    entry.sibling_merge_key_str = level.sibling_merge_key_str
+                                      ? level.sibling_merge_key_str->c_str()
+                                      : nullptr;
+    entry.sibling_merge_key_int = level.sibling_merge_key_int;
+    named_.push_back(entry);
+    ptrs_.push_back(reinterpret_cast<PerfettoTeHlNestedTrack*>(&named_.back()));
+  }
+  ptrs_.push_back(nullptr);
+
+  extra_.header.type = PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS;
+  extra_.tracks = ptrs_.data();
+}
+
+void NestedTracks::delete_track(NestedTracks* ptr) {
+  delete ptr;
+}
+
 RegisteredTrack::RegisteredTrack(uint64_t id,
                                  uint64_t parent_uuid,
                                  const std::string& name,
                                  bool is_counter,
-                                 bool is_name_static)
+                                 bool is_name_static,
+                                 bool is_state)
     : registered_track_{},
       track_{{PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK},
              &registered_track_.impl},
@@ -169,7 +220,8 @@ RegisteredTrack::RegisteredTrack(uint64_t id,
       id_(id),
       parent_uuid_(parent_uuid),
       is_counter_(is_counter),
-      is_name_static_(is_name_static) {
+      is_name_static_(is_name_static),
+      is_state_(is_state) {
   register_track();
 }
 
@@ -184,6 +236,9 @@ void RegisteredTrack::register_track() {
   if (is_counter_) {
     PerfettoTeCounterTrackRegister(&registered_track_, name_.data(),
                                    parent_uuid_, is_name_static_);
+  } else if (is_state_) {
+    PerfettoTeStateTrackRegister(&registered_track_, name_.data(), parent_uuid_,
+                                 is_name_static_);
   } else {
     PerfettoTeNamedTrackRegister(&registered_track_, name_.data(), id_,
                                  parent_uuid_, is_name_static_);

@@ -301,12 +301,11 @@ export function addColumnFromJoinid(
 
   // Create the table node with the specific table
   const tableNode = descriptor.factory(
+    {sqlTable: sqlTable.name},
     {
-      sqlTable,
-      sqlModules: deps.sqlModules,
-      trace: deps.trace,
+      allNodes: state.rootNodes,
+      context: {sqlModules: deps.sqlModules, trace: deps.trace},
     },
-    {allNodes: state.rootNodes},
   );
 
   // Connect table node to AddColumnsNode's secondary input (port 0)

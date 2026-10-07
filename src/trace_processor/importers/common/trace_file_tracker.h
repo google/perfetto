@@ -41,8 +41,16 @@ class TraceFileTracker {
   tables::TraceFileTable::Id AddFile(const std::string& name);
   tables::TraceFileTable::Id AddFile() { return AddFileImpl(kNullStringId); }
   void SetSize(tables::TraceFileTable::Id id, uint64_t size);
-  void StartParsing(tables::TraceFileTable::Id id, TraceType trace_type);
+  void StartParsing(tables::TraceFileTable::Id id, TraceImporterId trace_type);
   void DoneParsing(tables::TraceFileTable::Id id, size_t size);
+
+  // The name of `id`, or of its closest named ancestor. Decompression layers
+  // are unnamed, so the contents of a gzipped archive member resolve to the
+  // member's name. Null if nothing up the chain is named, as is the case for
+  // a file opened directly.
+  StringId GetName(tables::TraceFileTable::Id id) const {
+    return names_[id.value];
+  }
 
  private:
   tables::TraceFileTable::Id AddFileImpl(StringId name);
@@ -50,6 +58,8 @@ class TraceFileTracker {
   TraceProcessorContext* const context_;
   size_t processing_order_ = 0;
   std::vector<tables::TraceFileTable::Id> parsing_stack_;
+  // Indexed by file id, holding what GetName() returns.
+  std::vector<StringId> names_;
 };
 
 }  // namespace perfetto::trace_processor

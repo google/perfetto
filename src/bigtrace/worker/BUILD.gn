@@ -33,9 +33,9 @@ if (enable_perfetto_grpc) {
       "../../../protos/perfetto/bigtrace:worker_grpc",
       "../../../protos/perfetto/bigtrace:worker_lite",
       "../../../src/trace_processor",
-      "../../../src/trace_processor/rpc:rpc",
+      "../../../src/trace_processor/rpc",
       "../../base",
-      "repository_policies:repository_policies",
+      "repository_policies",
     ]
   }
 }

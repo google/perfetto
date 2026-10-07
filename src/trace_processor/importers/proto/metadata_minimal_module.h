@@ -34,12 +34,7 @@ class MetadataMinimalModule : public ProtoImporterModule {
   explicit MetadataMinimalModule(ProtoImporterModuleContext* module_context,
                                  TraceProcessorContext* context);
 
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      RefPtr<PacketSequenceStateGeneration> state,
-      uint32_t field_id) override;
+  ModuleResult TokenizePacket(const TokenizePacketArgs& args) override;
 
  private:
   void ParseChromeBenchmarkMetadata(ConstBytes);

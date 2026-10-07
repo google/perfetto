@@ -31,6 +31,7 @@
 #include <mach/mach_init.h>
 #include <mach/mach_port.h>
 #include <mach/mach_time.h>
+#include <mach/task.h>
 #include <mach/thread_act.h>
 #endif
 

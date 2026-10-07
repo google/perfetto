@@ -22,7 +22,7 @@ source_set("android_log_event") {
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../containers",
   ]
 }
@@ -31,7 +31,7 @@ source_set("android_dumpstate_event") {
   sources = [ "android_dumpstate_event.h" ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../containers",
   ]
 }
@@ -64,7 +64,7 @@ source_set("android_bugreport") {
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../base",
-    "../../sorter:sorter",
+    "../../sorter",
     "../../storage",
     "../../tables:tables_python",
     "../../types",

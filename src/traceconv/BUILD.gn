@@ -59,7 +59,7 @@ source_set("pprofbuilder") {
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/profiling:zero",
     "../../protos/third_party/pprof:zero",
-    "../../src/trace_processor/containers:containers",
+    "../../src/trace_processor/containers",
     "../trace_processor/util/symbolizer",
     "../trace_processor/util/symbolizer:symbolize_database",
   ]
@@ -75,8 +75,8 @@ static_library("libpprofbuilder") {
 source_set("lib") {
   public_deps = [ ":pprofbuilder" ]
   deps = [
+    ":gen_cc_android_extension_descriptor",
     ":gen_cc_trace_descriptor",
-    ":gen_cc_winscope_descriptor",
     ":utils",
     "../../gn:default_deps",
     "../../include/perfetto/base",
@@ -84,10 +84,11 @@ source_set("lib") {
     "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:zero",
     "../protozero:proto_ring_buffer",
+    "../trace_processor:export_json",
     "../trace_processor:lib",
     "../trace_processor:storage_minimal",
+    "../trace_processor/util:decompressor",
     "../trace_processor/util:descriptors",
-    "../trace_processor/util:gzip",
     "../trace_processor/util:protozero_to_text",
     "../trace_processor/util:tar_writer",
     "../trace_processor/util:trace_type",
@@ -128,14 +129,15 @@ source_set("main") {
 
 source_set("traceconv_lib") {
   deps = [
+    ":gen_cc_android_extension_descriptor",
     ":gen_cc_trace_descriptor",
     ":lib",
     "../../gn:default_deps",
-    "../../include/perfetto/ext/base:base",
+    "../../include/perfetto/ext/base",
     "../base:version",
     "../protozero/text_to_proto",
   ]
-  public_deps = [ "../../include/perfetto/ext/traceconv:traceconv" ]
+  public_deps = [ "../../include/perfetto/ext/traceconv" ]
   sources = [ "traceconv.cc" ]
 }
 
@@ -158,9 +160,9 @@ perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
   descriptor_target = "../../protos/perfetto/trace:descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_winscope_descriptor") {
-  descriptor_name = "winscope.descriptor"
-  descriptor_target = "../../protos/perfetto/trace/android:winscope_descriptor"
+perfetto_cc_proto_descriptor("gen_cc_android_extension_descriptor") {
+  descriptor_name = "android_extension.descriptor"
+  descriptor_target = "../../protos/third_party/android:extension_descriptor"
 }
 
 if (enable_perfetto_integration_tests) {
@@ -172,7 +174,7 @@ if (enable_perfetto_integration_tests) {
       "../../gn:default_deps",
       "../../gn:gtest_and_gmock",
       "../../include/perfetto/base",
-      "../../include/perfetto/ext/base:base",
+      "../../include/perfetto/ext/base",
       "../../protos/perfetto/trace:cpp",
       "../../protos/perfetto/trace/profiling:cpp",
       "../../protos/third_party/pprof:cpp",

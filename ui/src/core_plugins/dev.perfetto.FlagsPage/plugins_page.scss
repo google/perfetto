@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
+@use "../../assets/theme" as *;
 
 .pf-plugins-page {
   margin-block: 16px;
@@ -79,5 +79,10 @@
   &__deps-link {
     text-decoration: none;
     color: inherit;
+  }
+
+  &__warning {
+    margin-bottom: 8px;
+    font-weight: 600;
   }
 }

@@ -164,7 +164,7 @@ export class SqlTableState {
     const columns: {[key: string]: SqlColumn} = Object.fromEntries(
       this.columns.map((c) => [
         tableColumnAlias(c),
-        mode === 'data' ? c.column : c.display ?? c.column,
+        mode === 'data' ? c.column : (c.display ?? c.column),
       ]),
     );
 

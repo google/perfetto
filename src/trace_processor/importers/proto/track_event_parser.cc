@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -39,6 +40,7 @@
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_arg_fields.h"
 #include "src/trace_processor/importers/proto/track_event_event_importer.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -54,6 +56,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_interned_data.pbzero.h"
 #include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -85,11 +88,12 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   if (!mapping) {
     return std::nullopt;
   }
-  delegate.AddUnsignedInteger(
-      util::ProtoToArgsParser::Key(prefix + ".mapping_id"),
-      mapping->mapping_id().value);
-  delegate.AddUnsignedInteger(util::ProtoToArgsParser::Key(prefix + ".rel_pc"),
-                              decoder->rel_pc());
+  auto mapping_key =
+      delegate.InternString(base::StringView(prefix + ".mapping_id"));
+  delegate.AddUnsignedInteger(mapping_key, mapping_key,
+                              mapping->mapping_id().value);
+  auto rel_pc_key = delegate.InternString(base::StringView(prefix + ".rel_pc"));
+  delegate.AddUnsignedInteger(rel_pc_key, rel_pc_key, decoder->rel_pc());
   return base::OkStatus();
 }
 
@@ -105,66 +109,59 @@ std::optional<base::Status> MaybeParseSourceLocation(
     return std::nullopt;
   }
 
-  delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".file_name"),
+  auto file_name_key =
+      delegate.InternString(base::StringView(prefix + ".file_name"));
+  delegate.AddString(file_name_key, file_name_key,
                      NormalizePathSeparators(decoder->file_name()));
-  delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".function_name"),
+  auto function_name_key =
+      delegate.InternString(base::StringView(prefix + ".function_name"));
+  delegate.AddString(function_name_key, function_name_key,
                      decoder->function_name());
   if (decoder->has_line_number()) {
-    delegate.AddInteger(util::ProtoToArgsParser::Key(prefix + ".line_number"),
+    auto line_number_key =
+        delegate.InternString(base::StringView(prefix + ".line_number"));
+    delegate.AddInteger(line_number_key, line_number_key,
                         decoder->line_number());
   }
   return base::OkStatus();
 }
 
+// TODO(sanathku): Remove this helper once legacy JobScheduler queries are
+// migrated to use the new stdlib table.
 std::optional<base::Status> MaybeParseAndroidJobName(
+    StringId job_name_key,
     const protozero::Field& field,
     util::ProtoToArgsParser::Delegate& delegate) {
-  auto* decoder = delegate.GetInternedMessage(
-      protos::pbzero::InternedData::kAndroidJobName, field.as_uint64());
-  if (!decoder) {
+  std::optional<base::StringView> name =
+      delegate.seq_state()->InternedStringView(
+          com::android::internal::pbzero::FrameworksBaseInternedData::
+              kAndroidJobNameFieldNumber,
+          field.as_uint64());
+  if (!name) {
     return std::nullopt;
   }
 
-  delegate.AddString(util::ProtoToArgsParser::Key("job_scheduler_job.job_name"),
-                     decoder->name());
+  delegate.AddString(job_name_key, job_name_key,
+                     protozero::ConstChars{name->data(), name->size()});
   return base::OkStatus();
 }
 
 }  // namespace
 
-TrackEventParser::TrackEventParser(TraceProcessorContext* context,
-                                   TrackEventTracker* track_event_tracker)
-    : args_parser_(*context->descriptor_pool_),
+TrackEventParser::TrackEventParser(
+    TrackEventExtensionParserContext* extension_parser_context,
+    TraceProcessorContext* context,
+    TrackEventTracker* track_event_tracker)
+    : args_parser_(*context->descriptor_pool_,
+                   *context->storage->mutable_string_pool()),
       context_(context),
       track_event_tracker_(track_event_tracker),
       counter_name_thread_time_id_(
           context->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
           context->storage->InternString("thread_instruction_count")),
-      task_file_name_args_key_id_(
-          context->storage->InternString("task.posted_from.file_name")),
-      task_function_name_args_key_id_(
-          context->storage->InternString("task.posted_from.function_name")),
-      task_line_number_args_key_id_(
-          context->storage->InternString("task.posted_from.line_number")),
-      log_message_body_key_id_(
-          context->storage->InternString("track_event.log_message.message")),
-      log_message_source_location_function_name_key_id_(
-          context->storage->InternString(
-              "track_event.log_message.function_name")),
-      log_message_source_location_file_name_key_id_(
-          context->storage->InternString("track_event.log_message.file_name")),
-      log_message_source_location_line_number_key_id_(
-          context->storage->InternString(
-              "track_event.log_message.line_number")),
-      log_message_priority_id_(
-          context->storage->InternString("track_event.priority")),
-      source_location_function_name_key_id_(
-          context->storage->InternString("source.function_name")),
-      source_location_file_name_key_id_(
-          context->storage->InternString("source.file_name")),
-      source_location_line_number_key_id_(
-          context->storage->InternString("source.line_number")),
+      job_scheduler_job_name_args_key_id_(
+          context->storage->InternString("job_scheduler_job.job_name")),
       raw_legacy_event_id_(
           context->storage->InternString("track_event.legacy_event")),
       legacy_event_passthrough_utid_id_(
@@ -203,8 +200,6 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("legacy_event.bind_to_enclosing")),
       legacy_event_flow_direction_key_id_(
           context->storage->InternString("legacy_event.flow_direction")),
-      histogram_name_key_id_(
-          context->storage->InternString("chrome_histogram_sample.name")),
       flow_direction_value_in_id_(context->storage->InternString("in")),
       flow_direction_value_out_id_(context->storage->InternString("out")),
       flow_direction_value_inout_id_(context->storage->InternString("inout")),
@@ -228,6 +223,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       callsite_id_key_id_(context_->storage->InternString("callsite_id")),
       end_callsite_id_key_id_(
           context_->storage->InternString("end_callsite_id")),
+      extension_parser_context_(extension_parser_context),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   // Opt into DebugAnnotation handling: ParseMessage routes DebugAnnotation
@@ -275,11 +271,15 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
         return MaybeParseSourceLocation("chrome_memory_pressure_notification",
                                         field, delegate);
       });
+
+  // TODO(sanathku): Remove this override once legacy JobScheduler queries are
+  // migrated to use the new stdlib table.
   args_parser_.AddParsingOverrideForField(
       "job_scheduler_job.job_name_iid",
-      [](const protozero::Field& field,
-         util::ProtoToArgsParser::Delegate& delegate) {
-        return MaybeParseAndroidJobName(field, delegate);
+      [this](const protozero::Field& field,
+             util::ProtoToArgsParser::Delegate& delegate) {
+        return MaybeParseAndroidJobName(job_scheduler_job_name_args_key_id_,
+                                        field, delegate);
       });
 
   args_parser_.AddParsingOverrideForField(
@@ -290,9 +290,10 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
         return std::nullopt;
       });
 
-  for (uint16_t index : kReflectFields) {
-    reflect_fields_.push_back(index);
-  }
+  extension_parser_context_->parsers.emplace_back(
+      std::make_unique<TrackEventArgFieldParser>(
+          extension_parser_context_, context,
+          &active_chrome_processes_tracker_));
 }
 
 void TrackEventParser::ParseTrackDescriptor(
@@ -387,7 +388,7 @@ void TrackEventParser::ParseChromeProcessDescriptor(
           : ProcessNamePriority::kChromeProcessLabel;
   context_->process_tracker->UpdateProcessName(upid, name_id, priority);
 
-  ArgsTracker::BoundInserter process_args =
+  ArgsTracker::BoundInserter& process_args =
       context_->process_tracker->AddArgsToProcess(upid);
   // For identifying Chrome processes in system traces.
   process_args.AddArg(chrome_process_type_id_, Variadic::String(name_id));
@@ -462,6 +463,14 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
+}
+
+std::optional<uint32_t> TrackEventParser::TrackEventDescriptorIdx() {
+  if (!track_event_descriptor_idx_) {
+    track_event_descriptor_idx_ = context_->descriptor_pool_->FindDescriptorIdx(
+        ".perfetto.protos.TrackEvent");
+  }
+  return track_event_descriptor_idx_;
 }
 
 void TrackEventParser::AddActiveProcess(int64_t packet_timestamp, int32_t pid) {

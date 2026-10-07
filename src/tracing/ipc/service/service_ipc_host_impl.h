@@ -56,7 +56,13 @@ class ServiceIPCHostImpl : public ServiceIPCHost {
   // Note that there can be multiple producer sockets if it's specified in the
   // producer socket name (e.g. for listening both on vsock for VMs and AF_UNIX
   // for processes on the same machine).
-  std::vector<std::unique_ptr<ipc::Host>> producer_ipc_ports_;
+  // The `expose_relay_endpoint` bit gates whether the RelayIPCService is
+  // exposed on that specific port (see ListenEndpoint).
+  struct ProducerIPCPort {
+    std::unique_ptr<ipc::Host> host;
+    bool expose_relay_endpoint = false;
+  };
+  std::vector<ProducerIPCPort> producer_ipc_ports_;
 
   // As above, but for the Consumer port.
   std::unique_ptr<ipc::Host> consumer_ipc_port_;
