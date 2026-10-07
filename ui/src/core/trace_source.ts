@@ -45,8 +45,9 @@ export interface TraceUrlSource {
 }
 
 export interface TraceStreamSource {
-  type: 'STREAM';
-  stream: TraceStream;
+  readonly type: 'STREAM';
+  readonly stream: TraceStream;
+  readonly title?: string;
 }
 
 export interface TraceHttpRpcSource {

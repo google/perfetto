@@ -74,11 +74,13 @@ window. The message should be a JavaScript object with a single `perfetto` key:
 ```js
 {
   'perfetto': {
-    buffer: ArrayBuffer;
+    buffer?: ArrayBuffer;              // Exactly one of buffer or stream
+    stream?: ReadableStream;           // Exactly one of buffer or stream
+    bytesTotal?: number;               // Optional stream size
     title: string;
-    fileName?: string;    // Optional
-    url?: string;         // Optional
-    appStateHash?: string // Optional
+    fileName?: string;                 // Optional
+    url?: string;                      // Optional
+    appStateHash?: string              // Optional
   }
 }
 ```
@@ -86,7 +88,12 @@ window. The message should be a JavaScript object with a single `perfetto` key:
 The properties of the `perfetto` object are:
 
 - `buffer`: An `ArrayBuffer` containing the raw trace data. You would typically
-  get this by fetching a trace file from your backend.
+  get this by fetching a trace file from your backend. Exactly one of `buffer`
+  or `stream` is required.
+- `stream`: A transferred `ReadableStream` containing the trace data. Use this
+  to avoid loading the whole trace into memory before opening it.
+- `bytesTotal` (optional): The total stream size for progress reporting. Zero or
+  omitted means unknown.
 - `title`: A human-readable string that will be displayed as the title of the
   trace in the UI. This helps users distinguish between different traces if they
   have multiple tabs open.
@@ -96,6 +103,22 @@ The properties of the `perfetto` object are:
   below.
 - `appStateHash` (optional): A hash for restoring the UI state when sharing. See
   the "Sharing" section below.
+
+To transfer a stream, include it in the transfer list:
+
+```js
+const response = await fetch('/api/trace');
+const stream = response.body;
+handle.postMessage(
+    {perfetto: {stream, title: 'My trace', bytesTotal: 0}}, '*', [stream]);
+```
+
+The stream must be transferred as shown above and must not have been read first.
+The browser regulates how quickly the source produces data while Perfetto loads
+it. Streamed traces are not retained and therefore cannot be downloaded,
+shared, or cached. See the
+[embedding API reference](/docs/visualization/embedding-api-reference.md) for
+the precise stream requirements.
 
 ### Sharing traces and UI state
 
@@ -176,7 +199,8 @@ The source website must not be served with the
 
 The Perfetto UI is client-only and doesn't require any server-side interaction.
 Traces pushed via `postMessage()` are kept only in the browser memory/cache and
-are not sent to any server.
+are not sent to any server. Streamed traces are consumed while loading and are
+not added to the browser cache.
 
 ## Customizing the UI with URL parameters
 

@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/protozero/field.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
@@ -75,19 +76,14 @@ class SharedRingBufferReader {
     kProtocolError,
   };
 
-  // A view into reader-owned scratch. Valid only for the duration of the
-  // Delegate call.
-  struct Fragment {
-    const uint8_t* data = nullptr;
-    uint32_t size = 0;
-  };
-
   struct ChunkContents {
     WriterID writer_id = 0;
     BufferID target_buffer = 0;
     // A bitwise OR of PayloadFlags.
     uint32_t payload_flags = 0;
-    const Fragment* fragments = nullptr;
+    // A view into reader-owned scratch. Valid only for the duration of the
+    // Delegate call.
+    const protozero::ConstBytes* fragments = nullptr;
     uint32_t num_fragments = 0;
   };
 
@@ -214,7 +210,7 @@ class SharedRingBufferReader {
   //   the reader with inline std::array members.
   // - copied_payload_: establish a common maximum chunk size, then use a byte
   //   array of that size.
-  // - copied_fragments_: use kMaxFragmentsPerChunk inline Fragment entries.
+  // - copied_fragments_: use kMaxFragmentsPerChunk inline ConstBytes entries.
   // - Measure whether this + offset access improves the read/copy path over
   //   following pointers to separate vector allocations.
 
@@ -222,7 +218,7 @@ class SharedRingBufferReader {
   std::vector<uint8_t> copied_payload_;
 
   // Each fragment's decoded size and pointer into copied_payload_.
-  std::vector<Fragment> copied_fragments_;
+  std::vector<protozero::ConstBytes> copied_fragments_;
 
   // Chunk metadata and a view of copied_fragments_ passed to OnChunkRead().
   ChunkContents copied_chunk_;

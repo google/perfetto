@@ -22,6 +22,7 @@ import type {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {sqlValueToSqliteString} from '../../trace_processor/sql_utils';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -71,18 +72,56 @@ const JANK_TYPE_DESCRIPTIONS: Record<string, string> = {
   'Unknown Jank': 'The frame was not presented on time due to unknown reasons.',
 };
 
+/**
+ * Layer tracks are filtered views of the frames of their process' timeline, so
+ * they don't claim ownership of their slices: only the process level tracks
+ * set `rootTableName`. As a result, selecting a slice by id (e.g. from a query
+ * result) and flows always resolve to the process level timelines, and
+ * selecting a slice on a layer track doesn't show its flows.
+ */
+export function frameTrackRootTableName(
+  layerName: string | undefined,
+): string | undefined {
+  return layerName === undefined ? 'slice' : undefined;
+}
+
+/**
+ * Creates a track renderer for Actual Frame Timeline slices.
+ *
+ * The process is selected in the dataset's source query rather than with a
+ * dataset filter on upid: dataset filters are used to map events back to their
+ * track, and the expected and actual timelines of a process would both claim
+ * the same upid.
+ *
+ * @param trace - The trace context.
+ * @param uri - Unique URI for the track.
+ * @param maxDepth - Initial best guess of the depth of the track, used to
+ * avoid pop-in while the track loads. Replaced by the actual depth once known.
+ * @param upid - The process whose frames to show.
+ * @param useExperimentalJankForClassification - Whether to use experimental
+ * jank classification tags to color and classify slices instead of standard tags.
+ * @param layerName - If set, only show the frames of this layer of the process.
+ */
 export function createActualFramesTrack(
   trace: Trace,
   uri: string,
   maxDepth: number,
-  trackIds: ReadonlyArray<number>,
+  upid: number,
   useExperimentalJankForClassification: boolean,
+  layerName?: string,
 ) {
+  const layerClause =
+    layerName === undefined
+      ? ''
+      : `and layer_name = ${sqlValueToSqliteString(layerName)}`;
   return SliceTrack.create({
     trace,
     uri,
     dataset: new SourceDataset({
-      src: 'actual_frame_timeline_slice',
+      src: `
+        select * from actual_frame_timeline_slice
+        where upid = ${upid} ${layerClause}
+      `,
       schema: {
         id: NUM,
         name: STR,
@@ -94,10 +133,6 @@ export function createActualFramesTrack(
         jank_severity_type: STR_NULL,
         arg_set_id: NUM,
         track_id: NUM,
-      },
-      filter: {
-        col: 'track_id',
-        in: trackIds,
       },
     }),
     tooltip: (slice) => {
@@ -146,7 +181,7 @@ export function createActualFramesTrack(
       );
     },
     initialMaxDepth: maxDepth,
-    rootTableName: 'slice',
+    rootTableName: frameTrackRootTableName(layerName),
     detailsPanel: () => new ThreadSliceDetailsPanel(trace),
   });
 }

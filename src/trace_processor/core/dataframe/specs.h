@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <variant>
@@ -133,6 +134,16 @@ struct LimitSpec {
 // -----------------------------------------------------------------------------
 
 // Defines the properties of a column in the dataframe.
+// The column a dataframe is given when it has no id of its own, so that every
+// row has one.
+inline constexpr std::string_view kAutoIdColumnName = "_auto_id";
+
+// Whether a dataframe column is hidden: kept for the engine's own use, but not
+// one of the columns the dataframe shows, as in `SELECT *`.
+inline bool IsHiddenColumn(std::string_view name) {
+  return name == kAutoIdColumnName;
+}
+
 struct ColumnSpec {
   StorageType type;
   Nullability nullability;

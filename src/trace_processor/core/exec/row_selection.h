@@ -17,11 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_SELECTION_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_ROW_SELECTION_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
+#include <type_traits>
 #include <vector>
-#include "src/trace_processor/core/exec/buffer_pool.h"
 
+#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -49,6 +52,20 @@ class RowSelection {
   const uint32_t* data() const { return rows_; }
   uint32_t offset() const { return offset_; }
 
+  // Copies the values of the first `count` selected rows of `src` to `dst`.
+  // A range copies as one contiguous block.
+  template <typename T>
+  void Gather(const T* src, uint32_t count, T* dst) const {
+    static_assert(std::is_trivially_copyable_v<T>);
+    if (is_range()) {
+      memcpy(dst, src + offset_, count * sizeof(T));
+      return;
+    }
+    for (uint32_t i = 0; i < count; ++i) {
+      dst[i] = src[rows_[i]];
+    }
+  }
+
  private:
   RowSelection(const uint32_t* rows, uint32_t offset)
       : rows_(rows), offset_(offset) {}
@@ -62,14 +79,19 @@ class RowSelection {
 class SelectionPool {
  public:
   std::shared_ptr<FlexVector<uint32_t>> TakeBlock() {
-    auto block = blocks_.Acquire();
+    if (next_ == slots_.size())
+      slots_.emplace_back();
+    auto block = slots_[next_++].Acquire();
     block->resize(kMaxBatchRows);
     return block;
   }
-  void Reset() {}
+  // Begin another selection operation. Slot count follows the peak number of
+  // simultaneously produced mappings, not the number of batches processed.
+  void Reset() { next_ = 0; }
 
  private:
-  BufferPool<FlexVector<uint32_t>> blocks_;
+  std::vector<BufferPool<FlexVector<uint32_t>>> slots_;
+  size_t next_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

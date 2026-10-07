@@ -111,6 +111,16 @@ class ArraySource final : public Source {
   std::vector<int64_t> values_;
 };
 
+// Runs `transform` on a copy of `in` made in `out`, as a pipeline hands each
+// batch over afresh; false if it failed.
+inline bool ProcessCopy(const Transform& transform,
+                        const RowBatch& in,
+                        RowBatch& out,
+                        OperatorState& state) {
+  out.CopyFrom(in);
+  return transform.Process(out, state);
+}
+
 inline std::vector<int64_t> Sequence(uint32_t count) {
   std::vector<int64_t> values(count);
   for (uint32_t i = 0; i < count; ++i) {

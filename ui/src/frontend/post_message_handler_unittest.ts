@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {isTrustedOrigin, parsePostedTrace} from './post_message_handler';
+import {
+  isTrustedOrigin,
+  parsePostedTrace,
+  type PostedBufferTrace,
+  type PostedStreamTrace,
+} from './post_message_handler';
 
 describe('postMessageHandler', () => {
   test('baked-in trusted origins are trusted', () => {
@@ -58,23 +63,39 @@ describe('postMessageHandler', () => {
   });
 });
 
+function parseBufferTrace(data: unknown): PostedBufferTrace {
+  const result = parsePostedTrace(data);
+  if (result?.kind !== 'buffer') {
+    throw new Error(`Expected a buffer trace, got ${result?.kind}`);
+  }
+  return result;
+}
+
+function parseStreamTrace(data: unknown): PostedStreamTrace {
+  const result = parsePostedTrace(data);
+  if (result?.kind !== 'stream') {
+    throw new Error(`Expected a stream trace, got ${result?.kind}`);
+  }
+  return result;
+}
+
 describe('parsePostedTrace', () => {
   describe('flat buffer', () => {
     test('arraybuffer returned verbatim', () => {
       const buffer = new ArrayBuffer();
-      const result = parsePostedTrace(buffer);
-      expect(result?.buffer).toBe(buffer);
+      const result = parseBufferTrace(buffer);
+      expect(result.buffer).toBe(buffer);
     });
 
     test('view converted to arraybuffer', () => {
-      const result = parsePostedTrace(new Uint8Array());
-      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+      const result = parseBufferTrace(new Uint8Array());
+      expect(result.buffer).toBeInstanceOf(ArrayBuffer);
     });
 
     test('is local-only by default (no way to opt into sharing)', () => {
-      const result = parsePostedTrace(new ArrayBuffer());
-      expect(result?.shareable).toBe(false);
-      expect(result?.downloadable).toBe(false);
+      const result = parseBufferTrace(new ArrayBuffer());
+      expect(result.shareable).toBe(false);
+      expect(result.downloadable).toBe(false);
     });
 
     test('view is snipped to the view, not the underlying buffer', () => {
@@ -83,42 +104,86 @@ describe('parsePostedTrace', () => {
       underlying.forEach((_, i) => (underlying[i] = i));
       const view = new Uint8Array(underlying.buffer, 2, 10);
 
-      const result = parsePostedTrace(view);
+      const result = parseBufferTrace(view);
 
-      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+      expect(result.buffer).toBeInstanceOf(ArrayBuffer);
       // Spans exactly the view's bytes, not the full 16-byte buffer.
-      expect(result?.buffer.byteLength).toBe(10);
-      expect(new Uint8Array(result!.buffer)).toEqual(
+      expect(result.buffer.byteLength).toBe(10);
+      expect(new Uint8Array(result.buffer)).toEqual(
         new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
       );
+    });
+  });
+
+  describe('stream', () => {
+    test('readable stream is preserved', () => {
+      const stream = new ReadableStream();
+      const result = parseStreamTrace({
+        perfetto: {stream, title: 'foo', bytesTotal: 42},
+      });
+
+      expect(result.stream).toBe(stream);
+      expect(result.bytesTotal).toBe(42);
+    });
+
+    test('buffer and stream together are rejected', () => {
+      const result = parsePostedTrace({
+        perfetto: {
+          buffer: new ArrayBuffer(),
+          stream: new ReadableStream(),
+          title: 'foo',
+        },
+      });
+
+      expect(result).toBeUndefined();
+    });
+
+    test('invalid bytesTotal is treated as unknown', () => {
+      for (const bytesTotal of [undefined, -1, NaN, Infinity, '42']) {
+        const result = parseStreamTrace({
+          perfetto: {stream: new ReadableStream(), title: 'foo', bytesTotal},
+        });
+        expect(result.bytesTotal).toBe(0);
+      }
+    });
+  });
+
+  describe('invalid payload', () => {
+    test('missing buffer and stream is rejected', () => {
+      expect(parsePostedTrace({perfetto: {title: 'foo'}})).toBeUndefined();
+    });
+
+    test('non-binary buffer is rejected', () => {
+      const result = parsePostedTrace({perfetto: {buffer: 'x', title: 'foo'}});
+      expect(result).toBeUndefined();
     });
   });
 
   describe('wrapped trace', () => {
     test('arraybuffer returned verbatim', () => {
       const buffer = new ArrayBuffer();
-      const result = parsePostedTrace({perfetto: {buffer, title: 'foo'}});
-      expect(result?.buffer).toBe(buffer);
+      const result = parseBufferTrace({perfetto: {buffer, title: 'foo'}});
+      expect(result.buffer).toBe(buffer);
     });
 
     test('defaults to local-only', () => {
-      const result = parsePostedTrace({
+      const result = parseBufferTrace({
         perfetto: {buffer: new ArrayBuffer(), title: 'foo'},
       });
-      expect(result?.shareable).toBe(false);
-      expect(result?.downloadable).toBe(false);
+      expect(result.shareable).toBe(false);
+      expect(result.downloadable).toBe(false);
     });
 
     test('legacy localOnly: false opts into sharing and downloading', () => {
-      const result = parsePostedTrace({
+      const result = parseBufferTrace({
         perfetto: {buffer: new ArrayBuffer(), title: 'foo', localOnly: false},
       });
-      expect(result?.shareable).toBe(true);
-      expect(result?.downloadable).toBe(true);
+      expect(result.shareable).toBe(true);
+      expect(result.downloadable).toBe(true);
     });
 
     test('explicit shareable/downloadable win over legacy localOnly', () => {
-      const result = parsePostedTrace({
+      const result = parseBufferTrace({
         perfetto: {
           buffer: new ArrayBuffer(),
           title: 'foo',
@@ -127,26 +192,26 @@ describe('parsePostedTrace', () => {
           downloadable: true,
         },
       });
-      expect(result?.shareable).toBe(false);
-      expect(result?.downloadable).toBe(true);
+      expect(result.shareable).toBe(false);
+      expect(result.downloadable).toBe(true);
     });
 
     test('view converted to arraybuffer', () => {
-      const result = parsePostedTrace({
+      const result = parseBufferTrace({
         perfetto: {buffer: new Uint8Array(), title: 'foo'},
       });
-      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+      expect(result.buffer).toBeInstanceOf(ArrayBuffer);
     });
 
     test('file name is preserved and sanitized', () => {
-      const result = parsePostedTrace({
+      const result = parseBufferTrace({
         perfetto: {
           buffer: new ArrayBuffer(),
           title: 'foo',
           fileName: 'my<trace>.pftrace',
         },
       });
-      expect(result?.fileName).toBe('my trace .pftrace');
+      expect(result.fileName).toBe('my trace .pftrace');
     });
 
     test('view is snipped to the view, not the underlying buffer', () => {
@@ -155,14 +220,14 @@ describe('parsePostedTrace', () => {
       underlying.forEach((_, i) => (underlying[i] = i));
       const view = new Uint8Array(underlying.buffer, 2, 10);
 
-      const result = parsePostedTrace({
+      const result = parseBufferTrace({
         perfetto: {buffer: view, title: 'foo'},
       });
 
-      expect(result?.buffer).toBeInstanceOf(ArrayBuffer);
+      expect(result.buffer).toBeInstanceOf(ArrayBuffer);
       // Spans exactly the view's bytes, not the full 16-byte buffer.
-      expect(result?.buffer.byteLength).toBe(10);
-      expect(new Uint8Array(result!.buffer)).toEqual(
+      expect(result.buffer.byteLength).toBe(10);
+      expect(new Uint8Array(result.buffer)).toEqual(
         new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
       );
     });

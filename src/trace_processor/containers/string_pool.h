@@ -246,6 +246,28 @@ class StringPool {
     return result;
   }
 
+  // Returns the id of the pooled string whose characters start at `str`, or
+  // nullopt if no pooled string starts there. Unlike InternString(), neither
+  // measures nor hashes it. `block` is looked in first, and set to the block
+  // the string was found in.
+  std::optional<Id> FindPooledString(const char* str, uint32_t* block) const {
+    const auto* chars = reinterpret_cast<const uint8_t*>(str);
+    MaybeLockGuard guard{mutex_, should_acquire_mutex_};
+    if (std::optional<Id> id = FindInBlock(chars, *block)) {
+      return id;
+    }
+    for (uint32_t b = 0; b <= block_index_; ++b) {
+      if (b == *block) {
+        continue;
+      }
+      if (std::optional<Id> id = FindInBlock(chars, b)) {
+        *block = b;
+        return id;
+      }
+    }
+    return std::nullopt;
+  }
+
   // Given a StringId, returns the string for that id.
   //
   // Implementation warning: this function is *extremely* performance sensitive
@@ -364,6 +386,33 @@ class StringPool {
     const uint8_t* ptr =
         PERFETTO_TS_UNCHECKED_READ(blocks_)[id.block_index()].get();
     return ptr + id.block_offset();
+  }
+
+  // FindPooledString() for one block.
+  PERFETTO_ALWAYS_INLINE std::optional<Id> FindInBlock(const uint8_t* chars,
+                                                       uint32_t block) const
+      PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
+    const uint8_t* start = blocks_[block].get();
+    if (!start) {
+      return std::nullopt;
+    }
+    // Compared as integers: `chars` may point into another allocation.
+    auto at = reinterpret_cast<uintptr_t>(chars);
+    auto begin = reinterpret_cast<uintptr_t>(start);
+    if (at < begin + sizeof(uint32_t) || at >= begin + kBlockSizeBytes) {
+      return std::nullopt;
+    }
+    uint32_t offset = static_cast<uint32_t>(at - begin - sizeof(uint32_t));
+    // The null string's slot is not the id of any string.
+    if (block == 0 && offset == 0) {
+      return std::nullopt;
+    }
+    uint32_t size;
+    memcpy(&size, chars - sizeof(uint32_t), sizeof(uint32_t));
+    if (size >= kBlockSizeBytes - (at - begin) || chars[size] != 0) {
+      return std::nullopt;
+    }
+    return Id::BlockString(block, offset);
   }
 
   // |ptr| should point to the start of the string metadata (i.e. the first byte

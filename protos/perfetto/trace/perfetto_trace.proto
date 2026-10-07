@@ -641,7 +641,6 @@ enum SemanticType {
 // Pefetto SQL by using the following query:
 ///
 //`SELECT * FROM metadata WHERE name GLOB 'trace_attribute.*';`
-
 message TraceAttributes {
   message Attribute {
     // The key
@@ -1475,6 +1474,9 @@ message V8Config {
 // Proto definition based on the struct _EVENT_TRACE_PROPERTIES definition
 // See: https://learn.microsoft.com/en-us/windows/win32/api/evntrace/
 // ns-evntrace-event_trace_properties
+//
+// See the list of keywords for for individual providers.
+// https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 message EtwConfig {
   // The KernelFlag represent list of kernel flags that we are intrested in.
   // To get a more extensive list run 'xperf -providers k'.
@@ -1487,9 +1489,6 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1 [deprecated = true];
-
-  // See the list of keywords for for individual providers.
-  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 
   // Provides events relating to the scheduler.
   repeated string scheduler_provider_events = 2;
@@ -1886,7 +1885,7 @@ message GpuCounterConfig {
   // Selects which counters to sample. Use either counter_ids or counter_names,
   // not both. Counter IDs and names correspond to the ones described in
   // GpuCounterSpec in the data source descriptor.
-
+  //
   // List of counter IDs to be sampled.
   repeated uint32 counter_ids = 2;
 
@@ -2011,6 +2010,12 @@ message GpuRenderStagesConfig {
 
   // Trace metrics to capture for each render stage
   repeated string trace_metrics = 3;
+
+  // Enable per-draw-call slices, with real per-occurrence timestamps and metric
+  // values, on the gpu.renderstages data source. Disabled by default.
+  // When drawcall_stages is enabled, full_loadstore and low_overhead are
+  // ignored and their default values are used.
+  optional bool drawcall_stages = 4;
 }
 
 // End of protos/perfetto/config/gpu/gpu_renderstages_config.proto
@@ -4404,7 +4409,7 @@ message StatsdPullAtomConfig {
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
 // the corresponding string definitions for the actual /proc files parser.
-
+//
 // Counter definitions for Linux's /proc/meminfo.
 enum MeminfoCounters {
   MEMINFO_UNSPECIFIED = 0;
@@ -4790,45 +4795,44 @@ message TestConfig {
 
 // Begin of protos/perfetto/config/track_event/track_event_config.proto
 
+// The following fields define the set of enabled trace categories. Each list
+// item is a glob.
+//
+// To determine if category is enabled, it is checked against the filters in
+// the following order:
+//
+//   1. Exact matches in enabled categories.
+//   2. Exact matches in enabled tags.
+//   3. Exact matches in disabled categories.
+//   4. Exact matches in disabled tags.
+//   5. Pattern matches in enabled categories.
+//   6. Pattern matches in enabled tags.
+//   7. Pattern matches in disabled categories.
+//   8. Pattern matches in disabled tags.
+//
+// If none of the steps produced a match:
+//  - In the C++ SDK (`perfetto::Category`), categories are enabled by
+//  default.
+//  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
+//
+// Examples:
+//
+//  - To enable all non-slow/debug categories:
+//
+//       enabled_categories: "*"
+//
+//  - To enable specific categories:
+//
+//       disabled_categories: "*"
+//       enabled_categories: "my_category"
+//       enabled_categories: "my_category2"
+//
+//  - To enable only categories with a specific tag:
+//
+//       disabled_tags: "*"
+//       enabled_tags: "my_tag"
+//
 message TrackEventConfig {
-  // The following fields define the set of enabled trace categories. Each list
-  // item is a glob.
-  //
-  // To determine if category is enabled, it is checked against the filters in
-  // the following order:
-  //
-  //   1. Exact matches in enabled categories.
-  //   2. Exact matches in enabled tags.
-  //   3. Exact matches in disabled categories.
-  //   4. Exact matches in disabled tags.
-  //   5. Pattern matches in enabled categories.
-  //   6. Pattern matches in enabled tags.
-  //   7. Pattern matches in disabled categories.
-  //   8. Pattern matches in disabled tags.
-  //
-  // If none of the steps produced a match:
-  //  - In the C++ SDK (`perfetto::Category`), categories are enabled by
-  //  default.
-  //  - In the C SDK (`PerfettoTeCategory`), categories are disabled by default.
-  //
-  // Examples:
-  //
-  //  - To enable all non-slow/debug categories:
-  //
-  //       enabled_categories: "*"
-  //
-  //  - To enable specific categories:
-  //
-  //       disabled_categories: "*"
-  //       enabled_categories: "my_category"
-  //       enabled_categories: "my_category2"
-  //
-  //  - To enable only categories with a specific tag:
-  //
-  //       disabled_tags: "*"
-  //       enabled_tags: "my_tag"
-  //
-
   // Default: []
   repeated string disabled_categories = 1;
 
@@ -4883,7 +4887,16 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 147
+//
+// Keep the lower IDs (up to 99) for fields that are *not* specific to
+// data-sources and needs to be processed by the traced daemon.
+//
+// All data source config fields must be marked as [lazy=true]. This prevents
+// the proto-to-cpp generator from recursing into those when generating the
+// cpp classes and polluting tracing/core with data-source-specific classes.
+// Instead they are treated as opaque strings containing raw proto bytes.
+//
+// Next id: 148
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4980,7 +4993,7 @@ message DataSourceConfig {
   // overwritten packets (patches) using a ProtoVM instance with this config.
   // The ProtoVM program is specified at data source registration time through
   // the descriptor.
-
+  //
   // TODO(primiano): today when we enable a protovm_config, we actually accept
   // that if N producers advertise M different versions of the same program we
   // will create M instances of that program.
@@ -4990,13 +5003,18 @@ message DataSourceConfig {
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
 
-  // Keep the lower IDs (up to 99) for fields that are *not* specific to
-  // data-sources and needs to be processed by the traced daemon.
-
-  // All data source config fields must be marked as [lazy=true]. This prevents
-  // the proto-to-cpp generator from recursing into those when generating the
-  // cpp classes and polluting tracing/core with data-source-specific classes.
-  // Instead they are treated as opaque strings containing raw proto bytes.
+  // Set by the service to indicate that this data source can write to its
+  // target buffer through the tracing v2 ring buffer. True only if:
+  // - v2 is in the connection's common ProtocolAbiVersion mask, and
+  // - the target buffer is a TraceBufferV2.
+  // Absent means false. True permits v2 but does not select it. The producer
+  // can select v1 only if v1 is also in the common mask. If no common version
+  // is permitted by the config and target buffer, the instance cannot run.
+  // One buffer can hold both formats. Each writer sequence uses one format.
+  //
+  // Not supported: a ProtoVM data source on the same buffer.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool supports_tracing_v2 = 147;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
@@ -5534,11 +5552,11 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 4;
-
+      //
       // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
       // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
+      CLONE_SNAPSHOT = 4;
     }
     optional TriggerMode trigger_mode = 1;
 
@@ -5679,12 +5697,11 @@ message TraceConfig {
   // incident. This field is read by perfetto_cmd, rather than the tracing
   // service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * all of |destination_package|, |destination_class| and |privacy_level|
+  //    must be set.
+  //  * |skip_incidentd| must be explicitly set to true.
   message IncidentReportConfig {
-    // In this message, either:
-    //  * all of |destination_package|, |destination_class| and |privacy_level|
-    //    must be set.
-    //  * |skip_incidentd| must be explicitly set to true.
-
     optional string destination_package = 1;
     optional string destination_class = 2;
     // Level of filtering in the requested incident. See |Destination| in
@@ -5743,6 +5760,15 @@ message TraceConfig {
   // Introduced in Android S, but it was broken (b/195065199). Reintroduced in
   // Android T with a different field number. Updated in Android U with a new
   // bytecode version which supports string filtering.
+  //
+  // The principles and terminology of string filtering is heavily inspired by
+  // iptables. A "rule" decide how strings should be filtered. Each rule
+  // contains a "policy" which indicates the algorithm to use for filtering.
+  // A "chain" is a list of rules which will be sequentially checked against
+  // each string.
+  //
+  // The first rule which applies to the string terminates filtering for that
+  // string. If no rules apply, the string is left unchanged.
   message TraceFilter {
     // =========================
     // Filter bytecode.
@@ -5758,15 +5784,6 @@ message TraceConfig {
     // =========================
     // String filtering
     // =========================
-
-    // The principles and terminology of string filtering is heavily inspired by
-    // iptables. A "rule" decide how strings should be filtered. Each rule
-    // contains a "policy" which indicates the algorithm to use for filtering.
-    // A "chain" is a list of rules which will be sequentially checked against
-    // each string.
-    //
-    // The first rule which applies to the string terminates filtering for that
-    // string. If no rules apply, the string is left unchanged.
 
     // A policy specifies which algorithm should be used for filtering the
     // string.
@@ -5917,11 +5934,10 @@ message TraceConfig {
   // Android framework. This field is read by perfetto_cmd, rather than the
   // tracing service. This field must be set when passing the --upload flag to
   // perfetto_cmd.
+  // In this message, either:
+  //  * |reporter_service_package| and |reporter_service_class| must be set.
+  //  * |skip_reporting| must be explicitly set to true.
   message AndroidReportConfig {
-    // In this message, either:
-    //  * |reporter_service_package| and |reporter_service_class| must be set.
-    //  * |skip_reporting| must be explicitly set to true.
-
     optional string reporter_service_package = 1;
     optional string reporter_service_class = 2;
 
@@ -6058,7 +6074,7 @@ message TraceConfig {
 
     // The following modes are intended for advanced usage and not recommended
     // for general use.
-
+    //
     // Do not flush buffers before periodic writes into the file.
     // Use this mode if you want to minimize the performance impact of flushes
     // and can tolerate potentially missing the most recent data in the trace
@@ -6244,7 +6260,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 22.
+  // Next id: 23.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6301,8 +6317,10 @@ message TraceStats {
     // Num. chunks overwritten before they have been read (i.e. loss of data).
     optional uint64 chunks_overwritten = 3;
 
-    // Num. chunks discarded (i.e. loss of data). Can be > 0 only when a buffer
-    // is configured with FillPolicy == DISCARD.
+    // Num. chunks discarded (i.e. loss of data). For SMB chunks, this can be
+    // > 0 only when a buffer is configured with FillPolicy == DISCARD.
+    // TraceBufferV2 also counts SMB v2 batches rejected because their
+    // producer has a ProtoVM on this buffer.
     optional uint64 chunks_discarded = 18;
 
     // Num. chunks (!= packets) that were fully read from the circular buffer by
@@ -6333,9 +6351,13 @@ message TraceStats {
     // stop at that point, for that sequence, increasing this counter.
     optional uint64 readaheads_failed = 8;
 
-    // Num. of violations of the SharedMemoryABI found while writing or reading
-    // the buffer. This is an indication of either a bug in the producer(s) or
-    // malicious producer(s).
+    // Num. of violations of the SharedMemoryABI or the shared ring buffer ABI
+    // found while writing or reading the buffer. This includes SMB v2 packets
+    // that TraceBufferV2 cannot rewrite because they are malformed or nest
+    // more than 128 groups. It also includes chunks whose writer ID already
+    // uses the other input format.
+    // This is an indication of either a bug in the producer(s) or malicious
+    // producer(s).
     optional uint64 abi_violations = 9;
 
     // The fields below have been introduced in Android R.
@@ -6350,6 +6372,12 @@ message TraceStats {
     // Was shadow_buffer_stats (ShadowBufferStats), a testing-only stat used
     // to validate TraceBufferV2 against V1.
     reserved 21;
+
+    // TraceBufferV2 only. Num. SMB v2 packets dropped at read time because
+    // they contain a nested message larger than 256 MiB, the limit of the
+    // four-byte length field. The packet can be valid. Loss is reported on the
+    // next packet of the same sequence.
+    optional uint64 oversized_packets_dropped = 22;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
@@ -6756,6 +6784,7 @@ message PackagesList {
     optional bool debuggable = 3;
     optional bool profileable_from_shell = 4;
     optional int64 version_code = 5;
+    optional bool profileable = 6;
   }
 
   repeated PackageInfo packages = 1;
@@ -7113,7 +7142,7 @@ message ChromeTrigger {
 // detecting code overlaps, if a newer code creation event overlaps with older
 // code we need to asume that the old code was deleted. Code moves are logged,
 // and there is an event to track those.
-
+//
 // Strings used by V8 can have different encodings, instead of coverting to a
 // common encoding (e.g. UTF-8) on device is expensive. Instead we send the
 // "raw" string and do the convestion at trace ingestion time.
@@ -13933,7 +13962,7 @@ message Mapping {
   // exact_offset is the offset into the library file of this mapping.
   // start_offset is the offset into the library file of the first mapping
   // for that library. For native libraries (.so files) this should be 0.
-
+  //
   // This is not set on Android 10.
   optional uint64 exact_offset = 8;
 
@@ -14161,6 +14190,11 @@ message StackSample {
     // counter track per instance within each stream: SCOPE_GLOBAL yields one
     // track per sampling stream and SCOPE_CPU one track per
     // (sampling stream, cpu).
+    //
+    // If your profiler needs a scope that is not listed here, please file
+    // a bug at https://github.com/google/perfetto/issues explaining what
+    // you are trying to record and which scope you would like added.
+    // Append-only: never renumber or repurpose an existing value.
     enum Scope {
       // Treated as SCOPE_GLOBAL.
       SCOPE_UNSPECIFIED = 0;
@@ -14173,11 +14207,6 @@ message StackSample {
       // instance of the cpu in its ExecutionContext; samples without a cpu
       // cannot be attributed and their weights for this counter are dropped.
       SCOPE_CPU = 2;
-
-      // If your profiler needs a scope that is not listed here, please file
-      // a bug at https://github.com/google/perfetto/issues explaining what
-      // you are trying to record and which scope you would like added.
-      // Append-only: never renumber or repurpose an existing value.
     }
 
     // Interning key, used when this descriptor is emitted via
@@ -14548,7 +14577,6 @@ message ChromeApplicationStateInfo {
 // https://cs.chromium.org/chromium/src/cc/scheduler/scheduler.cc?q=Scheduler::AsPro
 //
 // All non-delta-timestamps are absolute CLOCK_MONOTONIC timestamps.
-
 enum ChromeCompositorSchedulerAction {
   CC_SCHEDULER_ACTION_UNSPECIFIED = 0;
   CC_SCHEDULER_ACTION_NONE = 1;
@@ -15127,8 +15155,6 @@ message ChromeMojoEventInfo {
 
 // Begin of protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto
 
-// Describes the state of the RendererScheduler for a given Renderer Process.
-
 // RAIL Mode is an indication of the kind of work that a Renderer is currently
 // performing which is in turn used to prioritise work accordingly.
 // A fuller description of these modes can be found https://web.dev/rail/
@@ -15140,6 +15166,7 @@ enum ChromeRAILMode {
   RAIL_MODE_LOAD = 4;
 }
 
+// Describes the state of the RendererScheduler for a given Renderer Process.
 message ChromeRendererSchedulerState {
   optional ChromeRAILMode rail_mode = 1;
 
@@ -15205,7 +15232,7 @@ message TaskExecution {
 
 // NOTE: Full TrackEvent support in the client lib and chrome is WIP, thus these
 // protos are still subject to change. Don't depend on them staying as they are.
-
+//
 // Trace events emitted by client instrumentation library (TRACE_EVENT macros),
 // which describe activity on a track, such as a thread or asynchronous event
 // track. The track is specified using separate TrackDescriptor messages and
@@ -15727,7 +15754,7 @@ message EventName {
 // When packet loss occurs, the reader will only lose interning data up to the
 // next reset.
 // -----------------------------------------------------------------------------
-
+//
 // Message that contains new entries for the interning indices of a packet
 // sequence.
 //
@@ -15735,19 +15762,19 @@ message EventName {
 // refers to them (since the last reset of interning state). They may also be
 // emitted proactively in advance of referring to them in later packets.
 //
+// Each field's message type needs to specify an |iid| field, which is the ID
+// of the entry in the field's interning index. Each field constructs its own
+// index, thus interning IDs are scoped to the tracing session and field
+// (usually as a counter for efficient var-int encoding), and optionally to
+// the incremental state generation of the packet sequence.
+//
+// Note: field IDs up to 15 should be used for frequent data only.
+//
 // Next reserved id: 8 (up to 15).
 // Next id: 51.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
-
-  // Each field's message type needs to specify an |iid| field, which is the ID
-  // of the entry in the field's interning index. Each field constructs its own
-  // index, thus interning IDs are scoped to the tracing session and field
-  // (usually as a counter for efficient var-int encoding), and optionally to
-  // the incremental state generation of the packet sequence.
-  //
-  // Note: field IDs up to 15 should be used for frequent data only.
 
   //
   // == STABLE PUBLIC API: TrackEvent ==
@@ -15938,7 +15965,6 @@ message SystemdJournaldEvent {
 // https://chromium.googlesource.com/chromium/src/+/master/docs/memory-infra/ .
 // This is unrelated to the native or java heap profilers (those protos live
 // in //protos/perfetto/trace/profiling/).
-
 message MemoryTrackerSnapshot {
   // Memory snapshot of a process. The snapshot contains memory data that is
   // from 2 different sources, namely system stats and instrumentation stats.
@@ -15959,7 +15985,7 @@ message MemoryTrackerSnapshot {
     // nodes, edges are used to mark nodes that account for the same memory. See
     // this doc for examples of the usage:
     // https://docs.google.com/document/d/1WGQRJ1sjJrfVkNcgPVY6frm64UqPc94tsxUOXImZUZI
-
+    //
     // A single node in the memory graph.
     message MemoryNode {
       // Unique ID of the node across all processes involved in the global
@@ -16173,13 +16199,12 @@ message TracingServiceEvent {
     }
     repeated DataSource data_source = 1;
   }
+  // When each of the following booleans are set to true, they report the
+  // point in time (through TracePacket's timestamp) where the condition
+  // they describe happened.
+  // The order of the booleans below matches the timestamp ordering
+  // they would generally be expected to have.
   oneof event_type {
-    // When each of the following booleans are set to true, they report the
-    // point in time (through TracePacket's timestamp) where the condition
-    // they describe happened.
-    // The order of the booleans below matches the timestamp ordering
-    // they would generally be expected to have.
-
     // Emitted when we start tracing and specifically, this will be before any
     // producer is notified about the existence of this trace. This is always
     // emitted before the all_data_sources_started event. This event is also
@@ -16550,7 +16575,6 @@ message DeobfuscationMapping {
 //   of a performance counter (which might be a timer), and optionally a
 //   callstack of the process that was scheduled at the time of the sample.
 //
-
 // The packet emitted by heapprofd for each heap snapshot. A snapshot can
 // involve more than one ProfilePacket if the snapshot is big (when |continued|
 // is true). The cardinality and grouping is as follows:
@@ -16992,6 +17016,8 @@ message ProcessStats {
     optional string path = 2;
   }
 
+  // When adding a new field remember to update kProcMemCounterSize in
+  // the trace processor.
   message Process {
     optional int32 pid = 1;
 
@@ -17006,8 +17032,6 @@ message ProcessStats {
     optional uint64 vm_swap_kb = 7;
     optional uint64 vm_locked_kb = 8;
     optional uint64 vm_hwm_kb = 9;
-    // When adding a new field remember to update kProcMemCounterSize in
-    // the trace processor.
 
     optional int64 oom_score_adj = 10;
 
@@ -17244,14 +17268,14 @@ message SysStats {
 
   // Number of interrupts, broken by IRQ number.
   // Populated only if IRQ_COUNTS in config.stat_counters.
-
+  //
   // Total num of irqs serviced since boot.
   optional uint64 num_irq_total = 5;
   repeated InterruptCount num_irq = 6;
 
   // Number of softirqs, broken by softirq number.
   // Populated only if SOFTIRQ_COUNTS in config.stat_counters.
-
+  //
   // Total num of softirqs since boot.
   optional uint64 num_softirq_total = 7;
 
@@ -17301,6 +17325,9 @@ message SysStats {
   repeated DiskStat disk_stat = 13;
 
   // Reading from /proc/pressure/*.
+  // Note that /proc/pressure/* exposes historical average utilization values
+  // (as a %), but we don't yet sample those. They could easily be added as
+  // additional fields should the total stall time readings be insufficient.
   message PsiSample {
     // Type of resource that may have exhibited pressure stalls.
     //    * _SOME indicates some resource tasks stalled.
@@ -17320,10 +17347,6 @@ message SysStats {
     // While PSI readings are in micros, we store in nanos for consistency with
     // most other time-based counters.
     optional uint64 total_ns = 2;
-
-    // Note that /proc/pressure/* exposes historical average utilization values
-    // (as a %), but we don't yet sample those. They could easily be added as
-    // additional fields should the total stall time readings be insufficient.
   }
   // One entry per PsiResource type.
   repeated PsiSample psi = 14;
@@ -17777,11 +17800,11 @@ message CounterDescriptor {
   // Built-in counters, usually with special meaning in the client library,
   // trace processor, legacy JSON format, or UI. Trace processor will infer a
   // track name from the enum value if none is provided in TrackDescriptor.
+  //
+  // Thread-scoped counters. The thread's track should be specified via
+  // |parent_uuid| in the TrackDescriptor for such a counter.
   enum BuiltinCounterType {
     COUNTER_UNSPECIFIED = 0;
-
-    // Thread-scoped counters. The thread's track should be specified via
-    // |parent_uuid| in the TrackDescriptor for such a counter.
 
     // implies UNIT_TIME_NS.
     COUNTER_THREAD_TIME_NS = 1;
@@ -17849,10 +17872,9 @@ message CounterDescriptor {
 // Begin of protos/perfetto/trace/track_event/state_descriptor.proto
 
 // Descriptor for a state track.
-message StateDescriptor {
-  // For now, this message is empty. It is used to identify a track as a state
-  // track.
-}
+// For now, this message is empty. It is used to identify a track as a state
+// track.
+message StateDescriptor {}
 
 // End of protos/perfetto/trace/track_event/state_descriptor.proto
 
@@ -18664,9 +18686,13 @@ message TracePacket {
     // A loss was detected (set on every loss). On its own (value 1) it means
     // dropped with no specific cause, e.g. TraceBufferV1 or a producer.
     DATA_LOSS_PRESENT = 1;
-    // A read started on a non-successor ChunkID (a gap in the stream).
+    // A read started on a non-successor ChunkID (a gap in the stream), or a
+    // proto-group sequence resumed after a recorded loss.
     DATA_LOSS_READ_GAP = 2;
-    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds).
+    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds),
+    // or a proto-group packet couldn't be rewritten. The buffer stats
+    // abi_violations and oversized_packets_dropped tell the two rewrite
+    // failures apart.
     DATA_LOSS_CHUNK_CORRUPTED = 4;
     // A continuation/end fragment with no preceding begin fragment.
     DATA_LOSS_ORPHAN_CONTINUATION = 8;
@@ -18731,14 +18757,13 @@ message TracePacket {
 
 // Begin of protos/perfetto/trace/trace.proto
 
+// Do NOT add any other field here. This is just a convenience wrapper for
+// the use case of a trace being saved to a file. There are other cases
+// (streaming) where TracePacket are directly streamed without being wrapped
+// in a Trace proto. Nothing should ever rely on the full trace, all the
+// logic should be based on TracePacket(s).
 message Trace {
   repeated TracePacket packet = 1;
-
-  // Do NOT add any other field here. This is just a convenience wrapper for
-  // the use case of a trace being saved to a file. There are other cases
-  // (streaming) where TracePacket are directly streamed without being wrapped
-  // in a Trace proto. Nothing should ever rely on the full trace, all the
-  // logic should be based on TracePacket(s).
 }
 
 // End of protos/perfetto/trace/trace.proto

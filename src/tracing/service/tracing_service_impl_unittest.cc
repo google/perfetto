@@ -62,12 +62,14 @@
 #include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
 #include "src/tracing/test/mock_producer.h"
 #include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/semantic_type.gen.h"
@@ -133,7 +135,7 @@ namespace {
 constexpr size_t kDefaultShmSizeKb = TracingServiceImpl::kDefaultShmSize / 1024;
 constexpr size_t kDefaultShmPageSizeKb =
     TracingServiceImpl::kDefaultShmPageSize / 1024;
-constexpr size_t kMaxShmSizeKb = TracingServiceImpl::kMaxShmSize / 1024;
+constexpr size_t kMaxShmSizeKb = TracingService::kMaxShmSize / 1024;
 
 constexpr size_t kProtoVmMemoryLimitKb = 16;
 
@@ -383,6 +385,152 @@ class TracingServiceImplTest : public testing::Test {
   base::TestTaskRunner task_runner;
   std::unique_ptr<TracingService> svc;
 };
+
+// A producer connected with the default ProtocolAbiVersion v1 cannot attach
+// a ring buffer.
+TEST_F(TracingServiceImplTest, RingBufferNeedsProtocolAbiV2) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto attach = [](TracingService::ProducerEndpoint* endpoint) {
+    std::optional<bool> accepted;
+    endpoint->AttachV2RingBuffer(
+        std::make_shared<InProcessSharedMemory>(
+            sizeof(tracing_v2::RingBufferHeader) + 4 * 256),
+        /*chunk_size_bytes=*/256, [&](bool result) { accepted = result; });
+    // The endpoint replies inline.
+    EXPECT_TRUE(accepted.has_value());
+    return accepted.value_or(false);
+  };
+  auto legacy =
+      svc->ConnectProducer(&producer, ClientIdentity(42, 1025), "legacy");
+  EXPECT_FALSE(attach(legacy.get()));
+  auto capable = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "ring_buffer",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
+  EXPECT_TRUE(attach(capable.get()));
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, RejectedRingBufferCanBeAttachedAgain) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "ring_buffer",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
+  auto attach = [&](size_t size) {
+    std::optional<bool> accepted;
+    endpoint->AttachV2RingBuffer(std::make_shared<InProcessSharedMemory>(size),
+                                 /*chunk_size_bytes=*/256,
+                                 [&](bool result) { accepted = result; });
+    // The endpoint replies inline.
+    EXPECT_TRUE(accepted.has_value());
+    return accepted.value_or(false);
+  };
+
+  // 4096 bytes minus the header is not a whole number of 256-byte chunks.
+  EXPECT_FALSE(attach(4096));
+  // The rejection kept nothing, so a valid layout is accepted.
+  EXPECT_TRUE(attach(sizeof(tracing_v2::RingBufferHeader) + 4 * 256));
+  // One ring buffer per producer.
+  EXPECT_FALSE(attach(sizeof(tracing_v2::RingBufferHeader) + 4 * 256));
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, RejectsEmptyProtocolVersionMask) {
+  NiceMock<MockProducer> producer(&task_runner);
+  EXPECT_CALL(producer, OnConnect()).Times(0);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "no_common_version",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, /*protocol_abi_versions=*/0);
+  EXPECT_FALSE(endpoint);
+  task_runner.RunUntilIdle();
+}
+
+// A v2-only producer cannot write to a v1 target. This must not stop a
+// different instance of the same producer from using a v2 target.
+TEST_F(TracingServiceImplTest, V2OnlyProducerNeedsV2Destination) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "v2_only",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
+  ASSERT_TRUE(endpoint);
+  for (const char* name : {"v1_target", "v2_target"}) {
+    DataSourceDescriptor descriptor;
+    descriptor.set_name(name);
+    endpoint->RegisterDataSource(descriptor);
+  }
+
+  TraceConfig config;
+  config.add_buffers()->set_size_kb(128);
+  auto* v2_buffer = config.add_buffers();
+  v2_buffer->set_size_kb(128);
+  v2_buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  config.add_data_sources()->mutable_config()->set_name("v1_target");
+  auto* v2_source = config.add_data_sources()->mutable_config();
+  v2_source->set_name("v2_target");
+  v2_source->set_target_buffer(1);
+
+  EXPECT_CALL(producer, SetupDataSource(_, _))
+      .WillOnce([](DataSourceInstanceID, const DataSourceConfig& setup) {
+        EXPECT_EQ(setup.name(), "v2_target");
+        EXPECT_TRUE(setup.supports_tracing_v2());
+      });
+  EXPECT_CALL(producer, StartDataSource(_, _)).Times(1);
+  consumer->EnableTracing(config);
+  task_runner.RunUntilIdle();
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+// The consumer cannot set supports_tracing_v2. The service overwrites the
+// field, also for a producer without tracing v2.
+TEST_F(TracingServiceImplTest, ServiceOverwritesSupportsTracingV2) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(128);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_supports_tracing_v2(true);
+
+  DataSourceConfig setup_config;
+  auto on_setup = task_runner.CreateCheckpoint("on_setup");
+  EXPECT_CALL(*producer, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID, const DataSourceConfig& cfg) {
+        setup_config = cfg;
+        on_setup();
+      });
+  EXPECT_CALL(*producer, StartDataSource(_, _));
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  task_runner.RunUntilCheckpoint("on_setup");
+
+  EXPECT_TRUE(setup_config.has_supports_tracing_v2());
+  EXPECT_FALSE(setup_config.supports_tracing_v2());
+
+  consumer->DisableTracing();
+  EXPECT_CALL(*producer, StopDataSource(_));
+  consumer->WaitForTracingDisabled();
+}
 
 TEST_F(TracingServiceImplTest, AtMostOneConfig) {
   std::unique_ptr<MockConsumer> consumer_a = CreateMockConsumer();
@@ -9143,8 +9291,26 @@ TEST_F(TracingServiceImplTest, ProtoVmWithSessionClone) {
   consumer2->CloneSession(1);
   producer->ExpectFlush(writer.get());
   task_runner.RunUntilCheckpoint("clone_done");
-  ExpectProtoVmPackets(consumer2->ReadBuffers(), {"patch1"},
+  std::vector<protos::gen::TracePacket> cloned_packets =
+      consumer2->ReadBuffers();
+  ExpectProtoVmPackets(cloned_packets, {"patch1"},
                        {"patch2", "patch3", "patch4"});
+
+  // TraceProcessor needs the provenance to route patches to the cloned VM.
+  auto provenance = std::find_if(cloned_packets.cbegin(), cloned_packets.cend(),
+                                 [](const protos::gen::TracePacket& p) {
+                                   return p.has_trace_provenance();
+                                 });
+  ASSERT_NE(provenance, cloned_packets.cend());
+  EXPECT_THAT(
+      provenance->trace_provenance().buffers(),
+      ElementsAre(Property(
+          &protos::gen::TraceProvenance::Buffer::sequences,
+          ElementsAre(AllOf(
+              Property(&protos::gen::TraceProvenance::Sequence::id,
+                       Not(Eq(0u))),
+              Property(&protos::gen::TraceProvenance::Sequence::producer_id,
+                       Not(Eq(0))))))));
 
   // Write more patches into the original session and trigger overwrite of
   // patch2

@@ -26,14 +26,19 @@ RowCursor::RowCursor(const Source& source)
 RowCursor::~RowCursor() = default;
 
 bool RowCursor::Pull() {
-  if (!source_.GetData(batch_, *state_)) {
-    index_ = 0;
-    size_ = 0;
-    return false;
+  for (;;) {
+    batch_ = source_.Next(scratch_, *state_);
+    if (!batch_) {
+      index_ = 0;
+      size_ = 0;
+      return false;
+    }
+    if (batch_->size()) {
+      index_ = 0;
+      size_ = batch_->size();
+      return true;
+    }
   }
-  index_ = 0;
-  size_ = batch_.size();
-  return true;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

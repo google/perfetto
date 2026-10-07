@@ -126,14 +126,14 @@ Twice::State::~State() = default;
 
 TEST(OperatorTest, SourceEmitsEveryRow) {
   ArraySource source({10, 20, 30});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2));
 }
 
 TEST(OperatorTest, SourceSplitsIntoBatches) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 3));
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
 
   std::vector<uint32_t> rows = Drain(pipeline);
   ASSERT_EQ(rows.size(), kMaxBatchRows * 2u + 3u);
@@ -143,7 +143,7 @@ TEST(OperatorTest, SourceSplitsIntoBatches) {
 
 TEST(OperatorTest, SourceIsReplayable) {
   ArraySource source({10, 20, 30});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2));
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2));
@@ -151,19 +151,19 @@ TEST(OperatorTest, SourceIsReplayable) {
 
 TEST(OperatorTest, OperatorNarrowsTheBatch) {
   ArraySource source({10, 20, 30, 40, 50});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<DropOddRows>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 2, 4));
 }
 
 TEST(OperatorTest, OperatorsComposeWithinABatch) {
   ArraySource source({0, 1, 2, 3, 4, 5, 6, 7, 8});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<DropOddRows>());
   ops.push_back(std::make_unique<DropOddRows>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   // Keeping every second row twice leaves every fourth.
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 4, 8));
@@ -171,11 +171,11 @@ TEST(OperatorTest, OperatorsComposeWithinABatch) {
 
 TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   ArraySource source(Sequence(17));
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   for (int i = 0; i < 3; ++i) {
     ops.push_back(std::make_unique<DropOddRows>());
   }
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   // Keeping every second row three times leaves every eighth. The third
   // operator narrows a selection the batch already composed, in place.
@@ -186,10 +186,10 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
 // reused by the next one, so a pipeline stops allocating once it is running.
 TEST(OperatorTest, ComposedViewsReuseTheBatchesStorage) {
   ArraySource source(Sequence(kMaxBatchRows * 4));
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<DropOddRows>());
   ops.push_back(std::make_unique<DropOddRows>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   Execution run(pipeline);
   RowBatch* batch = run.Next();
@@ -206,7 +206,7 @@ TEST(OperatorTest, ComposedViewsReuseTheBatchesStorage) {
 
 TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
 
   std::vector<uint32_t> rows = Drain(pipeline);
   ASSERT_EQ(rows.size(), kMaxBatchRows * 2u + 7u);
@@ -274,7 +274,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 
 TEST(SinkTest, ReportsEofWithoutOpen) {
   ArraySource source({1, 2, 3});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
   RowCursor cursor(pipeline);
 
   EXPECT_TRUE(cursor.eof());
@@ -284,7 +284,7 @@ TEST(SinkTest, ReportsEofWithoutOpen) {
 // advancing again must keep saying so rather than resurrecting the cursor.
 TEST(SinkTest, AdvancingPastEofStaysAtEof) {
   ArraySource source({1, 2});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
   RowCursor cursor(pipeline);
   cursor.Open();
   cursor.Next();
@@ -296,7 +296,7 @@ TEST(SinkTest, AdvancingPastEofStaysAtEof) {
 
 TEST(SinkTest, ReopeningRereadsFromTheStart) {
   ArraySource source({4, 5, 6});
-  Pipeline pipeline(source, {});
+  Pipeline pipeline(source, {}, {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2));
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2));
@@ -335,16 +335,15 @@ class Trailer final : public Operator {
     return ++s.let_go == count_ ? OpResult::kNeedMoreInput
                                 : OpResult::kHaveMoreOutput;
   }
-  void Rewind(OperatorState& state) const override {
-    state.Cast<State>().let_go = 0;
-  }
   base::Status status(const OperatorState& state) const override {
     return state.Cast<const State>().status;
   }
 
  private:
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override { let_go = 0; }
     uint32_t let_go = 0;
     base::Status status = base::OkStatus();
   };
@@ -359,9 +358,9 @@ Trailer::State::~State() = default;
 // so and is called again with the same input.
 TEST(OperatorTest, AnOperatorCanFanOut) {
   ArraySource source({10, 20, 30});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2, 0, 1, 2));
 }
@@ -370,28 +369,28 @@ TEST(OperatorTest, AnOperatorCanFanOut) {
 // called again.
 TEST(OperatorTest, FanOutNestsInnermostFirst) {
   ArraySource source({10, 20});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Twice>());
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
 
 TEST(FinishTest, AnOperatorCanLetRowsGoAfterTheLastInput) {
   ArraySource source({10, 20, 30});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(99, 1));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 2, 99));
 }
 
 TEST(FinishTest, FinishCanFanOut) {
   ArraySource source({10});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(97, 3));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 97, 98, 99));
 }
@@ -400,10 +399,10 @@ TEST(FinishTest, FinishCanFanOut) {
 // it, fan-out included.
 TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
   ArraySource source({10, 20});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(99, 1));
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 99, 99));
 }
@@ -412,19 +411,19 @@ TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
 // rows the lower one lets go reach it as ordinary input first.
 TEST(FinishTest, OperatorsAreFinishedBottomUp) {
   ArraySource source({10});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(7, 1));
   ops.push_back(std::make_unique<Trailer>(8, 1));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 7, 8));
 }
 
 TEST(FinishTest, RewindFinishesAgain) {
   ArraySource source({10, 20});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(99, 1));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 99));
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 99));
@@ -432,9 +431,9 @@ TEST(FinishTest, RewindFinishesAgain) {
 
 TEST(FinishTest, AFailingFinishIsReported) {
   ArraySource source({10, 20});
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(-1, 1));
-  Pipeline pipeline(source, std::move(ops));
+  Pipeline pipeline(source, std::move(ops), {});
   RowCursor cursor(pipeline);
   std::vector<uint32_t> rows;
   for (cursor.Open(); !cursor.eof(); cursor.Next()) {
@@ -442,6 +441,87 @@ TEST(FinishTest, AFailingFinishIsReported) {
   }
   EXPECT_THAT(rows, ElementsAre(0, 1));
   EXPECT_EQ(cursor.status().message(), "trailer broke");
+}
+
+// Keeps every second row in place, remembering the batch it was given.
+class DropOddRowsInPlace final : public Transform {
+ public:
+  std::unique_ptr<OperatorState> MakeState() const override {
+    return std::make_unique<State>();
+  }
+
+  bool Process(RowBatch& batch, OperatorState& state) const override {
+    State& s = state.Cast<State>();
+    seen = &batch;
+    uint32_t count = 0;
+    for (uint32_t row = 0; row < batch.size(); row += 2) {
+      s.selected[count++] = row;
+    }
+    batch.Slice(RowSelection::Indices(
+                    Span<const uint32_t>(s.selected, s.selected + count)),
+                count);
+    return true;
+  }
+
+  mutable const RowBatch* seen = nullptr;
+
+ private:
+  struct State : OperatorState {
+    ~State() override;
+    uint32_t selected[kMaxBatchRows];
+  };
+};
+
+DropOddRowsInPlace::State::~State() = default;
+
+class FailingTransform final : public Transform {
+ public:
+  bool Process(RowBatch&, OperatorState&) const override { return false; }
+  base::Status status(const OperatorState&) const override {
+    return base::ErrStatus("transform broke");
+  }
+};
+
+TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
+  ArraySource source({10, 20, 30, 40, 50});
+  auto drop = std::make_unique<DropOddRowsInPlace>();
+  const DropOddRowsInPlace* transform = drop.get();
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::move(drop));
+  Pipeline pipeline(source, std::move(steps), {});
+
+  auto state = pipeline.MakeState();
+  RowBatch scratch;
+  pipeline.Rewind(*state);
+  RowBatch* batch = pipeline.Next(scratch, *state);
+  ASSERT_NE(batch, nullptr);
+  EXPECT_EQ(batch->size(), 3u);
+  // Nothing was copied between the transform and the caller.
+  EXPECT_EQ(transform->seen, batch);
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 2, 4));
+}
+
+TEST(OperatorTest, TransformsAndOperatorsMix) {
+  ArraySource source({10, 20, 30, 40});
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::make_unique<DropOddRowsInPlace>());
+  steps.push_back(std::make_unique<Twice>());
+  steps.push_back(std::make_unique<DropOddRowsInPlace>());
+  Pipeline pipeline(source, std::move(steps), {});
+
+  // {0, 2}, then twice over, then every second row of each.
+  EXPECT_THAT(Drain(pipeline), ElementsAre(0, 0));
+}
+
+TEST(OperatorTest, FailingTransformStopsThePipeline) {
+  ArraySource source({10, 20, 30});
+  std::vector<Pipeline::Step> steps;
+  steps.push_back(std::make_unique<FailingTransform>());
+  Pipeline pipeline(source, std::move(steps), {});
+
+  RowCursor cursor(pipeline);
+  EXPECT_FALSE(cursor.Open());
+  EXPECT_EQ(cursor.status().message(), "transform broke");
 }
 
 }  // namespace

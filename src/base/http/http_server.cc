@@ -30,9 +30,9 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/base64.h"
-#include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/http/sha1.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/string_utils.h"

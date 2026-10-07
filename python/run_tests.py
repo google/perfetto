@@ -20,6 +20,7 @@ import unittest
 
 from test import api_integrationtest
 from test import bigtrace_api_integrationtest
+from test import open_trace_in_ui_unittest
 from test import query_result_iterator_unittest
 from test import resolver_unittest
 from test import stdlib_unittest
@@ -51,6 +52,7 @@ def main():
   suite = unittest.TestSuite()
 
   # Add all relevant tests to test suite
+  suite.addTests(loader.loadTestsFromModule(open_trace_in_ui_unittest))
   suite.addTests(loader.loadTestsFromModule(query_result_iterator_unittest))
   suite.addTests(loader.loadTestsFromModule(resolver_unittest))
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))

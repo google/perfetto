@@ -27,6 +27,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -39,6 +40,32 @@
 // compromised.
 
 namespace perfetto {
+
+namespace {
+
+// The proto and C++ enums use the same bits.
+static_assert(static_cast<uint32_t>(protos::gen::PROTOCOL_ABI_VERSION_V1) ==
+              kProtocolAbiV1);
+static_assert(static_cast<uint32_t>(protos::gen::PROTOCOL_ABI_VERSION_V2) ==
+              kProtocolAbiV2);
+
+// Returns the bitmask of common protocol versions, or 0 if none match.
+uint32_t GetCommonProtocolAbiVersions(uint32_t producer_versions,
+                                      bool use_shmem_emulation) {
+  // Old producers send no versions and support only v1.
+  if (!producer_versions)
+    return kProtocolAbiV1;
+
+  // v2 needs memfd support and cannot use shared memory emulation.
+  uint32_t supported = kProtocolAbiV1;
+  if (tracing_v2::IpcSupportsTracingV2() && !use_shmem_emulation)
+    supported |= kProtocolAbiV2;
+
+  // Unknown bits from a newer producer drop out here.
+  return producer_versions & supported;
+}
+
+}  // namespace
 
 ProducerIPCService::ProducerIPCService(TracingService* core_service)
     : core_service_(core_service), weak_ptr_factory_(this) {}
@@ -101,8 +128,9 @@ void ProducerIPCService::InitializeConnection(
     base::ScopedFile shmem_fd = ipc::Service::TakeReceivedFD();
 
     if (shmem_fd) {
-      shmem = PosixSharedMemory::AttachToFd(
-          std::move(shmem_fd), /*require_seals_if_supported=*/true);
+      shmem = PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                            /*require_seals_if_supported=*/true,
+                                            TracingService::kMaxShmSize);
       if (!shmem) {
         PERFETTO_ELOG(
             "Couldn't map producer-provided SMB, falling back to "
@@ -119,13 +147,23 @@ void ProducerIPCService::InitializeConnection(
   // Copy the data fields to be emitted to trace packets into ClientIdentity.
   ClientIdentity client_identity(client_info.uid(), client_info.pid(),
                                  client_info.machine_id());
+  const uint32_t protocol_abi_versions =
+      GetCommonProtocolAbiVersions(req.supported_protocol_abi_versions(),
+                                   ipc::Service::use_shmem_emulation());
+  if (!protocol_abi_versions) {
+    PERFETTO_ELOG(
+        "Producer \"%s\" supports no protocol version of this service",
+        req.producer_name().c_str());
+    return response.Reject();
+  }
+
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
       producer.get(), client_identity, req.producer_name(),
       req.shared_memory_size_hint_bytes(),
       /*in_process=*/false, smb_scraping_mode,
       req.shared_memory_page_size_hint_bytes(), std::move(shmem),
-      req.sdk_version(), client_info.machine_name());
+      req.sdk_version(), client_info.machine_name(), protocol_abi_versions);
 
   // Could happen if the service has too many producers connected.
   if (!producer->service_endpoint) {
@@ -146,6 +184,7 @@ void ProducerIPCService::InitializeConnection(
   async_res->set_using_shmem_provided_by_producer(using_producer_shmem);
   async_res->set_direct_smb_patching_supported(true);
   async_res->set_use_shmem_emulation(use_shmem_emulation);
+  async_res->set_protocol_abi_versions(protocol_abi_versions);
   response.Resolve(std::move(async_res));
 }
 
@@ -386,6 +425,52 @@ void ProducerIPCService::GetAsyncCommand(
   // we should forward it to the producer now.
   if (producer->send_setup_tracing_on_async_commands_bound)
     producer->SendSetupTracing();
+}
+
+void ProducerIPCService::AttachV2RingBuffer(
+    const protos::gen::AttachV2RingBufferRequest& req,
+    DeferredAttachV2RingBufferResponse resp) {
+  // Take the descriptor first. It is closed on every rejection path.
+  auto fd = ipc::Service::TakeReceivedFD();
+  auto* producer = GetProducerForCurrentRequest();
+  if (!producer) {
+    resp.Reject();
+    return;
+  }
+
+  std::shared_ptr<SharedMemory> memory;
+#if PERFETTO_TRACING_V2_IPC()
+  memory = PosixSharedMemory::AttachToFd(std::move(fd),
+                                         /*require_seals_if_supported=*/true,
+                                         TracingService::kMaxShmSize);
+#endif
+  if (!memory) {
+    PERFETTO_DLOG("AttachV2RingBuffer() rejected: could not map the memfd");
+    resp.Reject();
+    return;
+  }
+
+  // |resp| cannot be copied, but std::function requires a copyable callback.
+  // Capture a shared_ptr so callback copies refer to the same response.
+  auto pending =
+      std::make_shared<DeferredAttachV2RingBufferResponse>(std::move(resp));
+  producer->service_endpoint->AttachV2RingBuffer(
+      memory, req.chunk_size_bytes(), [pending](bool accepted) {
+        if (!accepted) {
+          pending->Reject();
+          return;
+        }
+        pending->Resolve(ipc::AsyncResult<
+                         protos::gen::AttachV2RingBufferResponse>::Create());
+      });
+}
+
+void ProducerIPCService::DrainV2RingBuffer(
+    const protos::gen::DrainV2RingBufferRequest&,
+    DeferredDrainV2RingBufferResponse) {
+  auto* producer = GetProducerForCurrentRequest();
+  if (producer)
+    producer->service_endpoint->DrainV2RingBuffer();
 }
 
 void ProducerIPCService::Sync(const protos::gen::SyncRequest&,

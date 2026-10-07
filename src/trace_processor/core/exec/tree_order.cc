@@ -27,7 +27,6 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_selection.h"
-#include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -101,10 +100,8 @@ bool TreeChildFirst::Consume(const RowBatch& in, Breaker::State& state) const {
       s.nodes_seen = std::max(s.nodes_seen, parent + 1);
     }
     if (s.has_row.size() < s.nodes_seen) {
-      // Grown geometrically, as resize allocates exactly what it is asked for.
-      auto size = std::max<uint64_t>(s.nodes_seen, s.has_row.size() * 2);
-      s.has_row.resize(size);
-      s.row_of_node.resize(size);
+      s.has_row.resize(s.nodes_seen);
+      s.row_of_node.resize(s.nodes_seen);
     }
     if (s.has_row.is_set(node)) {
       s.status = base::ErrStatus("%s: more than one row has the same node",
@@ -219,14 +216,15 @@ bool TreeChildFirst::Serve(RowBatch& out, Breaker::State& state) const {
     count = s.rows.View(&out, s.emitted, count);
   } else {
     const uint32_t* begin = s.order.data() + s.emitted;
-    s.rows.View(&out, Span<const uint32_t>(begin, begin + count));
+    count = s.rows.View(&out, Span<const uint32_t>(begin, begin + count));
   }
   s.emitted += count;
   return true;
 }
 
-void TreeChildFirst::Reset(Breaker::State& state) const {
-  State& s = state.Cast<State>();
+void TreeChildFirst::State::Reset() {
+  Breaker::State::Reset();
+  State& s = *this;
   s.has_row.clear();
   s.nodes_seen = 0;
   s.parent_first = true;
@@ -246,25 +244,18 @@ TreeParentFirst::~TreeParentFirst() = default;
 TreeParentFirst::State::~State() = default;
 
 void TreeParentFirst::State::Nodes::Grow(uint32_t new_count) {
-  if (new_count <= count) {
-    return;
-  }
-  count = new_count;
-  auto size = static_cast<uint32_t>(first_waiting.size());
+  auto size = first_waiting.size();
   if (new_count <= size) {
     return;
   }
-  // Grown geometrically, as resize allocates exactly what it is asked for.
-  uint32_t new_size = std::max(new_count, size * 2);
-  has_row.resize(new_size);
-  out.resize(new_size);
-  first_waiting.resize(new_size);
-  std::fill(first_waiting.data() + size, first_waiting.data() + new_size,
+  has_row.resize(new_count);
+  out.resize(new_count);
+  first_waiting.resize(new_count);
+  std::fill(first_waiting.data() + size, first_waiting.data() + new_count,
             kNoNode);
 }
 
 void TreeParentFirst::State::Nodes::Clear() {
-  count = 0;
   has_row.clear();
   out.clear();
   first_waiting.clear();
@@ -297,7 +288,7 @@ OpResult TreeParentFirst::LetGo(RowBatch& out, State& s) const {
   auto total = static_cast<uint32_t>(s.letting_go.size());
   uint32_t count = std::min(kMaxBatchRows, total - s.served);
   const uint32_t* begin = s.letting_go.data() + s.served;
-  s.held.rows.View(&out, Span<const uint32_t>(begin, begin + count));
+  count = s.held.rows.View(&out, Span<const uint32_t>(begin, begin + count));
   s.served += count;
   if (s.served < total) {
     return OpResult::kHaveMoreOutput;
@@ -410,8 +401,8 @@ OpResult TreeParentFirst::Finish(RowBatch& out, OperatorState& state) const {
   return OpResult::kNeedMoreInput;
 }
 
-void TreeParentFirst::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
+void TreeParentFirst::State::Reset() {
+  State& s = *this;
   s.nodes.Clear();
   s.held.Clear();
   s.letting_go.clear();

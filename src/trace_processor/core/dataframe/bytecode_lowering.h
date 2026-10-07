@@ -25,6 +25,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
@@ -209,11 +210,11 @@ class BytecodeLowering {
 
   void MaybeReleaseScratchSpanRegister();
 
-  uint16_t CalculateRowLayoutStride(
+  RowLayout MakeRowLayout(
       const std::vector<RowLayoutParams>& row_layout_params);
 
   interpreter::RwHandle<Slab<uint8_t>> CopyToRowLayout(
-      uint16_t row_stride,
+      const RowLayout& layout,
       interpreter::RwHandle<Span<uint32_t>> indices,
       interpreter::ReadHandle<interpreter::StringIdToRankMap> rank_map,
       const std::vector<RowLayoutParams>& row_layout_params);

@@ -16,6 +16,9 @@ import {NUM, STR} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode, type Workspace} from '../../public/workspace';
+import FramesPlugin, {
+  getProcessFrameTimelineUris,
+} from '../dev.perfetto.Frames';
 
 const TRACKS_TO_COPY: string[] = [
   'L<',
@@ -28,6 +31,7 @@ const SYSTEM_UI_PROCESS: string = 'com.android.systemui';
 // Plugin that creates an opinionated Workspace specific for SysUI
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.SysUIWorkspace';
+  static readonly dependencies = [FramesPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
@@ -108,7 +112,7 @@ class ProcessWorkspaceFactory {
   }
 
   private async createWorkspace() {
-    this.pinTracksContaining('Actual Timeline', 'Expected Timeline');
+    this.pinFrameTimelines();
     this.pinMainThread();
     this.pinFirstRenderThread();
     await this.pinUiThreads();
@@ -127,14 +131,13 @@ class ProcessWorkspaceFactory {
     });
   }
 
-  private pinTracksContaining(...args: string[]) {
-    args.forEach((s) => this.pinTrackContaining(s));
-  }
-
-  private pinTrackContaining(titleSubstring: string) {
-    this.getTracksContaining(titleSubstring).forEach((track) =>
-      this.ws.addChildLast(track.clone()),
-    );
+  // Matched by URI rather than by name: the per-layer frame timelines share the
+  // names of the process-level ones.
+  private pinFrameTimelines() {
+    for (const uri of getProcessFrameTimelineUris(this.process.upid)) {
+      const track = this.processTracks.find((t) => t.uri === uri);
+      if (track) this.ws.addChildLast(track.clone());
+    }
   }
 
   private pinTracksContainingInGroupIfNeeded(

@@ -222,6 +222,7 @@ class GraphicsGpuTrace(TestSuite):
               'hw_queue_id',
               'render_subpasses',
               'render_stage_category',
+              'render_stage_name',
               'upid'
             )
           ) args USING (arg_set_id)
@@ -292,6 +293,7 @@ class GraphicsGpuTrace(TestSuite):
               'hw_queue_id',
               'render_subpasses',
               'render_stage_category',
+              'render_stage_name',
               'upid'
             )
           ) args USING (arg_set_id)
@@ -745,6 +747,106 @@ class GraphicsGpuTrace(TestSuite):
         out=Csv('''
           "slice_name","kernel_name","grid_x","grid_y","grid_z","wg_x","wg_y","wg_z","regs","shmem"
           "vectorAdd","_Z9vectorAddPfS_S_i",256,1,1,128,1,1,32,4096
+        '''))
+
+  # A named render stage event's slice takes the event's name, so the stage
+  # name must survive as an arg.
+  def test_gpu_render_stage_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 0
+            interned_data {
+              gpu_specifications {
+                iid: 1
+                name: "Compute Queue"
+                category: COMPUTE
+              }
+              gpu_specifications {
+                iid: 2
+                name: "Kernel"
+                category: COMPUTE
+              }
+              gpu_specifications {
+                iid: 3
+                name: "MemoryTransfer"
+                category: OTHER
+              }
+            }
+            sequence_flags: 1
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 100
+            gpu_render_stage_event {
+              event_id: 0
+              duration: 10
+              hw_queue_iid: 1
+              stage_iid: 2
+              name: "vectorAdd"
+            }
+            sequence_flags: 2
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 200
+            gpu_render_stage_event {
+              event_id: 1
+              duration: 10
+              hw_queue_iid: 1
+              stage_iid: 3
+              name: "Memcpy HtoD"
+            }
+            sequence_flags: 2
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 300
+            gpu_render_stage_event {
+              event_id: 2
+              duration: 10
+              hw_queue_iid: 1
+              stage_iid: 2
+            }
+            sequence_flags: 2
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 0
+            gpu_render_stage_event {
+              specifications {
+                hw_queue { name: "queue 0" }
+                stage { name: "MemorySet" }
+              }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 400
+            gpu_render_stage_event {
+              event_id: 3
+              duration: 10
+              hw_queue_id: 0
+              stage_id: 0
+              name: "Memset"
+            }
+          }
+        """),
+        query='''
+          SELECT
+            s.ts,
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'render_stage_name') AS render_stage_name
+          FROM gpu_slice s
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "ts","slice_name","render_stage_name"
+          100,"vectorAdd","Kernel"
+          200,"Memcpy HtoD","MemoryTransfer"
+          300,"Kernel","Kernel"
+          400,"Memset","MemorySet"
         '''))
 
   def test_gpu_frequency_event(self):

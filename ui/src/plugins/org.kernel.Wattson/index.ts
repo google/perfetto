@@ -33,6 +33,7 @@ import {
   WattsonGpuPackageSelectionAggregator,
 } from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
+import {WattsonTaskSummary} from './task_summary';
 import {WattsonThreadSelectionAggregator} from './thread_aggregator';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
@@ -252,6 +253,7 @@ async function addWattsonCpuElements(
   group: TrackNode,
   missingEvents: string[],
 ) {
+  const taskSummary = new WattsonTaskSummary(ctx.engine);
   const warningDesc = createCpuWarnings(missingEvents);
 
   // CPUs estimate as part of CPU subsystem
@@ -291,18 +293,25 @@ async function addWattsonCpuElements(
   group.addChildInOrder(new TrackNode({uri, name: `DSU/SCU estimate`}));
 
   // Register selection aggregators.
-  // NOTE: The registration order matters because subsequent aggregators
-  // (Process, Package) depend on views created by Thread aggregator
   ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonThreadSelectionAggregator(ctx)),
+    createAggregationTab(
+      ctx,
+      new WattsonThreadSelectionAggregator(ctx, taskSummary),
+    ),
   );
   ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonProcessSelectionAggregator()),
+    createAggregationTab(
+      ctx,
+      new WattsonProcessSelectionAggregator(taskSummary),
+    ),
   );
 
   if (await isProcessMetadataPresent(ctx.engine)) {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new WattsonCpuPackageSelectionAggregator()),
+      createAggregationTab(
+        ctx,
+        new WattsonCpuPackageSelectionAggregator(taskSummary),
+      ),
     );
   }
 }

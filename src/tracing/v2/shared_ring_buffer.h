@@ -23,6 +23,7 @@
 #include <atomic>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/futex.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 namespace perfetto::tracing_v2 {
@@ -64,7 +65,7 @@ class SharedRingBuffer {
   //
   // - sizeof(RingBufferHeader) is 64 bytes. |start| must be 64-byte aligned.
   // - num_chunks must be a power of two, from 2 to 2^30.
-  // - |chunk_size| must be at least 256 bytes and a multiple of four.
+  // - |chunk_size| must be in [256 B, 64 KiB] and a multiple of four.
   //   It does not need to be a power of two.
   // - |size| must match the equation exactly, with no trailing bytes.
   //   It does not need to be a power of two.
@@ -181,6 +182,16 @@ class SharedRingBuffer {
   //   the remaining reservations.
   uint32_t LoadWritePosRelaxed() const;
 
+  // Returns write_pos - read_pos from one relaxed load of both positions.
+  // - Includes chunks that writers have not published yet.
+  // - Includes positions reserved but left unclaimed when a chunk claim failed.
+  //   They still count until the reader advances past them.
+  //
+  // Concurrent updates can make this snapshot out of date, but that only
+  // affects when a drain is requested. Space reservation and chunk access use
+  // separate checks.
+  uint32_t LoadNumOutstandingPositionsRelaxed() const;
+
   // BeingWritten(N) -> RewriteRequested(N), with all other fields unchanged.
   // |*expected| must be the word the reader used to copy the fragments.
   //
@@ -231,7 +242,7 @@ class SharedRingBuffer {
   };
 
   // Whether WaitForReadPosChange() is implemented on this platform.
-  static bool SupportsWriterWait();
+  static constexpr bool SupportsWriterWait() { return PERFETTO_HAS_FUTEX(); }
 
   // Blocks until read_pos differs from |read_pos_for_wait| or |timeout_ms|
   // elapses. |read_pos_for_wait| comes from the last Reservation, whether it

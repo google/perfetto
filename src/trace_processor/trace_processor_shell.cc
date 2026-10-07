@@ -1020,11 +1020,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
-      std::string warnings;
       RETURN_IF_ERROR(profiling::ResolveDebuginfodOptions(
-          global.debuginfod_options, &global.debuginfod, &warnings));
-      if (!warnings.empty())
-        fprintf(stderr, "%s", warnings.c_str());
+          global.debuginfod_options, &global.debuginfod));
 
       // Parse metric extensions and populate their descriptor pool. The
       // pool is always created (built-in metrics need it for output

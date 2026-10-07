@@ -232,6 +232,12 @@ PACKAGE_LIST_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
+            'profileable',
+            CppInt32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
             'version_code',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ,
@@ -261,7 +267,9 @@ PACKAGE_LIST_TABLE = Table(
             'debuggable':
                 '''bool whether this app is debuggable.''',
             'profileable_from_shell':
-                '''bool whether this app is profileable.''',
+                '''bool whether this app is profileable from the shell.''',
+            'profileable':
+                '''bool whether this app is profileable by the platform.''',
             'version_code':
                 '''versionCode from the APK.'''
         },

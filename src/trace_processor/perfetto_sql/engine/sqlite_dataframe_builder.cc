@@ -24,6 +24,7 @@
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -57,6 +58,32 @@ struct SqliteValueFetcher : public dataframe::ValueFetcher {
   bool blobs_as_null;
 };
 
+struct SqliteValuesFetcher : public dataframe::ValueFetcher {
+  explicit SqliteValuesFetcher(sqlite3_value** row) : values(row) {}
+
+  using Type = sqlite::Type;
+  static constexpr Type kInt64 = sqlite::Type::kInteger;
+  static constexpr Type kDouble = sqlite::Type::kFloat;
+  static constexpr Type kString = sqlite::Type::kText;
+  static constexpr Type kNull = sqlite::Type::kNull;
+  static constexpr Type kBytes = sqlite::Type::kBlob;
+
+  int64_t GetInt64Value(uint32_t column) const {
+    return sqlite::value::Int64(values[column]);
+  }
+  double GetDoubleValue(uint32_t column) const {
+    return sqlite::value::Double(values[column]);
+  }
+  const char* GetStringValue(uint32_t column) const {
+    return sqlite::value::Text(values[column]);
+  }
+  Type GetValueType(uint32_t column) const {
+    return sqlite::value::Type(values[column]);
+  }
+
+  sqlite3_value** values;
+};
+
 }  // namespace
 
 base::StatusOr<dataframe::RuntimeDataframeBuilder>
@@ -80,6 +107,22 @@ BuildRuntimeDataframeFromSqliteStatement(
   }
   RETURN_IF_ERROR(stmt->status());
   return std::move(builder);
+}
+
+base::Status AddSqliteValuesRow(dataframe::RuntimeDataframeBuilder& builder,
+                                sqlite3_value** values,
+                                uint32_t count) {
+  for (uint32_t i = 0; i < count; ++i) {
+    if (sqlite::value::Type(values[i]) == sqlite::Type::kBlob) {
+      return base::ErrStatus("column %u holds a blob, which cannot be read",
+                             i + 1);
+    }
+  }
+  SqliteValuesFetcher fetcher(values);
+  if (!builder.AddRow(&fetcher)) {
+    return builder.status();
+  }
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor
