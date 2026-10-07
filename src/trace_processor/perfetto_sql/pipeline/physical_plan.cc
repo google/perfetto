@@ -53,23 +53,37 @@ class Lowering {
   explicit Lowering(const LogicalPlan& plan)
       : plan_(plan),
         out_(std::make_unique<PhysicalPlan>()),
-        positions_(plan.columns.size(), std::numeric_limits<uint32_t>::max()),
-        int64_columns_(plan.columns.size(), false) {}
+        positions_(plan.columns().size(), std::numeric_limits<uint32_t>::max()),
+        int64_columns_(plan.columns().size(), false) {}
 
   void LowerNode(PlanNodeId);
   std::unique_ptr<PhysicalPlan> Finish();
 
  private:
-  void LowerScan(const op::Scan&);
-  void LowerIntervalIntersect(const op::IntervalIntersect&,
+  // Numbered tree columns are physical temporaries, with no logical IDs.
+  struct TreeColumns {
+    uint32_t node;
+    uint32_t parent;
+  };
+
+  // The known order of the rows: grouped by `grouped_by` (numbered in
+  // `group_column`), with `ascending` ascending within each group.
+  struct Order {
+    std::vector<ColumnId> grouped_by;
+    uint32_t group_column = 0;
+    std::vector<ColumnId> ascending;
+  };
+
+  void LowerScan(const Scan&);
+  void LowerIntervalIntersect(const IntervalIntersect&,
                               const std::vector<PlanNodeId>& children);
 
-  std::unique_ptr<ex::Source> MakeSource(const op::Scan&) const;
-  void LowerTreeAccumulate(const op::TreeAccumulate&);
-  void LowerIntervalFlatten(const op::IntervalFlatten&);
+  std::unique_ptr<ex::Source> MakeSource(const Scan&) const;
+  void LowerTreeAccumulate(const TreeAccumulate&);
+  void LowerIntervalFlatten(const IntervalFlatten&);
 
   // Establishes the physical layout and ordering needed by a tree fold.
-  void PrepareTree(const op::TreeAccumulate&);
+  void PrepareTree(const TreeAccumulate&);
   // Groups rows by `keys`, ordered by `ascending` within each group, adding
   // only the Sort and GroupBy not already established.
   void PrepareGroups(const std::vector<ColumnId>& keys, ColumnId ascending);
@@ -100,53 +114,40 @@ class Lowering {
   // IDs already covered by an AssertType.
   std::vector<bool> int64_columns_;
 
-  // Numbered tree columns are physical temporaries, with no logical IDs.
-  struct TreeColumns {
-    uint32_t node;
-    uint32_t parent;
-  };
   std::optional<TreeColumns> tree_columns_;
-  std::optional<op::TreeDirection> tree_order_;
+  std::optional<TreeDirection> tree_order_;
 
-  // The known order of the rows: grouped by `grouped_by` (numbered in
-  // `group_column`), with `ascending` ascending within each group.
-  struct Order {
-    std::vector<ColumnId> grouped_by;
-    uint32_t group_column = 0;
-    std::vector<ColumnId> ascending;
-  };
   Order order_;
 };
 
 void Lowering::LowerNode(PlanNodeId id) {
-  const PlanNode& node = plan_.nodes[id];
-  switch (node.op.index()) {
-    case base::variant_index<Op, op::Scan>():
-      LowerScan(node.Cast<op::Scan>());
+  const PlanNode& node = plan_.nodes()[id];
+  switch (node.operation().index()) {
+    case base::variant_index<PlanOperation, Scan>():
+      LowerScan(node.Cast<Scan>());
       return;
-    case base::variant_index<Op, op::TreeAccumulate>():
-      LowerNode(node.children[0]);
-      LowerTreeAccumulate(node.Cast<op::TreeAccumulate>());
+    case base::variant_index<PlanOperation, TreeAccumulate>():
+      LowerNode(node.children()[0]);
+      LowerTreeAccumulate(node.Cast<TreeAccumulate>());
       return;
-    case base::variant_index<Op, op::IntervalIntersect>():
+    case base::variant_index<PlanOperation, IntervalIntersect>():
       // Each operand runs as its own pipeline, so the intersection lowers
       // its children itself.
-      LowerIntervalIntersect(node.Cast<op::IntervalIntersect>(), node.children);
+      LowerIntervalIntersect(node.Cast<IntervalIntersect>(), node.children());
       return;
-    case base::variant_index<Op, op::IntervalFlatten>():
-      LowerNode(node.children[0]);
-      LowerIntervalFlatten(node.Cast<op::IntervalFlatten>());
+    case base::variant_index<PlanOperation, IntervalFlatten>():
+      LowerNode(node.children()[0]);
+      LowerIntervalFlatten(node.Cast<IntervalFlatten>());
       return;
     default:
       PERFETTO_FATAL("Unknown operator");
   }
 }
 
-std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
-  switch (scan.source.index()) {
-    case base::variant_index<op::Scan::Source, op::Scan::Dataframe>(): {
-      const auto& source =
-          base::unchecked_get<op::Scan::Dataframe>(scan.source);
+std::unique_ptr<ex::Source> Lowering::MakeSource(const Scan& scan) const {
+  switch (scan.source().index()) {
+    case base::variant_index<Scan::Source, Scan::Dataframe>(): {
+      const auto& source = base::unchecked_get<Scan::Dataframe>(scan.source());
       return std::make_unique<ex::DataframeScan>(source.columns,
                                                  source.row_count);
     }
@@ -157,43 +158,43 @@ std::unique_ptr<ex::Source> Lowering::MakeSource(const op::Scan& scan) const {
   }
 }
 
-void Lowering::LowerScan(const op::Scan& scan) {
+void Lowering::LowerScan(const Scan& scan) {
   PERFETTO_DCHECK(!out_->input_);
-  for (const NamedColumn& column : scan.columns) {
+  for (const NamedColumn& column : scan.columns()) {
     Define(column.id);
   }
   out_->input_ = MakeSource(scan);
   // A dataframe is read in order, so a column it keeps sorted ascends.
-  const auto& dataframe = base::unchecked_get<op::Scan::Dataframe>(scan.source);
-  for (uint32_t i = 0; i < scan.columns.size(); ++i) {
+  const auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source());
+  for (uint32_t i = 0; i < scan.columns().size(); ++i) {
     if (!dataframe.columns[i]->sort_state.Is<core::Unsorted>()) {
-      order_.ascending.push_back(scan.columns[i].id);
+      order_.ascending.push_back(scan.columns()[i].id);
     }
   }
 }
 
-void Lowering::LowerIntervalIntersect(const op::IntervalIntersect& isect,
+void Lowering::LowerIntervalIntersect(const IntervalIntersect& isect,
                                       const std::vector<PlanNodeId>& children) {
   PERFETTO_DCHECK(!out_->input_);
-  PERFETTO_DCHECK(isect.operands.size() == children.size());
+  PERFETTO_DCHECK(isect.operands().size() == children.size());
   // The region's bounds come first, then each operand's carried columns in
   // turn.
-  Define(isect.ts);
-  Define(isect.dur);
+  Define(isect.ts());
+  Define(isect.dur());
 
   std::vector<ex::IntervalIntersectOperand> operands;
-  for (uint32_t i = 0; i < isect.operands.size(); i++) {
-    const op::IntervalIntersect::Operand& operand = isect.operands[i];
+  for (uint32_t i = 0; i < isect.operands().size(); i++) {
+    const IntervalIntersect::Operand& operand = isect.operands()[i];
     // A node may read any child, but an operand is read as a scan of its own,
     // which is what lets it become a pipeline separate from this one.
-    const PlanNode& child = plan_.nodes[children[i]];
-    PERFETTO_DCHECK(child.Is<op::Scan>());
-    const auto& scan = child.Cast<op::Scan>();
+    const PlanNode& child = plan_.nodes()[children[i]];
+    PERFETTO_DCHECK(child.Is<Scan>());
+    const auto& scan = child.Cast<Scan>();
     // Roles are named by plan-wide ID, while the operator reads batch
     // positions, so each is resolved against the operand's own column order.
     auto position = [&](ColumnId id) {
       uint32_t at = 0;
-      while (scan.columns[at].id != id) {
+      while (scan.columns()[at].id != id) {
         ++at;
       }
       return at;
@@ -256,24 +257,24 @@ void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
   }
 }
 
-void Lowering::LowerIntervalFlatten(const op::IntervalFlatten& flatten) {
-  RequireInt64(flatten.ts, Position(flatten.ts), operators_);
-  RequireInt64(flatten.dur, Position(flatten.dur), operators_);
-  PrepareGroups(flatten.keys, flatten.ts);
+void Lowering::LowerIntervalFlatten(const IntervalFlatten& flatten) {
+  RequireInt64(flatten.ts(), Position(flatten.ts()), operators_);
+  RequireInt64(flatten.dur(), Position(flatten.dur()), operators_);
+  PrepareGroups(flatten.keys(), flatten.ts());
   ex::IntervalFlattenSpec spec;
-  spec.ts_column = Position(flatten.ts);
-  spec.dur_column = Position(flatten.dur);
-  for (ColumnId key : flatten.keys) {
+  spec.ts_column = Position(flatten.ts());
+  spec.dur_column = Position(flatten.dur());
+  for (ColumnId key : flatten.keys()) {
     spec.key_columns.push_back(Position(key));
   }
   spec.group_column = order_.group_column;
-  for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+  for (const IntervalFlatten::Aggregate& agg : flatten.aggregates()) {
     ex::IntervalFlattenSpec::Aggregate lowered;
     switch (agg.function) {
-      case op::IntervalFlatten::Function::kCount:
+      case IntervalFlatten::Function::kCount:
         lowered.function = ex::IntervalFlattenSpec::Function::kCount;
         break;
-      case op::IntervalFlatten::Function::kSum:
+      case IntervalFlatten::Function::kSum:
         RequireInt64(agg.column, Position(agg.column), operators_);
         lowered.function = ex::IntervalFlattenSpec::Function::kSum;
         lowered.column = Position(agg.column);
@@ -285,18 +286,18 @@ void Lowering::LowerIntervalFlatten(const op::IntervalFlatten& flatten) {
 
   // Its rows are the segments, laid out afresh.
   column_count_ = 0;
-  Define(flatten.out_ts);
-  Define(flatten.out_dur);
-  for (ColumnId key : flatten.keys) {
+  Define(flatten.out_ts());
+  Define(flatten.out_dur());
+  for (ColumnId key : flatten.keys()) {
     Define(key);
   }
-  for (const op::IntervalFlatten::Aggregate& agg : flatten.aggregates) {
+  for (const IntervalFlatten::Aggregate& agg : flatten.aggregates()) {
     Define(agg.output);
   }
   order_ = Order();
-  order_.grouped_by = flatten.keys;
+  order_.grouped_by = flatten.keys();
   order_.group_column = column_count_++;
-  order_.ascending.push_back(flatten.out_ts);
+  order_.ascending.push_back(flatten.out_ts());
   tree_columns_.reset();
   tree_order_.reset();
 }
@@ -310,46 +311,46 @@ void Lowering::RequireInt64(ColumnId column,
   // numeric type for the whole column may therefore need a breaker that buffers
   // input before emitting any values. Update logical result typing alongside
   // the executor so SUM is no longer restricted to integers.
-  const auto& type = plan_.columns[column].type;
+  const auto& type = plan_.columns()[column].type;
   if ((type && type->Is<core::Int64>()) || int64_columns_[column]) {
     return;
   }
   into.push_back(std::make_unique<ex::AssertType>(
       position, ex::AssertTypeTarget{core::Int64{}},
-      plan_.columns[column].name));
+      plan_.columns()[column].name));
   int64_columns_[column] = true;
 }
 
-void Lowering::PrepareTree(const op::TreeAccumulate& acc) {
+void Lowering::PrepareTree(const TreeAccumulate& acc) {
   if (!tree_columns_) {
     operators_.push_back(std::make_unique<ex::TreeNumberNodes>(
-        Position(acc.node_column), Position(acc.parent_column)));
+        Position(acc.node_column()), Position(acc.parent_column())));
     tree_columns_ = TreeColumns{column_count_++, column_count_++};
   }
-  if (tree_order_ == acc.direction) {
+  if (tree_order_ == acc.direction()) {
     return;
   }
   order_ = Order();
-  if (acc.direction == op::TreeDirection::kUp) {
+  if (acc.direction() == TreeDirection::kUp) {
     operators_.push_back(std::make_unique<ex::TreeChildFirst>(
         tree_columns_->node, tree_columns_->parent));
   } else {
     operators_.push_back(std::make_unique<ex::TreeParentFirst>(
         tree_columns_->node, tree_columns_->parent));
   }
-  tree_order_ = acc.direction;
+  tree_order_ = acc.direction();
 }
 
-void Lowering::LowerTreeAccumulate(const op::TreeAccumulate& acc) {
+void Lowering::LowerTreeAccumulate(const TreeAccumulate& acc) {
   PrepareTree(acc);
-  for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
-    PERFETTO_DCHECK(agg.function == op::TreeAccumulate::Function::kSum);
+  for (const TreeAccumulate::Aggregate& agg : acc.aggregates()) {
+    PERFETTO_DCHECK(agg.function == TreeAccumulate::Function::kSum);
     RequireInt64(agg.column, Position(agg.column), operators_);
   }
-  for (const op::TreeAccumulate::Aggregate& agg : acc.aggregates) {
+  for (const TreeAccumulate::Aggregate& agg : acc.aggregates()) {
     ex::TreeAccumulateSpec spec{tree_columns_->node, tree_columns_->parent,
                                 Position(agg.column)};
-    if (acc.direction == op::TreeDirection::kUp) {
+    if (acc.direction() == TreeDirection::kUp) {
       operators_.push_back(std::make_unique<ex::TreeAccumulateUp>(spec));
     } else {
       operators_.push_back(std::make_unique<ex::TreeAccumulateDown>(spec));
@@ -361,7 +362,7 @@ void Lowering::LowerTreeAccumulate(const op::TreeAccumulate& acc) {
 std::unique_ptr<PhysicalPlan> Lowering::Finish() {
   out_->pipeline_ = std::make_unique<ex::Pipeline>(
       *out_->input_, std::move(operators_), ex::ExecutionOptions());
-  for (const NamedColumn& column : plan_.output) {
+  for (const NamedColumn& column : plan_.output()) {
     out_->columns_.push_back({column.name, Position(column.id)});
   }
   return std::move(out_);
@@ -372,7 +373,7 @@ PhysicalPlan::~PhysicalPlan() = default;
 
 std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan) {
   Lowering lowering(plan);
-  lowering.LowerNode(plan.root);
+  lowering.LowerNode(plan.root());
   return lowering.Finish();
 }
 

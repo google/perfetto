@@ -14,15 +14,31 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_TEST_UTILS_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_TEST_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_TYPES_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_TYPES_H_
 
+#include <cstdint>
 #include <string>
 
-#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/core/common/schema.h"
 
 namespace perfetto::trace_processor::pipeline {
-std::string LogicalPlanToString(const LogicalPlan&);
+
+using core::ColumnSchema;
+using core::Schema;
+
+// Stable within a plan. Lowering assigns physical batch positions separately.
+using ColumnId = uint32_t;
+
+// A name in a scope or result. Multiple names can refer to the same value.
+struct NamedColumn {
+  std::string name;
+  ColumnId id;
+};
+
+// Stable within a plan.
+using PlanNodeId = uint32_t;
+
 }  // namespace perfetto::trace_processor::pipeline
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_TEST_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_TYPES_H_

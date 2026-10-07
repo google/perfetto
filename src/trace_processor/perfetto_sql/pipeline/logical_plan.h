@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_LOGICAL_PLAN_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -26,173 +25,100 @@
 #include <vector>
 
 #include "perfetto/ext/base/variant.h"
-#include "src/trace_processor/core/common/schema.h"
-#include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
 namespace perfetto::trace_processor::pipeline {
 
-using core::ColumnSchema;
-using core::Schema;
-
-// Stable within a plan. Lowering assigns physical batch positions separately.
-using ColumnId = uint32_t;
-
-// A name in a scope or result. Multiple names can refer to the same value.
-struct NamedColumn {
-  std::string name;
-  ColumnId id;
-};
-
-namespace op {
-
-// A dataframe read directly. Defined outside Scan because GCC only treats a
-// nested class's member initializers as parsed once the enclosing class is.
-struct ScanDataframe {
-  std::string name;
-  // Resolved at compile time; only the selected columns are retained.
-  std::vector<std::shared_ptr<const dataframe::Column>> columns;
-  uint32_t row_count = 0;
-};
-
-// The dataframe the plan is passed as its `index`-th argument when it runs.
-// SQLite builds it from a relation the plan read from SQL.
-struct ScanDataframeArg {
-  uint32_t index = 0;
-};
-
-// Reads all rows of a source. Always the first op.
-struct Scan {
-  using Dataframe = ScanDataframe;
-  using DataframeArg = ScanDataframeArg;
-  // Where a scan reads from: a dataframe, SQL, or a dataframe argument. SQL
-  // sources become dataframe arguments when the plan is written into SQL, and
-  // those are bound to dataframes when it is loaded.
-  using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
-  Source source;
-  // Bindings in source column order.
-  std::vector<NamedColumn> columns;
-};
-
-enum class TreeDirection : uint8_t { kUp, kDown };
-
-// `|> TREE ACCUMULATE UP | DOWN agg AS name, ...`. Appends one column per
-// aggregate.
-struct TreeAccumulate {
-  enum class Function : uint8_t { kSum };
-  struct Aggregate {
-    Function function = Function::kSum;
-    ColumnId column = 0;
-    ColumnId output = 0;
-  };
-  TreeDirection direction = TreeDirection::kUp;
-  // The logical id/parent_id columns describing the input tree.
-  ColumnId node_column = 0;
-  ColumnId parent_column = 0;
-  std::vector<Aggregate> aggregates;
-};
-
-// `INTERVAL INTERSECTION OF (rel AS a, ...) [PER cols]`. A source: the rows
-// are the regions every operand covers, not the rows of any one of them.
-struct IntervalIntersect {
-  // The columns read from one operand, which is a child of the node. Operands
-  // are in child order, so `operands[i]` describes `children[i]`.
-  struct Operand {
-    ColumnId ts = 0;
-    ColumnId dur = 0;
-    // One per PER column, in the order they were written.
-    std::vector<ColumnId> keys;
-    // The columns passed on to the rows out, in the operand's order. The
-    // rest are read only to find the regions.
-    std::vector<ColumnId> carried;
-  };
-  std::vector<Operand> operands;
-  // The region's own bounds, which no operand owns.
-  ColumnId ts = 0;
-  ColumnId dur = 0;
-};
-
-// `|> INTERVAL FLATTEN [PER cols] AGGREGATE agg AS name, ...`. Cuts the rows
-// at every start and end into disjoint segments, each collapsed into one row:
-// its bounds, the keys, then one column per aggregate.
-struct IntervalFlatten {
-  enum class Function : uint8_t { kCount, kSum };
-  struct Aggregate {
-    Function function = Function::kCount;
-    // Unused by COUNT(*).
-    ColumnId column = 0;
-    ColumnId output = 0;
-  };
-  ColumnId ts = 0;
-  ColumnId dur = 0;
-  std::vector<ColumnId> keys;
-  std::vector<Aggregate> aggregates;
-  ColumnId out_ts = 0;
-  ColumnId out_dur = 0;
-};
-
-}  // namespace op
-
-// The operator a plan node holds. Passes switch on `op.index()` with one case
-// per operator, using base::variant_index<Op, T>().
-using Op = std::variant<op::Scan,
-                        op::TreeAccumulate,
-                        op::IntervalIntersect,
-                        op::IntervalFlatten>;
-
-// Stable within a plan.
-using PlanNodeId = uint32_t;
+// The operator a plan node holds. Passes switch on `operation.index()` with one
+// case per operator, using base::variant_index<PlanOperation, T>().
+using PlanOperation =
+    std::variant<Scan, TreeAccumulate, IntervalIntersect, IntervalFlatten>;
 
 // An operator together with the relations it reads. A Scan reads none; a
 // single-input stage reads one; an intersection reads one per operand.
-struct PlanNode {
-  Op op;
-  std::vector<PlanNodeId> children;
+class PlanNode {
+ public:
+  PlanNode(PlanOperation operation, std::vector<PlanNodeId> children)
+      : operation_(std::move(operation)), children_(std::move(children)) {}
 
   template <typename T>
   bool Is() const {
-    return std::holds_alternative<T>(op);
+    return std::holds_alternative<T>(operation_);
   }
 
   // Returns the operator as a T. The node must hold one.
   template <typename T>
   T& Cast() {
-    return base::unchecked_get<T>(op);
+    return base::unchecked_get<T>(operation_);
   }
   template <typename T>
   const T& Cast() const {
-    return base::unchecked_get<T>(op);
+    return base::unchecked_get<T>(operation_);
   }
+
+  std::vector<PlanNodeId>& children() { return children_; }
+  const std::vector<PlanNodeId>& children() const { return children_; }
+
+  PlanOperation& operation() { return operation_; }
+  const PlanOperation& operation() const { return operation_; }
+
+ private:
+  PlanOperation operation_;
+  std::vector<PlanNodeId> children_;
 };
+
+// -----------------------------------------------------------------------------
+// Logical plan
+// -----------------------------------------------------------------------------
 
 // A tree of operators. Column types are stored once, indexed by ID; operators
 // name the values they consume and produce, independently of layout.
 //
 // The root is the last stage of the pipeline and the leaves are its sources.
-struct LogicalPlan {
-  // Defining SQL names are stable diagnostic labels, independent of aliases
-  // in output bindings. Physical temporaries do not get SQL names or IDs.
-  std::vector<ColumnSchema> columns;
-  std::vector<PlanNode> nodes;
-  // The node whose rows are the plan's rows. Every other node reaches it.
-  PlanNodeId root = 0;
-  // Visible result columns, in order. Internal columns have no binding here.
-  std::vector<NamedColumn> output;
-
+class LogicalPlan {
+ public:
   ColumnId AddColumn(std::string name, std::optional<core::StorageType> type) {
-    auto id = static_cast<ColumnId>(columns.size());
-    columns.push_back({std::move(name), type});
+    auto id = static_cast<ColumnId>(columns_.size());
+    columns_.push_back({std::move(name), type});
     return id;
   }
 
   // Adds a node reading `children` and makes it the root, which holds while a
   // plan is built bottom up: each node added is the topmost one so far.
-  PlanNodeId AddNode(Op op, std::vector<PlanNodeId> children = {}) {
-    auto id = static_cast<PlanNodeId>(nodes.size());
-    nodes.push_back({std::move(op), std::move(children)});
-    root = id;
+  PlanNodeId AddNode(PlanOperation operation,
+                     std::vector<PlanNodeId> children = {}) {
+    auto id = static_cast<PlanNodeId>(nodes_.size());
+    nodes_.push_back({std::move(operation), std::move(children)});
+    root_ = id;
     return id;
   }
+
+  std::vector<ColumnSchema>& columns() { return columns_; }
+  const std::vector<ColumnSchema>& columns() const { return columns_; }
+
+  std::vector<PlanNode>& nodes() { return nodes_; }
+  const std::vector<PlanNode>& nodes() const { return nodes_; }
+
+  PlanNodeId root() const { return root_; }
+  void SetRoot(PlanNodeId root) { root_ = root; }
+
+  std::vector<NamedColumn>& output() { return output_; }
+  const std::vector<NamedColumn>& output() const { return output_; }
+
+ private:
+  // Defining SQL names are stable diagnostic labels, independent of aliases
+  // in output bindings. Physical temporaries do not get SQL names or IDs.
+  std::vector<ColumnSchema> columns_;
+  std::vector<PlanNode> nodes_;
+  // The node whose rows are the plan's rows. Pruning can leave unreachable
+  // nodes in the vector so that node IDs remain stable.
+  PlanNodeId root_ = 0;
+  // Visible result columns, in order. Internal columns have no binding here.
+  std::vector<NamedColumn> output_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline
