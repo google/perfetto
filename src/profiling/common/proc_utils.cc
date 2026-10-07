@@ -261,6 +261,8 @@ bool MatchCmdlineGlobPatterns(const std::string& cmdline,
 
 bool PidMatchesCmdlinePatterns(pid_t pid,
                                const std::vector<std::string>& patterns) {
+  if (patterns.empty())
+    return false;
   std::string cmdline;
   if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
     return false;
@@ -273,8 +275,11 @@ bool PidMatchesCmdlinePatterns(pid_t pid,
 
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids) {
-  ForEachPid([&patterns, pids](pid_t pid) {
-    if (pid == getpid())
+  if (patterns.empty())
+    return;
+  pid_t self_pid = getpid();
+  ForEachPid([&](pid_t pid) {
+    if (pid == self_pid)
       return;
     if (PidMatchesCmdlinePatterns(pid, patterns))
       pids->insert(pid);
