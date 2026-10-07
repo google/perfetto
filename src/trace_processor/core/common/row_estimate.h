@@ -39,17 +39,6 @@ struct RowEstimate {
   }
 };
 
-// Assumed number of distinct values matched by an IN filter when the list size
-// is not known at plan time. Scales the single-value equality estimate. Matches
-// SQLite's own tuning constant for "x IN (SELECT ...)" (see whereLoopAddBtree).
-inline constexpr double kAssumedInListSize = 25;
-
-// Rows surviving a scalar equality filter on a HasDuplicates column with
-// `estimated_distinct` distinct values (0 = unknown). With a known count, a
-// uniform column keeps ~1/estimated_distinct of the rows; otherwise fall back
-// to the data-blind heuristic.
-double EqualityFilterRows(uint32_t row_count, uint32_t estimated_distinct);
-
 // Tracks how many rows are left as operations are applied.
 class RowModel {
  public:

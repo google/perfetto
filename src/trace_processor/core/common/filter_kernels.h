@@ -45,7 +45,7 @@ namespace perfetto::trace_processor::core::filter {
 namespace comparators {
 
 // Returns an appropriate comparator functor for the given integer/double type
-// and operation. Currently only supports equality comparison.
+// and operation.
 template <typename T, typename Op>
 auto IntegerOrDoubleComparator() {
   if constexpr (std::is_same_v<Op, Eq>) {

@@ -25,12 +25,25 @@
 
 namespace perfetto::trace_processor::core {
 
+namespace {
+
+// Assumed number of distinct values matched by an IN filter when the list size
+// is not known at plan time. Scales the single-value equality estimate. Matches
+// SQLite's own tuning constant for "x IN (SELECT ...)" (see whereLoopAddBtree).
+constexpr double kAssumedInListSize = 25;
+
+// Rows surviving a scalar equality filter on a HasDuplicates column with
+// `estimated_distinct` distinct values (0 = unknown). With a known count, a
+// uniform column keeps ~1/estimated_distinct of the rows; otherwise fall back
+// to the data-blind heuristic.
 double EqualityFilterRows(uint32_t row_count, uint32_t estimated_distinct) {
   if (estimated_distinct > 0) {
     return static_cast<double>(row_count) / estimated_distinct;
   }
   return row_count / (2 * log2(row_count));
 }
+
+}  // namespace
 
 void RowModel::ApplyNonEqualityFilter() {
   if (rows_.estimated > 1) {
