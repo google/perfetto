@@ -146,6 +146,7 @@ packet {
       start_seq_id: 1
       proc_state: 1002
       oom_score: 100
+      process_group: PROCESS_GROUP_TOP_APP
     }
     record {
       pid: 200
@@ -154,6 +155,7 @@ packet {
       start_seq_id: 10
       proc_state: 1000
       oom_score: -1000
+      process_group: PROCESS_GROUP_SYSTEM
     }
     record {
       pid: 300
@@ -169,6 +171,7 @@ packet {
       start_seq_id: 6
       proc_state: 1002
       oom_score: 100
+      process_group: PROCESS_GROUP_TOP_APP
     }
     # PID 999: present only in DUMP_REASON_END (no START record, no
     # process_start); must not create a process.

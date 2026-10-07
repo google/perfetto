@@ -18,7 +18,6 @@
 
 #include <string>
 
-#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -38,8 +37,10 @@ StringId InternEnum(TraceProcessorContext* context,
                     int32_t value) {
   std::optional<std::string> name =
       context->descriptor_pool_->FindEnumString(cache, enum_name, value);
-  return context->storage->InternString(
-      base::StringView(name ? *name : std::to_string(value)));
+  if (name) {
+    return context->storage->InternString(*name);
+  }
+  return context->storage->InternString(std::to_string(value));
 }
 
 AndroidProcessStateTracker::AndroidProcessStateTracker(
@@ -160,6 +161,10 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
     v.oom_score = rec.has_oom_score() ? rec.oom_score() : 0;
     v.capability_flags =
         rec.has_capability_flags() ? rec.capability_flags() : 0;
+    v.process_group =
+        rec.has_process_group()
+            ? static_cast<int32_t>(rec.process_group())
+            : static_cast<int32_t>(fb::ProcessGroup::PROCESS_GROUP_UNKNOWN);
     process_dump_[v.upid] = v;
   }
 }
