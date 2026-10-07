@@ -35,7 +35,7 @@ import {
   renderOomeDetailsGrid,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 import {DetailsShell} from '../../../widgets/details_shell';
-import {HeapDumpExplorerSession} from '../session';
+import type {HeapDumpExplorerSession} from '../session';
 
 const HEAP_SCHEMA: ColumnSchema = {
   heap: {

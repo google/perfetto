@@ -18,6 +18,18 @@ import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 // Heap Dump Explorer state persisted in permalinks. Per-dump state is keyed
 // by dumpKey() (see nav.ts).
 
+// A pinned tab. Mirrors EphemeralHdeLink (see nav.ts).
+const PINNED_TAB_SCHEMA = z.discriminatedUnion('view', [
+  z
+    .object({
+      view: z.literal('flamegraph-objects'),
+      pathHashes: z.string(),
+      isDominator: z.boolean(),
+    })
+    .readonly(),
+  z.object({view: z.literal('object'), id: z.number()}).readonly(),
+]);
+
 const HDE_STATE_SCHEMA = z
   .object({
     version: z.literal(2),
@@ -32,6 +44,8 @@ const HDE_STATE_SCHEMA = z
     callstackPanelStates: z
       .record(z.string(), TREE_EXPLORER_STATE_SCHEMA)
       .optional(),
+    // Pinned object / flamegraph drill-down tabs, per dump, in tab order.
+    pinnedTabs: z.record(z.string(), z.array(PINNED_TAB_SCHEMA)).optional(),
   })
   .readonly();
 

@@ -34,18 +34,20 @@ export type StaticHdeLink =
   | {readonly view: 'strings'; readonly q?: string}
   | {readonly view: 'arrays'; readonly arrayHash?: string};
 
-// Everything that can be linked to within a dump. Filterable views take their
-// filter as an extra path segment. Object inspectors and flamegraph
-// drill-downs are addressed by what they show, and appear as an ephemeral tab
-// while their URL is showing.
-export type HdeLink =
-  | StaticHdeLink
+// Object inspectors and flamegraph drill-downs. They are addressed by what they
+// show, and appear as an ephemeral tab while their URL is showing (unless
+// pinned).
+export type EphemeralHdeLink =
   | {
       readonly view: 'flamegraph-objects';
       readonly pathHashes: string;
       readonly isDominator: boolean;
     }
   | {readonly view: 'object'; readonly id: number};
+
+// Everything that can be linked to within a dump. Filterable views take their
+// filter as an extra path segment.
+export type HdeLink = StaticHdeLink | EphemeralHdeLink;
 
 // The URL segment identifying a dump: `<upid>-<ts>`. Also used as the key for
 // per-dump persisted state.

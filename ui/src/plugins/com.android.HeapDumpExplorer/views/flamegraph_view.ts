@@ -38,8 +38,8 @@ import {
 import {showModal} from '../../../widgets/modal';
 import {NUM} from '../../../trace_processor/query_result';
 import {makeHref} from '../nav';
-import * as queries from '../queries';
-import {HeapDumpExplorerSession} from '../session';
+import type * as queries from '../queries';
+import type {HeapDumpExplorerSession} from '../session';
 
 // Referenced by ObjectView's pivotFlamegraph.
 export const METRIC_OBJECT_SIZE = 'Object Size';

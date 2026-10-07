@@ -263,6 +263,13 @@ export namespace TabStrip {
       );
     }
   }
+
+  // A small gap between groups of tabs, for use inside TabStrip.
+  export class Separator implements m.ClassComponent<HTMLAttrs> {
+    view({attrs}: m.CVnode<HTMLAttrs>): m.Children {
+      return m('.pf-tab-strip__separator', attrs);
+    }
+  }
 }
 
 function renderTabContent(

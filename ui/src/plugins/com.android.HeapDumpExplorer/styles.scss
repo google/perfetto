@@ -424,3 +424,13 @@
   min-height: 0;
   overflow: hidden;
 }
+
+// An unpinned object / flamegraph drill-down tab.
+.pf-hde-tab--ephemeral .pf-tab-strip__tab-title {
+  font-style: italic;
+}
+
+// The pin button on an ephemeral tab, spaced from the title.
+.pf-hde-tab__pin {
+  margin-left: 4px;
+}

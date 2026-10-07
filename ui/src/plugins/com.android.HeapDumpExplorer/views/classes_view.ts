@@ -135,8 +135,7 @@ export function ClassesView({
       const names = rootClass
         ? subclassesMemo.use({
             key: {upid: dump.upid, ts: dump.ts, rootClass},
-            compute: () =>
-              queries.getSubclassNames(engine, dump, rootClass),
+            compute: () => queries.getSubclassNames(engine, dump, rootClass),
           }).data
         : undefined;
       const filters: Filter[] =

@@ -225,11 +225,7 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
       obs = new IntersectionObserver(
         ([entry]) => {
           if (entry.isIntersecting) {
-            load(
-              vnode.attrs.engine,
-              vnode.attrs.dump,
-              vnode.attrs.row.row.id,
-            );
+            load(vnode.attrs.engine, vnode.attrs.dump, vnode.attrs.row.row.id);
             obs!.disconnect();
           }
         },

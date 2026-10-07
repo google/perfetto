@@ -25,7 +25,12 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Router} from '../../widgets/router';
 import {TabStrip} from '../../widgets/tab_strip';
 import {fmtHex, SQL_PREAMBLE} from './components';
-import {dumpKey, makeHref, StaticHdeLink} from './nav';
+import {
+  dumpKey,
+  type EphemeralHdeLink,
+  makeHref,
+  type StaticHdeLink,
+} from './nav';
 import * as queries from './queries';
 import type {HeapDumpExplorerSession} from './session';
 import {AllObjectsView} from './views/all_objects_view';
@@ -195,9 +200,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
             return renderPage(
               session,
               params.dump,
-              {
-                title: m(ObjectTabTitle, {engine, id}),
-              },
+              {view: 'object', id},
               (dump) => m(ObjectView, {session, dump, id}),
             );
           },
@@ -231,13 +234,7 @@ function renderFlamegraphObjectsPage(
   return renderPage(
     session,
     dump,
-    {
-      title: m(FlamegraphTabTitle, {
-        engine,
-        pathHashes,
-        isDominator,
-      }),
-    },
+    {view: 'flamegraph-objects', pathHashes, isDominator},
     (dump) =>
       m(FlamegraphObjectsView, {
         engine,
@@ -248,10 +245,18 @@ function renderFlamegraphObjectsPage(
   );
 }
 
-// A tab that only exists while its URL is showing (an object inspector or a
-// flamegraph drill-down).
-interface EphemeralTab {
-  readonly title: m.Children;
+// The title of an object or flamegraph drill-down tab.
+function renderTabTitle(engine: Engine, link: EphemeralHdeLink): m.Children {
+  switch (link.view) {
+    case 'object':
+      return m(ObjectTabTitle, {engine, id: link.id});
+    case 'flamegraph-objects':
+      return m(FlamegraphTabTitle, {
+        engine,
+        pathHashes: link.pathHashes,
+        isDominator: link.isDominator,
+      });
+  }
 }
 
 interface ObjectTabTitleAttrs {
@@ -360,11 +365,13 @@ function renderDumpSelector(
   );
 }
 
-// The chrome (dump selector, tab bar) around a view of `dump`.
+// The chrome (dump selector, tab bar) around a view of `dump`. `activeTab` is
+// a static view name, or the link of an object / flamegraph drill-down, which
+// shows as an ephemeral tab unless pinned.
 function renderPage(
   session: HeapDumpExplorerSession,
   dump: queries.HeapDump | string,
-  activeTab: string | EphemeralTab,
+  activeTab: string | EphemeralHdeLink,
   render: (dump: queries.HeapDump) => m.Children,
 ): m.Children {
   if (typeof dump === 'string') {
@@ -372,12 +379,73 @@ function renderPage(
     if (!parsedDump) return renderMissingDumpPage(dump);
     dump = parsedDump;
   }
+  const engine = session.trace.engine;
 
   const mkAttrs = (view: StaticHdeLink['view']) => ({
     key: view,
     href: makeHref(dump, {view}),
     active: activeTab === view,
   });
+
+  const activeHref =
+    typeof activeTab === 'string' ? undefined : makeHref(dump, activeTab);
+
+  // Pinned tabs persist until closed. Closing the active one leaves it showing
+  // as an ephemeral tab. Preceded by a separator when there are any.
+  const pinnedTabs = session.pinnedTabs(dump).map((link) => {
+    const href = makeHref(dump, link);
+    return m(
+      TabStrip.Link,
+      {
+        key: `pinned:${href}`,
+        href,
+        active: href === activeHref,
+        onClose: () => session.unpinTab(dump, link),
+        // Middle-click unpins rather than opening a new browser tab.
+        onauxclick: (e: MouseEvent) => {
+          e.preventDefault();
+          session.unpinTab(dump, link);
+        },
+      },
+      renderTabTitle(engine, link),
+    );
+  });
+  if (pinnedTabs.length > 0) {
+    pinnedTabs.unshift(m(TabStrip.Separator, {key: 'pinned-separator'}));
+  }
+
+  // The ephemeral tab (in italics), unless it is already pinned. Always the
+  // rightmost tab, preceded by a separator. An array rather than a
+  // conditional so the keyed tab list has no holes.
+  const ephemeralTab =
+    typeof activeTab !== 'string' && !session.isPinned(dump, activeTab)
+      ? [
+          m(TabStrip.Separator, {key: 'ephemeral-separator'}),
+          m(
+            TabStrip.Link,
+            {
+              key: 'ephemeral',
+              active: true,
+              className: 'pf-hde-tab--ephemeral',
+              ondblclick: () => session.pinTab(dump, activeTab),
+            },
+            [
+              renderTabTitle(engine, activeTab),
+              m(Button, {
+                compact: true,
+                icon: 'push_pin',
+                title: 'Pin tab',
+                className: 'pf-hde-tab__pin',
+                onclick: (e: Event) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  session.pinTab(dump, activeTab);
+                },
+              }),
+            ],
+          ),
+        ]
+      : [];
 
   // Keyed so Mithril remounts the views (and their SQLDataSources) when a
   // route is revisited with a different dump. Wrapped in an array as a
@@ -397,8 +465,8 @@ function renderPage(
           m(TabStrip.Link, mkAttrs('strings'), 'Strings'),
           m(TabStrip.Link, mkAttrs('arrays'), 'Arrays'),
           m(TabStrip.Link, mkAttrs('callstack'), 'Callstack'),
-          typeof activeTab !== 'string' &&
-            m(TabStrip.Link, {key: 'ephemeral', active: true}, activeTab.title),
+          ...pinnedTabs,
+          ...ephemeralTab,
         ]),
         m('.pf-hde-page__content', render(dump)),
       ),

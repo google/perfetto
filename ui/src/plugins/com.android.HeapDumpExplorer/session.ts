@@ -15,7 +15,7 @@
 import type {Store} from '../../base/store';
 import type {Trace} from '../../public/trace';
 import type {TreeExplorerState} from '../../widgets/tree_explorer';
-import {type DumpRef, dumpKey} from './nav';
+import {type DumpRef, type EphemeralHdeLink, dumpKey, makeHref} from './nav';
 import type {HdeState} from './persisted_state';
 import type * as queries from './queries';
 
@@ -58,6 +58,35 @@ export class HeapDumpExplorerSession {
         ...s.callstackPanelStates,
         [dumpKey(dump)]: state,
       };
+    });
+  }
+
+  // The dump's pinned tabs, in tab order.
+  pinnedTabs(dump: DumpRef): readonly EphemeralHdeLink[] {
+    return this.store.state.pinnedTabs?.[dumpKey(dump)] ?? [];
+  }
+
+  isPinned(dump: DumpRef, link: EphemeralHdeLink): boolean {
+    const href = makeHref(dump, link);
+    return this.pinnedTabs(dump).some((t) => makeHref(dump, t) === href);
+  }
+
+  // Appends `link` to the dump's pinned tabs (no-op if already pinned).
+  pinTab(dump: DumpRef, link: EphemeralHdeLink): void {
+    if (this.isPinned(dump, link)) return;
+    const tabs = [...this.pinnedTabs(dump), link];
+    this.store.edit((s) => {
+      s.pinnedTabs = {...s.pinnedTabs, [dumpKey(dump)]: tabs};
+    });
+  }
+
+  unpinTab(dump: DumpRef, link: EphemeralHdeLink): void {
+    const href = makeHref(dump, link);
+    const tabs = this.pinnedTabs(dump).filter(
+      (t) => makeHref(dump, t) !== href,
+    );
+    this.store.edit((s) => {
+      s.pinnedTabs = {...s.pinnedTabs, [dumpKey(dump)]: tabs};
     });
   }
 }
