@@ -66,6 +66,51 @@ class ParsingSysStats(TestSuite):
         71626000387166,"C8",486636254.000000,0
         """))
 
+  def test_cgroup(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          sys_stats {
+            cgroup {
+              path: "/sys/fs/cgroup/top-app"
+              counter { key: CGROUP_CPU_USAGE_USEC value: 123456789 }
+              counter { key: CGROUP_MEMORY_ANON value: 1048576 }
+              counter { key: CGROUP_IO_RBYTES value: 4096 device: "8:0" }
+            }
+          }
+          timestamp: 100
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          sys_stats {
+            cgroup {
+              path: "/sys/fs/cgroup/top-app"
+              counter { key: CGROUP_CPU_USAGE_USEC value: 223456789 }
+            }
+          }
+          timestamp: 200
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        SELECT
+          ts,
+          EXTRACT_ARG(t.dimension_arg_set_id, 'cgroup_path') AS path,
+          EXTRACT_ARG(t.dimension_arg_set_id, 'cgroup_name') AS name,
+          EXTRACT_ARG(t.dimension_arg_set_id, 'cgroup_device') AS device,
+          value
+        FROM counter c
+        JOIN track t ON c.track_id = t.id
+        ORDER BY ts, name, device;
+        """,
+        out=Csv("""
+        "ts","path","name","device","value"
+        100,"/sys/fs/cgroup/top-app","anon","[NULL]",1048576.000000
+        100,"/sys/fs/cgroup/top-app","rbytes","8:0",4096.000000
+        100,"/sys/fs/cgroup/top-app","usage_usec","[NULL]",123456789.000000
+        200,"/sys/fs/cgroup/top-app","usage_usec","[NULL]",223456789.000000
+        """))
+
   def test_thermal_zones(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
