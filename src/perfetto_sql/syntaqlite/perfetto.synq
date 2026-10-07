@@ -437,9 +437,52 @@ node PerfettoPipeAs {
   fmt { "AS" space span(alias) }
 }
 
+// One key of an ORDER BY stage: `column [ASC | DESC]`.
+node PerfettoPipeOrderTerm {
+  column: index PerfettoPipeColumn
+  sort_order: inline SortOrder
+
+  fmt {
+    child(column)
+    switch(sort_order) {
+      ASC { space "ASC" }
+      DESC { space "DESC" }
+    }
+  }
+}
+
+list PerfettoPipeOrderTermList {
+  PerfettoPipeOrderTerm
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `ORDER BY column [ASC | DESC], ...`: sorts the rows.
+node PerfettoPipeOrderBy {
+  terms: index PerfettoPipeOrderTermList
+
+  fmt { group { "ORDER" "BY" nest { line child(terms) } } }
+}
+
+// `AGGREGATE agg AS name, ... [GROUP BY column, ...]`: collapses each group of
+// rows agreeing on the columns into one row, or all rows without GROUP BY.
+node PerfettoPipeAggregate {
+  aggregates: index PerfettoAggregateList
+  group_by: index PerfettoPipeColumnList
+
+  fmt {
+    group {
+      "AGGREGATE"
+      nest { line child(aggregates) }
+      if_set(group_by) { line "GROUP" "BY" nest { line child(group_by) } }
+    }
+  }
+}
+
 abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
+  PerfettoPipeOrderBy
+  PerfettoPipeAggregate
   PerfettoPipeSelect
   PerfettoPipeExtend
   PerfettoPipeDrop

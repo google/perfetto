@@ -259,19 +259,29 @@ bool MatchCmdlineGlobPatterns(const std::string& cmdline,
   return false;
 }
 
+bool PidMatchesCmdlinePatterns(pid_t pid,
+                               const std::vector<std::string>& patterns) {
+  if (patterns.empty())
+    return false;
+  std::string cmdline;
+  if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
+    return false;
+  // A readable but empty cmdline indicates that this is a kthread or a
+  // zombie, which are of no interest to the calling profilers.
+  if (cmdline.empty())
+    return false;
+  return glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns);
+}
+
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids) {
-  ForEachPid([&patterns, pids](pid_t pid) {
-    if (pid == getpid())
+  if (patterns.empty())
+    return;
+  pid_t self_pid = getpid();
+  ForEachPid([&](pid_t pid) {
+    if (pid == self_pid)
       return;
-    std::string cmdline;
-    if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
-      return;
-    // A readable but empty cmdline indicates that this is a kthread or a
-    // zombie, which are of no interest to the calling profilers.
-    if (cmdline.empty())
-      return;
-    if (glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns))
+    if (PidMatchesCmdlinePatterns(pid, patterns))
       pids->insert(pid);
   });
 }

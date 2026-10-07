@@ -47,7 +47,6 @@ class TreeAccumulateUp : public Operator {
 
   std::unique_ptr<OperatorState> MakeState() const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
@@ -66,7 +65,6 @@ class TreeAccumulateDown : public Operator {
 
   std::unique_ptr<OperatorState> MakeState() const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:

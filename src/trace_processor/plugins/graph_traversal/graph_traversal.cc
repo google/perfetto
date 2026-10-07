@@ -71,13 +71,8 @@ struct Dfs : public sqlite::AggregateFunction<Dfs> {
 
     auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
     auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
-    if (!graph) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!graph->empty());
+    // A null graph means there were no edges: still traverse it (as an empty
+    // graph) so that the start nodes themselves are returned.
 
     // If the array is empty, be forgiving and return an empty array. We could
     // return an error here but in 99% of cases, the caller will simply want
@@ -92,7 +87,7 @@ struct Dfs : public sqlite::AggregateFunction<Dfs> {
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
-    uint32_t graph_size = static_cast<uint32_t>(graph->size());
+    uint32_t graph_size = graph ? static_cast<uint32_t>(graph->size()) : 0;
     for (int64_t x : *start_ids) {
       if (x < 0 || x > std::numeric_limits<int32_t>::max()) {
         return sqlite::result::Error(
@@ -155,13 +150,8 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
 
     auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
     tables::TreeTable data(GetUserData(ctx));
-    if (!graph) {
-      return sqlite::result::UniquePointer(
-          ctx,
-          std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
-          "TABLE");
-    }
-    PERFETTO_DCHECK(!graph->empty());
+    // A null graph means there were no edges: still traverse it (as an empty
+    // graph) so that the start nodes themselves are returned.
 
     // If the array is empty, be forgiving and return an empty array. We could
     // return an error here but in 99% of cases, the caller will simply want
@@ -176,7 +166,7 @@ struct Bfs : public sqlite::AggregateFunction<Bfs> {
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
-    uint32_t graph_size = static_cast<uint32_t>(graph->size());
+    uint32_t graph_size = graph ? static_cast<uint32_t>(graph->size()) : 0;
     for (int64_t raw_id : *start_ids) {
       if (raw_id < 0 || raw_id > std::numeric_limits<int32_t>::max()) {
         return sqlite::result::Error(

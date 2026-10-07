@@ -17,16 +17,20 @@
 #include "src/profiling/smaps/smaps_data_source.h"
 
 #include <stdio.h>
+#include <unistd.h>
 
 #include <algorithm>
-#include <set>
+#include <cstdint>
+#include <random>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/metatrace_events.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/profiling/smaps.h"
@@ -83,6 +87,7 @@ SmapsDataSource::SmapsDataSource(Config config,
     : task_runner_(task_runner),
       trace_writer_(std::move(trace_writer)),
       config_(std::move(config)),
+      walk_seed_(std::random_device{}()),
       weak_factory_(this) {}
 
 void SmapsDataSource::SerializeSmapsForPid(pid_t pid) {
@@ -141,14 +146,24 @@ void SmapsDataSource::Tick() {
 void SmapsDataSource::QueueSmapsReads() {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, LINUX_SMAPS_ENQUEUE);
 
+  // Build a shuffled list of pids.
+  std::vector<std::pair<uint64_t, pid_t>> walk_order;
+  ForEachPid([this, &walk_order](pid_t pid) {
+    walk_order.emplace_back(base::MurmurHashCombine(walk_seed_, pid), pid);
+  });
+  std::sort(walk_order.begin(), walk_order.end());
+
   // Note: the set of matching processes is re-evaluated on every tick to catch
   // new or renamed processes.
-  std::set<pid_t> target_pids;
-  glob_aware::FindPidsForCmdlinePatterns(config_.target_cmdlines, &target_pids);
-  if (target_pids.empty())
+  const pid_t self_pid = getpid();
+  for (const auto& [key, pid] : walk_order) {
+    if (pid == self_pid)
+      continue;
+    if (glob_aware::PidMatchesCmdlinePatterns(pid, config_.target_cmdlines))
+      pending_reads_.push_back(pid);
+  }
+  if (pending_reads_.empty())
     return;
-
-  pending_reads_.assign(target_pids.begin(), target_pids.end());
 
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this] {

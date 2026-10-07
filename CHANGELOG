@@ -8,6 +8,11 @@ Unreleased:
      is not BOOTTIME. They were previously stored unconverted, which could
      also cause ftrace events to be dropped when preserve_ftrace_buffer is
      disabled.
+   * Changed `graph_reachable_dfs` and `graph_reachable_bfs` to return the
+     start nodes when the graph has no edges, consistent with how start nodes
+     not in the graph are handled when it does have edges. Previously an empty
+     table was returned. See
+     https://perfetto.dev/docs/analysis/perfetto-sql-backcompat.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.

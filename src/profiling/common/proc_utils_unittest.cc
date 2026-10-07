@@ -154,6 +154,13 @@ TEST(ProcUtilsTest, FindProfilablePids) {
   PERFETTO_CHECK(PERFETTO_EINTR(waitpid(pid, nullptr, 0)) == pid);
 }
 
+TEST(ProcUtilsTest, PidMatchesCmdlinePatterns) {
+  EXPECT_TRUE(glob_aware::PidMatchesCmdlinePatterns(getpid(), {"*"}));
+  EXPECT_FALSE(glob_aware::PidMatchesCmdlinePatterns(
+      getpid(), {"no_such_binary_for_sure"}));
+  EXPECT_FALSE(glob_aware::PidMatchesCmdlinePatterns(getpid(), {}));
+}
+
 TEST(ProcUtilsTest, GetRssAnonAndSwap) {
   std::string status = "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB";
   EXPECT_EQ(GetRssAnonAndSwap(status), 20000u);

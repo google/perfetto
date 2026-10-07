@@ -51,12 +51,13 @@ class AssertType : public Operator {
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
     // The converted column, holding values of the target type.
     BufferPool<ColumnChunk> buffers;
     base::Status status = base::OkStatus();

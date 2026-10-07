@@ -104,8 +104,8 @@ std::vector<uint32_t> Ids(const Source& source, base::Status* status) {
   return ids;
 }
 
-std::vector<std::unique_ptr<Operator>> SortBy(std::vector<SortSpec::Key> keys) {
-  std::vector<std::unique_ptr<Operator>> ops;
+std::vector<Pipeline::Step> SortBy(std::vector<SortSpec::Key> keys) {
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Sort>(SortSpec{std::move(keys)}));
   return ops;
 }
@@ -163,7 +163,7 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
   for (bool change_type : {false, true}) {
     // Recover from the rejected batch, then reuse a completed sort with a
     // different key width. Both runs must establish their own row layout.
-    sort.Rewind(*state);
+    state->Reset();
     ASSERT_TRUE(sort.status(*state).ok());
     if (change_type) {
       in.SetColumn(

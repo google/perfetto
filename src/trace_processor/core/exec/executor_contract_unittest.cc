@@ -115,7 +115,7 @@ TEST(ExecutorContractTest,
   retained.CopyFrom(output);
   EXPECT_THAT(test::ReadColumn<int64_t>(retained, 3), ElementsAre(10, 30));
   values = {100, 200};
-  op.Rewind(*state);
+  state->Reset();
   ASSERT_EQ(op.Execute(input, output, *state), OpResult::kNeedMoreInput);
   EXPECT_THAT(test::ReadColumn<int64_t>(output, 3), ElementsAre(100, 300));
   EXPECT_THAT(test::ReadColumn<int64_t>(retained, 3), ElementsAre(10, 30));
@@ -409,7 +409,7 @@ TEST_P(ExecutorBoundaryContractTest, FilteringIsIndependentOfBatchBoundaries) {
   }
   chunks.emplace_back();
   ContractSource source(std::move(chunks));
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<ContractFilter>());
   Pipeline pipeline(source, std::move(ops), {});
   RowCursor cursor(pipeline);
@@ -441,7 +441,7 @@ TEST(ExecutorContractTest, FirstSurvivorDoesNotTriggerLookahead) {
   ContractSource source({{-1, -2}, {9, 10}, {11}});
   auto filter = std::make_unique<ContractFilter>();
   auto* observed = filter.get();
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::move(filter));
   Pipeline pipeline(source, std::move(ops), {});
   {
@@ -460,7 +460,7 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   ContractSource source({{11}}, true);
   auto probe = std::make_unique<FinishProbe>();
   auto* observed = probe.get();
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::move(probe));
   Pipeline pipeline(source, std::move(ops), {});
   RowCursor cursor(pipeline);
@@ -493,16 +493,13 @@ class ContractFailure final : public Operator {
     return state.Cast<const State>().failed ? base::ErrStatus("operator failed")
                                             : base::OkStatus();
   }
-  void Rewind(OperatorState& state) const override {
-    state.Cast<State>().failed = false;
-  }
 };
 
 TEST(ExecutorContractTest, OperatorFailureDoesNotFinalizeOrPullFollowingBatch) {
   ContractSource source(std::vector<std::vector<int64_t>>{{1}, {2}});
   auto probe = std::make_unique<FinishProbe>();
   auto* observed = probe.get();
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::move(probe));
   ops.push_back(std::make_unique<ContractFailure>());
   Pipeline pipeline(source, std::move(ops), {});

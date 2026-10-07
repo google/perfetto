@@ -454,6 +454,10 @@ base::Status Compiler::CompileStage(uint32_t stage) {
       return CompileSet(stage);
     case SYNTAQLITE_NODE_PERFETTO_PIPE_AS:
       return CompileAs(stage);
+    case SYNTAQLITE_NODE_PERFETTO_PIPE_ORDER_BY:
+      return Unsupported(stage, "ORDER BY");
+    case SYNTAQLITE_NODE_PERFETTO_PIPE_AGGREGATE:
+      return Unsupported(stage, "AGGREGATE");
     default:
       PERFETTO_FATAL("Unknown pipeline stage");
   }

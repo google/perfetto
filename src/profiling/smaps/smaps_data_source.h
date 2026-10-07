@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -74,8 +75,8 @@ class SmapsDataSource {
   // Enqueues the work necessary for one pass, and reposts itself if the config
   // is periodic.
   void Tick();
-  // Finds the processes matching the target patterns, and queues a read for
-  // each of them.
+  // Walks all processes in a pseudo-random order, and queues a read for each
+  // one matching the target patterns.
   void QueueSmapsReads();
   // Serializes the smaps of one queued process, and reposts itself if there are
   // more targets.
@@ -88,6 +89,8 @@ class SmapsDataSource {
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> trace_writer_;
   const Config config_;
+  // Per-instance seed for the order in which processes are considered.
+  const uint64_t walk_seed_;
   // Processes that the current tick hasn't serialized yet, drained in separate
   // per-process tasks.
   std::vector<pid_t> pending_reads_;
