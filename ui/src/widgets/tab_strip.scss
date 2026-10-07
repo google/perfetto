@@ -48,6 +48,8 @@
     padding: 5px;
     margin-top: 2px;
     cursor: pointer;
+    // TabStrip.Link renders an <a>: don't look like a text link.
+    text-decoration: none;
 
     border-radius: 3px 3px 0 0;
     overflow: hidden;
