@@ -125,7 +125,7 @@ class Lowering {
   void PrepareGroups(const std::vector<ColumnId>& keys, ColumnId ascending);
   // Adds numbering and traversal operators as needed, reusing the current
   // tree until ResetLayout. Returned positions name physical temporaries.
-  TreeColumns PrepareTree(ColumnId node, ColumnId parent, bool child_first);
+  TreeColumns PrepareTree(ColumnId node, ColumnId parent, TreeDirection);
 
   // ---------------------------------------------------------------------------
   // Runtime type checks
@@ -180,7 +180,7 @@ class Lowering {
   // Valid while operations preserve the tree. Flattening clears both; sorting
   // for tree traversal replaces order_ but retains the numbered columns.
   std::optional<TreeColumns> tree_columns_;
-  std::optional<bool> tree_child_first_;
+  std::optional<TreeDirection> tree_direction_;
 
   // Describes the current rows, not the input plan. Operations which reorder
   // or replace rows must update this to the guarantees their output provides.

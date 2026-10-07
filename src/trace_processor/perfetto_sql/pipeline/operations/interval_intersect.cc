@@ -135,22 +135,21 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
   return base::OkStatus();
 }
 
-std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* used) {
-  auto& needed = *used;
+std::optional<uint32_t> IntervalIntersect::Prune(std::vector<bool>* needed) {
   // An intersection passes on only the operand columns used after it, but
   // reads each operand's bounds and partition columns to find the regions.
   auto& isect = *this;
   for (IntervalIntersect::Operand& operand : isect.operands_) {
     auto& carried = operand.carried;
     carried.erase(std::remove_if(carried.begin(), carried.end(),
-                                 [&](ColumnId id) { return !needed[id]; }),
+                                 [&](ColumnId id) { return !(*needed)[id]; }),
                   carried.end());
   }
   for (const IntervalIntersect::Operand& operand : isect.operands_) {
-    needed[operand.ts] = true;
-    needed[operand.dur] = true;
+    (*needed)[operand.ts] = true;
+    (*needed)[operand.dur] = true;
     for (ColumnId key : operand.keys) {
-      needed[key] = true;
+      (*needed)[key] = true;
     }
   }
   return std::nullopt;

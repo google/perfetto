@@ -73,11 +73,10 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   return base::OkStatus();
 }
 
-std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* used) {
-  auto& needed = *used;
+std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
   aggregates_.erase(std::remove_if(aggregates_.begin(), aggregates_.end(),
                                    [&](const TreeAccumulate::Aggregate& agg) {
-                                     return !needed[agg.output];
+                                     return !(*needed)[agg.output];
                                    }),
                     aggregates_.end());
 
@@ -89,10 +88,10 @@ std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* used) {
 
   // Otherwise it needs the tree's structure and the columns it aggregates.
   const auto& acc = *this;
-  needed[acc.node_column_] = true;
-  needed[acc.parent_column_] = true;
+  (*needed)[acc.node_column_] = true;
+  (*needed)[acc.parent_column_] = true;
   for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
-    needed[agg.column] = true;
+    (*needed)[agg.column] = true;
   }
   return std::nullopt;
 }
@@ -101,8 +100,8 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
   const auto& acc = *this;
   c->LowerNode(node.children()[0]);
 
-  const auto tree = c->PrepareTree(acc.node_column_, acc.parent_column_,
-                                   acc.direction_ == TreeDirection::kUp);
+  const auto tree =
+      c->PrepareTree(acc.node_column_, acc.parent_column_, acc.direction_);
   for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
     PERFETTO_DCHECK(agg.function == TreeAccumulate::Function::kSum);
     c->RequireInt64(agg.column);

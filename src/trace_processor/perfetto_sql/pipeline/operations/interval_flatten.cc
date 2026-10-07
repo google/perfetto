@@ -102,23 +102,22 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   return base::OkStatus();
 }
 
-std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* used) {
-  auto& needed = *used;
+std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
   auto& flatten = *this;
   aggregates_.erase(std::remove_if(aggregates_.begin(), aggregates_.end(),
                                    [&](const IntervalFlatten::Aggregate& agg) {
-                                     return !needed[agg.output];
+                                     return !(*needed)[agg.output];
                                    }),
                     aggregates_.end());
   // Unlike a fold, it stays with no aggregates left: its rows are segments.
-  needed[flatten.ts_] = true;
-  needed[flatten.dur_] = true;
+  (*needed)[flatten.ts_] = true;
+  (*needed)[flatten.dur_] = true;
   for (ColumnId key : flatten.keys_) {
-    needed[key] = true;
+    (*needed)[key] = true;
   }
   for (const IntervalFlatten::Aggregate& agg : aggregates_) {
     if (agg.function == IntervalFlatten::Function::kSum) {
-      needed[agg.column] = true;
+      (*needed)[agg.column] = true;
     }
   }
   return std::nullopt;

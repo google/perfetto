@@ -21,15 +21,20 @@
 #include <limits>
 #include <memory>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/group_by.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
@@ -61,29 +66,29 @@ void Lowering::ResetLayout() {
   column_count_ = 0;
   order_ = Order();
   tree_columns_.reset();
-  tree_child_first_.reset();
+  tree_direction_.reset();
 }
 
 Lowering::TreeColumns Lowering::PrepareTree(ColumnId node,
                                             ColumnId parent,
-                                            bool child_first) {
+                                            TreeDirection direction) {
   if (!tree_columns_) {
     AddOperator(std::make_unique<ex::TreeNumberNodes>(Position(node),
                                                       Position(parent)));
     tree_columns_ = TreeColumns{column_count_++, column_count_++};
   }
-  if (tree_child_first_ == child_first) {
+  if (tree_direction_ == direction) {
     return *tree_columns_;
   }
   order_ = Order();
-  if (child_first) {
+  if (direction == TreeDirection::kUp) {
     AddOperator(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
                                                      tree_columns_->parent));
   } else {
     AddOperator(std::make_unique<ex::TreeParentFirst>(tree_columns_->node,
                                                       tree_columns_->parent));
   }
-  tree_child_first_ = child_first;
+  tree_direction_ = direction;
   return *tree_columns_;
 }
 
@@ -112,8 +117,21 @@ const core::exec::Source* Lowering::AddOperand(
 
 void Lowering::LowerNode(PlanNodeId id) {
   const PlanNode& node = plan_.nodes()[id];
-  std::visit([&](const auto& operation) { operation.Lower(this, node); },
-             node.operation());
+  switch (node.operation().index()) {
+    case base::variant_index<PlanOperation, Scan>():
+      node.Cast<Scan>().Lower(this, node);
+      return;
+    case base::variant_index<PlanOperation, TreeAccumulate>():
+      node.Cast<TreeAccumulate>().Lower(this, node);
+      return;
+    case base::variant_index<PlanOperation, IntervalIntersect>():
+      node.Cast<IntervalIntersect>().Lower(this, node);
+      return;
+    case base::variant_index<PlanOperation, IntervalFlatten>():
+      node.Cast<IntervalFlatten>().Lower(this, node);
+      return;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,

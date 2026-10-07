@@ -204,12 +204,11 @@ void Scan::AddScanColumn(Compiler* c, Scan* scan, ColumnSchema column) {
   scan->columns_.push_back({std::move(column.name), id});
 }
 
-std::optional<uint32_t> Scan::Prune(std::vector<bool>* used) {
-  auto& needed = *used;
+std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   auto& scan = *this;
   std::vector<uint32_t> keep;
   for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
-    if (needed[scan.columns_[i].id]) {
+    if ((*needed)[scan.columns_[i].id]) {
       keep.push_back(i);
     }
   }

@@ -29,8 +29,6 @@ namespace perfetto::trace_processor::pipeline {
 class Lowering;
 class PlanNode;
 
-enum class TreeDirection : uint8_t { kUp, kDown };
-
 // `|> TREE ACCUMULATE UP | DOWN agg AS name, ...`. Appends one column per
 // aggregate.
 class TreeAccumulate {

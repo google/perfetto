@@ -39,6 +39,9 @@ struct NamedColumn {
 // Stable within a plan.
 using PlanNodeId = uint32_t;
 
+// Which way a tree is walked: from the leaves up, or from the roots down.
+enum class TreeDirection : uint8_t { kUp, kDown };
+
 }  // namespace perfetto::trace_processor::pipeline
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_TYPES_H_
