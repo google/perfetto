@@ -669,6 +669,7 @@ const TrackPopupMenu = {
         {label: 'Track details', icon: 'info'},
         renderTrackDetailsMenu(attrs.node, attrs.descriptor),
       ),
+      m(MenuDivider),
       renderExpandCollapseAllButtons(attrs.node),
       m(MenuDivider),
       m(
@@ -740,7 +741,6 @@ const TrackPopupMenu = {
 function renderExpandCollapseAllButtons(node: TrackNode): m.Children[] {
   if (!node.hasChildren) return [];
   return [
-    m(MenuDivider),
     m(MenuItem, {
       label: 'Expand all',
       icon: 'unfold_more',
