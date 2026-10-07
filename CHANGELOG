@@ -36,6 +36,8 @@ Unreleased:
       record page.
     * Added "Expand all" and "Collapse all" to the track menu to expand or
       collapse a track group and all of its descendants.
+    * Shift+click on a track group header expands or collapses it and all of
+      its descendants.
   SDK:
     *
   Misc:

@@ -208,8 +208,16 @@ export class TrackView {
         stickyTop: attrs.stickyTop,
         pluginId: renderer?.desc.pluginId,
         lite: attrs.lite,
-        onCollapsedChanged: () => {
-          node.hasChildren && node.toggleCollapsed();
+        onCollapsedChanged: (_, e) => {
+          if (!node.hasChildren) return;
+          // If the shift key is pressed with the click, then
+          // expand or collapse this track and all descendant tracks.
+          if (e.shiftKey) {
+            node.collapsed ? node.expandAll() : node.collapseAll();
+          } else {
+            // Otherwise, just toggle this track.
+            node.toggleCollapsed();
+          }
         },
         onTrackContentMouseMove: (pos, bounds) => {
           const timescale = this.getTimescaleForBounds(bounds);
@@ -742,12 +750,12 @@ function renderExpandCollapseAllButtons(node: TrackNode): m.Children[] {
   if (!node.hasChildren) return [];
   return [
     m(MenuItem, {
-      label: 'Expand all',
+      label: 'Expand all (Shift+click)',
       icon: 'unfold_more',
       onclick: () => node.expandAll(),
     }),
     m(MenuItem, {
-      label: 'Collapse all',
+      label: 'Collapse all (Shift+click)',
       icon: 'unfold_less',
       onclick: () => node.collapseAll(),
     }),
