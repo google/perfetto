@@ -380,7 +380,7 @@ base::ScopedFile PerfettoCmd::WaitForUploadCompleteAndCreatePersistentTmpFile(
   }
 
   auto fd = base::OpenFile(file_path.c_str(),
-                           O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
+                           O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0666);
   if (!fd) {
     PERFETTO_PLOG("Could not create persistent trace file %s",
                   file_path.c_str());
