@@ -188,6 +188,23 @@ CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
   EXPECT_EQ(m.table_views[0].description, "The real description.");
 }
 
+TEST(SqlModuleDocParserTest, DetachedCommentsAreNotDescriptions) {
+  auto m = Parse(R"(
+-- Copyright 2026 Example Corp.
+-- Licensed under Apache 2.0.
+
+CREATE PERFETTO TABLE undocumented(id LONG) AS SELECT 1;
+
+-- sqlformat file off
+
+CREATE PERFETTO VIEW also_undocumented(id LONG) AS SELECT 1;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.table_views.size(), 2u);
+  EXPECT_EQ(m.table_views[0].description, "");
+  EXPECT_EQ(m.table_views[1].description, "");
+}
+
 TEST(SqlModuleDocParserTest, MultiLineDescription) {
   auto m = Parse(R"(
 -- First line.

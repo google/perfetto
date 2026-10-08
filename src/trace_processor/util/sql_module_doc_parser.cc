@@ -266,6 +266,26 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
     auto get_stmt_desc = [&]() -> std::string {
       uint32_t count = 0;
       const auto* cs = syntaqlite_token_leading_comments(p, 0, &count);
+      if (count == 0) {
+        return {};
+      }
+
+      // Leading comments can belong to a preceding section or file header,
+      // rather than the CREATE statement. A blank line separates them.
+      uint32_t token_count = 0;
+      const auto* tokens = syntaqlite_result_tokens(p, &token_count);
+      if (token_count == 0) {
+        return {};
+      }
+      uint32_t last_comment_end =
+          cs[count - 1].offset + cs[count - 1].length;
+      uint32_t newlines = 0;
+      for (uint32_t i = last_comment_end; i < tokens[0].offset; ++i) {
+        if (stmt_ptr[i] == '\n' && ++newlines >= 2) {
+          return {};
+        }
+      }
+
       uint32_t start = LastBlockStart(stmt_ptr, cs, count);
       return JoinLineComments(stmt_ptr, cs + start, count - start);
     };
