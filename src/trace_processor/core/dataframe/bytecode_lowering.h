@@ -241,7 +241,7 @@ class BytecodeLowering {
   IndicesReg indices_reg_;
 
   // Tracks which columns have had PrefixPopcount bytecode emitted.
-  base::FlatHashMap<uint32_t, bool> prefix_popcount_emitted_;
+  base::FlatHashMapV2<uint32_t, bool> prefix_popcount_emitted_;
 
   // Last scratch registers returned by GetOrCreateScratchSpanRegister.
   std::optional<Scratch> scratch_;

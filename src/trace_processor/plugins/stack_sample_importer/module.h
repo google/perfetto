@@ -95,7 +95,7 @@ class StackSampleModule : public ProtoImporterModule {
   TraceProcessorContext* const context_;
 
   // One profiler session per packet sequence emitting StackSample packets.
-  base::FlatHashMap<uint32_t, tables::ProfilerSessionTable::Id> sessions_;
+  base::FlatHashMapV2<uint32_t, tables::ProfilerSessionTable::Id> sessions_;
 
   // Lazily-created mapping that inline callstack frames are interned into.
   DummyMemoryMapping* inline_callstack_mapping_ = nullptr;

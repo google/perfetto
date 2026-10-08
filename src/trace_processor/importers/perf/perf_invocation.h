@@ -88,7 +88,7 @@ class PerfInvocation : public RefCounted {
 
   void SetIsSimpleperf() { is_simpleperf_ = true; }
   void SetSimpleperfCounterScope(
-      const base::FlatHashMap<std::string, std::string>& entries);
+      const base::FlatHashMapV2<std::string, std::string>& entries);
 
   bool HasPerfClock() const;
 
@@ -108,10 +108,11 @@ class PerfInvocation : public RefCounted {
     }
   };
 
-  PerfInvocation(TraceProcessorContext* context,
-                 RefPtr<PerfEventAttr> first_attr,
-                 base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
-                 bool has_single_perf_event_attr)
+  PerfInvocation(
+      TraceProcessorContext* context,
+      RefPtr<PerfEventAttr> first_attr,
+      base::FlatHashMapV2<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
+      bool has_single_perf_event_attr)
       : context_(context),
         first_attr_(std::move(first_attr)),
         attrs_by_id_(std::move(attrs_by_id)),
@@ -123,7 +124,7 @@ class PerfInvocation : public RefCounted {
 
   TraceProcessorContext* const context_;
   RefPtr<PerfEventAttr> first_attr_;
-  base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id_;
+  base::FlatHashMapV2<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id_;
 
   // Multiple ids can map to the same perf_event_attr. This member tells us
   // whether there was only one perf_event_attr (with potentially different ids
@@ -133,7 +134,7 @@ class PerfInvocation : public RefCounted {
 
   bool is_simpleperf_ = false;
 
-  base::FlatHashMap<BuildIdMapKey, BuildId, base::MurmurHash<BuildIdMapKey>>
+  base::FlatHashMapV2<BuildIdMapKey, BuildId, base::MurmurHash<BuildIdMapKey>>
       build_ids_;
 };
 

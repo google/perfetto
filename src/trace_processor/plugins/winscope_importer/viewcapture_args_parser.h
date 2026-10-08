@@ -30,7 +30,7 @@ namespace perfetto::trace_processor::winscope {
 class ViewCaptureArgsParser : public ArgsParser {
  public:
   using Key = ArgsParser::Key;
-  using IidToStringMap = base::FlatHashMap<uint64_t, StringId>;
+  using IidToStringMap = base::FlatHashMapV2<uint64_t, StringId>;
 
   ViewCaptureArgsParser(int64_t packet_timestamp,
                         ArgsTracker::BoundInserter& inserter,
@@ -41,7 +41,7 @@ class ViewCaptureArgsParser : public ArgsParser {
   void AddInteger(Id flat_key, Id key, int64_t) override;
   void AddUnsignedInteger(Id flat_key, Id key, uint64_t) override;
 
-  base::FlatHashMap<StringId, IidToStringMap> flat_key_to_iid_args;
+  base::FlatHashMapV2<StringId, IidToStringMap> flat_key_to_iid_args;
 
  private:
   bool TryAddDeinternedString(const Key&, uint64_t);

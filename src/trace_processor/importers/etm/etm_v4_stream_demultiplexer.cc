@@ -304,7 +304,7 @@ class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
   std::unique_ptr<EtmTracker> etm_tracker_;
 
   FrameDecoder decoder_;
-  base::FlatHashMap<uint32_t, std::unique_ptr<EtmV4Stream>> streams_;
+  base::FlatHashMapV2<uint32_t, std::unique_ptr<EtmV4Stream>> streams_;
 };
 
 }  // namespace

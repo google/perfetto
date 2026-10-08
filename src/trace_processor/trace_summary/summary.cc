@@ -661,7 +661,8 @@ base::Status WriteInternedDimensionBundles(
 base::Status CreateQueriesAndComputeMetrics(TraceProcessor* processor,
                                             const std::vector<Metric>& metrics,
                                             TraceSummary* summary) {
-  base::FlatHashMap<std::string, std::vector<const Metric*>> metrics_by_bundle;
+  base::FlatHashMapV2<std::string, std::vector<const Metric*>>
+      metrics_by_bundle;
   for (const Metric& m : metrics) {
     TraceMetricV2Spec::Decoder spec_decoder(m.spec);
     std::string bundle_id = spec_decoder.bundle_id().ToStdString();
@@ -952,7 +953,7 @@ base::Status Summarize(TraceProcessor* processor,
     }
   }
 
-  base::FlatHashMap<std::string, size_t> queries_per_metric;
+  base::FlatHashMapV2<std::string, size_t> queries_per_metric;
   std::vector<Metric> metrics;
   for (const auto& id : metric_ids) {
     if (base::CaseInsensitiveEqual(id, "all")) {

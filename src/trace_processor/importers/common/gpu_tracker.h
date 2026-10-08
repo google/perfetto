@@ -69,19 +69,20 @@ class GpuTracker {
   TraceProcessorContext* const context_;
 
   // Maps gpu number to GpuTable::Id for the current machine.
-  base::FlatHashMap<uint32_t, tables::GpuTable::Id> gpu_ids_;
+  base::FlatHashMapV2<uint32_t, tables::GpuTable::Id> gpu_ids_;
 
   // Maps event_id to GPU render stage slice IDs.
-  base::FlatHashMap<uint64_t, std::vector<SliceId>> event_id_to_gpu_slices_;
+  base::FlatHashMapV2<uint64_t, std::vector<SliceId>> event_id_to_gpu_slices_;
 
   // Maps event_id to the track event slice ID.
-  base::FlatHashMap<uint64_t, SliceId> event_id_to_track_event_slice_;
+  base::FlatHashMapV2<uint64_t, SliceId> event_id_to_track_event_slice_;
 
   // Maps event_id to the terminating track event slice ID.
-  base::FlatHashMap<uint64_t, SliceId> event_id_to_terminating_slice_;
+  base::FlatHashMapV2<uint64_t, SliceId> event_id_to_terminating_slice_;
 
   // Maps event_id to slice IDs that are waiting on it (via event_wait_ids).
-  base::FlatHashMap<uint64_t, std::vector<SliceId>> event_id_to_waiting_slices_;
+  base::FlatHashMapV2<uint64_t, std::vector<SliceId>>
+      event_id_to_waiting_slices_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -84,7 +84,7 @@ class V8Module : public ProtoImporterModule {
   std::unique_ptr<V8Tracker> v8_tracker_;
   // Caches isolate to pid associations. Used to compute the utid for code
   // events.
-  base::FlatHashMap<tables::V8IsolateTable::Id, uint32_t> isolate_to_pid_;
+  base::FlatHashMapV2<tables::V8IsolateTable::Id, uint32_t> isolate_to_pid_;
 };
 
 }  // namespace perfetto::trace_processor

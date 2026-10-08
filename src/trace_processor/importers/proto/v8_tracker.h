@@ -155,27 +155,27 @@ class V8Tracker {
 
   TraceProcessorContext* const context_;
   JitTracker jit_tracker_;
-  base::FlatHashMap<IsolateId, AddressRangeMap<JitCache*>> isolates_;
+  base::FlatHashMapV2<IsolateId, AddressRangeMap<JitCache*>> isolates_;
 
   // Multiple isolates in the same process might share the code. Keep track of
   // those here.
-  base::FlatHashMap<UniquePid, SharedCodeRanges> shared_code_ranges_;
+  base::FlatHashMapV2<UniquePid, SharedCodeRanges> shared_code_ranges_;
 
-  base::FlatHashMap<IsolateKey,
-                    std::optional<IsolateId>,
-                    base::MurmurHash<IsolateKey>>
+  base::FlatHashMapV2<IsolateKey,
+                      std::optional<IsolateId>,
+                      base::MurmurHash<IsolateKey>>
       isolate_index_;
-  base::FlatHashMap<std::pair<IsolateId, int32_t>,
-                    tables::V8JsScriptTable::Id,
-                    base::MurmurHash<std::pair<IsolateId, int32_t>>>
+  base::FlatHashMapV2<std::pair<IsolateId, int32_t>,
+                      tables::V8JsScriptTable::Id,
+                      base::MurmurHash<std::pair<IsolateId, int32_t>>>
       js_script_index_;
-  base::FlatHashMap<std::pair<IsolateId, int32_t>,
-                    tables::V8WasmScriptTable::Id,
-                    base::MurmurHash<std::pair<IsolateId, int32_t>>>
+  base::FlatHashMapV2<std::pair<IsolateId, int32_t>,
+                      tables::V8WasmScriptTable::Id,
+                      base::MurmurHash<std::pair<IsolateId, int32_t>>>
       wasm_script_index_;
-  base::FlatHashMap<tables::V8JsFunctionTable::Row,
-                    tables::V8JsFunctionTable::Id,
-                    JsFunctionHash>
+  base::FlatHashMapV2<tables::V8JsFunctionTable::Row,
+                      tables::V8JsFunctionTable::Id,
+                      JsFunctionHash>
       js_function_index_;
 };
 

@@ -43,10 +43,10 @@ class HeapGraph {
     class_fields_ = std::move(fields);
   }
   void SetIdSize(uint32_t id_size) { id_size_ = id_size; }
-  void SetClasses(base::FlatHashMap<uint64_t, ClassDefinition> cls) {
+  void SetClasses(base::FlatHashMapV2<uint64_t, ClassDefinition> cls) {
     classes_ = std::move(cls);
   }
-  void SetStrings(base::FlatHashMap<uint64_t, StringId> strs) {
+  void SetStrings(base::FlatHashMapV2<uint64_t, StringId> strs) {
     strings_ = std::move(strs);
   }
 
@@ -59,7 +59,7 @@ class HeapGraph {
 
   uint32_t GetIdSize() const { return id_size_; }
 
-  const base::FlatHashMap<uint64_t, ClassDefinition>& GetClasses() const {
+  const base::FlatHashMapV2<uint64_t, ClassDefinition>& GetClasses() const {
     return classes_;
   }
 
@@ -114,9 +114,9 @@ class HeapGraph {
  private:
   ObjectStore objects_;
   ClassFieldLayouts class_fields_;
-  base::FlatHashMap<uint64_t, ClassDefinition> classes_;
-  base::FlatHashMap<uint64_t, StringId> strings_;
-  base::FlatHashMap<uint32_t, std::string> heap_id_to_name_;
+  base::FlatHashMapV2<uint64_t, ClassDefinition> classes_;
+  base::FlatHashMapV2<uint64_t, StringId> strings_;
+  base::FlatHashMapV2<uint32_t, std::string> heap_id_to_name_;
   uint64_t timestamp_;
   uint32_t id_size_ = 4;
 };

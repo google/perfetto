@@ -78,7 +78,7 @@ class ArgNode {
   // Use vector of pairs to preserve insertion order.
   std::unique_ptr<std::vector<std::pair<std::string, ArgNode>>> dict_;
   // Index for O(1) lookup in dict_. Maps key -> index in dict_ vector.
-  std::unique_ptr<base::FlatHashMap<std::string, size_t>> dict_index_;
+  std::unique_ptr<base::FlatHashMapV2<std::string, size_t>> dict_index_;
 };
 
 class ArgSet {

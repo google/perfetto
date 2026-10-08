@@ -64,16 +64,16 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
   TraceProcessorContext* context_;
 
   // Last cpu duration per uid/cluster (key is uid << 32 | cluster).
-  base::FlatHashMap<uint64_t, uint64_t> last_value_;
+  base::FlatHashMapV2<uint64_t, uint64_t> last_value_;
 
   // Cumulative duration per uid/cluster (key is uid << 32 | cluster).
-  base::FlatHashMap<uint64_t, uint64_t> cumulative_;
+  base::FlatHashMapV2<uint64_t, uint64_t> cumulative_;
 
   // Map from cluster to total cumulative app (uid >= 10000) duration.
-  base::FlatHashMap<uint32_t, uint64_t> app_totals_;
+  base::FlatHashMapV2<uint32_t, uint64_t> app_totals_;
 
   // Map from cluster to total cumulative system (uid < 10000) duration.
-  base::FlatHashMap<uint32_t, uint64_t> system_totals_;
+  base::FlatHashMapV2<uint32_t, uint64_t> system_totals_;
 };
 
 }  // namespace perfetto::trace_processor

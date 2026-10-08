@@ -180,9 +180,9 @@ using QueryProto = StructuredQueryGenerator::QueryProto;
 
 class GeneratorImpl {
  public:
-  GeneratorImpl(base::FlatHashMap<std::string, QueryProto>& protos,
+  GeneratorImpl(base::FlatHashMapV2<std::string, QueryProto>& protos,
                 std::vector<Query>& queries,
-                base::FlatHashMap<std::string, std::nullptr_t>& modules,
+                base::FlatHashMapV2<std::string, std::nullptr_t>& modules,
                 std::vector<std::string>& preambles)
       : query_protos_(protos),
         queries_(queries),
@@ -265,9 +265,9 @@ class GeneratorImpl {
   // Index of the current query we are processing in the `state_` vector.
   size_t state_index_ = 0;
   std::vector<QueryState> state_;
-  base::FlatHashMap<std::string, QueryProto>& query_protos_;
+  base::FlatHashMapV2<std::string, QueryProto>& query_protos_;
   std::vector<Query>& queries_;
-  base::FlatHashMap<std::string, std::nullptr_t>& referenced_modules_;
+  base::FlatHashMapV2<std::string, std::nullptr_t>& referenced_modules_;
   std::vector<std::string>& preambles_;
   std::set<std::string> used_table_names_;
 };
@@ -1498,7 +1498,7 @@ base::StatusOr<std::string> GeneratorImpl::SelectColumnsAggregates(
     protozero::RepeatedFieldIterator<protozero::ConstChars> group_by_cols,
     protozero::RepeatedFieldIterator<protozero::ConstBytes> aggregates,
     protozero::RepeatedFieldIterator<protozero::ConstBytes> select_cols) {
-  base::FlatHashMap<std::string, std::optional<std::string>> output;
+  base::FlatHashMapV2<std::string, std::optional<std::string>> output;
   if (select_cols) {
     for (auto it = select_cols; it; ++it) {
       StructuredQuery::SelectColumn::Decoder select(*it);

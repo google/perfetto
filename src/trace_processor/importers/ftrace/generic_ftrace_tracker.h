@@ -115,9 +115,9 @@ class GenericFtraceTracker {
 
   TraceProcessorContext* const context_;
   // keyed by proto field id inside the FtraceEvent proto
-  base::FlatHashMap<uint32_t, GenericEvent> events_;
+  base::FlatHashMapV2<uint32_t, GenericEvent> events_;
   // keyed by proto field id inside the FtraceEvent proto, subset of the above
-  base::FlatHashMap<uint32_t, KernelTrackEvent> track_event_info_;
+  base::FlatHashMapV2<uint32_t, KernelTrackEvent> track_event_info_;
 
   const StringId track_event_type_;
   const StringId slice_name_;

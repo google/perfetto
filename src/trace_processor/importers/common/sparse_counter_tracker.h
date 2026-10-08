@@ -63,7 +63,7 @@ class SparseCounterTracker {
   };
 
   std::unique_ptr<TraceSorter::Stream<SparseCounterEvent>> stream_;
-  base::FlatHashMap<TrackId, TrackState> track_state_;
+  base::FlatHashMapV2<TrackId, TrackState> track_state_;
 };
 
 }  // namespace perfetto::trace_processor

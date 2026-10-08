@@ -89,12 +89,12 @@ class StructuredQueryGenerator {
   std::vector<Query> referenced_queries() const { return referenced_queries_; }
 
  private:
-  base::FlatHashMap<std::string, QueryProto> query_protos_;
+  base::FlatHashMapV2<std::string, QueryProto> query_protos_;
   std::vector<Query> referenced_queries_;
 
   // We don't have FlatHashSet so just (ab)use FlatHashMap by storing a noop
   // value.
-  base::FlatHashMap<std::string, std::nullptr_t> referenced_modules_;
+  base::FlatHashMapV2<std::string, std::nullptr_t> referenced_modules_;
   std::vector<std::string> preambles_;
 };
 

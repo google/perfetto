@@ -31,8 +31,8 @@ HeapGraphResolver::HeapGraphResolver(
     TraceProcessorContext* context,
     HprofHeader& header,
     ObjectStore& objects,
-    base::FlatHashMap<uint64_t, ClassDefinition>& classes,
-    base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+    base::FlatHashMapV2<uint64_t, ClassDefinition>& classes,
+    base::FlatHashMapV2<uint64_t, HprofHeapRootTag>& roots,
     ClassFieldLayouts& class_fields,
     uint64_t string_class_id,
     DebugStats& stats)
@@ -348,9 +348,9 @@ void HeapGraphResolver::BuildClassFieldLayouts() {
   // Reference subclasses whose "referent" edge must not be followed when
   // computing reachability. Matches ahat's retained=SOFT behavior: soft
   // referent edges are followed.
-  base::FlatHashMap<uint64_t, bool> weak_ref_classes;
+  base::FlatHashMapV2<uint64_t, bool> weak_ref_classes;
   {
-    base::FlatHashMap<uint64_t, bool> base_refs;
+    base::FlatHashMapV2<uint64_t, bool> base_refs;
     for (auto it = classes_.GetIterator(); it; ++it) {
       const auto& name = it.value().GetName();
       if (name == "java.lang.ref.WeakReference" ||

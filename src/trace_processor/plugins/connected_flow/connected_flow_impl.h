@@ -36,9 +36,9 @@ namespace perfetto::trace_processor {
 
 // Represents the flow graph with pre-computed adjacency lists.
 struct FlowGraph {
-  base::FlatHashMap<SliceId, std::vector<tables::FlowTable::RowNumber>>
+  base::FlatHashMapV2<SliceId, std::vector<tables::FlowTable::RowNumber>>
       outgoing_flows;
-  base::FlatHashMap<SliceId, std::vector<tables::FlowTable::RowNumber>>
+  base::FlatHashMapV2<SliceId, std::vector<tables::FlowTable::RowNumber>>
       incoming_flows;
 
   static FlowGraph Build(const tables::FlowTable& flow_table) {

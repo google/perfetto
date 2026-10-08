@@ -125,7 +125,7 @@ class TraceProcessorContext {
     // by the manifest state, which outlives parsing). The proto dispatcher
     // forks remote machines onto these instead of rejecting. Null for other
     // files.
-    const base::FlatHashMap<uint32_t, int64_t>* machine_remap = nullptr;
+    const base::FlatHashMapV2<uint32_t, int64_t>* machine_remap = nullptr;
   };
 
   struct UuidState {
@@ -320,12 +320,12 @@ class TraceProcessorContext {
 class TraceProcessorContext::ForkedContextState {
  public:
   using TraceIdAndMachineId = std::pair<uint32_t, int64_t>;
-  base::FlatHashMap<TraceIdAndMachineId,
-                    std::unique_ptr<TraceProcessorContext>,
-                    base::MurmurHash<TraceIdAndMachineId>>
+  base::FlatHashMapV2<TraceIdAndMachineId,
+                      std::unique_ptr<TraceProcessorContext>,
+                      base::MurmurHash<TraceIdAndMachineId>>
       trace_and_machine_to_context;
-  base::FlatHashMap<uint32_t, TraceProcessorContext*> trace_to_context;
-  base::FlatHashMap<int64_t, TraceProcessorContext*> machine_to_context;
+  base::FlatHashMapV2<uint32_t, TraceProcessorContext*> trace_to_context;
+  base::FlatHashMapV2<int64_t, TraceProcessorContext*> machine_to_context;
 };
 
 }  // namespace perfetto::trace_processor

@@ -246,7 +246,7 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
   TraceSummarySpec::Decoder spec_decoder(spec_data, spec_size);
 
   // Track which query IDs are in the new spec.
-  base::FlatHashMap<std::string, bool> new_query_ids;
+  base::FlatHashMapV2<std::string, bool> new_query_ids;
 
   // Parse all queries from the spec and store them.
   for (auto it = spec_decoder.query(); it; ++it) {
@@ -361,7 +361,7 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
 std::vector<std::string> SummarizerImpl::CollectDependencies(
     const std::string& query_id) {
   std::vector<std::string> deps;
-  base::FlatHashMap<std::string, bool> visited;
+  base::FlatHashMapV2<std::string, bool> visited;
 
   // Walk up the dependency chain and collect in reverse order.
   std::vector<std::string> stack;

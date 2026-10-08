@@ -54,7 +54,8 @@ ArgNode ArgNode::Dict() {
   ArgNode node(Variadic::Null());
   node.type_ = Type::kDict;
   node.dict_ = std::make_unique<std::vector<std::pair<std::string, ArgNode>>>();
-  node.dict_index_ = std::make_unique<base::FlatHashMap<std::string, size_t>>();
+  node.dict_index_ =
+      std::make_unique<base::FlatHashMapV2<std::string, size_t>>();
   node.primitive_value_ = Variadic::Null();
   return node;
 }

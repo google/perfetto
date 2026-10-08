@@ -62,8 +62,8 @@ void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
                                                            int64_t ts) {
   auto [it, inserted] = state_by_session_and_pid_.Insert(
       std::make_pair(session_id, pid),
-      State{ts, base::FlatHashMap<uint32_t, CallsiteId>(),
-            base::FlatHashMap<uint32_t, uint32_t>(), nullptr});
+      State{ts, base::FlatHashMapV2<uint32_t, CallsiteId>(),
+            base::FlatHashMapV2<uint32_t, uint32_t>(), nullptr});
   it->ts = ts;
   if (inserted) {
     it->mapping = &context_->mapping_tracker->CreateDummyMapping("");

@@ -49,7 +49,7 @@ class JitTracker : public Destructible {
 
   TraceProcessorContext* const context_;
 
-  base::FlatHashMap<UniquePid, AddressRangeMap<std::unique_ptr<JitCache>>>
+  base::FlatHashMapV2<UniquePid, AddressRangeMap<std::unique_ptr<JitCache>>>
       caches_;
 };
 

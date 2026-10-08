@@ -25,7 +25,8 @@ bool DeobfuscationMappingTable::AddClassTranslation(
     const PackageId& package,
     StringId obfuscated_class_name,
     StringId deobfuscated_class_name,
-    base::FlatHashMap<StringId, StringId> obfuscated_to_deobfuscated_members) {
+    base::FlatHashMapV2<StringId, StringId>
+        obfuscated_to_deobfuscated_members) {
   if (PERFETTO_UNLIKELY(!default_package_id_)) {
     default_package_id_ = package;
   }

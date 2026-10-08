@@ -102,7 +102,7 @@ TEST(ArgsTranslationTable, TranslateClassName) {
   DeobfuscationMappingTable deobfuscation_mapping;
   deobfuscation_mapping.AddClassTranslation(
       DeobfuscationMappingTable::PackageId{"app", 123}, xyz_id, class_x_id,
-      base::FlatHashMap<StringId, StringId>{});
+      base::FlatHashMapV2<StringId, StringId>{});
   ArgsTranslationTable table(&storage);
   table.AddDeobfuscationMappingTable(std::move(deobfuscation_mapping));
 

@@ -407,7 +407,7 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
     TableDefinition t1_defn;
     TableDefinition t2_defn;
     PartitioningType partitioning;
-    base::FlatHashMap<size_t, ColumnLocator> global_index_to_column_locator;
+    base::FlatHashMapV2<size_t, ColumnLocator> global_index_to_column_locator;
   };
 
   // Base class for a cursor on the span table.

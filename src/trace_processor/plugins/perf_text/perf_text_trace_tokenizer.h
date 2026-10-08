@@ -41,7 +41,7 @@ class PerfTextTraceTokenizer : public ChunkedTraceReader {
  private:
   TraceProcessorContext* const context_;
   util::TraceBlobViewReader reader_;
-  base::FlatHashMap<std::string, DummyMemoryMapping*> mappings_;
+  base::FlatHashMapV2<std::string, DummyMemoryMapping*> mappings_;
   std::unique_ptr<TraceSorter::Stream<PerfTextEvent>> stream_;
 };
 

@@ -47,7 +47,7 @@ class ProcessTrackTranslationTable {
 
  private:
   TraceStorage* storage_;
-  base::FlatHashMap<StringId, StringId> raw_to_deobfuscated_name_;
+  base::FlatHashMapV2<StringId, StringId> raw_to_deobfuscated_name_;
 };
 
 }  // namespace perfetto::trace_processor

@@ -468,7 +468,7 @@ class FtraceParser {
   const StringId gpu_power_state_pg_id_;
   const StringId gpu_power_state_on_id_;
 
-  base::FlatHashMap<uint32_t, uint32_t> adreno_cmdbatch_ctx_tids_;
+  base::FlatHashMapV2<uint32_t, uint32_t> adreno_cmdbatch_ctx_tids_;
   const StringId gpu_cmdbatch_slice_name_id_;
 
   const StringId ddic_underrun_id_;
@@ -514,7 +514,7 @@ class FtraceParser {
     uint64_t nr_reclaimed = 0;
     uint64_t nr_mapped = 0;
   };
-  base::FlatHashMap<UniqueTid, CmaMigrationInfo> utid_to_cma_migration_info_;
+  base::FlatHashMapV2<UniqueTid, CmaMigrationInfo> utid_to_cma_migration_info_;
 
   // Record number of kfree_skb with ip protocol.
   uint64_t num_of_kfree_skb_ip_prot = 0;
@@ -572,7 +572,7 @@ class FtraceParser {
     }
   };
 
-  base::FlatHashMap<std::pair<uint64_t, int64_t>, uint32_t, PairHash>
+  base::FlatHashMapV2<std::pair<uint64_t, int64_t>, uint32_t, PairHash>
       inode_offset_thread_map_;
 };
 

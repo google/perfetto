@@ -54,7 +54,7 @@ class DeobfuscationTracker : public Destructible {
     std::vector<FrameId> frames;
   };
   using JavaFrameMap =
-      base::FlatHashMap<StringId, std::vector<FramesInPackage>>;
+      base::FlatHashMapV2<StringId, std::vector<FramesInPackage>>;
 
   static void AddJavaFrame(JavaFrameMap& java_frames_for_name,
                            StringId name,

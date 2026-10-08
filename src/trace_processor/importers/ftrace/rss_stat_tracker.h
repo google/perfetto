@@ -50,7 +50,7 @@ class RssStatTracker {
                                            bool is_curr,
                                            uint32_t pid);
 
-  base::FlatHashMap<int64_t, UniqueTid> mm_id_to_utid_;
+  base::FlatHashMapV2<int64_t, UniqueTid> mm_id_to_utid_;
   TraceProcessorContext* const context_;
 };
 

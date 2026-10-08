@@ -68,7 +68,7 @@ void DeobfuscationModule::BuildMappingTableIncremental(
   for (auto class_it = mapping.obfuscated_classes(); class_it; ++class_it) {
     protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
 
-    base::FlatHashMap<StringId, StringId> members;
+    base::FlatHashMapV2<StringId, StringId> members;
     for (auto member_it = cls.obfuscated_methods(); member_it; ++member_it) {
       protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
       members[context_->storage->InternString(member.obfuscated_name())] =

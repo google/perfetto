@@ -129,7 +129,7 @@ class FtraceTokenizer {
     int64_t trace_ts;
     uint64_t gpu_ticks;
   };
-  base::FlatHashMap<uint32_t, AdrenoCmdbatchSyncPoint>
+  base::FlatHashMapV2<uint32_t, AdrenoCmdbatchSyncPoint>
       adreno_cmdbatch_sync_points_;
 
   // Buffer retired event when its matching sync hasn't been seen yet, so
@@ -143,7 +143,7 @@ class FtraceTokenizer {
     TraceBlobView event;
     RefPtr<PacketSequenceStateGeneration> state;
   };
-  base::FlatHashMap<uint32_t, PendingAdrenoCmdbatchRetired>
+  base::FlatHashMapV2<uint32_t, PendingAdrenoCmdbatchRetired>
       pending_adreno_cmdbatch_retired_;
 
   int64_t latest_ftrace_clock_snapshot_ts_ = 0;

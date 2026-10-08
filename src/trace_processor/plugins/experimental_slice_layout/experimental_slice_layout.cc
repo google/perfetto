@@ -206,7 +206,7 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
   // its children, letting us map every slice to its group in a single pass.
   // |id_to_group| resolves a parent id; |slice_group| records each row's group
   // positionally so the emit pass never has to hash.
-  base::FlatHashMap<uint32_t, uint32_t> id_to_group;
+  base::FlatHashMapV2<uint32_t, uint32_t> id_to_group;
   std::vector<uint32_t> slice_group;
   slice_group.reserve(rows.size());
   std::vector<GroupInfo> groups;

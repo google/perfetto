@@ -75,10 +75,10 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::Status OnPushDataToSorter() override;
   void OnEventsFullyExtracted() override;
 
-  using SyncClockSnapshots = base::FlatHashMap<
+  using SyncClockSnapshots = base::FlatHashMapV2<
       uint32_t,
       std::pair</*host ts*/ uint64_t, /*client ts*/ uint64_t>>;
-  static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
+  static base::FlatHashMapV2<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsetsForTesting(
       std::vector<SyncClockSnapshots>& sync_clock_snapshots) {
     return CalculateClockOffsets(sync_clock_snapshots);
@@ -157,7 +157,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void ParseTraceConfig(ConstBytes);
   void ParseTraceStats(ConstBytes);
 
-  static base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/>
+  static base::FlatHashMapV2<ClockTracker::ClockId, int64_t /*Offset*/>
   CalculateClockOffsets(std::vector<SyncClockSnapshots>&);
 
   PacketSequenceStateBuilder* GetIncrementalState(SequenceScopedState* seq) {
@@ -176,7 +176,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   ProtoTraceTokenizer tokenizer_;
   ProtoImporterModuleContext module_context_;
   std::unique_ptr<ProtoTraceParserImpl> parser_;
-  base::FlatHashMap<uint32_t, std::unique_ptr<ProtoTraceReader>>
+  base::FlatHashMapV2<uint32_t, std::unique_ptr<ProtoTraceReader>>
       machine_to_proto_readers_;
   const bool is_machine_dispatcher_;
   // Machine adopted onto the host context (relabelled), or nullopt until the
@@ -190,7 +190,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   // timestamp given is latest_timestamp_.
   int64_t latest_timestamp_ = 0;
 
-  base::FlatHashMap<uint32_t, SequenceScopedState> sequence_state_;
+  base::FlatHashMapV2<uint32_t, SequenceScopedState> sequence_state_;
   // The sequence ParsePacket last looked up; reset whenever the map changes.
   uint32_t last_seq_id_ = 0;
   SequenceScopedState* last_scoped_state_ = nullptr;

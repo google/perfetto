@@ -73,11 +73,11 @@ class TargetMemory : public Destructible {
   // Kernel memory is shared by all processes.
   VirtualAddressSpace kernel_memory_;
 
-  base::FlatHashMap<UniquePid, VirtualAddressSpace> user_memory_;
+  base::FlatHashMapV2<UniquePid, VirtualAddressSpace> user_memory_;
 
   // Cache for quick tid -> upid lookups.
   // TODO(carlscab): This should probably live in `ProcessTracker`
-  mutable base::FlatHashMap<uint32_t, VirtualAddressSpace*> tid_to_space_;
+  mutable base::FlatHashMapV2<uint32_t, VirtualAddressSpace*> tid_to_space_;
 };
 
 }  // namespace etm

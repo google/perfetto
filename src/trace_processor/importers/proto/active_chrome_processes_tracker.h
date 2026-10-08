@@ -57,7 +57,7 @@ class ActiveChromeProcessesTracker {
   };
 
   TraceProcessorContext* context_;
-  base::FlatHashMap<UniquePid, ProcessData> process_data_;
+  base::FlatHashMapV2<UniquePid, ProcessData> process_data_;
   // Metadata timestamps across all processes.
   std::set<int64_t> global_metadata_timestamps_;
 };

@@ -61,9 +61,9 @@ void ProtoContentAnalyzer::OnEventsFullyExtracted() {
   // Perfetto UI supports custom flamegraphs (b/227644078).
   for (auto annotated_map = aggregated_samples_.GetIterator(); annotated_map;
        ++annotated_map) {
-    base::FlatHashMap<util::SizeProfileComputer::FieldPath,
-                      tables::ExperimentalProtoPathTable::Id,
-                      base::MurmurHash<util::SizeProfileComputer::FieldPath>>
+    base::FlatHashMapV2<util::SizeProfileComputer::FieldPath,
+                        tables::ExperimentalProtoPathTable::Id,
+                        base::MurmurHash<util::SizeProfileComputer::FieldPath>>
         path_ids;
     for (auto sample = annotated_map.value().GetIterator(); sample; ++sample) {
       std::string path_string;

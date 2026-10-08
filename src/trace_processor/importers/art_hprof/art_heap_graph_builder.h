@@ -112,8 +112,8 @@ class HeapGraphResolver {
   HeapGraphResolver(TraceProcessorContext* context,
                     HprofHeader& header,
                     ObjectStore& objects,
-                    base::FlatHashMap<uint64_t, ClassDefinition>& classes,
-                    base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+                    base::FlatHashMapV2<uint64_t, ClassDefinition>& classes,
+                    base::FlatHashMapV2<uint64_t, HprofHeapRootTag>& roots,
                     ClassFieldLayouts& class_fields,
                     uint64_t string_class_id,
                     DebugStats& stats);
@@ -134,8 +134,8 @@ class HeapGraphResolver {
   TraceProcessorContext* context_;
   HprofHeader& header_;
   ObjectStore& objects_;
-  base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots_;
-  base::FlatHashMap<uint64_t, ClassDefinition>& classes_;
+  base::FlatHashMapV2<uint64_t, HprofHeapRootTag>& roots_;
+  base::FlatHashMapV2<uint64_t, ClassDefinition>& classes_;
   ClassFieldLayouts& class_fields_;
   DebugStats& stats_;
 
@@ -251,15 +251,15 @@ class HeapGraphBuilder {
   StringId current_heap_;
 
   // Data collections
-  base::FlatHashMap<uint64_t, StringId> strings_;
-  base::FlatHashMap<uint64_t, ClassDefinition> classes_;
+  base::FlatHashMapV2<uint64_t, StringId> strings_;
+  base::FlatHashMapV2<uint64_t, ClassDefinition> classes_;
   ObjectStore objects_;
   ClassFieldLayouts class_fields_;
 
   // Type mapping and root tracking
   std::array<uint64_t, 12> prim_array_class_ids_ = {};
   uint64_t string_class_id_ = 0;
-  base::FlatHashMap<uint64_t, HprofHeapRootTag> roots_;
+  base::FlatHashMapV2<uint64_t, HprofHeapRootTag> roots_;
 
   // Debug statistics
   DebugStats stats_;

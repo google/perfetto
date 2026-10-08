@@ -326,7 +326,7 @@ struct ClassFieldLayout {
   std::vector<ObjectFieldRef> object_fields;
 };
 
-using ClassFieldLayouts = base::FlatHashMap<uint64_t, ClassFieldLayout>;
+using ClassFieldLayouts = base::FlatHashMapV2<uint64_t, ClassFieldLayout>;
 
 // Stores all the objects in a dump contiguously, with a side map from hprof
 // object id to index. Keeping the (large) Object payloads out of the hash map
@@ -370,7 +370,7 @@ class ObjectStore {
   }
 
  private:
-  base::FlatHashMap<uint64_t, ObjectIndex> index_;
+  base::FlatHashMapV2<uint64_t, ObjectIndex> index_;
   std::vector<Object> objects_;
 };
 

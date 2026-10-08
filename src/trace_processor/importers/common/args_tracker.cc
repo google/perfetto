@@ -109,7 +109,7 @@ ArgsInserter& ArgsInserter::AddArg(StringId flat_key,
                                    Variadic value,
                                    UpdatePolicy update_policy) {
   std::vector<CompactArg>& args = buffer_->args;
-  base::FlatHashMap<StringId, uint32_t>& key_index = buffer_->key_index;
+  base::FlatHashMapV2<StringId, uint32_t>& key_index = buffer_->key_index;
 
   // Collapse same-key duplicates in place (kSkipIfExists keeps the first value,
   // kAddOrUpdate the last) so AddArgSet never sees two args with the same key.
