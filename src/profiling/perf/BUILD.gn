@@ -106,7 +106,7 @@ source_set("unwinding") {
     "../../../include/perfetto/ext/tracing/core",
     "../../../src/base",
     "../../../src/kallsyms",
-    "../unwind/libunwindstack",
+    "../unwind:unwind_backend",
   ]
   sources = [
     "frame_pointer_unwinder.cc",

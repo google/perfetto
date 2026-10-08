@@ -467,6 +467,24 @@ if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
     public_configs = [ "//buildtools:libunwindstack_config" ]
     public_deps = [ "//buildtools:libunwindstack" ]
   }
+
+  if (is_linux && !is_android) {
+    # Links against the system's prebuilt libunwind. Note that standard distro
+    # builds of libunwind enable `--enable-block-signals=yes` by default, which
+    # adds `rt_sigprocmask` syscall overhead per frame during remote DWARF
+    # cache lookups. Building libunwind from source in buildtools/ without
+    # `CONFIG_BLOCK_SIGNALS` can eliminate this overhead.
+    config("libunwind_config") {
+      libs = [
+        "unwind-generic",
+        "unwind",
+      ]
+    }
+
+    group("libunwind") {
+      public_configs = [ ":libunwind_config" ]
+    }
+  }
 }
 
 # Used by src/profiling/perf for perf_regs.h.
