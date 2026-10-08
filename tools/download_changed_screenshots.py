@@ -44,17 +44,6 @@ def main():
     handle_report(resp.read().decode('utf-8'), args.run)
 
 
-def sanitize_attachment(name):
-  return re.sub('[ _]', '-', name)
-
-
-def sanitize_test_name(name):
-  # Mirrors Playwright's sanitizeForFilePath in
-  # playwright-core/lib/server/utils/fileUtils.js, used to derive
-  # {testName} in snapshotPathTemplate.
-  return re.sub(r'[\x00-\x2C\x2E-\x2F\x3A-\x40\x5B-\x60\x7B-\x7F]+', '-', name)
-
-
 def handle_report(report: str, run: str):
   m = re.findall(
       r'<script id="playwrightReportBase64"[^>]*>data:application/zip;base64,([^<]+)</script>',
@@ -66,14 +55,16 @@ def handle_report(report: str, run: str):
   for f in report['files']:
     test_file = f['fileName'].removeprefix('test/')
     for t in f['tests']:
-      title = sanitize_test_name(t['title'])
       for r in t['results']:
         for a in r['attachments']:
-          png_name = sanitize_attachment(a['name'])
-          if not png_name.endswith('-actual.png'):
+          # PerfettoTestHelper.screenshotName() makes attachment names look
+          # like '<test or step title>/<name>-actual.png', already sanitized
+          # and relative to the test file's screenshot directory.
+          name = a['name']
+          if not name.endswith('-actual.png'):
             continue
-          path = 'test/data/ui-screenshots/%s/%s/%s' % (
-              test_file, title, png_name.replace('-actual', ''))
+          path = 'test/data/ui-screenshots/%s/%s.png' % (
+              test_file, name.removesuffix('-actual.png'))
           pngs[path] = a['path']
 
   for local_path, remote_path in pngs.items():
