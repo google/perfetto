@@ -281,7 +281,6 @@ node PerfettoPipeSource {
   schema: inline SyntaqliteTextSpan
   select: index Select
   alias: index Name
-  alias_as: inline Bool
 
   fmt {
     if_set(select) {
@@ -290,9 +289,7 @@ node PerfettoPipeSource {
       if_span(schema) { span(schema) "." }
       span(table_name)
     }
-    if_set(alias) {
-      if_flag(alias_as) { space "AS" space child(alias) } else { space child(alias) }
-    }
+    if_set(alias) { space "AS" space child(alias) }
   }
 }
 

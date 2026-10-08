@@ -850,7 +850,8 @@ TEST_F(PerfettoSqlParserSelectLikeTest, Drop) {
 TEST_F(PerfettoSqlParserSelectLikeTest, Rename) {
   Check({
       {T "|> RENAME x AS z", "Output(#0 AS z, #1 AS y)"},
-      {T "|> RENAME x z", "Output(#0 AS z, #1 AS y)"},
+      // An alias is always written with AS.
+      {T "|> RENAME x z", "syntax error"},
       // Renames happen at once, so columns can swap names.
       {T "|> RENAME x AS y, y AS x", "Output(#0 AS y, #1 AS x)"},
       // An alias still reaches a column under its old name.
@@ -891,7 +892,7 @@ TEST_F(PerfettoSqlParserSelectLikeTest, Set) {
 TEST_F(PerfettoSqlParserSelectLikeTest, Extend) {
   Check({
       {T "|> EXTEND x AS z", "Output(#0 AS x, #1 AS y, #0 AS z)"},
-      {T "|> EXTEND x z", "Output(#0 AS x, #1 AS y, #0 AS z)"},
+      {T "|> EXTEND x z", "syntax error"},
       {T "|> EXTEND t.y AS z", "Output(#0 AS x, #1 AS y, #1 AS z)"},
       // Without a new name, the column is repeated under its own.
       {T "|> EXTEND x", "Output(#0 AS x, #1 AS y, #0 AS x)"},
@@ -924,7 +925,7 @@ TEST_F(PerfettoSqlParserSelectLikeTest, SelectStar) {
       {T "|> SELECT *", "Output(#0 AS x, #1 AS y)"},
       {T "|> SELECT *, *", "Output(#0 AS x, #1 AS y, #0 AS x, #1 AS y)"},
       {T "|> SELECT *, x AS z", "Output(#0 AS x, #1 AS y, #0 AS z)"},
-      {T "|> SELECT x z", "Output(#0 AS z)"},
+      {T "|> SELECT x z", "syntax error"},
       {T "|> SELECT * EXCEPT (x)", "Output(#1 AS y)"},
       {T "|> SELECT t.* EXCEPT (x)", "Output(#1 AS y)"},
       // EXCEPT drops every column of the name.

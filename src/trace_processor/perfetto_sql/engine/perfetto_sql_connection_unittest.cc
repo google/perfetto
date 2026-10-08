@@ -1335,6 +1335,25 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
               testing::HasSubstr("COUNT"));
 }
 
+// Every alias in pipe syntax needs AS, so a keyword after a relation, like
+// PER, is never taken for one.
+TEST_F(PerfettoSqlConnectionPipelineTest, AliasNeedsAs) {
+  ASSERT_TRUE(Rows("CREATE TABLE t(ts INTEGER, dur INTEGER)").ok());
+  for (const char* query :
+       {"FROM t AS x |> SELECT x.ts", "FROM t |> SELECT ts AS start",
+        "FROM t |> SELECT t.ts AS start", "FROM t |> RENAME ts AS start"}) {
+    EXPECT_TRUE(Rows(query).ok()) << query;
+  }
+  for (const char* query :
+       {"FROM t x |> SELECT x.ts", "FROM t |> SELECT ts start",
+        "FROM t |> SELECT t.ts start", "FROM t |> RENAME ts start",
+        "FROM t |> AGGREGATE COUNT(*) AS n GROUP BY ts start"}) {
+    EXPECT_THAT(Rows(query).status().message(),
+                testing::HasSubstr("syntax error"))
+        << query;
+  }
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
   auto fork = connection_->Fork();
   auto first = connection_->ExecuteUntilLastStatement(
