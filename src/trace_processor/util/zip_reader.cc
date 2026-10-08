@@ -460,6 +460,16 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
     return base::OkStatus();
   }
 
+  // Deflate expands data by at most ~1032x. Reject larger claimed sizes before
+  // allocating so a crafted header can't trigger a huge allocation.
+  constexpr uint64_t kMaxDeflateRatio = 1032;
+  if (hdr_.uncompressed_size / kMaxDeflateRatio > hdr_.compressed_size) {
+    return base::ErrStatus(
+        "Zip entry %s has an invalid uncompressed size (c=%" PRIu64
+        ", u=%" PRIu64 ") (ERR:tp-corrupt)",
+        hdr_.fname.c_str(), hdr_.compressed_size, hdr_.uncompressed_size);
+  }
+
   PERFETTO_DCHECK(hdr_.compression == kDeflate);
   GzipDecompressor dec(GzipDecompressor::InputMode::kRawDeflate);
   dec.Feed(compressed_data_.data(), static_cast<size_t>(hdr_.compressed_size));

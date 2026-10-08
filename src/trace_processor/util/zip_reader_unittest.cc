@@ -405,6 +405,19 @@ TEST(ZipReaderTest, MalformedZip64_UncompressedSizeTooLarge) {
   ASSERT_THAT(zr.files()[1].Decompress(&ignored), IsError());
 }
 
+TEST(ZipReaderTest, MalformedZip64_HugeUncompressedSize) {
+  // A crafted header must not make Decompress() allocate ~1 PiB.
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64)];
+  memcpy(content, kTestZip64, sizeof(content));
+  content[122] = 0x04;  // 2nd file zip64 uncompressed_size: 89 + 2^50
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))));
+  ASSERT_EQ(zr.files().size(), 2u);
+  std::vector<uint8_t> ignored;
+  ASSERT_THAT(zr.files()[1].Decompress(&ignored), IsError());
+}
+
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace
