@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Counts the instructions benchmarks run and checks them against a baseline.
+
+Runs each benchmark listed in the baseline for a single iteration under
+Valgrind's callgrind, counting only the timed loop: costs are zeroed when
+Google Benchmark starts the loop and dumped when it finishes, so setup is
+left out without changing the benchmark. Counts are deterministic, so they
+can be checked on every commit, unlike wall-clock times on shared machines.
+
+Linux only, as Valgrind is. Use an optimized build:
+
+  tools/bench_instructions out/linux_clang_release/perfetto_benchmarks
+  tools/bench_instructions --update out/linux_clang_release/perfetto_benchmarks
+
+A change which moves a count by more than the threshold, either way, fails
+the check until the baseline is updated in the same commit, so the baseline's
+history is each commit's cost.
+"""
+
+import argparse
+import concurrent.futures
+import glob
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASELINE = os.path.join(ROOT_DIR, 'test', 'benchmark_instructions.txt')
+HEADER = '''\
+# Instructions each benchmark's timed loop runs in one iteration, as counted
+# by tools/bench_instructions on an x86-64 Linux release build. Lines are
+# "<benchmark> <instructions>"; "?" for a count not measured yet. Update with
+# `tools/bench_instructions --update <perfetto_benchmarks>`.
+'''
+
+
+def read_baseline(path):
+  baseline = {}
+  with open(path) as f:
+    for line in f:
+      line = line.split('#', 1)[0].strip()
+      if not line:
+        continue
+      name, count = line.split()
+      baseline[name] = None if count == '?' else int(count)
+  return baseline
+
+
+def write_baseline(path, counts):
+  width = max(len(name) for name in counts)
+  with open(path, 'w') as f:
+    f.write(HEADER)
+    for name, count in counts.items():
+      f.write(f'{name.ljust(width)} {count}\n')
+
+
+def count(binary, name):
+  with tempfile.TemporaryDirectory() as tmp:
+    out = os.path.join(tmp, 'callgrind.out')
+    result = os.path.join(tmp, 'result.json')
+    cmd = [
+        'valgrind',
+        '--tool=callgrind',
+        f'--callgrind-out-file={out}',
+        '--zero-before=*State::StartKeepRunning*',
+        '--dump-before=*State::FinishKeepRunning*',
+        binary,
+        f'--benchmark_filter=^{re.escape(name)}$',
+        '--benchmark_min_time=0',
+        '--benchmark_repetitions=1',
+        f'--benchmark_out={result}',
+        '--benchmark_out_format=json',
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+      raise RuntimeError(f'{name}: exited with {proc.returncode}\n'
+                         f'{proc.stderr}')
+    with open(result) as f:
+      runs = json.load(f)['benchmarks']
+    if len(runs) != 1:
+      raise RuntimeError(f'{name}: matched {len(runs)} benchmarks, not one')
+    dumps = glob.glob(out + '.*')
+    if len(dumps) != 1:
+      raise RuntimeError(f'{name}: expected one timed loop, got {len(dumps)}')
+    with open(dumps[0]) as f:
+      for line in f:
+        if line.startswith(('totals:', 'summary:')):
+          # A benchmark may fix its own iteration count.
+          return int(line.split()[1]) // runs[0]['iterations']
+    raise RuntimeError(f'{name}: no instruction count in {dumps[0]}')
+
+
+def main():
+  parser = argparse.ArgumentParser(
+      description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+  parser.add_argument('binary', help='Path to perfetto_benchmarks.')
+  parser.add_argument('--baseline', default=BASELINE)
+  parser.add_argument(
+      '--update', action='store_true', help='Rewrite the baseline.')
+  parser.add_argument(
+      '--threshold',
+      type=float,
+      default=1.0,
+      help='The change, in percent, beyond which a count fails the check.')
+  args = parser.parse_args()
+
+  baseline = read_baseline(args.baseline)
+  with concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as pool:
+    counts = dict(
+        zip(baseline, pool.map(lambda n: count(args.binary, n), baseline)))
+
+  failed = False
+  print(f'{"benchmark":<48} {"baseline":>14} {"now":>14} {"change":>8}')
+  for name, now in counts.items():
+    before = baseline[name]
+    if before is None:
+      change = 'new'
+    else:
+      percent = (now - before) * 100.0 / max(before, 1)
+      change = f'{percent:+.2f}%'
+      if abs(percent) > args.threshold:
+        change += ' !'
+        failed = True
+    print(f'{name:<48} {before if before is not None else "?":>14} '
+          f'{now:>14} {change:>8}')
+
+  if args.update:
+    write_baseline(args.baseline, counts)
+    print(f'Updated {os.path.relpath(args.baseline, ROOT_DIR)}')
+    return 0
+  if failed:
+    print(f'\nCounts marked ! moved more than {args.threshold}%. If that is '
+          'expected, run with --update and commit the baseline.')
+    return 1
+  return 0
+
+
+if __name__ == '__main__':
+  sys.exit(main())
