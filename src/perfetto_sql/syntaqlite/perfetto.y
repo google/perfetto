@@ -23,7 +23,7 @@
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE
           TREE ACCUMULATE UP DOWN INTERVAL INTERSECTION PER EXTEND FLATTEN
-          AGGREGATE.
+          AGGREGATE FILL GAPS.
 
 // ---------- Helper nonterminals ----------
 
@@ -400,6 +400,10 @@ perfetto_pipe_stage(A) ::= SET perfetto_pipe_set_list(L). {
 perfetto_pipe_stage(A) ::= INTERVAL FLATTEN perfetto_per(P)
                            AGGREGATE perfetto_aggregate_list(L). {
     A = synq_parse_perfetto_interval_flatten(pCtx, P, L);
+}
+perfetto_pipe_stage(A) ::= INTERVAL FILL GAPS WITH perfetto_pipe_source(B)
+                           perfetto_per(P). {
+    A = synq_parse_perfetto_interval_fill_gaps(pCtx, B, P);
 }
 perfetto_pipe_stage(A) ::= ORDER BY perfetto_pipe_order_list(L). {
     A = synq_parse_perfetto_pipe_order_by(pCtx, L);
