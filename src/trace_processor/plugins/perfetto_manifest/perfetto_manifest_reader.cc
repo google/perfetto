@@ -481,9 +481,10 @@ base::Status PerfettoManifestReader::ApplyManifest() {
         entry.machine_name = name;
       }
     }
-    // A file naming no machine is on the default one, which takes its row in
-    // manifest order like any other: listing the host first makes it 0.
-    if (!entry.machine_id) {
+    // A trace naming no machine is on the default one, which takes its row in
+    // manifest order like any other: listing the host first makes it 0. An
+    // exported table is not a trace and is on no machine.
+    if (!entry.machine_id && !entry.exported_table_schema) {
       EnsureMachineRow(context_, 0);
     }
   }
