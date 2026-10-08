@@ -1342,7 +1342,8 @@ class TrackEventEventImporter {
       return *args_writer;
     };
 
-    field_context_.utid = utid_.value_or(TrackEventFieldContext::kNone);
+    field_context_.utid = utid_.value_or(
+        legacy_passthrough_utid_.value_or(TrackEventFieldContext::kNone));
     field_context_.upid = upid_.value_or(TrackEventFieldContext::kNone);
     field_context_.row_kind = row_kind;
     field_context_.row_id = row_id;
