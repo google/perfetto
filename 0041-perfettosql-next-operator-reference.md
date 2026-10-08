@@ -95,7 +95,9 @@ the output columns and types; it does not project or reorder them. A final stage
 must therefore produce the declared columns, although their order is not
 significant.
 
-Every input carries an alias; columns are `alias.col`.
+Every input carries an alias; columns are `alias.col`. An alias is always
+written with `AS` (`FROM t AS x`, never `FROM t x`), so a keyword following a
+relation, such as `PER`, is never taken for one.
 
 **Kinds and consumption.** Every pipeline expression has a kind, one of
 `Relation`, `Tree`, `Graph`, or `IntervalSet`, determined by its source and
