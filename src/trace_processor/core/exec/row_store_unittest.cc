@@ -26,7 +26,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -45,8 +45,7 @@ void Fill(RowBatch* batch,
           uint32_t count) {
   batch->Reset();
   batch->AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch->Compose(RowSelection::Range(offset), count);
-  batch->SetCardinality(count);
+  test::Window(batch, offset, count);
 }
 
 // Reads every row of the store back, a run at a time.
@@ -129,11 +128,12 @@ TEST(RowStoreTest, ReadsBackDenseWhateverArrived) {
   RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch.mutable_column(0).SetOwnedRows(test::OwnedRows({4, 0, 2}), 3);
-  batch.SetCardinality(3);
+  batch.SetRowCount(5);
+  std::vector<uint32_t> kept = {0, 2, 4};
+  batch.mutable_selection().Keep(kept);
   ASSERT_TRUE(store.Append(batch).ok());
 
-  EXPECT_THAT(ReadAll(store, 0), ElementsAre(14, 10, 12));
+  EXPECT_THAT(ReadAll(store, 0), ElementsAre(10, 12, 14));
 }
 
 TEST(RowStoreTest, HandsBackARunOfItsRows) {
@@ -185,8 +185,7 @@ TEST(RowStoreTest, KeepsWhichRowsHeldNothing) {
   RowBatch batch;
   batch.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
-  batch.Compose(RowSelection::Range(0), 3);
-  batch.SetCardinality(3);
+  test::Window(&batch, 0, 3);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
@@ -210,7 +209,7 @@ TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
   batch.Reset();
   batch.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, &null_value, &validity));
-  batch.SetCardinality(1);
+  batch.SetRowCount(1);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
@@ -234,8 +233,7 @@ TEST(RowStoreTest, GatheringAcrossBatchesKeepsNulls) {
   batch.Reset();
   batch.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, more.data(), &validity));
-  batch.Compose(RowSelection::Range(0), 2);
-  batch.SetCardinality(2);
+  test::Window(&batch, 0, 2);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
@@ -254,7 +252,7 @@ TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints.data()));
   batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints.data()));
-  batch.SetCardinality(1);
+  batch.SetRowCount(1);
   ASSERT_TRUE(store.Append(batch).ok());
 
   BitVector validity = BitVector::CreateWithSize(2);
@@ -263,8 +261,7 @@ TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
   batch.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, ints.data(), &validity));
   batch.AddColumn(ColumnView::Reference(StorageType{Double{}}, doubles.data()));
-  batch.Compose(RowSelection::Range(1), 1);
-  batch.SetCardinality(1);
+  test::Window(&batch, 1, 1);
   EXPECT_FALSE(store.Append(batch).ok());
 
   RowBatch out;
@@ -276,7 +273,7 @@ TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
 TEST(RowStoreTest, AZeroColumnBatchFixesTheSchema) {
   RowStore store;
   RowBatch empty_schema;
-  empty_schema.SetCardinality(2);
+  empty_schema.SetRowCount(2);
   ASSERT_TRUE(store.Append(empty_schema).ok());
 
   std::vector<int64_t> values = {1};
@@ -307,8 +304,7 @@ TEST(RowStoreTest, AnIdColumnBecomesTheRowsItStoodFor) {
   RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
-  batch.Compose(RowSelection::Range(7), 3);
-  batch.SetCardinality(3);
+  test::Window(&batch, 7, 3);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
@@ -328,8 +324,7 @@ TEST(RowStoreTest, ABatchOfADifferentShapeIsReported) {
   RowBatch wider;
   wider.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
   wider.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  wider.Compose(RowSelection::Range(0), 2);
-  wider.SetCardinality(2);
+  test::Window(&wider, 0, 2);
   EXPECT_FALSE(store.Append(wider).ok());
 }
 
@@ -433,14 +428,14 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
         std::initializer_list<int64_t>{10, 20, 30});
     input.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values->data()),
                     values);
-    input.SetCardinality(3);
+    input.SetRowCount(3);
     ASSERT_TRUE(store.Append(input).ok());
     ASSERT_EQ(store.View(&range, 0, 3), 3u);
     EXPECT_EQ(range.column(0).data(), values->data());
     std::vector<uint32_t> rows = {2, 0, 2};
     store.View(&gathered, Span<const uint32_t>(rows.data(), rows.data() + 3));
     EXPECT_NE(gathered.column(0).data(), values->data());
-    EXPECT_TRUE(gathered.column(0).selection().is_range());
+    EXPECT_TRUE(gathered.selection().prefix());
     rows = {1, 1, 0};
     store.View(&later, Span<const uint32_t>(rows.data(), rows.data() + 3));
     store.Clear();
@@ -450,7 +445,7 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
     input.AddColumn(
         ColumnView::Reference(StorageType{Int64{}}, replacement->data()),
         replacement);
-    input.SetCardinality(3);
+    input.SetRowCount(3);
     ASSERT_TRUE(store.Append(input).ok());
   }
   EXPECT_THAT(test::ReadColumn<int64_t>(range, 0), ElementsAre(10, 20, 30));
@@ -464,8 +459,7 @@ TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
                                  Variant::String(pool.InternString("hi"))};
   RowBatch batch;
   batch.AddColumn(ColumnView::Variants(values.data()));
-  batch.Compose(RowSelection::Range(0), 4);
-  batch.SetCardinality(4);
+  test::Window(&batch, 0, 4);
 
   RowStore store;
   ASSERT_TRUE(store.Append(batch).ok());
@@ -487,14 +481,13 @@ TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
   RowStore store;
   RowBatch batch;
   batch.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr), stored);
-  batch.Compose(RowSelection::Range(5), 2);
-  batch.SetCardinality(2);
+  test::Window(&batch, 5, 2);
   ASSERT_TRUE(store.Append(batch).ok());
 
   batch.Reset();
   batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, stored->data()),
                   stored);
-  batch.SetCardinality(2);
+  batch.SetRowCount(2);
   base::Status status = store.Append(batch);
   ASSERT_TRUE(status.ok()) << status.message();
 

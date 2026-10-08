@@ -52,9 +52,9 @@ class OneRowBatches final : public Source {
       return false;
     }
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
-    out.Compose(RowSelection::Range(s.next++), 1);
-    out.SetCardinality(1);
+    out.AddColumn(
+        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, s.next++));
+    out.SetRowCount(1);
     return true;
   }
 

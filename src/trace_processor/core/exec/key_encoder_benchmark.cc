@@ -52,7 +52,7 @@ struct Int64s {
 void Run(benchmark::State& state, const ColumnView& column, uint32_t rows) {
   RowBatch batch;
   batch.AddColumn(column);
-  batch.SetCardinality(rows);
+  batch.SetRowCount(rows);
   std::vector<uint32_t> columns = {0};
   KeyEncoder encoder;
   for (auto _ : state) {

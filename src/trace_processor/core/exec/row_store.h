@@ -28,10 +28,13 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// Retains owned input without copying values. Range output shares the retained
-// backing; arbitrary row-order output is gathered into contiguous column
-// buffers so downstream consumers do not inherit scattered reads. Reordering
-// operates only on rows already retained, without pulling additional input.
+// Retains owned input without copying values. Each batch appended keeps its
+// own rows and which of them are kept; borrowed columns are copied first, and
+// if the batch keeps only some rows, every column is copied densely so the
+// rows stay one batch's. Range output shares the retained backing; arbitrary
+// row-order output is gathered into contiguous column buffers so downstream
+// consumers do not inherit scattered reads. Reordering operates only on rows
+// already retained, without pulling additional input.
 class RowStore {
  public:
   base::Status Append(const RowBatch&);
@@ -45,15 +48,14 @@ class RowStore {
       column.batches.clear();
       column.copies_used = 0;
       column.nullable = false;
-      column.same_selection_as_previous = true;
     }
+    batches_.clear();
     ends_.clear();
     batch_of_row_.clear();
     size_ = 0;
   }
 
  private:
-  uint32_t Find(uint32_t row) const;
   struct Column {
     struct Batch {
       ColumnView view;
@@ -65,9 +67,26 @@ class RowStore {
     size_t copies_used = 0;
     BufferPool<ColumnChunk> buffers;
     bool nullable = false;
-    bool same_selection_as_previous = true;
   };
+  // What every column shares of one batch appended.
+  struct Batch {
+    // The batch rows kept, in order, or empty if they are the first ones.
+    std::vector<uint32_t> kept;
+  };
+
+  uint32_t Find(uint32_t row) const;
+
+  // The batch row of the `row`th row `batch` keeps.
+  uint32_t BatchRow(uint32_t batch, uint32_t row) const {
+    const std::vector<uint32_t>& kept = batches_[batch].kept;
+    return kept.empty() ? row : kept[row];
+  }
+
+  // A chunk for a copy `column` keeps, reusing one nothing holds any more.
+  static std::shared_ptr<ColumnChunk> TakeCopy(Column& column);
+
   std::vector<Column> columns_;
+  std::vector<Batch> batches_;
   std::vector<uint32_t> ends_;
   // Dense logical row numbers map directly to variable-sized input batches.
   std::vector<uint32_t> batch_of_row_;

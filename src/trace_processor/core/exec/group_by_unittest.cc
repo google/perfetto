@@ -30,7 +30,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -60,8 +60,7 @@ class StringSource final : public Source {
     out.Reset();
     out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
     out.AddColumn(ColumnView::Reference(StorageType{String{}}, keys_.data()));
-    out.Compose(RowSelection::Range(s.emitted), count);
-    out.SetCardinality(count);
+    test::Window(&out, s.emitted, count);
     s.emitted += count;
     return true;
   }

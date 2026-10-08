@@ -27,40 +27,36 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-// Combines small batches column by column. Compatible backing storage is kept
-// as an indexed view. Only columns spanning different backing buffers are
-// packed. Published values and selections are immutable and retain their
-// owners. Packing preserves duplicates, nulls and floating-point bits. String
+// Combines small batches column by column, copying the rows each keeps into
+// one buffer per column. Published values are immutable and retain their
+// owners. Copying preserves duplicates, nulls and floating-point bits. String
 // IDs refer to the process-lifetime pool; string payloads are not copied.
 class BatchBuffer {
  public:
-  uint32_t size() const { return batch_.size(); }
+  uint32_t size() const { return size_; }
   base::Status Append(const RowBatch&);
-  void Take(RowBatch& out) {
-    out.SwapContents(batch_);
-    Clear();
-  }
+  // Fills `out` with the rows combined, and empties the buffer.
+  void Take(RowBatch& out);
   void Clear() {
-    batch_.Reset();
+    size_ = 0;
     for (auto& column : columns_) {
       column.packed.reset();
-      column.indices.reset();
+      column.nullable = false;
     }
   }
 
  private:
-  // The storage for one column. The pools outlive Clear() so their buffers
-  // are reused by the next batch.
+  // The storage for one column. The pool outlives Clear() so its buffers are
+  // reused by the next batch.
   struct Column {
     BufferPool<ColumnChunk> chunks;
-    BufferPool<FlexVector<uint32_t>> index_pool;
-    // Values copied from different backing buffers into one.
+    // The rows combined so far.
     std::shared_ptr<ColumnChunk> packed;
-    // Row indices into a backing buffer shared by every appended batch.
-    std::shared_ptr<FlexVector<uint32_t>> indices;
+    // The first batch's view, saying what the column holds.
+    ColumnView view;
+    bool nullable = false;
   };
-
-  RowBatch batch_;
+  uint32_t size_ = 0;
   std::vector<Column> columns_;
 };
 

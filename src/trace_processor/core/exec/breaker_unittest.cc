@@ -29,7 +29,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -67,7 +67,7 @@ class Reverse final : public Breaker {
   bool Consume(const RowBatch& in, Breaker::State& state) const override {
     State& s = state.Cast<State>();
     for (uint32_t row = 0; row < in.size(); ++row) {
-      int64_t value = in.column(column_).Value<int64_t>(row);
+      int64_t value = in.Value<int64_t>(column_, row);
       if (value < 0) {
         s.status = base::ErrStatus("negative value");
         return false;
@@ -90,8 +90,7 @@ class Reverse final : public Breaker {
     uint32_t count = std::min(kMaxBatchRows, rows - s.served);
     out.Reset();
     out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
-    out.Compose(RowSelection::Range(s.served), count);
-    out.SetCardinality(count);
+    test::Window(&out, s.served, count);
     s.served += count;
     return true;
   }

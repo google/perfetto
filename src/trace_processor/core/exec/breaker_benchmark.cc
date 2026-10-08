@@ -26,7 +26,7 @@
 #include "src/trace_processor/core/exec/group_by.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sort.h"
 
 // Sort and GroupBy run over 16 full batches, as over a large input, and over
@@ -53,10 +53,10 @@ void Run(benchmark::State& state,
     uint32_t count = std::min(kMaxBatchRows, rows - at);
     RowBatch& batch = batches.emplace_back();
     for (uint32_t k = 0; k < key_columns; ++k) {
-      batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, keys.data()));
+      batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, keys.data(),
+                                            nullptr, at));
     }
-    batch.Compose(RowSelection::Range(at), count);
-    batch.SetCardinality(count);
+    batch.SetRowCount(count);
   }
   std::unique_ptr<OperatorState> op_state = op.MakeState();
   RowBatch out;

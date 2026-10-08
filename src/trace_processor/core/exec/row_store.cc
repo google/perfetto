@@ -22,6 +22,18 @@
 #include <type_traits>
 
 namespace perfetto::trace_processor::core::exec {
+
+std::shared_ptr<ColumnChunk> RowStore::TakeCopy(Column& column) {
+  if (column.copies_used == column.copies.size()) {
+    column.copies.emplace_back();
+  }
+  std::shared_ptr<ColumnChunk>& copy = column.copies[column.copies_used++];
+  if (!copy || copy.use_count() != 1) {
+    copy = std::make_shared<ColumnChunk>();
+  }
+  return copy;
+}
+
 base::Status RowStore::Append(const RowBatch& in) {
   if (!in.size()) {
     return base::OkStatus();
@@ -40,32 +52,35 @@ base::Status RowStore::Append(const RowBatch& in) {
     }
   }
   columns_.resize(in.column_count());
+  const Selection& selection = in.selection();
+  // Borrowed columns have to be copied. Copying only the rows kept keeps them
+  // dense, but then so must every column be, to stay one batch's rows.
+  bool borrows = false;
+  for (uint32_t c = 0; c < in.column_count() && !borrows; ++c) {
+    borrows = !in.owner(c);
+  }
+  bool dense = borrows && !selection.prefix();
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     auto& column = columns_[c];
-    auto view = in.column(c);
-    auto owner = in.owner(c);
-    // Unknown borrowed storage must be materialized before retention.
-    if (!owner) {
-      if (column.copies_used == column.copies.size()) {
-        column.copies.emplace_back();
-      }
-      std::shared_ptr<ColumnChunk>& copy = column.copies[column.copies_used++];
-      if (!copy || copy.use_count() != 1) {
-        copy = std::make_shared<ColumnChunk>();
-      }
-      copy->CopyFrom(view, in.size(), 0);
+    ColumnView view = in.column(c);
+    std::shared_ptr<const void> owner = in.owner(c);
+    if (dense || !owner) {
+      std::shared_ptr<ColumnChunk> copy = TakeCopy(column);
+      // The rows kept, laid out from the first: if the batch keeps its first
+      // rows, the same rows.
+      copy->CopyFrom(in, c, 0);
       view = copy->View(view, view.validity() != nullptr);
-      owner = copy;
+      owner = std::move(copy);
     }
     column.nullable |= view.validity() != nullptr;
-    if (c) {
-      auto previous = columns_[c - 1].batches.back().view.selection();
-      auto selection = view.selection();
-      column.same_selection_as_previous &=
-          selection.data() == previous.data() &&
-          selection.offset() == previous.offset();
+    column.batches.push_back({view, std::move(owner)});
+  }
+  Batch& batch = batches_.emplace_back();
+  if (!dense && !selection.prefix()) {
+    batch.kept.resize(selection.size());
+    for (uint32_t i = 0; i < selection.size(); ++i) {
+      batch.kept[i] = selection[i];
     }
-    column.batches.push_back({std::move(view), std::move(owner)});
   }
   size_ += in.size();
   batch_of_row_.resize(size_, static_cast<uint32_t>(ends_.size()));
@@ -77,22 +92,37 @@ uint32_t RowStore::Find(uint32_t row) const {
   PERFETTO_DCHECK(row < size_);
   return batch_of_row_[row];
 }
+
 uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
+  out->Reset();
   if (!count) {
-    out->Reset();
     return 0;
   }
   uint32_t index = Find(offset);
   uint32_t start = index ? ends_[index - 1] : 0;
+  uint32_t first = offset - start;
   count = std::min(count, ends_[index] - offset);
-  out->Reset();
+  const std::vector<uint32_t>& kept = batches_[index].kept;
   for (const auto& column : columns_) {
-    out->AddColumn(column.batches[index].view, column.batches[index].owner);
+    const Column::Batch& batch = column.batches[index];
+    ColumnView view = batch.view;
+    if (kept.empty()) {
+      // The rows are the batch's first: the window moves to them.
+      view.set_start(view.start() + first);
+    }
+    out->AddColumn(view, batch.owner);
   }
-  out->SetCardinality(ends_[index] - start);
-  out->Slice(RowSelection::Range(offset - start), count);
+  if (kept.empty()) {
+    out->SetRowCount(count);
+    return count;
+  }
+  // Keeping them from all the batch's rows, positions are batch rows.
+  out->SetRowCount(kept.back() + 1);
+  out->mutable_selection().Keep(
+      Span<const uint32_t>(kept.data() + first, kept.data() + first + count));
   return count;
 }
+
 uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
   out->Reset();
   uint32_t count =
@@ -112,17 +142,14 @@ uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
       index = Find(rows[r]);
       start = index ? ends_[index - 1] : 0;
     }
-    locations[r] = {index, rows[r] - start};
+    locations[r] = {index, BatchRow(index, rows[r] - start)};
   }
   std::array<uint32_t, kMaxBatchRows> physical;
   for (uint32_t c = 0; c < columns_.size(); ++c) {
     auto& column = columns_[c];
-    if (!c || !column.same_selection_as_previous) {
-      for (uint32_t r = 0; r < count; ++r) {
-        const auto& loc = locations[r];
-        physical[r] =
-            column.batches[loc.batch].view.selection().GetIndex(loc.row);
-      }
+    for (uint32_t r = 0; r < count; ++r) {
+      const auto& loc = locations[r];
+      physical[r] = column.batches[loc.batch].view.Index(loc.row);
     }
     const auto& first = column.batches[locations[0].batch];
     auto view = first.view;
@@ -172,7 +199,7 @@ uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
     }
     out->AddColumn(packed->View(view, column.nullable), packed);
   }
-  out->SetCardinality(count);
+  out->SetRowCount(count);
   return count;
 }
 }  // namespace perfetto::trace_processor::core::exec

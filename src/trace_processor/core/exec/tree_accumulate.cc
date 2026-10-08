@@ -27,7 +27,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -56,34 +56,34 @@ class AccumulateState : public OperatorState {
 
 AccumulateState::~AccumulateState() = default;
 
-// The column's values laid out flat, gathering once if it has an index
-// selection.
+// The column's values at the rows kept, laid out flat, gathering once unless
+// the rows kept are the first ones.
 template <typename T>
 const T* Flatten(const ColumnView& column,
-                 uint32_t count,
+                 const Selection& selection,
                  std::vector<T>* scratch) {
-  const auto* data = static_cast<const T*>(column.data());
-  RowSelection selection = column.selection();
-  if (selection.is_range()) {
-    return data + selection.offset();
+  const auto* data = static_cast<const T*>(column.data()) + column.start();
+  if (selection.prefix()) {
+    return data;
   }
-  scratch->resize(count);
-  selection.Gather(data, count, scratch->data());
+  scratch->resize(selection.size());
+  for (uint32_t row = 0; row < selection.size(); ++row) {
+    (*scratch)[row] = data[selection[row]];
+  }
   return scratch->data();
 }
 
 const int64_t* FlattenValues(const ColumnView& column,
-                             uint32_t count,
+                             const Selection& selection,
                              std::vector<int64_t>* scratch) {
   const auto* data = static_cast<const int64_t*>(column.data());
-  RowSelection selection = column.selection();
   const BitVector* validity = column.validity();
-  if (selection.is_range() && !validity) {
-    return data + selection.offset();
+  if (selection.prefix() && !validity) {
+    return data + column.start();
   }
-  scratch->resize(count);
-  for (uint32_t row = 0; row < count; ++row) {
-    uint32_t index = selection.GetIndex(row);
+  scratch->resize(selection.size());
+  for (uint32_t row = 0; row < selection.size(); ++row) {
+    uint32_t index = column.Index(selection[row]);
     (*scratch)[row] = validity && !validity->is_set(index) ? 0 : data[index];
   }
   return scratch->data();
@@ -157,16 +157,18 @@ bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {
     return false;
   }
   uint32_t count = batch.size();
+  const Selection& selection = batch.selection();
   const uint32_t* nodes = Flatten<uint32_t>(batch.column(spec_.node_column),
-                                            count, &s.node_scratch);
+                                            selection, &s.node_scratch);
   const uint32_t* parents = Flatten<uint32_t>(batch.column(spec_.parent_column),
-                                              count, &s.parent_scratch);
-  const int64_t* values =
-      FlattenValues(batch.column(spec_.value_column), count, &s.value_scratch);
+                                              selection, &s.parent_scratch);
+  const int64_t* values = FlattenValues(batch.column(spec_.value_column),
+                                        selection, &s.value_scratch);
 
+  // Written at the batch's rows, as every column of it is.
   s.totals.reset();
   s.totals = s.buffers.Acquire();
-  s.totals->resize(count);
+  s.totals->resize(batch.row_count());
   int64_t* totals = s.totals->data();
   for (uint32_t row = 0; row < count; ++row) {
     uint32_t node = nodes[row];
@@ -177,7 +179,7 @@ bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {
     if (!Add(s, values[row], s.by_node[node], &total)) {
       return false;
     }
-    totals[row] = total;
+    totals[selection[row]] = total;
     uint32_t parent = parents[row];
     if (parent != kNoNode) {
       Grow(&s.by_node, parent);
@@ -197,16 +199,18 @@ bool TreeAccumulateDown::Process(RowBatch& batch, OperatorState& state) const {
     return false;
   }
   uint32_t count = batch.size();
+  const Selection& selection = batch.selection();
   const uint32_t* nodes = Flatten<uint32_t>(batch.column(spec_.node_column),
-                                            count, &s.node_scratch);
+                                            selection, &s.node_scratch);
   const uint32_t* parents = Flatten<uint32_t>(batch.column(spec_.parent_column),
-                                              count, &s.parent_scratch);
-  const int64_t* values =
-      FlattenValues(batch.column(spec_.value_column), count, &s.value_scratch);
+                                              selection, &s.parent_scratch);
+  const int64_t* values = FlattenValues(batch.column(spec_.value_column),
+                                        selection, &s.value_scratch);
 
+  // Written at the batch's rows, as every column of it is.
   s.totals.reset();
   s.totals = s.buffers.Acquire();
-  s.totals->resize(count);
+  s.totals->resize(batch.row_count());
   int64_t* totals = s.totals->data();
   for (uint32_t row = 0; row < count; ++row) {
     uint32_t parent = parents[row];
@@ -222,7 +226,7 @@ bool TreeAccumulateDown::Process(RowBatch& batch, OperatorState& state) const {
     uint32_t node = nodes[row];
     Grow(&s.by_node, node);
     s.by_node[node] = total;
-    totals[row] = total;
+    totals[selection[row]] = total;
   }
   Emit(batch, s.totals);
   return true;

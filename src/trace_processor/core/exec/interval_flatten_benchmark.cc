@@ -26,7 +26,7 @@
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 
 // Flattening intervals about five deep, counting and summing them. Compare
 // small and large inputs, including many small groups, to measure the cost of
@@ -53,15 +53,14 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
     uint32_t count = std::min(kMaxBatchRows, rows - at);
     RowBatch& batch = batches.emplace_back();
     for (const std::vector<int64_t>* column : {&ts, &dur, &value}) {
-      batch.AddColumn(
-          ColumnView::Reference(StorageType{Int64{}}, column->data()));
+      batch.AddColumn(ColumnView::Reference(StorageType{Int64{}},
+                                            column->data(), nullptr, at));
     }
     if (rows_per_group) {
-      batch.AddColumn(
-          ColumnView::Reference(StorageType{Uint32{}}, groups.data()));
+      batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}},
+                                            groups.data(), nullptr, at));
     }
-    batch.Compose(RowSelection::Range(at), count);
-    batch.SetCardinality(count);
+    batch.SetRowCount(count);
   }
   IntervalFlattenSpec spec;
   spec.ts_column = 0;

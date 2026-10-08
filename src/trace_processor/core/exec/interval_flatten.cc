@@ -101,12 +101,12 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
         "INTERVAL FLATTEN: ts, dur and summed columns must be Int64");
     return OpResult::kError;
   }
-  FlatColumnReader<int64_t> ts(in.column(spec_.ts_column));
-  FlatColumnReader<int64_t> dur(in.column(spec_.dur_column));
+  FlatColumnReader<int64_t> ts(in, spec_.ts_column);
+  FlatColumnReader<int64_t> dur(in, spec_.dur_column);
   base::SmallVector<FlatColumnReader<int64_t>, 4> sums;
   for (const IntervalFlattenSpec::Aggregate& agg : spec_.aggregates) {
     if (agg.function == IntervalFlattenSpec::Function::kSum) {
-      sums.emplace_back(in.column(agg.column));
+      sums.emplace_back(in, agg.column);
     }
   }
   // A full output batch can interrupt consumption of the same input. Keep its
@@ -118,7 +118,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
     s.input_pending = true;
   }
   bool keyed = !spec_.key_columns.empty();
-  const ColumnView* groups = keyed ? &in.column(spec_.group_column) : nullptr;
+
   uint32_t rows = in.size();
   for (; s.input_row < rows; ++s.input_row) {
     uint32_t row = s.input_row;
@@ -132,7 +132,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
           base::ErrStatus("INTERVAL FLATTEN: a row's ts or dur is below zero");
       return OpResult::kError;
     }
-    uint32_t group = keyed ? groups->Value<uint32_t>(row) : 0;
+    uint32_t group = keyed ? in.Value<uint32_t>(spec_.group_column, row) : 0;
     if (!s.in_group || group != s.input_group) {
       if (s.in_group) {
         // Finish the old group before accepting any rows from the new one.
@@ -224,11 +224,7 @@ bool IntervalFlatten::RetainKeys(const RowBatch& in, State& s) const {
   }
   s.key_row = 0;
   s.first_key = s.key_rows.size();
-  s.retained.Reset();
-  for (uint32_t column : spec_.key_columns) {
-    s.retained.AddColumn(in.column(column), in.owner(column));
-  }
-  s.retained.SetCardinality(in.size());
+  s.retained.Project(in, spec_.key_columns);
   s.status = s.key_rows.Append(s.retained);
   return s.status.ok();
 }
@@ -397,7 +393,7 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
     }
   }
   add(StorageType{Uint32{}}, s.segment_groups.data(), nullptr);
-  out.SetCardinality(count);
+  out.SetRowCount(count);
   return result;
 }
 

@@ -26,7 +26,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -105,10 +105,9 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
       auto keys = test::ReadNullableColumn<int64_t>(out, 2);
       auto sums = test::ReadNullableColumn<int64_t>(out, 4);
       for (uint32_t row = 0; row < out.size(); ++row) {
-        actual.emplace_back(out.column(0).Value<int64_t>(row),
-                            out.column(1).Value<int64_t>(row), keys[row],
-                            out.column(3).Value<int64_t>(row), sums[row],
-                            out.column(5).Value<uint32_t>(row));
+        actual.emplace_back(
+            out.Value<int64_t>(0, row), out.Value<int64_t>(1, row), keys[row],
+            out.Value<int64_t>(3, row), sums[row], out.Value<uint32_t>(5, row));
       }
     };
     for (uint32_t at = 0; at < input.size(); at += chunk) {
@@ -124,7 +123,7 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
         key_valid.change(row, value.group == 0);
         weight_valid.change(row, value.present);
       }
-      in.SetCardinality(count);
+      in.SetRowCount(count);
       OpResult result;
       uint32_t calls = 0;
       do {

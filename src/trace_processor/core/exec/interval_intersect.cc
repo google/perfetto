@@ -40,8 +40,8 @@
 #include "src/trace_processor/core/exec/key_encoder.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -194,8 +194,8 @@ base::Status Collect(const IntervalIntersectOperand& operand,
   RowBatch& retained = scratch.retained;
   while (operand.source->GetData(batch, state)) {
     RETURN_IF_ERROR(ValidateOperand(batch, operand, which));
-    FlatColumnReader<int64_t> ts(batch.column(operand.ts_column));
-    FlatColumnReader<int64_t> dur(batch.column(operand.dur_column));
+    FlatColumnReader<int64_t> ts(batch, operand.ts_column);
+    FlatColumnReader<int64_t> dur(batch, operand.dur_column);
     if (std::optional<uint32_t> bad = keys.Encode(batch, operand.key_columns)) {
       return base::ErrStatus(
           "INTERVAL INTERSECTION: operand %u's PER column %u must hold one "
@@ -220,11 +220,7 @@ base::Status Collect(const IntervalIntersectOperand& operand,
                                  static_cast<Ts>(start + length),
                                  store.size() + row});
     }
-    retained.Reset();
-    for (uint32_t column : operand.retained_columns) {
-      retained.AddColumn(batch.column(column), batch.owner(column));
-    }
-    retained.SetCardinality(batch.size());
+    retained.Project(batch, operand.retained_columns);
     RETURN_IF_ERROR(store.Append(retained));
   }
   RETURN_IF_ERROR(operand.source->status(state));
@@ -422,7 +418,7 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
       out.AddColumn(s.gathered[i].column(c));
     }
   }
-  out.SetCardinality(serving);
+  out.SetRowCount(serving);
   return true;
 }
 

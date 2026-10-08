@@ -27,7 +27,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 
 // Intersecting two inputs of intervals keyed 64 ways, over 100K rows each, and
 // over four rows, as when a small input is run over and over.
@@ -59,11 +59,11 @@ class Intervals final : public Source {
     }
     uint32_t count = std::min(kMaxBatchRows, rows - s.next);
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ts_.data()));
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur_.data()));
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, key_.data()));
-    out.Compose(RowSelection::Range(s.next), count);
-    out.SetCardinality(count);
+    for (const std::vector<int64_t>* column : {&ts_, &dur_, &key_}) {
+      out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, column->data(),
+                                          nullptr, s.next));
+    }
+    out.SetRowCount(count);
     s.next += count;
     return true;
   }

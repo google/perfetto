@@ -29,28 +29,27 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec::test {
 
-// Physical indices a column can own, as a composed selection would.
-inline std::shared_ptr<const FlexVector<uint32_t>> OwnedRows(
-    const std::vector<uint32_t>& rows) {
-  auto owned = std::make_shared<FlexVector<uint32_t>>();
-  for (uint32_t row : rows) {
-    owned->push_back(row);
+// Moves every column's window `first` rows on, and gives the batch `count`
+// rows, all kept.
+inline void Window(RowBatch* batch, uint32_t first, uint32_t count) {
+  for (uint32_t c = 0; c < batch->column_count(); ++c) {
+    ColumnView& column = batch->mutable_column(c);
+    column.set_start(column.start() + first);
   }
-  return owned;
+  batch->SetRowCount(count);
 }
 
 template <typename T>
 std::vector<T> ReadColumn(const RowBatch& batch, uint32_t column) {
-  const ColumnView& view = batch.column(column);
   std::vector<T> values;
   values.reserve(batch.size());
   for (uint32_t row = 0; row < batch.size(); ++row) {
-    values.push_back(view.Value<T>(row));
+    values.push_back(batch.Value<T>(column, row));
   }
   return values;
 }
@@ -58,16 +57,13 @@ std::vector<T> ReadColumn(const RowBatch& batch, uint32_t column) {
 template <typename T>
 std::vector<std::optional<T>> ReadNullableColumn(const RowBatch& batch,
                                                  uint32_t column) {
-  const ColumnView& view = batch.column(column);
-  const BitVector* validity = view.validity();
   std::vector<std::optional<T>> values;
   values.reserve(batch.size());
   for (uint32_t row = 0; row < batch.size(); ++row) {
-    uint32_t index = view.selection().GetIndex(row);
-    if (validity && !validity->is_set(index)) {
+    if (!batch.IsValid(column, row)) {
       values.emplace_back(std::nullopt);
     } else {
-      values.emplace_back(view.Value<T>(row));
+      values.emplace_back(batch.Value<T>(column, row));
     }
   }
   return values;
@@ -95,10 +91,11 @@ class ArraySource final : public Source {
     }
     uint32_t count = std::min(kMaxBatchRows, rows - s.emitted);
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values_.data()));
-    out.Compose(RowSelection::Range(s.emitted), count);
-    out.SetCardinality(count);
+    out.AddColumn(
+        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, s.emitted));
+    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values_.data(),
+                                        nullptr, s.emitted));
+    out.SetRowCount(count);
     s.emitted += count;
     return true;
   }
@@ -146,7 +143,7 @@ class FailingSource final : public Source {
     out.Reset();
     out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
     out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values_));
-    out.SetCardinality(2);
+    out.SetRowCount(2);
     s.emitted = true;
     return true;
   }

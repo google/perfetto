@@ -22,14 +22,16 @@
 
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 class ColumnView;
+class RowBatch;
 
 // kMaxBatchRows rows of one column: the buffer matching the column's type,
 // plus which of its rows hold a value.
@@ -43,9 +45,14 @@ struct ColumnChunk {
       values{FlexVector<uint32_t>()};
   BitVector validity;
 
-  // Copies the first count logical rows into this chunk at offset, resolving
-  // selections and preserving value bits and nulls.
-  void CopyFrom(const ColumnView&, uint32_t count, uint32_t offset);
+  // Copies the rows `batch` keeps of its `column` into this chunk from
+  // `offset`, preserving value bits and nulls.
+  void CopyFrom(const RowBatch& batch, uint32_t column, uint32_t offset);
+
+  // Copies batch rows `rows` of `view` into this chunk from `offset`.
+  void Gather(const ColumnView& view,
+              Span<const uint32_t> rows,
+              uint32_t offset);
 
   // Views the populated chunk with the source's representation. Implicit Id
   // columns become stored Uint32 values. The chunk must outlive the view.

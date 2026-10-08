@@ -29,7 +29,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -93,8 +93,7 @@ class RowSource final : public Source {
     out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.parents.data(),
                                         &s.validity));
     out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
-    out.Compose(RowSelection::Range(0), count);
-    out.SetCardinality(count);
+    test::Window(&out, 0, count);
     s.offset += count;
     return true;
   }
@@ -232,7 +231,7 @@ TEST(TreeAccumulateTest, UpReportsIntegerOverflow) {
   in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
   in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetCardinality(2);
+  in.SetRowCount(2);
 
   TreeAccumulateUp op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
@@ -253,7 +252,7 @@ TEST(TreeAccumulateTest, DownReportsIntegerOverflow) {
   in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
   in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetCardinality(2);
+  in.SetRowCount(2);
 
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
@@ -273,7 +272,7 @@ TEST(TreeAccumulateTest, NullValuesContributeZero) {
   in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
   in.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
-  in.SetCardinality(2);
+  in.SetRowCount(2);
 
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
@@ -290,7 +289,7 @@ TEST(TreeAccumulateTest, WrongColumnTypesAreReported) {
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, nodes.data()));
   in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetCardinality(1);
+  in.SetRowCount(1);
 
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();

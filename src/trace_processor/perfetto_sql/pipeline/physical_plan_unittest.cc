@@ -65,9 +65,7 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
     }
     return cell.AsInt64();
   }
-  const core::BitVector* validity = view.validity();
-  uint32_t row = cursor.row();
-  if (validity && !validity->is_set(view.selection().GetIndex(row))) {
+  if (!view.IsValid(cursor.batch_row())) {
     return std::nullopt;
   }
   core::StorageType type = view.type();

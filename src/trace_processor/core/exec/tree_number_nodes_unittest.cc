@@ -30,7 +30,7 @@
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -61,8 +61,7 @@ struct Numbered {
     }
     in.AddColumn(ColumnView::Reference(type, ids_.data()));
     in.AddColumn(ColumnView::Reference(type, parents_.data(), &validity_));
-    in.Compose(RowSelection::Range(0), count);
-    in.SetCardinality(count);
+    test::Window(&in, 0, count);
   }
 
   bool Process() { return test::ProcessCopy(op, in, out, *state); }
@@ -142,8 +141,7 @@ TEST(TreeNumberNodesTest, AnIdColumnIsTheRowItSitsAt) {
   in.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
   in.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, parents.data(), &validity));
-  in.Compose(RowSelection::Range(0), 2);
-  in.SetCardinality(2);
+  test::Window(&in, 0, 2);
 
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -158,8 +156,7 @@ TEST(TreeNumberNodesTest, AVariantIdIsNamed) {
   RowBatch in;
   in.AddColumn(ColumnView::Variants(ids.data()));
   in.AddColumn(ColumnView::Variants(parents.data()));
-  in.Compose(RowSelection::Range(0), 2);
-  in.SetCardinality(2);
+  test::Window(&in, 0, 2);
 
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -178,7 +175,7 @@ TEST(TreeNumberNodesTest, VariantStringsAndIntegersHaveSeparateKeys) {
   RowBatch in;
   in.AddColumn(ColumnView::Variants(ids.data()));
   in.AddColumn(ColumnView::Variants(parents.data()));
-  in.SetCardinality(2);
+  in.SetRowCount(2);
 
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
@@ -202,8 +199,7 @@ TEST(TreeNumberNodesTest, ARowWithNoIdIsReported) {
   in.AddColumn(
       ColumnView::Reference(StorageType{Int64{}}, ids.data(), &validity));
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ids.data()));
-  in.Compose(RowSelection::Range(0), 2);
-  in.SetCardinality(2);
+  test::Window(&in, 0, 2);
 
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
@@ -221,16 +217,14 @@ TEST(TreeNumberNodesTest, NumberingIsStableAcrossBatches) {
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ids.data()));
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, parents.data()));
 
-  in.Compose(RowSelection::Range(0), 2);
-  in.SetCardinality(2);
+  test::Window(&in, 0, 2);
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
 
   RowBatch again;
   again.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ids.data()));
   again.AddColumn(ColumnView::Reference(StorageType{Int64{}}, parents.data()));
-  again.Compose(RowSelection::Range(2), 1);
-  again.SetCardinality(1);
+  test::Window(&again, 2, 1);
   ASSERT_TRUE(test::ProcessCopy(op, again, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(2u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 3), ElementsAre(0u));
@@ -255,8 +249,7 @@ struct Scanned {
     in.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
     in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents_.data(),
                                        &validity_));
-    in.Compose(RowSelection::Range(offset), count);
-    in.SetCardinality(count);
+    test::Window(&in, offset, count);
     return test::ProcessCopy(op, in, out, *state);
   }
 

@@ -33,7 +33,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -93,8 +93,7 @@ class RowSource final : public Source {
                                         &s.validity));
     out.AddColumn(
         ColumnView::Reference(StorageType{Int64{}}, s.payloads.data()));
-    out.Compose(RowSelection::Range(0), count);
-    out.SetCardinality(count);
+    test::Window(&out, 0, count);
     s.offset += count;
     return true;
   }
@@ -141,7 +140,7 @@ class NumberedSource final : public Source {
         ColumnView::Reference(StorageType{Uint32{}}, parents_.data()));
     out.AddColumn(
         ColumnView::Reference(StorageType{Int64{}}, payloads_.data()));
-    out.SetCardinality(static_cast<uint32_t>(nodes_.size()));
+    out.SetRowCount(static_cast<uint32_t>(nodes_.size()));
     s.emitted = true;
     return true;
   }

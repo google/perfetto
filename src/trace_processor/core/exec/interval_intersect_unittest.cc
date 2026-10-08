@@ -27,7 +27,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -75,8 +75,7 @@ class TableSource final : public Source {
       out.AddColumn(
           ColumnView::Reference(StorageType{Int64{}}, s.columns[c].data()));
     }
-    out.Compose(RowSelection::Range(0), count);
-    out.SetCardinality(count);
+    out.SetRowCount(count);
     s.offset += count;
     return true;
   }
@@ -121,7 +120,7 @@ Table Collect(const IntervalIntersect& intersect,
     for (uint32_t row = 0; row < batch.size(); ++row) {
       Row out;
       for (uint32_t c = 0; c < batch.column_count(); ++c) {
-        out.push_back(batch.column(c).Value<int64_t>(row));
+        out.push_back(batch.Value<int64_t>(c, row));
       }
       rows.push_back(std::move(out));
     }

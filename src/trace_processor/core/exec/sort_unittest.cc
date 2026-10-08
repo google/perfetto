@@ -31,7 +31,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -74,8 +74,7 @@ class KeysSource final : public Source {
     out.AddColumn(
         ColumnView::Reference(StorageType{Int64{}}, first_.data(), &validity_));
     out.AddColumn(ColumnView::Reference(StorageType{Double{}}, second_.data()));
-    out.Compose(RowSelection::Range(s.emitted), count);
-    out.SetCardinality(count);
+    test::Window(&out, s.emitted, count);
     s.emitted += count;
     return true;
   }
@@ -156,7 +155,7 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
   in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, first.data()));
   // The first key is valid, but the second cannot be used in a row layout.
   in.AddColumn(ColumnView::Variants(nullptr));
-  in.SetCardinality(4);
+  in.SetRowCount(4);
   ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kError);
   EXPECT_THAT(sort.status(*state).message(), testing::HasSubstr("key 2"));
 

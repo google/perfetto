@@ -106,7 +106,7 @@ bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
     const ColumnView& column = in.column(spec_.keys[k].column);
     const RowLayout::Slot& slot = s.layout.slot(k);
     if (column.kind() == ColumnView::Kind::kSequence) {
-      WriteLayoutColumn<uint32_t>(column, slot, count, rows,
+      WriteLayoutColumn<uint32_t>(column, in.selection(), slot, rows,
                                   [](uint32_t index) { return index; });
       continue;
     }
@@ -114,25 +114,25 @@ bool Sort::Consume(const RowBatch& in, Breaker::State& state) const {
     switch (*s.types[k]) {
       case RowLayout::Type::kUint32:
         WriteLayoutColumn<uint32_t>(
-            column, slot, count, rows, [data](uint32_t index) {
+            column, in.selection(), slot, rows, [data](uint32_t index) {
               return static_cast<const uint32_t*>(data)[index];
             });
         break;
       case RowLayout::Type::kInt32:
         WriteLayoutColumn<int32_t>(
-            column, slot, count, rows, [data](uint32_t index) {
+            column, in.selection(), slot, rows, [data](uint32_t index) {
               return static_cast<const int32_t*>(data)[index];
             });
         break;
       case RowLayout::Type::kInt64:
         WriteLayoutColumn<int64_t>(
-            column, slot, count, rows, [data](uint32_t index) {
+            column, in.selection(), slot, rows, [data](uint32_t index) {
               return static_cast<const int64_t*>(data)[index];
             });
         break;
       case RowLayout::Type::kDouble:
         WriteLayoutColumn<double>(
-            column, slot, count, rows, [data](uint32_t index) {
+            column, in.selection(), slot, rows, [data](uint32_t index) {
               return static_cast<const double*>(data)[index];
             });
         break;

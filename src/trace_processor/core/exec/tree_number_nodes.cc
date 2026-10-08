@@ -25,7 +25,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -49,41 +49,41 @@ Variant AsKey(StringPool::Id v) {
 }
 
 template <typename T>
-void KeysOf(const ColumnView& column, uint32_t count, Variant* keys) {
-  const auto* data = static_cast<const T*>(column.data());
-  RowSelection selection = column.selection();
-  if (selection.is_range()) {
-    const T* from = data + selection.offset();
-    for (uint32_t i = 0; i < count; ++i) {
-      keys[i] = AsKey(from[i]);
+void KeysOf(const ColumnView& column,
+            const Selection& selection,
+            Variant* keys) {
+  const T* data = static_cast<const T*>(column.data()) + column.start();
+  if (selection.prefix()) {
+    for (uint32_t i = 0; i < selection.size(); ++i) {
+      keys[i] = AsKey(data[i]);
     }
     return;
   }
-  const uint32_t* rows = selection.data();
-  for (uint32_t i = 0; i < count; ++i) {
-    keys[i] = AsKey(data[rows[i]]);
+  for (uint32_t i = 0; i < selection.size(); ++i) {
+    keys[i] = AsKey(data[selection[i]]);
   }
 }
 
-void SequenceKeys(const ColumnView& column, uint32_t count, Variant* keys) {
-  RowSelection selection = column.selection();
-  for (uint32_t i = 0; i < count; ++i) {
-    keys[i] = Variant::Int64(selection.GetIndex(i));
+void SequenceKeys(const ColumnView& column,
+                  const Selection& selection,
+                  Variant* keys) {
+  for (uint32_t i = 0; i < selection.size(); ++i) {
+    keys[i] = Variant::Int64(column.Index(selection[i]));
   }
 }
 
 // Reads a column of any type into one Variant per row. A null row is only
 // allowed where `nullable`.
 base::Status ReadKeys(const ColumnView& column,
-                      uint32_t count,
+                      const Selection& selection,
                       bool nullable,
                       FlexVector<Variant>* out) {
   Variant* keys = out->data();
+  uint32_t count = selection.size();
   if (column.kind() == ColumnView::Kind::kVariant) {
     const auto* cells = static_cast<const Variant*>(column.data());
-    RowSelection selection = column.selection();
     for (uint32_t i = 0; i < count; ++i) {
-      const Variant& cell = cells[selection.GetIndex(i)];
+      const Variant& cell = cells[column.Index(selection[i])];
       if (cell.type == Variant::Type::kDouble) {
         return base::ErrStatus("TREE NUMBER NODES: an id cannot be a float");
       }
@@ -97,15 +97,15 @@ base::Status ReadKeys(const ColumnView& column,
 
   StorageType type = column.type();
   if (type.Is<Id>()) {
-    SequenceKeys(column, count, keys);
+    SequenceKeys(column, selection, keys);
   } else if (type.Is<Uint32>()) {
-    KeysOf<uint32_t>(column, count, keys);
+    KeysOf<uint32_t>(column, selection, keys);
   } else if (type.Is<Int32>()) {
-    KeysOf<int32_t>(column, count, keys);
+    KeysOf<int32_t>(column, selection, keys);
   } else if (type.Is<Int64>()) {
-    KeysOf<int64_t>(column, count, keys);
+    KeysOf<int64_t>(column, selection, keys);
   } else if (type.Is<String>()) {
-    KeysOf<StringPool::Id>(column, count, keys);
+    KeysOf<StringPool::Id>(column, selection, keys);
   } else {
     return base::ErrStatus("TREE NUMBER NODES: an id cannot be a float");
   }
@@ -115,9 +115,8 @@ base::Status ReadKeys(const ColumnView& column,
   }
   // A column can carry a validity bitvector without any row being null, so
   // check whether a row is actually null rather than whether it could be.
-  RowSelection selection = column.selection();
   for (uint32_t i = 0; i < count; ++i) {
-    if (validity->is_set(selection.GetIndex(i))) {
+    if (validity->is_set(column.Index(selection[i]))) {
       continue;
     }
     if (!nullable) {
@@ -133,21 +132,19 @@ base::Status ReadKeys(const ColumnView& column,
 // nulls as kNoNode, or gives up on the first row which is not like that.
 bool ParentsInOrder(const ColumnView& ids,
                     const ColumnView& parents,
-                    uint32_t count,
+                    const Selection& selection,
                     uint32_t start,
                     uint32_t* out) {
   if (ids.kind() == ColumnView::Kind::kVariant || !ids.type().Is<Id>() ||
-      ids.validity() || !ids.selection().is_range() ||
-      ids.selection().offset() != start ||
+      ids.validity() || !selection.prefix() || ids.start() != start ||
       parents.kind() == ColumnView::Kind::kVariant ||
       !parents.type().Is<Uint32>()) {
     return false;
   }
   const auto* data = static_cast<const uint32_t*>(parents.data());
   const BitVector* validity = parents.validity();
-  RowSelection selection = parents.selection();
-  for (uint32_t i = 0; i < count; ++i) {
-    uint32_t index = selection.GetIndex(i);
+  for (uint32_t i = 0; i < selection.size(); ++i) {
+    uint32_t index = parents.Index(i);
     if (validity && !validity->is_set(index)) {
       out[i] = kNoNode;
     } else if (data[index] <= start + i) {
@@ -235,8 +232,8 @@ bool TreeNumberNodes::NumberInOrder(const RowBatch& in,
                                     State& s) const {
   uint32_t start = s.numbered;
   if (count > kNoNode - start ||
-      !ParentsInOrder(in.column(id_column_), in.column(parent_column_), count,
-                      start, output.parent_nodes.data())) {
+      !ParentsInOrder(in.column(id_column_), in.column(parent_column_),
+                      in.selection(), start, output.parent_nodes.data())) {
     return false;
   }
   for (uint32_t i = 0; i < count; ++i) {
@@ -253,9 +250,11 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
                                   uint32_t count,
                                   Numbers& output,
                                   State& s) const {
-  base::Status status = ReadKeys(in.column(id_column_), count, false, &s.ids);
+  const Selection& selection = in.selection();
+  base::Status status =
+      ReadKeys(in.column(id_column_), selection, false, &s.ids);
   if (status.ok()) {
-    status = ReadKeys(in.column(parent_column_), count, true, &s.parents);
+    status = ReadKeys(in.column(parent_column_), selection, true, &s.parents);
   }
   if (!status.ok()) {
     s.status = status;
@@ -275,12 +274,14 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
       return false;
     }
     s.has_row.set(node);
-    output.nodes[i] = node;
+    // Written at the batch's rows, as every column of it is.
+    uint32_t row = selection[i];
+    output.nodes[row] = node;
     if (s.parents[i].type == Variant::Type::kNull) {
-      output.parent_nodes[i] = kNoNode;
+      output.parent_nodes[row] = kNoNode;
       continue;
     }
-    output.parent_nodes[i] = Number(s, s.parents[i]);
+    output.parent_nodes[row] = Number(s, s.parents[i]);
     if (!s.status.ok()) {
       return false;
     }

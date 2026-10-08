@@ -63,7 +63,7 @@ class AssertType final : public Transform {
 
   // The buffer in `chunk` holding values of the target type.
   const void* Data(const ColumnChunk& chunk) const;
-  bool Widen(const ColumnView&, uint32_t count, ColumnChunk&, State&) const;
+  bool Widen(const ColumnView&, const Selection&, ColumnChunk&, State&) const;
 
   uint32_t column_;
   AssertTypeTarget target_;

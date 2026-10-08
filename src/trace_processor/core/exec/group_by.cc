@@ -116,10 +116,8 @@ bool GroupBy::Serve(RowBatch& out, Breaker::State& state) const {
   uint32_t count = std::min(kMaxBatchRows, s.rows.size() - s.emitted);
   const uint32_t* begin = s.order.data() + s.emitted;
   count = s.rows.View(&out, Span<const uint32_t>(begin, begin + count));
-  ColumnView group =
-      ColumnView::Reference(StorageType{Uint32{}}, s.ordered_groups.data());
-  group.SetRange(s.emitted);
-  out.AddColumn(group);
+  out.AddColumn(ColumnView::Reference(
+      StorageType{Uint32{}}, s.ordered_groups.data(), nullptr, s.emitted));
   s.emitted += count;
   return true;
 }

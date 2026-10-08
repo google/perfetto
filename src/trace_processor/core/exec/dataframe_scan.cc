@@ -33,7 +33,6 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -207,15 +206,13 @@ bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
   for (uint32_t i = 0; i < s.columns.size(); ++i) {
     ColumnView view = s.columns[i];
     if (s.expanders[i]) {
-      // Expanded values are laid out from zero, so the column sits in its own
-      // index space rather than the dataframe's.
       s.expanders[i]->Expand(s.emitted, count, out);
     } else {
-      view.SetRange(s.emitted);
-      out.AddColumn(std::move(view), columns_[i]);
+      view.set_start(s.emitted);
+      out.AddColumn(view, columns_[i]);
     }
   }
-  out.SetCardinality(count);
+  out.SetRowCount(count);
   s.emitted += count;
   return true;
 }

@@ -25,7 +25,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/span.h"
 
 // Retaining borrowed batches of two Int64 columns and reading them back in
@@ -48,10 +48,11 @@ void Run(benchmark::State& state, uint32_t rows) {
   for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
     uint32_t count = std::min(kMaxBatchRows, rows - at);
     RowBatch& batch = batches.emplace_back();
-    batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, a.data()));
-    batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, b.data()));
-    batch.Compose(RowSelection::Range(at), count);
-    batch.SetCardinality(count);
+    batch.AddColumn(
+        ColumnView::Reference(StorageType{Int64{}}, a.data(), nullptr, at));
+    batch.AddColumn(
+        ColumnView::Reference(StorageType{Int64{}}, b.data(), nullptr, at));
+    batch.SetRowCount(count);
   }
   RowStore store;
   RowBatch out;

@@ -65,12 +65,14 @@ class RowCursor {
   template <typename T>
   PERFETTO_ALWAYS_INLINE T Value(uint32_t column) const {
     PERFETTO_DCHECK(index_ < size_);
-    return batch_->column(column).Value<T>(index_);
+    return batch_->Value<T>(column, index_);
   }
 
   const RowBatch& batch() const { return batch_ ? *batch_ : scratch_; }
-  // Index of the current row in batch().
+  // Which of the rows batch() keeps the current row is.
   uint32_t row() const { return index_; }
+  // The batch row the current row is: where it is in each column.
+  uint32_t batch_row() const { return batch_->selection()[index_]; }
 
  private:
   bool Pull();
