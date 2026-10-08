@@ -21,28 +21,12 @@ structured output for consumption by various tools.
 
 import os
 from collections import defaultdict
-from pathlib import Path
 from typing import List, Tuple, Optional
 
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
 from python.generators.sql_processing.utils import is_internal
 from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
 from python.perfetto.trace_data_checks import check_to_query, MODULE_DATA_CHECK_SQL, TABLE_DATA_CHECK_SQL
-
-ROOT_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-
-def find_stdlib_path():
-  """Find the stdlib directory in the current repository."""
-  stdlib_path = os.path.join(ROOT_DIR, "src", "trace_processor", "perfetto_sql",
-                             "stdlib")
-
-  if not os.path.exists(stdlib_path):
-    raise ValueError(f"stdlib path not found: {stdlib_path}")
-
-  return Path(stdlib_path)
 
 
 def get_module_name(rel_path: str) -> str:

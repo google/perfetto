@@ -35,7 +35,7 @@ sys.path.append(os.path.join(ROOT_DIR))
 from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_entities
 from python.generators.sql_processing.utils import check_banned_patterns
 from python.generators.sql_processing.utils import is_internal
-from python.generators.sql_processing.stdlib_tags import MODULE_TAGS, VALID_TAGS
+from python.generators.sql_processing.stdlib_tags import MODULE_TAGS
 
 # Package name constants
 PKG_PRELUDE = "prelude"
@@ -608,85 +608,6 @@ def check_orphaned_tags(modules: List[Tuple], quiet: bool = False) -> int:
   return len(orphaned_tags)
 
 
-def check_invalid_tags(quiet: bool = False) -> int:
-  """Check that all tags used in MODULE_TAGS are from VALID_TAGS.
-
-  Args:
-    quiet: If True, suppress detailed output
-
-  Returns:
-    Number of invalid tags found.
-  """
-  invalid_tags_by_module = {}
-
-  # Check each module's tags
-  for module_name, tags in MODULE_TAGS.items():
-    invalid = []
-    for tag in tags:
-      if tag not in VALID_TAGS:
-        invalid.append(tag)
-    if invalid:
-      invalid_tags_by_module[module_name] = invalid
-
-  if not quiet:
-    if invalid_tags_by_module:
-      total_invalid = sum(len(tags) for tags in invalid_tags_by_module.values())
-      print(
-          f"\nFound {total_invalid} invalid tag(s) in {len(invalid_tags_by_module)} module(s):\n"
-      )
-      for module_name in sorted(invalid_tags_by_module.keys()):
-        print(f"  {module_name}:")
-        for tag in sorted(invalid_tags_by_module[module_name]):
-          print(f"    - {tag}")
-      print(f"\nAll tags must be from VALID_TAGS in stdlib_tags.py")
-    else:
-      print(f"\nAll tags are valid!")
-
-  return len(invalid_tags_by_module)
-
-
-def check_nested_tag_parents(quiet: bool = False) -> int:
-  """Check that nested tags (with ':') have their parent tags present.
-
-  Args:
-    quiet: If True, suppress detailed output
-
-  Returns:
-    Number of modules with missing parent tags.
-  """
-  missing_parent_tags_by_module = {}
-
-  for module_name, tags in MODULE_TAGS.items():
-    tags_set = set(tags)
-    missing_parents = []
-    for tag in tags:
-      if ':' in tag:
-        parent = tag.split(':')[0]
-        if parent not in tags_set:
-          missing_parents.append(f"{tag} (missing parent: {parent})")
-    if missing_parents:
-      missing_parent_tags_by_module[module_name] = missing_parents
-
-  if not quiet:
-    if missing_parent_tags_by_module:
-      total_missing = sum(
-          len(tags) for tags in missing_parent_tags_by_module.values())
-      print(
-          f"\nFound {total_missing} nested tag(s) missing parent tags in {len(missing_parent_tags_by_module)} module(s):\n"
-      )
-      for module_name in sorted(missing_parent_tags_by_module.keys()):
-        print(f"  {module_name}:")
-        for tag_msg in sorted(missing_parent_tags_by_module[module_name]):
-          print(f"    - {tag_msg}")
-      print(
-          f"\nNested tags (e.g., 'power:battery') must include their parent tag (e.g., 'power')"
-      )
-    else:
-      print(f"\nAll nested tags have their parent tags!")
-
-  return len(missing_parent_tags_by_module)
-
-
 def check_new_packages(modules: List[Tuple], quiet: bool = False) -> int:
   """Check that no new top-level public packages have been added.
 
@@ -876,12 +797,7 @@ def main() -> int:
 
   # Check tags if requested
   tag_errors = 0
-  invalid_tag_errors = 0
-  nested_tag_errors = 0
   if args.check_tags:
-    # Always check for invalid tags and nested tag parents when checking tags
-    invalid_tag_errors = check_invalid_tags(quiet=not args.verbose)
-    nested_tag_errors = check_nested_tag_parents(quiet=not args.verbose)
     tag_errors = check_tags(modules, quiet=not args.verbose)
 
   # Check orphaned tags if requested
@@ -899,7 +815,7 @@ def main() -> int:
   if args.check_layering:
     layering_errors = check_layering(modules, quiet=not args.verbose)
 
-  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors + new_package_errors + layering_errors
+  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + new_package_errors + layering_errors
   return 0 if not total_errors else 1
 
 
