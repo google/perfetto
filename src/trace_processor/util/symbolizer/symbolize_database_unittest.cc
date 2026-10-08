@@ -108,8 +108,7 @@ TEST(DebuginfodOptionsTest, ExplicitValuesAndWhitespace) {
   options.connect_timeout = "2";
   options.stall_timeout = "3";
   DebuginfodConfig config;
-  std::string warnings;
-  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config).ok());
   EXPECT_THAT(config.urls, testing::ElementsAre("https://one.example",
                                                 "http://two.example/debug"));
   EXPECT_EQ(config.cache_path, "/chosen/cache");
@@ -124,10 +123,9 @@ TEST(DebuginfodOptionsTest, ConfigurationDoesNotEnableDownloads) {
   options.urls = "https://one.example";
   options.cache_path = "/chosen/cache";
   DebuginfodConfig config;
-  std::string warnings;
-  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  ASSERT_TRUE(ResolveDebuginfodOptions(options, &config).ok());
   EXPECT_TRUE(config.urls.empty());
-  EXPECT_THAT(warnings, testing::HasSubstr("--debuginfod"));
+  EXPECT_THAT(config.disabled_warning, testing::HasSubstr("--debuginfod"));
 }
 
 TEST(DebuginfodOptionsTest, RejectsEmptyOverridesAndInvalidValues) {
@@ -136,24 +134,23 @@ TEST(DebuginfodOptionsTest, RejectsEmptyOverridesAndInvalidValues) {
   options.urls = "";
   options.cache_path = "/chosen/cache";
   DebuginfodConfig config;
-  std::string warnings;
-  EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  EXPECT_FALSE(ResolveDebuginfodOptions(options, &config).ok());
   for (const char* url :
        {"file:///tmp/debug", "https://host?q=x", "https://host#fragment"}) {
     config = {};
     options.urls = url;
-    EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+    EXPECT_FALSE(ResolveDebuginfodOptions(options, &config).ok());
   }
   options.urls = "https://one.example";
   for (const char* timeout : {"0", "-1", "1.5", "bad", "4294967296"}) {
     config = {};
     options.connect_timeout = timeout;
-    EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+    EXPECT_FALSE(ResolveDebuginfodOptions(options, &config).ok());
   }
   config = {};
   options.connect_timeout = "5";
   options.cache_path = "";
-  EXPECT_FALSE(ResolveDebuginfodOptions(options, &config, &warnings).ok());
+  EXPECT_FALSE(ResolveDebuginfodOptions(options, &config).ok());
 }
 
 TEST(SymbolizeDatabaseTest, CoalescesEquivalentMappingsAndAddresses) {

@@ -73,8 +73,6 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 // the store, restoration is automatic. Non-serializable trace-derived data (the
 // dumps, overview, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
-  private _navigateCallback?: (subpage: string) => void;
-
   private _dumps: ReadonlyArray<queries.HeapDump> = [];
   private _overview: OverviewData | null = null;
   private readonly _counts = new Map<string, number>();
@@ -172,24 +170,16 @@ export class HeapDumpExplorerSession {
     return stateToPath(this.nav);
   }
 
-  setNavigateCallback(cb: ((subpage: string) => void) | undefined): void {
-    this._navigateCallback = cb;
-  }
-
   navigate(view: NavView, params: Record<string, unknown> = {}): void {
     const sub = stateToSubpage({view, params} as NavState);
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this._navigateCallback?.(sub);
+    this.doNavigate(sub);
     m.redraw();
   }
 
-  // Arrow property: passed by reference into Mithril attrs.
-  readonly navigateWithTabs = (
-    view: NavView,
-    params?: Record<string, unknown>,
-  ): void => {
+  navigateWithTabs(view: NavView, params?: Record<string, unknown>): void {
     if (view === 'object') {
       this.openInstanceTab(
         params?.id as number,
@@ -197,9 +187,9 @@ export class HeapDumpExplorerSession {
       );
     }
     this.navigate(view, params);
-  };
+  }
 
-  readonly clearNavParam = (key: string): void => {
+  clearNavParam(key: string): void {
     // A consumed nav param becomes a one-shot grid filter, so drop it from the
     // nav — from both the store and the URL. Otherwise it re-applies on the next
     // sync and clobbers the user's later manual filter edits. Query params are
@@ -211,8 +201,12 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this._navigateCallback?.(sub);
-  };
+    this.doNavigate(sub);
+  }
+
+  private doNavigate(sub: string | undefined): void {
+    this.trace.navigate(`#!/heapdump${sub ? '/' + sub : ''}`);
+  }
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
   // change only. The router drops query params, so only the path round-trips.
@@ -371,30 +365,30 @@ export class HeapDumpExplorerSession {
     return this.store.state.flamegraphPanelState;
   }
 
-  readonly setFlamegraphPanelState = (state: TreeExplorerState): void => {
+  setFlamegraphPanelState(state: TreeExplorerState): void {
     this.store.edit((s) => {
       s.flamegraphPanelState = state;
     });
-  };
+  }
 
   get callstackPanelState(): TreeExplorerState | undefined {
     return this.store.state.callstackPanelState;
   }
 
-  readonly setCallstackPanelState = (state: TreeExplorerState): void => {
+  setCallstackPanelState(state: TreeExplorerState): void {
     this.store.edit((s) => {
       s.callstackPanelState = state;
     });
-  };
+  }
 
   // Open the flamegraph pivoted at `pathHash`. The metric matches the tree the
   // hash came from. The chip shows `<label> (this instance)` since the raw hash
   // regex is unreadable.
-  readonly openFlamegraphPivotedAt = (
+  openFlamegraphPivotedAt(
     pathHash: string,
     label: string,
     isDominator: boolean,
-  ): void => {
+  ): void {
     this.setFlamegraphPanelState({
       selectedMetricId: isDominator
         ? METRIC_DOMINATED_OBJECT_SIZE
@@ -409,7 +403,7 @@ export class HeapDumpExplorerSession {
       },
     });
     this.navigate('flamegraph');
-  };
+  }
 
   get cachedOverview(): OverviewData | null {
     return this._overview;

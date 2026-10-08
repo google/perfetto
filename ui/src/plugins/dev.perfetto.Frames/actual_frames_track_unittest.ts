@@ -18,14 +18,35 @@ import {createActualFramesTrack} from './actual_frames_track';
 describe('ActualFramesTrack Tooltips Configuration & Test Suite', () => {
   const fakeTrace = {engine: {}} as unknown as Trace;
 
-  test('ActualFramesTrack registers dataset and track configuration', () => {
+  test('ActualFramesTrack scopes the dataset to a process', () => {
     const track = createActualFramesTrack(
       fakeTrace,
       '/process_1/actual_frames',
       2,
-      [10, 11],
+      1,
       false,
     );
-    expect(track).toBeDefined();
+    expect(track.rootTableName).toBe('slice');
+    expect(track.getDataset().src).toContain('upid = 1');
+    expect(track.getDataset().src).not.toContain('layer_name');
+    // A upid dataset filter would map the events of both the expected and the
+    // actual timeline of a process to the same track.
+    expect(track.getDataset().filter).toBeUndefined();
+  });
+
+  test('ActualFramesTrack scopes the dataset to a layer of a process', () => {
+    const track = createActualFramesTrack(
+      fakeTrace,
+      '/process_1/actual_frames/MyLayer',
+      2,
+      7,
+      false,
+      "My'Layer",
+    );
+    expect(track.rootTableName).toBeUndefined();
+    // Layer names are escaped, hence the doubled up quote.
+    expect(track.getDataset().src).toContain("layer_name = 'My''Layer'");
+    expect(track.getDataset().src).toContain('upid = 7');
+    expect(track.getDataset().filter).toBeUndefined();
   });
 });

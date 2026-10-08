@@ -282,6 +282,28 @@ export class TrackNode {
   }
 
   /**
+   * Expand this node and all its descendants.
+   * Uses a tree-walk to expand descendants in a predictable pattern:
+   * depth-first in pre-order.
+   */
+  expandAll(): void {
+    this.expand();
+    for (const child of this.children) {
+      child.expandAll();
+    }
+  }
+
+  /**
+   * Collapse this node and all its descendants.
+   */
+  collapseAll(): void {
+    this.collapse();
+    for (const child of this.children) {
+      child.collapseAll();
+    }
+  }
+
+  /**
    * Toggle the collapsed state.
    */
   toggleCollapsed(): void {

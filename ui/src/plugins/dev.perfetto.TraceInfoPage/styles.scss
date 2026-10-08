@@ -356,18 +356,6 @@
   // These styles override external components for consistent appearance
   // ============================================================================
 
-  // Override pf-tabs styling
-  .pf-tabs {
-    border-bottom: 1px solid var(--pf-color-border);
-    padding: 0 28px;
-
-    .pf-tabs__tab {
-      font-size: var(--pf-font-size-l);
-      font-weight: 500;
-      padding: 14px 18px;
-    }
-  }
-
   // Override pf-section styling within tab content
   &__tab-content .pf-section {
     border: none;

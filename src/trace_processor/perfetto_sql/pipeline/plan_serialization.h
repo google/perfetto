@@ -17,19 +17,27 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_SERIALIZATION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PIPELINE_PLAN_SERIALIZATION_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 
 namespace perfetto::trace_processor::pipeline {
+
+// -----------------------------------------------------------------------------
+// Plan serialization API
+// -----------------------------------------------------------------------------
 
 // The most columns a pipeline can output.
 inline constexpr uint32_t kMaxPipelineColumns = 256;
@@ -53,6 +61,101 @@ base::Status BindDataframeArgs(
     LogicalPlan& plan,
     const std::vector<const dataframe::Dataframe*>& args,
     StringPool* pool);
+
+// -----------------------------------------------------------------------------
+// Byte encoding
+// -----------------------------------------------------------------------------
+
+class Writer {
+ public:
+  void U8(uint8_t value);
+  void U32(uint32_t value);
+  void Size(size_t value);
+  void Str(std::string_view value);
+
+  // Out of bounds if `id` is not available.
+  void Position(const Available& available, ColumnId id);
+
+  std::string Take();
+
+ private:
+  void Append(const void* data, size_t size);
+
+  std::string out_;
+};
+
+// Failures are latched: ok() remains false after any invalid read. Callers
+// must discard the partially decoded plan on failure.
+class Reader {
+ public:
+  explicit Reader(std::string_view in);
+
+  uint8_t U8();
+  uint32_t U32();
+
+  // At most the bytes left, so a corrupt count cannot allocate much.
+  uint32_t Count();
+  std::string Str();
+
+  ColumnId Position(const Available& available);
+  void Fail();
+
+  bool ok() const;
+  bool done() const;
+
+ private:
+  void Read(void* out, size_t size);
+
+  std::string_view in_;
+  size_t at_ = 0;
+  bool ok_ = true;
+};
+
+void WriteType(Writer* w, const std::optional<core::StorageType>& type);
+std::optional<core::StorageType> ReadType(Reader* r);
+
+// -----------------------------------------------------------------------------
+// Plan encoding
+// -----------------------------------------------------------------------------
+
+// Writes stages in input-to-output order. Operations update Available from
+// input to output column IDs as their payloads are written.
+class PlanWriter {
+ public:
+  explicit PlanWriter(const LogicalPlan& plan);
+  std::string Write();
+
+  const LogicalPlan& plan() const { return plan_; }
+  Writer& writer() { return w_; }
+
+ private:
+  // Borrowed for the duration of encoding.
+  const LogicalPlan& plan_;
+  Writer w_;
+};
+
+// Reconstructs logical IDs from encoded column positions. Operation decoders
+// append nodes to plan_ and update Available to match their output.
+class PlanReader {
+ public:
+  explicit PlanReader(Reader& r);
+
+  LogicalPlan Read();
+  ColumnId AddColumn(std::string name, std::optional<core::StorageType> type);
+
+  template <typename T>
+  PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {
+    return plan_.AddNode(std::move(operation), std::move(children));
+  }
+
+  const LogicalPlan& plan() const { return plan_; }
+  Reader& reader() { return r_; }
+
+ private:
+  // Borrowed reader; its error state covers the whole plan.
+  Reader& r_;
+  LogicalPlan plan_;
+};
 
 }  // namespace perfetto::trace_processor::pipeline
 

@@ -91,8 +91,8 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
   // strings run a standard glob function.
   if (size_t(end - begin) < string_pool->size() ||
       string_pool->HasLargeString()) {
-    return ops::Filter(data, begin, end, output, matcher,
-                       GlobComparator{string_pool});
+    return filter::Filter(data, begin, end, output, matcher,
+                          GlobComparator{string_pool});
   }
 
   // Pre-compute matches for all strings in the pool.
@@ -105,7 +105,8 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
                                 matcher.Matches(string_pool->Get(id)));
   }
 
-  return ops::Filter(data, begin, end, output, matches, BitVectorComparator{});
+  return filter::Filter(data, begin, end, output, matches,
+                        BitVectorComparator{});
 }
 
 uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
@@ -118,8 +119,8 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
   if (!regex.ok()) {
     return output;
   }
-  return ops::Filter(data, begin, end, output, regex.value(),
-                     RegexComparator{string_pool});
+  return filter::Filter(data, begin, end, output, regex.value(),
+                        RegexComparator{string_pool});
 }
 
 void LimitOffsetIndices(InterpreterState& state,

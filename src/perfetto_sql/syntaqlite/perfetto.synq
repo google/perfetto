@@ -281,7 +281,6 @@ node PerfettoPipeSource {
   schema: inline SyntaqliteTextSpan
   select: index Select
   alias: index Name
-  alias_as: inline Bool
 
   fmt {
     if_set(select) {
@@ -290,9 +289,7 @@ node PerfettoPipeSource {
       if_span(schema) { span(schema) "." }
       span(table_name)
     }
-    if_set(alias) {
-      if_flag(alias_as) { space "AS" space child(alias) } else { space child(alias) }
-    }
+    if_set(alias) { space "AS" space child(alias) }
   }
 }
 
@@ -437,9 +434,53 @@ node PerfettoPipeAs {
   fmt { "AS" space span(alias) }
 }
 
+// One key of an ORDER BY stage: `column [ASC | DESC]`.
+node PerfettoPipeOrderTerm {
+  column: index PerfettoPipeColumn
+  sort_order: inline SortOrder
+
+  fmt {
+    child(column)
+    switch(sort_order) {
+      ASC { space "ASC" }
+      DESC { space "DESC" }
+    }
+  }
+}
+
+list PerfettoPipeOrderTermList {
+  PerfettoPipeOrderTerm
+  fmt { for_each(sep: "," line) { child(_item) } }
+}
+
+// `ORDER BY column [ASC | DESC], ...`: sorts the rows.
+node PerfettoPipeOrderBy {
+  terms: index PerfettoPipeOrderTermList
+
+  fmt { group { "ORDER" "BY" nest { line child(terms) } } }
+}
+
+// `AGGREGATE agg AS name, ... [GROUP BY column, ...]`: collapses each group of
+// rows agreeing on the columns into one row, or all rows without GROUP BY.
+node PerfettoPipeAggregate {
+  aggregates: index PerfettoAggregateList
+  group_by: index PerfettoPipeColumnList
+
+  fmt {
+    group {
+      "AGGREGATE"
+      nest { line child(aggregates) }
+      if_set(group_by) { line "GROUP" "BY" nest { line child(group_by) } }
+    }
+  }
+}
+
 abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
+  PerfettoIntervalFillGaps
+  PerfettoPipeOrderBy
+  PerfettoPipeAggregate
   PerfettoPipeSelect
   PerfettoPipeExtend
   PerfettoPipeDrop
@@ -482,6 +523,20 @@ node PerfettoIntervalFlatten {
       "INTERVAL" "FLATTEN"
       if_set(per) { space "PER" space child(per) }
       nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+// `INTERVAL FILL GAPS WITH rel [PER cols]`: lays the rows over a background,
+// adding a row over each span of the background they do not cover.
+node PerfettoIntervalFillGaps {
+  background: index PerfettoPipeSource
+  per: index PerfettoPerColumnList
+
+  fmt {
+    group {
+      "INTERVAL" "FILL" "GAPS" "WITH" space child(background)
+      if_set(per) { space "PER" space child(per) }
     }
   }
 }
