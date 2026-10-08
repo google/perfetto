@@ -37,8 +37,7 @@ import type {
   DuplicateStringGroup,
   DuplicateArrayGroup,
 } from './types';
-import {fmtHex} from './format';
-import {shortClassName, SQL_PREAMBLE} from './components';
+import {shortClassName, SQL_PREAMBLE, fmtHex} from './components';
 import {type time, Time} from '../../base/time';
 
 /**
@@ -57,6 +56,14 @@ export interface HeapDump {
   readonly ts: time;
   readonly processName: string | null;
   readonly pid: number;
+}
+
+// Whether the trace has HPROF primitive field values (string contents, array
+// data, bitmap pixels). Only ART .hprof dumps record them; proto heap graphs
+// don't. Trace-wide, not per dump.
+export async function traceHasFieldValues(engine: Engine): Promise<boolean> {
+  const res = await engine.query(`SELECT 1 FROM heap_graph_primitive LIMIT 1`);
+  return res.iter({}).valid();
 }
 
 export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
@@ -108,6 +115,23 @@ function className(name: string | null, deobfuscated: string | null): string {
 
 function makeDisplay(cls: string, id: number): string {
   return `${shortClassName(cls)} ${fmtHex(id)}`;
+}
+
+// The display name of an object (e.g. `Foo 0x1a2b`), or undefined if there is
+// no such object.
+export async function getObjectDisplay(
+  engine: Engine,
+  id: number,
+): Promise<string | undefined> {
+  const res = await engine.query(`
+    SELECT c.name AS cls, c.deobfuscated_name AS deob
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE o.id = ${id}
+  `);
+  const it = res.iter({cls: STR_NULL, deob: STR_NULL});
+  if (!it.valid()) return undefined;
+  return makeDisplay(className(it.cls, it.deob), id);
 }
 
 function sqlEsc(s: string): string {
@@ -200,11 +224,11 @@ function collectRows(res: QueryResult): InstanceRow[] {
  */
 async function batchBitmapBufferHashes(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
   bitmaps: Array<{objectId: number; nativePtr: bigint}>,
 ): Promise<Map<number, string>> {
   const result = new Map<number, string>();
-  const dumpData = await loadBitmapDumpData(engine, activeDump);
+  const dumpData = await loadBitmapDumpData(engine, dump);
   if (!dumpData) return result;
 
   // Build bufferObjId → [bitmapObjectId, ...] mapping.
@@ -248,10 +272,11 @@ async function batchBitmapBufferHashes(
 
 export async function getOverview(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
+  hasFieldValues: boolean,
 ): Promise<OverviewData> {
-  const dumpFilter = dumpFilterSql(activeDump, 'o');
-  const oomeInfo = await getOome(engine, activeDump);
+  const dumpFilter = dumpFilterSql(dump, 'o');
+  const oomeInfo = await getOome(engine, dump);
   const countRes = await engine.query(`
     SELECT
       sum(iif(o.reachable, 1, 0)) AS reachable,
@@ -280,8 +305,8 @@ export async function getOverview(
       dmabuf_rss_size AS dmabufRssSize,
       process_uptime AS processUptime
     FROM android_heap_graph_stats
-    WHERE upid = ${activeDump.upid}
-      AND graph_sample_ts = ${activeDump.ts}
+    WHERE upid = ${dump.upid}
+      AND graph_sample_ts = ${dump.ts}
     LIMIT 1
   `);
   const statsIt = statsRes.iter({
@@ -326,11 +351,7 @@ export async function getOverview(
   // Duplicate bitmaps grouped by pixel content hash. Each bitmap's compressed
   // DumpData buffer is hashed to detect true content duplicates rather than
   // just matching on dimensions. Skipped for proto heap graphs (no HPROF data).
-  const hasPrimitivesRes = await engine.query(
-    `SELECT 1 FROM heap_graph_primitive LIMIT 1`,
-  );
-  const hasPrimitives = hasPrimitivesRes.iter({}).valid();
-  const dupRes = hasPrimitives
+  const dupRes = hasFieldValues
     ? await engine.query(`
     SELECT
       o.id,
@@ -387,7 +408,7 @@ export async function getOverview(
     .map((b) => ({objectId: b.id, nativePtr: b.nativePtr!}));
   const hashes =
     hashInputs.length > 0
-      ? await batchBitmapBufferHashes(engine, activeDump, hashInputs)
+      ? await batchBitmapBufferHashes(engine, dump, hashInputs)
       : new Map<number, string>();
 
   const hashGroups = new Map<
@@ -429,7 +450,7 @@ export async function getOverview(
   // Duplicate strings grouped by value. Only available for HPROF dumps
   // which populate heap_graph_object_data.value_string.
   const duplicateStrings: DuplicateStringGroup[] = [];
-  if (hasPrimitives) {
+  if (hasFieldValues) {
     const strRes = await engine.query(`
       SELECT
         od.value_string AS value,
@@ -515,7 +536,6 @@ export async function getOverview(
     duplicateStrings:
       duplicateStrings.length > 0 ? duplicateStrings : undefined,
     duplicateArrays: duplicateArrays.length > 0 ? duplicateArrays : undefined,
-    hasFieldValues: hasPrimitives,
     oomScore,
     oomBucket,
     anonRssAndSwapSize,
@@ -527,7 +547,7 @@ export async function getOverview(
 
 export async function getOome(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
 ): Promise<OomeData | undefined> {
   const oomeRes = await engine.query(`
     INCLUDE PERFETTO MODULE android.memory.heap_graph.oome;
@@ -539,7 +559,7 @@ export async function getOome(
       o.error_msg AS errorMsg
     FROM heap_graph g
     LEFT JOIN android_heap_graph_java_oome_details o ON o.heap_graph_id = g.id
-    WHERE g.upid = ${activeDump.upid} AND g.dump_reason = 'OOME'
+    WHERE g.upid = ${dump.upid} AND g.dump_reason = 'OOME'
     LIMIT 1
   `);
   if (oomeRes.numRows() > 0) {
@@ -568,7 +588,7 @@ type FieldEntry = {name: string; typeName: string; value: PrimOrRef};
 /** Fetch primitive and reference field values for an object. */
 async function fetchFieldValues(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
   refSetId: number | null,
   fieldSetId: number | null,
 ): Promise<FieldEntry[]> {
@@ -615,7 +635,7 @@ async function fetchFieldValues(
         SELECT c.name, MIN(c.deobfuscated_name) AS deobfuscated_name
         FROM heap_graph_class c
         JOIN heap_graph_object o ON o.type_id = c.id
-        WHERE ${dumpFilterSql(activeDump, 'o')}
+        WHERE ${dumpFilterSql(dump, 'o')}
         GROUP BY c.name
       )
       SELECT
@@ -685,7 +705,7 @@ async function fetchFieldValues(
 }
 
 /** Fetch dominator-tree path from GC root to the given object. */
-export async function fetchDominatorPath(
+async function fetchDominatorPath(
   engine: Engine,
   id: number,
 ): Promise<InstanceDetail['dominatorPath']> {
@@ -693,7 +713,7 @@ export async function fetchDominatorPath(
 }
 
 /** Fetch shortest reference path from a GC root to the given object. */
-export async function fetchShortestPathFromRoot(
+async function fetchShortestPathFromRoot(
   engine: Engine,
   id: number,
 ): Promise<InstanceDetail['shortestPath']> {
@@ -987,7 +1007,7 @@ export async function fetchDominatorPaths(
 
 export async function getInstance(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
   id: number,
 ): Promise<InstanceDetail | undefined> {
   await requireDominatorTree(engine);
@@ -1052,10 +1072,10 @@ export async function getInstance(
 
   const reachabilityName = KIND_TO_REACHABILITY[classKind] ?? 'strong';
 
-  const row = rowFromIter({...oit, class_kind: classKind});
-  row.reachabilityName = reachabilityName;
+  const baseRow = rowFromIter({...oit, class_kind: classKind});
 
   // Detect referent for Reference subclasses.
+  let referent: InstanceRow | null = null;
   if (reachabilityName !== 'strong' && refSetId !== null) {
     const refResult = await engine.query(`
       SELECT
@@ -1079,14 +1099,14 @@ export async function getInstance(
     });
     if (rit.valid() && rit.owned_id !== null && rit.owned_id !== 0) {
       const refCls = className(rit.ref_cls, rit.ref_deob);
-      row.referent = {
+      referent = {
         id: rit.owned_id,
         display: makeDisplay(refCls, rit.owned_id),
         className: refCls,
         isRoot: false,
         rootTypeNames: null,
         reachabilityName: 'strong',
-        heap: row.heap,
+        heap: baseRow.heap,
         shallowJava: 0,
         shallowNative: 0,
         retainedTotal: 0,
@@ -1100,6 +1120,7 @@ export async function getInstance(
       };
     }
   }
+  const row: InstanceRow = {...baseRow, referent};
 
   // Look up the java.lang.Class<X> object for this class.
   let classObjRow: InstanceRow | null = null;
@@ -1111,7 +1132,7 @@ export async function getInstance(
       JOIN heap_graph_class c ON o.type_id = c.id
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-      WHERE ${dumpFilterSql(activeDump, 'o')}
+      WHERE ${dumpFilterSql(dump, 'o')}
         AND (c.name = '${classObjName}'
           OR c.deobfuscated_name = '${classObjName}')
     `);
@@ -1121,7 +1142,7 @@ export async function getInstance(
 
   const instanceFields =
     !isArrayInstance && !isClassObj
-      ? await fetchFieldValues(engine, activeDump, refSetId, fieldSetId)
+      ? await fetchFieldValues(engine, dump, refSetId, fieldSetId)
       : [];
 
   let arrayLength = 0;
@@ -1248,17 +1269,17 @@ export async function getInstance(
   const shortestPath = await fetchShortestPathFromRoot(engine, id);
 
   const staticFields = isClassObj
-    ? await fetchFieldValues(engine, activeDump, refSetId, fieldSetId)
+    ? await fetchFieldValues(engine, dump, refSetId, fieldSetId)
     : [];
 
   let bitmap: InstanceDetail['bitmap'] = null;
   if (fullClassName === 'android.graphics.Bitmap') {
-    bitmap = await extractBitmapPixels(engine, activeDump, fieldSetId);
+    bitmap = await extractBitmapPixels(engine, dump, fieldSetId);
   }
   if (bitmap === null) {
     const deobName = className(oit.cls, oit.deob);
     if (deobName === 'android.graphics.Bitmap') {
-      bitmap = await extractBitmapPixels(engine, activeDump, fieldSetId);
+      bitmap = await extractBitmapPixels(engine, dump, fieldSetId);
     }
   }
 
@@ -1291,7 +1312,7 @@ export async function getInstance(
  * we walk it by following each row's `parent_node_id` (the DFS predecessor,
  * i.e. the subclass that discovered this ancestor).
  */
-export async function getClassHierarchy(
+async function getClassHierarchy(
   engine: Engine,
   startClassId: number,
 ): Promise<string[]> {
@@ -1343,13 +1364,13 @@ export async function getClassHierarchy(
 }
 
 /**
- * `rootName`'s transitive subclasses that have objects in `activeDump`. The graph
+ * `rootName`'s transitive subclasses that have objects in `dump`. The graph
  * is walked over all of heap_graph_class so it passes through abstract classes
  * (which have no objects); the object join then scopes the result to the dump.
  */
 export async function getSubclassNames(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
   rootName: string,
 ): Promise<string[]> {
   const res = await engine.query(`
@@ -1364,7 +1385,7 @@ export async function getSubclassNames(
     ) AS dfs
     JOIN heap_graph_class c ON c.id = dfs.node_id
     JOIN heap_graph_object o ON o.type_id = c.id
-    WHERE ${dumpFilterSql(activeDump, 'o')}
+    WHERE ${dumpFilterSql(dump, 'o')}
   `);
   const names: string[] = [];
   for (const it = res.iter({name: STR}); it.valid(); it.next()) {
@@ -1419,24 +1440,24 @@ const bitmapDumpDataByDump = new WeakMap<
 
 function loadBitmapDumpData(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
 ): Promise<BitmapDumpData | null> {
-  const cached = bitmapDumpDataByDump.get(activeDump);
+  const cached = bitmapDumpDataByDump.get(dump);
   if (cached !== undefined) return cached;
-  const promise = computeBitmapDumpData(engine, activeDump);
-  bitmapDumpDataByDump.set(activeDump, promise);
+  const promise = computeBitmapDumpData(engine, dump);
+  bitmapDumpDataByDump.set(dump, promise);
   return promise;
 }
 
 async function computeBitmapDumpData(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
 ): Promise<BitmapDumpData | null> {
   const classObjRes = await engine.query(`
     SELECT o.reference_set_id
     FROM heap_graph_object o
     JOIN heap_graph_class c ON o.type_id = c.id
-    WHERE ${dumpFilterSql(activeDump, 'o')}
+    WHERE ${dumpFilterSql(dump, 'o')}
       AND (c.name LIKE '%Class<android.graphics.Bitmap>'
         OR c.deobfuscated_name LIKE '%Class<android.graphics.Bitmap>')
   `);
@@ -1542,7 +1563,7 @@ const DUMP_DATA_FORMAT_NAMES: Record<number, string> = {
 
 async function extractBitmapPixels(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
   fieldSetId: number | null,
 ): Promise<InstanceDetail['bitmap']> {
   if (fieldSetId === null) return null;
@@ -1574,7 +1595,7 @@ async function extractBitmapPixels(
   }
   if (width <= 0 || height <= 0 || nativePtr === 0n) return null;
 
-  const dumpData = await loadBitmapDumpData(engine, activeDump);
+  const dumpData = await loadBitmapDumpData(engine, dump);
   if (dumpData === null) return null;
 
   const bufferObjId = dumpData.bufferMap.get(nativePtr);
@@ -1595,7 +1616,7 @@ async function extractBitmapPixels(
 
 export async function getBitmapPixels(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
   objectId: number,
 ): Promise<InstanceDetail['bitmap']> {
   const res = await engine.query(`
@@ -1605,12 +1626,12 @@ export async function getBitmapPixels(
     WHERE o.id = ${objectId}
 `);
   const row = res.maybeFirstRow({field_set_id: NUM_NULL});
-  return extractBitmapPixels(engine, activeDump, row?.field_set_id ?? null);
+  return extractBitmapPixels(engine, dump, row?.field_set_id ?? null);
 }
 
 export async function search(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
   query: string,
 ): Promise<InstanceRow[]> {
   await requireDominatorTree(engine);
@@ -1637,7 +1658,7 @@ export async function search(
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql(activeDump, 'o')}
+      AND ${dumpFilterSql(dump, 'o')}
       AND (c.name LIKE '%${escaped}%' ESCAPE '\\'
         OR c.deobfuscated_name LIKE '%${escaped}%' ESCAPE '\\')
     ORDER BY (ifnull(d.dominated_size_bytes, 0)
@@ -1648,7 +1669,7 @@ export async function search(
 
 export async function getStringList(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
 ): Promise<StringListRow[]> {
   await requireDominatorTree(engine);
   const res = await engine.query(`
@@ -1667,7 +1688,7 @@ export async function getStringList(
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql(activeDump, 'o')}
+      AND ${dumpFilterSql(dump, 'o')}
       AND od.value_string IS NOT NULL
       AND (c.name = 'java.lang.String'
         OR c.deobfuscated_name = 'java.lang.String')
@@ -1712,10 +1733,10 @@ export async function getStringList(
 
 export async function getBitmapList(
   engine: Engine,
-  activeDump: HeapDump,
+  dump: HeapDump,
 ): Promise<BitmapListRow[]> {
   await requireDominatorTree(engine);
-  const dumpData = await loadBitmapDumpData(engine, activeDump);
+  const dumpData = await loadBitmapDumpData(engine, dump);
 
   await engine.query(
     `INCLUDE PERFETTO MODULE android.memory.heap_graph.bitmap;`,
@@ -1751,7 +1772,7 @@ export async function getBitmapList(
     LEFT JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
     LEFT JOIN heap_graph_bitmaps b ON b.object_id = o.id
     WHERE o.reachable != 0
-      AND ${dumpFilterSql(activeDump, 'o')}
+      AND ${dumpFilterSql(dump, 'o')}
       AND (c.name = 'android.graphics.Bitmap'
         OR c.deobfuscated_name = 'android.graphics.Bitmap')
     GROUP BY o.id
@@ -1833,7 +1854,7 @@ export async function getBitmapList(
   // Look up pre-computed content hashes for bitmaps with pixel data.
   const hashes =
     hashInputs.length > 0
-      ? await batchBitmapBufferHashes(engine, activeDump, hashInputs)
+      ? await batchBitmapBufferHashes(engine, dump, hashInputs)
       : new Map<number, string>();
 
   const rows: BitmapListRow[] = rawRows.map((r) => ({
@@ -1931,8 +1952,7 @@ async function getReachableSizes(
 }
 
 /**
- * Enrich InstanceRow[] with reachable sizes.  Call after initial data load;
- * the caller should trigger a re-render when the returned promise resolves.
+ * Enrich InstanceRow[] with reachable sizes.  Call after initial data load.
  */
 export async function enrichWithReachable(
   engine: Engine,

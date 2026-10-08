@@ -18,12 +18,11 @@ import type {SqlValue, Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {OverviewData} from '../types';
-import {fmtSize} from '../format';
-import type {NavState} from '../nav_state';
-import {type NavFn, sizeRenderer} from '../components';
-import type {HeapDump} from '../queries';
-import {Callout} from '../../../widgets/callout';
-import {Button} from '../../../widgets/button';
+import {sizeRenderer, fmtSize} from '../components';
+import {HdeAnchor} from '../nav';
+import * as queries from '../queries';
+import {AsyncMemo} from '../../../base/async_memo';
+import {Spinner} from '../../../widgets/spinner';
 import {
   Grid,
   GridCell,
@@ -35,8 +34,8 @@ import {
   OOME_DETAILS_TITLE,
   renderOomeDetailsGrid,
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
-import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import type {HeapDumpExplorerSession} from '../session';
 
 const HEAP_SCHEMA: ColumnSchema = {
   heap: {
@@ -60,7 +59,7 @@ const HEAP_SCHEMA: ColumnSchema = {
   },
 };
 
-function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
+function makeDuplicateBitmapSchema(dump: queries.HeapDump): ColumnSchema {
   return {
     dimensions: {
       title: 'Dimensions',
@@ -71,12 +70,10 @@ function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue, row) =>
         m(
-          Anchor,
+          HdeAnchor,
           {
-            onclick: () =>
-              navigate('bitmaps', {
-                filterKey: String(row.groupKey ?? ''),
-              }),
+            dump,
+            to: {view: 'bitmaps', filterKey: String(row.groupKey ?? '')},
           },
           String(value),
         ),
@@ -94,17 +91,15 @@ function makeDuplicateBitmapSchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
+function makeDuplicateArraySchema(dump: queries.HeapDump): ColumnSchema {
   return {
     className: {
       title: 'Array Type',
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
         m(
-          Anchor,
-          {
-            onclick: () => navigate('objects', {cls: String(value ?? '')}),
-          },
+          HdeAnchor,
+          {dump, to: {view: 'objects', cls: String(value ?? '')}},
           String(value ?? ''),
         ),
     },
@@ -117,12 +112,10 @@ function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue, row) =>
         m(
-          Anchor,
+          HdeAnchor,
           {
-            onclick: () =>
-              navigate('arrays', {
-                arrayHash: String(row.arrayHash ?? ''),
-              }),
+            dump,
+            to: {view: 'arrays', arrayHash: String(row.arrayHash ?? '')},
           },
           String(value),
         ),
@@ -140,20 +133,18 @@ function makeDuplicateArraySchema(navigate: NavFn): ColumnSchema {
   };
 }
 
-function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
+function makeDuplicateStringSchema(dump: queries.HeapDump): ColumnSchema {
   return {
     value: {
       title: 'Value',
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
         m(
-          Anchor,
+          HdeAnchor,
           {
             class: 'pf-hde-mono pf-hde-break-all pf-hde-str-color',
-            onclick: () =>
-              navigate('strings', {
-                q: String(value ?? ''),
-              }),
+            dump,
+            to: {view: 'strings', q: String(value ?? '')},
           },
           '"' +
             (String(value ?? '').length > 200
@@ -167,10 +158,8 @@ function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue, row) =>
         m(
-          Anchor,
-          {
-            onclick: () => navigate('strings', {q: String(row.value ?? '')}),
-          },
+          HdeAnchor,
+          {dump, to: {view: 'strings', q: String(row.value ?? '')}},
           String(value),
         ),
     },
@@ -188,12 +177,12 @@ function makeDuplicateStringSchema(navigate: NavFn): ColumnSchema {
 }
 
 function renderDuplicateSection(
+  dump: queries.HeapDump,
   title: string,
   groupCount: number,
   totalWasted: number,
-  targetView: string,
+  targetView: 'bitmaps' | 'strings' | 'arrays',
   linkLabel: string,
-  navigate: NavFn,
   schema: ColumnSchema,
   data: Row[],
   columns: Array<{id: string; field: string}>,
@@ -207,13 +196,7 @@ function renderDuplicateSection(
         ' detected, wasting ',
       m('span', {class: 'pf-hde-mono pf-hde-semibold'}, fmtSize(totalWasted)),
       '. ',
-      m(
-        Anchor,
-        {
-          onclick: () => navigate(targetView as NavState['view']),
-        },
-        linkLabel,
-      ),
+      m(HdeAnchor, {dump, to: {view: targetView}}, linkLabel),
     ]),
     m('div', {class: 'pf-hde-dup-grid-container'}, [
       m(DataGrid, {
@@ -227,25 +210,40 @@ function renderDuplicateSection(
 }
 
 interface OverviewViewAttrs {
-  readonly overview: OverviewData;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
-  readonly showDefaultChangedHint: boolean;
-  readonly onBackToTimeline: () => void;
-  readonly onDismissDefaultChangedHint: () => void;
+  readonly session: HeapDumpExplorerSession;
+  readonly dump: queries.HeapDump;
 }
 export function OverviewView(): m.Component<OverviewViewAttrs> {
+  const overviewMemo = new AsyncMemo<OverviewData>();
+
   return {
+    onremove() {
+      overviewMemo.dispose();
+    },
     view(vnode) {
-      const {
-        overview,
-        activeDump,
-        navigate,
-        showDefaultChangedHint,
-        onBackToTimeline,
-        onDismissDefaultChangedHint,
-      } = vnode.attrs;
-      const showHint = showDefaultChangedHint;
+      const {session, dump} = vnode.attrs;
+
+      const {isPending, data: overview} = overviewMemo.use({
+        key: {upid: dump.upid, ts: dump.ts},
+        compute: () =>
+          queries.getOverview(
+            session.trace.engine,
+            dump,
+            session.hasFieldValues,
+          ),
+      });
+      if (isPending) {
+        return m(
+          DetailsShell,
+          {
+            title: 'Overview',
+            fillHeight: true,
+            className: 'pf-hde-tab--padded',
+          },
+          m('.pf-hde-loading', m(Spinner, {easing: true})),
+        );
+      }
+
       const heapIndices: number[] = [];
       for (let i = 0; i < overview.heaps.length; i++) {
         const h = overview.heaps[i];
@@ -273,8 +271,8 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
       ];
 
       const processLabel =
-        (activeDump.processName ?? '<unknown>') +
-        (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
+        (dump.processName ?? '<unknown>') +
+        (dump.pid ? ` (pid ${dump.pid})` : '');
       const infoRow = (property: string, value: string): GridRow => [
         m(GridCell, property),
         m(GridCell, value),
@@ -288,31 +286,6 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
           className: 'pf-hde-tab--padded',
         },
         [
-          showHint
-            ? m(
-                Callout,
-                {
-                  className: 'pf-hde-default-changed-callout',
-                  icon: 'info',
-                  dismissible: true,
-                  onDismiss: onDismissDefaultChangedHint,
-                },
-                m('p', [
-                  m(
-                    'span',
-                    'Heapdump Explorer is now the default view for traces ' +
-                      'with heap-graph data.',
-                  ),
-                  m(Button, {
-                    label: 'Back to Timeline',
-                    icon: 'arrow_back',
-                    compact: true,
-                    onclick: onBackToTimeline,
-                  }),
-                ]),
-              )
-            : null,
-
           m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
             m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
             m(Grid, {
@@ -372,6 +345,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
             : null,
           overview.duplicateBitmaps && overview.duplicateBitmaps.length > 0
             ? renderDuplicateSection(
+                dump,
                 'Duplicate Bitmaps',
                 overview.duplicateBitmaps.length,
                 overview.duplicateBitmaps.reduce(
@@ -380,8 +354,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                 ),
                 'bitmaps',
                 'View Bitmaps',
-                navigate,
-                makeDuplicateBitmapSchema(navigate),
+                makeDuplicateBitmapSchema(dump),
                 overview.duplicateBitmaps.map((g) => ({
                   dimensions: `${g.width} \u00d7 ${g.height}`,
                   groupKey: g.groupKey,
@@ -397,7 +370,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   {id: 'wasted_bytes', field: 'wasted_bytes'},
                 ],
               )
-            : overview.hasFieldValues
+            : session.hasFieldValues
               ? m(
                   'div',
                   {class: 'pf-hde-card pf-hde-mt-4 pf-hde-mb-4'},
@@ -410,6 +383,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               : null,
           overview.duplicateStrings && overview.duplicateStrings.length > 0
             ? renderDuplicateSection(
+                dump,
                 'Duplicate Strings',
                 overview.duplicateStrings.length,
                 overview.duplicateStrings.reduce(
@@ -418,8 +392,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                 ),
                 'strings',
                 'View Strings',
-                navigate,
-                makeDuplicateStringSchema(navigate),
+                makeDuplicateStringSchema(dump),
                 overview.duplicateStrings.map((g) => ({
                   value: g.value,
                   copies: g.count,
@@ -433,7 +406,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   {id: 'wasted_bytes', field: 'wasted_bytes'},
                 ],
               )
-            : overview.hasFieldValues
+            : session.hasFieldValues
               ? m(
                   'div',
                   {class: 'pf-hde-card pf-hde-mb-4'},
@@ -446,13 +419,13 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               : null,
           overview.duplicateArrays && overview.duplicateArrays.length > 0
             ? renderDuplicateSection(
+                dump,
                 'Duplicate Primitive Arrays',
                 overview.duplicateArrays.length,
                 overview.duplicateArrays.reduce((a, g) => a + g.wastedBytes, 0),
                 'arrays',
                 'View Arrays',
-                navigate,
-                makeDuplicateArraySchema(navigate),
+                makeDuplicateArraySchema(dump),
                 overview.duplicateArrays.map((g) => ({
                   className: g.className,
                   arrayHash: g.arrayHash,

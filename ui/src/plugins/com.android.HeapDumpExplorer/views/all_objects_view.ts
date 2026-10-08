@@ -13,15 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Memo} from '../../../base/memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
-import {fmtHex} from '../format';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   shortClassName,
@@ -29,20 +28,19 @@ import {
   RowCounter,
   COL_INFO,
   colHeader,
+  fmtHex,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
-import {Anchor} from '../../../widgets/anchor';
+import * as queries from '../queries';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {type DumpRef, HdeAnchor} from '../nav';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
-  readonly clearNavParam: (key: string) => void;
-  readonly initialClass?: string;
+  readonly dump: queries.HeapDump;
+  readonly cls?: string;
 }
 
-function buildQuery(activeDump: HeapDump): string {
+function buildQuery(dump: queries.HeapDump): string {
   return `
     SELECT
       base.*,
@@ -65,13 +63,13 @@ function buildQuery(activeDump: HeapDump): string {
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
       WHERE o.reachable != 0
-        AND ${dumpFilterSql(activeDump, 'o')}
+        AND ${queries.dumpFilterSql(dump, 'o')}
     ) base
     LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -82,14 +80,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const display = `${shortClassName(cls)} ${fmtHex(id)}`;
         const str = row.str != null ? String(row.str) : null;
         return m('span', [
-          m(
-            Anchor,
-            {
-              onclick: () =>
-                navigate('object', {id, label: str ? `"${str}"` : display}),
-            },
-            display,
-          ),
+          m(HdeAnchor, {dump, to: {view: 'object', id}}, display),
           str
             ? m(
                 'span',
@@ -164,50 +155,40 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
 }
 
 export function AllObjectsView({
-  attrs: {engine, activeDump},
+  attrs: {engine},
 }: m.Vnode<AllObjectsViewAttrs>): m.Component<AllObjectsViewAttrs> {
-  const query = buildQuery(activeDump);
-  const datasource = new SQLDataSource({
-    engine,
-    tableOrSubquery: query,
-    preamble: SQL_PREAMBLE,
-  });
-  const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
-
-  let filters: Filter[] = [];
-
-  function applyNavFilter(
-    cls: string | undefined,
-    clearNavParam: (key: string) => void,
-  ) {
-    if (!cls) return;
-    filters = [{field: 'cls', op: '=' as const, value: cls}];
-    counter.onFiltersChanged(filters);
-    clearNavParam('cls');
-  }
+  const datasourceMemo = new Memo<SQLDataSource>();
+  const counter = new RowCounter(engine, SQL_PREAMBLE);
 
   return {
-    oninit(vnode) {
-      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
-    },
-    onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
-    },
     onremove() {
-      datasource.dispose();
+      datasourceMemo.dispose();
+      counter.dispose();
     },
-    view(vnode) {
-      const {navigate} = vnode.attrs;
+    view({attrs}) {
+      const {dump, cls} = attrs;
+      const query = buildQuery(dump);
+      const datasource = datasourceMemo.use({
+        key: {query},
+        compute: () =>
+          new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: SQL_PREAMBLE,
+          }),
+      });
+      const filters: Filter[] = cls
+        ? [{field: 'cls', op: '=', value: cls}]
+        : [];
 
       return m(
         DetailsShell,
         {
-          title: counter.heading('Objects'),
+          title: counter.heading('Objects', query, filters),
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(dump),
           data: datasource,
           fillHeight: true,
           initialColumns: [
@@ -225,10 +206,6 @@ export function AllObjectsView({
           ],
           filters,
           showExportButton: true,
-          onFiltersChanged: (f) => {
-            filters = [...f];
-            counter.onFiltersChanged(f);
-          },
         }),
       );
     },

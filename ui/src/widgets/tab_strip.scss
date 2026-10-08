@@ -130,6 +130,12 @@
     }
   }
 
+  // TabStrip.Separator: a small gap between groups of tabs.
+  &__separator {
+    flex: none;
+    width: 8px;
+  }
+
   // The 'underline' variant: flat text tabs on a transparent bar with a
   // primary underline on the active tab.
   &--underline {

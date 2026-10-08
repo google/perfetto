@@ -15,48 +15,37 @@
 import {z} from 'zod';
 import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 
-// Schema for the slice of Heap Dump Explorer state that survives in a shared
-// permalink. The session writes this on every state change via mountStore;
-// the core serializes it into the permalink and restores it before the plugin
-// loads (see core/state_serialization.ts).
-//
-// Timestamps are heap dump `ts` values (bigint) and are stored as decimal
-// strings because JSON has no bigint.
+// Heap Dump Explorer state persisted in permalinks. Per-dump state is keyed
+// by dumpKey() (see nav.ts).
 
-const DUMP_REF_SCHEMA = z.object({
-  upid: z.number(),
-  ts: z.string(),
-});
+// A pinned tab. Mirrors EphemeralHdeLink (see nav.ts).
+const PINNED_TAB_SCHEMA = z.discriminatedUnion('view', [
+  z
+    .object({
+      view: z.literal('flamegraph-objects'),
+      pathHashes: z.string(),
+      isDominator: z.boolean(),
+    })
+    .readonly(),
+  z.object({view: z.literal('object'), id: z.number()}).readonly(),
+]);
 
-// A flamegraph tab always belongs to the active dump (tabs reset on dump
-// switch), so the dump is taken from activeDump rather than stored per tab.
-const FLAMEGRAPH_TAB_SCHEMA = z.object({
-  pathHashes: z.string(),
-  isDominator: z.boolean(),
-});
-
-const INSTANCE_TAB_SCHEMA = z.object({
-  objId: z.number(),
-  label: z.string(),
-});
-
-export const HDE_STATE_SCHEMA = z
+const HDE_STATE_SCHEMA = z
   .object({
-    // The selected heap dump; identifies which dump the rest of the state
-    // belongs to. Restore is skipped if it no longer matches a loaded dump.
-    activeDump: DUMP_REF_SCHEMA.optional(),
-    // The active navigation, as a stateToSubpage subpage string.
-    nav: z.string().optional(),
-    // Open "Flamegraph objects" drill-down tabs. The active one is not stored;
-    // it is re-derived from nav (which encodes the tab's pathHashes) on restore.
-    flamegraphTabs: z.array(FLAMEGRAPH_TAB_SCHEMA).optional(),
-    // Open object/instance inspector tabs. The active one is not stored; it is
-    // re-derived from nav (which encodes the object id) on restore.
-    instanceTabs: z.array(INSTANCE_TAB_SCHEMA).optional(),
-    // Filter / pivot / view state of the main Flamegraph tab.
-    flamegraphPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
-    // Filter / pivot / view state of the Callstack tab.
-    callstackPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
+    version: z.literal(2),
+    // The subpage last rendered (e.g. '/<dump>/objects/Foo'), including the
+    // leading '/', so a permalink reopens on the same page.
+    subpage: z.string().optional(),
+    // Filter / pivot / view state of the main Flamegraph tab, per dump.
+    flamegraphPanelStates: z
+      .record(z.string(), TREE_EXPLORER_STATE_SCHEMA)
+      .optional(),
+    // Filter / pivot / view state of the Callstack tab, per dump.
+    callstackPanelStates: z
+      .record(z.string(), TREE_EXPLORER_STATE_SCHEMA)
+      .optional(),
+    // Pinned object / flamegraph drill-down tabs, per dump, in tab order.
+    pinnedTabs: z.record(z.string(), z.array(PINNED_TAB_SCHEMA)).optional(),
   })
   .readonly();
 
@@ -65,5 +54,5 @@ export type HdeState = z.infer<typeof HDE_STATE_SCHEMA>;
 // An unparseable or older permalink falls back to empty state rather than
 // throwing.
 export function migrateHdeState(init: unknown): HdeState {
-  return HDE_STATE_SCHEMA.safeParse(init).data ?? {};
+  return HDE_STATE_SCHEMA.safeParse(init).data ?? {version: 2};
 }

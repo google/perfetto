@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Memo} from '../../../base/memo';
 import type {Engine} from '../../../trace_processor/engine';
 import type {SqlValue, Row} from '../../../trace_processor/query_result';
 import {Spinner} from '../../../widgets/spinner';
@@ -21,24 +22,23 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {StringListRow} from '../types';
-import {fmtSize, fmtHex} from '../format';
 import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
-  type NavFn,
   sizeRenderer,
   countRenderer,
   SQL_PREAMBLE,
   RowCounter,
   COL_INFO,
   colHeader,
+  fmtSize,
+  fmtHex,
 } from '../components';
 import * as queries from '../queries';
-import {dumpFilterSql, type HeapDump} from '../queries';
-import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {AsyncMemo} from '../../../base/async_memo';
+import {type DumpRef, HdeAnchor} from '../nav';
 
-function buildQuery(activeDump: HeapDump): string {
+function buildQuery(dump: queries.HeapDump): string {
   return `
     SELECT base.*,
       a.cumulative_size AS reachable_size,
@@ -58,7 +58,7 @@ function buildQuery(activeDump: HeapDump): string {
       LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
       LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
       WHERE o.reachable != 0
-        AND ${dumpFilterSql(activeDump, 'o')}
+        AND ${queries.dumpFilterSql(dump, 'o')}
         AND od.value_string IS NOT NULL
         AND (c.name = 'java.lang.String'
           OR c.deobfuscated_name = 'java.lang.String')
@@ -67,7 +67,7 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(dump: DumpRef): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -77,16 +77,11 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
         const str = row.value != null ? String(row.value) : null;
         const display = `String ${fmtHex(id)}`;
         return m(
-          Anchor,
+          HdeAnchor,
           {
             class: 'pf-hde-str-color',
-            onclick: () =>
-              navigate('object', {
-                id,
-                label: str
-                  ? `"${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`
-                  : display,
-              }),
+            dump,
+            to: {view: 'object', id},
           },
           m(
             'span',
@@ -157,54 +152,32 @@ const SUMMARY_SCHEMA: ColumnSchema = {
 
 interface StringsViewAttrs {
   readonly engine: Engine;
-  readonly activeDump: HeapDump;
-  readonly navigate: NavFn;
-  readonly clearNavParam: (key: string) => void;
-  readonly initialQuery?: string;
-  readonly hasFieldValues?: boolean;
+  readonly dump: queries.HeapDump;
+  readonly q?: string;
+  readonly hasFieldValues: boolean;
 }
 
 export function StringsView({
-  attrs: {engine, activeDump},
+  attrs: {engine},
 }: m.Vnode<StringsViewAttrs>): m.Component<StringsViewAttrs> {
-  const query = buildQuery(activeDump);
-  const datasource = new SQLDataSource({
-    engine,
-    tableOrSubquery: query,
-    preamble: SQL_PREAMBLE,
-  });
-  const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
+  const datasourceMemo = new Memo<SQLDataSource>();
+  const counter = new RowCounter(engine, SQL_PREAMBLE);
   const allRowsMemo = new AsyncMemo<readonly StringListRow[]>();
-  let filters: Filter[] = [];
-
-  function applyNavFilter(
-    q: string | undefined,
-    clearNavParam: (key: string) => void,
-  ) {
-    if (!q) return;
-    filters = [{field: 'value', op: '=' as const, value: q}];
-    counter.onFiltersChanged(filters);
-    clearNavParam('q');
-  }
 
   return {
-    oninit(vnode) {
-      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
-    },
-    onupdate(vnode) {
-      applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
-    },
     onremove() {
-      datasource.dispose();
+      counter.dispose();
+      datasourceMemo.dispose();
       allRowsMemo.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {dump, q} = vnode.attrs;
+      const query = buildQuery(dump);
+      const filters: Filter[] = q ? [{field: 'value', op: '=', value: q}] : [];
 
       const {isPending, data: allRows} = allRowsMemo.use({
-        key: {},
-        compute: () => queries.getStringList(engine, activeDump),
+        key: {upid: dump.upid, ts: dump.ts},
+        compute: () => queries.getStringList(engine, dump),
       });
 
       if (isPending) {
@@ -221,10 +194,9 @@ export function StringsView({
           {title: 'Strings', fillHeight: true, className: 'pf-hde-tab--padded'},
           m(EmptyState, {
             icon: 'text_fields',
-            title:
-              vnode.attrs.hasFieldValues === false
-                ? 'String values require an ART heap dump (.hprof)'
-                : 'No string data available',
+            title: !vnode.attrs.hasFieldValues
+              ? 'String values require an ART heap dump (.hprof)'
+              : 'No string data available',
             fillHeight: true,
           }),
         );
@@ -243,10 +215,20 @@ export function StringsView({
         {property: 'Total retained', value: fmtSize(totalRetained)},
       ];
 
+      const datasource = datasourceMemo.use({
+        key: {query},
+        compute: () =>
+          new SQLDataSource({
+            engine,
+            tableOrSubquery: query,
+            preamble: SQL_PREAMBLE,
+          }),
+      });
+
       return m(
         DetailsShell,
         {
-          title: counter.heading('Strings'),
+          title: counter.heading('Strings', query, filters),
           fillHeight: true,
           className: 'pf-hde-tab--padded',
         },
@@ -263,7 +245,7 @@ export function StringsView({
           ]),
 
           m(DataGrid, {
-            schema: makeUiSchema(navigate),
+            schema: makeUiSchema(dump),
             data: datasource,
             fillHeight: true,
             initialColumns: [
@@ -278,10 +260,6 @@ export function StringsView({
             ],
             filters,
             showExportButton: true,
-            onFiltersChanged: (f) => {
-              filters = [...f];
-              counter.onFiltersChanged(f);
-            },
           }),
         ],
       );

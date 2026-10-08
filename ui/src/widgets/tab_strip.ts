@@ -230,6 +230,7 @@ export namespace TabStrip {
         className,
         ...htmlAttrs
       } = attrs;
+      const preventNav = active || disabled;
       return m(
         'a.pf-tab-strip__tab',
         {
@@ -243,8 +244,8 @@ export namespace TabStrip {
           'aria-disabled': disabled ? 'true' : undefined,
           // An <a> without an href can't be followed (click, middle-click, or
           // open in new tab), which is exactly what disabled should mean.
-          'href': disabled ? undefined : href,
-          'onclick': disabled ? undefined : onclick,
+          'href': preventNav ? undefined : href,
+          'onclick': preventNav ? undefined : onclick,
         },
         renderTabContent(icon, children),
         onClose &&
@@ -260,6 +261,13 @@ export namespace TabStrip {
             },
           }),
       );
+    }
+  }
+
+  // A small gap between groups of tabs, for use inside TabStrip.
+  export class Separator implements m.ClassComponent<HTMLAttrs> {
+    view({attrs}: m.CVnode<HTMLAttrs>): m.Children {
+      return m('.pf-tab-strip__separator', attrs);
     }
   }
 }

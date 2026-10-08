@@ -20,18 +20,12 @@ import type {Filter} from '../../components/widgets/datagrid/model';
 import {filterToSql} from '../../components/widgets/datagrid/sql_utils';
 import type {Engine} from '../../trace_processor/engine';
 import type {InstanceRow, PathEntry, PrimOrRef} from './types';
-import {fmtSize} from './format';
-import type {NavState} from './nav_state';
 import {Tooltip} from '../../widgets/tooltip';
 import {Icon} from '../../widgets/icon';
-import {Anchor} from '../../widgets/anchor';
+import {type DumpRef, HdeAnchor} from './nav';
+import {AsyncMemo} from '../../base/async_memo';
 
-export type NavFn = (
-  view: NavState['view'],
-  params?: Record<string, unknown>,
-) => void;
-
-export type ObjLinkRef = {
+type ObjLinkRef = {
   id: number;
   display: string;
   str?: string | null;
@@ -39,12 +33,12 @@ export type ObjLinkRef = {
 
 interface InstanceLinkAttrs {
   readonly row: InstanceRow | ObjLinkRef | null;
-  readonly navigate: NavFn;
+  readonly dump: DumpRef;
 }
 export function InstanceLink(): m.Component<InstanceLinkAttrs> {
   return {
     view(vnode) {
-      const {row, navigate} = vnode.attrs;
+      const {row, dump} = vnode.attrs;
       if (!row || row.id === 0) {
         return m('span', {class: 'pf-hde-badge-referent'}, 'ROOT');
       }
@@ -61,13 +55,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
             )
           : null,
         full?.isRoot ? m('span', {class: 'pf-hde-badge-root'}, 'root') : null,
-        m(
-          Anchor,
-          {
-            onclick: () => navigate('object', {id: row.id, label: row.display}),
-          },
-          row.display,
-        ),
+        m(HdeAnchor, {dump, to: {view: 'object', id: row.id}}, row.display),
         row.str != null
           ? m(
               'span',
@@ -89,7 +77,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
               ' for ',
               m(InstanceLink, {
                 row: full.referent,
-                navigate,
+                dump,
               }),
             )
           : null,
@@ -185,6 +173,18 @@ export function countRenderer(value: SqlValue): CellRenderResult {
  *  shortened independently so `java.util.Map<java.lang.String, int[]>` becomes
  *  `Map<String, int[]>`.
  */
+export function fmtSize(n: number): string {
+  if (n === 0) return '0';
+  if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GiB`;
+  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(1)} MiB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(1)} KiB`;
+  return n.toLocaleString();
+}
+
+export function fmtHex(id: number): string {
+  return '0x' + id.toString(16).padStart(8, '0');
+}
+
 export function shortClassName(full: string): string {
   const bracket = full.indexOf('[');
   const base = bracket >= 0 ? full.slice(0, bracket) : full;
@@ -264,91 +264,73 @@ export const SQL_PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree';
 
 /**
- * Tracks total and filtered row counts for a SQL-backed DataGrid view.
- *  Call `init()` in oninit, pass `onFiltersChanged` to DataGrid, and read
- *  `heading()` for the formatted title.
+ * Total and filtered row counts for a SQL-backed DataGrid view. Call
+ * `heading()` every render with the current query and filters; counts are
+ * fetched (and cached) per query / filter set. Call `dispose()` on removal.
  */
 export class RowCounter {
-  total: number | null = null;
-  filtered: number | null = null;
+  private readonly totalMemo = new AsyncMemo<number>();
+  private readonly filteredMemo = new AsyncMemo<number>();
 
-  private engine: Engine | null = null;
-  private baseQuery = '';
-  private preamble = '';
-  private currentFilters: readonly Filter[] = [];
-
-  init(engine: Engine, query: string, preamble = '') {
-    this.engine = engine;
-    this.baseQuery = query;
-    this.preamble = preamble;
-    this.runCount();
-  }
+  constructor(
+    private readonly engine: Engine,
+    private readonly preamble = '',
+  ) {}
 
   /** Format a heading like "Objects (1,234)" or "Objects (42 / 1,234)". */
-  heading(label: string): string {
-    if (this.total === null) return label;
-    if (
-      this.filtered !== null &&
-      this.currentFilters.length > 0 &&
-      this.filtered !== this.total
-    ) {
-      return `${label} (${this.filtered.toLocaleString()} / ${this.total.toLocaleString()})`;
+  heading(
+    label: string,
+    query: string,
+    filters: readonly Filter[] = [],
+  ): string {
+    const total = this.totalMemo.use({
+      key: {query},
+      compute: () => this.count(query),
+    }).data;
+    if (total === undefined) return label;
+
+    const where = filters.map((f) => filterToSql(f, f.field)).join(' AND ');
+    const filtered =
+      where === ''
+        ? total
+        : this.filteredMemo.use({
+            key: {query, where},
+            compute: () => this.count(query, where),
+            retainOn: ['where'],
+          }).data;
+    if (filtered === undefined || filtered === total) {
+      return `${label} (${total.toLocaleString()})`;
     }
-    return `${label} (${this.total.toLocaleString()})`;
+    return `${label} (${filtered.toLocaleString()} / ${total.toLocaleString()})`;
   }
 
-  /** Pass this as the DataGrid `onFiltersChanged` callback. */
-  readonly onFiltersChanged = (filters: readonly Filter[]) => {
-    this.currentFilters = filters;
-    this.runFilteredCount();
-  };
-
-  private runCount() {
-    if (!this.engine) return;
-    const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(`${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery})`)
-      .then((r) => {
-        this.total = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
+  dispose(): void {
+    this.totalMemo.dispose();
+    this.filteredMemo.dispose();
   }
 
-  private runFilteredCount() {
-    if (!this.engine || this.currentFilters.length === 0) {
-      this.filtered = null;
-      m.redraw();
-      return;
-    }
-    const where = this.currentFilters
-      .map((f) => filterToSql(f, f.field))
-      .join(' AND ');
+  private async count(query: string, where?: string): Promise<number> {
     const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(
-        `${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery}) WHERE ${where}`,
-      )
-      .then((r) => {
-        this.filtered = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
+    const suffix = where ? ` WHERE ${where}` : '';
+    const r = await this.engine.query(
+      `${prefix}SELECT COUNT(*) AS cnt FROM (${query})${suffix}`,
+    );
+    return r.firstRow({cnt: NUM}).cnt;
   }
 }
 
 interface PrimOrRefCellAttrs {
   readonly v: PrimOrRef;
-  readonly navigate: NavFn;
+  readonly dump: DumpRef;
 }
 export function PrimOrRefCell(): m.Component<PrimOrRefCellAttrs> {
   return {
     view(vnode) {
-      const {v, navigate} = vnode.attrs;
+      const {v, dump} = vnode.attrs;
       if (v.kind === 'ref') {
         return m(InstanceLink, {
           row: {id: v.id, display: v.display, str: v.str},
-          navigate,
+          dump,
         });
       }
       return m('span', {class: 'pf-hde-mono'}, v.v);
@@ -412,7 +394,7 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
 }
 
 /** Renders a single dominator-tree path as an indented arrow chain. */
-export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
+export function renderPath(path: PathEntry[], dump: DumpRef): m.Children {
   return m(
     'div',
     {class: 'pf-hde-view-stack--tight'},
@@ -426,7 +408,7 @@ export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
         },
         [
           m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '\u2192'),
-          m(InstanceLink, {row: pe.row, navigate}),
+          m(InstanceLink, {row: pe.row, dump}),
           pe.field ? m('span', {class: 'pf-hde-path-field'}, pe.field) : null,
         ],
       ),
