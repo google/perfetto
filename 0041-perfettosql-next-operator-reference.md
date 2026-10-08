@@ -139,7 +139,30 @@ written without leaving the pipe surface.
 
 ## 3. Shared grammar
 
-**`PER cols`** confines an operator to each key group independently.
+**`PER cols`** names the **lane**: rows interact only with rows of the same
+lane, and each lane is processed independently. For the operators that collapse
+rows (`FLATTEN`, `MERGE`), the lane is also part of the collapse key: rows
+collapse only within a lane. (`BY`, below, is a different thing: a key the rows
+must _additionally_ agree on.)
+
+```
+per_clause := "PER" ( cols | "ROLLUP" "(" cols ")" ) ;
+```
+
+**`PER ROLLUP(a, b, …)`** runs the operator once per prefix of the key list,
+`(a, b, …)`, …, `(a)`, `()`, and unions the results. It is the interval
+counterpart of `GROUP BY ROLLUP` (§4) and is allowed only on the collapsing
+operators (`FLATTEN`, `MERGE`); elsewhere it is an error. Rolled-up key columns
+are null; `GROUPING(col)` is 1 where `col` is rolled up, telling a rolled-up
+null from a genuine null key. Because the aggregate vocabulary is decomposable,
+each level can be computed from the level below rather than from the input.
+
+```
+-- Concurrency per (server process, interface, method) and every level above.
+FROM binder_txns
+|> INTERVAL FLATTEN PER ROLLUP(server_process, interface, method)
+   AGGREGATE COUNT(*) AS concurrency
+```
 
 **Anchor** (closed), an endpoint or extent of the current row or a named
 relation:
@@ -201,6 +224,11 @@ then the named aggregates (in order), the GoogleSQL-pipe contract. So a
 following `|> SELECT <those same columns, same order>` is a no-op; a `SELECT` is
 only needed to rename, reorder, compute, or drop columns.
 
+`GROUP BY ROLLUP(cols)` groups by each prefix of `cols` and unions the results,
+with `GROUPING(col)` marking rolled-up columns, as in GoogleSQL. `GROUPING SETS`
+and `CUBE` are not supported: every known use is a hierarchy, which `ROLLUP`
+covers and which keeps the result a tree.
+
 A `GROUP BY` entry is `expr [ AS name ]`. A key appears only in `GROUP BY`,
 never restated in the body; anything functionally determined by a key is itself
 a key (`GROUP BY c.cpu, c.idle + 1 AS state`).
@@ -244,9 +272,23 @@ source := "INTERVAL" ( "INTERSECTION" | "UNION" ) "OF" "(" rel { "," rel } ")" [
 ```
 
 `INTERSECTION OF` emits a fragment over each region where **all** inputs
-overlap; `UNION OF` over each region where **any** input covers. Both
-co-fragment the operands side by side: each output fragment carries every
-operand's columns, null where that operand is absent.
+overlap; `UNION OF` over each region where **any** input covers. They are the
+inner and full-outer forms of one operation: both co-fragment the operands side
+by side, cutting at every operand's boundaries, and each output fragment carries
+every operand's columns.
+
+- **Absent operands.** Under `UNION OF`, an operand absent from a fragment has
+  its columns null, including its own `alias.ts`. A row without a `ts` covers
+  no time, so `alias.ts IS NOT NULL` is exactly where the operand is present,
+  telling a genuine null apart from absence.
+- **Self-overlap.** Where several rows of one operand cover a region, one
+  fragment is emitted per combination of rows, as in a join. A region covered
+  by `a1` and `a2` and no row of `b` is `(a1, null)` and `(a2, null)`.
+- **Lanes.** Under `PER`, `INTERSECTION OF` emits nothing for a lane missing
+  from any operand; `UNION OF` emits fragments for a lane present in any.
+
+`UNION OF` is not relational `UNION`, which stacks rows, nor the union of
+coverage, which is `UNION ALL` followed by `INTERVAL MERGE OVERLAPPING`.
 
 ```
 WITH cpu_residency AS (
@@ -305,31 +347,62 @@ stage := "|>" "INTERVAL SUBTRACT" rel [ "PER" cols ] ;
 
 Removes the operand's coverage; the pieces _outside_ the operand survive.
 
-#### `INTERVAL FILL`
+#### `INTERVAL FILL GAPS`
 
 ```
-stage := "|>" "INTERVAL FILL" "WITHIN" rel [ "PER" cols ] ;
+stage := "|>" "INTERVAL FILL GAPS WITH" rel [ "PER" cols ] ;
 ```
 
-Fills the gaps in the current stream: every input interval passes through, and a
-null-payload filler is added over each span of `WITHIN` the stream does not
-cover, per lane, so the output tiles `WITHIN` completely. (For the gaps _alone_,
-subtract the stream from `WITHIN` with `INTERVAL SUBTRACT`.)
+Lays the current stream over a background `rel`: every input row passes through
+unchanged, and each span of `rel` the stream does not cover becomes a filler
+row carrying that `rel` row's payload. `rel` is both the extent to cover and the
+value to cover it with; there is no built-in extent, so the caller names it
+(`trace_bounds`, a UI window, a per-lane span).
+
+- **Payload.** Filler columns are matched to the stream's by name. A stream
+  column absent from `rel` is null on fillers; a `rel` column absent from the
+  stream is added, null on input rows (so `TRUE AS filled` in `rel` marks the
+  fillers). A type mismatch is an error.
+- **Lanes.** If `rel` has the `PER` columns, the lanes are `rel`'s, so a lane
+  with no input rows is still filled. Otherwise every `rel` row applies to every
+  lane of the stream.
+- **Background.** `rel` may hold several intervals per lane with different
+  payloads; a gap takes whichever background is live there. `rel` must not
+  self-overlap within a lane.
+- **Fixed behaviour.** Input rows are never cut, and may overlap each other. A
+  `dur = -1` row covers to the end of `rel`. No zero-width fillers are emitted.
+  Input outside `rel` passes through: filling never clips.
+
+For the gaps _alone_, subtract the stream from the background with
+`INTERVAL SUBTRACT`.
 
 ```
-FROM thread_state AS s
-|> INTERVAL FILL WITHIN trace_bounds PER utid
+-- Per-thread power, 0 mW whenever the thread is not running.
+FROM thread_estimates
+|> INTERVAL FILL GAPS WITH (FROM trace_bounds |> EXTEND 0 AS mw) PER utid
+
+-- Every CPU, including those never hotplugged, online unless known otherwise.
+FROM cpu_hotplug_offline
+|> INTERVAL FILL GAPS WITH (
+     FROM cpu
+     |> SELECT cpu, trace_start() AS ts, trace_dur() AS dur, FALSE AS offline
+   ) PER cpu
 ```
 
 #### `INTERVAL FLATTEN`
 
 ```
-stage := "|>" "INTERVAL FLATTEN" [ "PER" cols ] agg_clause ;
+stage := "|>" "INTERVAL FLATTEN" [ per_clause ] agg_clause ;
 ```
 
 Cuts a self-overlapping set at every internal boundary into disjoint segments
 and collapses the rows live in each segment into one row via `agg_clause`. Emits
-nothing over uncovered time.
+nothing over uncovered time (follow with `FILL GAPS` for an explicit zero).
+
+Output is `ts`, `dur`, the `PER` columns, then the aggregates; every other
+column is dropped. This is the §4 `AGGREGATE … GROUP BY` contract with the
+segment as an implicit extra key: FLATTEN is a self-`SPLIT` within each lane
+followed by that aggregation, fused so the fragments are never materialized.
 
 ```
 FROM slices
@@ -340,8 +413,8 @@ FROM slices
 #### `INTERVAL MERGE`
 
 ```
-stage := "|>" "INTERVAL MERGE OVERLAPPING" [ "PER" cols ] agg_clause
-       | "|>" "INTERVAL MERGE CONSECUTIVE BY" cols [ "PER" cols ] agg_clause ;
+stage := "|>" "INTERVAL MERGE OVERLAPPING" [ per_clause ] agg_clause
+       | "|>" "INTERVAL MERGE CONSECUTIVE BY" cols [ per_clause ] agg_clause ;
 ```
 
 `OVERLAPPING` coalesces overlapping and abutting intervals into coverage;
@@ -685,7 +758,7 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
 | :-------------------------------------- | :--------------- | :------------------------------------------------ |
 | `INTERVAL INTERSECTION OF` / `UNION OF` | interval source  | combine N coverages (all / any)                   |
 | `INTERVALS FROM EVENTS`                 | interval source  | events → intervals                                |
-| `INTERVAL FILL`                         | interval reshape | pass input through + fill gaps to cover an extent |
+| `INTERVAL FILL GAPS`                    | interval reshape | fill uncovered spans from a background            |
 | `INTERVAL SPLIT`                        | interval reshape | fragment at operand boundaries; lossless          |
 | `INTERVAL SUBTRACT`                     | interval reshape | keep the non-operand pieces                       |
 | `INTERVAL FLATTEN`                      | interval reshape | resolve self-overlap; collapse each segment       |
@@ -719,7 +792,8 @@ GRAPH DOMINATOR TREE NODES heap_objects EDGES heap_refs FROM gc_roots
   onto a node (the tree twin of `INTERVAL FIND`).
 - **Property propagation** across grafted or joined trees.
 - **Interval `OVERLAY`**, priority/z-order compositing (a higher lane replaces a
-  lower one on overlap, both survive outside); `MERGE` cannot hole-punch.
+  lower one on overlap, both survive outside); `MERGE` cannot hole-punch. The
+  two-layer case, a stream over a background, is `FILL GAPS` (§5.2).
 - **Mid-pipe clip** to a window or operand extent (`INTERSECTION OF` is a source
   only); cross-lane bounds and greedy start↔end stream pairing.
 
