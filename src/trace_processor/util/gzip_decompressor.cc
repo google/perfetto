@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/gzip_decompressor.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -32,6 +33,12 @@ struct z_stream_s {};
 namespace perfetto::trace_processor::util {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+
+namespace {
+// zlib's avail_in/avail_out are 32-bit. Hand data to zlib in 1 GiB chunks so
+// that buffers >= 4 GiB (e.g. zip64 entries) are not truncated.
+constexpr size_t kMaxZlibChunk = 1u << 30;
+}  // namespace
 
 GzipDecompressor::GzipDecompressor(InputMode mode)
     : z_stream_(new z_stream_s()) {
@@ -53,16 +60,30 @@ void GzipDecompressor::Feed(const uint8_t* data, size_t size) {
   // pointer. This is only necessary because of the build flags we use to be
   // compatible with other embedders.
   z_stream_->next_in = const_cast<uint8_t*>(data);
-  z_stream_->avail_in = static_cast<uInt>(size);
+  size_t chunk = std::min(size, kMaxZlibChunk);
+  z_stream_->avail_in = static_cast<uInt>(chunk);
+  pending_in_ = size - chunk;
 }
 
 GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
                                                          size_t out_capacity) {
-  if (z_stream_->next_in == nullptr || out_capacity == 0)
+  if (out_capacity == 0)
     return Result{ResultCode::kNeedsMoreInput, 0};
 
+  // zlib advances next_in as it consumes input, so the next chunk of pending
+  // input starts right there.
+  if (z_stream_->avail_in == 0 && pending_in_ > 0) {
+    size_t chunk = std::min(pending_in_, kMaxZlibChunk);
+    z_stream_->avail_in = static_cast<uInt>(chunk);
+    pending_in_ -= chunk;
+  }
+
+  // Note: we intentionally do not early-return when avail_in is 0: inflate()
+  // may still hold buffered output (e.g. the tail of a back-reference) that
+  // did not fit into the previous output buffer.
+  size_t out_chunk = std::min(out_capacity, kMaxZlibChunk);
   z_stream_->next_out = out;
-  z_stream_->avail_out = static_cast<uInt>(out_capacity);
+  z_stream_->avail_out = static_cast<uInt>(out_chunk);
 
   int ret = inflate(z_stream_.get(), Z_NO_FLUSH);
   switch (ret) {
@@ -74,16 +95,16 @@ GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
       inflateEnd(z_stream_.get());
       return Result{ResultCode::kError, 0};
     case Z_STREAM_END:
-      return Result{ResultCode::kEof, out_capacity - z_stream_->avail_out};
+      return Result{ResultCode::kEof, out_chunk - z_stream_->avail_out};
     case Z_BUF_ERROR:
       return Result{ResultCode::kNeedsMoreInput, 0};
     default:
-      return Result{ResultCode::kOk, out_capacity - z_stream_->avail_out};
+      return Result{ResultCode::kOk, out_chunk - z_stream_->avail_out};
   }
 }
 
 size_t GzipDecompressor::AvailIn() const {
-  return z_stream_->avail_in;
+  return z_stream_->avail_in + pending_in_;
 }
 
 void GzipDecompressor::Deleter::operator()(z_stream_s* stream) const {
@@ -100,7 +121,7 @@ GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t*, size_t) {
   return Result{ResultCode::kError, 0};
 }
 size_t GzipDecompressor::AvailIn() const {
-  return 0;
+  return pending_in_;
 }
 void GzipDecompressor::Deleter::operator()(z_stream_s*) const {}
 

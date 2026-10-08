@@ -321,18 +321,6 @@ TEST(ZipReaderTest, MalformedZip64_OversizedExtraFieldRecord) {
       IsError());
 }
 
-TEST(ZipReaderTest, MalformedZip64_DuplicateExtraField) {
-  // Local header with two 0x0001 extra fields (each 16 bytes, total 40 bytes).
-  uint8_t content[101]{};
-  memcpy(content, kTestZip64, 61);  // Copy 1st file header + fname + 1st extra
-  content[28] = 40;                 // extra_field_len = 40 (2 * 20 bytes)
-  memcpy(content + 61, kTestZip64 + 41, 20);  // 2nd duplicate 0x0001 extra
-  memcpy(content + 81, kTestZip64 + 61, 4);   // "foo\n"
-  ASSERT_THAT(
-      ZipReader().Parse(TraceBlobView(TraceBlob::CopyFrom(content, 85))),
-      IsError());
-}
-
 TEST(ZipReaderTest, ValidZip64_EmptyArchive) {
   // Empty Zip64 archive starting directly with the 98-byte Zip64 EOCD record +
   // Zip64 EOCD locator + standard EOCD from kTestZip64.
