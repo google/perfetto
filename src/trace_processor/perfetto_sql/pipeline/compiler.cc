@@ -291,9 +291,22 @@ base::StatusOr<ColumnId> Compiler::Resolve(const std::string& qualifier,
   return matches.front()->column.id;
 }
 
+base::StatusOr<ColumnId> Compiler::ResolveColumnExpr(uint32_t expr) const {
+  const auto* node = Node<SyntaqliteNode>(p_, expr);
+  if (node->tag != SYNTAQLITE_NODE_COLUMN_REF) {
+    return Unsupported(expr, "an expression other than a column");
+  }
+  const SyntaqliteColumnRef& ref = node->column_ref;
+  if (IsSpanPresent(ref.schema)) {
+    return Unsupported(expr, "a schema-qualified column");
+  }
+  std::string table = IsSpanPresent(ref.table) ? SpanText(p_, ref.table) : "";
+  return Resolve(table, SpanText(p_, ref.column), expr);
+}
+
 // Returns the column summed by `SUM(column)`, the only aggregate supported so
 // far.
-base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t agg_id, uint32_t expr) {
+base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t expr) {
   const auto* node = Node<SyntaqliteNode>(p_, expr);
   if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
     return Expected(expr, "an aggregate like SUM(column)");
@@ -321,17 +334,7 @@ base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t agg_id, uint32_t expr) {
     return Expected(expr, "exactly one argument");
   }
   uint32_t arg_id = syntaqlite_list_child_id(args, 0);
-  const auto* arg = Node<SyntaqliteNode>(p_, arg_id);
-  if (arg->tag != SYNTAQLITE_NODE_COLUMN_REF) {
-    return Expected(arg_id, "a column name");
-  }
-  const SyntaqliteColumnRef& ref = arg->column_ref;
-  if (IsSpanPresent(ref.schema)) {
-    return Unsupported(arg_id, "a schema-qualified column");
-  }
-  std::string table = IsSpanPresent(ref.table) ? SpanText(p_, ref.table) : "";
-  ASSIGN_OR_RETURN(ColumnId value,
-                   Resolve(table, SpanText(p_, ref.column), agg_id));
+  ASSIGN_OR_RETURN(ColumnId value, ResolveColumnExpr(arg_id));
   const auto& type = plan_.columns()[value].type;
   if (type && !(type->Is<core::Id>() || type->Is<core::Uint32>() ||
                 type->Is<core::Int32>() || type->Is<core::Int64>())) {

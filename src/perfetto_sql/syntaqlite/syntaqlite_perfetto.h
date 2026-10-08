@@ -3341,7 +3341,7 @@ typedef struct SyntaqlitePerfettoPipeAs {
 
 typedef struct SyntaqlitePerfettoPipeOrderTerm {
     SyntaqliteNodeTag tag;
-    uint32_t column;
+    uint32_t expr;
     SyntaqliteSortOrder sort_order;
 } SyntaqlitePerfettoPipeOrderTerm;
 

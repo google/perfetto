@@ -159,7 +159,10 @@ class Compiler {
 
   // Aggregate argument checks and column resolution.
   bool IsCountStar(uint32_t expr) const;
-  base::StatusOr<ColumnId> ResolveSum(uint32_t agg_id, uint32_t expr);
+  base::StatusOr<ColumnId> ResolveSum(uint32_t expr);
+  // Resolves an expression which must be a column reference; any other
+  // expression is unsupported.
+  base::StatusOr<ColumnId> ResolveColumnExpr(uint32_t expr) const;
   base::StatusOr<ColumnId> Resolve(const std::string& name, uint32_t at) const;
   base::StatusOr<ColumnId> Resolve(const std::string& qualifier,
                                    const std::string& name,

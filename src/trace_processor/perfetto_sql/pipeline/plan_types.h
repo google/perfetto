@@ -43,6 +43,12 @@ using PlanNodeId = uint32_t;
 // Which way a tree is walked: from the leaves up, or from the roots down.
 enum class TreeDirection : uint8_t { kUp, kDown };
 
+// A sort key: the first key in a list decides, each later one breaks ties.
+struct SortKey {
+  ColumnId column = 0;
+  bool descending = false;
+};
+
 // The columns available to a stage, in the order positions number them.
 using Available = std::vector<ColumnId>;
 

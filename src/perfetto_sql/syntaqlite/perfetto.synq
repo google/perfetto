@@ -434,13 +434,13 @@ node PerfettoPipeAs {
   fmt { "AS" space span(alias) }
 }
 
-// One key of an ORDER BY stage: `column [ASC | DESC]`.
+// One key of an ORDER BY stage: `expr [ASC | DESC]`.
 node PerfettoPipeOrderTerm {
-  column: index PerfettoPipeColumn
+  expr: index Expr
   sort_order: inline SortOrder
 
   fmt {
-    child(column)
+    child(expr)
     switch(sort_order) {
       ASC { space "ASC" }
       DESC { space "DESC" }
@@ -453,7 +453,7 @@ list PerfettoPipeOrderTermList {
   fmt { for_each(sep: "," line) { child(_item) } }
 }
 
-// `ORDER BY column [ASC | DESC], ...`: sorts the rows.
+// `ORDER BY expr [ASC | DESC], ...`: sorts the rows.
 node PerfettoPipeOrderBy {
   terms: index PerfettoPipeOrderTermList
 
