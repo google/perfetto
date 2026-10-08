@@ -158,6 +158,23 @@ $x;
   EXPECT_EQ(macro.args[0].description, "The expression.");
 }
 
+TEST(SqlModuleDocParserTest, MacroArgumentsHaveDistinctDescriptions) {
+  auto m = Parse(R"(
+-- Macro with two arguments.
+CREATE PERFETTO MACRO two_args(
+  -- The left expression.
+  left_arg Expr,
+  -- The right expression.
+  right_arg Expr
+) RETURNS Expr AS $left_arg + $right_arg;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.macros.size(), 1u);
+  ASSERT_EQ(m.macros[0].args.size(), 2u);
+  EXPECT_EQ(m.macros[0].args[0].description, "The left expression.");
+  EXPECT_EQ(m.macros[0].args[1].description, "The right expression.");
+}
+
 TEST(SqlModuleDocParserTest, InternalNamesNotExposed) {
   auto m = Parse(R"(
 CREATE PERFETTO TABLE _internal_table(id LONG) AS SELECT 1;

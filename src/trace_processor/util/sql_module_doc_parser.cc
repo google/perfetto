@@ -166,6 +166,8 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
   if (!syntaqlite_node_is_present(list_id)) {
     return result;
   }
+  uint32_t token_count = 0;
+  const auto* tokens = syntaqlite_result_tokens(p, &token_count);
   const auto* list = static_cast<const SyntaqlitePerfettoMacroArgList*>(
       syntaqlite_parser_node(p, list_id));
   uint32_t count = syntaqlite_list_count(list);
@@ -181,9 +183,24 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
     arg.name = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_name);
     arg.type = ::perfetto::perfetto_sql::SyntaqliteSpanText(p, item->arg_type);
 
-    uint32_t c_count = 0;
-    const auto* cs = syntaqlite_node_leading_comments(p, item_id, &c_count);
-    arg.description = JoinLineComments(stmt_ptr, cs, c_count);
+    // The argument-list grammar is left-recursive: node-leading comments
+    // can point to the first argument instead of this argument's comments.
+    // Find the actual argument-name token, as with typed function args.
+    uint32_t name_len = 0, name_offset = 0;
+    if (syntaqlite_parser_span_text(p, &item->arg_name, &name_len,
+                                    &name_offset)) {
+      for (uint32_t ti = 0; ti < token_count; ++ti) {
+        if (tokens[ti]._layer_id == 0 &&
+            tokens[ti].offset == name_offset) {
+          uint32_t comment_count = 0;
+          const auto* comments =
+              syntaqlite_token_leading_comments(p, ti, &comment_count);
+          arg.description =
+              JoinLineComments(stmt_ptr, comments, comment_count);
+          break;
+        }
+      }
+    }
 
     result.push_back(std::move(arg));
   }
