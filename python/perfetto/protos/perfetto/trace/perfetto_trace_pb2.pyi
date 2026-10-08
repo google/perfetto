@@ -4302,19 +4302,32 @@ class HeapprofdConfig(_message.Message):
     def __init__(self, sampling_interval_bytes: _Optional[int] = ..., adaptive_sampling_shmem_threshold: _Optional[int] = ..., adaptive_sampling_max_sampling_interval_bytes: _Optional[int] = ..., process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., heaps: _Optional[_Iterable[str]] = ..., exclude_heaps: _Optional[_Iterable[str]] = ..., stream_allocations: bool = ..., heap_sampling_intervals: _Optional[_Iterable[int]] = ..., all_heaps: bool = ..., all: bool = ..., min_anonymous_memory_kb: _Optional[int] = ..., max_heapprofd_memory_kb: _Optional[int] = ..., max_heapprofd_cpu_secs: _Optional[int] = ..., skip_symbol_prefix: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[HeapprofdConfig.ContinuousDumpConfig, _Mapping]] = ..., shmem_size_bytes: _Optional[int] = ..., block_client: bool = ..., block_client_timeout_us: _Optional[int] = ..., no_startup: bool = ..., no_running: bool = ..., dump_at_max: bool = ..., disable_fork_teardown: bool = ..., disable_vfork_detection: bool = ...) -> None: ...
 
 class ProcessSmapsConfig(_message.Message):
-    __slots__ = ("smaps_config", "scope", "read_period_ms")
+    __slots__ = ("smaps_config", "scope", "read_period_ms", "max_processes_per_period")
     class Scope(_message.Message):
-        __slots__ = ("target_cmdline",)
+        __slots__ = ("target_cmdline", "target_uid")
+        class UidRange(_message.Message):
+            __slots__ = ("min_uid", "max_uid", "android_match_across_profiles")
+            MIN_UID_FIELD_NUMBER: _ClassVar[int]
+            MAX_UID_FIELD_NUMBER: _ClassVar[int]
+            ANDROID_MATCH_ACROSS_PROFILES_FIELD_NUMBER: _ClassVar[int]
+            min_uid: int
+            max_uid: int
+            android_match_across_profiles: bool
+            def __init__(self, min_uid: _Optional[int] = ..., max_uid: _Optional[int] = ..., android_match_across_profiles: bool = ...) -> None: ...
         TARGET_CMDLINE_FIELD_NUMBER: _ClassVar[int]
+        TARGET_UID_FIELD_NUMBER: _ClassVar[int]
         target_cmdline: _containers.RepeatedScalarFieldContainer[str]
-        def __init__(self, target_cmdline: _Optional[_Iterable[str]] = ...) -> None: ...
+        target_uid: _containers.RepeatedCompositeFieldContainer[ProcessSmapsConfig.Scope.UidRange]
+        def __init__(self, target_cmdline: _Optional[_Iterable[str]] = ..., target_uid: _Optional[_Iterable[_Union[ProcessSmapsConfig.Scope.UidRange, _Mapping]]] = ...) -> None: ...
     SMAPS_CONFIG_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     READ_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
+    MAX_PROCESSES_PER_PERIOD_FIELD_NUMBER: _ClassVar[int]
     smaps_config: SmapsConfig
     scope: ProcessSmapsConfig.Scope
     read_period_ms: int
-    def __init__(self, smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., scope: _Optional[_Union[ProcessSmapsConfig.Scope, _Mapping]] = ..., read_period_ms: _Optional[int] = ...) -> None: ...
+    max_processes_per_period: int
+    def __init__(self, smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., scope: _Optional[_Union[ProcessSmapsConfig.Scope, _Mapping]] = ..., read_period_ms: _Optional[int] = ..., max_processes_per_period: _Optional[int] = ...) -> None: ...
 
 class SmapsConfig(_message.Message):
     __slots__ = ("vma_fields", "unaggregated", "name_redaction_rules")
