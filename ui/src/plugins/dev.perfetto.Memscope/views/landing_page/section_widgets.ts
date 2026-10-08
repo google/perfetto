@@ -142,10 +142,12 @@ export function heapDumpBitmapsHref(): string {
 // up the dominator chain, with the bytes attributed to that owner; the owner
 // name links to the explorer too. A class held through several owners shows
 // several lines, so a single misleading "via" can't imply all the retained
-// bytes flow through one owner.
+// bytes flow through one owner. `onclick` runs before any of the links is
+// followed.
 export function classNameCell(
   full: string,
   retainers?: ReadonlyArray<{name: string; bytes: number}>,
+  onclick?: () => void,
 ): m.Child {
   const vias = (retainers ?? []).filter((r) => r.name !== full);
   // With one owner the byte count just echoes the row's retained size, so omit
@@ -154,7 +156,7 @@ export function classNameCell(
   return m('.pf-memscope-classcell', [
     m(
       'a.pf-memscope-classname',
-      {href: heapDumpClassHref(full), title: full},
+      {href: heapDumpClassHref(full), title: full, onclick},
       shortClassName(full),
     ),
     ...vias.map((r) =>
@@ -165,7 +167,7 @@ export function classNameCell(
           '↳ via ',
           m(
             'a.pf-memscope-classcell__vialink',
-            {href: heapDumpClassHref(r.name)},
+            {href: heapDumpClassHref(r.name), onclick},
             shortClassName(r.name),
           ),
           showBytes ? ` · ${formatBytes(r.bytes)}` : '',
