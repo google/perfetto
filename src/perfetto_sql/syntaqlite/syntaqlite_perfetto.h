@@ -3234,7 +3234,6 @@ typedef struct SyntaqlitePerfettoPipeSource {
     SyntaqliteTextSpan schema;
     uint32_t select;
     uint32_t alias;
-    SyntaqliteBool alias_as;
 } SyntaqlitePerfettoPipeSource;
 
 typedef struct SyntaqlitePerfettoAggregate {
