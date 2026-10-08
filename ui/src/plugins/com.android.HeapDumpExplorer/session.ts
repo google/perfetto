@@ -179,11 +179,7 @@ export class HeapDumpExplorerSession {
     m.redraw();
   }
 
-  // Arrow property: passed by reference into Mithril attrs.
-  readonly navigateWithTabs = (
-    view: NavView,
-    params?: Record<string, unknown>,
-  ): void => {
+  navigateWithTabs(view: NavView, params?: Record<string, unknown>): void {
     if (view === 'object') {
       this.openInstanceTab(
         params?.id as number,
@@ -191,9 +187,9 @@ export class HeapDumpExplorerSession {
       );
     }
     this.navigate(view, params);
-  };
+  }
 
-  readonly clearNavParam = (key: string): void => {
+  clearNavParam(key: string): void {
     // A consumed nav param becomes a one-shot grid filter, so drop it from the
     // nav — from both the store and the URL. Otherwise it re-applies on the next
     // sync and clobbers the user's later manual filter edits. Query params are
@@ -206,7 +202,7 @@ export class HeapDumpExplorerSession {
       s.nav = sub;
     });
     this.doNavigate(sub);
-  };
+  }
 
   private doNavigate(sub: string | undefined): void {
     this.trace.navigate(`#!/heapdump${sub ? '/' + sub : ''}`);
@@ -369,30 +365,30 @@ export class HeapDumpExplorerSession {
     return this.store.state.flamegraphPanelState;
   }
 
-  readonly setFlamegraphPanelState = (state: TreeExplorerState): void => {
+  setFlamegraphPanelState(state: TreeExplorerState): void {
     this.store.edit((s) => {
       s.flamegraphPanelState = state;
     });
-  };
+  }
 
   get callstackPanelState(): TreeExplorerState | undefined {
     return this.store.state.callstackPanelState;
   }
 
-  readonly setCallstackPanelState = (state: TreeExplorerState): void => {
+  setCallstackPanelState(state: TreeExplorerState): void {
     this.store.edit((s) => {
       s.callstackPanelState = state;
     });
-  };
+  }
 
   // Open the flamegraph pivoted at `pathHash`. The metric matches the tree the
   // hash came from. The chip shows `<label> (this instance)` since the raw hash
   // regex is unreadable.
-  readonly openFlamegraphPivotedAt = (
+  openFlamegraphPivotedAt(
     pathHash: string,
     label: string,
     isDominator: boolean,
-  ): void => {
+  ): void {
     this.setFlamegraphPanelState({
       selectedMetricId: isDominator
         ? METRIC_DOMINATED_OBJECT_SIZE
@@ -407,7 +403,7 @@ export class HeapDumpExplorerSession {
       },
     });
     this.navigate('flamegraph');
-  };
+  }
 
   get cachedOverview(): OverviewData | null {
     return this._overview;
