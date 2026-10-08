@@ -321,18 +321,6 @@ def get_tags(module_name: str):
   return MODULE_TAGS.get(module_name, [])
 
 
-def get_all_unique_tags():
-  """Get all unique tags across all modules.
-
-  Returns:
-    Sorted list of all unique tags
-  """
-  all_tags = set()
-  for tags in MODULE_TAGS.values():
-    all_tags.update(tags)
-  return sorted(all_tags)
-
-
 # Validate that all tags in MODULE_TAGS are from VALID_TAGS
 def _validate_tags():
   """Validate that all tags in MODULE_TAGS are valid and properly structured.
