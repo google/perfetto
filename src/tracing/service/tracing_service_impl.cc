@@ -2564,18 +2564,15 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
             return;
           ReadBuffersIntoConsumer(tsid, weak_consumer.get());
         });
-  } else {
-    // Post a task for EndReadBuffers(), which runs after OnTraceData()
-    // returns, because while OnTraceData() runs, the consumer can call the
-    // service and change its state.
-    //
-    // For example, it can free the session or, in rare cases, destroy the
-    // service. So the task checks that the service and the session still exist
-    // before it ends the read.
+  } else if (tracing_session->config
+                 .experimental_trace_buffer_v2_compaction()) {
+    // Use PostTask instead of compacting inline after OnTraceData(), as the
+    // consumer's OnTraceData() can call FreeBuffers() or destroy the service.
+    // So by using weak_runner_, we skip the task if the service is destroyed.
     weak_runner_.PostTask([this, tsid] {
       TracingSession* tracing_session = GetTracingSession(tsid);
       if (tracing_session)
-        EndReadBuffers(tracing_session);
+        MaybeCompactBuffers(tracing_session);
     });
   }
 
@@ -2636,8 +2633,9 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
           return;
         }
 
-        // WriteIntoFile() no longer uses the packets, so end the read.
-        EndReadBuffers(tracing_session);
+        if (tracing_session->config.experimental_trace_buffer_v2_compaction()) {
+          MaybeCompactBuffers(tracing_session);
+        }
 
         if (tracing_session->fflush_post_write) {
           // Ensure all data was written to the file.
@@ -2916,15 +2914,6 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   return packets;
 }
 
-void TracingServiceImpl::EndReadBuffers(TracingSession* tracing_session) {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  for (BufferID buf_id : tracing_session->buffers_index) {
-    auto tbuf_iter = buffers_.find(buf_id);
-    if (tbuf_iter != buffers_.end())
-      tbuf_iter->second->EndRead();
-  }
-}
-
 void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
                                             std::vector<TracePacket>* packets) {
   // If the tracing session specified a filter, run all packets through the
@@ -3107,6 +3096,15 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
   PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
                 (total_wr_size + 1023) / 1024, stop_writing_into_file);
   return stop_writing_into_file;
+}
+
+void TracingServiceImpl::MaybeCompactBuffers(TracingSession* tracing_session) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (BufferID buf_id : tracing_session->buffers_index) {
+    auto tbuf_iter = buffers_.find(buf_id);
+    if (tbuf_iter != buffers_.end())
+      tbuf_iter->second->MaybeCompact();
+  }
 }
 
 void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,

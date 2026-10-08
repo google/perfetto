@@ -17,6 +17,9 @@
 #include "perfetto/ext/base/paged_memory.h"
 
 #include <stdint.h>
+#include <string.h>
+
+#include <algorithm>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/utils.h"
@@ -92,6 +95,74 @@ TEST(PagedMemoryTest, SubPageGranularity) {
     ASSERT_EQ(0u, *ptr64);
   }
 #endif
+}
+
+// Only whole pages are advised, so partial pages keep their contents.
+TEST(PagedMemoryTest, AdviseDontNeedAfter) {
+  const size_t page_size = GetSysPageSize();
+  // Pages 0, 1 and 2 are whole pages, and page 3 holds the last 17 bytes.
+  const size_t size = 3 * page_size + 17;
+  struct {
+    size_t offset;
+    size_t first_released_page;  // 3 if no page is released.
+  } test_cases[] = {
+      {0, 0},
+      {1, 1},
+      {page_size - 1, 1},
+      {page_size, 1},
+      {page_size + 1, 2},
+      {3 * page_size, 3},
+      {size - 1, 3},
+      {size, 3},
+  };
+  for (const auto& test_case : test_cases) {
+    SCOPED_TRACE(test_case.offset);
+    PagedMemory mem = PagedMemory::Allocate(size);
+    ASSERT_TRUE(mem.IsValid());
+    auto* ptr = static_cast<char*>(mem.Get());
+    memset(ptr, 'x', size);
+
+    mem.AdviseDontNeedAfter(test_case.offset);
+    char* release_begin = ptr + test_case.first_released_page * page_size;
+    char* release_end = ptr + 3 * page_size;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    // Check residency before the reads make released pages resident again.
+    for (size_t page = 0; page < 4; ++page) {
+      char* page_begin = ptr + page * page_size;
+      const bool released =
+          page_begin >= release_begin && page_begin < release_end;
+      EXPECT_EQ(!released, vm_test_utils::IsMapped(page_begin, page_size))
+          << "page " << page;
+    }
+    EXPECT_TRUE(
+        std::all_of(release_begin, release_end, [](char c) { return c == 0; }));
+#endif
+    EXPECT_TRUE(
+        std::all_of(ptr, release_begin, [](char c) { return c == 'x'; }));
+    EXPECT_TRUE(
+        std::all_of(release_end, ptr + size, [](char c) { return c == 'x'; }));
+  }
+}
+
+// Advice beyond the committed range must not access that memory.
+TEST(PagedMemoryTest, AdviseDontNeedAfterUncommitted) {
+  const size_t page_size = GetSysPageSize();
+  constexpr size_t kSize = 8 * 1024 * 1024;
+  PagedMemory mem = PagedMemory::Allocate(kSize, PagedMemory::kDontCommit);
+  ASSERT_TRUE(mem.IsValid());
+  auto* ptr = static_cast<char*>(mem.Get());
+  mem.EnsureCommitted(2 * page_size);
+  memset(ptr, 'x', 2 * page_size);
+
+  // Advise memory beyond the initial commit without touching it.
+  mem.AdviseDontNeedAfter(kSize - 1);
+  mem.AdviseDontNeedAfter(kSize / 2 + 1);
+  // This offset is inside page 1, so the advice starts at page 2.
+  mem.AdviseDontNeedAfter(page_size + 1);
+  EXPECT_TRUE(
+      std::all_of(ptr, ptr + 2 * page_size, [](char c) { return c == 'x'; }));
 }
 
 TEST(PagedMemoryTest, Uncommitted) {

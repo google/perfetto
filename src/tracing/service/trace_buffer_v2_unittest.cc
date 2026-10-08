@@ -23,7 +23,6 @@
 #include <sstream>
 #include <vector>
 
-#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -59,24 +58,22 @@ class TraceBufferV2Test : public testing::Test {
   size_t empty_sequence_count() { return trace_buffer()->empty_sequences_; }
 
   void TearDown() override {
-    if (!trace_buffer_)
-      return;
-    const size_t used_size = trace_buffer_->used_size();
-    ASSERT_LE(used_size, trace_buffer_->size());
-
-    // After a compaction, the data after used_size() is unspecified.
-    if (trace_buffer_->stats().shift_left_compactions() > 0)
-      return;
-
     // Test that the used_size() logic works and that all the data after that
     // is zero-filled.
-    trace_buffer()->data_.EnsureCommitted(trace_buffer_->size());
-    bool zero_padded = true;
-    for (size_t i = used_size; i < trace_buffer_->size(); ++i) {
-      bool is_zero = static_cast<char*>(trace_buffer()->data_.Get())[i] == 0;
-      zero_padded = zero_padded && is_zero;
+    if (trace_buffer_) {
+      ASSERT_LE(trace_buffer_->used_size(), trace_buffer_->size());
+      ASSERT_TRUE(IsUnusedTailZero());
     }
-    ASSERT_TRUE(zero_padded);
+  }
+
+  // Returns true if [used_size(), size()) is zero-filled.
+  // The reads fault released pages in, so check residency before this call.
+  bool IsUnusedTailZero() {
+    trace_buffer()->data_.EnsureCommitted(trace_buffer_->size());
+    const uint8_t* data = GetBufData(*trace_buffer_);
+    return std::all_of(data + trace_buffer_->used_size(),
+                       data + trace_buffer_->size(),
+                       [](uint8_t b) { return b == 0; });
   }
 
   FakeChunk CreateChunk(ProducerID p, WriterID w, ChunkID c) {
@@ -4749,155 +4746,75 @@ TEST_F(TraceBufferV2Test, V2Rewrite_LargeMultiChunkPacket) {
 }
 
 // ---------------------------
-// Shift-left compaction tests
+// Compaction tests
 // ---------------------------
 
-// EndRead() compacts only if the tbv2_shift_left_compaction flag is on. The
-// flag is always on outside Android. On Android, aconfig sets it. So skip the
-// compaction tests if the flag is off.
-class TraceBufferV2CompactionTest : public TraceBufferV2Test {
- public:
-  void SetUp() override {
-    if (!PERFETTO_FLAGS(TBV2_SHIFT_LEFT_COMPACTION))
-      GTEST_SKIP() << "This test requires tbv2_shift_left_compaction=true";
-  }
-};
-
 // All live chunks are before the write cursor, so compaction slides them left.
-TEST_F(TraceBufferV2CompactionTest, SlidesChunksBeforeWriteCursor) {
-  ResetBuffer(128 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    ASSERT_EQ(4 * 1024u,
-              CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-                  .AddPacket(4 * 1024 - 16, static_cast<char>(chunk_id))
-                  .CopyIntoTraceBuffer());
-  }
-
+TEST_F(TraceBufferV2Test, Compaction_SlidesChunksBeforeWriteCursor) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(64 - 16, 'a')
+      .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(
-                                  4 * 1024 - 16, static_cast<char>(chunk_id))));
-  }
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'a')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
-  // A chunk written after the reads, before EndRead(), stays.
-  ASSERT_EQ(64u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(20))
-                     .AddPacket(64 - 16, 'f')
-                     .CopyIntoTraceBuffer());
-  ASSERT_EQ(80 * 1024u + 64, trace_buffer()->used_size());
+  // These chunks move in address order but must still read in sequence order.
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
+      .AddPacket(64 - 16, 'y')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(64 - 16, 'x')
+      .CopyIntoTraceBuffer();
+  ASSERT_EQ(192u, trace_buffer()->used_size());
+  ASSERT_EQ(1u, trace_buffer()->stats().chunks_committed_out_of_order());
 
-  trace_buffer()->EndRead();
-  EXPECT_EQ(64u, trace_buffer()->used_size());
-  EXPECT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
-  // Compaction drops the read chunks and does not change the padding stats.
-  // bytes_read already counts these chunks.
+  trace_buffer()->MaybeCompact();
+  EXPECT_EQ(128u, trace_buffer()->used_size());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+  EXPECT_EQ(0u, trace_buffer()->stats().compactions_skipped());
+  // Consumed chunks already contribute to bytes_read.
   EXPECT_EQ(0u, trace_buffer()->stats().padding_bytes_cleared());
 
-  // Writes after the compaction append at the new write cursor.
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(21))
-      .AddPacket(64 - 16, 'g')
+  // Writes after compaction append at the new write cursor.
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(2))
+      .AddPacket(64 - 16, 'z')
       .CopyIntoTraceBuffer();
-  EXPECT_EQ(128u, trace_buffer()->used_size());
+  EXPECT_EQ(192u, trace_buffer()->used_size());
 
-  // A clone of the compacted buffer reads the same packets as the buffer.
   std::unique_ptr<TraceBuffer> clone = trace_buffer()->CloneReadOnly();
   ASSERT_TRUE(clone);
   for (const std::unique_ptr<TraceBuffer>* buf : {&clone, &trace_buffer_}) {
     (*buf)->BeginRead();
-    ASSERT_THAT(ReadPacket(*buf),
-                ElementsAre(FakePacketFragment(64 - 16, 'f')));
-    ASSERT_THAT(ReadPacket(*buf),
-                ElementsAre(FakePacketFragment(64 - 16, 'g')));
+    for (char seed : {'x', 'y', 'z'}) {
+      ASSERT_THAT(ReadPacket(*buf),
+                  ElementsAre(FakePacketFragment(64 - 16, seed)));
+    }
     ASSERT_THAT(ReadPacket(*buf), IsEmpty());
   }
 }
 
-// After a wrap, compaction waits until all live chunks are on one side of the
-// write cursor. Writer 2 holds a packet that waits for its next chunk. Writer 1
-// wraps, and the reader consumes writer 1's new chunk while writer 2 stalls.
-TEST_F(TraceBufferV2CompactionTest, SlidesChunksAfterWriteCursor) {
-  ResetBuffer(32 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 6; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
-  }
-  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
-      .AddPacket(4 * 1024 - 16, 'b', kContOnNextChunk)
-      .CopyIntoTraceBuffer();
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(6))
-      .AddPacket(4 * 1024 - 16, 'a')
-      .CopyIntoTraceBuffer();
-  trace_buffer()->BeginRead();
-  while (!ReadPacket().empty()) {
-  }
-
-  // Writer 1 wraps to offset 0 before EndRead(). Its chunk is live before the
-  // write cursor, and writer 2's chunk after it. So EndRead() does not compact.
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(7))
-      .AddPacket(4 * 1024 - 16, 'c')
-      .CopyIntoTraceBuffer();
-  ASSERT_EQ(1u, trace_buffer()->stats().write_wrap_count());
-  trace_buffer()->EndRead();
-  ASSERT_EQ(0u, trace_buffer()->stats().shift_left_compactions());
-  ASSERT_EQ(32 * 1024u, trace_buffer()->used_size());
-
-  // Only writer 2's chunk is live now: at 24 KiB, after the write cursor at
-  // 4 KiB. It slides to offset 0.
-  trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(),
-              ElementsAre(FakePacketFragment(4 * 1024 - 16, 'c')));
-  ASSERT_THAT(ReadPacket(), IsEmpty());
-  trace_buffer()->EndRead();
-  EXPECT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
-  EXPECT_EQ(4 * 1024u, trace_buffer()->used_size());
-
-  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
-      .AddPacket(20, 'd', kContFromPrevChunk)
-      .CopyIntoTraceBuffer();
-  trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4 * 1024 - 16, 'b'),
-                                        FakePacketFragment(20, 'd')));
-  ASSERT_THAT(ReadPacket(), IsEmpty());
-}
-
-// SMB v2 chunks move like SMB v1 chunks: compaction updates their offsets and
-// checksums.
-TEST_F(TraceBufferV2CompactionTest, SmbV2Chunks) {
-  ResetBuffer(128 * 1024);
-  // A packet with one bytes field: tag, length, then |size| bytes of |c|.
-  auto make_packet = [](size_t size, char c) {
-    std::vector<uint8_t> packet;
-    AppendVarInt(MakeTagLengthDelimited(1), &packet);
-    AppendVarInt(size, &packet);
-    packet.insert(packet.end(), size, static_cast<uint8_t>(c));
-    return packet;
-  };
+// Compaction updates offsets and checksums for SMB v2 chunks just as it does
+// for SMB v1 chunks.
+TEST_F(TraceBufferV2Test, Compaction_SmbV2Chunks) {
+  ResetBuffer(4096);
   const auto seq = MakeV2SeqProps(1, 1);
-
-  for (int i = 0; i < 20; ++i) {
-    const auto packet = make_packet(4000, static_cast<char>('a' + i));
-    const auto frag = MakeFragView(packet);
-    ASSERT_TRUE(
-        trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
-  }
-  EXPECT_TRUE(trace_buffer()->has_data());
-
+  const auto first = MakeSimpleLDPacket(1, 42);
+  const auto first_frag = MakeFragView(first);
+  ASSERT_TRUE(
+      trace_buffer()->CopyChunkV2Untrusted(seq, &first_frag, 1, false, false));
   trace_buffer()->BeginRead();
-  for (int i = 0; i < 20; ++i)
-    ASSERT_EQ(ReadPacketBytes(trace_buffer()),
-              make_packet(4000, static_cast<char>('a' + i)));
+  ASSERT_EQ(ReadPacketBytes(trace_buffer()), first);
   ASSERT_TRUE(ReadPacketBytes(trace_buffer()).empty());
 
-  const auto last = make_packet(16, 'z');
+  const auto last = MakeSimpleLDPacket(1, 99);
   const auto last_frag = MakeFragView(last);
   ASSERT_TRUE(
       trace_buffer()->CopyChunkV2Untrusted(seq, &last_frag, 1, false, false));
   const size_t used_before = trace_buffer()->used_size();
 
-  // Only the last chunk is live, so it moves to offset 0.
-  trace_buffer()->EndRead();
-  EXPECT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
+  trace_buffer()->MaybeCompact();
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
   EXPECT_LT(trace_buffer()->used_size(), used_before);
   trace_buffer()->BeginRead();
   EXPECT_EQ(ReadPacketBytes(trace_buffer()), last);
@@ -4905,42 +4822,11 @@ TEST_F(TraceBufferV2CompactionTest, SmbV2Chunks) {
   EXPECT_TRUE(trace_buffer()->has_data());
 }
 
-TEST_F(TraceBufferV2CompactionTest, PreservesOutOfOrderSequenceIndex) {
+TEST_F(TraceBufferV2Test, Compaction_PreservesStalledChunks) {
   ResetBuffer(128 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
-  }
-  trace_buffer()->BeginRead();
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
-    ASSERT_FALSE(ReadPacket().empty());
-  ASSERT_THAT(ReadPacket(), IsEmpty());
-
-  CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
-      .AddPacket(64 - 16, 'y')
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(64 - 16, 'a')
       .CopyIntoTraceBuffer();
-  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
-      .AddPacket(64 - 16, 'x')
-      .CopyIntoTraceBuffer();
-  ASSERT_EQ(1u, trace_buffer()->stats().chunks_committed_out_of_order());
-
-  trace_buffer()->EndRead();
-  EXPECT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
-  EXPECT_EQ(128u, trace_buffer()->used_size());
-  trace_buffer()->BeginRead();
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'x')));
-  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'y')));
-  ASSERT_THAT(ReadPacket(), IsEmpty());
-}
-
-TEST_F(TraceBufferV2CompactionTest, PreservesStalledChunks) {
-  ResetBuffer(128 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
-  }
 
   CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
       .AddPacket(16, 'p', kChunkNeedsPatching | kContOnNextChunk)
@@ -4957,12 +4843,11 @@ TEST_F(TraceBufferV2CompactionTest, PreservesStalledChunks) {
       .CopyIntoTraceBuffer(/*chunk_complete=*/false);
 
   trace_buffer()->BeginRead();
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
-    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'a')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(50, 'f')));
 
-  trace_buffer()->EndRead();
-  EXPECT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
+  trace_buffer()->MaybeCompact();
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
   EXPECT_EQ(576u, trace_buffer()->used_size());
   ASSERT_TRUE(TryPatchChunkContents(ProducerID(1), WriterID(2), ChunkID(0),
                                     {{1, {{'P', 'A', 'T', 'C'}}}}));
@@ -4984,28 +4869,26 @@ TEST_F(TraceBufferV2CompactionTest, PreservesStalledChunks) {
 
 // A scraped chunk that compaction moved can still relocate when the producer
 // commits it.
-TEST_F(TraceBufferV2CompactionTest, RelocatesScrapedChunk) {
+TEST_F(TraceBufferV2Test, Compaction_RelocatesScrapedChunk) {
   ResetBuffer(128 * 1024);
   const auto& stats = trace_buffer()->stats();
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
-  }
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(64 - 16, 'a')
+      .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
   while (!ReadPacket().empty()) {
   }
 
-  // A scrape copies 'x'. 'y' is the incomplete tail.
+  // A scrape copies 'x', while 'y' is the incomplete tail.
   CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
       .AddPacket(32, 'x')
       .AddPacket(32, 'y')
       .PadTo(512)
       .CopyIntoTraceBuffer(/*chunk_complete=*/false);
 
-  // Compaction moves the scraped copy to offset 0. The reader consumes 'x'.
-  trace_buffer()->EndRead();
-  ASSERT_EQ(1u, stats.shift_left_compactions());
+  // Compaction moves the scraped copy to offset 0, and the reader consumes 'x'.
+  trace_buffer()->MaybeCompact();
+  ASSERT_EQ(1u, stats.compactions());
   ASSERT_EQ(512u, trace_buffer()->used_size());
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'x')));
@@ -5026,129 +4909,94 @@ TEST_F(TraceBufferV2CompactionTest, RelocatesScrapedChunk) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-// Compaction never runs on a DISCARD buffer.
-TEST_F(TraceBufferV2CompactionTest, SkippedOnDiscardBuffer) {
-  ResetBuffer(128 * 1024, TraceBuffer::kDiscard);
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
-  }
-  trace_buffer()->BeginRead();
-  while (!ReadPacket().empty()) {
-  }
-
-  trace_buffer()->EndRead();
-  EXPECT_EQ(80 * 1024u, trace_buffer()->used_size());
-  EXPECT_EQ(0u, trace_buffer()->stats().shift_left_compactions());
-}
-
-TEST_F(TraceBufferV2CompactionTest, ReadOnlyCloneKeepsSnapshotGeometry) {
-  ResetBuffer(128 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
-  }
-  trace_buffer()->BeginRead();
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
-    ASSERT_FALSE(ReadPacket().empty());
-  ASSERT_THAT(ReadPacket(), IsEmpty());
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(20))
-      .AddPacket(64 - 16, 'b')
-      .CopyIntoTraceBuffer();
-
-  std::unique_ptr<TraceBuffer> clone = trace_buffer()->CloneReadOnly();
-  ASSERT_TRUE(clone);
-  clone->EndRead();
-  EXPECT_EQ(80 * 1024u + 64, clone->used_size());
-  EXPECT_EQ(0u, clone->stats().shift_left_compactions());
-  clone->BeginRead();
-  ASSERT_THAT(ReadPacket(clone), ElementsAre(FakePacketFragment(64 - 16, 'b')));
-
-  trace_buffer()->EndRead();
-  EXPECT_EQ(64u, trace_buffer()->used_size());
-  EXPECT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
-}
-
-// Each cycle writes one chunk and reads it. EndRead() then compacts the buffer
-// down to nothing, so the writes never wrap.
-TEST_F(TraceBufferV2CompactionTest, StreamingBoundsUsedSize) {
-  ResetBuffer(128 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 200; ++chunk_id) {
-    const char seed = static_cast<char>(chunk_id);
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, seed)
-        .CopyIntoTraceBuffer();
-    trace_buffer()->BeginRead();
-    ASSERT_THAT(ReadPacket(),
-                ElementsAre(FakePacketFragment(4 * 1024 - 16, seed)));
-    ASSERT_THAT(ReadPacket(), IsEmpty());
-    trace_buffer()->EndRead();
-    ASSERT_EQ(0u, trace_buffer()->used_size());
-  }
-  EXPECT_EQ(0u, trace_buffer()->stats().write_wrap_count());
-  EXPECT_EQ(200u, trace_buffer()->stats().shift_left_compactions());
-}
-
-// EndRead() keeps the pages that the writes since the last compaction reached,
-// plus 1/4 of slack. So a burst keeps its pages until a smaller cycle follows.
-TEST_F(TraceBufferV2CompactionTest, ReleasesPagesAfterBurst) {
+// Smaller write cycles release pages beyond the retained spare capacity.
+TEST_F(TraceBufferV2Test, Compaction_RetainsPagesForNextWriteCycle) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  GTEST_SKIP() << "Compaction releases pages only on Linux and Android";
+  GTEST_SKIP() << "Only Linux and Android release pages deterministically";
 #endif
   const size_t page_size = base::GetSysPageSize();
   constexpr size_t kChunkSize = 4 * 1024;
-  const size_t burst_bytes =
-      base::AlignUp(std::max<size_t>(80 * 1024, 8 * page_size), page_size);
-  ResetBuffer(2 * burst_bytes);
-  ChunkID next_chunk_id = 0;
-  auto write_and_drain = [&](size_t bytes) {
-    for (size_t i = 0; i < bytes / kChunkSize; ++i) {
-      CreateChunk(ProducerID(1), WriterID(1), next_chunk_id++)
+  constexpr size_t kNumPages = 16;
+  ResetBuffer(kNumPages * page_size);
+  uint8_t* data = GetBufData(*trace_buffer());
+  const struct {
+    size_t written_pages;
+    size_t resident_pages;
+  } cycles[] = {
+      {8, 8},    // Untouched spare pages stay nonresident.
+      {16, 16},  // Retention is capped at the buffer size.
+      {8, 10},   // Previously resident spare pages stay resident.
+      {4, 5},    // A smaller cycle releases more pages.
+      {0, 0},    // An idle cycle also releases page 0.
+  };
+  ChunkID chunk_id = 0;
+  for (const auto& cycle : cycles) {
+    SCOPED_TRACE(cycle.written_pages);
+    for (size_t i = 0; i < cycle.written_pages * page_size / kChunkSize; ++i) {
+      CreateChunk(ProducerID(1), WriterID(1), chunk_id++)
           .AddPacket(kChunkSize - 16, 'a')
           .CopyIntoTraceBuffer();
     }
     trace_buffer()->BeginRead();
     while (!ReadPacket().empty()) {
     }
-    trace_buffer()->EndRead();
-    ASSERT_EQ(0u, trace_buffer()->used_size());
-  };
-  using base::vm_test_utils::IsMapped;
-  uint8_t* data = GetBufData(*trace_buffer());
-
-  // The burst reached burst_bytes, so its pages stay for the next writes.
-  write_and_drain(burst_bytes);
-  if (!IsMapped(data, burst_bytes))
-    GTEST_SKIP() << "VM commit detection not supported";
-
-  // The next cycle reaches only kChunkSize. EndRead() keeps the pages up to
-  // kChunkSize plus 1/4, and releases the rest of the burst.
-  write_and_drain(kChunkSize);
-  const size_t keep_end = base::AlignUp(kChunkSize + kChunkSize / 4, page_size);
-  EXPECT_TRUE(IsMapped(data, keep_end));
-  EXPECT_FALSE(IsMapped(data + keep_end, burst_bytes - keep_end));
-  EXPECT_EQ(2u, trace_buffer()->stats().shift_left_compactions());
+    trace_buffer()->MaybeCompact();
+    EXPECT_EQ(0u, trace_buffer()->used_size());
+    for (size_t page = 0; page < kNumPages; ++page) {
+      EXPECT_EQ(
+          page < cycle.resident_pages,
+          base::vm_test_utils::IsMapped(data + page * page_size, page_size))
+          << "page " << page;
+    }
+  }
 }
 
-// After a compaction, the buffer fills up and laps again. The overwrites erase
-// writer 2's out-of-order chunks, and writer 3 reports the loss.
-TEST_F(TraceBufferV2CompactionTest, OverwriteAfterCompaction) {
+// Smaller write cycles must leave the entire unused tail zero.
+TEST_F(TraceBufferV2Test, Compaction_ClearsTailAsUsedSizeShrinks) {
   ResetBuffer(128 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
+  // An incomplete packet keeps the first chunk live across compactions.
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(64 - 16, 'b', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  ChunkID chunk_id = 0;
+  for (ChunkID num_chunks : {20u, 5u, 1u}) {
+    SCOPED_TRACE(num_chunks);
+    for (ChunkID i = 0; i < num_chunks; ++i) {
+      CreateChunk(ProducerID(1), WriterID(1), chunk_id++)
+          .AddPacket(4 * 1024 - 16, 'a')
+          .CopyIntoTraceBuffer();
+    }
+    trace_buffer()->BeginRead();
+    for (ChunkID i = 0; i < num_chunks; ++i) {
+      ASSERT_THAT(ReadPacket(),
+                  ElementsAre(FakePacketFragment(4 * 1024 - 16, 'a')));
+    }
+    ASSERT_THAT(ReadPacket(), IsEmpty());
+    trace_buffer()->MaybeCompact();
+    ASSERT_EQ(64u, trace_buffer()->used_size());
+    ASSERT_TRUE(IsUnusedTailZero());
   }
-  trace_buffer()->BeginRead();
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
-    ASSERT_FALSE(ReadPacket().empty());
-  trace_buffer()->EndRead();
-  ASSERT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
 
-  // Out-of-order chunks of writer 2, then enough of writer 3 to lap twice.
+  EXPECT_EQ(0u, trace_buffer()->stats().write_wrap_count());
+}
+
+// After compaction, the buffer fills and the write cursor wraps again,
+// so overwrites erase writer 2's out-of-order chunks.
+// The reader reports data loss on writer 3's first remaining packet.
+TEST_F(TraceBufferV2Test, Compaction_OverwriteAfterCompaction) {
+  ResetBuffer(128 * 1024);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(64 - 16, 'a')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  trace_buffer()->MaybeCompact();
+  ASSERT_EQ(1u, trace_buffer()->stats().compactions());
+
+  // Writer 2's chunks arrive out of order, then writer 3 writes enough chunks
+  // to wrap twice.
   CreateChunk(ProducerID(1), WriterID(2), ChunkID(1))
       .AddPacket(64 - 16, 'y')
       .CopyIntoTraceBuffer();
@@ -5163,8 +5011,9 @@ TEST_F(TraceBufferV2CompactionTest, OverwriteAfterCompaction) {
   }
   EXPECT_GT(trace_buffer()->stats().chunks_overwritten(), 0u);
 
-  // Writer 2 was overwritten. Writer 3 keeps its newest chunks, in order, and
-  // reports the loss on the first one.
+  // All of writer 2's chunks were overwritten.
+  // Writer 3's remaining chunks are in sequence order, and the reader reports
+  // data loss on the first remaining packet.
   trace_buffer()->BeginRead();
   std::vector<std::vector<FakePacketFragment>> packets;
   for (;;) {
@@ -5191,27 +5040,39 @@ TEST_F(TraceBufferV2CompactionTest, OverwriteAfterCompaction) {
   }
 }
 
-// A drained buffer compacts to nothing and keeps working as a fresh buffer.
-TEST_F(TraceBufferV2CompactionTest, FullyDrainedBuffer) {
+// After compaction empties the buffer, reads return no packets.
+// Cloning and subsequent writes still work.
+TEST_F(TraceBufferV2Test, Compaction_FullyDrainedBuffer) {
   ResetBuffer(128 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id) {
-    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
-        .AddPacket(4 * 1024 - 16, 'a')
-        .CopyIntoTraceBuffer();
-  }
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(64 - 16, 'a')
+      .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();
-  for (ChunkID chunk_id = 0; chunk_id < 20; ++chunk_id)
-    ASSERT_FALSE(ReadPacket().empty());
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'a')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
-  trace_buffer()->EndRead();
+  trace_buffer()->MaybeCompact();
   EXPECT_EQ(0u, trace_buffer()->used_size());
-  EXPECT_EQ(1u, trace_buffer()->stats().shift_left_compactions());
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
   EXPECT_TRUE(trace_buffer()->has_data());
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
-  CreateChunk(ProducerID(1), WriterID(1), ChunkID(20))
+  // The buffer was already empty, so this compaction also releases page 0
+  // where supported.
+  // The reader still finds an empty padding chunk at offset 0.
+  trace_buffer()->MaybeCompact();
+  EXPECT_EQ(2u, trace_buffer()->stats().compactions());
+  trace_buffer()->BeginRead();
+  EXPECT_THAT(ReadPacket(), IsEmpty());
+
+  std::unique_ptr<TraceBuffer> clone = trace_buffer()->CloneReadOnly();
+  ASSERT_TRUE(clone);
+  EXPECT_TRUE(clone->has_data());
+  clone->BeginRead();
+  EXPECT_THAT(ReadPacket(clone), IsEmpty());
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
       .AddPacket(64 - 16, 'b')
       .CopyIntoTraceBuffer();
   trace_buffer()->BeginRead();

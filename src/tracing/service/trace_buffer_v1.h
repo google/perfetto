@@ -215,9 +215,6 @@ class TraceBufferV1 : public TraceBuffer {
   // Reads in the TraceBuffer are NOT idempotent.
   void BeginRead() override;
 
-  // No-op. TraceBufferV1 does no extra work when a read ends.
-  void EndRead() override {}
-
   // Returns the next packet in the buffer, if any, and the producer_id,
   // producer_uid, and writer_id of the producer/writer that wrote it (as passed
   // in the CopyChunkUntrusted() call). Returns false if no packets can be read
@@ -250,6 +247,9 @@ class TraceBufferV1 : public TraceBuffer {
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) override;
+
+  // No-op. TraceBufferV1 does not compact its buffer.
+  void MaybeCompact() override;
 
   // Creates a read-only clone of the trace buffer. Calls to
   // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned

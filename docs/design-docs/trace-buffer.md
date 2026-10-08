@@ -104,9 +104,9 @@ Reader-side:
 * `ReadNextTracePacket()`: called once for each packet until either there are
   no more packets in the buffer or TracingServiceImpl decided it has read
   enough data for the current task (to avoid saturating the IPC channel).
-* `EndRead()`: called once a read is over and its packets are released: after
-  writing them into the file, or after sending them to the consumer. It can
-  compact the buffer (see [Compaction](#compaction-shift-left)).
+* `MaybeCompact()`: optionally compacts buffers after all read batches finish
+  and their packets are released. Call `BeginRead()` before reading again.
+  See [Compaction](#compaction).
 
 ## Key challenges
 
@@ -714,112 +714,65 @@ In the code, the outer layer walk is implemented by
 `TraceBufferV2::ReadNextTracePacket()` while the inner walk is implemented by
 the `class ChunkSeqReader::ReadNextPacketInSeqOrder()`.
 
-### Compaction (shift left)
+### Compaction
 
-A read turns consumed chunks into padding in place. The padding stays resident
-until the write cursor overwrites it. So a buffer that a reader drains often
-(for example with `write_into_file`) stays fully resident: the write cursor
-laps the whole buffer.
+Reads turn consumed chunks into padding without releasing their pages, so
+compaction moves live chunks together to reclaim unused space.
+The session-wide `TraceConfig.experimental_trace_buffer_v2_compaction` flag
+enables this behavior and defaults to false.
+Compaction applies only to writable TraceBufferV2 `RING_BUFFER` buffers because
+`DISCARD` buffers must keep their write cursor to stop writes at the end.
+The temporary flag will be removed once compaction becomes the default.
 
-When `tbv2_shift_left_compaction` is on `EndRead()` compacts the buffer:
+Packet slices point into the buffer, so the service compacts only after all
+read batches finish and callers stop using those slices.
+For consumer reads, it posts a task that runs after `OnTraceData()` returns,
+while file output compacts after the packets are written.
+`MaybeCompact()` also resets the cached `ChunkSeqReader` because chunk offsets
+can change, so callers must use `BeginRead()` before the next read.
 
-* It moves the live chunks to the front of the buffer, in ring order.
-* Then `wr_` and `used_size_` equal the live bytes, and the next writes append
-  after them.
-* Then it releases the pages that the next writes are unlikely to need.
+Reads can leave incomplete chunks or chunks that wait for a patch, and new
+chunks can arrive before compaction runs.
+`MaybeCompact()` collects pointers to their offsets in `SequenceState::chunks`
+without scanning padding, then sorts those pointers by offset.
+The sort costs O(N log N) for N live chunks.
 
-TracingServiceImpl calls `EndRead()` once the read is over and its packets are
-released. Packet slices point into the buffer, and a `ChunkSeqReader` can hold
-offsets into it, so chunks cannot move before that. Running right after the
-read also finds the chunk headers still in the cache.
+After a wrap, chunks at or after `wr_` are older than those before it.
+If live chunks are on both sides of `wr_`, it therefore skips compaction
+because address order differs from ring order.
+Otherwise, it moves chunks to the front in address order and updates each
+offset in its original queue entry, preserving sequence order.
+It also recomputes each moved chunk's checksum because the checksum includes
+the offset.
 
-Compaction applies only to `RING_BUFFER` buffers that are not read-only
-clones. It does not apply to `DISCARD` buffers: they stop all writes once the
-writes reach the end of the buffer, and moving `wr_` back would change when
-that happens.
+Compaction then sets `wr_` and `used_size_` to the total size of the remaining
+chunks so the next writes append there.
+As a result, incomplete chunks can remain until later writes overwrite them.
 
-#### Moving the chunks
+Bytes beyond the old `used_size_` are already zero, so compaction clears only
+`[new used_size_, old used_size_)` with `memset`.
+This keeps the entire unused tail zero-filled.
+If no live chunk remains, the zeroed header at offset 0 is an empty padding
+chunk, so the reader needs no special case.
 
-The live chunks are the chunks in the `SequenceState::chunks` lists: the chunks
-that no read or overwrite has erased yet. After a read, these are mostly
-incomplete chunks, chunks that wait for a patch, and chunks written since the
-read.
+To reduce page faults, compaction uses the previous written extent to estimate
+how much capacity later writes will need.
+It retains the old `used_size_` plus `old_used_size / kSpareCapacityDivisor`,
+capped at `size_`, preserving resident spare pages without touching nonresident
+pages.
+Smaller write cycles lower the retention boundary, and another compaction
+with no live chunks or new writes can release all whole pages.
 
-Each live chunk has exactly one reference: its offset in a
-`SequenceState::chunks` list. Sorting these offsets gives the live chunks in
-address order, without a walk over the padding between them. Sorting costs
-O(N log N) for N live chunks.
+To release those pages, `PagedMemory::AdviseDontNeedAfter()` rounds the boundary
+up and the allocation's end down to system-page boundaries, preserving partial
+pages.
+It then passes the whole-page range to `AdviseDontNeed()`, whose behavior
+depends on the platform and can be a no-op.
 
-Compaction must keep the ring order, oldest chunk first, because readers and
-overwrites follow it. `wr_` is where the next chunk is written, so the chunk
-there is the oldest, and the next overwrite erases it. Ring order runs from
-`wr_` to `used_size_`, then wraps to offset 0 and runs up to `wr_`:
-
-```
-0                        wr_                      used_size_
-|..[C1]..[D1]..[C2]......|..[C0]....[D0]..........|
-                         ^ ring order starts here
-ring order: C0, D0, C1, D1, C2
-(C and D are two sequences. The number is the chunk order in its sequence.)
-```
-
-So address order is ring order when all live chunks are on one side of `wr_`,
-and that is the usual case:
-
-* Before the writes first wrap, `wr_` equals `used_size_`, and every chunk is
-  before `wr_`.
-* A compaction sets `wr_` and `used_size_` to the live bytes. So this holds
-  again after each compaction, until the writes wrap again.
-* After a wrap, the chunks after `wr_` are from the previous lap. A full read
-  consumes them, unless it cannot read them yet. Then only chunks before `wr_`
-  stay live.
-
-`EndRead()` handles three cases:
-
-* If all live chunks are on one side of `wr_`, they slide left in address
-  order, and each moves at most once. Each moved chunk gets its new offset in
-  `SequenceState::chunks`, and a new checksum, which hashes the chunk offset.
-* If no chunk is live, nothing moves, and the buffer becomes empty:
-  `used_size_` is 0. `ReadNextTracePacket()` returns false for an empty buffer
-  without reading offset 0, which still holds old bytes.
-* If live chunks are on both sides of `wr_`, as in the diagram above, address
-  order is not ring order, so `EndRead()` skips the compaction. This needs a
-  wrap, and an old chunk that the reads could not consume, so it is rare.
-
-Chunks that stay live move only once. After the first compaction they are at
-the front, and they move again only when a chunk before them is consumed.
-
-#### Releasing pages
-
-Before the compaction, `used_size_` is where the writes since the last
-compaction reached. The next writes likely need about as much. So `EndRead()`
-keeps the pages up to `used_size_` plus 1/4 of slack, and releases the pages
-after them with `AdviseDontNeed()` where the platform supports it.
-
-* With a steady write rate, no page is released and faulted in again on every
-  read.
-* After a burst, the pages of the burst stay until a smaller cycle follows.
-* If the writes wrapped, `used_size_` is the whole buffer, and nothing is
-  released.
-* An idle buffer, with no writes since the last compaction and nothing live,
-  releases all its pages. If writes come back, the first one faults in a page.
-
-It does not clear the bytes past the new `used_size_`:
-
-* Nothing reads them. Reads and overwrites stop at `used_size_`, and a write
-  initializes its bytes before `used_size_` covers them.
-* The compaction costs time in proportion to the live bytes, but a memset
-  would cost time in proportion to the old `used_size_`, which can be the whole
-  buffer. So the memset would cost far more than the compaction.
-
-#### Side effects
-
-* While compaction keeps running, the buffer rarely laps. A chunk that never
-  completes (a fragment whose continuation never comes, or a chunk that is
-  never patched) stays until the buffer really fills. Without compaction, the
-  write cursor overwrites it after one lap.
-* `write_wrap_count` counts real laps only, which become rare.
-* The `shift_left_compactions` buffer stat counts the compactions.
+The `compactions` counter includes completed compactions even when no chunks
+move, while `compactions_skipped` counts skips due to live chunks on both sides
+of `wr_`.
+Neither counter includes calls on `DISCARD` or read-only buffers.
 
 ## Benchmarks
 

@@ -67,6 +67,11 @@ class PagedMemory {
   // if implemented.
   bool AdviseDontNeed(void* p, size_t size);
 
+  // Like AdviseDontNeed(), but only for whole pages within [offset, size()).
+  // Preserves partial pages at both ends of the range.
+  // Requires a valid allocation and |offset| <= size().
+  void AdviseDontNeedAfter(size_t offset);
+
   // Ensures that at least the first |committed_size| bytes of the allocated
   // memory region are committed. The implementation may commit memory in larger
   // chunks above |committed_size|. Crashes if the memory couldn't be committed.

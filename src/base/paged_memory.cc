@@ -140,6 +140,14 @@ bool PagedMemory::AdviseDontNeed(void* p, size_t size) {
         // PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 }
 
+void PagedMemory::AdviseDontNeedAfter(size_t offset) {
+  PERFETTO_CHECK(p_ && offset <= size_);
+  const size_t release_begin = RoundUpToSysPageSize(offset);
+  const size_t release_end = AlignDown(size_, GetSysPageSize());
+  if (release_begin < release_end)
+    AdviseDontNeed(p_ + release_begin, release_end - release_begin);
+}
+
 #if TRACK_COMMITTED_SIZE()
 void PagedMemory::EnsureCommitted(size_t committed_size) {
   PERFETTO_DCHECK(committed_size <= size_);
