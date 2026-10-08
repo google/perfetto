@@ -2468,7 +2468,8 @@ message HeapprofdConfig {
 // Config for the "linux.smaps" data source, describes one-shot or periodic
 // /proc/pid/smaps collection.
 //
-// A valid config must specify at least one |target_cmdline|. Example:
+// A valid config must specify at least one |target_cmdline| or |target_uid|.
+// Example:
 //
 // data_sources {
 //   config {
@@ -2487,6 +2488,8 @@ message ProcessSmapsConfig {
   optional SmapsConfig smaps_config = 1;
 
   // Which processes to record. At least one field must be set.
+  // Multiples of the same option (e.g. target_cmdline) are ORed.
+  // Different options are ANDed, skipping fields that are unset.
   message Scope {
     // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
     // comm string).
@@ -2502,6 +2505,18 @@ message ProcessSmapsConfig {
     //
     // Implementation note: at most 511 characters of cmdline are considered.
     repeated string target_cmdline = 1;
+
+    // Range of UIDs.
+    message UidRange {
+      // inclusive, must be set
+      optional uint32 min_uid = 1;
+      // inclusive, must be set
+      optional uint32 max_uid = 2;
+      // Android: if true, compare the UID modulo the per-user/profile offset
+      // (AID_USER_OFFSET, 100000).
+      optional bool android_match_across_profiles = 3;
+    }
+    repeated UidRange target_uid = 2;
   }
   optional Scope scope = 2;
 
@@ -2510,6 +2525,18 @@ message ProcessSmapsConfig {
   // writing, [1s, 24hr] range).
   // If zero or unset, each process is captured only once at start.
   optional uint32 read_period_ms = 3;
+
+  // Caps the number of processes handled per |read_period_ms|, or overall if
+  // the config is one-shot (period = 0). The immediate use case is to limit
+  // work if too many processes match the |scope|.
+  // Additionally, this option can be used for sampling, since the
+  // implementation inspects processes in a shuffled order (not in numeric pid
+  // order), and successive periods cover separate subsets of pids.
+  // So a config with scope=*, period=10s, and max_processes=5 would
+  // progressively scan all processes on the machine by parsing 5 processes at
+  // a time with 10s breaks in between.
+  // If zero or unset, there is no limit.
+  optional uint32 max_processes_per_period = 4;
 }
 
 // Describes what to record from /proc/pid/smaps.
