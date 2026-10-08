@@ -574,7 +574,6 @@ def main():
       # Collect all artifacts from all prelude modules
       merged_module = {
           'module_name': 'prelude',
-          'module_doc': None,
           'tags': [],
           'includes': [],
           'data_objects': [],

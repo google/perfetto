@@ -235,10 +235,6 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
     module_dict = {
         'module_name':
             module_name,
-        'module_doc': {
-            'name': parsed.module_doc.name,
-            'desc': parsed.module_doc.desc,
-        } if parsed.module_doc else None,
         'tags':
             get_tags(module_name),
         'includes': [inc.module for inc in parsed.includes],
