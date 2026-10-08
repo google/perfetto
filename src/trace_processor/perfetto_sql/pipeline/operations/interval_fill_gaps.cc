@@ -44,7 +44,7 @@ namespace ex = core::exec;
 
 const OperationRegistration IntervalFillGaps::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS, &BuildPlan,
-    OperationRegistration::Encoding{4, false, &DecodePlan}};
+    OperationRegistration::Encoding{5, false, &DecodePlan}};
 
 namespace {
 
