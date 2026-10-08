@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/local_file_system.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -23,6 +24,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_processor/core/util/file_backed_column_vector.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::io {
@@ -88,12 +90,23 @@ TEST(LocalFileSystemTest, RandomAccessReadWrite) {
   EXPECT_EQ(std::string(buffer, 6), "start ");
   EXPECT_EQ(std::string(buffer + 6, 4), std::string(4, '\0'));
 
-  ASSERT_OK(file->Truncate(6));
+  ASSERT_OK(file->SetSize(6));
   ASSERT_OK(file->GetSize(&size));
   EXPECT_EQ(size, 6u);
 
   file.reset();
   ASSERT_OK(file_system->DeleteFile(path));
+}
+
+TEST(LocalFileSystemTest, FileBackedVectorGrowsAndPreservesContents) {
+  auto vector_or = core::CreateFileBackedColumnVector<uint64_t>(
+      CreateLocalFileSystem(), 64);
+  ASSERT_OK(vector_or);
+  auto vector = std::move(*vector_or);
+  for (uint64_t i = 0; i < 4096; ++i)
+    vector.push_back(i * 3);
+  for (uint64_t i = 0; i < vector.size(); ++i)
+    ASSERT_EQ(vector[i], i * 3);
 }
 
 TEST(LocalFileSystemTest, RejectsReadOnlyCreate) {
@@ -121,6 +134,8 @@ TEST(LocalFileSystemTest, NoopFileSystemRejectsAllOperations) {
   EXPECT_THAT(file_system->DeleteFile("path"), base::gtest_matchers::IsError());
   bool exists = false;
   EXPECT_THAT(file_system->FileExists("path", &exists),
+              base::gtest_matchers::IsError());
+  EXPECT_THAT(file_system->CreateTemporaryFile(&file),
               base::gtest_matchers::IsError());
 }
 
