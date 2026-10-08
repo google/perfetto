@@ -16,8 +16,10 @@
 
 #include "perfetto/ext/base/murmur_hash.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 #include "perfetto/ext/base/string_view.h"
 #include "test/gtest_and_gmock.h"
@@ -42,6 +44,23 @@ TEST(MurmurHashTest, HeterogeneousStringHash) {
   // Select the heterogeneous overload explicitly: the owning-key overload
   // could otherwise hide missing array support via a string conversion.
   EXPECT_EQ(hasher.operator()<char[4]>("abc"), expected);
+}
+
+template <typename H, typename = void>
+struct IsTransparent : std::false_type {};
+template <typename H>
+struct IsTransparent<H, std::void_t<typename H::is_transparent>>
+    : std::true_type {};
+
+TEST(MurmurHashTest, OnlyStringLikeKeysAreTransparent) {
+  static_assert(IsTransparent<MurmurHash<std::string>>::value);
+  static_assert(IsTransparent<MurmurHash<std::string_view>>::value);
+  static_assert(IsTransparent<MurmurHash<base::StringView>>::value);
+  static_assert(IsTransparent<MurmurHash<const char*>>::value);
+  // Other keys (e.g. integers) are converted by the caller instead: hashing
+  // an int as is could differ from hashing it as a uint32_t key.
+  static_assert(!IsTransparent<MurmurHash<uint32_t>>::value);
+  static_assert(!IsTransparent<MurmurHash<int64_t>>::value);
 }
 
 }  // namespace
