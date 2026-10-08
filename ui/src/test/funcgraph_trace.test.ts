@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -28,33 +26,37 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('ui-funcgraph.pftrace');
 });
 
-test('cpu funcgraph', async () => {
-  const grp = pth.locateTrack('CPU');
-  await grp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(grp);
-  const funcgraphGrp = pth.locateTrack('CPU/Funcgraph', grp);
-  await funcgraphGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(funcgraphGrp);
-  const funcgraph = pth.locateTrack(
-    'CPU/Funcgraph/swapper4 -funcgraph',
-    funcgraphGrp,
-  );
-  await funcgraph.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('cpu_funcgraph.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
-  });
-});
+test('funcgraph_trace', async () => {
+  test.setTimeout(2 * 60_000);
 
-test('thread funcgraph', async () => {
-  const grp = pth.locateTrack('iperf 3442');
-  await grp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(grp);
-  const funcgraph = pth.locateTrack(
-    'iperf 3442/Funcgraph (3450) (funcgraph)',
-    grp,
-  );
-  await funcgraph.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('thread_funcgraph.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+  await pth.step('cpu funcgraph', async () => {
+    const grp = pth.locateTrack('CPU');
+    await grp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(grp);
+    const funcgraphGrp = pth.locateTrack('CPU/Funcgraph', grp);
+    await funcgraphGrp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(funcgraphGrp);
+    const funcgraph = pth.locateTrack(
+      'CPU/Funcgraph/swapper4 -funcgraph',
+      funcgraphGrp,
+    );
+    await funcgraph.scrollIntoViewIfNeeded();
+    await pth.waitForIdleAndScreenshot('cpu_funcgraph.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
+  });
+
+  await pth.step('thread funcgraph', async () => {
+    const grp = pth.locateTrack('iperf 3442');
+    await grp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(grp);
+    const funcgraph = pth.locateTrack(
+      'iperf 3442/Funcgraph (3450) (funcgraph)',
+      grp,
+    );
+    await funcgraph.scrollIntoViewIfNeeded();
+    await pth.waitForIdleAndScreenshot('thread_funcgraph.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
 });
