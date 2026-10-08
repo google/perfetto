@@ -478,6 +478,7 @@ node PerfettoPipeAggregate {
 abstract PerfettoPipeStage {
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
+  PerfettoIntervalFillGaps
   PerfettoPipeOrderBy
   PerfettoPipeAggregate
   PerfettoPipeSelect
@@ -522,6 +523,20 @@ node PerfettoIntervalFlatten {
       "INTERVAL" "FLATTEN"
       if_set(per) { space "PER" space child(per) }
       nest { line "AGGREGATE" space child(aggregates) }
+    }
+  }
+}
+
+// `INTERVAL FILL GAPS WITH rel [PER cols]`: lays the rows over a background,
+// adding a row over each span of the background they do not cover.
+node PerfettoIntervalFillGaps {
+  background: index PerfettoPipeSource
+  per: index PerfettoPerColumnList
+
+  fmt {
+    group {
+      "INTERVAL" "FILL" "GAPS" "WITH" space child(background)
+      if_set(per) { space "PER" space child(per) }
     }
   }
 }

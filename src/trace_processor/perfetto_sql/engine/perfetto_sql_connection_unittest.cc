@@ -1354,6 +1354,21 @@ TEST_F(PerfettoSqlConnectionPipelineTest, AliasNeedsAs) {
   }
 }
 
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGapsParses) {
+  ASSERT_TRUE(
+      Rows("CREATE TABLE b(ts INTEGER, dur INTEGER, cpu INTEGER)").ok());
+  for (const char* operand :
+       {"b", "b PER cpu", "b AS x PER cpu", "(SELECT * FROM b) PER cpu"}) {
+    EXPECT_THAT(Rows(std::string("FROM (SELECT 2 AS ts, 3 AS dur, 1 AS cpu) "
+                                 "|> INTERVAL FILL GAPS WITH ") +
+                     operand)
+                    .status()
+                    .message(),
+                testing::HasSubstr("INTERVAL FILL GAPS is not supported yet"))
+        << operand;
+  }
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {
   auto fork = connection_->Fork();
   auto first = connection_->ExecuteUntilLastStatement(
