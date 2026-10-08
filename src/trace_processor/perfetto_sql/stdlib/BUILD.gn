@@ -49,7 +49,6 @@ perfetto_amalgamated_sql_header("amalgamated_stdlib") {
   ]
   generated_header = "amalgamated_stdlib.h"
   namespace = "stdlib"
-  generate_docs = true
 }
 
 source_set("stdlib") {
