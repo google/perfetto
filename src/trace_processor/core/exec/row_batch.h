@@ -59,6 +59,7 @@ class RowBatch {
   RowBatch& operator=(const RowBatch&) = delete;
   RowBatch(RowBatch&& other) noexcept { *this = std::move(other); }
   RowBatch& operator=(RowBatch&& other) noexcept {
+    last_ = other.last_;
     own_columns_ = std::move(other.own_columns_);
     own_buffers_ = std::move(other.own_buffers_);
     if (other.owned_) {
@@ -81,6 +82,11 @@ class RowBatch {
   // Gives every column `rows` rows, all kept.
   void SetRowCount(uint32_t rows) { selection_.Reset(rows); }
 
+  // Whether its producer said no batch follows this one, so a reader need not
+  // ask. Never inherited by a copy: whoever makes one says so of its own.
+  bool last() const { return last_; }
+  void set_last(bool last) { last_ = last; }
+
   const Selection& selection() const { return selection_; }
   Selection& mutable_selection() { return selection_; }
 
@@ -98,6 +104,12 @@ class RowBatch {
   uint32_t column_count() const { return column_count_; }
   const ColumnView& column(uint32_t column) const { return columns_[column]; }
 
+  // The views this batch's columns are, if its producer lends them, null if
+  // they are the batch's own. A producer keeps each lent view's kind and type
+  // as they are for as long as it lends it, so a reader can work out how to
+  // read them once.
+  const ColumnView* lent_columns() const { return owned_ ? nullptr : columns_; }
+
   // The buffer `column` is onto, null if it borrows its storage.
   const ColumnBuffer& buffer(uint32_t column) const {
     static const base::NoDestructor<ColumnBuffer> kBorrowed;
@@ -107,6 +119,7 @@ class RowBatch {
   // Points this batch at `other`'s columns and rows. Nothing is copied but
   // the views and selection: the buffers are shared.
   void CopyFrom(const RowBatch& other) {
+    last_ = false;
     PERFETTO_DCHECK(&other != this);
     own_columns_.assign(other.columns_, other.columns_ + other.column_count_);
     own_buffers_.assign(other.buffers_, other.buffers_ + other.buffer_count_);
@@ -142,7 +155,8 @@ class RowBatch {
   // Replaces every column with `views`, lent: each onto the buffer of the
   // same index in `buffers`, or borrowing its storage past the end of it.
   // Nothing is copied, so the caller keeps both as they are until it next
-  // fills the batch. Keeps the rows.
+  // fills the batch, and each view's kind and type for as long as it lends
+  // it. Keeps the rows.
   void SetColumns(const std::vector<ColumnView>& views,
                   const std::vector<ColumnBuffer>& buffers) {
     SetColumns(views.data(), static_cast<uint32_t>(views.size()),
@@ -163,6 +177,7 @@ class RowBatch {
 
   // Removes every column and row.
   void Reset() {
+    last_ = false;
     own_columns_.clear();
     own_buffers_.clear();
     Repoint();
@@ -201,6 +216,7 @@ class RowBatch {
     buffer_count_ = static_cast<uint32_t>(own_buffers_.size());
   }
 
+  bool last_ = false;
   // The columns, lent or the batch's own.
   const ColumnView* columns_ = nullptr;
   uint32_t column_count_ = 0;

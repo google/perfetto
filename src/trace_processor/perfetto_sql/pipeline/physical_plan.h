@@ -49,7 +49,9 @@ class PhysicalPlan {
   PhysicalPlan& operator=(const PhysicalPlan&) = delete;
   ~PhysicalPlan();
 
-  const core::exec::Source& source() const { return *pipeline_; }
+  const core::exec::Source& source() const {
+    return pipeline_ ? *pipeline_ : *input_;
+  }
   const std::vector<Column>& columns() const { return columns_; }
 
  private:

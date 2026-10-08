@@ -195,8 +195,11 @@ void Lowering::RequireInt64(ColumnId column,
 }
 
 std::unique_ptr<PhysicalPlan> Lowering::Finish() {
-  out_->pipeline_ = std::make_unique<ex::Pipeline>(
-      *out_->input_, std::move(operators_), ex::ExecutionOptions());
+  // With no steps, the plan is read straight from its input.
+  if (!operators_.empty()) {
+    out_->pipeline_ = std::make_unique<ex::Pipeline>(
+        *out_->input_, std::move(operators_), ex::ExecutionOptions());
+  }
   for (const NamedColumn& column : plan_.output()) {
     out_->columns_.push_back({column.name, Position(column.id)});
   }

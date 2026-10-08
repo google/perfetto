@@ -220,6 +220,7 @@ bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
   out.SetColumns(s.lent, s.buffers);
   out.SetRowCount(count);
   s.emitted += count;
+  out.set_last(s.emitted == rows);
   return true;
 }
 

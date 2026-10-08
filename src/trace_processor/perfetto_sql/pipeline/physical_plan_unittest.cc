@@ -65,7 +65,7 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
     }
     return cell.AsInt64();
   }
-  if (!view.IsValid(cursor.batch_row())) {
+  if (!view.IsValid(cursor.row())) {
     return std::nullopt;
   }
   core::StorageType type = view.type();

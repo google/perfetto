@@ -28,15 +28,20 @@ RowCursor::~RowCursor() = default;
 bool RowCursor::Pull() {
   for (;;) {
     batch_ = source_.Next(scratch_, *state_);
+    ++batch_number_;
     if (!batch_) {
       index_ = 0;
       size_ = 0;
       return false;
     }
-    if (batch_->size()) {
-      index_ = 0;
-      size_ = batch_->size();
+    index_ = 0;
+    size_ = batch_->size();
+    if (size_) {
+      row_ = batch_->selection()[0];
       return true;
+    }
+    if (batch_->last()) {
+      return false;
     }
   }
 }

@@ -92,17 +92,25 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
                               StringPool*,
                               const core::exec::ColumnView&,
                               uint32_t);
+    // How a declared column is read, worked out the first time it is read
+    // from a batch, unless the batch is onto the same lent views as the last.
     struct ColumnReader {
+      // Where it is in the plan's batches.
+      uint32_t index = 0;
+      // The batch `view` and `result` were last checked for, by
+      // RowCursor::batch_number().
+      uint32_t batch = 0;
+      // The lent views they were worked out for, null if the batch's own.
+      const core::exec::ColumnView* lent = nullptr;
       const core::exec::ColumnView* view = nullptr;
       ResultFn result = nullptr;
     };
+
     std::unique_ptr<pipeline::PhysicalPlan> plan;
     StringPool* pool = nullptr;
     std::unique_ptr<core::exec::RowCursor> rows;
-    // By declared column.
+    // By output column.
     std::vector<ColumnReader> columns;
-    // What readers of columns with no view are given.
-    core::exec::ColumnView no_view;
     bool eof = true;
   };
 

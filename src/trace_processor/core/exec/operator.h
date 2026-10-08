@@ -79,7 +79,9 @@ class Source {
   // Fills `out` and returns true, or returns false when no batches are left.
   // A column it computes is in a buffer from the run's Context; one it
   // borrows is onto storage which outlives the run (see RowBatch). A
-  // successful empty batch is not exhaustion.
+  // successful empty batch is not exhaustion. A source which knows no batch
+  // follows this one says so (RowBatch::set_last), saving its reader a call
+  // to find out.
   virtual bool GetData(RowBatch& out, OperatorState& state) const = 0;
 
   // The next batch, or null when none are left: `scratch` filled by
