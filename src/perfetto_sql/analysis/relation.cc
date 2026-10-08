@@ -320,7 +320,20 @@ bool RelationAnalyzer::Impl::Within(SyntaqliteParser* p,
              Within(p, node->compound_select.right, at);
     case SYNTAQLITE_NODE_PERFETTO_PIPELINE:
       return Within(p, node->perfetto_pipeline.from, at) ||
-             Within(p, node->perfetto_pipeline.intersection, at);
+             Within(p, node->perfetto_pipeline.intersection, at) ||
+             Within(p, node->perfetto_pipeline.stages, at);
+    case SYNTAQLITE_NODE_PERFETTO_PIPE_STAGE_LIST: {
+      const void* list = syntaqlite_parser_node(p, id);
+      for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
+        if (Within(p, syntaqlite_list_child_id(list, i), at)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    // A stage reading a relation of its own, as FILL GAPS its background.
+    case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
+      return Within(p, node->perfetto_interval_fill_gaps.background, at);
     case SYNTAQLITE_NODE_PERFETTO_INTERVAL_INTERSECTION: {
       const void* list = syntaqlite_parser_node(
           p, node->perfetto_interval_intersection.operands);

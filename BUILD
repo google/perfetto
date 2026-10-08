@@ -2603,6 +2603,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/dataframe_scan.h",
         "src/trace_processor/core/exec/group_by.cc",
         "src/trace_processor/core/exec/group_by.h",
+        "src/trace_processor/core/exec/interval_fill_gaps.cc",
+        "src/trace_processor/core/exec/interval_fill_gaps.h",
         "src/trace_processor/core/exec/interval_flatten.cc",
         "src/trace_processor/core/exec/interval_flatten.h",
         "src/trace_processor/core/exec/interval_intersect.cc",
@@ -3892,6 +3894,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_pipeline_operations_operations",
     srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",

@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
@@ -76,6 +77,8 @@ class LogicalPlanFormatter {
                                            const IntervalFlatten&);
   static std::string IntervalIntersectString(const LogicalPlan&,
                                              const PlanNode&);
+  static std::string IntervalFillGapsString(const LogicalPlan&,
+                                            const PlanNode&);
   static std::string OrderByString(const OrderBy&);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
 };
@@ -171,6 +174,32 @@ std::string LogicalPlanFormatter::IntervalIntersectString(
   return out;
 }
 
+std::string LogicalPlanFormatter::IntervalFillGapsString(
+    const LogicalPlan& plan,
+    const PlanNode& node) {
+  const auto& fill = node.Cast<IntervalFillGaps>();
+  std::string out = "IntervalFillGaps(ts=#" + std::to_string(fill.ts_) +
+                    ", dur=#" + std::to_string(fill.dur_);
+  for (ColumnId key : fill.keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  out += ")";
+  for (const auto& output : fill.outputs_) {
+    out += "\n  " + ColumnString(plan, output.column) + " <- ";
+    out += output.input ? "#" + std::to_string(*output.input) : "null";
+    out += " | ";
+    out +=
+        output.background ? "#" + std::to_string(*output.background) : "null";
+  }
+  out += "\n  background(ts=#" + std::to_string(fill.background_ts_) +
+         ", dur=#" + std::to_string(fill.background_dur_);
+  for (ColumnId key : fill.background_keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  return out + ")\n    " +
+         ScanString(plan, plan.nodes()[node.children()[1]].Cast<Scan>());
+}
+
 std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
   std::string out = "OrderBy(";
   for (size_t i = 0; i < order.keys_.size(); ++i) {
@@ -194,6 +223,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   }
   if (node.Is<IntervalIntersect>()) {
     return IntervalIntersectString(plan, node) + "\n";
+  }
+  if (node.Is<IntervalFillGaps>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           IntervalFillGapsString(plan, node) + "\n";
   }
   if (node.Is<IntervalFlatten>()) {
     return SubtreeString(plan, node.children()[0]) +

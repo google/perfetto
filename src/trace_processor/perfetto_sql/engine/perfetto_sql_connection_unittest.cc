@@ -1358,19 +1358,129 @@ TEST_F(PerfettoSqlConnectionPipelineTest, AliasNeedsAs) {
   }
 }
 
-TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGapsParses) {
-  ASSERT_TRUE(
-      Rows("CREATE TABLE b(ts INTEGER, dur INTEGER, cpu INTEGER)").ok());
-  for (const char* operand :
-       {"b", "b PER cpu", "b AS x PER cpu", "(SELECT * FROM b) PER cpu"}) {
-    EXPECT_THAT(Rows(std::string("FROM (SELECT 2 AS ts, 3 AS dur, 1 AS cpu) "
-                                 "|> INTERVAL FILL GAPS WITH ") +
-                     operand)
-                    .status()
-                    .message(),
-                testing::HasSubstr("INTERVAL FILL GAPS is not supported yet"))
-        << operand;
-  }
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGaps) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER, state TEXT);
+    INSERT INTO spans VALUES
+      (2, 3, 0, 'run'), (6, 1, 0, 'run'), (1, 2, 1, 'sleep');
+    CREATE TABLE bg(ts INTEGER, dur INTEGER, state TEXT, filled INTEGER);
+    INSERT INTO bg VALUES (0, 10, 'idle', 1);
+    CREATE TABLE bg_cpu(ts INTEGER, dur INTEGER, cpu INTEGER, state TEXT);
+    INSERT INTO bg_cpu VALUES (0, 10, 0, 'idle'), (0, 4, 2, 'off');
+  )")
+                  .ok());
+  // Without PER the background is filled around every row; a filler takes the
+  // background's columns by name, and its own bounds.
+  auto rows = Rows(R"(
+    FROM (SELECT ts, dur, state FROM spans WHERE cpu = 0)
+    |> INTERVAL FILL GAPS WITH bg
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::UnorderedElementsAre("0,2,idle,1", "2,3,run,NULL",
+                                                   "5,1,idle,1", "6,1,run,NULL",
+                                                   "7,3,idle,1"));
+
+  // A background without the PER columns fills every lane of the input, and
+  // a filler takes its lane's key.
+  rows = Rows("FROM spans |> INTERVAL FILL GAPS WITH bg PER cpu");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::UnorderedElementsAre(
+                         "0,2,0,idle,1", "2,3,0,run,NULL", "5,1,0,idle,1",
+                         "6,1,0,run,NULL", "7,3,0,idle,1", "0,1,1,idle,1",
+                         "1,2,1,sleep,NULL", "3,7,1,idle,1"));
+
+  // A background with them names the lanes: one without input is filled
+  // whole, and input in no lane of it fills nothing.
+  rows = Rows("FROM spans |> INTERVAL FILL GAPS WITH bg_cpu PER cpu");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::UnorderedElementsAre(
+                         "0,2,0,idle", "2,3,0,run", "5,1,0,idle", "6,1,0,run",
+                         "7,3,0,idle", "1,2,1,sleep", "0,4,2,off"));
+
+  // An alias still reaches its columns: a filler shows the background's value
+  // where the background has the column, and null where it does not.
+  rows = Rows(R"(
+    FROM (SELECT ts, dur, state FROM spans WHERE cpu = 0) AS s
+    |> INTERVAL FILL GAPS WITH bg
+    |> SELECT s.ts, s.state, filled
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(
+      *rows, testing::UnorderedElementsAre("0,idle,1", "2,run,NULL", "5,idle,1",
+                                           "6,run,NULL", "7,idle,1"));
+  rows = Rows(R"(
+    INTERVAL INTERSECTION OF (
+      (SELECT ts, dur, state FROM spans WHERE cpu = 0) AS a,
+      (SELECT 0 AS ts, 4 AS dur) AS b
+    )
+    |> INTERVAL FILL GAPS WITH bg
+    |> SELECT ts, a.state, state
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::UnorderedElementsAre("0,NULL,idle", "2,run,NULL",
+                                                   "4,NULL,idle"));
+
+  // An input without rows has columns of no meaningful type, so a background
+  // column of the same name fills whatever its own type is.
+  rows = Rows(R"(
+    FROM (SELECT ts, dur, state FROM spans WHERE cpu = 9)
+    |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 4 AS dur, 'idle' AS state)
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,4,idle"));
+
+  // A dataframe and SQL agree on a column's type once both are brought to it.
+  ASSERT_TRUE(Rows(R"(
+    CREATE PERFETTO TABLE frozen AS
+    SELECT ts, dur, cpu, state FROM spans WHERE cpu = 1;
+  )")
+                  .ok());
+  rows = Rows(R"(
+    FROM frozen
+    |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 5 AS dur, 'idle' AS state)
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::UnorderedElementsAre(
+                         "0,1,NULL,idle", "1,2,1,sleep", "3,2,NULL,idle"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGapsErrors) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER, state TEXT);
+    INSERT INTO spans VALUES (2, 3, 0, 'run');
+    CREATE PERFETTO TABLE frozen AS SELECT * FROM spans;
+    CREATE PERFETTO TABLE numbered AS
+    SELECT 0 AS ts, 10 AS dur, 1 AS state;
+  )")
+                  .ok());
+  EXPECT_THAT(Rows("FROM spans |> INTERVAL FILL GAPS WITH (SELECT 0 AS dur)")
+                  .status()
+                  .message(),
+              testing::HasSubstr("expected the background to have a ts"));
+  EXPECT_THAT(Rows("FROM spans |> INTERVAL FILL GAPS WITH "
+                   "(SELECT 0 AS ts, 1 AS dur, 0 AS cpu) PER cpu, state")
+                  .status()
+                  .message(),
+              testing::HasSubstr("every PER column or none"));
+  EXPECT_THAT(Rows("FROM frozen |> INTERVAL FILL GAPS WITH numbered")
+                  .status()
+                  .message(),
+              testing::HasSubstr("the same type as the input's"));
+  EXPECT_THAT(Rows("FROM (SELECT -1 AS ts, 2 AS dur) "
+                   "|> INTERVAL FILL GAPS WITH spans")
+                  .status()
+                  .message(),
+              testing::HasSubstr("ts is below zero"));
+  EXPECT_THAT(Rows("FROM spans |> INTERVAL FILL GAPS WITH "
+                   "(SELECT -1 AS ts, 2 AS dur)")
+                  .status()
+                  .message(),
+              testing::HasSubstr("ts or dur is below zero"));
+  EXPECT_THAT(Rows("FROM spans |> INTERVAL FILL GAPS WITH "
+                   "(SELECT 0 AS ts, 10 AS dur UNION ALL SELECT 5, 10)")
+                  .status()
+                  .message(),
+              testing::HasSubstr("overlap within a lane"));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, OrderBy) {

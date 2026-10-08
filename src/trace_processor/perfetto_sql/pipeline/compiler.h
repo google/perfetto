@@ -210,6 +210,12 @@ class Compiler {
   void ClearAliases();
   void AddAlias(Alias alias);
 
+  // Points each alias at the column replacing each one it names, as `from` to
+  // `to` in `replaced`, for a stage which gives every column new values. A
+  // column with no replacement drops out of the alias.
+  void ReplaceAliasColumns(
+      const std::vector<std::pair<ColumnId, ColumnId>>& replaced);
+
   // Forgets the table alias `name`, if there is one.
   void RemoveAlias(const std::string& name);
 

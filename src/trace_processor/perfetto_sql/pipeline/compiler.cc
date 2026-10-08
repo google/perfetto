@@ -135,22 +135,32 @@ void Compiler::AddAlias(Alias alias) {
   scope_.aliases.push_back(std::move(alias));
 }
 
+void Compiler::ReplaceAliasColumns(
+    const std::vector<std::pair<ColumnId, ColumnId>>& replaced) {
+  for (Alias& alias : scope_.aliases) {
+    std::vector<RowColumn> columns;
+    for (RowColumn column : alias.columns) {
+      auto it = std::find_if(
+          replaced.begin(), replaced.end(),
+          [&](const auto& pair) { return pair.first == column.column.id; });
+      if (it != replaced.end()) {
+        column.column.id = it->second;
+        columns.push_back(std::move(column));
+      }
+    }
+    alias.columns = std::move(columns);
+  }
+}
+
 ColumnId Compiler::AddColumn(std::string name,
                              std::optional<core::StorageType> type) {
   return plan_.AddColumn(std::move(name), type);
 }
 
 base::Status Compiler::BuildOperation(uint32_t stage) {
-  uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
-  const auto* registration = FindOperationBySyntax(tag);
-  if (!registration) {
-    switch (tag) {
-      case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
-        return Unsupported(stage, "INTERVAL FILL GAPS");
-      default:
-        PERFETTO_FATAL("Unknown pipeline stage");
-    }
-  }
+  const auto* registration =
+      FindOperationBySyntax(Node<SyntaqliteNode>(p_, stage)->tag);
+  PERFETTO_CHECK(registration);
   return registration->BuildPlan(this, stage);
 }
 
