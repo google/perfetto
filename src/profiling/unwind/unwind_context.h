@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -62,9 +61,8 @@ class UnwindContext {
   virtual void ReparseMaps() = 0;
   virtual void ResetMaps() = 0;
 
-  virtual std::optional<FrameData> BuildFrameFromPc(
-      uint64_t /* pc */,
-      bool resolve_names = true) = 0;
+  virtual FrameData BuildFrameFromPc(uint64_t /* pc */,
+                                     bool resolve_names = true) = 0;
   // Backend-specific DWARF unwinding for this process
   virtual UnwindResult Unwind(const UnwindInputSample& /* sample */,
                               const UnwindOptions& /*options*/ = {}) {

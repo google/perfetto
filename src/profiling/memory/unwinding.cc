@@ -22,8 +22,6 @@
 #include <condition_variable>
 #include <mutex>
 
-#include <procinfo/process_map.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"

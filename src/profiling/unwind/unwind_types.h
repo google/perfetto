@@ -199,7 +199,7 @@ struct UnwindResult {
 
   UnwindResult(const UnwindResult&) = delete;
   UnwindResult& operator=(const UnwindResult&) = delete;
-  UnwindResult(UnwindResult&&) __attribute__((unused)) = default;
+  UnwindResult(UnwindResult&&) = default;
   UnwindResult& operator=(UnwindResult&&) = default;
 };
 

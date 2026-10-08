@@ -71,15 +71,14 @@ void FramePointerUnwinder::TryUnwind() {
     if (!IsFrameValid(fp, sp))
       return;
 
-    std::optional<FrameData> frame =
-        context_->BuildFrameFromPc(pc, resolve_names_);
-    if (!frame) {
+    FrameData frame = context_->BuildFrameFromPc(pc, resolve_names_);
+    if (!frame.map_info) {
       last_error_.code = UnwindErrorCode::kInvalidMap;
       return;
     }
 
-    frame->sp = sp;
-    frames_.push_back(std::move(*frame));
+    frame.sp = sp;
+    frames_.push_back(std::move(frame));
     // move to the next frame
     fp = DecodeFrame(fp, &pc, &sp);
   }

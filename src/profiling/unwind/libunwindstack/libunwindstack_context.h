@@ -26,8 +26,8 @@
 
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/unwind/unwind_types.h"
 #include "src/profiling/unwind/unwind_context.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -123,8 +123,7 @@ class LibunwindstackContext : public UnwindContext {
   void ReparseMaps() override;
   void ResetMaps() override;
 
-  std::optional<FrameData> BuildFrameFromPc(uint64_t pc,
-                                            bool resolve_names = true) override;
+  FrameData BuildFrameFromPc(uint64_t pc, bool resolve_names = true) override;
 
   UnwindResult Unwind(const UnwindInputSample& /* sample */,
                       const UnwindOptions& /*options*/ = {}) override;
