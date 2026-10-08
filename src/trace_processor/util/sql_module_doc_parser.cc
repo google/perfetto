@@ -64,11 +64,12 @@ std::string JoinLineComments(const char* stmt_ptr,
 }
 
 // Returns the index of the first comment in the last contiguous block of line
-// comments. Two or more newlines between consecutive line comments (i.e. a
-// blank line) breaks the block, which is used to skip license headers.
+// comments. A blank line between consecutive line comments or before the
+// following token breaks the block, which is used to skip license headers.
 uint32_t LastBlockStart(const char* stmt_ptr,
                         const SyntaqliteComment* comments,
-                        uint32_t count) {
+                        uint32_t count,
+                        uint32_t token_offset) {
   uint32_t start = 0;
   for (uint32_t i = 0; i + 1 < count; i++) {
     if (comments[i].kind != 0 || comments[i + 1].kind != 0) {
@@ -82,6 +83,16 @@ uint32_t LastBlockStart(const char* stmt_ptr,
       if (stmt_ptr[j] == '\n' && ++newlines >= 2) {
         start = i + 1;
         break;
+      }
+    }
+  }
+  if (count > 0) {
+    uint32_t gap_begin =
+        comments[count - 1].offset + comments[count - 1].length;
+    int newlines = 0;
+    for (uint32_t i = gap_begin; i < token_offset; i++) {
+      if (stmt_ptr[i] == '\n' && ++newlines >= 2) {
+        return count;
       }
     }
   }
@@ -266,7 +277,10 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
     auto get_stmt_desc = [&]() -> std::string {
       uint32_t count = 0;
       const auto* cs = syntaqlite_token_leading_comments(p, 0, &count);
-      uint32_t start = LastBlockStart(stmt_ptr, cs, count);
+      uint32_t token_count = 0;
+      const auto* tokens = syntaqlite_result_tokens(p, &token_count);
+      PERFETTO_DCHECK(token_count > 0);
+      uint32_t start = LastBlockStart(stmt_ptr, cs, count, tokens[0].offset);
       return JoinLineComments(stmt_ptr, cs + start, count - start);
     };
 

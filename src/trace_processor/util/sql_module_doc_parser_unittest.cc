@@ -188,6 +188,17 @@ CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
   EXPECT_EQ(m.table_views[0].description, "The real description.");
 }
 
+TEST(SqlModuleDocParserTest, SeparatedCommentIsNotDescription) {
+  auto m = Parse(R"(
+-- Copyright 2025 Acme Corp.
+
+CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_EQ(m.table_views[0].description, "");
+}
+
 TEST(SqlModuleDocParserTest, MultiLineDescription) {
   auto m = Parse(R"(
 -- First line.
