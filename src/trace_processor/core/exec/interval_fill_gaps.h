@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -68,9 +69,12 @@ struct IntervalFillGapsSpec {
 // INTERVAL FILL GAPS. Every input row passes through unchanged, and each span
 // of a background row its lane's input does not cover becomes a filler row.
 //
-// Lanes come from the PER columns, in one of three ways (see LaneMode): with
-// no PER there is one lane; a background with the PER columns names its own
-// lanes; and a background without them applies to every lane of the input.
+// A lane is the rows agreeing on the PER columns. A background with the PER
+// columns names the lanes: a lane without input is filled whole, and input in
+// a lane it does not name fills nothing. Without PER this is one lane, filled
+// even when there is no input. A background without the PER columns applies
+// to every lane of the input instead, and fillers take the lane's PER values
+// from the input.
 //
 // An input row with a null ts or dur covers nothing; a dur of -1 covers to
 // the end of time. A ts below zero is refused on either side. Input rows may
@@ -91,23 +95,11 @@ class IntervalFillGaps : public Operator {
  private:
   struct State;
 
-  // How rows are split into lanes, each filled on its own.
-  enum class LaneMode : uint8_t {
-    // No PER: every row is in one lane, filled even when there is no input.
-    kOne,
-    // PER, and the background has the PER columns: it names the lanes, so a
-    // lane without input is filled whole, and input in a lane the background
-    // does not name fills nothing.
-    kByBackground,
-    // PER, and the background does not have the PER columns: every lane of
-    // the input is filled over the whole background, and fillers take the
-    // lane's PER values from the input.
-    kByInput,
-  };
-
   // Reads the background unless it has been, returning whether all is well.
   bool EnsureBackgroundRead(State&) const;
   base::Status ReadBackground(State&) const;
+  // The encoded PER values of a row of the batch the encoder last saw.
+  std::string_view KeyOf(const State&, uint32_t row) const;
   // Records the coverage of an input batch.
   base::Status Cover(const RowBatch&, State&) const;
   // Records the shapes of the outputs' columns in a batch from one side, the
@@ -125,7 +117,9 @@ class IntervalFillGaps : public Operator {
                    StorageType fallback) const;
 
   IntervalFillGapsSpec spec_;
-  LaneMode mode_;
+  // Whether the background names the lanes, as it does with the PER columns
+  // or without PER. If not, every lane of the input shares the background.
+  bool background_names_lanes_;
   // Positions in the retained background columns, by output; none where the
   // output does not read the background.
   std::vector<std::optional<uint32_t>> retained_of_output_;
