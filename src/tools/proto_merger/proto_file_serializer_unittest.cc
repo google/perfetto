@@ -380,6 +380,84 @@ TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumIsMerged) {
   EXPECT_THAT(out, HasSubstr("ACTIVE = 1 [deprecated = true];"));
 }
 
+TEST(ProtoFileSerializerTest, AllowlistedOptionRemovedUpstreamIsRemoved) {
+  ProtoFile input;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+
+    auto f1 = MakeField("int32", "un_deprecated", 1);
+    f1.options.push_back({"deprecated", "true"});
+    message.fields.push_back(f1);
+
+    auto f2 = MakeField("int32", "with_downstream_opt", 2);
+    f2.options.push_back({"deprecated", "true"});
+    f2.options.push_back({"(.my.custom_opt)", "true"});
+    message.fields.push_back(f2);
+
+    auto f3 = MakeField("int32", "still_deprecated", 3);
+    f3.options.push_back({"deprecated", "true"});
+    message.fields.push_back(f3);
+
+    input.messages.push_back(message);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Message message{};
+    message.name = "Container";
+    message.fields.push_back(MakeField("int32", "un_deprecated", 1));
+    message.fields.push_back(MakeField("int32", "with_downstream_opt", 2));
+
+    auto f3 = MakeField("int32", "still_deprecated", 3);
+    f3.options.push_back({"deprecated", "true"});
+    message.fields.push_back(f3);
+
+    upstream.messages.push_back(message);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("int32 un_deprecated = 1;"));
+  EXPECT_THAT(
+      out,
+      HasSubstr("int32 with_downstream_opt = 2 [(.my.custom_opt) = true];"));
+  EXPECT_THAT(out,
+              HasSubstr("int32 still_deprecated = 3 [deprecated = true];"));
+}
+
+TEST(ProtoFileSerializerTest, AllowlistedOptionOnEnumRemovedUpstreamIsRemoved) {
+  ProtoFile input;
+  {
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    auto val = MakeEnumValue("ACTIVE", 1);
+    val.options.push_back({"deprecated", "true"});
+    en.values.push_back(val);
+    input.enums.push_back(en);
+  }
+
+  ProtoFile upstream;
+  {
+    ProtoFile::Enum en{};
+    en.name = "MyEnum";
+    en.values.push_back(MakeEnumValue("ACTIVE", 1));
+    upstream.enums.push_back(en);
+  }
+
+  ProtoFile merged;
+  ASSERT_TRUE(
+      MergeProtoFiles(input, upstream, Allowlist{}, merged, {"deprecated"})
+          .ok());
+
+  std::string out = ProtoFileToDotProto(merged);
+  EXPECT_THAT(out, HasSubstr("ACTIVE = 1;"));
+}
+
 TEST(ProtoFileSerializerTest,
      PassthroughFieldAutomaticallyAcceptsSubmessageFields) {
   struct ScopedUnlink {
