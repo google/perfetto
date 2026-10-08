@@ -141,16 +141,9 @@ ColumnId Compiler::AddColumn(std::string name,
 }
 
 base::Status Compiler::BuildOperation(uint32_t stage) {
-  uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
-  const auto* registration = FindOperationBySyntax(tag);
-  if (!registration) {
-    switch (tag) {
-      case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
-        return Unsupported(stage, "INTERVAL FILL GAPS");
-      default:
-        PERFETTO_FATAL("Unknown pipeline stage");
-    }
-  }
+  const auto* registration =
+      FindOperationBySyntax(Node<SyntaqliteNode>(p_, stage)->tag);
+  PERFETTO_CHECK(registration);
   return registration->BuildPlan(this, stage);
 }
 

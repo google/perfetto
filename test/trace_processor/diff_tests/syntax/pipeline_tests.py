@@ -135,6 +135,46 @@ class PerfettoPipeline(TestSuite):
         107295,0
         """))
 
+  # Matches the stdlib macro it replaces, on rows which never overlap.
+  def test_interval_fill_gaps_matches_the_macro(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        INCLUDE PERFETTO MODULE intervals.fill_gaps;
+
+        CREATE PERFETTO TABLE sched_rows AS
+        SELECT ts, dur, cpu, utid FROM sched WHERE dur > 0 AND utid != 0;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM sched_rows
+        |> INTERVAL FILL GAPS WITH (
+             SELECT trace_start() AS ts, trace_dur() AS dur
+           ) PER cpu;
+
+        CREATE PERFETTO TABLE macro AS
+        SELECT ts, dur, cpu, utid
+        FROM _intervals_fill_gaps!((cpu), (utid), sched_rows);
+
+        SELECT
+          (SELECT count(*) FROM piped WHERE utid IS NULL) AS fillers,
+          (
+            SELECT count(*) FROM (
+              SELECT ts, dur, cpu, utid FROM piped
+              EXCEPT SELECT ts, dur, cpu, utid FROM macro
+            )
+          ) + (
+            SELECT count(*) FROM (
+              SELECT ts, dur, cpu, utid FROM macro
+              EXCEPT SELECT ts, dur, cpu, utid FROM piped
+            )
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "fillers","mismatches"
+        76331,0
+        """))
+
   # Per key, sum(n * dur) over segments equals sum(dur) over rows.
   def test_interval_flatten_keys_over_many_batches(self):
     return DiffTestBlueprint(
