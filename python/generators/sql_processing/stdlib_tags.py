@@ -179,7 +179,6 @@ MODULE_TAGS = {
     'chrome.event_latency_description': ['chrome', 'input'],
     'chrome.input': ['chrome', 'input'],
     'chrome.android_input': ['chrome', 'input'],
-    'chrome.scroll_interactions': ['chrome', 'input'],
     'chrome.interactions': ['chrome', 'input'],
     'chrome.web_content_interactions': ['chrome', 'input'],
 
@@ -250,7 +249,6 @@ MODULE_TAGS = {
     'graphs.partition': ['utilities'],
     'graphs.dominator_tree': ['utilities'],
     'graphs.search': ['utilities'],
-    'graphs.critical_path': ['utilities', 'performance'],
 
     # Utilities
     'time.conversion': ['utilities'],

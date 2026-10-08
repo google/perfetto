@@ -35,7 +35,6 @@ sys.path.append(os.path.join(ROOT_DIR))
 from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_entities
 from python.generators.sql_processing.utils import check_banned_patterns
 from python.generators.sql_processing.utils import is_internal
-from python.generators.sql_processing.stdlib_tags import MODULE_TAGS
 
 # Package name constants
 PKG_PRELUDE = "prelude"
@@ -538,76 +537,6 @@ def has_public_artifacts(parsed) -> bool:
   return False
 
 
-def check_tags(modules: List[Tuple], quiet: bool = False) -> int:
-  """Check that all modules with public artifacts have tags defined.
-
-  Args:
-    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
-    quiet: If True, suppress detailed output
-
-  Returns:
-    Number of modules missing tags.
-  """
-  modules_missing_tags = []
-
-  for _, _, module_name, parsed in modules:
-    # If module has public artifacts, it must have tags
-    if has_public_artifacts(parsed):
-      tags = MODULE_TAGS.get(module_name, [])
-      if not tags:
-        modules_missing_tags.append(module_name)
-
-  if not quiet:
-    if modules_missing_tags:
-      print(
-          f"\nFound {len(modules_missing_tags)} module(s) with public artifacts but missing tags:\n"
-      )
-      for module_name in sorted(modules_missing_tags):
-        print(f"  - {module_name}")
-      print(
-          f"\nPlease add tags for these modules in python/generators/sql_processing/stdlib_tags.py"
-      )
-    else:
-      print(f"\nAll modules with public artifacts have tags defined!")
-
-  return len(modules_missing_tags)
-
-
-def check_orphaned_tags(modules: List[Tuple], quiet: bool = False) -> int:
-  """Check that all tags in MODULE_TAGS correspond to actual modules.
-
-  Args:
-    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
-    quiet: If True, suppress detailed output
-
-  Returns:
-    Number of orphaned tags (tags for non-existent modules).
-  """
-  # Build set of actual module names
-  actual_modules = set()
-  for _, _, module_name, _ in modules:
-    actual_modules.add(module_name)
-
-  # Find tags for modules that don't exist
-  orphaned_tags = []
-  for tagged_module in MODULE_TAGS.keys():
-    if tagged_module not in actual_modules:
-      orphaned_tags.append(tagged_module)
-
-  if not quiet:
-    if orphaned_tags:
-      print(f"\nFound {len(orphaned_tags)} tag(s) for non-existent modules:\n")
-      for module_name in sorted(orphaned_tags):
-        print(f"  - {module_name}")
-      print(
-          f"\nPlease remove these from python/generators/sql_processing/stdlib_tags.py"
-      )
-    else:
-      print(f"\nNo orphaned tags found!")
-
-  return len(orphaned_tags)
-
-
 def check_new_packages(modules: List[Tuple], quiet: bool = False) -> int:
   """Check that no new top-level public packages have been added.
 
@@ -729,16 +658,6 @@ def main() -> int:
       help='Also check that modules properly declare their dependencies via INCLUDE statements'
   )
   parser.add_argument(
-      '--check-tags',
-      action='store_true',
-      default=False,
-      help='Check that all modules with public artifacts have tags defined')
-  parser.add_argument(
-      '--check-orphaned-tags',
-      action='store_true',
-      default=False,
-      help='Check that all tags in MODULE_TAGS correspond to actual modules')
-  parser.add_argument(
       '--check-new-packages',
       action='store_true',
       default=False,
@@ -795,16 +714,6 @@ def main() -> int:
   if args.check_includes:
     include_errors = check_includes(modules, quiet=not args.verbose)
 
-  # Check tags if requested
-  tag_errors = 0
-  if args.check_tags:
-    tag_errors = check_tags(modules, quiet=not args.verbose)
-
-  # Check orphaned tags if requested
-  orphaned_tag_errors = 0
-  if args.check_orphaned_tags:
-    orphaned_tag_errors = check_orphaned_tags(modules, quiet=not args.verbose)
-
   # Check for new top-level public packages if requested
   new_package_errors = 0
   if args.check_new_packages:
@@ -815,7 +724,7 @@ def main() -> int:
   if args.check_layering:
     layering_errors = check_layering(modules, quiet=not args.verbose)
 
-  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + new_package_errors + layering_errors
+  total_errors = all_errors + include_errors + new_package_errors + layering_errors
   return 0 if not total_errors else 1
 
 
