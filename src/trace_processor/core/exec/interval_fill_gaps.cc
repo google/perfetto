@@ -38,6 +38,33 @@
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/util/span.h"
 
+// How it works
+// ============
+//
+// Rows are split into lanes by their PER values, and each lane is filled on
+// its own, in three steps:
+//
+//  1. Before the first input row, the background is read in full. Each row's
+//     span goes to its lane, and its columns are retained for the fillers.
+//     Once read, each lane's background is sorted and checked not to overlap.
+//  2. Each input batch passes through unchanged, and each row's span is
+//     recorded as covered in its lane.
+//  3. In Finish(), each lane's coverage is subtracted from its background
+//     with one walk over both, and each piece left becomes a filler. Fillers
+//     take their bounds from the piece, their other columns from the
+//     background row the piece came from and, when the background has no PER
+//     columns, their PER values from the lane.
+//
+// For example, with a background row [0, 100) and input rows [10, 20),
+// [15, 30) and [50, 60) in one lane, the lane's coverage is [10, 30) and
+// [50, 60), and the fillers are [0, 10), [30, 50) and [60, 100).
+//
+// Input usually arrives in order of ts, so coverage is merged as it is
+// recorded: a span starting inside or at the end of the last one extends it.
+// A lane's coverage is then already sorted and merged by Finish(), with one
+// entry per run of touching rows rather than one per row; only a lane whose
+// input arrived out of order is sorted there.
+
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
@@ -49,7 +76,7 @@ struct Span64 {
   int64_t end;
 };
 
-// A background row's span and where its columns are retained.
+// A background row's span, and the row of its columns in the retained rows.
 struct BackgroundSpan {
   int64_t start;
   int64_t end;
@@ -61,77 +88,43 @@ struct Filler {
   int64_t start;
   int64_t end;
   uint32_t background_row;
-  // In the lane keys, when the background has no PER columns of its own.
+  // The lane's row in `lane_keys`, under LaneMode::kByInput.
   uint32_t key_row;
 };
-
-// The kind and type of a column, which every batch of it must agree on.
-struct Shape {
-  ColumnView::Kind kind;
-  StorageType type;
-};
-
-Shape ShapeOf(const ColumnView& column) {
-  return {column.kind(), column.type()};
-}
-
-// As SameLogicalType: an implicit Id and a stored Uint32 hold the same values.
-bool SameShape(const Shape& a, const Shape& b) {
-  auto is_uint32 = [](const Shape& s) {
-    return s.kind != ColumnView::Kind::kVariant &&
-           (s.type.Is<Id>() || s.type.Is<Uint32>());
-  };
-  if (is_uint32(a) && is_uint32(b)) {
-    return true;
-  }
-  return a.kind == b.kind &&
-         (a.kind == ColumnView::Kind::kVariant || a.type == b.type);
-}
 
 bool IsInt64(const RowBatch& batch, uint32_t index) {
   const ColumnView& column = batch.column(index);
   return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Int64>();
 }
 
-// The input's coverage and the background of one lane.
+// The rows of one lane: what its input covers, and what it is filled over.
 struct Lane {
+  // Records [start, end) as covered.
+  void Cover(int64_t start, int64_t end) {
+    if (!covered.empty()) {
+      Span64& last = covered.back();
+      if (start >= last.start && start <= last.end) {
+        last.end = std::max(last.end, end);
+        return;
+      }
+      covered_in_order &= start > last.end;
+    }
+    covered.push_back({start, end});
+  }
+
+  // The lane's PER values, encoded. Empty under LaneMode::kOne.
   std::string key;
+  // Sorted, and no two overlapping or touching, while `covered_in_order`.
   std::vector<Span64> covered;
+  bool covered_in_order = true;
+  // Unused under LaneMode::kByInput, where every lane shares one background.
   std::vector<BackgroundSpan> background;
+  // Under LaneMode::kByInput, the lane's row in `lane_keys`.
   uint32_t key_row = 0;
 };
 
-// Removes `covered`, sorted and merged, from each of `background`, sorted and
-// never overlapping, adding a filler for every piece left.
-void Subtract(const std::vector<BackgroundSpan>& background,
-              const std::vector<Span64>& covered,
-              uint32_t key_row,
-              std::vector<Filler>* out) {
-  size_t next = 0;
-  for (const BackgroundSpan& span : background) {
-    // Coverage ending before this span cannot reach any later one either.
-    while (next < covered.size() && covered[next].end <= span.start) {
-      ++next;
-    }
-    int64_t cursor = span.start;
-    for (size_t i = next; i < covered.size() && covered[i].start < span.end;
-         ++i) {
-      if (covered[i].start > cursor) {
-        out->push_back({cursor, covered[i].start, span.row, key_row});
-      }
-      cursor = std::max(cursor, covered[i].end);
-      if (cursor >= span.end) {
-        break;
-      }
-    }
-    if (cursor < span.end) {
-      out->push_back({cursor, span.end, span.row, key_row});
-    }
-  }
-}
-
-// Sorts spans by start and merges those which overlap or abut.
-void Merge(std::vector<Span64>* spans) {
+// Sorts spans by start and merges those which overlap or touch.
+void SortAndMerge(std::vector<Span64>* spans) {
   std::sort(spans->begin(), spans->end(),
             [](const Span64& a, const Span64& b) { return a.start < b.start; });
   size_t merged = 0;
@@ -145,6 +138,50 @@ void Merge(std::vector<Span64>* spans) {
   spans->resize(merged);
 }
 
+// Sorts spans by start, failing if two overlap.
+base::Status SortBackground(std::vector<BackgroundSpan>* spans) {
+  std::sort(spans->begin(), spans->end(),
+            [](const BackgroundSpan& a, const BackgroundSpan& b) {
+              return a.start < b.start;
+            });
+  for (size_t i = 1; i < spans->size(); ++i) {
+    if ((*spans)[i].start < (*spans)[i - 1].end) {
+      return base::ErrStatus(
+          "INTERVAL FILL GAPS: background rows overlap within a lane");
+    }
+  }
+  return base::OkStatus();
+}
+
+// Adds a filler for each piece of `background` which `covered` leaves
+// uncovered. Both are sorted, and neither has two spans which overlap, so one
+// walk over both does: `next` only moves forward, as coverage ending before
+// one background span ends before every later one too.
+void AddGaps(const std::vector<BackgroundSpan>& background,
+             const std::vector<Span64>& covered,
+             uint32_t key_row,
+             std::vector<Filler>* out) {
+  size_t next = 0;
+  for (const BackgroundSpan& span : background) {
+    while (next < covered.size() && covered[next].end <= span.start) {
+      ++next;
+    }
+    // Walk the coverage overlapping this span. `gap_start` is where the next
+    // filler would begin: the end of the coverage seen so far.
+    int64_t gap_start = span.start;
+    for (size_t i = next; i < covered.size() && covered[i].start < span.end;
+         ++i) {
+      if (covered[i].start > gap_start) {
+        out->push_back({gap_start, covered[i].start, span.row, key_row});
+      }
+      gap_start = std::max(gap_start, covered[i].end);
+    }
+    if (gap_start < span.end) {
+      out->push_back({gap_start, span.end, span.row, key_row});
+    }
+  }
+}
+
 }  // namespace
 
 struct IntervalFillGaps::State : OperatorState {
@@ -152,27 +189,41 @@ struct IntervalFillGaps::State : OperatorState {
   ~State() override;
   void Reset() override;
 
+  Lane* FindLane(std::string_view key) {
+    Lane** found = by_key.Find(key);
+    return found ? *found : nullptr;
+  }
+
+  Lane& AddLane(std::string_view key) {
+    lanes.emplace_back(std::make_unique<Lane>());
+    Lane& lane = *lanes.back();
+    lane.key.assign(key);
+    by_key.Insert(lane.key, &lane);
+    return lane;
+  }
+
   const Source* background = nullptr;
   std::unique_ptr<OperatorState> background_state;
   base::Status status = base::OkStatus();
-  bool read = false;
+  bool background_read = false;
   bool filled = false;
 
-  // Shared by the input and the background, so their keys' types must agree.
+  // Encodes the PER values of both sides, so their types must agree.
   KeyEncoder keys;
-  // Held by pointer, so the keys the map views never move.
+  // Every lane, by its encoded PER values. Under LaneMode::kOne, the one lane.
+  // Held by pointer, so the keys `by_key` views never move.
   std::vector<std::unique_ptr<Lane>> lanes;
   base::FlatHashMapV2<std::string_view, Lane*> by_key;
-  // The background, when it has no PER columns and so applies to every lane.
-  std::vector<BackgroundSpan> shared;
+  // Under LaneMode::kByInput, the background every lane is filled over.
+  std::vector<BackgroundSpan> shared_background;
+  // The background's columns which fillers read, a row per background row.
   RowStore background_rows;
-  // One row of the input's PER columns per lane, read when the background
-  // has none of its own.
+  // Under LaneMode::kByInput, the input's PER values, a row per lane.
   RowStore lane_keys;
 
-  // The shapes outputs take on each side, by output, once a batch shows them.
-  std::vector<std::optional<Shape>> input_shapes;
-  std::vector<std::optional<Shape>> background_shapes;
+  // The kind and type each output shows on each side, once a batch shows it.
+  std::vector<std::optional<ColumnShape>> input_shapes;
+  std::vector<std::optional<ColumnShape>> background_shapes;
 
   std::vector<Filler> fillers;
   size_t served = 0;
@@ -186,19 +237,6 @@ struct IntervalFillGaps::State : OperatorState {
   FlexVector<int64_t> dur;
   RowBatch gathered_background;
   RowBatch gathered_keys;
-
-  Lane& GetLane(std::string_view key, bool* added) {
-    if (Lane** found = by_key.Find(key)) {
-      *added = false;
-      return **found;
-    }
-    lanes.emplace_back(std::make_unique<Lane>());
-    Lane& lane = *lanes.back();
-    lane.key.assign(key);
-    by_key.Insert(lane.key, &lane);
-    *added = true;
-    return lane;
-  }
 };
 
 IntervalFillGaps::State::~State() = default;
@@ -206,12 +244,12 @@ IntervalFillGaps::State::~State() = default;
 void IntervalFillGaps::State::Reset() {
   background->Rewind(*background_state);
   status = base::OkStatus();
-  read = false;
+  background_read = false;
   filled = false;
   keys = KeyEncoder();
   by_key.Clear();
   lanes.clear();
-  shared.clear();
+  shared_background.clear();
   background_rows.Clear();
   lane_keys.Clear();
   std::fill(input_shapes.begin(), input_shapes.end(), std::nullopt);
@@ -222,9 +260,16 @@ void IntervalFillGaps::State::Reset() {
 
 IntervalFillGaps::IntervalFillGaps(IntervalFillGapsSpec spec)
     : Operator({BatchPreference::kThroughput}), spec_(std::move(spec)) {
-  PERFETTO_CHECK(spec_.background_key_columns.empty() ||
-                 spec_.background_key_columns.size() ==
-                     spec_.key_columns.size());
+  if (spec_.key_columns.empty()) {
+    PERFETTO_CHECK(spec_.background_key_columns.empty());
+    mode_ = LaneMode::kOne;
+  } else if (spec_.background_key_columns.empty()) {
+    mode_ = LaneMode::kByInput;
+  } else {
+    PERFETTO_CHECK(spec_.background_key_columns.size() ==
+                   spec_.key_columns.size());
+    mode_ = LaneMode::kByBackground;
+  }
   for (const IntervalFillGapsSpec::Output& output : spec_.outputs) {
     std::optional<uint32_t> retained;
     if (output.background) {
@@ -269,10 +314,12 @@ base::Status IntervalFillGaps::status(const OperatorState& state) const {
   return state.Cast<const State>().status;
 }
 
-ColumnView IntervalFillGaps::Nulls(bool variant, StorageType type) const {
-  if (variant) {
+ColumnView IntervalFillGaps::Nulls(const std::optional<ColumnShape>& like,
+                                   StorageType fallback) const {
+  if (like && like->kind == ColumnView::Kind::kVariant) {
     return ColumnView::Variants(null_variants_.data());
   }
+  StorageType type = like ? like->type : fallback;
   // An Id column has no storage to be null in; a Uint32 holds the same values.
   if (type.Is<Id>()) {
     type = StorageType{Uint32{}};
@@ -280,38 +327,51 @@ ColumnView IntervalFillGaps::Nulls(bool variant, StorageType type) const {
   return ColumnView::Reference(type, zeros_.data(), &no_values_);
 }
 
-// Fails if an output's input and background columns hold different types,
-// once both sides have shown theirs.
-base::Status IntervalFillGaps::CheckShapes(const State& s) const {
+base::Status IntervalFillGaps::RecordShapes(
+    const RowBatch& batch,
+    bool background,
+    std::vector<std::optional<ColumnShape>>* shapes,
+    const std::vector<std::optional<ColumnShape>>& other_side) const {
   for (size_t i = 0; i < spec_.outputs.size(); ++i) {
-    const auto& in = s.input_shapes[i];
-    const auto& bg = s.background_shapes[i];
-    if (in && bg && !SameShape(*in, *bg)) {
+    const IntervalFillGapsSpec::Output& output = spec_.outputs[i];
+    std::optional<uint32_t> column =
+        background ? output.background : output.input;
+    if (!column || (*shapes)[i]) {
+      continue;
+    }
+    (*shapes)[i] = ColumnShape::Of(batch.column(*column));
+    if (other_side[i] && !SameLogicalType(*(*shapes)[i], *other_side[i])) {
       return base::ErrStatus(
           "INTERVAL FILL GAPS: column '%s' holds a different type in the "
           "background than in the input",
-          spec_.outputs[i].name.c_str());
+          output.name.c_str());
     }
   }
   return base::OkStatus();
 }
 
+bool IntervalFillGaps::EnsureBackgroundRead(State& s) const {
+  if (!s.background_read) {
+    s.status = ReadBackground(s);
+    s.background_read = true;
+  }
+  return s.status.ok();
+}
+
 base::Status IntervalFillGaps::ReadBackground(State& s) const {
+  if (mode_ == LaneMode::kOne) {
+    s.AddLane({});
+  }
   RowBatch& batch = s.batch;
-  bool keyed = !spec_.background_key_columns.empty();
   while (spec_.background->GetData(batch, *s.background_state)) {
     if (!IsInt64(batch, spec_.background_ts_column) ||
         !IsInt64(batch, spec_.background_dur_column)) {
       return base::ErrStatus(
           "INTERVAL FILL GAPS: the background's ts and dur must be Int64");
     }
-    for (size_t i = 0; i < spec_.outputs.size(); ++i) {
-      if (spec_.outputs[i].background && !s.background_shapes[i]) {
-        s.background_shapes[i] =
-            ShapeOf(batch.column(*spec_.outputs[i].background));
-      }
-    }
-    if (keyed) {
+    RETURN_IF_ERROR(RecordShapes(batch, /*background=*/true,
+                                 &s.background_shapes, s.input_shapes));
+    if (mode_ == LaneMode::kByBackground) {
       if (std::optional<uint32_t> bad =
               s.keys.Encode(batch, spec_.background_key_columns)) {
         return base::ErrStatus(
@@ -341,13 +401,23 @@ base::Status IntervalFillGaps::ReadBackground(State& s) const {
         continue;
       }
       BackgroundSpan span{start, end, first_row + row};
-      if (keyed) {
-        bool added;
-        s.GetLane(s.keys.Key(row), &added).background.push_back(span);
-      } else {
-        s.shared.push_back(span);
+      switch (mode_) {
+        case LaneMode::kOne:
+          s.lanes[0]->background.push_back(span);
+          break;
+        case LaneMode::kByBackground: {
+          std::string_view key = s.keys.Key(row);
+          Lane* lane = s.FindLane(key);
+          (lane ? *lane : s.AddLane(key)).background.push_back(span);
+          break;
+        }
+        case LaneMode::kByInput:
+          s.shared_background.push_back(span);
+          break;
       }
     }
+    // Every row is retained, even one with no span, so a span's row is its
+    // position in the background.
     s.retained.Reset();
     for (uint32_t column : retained_columns_) {
       s.retained.AddColumn(batch.column(column), batch.owner(column));
@@ -357,42 +427,20 @@ base::Status IntervalFillGaps::ReadBackground(State& s) const {
   }
   RETURN_IF_ERROR(spec_.background->status(*s.background_state));
 
-  auto sort = [](std::vector<BackgroundSpan>* spans) -> base::Status {
-    std::sort(spans->begin(), spans->end(),
-              [](const BackgroundSpan& a, const BackgroundSpan& b) {
-                return a.start < b.start;
-              });
-    for (size_t i = 1; i < spans->size(); ++i) {
-      if ((*spans)[i].start < (*spans)[i - 1].end) {
-        return base::ErrStatus(
-            "INTERVAL FILL GAPS: background rows overlap within a lane");
-      }
-    }
-    return base::OkStatus();
-  };
-  RETURN_IF_ERROR(sort(&s.shared));
+  RETURN_IF_ERROR(SortBackground(&s.shared_background));
   for (const auto& lane : s.lanes) {
-    RETURN_IF_ERROR(sort(&lane->background));
+    RETURN_IF_ERROR(SortBackground(&lane->background));
   }
-  return CheckShapes(s);
+  return base::OkStatus();
 }
 
 base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
   if (!IsInt64(in, spec_.ts_column) || !IsInt64(in, spec_.dur_column)) {
     return base::ErrStatus("INTERVAL FILL GAPS: ts and dur must be Int64");
   }
-  bool shapes_known = true;
-  for (size_t i = 0; i < spec_.outputs.size(); ++i) {
-    if (spec_.outputs[i].input && !s.input_shapes[i]) {
-      s.input_shapes[i] = ShapeOf(in.column(*spec_.outputs[i].input));
-      shapes_known = false;
-    }
-  }
-  if (!shapes_known) {
-    RETURN_IF_ERROR(CheckShapes(s));
-  }
-  bool keyed = !spec_.key_columns.empty();
-  if (keyed) {
+  RETURN_IF_ERROR(RecordShapes(in, /*background=*/false, &s.input_shapes,
+                               s.background_shapes));
+  if (mode_ != LaneMode::kOne) {
     if (std::optional<uint32_t> bad = s.keys.Encode(in, spec_.key_columns)) {
       return base::ErrStatus(
           "INTERVAL FILL GAPS: PER column %u must hold one type, the same in "
@@ -400,19 +448,34 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
           *bad + 1);
     }
   }
-  // Each lane's PER values are kept when the background cannot supply them.
-  bool keep_keys = keyed && spec_.background_key_columns.empty();
+  // The rows of this batch which start lanes, under LaneMode::kByInput.
   s.new_lane_rows.clear();
   FlatColumnReader<int64_t> ts(in.column(spec_.ts_column));
   FlatColumnReader<int64_t> dur(in.column(spec_.dur_column));
   for (uint32_t row = 0; row < in.size(); ++row) {
-    bool added;
-    Lane& lane =
-        s.GetLane(keyed ? s.keys.Key(row) : std::string_view(), &added);
-    if (added && keep_keys) {
-      lane.key_row =
-          s.lane_keys.size() + static_cast<uint32_t>(s.new_lane_rows.size());
-      s.new_lane_rows.push_back(row);
+    // The row's lane: none when the background names the lanes and has none
+    // for it, as nothing there is filled.
+    Lane* lane = nullptr;
+    switch (mode_) {
+      case LaneMode::kOne:
+        lane = s.lanes[0].get();
+        break;
+      case LaneMode::kByBackground:
+        lane = s.FindLane(s.keys.Key(row));
+        break;
+      case LaneMode::kByInput: {
+        std::string_view key = s.keys.Key(row);
+        lane = s.FindLane(key);
+        if (!lane) {
+          // A lane exists once any row has its key, even a row covering
+          // nothing, so it is filled whole.
+          lane = &s.AddLane(key);
+          lane->key_row = s.lane_keys.size() +
+                          static_cast<uint32_t>(s.new_lane_rows.size());
+          s.new_lane_rows.push_back(row);
+        }
+        break;
+      }
     }
     int64_t start;
     int64_t length;
@@ -428,10 +491,12 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
     if (length >= 0 && !base::CheckedAdd(start, length, &end)) {
       return base::ErrStatus("INTERVAL FILL GAPS: integer overflow");
     }
-    if (length != 0) {
-      lane.covered.push_back({start, end});
+    if (lane && length != 0) {
+      lane->Cover(start, end);
     }
   }
+  // The new lanes' PER values are kept for their fillers: the input's buffers
+  // are only borrowed until the next batch.
   if (!s.new_lane_rows.empty()) {
     s.retained.Reset();
     for (uint32_t column : spec_.key_columns) {
@@ -452,25 +517,21 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
                                    OperatorState& state) const {
   auto& s = state.Cast<State>();
   out.Reset();
-  if (s.status.ok() && !s.read) {
-    s.status = ReadBackground(s);
-    s.read = true;
+  // The background is read first: its columns' types decide the type of the
+  // nulls input rows show for columns only it has.
+  if (!EnsureBackgroundRead(s)) {
+    return OpResult::kError;
   }
-  if (s.status.ok()) {
-    s.status = Cover(in, s);
-  }
+  s.status = Cover(in, s);
   if (!s.status.ok()) {
     return OpResult::kError;
   }
-  // Input rows pass through: a background-only column is null on them.
   for (size_t i = 0; i < spec_.outputs.size(); ++i) {
     const IntervalFillGapsSpec::Output& output = spec_.outputs[i];
     if (output.input) {
       out.AddColumn(in.column(*output.input), in.owner(*output.input));
     } else {
-      const std::optional<Shape>& like = s.background_shapes[i];
-      out.AddColumn(Nulls(like && like->kind == ColumnView::Kind::kVariant,
-                          like ? like->type : output.fallback));
+      out.AddColumn(Nulls(s.background_shapes[i], output.fallback));
     }
   }
   out.SetCardinality(in.size());
@@ -479,33 +540,19 @@ OpResult IntervalFillGaps::Execute(const RowBatch& in,
 
 void IntervalFillGaps::Fill(State& s) const {
   for (const auto& lane : s.lanes) {
-    Merge(&lane->covered);
-  }
-  if (!spec_.background_key_columns.empty()) {
-    // The background names the lanes; input in no lane of it fills nothing.
-    for (const auto& lane : s.lanes) {
-      Subtract(lane->background, lane->covered, 0, &s.fillers);
+    if (!lane->covered_in_order) {
+      SortAndMerge(&lane->covered);
     }
-    return;
-  }
-  if (spec_.key_columns.empty() && s.lanes.empty()) {
-    // Without PER there is one lane, filled whole when nothing covers it.
-    Subtract(s.shared, {}, 0, &s.fillers);
-    return;
-  }
-  for (const auto& lane : s.lanes) {
-    Subtract(s.shared, lane->covered, lane->key_row, &s.fillers);
+    AddGaps(
+        mode_ == LaneMode::kByInput ? s.shared_background : lane->background,
+        lane->covered, lane->key_row, &s.fillers);
   }
 }
 
 OpResult IntervalFillGaps::Finish(RowBatch& out, OperatorState& state) const {
   auto& s = state.Cast<State>();
   out.Reset();
-  if (s.status.ok() && !s.read) {
-    s.status = ReadBackground(s);
-    s.read = true;
-  }
-  if (!s.status.ok()) {
+  if (!EnsureBackgroundRead(s)) {
     return OpResult::kError;
   }
   if (!s.filled) {
@@ -517,6 +564,8 @@ OpResult IntervalFillGaps::Finish(RowBatch& out, OperatorState& state) const {
   if (count == 0) {
     return OpResult::kNeedMoreInput;
   }
+
+  // Gather this batch's fillers' bounds, background rows and lane keys.
   const Filler* fillers = s.fillers.data() + s.served;
   s.ts.resize(count);
   s.dur.resize(count);
@@ -530,29 +579,29 @@ OpResult IntervalFillGaps::Finish(RowBatch& out, OperatorState& state) const {
     s.background_rows.View(&s.gathered_background,
                            {s.rows.data(), s.rows.data() + count});
   }
-  bool lane_keys = s.lane_keys.size() > 0;
+  bool lane_keys = mode_ == LaneMode::kByInput;
   if (lane_keys) {
     for (uint32_t i = 0; i < count; ++i) {
       s.rows[i] = fillers[i].key_row;
     }
     s.lane_keys.View(&s.gathered_keys, {s.rows.data(), s.rows.data() + count});
   }
+
+  // A filler's bounds are its own, even where the background has a column
+  // for them.
   for (size_t i = 0; i < spec_.outputs.size(); ++i) {
     const IntervalFillGapsSpec::Output& output = spec_.outputs[i];
-    if (std::optional<uint32_t> r = retained_of_output_[i]) {
-      out.AddColumn(s.gathered_background.column(*r),
-                    s.gathered_background.owner(*r));
-    } else if (output.input == spec_.ts_column) {
+    if (output.input == spec_.ts_column) {
       out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.ts.data()));
     } else if (output.input == spec_.dur_column) {
       out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.dur.data()));
-    } else if (key_of_output_[i] && lane_keys) {
-      out.AddColumn(s.gathered_keys.column(*key_of_output_[i]),
-                    s.gathered_keys.owner(*key_of_output_[i]));
+    } else if (std::optional<uint32_t> r = retained_of_output_[i]) {
+      out.AddColumn(s.gathered_background.column(*r),
+                    s.gathered_background.owner(*r));
+    } else if (std::optional<uint32_t> k = key_of_output_[i]; k && lane_keys) {
+      out.AddColumn(s.gathered_keys.column(*k), s.gathered_keys.owner(*k));
     } else {
-      const std::optional<Shape>& like = s.input_shapes[i];
-      out.AddColumn(Nulls(like && like->kind == ColumnView::Kind::kVariant,
-                          like ? like->type : output.fallback));
+      out.AddColumn(Nulls(s.input_shapes[i], output.fallback));
     }
   }
   out.SetCardinality(count);

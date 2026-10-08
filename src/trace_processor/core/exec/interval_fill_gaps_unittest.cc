@@ -220,6 +220,45 @@ TEST(IntervalFillGapsTest, EmptyInputFillsTheBackground) {
             (std::vector<Row>{{5, 10, std::nullopt, 7, 1}}));
 }
 
+TEST(IntervalFillGapsTest, CoverageOutOfOrder) {
+  RowsSource background({{0, 100, 7, 1}});
+  IntervalFillGaps op(MakeSpec(&background, /*keyed=*/false));
+  auto state = op.MakeState();
+  // Rows out of order of ts, some touching and some overlapping, cover their
+  // union: [10, 30) and [50, 60).
+  std::vector<Row> rows = RunFill(
+      op, *state,
+      {{50, 10, 0, 1}, {20, 10, 0, 2}, {10, 10, 0, 3}, {12, 3, 0, 4}}, 2);
+  EXPECT_EQ(rows, (std::vector<Row>{{0, 10, std::nullopt, 7, 1},
+                                    {10, 10, 0, 3, std::nullopt},
+                                    {12, 3, 0, 4, std::nullopt},
+                                    {20, 10, 0, 2, std::nullopt},
+                                    {30, 20, std::nullopt, 7, 1},
+                                    {50, 10, 0, 1, std::nullopt},
+                                    {60, 40, std::nullopt, 7, 1}}));
+}
+
+TEST(IntervalFillGapsTest, BackgroundNamesTheLanes) {
+  // Background columns: ts, dur, key, value, filled.
+  RowsSource background({{0, 10, 10, 7, 1}, {0, 10, 11, 8, 1}});
+  IntervalFillGapsSpec spec = MakeSpec(&background, /*keyed=*/true);
+  spec.background_key_columns = {2};
+  spec.outputs[2].background = 2;
+  spec.outputs[3].background = 3;
+  spec.outputs[4].background = 4;
+  IntervalFillGaps op(std::move(spec));
+  auto state = op.MakeState();
+  // Lane 11 has no input, so it is filled whole; lane 12 has no background,
+  // so its input fills nothing.
+  std::vector<Row> rows =
+      RunFill(op, *state, {{2, 3, 10, 1}, {0, 5, 12, 2}}, 4);
+  EXPECT_EQ(rows, (std::vector<Row>{{0, 2, 10, 7, 1},
+                                    {0, 10, 11, 8, 1},
+                                    {0, 5, 12, 2, std::nullopt},
+                                    {2, 3, 10, 1, std::nullopt},
+                                    {5, 5, 10, 7, 1}}));
+}
+
 TEST(IntervalFillGapsTest, RefusesOverlappingBackground) {
   RowsSource background({{0, 10, 7, 1}, {5, 10, 8, 1}});
   IntervalFillGaps op(MakeSpec(&background, /*keyed=*/false));

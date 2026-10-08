@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -66,15 +67,17 @@ struct IntervalFillGapsSpec {
 
 // INTERVAL FILL GAPS. Every input row passes through unchanged, and each span
 // of a background row its lane's input does not cover becomes a filler row.
-// With PER, a lane is the rows agreeing on the keys. A background with the
-// PER columns names its own lanes, so a lane without input is filled whole;
-// one without them applies to every lane of the input. Without PER there is
-// one lane, filled even when the input is empty.
+//
+// Lanes come from the PER columns, in one of three ways (see LaneMode): with
+// no PER there is one lane; a background with the PER columns names its own
+// lanes; and a background without them applies to every lane of the input.
 //
 // An input row with a null ts or dur covers nothing; a dur of -1 covers to
 // the end of time. A ts below zero is refused on either side. Input rows may
 // overlap. Background rows may not overlap within a lane. A filler never has
 // zero width. Output is in no order: the input first, then the fillers.
+//
+// See the .cc file for how the fillers are found.
 class IntervalFillGaps : public Operator {
  public:
   explicit IntervalFillGaps(IntervalFillGapsSpec);
@@ -88,14 +91,41 @@ class IntervalFillGaps : public Operator {
  private:
   struct State;
 
+  // How rows are split into lanes, each filled on its own.
+  enum class LaneMode : uint8_t {
+    // No PER: every row is in one lane, filled even when there is no input.
+    kOne,
+    // PER, and the background has the PER columns: it names the lanes, so a
+    // lane without input is filled whole, and input in a lane the background
+    // does not name fills nothing.
+    kByBackground,
+    // PER, and the background does not have the PER columns: every lane of
+    // the input is filled over the whole background, and fillers take the
+    // lane's PER values from the input.
+    kByInput,
+  };
+
+  // Reads the background unless it has been, returning whether all is well.
+  bool EnsureBackgroundRead(State&) const;
   base::Status ReadBackground(State&) const;
+  // Records the coverage of an input batch.
   base::Status Cover(const RowBatch&, State&) const;
-  base::Status CheckShapes(const State&) const;
+  // Records the shapes of the outputs' columns in a batch from one side, the
+  // first time it shows them, failing if one disagrees with the other side.
+  base::Status RecordShapes(
+      const RowBatch&,
+      bool background,
+      std::vector<std::optional<ColumnShape>>* shapes,
+      const std::vector<std::optional<ColumnShape>>& other_side) const;
+  // Finds every lane's fillers.
   void Fill(State&) const;
-  // A null column of a variant column or of `type`.
-  ColumnView Nulls(bool variant, StorageType type) const;
+  // A null column shaped `like`, or of `fallback` while no batch has shown
+  // a shape.
+  ColumnView Nulls(const std::optional<ColumnShape>& like,
+                   StorageType fallback) const;
 
   IntervalFillGapsSpec spec_;
+  LaneMode mode_;
   // Positions in the retained background columns, by output; none where the
   // output does not read the background.
   std::vector<std::optional<uint32_t>> retained_of_output_;
