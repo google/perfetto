@@ -15,6 +15,9 @@
  */
 
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
+
+#include <cinttypes>
+
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
@@ -26,7 +29,11 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
+#include "src/tracing/service/service_ring_buffer_drainer.h"
+#include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "src/tracing/service/tracing_service_structs.h"
 
@@ -427,7 +434,8 @@ ProducerEndpointImpl::ProducerEndpointImpl(
     const std::string& machine_name,
     const std::string& sdk_version,
     bool in_process,
-    bool smb_scraping_enabled)
+    bool smb_scraping_enabled,
+    uint32_t protocol_abi_versions)
     : id_(id),
       client_identity_(client_identity),
       service_(service),
@@ -437,7 +445,19 @@ ProducerEndpointImpl::ProducerEndpointImpl(
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
-      weak_runner_(task_runner) {}
+      protocol_abi_versions_(protocol_abi_versions),
+      weak_runner_(task_runner) {
+  // In-process, the service uses the producer's memory directly, so no memfd
+  // is needed.
+  if (in_process_ && (protocol_abi_versions_ & kProtocolAbiV2)) {
+    v2_ring_buffer_arbiter_ =
+        std::make_unique<tracing_v2::ProducerRingBufferArbiter>(
+            task_runner, this, /*allocate_v2_ring_buffer=*/
+            [](size_t size) -> std::shared_ptr<SharedMemory> {
+              return std::make_shared<InProcessSharedMemory>(size);
+            });
+  }
+}
 
 ProducerEndpointImpl::~ProducerEndpointImpl() {
   service_->DisconnectProducer(id_);
@@ -637,9 +657,29 @@ bool ProducerEndpointImpl::IsShmemProvidedByProducer() const {
 std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
     BufferID buf_id,
     BufferExhaustedPolicy buffer_exhausted_policy) {
+  if (!(protocol_abi_versions_ & kProtocolAbiV1)) {
+    PERFETTO_ELOG(
+        "Cannot create a v1 trace writer: v1 is not in the common protocol "
+        "mask (%x)",
+        protocol_abi_versions_);
+    return std::make_unique<NullTraceWriter>();
+  }
   PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
   return MaybeSharedMemoryArbiter()->CreateTraceWriter(buf_id,
                                                        buffer_exhausted_policy);
+}
+
+// Can be called on any thread.
+std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
+    BufferID buf_id,
+    BufferExhaustedPolicy buffer_exhausted_policy,
+    DataSourceInstanceID instance_id) {
+  if (v2_ring_buffer_arbiter_) {
+    // The arbiter handles picking v1 or v2 for the instance.
+    return v2_ring_buffer_arbiter_->CreateTraceWriter(
+        buf_id, buffer_exhausted_policy, instance_id);
+  }
+  return CreateTraceWriter(buf_id, buffer_exhausted_policy);
 }
 
 void ProducerEndpointImpl::NotifyFlushComplete(FlushRequestID id) {
@@ -667,6 +707,11 @@ void ProducerEndpointImpl::SetupDataSource(DataSourceInstanceID ds_id,
                                            const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   allowed_target_buffers_.insert(static_cast<BufferID>(config.target_buffer()));
+  // Pick the transport before the producer can create writers.
+  if (v2_ring_buffer_arbiter_) {
+    v2_ring_buffer_arbiter_->SetupInstance(
+        ds_id, config, protocol_abi_versions_, shmem_size_hint_bytes_);
+  }
   weak_runner_.PostTask([this, ds_id, config] {
     producer_->SetupDataSource(ds_id, std::move(config));
   });
@@ -689,6 +734,10 @@ void ProducerEndpointImpl::NotifyDataSourceStarted(
 void ProducerEndpointImpl::NotifyDataSourceStopped(
     DataSourceInstanceID data_source_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // A data source can stop asynchronously and create writers until it reports
+  // the stop, so the arbiter forgets the instance only now.
+  if (v2_ring_buffer_arbiter_)
+    v2_ring_buffer_arbiter_->OnInstanceStopped(data_source_id);
   service_->NotifyDataSourceStopped(id_, data_source_id);
 }
 
@@ -751,6 +800,87 @@ bool ProducerEndpointImpl::IsAndroidProcessFrozen() {
 
 #endif
   return false;
+}
+
+void ProducerEndpointImpl::AttachV2RingBuffer(
+    const std::shared_ptr<SharedMemory>& memory,
+    uint32_t chunk_size_bytes,
+    std::function<void(bool)> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  base::Status status;
+  if (!(protocol_abi_versions_ & kProtocolAbiV2)) {
+    status = base::ErrStatus("the connection has no tracing v2");
+  } else if (v2_ring_buffer_drainer_) {
+    status = base::ErrStatus("a ring buffer is already attached");
+  } else if (!memory) {
+    // ProducerIPCService passes no memory when it cannot map the memfd.
+    status = base::ErrStatus("the transport could not map the ring buffer");
+  } else if (memory->size() > TracingService::kMaxShmSize) {
+    status = base::ErrStatus("ring buffer size %zu is above kMaxShmSize",
+                             memory->size());
+  } else {
+    status = tracing_v2::NumChunksForRingBufferLayout(
+                 memory->start(), memory->size(), chunk_size_bytes)
+                 .status();
+  }
+  if (!status.ok()) {
+    PERFETTO_DLOG("Producer %" PRIu16 " \"%s\": ring buffer rejected: %s", id_,
+                  name_.c_str(), status.c_message());
+    // Keep the first reason. A rejected second attach leaves the attached
+    // ring buffer in place, and the reason still shows the producer bug.
+    if (v2_attach_rejection_.empty())
+      v2_attach_rejection_ = status.message();
+    service_->OnRingBufferAttachRejected(this);
+    callback(false);
+    return;
+  }
+
+  v2_ring_buffer_drainer_ =
+      std::make_unique<tracing_v2::ServiceRingBufferDrainer>(
+          memory, chunk_size_bytes, id_, client_identity_, this,
+          service_->clock_.get(), weak_runner_.task_runner());
+  service_->UpdateMemoryGuardrail();
+  v2_ring_buffer_drainer_->Drain();
+  callback(true);
+}
+
+void ProducerEndpointImpl::DrainV2RingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  ++v2_drain_requests_;
+  if (v2_ring_buffer_drainer_)
+    v2_ring_buffer_drainer_->Drain();
+}
+
+TraceBufferV2* ProducerEndpointImpl::GetRingBufferDestination(BufferID id) {
+  if (!is_allowed_target_buffer(id))
+    return nullptr;
+
+  // The producer supplies |id| through shared memory. Check that the allowed
+  // destination is a TraceBufferV2 before casting.
+  return static_cast<TraceBufferV2*>(
+      service_->GetBufferByID(id, TraceBuffer::BufType::kV2));
+}
+
+void ProducerEndpointImpl::ForEachRingBufferDestination(
+    const std::function<void(TraceBufferV2&)>& callback) {
+  for (BufferID id : allowed_target_buffers_) {
+    if (auto* buffer = service_->GetBufferByID(id, TraceBuffer::BufType::kV2))
+      callback(*static_cast<TraceBufferV2*>(buffer));
+  }
+}
+
+void ProducerEndpointImpl::OnRingBufferChunksDiscarded(uint64_t count) {
+  service_->OnRingBufferChunksDiscarded(count);
+}
+
+void ProducerEndpointImpl::OnRingBufferProtocolError() {
+  service_->OnRingBufferProtocolError(this);
+}
+
+void ProducerEndpointImpl::OnRingBufferChunkRejected(
+    const tracing_v2::SharedRingBufferReader::ChunkRejection& rejection) {
+  service_->OnRingBufferChunkRejected(this, rejection);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

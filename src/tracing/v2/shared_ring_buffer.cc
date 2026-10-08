@@ -36,30 +36,6 @@ static_assert(kMaxFragmentSizeVarIntBytes ==
               "Ring buffer fragment sizes must use the same varint byte limit "
               "as Protozero message lengths");
 
-uint32_t NumChunksForRingLayout(const uint8_t* start,
-                                size_t size,
-                                uint32_t chunk_size) {
-  PERFETTO_CHECK(start);
-  PERFETTO_CHECK(
-      reinterpret_cast<uintptr_t>(start) % alignof(RingBufferHeader) == 0);
-  PERFETTO_CHECK(chunk_size >= kMinChunkSize);
-  PERFETTO_CHECK(chunk_size % kChunkAlignmentBytes == 0);
-  // Subtract the header after this check to avoid overflow on 32-bit builds.
-  PERFETTO_CHECK(size >= sizeof(RingBufferHeader));
-  const size_t chunks_size = size - sizeof(RingBufferHeader);
-  PERFETTO_CHECK(chunks_size % chunk_size == 0);
-  const size_t num_chunks = chunks_size / chunk_size;
-
-  // We require two chunks as the minimum useful configuration.
-  // One chunk would still work with the ABI:
-  // - write_pos - read_pos is 0 when empty and 1 when full.
-  // - The Free wrap count distinguishes successive uses of the chunk.
-  PERFETTO_CHECK(num_chunks >= kMinChunksPerRing);
-  PERFETTO_CHECK(num_chunks <= kMaxChunksPerRing);
-  PERFETTO_CHECK(base::IsPowerOfTwo(num_chunks));
-  return static_cast<uint32_t>(num_chunks);
-}
-
 // The buffer stores read_pos in the low 32 bits of rw_positions. Pass its
 // address to the futex API, but keep all C++ accesses on the containing
 // atomic<uint64_t>.
@@ -73,6 +49,16 @@ const uint32_t* ReadPosFutexAddress(const std::atomic<uint64_t>* rw_positions) {
   return reinterpret_cast<const uint32_t*>(rw_positions);
 }
 
+// Callers validate untrusted layouts with NumChunksForRingBufferLayout()
+// first. An invalid layout here is a bug.
+uint32_t CheckedNumChunks(const void* start, size_t size, uint32_t chunk_size) {
+  base::StatusOr<uint32_t> num_chunks =
+      NumChunksForRingBufferLayout(start, size, chunk_size);
+  if (!num_chunks.ok())
+    PERFETTO_FATAL("tracing v2: %s", num_chunks.status().c_message());
+  return *num_chunks;
+}
+
 }  // namespace
 
 // --- Construction. ---
@@ -81,7 +67,7 @@ SharedRingBuffer::SharedRingBuffer(uint8_t* start,
                                    size_t size,
                                    uint32_t chunk_size)
     : start_(start),
-      num_chunks_(NumChunksForRingLayout(start, size, chunk_size)),
+      num_chunks_(CheckedNumChunks(start, size, chunk_size)),
       chunk_size_(chunk_size) {}
 
 // --- Writer-side reservation. ---
@@ -198,21 +184,21 @@ bool SharedRingBuffer::TryReacquireChunkForWriting(ChunkIndex chunk_idx,
 }
 
 bool SharedRingBuffer::TryAcknowledgeRewrite(ChunkIndex chunk_idx,
-                                             uint32_t observed) {
-  PERFETTO_DCHECK(ChunkStateOf(observed) == ChunkState::kRewriteRequested);
+                                             uint32_t* observed) {
+  PERFETTO_DCHECK(ChunkStateOf(*observed) == ChunkState::kRewriteRequested);
 
   // RewriteRequested -> RewriteAcknowledged, with all other bits zero.
   //
   // On failure, report a protocol error. Only this writer can change
   // RewriteRequested, so the observed word must still match.
+  // The CAS stores the word that it found in |*observed|, for the report.
   //
   // Proposed memory ordering:
   // - Success: release to save the unpublished fragment before
   //   acknowledgement. The reader can then reclaim the chunk.
   // - Failure: relaxed because it only reports a protocol error.
-  uint32_t expected = observed;
   std::atomic<uint32_t>* state_word = chunk_state_word_at(chunk_idx);
-  return state_word->compare_exchange_strong(expected,
+  return state_word->compare_exchange_strong(*observed,
                                              kRewriteAcknowledgedStateWord);
 }
 
@@ -233,6 +219,13 @@ uint32_t SharedRingBuffer::LoadWritePosRelaxed() const {
   // This bounds the reader's pass. It does not show whether each reservation
   // has published data. LoadChunkStateWordAcquire() provides that information.
   return WritePosOf(header()->rw_positions.load(std::memory_order_relaxed));
+}
+
+uint32_t SharedRingBuffer::LoadNumOutstandingPositionsRelaxed() const {
+  const uint64_t rw_positions =
+      header()->rw_positions.load(std::memory_order_relaxed);
+  return NumOutstandingPositions(WritePosOf(rw_positions),
+                                 ReadPosOf(rw_positions));
 }
 
 bool SharedRingBuffer::TryRequestRewrite(ChunkIndex chunk_idx,
@@ -419,6 +412,72 @@ void SharedRingBuffer::PublishReadPosFromSnapshot(uint64_t rw_positions,
   //
   // Waits are bounded, so a failed wake delays writers but cannot strand them.
   base::FutexWake(ReadPosFutexAddress(&ring_header->rw_positions), INT_MAX);
+}
+
+void SharedRingBuffer::InitializeDiagnostics(uint32_t drain_threshold) {
+  // Relaxed stores are enough. traced reads these fields only after the
+  // attach request, which follows them: a later IPC message, or a later call
+  // on this thread in-process.
+  RingBufferHeader* ring_header = header();
+  ring_header->drain_threshold.store(drain_threshold,
+                                     std::memory_order_relaxed);
+  ring_header->diagnostics_version.store(kRingBufferDiagnosticsVersion,
+                                         std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::AddDroppedPackets(uint64_t count) {
+  header()->dropped_packets.fetch_add(count, std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::AddWriterCreationFailure() {
+  header()->writer_creation_failures.fetch_add(1, std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::RecordFirstWriterFailure(const WriterFailure& failure) {
+  PERFETTO_DCHECK(failure.reason != WriterFailureReason::kNone);
+  // Zero means no record yet. A lost race leaves the earlier record.
+  uint64_t no_record = 0;
+  header()->first_writer_failure.compare_exchange_strong(
+      no_record, EncodeWriterFailure(failure), std::memory_order_relaxed);
+}
+
+void SharedRingBuffer::RecordStall(uint64_t duration_ms) {
+  RingBufferHeader* ring_header = header();
+  ring_header->stalls.fetch_add(1, std::memory_order_relaxed);
+  ring_header->stall_time_ms.fetch_add(duration_ms, std::memory_order_relaxed);
+  // Raise the maximum. A lost race reloads the current maximum and retries.
+  uint64_t max_ms = ring_header->max_stall_ms.load(std::memory_order_relaxed);
+  while (duration_ms > max_ms &&
+         !ring_header->max_stall_ms.compare_exchange_weak(
+             max_ms, duration_ms, std::memory_order_relaxed)) {
+  }
+}
+
+SharedRingBuffer::HeaderSnapshot SharedRingBuffer::LoadHeaderRelaxed() const {
+  const RingBufferHeader* ring_header = header();
+  const uint64_t rw_positions =
+      ring_header->rw_positions.load(std::memory_order_relaxed);
+  HeaderSnapshot snapshot;
+  snapshot.read_pos = ReadPosOf(rw_positions);
+  snapshot.write_pos = WritePosOf(rw_positions);
+  snapshot.num_writers_waiting =
+      ring_header->num_writers_waiting.load(std::memory_order_relaxed);
+  snapshot.diagnostics_version =
+      ring_header->diagnostics_version.load(std::memory_order_relaxed);
+  snapshot.dropped_packets =
+      ring_header->dropped_packets.load(std::memory_order_relaxed);
+  snapshot.stalls = ring_header->stalls.load(std::memory_order_relaxed);
+  snapshot.stall_time_ms =
+      ring_header->stall_time_ms.load(std::memory_order_relaxed);
+  snapshot.max_stall_ms =
+      ring_header->max_stall_ms.load(std::memory_order_relaxed);
+  snapshot.first_writer_failure =
+      ring_header->first_writer_failure.load(std::memory_order_relaxed);
+  snapshot.drain_threshold =
+      ring_header->drain_threshold.load(std::memory_order_relaxed);
+  snapshot.writer_creation_failures =
+      ring_header->writer_creation_failures.load(std::memory_order_relaxed);
+  return snapshot;
 }
 
 }  // namespace perfetto::tracing_v2

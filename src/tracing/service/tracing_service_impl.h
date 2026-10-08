@@ -40,6 +40,7 @@
 #include "src/tracing/service/clock.h"
 #include "src/tracing/service/dependencies.h"
 #include "src/tracing/service/random.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
@@ -63,7 +64,6 @@ class Consumer;
 class Producer;
 class SharedMemory;
 class SharedMemoryArbiterImpl;
-class TraceBuffer;
 class TracePacket;
 
 namespace tracing_service {
@@ -173,7 +173,25 @@ class TracingServiceImpl : public TracingService {
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
       const std::string& sdk_version = {},
-      const std::string& machine_name = {}) override;
+      const std::string& machine_name = {},
+      uint32_t protocol_abi_versions = kProtocolAbiV1) override;
+
+  // The endpoint reports discarded ring buffer chunks on the service
+  // sequence. Adds them to chunks_discarded.
+  void OnRingBufferChunksDiscarded(uint64_t count);
+
+  // The endpoint reports a tracing v2 failure. Each session that observes the
+  // producer emits fresh stats on its next read.
+  // - Attach rejection: nothing else.
+  // - Protocol error: the reader stopped. Also dumps the ring buffer.
+  // - Rejected chunk: also dumps that chunk, if the session asks for chunk
+  //   bytes and has dumped fewer than kMaxRejectedChunkDumps for the producer.
+  //   It runs inside a drain pass.
+  void OnRingBufferAttachRejected(ProducerEndpointImpl*);
+  void OnRingBufferProtocolError(ProducerEndpointImpl*);
+  void OnRingBufferChunkRejected(
+      ProducerEndpointImpl*,
+      const tracing_v2::SharedRingBufferReader::ChunkRejection&);
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -263,6 +281,75 @@ class TracingServiceImpl : public TracingService {
   void EmitSyncMarker(std::vector<TracePacket>*);
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
+
+  // Tracing v2 observations. See TracingSession::TracingV2Observation.
+  using TracingV2Observation = TracingSession::TracingV2Observation;
+  using ObservationEnd = TraceStats::TracingV2::Producer::ObservationEnd;
+
+  // Starts observing |producer| in |session|, or adds to the live
+  // observation. Called for a data source instance with
+  // use_v2_probability_percent > 0, before the producer hears of it.
+  void ObserveTracingV2Producer(TracingSession*,
+                                const ProducerEndpointImpl&,
+                                bool eligible);
+  // The live observation of |producer_id| in |session|, or nullptr.
+  static TracingV2Observation* FindLiveTracingV2Observation(TracingSession*,
+                                                            ProducerID);
+  // Ends a live observation of |session| after the final drain of
+  // |producer|, and arms fresh stats. A disconnect can evict the oldest
+  // observation that a disconnect ended, so |observation| is invalid after.
+  void EndTracingV2Observation(TracingSession*,
+                               TracingV2Observation*,
+                               const ProducerEndpointImpl&,
+                               ObservationEnd);
+  // The entry of a live observation, sampled now.
+  TraceStats::TracingV2::Producer MakeTracingV2ProducerEntry(
+      const ProducerEndpointImpl&,
+      const TracingV2Observation&,
+      ObservationEnd);
+  // The connection totals of |producer| now. |header| is the header of its
+  // ring buffer, or null if none is attached.
+  static TraceStats::TracingV2::Counters MakeTracingV2Counters(
+      const ProducerEndpointImpl&,
+      const tracing_v2::SharedRingBuffer::HeaderSnapshot* header);
+
+  // Ring buffer dumps.
+  //
+  // Why the service dumps a ring buffer. The proto counterpart is
+  // TracingV2RingBufferDump.Reason.
+  enum class V2RingBufferDumpReason {
+    kProtocolError,
+    kStop,
+    kProducerDisconnect,
+    kClone,
+    kRejectedChunk,
+  };
+  // Adds a dump of |producer|'s ring buffer to |session|, within the pending
+  // dump budget of the session. Does nothing if the producer has no ring
+  // buffer. |rejection|: for kRejectedChunk, the record of the rejected chunk.
+  // The dump then holds only that chunk.
+  void DumpV2RingBuffer(
+      TracingSession*,
+      const ProducerEndpointImpl&,
+      V2RingBufferDumpReason,
+      const tracing_v2::SharedRingBufferReader::ChunkRejection* rejection =
+          nullptr);
+  // Evicts pending dumps, oldest first, until |bytes| fit the budget. An
+  // error dump can evict any dump, and another dump only non-error dumps.
+  // Returns true if it evicted a dump.
+  bool MakeRoomForTracingV2Dump(TracingSession*, size_t bytes, bool is_error);
+  // Moves pending dumps of |session| into |dump_packets|, while the read has
+  // emitted fewer than |threshold| bytes. |packets_bytes| counts the bytes
+  // of the read so far. Returns true if dumps remain.
+  bool EmitTracingV2RingBufferDumps(TracingSession*,
+                                    size_t threshold,
+                                    size_t* packets_bytes,
+                                    std::vector<TracePacket>* dump_packets);
+  // Removes the dumps that do not fit the remaining max_file_size_bytes after
+  // |packets|, so that an optional dump never ends the file output.
+  void DropTracingV2DumpsOverFileSize(TracingSession*,
+                                      const std::vector<TracePacket>& packets,
+                                      std::vector<TracePacket>* dump_packets);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
   // The only way to change a session's state. Broadcasts the change into the
   // other opted-in sessions' concurrent_session_events.
@@ -294,7 +381,11 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
-  TraceBuffer* GetBufferByID(BufferID);
+  // Returns nullptr if there is no buffer with this ID, or if |type| is set
+  // and does not match the buffer type.
+  TraceBuffer* GetBufferByID(
+      BufferID,
+      std::optional<TraceBuffer::BufType> type = std::nullopt);
   void FlushDataSourceInstances(
       TracingSession*,
       uint32_t timeout_ms,

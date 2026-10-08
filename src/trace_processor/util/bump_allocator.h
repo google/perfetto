@@ -172,6 +172,9 @@ class BumpAllocator {
     --*allocation.unfreed_allocations_;
   }
 
+  // Frees every allocation, keeping the last chunk for reuse.
+  void Clear();
+
   // Removes chunks from the start of this allocator where all the allocations
   // in the chunks have been freed. This releases the memory back to the system.
   //

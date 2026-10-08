@@ -167,20 +167,38 @@ jobs:
           UI_TEST_REPORT_URL="https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/index.html"
           echo "UI_TEST_REPORT_URL=$UI_TEST_REPORT_URL" >> $GITHUB_ENV
 
+          # The screenshot diffs page is only generated when at least one
+          # screenshot comparison failed.
+          UI_TEST_DIFFS_URL=""
+          if [[ -f "$UI_TEST_ARTIFACTS/screenshot-diffs/index.html" ]]; then
+            UI_TEST_DIFFS_URL="https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/screenshot-diffs/index.html"
+            echo "UI_TEST_DIFFS_URL=$UI_TEST_DIFFS_URL" >> $GITHUB_ENV
+          fi
+
+          UI_BUILD_URL="https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html"
+
           echo "UI integration test report with screnshots:"
           echo "$UI_TEST_REPORT_URL"
           echo ""
+          if [[ -n "$UI_TEST_DIFFS_URL" ]]; then
+            echo "All failing screenshot diffs on one page:"
+            echo "$UI_TEST_DIFFS_URL"
+            echo ""
+          fi
           echo "To download locally the changed screenshots run:"
           echo "tools/download_changed_screenshots.py $PERFETTO_CI_JOB_ID"
           echo ""
           echo "Perfetto UI build for this CL"
-          echo "https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html"
+          echo "$UI_BUILD_URL"
 
           {
             echo "### UI test artifacts"
             echo ""
-            echo "- [UI integration test report with screenshots](https://storage.googleapis.com/$PERFETTO_GCS_DST/ui-test-artifacts/index.html)"
-            echo "- [Perfetto UI build for this CL](https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/index.html)"
+            echo "- [UI integration test report with screenshots]($UI_TEST_REPORT_URL)"
+            if [[ -n "$UI_TEST_DIFFS_URL" ]]; then
+              echo "- [All failing screenshot diffs on one page]($UI_TEST_DIFFS_URL)"
+            fi
+            echo "- [Perfetto UI build for this CL]($UI_BUILD_URL)"
             echo ""
             echo "To download locally the changed screenshots run:"
             echo '```'
@@ -202,6 +220,7 @@ jobs:
         with:
           script: |
             const reportUrl = process.env.UI_TEST_REPORT_URL;
+            const diffsUrl = process.env.UI_TEST_DIFFS_URL;
 
             if (reportUrl && context.issue.number) {
               // Same marker as the UI build comment above: we append to that
@@ -210,8 +229,11 @@ jobs:
               const header = `${marker}\n### 🎨 Perfetto UI Builds & Tests\n`;
 
               // Same bullet level as the build entry it follows.
-              const newEntry =
+              let newEntry =
                   `- ❌ **Playwright tests failed**: [test report](${reportUrl})`;
+              if (diffsUrl) {
+                newEntry += ` · [screenshot diffs](${diffsUrl})`;
+              }
 
               const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,

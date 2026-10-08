@@ -49,13 +49,11 @@ class TreeChildFirst : public Breaker {
  public:
   TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
-  BatchPreference batch_preference() const override {
-    return BatchPreference::kThroughput;
-  }
 
  private:
   struct State : Breaker::State {
     ~State() override;
+    void Reset() override;
 
     // By node number.
     BitVector has_row;
@@ -80,7 +78,6 @@ class TreeChildFirst : public Breaker {
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
-  void Reset(Breaker::State& state) const override;
 
   bool Sort(State&) const;
 
@@ -112,12 +109,13 @@ class TreeParentFirst : public Operator {
                    RowBatch& out,
                    OperatorState& state) const override;
   OpResult Finish(RowBatch& out, OperatorState& state) const override;
-  void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
 
  private:
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
 
     // What is known about each node number.
     struct Nodes {

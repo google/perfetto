@@ -234,6 +234,9 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    pub fn PerfettoDsSetSupportsTracingV2(arg1: *mut PerfettoDsImpl, supports: bool) -> bool;
+}
+unsafe extern "C" {
     pub fn PerfettoDsImplRegister(
         ds_impl: *mut PerfettoDsImpl,
         enabled_ptr: *mut *mut bool,
@@ -297,6 +300,17 @@ unsafe extern "C" {
         ds_impl: *mut PerfettoDsImpl,
         iterator: *mut PerfettoDsImplTracerIterator,
     );
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct PerfettoDsPacketBeginResult {
+    pub writer: PerfettoStreamWriter,
+    pub encoding: u32,
+}
+unsafe extern "C" {
+    pub fn PerfettoDsTracerImplPacketBeginWithEncoding(
+        arg1: *mut PerfettoDsTracerImpl,
+    ) -> PerfettoDsPacketBeginResult;
 }
 unsafe extern "C" {
     pub fn PerfettoDsTracerImplPacketBegin(

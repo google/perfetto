@@ -3567,6 +3567,14 @@ using protozero::proto_utils::MakeTagStartGroup;
 using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::WriteVarInt;
 
+using CopyChunkV2Result = TraceBufferV2::CopyChunkV2Result;
+constexpr auto kAdmitted = CopyChunkV2Result::kAdmitted;
+constexpr auto kBufferFull = CopyChunkV2Result::kBufferFull;
+constexpr auto kSequenceFormatConflict =
+    CopyChunkV2Result::kSequenceFormatConflict;
+constexpr auto kProtoVmConflict = CopyChunkV2Result::kProtoVmConflict;
+constexpr auto kInvalidChunk = CopyChunkV2Result::kInvalidChunk;
+
 // Appends the varint encoding of |value| to |buf|.
 void AppendVarInt(uint64_t value, std::vector<uint8_t>* buf) {
   uint8_t tmp[10];
@@ -3638,9 +3646,8 @@ TEST_F(TraceBufferV2Test, V2Admission_SingleWholePacket) {
   auto frag = MakeFragView(packet);
   auto seq = MakeV2SeqProps(1, 1);
 
-  bool result =
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false);
-  ASSERT_TRUE(result);
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
 
   trace_buffer()->BeginRead();
   auto output = ReadPacketBytes(trace_buffer());
@@ -3664,16 +3671,16 @@ TEST_F(TraceBufferV2Test, V2Admission_MultiFragmentPacket) {
   auto seq = MakeV2SeqProps(1, 1);
 
   // First chunk: one fragment that continues on the next chunk.
-  bool r1 = trace_buffer()->CopyChunkV2Untrusted(
-      seq, &fv1, 1, /*first_continues_from_prev=*/false,
-      /*last_continues_on_next=*/true);
-  ASSERT_TRUE(r1);
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                seq, &fv1, 1, /*first_continues_from_prev=*/false,
+                /*last_continues_on_next=*/true),
+            kAdmitted);
 
   // Second chunk: one fragment that continues from the previous chunk.
-  bool r2 = trace_buffer()->CopyChunkV2Untrusted(
-      seq, &fv2, 1, /*first_continues_from_prev=*/true,
-      /*last_continues_on_next=*/false);
-  ASSERT_TRUE(r2);
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                seq, &fv2, 1, /*first_continues_from_prev=*/true,
+                /*last_continues_on_next=*/false),
+            kAdmitted);
 
   trace_buffer()->BeginRead();
   TracePacket out;
@@ -3797,8 +3804,8 @@ TEST_F(TraceBufferV2Test, V2Loss_RejectedAppendRecordsLoss) {
   bool stored = true;
   int stored_count = 0;
   for (int i = 0; i < 100; i++) {
-    stored =
-        trace_buffer()->CopyChunkV2Untrusted(seq, &fv_big, 1, false, false);
+    stored = trace_buffer()->CopyChunkV2Untrusted(seq, &fv_big, 1, false,
+                                                  false) == kAdmitted;
     if (!stored)
       break;
     stored_count++;
@@ -3864,8 +3871,9 @@ TEST_F(TraceBufferV2Test, V2Admission_RejectsSmbSequence) {
 
   auto packet = MakeSimpleGroupPacket(1, 77);
   auto frag = MakeFragView(packet);
-  EXPECT_FALSE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 7), &frag,
-                                                    1, false, false));
+  EXPECT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 7), &frag, 1,
+                                                 false, false),
+            kSequenceFormatConflict);
   EXPECT_EQ(trace_buffer()->stats().chunks_written(), 1u);
   EXPECT_EQ(trace_buffer()->stats().abi_violations(), 1u);
   EXPECT_EQ(sequence_count(), 1u);
@@ -3880,16 +3888,16 @@ TEST_F(TraceBufferV2Test, V2Admission_RejectsSmbChunksAndPatches) {
   auto seq = MakeV2SeqProps(1, 7);
   auto bytes = MakeSimpleGroupPacket(1, 77);
   auto frag = MakeFragView(bytes);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
   CreateChunk(ProducerID(1), WriterID(7), ChunkID(0))
       .AddPacket(4, 'v')
       .CopyIntoTraceBuffer();
   EXPECT_EQ(trace_buffer()->stats().abi_violations(), 1u);
   EXPECT_FALSE(
       trace_buffer()->TryPatchChunkContents(1, 7, 0, nullptr, 0, false));
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
 
   // The rejected SMB chunk belongs to another writer. The SMB v2 writer
   // lost nothing.
@@ -4051,8 +4059,14 @@ TEST_F(TraceBufferV2Test, V2Rewrite_MalformedInput) {
             static_cast<uint32_t>(DataLossReason::DATA_LOSS_PRESENT |
                                   DataLossReason::DATA_LOSS_CHUNK_CORRUPTED));
   EXPECT_THAT(ReadPacket(), IsEmpty());
-  // A malformed packet is a producer bug, not a size limit.
+  // A malformed packet is a producer bug, not a size limit. The conversion
+  // stat tells it from an admission or protocol violation.
   EXPECT_EQ(trace_buffer()->stats().abi_violations(), 1u);
+  EXPECT_EQ(trace_buffer()->stats().v2_packet_conversion_failures(), 1u);
+  EXPECT_EQ(trace_buffer()->stats().first_v2_conversion_failure_producer_id(),
+            1u);
+  EXPECT_EQ(trace_buffer()->stats().first_v2_conversion_failure_writer_id(),
+            1u);
   EXPECT_EQ(trace_buffer()->stats().oversized_packets_dropped(), 0u);
 }
 
@@ -4175,7 +4189,8 @@ TEST_F(TraceBufferV2Test, V2Discard_BufferFull) {
 
   int stored = 0, dropped_count = 0;
   for (int i = 0; i < 100; i++) {
-    if (trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false))
+    if (trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false) ==
+        kAdmitted)
       stored++;
     else
       dropped_count++;
@@ -4249,8 +4264,8 @@ TEST_F(TraceBufferV2Test, V2Admission_EmptyFragment) {
   auto fv = MakeFragView(empty_data);
   auto seq = MakeV2SeqProps(1, 1);
 
-  bool r = trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false);
-  ASSERT_TRUE(r);
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false),
+            kAdmitted);
 
   trace_buffer()->BeginRead();
   auto output = ReadPacketBytes(trace_buffer());
@@ -4262,8 +4277,8 @@ TEST_F(TraceBufferV2Test, V2Admission_EmptyFragment) {
 TEST_F(TraceBufferV2Test, V2Admission_ZeroFragmentsRejected) {
   ResetBuffer(4096);
   auto seq = MakeV2SeqProps(1, 1);
-  bool r = trace_buffer()->CopyChunkV2Untrusted(seq, nullptr, 0, false, false);
-  ASSERT_FALSE(r);
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, nullptr, 0, false, false),
+            kInvalidChunk);
 }
 
 // 20. Multiple loss records coalesce.
@@ -4272,12 +4287,14 @@ TEST_F(TraceBufferV2Test, V2Loss_MultipleLossCoalesce) {
   auto seq = MakeV2SeqProps(1, 1);
   auto pkt = MakeSimpleGroupPacket(1, 42);
   auto fv = MakeFragView(pkt);
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false),
+            kAdmitted);
 
   // Record loss twice between two packets.
   trace_buffer()->RecordChunkV2DataLoss(1, 1);
   trace_buffer()->RecordChunkV2DataLoss(1, 1);
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &fv, 1, false, false),
+            kAdmitted);
 
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties props{};
@@ -4298,17 +4315,20 @@ TEST_F(TraceBufferV2Test, V2Loss_RejectedAppendPreservesPosition) {
   auto b = MakeSimpleGroupPacket(1, 22);
   auto c = MakeSimpleGroupPacket(1, 33);
   protozero::ConstBytes first[] = {MakeFragView(a), {b.data(), 1}};
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(
-      seq, first, 2, /*first_continues_from_prev=*/false,
-      /*last_continues_on_next=*/true));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                seq, first, 2, /*first_continues_from_prev=*/false,
+                /*last_continues_on_next=*/true),
+            kAdmitted);
   std::vector<uint8_t> huge(65536);
   auto rejected = MakeFragView(huge);
-  EXPECT_FALSE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &rejected, 1, false, false));
+  EXPECT_EQ(
+      trace_buffer()->CopyChunkV2Untrusted(seq, &rejected, 1, false, false),
+      kInvalidChunk);
   protozero::ConstBytes last[] = {{b.data() + 1, 1}, MakeFragView(c)};
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(
-      seq, last, 2, /*first_continues_from_prev=*/true,
-      /*last_continues_on_next=*/false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                seq, last, 2, /*first_continues_from_prev=*/true,
+                /*last_continues_on_next=*/false),
+            kAdmitted);
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties props{};
   uint32_t loss = 0;
@@ -4331,11 +4351,12 @@ TEST_F(TraceBufferV2Test, V2Loss_ClonesAndConsumedBoundary) {
   auto b = MakeSimpleGroupPacket(1, 22);
   auto first = MakeFragView(x);
   protozero::ConstBytes fragments[] = {MakeFragView(a), MakeFragView(b)};
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &first, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &first, 1, false, false),
+            kAdmitted);
   trace_buffer()->RecordChunkV2DataLoss(1, 1);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, fragments, 2, false, false));
+  ASSERT_EQ(
+      trace_buffer()->CopyChunkV2Untrusted(seq, fragments, 2, false, false),
+      kAdmitted);
   auto before = trace_buffer()->CloneReadOnly();
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties props{};
@@ -4373,14 +4394,16 @@ TEST_F(TraceBufferV2Test, V2Loss_EmptySmbV2StateIsBounded) {
   // so those sequences become empty and the oldest are pruned. Writer 1 is
   // the oldest.
   for (WriterID writer = 1; writer < 2000; ++writer) {
-    ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, writer),
-                                                     &frag, 1, false, false));
+    ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, writer),
+                                                   &frag, 1, false, false),
+              kAdmitted);
   }
   EXPECT_LE(empty_sequence_count(), 1152u);
   EXPECT_LT(sequence_count(), 1999u);
 
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag,
-                                                   1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag, 1,
+                                                 false, false),
+            kAdmitted);
   bool found_writer_1 = false;
   trace_buffer()->BeginRead();
   for (;;) {
@@ -4397,11 +4420,13 @@ TEST_F(TraceBufferV2Test, V2Loss_RejectedWritersCreateNoState) {
   auto packet = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(packet);
   auto seq = MakeV2SeqProps(1, 1);
-  while (trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false)) {
+  while (trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false) ==
+         kAdmitted) {
   }
   for (WriterID writer = 2; writer < 2000; ++writer) {
-    EXPECT_FALSE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, writer),
-                                                      &frag, 1, false, false));
+    EXPECT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, writer),
+                                                   &frag, 1, false, false),
+              kBufferFull);
   }
   // Only writer 1, which stored data, has sequence state.
   EXPECT_EQ(sequence_count(), 1u);
@@ -4413,21 +4438,22 @@ TEST_F(TraceBufferV2Test, V2Admission_SizeOverflowAndNullPayload) {
   auto seq = MakeV2SeqProps(1, 1);
   auto packet = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(packet);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
 
   // A batch larger than one TBChunk breaks the writer's chunk contract.
   const uint8_t byte = 0;
   protozero::ConstBytes huge{&byte, SIZE_MAX};
-  EXPECT_FALSE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &huge, 1, false, false));
+  EXPECT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &huge, 1, false, false),
+            kInvalidChunk);
   EXPECT_EQ(trace_buffer()->stats().abi_violations(), 1u);
   protozero::ConstBytes invalid{nullptr, 1};
-  EXPECT_FALSE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &invalid, 1, false, false));
+  EXPECT_EQ(
+      trace_buffer()->CopyChunkV2Untrusted(seq, &invalid, 1, false, false),
+      kInvalidChunk);
   EXPECT_EQ(trace_buffer()->stats().abi_violations(), 2u);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
   EXPECT_EQ(trace_buffer()->stats().chunks_written(), 2u);
 
   trace_buffer()->BeginRead();
@@ -4448,16 +4474,18 @@ TEST_F(TraceBufferV2Test, V2Admission_BatchLargerThanChunkIsInvalid) {
   // TBChunk payload limit.
   std::vector<uint8_t> half(32 * 1024, 0);
   protozero::ConstBytes fragments[] = {MakeFragView(half), MakeFragView(half)};
-  EXPECT_FALSE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, fragments, 2, false, false));
+  EXPECT_EQ(
+      trace_buffer()->CopyChunkV2Untrusted(seq, fragments, 2, false, false),
+      kInvalidChunk);
   EXPECT_EQ(trace_buffer()->stats().abi_violations(), 1u);
   EXPECT_EQ(trace_buffer()->stats().chunks_written(), 0u);
 
   // The largest batch that fits is stored.
   std::vector<uint8_t> max(internal::TBChunk::kMaxSize - 3, 0);
   auto max_frag = MakeFragView(max);
-  EXPECT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &max_frag, 1, false, false));
+  EXPECT_EQ(
+      trace_buffer()->CopyChunkV2Untrusted(seq, &max_frag, 1, false, false),
+      kAdmitted);
 }
 
 TEST_F(TraceBufferV2Test, V2Rewrite_PreservesEarlierLossReasons) {
@@ -4491,13 +4519,15 @@ TEST_F(TraceBufferV2Test, V2Admission_RejectsOnlyProtoVmProducers) {
   ASSERT_EQ(trace_buffer()->GetProtoVmInstances().size(), 1u);
   auto packet = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(packet);
-  EXPECT_FALSE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag,
-                                                    1, false, false));
+  EXPECT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag, 1,
+                                                 false, false),
+            kProtoVmConflict);
   EXPECT_EQ(trace_buffer()->stats().chunks_discarded(), 1u);
   EXPECT_FALSE(trace_buffer()->has_data());
 
-  EXPECT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(2, 1), &frag,
-                                                   1, false, false));
+  EXPECT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(2, 1), &frag, 1,
+                                                 false, false),
+            kAdmitted);
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties props{};
   EXPECT_THAT(ReadPacket(&props),
@@ -4520,8 +4550,9 @@ TEST_F(TraceBufferV2Test, V2Loss_RecordLossIgnoresUnknownAndSmbWriters) {
   // A loss before the first stored batch is not a sequence gap.
   auto packet = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(packet);
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 8), &frag,
-                                                   1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 8), &frag, 1,
+                                                 false, false),
+            kAdmitted);
 
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties props{};
@@ -4543,8 +4574,8 @@ TEST_F(TraceBufferV2Test, V2Mixed_StatsKeysPreserveWriterBits) {
   auto seq = MakeV2SeqProps(1, 1);
   auto packet = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(packet);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
   size_t count = 0;
   for (auto it = trace_buffer()->writer_stats().GetIterator(); it; ++it) {
     ++count;
@@ -4586,8 +4617,9 @@ TEST_F(TraceBufferV2Test, V2Loss_EvictedBoundaryMarksSurvivingPacket) {
   trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false);
   std::vector<uint8_t> padding(3997, 0);
   auto padding_frag = MakeFragView(padding);
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(
-      MakeV2SeqProps(1, 2), &padding_frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                MakeV2SeqProps(1, 2), &padding_frag, 1, false, false),
+            kAdmitted);
   trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 2), &frag, 1, false,
                                        false);
   ASSERT_EQ(trace_buffer()->stats().chunks_overwritten(), 1u);
@@ -4623,8 +4655,9 @@ TEST_F(TraceBufferV2Test, V2Overwrite_CrossesUsedWatermarkAfterWrap) {
   // The next record covers [32, 4096), including live records below 4080.
   filler.resize(4045);
   filler_frag = MakeFragView(filler);
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(
-      MakeV2SeqProps(1, 3), &filler_frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 3),
+                                                 &filler_frag, 1, false, false),
+            kAdmitted);
   EXPECT_EQ(trace_buffer()->stats().chunks_overwritten(), 3u);
 }
 
@@ -4633,12 +4666,13 @@ TEST_F(TraceBufferV2Test, V2Admission_InvalidBatchDoesNotEvict) {
   auto seq = MakeV2SeqProps(1, 1);
   auto bytes = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(bytes);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
   std::vector<uint8_t> large(4090, 0);
   protozero::ConstBytes rejected[] = {MakeFragView(large), {nullptr, 1}};
-  EXPECT_FALSE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, rejected, 2, false, false));
+  EXPECT_EQ(
+      trace_buffer()->CopyChunkV2Untrusted(seq, rejected, 2, false, false),
+      kInvalidChunk);
   EXPECT_EQ(trace_buffer()->stats().chunks_overwritten(), 0u);
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties props{};
@@ -4653,18 +4687,20 @@ TEST_F(TraceBufferV2Test, V2Rewrite_EmptyFragmentedPacketPreservesLoss) {
   auto seq = MakeV2SeqProps(1, 1);
   auto bytes = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(bytes);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
   protozero::ConstBytes empty{nullptr, 0};
   trace_buffer()->RecordChunkV2DataLoss(1, 1);
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(
-      seq, &empty, 1, /*first_continues_from_prev=*/false,
-      /*last_continues_on_next=*/true));
-  ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(
-      seq, &empty, 1, /*first_continues_from_prev=*/true,
-      /*last_continues_on_next=*/false));
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                seq, &empty, 1, /*first_continues_from_prev=*/false,
+                /*last_continues_on_next=*/true),
+            kAdmitted);
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                seq, &empty, 1, /*first_continues_from_prev=*/true,
+                /*last_continues_on_next=*/false),
+            kAdmitted);
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
 
   trace_buffer()->BeginRead();
   TraceBuffer::PacketSequenceProperties props{};
@@ -4684,8 +4720,8 @@ TEST_F(TraceBufferV2Test, V2Rewrite_OutputSurvivesLaterReadsAndOverwrite) {
   auto seq = MakeV2SeqProps(1, 1);
   auto bytes = MakeNestedGroupPacket(1, 2, 42);
   auto frag = MakeFragView(bytes);
-  ASSERT_TRUE(
-      trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+  ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+            kAdmitted);
   trace_buffer()->BeginRead();
   TracePacket first;
   TraceBuffer::PacketSequenceProperties props{};
@@ -4697,8 +4733,8 @@ TEST_F(TraceBufferV2Test, V2Rewrite_OutputSurvivesLaterReadsAndOverwrite) {
   bytes = MakeNestedGroupPacket(1, 2, 99);
   frag = MakeFragView(bytes);
   for (size_t i = 0; i < 200; ++i) {
-    ASSERT_TRUE(
-        trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false));
+    ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(seq, &frag, 1, false, false),
+              kAdmitted);
   }
   trace_buffer()->BeginRead();
   while (!ReadPacketBytes(trace_buffer()).empty()) {
@@ -4721,8 +4757,9 @@ TEST_F(TraceBufferV2Test, V2Rewrite_LargeMultiChunkPacket) {
     const bool continues_from_prev = off > 0;
     const bool continues_on_next = off + size < bytes.size();
     protozero::ConstBytes frag{bytes.data() + off, size};
-    ASSERT_TRUE(trace_buffer()->CopyChunkV2Untrusted(
-        seq, &frag, 1, continues_from_prev, continues_on_next));
+    ASSERT_EQ(trace_buffer()->CopyChunkV2Untrusted(
+                  seq, &frag, 1, continues_from_prev, continues_on_next),
+              kAdmitted);
     off += size;
   }
 

@@ -192,6 +192,7 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
     PerfettoDsSetBufferExhaustedPolicyConfigurable(ds_impl, true);
   }
 
+  PerfettoDsSetSupportsTracingV2(ds_impl, /*supports=*/true);
   success = PerfettoDsImplRegister(ds_impl, &ds->enabled, desc_buf, desc_size);
   free(desc_buf);
   if (!success) {
@@ -277,13 +278,24 @@ struct PerfettoDsRootTracePacket {
   struct perfetto_protos_TracePacket msg;
 };
 
+// Starts a packet on `tracer` and sets up `root` in the writer's encoding.
+static inline void PerfettoDsRootTracePacketBegin(
+    struct PerfettoDsTracerImpl* tracer,
+    struct PerfettoDsRootTracePacket* root) {
+  const struct PerfettoDsPacketBeginResult result =
+      PerfettoDsTracerImplPacketBeginWithEncoding(tracer);
+  root->writer.writer = result.writer;
+  PerfettoPbMsgInitWithEncoding(
+      &root->msg.msg, &root->writer,
+      PERFETTO_STATIC_CAST(enum PerfettoPbMsgEncoding, result.encoding));
+}
+
 // Initializes `root` to write a new packet to the data source instance pointed
 // by `iterator`.
 static inline void PerfettoDsTracerPacketBegin(
     struct PerfettoDsTracerIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
-  root->writer.writer = PerfettoDsTracerImplPacketBegin(iterator->impl.tracer);
-  PerfettoPbMsgInit(&root->msg.msg, &root->writer);
+  PerfettoDsRootTracePacketBegin(iterator->impl.tracer, root);
 }
 
 // Finishes writing the packet pointed by `root` on the data source instance

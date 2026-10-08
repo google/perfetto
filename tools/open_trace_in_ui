@@ -14,12 +14,106 @@
 # limitations under the License.
 
 import argparse
+import html
 import http.server
 import os
 import socketserver
 import sys
+import urllib.parse
 import webbrowser
-import urllib
+
+# We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
+PORT = 9001
+
+TRACE_LAUNCHER_HTML = """<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Opening Trace in Perfetto UI...</title>
+  <style>
+    body, html {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1e1e1e;
+      color: #fff;
+      font-family: sans-serif;
+      gap: 16px;
+    }
+    #open-btn {
+      display: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      background: #1a73e8;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body data-ui-url="{{UI_URL}}" data-fname="{{FNAME}}">
+  <div id="status">Opening Perfetto UI...</div>
+  <button id="open-btn" type="button">Open Trace in Perfetto UI</button>
+  <script>
+    const {uiUrl, fname} = document.body.dataset;
+    const uiOrigin = new URL(uiUrl).origin;
+    const statusEl = document.getElementById('status');
+    const openBtn = document.getElementById('open-btn');
+    let win = window.open(uiUrl, '_blank');
+    if (!win) {
+      statusEl.textContent = 'Click below to open the trace in Perfetto UI:';
+      openBtn.style.display = 'block';
+    }
+
+    openBtn.onclick = () => {
+      win = window.open(uiUrl, '_blank');
+      openBtn.style.display = 'none';
+      statusEl.textContent = 'Opening Perfetto UI...';
+    };
+
+    const timer = setInterval(() => {
+      if (win) win.postMessage('PING', uiOrigin);
+    }, 200);
+
+    window.onmessage = async (e) => {
+      if (e.source !== win || e.origin !== uiOrigin || e.data !== 'PONG') {
+        return;
+      }
+      clearInterval(timer);
+      window.onmessage = null;
+      statusEl.textContent = 'Streaming trace to Perfetto UI...';
+      try {
+        const resp = await fetch(encodeURIComponent(fname));
+        if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+        const bytesTotal = Number(resp.headers.get('content-length')) || 0;
+        const {readable, writable} = new TransformStream();
+        resp.body.pipeTo(writable).then(() => {
+          statusEl.textContent = 'Trace sent to the Perfetto UI.';
+          setTimeout(() => window.close(), 300);
+        });
+        const payload = {
+          stream: readable,
+          bytesTotal,
+          title: fname,
+          fileName: fname,
+          shareable: true,
+          downloadable: true,
+        };
+        win.postMessage({perfetto: payload}, uiOrigin, [readable]);
+      } catch (err) {
+        statusEl.textContent = 'Failed to stream the trace: ' + err;
+      }
+    };
+  </script>
+</body>
+</html>
+"""
 
 
 class ANSI:
@@ -40,12 +134,28 @@ class HttpHandler(http.server.SimpleHTTPRequestHandler):
     self.send_header('Cache-Control', 'no-cache')
     super().end_headers()
 
+  def _serve_trace_launcher(self):
+    body = self.server.trace_launcher_html.encode('utf-8')
+    self.send_response(200)
+    self.send_header('Content-Type', 'text/html; charset=utf-8')
+    self.send_header('Content-Length', str(len(body)))
+    self.end_headers()
+    self.wfile.write(body)
+
   def do_GET(self):
-    if self.path != '/' + self.server.expected_fname:
+    req_path = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
+    # Serving '/' only delivers the launcher HTML page; keep the server alive
+    # until the launcher page fetches '/<fname>' below.
+    if req_path == '/' and self.server.trace_launcher_html is not None:
+      self._serve_trace_launcher()
+      return
+
+    if req_path != '/' + self.server.expected_fname:
       self.send_error(404, 'File not found')
       return
 
-    self.server.fname_get_completed = True
+    if not self.server.keep_serving:
+      self.server.fname_get_completed = True
     super().do_GET()
 
   def do_POST(self):
@@ -56,22 +166,58 @@ def prt(msg, colors=ANSI.END):
   print(colors + msg + ANSI.END)
 
 
-def open_trace(path, open_browser, origin):
-  # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
-  PORT = 9001
+def _parse_host(host):
+  """Normalizes a --trampoline-host argument into (launcher_url, listen_port).
+
+  Accepts a bare hostname ('myhost'), host:port ('myhost:8080'), or a full
+  http(s):// URL, defaulting to port 9001 when no port is specified.
+  """
+  if '://' not in host:
+    host = 'http://' + host
+  parsed = urllib.parse.urlparse(host)
+  port = parsed.port or PORT
+  netloc = (f'{parsed.hostname}:{port}'
+            if parsed.scheme == 'http' else parsed.netloc)
+  return f'{parsed.scheme}://{netloc}/', port
+
+
+def _load_trace_launcher_html(origin, fname):
+  """Renders the HTML page that streams the trace to the Perfetto UI."""
+  ui_url = f'{origin.rstrip("/")}/#!/?referrer=open_trace_in_ui'
+  content = TRACE_LAUNCHER_HTML.replace('{{UI_URL}}', html.escape(ui_url))
+  return content.replace('{{FNAME}}', html.escape(fname))
+
+
+def open_trace(path,
+               open_browser,
+               origin,
+               trampoline_host=None,
+               keep_serving=False):
   path = os.path.abspath(path)
-  os.chdir(os.path.dirname(path))
   fname = os.path.basename(path)
-  socketserver.TCPServer.allow_reuse_address = True
-  with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
+  trace_launcher_html = (
+      _load_trace_launcher_html(origin, fname) if trampoline_host else None)
+
+  if trampoline_host:
+    bind_addr = '0.0.0.0'
+    address, port = _parse_host(trampoline_host)
+  else:
+    bind_addr = '127.0.0.1'
+    port = PORT
     address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}&referrer=open_trace_in_ui'
-    if open_browser:
+
+  os.chdir(os.path.dirname(path))
+  socketserver.TCPServer.allow_reuse_address = True
+  with socketserver.TCPServer((bind_addr, port), HttpHandler) as httpd:
+    if open_browser and not trampoline_host:
       webbrowser.open_new_tab(address)
     else:
       print(f'Open URL in browser: {address}')
 
     httpd.expected_fname = fname
     httpd.fname_get_completed = None
+    httpd.keep_serving = keep_serving
+    httpd.trace_launcher_html = trace_launcher_html
 
     # In case the user's `--origin` has a path component, strip it out
     def strip_url_path(url):
@@ -88,6 +234,7 @@ def main():
   examples = '\n'.join([
       ANSI.BOLD + 'Examples:' + ANSI.END,
       '  tools/open_trace_in_ui trace.pftrace',
+      '  tools/open_trace_in_ui --trampoline-host http://myhost:9001 trace.pftrace',
   ])
   parser = argparse.ArgumentParser(
       epilog=examples, formatter_class=argparse.RawTextHelpFormatter)
@@ -95,6 +242,16 @@ def main():
   parser.add_argument('positional_trace', metavar='trace', nargs='?')
   parser.add_argument(
       '-n', '--no-open-browser', action='store_true', default=False)
+  parser.add_argument(
+      '--trampoline-host',
+      help='Serve a launcher page at this host URL (with optional port) so a '
+      'browser on another machine can open the trace without port forwarding')
+  parser.add_argument(
+      '-k',
+      '--keep-serving',
+      action='store_true',
+      default=False,
+      help='Keep the HTTP server running after the trace is loaded')
   origin_group = parser.add_mutually_exclusive_group()
   origin_group.add_argument('--origin', default='https://ui.perfetto.dev')
   origin_group.add_argument(
@@ -127,7 +284,8 @@ def main():
     origin = 'http://localhost:10000'
 
   prt('Opening the trace (%s) in the browser' % trace_file)
-  open_trace(trace_file, open_browser, origin)
+  open_trace(trace_file, open_browser, origin, args.trampoline_host,
+             args.keep_serving)
 
 
 if __name__ == '__main__':

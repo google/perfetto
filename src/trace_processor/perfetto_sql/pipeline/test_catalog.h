@@ -41,6 +41,7 @@
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
 #include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -118,6 +119,10 @@ class TestCatalog : public Catalog {
     return std::nullopt;
   }
 
+  // Materializes SQL inputs for execution tests, in dataframe argument order.
+  static base::StatusOr<std::vector<std::unique_ptr<dataframe::Dataframe>>>
+  BuildSqlSources(SqliteConnection*, StringPool*, const LogicalPlan&);
+
  private:
   StringPool* pool_;
   SqliteConnection* connection_;
@@ -129,27 +134,27 @@ class TestCatalog : public Catalog {
 // SQLite builds them where the pipeline is written. Once the SQL sources are
 // moved out, the plan reads the i-th as dataframe argument i.
 inline base::StatusOr<std::vector<std::unique_ptr<dataframe::Dataframe>>>
-BuildSqlSources(SqliteConnection* connection,
-                StringPool* pool,
-                const LogicalPlan& plan) {
+TestCatalog::BuildSqlSources(SqliteConnection* connection,
+                             StringPool* pool,
+                             const LogicalPlan& plan) {
   std::vector<std::unique_ptr<dataframe::Dataframe>> out;
-  for (const PlanNode& node : plan.nodes) {
-    if (!node.Is<op::Scan>()) {
+  for (const PlanNode& node : plan.nodes()) {
+    if (!node.Is<Scan>()) {
       continue;
     }
-    const auto& scan = node.Cast<op::Scan>();
-    if (!std::holds_alternative<SqlSource>(scan.source)) {
+    const auto& scan = node.Cast<Scan>();
+    if (!std::holds_alternative<SqlSource>(scan.source_)) {
       continue;
     }
     std::vector<std::string> names;
     std::vector<std::string> references;
-    for (const NamedColumn& column : scan.columns) {
+    for (const NamedColumn& column : scan.columns_) {
       names.push_back(column.name);
       references.push_back("\"" + column.name + "\"");
     }
     auto statement = connection->PrepareStatement(SqlSource::FromExecuteQuery(
         "SELECT " + base::Join(references, ", ") + " FROM " +
-        base::unchecked_get<SqlSource>(scan.source).sql()));
+        base::unchecked_get<SqlSource>(scan.source_).sql()));
     statement.Step();
     RETURN_IF_ERROR(statement.status());
     ASSIGN_OR_RETURN(dataframe::RuntimeDataframeBuilder builder,

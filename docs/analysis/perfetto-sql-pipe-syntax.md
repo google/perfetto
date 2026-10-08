@@ -56,7 +56,7 @@ followed by zero or more `|>` stages:
 
 > **Note:** The pipe operator `|>` must be written with no whitespace between
 > `|` and `>`. The pipeline keywords `TREE`, `ACCUMULATE`, `UP`, `DOWN`,
-> `INTERVAL`, `INTERSECTION`, `PER`, and `EXTEND` are non-reserved and remain
+> `INTERVAL`, `INTERSECTION`, `FLATTEN`, `AGGREGATE`, `PER`, and `EXTEND` are non-reserved and remain
 > valid as normal identifiers in standard SQL statements.
 
 ---
@@ -152,6 +152,54 @@ later stage drops the column:
 ---
 
 ## Pipeline Stages
+
+### `INTERVAL FLATTEN`
+
+Splits overlapping intervals into segments and aggregates the rows active in
+each segment:
+
+```sql
+|> INTERVAL FLATTEN [PER <col_1> [, <col_2> ...]]
+  AGGREGATE <aggregate> AS <out_1> [, <aggregate> AS <out_2> ...]
+```
+
+- **Interval columns:** Resolves bare `ts` and `dur` in the current row. Both
+  must be integer columns. Input need not be sorted; the pipeline arranges
+  rows by timestamp within each group.
+- **Grouping:** Each distinct combination of `PER` values is flattened
+  independently. Without `PER`, all rows belong to one group. `NULL` keys
+  group together, as in SQL `GROUP BY`.
+- **Aggregates:** At least one is required. Supported forms are `COUNT(*)`
+  and `SUM([<qualifier>.]<column>)`. Each needs an `AS` name. `SUM` accepts
+  integer columns (`ID`, `UINT32`, `INT32`, or `LONG`), ignores `NULL` values,
+  and returns `NULL` if all contributing values are `NULL`. Expressions,
+  `DISTINCT`, `FILTER`, `OVER`, and other aggregate functions are unsupported.
+- **Output:** Replaces the current row with `ts`, `dur`, the `PER` columns in
+  their listed order, and the named aggregates in their listed order. `ts`,
+  `dur`, and aggregates are `LONG` columns. Other input columns and all table
+  aliases are removed. Output names must be distinct.
+
+#### Interval semantics
+
+- **Segments:** Positive-duration intervals cover `[ts, ts + dur)`. Output
+  splits at input start and end timestamps, with aggregates over the rows
+  covering each segment. Gaps with no active rows produce no output. Adjacent
+  segments are not merged merely because their aggregate values are equal.
+- **Zero-duration points:** Rows with `dur = 0` at the same timestamp produce
+  one additional zero-duration segment per group. Its aggregates include all
+  points there and all positive-duration intervals covering that instant.
+  Intervals ending there are excluded; intervals starting there are included.
+  Points do not contribute to positive-duration segments.
+- **Missing bounds:** Rows with `ts IS NULL` or `dur IS NULL` are skipped.
+- **Negative bounds:** Negative `ts` or `dur` values cause an error. Filter out
+  unfinished trace slices (`dur = -1`) in the source subquery if needed.
+- **Overflow:** Interval endpoints and aggregate arithmetic use checked signed
+  64-bit integers; overflow causes an error.
+
+For a worked example, see
+[Flattening Overlapping Intervals](/docs/analysis/perfetto-sql-pipe-getting-started.md#flattening-overlapping-intervals-interval-flatten).
+
+---
 
 ### `TREE ACCUMULATE`
 

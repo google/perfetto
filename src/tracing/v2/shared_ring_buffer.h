@@ -65,7 +65,7 @@ class SharedRingBuffer {
   //
   // - sizeof(RingBufferHeader) is 64 bytes. |start| must be 64-byte aligned.
   // - num_chunks must be a power of two, from 2 to 2^30.
-  // - |chunk_size| must be at least 256 bytes and a multiple of four.
+  // - |chunk_size| must be in [256 B, 64 KiB] and a multiple of four.
   //   It does not need to be a power of two.
   // - |size| must match the equation exactly, with no trailing bytes.
   //   It does not need to be a power of two.
@@ -162,10 +162,12 @@ class SharedRingBuffer {
 
   // RewriteRequested -> RewriteAcknowledged after the writer saves any
   // unpublished fragment and stops access to the old chunk.
+  // |*observed| is the RewriteRequested word that the writer found.
   //
-  // On failure, report a protocol error. Only this writer can change
-  // RewriteRequested, so |observed| must still match the shared word.
-  bool TryAcknowledgeRewrite(ChunkIndex chunk_idx, uint32_t observed);
+  // On failure, |*observed| receives the current word. Report a protocol
+  // error: only this writer can change RewriteRequested, so the word must
+  // still match.
+  bool TryAcknowledgeRewrite(ChunkIndex chunk_idx, uint32_t* observed);
 
   // Reader side.
 
@@ -181,6 +183,16 @@ class SharedRingBuffer {
   // - An older position can shorten a drain pass. A later pass can consume
   //   the remaining reservations.
   uint32_t LoadWritePosRelaxed() const;
+
+  // Returns write_pos - read_pos from one relaxed load of both positions.
+  // - Includes chunks that writers have not published yet.
+  // - Includes positions reserved but left unclaimed when a chunk claim failed.
+  //   They still count until the reader advances past them.
+  //
+  // Concurrent updates can make this snapshot out of date, but that only
+  // affects when a drain is requested. Space reservation and chunk access use
+  // separate checks.
+  uint32_t LoadNumOutstandingPositionsRelaxed() const;
 
   // BeingWritten(N) -> RewriteRequested(N), with all other fields unchanged.
   // |*expected| must be the word the reader used to copy the fragments.
@@ -244,6 +256,43 @@ class SharedRingBuffer {
   // wakes waiting writers. Called once per drain pass, so the shared read_pos
   // can lag the reader's local value. The lag only under-reports free capacity.
   void PublishReadPos(uint32_t read_pos);
+
+  // Diagnostics in the header, for TraceStats. See RingBufferHeader.
+  // The protocol never reads them, so every access is relaxed.
+
+  // The producer calls this once, after it creates the ring buffer and before
+  // it attaches it. It sets kRingBufferDiagnosticsVersion and the drain
+  // threshold that all writers use. Another view of the same memory, such as
+  // the service's, must not call it: it would hide the producer's version.
+  void InitializeDiagnostics(uint32_t drain_threshold);
+
+  // A writer adds packets that it dropped, fully or in part.
+  void AddDroppedPackets(uint64_t count);
+  // A writer records one chunk acquisition that waited for |duration_ms|.
+  void RecordStall(uint64_t duration_ms);
+  // The producer counts one v2 writer that it could not create.
+  void AddWriterCreationFailure();
+  // A writer records its failure just before it aborts. Only the first record
+  // of the ring buffer stays. Later calls change nothing.
+  void RecordFirstWriterFailure(const WriterFailure&);
+
+  // The header as traced reads it. Every value is untrusted.
+  struct HeaderSnapshot {
+    uint32_t read_pos = 0;
+    uint32_t write_pos = 0;
+    uint32_t num_writers_waiting = 0;
+    uint32_t diagnostics_version = 0;
+    uint64_t dropped_packets = 0;
+    uint64_t stalls = 0;
+    uint64_t stall_time_ms = 0;
+    uint64_t max_stall_ms = 0;
+    // Decode it with DecodeWriterFailure().
+    uint64_t first_writer_failure = 0;
+    uint32_t drain_threshold = 0;
+    uint32_t writer_creation_failures = 0;
+  };
+  // Loads each header field once.
+  HeaderSnapshot LoadHeaderRelaxed() const;
 
  private:
   friend class test::SharedRingBufferInternalsForTest;

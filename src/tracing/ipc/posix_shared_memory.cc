@@ -80,6 +80,29 @@ std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
 }
 
 // static
+std::unique_ptr<PosixSharedMemory> PosixSharedMemory::CreateV2RingBuffer(
+    size_t size) {
+  base::ScopedFile fd =
+      CreateMemfd("perfetto_ring_buffer", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+  if (!fd) {
+    PERFETTO_PLOG("Ring buffer: memfd_create() failed");
+    return nullptr;
+  }
+
+  if (ftruncate(*fd, static_cast<off_t>(size)) != 0) {
+    PERFETTO_PLOG("Ring buffer: ftruncate() failed");
+    return nullptr;
+  }
+
+  if (fcntl(*fd, F_ADD_SEALS, kFileSeals) != 0) {
+    PERFETTO_PLOG("Ring buffer: sealing the memfd failed");
+    return nullptr;
+  }
+
+  return MapFD(std::move(fd), size);
+}
+
+// static
 std::unique_ptr<PosixSharedMemory> PosixSharedMemory::AttachToFd(
     base::ScopedFile fd,
     bool require_seals_if_supported,

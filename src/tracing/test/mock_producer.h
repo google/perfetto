@@ -56,7 +56,8 @@ class MockProducer : public Producer {
                size_t shared_memory_size_hint_bytes = 0,
                size_t shared_memory_page_size_hint_bytes = 0,
                std::unique_ptr<SharedMemory> shm = nullptr,
-               bool in_process = true);
+               bool in_process = true,
+               uint32_t protocol_abi_versions = kProtocolAbiV1);
   void RegisterDataSource(const std::string& name,
                           bool ack_stop = false,
                           bool ack_start = false,

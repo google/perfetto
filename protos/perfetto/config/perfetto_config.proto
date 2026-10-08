@@ -2468,7 +2468,8 @@ message HeapprofdConfig {
 // Config for the "linux.smaps" data source, describes one-shot or periodic
 // /proc/pid/smaps collection.
 //
-// A valid config must specify at least one |target_cmdline|. Example:
+// A valid config must specify at least one |target_cmdline| or |target_uid|.
+// Example:
 //
 // data_sources {
 //   config {
@@ -2487,6 +2488,8 @@ message ProcessSmapsConfig {
   optional SmapsConfig smaps_config = 1;
 
   // Which processes to record. At least one field must be set.
+  // Multiples of the same option (e.g. target_cmdline) are ORed.
+  // Different options are ANDed, skipping fields that are unset.
   message Scope {
     // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
     // comm string).
@@ -2502,6 +2505,18 @@ message ProcessSmapsConfig {
     //
     // Implementation note: at most 511 characters of cmdline are considered.
     repeated string target_cmdline = 1;
+
+    // Range of UIDs.
+    message UidRange {
+      // inclusive, must be set
+      optional uint32 min_uid = 1;
+      // inclusive, must be set
+      optional uint32 max_uid = 2;
+      // Android: if true, compare the UID modulo the per-user/profile offset
+      // (AID_USER_OFFSET, 100000).
+      optional bool android_match_across_profiles = 3;
+    }
+    repeated UidRange target_uid = 2;
   }
   optional Scope scope = 2;
 
@@ -2510,6 +2525,18 @@ message ProcessSmapsConfig {
   // writing, [1s, 24hr] range).
   // If zero or unset, each process is captured only once at start.
   optional uint32 read_period_ms = 3;
+
+  // Caps the number of processes handled per |read_period_ms|, or overall if
+  // the config is one-shot (period = 0). The immediate use case is to limit
+  // work if too many processes match the |scope|.
+  // Additionally, this option can be used for sampling, since the
+  // implementation inspects processes in a shuffled order (not in numeric pid
+  // order), and successive periods cover separate subsets of pids.
+  // So a config with scope=*, period=10s, and max_processes=5 would
+  // progressively scan all processes on the machine by parsing 5 processes at
+  // a time with 10s breaks in between.
+  // If zero or unset, there is no limit.
+  optional uint32 max_processes_per_period = 4;
 }
 
 // Describes what to record from /proc/pid/smaps.
@@ -4896,7 +4923,7 @@ message TrackEventConfig {
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 147
+// Next id: 149
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5002,6 +5029,69 @@ message DataSourceConfig {
   // Once the config store (b/482305876) exists we should move protovm programs
   // onto that.
   optional ProtoVmConfig protovm_config = 12;
+
+  // Set by the service to indicate that this data source can write to its
+  // target buffer through the tracing v2 ring buffer. True only if:
+  // - v2 is in the connection's common ProtocolAbiVersion mask, and
+  // - the target buffer is a TraceBufferV2.
+  // Absent means false. True permits v2 but does not select it. The producer
+  // can select v1 only if v1 is also in the common mask. If no common version
+  // is permitted by the config and target buffer, the instance cannot run.
+  // One buffer can hold both formats. Each writer sequence uses one format.
+  //
+  // Not supported: a ProtoVM data source on the same buffer.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional bool supports_tracing_v2 = 147;
+
+  // Experimental.
+  // Lets the producer write this data source through the tracing v2 ring
+  // buffer, instead of the v1 shared memory buffer.
+  // - The producer decides once per instance, at setup.
+  // - Without a TRACE_BUFFER_V2 target buffer, or a producer that supports
+  //   v2, the instance uses v1.
+  // - The producer creates one ring buffer, for its first selected instance.
+  // - If the producer cannot create or attach the ring buffer, selected
+  //   instances discard their data and do not fall back to v1.
+  // - Data sources that do not support v2 keep writing through v1, also when
+  //   their instance is selected.
+  // - The service rejects a nonzero use_v2_probability_percent and a ProtoVM
+  //   data source on the same buffer.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2, from 0 (the default) to 100.
+    // The service rejects a larger value.
+    optional uint32 use_v2_probability_percent = 1;
+
+    // One chunk size that the producer can choose for the ring buffer.
+    message ChunkSizeOption {
+      // Bytes per chunk, from 256 to 65536, and a multiple of 4.
+      // The service rejects other values.
+      optional uint32 size_bytes = 1;
+      // The chance of this option, relative to the other options.
+      // Absent means 1, and 0 means never.
+      optional uint32 weight = 2;
+    }
+    // The producer chooses one option at random, by weight, when it creates
+    // the ring buffer.
+    // With no option, or with all weights 0, it uses 256 bytes.
+    //
+    // The first instance that selects v2 chooses the size for the connection,
+    // and the options of later instances have no effect.
+    repeated ChunkSizeOption chunk_size_options = 2;
+
+    // When the writers ask the service to drain the ring buffer.
+    // After each publication, a writer counts the ring buffer positions that
+    // wait for the reader, and asks for a drain when the count reaches:
+    // - 0 or absent: 25% of the positions.
+    // - 1 to 100: this percent of the positions, and at least one.
+    // - -1: one position, so it asks after every publication.
+    // Flushes and full ring buffers still ask for a drain at once.
+    // The service rejects other values.
+    //
+    // As for chunk_size_options, the first instance that selects v2 sets it
+    // for the connection, and the values of later instances have no effect.
+    optional int32 drain_occupancy_percent = 3;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
@@ -5330,6 +5420,25 @@ message TraceConfig {
     //
     // Introduced in v58 / Android 26Q3+.
     optional bool enable_concurrent_session_events = 10;
+
+    // Experimental. Dump the tracing v2 ring buffer of each producer of the
+    // session at stop, at producer disconnect, and into each clone, as
+    // TracingV2RingBufferDump packets.
+    // traced always dumps a ring buffer whose reader stopped on a protocol
+    // error.
+    // A dump has the header and the state word of each chunk. Each session
+    // holds at most 4 MiB of dumps until a read emits them.
+    optional bool experimental_dump_tracing_v2_ring_buffers = 11;
+
+    // Experimental. Add raw chunk bytes to every tracing v2 ring buffer dump,
+    // and dump up to 8 chunks for each producer that traced discards as
+    // malformed or in an unknown format.
+    // - The bytes are raw trace data. They can hold data of every session
+    //   that uses the producer, and stale bytes of earlier sessions.
+    // - A trace_filter treats them as opaque: it keeps or drops them whole.
+    // - A dump holds all chunks only if they fit the dump budget. Otherwise
+    //   it holds some chunks and lists them.
+    optional bool experimental_dump_tracing_v2_chunk_bytes = 12;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 

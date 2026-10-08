@@ -742,10 +742,32 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         currentSelection.end,
       ),
     );
-    // Will be automatically cleaned up when `iiTable` is dropped.
+    // Incomplete slices (dur = -1) are dropped by `createIITable` but their
+    // descendants are not: only keep slices reachable from a root so that
+    // every remaining slice's parent is also present.
+    await trace.engine.query('include perfetto module graphs.search;');
+    const nodesTable = disposables.use(
+      await createPerfettoTable({
+        engine: trace.engine,
+        as: `
+          select s.*
+          from graph_reachable_dfs!(
+            (
+              select parent_id as source_node_id, id as dest_node_id
+              from ${iiTable.name}
+              where parent_id is not null
+            ),
+            (select id as node_id from ${iiTable.name} where parent_id is null)
+          ) r
+          join ${iiTable.name} s on s.id = r.node_id
+          order by s.id
+        `,
+      }),
+    );
+    // Will be automatically cleaned up when `nodesTable` is dropped.
     await createPerfettoIndex({
       engine: trace.engine,
-      on: `${iiTable.name}(parent_id)`,
+      on: `${nodesTable.name}(parent_id)`,
     });
 
     // Reuse the flamegraph's source dataset and add a time-window filter so
@@ -765,11 +787,11 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         from _viz_slice_ancestor_agg!(
           (
             select s.id, s.dur
-            from ${iiTable.name} s
-            left join ${iiTable.name} t on t.parent_id = s.id
+            from ${nodesTable.name} s
+            left join ${nodesTable.name} t on t.parent_id = s.id
             where t.id is null
           ),
-          ${iiTable.name}
+          ${nodesTable.name}
         )
       )`,
       tableMetrics: [
@@ -827,7 +849,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     });
     // The fetcher is created here, next to the metrics it serves, and moved
     // into the returned object: it dies with this generation, so its virtual
-    // tables (which read from `iiTable`) never outlive the tables themselves.
+    // tables (which read from `nodesTable`) never outlive the tables themselves.
     const fetcher = new TreeExplorerFetcher(trace, metrics, queue);
     // Move the resources into the returned object: the implicit scope-exit
     // dispose becomes a no-op on the happy path, and cleans up if anything

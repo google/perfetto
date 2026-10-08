@@ -516,21 +516,35 @@ class TraceBufferV2 : public TraceBuffer {
   // The caller decodes these from its transport. A batch the transport marks
   // as lossy must not be passed here. Call RecordChunkV2DataLoss() instead.
   //
-  // Returns true if the whole batch was stored. Returns false if the batch
-  // was rejected:
+  // The result of CopyChunkV2Untrusted(): kAdmitted, or why the buffer
+  // rejected the batch. Each value maps to the buffer stat that it updates.
+  enum class CopyChunkV2Result {
+    // The whole batch was stored.
+    kAdmitted,
+    // A kDiscard buffer is full. Increments chunks_discarded.
+    kBufferFull,
+    // The writer ID's sequence already holds SMB v1 chunks.
+    // Increments abi_violations.
+    kSequenceFormatConflict,
+    // The producer has a ProtoVM on this buffer. Increments chunks_discarded.
+    kProtoVmConflict,
+    // An empty batch, a null payload, or a batch larger than one TBChunk or
+    // than the whole buffer. Increments abi_violations, except for an empty
+    // batch, which changes nothing.
+    kInvalidChunk,
+  };
+
+  // Returns kAdmitted if the whole batch was stored, or the reason for the
+  // rejection.
   // - The rejection of a nonempty batch records loss as RecordChunkV2DataLoss()
-  //   does. An empty batch changes nothing. Empty fragments can have a null
-  //   data pointer.
-  // - Invalid input increments abi_violations: a null payload, a batch larger
-  //   than one TBChunk or than the whole buffer, or a writer ID whose sequence
-  //   already holds SMB chunks. CopyChunkUntrusted() counts the same cases.
-  // - Other rejections increment chunks_discarded: a full kDiscard buffer or
-  //   a producer with a ProtoVM on this buffer.
-  bool CopyChunkV2Untrusted(const PacketSequenceProperties& sequence,
-                            const protozero::ConstBytes* fragments,
-                            size_t num_fragments,
-                            bool first_continues_from_prev,
-                            bool last_continues_on_next);
+  //   does. Empty fragments can have a null data pointer.
+  // - The buffer stats count invalid input as CopyChunkUntrusted() does.
+  CopyChunkV2Result CopyChunkV2Untrusted(
+      const PacketSequenceProperties& sequence,
+      const protozero::ConstBytes* fragments,
+      size_t num_fragments,
+      bool first_continues_from_prev,
+      bool last_continues_on_next);
 
   // Records a gap after the last appended SMB v2 batch of this writer.
   // Packets already in the buffer remain readable. The next appended chunk
@@ -541,6 +555,11 @@ class TraceBufferV2 : public TraceBuffer {
   // - A caller that cannot identify the destination can call this on every
   //   candidate buffer. Buffers the writer never used are not changed.
   void RecordChunkV2DataLoss(ProducerID, WriterID);
+
+  // Increments abi_violations for a violation that the caller found outside
+  // this buffer. Example: the service stops reading a producer's ring buffer
+  // after a protocol error.
+  void RecordAbiViolation();
 
   void MaybeSetUpProtoVm(const std::string& data_source_name,
                          const std::string& program_bytes,
@@ -648,10 +667,11 @@ class TraceBufferV2 : public TraceBuffer {
   // without nested messages keeps its slices into the buffer, as an SMB
   // packet does. Otherwise the packet gets one owned slice. Returns false,
   // leaving the packet unchanged, for:
-  // - malformed input, counted in abi_violations.
+  // - malformed input, counted in v2_packet_conversion_failures and in
+  //   abi_violations. The stats keep the |sequence| of the first one.
   // - a packet that length-delimited protobuf cannot encode, counted in
   //   oversized_packets_dropped.
-  bool RewriteProtoGroupPacket(TracePacket*);
+  bool RewriteProtoGroupPacket(TracePacket*, const SequenceState& sequence);
 
   void DcheckIsAlignedAndWithinBounds(size_t off) const {
     PERFETTO_DCHECK((off & (alignof(TBChunk) - 1)) == 0);

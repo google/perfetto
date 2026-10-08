@@ -18,6 +18,7 @@
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
 #include "protos/perfetto/common/tracing_service_state.gen.h"
@@ -41,5 +42,23 @@ SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 
 // TODO(primiano): make pure virtual after various 3way patches.
 void Consumer::OnSessionCloned(const OnSessionClonedArgs&) {}
+
+// Endpoints without tracing v2 support reject ring buffers.
+void ProducerEndpoint::AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
+                                          uint32_t,
+                                          std::function<void(bool)> callback) {
+  callback(false);
+}
+
+// Endpoints without tracing v2 support ignore drain requests.
+void ProducerEndpoint::DrainV2RingBuffer() {}
+
+// Endpoints without tracing v2 support create v1 writers only.
+std::unique_ptr<TraceWriter> ProducerEndpoint::CreateTraceWriter(
+    BufferID buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID) {
+  return CreateTraceWriter(buffer, policy);
+}
 
 }  // namespace perfetto

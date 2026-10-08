@@ -26,6 +26,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/protovm/vm.h"
 
@@ -693,7 +694,7 @@ bool TraceBufferV2::ReadNextTracePacket(
           if (out_packet->size() == 0)
             continue;  // Skip empty fragments.
 
-          if (PERFETTO_UNLIKELY(!RewriteProtoGroupPacket(out_packet))) {
+          if (PERFETTO_UNLIKELY(!RewriteProtoGroupPacket(out_packet, s))) {
             out_packet->Clear();
             internal::AddSeqDataLoss(&s,
                                      DataLossReason::DATA_LOSS_CHUNK_CORRUPTED);
@@ -724,7 +725,8 @@ bool TraceBufferV2::ReadNextTracePacket(
   }  // for(;;)
 }
 
-bool TraceBufferV2::RewriteProtoGroupPacket(TracePacket* packet) {
+bool TraceBufferV2::RewriteProtoGroupPacket(TracePacket* packet,
+                                            const SequenceState& sequence) {
   PERFETTO_DCHECK(packet->size() > 0);
 
   // The packet's slices point into TBChunks. The rewriter reads them in
@@ -742,6 +744,15 @@ bool TraceBufferV2::RewriteProtoGroupPacket(TracePacket* packet) {
       return true;
     case tracing_v2::RewriteResult::kMalformedInput:
       stats_.set_abi_violations(stats_.abi_violations() + 1);
+      // Keep the sequence of the first failure. Its packets may never reach
+      // the trace, so nothing else maps the failure to a writer.
+      if (!stats_.v2_packet_conversion_failures()) {
+        stats_.set_first_v2_conversion_failure_producer_id(
+            sequence.producer_id);
+        stats_.set_first_v2_conversion_failure_writer_id(sequence.writer_id);
+      }
+      stats_.set_v2_packet_conversion_failures(
+          stats_.v2_packet_conversion_failures() + 1);
       return false;
     case tracing_v2::RewriteResult::kGroupTooLarge:
       stats_.set_oversized_packets_dropped(stats_.oversized_packets_dropped() +
@@ -838,8 +849,6 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
 
   auto seq_key = MkProducerAndWriterID(producer_id_trusted, writer_id);
-  writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size));
-
   auto [seq_it, seq_is_new] = sequences_.try_emplace(
       seq_key,
       SequenceState(producer_id_trusted, writer_id, client_identity_trusted));
@@ -855,6 +864,9 @@ void TraceBufferV2::CopyChunkUntrusted(
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     return;
   }
+  // After the format check, so a rejected chunk adds no version bit.
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(all_frags_size),
+                       kProtocolAbiV1);
   if (trace_writer_data_drop) {
     stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() + 1);
     internal::AddSeqDataLoss(&seq, DataLossReason::DATA_LOSS_WRITER_ABORT);
@@ -1052,7 +1064,7 @@ void TraceBufferV2::CopyChunkUntrusted(
     DeleteStaleEmptySequences();
 }
 
-bool TraceBufferV2::CopyChunkV2Untrusted(
+TraceBufferV2::CopyChunkV2Result TraceBufferV2::CopyChunkV2Untrusted(
     const PacketSequenceProperties& sequence,
     const protozero::ConstBytes* fragments,
     size_t num_fragments,
@@ -1061,25 +1073,25 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   PERFETTO_CHECK(!read_only_);
 
   if (PERFETTO_UNLIKELY(num_fragments == 0))
-    return false;
+    return CopyChunkV2Result::kInvalidChunk;
 
   // Each rejection site updates its own stats. This only records the gap.
-  auto reject = [&] {
+  auto reject = [&](CopyChunkV2Result result) {
     RecordChunkV2DataLoss(sequence.producer_id_trusted, sequence.writer_id);
-    return false;
+    return result;
   };
-  auto reject_abi_violation = [&] {
+  auto reject_abi_violation = [&](CopyChunkV2Result result) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
-    return reject();
+    return reject(result);
   };
 
   if (PERFETTO_UNLIKELY(discard_writes_)) {
     DiscardWrite();
-    return reject();
+    return reject(CopyChunkV2Result::kBufferFull);
   }
 
   if (!fragments)
-    return reject_abi_violation();
+    return reject_abi_violation(CopyChunkV2Result::kInvalidChunk);
 
   // ProtoVM expects length-delimited protobuf on the overwrite path.
   const bool producer_has_protovm =
@@ -1088,7 +1100,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
       });
   if (producer_has_protovm) {
     stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
-    return reject();
+    return reject(CopyChunkV2Result::kProtoVmConflict);
   }
 
   // The batch becomes one TBChunk with the same payload layout as an SMB chunk,
@@ -1107,25 +1119,23 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   for (size_t i = 0; i < num_fragments; i++) {
     const size_t frag_size = fragments[i].size;
     if ((frag_size && !fragments[i].data) || frag_size > TBChunk::kMaxSize)
-      return reject_abi_violation();
+      return reject_abi_violation(CopyChunkV2Result::kInvalidChunk);
     uint8_t varint[3];  // A varint up to TBChunk::kMaxSize takes 3 bytes.
     const size_t varint_size = static_cast<size_t>(
         proto_utils::WriteVarInt(frag_size, varint) - varint);
     total_payload += varint_size + frag_size;
     if (total_payload > TBChunk::kMaxSize)
-      return reject_abi_violation();
+      return reject_abi_violation(CopyChunkV2Result::kInvalidChunk);
   }
 
   // As in CopyChunkUntrusted(): a chunk larger than the whole buffer. Rare,
   // e.g. a 16 KB buffer and a 32 KB ring chunk.
   const size_t tbchunk_outer_size = TBChunk::OuterSize(total_payload);
   if (PERFETTO_UNLIKELY(tbchunk_outer_size > size_))
-    return reject_abi_violation();
+    return reject_abi_violation(CopyChunkV2Result::kInvalidChunk);
 
   auto seq_key =
       MkProducerAndWriterID(sequence.producer_id_trusted, sequence.writer_id);
-  writer_stats_.Insert(seq_key, static_cast<HistValue>(total_payload));
-
   auto [seq_it, seq_is_new] = sequences_.try_emplace(
       seq_key, SequenceState(sequence.producer_id_trusted, sequence.writer_id,
                              sequence.client_identity_trusted));
@@ -1137,12 +1147,15 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   } else if (!seq.is_smb_v2) {
     // As in CopyChunkUntrusted(), a sequence uses one input format. The SMB
     // sequence belongs to another writer, so no loss is recorded on it.
-    return reject_abi_violation();
+    return reject_abi_violation(CopyChunkV2Result::kSequenceFormatConflict);
   }
+  // After the format check, so a rejected chunk adds no version bit.
+  writer_stats_.Insert(seq_key, static_cast<HistValue>(total_payload),
+                       kProtocolAbiV2);
 
   if (!MakeSpaceToWrite(tbchunk_outer_size)) {
     DiscardWrite();
-    return reject();
+    return reject(CopyChunkV2Result::kBufferFull);
   }
 
   TBChunk* chunk = CreateTBChunk(wr_, total_payload);
@@ -1192,7 +1205,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   if (empty_sequences_ > kEmptySequencesGcTreshold)
     DeleteStaleEmptySequences();
 
-  return true;
+  return CopyChunkV2Result::kAdmitted;
 }
 
 void TraceBufferV2::RecordChunkV2DataLoss(ProducerID producer_id,
@@ -1204,6 +1217,11 @@ void TraceBufferV2::RecordChunkV2DataLoss(ProducerID producer_id,
   auto seq_it = sequences_.find(MkProducerAndWriterID(producer_id, writer_id));
   if (seq_it != sequences_.end() && seq_it->second.is_smb_v2)
     seq_it->second.pending_chunk_v2_data_loss = true;
+}
+
+void TraceBufferV2::RecordAbiViolation() {
+  PERFETTO_CHECK(!read_only_);
+  stats_.set_abi_violations(stats_.abi_violations() + 1);
 }
 
 TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {

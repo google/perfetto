@@ -1,0 +1,361 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
+
+#include <algorithm>
+#include <optional>
+#include <utility>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/uuid.h"
+#include "perfetto/ext/tracing/core/shared_memory.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
+#include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "src/tracing/core/null_trace_writer.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
+#include "src/tracing/v2/trace_writer_v2_impl.h"
+
+namespace perfetto::tracing_v2 {
+namespace {
+
+// The bytes for the ring buffer chunks, header not included, if the producer
+// gives no SMB size hint.
+constexpr size_t kDefaultSizeBudget = 128 * 1024;
+
+// Ring buffer occupancy at which a publication asks for a drain: the
+// percentage of ring buffer positions that are outstanding.
+// Used when drain_occupancy_percent is 0 or absent.
+constexpr uint32_t kDefaultDrainOccupancyPercent = 25;
+
+// Returns the drain threshold, in positions, for a ring buffer of
+// |num_chunks| chunks.
+// |drain_occupancy_percent| must be -1 to 100:
+// - -1: 1, so a writer asks for a drain after every publication.
+// - 0: 25% of |num_chunks|.
+// - 1 to 100: that percent of |num_chunks|.
+// The result is at least 1.
+uint32_t ComputeDrainThreshold(uint32_t num_chunks,
+                               int32_t drain_occupancy_percent) {
+  PERFETTO_DCHECK(drain_occupancy_percent >= -1 &&
+                  drain_occupancy_percent <= 100);
+  if (drain_occupancy_percent == -1)
+    return 1;
+  const uint64_t percent = drain_occupancy_percent == 0
+                               ? kDefaultDrainOccupancyPercent
+                               : static_cast<uint64_t>(drain_occupancy_percent);
+  const uint64_t threshold = uint64_t{num_chunks} * percent / 100;
+  // For small ring buffers, integer division can round the threshold down to
+  // zero.
+  return std::max(1u, static_cast<uint32_t>(threshold));
+}
+
+// Chooses the chunk size from the chunk_size_options of |config|, at random,
+// by weight.
+// - An absent weight counts as 1, and 0 means never.
+// - An option with an invalid size is skipped: the service rejects it, but an
+//   older service does not.
+// Returns kMinChunkSize if no option can be chosen.
+uint32_t ChooseChunkSize(const DataSourceConfig& config) {
+  using ChunkSizeOption =
+      DataSourceConfig::ExperimentalTracingV2Config::ChunkSizeOption;
+
+  const auto& options = config.experimental_tracing_v2().chunk_size_options();
+  auto weight_of = [](const ChunkSizeOption& option) -> uint64_t {
+    if (!IsValidChunkSize(option.size_bytes()))
+      return 0;
+    return option.has_weight() ? option.weight() : 1;
+  };
+
+  uint64_t total_weight = 0;
+  for (const ChunkSizeOption& option : options)
+    total_weight += weight_of(option);
+
+  if (total_weight == 0)
+    return kMinChunkSize;
+
+  // Walk the options until their cumulative weight passes |target|.
+  const uint64_t target =
+      static_cast<uint64_t>(base::Uuidv4().lsb()) % total_weight;
+  uint64_t cumulative_weight = 0;
+  for (const ChunkSizeOption& option : options) {
+    cumulative_weight += weight_of(option);
+    if (target < cumulative_weight)
+      return option.size_bytes();
+  }
+
+  // Not reached: the last cumulative weight is the total, which is above
+  // |target|, so the loop returns.
+  PERFETTO_DFATAL("ChooseChunkSize: no option for the target");
+  return kMinChunkSize;
+}
+
+}  // namespace
+
+ProducerRingBufferArbiter::ProducerRingBufferArbiter(
+    base::TaskRunner* task_runner,
+    ProducerEndpoint* endpoint,
+    AllocateV2RingBufferFn allocate_v2_ring_buffer)
+    : task_runner_(task_runner),
+      endpoint_(endpoint),
+      allocate_v2_ring_buffer_(std::move(allocate_v2_ring_buffer)) {}
+
+ProducerRingBufferArbiter::~ProducerRingBufferArbiter() {
+  Disconnect();
+}
+
+void ProducerRingBufferArbiter::SetupInstance(DataSourceInstanceID id,
+                                              const DataSourceConfig& config,
+                                              uint32_t protocol_abi_versions,
+                                              size_t size_budget) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  // Decide once per instance, at setup.
+  const uint32_t probability =
+      config.experimental_tracing_v2().use_v2_probability_percent();
+  bool use_ring_buffer = (protocol_abi_versions & kProtocolAbiV2) &&
+                         config.supports_tracing_v2() && probability > 0;
+  // Below 100%, flip the coin.
+  // The service already rejects a probability above 100.
+  if (use_ring_buffer && probability < 100) {
+    const uint64_t random = static_cast<uint64_t>(base::Uuidv4().lsb());
+    use_ring_buffer = random % 100 < probability;
+  }
+  if (!use_ring_buffer) {
+    if (!(protocol_abi_versions & kProtocolAbiV1)) {
+      PERFETTO_ELOG(
+          "Data source \"%s\" has no permitted transport: "
+          "v2 was not selected and v1 is not in the common mask",
+          config.name().c_str());
+    }
+    return;
+  }
+
+  // Later instances reuse the ring buffer, or stay without one after a
+  // failure.
+  if (!memory_ && reader_state_.load() == ReaderState::kPending)
+    CreateAndAttachRingBuffer(config, size_budget);
+
+  // Add the instance only now, so that a writer that finds the instance also
+  // finds the ring buffer, or kDetached after a failure.
+  std::lock_guard<base::MaybeRtMutex> lock(mutex_);
+  v2_ring_buffer_instances_.insert(id);
+}
+
+void ProducerRingBufferArbiter::CreateAndAttachRingBuffer(
+    const DataSourceConfig& config,
+    size_t size_budget) {
+  const uint32_t chunk_size = ChooseChunkSize(config);
+  // The service maps at most kMaxShmSize, header included.
+  const std::optional<size_t> size = RingBufferSizeForBudget(
+      std::min(size_budget ? size_budget : kDefaultSizeBudget,
+               TracingService::kMaxShmSize - sizeof(RingBufferHeader)),
+      chunk_size);
+  if (!size) {
+    PERFETTO_ELOG(
+        "tracing v2: no ring buffer of %u-byte chunks fits the budget",
+        chunk_size);
+    Disconnect();
+    return;
+  }
+
+  std::shared_ptr<SharedMemory> memory = allocate_v2_ring_buffer_(*size);
+  if (!memory) {
+    Disconnect();
+    return;
+  }
+
+  // ProducerIPCClientImpl and the in-process ProducerEndpointImpl both create
+  // the SMB arbiter before they set up data sources.
+  SharedMemoryArbiter* smb_arbiter = endpoint_->MaybeSharedMemoryArbiter();
+  PERFETTO_CHECK(smb_arbiter);
+
+  // Set the ring buffer before SetupInstance() adds the instance, because
+  // writers exist only after that.
+  shared_memory_arbiter_ = smb_arbiter;
+  memory_ = memory;
+  ring_buffer_.emplace(static_cast<uint8_t*>(memory_->start()), memory_->size(),
+                       chunk_size);
+  // One threshold for the ring buffer, from the config of this first v2
+  // instance. Writers use it, and the header reports it to traced, before the
+  // attach request below.
+  drain_threshold_ = ComputeDrainThreshold(
+      ring_buffer_->num_chunks(),
+      config.experimental_tracing_v2().drain_occupancy_percent());
+  ring_buffer_->InitializeDiagnostics(drain_threshold_);
+
+  // The reply callback moves kPending to kAttached, or to kDetached if the
+  // service rejects the ring buffer.
+  endpoint_->AttachV2RingBuffer(
+      memory, chunk_size,
+      [weak_this = weak_factory_.GetWeakPtr()](bool accepted) {
+        if (!weak_this)
+          return;
+        if (accepted) {
+          weak_this->OnReaderAttached();
+          return;
+        }
+        // Also on an ordinary disconnect: the pending reply is rejected.
+        PERFETTO_DLOG("tracing v2: ring buffer not accepted");
+        weak_this->Disconnect();
+      });
+}
+
+void ProducerRingBufferArbiter::OnInstanceStopped(DataSourceInstanceID id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  std::lock_guard<base::MaybeRtMutex> lock(mutex_);
+  v2_ring_buffer_instances_.erase(id);
+}
+
+void ProducerRingBufferArbiter::OnReaderAttached() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // The accept reply can arrive after Disconnect().
+  if (reader_state_.load() == ReaderState::kDetached)
+    return;
+  SetReaderState(ReaderState::kAttached);
+}
+
+bool ProducerRingBufferArbiter::IsReaderAttached() const {
+  return reader_state_.load() == ReaderState::kAttached;
+}
+
+void ProducerRingBufferArbiter::Disconnect() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  SetReaderState(ReaderState::kDetached);
+}
+
+void ProducerRingBufferArbiter::SetReaderState(ReaderState next) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  const ReaderState current = reader_state_.load();
+  PERFETTO_CHECK(
+      next == ReaderState::kDetached ||
+      (current == ReaderState::kPending && next == ReaderState::kAttached));
+  reader_state_.store(next);
+}
+
+std::unique_ptr<TraceWriter> ProducerRingBufferArbiter::CreateTraceWriter(
+    BufferID target_buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID id) {
+  bool is_v2_instance = false;
+  {
+    std::lock_guard<base::MaybeRtMutex> lock(mutex_);
+    is_v2_instance = v2_ring_buffer_instances_.count(id) > 0;
+  }
+
+  if (!is_v2_instance)
+    return endpoint_->CreateTraceWriter(target_buffer, policy);
+
+  if (PERFETTO_UNLIKELY(reader_state_.load() == ReaderState::kDetached))
+    return std::make_unique<NullTraceWriter>();
+
+  PERFETTO_DCHECK(shared_memory_arbiter_ && ring_buffer_);
+  const WriterID writer_id =
+      shared_memory_arbiter_->AllocateTracingV2WriterID();
+  if (PERFETTO_UNLIKELY(!writer_id)) {
+    // The state was kPending or kAttached above, so the ring buffer exists and
+    // traced can read the count. A NullTraceWriter in kDetached is not
+    // counted, because no reader can see it.
+    ring_buffer_->AddWriterCreationFailure();
+    return std::make_unique<NullTraceWriter>();
+  }
+
+  return std::make_unique<TraceWriterV2Impl>(this, writer_id, target_buffer,
+                                             policy);
+}
+
+void ProducerRingBufferArbiter::OnWriterDestroyed(WriterID id) {
+  // TODO(sashwinbalaji): Make WriterID reuse safe between v2 and v1 writers.
+  // The problem:
+  // - The SMB arbiter can give this ID to a v1 writer at once.
+  // - The last ring buffer chunk of this writer can still wait for a drain.
+  // - TraceBufferV2 accepts one input format for each (producer, writer)
+  //   sequence. While it keeps the sequence, it rejects chunks of the other
+  //   format as ABI violations. So one of the two writers loses data.
+
+  // After this release, the endpoint can destroy this object. Do not access
+  // members after it.
+  shared_memory_arbiter_->ReleaseTracingV2WriterID(id);
+}
+
+void ProducerRingBufferArbiter::RequestDrain(DrainUrgency urgency) {
+  // See DrainUrgency::kUrgent.
+  if (urgency == DrainUrgency::kUrgent &&
+      task_runner_->RunsTasksOnCurrentThread()) {
+    endpoint_->DrainV2RingBuffer();
+    return;
+  }
+  PostDrainTask(/*force=*/false);
+}
+
+void ProducerRingBufferArbiter::Flush(std::function<void()> callback) {
+  // Set force=true to queue our own drain task before the callback. The
+  // endpoint thread then sends the drain request before it runs the callback.
+  //
+  // A shared drain task would leave a race:
+  // 1. Another writer sets the flag, then pauses before PostTask().
+  // 2. Flush() sees the flag and queues only its callback.
+  // 3. The callback runs before the other writer queues the drain task.
+  PostDrainTask(/*force=*/true);
+
+  if (callback)
+    task_runner_->PostTask(std::move(callback));
+}
+
+void ProducerRingBufferArbiter::PostDrainTask(bool force) {
+  // When |force| is false, requests share a pending drain task. The writer
+  // sets |drain_task_pending_| after it changes the ring buffer, so that task
+  // covers the change. The atomic operations below act on
+  // |drain_task_pending_|:
+  //
+  //   writer thread               endpoint thread (the pending task)
+  //   -------------               ----------------------------------
+  //   W1. publish a chunk, or     E1. exchange(0)
+  //       leave a failed claim    E2. send DrainV2RingBuffer
+  //   W2. fetch_or(1)
+  //       - was set: post nothing
+  //       - was clear: post a task
+  //
+  // If W2 finds |drain_task_pending_| already set, a drain is still due after
+  // W1. That request covers this change too, so this writer needs no extra
+  // task. E1 must be a read-modify-write for this:
+  // - Only W2 and E1 write the flag, and both are read-modify-writes.
+  // - If W2 reads 1, an earlier W2 posted the pending task. In the
+  //   modification order of the flag, no E1 comes between those two W2s.
+  // - So the next E1 comes after this W2. It reads the value of this W2 or
+  //   of a later W2.
+  // - So this W2 synchronizes with that E1, and W1 happens before the E2
+  //   after it.
+  //
+  // Flush() sets |force|. See Flush() for why it cannot share a pending task.
+  if (!force && drain_task_pending_.fetch_or(1))
+    return;
+
+  task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr()] {
+    if (!weak_this)
+      return;
+    PERFETTO_DCHECK_THREAD(weak_this->thread_checker_);
+    // E1, then E2. Clearing the flag first lets a later request post another
+    // task. E1 must be a read-modify-write: see above.
+    weak_this->drain_task_pending_.exchange(0);
+    weak_this->endpoint_->DrainV2RingBuffer();
+  });
+}
+
+}  // namespace perfetto::tracing_v2

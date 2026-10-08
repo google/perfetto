@@ -26,10 +26,13 @@
 #include <optional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/bits.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/tracing/ipc/memfd.h"
 
 namespace perfetto::tracing_v2 {
 
@@ -48,6 +51,29 @@ namespace perfetto::tracing_v2 {
 //
 // The ABI assumes little-endian producer and service processes.
 
+// Sharing over IPC
+// ----------------
+//
+// A producer in another process shares the ring buffer with the service as a
+// sealed memfd. Without memfd, IPC producers and services use only v1.
+//
+// IPC code uses the two checks below, not memfd directly. If tracing v2 ever
+// needs more from the platform, only these checks change.
+
+// Build-time check. True if the build has the memfd code.
+// It guards the code that shares the memfd. Part of that code, such as
+// PosixSharedMemory, does not build on Windows.
+#define PERFETTO_TRACING_V2_IPC() PERFETTO_MEMFD_ENABLED()
+
+// Runtime check. True if the kernel supports memfd.
+// Always false when PERFETTO_TRACING_V2_IPC() is false.
+//
+// Only IPC code may call this. HasMemfdSupport() is in src/tracing/ipc:common,
+// which only IPC builds have.
+inline bool IpcSupportsTracingV2() {
+  return HasMemfdSupport();
+}
+
 // Shared-memory layout
 // --------------------
 //
@@ -59,6 +85,11 @@ namespace perfetto::tracing_v2 {
 // Chunks must hold several small fragments to amortize their header overhead.
 constexpr uint32_t kMinChunkSize = 256;
 
+// Maximum chunk size, including the header. The service copies a chunk
+// without its header (at least 4 bytes) into one TBChunk, which holds at most
+// 64 KiB - 1 bytes.
+constexpr uint32_t kMaxChunkSize = 64 * 1024;
+
 // Each chunk's atomic<uint32_t> requires four-byte alignment.
 constexpr uint32_t kChunkAlignmentBytes = 4;
 
@@ -69,13 +100,28 @@ constexpr uint32_t kMinChunksPerRing = 2;
 // ------------------
 //
 //   byte offset
-//   0              4              8              12               64
-//   +--------------+--------------+--------------+----------------+
-//   |   read_pos   |  write_pos   | num_writers_ |    reserved    |
-//   |              |              |   waiting    |                |
-//   +--------------+--------------+--------------+----------------+
-//   |<------- rw_positions ------>|<- atomic32 ->|
+//   0              4              8              12             16
+//   +--------------+--------------+--------------+--------------+
+//   |   read_pos   |  write_pos   | num_writers_ | diagnostics_ |
+//   |              |              |   waiting    |   version    |
+//   +--------------+--------------+--------------+--------------+
+//   |<------- rw_positions ------>|<------ atomic32 each ------>|
 //          atomic<uint64_t>
+//
+//   16             24             32             40             48
+//   +--------------+--------------+--------------+--------------+
+//   |   dropped_   |    stalls    | stall_time_  |  max_stall_  |
+//   |   packets    |              |      ms      |      ms      |
+//   +--------------+--------------+--------------+--------------+
+//   |<----------------- atomic<uint64_t> each ----------------->|
+//
+//   48                            56             60             64
+//   +-----------------------------+--------------+--------------+
+//   |    first_writer_failure     |    drain_    |   writer_    |
+//   |                             |  threshold   |  creation_   |
+//   |                             |              |  failures    |
+//   +-----------------------------+--------------+--------------+
+//   |<----- atomic<uint64_t> ---->|<------ atomic32 each ------>|
 //
 // Writers check capacity by loading rw_positions once. In memory:
 // - The first four bytes hold read_pos.
@@ -91,7 +137,24 @@ constexpr uint32_t kMinChunksPerRing = 2;
 // for space. It is only an optimization and never decides whether the ring
 // buffer is full or who owns a chunk.
 //
-// Bytes 12..63 pad the header to one cache line.
+// Bytes 12..63 hold diagnostics, for TraceStats:
+// - The producer writes them. traced reports them and never trusts them.
+// - The protocol never reads them, and a reader must not check them.
+// - The producer sets diagnostics_version before it attaches the ring buffer.
+//   Zero means that the producer writes no diagnostics. A producer that leaves
+//   the bytes zero stays compatible. traced then reports the fields as absent.
+// - Version 1 has every field in the diagrams above. A later version keeps
+//   them and only adds fields.
+//
+// The diagnostic fields:
+// - dropped_packets, stalls, stall_time_ms and max_stall_ms: totals for all
+//   writers. Writers add to them only when they drop data or wait for space.
+// - first_writer_failure: the first writer failure before an abort. See
+//   EncodeWriterFailure(). Zero means none.
+// - drain_threshold: the outstanding positions at which a publication asks for
+//   a drain. All writers of the ring buffer use this value.
+// - writer_creation_failures: v2 writers that could not get a WriterID, and
+//   became NullTraceWriters. Wraps at 2^32.
 //
 static_assert(sizeof(std::atomic<uint32_t>) == 4 &&
                   alignof(std::atomic<uint32_t>) <= 4,
@@ -102,16 +165,101 @@ static_assert(std::atomic<uint32_t>::is_always_lock_free &&
                   std::atomic<uint64_t>::is_always_lock_free,
               "Shared-memory atomics must be lock-free");
 
+// The diagnostics that this code writes and reads. See above.
+constexpr uint32_t kRingBufferDiagnosticsVersion = 1;
+
 struct alignas(64) RingBufferHeader {
   std::atomic<uint64_t> rw_positions;
   std::atomic<uint32_t> num_writers_waiting;
-  uint8_t reserved[52];
+
+  // Diagnostics. See above.
+  std::atomic<uint32_t> diagnostics_version;
+  std::atomic<uint64_t> dropped_packets;
+  std::atomic<uint64_t> stalls;
+  std::atomic<uint64_t> stall_time_ms;
+  std::atomic<uint64_t> max_stall_ms;
+  std::atomic<uint64_t> first_writer_failure;
+  std::atomic<uint32_t> drain_threshold;
+  std::atomic<uint32_t> writer_creation_failures;
 };
 
 static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
-                  offsetof(RingBufferHeader, reserved) == 12 &&
+                  offsetof(RingBufferHeader, diagnostics_version) == 12 &&
+                  offsetof(RingBufferHeader, dropped_packets) == 16 &&
+                  offsetof(RingBufferHeader, stalls) == 24 &&
+                  offsetof(RingBufferHeader, stall_time_ms) == 32 &&
+                  offsetof(RingBufferHeader, max_stall_ms) == 40 &&
+                  offsetof(RingBufferHeader, first_writer_failure) == 48 &&
+                  offsetof(RingBufferHeader, drain_threshold) == 56 &&
+                  offsetof(RingBufferHeader, writer_creation_failures) == 60 &&
                   sizeof(RingBufferHeader) == 64,
               "RingBufferHeader does not match the shared-memory ABI");
+
+// First writer failure
+// --------------------
+//
+// A writer stores one record in first_writer_failure just before it aborts.
+// A compare-and-swap from zero keeps the first record, so a single 64-bit
+// store publishes it whole. No lock or second word is needed. traced keeps
+// its own mapping, so it reads the record after the producer dies.
+//
+//   bit 0      8          16                   32                         64
+//   +----------+----------+--------------------+--------------------------+
+//   |  reason  | reserved |      WriterID      |       observed value     |
+//   +----------+----------+--------------------+--------------------------+
+//
+// The observed value depends on the reason. See WriterFailureReason.
+// The reserved bits are zero. A reader ignores them.
+//
+// TraceStats.TracingV2.Producer.WriterFailure has the same values. A value
+// never changes once a producer can write it. Add new reasons to both.
+enum class WriterFailureReason : uint8_t {
+  kNone = 0,
+  // A publication CAS lost to a word other than this writer's
+  // RewriteRequested. The value is the word that the CAS returned.
+  kPublicationLost = 1,
+  // The RewriteRequested -> RewriteAcknowledged CAS failed. The value is the
+  // word that the CAS returned.
+  kAcknowledgementFailed = 2,
+  // Under BufferExhaustedPolicy::kStall, one chunk acquisition waited for
+  // the whole stall timeout. The value is the read_pos that the last
+  // reservation attempt saw.
+  kStallTimeout = 3,
+};
+
+struct WriterFailure {
+  WriterFailureReason reason = WriterFailureReason::kNone;
+  WriterID writer_id = 0;
+  uint32_t value = 0;
+};
+
+constexpr uint32_t kWriterFailureReasonShift = 0;
+constexpr uint32_t kWriterFailureWriterIDShift = 16;
+constexpr uint32_t kWriterFailureValueShift = 32;
+static_assert(kWriterFailureReasonShift + 8 * sizeof(WriterFailureReason) <=
+                      kWriterFailureWriterIDShift &&
+                  kWriterFailureWriterIDShift + 8 * sizeof(WriterID) <=
+                      kWriterFailureValueShift &&
+                  kWriterFailureValueShift + 32 == 64,
+              "The fields of the writer failure record overlap");
+
+constexpr uint64_t EncodeWriterFailure(const WriterFailure& failure) {
+  return (uint64_t{static_cast<uint8_t>(failure.reason)}
+          << kWriterFailureReasonShift) |
+         (uint64_t{failure.writer_id} << kWriterFailureWriterIDShift) |
+         (uint64_t{failure.value} << kWriterFailureValueShift);
+}
+
+// |record| is untrusted. An unknown reason stays as its raw value.
+constexpr WriterFailure DecodeWriterFailure(uint64_t record) {
+  WriterFailure failure;
+  failure.reason = static_cast<WriterFailureReason>(
+      static_cast<uint8_t>(record >> kWriterFailureReasonShift));
+  failure.writer_id =
+      static_cast<WriterID>(record >> kWriterFailureWriterIDShift);
+  failure.value = static_cast<uint32_t>(record >> kWriterFailureValueShift);
+  return failure;
+}
 
 // Logical positions and chunk indexing
 // ------------------------------------
@@ -154,6 +302,84 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
 // positions are outstanding. num_chunks is a power of two, so 2^30 is the
 // largest legal chunk count.
 constexpr uint32_t kMaxChunksPerRing = 1u << 30;
+
+// True if |chunk_size| is in [kMinChunkSize, kMaxChunkSize] and a multiple of
+// kChunkAlignmentBytes.
+constexpr bool IsValidChunkSize(uint32_t chunk_size) {
+  return chunk_size >= kMinChunkSize && chunk_size <= kMaxChunkSize &&
+         chunk_size % kChunkAlignmentBytes == 0;
+}
+
+// Validates the layout of an untrusted ring buffer and returns its chunk
+// count, or an error describing why the layout is invalid.
+// The service calls it on the ring buffer that a producer attaches.
+//
+// - Any thread can call it. It reads no shared bytes.
+// - The transport limits the mapping size separately.
+// - The SharedRingBuffer constructor treats validation errors as fatal.
+// - RingBufferSizeForBudget() works the other way: it picks a size that
+//   passes this check.
+inline base::StatusOr<uint32_t> NumChunksForRingBufferLayout(
+    const void* start,
+    size_t size,
+    uint32_t chunk_size) {
+  if (!start ||
+      reinterpret_cast<uintptr_t>(start) % alignof(RingBufferHeader) != 0) {
+    return base::ErrStatus("ring buffer start is null or misaligned");
+  }
+  if (!IsValidChunkSize(chunk_size))
+    return base::ErrStatus("invalid chunk size %u", chunk_size);
+  // Subtract the header after this check to avoid overflow on 32-bit builds.
+  if (size < sizeof(RingBufferHeader))
+    return base::ErrStatus("ring buffer size %zu is below the header", size);
+  const size_t chunks_size = size - sizeof(RingBufferHeader);
+  if (chunks_size % chunk_size != 0) {
+    return base::ErrStatus("ring buffer size %zu is not header + N * %u", size,
+                           chunk_size);
+  }
+  const size_t count = chunks_size / chunk_size;
+  // Two chunks form the minimum useful configuration. One chunk satisfies
+  // the ABI: write_pos - read_pos is 0 when empty and 1 when full.
+  // The Free wrap count distinguishes successive uses of that chunk.
+  //
+  // The power-of-two rule permits chunk indexing with a mask. The maximum
+  // keeps outstanding positions below 2^31 for unambiguous unsigned
+  // subtraction.
+  if (count < kMinChunksPerRing || count > kMaxChunksPerRing ||
+      !base::IsPowerOfTwo(count)) {
+    return base::ErrStatus("invalid chunk count %zu", count);
+  }
+  return static_cast<uint32_t>(count);
+}
+
+// Picks the size of a new ring buffer.
+// The producer calls this before it allocates its ring buffer, to turn a byte
+// budget into a size that NumChunksForRingBufferLayout() accepts.
+//
+// - Returns the size, header included, of the largest valid ring buffer
+//   whose chunks fit in |budget| bytes.
+// - The header comes on top of |budget|, so a power-of-two budget is used in
+//   full.
+// - Returns nullopt if fewer than kMinChunksPerRing chunks fit, or if
+//   |chunk_size| is invalid.
+// - Any thread can call it, because it reads no shared memory.
+inline std::optional<size_t> RingBufferSizeForBudget(size_t budget,
+                                                     uint32_t chunk_size) {
+  if (!IsValidChunkSize(chunk_size))
+    return std::nullopt;
+  const size_t max_count = budget / chunk_size;
+  // Find the largest power of two that is at most |max_count|: start at
+  // kMaxChunksPerRing, a power of two, and halve it until it fits.
+  // Every value on the way is a power of two and at most the maximum, so only
+  // the minimum chunk count is left to check.
+  static_assert(base::IsPowerOfTwo(kMaxChunksPerRing));
+  size_t count = kMaxChunksPerRing;
+  while (count > max_count)
+    count /= 2;
+  if (count < kMinChunksPerRing)
+    return std::nullopt;
+  return sizeof(RingBufferHeader) + count * chunk_size;
+}
 
 constexpr uint64_t PackRwPositions(uint32_t write_pos, uint32_t read_pos) {
   return (static_cast<uint64_t>(write_pos) << 32) | read_pos;
@@ -373,6 +599,9 @@ enum PayloadFlags : uint32_t {
   // - A writer may keep appending. The flag stays set for that reservation.
   //   Fragments appended to this chunk are also discarded once published.
   // This allows cached reuse after loss without forcing a new reservation.
+  //
+  // TODO(sashwinbalaji): Carry the cause of the loss. TBv2 reports this flag
+  // as DATA_LOSS_READ_GAP. v1 reports a full buffer as DATA_LOSS_SMB_FULL.
   kFlagDataLoss = 1u << kPayloadFlagsShift,
 
   // The last fragment is not the end of its packet. The packet continues in

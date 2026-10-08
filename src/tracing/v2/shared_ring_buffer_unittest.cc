@@ -106,7 +106,7 @@ size_t RingSizeFor(uint32_t num_chunks, uint32_t chunk_size) {
 }
 
 // An invalid ring buffer layout is a configuration error, so the constructor
-// CHECKs. It only does arithmetic on |size|, which is why an impossibly large
+// crashes. It only does arithmetic on |size|, which is why an impossibly large
 // region can be described by a small mapping.
 TEST(SharedRingBufferTest, InvalidLayout) {
   base::PagedMemory memory = base::PagedMemory::Allocate(64 * 1024);
@@ -116,63 +116,71 @@ TEST(SharedRingBufferTest, InvalidLayout) {
   // must divide into a power-of-two number of chunks, from 2 to 2^30.
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, sizeof(RingBufferHeader), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(1, kChunkSize), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(3, kChunkSize), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(6, kChunkSize), kChunkSize); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       {
         SharedRingBuffer ring(start, RingSizeFor(4, kChunkSize) + 1,
                               kChunkSize);
       },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   if (sizeof(size_t) >= 8) {
     EXPECT_DEATH_IF_SUPPORTED(
         {
           SharedRingBuffer ring(start, RingSizeFor(1u << 31, kChunkSize),
                                 kChunkSize);
         },
-        "PERFETTO_CHECK");
+        "tracing v2: ");
   }
 
   // chunk_size must be at least 256 and keep the state word aligned.
   EXPECT_DEATH_IF_SUPPORTED(
-      { SharedRingBuffer ring(start, RingSizeFor(4, 0), 0); },
-      "PERFETTO_CHECK");
+      { SharedRingBuffer ring(start, RingSizeFor(4, 0), 0); }, "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(4, 128), 128); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(4, 255), 255); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, RingSizeFor(4, 258), 258); },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
 
-  // An empty region is rejected before the constructor subtracts the header
-  // size from it. This chunk size is the one whose sum with the 64-byte header
-  // would wrap to zero in 32-bit arithmetic. The layout check never forms that
-  // sum, and the region fails the header-size check first.
+  // chunk_size must be at most kMaxChunkSize, so a chunk fits one TBChunk.
+  EXPECT_DEATH_IF_SUPPORTED(
+      {
+        SharedRingBuffer ring(start, RingSizeFor(4, kMaxChunkSize + 4),
+                              kMaxChunkSize + 4);
+      },
+      "invalid chunk size");
+
+  // Reject an empty region before subtracting the ring header size.
+  EXPECT_DEATH_IF_SUPPORTED(
+      { SharedRingBuffer ring(start, 0, kChunkSize); }, "below the header");
+
+  // Reject an oversized chunk before doing layout arithmetic. Adding the ring
+  // header to this size would wrap to zero in 32-bit arithmetic.
   constexpr uint32_t kWrappingChunkSize = UINT32_MAX - 63u;
   EXPECT_DEATH_IF_SUPPORTED(
       { SharedRingBuffer ring(start, 0, kWrappingChunkSize); },
-      "PERFETTO_CHECK");
+      "invalid chunk size");
 
   if (sizeof(size_t) >= 8) {
-    // Doubling this chunk size as a uint32_t would overflow. One chunk must
-    // still fail the minimum-count check.
+    // A large enough mapping does not make the oversized chunk valid.
     EXPECT_DEATH_IF_SUPPORTED(
         {
           SharedRingBuffer ring(start, RingSizeFor(1, kWrappingChunkSize),
                                 kWrappingChunkSize);
         },
-        "PERFETTO_CHECK");
+        "invalid chunk size");
   }
 
   // The header must be present and aligned for its atomics.
@@ -181,12 +189,12 @@ TEST(SharedRingBufferTest, InvalidLayout) {
         SharedRingBuffer ring(start + 4, RingSizeFor(4, kChunkSize),
                               kChunkSize);
       },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
   EXPECT_DEATH_IF_SUPPORTED(
       {
         SharedRingBuffer ring(nullptr, RingSizeFor(4, kChunkSize), kChunkSize);
       },
-      "PERFETTO_CHECK");
+      "tracing v2: ");
 }
 
 TEST(SharedRingBufferTest, ValidLayout) {
@@ -624,7 +632,9 @@ TEST(SharedRingBufferTest, AcknowledgeThenReclaim) {
 
   // Nobody but the owning writer can leave RewriteRequested, and the writer
   // says nothing about who gets the chunk next.
-  ASSERT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), marked));
+  uint32_t acknowledged = marked;
+  ASSERT_TRUE(
+      ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &acknowledged));
   EXPECT_EQ(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0)),
             kRewriteAcknowledgedStateWord);
 
@@ -680,10 +690,9 @@ TEST(SharedRingBufferTest, OnlyReaderWritesFree) {
   observed =
       ReplaceChunkState(CompleteWord(kWriterA, 1), ChunkState::kBeingWritten);
   ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
-  ASSERT_TRUE(ring->TryAcknowledgeRewrite(
-      ChunkIndex::FromIndex(0),
-      ReplaceChunkState(CompleteWord(kWriterA, 1),
-                        ChunkState::kRewriteRequested)));
+  observed = ReplaceChunkState(CompleteWord(kWriterA, 1),
+                               ChunkState::kRewriteRequested);
+  ASSERT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &observed));
   EXPECT_NE(ChunkStateOf(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0))),
             ChunkState::kFree);
   EXPECT_EQ(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0)),
@@ -709,10 +718,9 @@ TEST(SharedRingBufferTest, ReclaimAcrossPositionRollover) {
   ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, BeingWrittenWord(kWriterA)));
   uint32_t observed = BeingWrittenWord(kWriterA);
   ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &observed));
-  ASSERT_TRUE(ring->TryAcknowledgeRewrite(
-      ChunkIndex::FromIndex(0),
-      ReplaceChunkState(BeingWrittenWord(kWriterA),
-                        ChunkState::kRewriteRequested)));
+  observed = ReplaceChunkState(BeingWrittenWord(kWriterA),
+                               ChunkState::kRewriteRequested);
+  ASSERT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &observed));
 
   ASSERT_TRUE(
       ring->TryReleaseRewriteAcknowledgedChunkAsFree(kLastLapPos, &observed));
@@ -857,7 +865,7 @@ TEST(SharedRingBufferTest, PublicationLosesToScrape) {
 
   // The writer moves its unpublished fragment elsewhere and lets go of the
   // chunk, saying nothing about who gets it next.
-  EXPECT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), expected));
+  EXPECT_TRUE(ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &expected));
   EXPECT_EQ(PeekStateWord(ring.get(), ChunkIndex::FromIndex(0)),
             kRewriteAcknowledgedStateWord);
 }
@@ -1080,6 +1088,77 @@ TEST(SharedRingBufferTest, PublishWithoutWaitersLeavesHintClean) {
   ring->PublishReadPos(3);
   EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
   EXPECT_EQ(Internals::GetReadPos(ring.get()), 3u);
+}
+
+// --- Header diagnostics ---
+
+// A new ring buffer has no diagnostics. Only the producer sets them, and a
+// second view of the memory, as the service has, reads them unchanged.
+TEST(SharedRingBufferTest, DiagnosticsBelongToTheProducer) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  EXPECT_EQ(ring->LoadHeaderRelaxed().diagnostics_version, 0u);
+
+  ring->InitializeDiagnostics(/*drain_threshold=*/3);
+  ring->AddWriterCreationFailure();
+  SharedRingBuffer service_view(
+      ring->chunk_at(ChunkIndex::FromIndex(0)) - sizeof(RingBufferHeader),
+      sizeof(RingBufferHeader) + 4 * 256, 256);
+  const SharedRingBuffer::HeaderSnapshot header =
+      service_view.LoadHeaderRelaxed();
+  EXPECT_EQ(header.diagnostics_version, kRingBufferDiagnosticsVersion);
+  EXPECT_EQ(header.drain_threshold, 3u);
+  EXPECT_EQ(header.writer_creation_failures, 1u);
+}
+
+// The record keeps the first failure. Every field survives the encoding.
+TEST(SharedRingBufferTest, FirstWriterFailureIsKept) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  EXPECT_EQ(DecodeWriterFailure(ring->LoadHeaderRelaxed().first_writer_failure)
+                .reason,
+            WriterFailureReason::kNone);
+
+  ring->RecordFirstWriterFailure({WriterFailureReason::kPublicationLost,
+                                  /*writer_id=*/0xffff, /*value=*/0xfedcba98});
+  ring->RecordFirstWriterFailure(
+      {WriterFailureReason::kStallTimeout, /*writer_id=*/1, /*value=*/2});
+
+  const WriterFailure failure =
+      DecodeWriterFailure(ring->LoadHeaderRelaxed().first_writer_failure);
+  EXPECT_EQ(failure.reason, WriterFailureReason::kPublicationLost);
+  EXPECT_EQ(failure.writer_id, 0xffffu);
+  EXPECT_EQ(failure.value, 0xfedcba98u);
+}
+
+// A record from a newer producer decodes with its raw reason.
+TEST(SharedRingBufferTest, UnknownWriterFailureReasonDecodes) {
+  constexpr uint64_t kRecord =
+      (uint64_t{0x12345678} << 32) | (uint64_t{42} << 16) | uint64_t{200};
+  const WriterFailure failure = DecodeWriterFailure(kRecord);
+  EXPECT_EQ(static_cast<uint8_t>(failure.reason), 200u);
+  EXPECT_EQ(failure.writer_id, 42u);
+  EXPECT_EQ(failure.value, 0x12345678u);
+  EXPECT_EQ(EncodeWriterFailure(failure), kRecord);
+}
+
+// A failed acknowledgement reports the word that the CAS found.
+TEST(SharedRingBufferTest, FailedAcknowledgementReturnsTheWord) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  constexpr WriterID kWriter = 3;
+  const uint32_t being_written = MakeDataStateWord(
+      ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 0, kWriter);
+  ASSERT_TRUE(ring->TryAcquireChunkForWriting(0, being_written));
+  uint32_t requested = being_written;
+  ASSERT_TRUE(ring->TryRequestRewrite(ChunkIndex::FromIndex(0), &requested));
+
+  // Another actor changes the word. Only the owner may leave
+  // RewriteRequested.
+  const uint32_t foreign = MakeFreeStateWord(5);
+  Internals::SetChunkStateWord(ring.get(), ChunkIndex::FromIndex(0), foreign);
+  uint32_t observed =
+      ReplaceChunkState(being_written, ChunkState::kRewriteRequested);
+  EXPECT_FALSE(
+      ring->TryAcknowledgeRewrite(ChunkIndex::FromIndex(0), &observed));
+  EXPECT_EQ(observed, foreign);
 }
 
 }  // namespace

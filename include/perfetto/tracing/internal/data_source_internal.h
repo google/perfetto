@@ -123,6 +123,11 @@ struct DataSourceState {
   // this data source.
   std::atomic<uint32_t> incremental_state_generation{0};
 
+  // Whether this data source supports tracing v2.
+  // If true, TracingMuxerImpl::CreateTraceWriter() requests a tracing v2
+  // writer.
+  bool supports_tracing_v2 = false;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder

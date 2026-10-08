@@ -22,11 +22,19 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/time.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/mman.h>
+
+#include "perfetto/ext/base/subprocess.h"
+#endif
 
 namespace perfetto::tracing_v2 {
 namespace {
@@ -35,56 +43,12 @@ using Internals = test::SharedRingBufferInternalsForTest;
 using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
 using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
 using test::MakeWriter;
+using test::PinAllChunks;
 using test::WriteFragment;
 
 constexpr WriterID kWriterA = 7;
 constexpr WriterID kWriterB = 8;
 constexpr BufferID kBuffer = 0x1234;
-
-class CountingSharedRingBufferWriterDelegate
-    : public SharedRingBufferWriter::Delegate {
- public:
-  void NotifyReader() override { ++num_notifications; }
-
-  uint32_t num_notifications = 0;
-};
-
-// Waits for the chosen number of notifications, then frees one chunk per call.
-// The chunk at read_pos must be Complete or RewriteAcknowledged. It becomes
-// Free and read_pos moves past it.
-class ReleasingSharedRingBufferWriterDelegate
-    : public SharedRingBufferWriter::Delegate {
- public:
-  explicit ReleasingSharedRingBufferWriterDelegate(
-      SharedRingBuffer* ring,
-      uint32_t release_after_notifications = 1)
-      : ring_(ring),
-        release_after_notifications_(release_after_notifications) {}
-
-  void NotifyReader() override {
-    ++num_notifications;
-    if (num_notifications < release_after_notifications_)
-      return;
-    const uint32_t read_pos = Internals::GetReadPos(ring_);
-    const ChunkIndex chunk_idx =
-        ChunkIndex::FromPosition(read_pos, ring_->num_chunks());
-    uint32_t observed = ring_->LoadChunkStateWordAcquire(chunk_idx);
-    if (ChunkStateOf(observed) == ChunkState::kRewriteAcknowledged) {
-      ASSERT_TRUE(
-          ring_->TryReleaseRewriteAcknowledgedChunkAsFree(read_pos, &observed));
-    } else {
-      ASSERT_EQ(ChunkStateOf(observed), ChunkState::kComplete);
-      ASSERT_TRUE(ring_->TryReleaseCompleteChunkAsFree(read_pos, &observed));
-    }
-    ring_->PublishReadPos(read_pos + 1);
-  }
-
-  uint32_t num_notifications = 0;
-
- private:
-  SharedRingBuffer* const ring_;
-  const uint32_t release_after_notifications_;
-};
 
 // A minimal, independent decoder for what a chunk holds. It deliberately does
 // not go through SharedRingBufferReader, so that a writer test cannot pass
@@ -132,6 +96,34 @@ uint32_t MarkForRewrite(SharedRingBuffer* ring, ChunkIndex chunk_idx) {
   const uint32_t num_fragments_read = NumFragmentsOf(observed);
   EXPECT_TRUE(ring->TryRequestRewrite(chunk_idx, &observed));
   return num_fragments_read;
+}
+
+// Plays the reader for the oldest position. The chunk at read_pos must be
+// Complete or RewriteAcknowledged. It becomes Free, and read_pos moves past
+// it.
+void ReleaseChunkAtReadPos(SharedRingBuffer* ring) {
+  const uint32_t read_pos = Internals::GetReadPos(ring);
+  const ChunkIndex chunk_idx =
+      ChunkIndex::FromPosition(read_pos, ring->num_chunks());
+  uint32_t observed = ring->LoadChunkStateWordAcquire(chunk_idx);
+  if (ChunkStateOf(observed) == ChunkState::kRewriteAcknowledged) {
+    ASSERT_TRUE(
+        ring->TryReleaseRewriteAcknowledgedChunkAsFree(read_pos, &observed));
+  } else {
+    ASSERT_EQ(ChunkStateOf(observed), ChunkState::kComplete);
+    ASSERT_TRUE(ring->TryReleaseCompleteChunkAsFree(read_pos, &observed));
+  }
+  ring->PublishReadPos(read_pos + 1);
+}
+
+// Publishes one fragment in each chunk. The ring buffer then stays full until
+// the reader releases a chunk.
+void FillRingBuffer(SharedRingBuffer* ring) {
+  SharedRingBufferWriter filler(ring, kWriterA, kBuffer);
+  for (uint32_t i = 0; i < ring->num_chunks(); ++i) {
+    ASSERT_TRUE(WriteFragment(&filler, "filler"));
+    filler.FinishCurrentChunk();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -230,8 +222,9 @@ TEST(SharedRingBufferWriterTest, MaxFragmentsPerChunk) {
 }
 
 TEST(SharedRingBufferWriterTest, LargeFragment) {
-  // A large chunk holds a fragment longer than 65535 bytes.
-  constexpr uint32_t kBigChunk = 128 * 1024;
+  // The largest chunk holds one fragment with a three-byte size varint:
+  // 6 header bytes + 65527 payload bytes + 3 varint bytes = 65536.
+  constexpr uint32_t kBigChunk = kMaxChunkSize;
   constexpr uint32_t kLargest = kBigChunk - 9;
   test::SharedRingBufferForTesting ring(2, kBigChunk);
   SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
@@ -454,8 +447,8 @@ TEST(SharedRingBufferWriterTest, PendingLossSurvivesRepeatedFullBuffer) {
 // Backpressure outcomes.
 // ---------------------------------------------------------------------------
 
-TEST(SharedRingBufferWriterTest, DropPolicyReportsFull) {
-  // kDrop reports a full ring buffer without blocking.
+TEST(SharedRingBufferWriterTest, FullRingBufferReturnsAtOnce) {
+  // A full ring buffer returns kFull without a wait or a reservation.
   test::SharedRingBufferForTesting ring(2, 256);
   SharedRingBufferWriter a = MakeWriter(ring.get(), kWriterA, kBuffer);
   SharedRingBufferWriter b = MakeWriter(ring.get(), kWriterB, kBuffer);
@@ -471,90 +464,91 @@ TEST(SharedRingBufferWriterTest, DropPolicyReportsFull) {
   EXPECT_EQ(c.GetStats().failed_claims, 0u);
 }
 
-TEST(SharedRingBufferWriterTest, NotifiesReaderBeforeWaiting) {
-  // A full ring buffer notifies the reader before the writer waits.
-  test::SharedRingBufferForTesting ring(2, 256);
-
-  SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
-  ASSERT_TRUE(WriteFragment(&first, "first"));
-  ASSERT_EQ(first.FinishCurrentChunk(), EndFragmentResult::kSuccess);
-
-  // Fill the other chunk too, so the next writer must wait for the reader.
-  ASSERT_TRUE(WriteFragment(&first, "second"));
-  ASSERT_EQ(first.FinishCurrentChunk(), EndFragmentResult::kSuccess);
-
-  ReleasingSharedRingBufferWriterDelegate delegate(ring.get());
-  SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer,
-                                BufferExhaustedPolicy::kStall, &delegate);
-  EXPECT_EQ(second.BeginFragment(1, false).result,
-            BeginFragmentResult::kSuccess);
-  EXPECT_EQ(delegate.num_notifications, 1u);
-}
-
-TEST(SharedRingBufferWriterTest, SleepFallbackRetriesUntilSpaceIsAvailable) {
-  for (auto policy :
-       {BufferExhaustedPolicy::kStall, BufferExhaustedPolicy::kStallThenDrop}) {
-    SCOPED_TRACE(static_cast<int>(policy));
+// The futex wait compares read_pos with the value that the failed call saw.
+// So a reader move before the wait ends the wait at once. A missed move would
+// block until the timeout. The sleep fallback has no such check. Its first
+// sleep is zero, so the retry runs at once.
+TEST(SharedRingBufferWriterTest, WaitReturnsAfterEarlierReaderProgress) {
+  for (bool use_futex : {true, false}) {
+    SCOPED_TRACE(use_futex);
     test::SharedRingBufferForTesting ring(2, 256);
-    SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
-    ASSERT_TRUE(WriteFragment(&first, "first"));
-    first.FinishCurrentChunk();
-    ASSERT_TRUE(WriteFragment(&first, "second"));
-    first.FinishCurrentChunk();
+    FillRingBuffer(ring.get());
 
-    // Keep the ring buffer full through two waits. The next notification
-    // releases space, so recovery depends on retrying after the sleep.
-    ReleasingSharedRingBufferWriterDelegate delegate(ring.get(), 3);
-    SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer, policy,
-                                  &delegate);
-    Internals::DisableWriterFutex(&second);
-    ASSERT_TRUE(WriteFragment(&second, "recovered"));
-    EXPECT_EQ(delegate.num_notifications, 3u);
-    EXPECT_EQ(Internals::GetReadPos(ring.get()), 1u);
-    EXPECT_EQ(ring->LoadWritePosRelaxed(), 3u);
+    SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterB, kBuffer);
+    if (!use_futex)
+      Internals::DisableWriterFutex(&writer);
+    ASSERT_EQ(writer.BeginFragment(1, false).result,
+              BeginFragmentResult::kFull);
+
+    ReleaseChunkAtReadPos(ring.get());
+    const base::TimeMillis start = base::GetWallTimeMs();
+    writer.WaitForReadPosChange(/*timeout_ms=*/30000);
+    EXPECT_LT((base::GetWallTimeMs() - start).count(), 30000);
     EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
+
+    ASSERT_TRUE(WriteFragment(&writer, "recovered"));
     EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(0)).fragments,
               std::vector<std::string>{"recovered"});
   }
 }
 
-TEST(SharedRingBufferWriterTest, StallThenDropEpisode) {
-  // kStallThenDrop does not stall again until a chunk has reported the loss.
+// Without a futex, each wait sleeps for the next step of v1's backoff. The
+// step stops growing at 100 ms, and it resets when the writer claims a chunk.
+// Each sleep is also limited by the timeout, so this test stays fast.
+TEST(SharedRingBufferWriterTest, SleepFallbackBackoffIsCapped) {
   test::SharedRingBufferForTesting ring(2, 256);
+  FillRingBuffer(ring.get());
 
-  SharedRingBufferWriter first = MakeWriter(ring.get(), kWriterA, kBuffer);
-  ASSERT_TRUE(WriteFragment(&first, "first"));
-  ASSERT_EQ(first.FinishCurrentChunk(), EndFragmentResult::kSuccess);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterB, kBuffer);
+  Internals::DisableWriterFutex(&writer);
+  // Steps: 0, 8, 72, 584, 4680, 37448 us, then the 100 ms cap.
+  for (int i = 0; i < 8; ++i) {
+    ASSERT_EQ(writer.BeginFragment(1, false).result,
+              BeginFragmentResult::kFull);
+    writer.WaitForReadPosChange(/*timeout_ms=*/1);
+  }
+  EXPECT_EQ(Internals::GetFallbackSleepUs(&writer), 100000u);
 
-  // Both chunks must be occupied before testing the exhaustion policy.
-  ASSERT_TRUE(WriteFragment(&first, "second"));
-  ASSERT_EQ(first.FinishCurrentChunk(), EndFragmentResult::kSuccess);
+  ReleaseChunkAtReadPos(ring.get());
+  ASSERT_EQ(writer.BeginFragment(1, false).result,
+            BeginFragmentResult::kSuccess);
+  EXPECT_EQ(Internals::GetFallbackSleepUs(&writer), 0u);
+}
 
-  ReleasingSharedRingBufferWriterDelegate delegate(ring.get());
-  SharedRingBufferWriter second(ring.get(), kWriterB, kBuffer,
-                                BufferExhaustedPolicy::kStallThenDrop,
-                                &delegate);
+// Without reader progress, the wait ends at its timeout. This timeout must
+// fire, so it is short.
+TEST(SharedRingBufferWriterTest, WaitEndsAtTimeout) {
+  test::SharedRingBufferForTesting ring(2, 256);
+  FillRingBuffer(ring.get());
 
-  // RecordDataLoss() starts a drop episode. Further attempts use kDrop until
-  // the loss is reported, avoiding a timeout for every dropped packet.
-  second.RecordDataLoss();
-  EXPECT_EQ(second.BeginFragment(1, false).result, BeginFragmentResult::kFull);
-  EXPECT_EQ(delegate.num_notifications, 0u);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterB, kBuffer);
+  ASSERT_EQ(writer.BeginFragment(1, false).result, BeginFragmentResult::kFull);
+  writer.WaitForReadPosChange(/*timeout_ms=*/1);
+  EXPECT_EQ(Internals::GetNumWritersWaiting(ring.get()), 0u);
+  EXPECT_EQ(writer.BeginFragment(1, false).result, BeginFragmentResult::kFull);
+}
 
-  uint32_t observed = ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0));
-  ASSERT_TRUE(ring->TryReleaseCompleteChunkAsFree(0, &observed));
-  ring->PublishReadPos(1);
+// has_pending_data_loss() stays true until a claimed chunk carries the loss.
+// A failed claim does not clear it. TraceWriterV2Impl uses it to keep
+// kStallThenDrop from stalling again in a drop episode.
+TEST(SharedRingBufferWriterTest, PendingDataLossUntilChunkClaimed) {
+  test::SharedRingBufferForTesting ring(2, 256);
+  FillRingBuffer(ring.get());
 
-  ASSERT_TRUE(WriteFragment(&second, "after loss"));
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterB, kBuffer);
+  EXPECT_FALSE(writer.has_pending_data_loss());
+  writer.RecordDataLoss();
+  EXPECT_TRUE(writer.has_pending_data_loss());
+  EXPECT_EQ(writer.BeginFragment(1, false).result, BeginFragmentResult::kFull);
+  EXPECT_TRUE(writer.has_pending_data_loss());
+
+  ReleaseChunkAtReadPos(ring.get());
+  ASSERT_EQ(writer.BeginFragment(1, false).result,
+            BeginFragmentResult::kSuccess);
+  EXPECT_FALSE(writer.has_pending_data_loss());
+  ASSERT_EQ(writer.EndFragment(0, false), EndFragmentResult::kSuccess);
   EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(0)).payload_flags,
             kFlagDataLoss);
-  ASSERT_EQ(second.FinishCurrentChunk(), EndFragmentResult::kSuccess);
-
-  // Publishing the loss ends the drop episode. The next exhausted acquisition
-  // stalls again, which gives the delegate a chance to release the chunk.
-  EXPECT_EQ(second.BeginFragment(1, false).result,
-            BeginFragmentResult::kSuccess);
-  EXPECT_EQ(delegate.num_notifications, 1u);
 }
 
 // A chunk pinned by a writer that stopped mid-rewrite is not the same thing as
@@ -565,29 +559,33 @@ TEST(SharedRingBufferWriterTest, PinnedChunks) {
   // here, so those claims land on each physical chunk once and use up the whole
   // reservation window without acquiring anything.
   test::SharedRingBufferForTesting ring(8, 256);
-
-  // Pin every chunk in RewriteRequested, which only its owner may leave.
-  // Claiming them directly leaves write_pos at zero, so there is capacity for
-  // every reservation the writer below makes.
-  for (uint32_t chunk_pos = 0; chunk_pos < ring->num_chunks(); ++chunk_pos) {
-    const uint32_t being_written = MakeDataStateWord(
-        ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 0, kWriterB);
-    ASSERT_TRUE(ring->TryAcquireChunkForWriting(chunk_pos, being_written));
-    const ChunkIndex chunk_idx =
-        ChunkIndex::FromPosition(chunk_pos, ring->num_chunks());
-    uint32_t observed = being_written;
-    ASSERT_TRUE(ring->TryRequestRewrite(chunk_idx, &observed));
-  }
+  ASSERT_TRUE(PinAllChunks(ring.get(), kWriterB));
   ASSERT_EQ(ring->LoadWritePosRelaxed(), 0u);
 
-  CountingSharedRingBufferWriterDelegate delegate;
-  SharedRingBufferWriter writer(ring.get(), kWriterA, kBuffer,
-                                BufferExhaustedPolicy::kDrop, &delegate);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
   EXPECT_EQ(writer.BeginFragment(1, false).result,
-            BeginFragmentResult::kNoChunkAvailable);
+            BeginFragmentResult::kClaimFailed);
   EXPECT_EQ(writer.GetStats().failed_claims, ring->num_chunks());
   EXPECT_EQ(ring->LoadWritePosRelaxed(), ring->num_chunks());
-  EXPECT_EQ(delegate.num_notifications, 1u);
+}
+
+// Each call makes up to num_chunks claim attempts. A count kept from the
+// previous call would stop the next call after one failed claim.
+TEST(SharedRingBufferWriterTest, EachCallGetsFullRoundOfClaims) {
+  test::SharedRingBufferForTesting ring(4, 256);
+  ASSERT_TRUE(PinAllChunks(ring.get(), kWriterB));
+  ASSERT_EQ(ring->LoadWritePosRelaxed(), 0u);
+
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  for (uint32_t round = 1; round <= 3; ++round) {
+    SCOPED_TRACE(round);
+    EXPECT_EQ(writer.BeginFragment(1, false).result,
+              BeginFragmentResult::kClaimFailed);
+    EXPECT_EQ(writer.GetStats().failed_claims, round * ring->num_chunks());
+    // Play a reader that moves past the unclaimed positions, but cannot free
+    // the pinned chunks.
+    ring->PublishReadPos(ring->LoadWritePosRelaxed());
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -707,20 +705,13 @@ TEST(SharedRingBufferWriterTest, RelocatesZeroLengthFragment) {
   }
 }
 
-// A loss flag that the reader did not take rides with the relocated fragment,
-// so the writer's own data_loss_pending_ is already clear when the replacement
-// is acquired. kStallThenDrop must still see the unreported loss and drop
-// rather than begin another stall.
-TEST(SharedRingBufferWriterTest, StallThenDropWithRelocatedLossFlag) {
+// A relocation that found no chunk stays pending. RetryRelocation() publishes
+// the saved fragment after the reader frees a chunk. The flags are the same as
+// for a relocation that succeeds at once.
+TEST(SharedRingBufferWriterTest, RetryRelocationAfterReaderFreesChunk) {
   test::SharedRingBufferForTesting ring(2, 512);
-  ReleasingSharedRingBufferWriterDelegate delegate(ring.get());
-  SharedRingBufferWriter writer(ring.get(), kWriterA, kBuffer,
-                                BufferExhaustedPolicy::kStallThenDrop,
-                                &delegate);
-
-  // The loss goes into chunk 0's flags when the writer claims it.
-  writer.RecordDataLoss();
-  const auto range = writer.BeginFragment(4, false);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  const auto range = writer.BeginFragment(4, /*continues_from_prev=*/true);
   ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
   memcpy(range.begin, "tail", 4);
 
@@ -729,27 +720,108 @@ TEST(SharedRingBufferWriterTest, StallThenDropWithRelocatedLossFlag) {
   ASSERT_EQ(blocker.BeginFragment(1, false).result,
             BeginFragmentResult::kSuccess);
 
+  EXPECT_EQ(MarkForRewrite(ring.get(), ChunkIndex::FromIndex(0)), 0u);
+  EXPECT_EQ(writer.EndFragment(4, /*continues_on_next=*/true),
+            EndFragmentResult::kFull);
+  const auto no_claim = writer.RetryRelocation();
+  EXPECT_EQ(no_claim.result, EndFragmentResult::kFull);
+  EXPECT_FALSE(no_claim.acquired_replacement);
+
+  ReleaseChunkAtReadPos(ring.get());
+  const auto published = writer.RetryRelocation();
+  ASSERT_EQ(published.result, EndFragmentResult::kSuccess);
+  EXPECT_TRUE(published.acquired_replacement);
+  const DecodedChunk replacement = Decode(ring.get(), ChunkIndex::FromIndex(0));
+  EXPECT_EQ(replacement.state, ChunkState::kComplete);
+  EXPECT_EQ(replacement.fragments, std::vector<std::string>{"tail"});
+  EXPECT_EQ(replacement.payload_flags,
+            kFlagContinuesFromPrevChunk | kFlagContinuesOnNextChunk);
+  EXPECT_EQ(writer.GetStats().relocations, 1u);
+  EXPECT_EQ(writer.GetStats().fragments_dropped, 0u);
+}
+
+// One RetryRelocation() call can claim a replacement, lose its publication to
+// another rewrite, and then get no chunk. The result still reports the claim,
+// because the claim ended one acquisition.
+TEST(SharedRingBufferWriterTest, RetryRelocationReportsClaimLostToRewrite) {
+  test::SharedRingBufferForTesting ring(2, 512);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  const auto range = writer.BeginFragment(4, false);
+  ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
+  memcpy(range.begin, "tail", 4);
+
+  // Occupy the ring buffer's only other chunk so no replacement can be had.
+  SharedRingBufferWriter blocker = MakeWriter(ring.get(), kWriterB, kBuffer);
+  ASSERT_EQ(blocker.BeginFragment(1, false).result,
+            BeginFragmentResult::kSuccess);
+  EXPECT_EQ(MarkForRewrite(ring.get(), ChunkIndex::FromIndex(0)), 0u);
+  EXPECT_EQ(writer.EndFragment(4, false), EndFragmentResult::kFull);
+
+  // The reader frees chunk 0, and the writer claims it as the replacement.
+  // The reader requests a rewrite of it before the publication. The blocker
+  // still holds chunk 1, so the next claim round gets no chunk.
+  ReleaseChunkAtReadPos(ring.get());
+  bool rewrite_replacement = true;
+  Internals::SetAfterReplacementClaimCallback(&writer, [&] {
+    if (!rewrite_replacement)
+      return;
+    rewrite_replacement = false;
+    EXPECT_EQ(MarkForRewrite(ring.get(), ChunkIndex::FromIndex(0)), 0u);
+  });
+  const auto lost = writer.RetryRelocation();
+  EXPECT_EQ(lost.result, EndFragmentResult::kFull);
+  EXPECT_TRUE(lost.acquired_replacement);
+  EXPECT_EQ(writer.GetStats().relocations, 2u);
+
+  // Free both chunks. The next call publishes the fragment intact.
+  blocker.FinishCurrentChunk();
+  ReleaseChunkAtReadPos(ring.get());  // Chunk 1, published by the blocker.
+  ReleaseChunkAtReadPos(ring.get());  // Chunk 0, acknowledged by the writer.
+  const auto published = writer.RetryRelocation();
+  ASSERT_EQ(published.result, EndFragmentResult::kSuccess);
+  EXPECT_TRUE(published.acquired_replacement);
+  const DecodedChunk replacement = Decode(ring.get(), ChunkIndex::FromIndex(1));
+  EXPECT_EQ(replacement.fragments, std::vector<std::string>{"tail"});
+  EXPECT_EQ(replacement.payload_flags, 0u);
+  EXPECT_EQ(writer.GetStats().fragments_dropped, 0u);
+}
+
+// A loss flag that the reader did not take moves with the unpublished
+// fragment. The writer's data_loss_pending_ is clear by then, but
+// has_pending_data_loss() still reports the loss. So kStallThenDrop drops and
+// does not start another stall.
+TEST(SharedRingBufferWriterTest, PendingRelocationKeepsUnreportedLoss) {
+  test::SharedRingBufferForTesting ring(2, 512);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+
+  // The loss goes into chunk 0's flags when the writer claims it.
+  writer.RecordDataLoss();
+  const auto range = writer.BeginFragment(4, false);
+  ASSERT_EQ(range.result, BeginFragmentResult::kSuccess);
+  memcpy(range.begin, "tail", 4);
+  EXPECT_FALSE(writer.has_pending_data_loss());
+
+  // Occupy the ring buffer's only other chunk so no replacement can be had.
+  SharedRingBufferWriter blocker = MakeWriter(ring.get(), kWriterB, kBuffer);
+  ASSERT_EQ(blocker.BeginFragment(1, false).result,
+            BeginFragmentResult::kSuccess);
+
   // The reader takes nothing, so the flag moves with the unpublished fragment.
   EXPECT_EQ(MarkForRewrite(ring.get(), ChunkIndex::FromIndex(0)), 0u);
+  EXPECT_EQ(writer.EndFragment(4, false), EndFragmentResult::kFull);
+  EXPECT_TRUE(writer.has_pending_data_loss());
 
-  // A stall would notify the delegate, which frees the acknowledged chunk and
-  // lets the relocation succeed. A drop asks nobody and gives the unpublished
-  // fragment up.
-  EXPECT_EQ(writer.EndFragment(4, false),
-            EndFragmentResult::kRelocationDropped);
-  EXPECT_EQ(delegate.num_notifications, 0u);
+  writer.DropRelocation();
+  EXPECT_TRUE(writer.has_pending_data_loss());
   EXPECT_EQ(writer.GetStats().fragments_dropped, 1u);
   EXPECT_EQ(ring->LoadChunkStateWordAcquire(ChunkIndex::FromIndex(0)),
             kRewriteAcknowledgedStateWord);
 
   // The loss is still unreported, so it goes out with the next chunk.
-  uint32_t observed = 0;
-  ASSERT_TRUE(ring->TryReleaseRewriteAcknowledgedChunkAsFree(0, &observed));
-  ring->PublishReadPos(1);
+  ReleaseChunkAtReadPos(ring.get());
   ASSERT_TRUE(WriteFragment(&writer, "after loss"));
   EXPECT_EQ(Decode(ring.get(), ChunkIndex::FromIndex(0)).payload_flags,
             kFlagDataLoss);
-  EXPECT_EQ(delegate.num_notifications, 0u);
 }
 
 TEST(SharedRingBufferWriterTest, RewriteWithoutUnpublishedFragment) {
@@ -820,9 +892,11 @@ TEST(SharedRingBufferWriterTest, RelocationDrop) {
              unpublished_fragment.size());
     EXPECT_EQ(MarkForRewrite(ring.get(), ChunkIndex::FromIndex(0)), 1u);
 
+    // No chunk is free, so the relocation stays pending until it is dropped.
     EXPECT_EQ(writer.EndFragment(
                   static_cast<uint32_t>(unpublished_fragment.size()), false),
-              EndFragmentResult::kRelocationDropped);
+              EndFragmentResult::kFull);
+    writer.DropRelocation();
     EXPECT_EQ(writer.GetStats().fragments_dropped, 1u);
     EXPECT_EQ(writer.GetStats().relocations, 1u);
     // The old chunk is acknowledged and therefore reclaimable by the reader,
@@ -885,6 +959,67 @@ TEST(SharedRingBufferWriterTest, DestructorPublishes) {
   ASSERT_EQ(decoded.fragments.size(), 1u);
   EXPECT_EQ(decoded.fragments[0], "kept");
 }
+
+// The stall timeout record names the writer and the read_pos that it waited
+// on.
+TEST(SharedRingBufferWriterTest, StallTimeoutRecord) {
+  test::SharedRingBufferForTesting ring(2, 256);
+  SharedRingBufferWriter writer = MakeWriter(ring.get(), kWriterA, kBuffer);
+  ASSERT_TRUE(PinAllChunks(ring.get(), kWriterB));
+  // The ring buffer has no free chunk. The reservations see read_pos 0.
+  ASSERT_NE(writer.BeginFragment(4, false).result,
+            BeginFragmentResult::kSuccess);
+
+  writer.RecordStallTimeout();
+  const WriterFailure failure =
+      DecodeWriterFailure(ring->LoadHeaderRelaxed().first_writer_failure);
+  EXPECT_EQ(failure.reason, WriterFailureReason::kStallTimeout);
+  EXPECT_EQ(failure.writer_id, kWriterA);
+  EXPECT_EQ(failure.value, 0u);
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// A writer records its failure in the header before it aborts. A child
+// process aborts. The parent reads the record from the shared mapping, as
+// traced does after a producer crash.
+TEST(SharedRingBufferWriterTest, PublicationFailureIsRecordedBeforeAbort) {
+  constexpr uint32_t kNumChunks = 4;
+  constexpr uint32_t kChunkSize = 256;
+  const size_t size = sizeof(RingBufferHeader) + kNumChunks * kChunkSize;
+  void* shared = mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                      MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  ASSERT_NE(shared, MAP_FAILED);
+  SharedRingBuffer ring(static_cast<uint8_t*>(shared), size, kChunkSize);
+  // Only the reader may change a BeingWritten word, and only to
+  // RewriteRequested.
+  const uint32_t foreign = MakeDataStateWord(
+      ChunkState::kComplete, ChunkFormat::kTargetBuffer, 0, 1, kWriterB);
+
+  base::Subprocess child;
+  child.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  child.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  child.args.posix_entrypoint_for_testing = [&ring, foreign] {
+    SharedRingBufferWriter writer = MakeWriter(&ring, kWriterA, kBuffer);
+    if (writer.BeginFragment(4, false).result != BeginFragmentResult::kSuccess)
+      _exit(1);
+    Internals::SetChunkStateWord(&ring, ChunkIndex::FromIndex(0), foreign);
+    writer.EndFragment(4, false);  // Aborts.
+    _exit(2);
+  };
+  child.Start();
+  ASSERT_TRUE(child.Wait(30000));
+  // A signal killed the child. It did not reach either _exit().
+  EXPECT_GT(child.returncode(), 128);
+
+  const WriterFailure failure =
+      DecodeWriterFailure(ring.LoadHeaderRelaxed().first_writer_failure);
+  EXPECT_EQ(failure.reason, WriterFailureReason::kPublicationLost);
+  EXPECT_EQ(failure.writer_id, kWriterA);
+  EXPECT_EQ(failure.value, foreign);
+  munmap(shared, size);
+}
+#endif
 
 }  // namespace
 }  // namespace perfetto::tracing_v2

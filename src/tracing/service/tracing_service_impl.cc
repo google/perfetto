@@ -116,6 +116,7 @@
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include "src/tracing/service/zlib_compressor.h"
 #endif
@@ -135,6 +136,7 @@
 #include "protos/perfetto/trace/perfetto/concurrent_session_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
@@ -190,6 +192,60 @@ constexpr uint32_t kGuardrailsMaxTracingDurationMillis = 24 * kMillisPerHour;
 
 constexpr size_t kMaxLifecycleEventsListedDataSources = 32;
 
+// Tracing v2 observations that a producer disconnect ended, which one session
+// keeps. The oldest goes first. Observations ended by stop or clone are not
+// counted: they are bounded by the connected producers.
+constexpr size_t kMaxDisconnectedTracingV2Observations = 256;
+
+// The bytes of tracing v2 ring buffer dumps that one session holds until reads
+// emit them. It also bounds one dump. With chunk bytes, a dump of the default
+// 128 KiB ring buffer is about 130 KiB.
+constexpr size_t kMaxPendingTracingV2DumpBytes = 4 * 1024 * 1024;
+
+// REASON_REJECTED_CHUNK dumps that one session takes for one observation. The
+// first few show the bug. The reader stats count all rejected chunks, and the
+// stats keep the first record of each reason.
+constexpr uint32_t kMaxRejectedChunkDumps = 8;
+
+// The bytes of a producer-supplied label, such as the producer name, that a
+// TraceStats.tracing_v2 entry keeps. Sessions retain frozen entries, so a
+// label must not grow them without a bound.
+constexpr size_t kMaxTracingV2LabelBytes = 128;
+
+// TraceStats.TracingV2.ChunkRejection.Reason of a reader rejection. The proto
+// values are the C++ values + 1, because 0 is REASON_UNSPECIFIED.
+using ChunkRejectionReason =
+    tracing_v2::SharedRingBufferReader::ChunkRejection::Reason;
+using ProtoChunkRejection = protos::pbzero::TraceStats_TracingV2_ChunkRejection;
+constexpr ProtoChunkRejection::Reason ToProtoReason(
+    ChunkRejectionReason reason) {
+  return static_cast<ProtoChunkRejection::Reason>(static_cast<int>(reason) + 1);
+}
+static_assert(
+    ToProtoReason(ChunkRejectionReason::kUnsupportedFormat) ==
+            ProtoChunkRejection::REASON_UNSUPPORTED_FORMAT &&
+        ToProtoReason(ChunkRejectionReason::kInvalidSizeEncoding) ==
+            ProtoChunkRejection::REASON_INVALID_SIZE_ENCODING &&
+        ToProtoReason(ChunkRejectionReason::kFragmentTooLarge) ==
+            ProtoChunkRejection::REASON_FRAGMENT_TOO_LARGE &&
+        ToProtoReason(ChunkRejectionReason::kPayloadOverlapsDirectory) ==
+            ProtoChunkRejection::REASON_PAYLOAD_OVERLAPS_DIRECTORY,
+    "ChunkRejection::Reason and its proto do not match");
+
+// The proto WriterFailure values are the WriterFailureReason values.
+static_assert(
+    static_cast<int>(tracing_v2::WriterFailureReason::kPublicationLost) ==
+            protos::pbzero::TraceStats_TracingV2_Producer::
+                WRITER_FAILURE_PUBLICATION_LOST &&
+        static_cast<int>(
+            tracing_v2::WriterFailureReason::kAcknowledgementFailed) ==
+            protos::pbzero::TraceStats_TracingV2_Producer::
+                WRITER_FAILURE_ACKNOWLEDGEMENT_FAILED &&
+        static_cast<int>(tracing_v2::WriterFailureReason::kStallTimeout) ==
+            protos::pbzero::TraceStats_TracingV2_Producer::
+                WRITER_FAILURE_STALL_TIMEOUT,
+    "WriterFailureReason and its proto do not match");
+
 constexpr uint32_t kTracePacketSystemInfoFieldId = 45;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -244,7 +300,7 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
     shm_size = TracingServiceImpl::kDefaultShmSize;
 
   page_size = std::min<size_t>(page_size, kMaxPageSize);
-  shm_size = std::min<size_t>(shm_size, TracingServiceImpl::kMaxShmSize);
+  shm_size = std::min<size_t>(shm_size, TracingService::kMaxShmSize);
 
   // The tracing page size has to be multiple of 4K. On some systems (e.g. Mac
   // on Arm64) the system page size can be larger (e.g., 16K). That doesn't
@@ -325,6 +381,24 @@ bool ShouldLogEvent(const TraceConfig& cfg) {
   return cfg.enable_extra_guardrails();
 }
 
+// Copies `data` (which has `size` bytes) to `*packet`, in slices no larger
+// than `max_slice_size`.
+void AppendSlicesToPacket(const uint8_t* data,
+                          size_t size,
+                          size_t max_slice_size,
+                          perfetto::TracePacket* packet) {
+  for (size_t size_left = size; size_left > 0;) {
+    const size_t slice_size = std::min(size_left, max_slice_size);
+
+    Slice slice = Slice::Allocate(slice_size);
+    memcpy(slice.own_data(), data, slice_size);
+    packet->AddSlice(std::move(slice));
+
+    data += slice_size;
+    size_left -= slice_size;
+  }
+}
+
 // Appends `data` (which has `size` bytes), to `*packet`. Splits the data in
 // slices no larger than `max_slice_size`.
 void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
@@ -335,17 +409,7 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
     packet->AddSlice(Slice::TakeOwnership(std::move(data), size));
     return;
   }
-  uint8_t* src_ptr = data.get();
-  for (size_t size_left = size; size_left > 0;) {
-    const size_t slice_size = std::min(size_left, max_slice_size);
-
-    Slice slice = Slice::Allocate(slice_size);
-    memcpy(slice.own_data(), src_ptr, slice_size);
-    packet->AddSlice(std::move(slice));
-
-    src_ptr += slice_size;
-    size_left -= slice_size;
-  }
+  AppendSlicesToPacket(data.get(), size, max_slice_size, packet);
 }
 
 // Shmem emulation is only for relay (remote-host) producers whose SMB is copied
@@ -389,8 +453,17 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     size_t shared_memory_page_size_hint_bytes,
                                     std::unique_ptr<SharedMemory> shm,
                                     const std::string& sdk_version,
-                                    const std::string& machine_name) {
+                                    const std::string& machine_name,
+                                    uint32_t protocol_abi_versions) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  if (!protocol_abi_versions) {
+    PERFETTO_ELOG(
+        "Failed to negotiate a valid tracing protocol version with the tracing "
+        "service: producer=\"%s\"",
+        producer_name.c_str());
+    return nullptr;
+  }
 
   auto uid = client_identity.uid();
   if (lockdown_mode_ && uid != base::GetCurrentUserId()) {
@@ -421,7 +494,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, client_identity, this, weak_runner_.task_runner(), producer,
       producer_name, machine_name, sdk_version, in_process,
-      smb_scraping_enabled));
+      smb_scraping_enabled, protocol_abi_versions));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
 
@@ -484,6 +557,25 @@ void TracingServiceImpl::DisconnectProducer(ProducerID id) {
     // Scrape remaining chunks for this producer to ensure we don't lose data.
     for (auto& session_id_and_session : tracing_sessions_) {
       ScrapeSharedMemoryBuffers(&session_id_and_session.second, producer);
+    }
+
+    // End the tracing v2 observations of this producer, and dump its ring
+    // buffer if the session asks for it. After the final drain above, so
+    // both include its last data. The endpoint still owns the ring buffer.
+    for (auto& session_id_and_session : tracing_sessions_) {
+      TracingSession& session = session_id_and_session.second;
+      TracingV2Observation* observation =
+          FindLiveTracingV2Observation(&session, id);
+      if (!observation)
+        continue;
+      if (session.config.builtin_data_sources()
+              .experimental_dump_tracing_v2_ring_buffers()) {
+        DumpV2RingBuffer(&session, *producer,
+                         V2RingBufferDumpReason::kProducerDisconnect);
+      }
+      EndTracingV2Observation(&session, observation, *producer,
+                              TraceStats::TracingV2::Producer::
+                                  OBSERVATION_END_PRODUCER_DISCONNECTED);
     }
 
     // Fire a disconnect trigger so pre-configured sessions can capture
@@ -806,11 +898,35 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  // For each buffer: the name of a data source with a ProtoVM, and of one
+  // that can use tracing v2.
+  // Tracing v2 does not support ProtoVM on the same buffer yet.
+  std::vector<const std::string*> protovm_source(num_buffers);
+  std::vector<const std::string*> tracing_v2_source(num_buffers);
+
   // Check that the config specifies all buffers for its data sources. This
   // is also checked in SetupDataSource, but it is simpler to return a proper
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
+    const auto& tracing_v2_config = ds_config.experimental_tracing_v2();
+    if (tracing_v2_config.use_v2_probability_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.use_v2_probability_percent must be at most "
+          "100");
+    }
+    if (tracing_v2_config.drain_occupancy_percent() < -1 ||
+        tracing_v2_config.drain_occupancy_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.drain_occupancy_percent must be -1 to 100");
+    }
+    for (const auto& option : tracing_v2_config.chunk_size_options()) {
+      if (!tracing_v2::IsValidChunkSize(option.size_bytes())) {
+        return PERFETTO_SVC_ERR(
+            "experimental_tracing_v2.chunk_size_options: invalid size %u",
+            option.size_bytes());
+      }
+    }
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
     size_t target_buffer = ds_config.target_buffer();
@@ -852,6 +968,19 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           "Data source \"%s\" specified an out of bounds target_buffer (%zu >= "
           "%zu)",
           ds_config.name().c_str(), target_buffer, num_buffers);
+    }
+
+    if (ds_config.has_protovm_config())
+      protovm_source[target_buffer] = &ds_config.name();
+    if (tracing_v2_config.use_v2_probability_percent() > 0)
+      tracing_v2_source[target_buffer] = &ds_config.name();
+    if (protovm_source[target_buffer] && tracing_v2_source[target_buffer]) {
+      return PERFETTO_SVC_ERR(
+          "Data source \"%s\" has a ProtoVM and data source \"%s\" has "
+          "experimental_tracing_v2 on the same buffer %zu. Tracing v2 does not "
+          "support ProtoVM",
+          protovm_source[target_buffer]->c_str(),
+          tracing_v2_source[target_buffer]->c_str(), target_buffer);
     }
   }
 
@@ -2094,14 +2223,40 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
   for (auto& producer_id_and_producer : producers_)
     ScrapeSharedMemoryBuffers(tracing_session, producer_id_and_producer.second);
 
+  // End the tracing v2 observations after the final drain, so later activity
+  // of the producers, and their later dumps, stay out of this session.
+  // A drain can stop at its position or retry limit. last_drain_result then
+  // says that the ring buffer held more than the writers' open chunks.
+  const bool dump_at_stop = tracing_session->config.builtin_data_sources()
+                                .experimental_dump_tracing_v2_ring_buffers();
+  for (TracingV2Observation& observation :
+       tracing_session->tracing_v2_observations) {
+    if (observation.final_entry)
+      continue;
+    ProducerEndpointImpl* producer = GetProducer(observation.producer_id);
+    PERFETTO_DCHECK(producer);
+    if (!producer)
+      continue;
+    if (dump_at_stop) {
+      DumpV2RingBuffer(tracing_session, *producer,
+                       V2RingBufferDumpReason::kStop);
+    }
+    EndTracingV2Observation(
+        tracing_session, &observation, *producer,
+        TraceStats::TracingV2::Producer::OBSERVATION_END_SESSION_STOPPED);
+  }
+
   SnapshotLifecycleEvent(
       tracing_session,
       protos::pbzero::TracingServiceEvent::kTracingDisabledFieldNumber,
       true /* snapshot_clocks */);
 
+  // The final read emits stats from after the final drain, for both file and
+  // IPC output, also if an earlier read already emitted stats.
+  tracing_session->should_emit_stats = true;
+
   if (tracing_session->write_into_file) {
     tracing_session->write_period_ms = 0;
-    tracing_session->should_emit_stats = true;
     // Buffers are scraped, no need to flush before reading into file.
     ReadBuffersIntoFile(tracing_session->id,
                         /* async_flush_buffers_before_read = */ false);
@@ -2324,13 +2479,6 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
 void TracingServiceImpl::ScrapeSharedMemoryBuffers(
     TracingSession* tracing_session,
     ProducerEndpointImpl* producer) {
-  if (!producer->smb_scraping_enabled_ || producer->IsShmemEmulated())
-    return;
-
-  // Can't copy chunks if we don't know about any trace writers.
-  if (producer->writers_.empty())
-    return;
-
   // Performance optimization: On flush or session disconnect, this method is
   // called for each producer. If the producer doesn't participate in the
   // session, there's no need to scrape its chunks right now. We can tell if a
@@ -2343,6 +2491,18 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
                     return producer->allowed_target_buffers_.count(buffer_id);
                   });
   if (!producer_in_session)
+    return;
+
+  // Drain v2 data even when v1 SMB scraping is disabled.
+  // Call the drainer directly: this drain is not a producer request.
+  if (producer->v2_ring_buffer_drainer_)
+    producer->v2_ring_buffer_drainer_->Drain();
+
+  if (!producer->smb_scraping_enabled_ || producer->IsShmemEmulated())
+    return;
+
+  // Can't copy chunks if we don't know about any trace writers.
+  if (producer->writers_.empty())
     return;
 
   PERFETTO_DLOG("Scraping SMB for producer %" PRIu16, producer->id_);
@@ -2839,7 +2999,18 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     }  // for(packets...)
   }  // for(buffers...)
 
-  *has_more = did_hit_threshold;
+  // Tracing v2 ring buffer dumps go after the trace data, within the same
+  // read budget, so they never delay ordinary data.
+  std::vector<TracePacket> dump_packets;
+  bool dumps_pending = false;
+  if (!did_hit_threshold) {
+    dumps_pending = EmitTracingV2RingBufferDumps(tracing_session, threshold,
+                                                 &packets_bytes, &dump_packets);
+  } else {
+    dumps_pending = !tracing_session->pending_tracing_v2_dumps.empty();
+  }
+
+  *has_more = did_hit_threshold || dumps_pending;
 
   // Only emit the "read complete" lifetime event when there is no more trace
   // data available to read. These events are used as safe points to limit
@@ -2858,6 +3029,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
 
   MaybeFilterPackets(tracing_session, &packets);
+  MaybeFilterPackets(tracing_session, &dump_packets);
 
   // Only emit the stats when there is no more trace data is available to read.
   // That way, any problems that occur while reading from the buffers are
@@ -2873,6 +3045,18 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       tracing_session->filter_input_bytes += stats_packet_size;
       tracing_session->filter_output_bytes += stats_packet_size;
     }
+  }
+
+  // The dumps go last, after the stats. With max_file_size_bytes, drop the
+  // ones that do not fit, so that WriteIntoFile() never stops at an optional
+  // dump.
+  if (!dump_packets.empty()) {
+    if (tracing_session->write_into_file &&
+        tracing_session->max_file_size_bytes) {
+      DropTracingV2DumpsOverFileSize(tracing_session, packets, &dump_packets);
+    }
+    packets.insert(packets.end(), std::make_move_iterator(dump_packets.begin()),
+                   std::make_move_iterator(dump_packets.end()));
   }
 
   MaybeCompressPackets(tracing_session, &packets,
@@ -3466,6 +3650,21 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     return nullptr;
   }
 
+  const BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
+  PERFETTO_DCHECK(global_id);
+
+  const bool supports_tracing_v2 =
+      (producer->protocol_abi_versions_ & kProtocolAbiV2) &&
+      GetBufferByID(global_id, TraceBuffer::BufType::kV2);
+  if (!(producer->protocol_abi_versions_ & kProtocolAbiV1) &&
+      !supports_tracing_v2) {
+    PERFETTO_ELOG(
+        "Cannot set up data source \"%s\" on producer \"%s\": "
+        "target_buffer %u supports no common protocol version",
+        ds_cfg.name().c_str(), producer->name_.c_str(), relative_buffer_id);
+    return nullptr;
+  }
+
   // Create a copy of the DataSourceConfig specified in the trace config. This
   // will be passed to the producer after translating the |target_buffer| id.
   // The |target_buffer| parameter passed by the consumer in the trace config is
@@ -3494,6 +3693,14 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   }
 
   DataSourceConfig& ds_config = ds_instance->config;
+  // When v2 is unavailable, keep an absent field unset so startup configs
+  // still match in older SDKs.
+  //
+  // If the consumer supplied a value, overwrite it with the service's decision
+  // about whether this data source can use v2.
+  if (supports_tracing_v2 || ds_config.has_supports_tracing_v2())
+    ds_config.set_supports_tracing_v2(supports_tracing_v2);
+
   ds_config.set_trace_duration_ms(tracing_session->config.duration_ms());
 
   // Rationale for `if (prefer) set_prefer(true)`, rather than `set(prefer)`:
@@ -3518,14 +3725,15 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
         DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
   }
   ds_config.set_tracing_session_id(tracing_session->id);
-  BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
-  PERFETTO_DCHECK(global_id);
   ds_config.set_target_buffer(global_id);
 
   MaybeSetUpProtoVm(ds_config, data_source, global_id);
 
   PERFETTO_DLOG("Setting up data source %s with target buffer %" PRIu16,
                 ds_config.name().c_str(), global_id);
+  // TODO(sashwinbalaji): The SMB is created before v1 or v2 is selected, so a
+  // producer that only uses tracing v2 still gets one, just for WriterIDs.
+  // Create it only for v1 writers, and allocate v2 WriterIDs elsewhere.
   if (!producer->shared_memory()) {
     // Determine the SMB page size. Must be an integer multiple of 4k.
     // As for the SMB size below, the decision tree is as follows:
@@ -3570,6 +3778,10 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     producer->SetupSharedMemory(std::move(shared_memory), page_size,
                                 /*provided_by_producer=*/false, shmem_mode);
   }
+  // Before the producer hears of the instance: an in-process producer can
+  // create and attach its ring buffer inside SetupDataSource() below.
+  if (ds_config.experimental_tracing_v2().use_v2_probability_percent() > 0)
+    ObserveTracingV2Producer(tracing_session, *producer, supports_tracing_v2);
   producer->SetupDataSource(inst_id, ds_config);
   return ds_instance;
 }
@@ -3766,9 +3978,75 @@ ProducerID TracingServiceImpl::GetNextProducerID() {
   return last_producer_id_;
 }
 
-TraceBuffer* TracingServiceImpl::GetBufferByID(BufferID buffer_id) {
+void TracingServiceImpl::OnRingBufferChunksDiscarded(uint64_t count) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  chunks_discarded_ += count;
+}
+
+void TracingServiceImpl::OnRingBufferAttachRejected(
+    ProducerEndpointImpl* producer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (auto& session_id_and_session : tracing_sessions_) {
+    TracingSession& session = session_id_and_session.second;
+    if (FindLiveTracingV2Observation(&session, producer->id_))
+      session.should_emit_stats = true;
+  }
+}
+
+void TracingServiceImpl::OnRingBufferProtocolError(
+    ProducerEndpointImpl* producer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // The stats keep the reader's record of the error. The producer can still
+  // write after the reader stopped, so the dump is a later, best-effort copy.
+  for (auto& session_id_and_session : tracing_sessions_) {
+    TracingSession& session = session_id_and_session.second;
+    if (!FindLiveTracingV2Observation(&session, producer->id_))
+      continue;
+    session.should_emit_stats = true;
+    DumpV2RingBuffer(&session, *producer,
+                     V2RingBufferDumpReason::kProtocolError);
+  }
+}
+
+void TracingServiceImpl::OnRingBufferChunkRejected(
+    ProducerEndpointImpl* producer,
+    const tracing_v2::SharedRingBufferReader::ChunkRejection& rejection) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (auto& session_id_and_session : tracing_sessions_) {
+    TracingSession& session = session_id_and_session.second;
+    // The stats keep the first record of each reason. Without chunk bytes, a
+    // dump of one chunk adds nothing to them. A producer can make every chunk
+    // malformed, so skip the observation lookup when it can change nothing.
+    const bool chunk_bytes = session.config.builtin_data_sources()
+                                 .experimental_dump_tracing_v2_chunk_bytes();
+    if (!chunk_bytes && session.should_emit_stats)
+      continue;
+    TracingV2Observation* observation =
+        FindLiveTracingV2Observation(&session, producer->id_);
+    if (!observation)
+      continue;
+    session.should_emit_stats = true;
+    if (!chunk_bytes)
+      continue;
+    // The samples belong to the session, so a later session still gets its
+    // own.
+    if (observation->rejected_chunk_dumps >= kMaxRejectedChunkDumps) {
+      ++observation->rejected_chunk_dumps_suppressed;
+      continue;
+    }
+    ++observation->rejected_chunk_dumps;
+    DumpV2RingBuffer(&session, *producer,
+                     V2RingBufferDumpReason::kRejectedChunk, &rejection);
+  }
+}
+
+TraceBuffer* TracingServiceImpl::GetBufferByID(
+    BufferID buffer_id,
+    std::optional<TraceBuffer::BufType> type) {
   auto buf_iter = buffers_.find(buffer_id);
   if (buf_iter == buffers_.end())
+    return nullptr;
+  if (type && buf_iter->second->buf_type() != *type)
     return nullptr;
   return buf_iter->second.get();
 }
@@ -3805,6 +4083,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   for (const auto& id_to_producer : producers_) {
     if (id_to_producer.second->shared_memory())
       total_buffer_bytes += id_to_producer.second->shared_memory()->size();
+    total_buffer_bytes += id_to_producer.second->ring_buffer_size_bytes();
   }
 
   // Sum up all the trace buffers.
@@ -3812,9 +4091,10 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
     total_buffer_bytes += id_to_buffer.second->GetMemoryUsageBytes();
   }
 
-  // Sum up all the cloned traced buffers.
+  // Sum up all the cloned traced buffers, and the pending tracing v2 dumps.
   for (const auto& id_to_ts : tracing_sessions_) {
     const TracingSession& ts = id_to_ts.second;
+    total_buffer_bytes += ts.pending_tracing_v2_dump_bytes;
     for (const auto& id_to_clone_op : ts.pending_clones) {
       const PendingClone& clone_op = id_to_clone_op.second;
       for (const std::unique_ptr<TraceBuffer>& buf : clone_op.buffers) {
@@ -4056,7 +4336,12 @@ void TracingServiceImpl::EmitStats(TracingSession* tracing_session,
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   SetServiceTracePacketHeader(packet.get());
   GetTraceStats(tracing_session).Serialize(packet->set_trace_stats());
-  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  // Many producers and writers can make the stats larger than one IPC
+  // message, so split them as MaybeFilterPackets() does.
+  const std::vector<uint8_t> serialized = packet.SerializeAsArray();
+  packets->emplace_back();
+  AppendSlicesToPacket(serialized.data(), serialized.size(),
+                       kMaxTracePacketSliceSize, &packets->back());
 }
 
 TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
@@ -4097,14 +4382,17 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
     *trace_stats.add_buffer_stats() = buf->stats();
   }  // for (buf in session).
 
-  if (!tracing_session->config.builtin_data_sources()
-           .disable_chunk_usage_histograms()) {
-    // Emit chunk usage stats broken down by sequence ID (i.e. by trace-writer).
-    // Writer stats are updated by each TraceBuffer object at ReadBuffers time,
-    // and there can be >1 buffer per session. A trace writer never writes to
-    // more than one buffer (it's technically allowed but doesn't happen in the
-    // current impl of the tracing SDK).
-
+  // Emit chunk usage stats broken down by sequence ID (i.e. by trace-writer).
+  // Writer stats are updated by each TraceBuffer object at ReadBuffers time,
+  // and there can be >1 buffer per session. A trace writer never writes to
+  // more than one buffer (it's technically allowed but doesn't happen in the
+  // current impl of the tracing SDK).
+  //
+  // Without histograms, a session that observes tracing v2 still gets the
+  // entries: they tell v1 writers from v2 writers.
+  const bool emit_histograms = !tracing_session->config.builtin_data_sources()
+                                    .disable_chunk_usage_histograms();
+  if (emit_histograms || !tracing_session->tracing_v2_observations.empty()) {
     bool has_written_bucket_definition = false;
     uint32_t buf_idx = static_cast<uint32_t>(-1);
     for (const BufferID buf_id : tracing_session->buffers_index) {
@@ -4113,11 +4401,11 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       if (!buf)
         continue;
       for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
-        const auto& hist = it.value();
+        const auto& hist = it.value().chunk_payload;
         ProducerID p;
         WriterID w;
         GetProducerAndWriterID(it.key(), &p, &w);
-        if (!has_written_bucket_definition) {
+        if (emit_histograms && !has_written_bucket_definition) {
           // Serialize one-off the histogram bucket definition, which is the
           // same for all entries in the map.
           has_written_bucket_definition = true;
@@ -4129,16 +4417,471 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
         auto* wri_stats = trace_stats.add_writer_stats();
         wri_stats->set_sequence_id(
             tracing_session->GetPacketSequenceID(kDefaultMachineID, p, w));
+        wri_stats->set_producer_id(p);
+        wri_stats->set_writer_id(w);
         wri_stats->set_buffer(buf_idx);
+        wri_stats->set_protocol_abi_versions(it.value().protocol_abi_versions);
+        if (!emit_histograms)
+          continue;
         for (size_t i = 0; i < hist.num_buckets(); ++i) {
           wri_stats->add_chunk_payload_histogram_counts(hist.GetBucketCount(i));
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
         }
       }  // for each sequence (writer).
     }  // for each buffer.
-  }  // if (!disable_chunk_usage_histograms)
+  }
+
+  if (!tracing_session->tracing_v2_observations.empty() ||
+      tracing_session->tracing_v2_producers_evicted ||
+      tracing_session->tracing_v2_dumps_evicted ||
+      tracing_session->tracing_v2_dumps_omitted ||
+      tracing_session->tracing_v2_dumps_over_file_size) {
+    TraceStats::TracingV2* tracing_v2 = trace_stats.mutable_tracing_v2();
+    for (const TracingV2Observation& observation :
+         tracing_session->tracing_v2_observations) {
+      if (observation.final_entry) {
+        *tracing_v2->add_producers() = *observation.final_entry;
+        continue;
+      }
+      // A live observation always has its producer. See TracingV2Observation.
+      const ProducerEndpointImpl* producer =
+          GetProducer(observation.producer_id);
+      PERFETTO_DCHECK(producer);
+      if (producer) {
+        *tracing_v2->add_producers() = MakeTracingV2ProducerEntry(
+            *producer, observation,
+            TraceStats::TracingV2::Producer::OBSERVATION_END_NONE);
+      }
+    }
+    if (tracing_session->tracing_v2_producers_evicted) {
+      tracing_v2->set_producers_evicted(
+          tracing_session->tracing_v2_producers_evicted);
+    }
+    if (tracing_session->tracing_v2_dumps_evicted) {
+      tracing_v2->set_ring_buffer_dumps_evicted(
+          tracing_session->tracing_v2_dumps_evicted);
+    }
+    if (tracing_session->tracing_v2_dumps_omitted) {
+      tracing_v2->set_ring_buffer_dumps_omitted(
+          tracing_session->tracing_v2_dumps_omitted);
+    }
+    if (tracing_session->tracing_v2_dumps_over_file_size) {
+      tracing_v2->set_ring_buffer_dumps_over_file_size(
+          tracing_session->tracing_v2_dumps_over_file_size);
+    }
+  }
 
   return trace_stats;
+}
+
+void TracingServiceImpl::ObserveTracingV2Producer(
+    TracingSession* session,
+    const ProducerEndpointImpl& producer,
+    bool eligible) {
+  TracingV2Observation* observation =
+      FindLiveTracingV2Observation(session, producer.id_);
+  if (!observation) {
+    // No cap here: one live observation for each connected producer.
+    observation = &session->tracing_v2_observations.emplace_back();
+    observation->producer_id = producer.id_;
+    observation->start_ns = clock_->GetBootTimeNs().count();
+    std::optional<tracing_v2::SharedRingBuffer::HeaderSnapshot> header;
+    if (producer.v2_ring_buffer_drainer_)
+      header = producer.v2_ring_buffer_drainer_->LoadHeader();
+    observation->counters_at_start =
+        MakeTracingV2Counters(producer, header ? &*header : nullptr);
+  }
+  ++observation->instances_requesting_v2;
+  if (eligible)
+    ++observation->instances_eligible_for_v2;
+}
+
+// static
+TracingServiceImpl::TracingV2Observation*
+TracingServiceImpl::FindLiveTracingV2Observation(TracingSession* session,
+                                                 ProducerID producer_id) {
+  for (TracingV2Observation& observation : session->tracing_v2_observations) {
+    if (observation.producer_id == producer_id && !observation.final_entry)
+      return &observation;
+  }
+  return nullptr;
+}
+
+void TracingServiceImpl::EndTracingV2Observation(
+    TracingSession* session,
+    TracingV2Observation* observation,
+    const ProducerEndpointImpl& producer,
+    ObservationEnd end) {
+  using Entry = TraceStats::TracingV2::Producer;
+  PERFETTO_DCHECK(!observation->final_entry);
+  observation->final_entry =
+      MakeTracingV2ProducerEntry(producer, *observation, end);
+  // The next read emits stats with the final values.
+  session->should_emit_stats = true;
+  if (end != Entry::OBSERVATION_END_PRODUCER_DISCONNECTED)
+    return;
+
+  // Keep the newest observations that a disconnect ended: evict the one that
+  // ended first.
+  auto& observations = session->tracing_v2_observations;
+  size_t num_disconnected = 0;
+  auto oldest = observations.end();
+  for (auto it = observations.begin(); it != observations.end(); ++it) {
+    if (!it->final_entry || it->final_entry->observation_end() !=
+                                Entry::OBSERVATION_END_PRODUCER_DISCONNECTED) {
+      continue;
+    }
+    ++num_disconnected;
+    if (oldest == observations.end() ||
+        it->final_entry->observation_end_ns() <
+            oldest->final_entry->observation_end_ns()) {
+      oldest = it;
+    }
+  }
+  if (num_disconnected > kMaxDisconnectedTracingV2Observations) {
+    observations.erase(oldest);
+    ++session->tracing_v2_producers_evicted;
+  }
+}
+
+TraceStats::TracingV2::Producer TracingServiceImpl::MakeTracingV2ProducerEntry(
+    const ProducerEndpointImpl& producer,
+    const TracingV2Observation& observation,
+    ObservationEnd end) {
+  using Entry = TraceStats::TracingV2::Producer;
+  using Rejection = TraceStats::TracingV2::ChunkRejection;
+  using ConsumeResult = tracing_v2::SharedRingBufferReader::ConsumeResult;
+
+  Entry entry;
+  entry.set_producer_id(producer.id_);
+  entry.set_pid(static_cast<int32_t>(producer.pid()));
+  entry.set_uid(static_cast<int32_t>(producer.uid()));
+  entry.set_producer_name(producer.name_.substr(0, kMaxTracingV2LabelBytes));
+  if (!producer.sdk_version_.empty()) {
+    entry.set_sdk_version(
+        producer.sdk_version_.substr(0, kMaxTracingV2LabelBytes));
+  }
+  entry.set_protocol_abi_versions(producer.protocol_abi_versions_);
+
+  // The observation.
+  entry.set_observation_start_ns(static_cast<uint64_t>(observation.start_ns));
+  entry.set_observation_end_ns(
+      static_cast<uint64_t>(clock_->GetBootTimeNs().count()));
+  entry.set_observation_end(end);
+  entry.set_instances_requesting_v2(observation.instances_requesting_v2);
+  entry.set_instances_eligible_for_v2(observation.instances_eligible_for_v2);
+  if (observation.rejected_chunk_dumps_suppressed) {
+    entry.set_rejected_chunk_dumps_suppressed(
+        observation.rejected_chunk_dumps_suppressed);
+  }
+  *entry.mutable_counters_at_start() = observation.counters_at_start;
+
+  if (!producer.v2_attach_rejection_.empty())
+    entry.set_attach_rejection(producer.v2_attach_rejection_);
+
+  const tracing_v2::ServiceRingBufferDrainer* drainer =
+      producer.v2_ring_buffer_drainer_.get();
+  if (!drainer) {
+    entry.set_ring_state(producer.v2_attach_rejection_.empty()
+                             ? Entry::RING_STATE_NONE
+                             : Entry::RING_STATE_REJECTED);
+    *entry.mutable_counters() = MakeTracingV2Counters(producer, nullptr);
+    return entry;
+  }
+
+  entry.set_chunk_size_bytes(drainer->chunk_size());
+  entry.set_num_chunks(drainer->num_chunks());
+  if (const auto& error = drainer->protocol_error()) {
+    entry.set_ring_state(Entry::RING_STATE_PROTOCOL_ERROR);
+    entry.set_protocol_error(error->reason);
+    entry.set_protocol_error_state_word(error->state_word);
+    entry.set_protocol_error_read_pos(error->read_pos);
+    entry.set_protocol_error_write_pos(error->write_pos);
+    entry.set_protocol_error_timestamp_ns(
+        static_cast<uint64_t>(drainer->protocol_error_time_ns()));
+  } else {
+    entry.set_ring_state(Entry::RING_STATE_ATTACHED);
+  }
+
+  for (const auto& record : drainer->first_rejections()) {
+    if (!record)
+      continue;
+    const auto& rejection = record->rejection;
+    Rejection* out = entry.add_chunk_rejections();
+    out->set_reason(
+        static_cast<Rejection::Reason>(ToProtoReason(rejection.reason)));
+    out->set_timestamp_ns(static_cast<uint64_t>(record->time_ns));
+    out->set_chunk_pos(rejection.chunk_pos);
+    out->set_state_word(rejection.state_word);
+    out->set_fragment_index(rejection.fragment_index);
+    out->set_payload_bytes(rejection.payload_bytes);
+    out->set_directory_bytes(rejection.directory_bytes);
+  }
+
+  // The last drain pass.
+  const auto& last_drain = drainer->last_drain();
+  if (last_drain.time_ns) {
+    entry.set_last_drain_ns(static_cast<uint64_t>(last_drain.time_ns));
+    entry.set_last_drain_positions_consumed(last_drain.positions_consumed);
+    switch (last_drain.result) {
+      case ConsumeResult::kNoData:
+        entry.set_last_drain_result(Entry::DRAIN_RESULT_CAUGHT_UP);
+        break;
+      case ConsumeResult::kChunkRead:
+      case ConsumeResult::kPositionSkipped:
+        // The pass consumed its last position at the position limit.
+        entry.set_last_drain_result(Entry::DRAIN_RESULT_POSITION_LIMIT);
+        break;
+      case ConsumeResult::kRetryImmediately:
+        entry.set_last_drain_result(Entry::DRAIN_RESULT_RETRY_LIMIT);
+        break;
+      case ConsumeResult::kProtocolError:
+        entry.set_last_drain_result(Entry::DRAIN_RESULT_PROTOCOL_ERROR);
+        break;
+    }
+  }
+  if (last_drain.progress_time_ns) {
+    entry.set_last_progress_ns(
+        static_cast<uint64_t>(last_drain.progress_time_ns));
+  }
+
+  // One load of the header for the positions, the producer-written fields and
+  // the counters.
+  const tracing_v2::SharedRingBuffer::HeaderSnapshot header =
+      drainer->LoadHeader();
+  entry.set_reader_read_pos(drainer->reader_read_pos());
+  entry.set_read_pos(header.read_pos);
+  entry.set_write_pos(header.write_pos);
+  entry.set_num_writers_waiting(header.num_writers_waiting);
+  entry.set_diagnostics_version(header.diagnostics_version);
+  if (header.diagnostics_version >= 1) {
+    entry.set_drain_threshold(header.drain_threshold);
+    entry.set_writer_max_stall_ms(header.max_stall_ms);
+    const tracing_v2::WriterFailure failure =
+        tracing_v2::DecodeWriterFailure(header.first_writer_failure);
+    if (failure.reason != tracing_v2::WriterFailureReason::kNone) {
+      // An unknown value from a newer producer passes through.
+      entry.set_writer_failure(
+          static_cast<Entry::WriterFailure>(failure.reason));
+      entry.set_writer_failure_writer_id(failure.writer_id);
+      entry.set_writer_failure_value(failure.value);
+    }
+  }
+  *entry.mutable_counters() = MakeTracingV2Counters(producer, &header);
+  return entry;
+}
+
+// static
+TraceStats::TracingV2::Counters TracingServiceImpl::MakeTracingV2Counters(
+    const ProducerEndpointImpl& producer,
+    const tracing_v2::SharedRingBuffer::HeaderSnapshot* header) {
+  TraceStats::TracingV2::Counters counters;
+  counters.set_drain_requests(producer.v2_drain_requests_);
+
+  const tracing_v2::ServiceRingBufferDrainer* drainer =
+      producer.v2_ring_buffer_drainer_.get();
+  const tracing_v2::ServiceRingBufferDrainer::Stats drainer_stats =
+      drainer ? drainer->stats()
+              : tracing_v2::ServiceRingBufferDrainer::Stats();
+  const tracing_v2::SharedRingBufferReader::Stats reader_stats =
+      drainer ? drainer->reader_stats()
+              : tracing_v2::SharedRingBufferReader::Stats();
+  counters.set_drain_passes(drainer_stats.drain_passes);
+  counters.set_drain_passes_without_progress(
+      drainer_stats.drain_passes_without_progress);
+  counters.set_drain_cpu_time_ns(drainer_stats.drain_cpu_time_ns);
+  counters.set_reader_chunks_delivered(reader_stats.chunks_read);
+  counters.set_chunks_admitted(drainer_stats.chunks_admitted);
+  counters.set_admitted_payload_bytes(drainer_stats.admitted_payload_bytes);
+  counters.set_invalid_writer_chunks(drainer_stats.invalid_writer_chunks);
+  counters.set_invalid_destination_chunks(
+      drainer_stats.invalid_destination_chunks);
+  counters.set_trace_buffer_rejected_buffer_full(
+      drainer_stats.trace_buffer_rejected_buffer_full);
+  counters.set_trace_buffer_rejected_format_conflict(
+      drainer_stats.trace_buffer_rejected_format_conflict);
+  counters.set_trace_buffer_rejected_protovm(
+      drainer_stats.trace_buffer_rejected_protovm);
+  counters.set_trace_buffer_rejected_invalid(
+      drainer_stats.trace_buffer_rejected_invalid);
+  counters.set_chunks_with_producer_loss(reader_stats.data_loss_chunks);
+  counters.set_malformed_chunks(reader_stats.malformed_chunks);
+  counters.set_unsupported_format_chunks(
+      reader_stats.unsupported_format_chunks);
+  counters.set_rewrite_requests(reader_stats.rewrite_requests);
+  counters.set_holes(reader_stats.holes);
+
+  // Without a ring buffer, the producer-written totals are zero: a ring
+  // buffer that attaches later starts from zero. A producer that writes no
+  // diagnostics has none, so they stay absent.
+  if (!header || header->diagnostics_version >= 1) {
+    counters.set_writer_dropped_packets(header ? header->dropped_packets : 0);
+    counters.set_writer_stalls(header ? header->stalls : 0);
+    counters.set_writer_stall_time_ms(header ? header->stall_time_ms : 0);
+    counters.set_writer_creation_failures(
+        header ? header->writer_creation_failures : 0);
+  }
+  return counters;
+}
+
+void TracingServiceImpl::DumpV2RingBuffer(
+    TracingSession* session,
+    const ProducerEndpointImpl& producer,
+    V2RingBufferDumpReason reason,
+    const tracing_v2::SharedRingBufferReader::ChunkRejection* rejection) {
+  using Dump = protos::pbzero::TracingV2RingBufferDump;
+  const tracing_v2::ServiceRingBufferDrainer* drainer =
+      producer.v2_ring_buffer_drainer_.get();
+  if (!drainer)
+    return;
+
+  const bool include_chunk_bytes =
+      session->config.builtin_data_sources()
+          .experimental_dump_tracing_v2_chunk_bytes();
+  std::optional<uint32_t> only_chunk_pos;
+  if (rejection)
+    only_chunk_pos = rejection->chunk_pos;
+  const bool is_error = reason == V2RingBufferDumpReason::kProtocolError ||
+                        reason == V2RingBufferDumpReason::kRejectedChunk;
+
+  // Check the size bounds before any copy. Make room for the complete dump if
+  // possible. Then the dump must hold at least its state words.
+  const size_t complete_size =
+      std::min(drainer->DumpSizeBound(include_chunk_bytes, only_chunk_pos),
+               kMaxPendingTracingV2DumpBytes);
+  if (MakeRoomForTracingV2Dump(session, complete_size, is_error))
+    UpdateMemoryGuardrail();
+  const size_t room =
+      kMaxPendingTracingV2DumpBytes - session->pending_tracing_v2_dump_bytes;
+  if (room <
+      drainer->DumpSizeBound(/*include_chunk_bytes=*/false, only_chunk_pos)) {
+    ++session->tracing_v2_dumps_omitted;
+    return;
+  }
+
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  SetServiceTracePacketHeader(packet.get());
+  Dump* dump = packet->set_tracing_v2_ring_buffer_dump();
+  switch (reason) {
+    case V2RingBufferDumpReason::kProtocolError:
+      dump->set_reason(Dump::REASON_PROTOCOL_ERROR);
+      break;
+    case V2RingBufferDumpReason::kStop:
+      dump->set_reason(Dump::REASON_STOP);
+      break;
+    case V2RingBufferDumpReason::kProducerDisconnect:
+      dump->set_reason(Dump::REASON_PRODUCER_DISCONNECT);
+      break;
+    case V2RingBufferDumpReason::kClone:
+      dump->set_reason(Dump::REASON_CLONE);
+      break;
+    case V2RingBufferDumpReason::kRejectedChunk:
+      dump->set_reason(Dump::REASON_REJECTED_CHUNK);
+      break;
+  }
+  dump->set_timestamp_ns(
+      static_cast<uint64_t>(clock_->GetBootTimeNs().count()));
+  dump->set_producer_id(producer.id_);
+  if (rejection) {
+    ProtoChunkRejection* out = dump->set_rejection();
+    out->set_reason(ToProtoReason(rejection->reason));
+    out->set_chunk_pos(rejection->chunk_pos);
+    out->set_state_word(rejection->state_word);
+    out->set_fragment_index(rejection->fragment_index);
+    out->set_payload_bytes(rejection->payload_bytes);
+    out->set_directory_bytes(rejection->directory_bytes);
+  }
+  // |room| covers the state words, as checked above.
+  if (!drainer->WriteDump(dump, include_chunk_bytes, only_chunk_pos, room)) {
+    PERFETTO_DFATAL("The dump does not fit its checked size");
+    ++session->tracing_v2_dumps_omitted;
+    return;
+  }
+
+  std::string serialized = packet.SerializeAsString();
+  PERFETTO_DCHECK(serialized.size() <= room);
+  session->pending_tracing_v2_dump_bytes += serialized.size();
+  session->pending_tracing_v2_dumps.push_back(
+      {std::move(serialized), is_error});
+  UpdateMemoryGuardrail();
+}
+
+bool TracingServiceImpl::MakeRoomForTracingV2Dump(TracingSession* session,
+                                                  size_t bytes,
+                                                  bool is_error) {
+  auto& dumps = session->pending_tracing_v2_dumps;
+  bool evicted = false;
+  while (kMaxPendingTracingV2DumpBytes -
+             session->pending_tracing_v2_dump_bytes <
+         bytes) {
+    // The oldest non-error dump. An error dump then takes the oldest error
+    // dump.
+    auto it = std::find_if(dumps.begin(), dumps.end(),
+                           [](const TracingSession::PendingTracingV2Dump& d) {
+                             return !d.is_error;
+                           });
+    if (it == dumps.end() && is_error && !dumps.empty())
+      it = dumps.begin();
+    if (it == dumps.end())
+      break;
+    session->pending_tracing_v2_dump_bytes -= it->packet.size();
+    dumps.erase(it);
+    ++session->tracing_v2_dumps_evicted;
+    evicted = true;
+  }
+  return evicted;
+}
+
+bool TracingServiceImpl::EmitTracingV2RingBufferDumps(
+    TracingSession* session,
+    size_t threshold,
+    size_t* packets_bytes,
+    std::vector<TracePacket>* dump_packets) {
+  auto& dumps = session->pending_tracing_v2_dumps;
+  size_t num_emitted = 0;
+  // A dump can be larger than |threshold|. Then it is the only one of the
+  // read, so a read emits at most one dump beyond its budget.
+  while (num_emitted < dumps.size() && *packets_bytes < threshold) {
+    const std::string& dump = dumps[num_emitted].packet;
+    // ConsumerIPCService sends each slice whole in one IPC message, and a
+    // dump can be larger than that. The slices are parts of one packet.
+    dump_packets->emplace_back();
+    AppendSlicesToPacket(reinterpret_cast<const uint8_t*>(dump.data()),
+                         dump.size(), kMaxTracePacketSliceSize,
+                         &dump_packets->back());
+    *packets_bytes += dump.size();
+    session->pending_tracing_v2_dump_bytes -= dump.size();
+    ++num_emitted;
+  }
+  if (num_emitted) {
+    dumps.erase(dumps.begin(),
+                dumps.begin() + static_cast<ptrdiff_t>(num_emitted));
+    UpdateMemoryGuardrail();
+  }
+  return !dumps.empty();
+}
+
+void TracingServiceImpl::DropTracingV2DumpsOverFileSize(
+    TracingSession* session,
+    const std::vector<TracePacket>& packets,
+    std::vector<TracePacket>* dump_packets) {
+  // WriteIntoFile() stops at the first packet that brings the file to
+  // max_file_size_bytes. Count the largest preamble for each packet. The
+  // sizes are before compression, which can add a few bytes of framing.
+  uint64_t file_size = session->bytes_written_into_file;
+  for (const TracePacket& packet : packets)
+    file_size += TracePacket::kMaxPreambleBytes + packet.size();
+  std::vector<TracePacket> kept;
+  for (TracePacket& dump : *dump_packets) {
+    const uint64_t dump_size = TracePacket::kMaxPreambleBytes + dump.size();
+    if (file_size + dump_size >= session->max_file_size_bytes) {
+      ++session->tracing_v2_dumps_over_file_size;
+      continue;
+    }
+    file_size += dump_size;
+    kept.push_back(std::move(dump));
+  }
+  *dump_packets = std::move(kept);
 }
 
 void TracingServiceImpl::EmitUuid(TracingSession* tracing_session,
@@ -5023,6 +5766,41 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->flushes_requested = src->flushes_requested;
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
+  // The clone gets the tracing v2 observations of this moment, with their
+  // baselines. Live ones end now, so the clone's stats never change. The
+  // source keeps observing.
+  // The clone also gets the dumps that the source has not emitted yet, and a
+  // dump of each live ring buffer if the config asks for it. Both stay within
+  // the budget of one session.
+  const bool dump_at_clone = src->config.builtin_data_sources()
+                                 .experimental_dump_tracing_v2_ring_buffers();
+  cloned_session->pending_tracing_v2_dumps = src->pending_tracing_v2_dumps;
+  cloned_session->pending_tracing_v2_dump_bytes =
+      src->pending_tracing_v2_dump_bytes;
+  cloned_session->tracing_v2_dumps_evicted = src->tracing_v2_dumps_evicted;
+  cloned_session->tracing_v2_dumps_omitted = src->tracing_v2_dumps_omitted;
+  cloned_session->tracing_v2_dumps_over_file_size =
+      src->tracing_v2_dumps_over_file_size;
+  cloned_session->tracing_v2_producers_evicted =
+      src->tracing_v2_producers_evicted;
+  for (const TracingV2Observation& observation : src->tracing_v2_observations) {
+    TracingV2Observation& copy =
+        cloned_session->tracing_v2_observations.emplace_back(observation);
+    if (copy.final_entry)
+      continue;
+    const ProducerEndpointImpl* producer = GetProducer(observation.producer_id);
+    PERFETTO_DCHECK(producer);
+    if (!producer)
+      continue;
+    if (dump_at_clone) {
+      DumpV2RingBuffer(cloned_session, *producer,
+                       V2RingBufferDumpReason::kClone);
+    }
+    copy.final_entry = MakeTracingV2ProducerEntry(
+        *producer, observation,
+        TraceStats::TracingV2::Producer::OBSERVATION_END_CLONED);
+  }
+  UpdateMemoryGuardrail();
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(

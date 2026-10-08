@@ -20,6 +20,7 @@
 
 #include <string.h>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -35,6 +36,8 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -47,6 +50,21 @@
 // the callbacks.
 
 namespace perfetto {
+
+namespace {
+
+// The AllocateV2RingBufferFn of |v2_ring_buffer_arbiter_|: a sealed memfd,
+// which the service maps on its side.
+std::shared_ptr<SharedMemory> AllocateIpcV2RingBuffer(size_t size) {
+#if PERFETTO_TRACING_V2_IPC()
+  return PosixSharedMemory::CreateV2RingBuffer(size);
+#else
+  base::ignore_result(size);
+  return nullptr;
+#endif
+}
+
+}  // namespace
 
 // static. (Declared in include/tracing/ipc/producer_ipc_client.h).
 std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
@@ -177,19 +195,22 @@ void ProducerIPCClientImpl::OnConnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   connected_ = true;
 
-  // The IPC layer guarantees that any outstanding callback will be dropped on
-  // the floor if producer_port_ is destroyed between the request and the reply.
-  // Binding |this| is hence safe.
+  uint32_t offered_versions = kProtocolAbiV1;
+  offered_versions |= tracing_v2::IpcSupportsTracingV2() ? kProtocolAbiV2 : 0u;
+  protos::gen::InitializeConnectionRequest req;
+  req.set_supported_protocol_abi_versions(offered_versions);
+
+  // When this client is destroyed, the port calls pending callbacks with a
+  // failure result. By then, members used by OnConnectionInitialized() have
+  // already been destroyed. Use a weak pointer to skip the handler in that
+  // case.
   ipc::Deferred<protos::gen::InitializeConnectionResponse> on_init;
   on_init.Bind(
-      [this](ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
-        OnConnectionInitialized(
-            resp.success(),
-            resp.success() ? resp->using_shmem_provided_by_producer() : false,
-            resp.success() ? resp->direct_smb_patching_supported() : false,
-            resp.success() ? resp->use_shmem_emulation() : false);
+      [weak_this = weak_factory_.GetWeakPtr(), offered_versions](
+          ipc::AsyncResult<protos::gen::InitializeConnectionResponse> resp) {
+        if (weak_this)
+          weak_this->OnConnectionInitialized(offered_versions, std::move(resp));
       });
-  protos::gen::InitializeConnectionRequest req;
   req.set_producer_name(name_);
   req.set_shared_memory_size_hint_bytes(
       static_cast<uint32_t>(shared_memory_size_hint_bytes_));
@@ -246,6 +267,9 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
   data_sources_setup_.clear();
+  // Keep the connection state set. See |protocol_abi_versions_| in the header.
+  if (v2_ring_buffer_arbiter_)
+    v2_ring_buffer_arbiter_->Disconnect();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
 
@@ -270,22 +294,51 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
 }
 
 void ProducerIPCClientImpl::OnConnectionInitialized(
-    bool connection_succeeded,
-    bool using_shmem_provided_by_producer,
-    bool direct_smb_patching_supported,
-    bool use_shmem_emulation) {
+    uint32_t offered_versions,
+    ipc::AsyncResult<protos::gen::InitializeConnectionResponse> response) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // If connection_succeeded == false, the OnDisconnect() call will follow next
-  // and there we'll notify the |producer_|. TODO: add a test for this.
-  if (!connection_succeeded)
+  // The IPC proxy accesses this callback after it returns, so keep the port
+  // alive until the next task.
+  auto reject_connection = [this] {
+    task_runner_->PostTask([weak_this = weak_factory_.GetWeakPtr()] {
+      if (weak_this && weak_this->connected_)
+        weak_this->Disconnect();
+    });
+  };
+
+  if (!response.success()) {
+    reject_connection();
     return;
-  is_shmem_provided_by_producer_ = using_shmem_provided_by_producer;
-  direct_smb_patching_supported_ = direct_smb_patching_supported;
+  }
+
+  // An old service sends no versions. This means v1 only.
+  uint32_t versions = response->protocol_abi_versions();
+  if (!versions)
+    versions = kProtocolAbiV1;
+
+  // The service returns only versions that the producer offered. Log both
+  // masks if it does not.
+  if (versions & ~offered_versions) {
+    PERFETTO_ELOG("Unexpected protocol versions (advertised: %x, service: %x)",
+                  offered_versions, versions);
+    reject_connection();
+    return;
+  }
+  protocol_abi_versions_ = versions;
+  // Writer threads read |v2_ring_buffer_arbiter_| without a lock, so create
+  // it here, before any data source exists, and never reset it.
+  if (HasNegotiatedV2Abi()) {
+    v2_ring_buffer_arbiter_ =
+        std::make_unique<tracing_v2::ProducerRingBufferArbiter>(
+            task_runner_, this, &AllocateIpcV2RingBuffer);
+  }
+  is_shmem_provided_by_producer_ = response->using_shmem_provided_by_producer();
+  direct_smb_patching_supported_ = response->direct_smb_patching_supported();
   // The tracing service may reject using shared memory and tell the client to
   // commit data over the socket. This can happen when the client connects to
   // the service via a relay service:
   // client <-Unix socket-> relay service <- vsock -> tracing service.
-  use_shmem_emulation_ = use_shmem_emulation;
+  use_shmem_emulation_ = response->use_shmem_emulation();
   producer_->OnConnect();
 
   // Bail out if the service failed to adopt our producer-allocated SMB.
@@ -307,6 +360,12 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const auto& req = cmd.setup_data_source();
     const DataSourceInstanceID dsid = req.new_instance_id();
     data_sources_setup_.insert(dsid);
+    // Pick the transport before the producer can create writers.
+    if (v2_ring_buffer_arbiter_) {
+      v2_ring_buffer_arbiter_->SetupInstance(dsid, req.config(),
+                                             protocol_abi_versions_,
+                                             shared_memory_size_hint_bytes_);
+    }
     producer_->SetupDataSource(dsid, req.config());
     return;
   }
@@ -536,6 +595,49 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
   producer_port_->CommitData(req, std::move(async_response));
 }
 
+void ProducerIPCClientImpl::AttachV2RingBuffer(
+    const std::shared_ptr<SharedMemory>& memory,
+    uint32_t chunk_size_bytes,
+    std::function<void(bool)> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  // OnConnect() offers v2 only if tracing_v2::IpcSupportsTracingV2().
+  if (!connected_ || !HasNegotiatedV2Abi() || !memory) {
+    callback(false);
+    return;
+  }
+
+#if PERFETTO_TRACING_V2_IPC()
+  protos::gen::AttachV2RingBufferRequest req;
+  req.set_chunk_size_bytes(chunk_size_bytes);
+  ipc::Deferred<protos::gen::AttachV2RingBufferResponse> reply;
+  reply.Bind(
+      [callback = std::move(callback)](
+          ipc::AsyncResult<protos::gen::AttachV2RingBufferResponse> result) {
+        callback(result.success());
+      });
+  // The IPC layer sends the descriptor before this call returns. The service
+  // maps it on its side.
+  //
+  // The producer that called this method owns |memory| and keeps it mapped for
+  // its writers.
+  const int fd = static_cast<PosixSharedMemory*>(memory.get())->fd();
+  producer_port_->AttachV2RingBuffer(req, std::move(reply), fd);
+#else
+  base::ignore_result(chunk_size_bytes);
+  callback(false);
+#endif
+}
+
+void ProducerIPCClientImpl::DrainV2RingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!connected_ || !HasNegotiatedV2Abi())
+    return;
+  producer_port_->DrainV2RingBuffer(
+      protos::gen::DrainV2RingBufferRequest(),
+      ipc::Deferred<protos::gen::DrainV2RingBufferResponse>());
+}
+
 void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!connected_) {
@@ -551,6 +653,10 @@ void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
 
 void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  // A data source can stop asynchronously and create writers until it reports
+  // the stop, so the arbiter forgets the instance only now.
+  if (v2_ring_buffer_arbiter_)
+    v2_ring_buffer_arbiter_->OnInstanceStopped(id);
   if (!connected_) {
     PERFETTO_DLOG(
         "Cannot NotifyDataSourceStopped(), not connected to tracing service");
@@ -600,8 +706,28 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferExhaustedPolicy buffer_exhausted_policy) {
   // This method can be called by different threads. |shared_memory_arbiter_| is
   // thread-safe but be aware of accessing any other state in this function.
+  // |protocol_abi_versions_| does not change after setup.
+  if (!(protocol_abi_versions_ & kProtocolAbiV1)) {
+    PERFETTO_ELOG(
+        "Cannot create a v1 trace writer: v1 is not in the common protocol "
+        "mask (%x)",
+        protocol_abi_versions_);
+    return std::make_unique<NullTraceWriter>();
+  }
   return shared_memory_arbiter_->CreateTraceWriter(target_buffer,
                                                    buffer_exhausted_policy);
+}
+
+std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
+    BufferID target_buffer,
+    BufferExhaustedPolicy policy,
+    DataSourceInstanceID id) {
+  if (v2_ring_buffer_arbiter_) {
+    // The arbiter handles picking v1 or v2 for the instance.
+    return v2_ring_buffer_arbiter_->CreateTraceWriter(target_buffer, policy,
+                                                      id);
+  }
+  return CreateTraceWriter(target_buffer, policy);
 }
 
 SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {

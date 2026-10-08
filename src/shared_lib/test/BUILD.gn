@@ -52,9 +52,13 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/public",
+      "../../../protos/perfetto/common:cpp",
       "../../base",
       "protos",
     ]
+    if (enable_perfetto_ipc) {
+      deps += [ "../../../test:test_helper" ]
+    }
     sources = [ "api_integrationtest.cc" ]
   }
 }

@@ -21,6 +21,11 @@
 
 #include "perfetto/ext/base/scoped_file.h"
 
+// The build has the memfd code. HasMemfdSupport() also checks the kernel.
+#define PERFETTO_MEMFD_ENABLED()              \
+  (PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+   PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX))
+
 // Some android build bots use a sysroot that doesn't support memfd when
 // compiling for the host, so we define the flags we need ourselves.
 

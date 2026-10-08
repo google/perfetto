@@ -20,11 +20,11 @@ package perfetto.protos;
 
 // Statistics for the internals of the tracing service.
 //
-// Next id: 19.
+// Next id: 20.
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 23.
+  // Next id: 26.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -131,6 +131,8 @@ message TraceStats {
     // writer process's SMB. Note that this relies on the client's TraceWriter
     // indicating this loss to the service -- packets lost for other reasons are
     // not reflected in this stat.
+    // Tracing v2 writer loss is not counted here. See
+    // TracingV2.Counters.writer_dropped_packets and chunks_with_producer_loss.
     optional uint64 trace_writer_packet_loss = 19;
 
     // Was shadow_buffer_stats (ShadowBufferStats), a testing-only stat used
@@ -142,6 +144,17 @@ message TraceStats {
     // four-byte length field. The packet can be valid. Loss is reported on the
     // next packet of the same sequence.
     optional uint64 oversized_packets_dropped = 22;
+
+    // TraceBufferV2 only. Num. tracing v2 packets dropped at read time because
+    // their proto group encoding is malformed, so traced could not convert
+    // them to length-delimited protobuf. Also counted in abi_violations.
+    // Loss is reported on the next packet of the same sequence.
+    optional uint64 v2_packet_conversion_failures = 23;
+    // The producer and writer of the first of those packets, as in
+    // WriterStats. They identify the writer also when none of its packets
+    // reached the trace.
+    optional uint32 first_v2_conversion_failure_producer_id = 24;
+    optional uint32 first_v2_conversion_failure_writer_id = 25;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.
@@ -149,18 +162,41 @@ message TraceStats {
 
   // Per TraceWriter stat. Each {producer, trace writer} tuple is publicly
   // visible as a unique sequence ID in the trace.
+  //
+  // Without BuiltinDataSource.disable_chunk_usage_histograms, every writer
+  // whose chunks reached a buffer of the session has an entry. With it, only
+  // a session with TracingV2 producers has entries, and they have no
+  // histogram arrays.
   message WriterStats {
     // This matches the TracePacket.trusted_packet_sequence_id and is used to
     // correlate the stats with the actual packet types.
     optional uint64 sequence_id = 1;
 
+    // The producer and the writer behind sequence_id. producer_id matches
+    // TracingV2.Producer.producer_id. They map a failure record to a
+    // sequence even when none of its packets survived.
+    optional uint32 producer_id = 6;
+    optional uint32 writer_id = 7;
+
     // The buffer index (0..N, as defined in the TraceConfig).
     optional uint32 buffer = 4;
+
+    // The ProtocolAbiVersion bits of the chunks that the buffer stored for
+    // this writer: 1 for v1, 2 for v2. 3 only if a v1 and a v2 writer used
+    // the same writer ID.
+    // A writer whose chunks the buffer rejected has no bits for them. So a
+    // writer ID reused across v1 and v2 is not reliably 3. See
+    // TracingV2.Counters.trace_buffer_rejected_format_conflict.
+    optional uint32 protocol_abi_versions = 5;
 
     // These two arrays have the same cardinality and match the cardinality of
     // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).
     // `sum` contains the SUM(entries) and `counts` contains the COUNT(entries)
     // for each bucket.
+    // TraceBufferV1 adds a chunk when it reads it. TraceBufferV2 adds it when
+    // it stores it. The values follow each buffer's storage format, so they do
+    // not compare packet volume across v1 and v2. For that, see
+    // TracingV2.Counters.admitted_payload_bytes.
     repeated uint64 chunk_payload_histogram_counts = 2 [packed = true];
     repeated int64 chunk_payload_histogram_sum = 3 [packed = true];
   }
@@ -248,4 +284,348 @@ message TraceStats {
     FINAL_FLUSH_FAILED = 2;
   }
   optional FinalFlushOutcome final_flush_outcome = 15;
+
+  // Experimental. Tracing v2 diagnostics of this session.
+  //
+  // A ring buffer belongs to a producer connection, and every session on that
+  // producer shares it. Each Producer entry is one session's observation of
+  // one connection:
+  // - It starts when the session sets up its first data source instance with
+  //   experimental_tracing_v2.use_v2_probability_percent > 0 on the producer.
+  // - It ends at session stop, at producer disconnect, or at clone.
+  //   Unregistering the data source does not end it.
+  // - Until then, traced samples the connection when it reads the stats.
+  //
+  // Connection fields describe the ring buffer, whichever session caused the
+  // activity. counters_at_start and counters bound the observation window.
+  // Their difference excludes activity before the window. It still includes
+  // other sessions on the same producer during the window. Do not add the
+  // entries of concurrent sessions together.
+  message TracingV2 {
+    // Additive totals of one producer connection at one time.
+    //
+    // traced counts most of them, and only adds to them. The producer writes
+    // the writer_* fields into the ring buffer header:
+    // - They are untrusted. A producer can reset or corrupt them. If a value
+    //   in `counters` is below the one in `counters_at_start`, treat the
+    //   window delta of that field as unknown.
+    // - They are absent if the producer writes no diagnostics. Absent means
+    //   unsupported. Zero means that nothing was counted.
+    message Counters {
+      // DrainV2RingBuffer requests from the producer. One request can cover
+      // many writer requests. traced also drains on its own: at attach,
+      // flush, stop and disconnect.
+      optional uint64 drain_requests = 1;
+      // Passes of the reader over the ring buffer, for any cause: attach,
+      // producer requests, service drains and delayed retries.
+      optional uint64 drain_passes = 2;
+      // Passes that found outstanding positions but consumed none, because
+      // every attempt at the first position lost a race with a writer. A pass
+      // over an empty ring buffer does not count.
+      optional uint64 drain_passes_without_progress = 3;
+      // Thread CPU time of the reader passes. It includes the copies into
+      // trace buffers and rejected-chunk dumps. It excludes protocol-error
+      // dumps, packet readback, conversion, filtering and compression. It is
+      // not the total cost of v2 in traced, or the time that writers waited.
+      optional uint64 drain_cpu_time_ns = 4;
+
+      // Chunks with fragments that the reader delivered. Each one has exactly
+      // one outcome in the next fields, so outside a drain pass:
+      //   reader_chunks_delivered = chunks_admitted
+      //                           + invalid_writer_chunks
+      //                           + invalid_destination_chunks
+      //                           + the four trace_buffer_rejected_* fields
+      optional uint64 reader_chunks_delivered = 5;
+      // Chunks that a trace buffer stored. This does not prove that their
+      // packets reached the trace: later overwrites, conversion, validation,
+      // filtering and output limits still apply.
+      optional uint64 chunks_admitted = 6;
+      // The fragment payload bytes of the admitted chunks, without chunk or
+      // trace buffer overhead. Compare volume with this, not with chunk
+      // counts or WriterStats histograms.
+      optional uint64 admitted_payload_bytes = 7;
+      // The writer ID is 0 or above kMaxWriterID.
+      optional uint64 invalid_writer_chunks = 8;
+      // The target buffer is unknown, not a TRACE_BUFFER_V2 buffer, or not
+      // allowed for the producer.
+      optional uint64 invalid_destination_chunks = 9;
+      // The trace buffer rejected the chunk:
+      // - buffer_full: a DISCARD buffer is full.
+      // - format_conflict: the writer ID's sequence in the buffer already
+      //   holds v1 chunks. A writer ID reused across v1 and v2 causes it.
+      // - protovm: the producer has a ProtoVM on the buffer.
+      // - invalid: the chunk is larger than the buffer or one buffer chunk.
+      optional uint64 trace_buffer_rejected_buffer_full = 10;
+      optional uint64 trace_buffer_rejected_format_conflict = 11;
+      optional uint64 trace_buffer_rejected_protovm = 12;
+      optional uint64 trace_buffer_rejected_invalid = 13;
+
+      // Chunks that the reader consumed without delivery. They are not in
+      // reader_chunks_delivered.
+      // - chunks_with_producer_loss: the producer flagged a loss. The flag is
+      //   producer-supplied, and one flag can stand for any number of lost
+      //   packets. The reader drops every published fragment of the chunk,
+      //   also complete packets.
+      // - malformed_chunks and unsupported_format_chunks: see
+      //   Producer.chunk_rejections.
+      optional uint64 chunks_with_producer_loss = 14;
+      optional uint64 malformed_chunks = 15;
+      optional uint64 unsupported_format_chunks = 16;
+
+      // Chunks that the reader took while a writer still filled them. The
+      // writer then moves its unfinished packet to another chunk. A request
+      // is not a lost packet.
+      optional uint64 rewrite_requests = 17;
+      // Reserved positions that no writer filled. A writer that lost its
+      // claim retries and loses nothing. A chunk that an old writer still
+      // holds causes a hole on each later traversal. So a hole is neither a
+      // lost packet nor a unique stuck chunk.
+      optional uint64 holes = 18;
+
+      // Written by the producer. Untrusted.
+      //
+      // Packets that writers abandoned, fully or in part. Writers publish the
+      // first packet of each drop episode at once and the rest in batches of
+      // 64, or when the episode ends. So this is a lower bound: a crash can
+      // hide up to 63 packets of each writer. It does not count packets that
+      // traced lost later.
+      optional uint64 writer_dropped_packets = 19;
+      // Chunk acquisitions that waited for space and then ended, and their
+      // total time in ms. A wait that is still running, or that the process
+      // death ended, is not counted. Waits of concurrent writers add up, so
+      // the time can exceed the trace duration.
+      optional uint64 writer_stalls = 20;
+      optional uint64 writer_stall_time_ms = 21;
+      // v2 writers that the producer could not create, because no WriterID
+      // was free. They became NullTraceWriters.
+      optional uint64 writer_creation_failures = 22;
+    }
+
+    // One chunk that the reader discarded as malformed or in an unknown
+    // format. It describes the read attempt whose state transition succeeded.
+    message ChunkRejection {
+      enum Reason {
+        REASON_UNSPECIFIED = 0;
+        // The format bits name a format that traced cannot decode.
+        REASON_UNSUPPORTED_FORMAT = 1;
+        // A fragment size entry is truncated or longer than 4 bytes.
+        REASON_INVALID_SIZE_ENCODING = 2;
+        // A fragment does not fit in the payload capacity of the chunk.
+        REASON_FRAGMENT_TOO_LARGE = 3;
+        // The payload ends after the start of the size directory.
+        REASON_PAYLOAD_OVERLAPS_DIRECTORY = 4;
+      }
+      optional Reason reason = 1;
+      // BOOTTIME of the drain pass that found it.
+      optional uint64 timestamp_ns = 2;
+      // The logical position. Chunk index = chunk_pos % num_chunks.
+      optional uint32 chunk_pos = 3;
+      // The state word that the reader decoded, before its own transition
+      // replaced it. The writer ID, flags and fragment count are in it.
+      optional fixed32 state_word = 4;
+      // With the malformed reasons, the decoder's position:
+      // - fragment_index: the fragment whose size entry failed. For
+      //   REASON_PAYLOAD_OVERLAPS_DIRECTORY, the number of fragments.
+      // - payload_bytes: the decoded sizes up to and including that fragment.
+      //   REASON_INVALID_SIZE_ENCODING excludes the fragment.
+      // - directory_bytes: the size directory bytes before the failed entry.
+      //   For REASON_PAYLOAD_OVERLAPS_DIRECTORY, the whole directory.
+      // The payload capacity is chunk_size_bytes - 6.
+      optional uint32 fragment_index = 5;
+      optional uint32 payload_bytes = 6;
+      optional uint32 directory_bytes = 7;
+    }
+
+    message Producer {
+      // The connection. producer_id can be reused by a later connection. A
+      // new connection always gets a new entry.
+      optional uint32 producer_id = 1;
+      optional int32 pid = 2;
+      optional int32 uid = 3;
+      // Labels that the producer supplied, at most 128 bytes each. Untrusted.
+      optional string producer_name = 4;
+      optional string sdk_version = 5;
+
+      // The ProtocolAbiVersion mask that the producer and traced share.
+      // 1: v1 only. 2: v2 only. 3: both. A mask without v2 can come from an
+      // old SDK, a platform without memfd, emulated shared memory or traced.
+      optional uint32 protocol_abi_versions = 6;
+
+      // The observation window, in BOOTTIME. The values of this entry are
+      // from observation_end_ns.
+      enum ObservationEnd {
+        OBSERVATION_END_UNSPECIFIED = 0;
+        // The session still observes the producer. traced sampled it when
+        // it read these stats.
+        OBSERVATION_END_NONE = 1;
+        // The session stopped. Sampled after the final drain.
+        OBSERVATION_END_SESSION_STOPPED = 2;
+        // The producer disconnected. Sampled after the final drain. A
+        // disconnect is not proof of a crash.
+        OBSERVATION_END_PRODUCER_DISCONNECTED = 3;
+        // This session is a clone. Sampled when traced made the clone, after
+        // it cloned the trace buffers. So the two are not one instant: see
+        // TracingServiceEvent.buffer_cloned.
+        OBSERVATION_END_CLONED = 4;
+      }
+      optional uint64 observation_start_ns = 7;
+      optional uint64 observation_end_ns = 8;
+      optional ObservationEnd observation_end = 9;
+
+      // Data source instances that this session set up on the producer
+      // during the observation:
+      // - requesting: use_v2_probability_percent > 0.
+      // - eligible: also supports_tracing_v2, which needs v2 in
+      //   protocol_abi_versions and a TRACE_BUFFER_V2 target buffer.
+      // The producer then flips the probability coin. traced does not know
+      // the result, so ring_state ATTACHED does not prove that an instance
+      // of this session selected v2.
+      optional uint32 instances_requesting_v2 = 10;
+      optional uint32 instances_eligible_for_v2 = 11;
+
+      // The ring buffer of the connection.
+      enum RingState {
+        RING_STATE_UNSPECIFIED = 0;
+        // No ring buffer is attached, and traced rejected none. This shows
+        // only that no attach was seen. It does not prove that ring buffer
+        // creation failed: check the probability, protocol_abi_versions and
+        // instances_eligible_for_v2 first.
+        RING_STATE_NONE = 1;
+        // traced reads a ring buffer of the connection. Any session can have
+        // caused the attach.
+        RING_STATE_ATTACHED = 2;
+        // Attached, but traced stopped reading it after a protocol error.
+        // The data that the producer wrote later is lost. See protocol_error.
+        RING_STATE_PROTOCOL_ERROR = 3;
+        // traced rejected the ring buffer and has none attached. See
+        // attach_rejection.
+        RING_STATE_REJECTED = 4;
+      }
+      optional RingState ring_state = 12;
+      // Why traced rejected the first rejected attach, also if a ring buffer
+      // is attached now.
+      optional string attach_rejection = 13;
+      // The layout that traced validated at attach.
+      optional uint32 chunk_size_bytes = 14;
+      optional uint32 num_chunks = 15;
+
+      // Set with RING_STATE_PROTOCOL_ERROR: why traced stopped reading, the
+      // state word that it found, the positions, and the BOOTTIME of the
+      // drain pass. A later ring buffer dump is a different observation: the
+      // producer can keep writing after the reader stops.
+      optional string protocol_error = 16;
+      optional fixed32 protocol_error_state_word = 17;
+      optional uint32 protocol_error_read_pos = 18;
+      optional uint32 protocol_error_write_pos = 19;
+      optional uint64 protocol_error_timestamp_ns = 20;
+
+      // The first rejected chunk of each reason, for the connection. A
+      // record older than observation_start_ns predates this session.
+      repeated ChunkRejection chunk_rejections = 21;
+      // Rejected chunks that this session did not dump, because it already
+      // dumped 8 for this observation. Only counted with
+      // experimental_dump_tracing_v2_chunk_bytes.
+      optional uint32 rejected_chunk_dumps_suppressed = 22;
+
+      // The last drain pass before observation_end_ns.
+      enum DrainResult {
+        DRAIN_RESULT_UNSPECIFIED = 0;
+        // The reader reached the write_pos that it loaded.
+        DRAIN_RESULT_CAUGHT_UP = 1;
+        // The pass consumed num_chunks positions, its limit. traced
+        // scheduled another pass.
+        DRAIN_RESULT_POSITION_LIMIT = 2;
+        // Every attempt at one position lost a race with a writer. traced
+        // scheduled another pass.
+        DRAIN_RESULT_RETRY_LIMIT = 3;
+        // The reader stopped. See protocol_error.
+        DRAIN_RESULT_PROTOCOL_ERROR = 4;
+      }
+      // BOOTTIME of the last pass, and of the last pass that consumed a
+      // position.
+      optional uint64 last_drain_ns = 23;
+      optional uint64 last_progress_ns = 24;
+      optional DrainResult last_drain_result = 25;
+      optional uint32 last_drain_positions_consumed = 26;
+
+      // Positions at observation_end_ns:
+      // - reader_read_pos: traced's own position. Trusted.
+      // - read_pos and write_pos: from the header. Untrusted.
+      // Equal positions do not prove that every chunk is free. A writer can
+      // still hold a RewriteRequested chunk of an earlier traversal. A ring
+      // buffer dump shows the state of each chunk.
+      optional uint32 reader_read_pos = 27;
+      optional uint32 read_pos = 28;
+      optional uint32 write_pos = 29;
+      // Writers in a futex wait for space. A hint: it does not count writers
+      // in a fallback sleep, or between two waits.
+      optional uint32 num_writers_waiting = 30;
+
+      // Written by the producer into the ring buffer header. Untrusted.
+      //
+      // The header diagnostics version. 0: the producer writes none, so the
+      // other producer-written fields are absent. 1: all of them exist.
+      optional uint32 diagnostics_version = 31;
+      // The outstanding positions at which a writer asks for a drain. The
+      // first v2 instance of the connection sets it, so it can differ from
+      // the drain_occupancy_percent of this session's config.
+      optional uint32 drain_threshold = 32;
+      // The longest completed stall of the connection, in ms. A lifetime
+      // maximum, not a value for the window.
+      optional uint64 writer_max_stall_ms = 33;
+
+      // The first writer failure of the connection. The writer aborted just
+      // after it recorded it. Absent if no writer recorded one, or if the
+      // producer writes no diagnostics.
+      enum WriterFailure {
+        WRITER_FAILURE_UNSPECIFIED = 0;
+        // A publication found a word other than its own RewriteRequested.
+        // writer_failure_value is that word.
+        WRITER_FAILURE_PUBLICATION_LOST = 1;
+        // RewriteRequested -> RewriteAcknowledged failed.
+        // writer_failure_value is the word that the CAS found.
+        WRITER_FAILURE_ACKNOWLEDGEMENT_FAILED = 2;
+        // Under BufferExhaustedPolicy kStall, one chunk acquisition waited
+        // 30 s. writer_failure_value is the read_pos that it waited on.
+        WRITER_FAILURE_STALL_TIMEOUT = 3;
+      }
+      // A newer producer can report a value that this enum does not list.
+      optional WriterFailure writer_failure = 34;
+      optional uint32 writer_failure_writer_id = 35;
+      optional fixed32 writer_failure_value = 36;
+
+      // The connection totals at the start and at the end of the
+      // observation. If no ring buffer was attached at the start, the ring
+      // buffer fields of counters_at_start are 0. Then producer activity
+      // between creation and attach counts in the window.
+      optional Counters counters_at_start = 37;
+      optional Counters counters = 38;
+    }
+    repeated Producer producers = 1;
+
+    // Entries of disconnected producers that traced removed, oldest first,
+    // to keep at most 256 of them. Entries of producers that were connected
+    // at stop or clone are never removed.
+    optional uint32 producers_evicted = 2;
+
+    // Ring buffer dumps are TracingV2RingBufferDump packets. Each session
+    // holds at most 4 MiB of them until a read emits them.
+    //
+    // Pending dumps that traced removed to make room for a newer dump.
+    // - An error dump, for a protocol error or a rejected chunk, removes the
+    //   oldest stop, disconnect and clone dumps first, then the oldest error
+    //   dumps.
+    // - Another dump removes only the oldest stop, disconnect and clone
+    //   dumps.
+    optional uint32 ring_buffer_dumps_evicted = 3;
+    // Dumps that traced did not take, because the pending dumps left no
+    // room even for their state words.
+    optional uint32 ring_buffer_dumps_omitted = 4;
+    // Dumps that a read did not write, because they did not fit the
+    // remaining max_file_size_bytes. Ordinary trace data and stats then
+    // still get written.
+    optional uint32 ring_buffer_dumps_over_file_size = 5;
+    // None of these count dumps that a trace filter removed.
+  }
+  optional TracingV2 tracing_v2 = 19;
 }

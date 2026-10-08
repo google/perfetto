@@ -191,6 +191,30 @@ TEST(SharedRingBufferABITest, ReplaceReadPos) {
             PackRwPositions(7u, 0u));
 }
 
+// Layout
+// ------
+
+TEST(SharedRingBufferABITest, SizeForBudgetRoundsDownToValidLayout) {
+  constexpr size_t kHeader = sizeof(RingBufferHeader);
+  // Room for 5 chunks gives 4, the largest power of two.
+  EXPECT_EQ(RingBufferSizeForBudget(5 * 256, 256), kHeader + 4 * 256);
+  // The header comes on top, so a power-of-two budget is used in full.
+  EXPECT_EQ(RingBufferSizeForBudget(128 * 1024, 256), kHeader + 128 * 1024);
+  // Fewer than kMinChunksPerRing chunks, or an invalid chunk size.
+  EXPECT_FALSE(RingBufferSizeForBudget(256, 256));
+  EXPECT_FALSE(RingBufferSizeForBudget(0, 256));
+  EXPECT_FALSE(RingBufferSizeForBudget(4 * 256, 100));
+
+  // Every result passes the layout check that the peers apply.
+  alignas(RingBufferHeader) static uint8_t start[1];
+  for (size_t budget : {size_t{2 * 512}, size_t{7 * 512}, size_t{1} << 20}) {
+    auto size = RingBufferSizeForBudget(budget, 512);
+    ASSERT_TRUE(size);
+    EXPECT_LE(*size, kHeader + budget);
+    EXPECT_TRUE(NumChunksForRingBufferLayout(start, *size, 512).ok());
+  }
+}
+
 // Logical positions
 // -----------------
 

@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/trace_config.h"
 
@@ -43,12 +44,6 @@ class MessageFilter;
 }
 
 namespace perfetto {
-
-namespace protos {
-namespace gen {
-enum TraceStats_FinalFlushOutcome : int;
-}
-}  // namespace protos
 
 namespace base {
 class TaskRunner;
@@ -177,6 +172,51 @@ struct TracingSession {
 
   // Outcome of the final Flush() done by FlushAndDisableTracing().
   protos::gen::TraceStats_FinalFlushOutcome final_flush_outcome{};
+
+  // One observation of a producer connection for TraceStats.tracing_v2. See
+  // TraceStats.TracingV2 for the window and its limits.
+  // - SetupDataSource() starts it for the first instance that requests v2,
+  //   before the producer hears of that instance.
+  // - Stop, producer disconnect and clone end it: |final_entry| is then set
+  //   and never changes. Unregistering a data source does not end it.
+  // - A live observation always belongs to the connected producer with
+  //   |producer_id|, because DisconnectProducer() ends it before the ID can be
+  //   reused. A later connection with the same ID gets a new observation.
+  struct TracingV2Observation {
+    ProducerID producer_id = 0;
+    // BOOTTIME.
+    int64_t start_ns = 0;
+    TraceStats::TracingV2::Counters counters_at_start;
+    uint32_t instances_requesting_v2 = 0;
+    uint32_t instances_eligible_for_v2 = 0;
+    // REASON_REJECTED_CHUNK dumps taken for this observation, and the ones
+    // skipped after kMaxRejectedChunkDumps.
+    uint32_t rejected_chunk_dumps = 0;
+    uint32_t rejected_chunk_dumps_suppressed = 0;
+    // The entry at the end. Empty while the observation is live.
+    std::optional<TraceStats::TracingV2::Producer> final_entry;
+  };
+  // In start order. Live observations are bounded by the connected
+  // producers. Observations ended by a disconnect are bounded by eviction.
+  std::vector<TracingV2Observation> tracing_v2_observations;
+  // Observations ended by a disconnect that were removed to keep the newest.
+  uint32_t tracing_v2_producers_evicted = 0;
+
+  // TracingV2RingBufferDump packets that the next reads emit, oldest first.
+  struct PendingTracingV2Dump {
+    // A serialized TracePacket.
+    std::string packet;
+    // REASON_PROTOCOL_ERROR or REASON_REJECTED_CHUNK. Such a dump evicts other
+    // dumps first.
+    bool is_error = false;
+  };
+  std::vector<PendingTracingV2Dump> pending_tracing_v2_dumps;
+  // The sum of the packet sizes, at most kMaxPendingTracingV2DumpBytes.
+  size_t pending_tracing_v2_dump_bytes = 0;
+  // See TraceStats.TracingV2.
+  uint32_t tracing_v2_dumps_evicted = 0;
+  uint32_t tracing_v2_dumps_omitted = 0;
+  uint32_t tracing_v2_dumps_over_file_size = 0;
 
   // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().
   bool did_notify_all_data_source_started = false;

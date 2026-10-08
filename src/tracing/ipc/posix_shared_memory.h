@@ -48,6 +48,19 @@ class PosixSharedMemory : public SharedMemory {
   // Creates a new SHM region. Crashes if the memory cannot be allocated.
   static std::unique_ptr<PosixSharedMemory> Create(size_t size);
 
+  // Creates a new SHM region for a tracing v2 ring buffer.
+  // It differs from Create() in two ways:
+  // - It must be a sealed memfd, so it has no temp file fallback:
+  //   - The service maps a ring buffer only if seals stop the producer from
+  //     shrinking it, because a read past the new end would crash the service.
+  //   - A temp file cannot be sealed.
+  // - On failure, it logs the reason and returns nullptr, instead of
+  //   crashing:
+  //   - Tracing v2 is optional, and the producer calls it in its own process,
+  //     where a failed allocation must not crash the app.
+  //   - The caller must handle nullptr, for example by not using tracing v2.
+  static std::unique_ptr<PosixSharedMemory> CreateV2RingBuffer(size_t size);
+
   // Mmaps an existing SHM region for shared read/write access.
   // - Takes ownership of the descriptor, also on failure.
   // - Returns nullptr if descriptor validation fails.

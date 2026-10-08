@@ -60,6 +60,7 @@ import "protos/perfetto/trace/perfetto/concurrent_session_event.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "protos/perfetto/trace/perfetto/trace_provenance.proto";
 import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
+import "protos/perfetto/trace/perfetto/tracing_v2_ring_buffer_dump.proto";
 import "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto";
 import "protos/perfetto/trace/power/android_entity_state_residency.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
@@ -112,7 +113,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 139.
+// Next id: 140.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -294,6 +295,9 @@ message TracePacket {
     // Injected into TracePacket by perfetto post-reboot recovery to record
     // recovered trace metadata.
     RecoveredTraceInfo recovered_trace_info = 138;
+
+    // Experimental. Written by traced, for tracing v2 debugging.
+    TracingV2RingBufferDump tracing_v2_ring_buffer_dump = 139;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

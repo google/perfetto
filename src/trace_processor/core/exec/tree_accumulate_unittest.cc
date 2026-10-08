@@ -158,7 +158,7 @@ Result Accumulate(const std::vector<int64_t>& parent,
                   bool already_ordered = false) {
   RowSource source(parent, value, chunk_rows, std::move(order));
   // Ids become node numbers before anything else sees them.
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   if (!already_ordered) {
     if (up) {
@@ -237,9 +237,11 @@ TEST(TreeAccumulateTest, UpReportsIntegerOverflow) {
   TreeAccumulateUp op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
-  op.Rewind(*state);
+  values[0] = 1;
+  state->Reset();
+  EXPECT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_TRUE(op.status(*state).ok());
 }
 
@@ -256,7 +258,7 @@ TEST(TreeAccumulateTest, DownReportsIntegerOverflow) {
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
 }
 
@@ -276,7 +278,7 @@ TEST(TreeAccumulateTest, NullValuesContributeZero) {
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
+  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 3), ElementsAre(0, 7));
 }
 
@@ -293,7 +295,7 @@ TEST(TreeAccumulateTest, WrongColumnTypesAreReported) {
   TreeAccumulateDown op({0, 1, 2});
   std::unique_ptr<OperatorState> state = op.MakeState();
   RowBatch out;
-  EXPECT_EQ(op.Execute(in, out, *state), OpResult::kError);
+  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("Uint32"));
 }
 
@@ -367,7 +369,7 @@ TEST(TreeAccumulateTest, TheChunkSizeDoesNotChangeTheAnswer) {
 TEST(TreeAccumulateTest, RunningAgainStartsOver) {
   RowSource source(Parents(), Values(), 2);
   TreeAccumulateSpec spec{3, 4, 2};
-  std::vector<std::unique_ptr<Operator>> ops;
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
   ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
