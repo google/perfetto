@@ -51,7 +51,7 @@ struct Int64s {
 
 void Run(benchmark::State& state, const ColumnView& column, uint32_t rows) {
   RowBatch batch;
-  batch.AddColumn(column);
+  batch.AddBorrowedColumn(column);
   batch.SetRowCount(rows);
   std::vector<uint32_t> columns = {0};
   KeyEncoder encoder;

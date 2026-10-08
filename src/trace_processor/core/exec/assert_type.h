@@ -24,9 +24,9 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -47,17 +47,17 @@ class AssertType final : public Transform {
   AssertType(uint32_t column, AssertTypeTarget type, std::string name);
   ~AssertType() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch& batch, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
   struct State : OperatorState {
-    State() : OperatorState(ResetEachRun{}) {}
+    explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
     ~State() override;
     void Reset() override;
-    // The converted column, holding values of the target type.
-    BufferPool<ColumnChunk> buffers;
+    // What the converted column is written in.
+    Context* context;
     base::Status status = base::OkStatus();
   };
 

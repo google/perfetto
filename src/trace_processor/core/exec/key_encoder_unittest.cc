@@ -39,7 +39,7 @@ std::optional<std::vector<std::string>> Keys(
     uint32_t rows,
     const std::vector<uint32_t>& kept = {}) {
   RowBatch batch;
-  batch.AddColumn(column);
+  batch.AddBorrowedColumn(column);
   batch.SetRowCount(rows);
   if (!kept.empty()) {
     batch.mutable_selection().Keep(kept);
@@ -130,8 +130,9 @@ TEST(KeyEncoderTest, AColumnKeepsItsType) {
   int64_t ints[] = {1};
   double doubles[] = {1.0};
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints));
-  batch.AddColumn(ColumnView::Reference(StorageType{Double{}}, doubles));
+  batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, ints));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Double{}}, doubles));
   batch.SetRowCount(1);
   KeyEncoder encoder;
   EXPECT_EQ(encoder.Encode(batch, {0}), std::nullopt);

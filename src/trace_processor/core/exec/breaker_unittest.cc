@@ -89,7 +89,8 @@ class Reverse final : public Breaker {
     }
     uint32_t count = std::min(kMaxBatchRows, rows - s.served);
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
     test::Window(&out, s.served, count);
     s.served += count;
     return true;

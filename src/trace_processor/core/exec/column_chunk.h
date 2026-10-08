@@ -18,10 +18,13 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_CHUNK_H_
 
 #include <cstdint>
+#include <cstring>
 #include <variant>
 
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -30,7 +33,6 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-class ColumnView;
 class RowBatch;
 
 // kMaxBatchRows rows of one column: the buffer matching the column's type,
@@ -53,6 +55,23 @@ struct ColumnChunk {
   void Gather(const ColumnView& view,
               Span<const uint32_t> rows,
               uint32_t offset);
+
+  // Copies the first `count` of `values`, present where `present` says if not
+  // null, into this chunk, and views them.
+  template <typename T>
+  ColumnView Fill(const T* values, const BitVector* present, uint32_t count) {
+    T* copy = Values<T>().data();
+    memcpy(copy, values, count * sizeof(T));
+    const BitVector* kept = nullptr;
+    if (present) {
+      validity.resize(kMaxBatchRows);
+      validity.FillBits(0, count, false);
+      validity.SetBitsFrom(0, *present, 0, count);
+      kept = &validity;
+    }
+    using Type = typename TypeTagFor<T>::type;
+    return ColumnView::Reference(StorageType{Type{}}, copy, kept);
+  }
 
   // Views the populated chunk with the source's representation. Implicit Id
   // columns become stored Uint32 values. The chunk must outlive the view.

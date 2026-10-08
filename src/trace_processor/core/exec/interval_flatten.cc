@@ -28,7 +28,9 @@
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/util/heap.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -48,6 +50,19 @@ template <typename Live>
 void PushEnd(FlexVector<Live>& heap, Live live) {
   heap.push_back(live);
   HeapSiftUp(heap.data(), heap.size() - 1, live, kEndsLater);
+}
+
+// Appends to `out` a copy of the first `count` of `values`, present where
+// `present` says if not null, in a buffer taken from `context`.
+template <typename T>
+void AddCopy(Context& context,
+             const T* values,
+             const BitVector* present,
+             uint32_t count,
+             RowBatch& out) {
+  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnView view = buffer.chunk().Fill(values, present, count);
+  out.AddColumn(view, std::move(buffer));
 }
 
 template <typename Live>
@@ -74,8 +89,10 @@ IntervalFlatten::IntervalFlatten(IntervalFlattenSpec spec)
 IntervalFlatten::~IntervalFlatten() = default;
 IntervalFlatten::State::~State() = default;
 
-std::unique_ptr<OperatorState> IntervalFlatten::MakeState() const {
+std::unique_ptr<OperatorState> IntervalFlatten::MakeState(
+    Context& context) const {
   auto state = std::make_unique<State>();
+  state->context = &context;
   state->live.sums.resize(sums_);
   state->instant = state->live;
   state->segment_sums.resize(sums_);
@@ -370,29 +387,27 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
   if (count == 0) {
     return result;
   }
-  auto add = [&](StorageType type, const void* values,
-                 const BitVector* validity) {
-    ColumnView view = ColumnView::Reference(type, values, validity);
-    out.AddColumn(view);
-  };
-  add(StorageType{Int64{}}, s.segment_ts.data(), nullptr);
-  add(StorageType{Int64{}}, s.segment_dur.data(), nullptr);
+  // The segments are rewritten for the next batch before this one need be
+  // done with, so each column is copied out to a buffer of its own.
+  Context& context = *s.context;
+  AddCopy(context, s.segment_ts.data(), nullptr, count, out);
+  AddCopy(context, s.segment_dur.data(), nullptr, count, out);
   if (!spec_.key_columns.empty()) {
     const uint32_t* rows = s.segment_key_rows.data();
-    s.key_rows.View(&s.served_keys, {rows, rows + count});
+    s.key_rows.View(&s.served_keys, {rows, rows + count}, *s.context);
     for (uint32_t k = 0; k < s.served_keys.column_count(); ++k) {
-      out.AddColumn(s.served_keys.column(k), s.served_keys.owner(k));
+      out.AddColumn(s.served_keys.column(k), s.served_keys.buffer(k));
     }
   }
   for (uint32_t a = 0; a < spec_.aggregates.size(); ++a) {
     if (spec_.aggregates[a].function == IntervalFlattenSpec::Function::kSum) {
       const State::SegmentSums& sum = s.segment_sums[sum_index_[a]];
-      add(StorageType{Int64{}}, sum.values.data(), &sum.present);
+      AddCopy(context, sum.values.data(), &sum.present, count, out);
     } else {
-      add(StorageType{Int64{}}, s.segment_counts.data(), nullptr);
+      AddCopy(context, s.segment_counts.data(), nullptr, count, out);
     }
   }
-  add(StorageType{Uint32{}}, s.segment_groups.data(), nullptr);
+  AddCopy(context, s.segment_groups.data(), nullptr, count, out);
   out.SetRowCount(count);
   return result;
 }

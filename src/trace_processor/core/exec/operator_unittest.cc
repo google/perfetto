@@ -42,7 +42,7 @@ using ::testing::ElementsAre;
 // are scratch for one execution, so they live in the state, not the plan.
 class DropOddRows final : public Operator {
  public:
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
 
@@ -74,7 +74,7 @@ DropOddRows::State::~State() = default;
 class Execution {
  public:
   explicit Execution(const Source& source)
-      : source_(source), state_(source.MakeState()) {}
+      : source_(source), state_(source.MakeState(test::TestContext())) {}
 
   RowBatch* Next() {
     return source_.GetData(batch_, *state_) ? &batch_ : nullptr;
@@ -101,7 +101,7 @@ std::vector<uint32_t> Drain(const Pipeline& pipeline) {
 // not fit in a single batch.
 class Twice final : public Operator {
  public:
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
 
@@ -226,7 +226,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
                   const std::vector<int64_t>* computed)
         : payload_(payload), computed_(computed) {}
 
-    std::unique_ptr<OperatorState> MakeState() const override {
+    std::unique_ptr<OperatorState> MakeState(Context&) const override {
       return std::make_unique<State>();
     }
     void Rewind(OperatorState& state) const override {
@@ -241,9 +241,9 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
       batch_.Reset();
       // The payload is read from half way in; the computed column is a
       // separate array read from the start.
-      batch_.AddColumn(ColumnView::Reference(StorageType{Int64{}},
-                                             payload_->data(), nullptr, 2));
-      batch_.AddColumn(
+      batch_.AddBorrowedColumn(ColumnView::Reference(
+          StorageType{Int64{}}, payload_->data(), nullptr, 2));
+      batch_.AddBorrowedColumn(
           ColumnView::Reference(StorageType{Int64{}}, computed_->data()));
       batch_.SetRowCount(2);
       return true;
@@ -306,7 +306,7 @@ class Trailer final : public Operator {
  public:
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   OpResult Execute(const RowBatch& in,
@@ -325,7 +325,8 @@ class Trailer final : public Operator {
     if (s.let_go == count_) {
       return OpResult::kNeedMoreInput;
     }
-    out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
     test::Window(&out, static_cast<uint32_t>(first_) + s.let_go, 1);
     return ++s.let_go == count_ ? OpResult::kNeedMoreInput
                                 : OpResult::kHaveMoreOutput;
@@ -441,7 +442,7 @@ TEST(FinishTest, AFailingFinishIsReported) {
 // Keeps every second row in place, remembering the batch it was given.
 class DropOddRowsInPlace final : public Transform {
  public:
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
 
@@ -484,7 +485,7 @@ TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   steps.push_back(std::move(drop));
   Pipeline pipeline(source, std::move(steps), {});
 
-  auto state = pipeline.MakeState();
+  auto state = pipeline.MakeState(test::TestContext());
   RowBatch scratch;
   pipeline.Rewind(*state);
   RowBatch* batch = pipeline.Next(scratch, *state);

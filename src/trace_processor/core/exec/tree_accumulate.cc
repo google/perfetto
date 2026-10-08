@@ -23,8 +23,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -34,11 +34,11 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-// What one execution carries between batches: a running total per node, and
-// the totals computed for the current batch.
+// What one execution carries between batches: a running total per node.
 class AccumulateState : public OperatorState {
  public:
-  AccumulateState() : OperatorState(ResetEachRun{}) {}
+  explicit AccumulateState(Context& c)
+      : OperatorState(ResetEachRun{}), context(&c) {}
   ~AccumulateState() override;
   void Reset() override {
     by_node.clear();
@@ -49,8 +49,8 @@ class AccumulateState : public OperatorState {
   std::vector<uint32_t> node_scratch;
   std::vector<uint32_t> parent_scratch;
   std::vector<int64_t> value_scratch;
-  BufferPool<FlexVector<int64_t>> buffers;
-  std::shared_ptr<FlexVector<int64_t>> totals;
+  // What each batch's totals are written in.
+  Context* context;
   base::Status status = base::OkStatus();
 };
 
@@ -121,11 +121,11 @@ void Grow(std::vector<int64_t>* by_node, uint32_t node) {
   }
 }
 
-// Appends a column of `totals` to `batch`.
-void Emit(RowBatch& batch, const std::shared_ptr<FlexVector<int64_t>>& totals) {
-  ColumnView column =
-      ColumnView::Reference(StorageType{Int64{}}, totals->data());
-  batch.AddColumn(column, totals);
+// Appends the column of totals in `buffer` to `batch`.
+void Emit(RowBatch& batch, ColumnBuffer buffer) {
+  const int64_t* totals = buffer.chunk().Values<int64_t>().data();
+  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, totals),
+                  std::move(buffer));
 }
 
 }  // namespace
@@ -136,11 +136,13 @@ TreeAccumulateUp::~TreeAccumulateUp() = default;
 TreeAccumulateDown::TreeAccumulateDown(TreeAccumulateSpec spec) : spec_(spec) {}
 TreeAccumulateDown::~TreeAccumulateDown() = default;
 
-std::unique_ptr<OperatorState> TreeAccumulateUp::MakeState() const {
-  return std::make_unique<AccumulateState>();
+std::unique_ptr<OperatorState> TreeAccumulateUp::MakeState(
+    Context& context) const {
+  return std::make_unique<AccumulateState>(context);
 }
-std::unique_ptr<OperatorState> TreeAccumulateDown::MakeState() const {
-  return std::make_unique<AccumulateState>();
+std::unique_ptr<OperatorState> TreeAccumulateDown::MakeState(
+    Context& context) const {
+  return std::make_unique<AccumulateState>(context);
 }
 
 base::Status TreeAccumulateUp::status(const OperatorState& state) const {
@@ -166,10 +168,8 @@ bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {
                                         selection, &s.value_scratch);
 
   // Written at the batch's rows, as every column of it is.
-  s.totals.reset();
-  s.totals = s.buffers.Acquire();
-  s.totals->resize(batch.row_count());
-  int64_t* totals = s.totals->data();
+  ColumnBuffer buffer = s.context->TakeBuffer();
+  int64_t* totals = buffer.chunk().Values<int64_t>().data();
   for (uint32_t row = 0; row < count; ++row) {
     uint32_t node = nodes[row];
     Grow(&s.by_node, node);
@@ -188,7 +188,7 @@ bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {
       }
     }
   }
-  Emit(batch, s.totals);
+  Emit(batch, std::move(buffer));
   return true;
 }
 
@@ -208,10 +208,8 @@ bool TreeAccumulateDown::Process(RowBatch& batch, OperatorState& state) const {
                                         selection, &s.value_scratch);
 
   // Written at the batch's rows, as every column of it is.
-  s.totals.reset();
-  s.totals = s.buffers.Acquire();
-  s.totals->resize(batch.row_count());
-  int64_t* totals = s.totals->data();
+  ColumnBuffer buffer = s.context->TakeBuffer();
+  int64_t* totals = buffer.chunk().Values<int64_t>().data();
   for (uint32_t row = 0; row < count; ++row) {
     uint32_t parent = parents[row];
     int64_t above = 0;
@@ -228,7 +226,7 @@ bool TreeAccumulateDown::Process(RowBatch& batch, OperatorState& state) const {
     s.by_node[node] = total;
     totals[selection[row]] = total;
   }
-  Emit(batch, s.totals);
+  Emit(batch, std::move(buffer));
   return true;
 }
 

@@ -63,7 +63,7 @@ class DataframeScanTest : public ::testing::Test {
   }
 
   std::vector<int64_t> Drain(const DataframeScan& scan, uint32_t column) {
-    std::unique_ptr<OperatorState> state = scan.MakeState();
+    std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
     RowBatch batch;
     std::vector<int64_t> out;
     while (scan.GetData(batch, *state)) {
@@ -117,7 +117,7 @@ TEST_F(DataframeScanTest, ReadsEveryStorageType) {
       {df.shared_column(0), df.shared_column(1), df.shared_column(2),
        df.shared_column(3), df.shared_column(4), df.shared_column(5)},
       df.row_count());
-  std::unique_ptr<OperatorState> state = scan.MakeState();
+  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
   EXPECT_TRUE(batch.column(0).type().Is<Id>());
@@ -146,7 +146,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
   sparse.Finalize();
 
   DataframeScan sparse_scan({sparse.shared_column(0)}, sparse.row_count());
-  std::unique_ptr<OperatorState> sparse_state = sparse_scan.MakeState();
+  std::unique_ptr<OperatorState> sparse_state =
+      sparse_scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(sparse_scan.GetData(batch, *sparse_state));
   EXPECT_TRUE(batch.column(0).type().Is<Uint32>());
@@ -163,7 +164,8 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
   dense.Finalize();
 
   DataframeScan dense_scan({dense.shared_column(0)}, dense.row_count());
-  std::unique_ptr<OperatorState> dense_state = dense_scan.MakeState();
+  std::unique_ptr<OperatorState> dense_state =
+      dense_scan.MakeState(test::TestContext());
   ASSERT_TRUE(dense_scan.GetData(batch, *dense_state));
   EXPECT_TRUE(batch.column(0).type().Is<Id>());
   EXPECT_THAT(test::ReadNullableColumn<uint32_t>(batch, 0),
@@ -176,7 +178,7 @@ TEST_F(DataframeScanTest, ReadsTheDataframesOwnStorage) {
       Build({kBig + 10, kBig + 20, kBig + 30}, {true, true, true});
   DataframeScan scan({df.shared_column(0)}, df.row_count());
 
-  std::unique_ptr<OperatorState> state = scan.MakeState();
+  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
   EXPECT_EQ(batch.size(), 3u);
@@ -209,7 +211,7 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowIsExpanded) {
       Build({kBig + 10, 0, kBig + 30}, {true, false, true});
   DataframeScan scan({df.shared_column(0)}, df.row_count());
 
-  std::unique_ptr<OperatorState> state = scan.MakeState();
+  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
   ASSERT_EQ(batch.size(), 3u);
@@ -248,7 +250,7 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowIsReplayable) {
       Build({kBig + 10, 0, kBig + 30}, {true, false, true});
   DataframeScan scan({df.shared_column(0)}, df.row_count());
 
-  std::unique_ptr<OperatorState> state = scan.MakeState();
+  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
   ASSERT_FALSE(scan.GetData(batch, *state));
@@ -265,7 +267,7 @@ TEST_F(DataframeScanTest, IsReplayable) {
   dataframe::Dataframe df = Build({kBig + 1, kBig + 2}, {true, true});
   DataframeScan scan({df.shared_column(0)}, df.row_count());
 
-  std::unique_ptr<OperatorState> state = scan.MakeState();
+  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
   RowBatch batch;
   ASSERT_TRUE(scan.GetData(batch, *state));
   EXPECT_FALSE(scan.GetData(batch, *state));
@@ -284,7 +286,7 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
   }
   auto df = Build(values, present);
   DataframeScan scan({df.shared_column(0)}, df.row_count());
-  auto state = scan.MakeState();
+  auto state = scan.MakeState(test::TestContext());
   RowBatch output, retained;
   ASSERT_TRUE(scan.GetData(output, *state));
   auto expected = test::ReadNullableColumn<int64_t>(output, 0);
@@ -303,7 +305,7 @@ TEST_F(DataframeScanTest,
     values[i] = kBig + i;
   auto df = Build(values, std::vector<bool>(values.size(), true));
   DataframeScan scan({df.shared_column(0)}, df.row_count());
-  auto state = scan.MakeState();
+  auto state = scan.MakeState(test::TestContext());
   RowBatch output, retained;
   ASSERT_TRUE(scan.GetData(output, *state));
   auto expected = test::ReadColumn<int64_t>(output, 0);

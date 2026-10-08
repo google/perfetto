@@ -38,8 +38,8 @@ TEST(RowBatchTest, NarrowingACopyLeavesTheOriginalAlone) {
   std::vector<uint32_t> narrower = {0, 2};
 
   RowBatch original;
-  original.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data(),
-                                           nullptr, /*start=*/2));
+  original.AddBorrowedColumn(ColumnView::Reference(
+      StorageType{Int64{}}, values.data(), nullptr, /*start=*/2));
   original.SetRowCount(5);
   original.mutable_selection().Keep(picks);
   ASSERT_THAT(test::ReadColumn<int64_t>(original, 0), ElementsAre(2, 4, 6));

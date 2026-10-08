@@ -17847,6 +17847,7 @@ filegroup {
         "src/trace_processor/core/exec/batch_buffer.cc",
         "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/column_chunk.cc",
+        "src/trace_processor/core/exec/context.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/group_by.cc",
         "src/trace_processor/core/exec/interval_flatten.cc",
