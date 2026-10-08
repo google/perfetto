@@ -1420,6 +1420,15 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGaps) {
   EXPECT_THAT(*rows, testing::UnorderedElementsAre("0,NULL,idle", "2,run,NULL",
                                                    "4,NULL,idle"));
 
+  // An input without rows has columns of no meaningful type, so a background
+  // column of the same name fills whatever its own type is.
+  rows = Rows(R"(
+    FROM (SELECT ts, dur, state FROM spans WHERE cpu = 9)
+    |> INTERVAL FILL GAPS WITH (SELECT 0 AS ts, 4 AS dur, 'idle' AS state)
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,4,idle"));
+
   // A dataframe and SQL agree on a column's type once both are brought to it.
   ASSERT_TRUE(Rows(R"(
     CREATE PERFETTO TABLE frozen AS

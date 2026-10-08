@@ -236,7 +236,10 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
   };
 
   // Both sides of a column agree on its type: an integer of any width is
-  // widened, and a column of unknown type takes the other side's.
+  // widened, and a column of unknown type takes the other side's. Sides of
+  // different types are left alone: a relation without rows has columns of
+  // a default type which mean nothing, and the executor refuses two sides
+  // whose rows truly disagree.
   std::vector<ex::Pipeline::Step> widen;
   c->RequireInt64(fill.ts_);
   c->RequireInt64(fill.dur_);
@@ -247,10 +250,12 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
       continue;
     }
     const auto& types = c->plan().columns();
-    auto type = Normalized(types[*output.input].type);
-    if (!type) {
-      type = Normalized(types[*output.background].type);
+    auto in = Normalized(types[*output.input].type);
+    auto bg = Normalized(types[*output.background].type);
+    if (in && bg && !(*in == *bg)) {
+      continue;
     }
+    auto type = in ? in : bg;
     if (!type) {
       continue;
     }
