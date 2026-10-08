@@ -300,16 +300,8 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
 
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
   oncreate({attrs}: m.VnodeDOM<HeapDumpPageAttrs>) {
-    attrs.session.setNavigateCallback((sub) => {
-      window.location.hash = `!/heapdump${sub ? '/' + sub : ''}`;
-    });
-    void attrs.session.loadOverview();
+    attrs.session.loadOverview();
   }
-
-  onremove({attrs}: m.VnodeDOM<HeapDumpPageAttrs>) {
-    attrs.session.setNavigateCallback(undefined);
-  }
-
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
     const {session, subpage} = attrs;
     session.syncFromSubpage(subpage);

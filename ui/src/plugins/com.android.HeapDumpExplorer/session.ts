@@ -73,8 +73,6 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 // the store, restoration is automatic. Non-serializable trace-derived data (the
 // dumps, overview, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
-  private _navigateCallback?: (subpage: string) => void;
-
   private _dumps: ReadonlyArray<queries.HeapDump> = [];
   private _overview: OverviewData | null = null;
   private readonly _counts = new Map<string, number>();
@@ -172,16 +170,12 @@ export class HeapDumpExplorerSession {
     return stateToPath(this.nav);
   }
 
-  setNavigateCallback(cb: ((subpage: string) => void) | undefined): void {
-    this._navigateCallback = cb;
-  }
-
   navigate(view: NavView, params: Record<string, unknown> = {}): void {
     const sub = stateToSubpage({view, params} as NavState);
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this._navigateCallback?.(sub);
+    this.doNavigate(sub);
     m.redraw();
   }
 
@@ -211,8 +205,12 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this._navigateCallback?.(sub);
+    this.doNavigate(sub);
   };
+
+  private doNavigate(sub: string | undefined): void {
+    this.trace.navigate(`#!/heapdump${sub ? '/' + sub : ''}`);
+  }
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
   // change only. The router drops query params, so only the path round-trips.
