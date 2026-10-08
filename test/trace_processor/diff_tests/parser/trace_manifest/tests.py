@@ -739,11 +739,9 @@ class TraceManifest(TestSuite):
         2
         '''))
 
-  # The named machine gets a positive 1-based label_index even though the
-  # manifest pre-allocates its row before the host row is created lazily, so the
-  # named machine has the lower machine id. Regression test: a formula keyed on
-  # the machine id assumed the host always took id 0 and produced 0 here, which
-  # made the UI treat the machine as the host and drop its track label.
+  # Machine ids follow manifest order, a file naming no machine included: the
+  # host listed first is 0. The named machine gets a positive 1-based
+  # label_index; the host's is 0, so the UI does not label its tracks.
   def test_machine_label_index(self):
     return DiffTestBlueprint(
         trace=Tar({
@@ -766,14 +764,49 @@ class TraceManifest(TestSuite):
                 _json_trace('vm_slice', pid=200),
         }),
         query='''
-          SELECT name, raw_id != 0 AS remote, label_index
+          SELECT id, name, raw_id != 0 AS remote, label_index
           FROM machine
-          ORDER BY label_index;
+          ORDER BY id;
         ''',
         out=Csv('''
-        "name","remote","label_index"
-        "[NULL]",0,0
-        "vm",1,1
+        "id","name","remote","label_index"
+        0,"[NULL]",0,0
+        1,"vm",1,1
+        '''))
+
+  # A guest listed before the host takes the lower id, as manifest order says.
+  def test_machine_ids_follow_manifest_order(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'vm.json',
+                        'machine': {
+                            'name': 'vm'
+                        }
+                    }, {
+                        'path': 'host.json'
+                    }],
+                }),
+            'host.json':
+                _json_trace('host_slice', pid=100),
+            'vm.json':
+                _json_trace('vm_slice', pid=200),
+        }),
+        query='''
+          SELECT s.name, t.machine_id, m.raw_id != 0 AS remote
+          FROM slice s
+          JOIN thread_track t ON s.track_id = t.id
+          JOIN machine m ON t.machine_id = m.id
+          ORDER BY t.machine_id;
+        ''',
+        out=Csv('''
+        "name","machine_id","remote"
+        "vm_slice",0,1
+        "host_slice",1,0
         '''))
 
   # --- Machine override errors ---

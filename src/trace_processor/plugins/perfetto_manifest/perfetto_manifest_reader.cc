@@ -454,7 +454,8 @@ base::Status PerfettoManifestReader::ApplyManifest() {
   // every `machines` entry share the namespace, so the same name is one
   // machine), pre-allocating and naming its row so clock references resolve to
   // it and ForkContextForTrace reuses it. Then set each file's base machine and
-  // its embedded-id remap.
+  // its embedded-id remap. Rows are allocated in manifest order, so machine ids
+  // follow the order files list their machines in.
   auto& machine_table = *context_->storage->mutable_machine_table();
   base::FlatHashMap<std::string, int64_t> name_to_id;
   int64_t next_id = kFirstManifestMachineId;
@@ -479,6 +480,11 @@ base::Status PerfettoManifestReader::ApplyManifest() {
         entry.machine_id = raw;
         entry.machine_name = name;
       }
+    }
+    // A file naming no machine is on the default one, which takes its row in
+    // manifest order like any other: listing the host first makes it 0.
+    if (!entry.machine_id) {
+      EnsureMachineRow(context_, 0);
     }
   }
 
