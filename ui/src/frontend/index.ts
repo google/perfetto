@@ -116,6 +116,8 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
 });
 
 function routeChange(route: Route) {
+  // Let the page update its state for the new route before it's rendered.
+  AppImpl.instance.pages.onRouteChanged(route);
   raf.scheduleFullRedraw(() => {
     if (route.fragment) {
       // This needs to happen after the next redraw call. It's not enough

@@ -53,4 +53,22 @@ export interface PageHandler {
    * @param subpage Optional subpage path segment after the main route
    */
   readonly render: (subpage: string | undefined) => m.Children;
+
+  /**
+   * Called when the URL changes to this page, or to another subpage of it,
+   * before the resulting redraw. Also called when the page is registered if
+   * the current URL already points at it, as pages are often registered after
+   * the initial route has been handled.
+   *
+   * This is the place to update state in response to the URL (similar to
+   * Mithril's RouteResolver.onmatch), so that render() can stay free of side
+   * effects. Unlike Mithril's, it is synchronous and can't block or replace
+   * the render. To redirect, navigate from here.
+   *
+   * Not called when navigating to the URL that is already current, as that
+   * doesn't change the route.
+   *
+   * @param subpage The subpage path segment after the main route
+   */
+  readonly onmatch?: (subpage: string) => void;
 }

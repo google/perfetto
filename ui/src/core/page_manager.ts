@@ -17,6 +17,7 @@ import {ensureExists, assertTrue} from '../base/assert';
 import {Registry} from '../base/registry';
 import type {PageHandler, PageManager} from '../public/page';
 import type {Analytics} from '../public/analytics';
+import type {Route} from '../public/app';
 import {Router} from './router';
 import {Gate} from '../base/mithril_utils';
 
@@ -38,7 +39,19 @@ export class PageManagerImpl implements PageManager {
     assertTrue(/^\/\w*$/.exec(pageHandler.route) !== null);
     // The pluginId is injected by the proxy in AppImpl / TraceImpl. If this is
     // undefined somebody (tests) managed to call this method without proxy.
-    return this.registry.register(pageHandler);
+    const disposable = this.registry.register(pageHandler);
+    // The current route may already point at this page (e.g. a page
+    // registered on trace load, reached via a permalink).
+    const route = Router.getCurrentRoute();
+    if (route.page === pageHandler.route) {
+      pageHandler.onmatch?.(route.subpage);
+    }
+    return disposable;
+  }
+
+  // Called by index.ts when the route changes, before the redraw.
+  onRouteChanged(route: Route): void {
+    this.registry.tryGet(route.page)?.onmatch?.(route.subpage);
   }
 
   // Called by index.ts upon the main frame redraw callback.
