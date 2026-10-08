@@ -72,9 +72,9 @@ struct IntervalFillGapsSpec {
 // one lane, filled even when the input is empty.
 //
 // An input row with a null ts or dur covers nothing; a dur of -1 covers to
-// the end of time. Input rows may overlap. Background rows may not overlap
-// within a lane. A filler never has zero width. Output is in no order: the
-// input first, then the fillers.
+// the end of time. A ts below zero is refused on either side. Input rows may
+// overlap. Background rows may not overlap within a lane. A filler never has
+// zero width. Output is in no order: the input first, then the fillers.
 class IntervalFillGaps : public Operator {
  public:
   explicit IntervalFillGaps(IntervalFillGapsSpec);

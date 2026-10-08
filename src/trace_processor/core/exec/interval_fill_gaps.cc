@@ -329,9 +329,9 @@ base::Status IntervalFillGaps::ReadBackground(State& s) const {
       if (!ts.Read(row, &start) || !dur.Read(row, &length)) {
         continue;
       }
-      if (length < 0) {
+      if (start < 0 || length < 0) {
         return base::ErrStatus(
-            "INTERVAL FILL GAPS: a background row's dur is below zero");
+            "INTERVAL FILL GAPS: a background row's ts or dur is below zero");
       }
       int64_t end;
       if (!base::CheckedAdd(start, length, &end)) {
@@ -419,9 +419,10 @@ base::Status IntervalFillGaps::Cover(const RowBatch& in, State& s) const {
     if (!ts.Read(row, &start) || !dur.Read(row, &length)) {
       continue;
     }
-    if (length < -1) {
+    if (start < 0 || length < -1) {
       return base::ErrStatus(
-          "INTERVAL FILL GAPS: a row's dur is below zero and not -1");
+          "INTERVAL FILL GAPS: a row's ts is below zero, or its dur is below "
+          "zero and not -1");
     }
     int64_t end = kEndOfTime;
     if (length >= 0 && !base::CheckedAdd(start, length, &end)) {

@@ -1397,6 +1397,29 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGaps) {
                          "0,2,0,idle", "2,3,0,run", "5,1,0,idle", "6,1,0,run",
                          "7,3,0,idle", "1,2,1,sleep", "0,4,2,off"));
 
+  // An alias still reaches its columns: a filler shows the background's value
+  // where the background has the column, and null where it does not.
+  rows = Rows(R"(
+    FROM (SELECT ts, dur, state FROM spans WHERE cpu = 0) AS s
+    |> INTERVAL FILL GAPS WITH bg
+    |> SELECT s.ts, s.state, filled
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(
+      *rows, testing::UnorderedElementsAre("0,idle,1", "2,run,NULL", "5,idle,1",
+                                           "6,run,NULL", "7,idle,1"));
+  rows = Rows(R"(
+    INTERVAL INTERSECTION OF (
+      (SELECT ts, dur, state FROM spans WHERE cpu = 0) AS a,
+      (SELECT 0 AS ts, 4 AS dur) AS b
+    )
+    |> INTERVAL FILL GAPS WITH bg
+    |> SELECT ts, a.state, state
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::UnorderedElementsAre("0,NULL,idle", "2,run,NULL",
+                                                   "4,NULL,idle"));
+
   // A dataframe and SQL agree on a column's type once both are brought to it.
   ASSERT_TRUE(Rows(R"(
     CREATE PERFETTO TABLE frozen AS
@@ -1434,6 +1457,16 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGapsErrors) {
                   .status()
                   .message(),
               testing::HasSubstr("the same type as the input's"));
+  EXPECT_THAT(Rows("FROM (SELECT -1 AS ts, 2 AS dur) "
+                   "|> INTERVAL FILL GAPS WITH spans")
+                  .status()
+                  .message(),
+              testing::HasSubstr("ts is below zero"));
+  EXPECT_THAT(Rows("FROM spans |> INTERVAL FILL GAPS WITH "
+                   "(SELECT -1 AS ts, 2 AS dur)")
+                  .status()
+                  .message(),
+              testing::HasSubstr("ts or dur is below zero"));
   EXPECT_THAT(Rows("FROM spans |> INTERVAL FILL GAPS WITH "
                    "(SELECT 0 AS ts, 10 AS dur UNION ALL SELECT 5, 10)")
                   .status()

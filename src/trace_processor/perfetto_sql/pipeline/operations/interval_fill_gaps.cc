@@ -141,6 +141,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
   // fillers. A column only reachable through an alias names nothing there.
   const auto& types = c->plan().columns();
   std::vector<Compiler::RowColumn> row;
+  std::vector<std::pair<ColumnId, ColumnId>> replaced;
   std::vector<std::string> matched;
   for (const Compiler::RowColumn& column : c->row()) {
     Output output;
@@ -163,6 +164,7 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
     }
     output.column = c->AddColumn(column.column.name, Nullable(type));
     fill.outputs_.push_back(output);
+    replaced.emplace_back(column.column.id, output.column);
     Compiler::RowColumn out = column;
     out.column.id = output.column;
     row.push_back(std::move(out));
@@ -184,9 +186,10 @@ base::Status IntervalFillGaps::BuildPlan(Compiler* c, uint32_t stage) {
     fill.outputs_.push_back(output);
     row.push_back({{column.name, output.column}, c->operation(), stage, false});
   }
-  // Fillers are rows the input's aliases never named.
+  // An alias still reaches its columns, which are null on fillers unless the
+  // background has them.
   c->ReplaceRow(std::move(row));
-  c->ClearAliases();
+  c->ReplaceAliasColumns(replaced);
   c->AddNode(std::move(fill), {input, background.node});
   return base::OkStatus();
 }
