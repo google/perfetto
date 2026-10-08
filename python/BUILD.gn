@@ -32,14 +32,6 @@ perfetto_py_library("trace_processor_table_generator") {
   ]
 }
 
-perfetto_py_library("trace_processor_stdlib_docs") {
-  sources = [
-    "generators/sql_processing/docs_extractor.py",
-    "generators/sql_processing/docs_parse.py",
-    "generators/sql_processing/utils.py",
-  ]
-}
-
 perfetto_py_library("trace_processor_diff_tests") {
   sources = [
     "generators/diff_tests/runner.py",
