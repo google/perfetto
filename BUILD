@@ -476,7 +476,8 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_operations_operations",
+        ":src_trace_processor_perfetto_sql_pipeline_pipeline",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_stdlib_stdlib",
@@ -801,7 +802,8 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_operations_operations",
+        ":src_trace_processor_perfetto_sql_pipeline_pipeline",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_stdlib_stdlib",
@@ -2536,8 +2538,12 @@ perfetto_filegroup(
     name = "src_trace_processor_core_common_common",
     srcs = [
         "src/trace_processor/core/common/duplicate_types.h",
+        "src/trace_processor/core/common/filter_kernels.h",
+        "src/trace_processor/core/common/filter_value_cast.h",
         "src/trace_processor/core/common/null_types.h",
         "src/trace_processor/core/common/op_types.h",
+        "src/trace_processor/core/common/row_estimate.cc",
+        "src/trace_processor/core/common/row_estimate.h",
         "src/trace_processor/core/common/row_layout.h",
         "src/trace_processor/core/common/schema.h",
         "src/trace_processor/core/common/sort_types.h",
@@ -3882,21 +3888,28 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/pipeline:logical
+# GN target: //src/trace_processor/perfetto_sql/pipeline/operations:operations
 perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_pipeline_logical",
+    name = "src_trace_processor_perfetto_sql_pipeline_operations_operations",
     srcs = [
-        "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
-        "src/trace_processor/perfetto_sql/pipeline/catalog.h",
-        "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
-        "src/trace_processor/perfetto_sql/pipeline/column_pruning.h",
-        "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
-        "src/trace_processor/perfetto_sql/pipeline/compiler.h",
-        "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
-        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
-        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h",
-        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
-        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/projection.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/projection.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/scan.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/scan.h",
+        "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/pipeline:pipeline
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_pipeline_pipeline",
+    srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/operation_registry.cc",
     ],
 )
 
@@ -3904,8 +3917,22 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_pipeline_plan",
     srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
+        "src/trace_processor/perfetto_sql/pipeline/catalog.h",
+        "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
+        "src/trace_processor/perfetto_sql/pipeline/column_pruning.h",
+        "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
+        "src/trace_processor/perfetto_sql/pipeline/compiler.h",
+        "src/trace_processor/perfetto_sql/pipeline/logical_plan.cc",
+        "src/trace_processor/perfetto_sql/pipeline/logical_plan.h",
+        "src/trace_processor/perfetto_sql/pipeline/operation_registry.h",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.cc",
         "src/trace_processor/perfetto_sql/pipeline/physical_plan.h",
+        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.cc",
+        "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h",
+        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.cc",
+        "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h",
+        "src/trace_processor/perfetto_sql/pipeline/plan_types.h",
     ],
 )
 
@@ -11919,7 +11946,8 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_operations_operations",
+        ":src_trace_processor_perfetto_sql_pipeline_pipeline",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_stdlib_stdlib",
@@ -12275,7 +12303,8 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_generator_generator",
         ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_perfetto_sql_parser_parser",
-        ":src_trace_processor_perfetto_sql_pipeline_logical",
+        ":src_trace_processor_perfetto_sql_pipeline_operations_operations",
+        ":src_trace_processor_perfetto_sql_pipeline_pipeline",
         ":src_trace_processor_perfetto_sql_pipeline_plan",
         ":src_trace_processor_perfetto_sql_schema_schema",
         ":src_trace_processor_perfetto_sql_stdlib_stdlib",

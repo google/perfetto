@@ -165,8 +165,9 @@ bool Sort::Serve(RowBatch& out, Breaker::State& state) const {
   return true;
 }
 
-void Sort::Reset(Breaker::State& state) const {
-  auto& s = static_cast<State&>(state);
+void Sort::State::Reset() {
+  Breaker::State::Reset();
+  State& s = *this;
   std::fill(s.types.begin(), s.types.end(), std::nullopt);
   s.keys.clear();
   s.rows.Clear();

@@ -22,7 +22,7 @@
 namespace perfetto::trace_processor::pipeline {
 
 // Drops columns that nothing in the plan ends up using, so sources read less
-// data and operators skip work whose results nobody reads. For SQL sources,
+// data and operations skip work whose results nobody reads. For SQL sources,
 // the query itself is narrowed so SQLite can skip computing them too.
 //
 // The rows a plan produces are unchanged, though their order may differ.

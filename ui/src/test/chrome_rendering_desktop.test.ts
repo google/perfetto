@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -26,28 +24,32 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('chrome_rendering_desktop.pftrace');
 });
 
-test('load trace', async () => {
-  await pth.waitForIdleAndScreenshot('loaded.png', {
-    locator: page.locator('.pf-timeline-page'),
-  });
-});
+test('chrome_rendering_desktop', async () => {
+  test.setTimeout(3 * 60_000);
 
-test('expand browser', async () => {
-  const grp = pth.locateTrack('Browser 12685');
-  await grp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(grp);
-  await pth.waitForIdleAndScreenshot('browser_expanded.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+  await pth.step('load trace', async () => {
+    await pth.waitForIdleAndScreenshot('loaded.png', {
+      locator: page.locator('.pf-timeline-page'),
+    });
   });
-  await pth.toggleTrackGroup(grp);
-});
 
-test('slice with flows', async () => {
-  await pth.searchSlice('GenerateRenderPass');
-  await pth.resetFocus();
-  await page.keyboard.press('f');
-  await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('slice_with_flows.png', {
-    locator: page.locator('.pf-timeline-page__timeline'),
+  await pth.step('expand browser', async () => {
+    const grp = pth.locateTrack('Browser 12685');
+    await grp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(grp);
+    await pth.waitForIdleAndScreenshot('browser_expanded.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
+    await pth.toggleTrackGroup(grp);
+  });
+
+  await pth.step('slice with flows', async () => {
+    await pth.searchSlice('GenerateRenderPass');
+    await pth.resetFocus();
+    await page.keyboard.press('f');
+    await pth.waitForPerfettoIdle();
+    await pth.waitForIdleAndScreenshot('slice_with_flows.png', {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    });
   });
 });

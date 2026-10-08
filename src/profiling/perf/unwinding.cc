@@ -537,16 +537,8 @@ std::vector<FrameData> Unwinder::SymbolizeKernelSuppliedUserFrames(
   // by the IPs the kernel returned.
   // TODO(rsavitski): add vdso redirect and remove fd_mem.
   for (; it != sample.kernel_ips.end(); ++it) {
-    std::optional<FrameData> frame =
-        user_state->BuildFrameFromPc(*it, /*resolve_names=*/false);
-    if (frame.has_value()) {
-      ret.emplace_back(std::move(*frame));
-    } else {
-      FrameData fallback_frame{};
-      fallback_frame.pc = *it;
-      fallback_frame.rel_pc = *it;
-      ret.emplace_back(std::move(fallback_frame));
-    }
+    ret.emplace_back(
+        user_state->BuildFrameFromPc(*it, /*resolve_names=*/false));
   }
   return ret;
 }

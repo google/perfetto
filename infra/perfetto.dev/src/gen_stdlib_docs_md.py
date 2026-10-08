@@ -19,10 +19,24 @@ from __future__ import print_function
 
 import argparse
 import html
+import os
 import sys
-import json
-from typing import Any, List, Dict, Set
+from typing import Any, List, Dict, Set, Tuple
 from collections import defaultdict
+
+ROOT_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(ROOT_DIR)
+
+from python.generators.sql_processing.docs_parse import ParsedModule
+from python.generators.sql_processing.stdlib_parser import parse_all_modules
+from python.generators.sql_processing.utils import is_internal
+from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
+from python.perfetto.trace_data_checks import check_to_query, MODULE_DATA_CHECK_SQL, TABLE_DATA_CHECK_SQL
+
+STDLIB_DIR = os.path.join(ROOT_DIR, 'src', 'trace_processor', 'perfetto_sql',
+                          'stdlib')
 
 INTRODUCTION = '''
 # PerfettoSQL standard library
@@ -288,7 +302,7 @@ def _bold(s: str) -> str:
 
 
 def _build_dependency_maps(
-    stdlib_json: List[Dict]) -> tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
+    stdlib_docs: List[Dict]) -> tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
   """Build maps of module dependencies.
 
   Returns:
@@ -299,7 +313,7 @@ def _build_dependency_maps(
   dependencies = defaultdict(set)
   dependents = defaultdict(set)
 
-  for package in stdlib_json:
+  for package in stdlib_docs:
     for module_dict in package['modules']:
       module_name = module_dict['module_name']
       includes = module_dict.get('includes', [])
@@ -556,25 +570,164 @@ class PackageMd:
     return True
 
 
+def _stdlib_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
+  """Converts parsed modules into per-package lists of module dicts."""
+
+  # Use the curated data check SQL map
+  data_check_sql_map = MODULE_DATA_CHECK_SQL
+
+  def _summary_desc(s: str) -> str:
+    """Extract the first sentence from a description."""
+    s = s.replace('\n', ' ')
+    if '. ' in s:
+      return s.split('. ')[0]
+    elif '.' in s:
+      return s.split('.')[0]
+    return s
+
+  def _create_field_dict(name: str, obj, include_desc: bool = True) -> dict:
+    """Create a dictionary for a column or argument.
+
+    Parses long_type to extract table and column references.
+    Expected format: "TYPE(table_name.column_name)" where TYPE is optional uppercase,
+    and table_name and column_name are lowercase with underscores.
+    If the format doesn't match, table and column are set to None.
+    """
+    import re
+
+    # Parse long type string to extract table and column references
+    # Expected format: "TYPE(table_name.column_name)"
+    table, column = None, None
+    if hasattr(obj, 'long_type') and obj.long_type:
+      pattern = r'[A-Z]*\(([a-z_]*)\.([a-z_]*)\)'
+      m = re.match(pattern, obj.long_type)
+      if m:
+        table, column = m.groups()
+
+    result = {
+        'name': name,
+        'type': obj.long_type if hasattr(obj, 'long_type') else None,
+        'table': table,
+        'column': column,
+    }
+    if include_desc:
+      result['desc'] = obj.description if hasattr(obj, 'description') else None
+    return result
+
+  packages = defaultdict(list)
+
+  for _, _, module_name, parsed in modules:
+    package_name = module_name.split(".")[0]
+
+    module_dict = {
+        'module_name':
+            module_name,
+        'tags':
+            get_tags(module_name),
+        'includes': [inc.module for inc in parsed.includes],
+        'data_objects': [{
+            'name':
+                table.name,
+            'desc':
+                table.desc,
+            'summary_desc':
+                _summary_desc(table.desc),
+            'type':
+                table.type,
+            'visibility':
+                'private' if is_internal(table.name) else 'public',
+            'importance':
+                get_table_importance(table.name),
+            'data_check_sql':
+                check_to_query(TABLE_DATA_CHECK_SQL[table.name])
+                if table.name in TABLE_DATA_CHECK_SQL else None,
+            'cols': [
+                _create_field_dict(col_name, col)
+                for (col_name, col) in table.cols.items()
+            ]
+        }
+                         for table in parsed.table_views],
+        'functions': [{
+            'name': function.name,
+            'desc': function.desc,
+            'summary_desc': _summary_desc(function.desc),
+            'visibility': 'private' if is_internal(function.name) else 'public',
+            'args': [
+                _create_field_dict(arg_name, arg)
+                for (arg_name, arg) in function.args.items()
+            ],
+            'return_type': function.return_type,
+            'return_desc': function.return_desc,
+        }
+                      for function in parsed.functions],
+        'table_functions': [{
+            'name':
+                function.name,
+            'desc':
+                function.desc,
+            'summary_desc':
+                _summary_desc(function.desc),
+            'visibility':
+                'private' if is_internal(function.name) else 'public',
+            'args': [
+                _create_field_dict(arg_name, arg)
+                for (arg_name, arg) in function.args.items()
+            ],
+            'cols': [
+                _create_field_dict(col_name, col)
+                for (col_name, col) in function.cols.items()
+            ]
+        }
+                            for function in parsed.table_functions],
+        'macros': [{
+            'name':
+                macro.name,
+            'desc':
+                macro.desc,
+            'summary_desc':
+                _summary_desc(macro.desc),
+            'visibility':
+                'private' if is_internal(macro.name) else 'public',
+            'return_desc':
+                macro.return_desc,
+            'return_type':
+                macro.return_type,
+            'args': [
+                _create_field_dict(arg_name, arg)
+                for (arg_name, arg) in macro.args.items()
+            ],
+        }
+                   for macro in parsed.macros],
+        'data_check_sql':
+            check_to_query(data_check_sql_map.get(module_name))
+            if module_name in data_check_sql_map else None,
+    }
+    packages[package_name].append(module_dict)
+
+  packages_list = [{
+      "name": name,
+      "modules": modules
+  } for name, modules in packages.items()]
+
+  return packages_list
+
+
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--input', required=True)
   parser.add_argument('--output', required=True)
   args = parser.parse_args()
 
-  with open(args.input) as f:
-    stdlib_json = json.load(f)
+  stdlib_docs = _stdlib_docs(parse_all_modules(STDLIB_DIR))
 
   # Build dependency maps for all modules
-  dependencies, dependents = _build_dependency_maps(stdlib_json)
+  dependencies, dependents = _build_dependency_maps(stdlib_docs)
 
   # Merge prelude modules into one synthetic module
-  for package in stdlib_json:
+  for package in stdlib_docs:
     if package["name"] == "prelude":
       # Collect all artifacts from all prelude modules
       merged_module = {
           'module_name': 'prelude',
-          'module_doc': None,
           'tags': [],
           'includes': [],
           'data_objects': [],
@@ -596,13 +749,13 @@ def main():
 
   # Collect all unique tags from the stdlib
   all_tags: Set[str] = set()
-  for package in stdlib_json:
+  for package in stdlib_docs:
     for module in package["modules"]:
       all_tags.update(module.get('tags', []))
 
   # Fetch the modules from json documentation.
   packages: Dict[str, PackageMd] = {}
-  for package in stdlib_json:
+  for package in stdlib_docs:
     package_name = package["name"]
     modules = package["modules"]
     # Remove 'common' when it has been removed from the code.

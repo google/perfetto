@@ -62,7 +62,7 @@ void PopEnd(FlexVector<Live>& heap) {
 }  // namespace
 
 IntervalFlatten::IntervalFlatten(IntervalFlattenSpec spec)
-    : spec_(std::move(spec)) {
+    : Operator({BatchPreference::kThroughput}), spec_(std::move(spec)) {
   for (const IntervalFlattenSpec::Aggregate& agg : spec_.aggregates) {
     sum_index_.push_back(sums_);
     if (agg.function == IntervalFlattenSpec::Function::kSum) {
@@ -401,8 +401,8 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
   return result;
 }
 
-void IntervalFlatten::Rewind(OperatorState& state) const {
-  auto& s = static_cast<State&>(state);
+void IntervalFlatten::State::Reset() {
+  State& s = *this;
   s.status = base::OkStatus();
   s.input_row = 0;
   s.input_pending = false;

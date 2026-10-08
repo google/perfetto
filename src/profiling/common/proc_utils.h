@@ -63,6 +63,9 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids);
 
 std::optional<Uids> GetUids(const std::string&);
 
+// Returns the effective process UID from stat(/proc/pid).
+std::optional<uid_t> GetUidFromProcfs(pid_t pid);
+
 void FindAllProfilablePids(std::set<pid_t>* pids);
 
 // Heapprofd requires tracking two types of cmdline patterns. The newer glob
@@ -83,6 +86,11 @@ bool GetCmdlineForPID(pid_t pid, std::string* name);
 namespace glob_aware {
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids);
+
+// Returns true if the /proc/pid/cmdline of |pid| matches any of the
+// |patterns|. Kernel threads and zombies (empty cmdline) never match.
+bool PidMatchesCmdlinePatterns(pid_t pid,
+                               const std::vector<std::string>& patterns);
 
 bool MatchCmdlineGlobPatterns(const std::string& cmdline,
                               const std::vector<std::string>& patterns);

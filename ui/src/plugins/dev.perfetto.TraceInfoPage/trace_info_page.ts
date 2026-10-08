@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 import type {Trace} from '../../public/trace';
-import {TabStrip, type TabOption} from '../../widgets/tab_strip';
 import {EmptyState} from '../../widgets/empty_state';
+import {TabStrip} from '../../widgets/tab_strip';
+import {Router} from '../../widgets/router';
 import type {TabKey} from './utils';
-import {isValidTabKey} from './utils';
 import {OverviewTab} from './tabs/overview';
 import {type OverviewData, loadOverviewData} from './tabs/overview_data';
 import {ConfigTab, type ConfigData, loadConfigData} from './tabs/config';
@@ -65,6 +65,8 @@ import {
   loadMetadataData,
   hasMetadataData,
 } from './tabs/metadata';
+import {tabHref} from './nav';
+import {AsyncMemo} from '../../base/async_memo';
 
 export interface TraceInfoPageAttrs {
   readonly trace: Trace;
@@ -88,20 +90,43 @@ interface AllTabData {
 }
 
 export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
-  // All tab data
-  private tabData?: AllTabData;
-  private currentTab: TabKey = 'overview';
-  private lastSubpage?: string;
-
-  oninit({attrs}: m.CVnode<TraceInfoPageAttrs>) {
-    this.loadAllData(attrs.trace);
-  }
+  private tabDataMemo = new AsyncMemo<AllTabData>();
 
   view({attrs}: m.CVnode<TraceInfoPageAttrs>) {
-    if (attrs.subpage !== this.lastSubpage) {
-      this.lastSubpage = attrs.subpage;
-      this.currentTab = getTab(attrs.subpage);
-    }
+    const {trace} = attrs;
+
+    const {data} = this.tabDataMemo.use({
+      key: {},
+      compute: () => loadAllData(trace),
+    });
+
+    // One route per tab. `tab()` wraps each tab's content with the tab bar and
+    // the loading / no-data states, so each route only says what it renders.
+    const renderTab = (
+      key: TabKey,
+      render: (data: AllTabData) => m.Children,
+    ) => {
+      return [
+        this.renderTabStrip(key, data),
+        data === undefined
+          ? m(EmptyState, {
+              icon: 'hourglass_empty',
+              title: 'Loading trace info...',
+            })
+          : render(data),
+      ];
+    };
+
+    // Declare once as this tab is reused across multiple routes
+    const renderOverviewTab = () =>
+      renderTab('overview', (data) =>
+        m(OverviewTab, {
+          trace,
+          data: data.overview,
+          diagnostics: data.diagnostics,
+        }),
+      );
+
     return m(
       '.pf-trace-info-page',
       m(
@@ -114,151 +139,127 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
             'High-level summary of trace health, metrics, and system information',
           ),
         ),
-        m(TabStrip, {
-          tabs: this.getTabs(),
-          currentTabKey: this.currentTab,
-          onTabChange: (key: string) => {
-            this.currentTab = isValidTabKey(key) ? key : 'overview';
+        m(Router, {
+          path: attrs.subpage ?? '',
+          routes: {
+            '': () => renderOverviewTab(),
+            'overview': () => renderOverviewTab(),
+            'config': () =>
+              renderTab('config', (data) => m(ConfigTab, {data: data.config})),
+            'import_errors': () =>
+              renderTab('import_errors', (data) =>
+                m(ImportErrorsTab, {data: data.importErrors}),
+              ),
+            'trace_errors': () =>
+              renderTab('trace_errors', (data) =>
+                m(TraceErrorsTab, {data: data.traceErrors}),
+              ),
+            'trace_doctor': () =>
+              renderTab('trace_doctor', (data) =>
+                m(TraceDoctorTab, {
+                  diagnostics: data.diagnostics,
+                  isMultiTrace: data.overview.traceCount > 1,
+                }),
+              ),
+            'data_losses': () =>
+              renderTab('data_losses', (data) =>
+                m(DataLossesTab, {data: data.dataLosses}),
+              ),
+            'notices': () =>
+              renderTab('notices', (data) =>
+                m(NoticesTab, {data: data.notices}),
+              ),
+            'ui_loading_errors': () =>
+              renderTab('ui_loading_errors', (data) =>
+                m(UiLoadingErrorsTab, {data: data.uiLoadingErrors}),
+              ),
+            'android': () =>
+              renderTab('android', (data) =>
+                m(AndroidTab, {data: data.android}),
+              ),
+            'traces': () =>
+              renderTab('traces', (data) => m(TracesTab, {data: data.traces})),
+            'machines': () =>
+              renderTab('machines', (data) =>
+                m(MachinesTab, {data: data.machines}),
+              ),
+            'metadata': () =>
+              renderTab('metadata', (data) =>
+                m(MetadataTab, {data: data.metadata}),
+              ),
+            'stats': () =>
+              renderTab('stats', (data) => m(StatsTab, {data: data.stats})),
           },
+          fallback: () => [
+            this.renderTabStrip(undefined, data),
+            m(EmptyState, {title: 'Page not found'}),
+          ],
         }),
-        this.renderCurrentTab(attrs.trace, this.currentTab),
       ),
     );
   }
 
-  private renderCurrentTab(trace: Trace, currentTab: TabKey): m.Children {
-    if (!this.tabData) {
-      return m(EmptyState, {
-        icon: 'hourglass_empty',
-        title: 'Loading trace info...',
-      });
-    }
-    switch (currentTab) {
-      case 'overview':
-        return m(OverviewTab, {
-          trace,
-          data: this.tabData.overview,
-          diagnostics: this.tabData.diagnostics,
-          onTabChange: (key: TabKey) => {
-            this.currentTab = key;
-          },
-        });
-      case 'trace_doctor':
-        return m(TraceDoctorTab, {
-          diagnostics: this.tabData.diagnostics,
-          isMultiTrace: this.tabData.overview.traceCount > 1,
-        });
-      case 'config':
-        return m(ConfigTab, {
-          data: this.tabData.config,
-        });
-      case 'android':
-        return m(AndroidTab, {
-          data: this.tabData.android,
-        });
-      case 'traces':
-        return m(TracesTab, {
-          data: this.tabData.traces,
-        });
-      case 'machines':
-        return m(MachinesTab, {
-          data: this.tabData.machines,
-        });
-      case 'metadata':
-        return m(MetadataTab, {
-          data: this.tabData.metadata,
-        });
-      case 'import_errors':
-        return m(ImportErrorsTab, {
-          data: this.tabData.importErrors,
-        });
-      case 'trace_errors':
-        return m(TraceErrorsTab, {
-          data: this.tabData.traceErrors,
-        });
-      case 'data_losses':
-        return m(DataLossesTab, {
-          data: this.tabData.dataLosses,
-        });
-      case 'notices':
-        return m(NoticesTab, {
-          data: this.tabData.notices,
-        });
-      case 'ui_loading_errors':
-        return m(UiLoadingErrorsTab, {
-          data: this.tabData.uiLoadingErrors,
-        });
-      case 'stats':
-        return m(StatsTab, {
-          data: this.tabData.stats,
-        });
-    }
-  }
-
-  private async loadAllData(trace: Trace): Promise<void> {
-    const engine = trace.engine;
-    this.tabData = {
-      overview: await loadOverviewData(trace),
-      diagnostics: await loadTraceDiagnostics(engine),
-      config: await loadConfigData(engine),
-      android: await loadAndroidData(engine),
-      machines: await loadMachinesData(engine),
-      traces: await loadTracesData(engine),
-      metadata: await loadMetadataData(engine),
-      importErrors: await loadImportErrorsData(engine),
-      traceErrors: await loadTraceErrorsData(engine),
-      dataLosses: await loadDataLossesData(engine),
-      notices: await loadNoticesData(engine),
-      uiLoadingErrors: {errors: trace.loadingErrors},
-      stats: await loadStatsData(engine),
+  // Renders the tab bar, highlighting `activeKey` if set.
+  private renderTabStrip(
+    activeKey: TabKey | undefined,
+    data: AllTabData | undefined,
+  ): m.Children {
+    const propsForTab = (key: TabKey) => {
+      return {
+        active: activeKey === key,
+        href: tabHref(key),
+      };
     };
-    m.redraw();
-  }
-
-  private getTabs(): TabOption[] {
-    const tabs: TabOption[] = [{key: 'overview', title: 'Overview'}];
-    if ((this.tabData?.config?.configs?.length ?? 0) > 0) {
-      tabs.push({key: 'config', title: 'Trace Config'});
-    }
-    if ((this.tabData?.overview?.importErrors ?? 0) > 0) {
-      tabs.push({key: 'import_errors', title: 'Import Errors'});
-    }
-    if ((this.tabData?.traceErrors?.errors?.length ?? 0) > 0) {
-      tabs.push({key: 'trace_errors', title: 'Trace Errors'});
-    }
-    if ((this.tabData?.diagnostics?.length ?? 0) > 0) {
-      tabs.push({key: 'trace_doctor', title: 'Trace Doctor'});
-    }
-    if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
-      tabs.push({key: 'data_losses', title: 'Data Losses'});
-    }
-    if ((this.tabData?.notices?.categories?.length ?? 0) > 0) {
-      tabs.push({key: 'notices', title: 'Notices'});
-    }
-    if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
-      tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
-    }
-    if (hasAndroidData(this.tabData?.android)) {
-      tabs.push({key: 'android', title: 'Android'});
-    }
-    if ((this.tabData?.overview?.traceCount ?? 0) > 1) {
-      tabs.push({key: 'traces', title: 'Traces'});
-    }
-    if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
-      tabs.push({key: 'machines', title: 'Machines'});
-    }
-    if (hasMetadataData(this.tabData?.metadata)) {
-      tabs.push({key: 'metadata', title: 'Metadata'});
-    }
-    tabs.push({key: 'stats', title: 'Statistics'});
-    return tabs;
+    return m(TabStrip, {variant: 'underline'}, [
+      m(TabStrip.Link, propsForTab('overview'), 'Overview'),
+      data && [
+        data.config.configs.length !== 0 &&
+          m(TabStrip.Link, propsForTab('config'), 'Trace Config'),
+        data.overview.importErrors !== 0 &&
+          m(TabStrip.Link, propsForTab('import_errors'), 'Import Errors'),
+        data.traceErrors.errors.length !== 0 &&
+          m(TabStrip.Link, propsForTab('trace_errors'), 'Trace Errors'),
+        data.diagnostics.length !== 0 &&
+          m(TabStrip.Link, propsForTab('trace_doctor'), 'Trace Doctor'),
+        data.overview.dataLosses !== 0 &&
+          m(TabStrip.Link, propsForTab('data_losses'), 'Data Losses'),
+        data.notices.categories.length !== 0 &&
+          m(TabStrip.Link, propsForTab('notices'), 'Notices'),
+        data.overview.uiLoadingErrorCount !== 0 &&
+          m(
+            TabStrip.Link,
+            propsForTab('ui_loading_errors'),
+            'UI Loading Errors',
+          ),
+        hasAndroidData(data.android) &&
+          m(TabStrip.Link, propsForTab('android'), 'Android'),
+        data.overview.traceCount > 1 &&
+          m(TabStrip.Link, propsForTab('traces'), 'Traces'),
+        data.machines.machineCount > 1 &&
+          m(TabStrip.Link, propsForTab('machines'), 'Machines'),
+        hasMetadataData(data.metadata) &&
+          m(TabStrip.Link, propsForTab('metadata'), 'Metadata'),
+      ],
+      m(TabStrip.Link, propsForTab('stats'), 'Statistics'),
+    ]);
   }
 }
 
-function getTab(subpage: string | undefined): TabKey {
-  if (!subpage) {
-    return 'overview';
-  }
-  const res = subpage.substring(1);
-  return isValidTabKey(res) ? res : 'overview';
+async function loadAllData(trace: Trace): Promise<AllTabData> {
+  const engine = trace.engine;
+  return {
+    overview: await loadOverviewData(trace),
+    diagnostics: await loadTraceDiagnostics(engine),
+    config: await loadConfigData(engine),
+    android: await loadAndroidData(engine),
+    machines: await loadMachinesData(engine),
+    traces: await loadTracesData(engine),
+    metadata: await loadMetadataData(engine),
+    importErrors: await loadImportErrorsData(engine),
+    traceErrors: await loadTraceErrorsData(engine),
+    dataLosses: await loadDataLossesData(engine),
+    notices: await loadNoticesData(engine),
+    uiLoadingErrors: {errors: trace.loadingErrors},
+    stats: await loadStatsData(engine),
+  };
 }

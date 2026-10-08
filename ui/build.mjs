@@ -619,23 +619,8 @@ function compileProtos() {
 }
 
 function generateStdlibDocs() {
-  const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_docs_json.py');
-  const stdlibDir = pjoin(ROOT_DIR, 'src/trace_processor/perfetto_sql/stdlib');
-
-  const stdlibFiles = listFilesRecursive(stdlibDir).filter(
-    (filePath) => path.extname(filePath) === '.sql',
-  );
-
-  addTask(exec, [
-    cmd,
-    [
-      '--json-out',
-      pjoin(cfg.outDistDir, 'stdlib_docs.json'),
-      '--metadata-only',
-      '--minify',
-      ...stdlibFiles,
-    ],
-  ]);
+  const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_metadata_json.py');
+  addTask(exec, [cmd, ['--out', pjoin(cfg.outDistDir, 'stdlib_docs.json')]]);
 }
 
 function updateSymlinks() {
@@ -1378,18 +1363,6 @@ function walk(dir, callback, skipRegex) {
       callback(childPath);
     }
   }
-}
-
-// Recursively build a list of files in a given directory and return a list of
-// file paths, similar to `find -type f`.
-function listFilesRecursive(dir) {
-  const fileList = [];
-
-  walk(dir, (filePath) => {
-    fileList.push(filePath);
-  });
-
-  return fileList;
 }
 
 function ensureDir(dirPath, clean) {

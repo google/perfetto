@@ -50,12 +50,12 @@ class MockUnwindContext : public UnwindContext {
   void ReparseMaps() override {}
   void ResetMaps() override { maps_.clear(); }
 
-  std::optional<FrameData> BuildFrameFromPc(uint64_t pc,
-                                            bool /*resolve_names*/) override {
+  FrameData BuildFrameFromPc(uint64_t pc, bool /*resolve_names*/) override {
+    FrameData frame{};
+    frame.pc = pc;
+    frame.rel_pc = pc;
     for (const auto& m : maps_) {
       if (pc >= m.start && pc < m.end) {
-        FrameData frame;
-        frame.pc = pc;
         frame.rel_pc = pc - m.start;
         MapInfo mi;
         mi.map_name = m.name;
@@ -65,7 +65,7 @@ class MockUnwindContext : public UnwindContext {
         return frame;
       }
     }
-    return std::nullopt;
+    return frame;
   }
 
  private:

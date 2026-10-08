@@ -32,7 +32,8 @@ source_set("parser") {
     "../../../perfetto_sql/syntaqlite",
     "../../sqlite",
     "../../util:sql_argument",
-    "../pipeline:logical",
+    "../pipeline",
+    "../pipeline:plan",
   ]
   cflags = [
     "-Wno-old-style-cast",
@@ -54,7 +55,8 @@ perfetto_unittest_source_set("unittests") {
     "../../containers",
     "../../sqlite",
     "../../util:sql_argument",
-    "../pipeline:logical",
+    "../pipeline",
+    "../pipeline:plan",
     "../pipeline:test_catalog",
     "../pipeline:test_utils",
   ]
@@ -71,7 +73,8 @@ perfetto_unittest_source_set("test_utils") {
     "../../../base",
     "../../sqlite",
     "../../util:sql_argument",
-    "../pipeline:logical",
+    "../pipeline",
+    "../pipeline:plan",
     "../pipeline:test_utils",
   ]
 }

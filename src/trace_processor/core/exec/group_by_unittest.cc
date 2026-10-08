@@ -97,8 +97,8 @@ Output Drain(const Source& source) {
   return out;
 }
 
-std::vector<std::unique_ptr<Operator>> GroupOn(uint32_t column) {
-  std::vector<std::unique_ptr<Operator>> ops;
+std::vector<Pipeline::Step> GroupOn(uint32_t column) {
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<GroupBy>(std::vector<uint32_t>{column}));
   return ops;
 }

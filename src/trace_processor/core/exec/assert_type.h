@@ -42,21 +42,20 @@ using AssertTypeTarget = base::TypeSet<Int64, Double, String>;
 // flat column already of the requested type passes through unchanged; a flat
 // integer column of any other type is copied into a widened one. Integers
 // widen to a float only where the conversion is exact; nothing else converts.
-class AssertType : public Operator {
+class AssertType final : public Transform {
  public:
   AssertType(uint32_t column, AssertTypeTarget type, std::string name);
   ~AssertType() override;
 
   std::unique_ptr<OperatorState> MakeState() const override;
-  OpResult Execute(const RowBatch& in,
-                   RowBatch& out,
-                   OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
+  bool Process(RowBatch& batch, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
     // The converted column, holding values of the target type.
     BufferPool<ColumnChunk> buffers;
     base::Status status = base::OkStatus();

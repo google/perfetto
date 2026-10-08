@@ -651,8 +651,14 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
 
   for (auto it = sp.entries(); it; ++it) {
     protos::pbzero::SmapsEntry::Decoder e(*it);
-    InternedSmapsPath interned =
-        InternSmapsPath(context_, base::StringView(e.path()));
+    // Chrome's memory-infra only writes the mapping name to |file_name|.
+    InternedSmapsPath interned = InternSmapsPath(
+        context_, base::StringView(e.has_path() ? e.path() : e.file_name()));
+    // Per-entry smaps don't carry Rss, but it is the sum of the resident
+    // shared and private pages, as in /proc/pid/smaps.
+    auto rss_kb = static_cast<int64_t>(
+        e.private_clean_resident_kb() + e.private_dirty_kb() +
+        e.shared_clean_resident_kb() + e.shared_dirty_resident_kb());
     context_->storage->mutable_profiler_smaps_table()->Insert(
         {upid,
          ts,
@@ -674,7 +680,7 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
          static_cast<int64_t>(e.shared_clean_resident_kb()),
          static_cast<int64_t>(e.locked_kb()),
          static_cast<int64_t>(e.proportional_resident_kb()),
-         /*rss_kb=*/int64_t{0},
+         rss_kb,
          /*anonymous_kb=*/int64_t{0},
          /*pss_dirty_kb=*/int64_t{0},
          /*swap_pss_kb=*/int64_t{0}});

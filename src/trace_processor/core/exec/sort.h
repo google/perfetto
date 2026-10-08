@@ -46,13 +46,11 @@ class Sort : public Breaker {
  public:
   explicit Sort(SortSpec);
   ~Sort() override;
-  BatchPreference batch_preference() const override {
-    return BatchPreference::kThroughput;
-  }
 
  private:
   struct State : Breaker::State {
     ~State() override;
+    void Reset() override;
 
     std::vector<std::optional<RowLayout::Type>> types;
     RowLayout layout;
@@ -66,7 +64,6 @@ class Sort : public Breaker {
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
-  void Reset(Breaker::State& state) const override;
 
   SortSpec spec_;
 };

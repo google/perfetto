@@ -307,20 +307,19 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
 
 }  // namespace
 
-std::optional<FrameData> LibunwindstackContext::BuildFrameFromPc(
-    uint64_t pc,
-    bool resolve_names) {
-  std::shared_ptr<unwindstack::MapInfo> map_info = metadata_.fd_maps.Find(pc);
+FrameData LibunwindstackContext::BuildFrameFromPc(uint64_t pc,
+                                                  bool resolve_names) {
+  FrameData frame{};
+  frame.pc = pc;
+  frame.rel_pc = pc;
 
+  std::shared_ptr<unwindstack::MapInfo> map_info = metadata_.fd_maps.Find(pc);
   if (map_info == nullptr) {
-    return std::nullopt;
+    return frame;
   }
 
   const auto arch = unwindstack::Regs::CurrentArch();
 
-  FrameData frame;
-  frame.pc = pc;
-  frame.rel_pc = pc;
   frame.symbol_status =
       resolve_names ? SymbolStatus::kFailure : SymbolStatus::kNotAttempted;
 

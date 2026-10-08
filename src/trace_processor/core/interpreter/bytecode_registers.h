@@ -115,19 +115,20 @@ struct NullBitvector {
 };
 
 // Values that can be stored in a register.
-using RegValue = std::variant<Empty,
-                              Range,
-                              Slab<uint32_t>,
-                              Span<uint32_t>,
-                              CastFilterValueResult,
-                              std::unique_ptr<CastFilterValueListResult>,
-                              Slab<uint8_t>,
-                              StringIdToRankMap,
-                              StoragePtr,
-                              const BitVector*,
-                              Span<const uint32_t>,
-                              BitVector,
-                              NullBitvector>;
+using RegValue =
+    std::variant<Empty,
+                 Range,
+                 Slab<uint32_t>,
+                 Span<uint32_t>,
+                 filter::CastFilterValueResult,
+                 std::unique_ptr<filter::CastFilterValueListResult>,
+                 Slab<uint8_t>,
+                 StringIdToRankMap,
+                 StoragePtr,
+                 const BitVector*,
+                 Span<const uint32_t>,
+                 BitVector,
+                 NullBitvector>;
 
 }  // namespace perfetto::trace_processor::core::interpreter
 

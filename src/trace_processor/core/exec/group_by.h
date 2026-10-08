@@ -41,13 +41,11 @@ class GroupBy : public Breaker {
  public:
   explicit GroupBy(std::vector<uint32_t> key_columns);
   ~GroupBy() override;
-  BatchPreference batch_preference() const override {
-    return BatchPreference::kThroughput;
-  }
 
  private:
   struct State : Breaker::State {
     ~State() override;
+    void Reset() override;
 
     KeyEncoder keys;
     // The keys `group_of` views.
@@ -65,7 +63,6 @@ class GroupBy : public Breaker {
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
-  void Reset(Breaker::State& state) const override;
 
   std::vector<uint32_t> key_columns_;
 };

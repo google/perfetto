@@ -66,20 +66,19 @@ using testing::Pointee;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 
-// Creates a CastFilterValueListResult with typed HashMap and ValueList
+// Creates a filter::CastFilterValueListResult with typed HashMap and ValueList
 // for the given storage type T.
 template <typename T>
-CastFilterValueListResult::Ptr CreateFilterInResult(
-    std::initializer_list<
-        StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>>
-        values) {
-  using HM =
-      StorageType::VariantTypeAtIndex<T,
-                                      CastFilterValueListResult::ValueHashMap>;
-  using VL =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
-  auto result = std::make_unique<CastFilterValueListResult>();
-  result->validity = CastFilterValueResult::Validity::kValid;
+filter::CastFilterValueListResult::Ptr CreateFilterInResult(
+    std::initializer_list<StorageType::VariantTypeAtIndex<
+        T,
+        filter::CastFilterValueListResult::Value>> values) {
+  using HM = StorageType::VariantTypeAtIndex<
+      T, filter::CastFilterValueListResult::ValueHashMap>;
+  using VL = StorageType::VariantTypeAtIndex<
+      T, filter::CastFilterValueListResult::ValueList>;
+  auto result = std::make_unique<filter::CastFilterValueListResult>();
+  result->validity = filter::CastFilterValueResult::Validity::kValid;
   result->Init<T>();
   auto& hm = base::unchecked_get<HM>(result->hash_map);
   auto& vl = base::unchecked_get<VL>(result->value_list);
@@ -93,8 +92,8 @@ CastFilterValueListResult::Ptr CreateFilterInResult(
   return result;
 }
 
-CastFilterValueListResult::Ptr CreateNoneMatch() {
-  return std::make_unique<CastFilterValueListResult>();
+filter::CastFilterValueListResult::Ptr CreateNoneMatch() {
+  return std::make_unique<filter::CastFilterValueListResult>();
 }
 
 class BytecodeInterpreterTest : public testing::Test {
@@ -236,7 +235,7 @@ TEST_F(BytecodeInterpreterTest, Reverse) {
   EXPECT_THAT(update, ElementsAre(5, 4, 3, 2, 1));
 }
 
-using CastResult = CastFilterValueResult;
+using CastResult = filter::CastFilterValueResult;
 
 struct CastTestCase {
   std::string input_type;
@@ -263,7 +262,7 @@ TEST_P(BytecodeInterpreterCastTest, Cast) {
           input_type.c_str(), op.index())
           .ToStdString());
 
-  const auto& result = GetRegister<CastFilterValueResult>(0);
+  const auto& result = GetRegister<filter::CastFilterValueResult>(0);
   ASSERT_THAT(result.validity, testing::Eq(expected.validity));
   if (result.validity == CastResult::Validity::kValid) {
     if (std::holds_alternative<const char*>(expected.value)) {
@@ -558,9 +557,10 @@ TEST_F(BytecodeInterpreterTest, SortedFilterIdEq) {
       "update_register=Register(1), write_result_to=BoundModifier(0)]";
   {
     // Test case 1: Value exists in range
-    SetRegistersAndExecute(
-        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
-        Range{0, 10});
+    SetRegistersAndExecute(bytecode,
+                           filter::CastFilterValueResult::Valid(
+                               filter::CastFilterValueResult::Id{5}),
+                           Range{0, 10});
 
     const auto& result = GetRegister<Range>(1);
     EXPECT_EQ(result.b, 5u);
@@ -568,14 +568,15 @@ TEST_F(BytecodeInterpreterTest, SortedFilterIdEq) {
   }
   {
     // Test case 2: Value below range
-    SetRegistersAndExecute(
-        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{2}),
-        Range{3, 10});
+    SetRegistersAndExecute(bytecode,
+                           filter::CastFilterValueResult::Valid(
+                               filter::CastFilterValueResult::Id{2}),
+                           Range{3, 10});
     EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
   }
   {
     // Test case 3: Invalid cast result (NoneMatch)
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::NoneMatch(),
                            Range{0, 10});
     EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
   }
@@ -586,9 +587,10 @@ TEST_F(BytecodeInterpreterTest, SortedFilter_LowerBound_BeginBound_Normal) {
       "SortedFilter<Id, LowerBound>: [storage_register=Register(2), "
       "val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(1)]";
-  SetRegistersAndExecute(
-      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
-      Range{0, 10});
+  SetRegistersAndExecute(bytecode,
+                         filter::CastFilterValueResult::Valid(
+                             filter::CastFilterValueResult::Id{5}),
+                         Range{0, 10});
 
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 5u);
@@ -600,9 +602,10 @@ TEST_F(BytecodeInterpreterTest, SortedFilter_LowerBound_EndBound_EmptiesRange) {
       "SortedFilter<Id, LowerBound>: [storage_register=Register(2), "
       "val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(2)]";
-  SetRegistersAndExecute(
-      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{2}),
-      Range{5, 10});
+  SetRegistersAndExecute(bytecode,
+                         filter::CastFilterValueResult::Valid(
+                             filter::CastFilterValueResult::Id{2}),
+                         Range{5, 10});
 
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 5u);
@@ -615,9 +618,10 @@ TEST_F(BytecodeInterpreterTest,
       "SortedFilter<Id, UpperBound>: [storage_register=Register(2), "
       "val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(1)]";
-  SetRegistersAndExecute(
-      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{15}),
-      Range{5, 10});
+  SetRegistersAndExecute(bytecode,
+                         filter::CastFilterValueResult::Valid(
+                             filter::CastFilterValueResult::Id{15}),
+                         Range{5, 10});
 
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 16u);
@@ -629,9 +633,10 @@ TEST_F(BytecodeInterpreterTest, SortedFilter_UpperBound_EndBound_Normal) {
       "SortedFilter<Id, UpperBound>: [storage_register=Register(2), "
       "val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(2)]";
-  SetRegistersAndExecute(
-      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
-      Range{0, 10});
+  SetRegistersAndExecute(bytecode,
+                         filter::CastFilterValueResult::Valid(
+                             filter::CastFilterValueResult::Id{5}),
+                         Range{0, 10});
 
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 0u);
@@ -643,9 +648,10 @@ TEST_F(BytecodeInterpreterTest, SortedFilter_UpperBound_EndBound_Redundant) {
       "SortedFilter<Id, UpperBound>: [storage_register=Register(2), "
       "val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(2)]";
-  SetRegistersAndExecute(
-      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{12}),
-      Range{0, 10});
+  SetRegistersAndExecute(bytecode,
+                         filter::CastFilterValueResult::Valid(
+                             filter::CastFilterValueResult::Id{12}),
+                         Range{0, 10});
 
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 0u);
@@ -665,7 +671,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
                               HasDuplicates{}});
   {
     // Test case 1: Value exists in range
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(5u),
                            Range{3u, 8u}, GetStoragePtr<Uint32>(0));
     const auto& result = GetRegister<Range>(1);
     EXPECT_EQ(result.b, 3u);
@@ -673,13 +679,13 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
   }
   {
     // Test case 2: Value exists not range
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(4u),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(4u),
                            Range{3u, 8u}, GetStoragePtr<Uint32>(0));
     EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
   }
   {
     // Test case 3: Invalid cast result (NoneMatch)
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::NoneMatch(),
                            Range{0, 8u}, GetStoragePtr<Uint32>(0));
     EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
   }
@@ -698,11 +704,11 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32LowerBound) {
       dataframe::NullStorage{dataframe::NullStorage::NonNull{}}, Sorted{},
       HasDuplicates{}});
 
-  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+  SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(5u),
                          Range{3u, 8u}, GetStoragePtr<Uint32>(0));
   EXPECT_THAT(GetRegister<Range>(1), IsEmpty());
 
-  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+  SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(5u),
                          Range{1u, 8u}, GetStoragePtr<Uint32>(0));
   auto result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 1u);
@@ -721,7 +727,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32UpperBound) {
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
 
-  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+  SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(5u),
                          Range{3u, 7u}, GetStoragePtr<Uint32>(0));
   auto result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 5u);
@@ -738,23 +744,25 @@ TEST_F(BytecodeInterpreterTest, FilterIdEq) {
   {
     // Test case 1: Value exists in range
     std::vector<uint32_t> indices = indices_spec;
-    SetRegistersAndExecute(
-        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{5}),
-        GetSpan(indices), GetSpan(indices));
+    SetRegistersAndExecute(bytecode,
+                           filter::CastFilterValueResult::Valid(
+                               filter::CastFilterValueResult::Id{5}),
+                           GetSpan(indices), GetSpan(indices));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(5u));
   }
   {
     // Test case 2: Value above range
     std::vector<uint32_t> indices = indices_spec;
-    SetRegistersAndExecute(
-        bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{11}),
-        GetSpan(indices), GetSpan(indices));
+    SetRegistersAndExecute(bytecode,
+                           filter::CastFilterValueResult::Valid(
+                               filter::CastFilterValueResult::Id{11}),
+                           GetSpan(indices), GetSpan(indices));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
   }
   {
     // Test case 3: Invalid cast result (NoneMatch)
     std::vector<uint32_t> indices = indices_spec;
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::NoneMatch(),
                            GetSpan(indices), GetSpan(indices));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
   }
@@ -776,7 +784,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
   {
     // Test case 1: Value exists
     std::vector<uint32_t> indices = indices_spec;
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(4u),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(4u),
                            GetSpan(indices), GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
@@ -785,7 +793,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
   {
     // Test case 2: Value does not exist
     std::vector<uint32_t> indices = indices_spec;
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(5u),
                            GetSpan(indices), GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
@@ -793,7 +801,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
   {
     // Test case 3: Invalid cast result (NoneMatch)
     std::vector<uint32_t> indices = indices_spec;
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::NoneMatch(),
                            GetSpan(indices), GetSpan(indices),
                            GetStoragePtr<Uint32>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
@@ -832,7 +840,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
         "SortedFilter<String, EqualRange>: [storage_register=Register(2), "
         "val_register=Register(0), "
         "update_register=Register(1), write_result_to=BoundModifier(0)]";
-    SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("banana"),
+    SetRegistersAndExecute(bytecode_str,
+                           filter::CastFilterValueResult::Valid("banana"),
                            Range{0, 5}, GetStoragePtr<String>(0));
     const auto& result_range = GetRegister<Range>(1);
     EXPECT_EQ(result_range.b, 1u) << "EqualRange begin";
@@ -845,7 +854,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
         "SortedFilter<String, LowerBound>: [storage_register=Register(2), "
         "val_register=Register(0), "
         "update_register=Register(1), write_result_to=BoundModifier(1)]";
-    SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("banana"),
+    SetRegistersAndExecute(bytecode_str,
+                           filter::CastFilterValueResult::Valid("banana"),
                            Range{0, 5}, GetStoragePtr<String>(0));
     const auto& result_range = GetRegister<Range>(1);
     EXPECT_EQ(result_range.b, 1u) << "LowerBound(Ge) begin";
@@ -858,7 +868,8 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
         "SortedFilter<String, UpperBound>: [storage_register=Register(2), "
         "val_register=Register(0), "
         "update_register=Register(1), write_result_to=BoundModifier(2)]";
-    SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("banana"),
+    SetRegistersAndExecute(bytecode_str,
+                           filter::CastFilterValueResult::Valid("banana"),
                            Range{0, 5}, GetStoragePtr<String>(0));
     const auto& result_range = GetRegister<Range>(1);
     EXPECT_EQ(result_range.b, 0u) << "UpperBound(Le) begin";
@@ -902,7 +913,7 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
 
         std::vector<uint32_t> res = source_indices;
         SetRegistersAndExecute(
-            bytecode_str, CastFilterValueResult::Valid(filter_value),
+            bytecode_str, filter::CastFilterValueResult::Valid(filter_value),
             GetSpan(res), GetSpan(res), GetStoragePtr<String>(0));
         EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
                     ElementsAreArray(expected_indices))
@@ -950,8 +961,9 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
       "StringFilter<Ne>: [storage_register=Register(3), "
       "val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]",
-      CastFilterValueResult::Valid("nonexistent"), GetSpan(source_indices),
-      GetSpan(update_buffer), GetStoragePtr<String>(0));
+      filter::CastFilterValueResult::Valid("nonexistent"),
+      GetSpan(source_indices), GetSpan(update_buffer),
+      GetStoragePtr<String>(0));
 
   // All 4 indices should be returned since "nonexistent" != any string.
   const auto& res = GetRegister<Span<uint32_t>>(2);
@@ -981,7 +993,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeInPool) {
       "StringFilter<Ne>: [storage_register=Register(3), "
       "val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]",
-      CastFilterValueResult::Valid("apple"), GetSpan(source_indices),
+      filter::CastFilterValueResult::Valid("apple"), GetSpan(source_indices),
       Span<uint32_t>{update_buffer.data(), update_buffer.data() + 4},
       GetStoragePtr<String>(0));
 
@@ -1013,7 +1025,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeEmpty) {
       "StringFilter<Ne>: [storage_register=Register(3), "
       "val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]",
-      CastFilterValueResult::Valid("anything"), GetSpan(source_indices),
+      filter::CastFilterValueResult::Valid("anything"), GetSpan(source_indices),
       GetSpan(update_buffer), GetStoragePtr<String>(0));
 
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
@@ -1355,7 +1367,7 @@ TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
       "NonStringFilter<Uint32, Eq>: [storage_register=Register(3), "
       "val_register=Register(0), "
       "source_register=Register(1), update_register=Register(2)]",
-      CastFilterValueResult::Valid(10u), GetSpan(source_indices),
+      filter::CastFilterValueResult::Valid(10u), GetSpan(source_indices),
       GetSpan(update_indices), GetStoragePtr<Uint32>(0));
 
   // Verify the update register (Register 2) - it should be filtered in-place.
@@ -1389,7 +1401,8 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   auto RunSubTest = [&](const std::string& label, Range initial_range,
                         uint32_t filter_val, Range expected_range) {
     SCOPED_TRACE("Sub-test: " + label);
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(filter_val),
+    SetRegistersAndExecute(bytecode,
+                           filter::CastFilterValueResult::Valid(filter_val),
                            initial_range, GetStoragePtr<Uint32>(0));
     const auto& result = GetRegister<Range>(1);
     EXPECT_EQ(result.b, expected_range.b) << "Range begin mismatch";
@@ -1434,14 +1447,14 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   // Test with invalid cast results
   {
     SCOPED_TRACE("Sub-test: Invalid Cast (NoneMatch)");
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::NoneMatch(),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::NoneMatch(),
                            full_range);
     const auto& result = GetRegister<Range>(1);
     EXPECT_TRUE(result.empty());  // Should become empty
   }
   {
     SCOPED_TRACE("Sub-test: Invalid Cast (AllMatch)");
-    SetRegistersAndExecute(bytecode, CastFilterValueResult::AllMatch(),
+    SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::AllMatch(),
                            full_range);
     const auto& result = GetRegister<Range>(1);
     // Instruction returns early, keeps original range
@@ -1723,9 +1736,9 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterEq_Uint32_NonNull_ValueExists) {
   std::string bytecode_str = R"(
     IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(2), null_bv_register=Register(3), filter_value_reg=Register(0), source_register=Register(1), dest_register=Register(1)]
   )";
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(20u),
-                         GetSpan(p_vec), GetStoragePtr<Uint32>(0),
-                         NullBitvector{GetNullBv(0), {}});
+  SetRegistersAndExecute(
+      bytecode_str, filter::CastFilterValueResult::Valid(20u), GetSpan(p_vec),
+      GetStoragePtr<Uint32>(0), NullBitvector{GetNullBv(0), {}});
 
   EXPECT_THAT(GetRegister<Span<uint32_t>>(1), testing::ElementsAre(1, 4, 2));
 }
@@ -1742,9 +1755,9 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterEq_Uint32_NonNull_ValueNotExists) {
   std::string bytecode_str = R"(
     IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(2), null_bv_register=Register(3), filter_value_reg=Register(0), source_register=Register(1), dest_register=Register(1)]
   )";
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(25u),
-                         GetSpan(p_vec), GetStoragePtr<Uint32>(0),
-                         NullBitvector{GetNullBv(0), {}});
+  SetRegistersAndExecute(
+      bytecode_str, filter::CastFilterValueResult::Valid(25u), GetSpan(p_vec),
+      GetStoragePtr<Uint32>(0), NullBitvector{GetNullBv(0), {}});
   EXPECT_THAT(GetRegister<Span<uint32_t>>(1), IsEmpty());
 }
 
@@ -1764,7 +1777,8 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterEq_String_SparseNull_ValueExists) {
     PrefixPopcount: [null_bv_register=Register(3)]
     IndexedFilterEq<String, SparseNull>: [storage_register=Register(2), null_bv_register=Register(3), filter_value_reg=Register(0), source_register=Register(1), dest_register=Register(1)]
   )";
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("apple"),
+  SetRegistersAndExecute(bytecode_str,
+                         filter::CastFilterValueResult::Valid("apple"),
                          GetSpan(p_vec), GetStoragePtr<String>(0),
                          NullBitvector{GetNullBv(0), {}});
   EXPECT_THAT(GetRegister<Span<uint32_t>>(1), testing::ElementsAre(0, 3));
@@ -1786,7 +1800,8 @@ TEST_F(BytecodeInterpreterTest,
     PrefixPopcount: [null_bv_register=Register(3)]
     IndexedFilterEq<String, SparseNull>: [storage_register=Register(2), null_bv_register=Register(3), filter_value_reg=Register(0), source_register=Register(1), dest_register=Register(1)]
   )";
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("bird"),
+  SetRegistersAndExecute(bytecode_str,
+                         filter::CastFilterValueResult::Valid("bird"),
                          GetSpan(p_vec), GetStoragePtr<String>(0),
                          NullBitvector{GetNullBv(0), {}});
   EXPECT_THAT(GetRegister<Span<uint32_t>>(1), IsEmpty());
@@ -1987,10 +2002,10 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_LargeInList) {
   )";
 
   // IN list with 20 values (> kLinearScanThreshold=16).
-  using HM = CastFilterValueListResult::HashMap<uint32_t>;
+  using HM = filter::CastFilterValueListResult::HashMap<uint32_t>;
   using VL = FlexVector<uint32_t>;
-  auto result = std::make_unique<CastFilterValueListResult>();
-  result->validity = CastFilterValueResult::Validity::kValid;
+  auto result = std::make_unique<filter::CastFilterValueListResult>();
+  result->validity = filter::CastFilterValueResult::Validity::kValid;
   result->Init<Uint32>();
   auto& hm = base::unchecked_get<HM>(result->hash_map);
   auto& vl = base::unchecked_get<VL>(result->value_list);
@@ -2098,9 +2113,9 @@ TEST_F(BytecodeInterpreterTest,
   // search threshold of 64. Only populate the hash map (leave value_list
   // empty, matching what MaybeBuildValueList does for large lists).
   constexpr uint32_t kInSize = 65;
-  using HM = CastFilterValueListResult::HashMap<uint32_t>;
-  auto result = std::make_unique<CastFilterValueListResult>();
-  result->validity = CastFilterValueResult::Validity::kValid;
+  using HM = filter::CastFilterValueListResult::HashMap<uint32_t>;
+  auto result = std::make_unique<filter::CastFilterValueListResult>();
+  result->validity = filter::CastFilterValueResult::Validity::kValid;
   result->Init<Uint32>();
   auto& hm = base::unchecked_get<HM>(result->hash_map);
   for (uint32_t i = 0; i < kInSize; ++i) {
@@ -2162,9 +2177,9 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueExists) {
   std::vector<uint32_t> update_data(
       6);  // Sufficient space for all possible matches
 
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(20u),
-                         source_range, GetSpan(update_data),
-                         GetStoragePtr<Uint32>(0));
+  SetRegistersAndExecute(
+      bytecode_str, filter::CastFilterValueResult::Valid(20u), source_range,
+      GetSpan(update_data), GetStoragePtr<Uint32>(0));
 
   // Expected indices where data[i] == 20u: 1, 2, 4
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(1u, 2u, 4u));
@@ -2182,9 +2197,9 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueNotExists) {
   Range source_range{0, 3};
   std::vector<uint32_t> update_data(3);
 
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(25u),
-                         source_range, GetSpan(update_data),
-                         GetStoragePtr<Uint32>(0));
+  SetRegistersAndExecute(
+      bytecode_str, filter::CastFilterValueResult::Valid(25u), source_range,
+      GetSpan(update_data), GetStoragePtr<Uint32>(0));
 
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
 }
@@ -2202,9 +2217,9 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_String_NonNull_ValueExists) {
   Range source_range{0, 4};
   std::vector<uint32_t> update_data(4);
 
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("apple"),
-                         source_range, GetSpan(update_data),
-                         GetStoragePtr<String>(0));
+  SetRegistersAndExecute(
+      bytecode_str, filter::CastFilterValueResult::Valid("apple"), source_range,
+      GetSpan(update_data), GetStoragePtr<String>(0));
 
   // Expected indices where data[i] == "apple": 0, 2
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(0u, 2u));
@@ -2223,9 +2238,9 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_NoneMatch) {
 
   // Intentionally not pre-filling update_data to ensure iota in LinearFilterEq
   // (user version) correctly handles an empty effective range.
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::NoneMatch(),
-                         source_range, GetSpan(update_data),
-                         GetStoragePtr<Uint32>(0));
+  SetRegistersAndExecute(
+      bytecode_str, filter::CastFilterValueResult::NoneMatch(), source_range,
+      GetSpan(update_data), GetStoragePtr<Uint32>(0));
 
   // HandleInvalidCastFilterValueResult should make the source_range empty,
   // then the iota in the user's corrected LinearFilterEq will copy 0 elements.
@@ -2243,9 +2258,9 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_AllMatch) {
   Range source_range{0, 3};
   std::vector<uint32_t> update_data(3);
 
-  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::AllMatch(),
-                         source_range, GetSpan(update_data),
-                         GetStoragePtr<Uint32>(0));
+  SetRegistersAndExecute(
+      bytecode_str, filter::CastFilterValueResult::AllMatch(), source_range,
+      GetSpan(update_data), GetStoragePtr<Uint32>(0));
   // HandleInvalidCastFilterValueResult returns early, source_range is not
   // modified. The iota in LinearFilterEq (user corrected version) copies all
   // original indices from the range.
@@ -2446,9 +2461,10 @@ TEST_F(BytecodeInterpreterTest, InId) {
   {
     // Test case 1: Values exist in range (small list, linear scan).
     std::vector<uint32_t> indices = indices_spec;
-    auto value_list = CreateFilterInResult<Id>({CastFilterValueResult::Id{5},
-                                                CastFilterValueResult::Id{10},
-                                                CastFilterValueResult::Id{44}});
+    auto value_list =
+        CreateFilterInResult<Id>({filter::CastFilterValueResult::Id{5},
+                                  filter::CastFilterValueResult::Id{10},
+                                  filter::CastFilterValueResult::Id{44}});
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
@@ -2457,8 +2473,9 @@ TEST_F(BytecodeInterpreterTest, InId) {
   {
     // Test case 2: No values exist in range
     std::vector<uint32_t> indices = indices_spec;
-    auto value_list = CreateFilterInResult<Id>(
-        {CastFilterValueResult::Id{100}, CastFilterValueResult::Id{200}});
+    auto value_list =
+        CreateFilterInResult<Id>({filter::CastFilterValueResult::Id{100},
+                                  filter::CastFilterValueResult::Id{200}});
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
@@ -2525,8 +2542,9 @@ TEST_F(BytecodeInterpreterTest, InIdBitVectorSparse) {
   {
     // Test case: Sparse values (small list, linear scan).
     std::vector<uint32_t> indices = indices_spec;
-    auto value_list = CreateFilterInResult<Id>(
-        {CastFilterValueResult::Id{5}, CastFilterValueResult::Id{500}});
+    auto value_list =
+        CreateFilterInResult<Id>({filter::CastFilterValueResult::Id{5},
+                                  filter::CastFilterValueResult::Id{500}});
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
@@ -2588,11 +2606,12 @@ TEST_F(BytecodeInterpreterTest, InUint32LargeList) {
   // IN list with 50 even values: 0, 2, 4, ..., 98.
   // This exceeds the linear scan threshold so it will use BitVector
   // (max=98, size=50, 98 <= 50*16).
-  auto result = std::make_unique<CastFilterValueListResult>();
-  result->validity = CastFilterValueResult::Validity::kValid;
+  auto result = std::make_unique<filter::CastFilterValueListResult>();
+  result->validity = filter::CastFilterValueResult::Validity::kValid;
   result->Init<Uint32>();
-  auto& hm = base::unchecked_get<CastFilterValueListResult::HashMap<uint32_t>>(
-      result->hash_map);
+  auto& hm =
+      base::unchecked_get<filter::CastFilterValueListResult::HashMap<uint32_t>>(
+          result->hash_map);
   for (uint32_t i = 0; i < 50; i++) {
     hm.Insert(i * 2, true);
   }
@@ -2624,10 +2643,10 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_Uint32) {
   );
 
   const auto& result =
-      *GetRegister<std::unique_ptr<CastFilterValueListResult>>(0);
-  ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
+      *GetRegister<std::unique_ptr<filter::CastFilterValueListResult>>(0);
+  ASSERT_EQ(result.validity, filter::CastFilterValueResult::kValid);
   const auto& hm =
-      base::unchecked_get<CastFilterValueListResult::HashMap<uint32_t>>(
+      base::unchecked_get<filter::CastFilterValueListResult::HashMap<uint32_t>>(
           result.hash_map);
   EXPECT_EQ(hm.size(), 2u);
   EXPECT_NE(hm.Find(10u), nullptr);
@@ -2648,14 +2667,14 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_String) {
   );
 
   const auto& result =
-      *GetRegister<std::unique_ptr<CastFilterValueListResult>>(0);
-  ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
+      *GetRegister<std::unique_ptr<filter::CastFilterValueListResult>>(0);
+  ASSERT_EQ(result.validity, filter::CastFilterValueResult::kValid);
   // Check that the hash map contains the right string pool ids.
   auto hello_id = spool_.GetId("hello");
   auto world_id = spool_.GetId("world");
-  const auto& hm =
-      base::unchecked_get<CastFilterValueListResult::HashMap<StringPool::Id>>(
-          result.hash_map);
+  const auto& hm = base::unchecked_get<
+      filter::CastFilterValueListResult::HashMap<StringPool::Id>>(
+      result.hash_map);
   EXPECT_EQ(hm.size(), 2u);
   EXPECT_NE(hm.Find(*hello_id), nullptr);
   EXPECT_NE(hm.Find(*world_id), nullptr);
@@ -2674,7 +2693,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq_ManyDuplicates) {
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
 
-  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+  SetRegistersAndExecute(bytecode, filter::CastFilterValueResult::Valid(5u),
                          Range{0u, 25u}, GetStoragePtr<Uint32>(0));
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 2u);

@@ -174,8 +174,8 @@ std::unique_ptr<OperatorState> TreeNumberNodes::MakeState() const {
   return state;
 }
 
-void TreeNumberNodes::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
+void TreeNumberNodes::State::Reset() {
+  State& s = *this;
   s.dense = true;
   s.numbered = 0;
   s.numbers.Clear();
@@ -288,24 +288,21 @@ bool TreeNumberNodes::NumberByKey(const RowBatch& in,
   return true;
 }
 
-OpResult TreeNumberNodes::Execute(const RowBatch& in,
-                                  RowBatch& out,
-                                  OperatorState& state) const {
+bool TreeNumberNodes::Process(RowBatch& batch, OperatorState& state) const {
   State& s = state.Cast<State>();
-  uint32_t count = in.size();
+  uint32_t count = batch.size();
   auto output = s.buffers.Acquire();
-  bool in_order = s.dense && NumberInOrder(in, count, *output, s);
-  if (!in_order && !NumberByKey(in, count, *output, s)) {
-    return OpResult::kError;
+  bool in_order = s.dense && NumberInOrder(batch, count, *output, s);
+  if (!in_order && !NumberByKey(batch, count, *output, s)) {
+    return false;
   }
-  out.CopyFrom(in);
-  out.AddColumn(
+  batch.AddColumn(
       ColumnView::Reference(StorageType{Uint32{}}, output->nodes.data()),
       output);
-  out.AddColumn(
+  batch.AddColumn(
       ColumnView::Reference(StorageType{Uint32{}}, output->parent_nodes.data()),
       output);
-  return OpResult::kNeedMoreInput;
+  return true;
 }
 
 }  // namespace perfetto::trace_processor::core::exec
