@@ -81,9 +81,10 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   spec.aggregates = {{IntervalFlattenSpec::Function::kCount, 0},
                      {IntervalFlattenSpec::Function::kSum, 3}};
   IntervalFlatten op(spec);
-  auto state = op.MakeState();
-  // Refill the same borrowed buffers for each input batch. Retained group keys
-  // must survive this, and Reset must discard a previous execution's state.
+  auto state = op.MakeState(test::TestContext());
+  // Refill the same vectors for each input batch, published in a buffer each,
+  // as a source refilling its storage would. Retained group keys must survive
+  // this, and Reset must discard a previous execution's state.
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
     state->Reset();
@@ -92,13 +93,6 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
     auto key_valid = BitVector::CreateWithSize(chunk);
     auto weight_valid = BitVector::CreateWithSize(chunk);
     RowBatch in, out;
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ts.data()));
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur.data()));
-    in.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, key.data(), &key_valid));
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, weight.data(),
-                                       &weight_valid));
-    in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, groups.data()));
     std::vector<Output> actual;
     auto collect = [&] {
       ASSERT_LE(out.size(), kMaxBatchRows);
@@ -123,6 +117,13 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
         key_valid.change(row, value.group == 0);
         weight_valid.change(row, value.present);
       }
+      in.Reset();
+      Context& context = test::TestContext();
+      test::AddCopy(context, ts, nullptr, &in);
+      test::AddCopy(context, dur, nullptr, &in);
+      test::AddCopy(context, key, &key_valid, &in);
+      test::AddCopy(context, weight, &weight_valid, &in);
+      test::AddCopy(context, groups, nullptr, &in);
       in.SetRowCount(count);
       OpResult result;
       uint32_t calls = 0;

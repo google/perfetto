@@ -20,7 +20,7 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-base::Status BatchBuffer::Append(const RowBatch& in) {
+base::Status BatchBuffer::Append(const RowBatch& in, Context& context) {
   if (!in.size())
     return base::OkStatus();
   uint32_t before = size_, total = before + in.size();
@@ -40,9 +40,9 @@ base::Status BatchBuffer::Append(const RowBatch& in) {
   for (uint32_t c = 0; c < in.column_count(); ++c) {
     Column& column = columns_[c];
     if (!column.packed) {
-      column.packed = column.chunks.Acquire();
+      column.packed = context.TakeBuffer();
     }
-    column.packed->CopyFrom(in, c, before);
+    column.packed.chunk().CopyFrom(in, c, before);
     column.nullable |= in.column(c).validity() != nullptr;
   }
   size_ = total;
@@ -52,8 +52,10 @@ base::Status BatchBuffer::Append(const RowBatch& in) {
 void BatchBuffer::Take(RowBatch& out) {
   out.Reset();
   for (Column& column : columns_) {
-    out.AddColumn(column.packed->View(column.view, column.nullable),
-                  column.packed);
+    // Viewed before the buffer is moved: arguments may be evaluated in any
+    // order.
+    ColumnView view = column.packed.chunk().View(column.view, column.nullable);
+    out.AddColumn(view, std::move(column.packed));
   }
   out.SetRowCount(size_);
   Clear();

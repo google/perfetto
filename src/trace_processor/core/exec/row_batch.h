@@ -19,7 +19,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <utility>
 #include <vector>
 
@@ -28,6 +27,7 @@
 #include "perfetto/ext/base/no_destructor.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
@@ -42,11 +42,16 @@ namespace perfetto::trace_processor::core::exec {
 // `selection()[i]`; Value() does both steps. Dropping rows narrows the
 // selection and leaves the columns as they are.
 //
-// Published owned columns are immutable while retained. Unowned values are
-// borrowed; long-lived dataframe storage is published with its column owner.
-// Owned views remain valid across producer advancement, rewind and
-// destruction. Borrowed values expire at the producer's next call; a
-// retaining consumer must materialize them.
+// A column either borrows storage which outlives the run, such as a
+// dataframe's, or is onto a ColumnBuffer the batch holds a copy of. Either
+// way, keeping a batch's rows is copying the batch: its values are never
+// copied, and stay as they are for as long as the copy is kept.
+//
+// The views themselves are either the batch's own or lent by its producer,
+// which fills the same ones batch after batch (SetColumns): then a batch costs
+// the producer only what changes in them. A batch copies lent views before
+// changing any column, so whoever changes a batch never writes into its
+// producer's.
 class RowBatch {
  public:
   RowBatch() = default;
@@ -54,9 +59,16 @@ class RowBatch {
   RowBatch& operator=(const RowBatch&) = delete;
   RowBatch(RowBatch&& other) noexcept { *this = std::move(other); }
   RowBatch& operator=(RowBatch&& other) noexcept {
-    columns_ = std::move(other.columns_);
-    owners_ = std::move(other.owners_);
+    own_columns_ = std::move(other.own_columns_);
+    own_buffers_ = std::move(other.own_buffers_);
+    if (other.owned_) {
+      Repoint();
+    } else {
+      SetColumns(other.columns_, other.column_count_, other.buffers_,
+                 other.buffer_count_);
+    }
     selection_.CopyFrom(other.selection_);
+    other.Reset();
     return *this;
   }
 
@@ -83,24 +95,22 @@ class RowBatch {
     return columns_[column].IsValid(selection_[row]);
   }
 
-  uint32_t column_count() const {
-    return static_cast<uint32_t>(columns_.size());
-  }
+  uint32_t column_count() const { return column_count_; }
   const ColumnView& column(uint32_t column) const { return columns_[column]; }
-  ColumnView& mutable_column(uint32_t column) { return columns_[column]; }
 
-  const std::shared_ptr<const void>& owner(uint32_t column) const {
-    static const base::NoDestructor<std::shared_ptr<const void>> none;
-    return column < owners_.size() ? owners_[column] : none.ref();
+  // The buffer `column` is onto, null if it borrows its storage.
+  const ColumnBuffer& buffer(uint32_t column) const {
+    static const base::NoDestructor<ColumnBuffer> kBorrowed;
+    return column < buffer_count_ ? buffers_[column] : kBorrowed.ref();
   }
 
   // Points this batch at `other`'s columns and rows. Nothing is copied but
-  // the selection: values are shared, and borrowed values remain borrowed.
+  // the views and selection: the buffers are shared.
   void CopyFrom(const RowBatch& other) {
-    columns_ = other.columns_;
-    if (!owners_.empty() || !other.owners_.empty()) {
-      owners_ = other.owners_;
-    }
+    PERFETTO_DCHECK(&other != this);
+    own_columns_.assign(other.columns_, other.columns_ + other.column_count_);
+    own_buffers_.assign(other.buffers_, other.buffers_ + other.buffer_count_);
+    Repoint();
     selection_.CopyFrom(other.selection_);
   }
 
@@ -108,43 +118,99 @@ class RowBatch {
   void Project(const RowBatch& other, const std::vector<uint32_t>& columns) {
     Reset();
     for (uint32_t column : columns) {
-      AddColumn(other.column(column), other.owner(column));
+      AddColumn(other.column(column), other.buffer(column));
     }
     selection_.CopyFrom(other.selection_);
   }
 
-  // Replaces `column` and the owner keeping its values alive.
-  void SetColumn(uint32_t column,
-                 ColumnView view,
-                 std::shared_ptr<const void> owner = nullptr) {
-    columns_[column] = view;
-    if (owner || column < owners_.size()) {
-      owners_.resize(std::max<size_t>(owners_.size(), column + 1));
-      owners_[column] = std::move(owner);
+  // Adds `view`, which is onto `buffer`: one filled for this batch, or one
+  // another batch is onto, null if that borrows its storage.
+  void AddColumn(const ColumnView& view, ColumnBuffer buffer) {
+    Own();
+    own_columns_.push_back(view);
+    if (buffer) {
+      own_buffers_.resize(own_columns_.size());
+      own_buffers_.back() = std::move(buffer);
     }
+    Repoint();
   }
-  // Adds a column. `owner` keeps the values alive for as long as the batch
-  // does. A null owner declares borrowed storage; retaining consumers may copy.
-  void AddColumn(ColumnView column,
-                 std::shared_ptr<const void> owner = nullptr) {
-    columns_.push_back(column);
-    if (owner) {
-      owners_.resize(columns_.size());
-      owners_.back() = std::move(owner);
+  // Adds `view`, onto storage which outlives the run, such as a dataframe's.
+  // Storage refilled before then must be in a buffer instead.
+  void AddBorrowedColumn(const ColumnView& view) {
+    AddColumn(view, ColumnBuffer());
+  }
+  // Replaces every column with `views`, lent: each onto the buffer of the
+  // same index in `buffers`, or borrowing its storage past the end of it.
+  // Nothing is copied, so the caller keeps both as they are until it next
+  // fills the batch. Keeps the rows.
+  void SetColumns(const std::vector<ColumnView>& views,
+                  const std::vector<ColumnBuffer>& buffers) {
+    SetColumns(views.data(), static_cast<uint32_t>(views.size()),
+               buffers.data(), static_cast<uint32_t>(buffers.size()));
+  }
+  // Replaces `column` with `view`, which is onto `buffer`.
+  void SetColumn(uint32_t column, const ColumnView& view, ColumnBuffer buffer) {
+    Own();
+    own_columns_[column] = view;
+    if (buffer || column < own_buffers_.size()) {
+      if (column >= own_buffers_.size()) {
+        own_buffers_.resize(column + 1);
+      }
+      own_buffers_[column] = std::move(buffer);
     }
+    Repoint();
   }
 
   // Removes every column and row.
   void Reset() {
-    columns_.clear();
-    owners_.clear();
+    own_columns_.clear();
+    own_buffers_.clear();
+    Repoint();
     selection_.Reset(0);
   }
 
  private:
-  std::vector<ColumnView> columns_;
-  // By column, up to the last column the batch owns; null for the others.
-  std::vector<std::shared_ptr<const void>> owners_;
+  void SetColumns(const ColumnView* views,
+                  uint32_t view_count,
+                  const ColumnBuffer* buffers,
+                  uint32_t buffer_count) {
+    // Buffers kept from before would only be released later.
+    own_buffers_.clear();
+    owned_ = false;
+    columns_ = views;
+    column_count_ = view_count;
+    buffers_ = buffers;
+    buffer_count_ = buffer_count;
+  }
+
+  // Copies lent views, to change them.
+  void Own() {
+    if (!owned_) {
+      own_columns_.assign(columns_, columns_ + column_count_);
+      own_buffers_.assign(buffers_, buffers_ + buffer_count_);
+      Repoint();
+    }
+  }
+
+  // Points the columns at the batch's own views.
+  void Repoint() {
+    owned_ = true;
+    columns_ = own_columns_.data();
+    column_count_ = static_cast<uint32_t>(own_columns_.size());
+    buffers_ = own_buffers_.data();
+    buffer_count_ = static_cast<uint32_t>(own_buffers_.size());
+  }
+
+  // The columns, lent or the batch's own.
+  const ColumnView* columns_ = nullptr;
+  uint32_t column_count_ = 0;
+  // By column, up to the last column onto a buffer: null for those borrowing
+  // their storage.
+  const ColumnBuffer* buffers_ = nullptr;
+  uint32_t buffer_count_ = 0;
+  bool owned_ = true;
+  std::vector<ColumnView> own_columns_;
+  std::vector<ColumnBuffer> own_buffers_;
   Selection selection_;
 };
 

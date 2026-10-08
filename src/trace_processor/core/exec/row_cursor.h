@@ -23,6 +23,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -30,7 +31,8 @@ namespace perfetto::trace_processor::core::exec {
 
 // Reads one execution of a plan a row at a time.
 //
-// This is the executor: it creates the state and owns the batch, which is what
+// This is the executor: it creates the state and owns the batch and the
+// Context the run fills columns from, which is what
 // lets the plan itself be const. A new batch is pulled only when the current
 // one is exhausted.
 class RowCursor {
@@ -78,6 +80,8 @@ class RowCursor {
   bool Pull();
 
   const Source& source_;
+  // Before the state and the batch, which hold its buffers.
+  Context context_;
   std::unique_ptr<OperatorState> state_;
   RowBatch scratch_;
   // The source's current batch, valid until the next pull.

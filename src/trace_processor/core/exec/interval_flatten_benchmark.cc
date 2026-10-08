@@ -23,6 +23,7 @@
 
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -36,6 +37,8 @@ namespace perfetto::trace_processor::core::exec {
 namespace {
 
 void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
   std::vector<int64_t> ts;
   std::vector<int64_t> dur;
   std::vector<int64_t> value;
@@ -53,12 +56,12 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
     uint32_t count = std::min(kMaxBatchRows, rows - at);
     RowBatch& batch = batches.emplace_back();
     for (const std::vector<int64_t>* column : {&ts, &dur, &value}) {
-      batch.AddColumn(ColumnView::Reference(StorageType{Int64{}},
-                                            column->data(), nullptr, at));
+      batch.AddBorrowedColumn(ColumnView::Reference(
+          StorageType{Int64{}}, column->data(), nullptr, at));
     }
     if (rows_per_group) {
-      batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}},
-                                            groups.data(), nullptr, at));
+      batch.AddBorrowedColumn(ColumnView::Reference(
+          StorageType{Uint32{}}, groups.data(), nullptr, at));
     }
     batch.SetRowCount(count);
   }
@@ -72,7 +75,7 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
     spec.group_column = 3;
   }
   IntervalFlatten op(spec);
-  std::unique_ptr<OperatorState> op_state = op.MakeState();
+  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     for (const RowBatch& batch : batches) {

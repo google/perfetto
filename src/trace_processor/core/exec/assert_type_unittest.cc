@@ -41,8 +41,10 @@ using testing::ElementsAre;
 // Runs the step over a single batch of variants, in place.
 struct Asserted {
   Asserted(std::vector<Variant> cells, AssertTypeTarget type)
-      : op(0, type, "a"), state(op.MakeState()), values(std::move(cells)) {
-    input.AddColumn(ColumnView::Variants(values.data()));
+      : op(0, type, "a"),
+        state(op.MakeState(test::TestContext())),
+        values(std::move(cells)) {
+    input.AddBorrowedColumn(ColumnView::Variants(values.data()));
     test::Window(&input, 0, static_cast<uint32_t>(values.size()));
   }
 
@@ -147,9 +149,10 @@ TEST(AssertTypeTest, FollowsTheRowsTheBatchPicksOut) {
 TEST(AssertTypeTest, AFlatColumnOfTheRightTypePassesThrough) {
   std::vector<int64_t> values = {1, 2};
   AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
   test::Window(&batch, 0, 2);
 
   EXPECT_TRUE(op.Process(batch, *state));
@@ -159,9 +162,10 @@ TEST(AssertTypeTest, AFlatColumnOfTheRightTypePassesThrough) {
 TEST(AssertTypeTest, AFlatColumnOfTheWrongTypeIsReported) {
   std::vector<double> values = {1.5};
   AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Double{}}, values.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Double{}}, values.data()));
   test::Window(&batch, 0, 1);
 
   EXPECT_FALSE(op.Process(batch, *state));
@@ -173,9 +177,9 @@ TEST(AssertTypeTest, WideningASelectedFlatColumnRemapsValidity) {
   BitVector validity = BitVector::CreateWithSize(3);
   validity.set(1);
   AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch batch;
-  batch.AddColumn(
+  batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Uint32{}}, values.data(), &validity));
   test::Window(&batch, 1, 2);
 
@@ -188,9 +192,10 @@ TEST(AssertTypeTest, WideningASelectedFlatColumnRemapsValidity) {
 TEST(AssertTypeTest, FlatIntegersWidenToDouble) {
   std::vector<int64_t> values = {std::numeric_limits<int64_t>::min(), 42};
   AssertType op(0, AssertTypeTarget{Double{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
   batch.SetRowCount(2);
 
   ASSERT_TRUE(op.Process(batch, *state));
@@ -201,9 +206,10 @@ TEST(AssertTypeTest, FlatIntegersWidenToDouble) {
 TEST(AssertTypeTest, AFlatIntegerAFloatWouldRoundIsReported) {
   std::vector<int64_t> values = {(int64_t{1} << 53) + 1};
   AssertType op(0, AssertTypeTarget{Double{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
   batch.SetRowCount(1);
 
   EXPECT_FALSE(op.Process(batch, *state));
@@ -214,9 +220,10 @@ TEST(AssertTypeTest, AFlatIntegerAFloatWouldRoundIsReported) {
 TEST(AssertTypeTest, WideningANonNullFlatColumnStaysNonNull) {
   std::vector<uint32_t> values = {7, 8};
   AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, values.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, values.data()));
   batch.SetRowCount(2);
 
   ASSERT_TRUE(op.Process(batch, *state));
@@ -250,9 +257,10 @@ TEST(AssertTypeTest, AReusedNullSlotIsCleared) {
 TEST(AssertTypeTest, NarrowIntegerErrorsNameAnInteger) {
   std::vector<uint32_t> values = {7};
   AssertType op(0, AssertTypeTarget{String{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, values.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, values.data()));
   batch.SetRowCount(1);
 
   ASSERT_FALSE(op.Process(batch, *state));

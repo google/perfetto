@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/key_encoder.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -153,9 +154,9 @@ class IntersectState : public OperatorState {
   Regions regions;
   uint32_t served = 0;
 
-  // The bounds of the regions being served, which no operand owns.
-  ColumnChunk ts;
-  ColumnChunk dur;
+  // What the bounds of the regions served are written in, which no operand
+  // owns.
+  Context* context = nullptr;
   // One gathered batch per operand.
   std::vector<RowBatch> gathered;
   base::Status status = base::OkStatus();
@@ -314,8 +315,10 @@ IntervalIntersect::IntervalIntersect(
 
 IntervalIntersect::~IntervalIntersect() = default;
 
-std::unique_ptr<OperatorState> IntervalIntersect::MakeState() const {
+std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
+    Context& context) const {
   auto state = std::make_unique<IntersectState>();
+  state->context = &context;
   auto count = static_cast<uint32_t>(operands_.size());
   for (uint32_t i = 0; i < count; ++i) {
     state->stores.push_back(std::make_unique<RowStore>());
@@ -324,7 +327,7 @@ std::unique_ptr<OperatorState> IntervalIntersect::MakeState() const {
   state->gathered.resize(count);
   state->scratch.gather_rows.resize(count);
   for (const IntervalIntersectOperand& operand : operands_) {
-    state->operand_states.push_back(operand.source->MakeState());
+    state->operand_states.push_back(operand.source->MakeState(context));
   }
   return state;
 }
@@ -392,8 +395,10 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
 
-  int64_t* ts = s.ts.Values<int64_t>().data();
-  int64_t* dur = s.dur.Values<int64_t>().data();
+  ColumnBuffer ts_buffer = s.context->TakeBuffer();
+  ColumnBuffer dur_buffer = s.context->TakeBuffer();
+  int64_t* ts = ts_buffer.chunk().Values<int64_t>().data();
+  int64_t* dur = dur_buffer.chunk().Values<int64_t>().data();
   for (uint32_t i = 0; i < count; ++i) {
     s.scratch.gather_rows[i].resize(serving);
   }
@@ -409,13 +414,15 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
   s.served += serving;
 
   out.Reset();
-  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ts));
-  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur));
+  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ts),
+                std::move(ts_buffer));
+  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur),
+                std::move(dur_buffer));
   for (uint32_t i = 0; i < count; ++i) {
     const uint32_t* rows = s.scratch.gather_rows[i].data();
-    s.stores[i]->View(&s.gathered[i], {rows, rows + serving});
+    s.stores[i]->View(&s.gathered[i], {rows, rows + serving}, *s.context);
     for (uint32_t c = 0; c < s.gathered[i].column_count(); ++c) {
-      out.AddColumn(s.gathered[i].column(c));
+      out.AddColumn(s.gathered[i].column(c), s.gathered[i].buffer(c));
     }
   }
   out.SetRowCount(serving);

@@ -14,31 +14,29 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/core/exec/context.h"
 
-#include "src/trace_processor/core/exec/operator.h"
+#include <memory>
+
+#include "perfetto/base/logging.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-RowCursor::RowCursor(const Source& source)
-    : source_(source), state_(source.MakeState(context_)) {}
+Context::Context() = default;
 
-RowCursor::~RowCursor() = default;
-
-bool RowCursor::Pull() {
-  for (;;) {
-    batch_ = source_.Next(scratch_, *state_);
-    if (!batch_) {
-      index_ = 0;
-      size_ = 0;
-      return false;
-    }
-    if (batch_->size()) {
-      index_ = 0;
-      size_ = batch_->size();
-      return true;
-    }
+Context::~Context() {
+#if PERFETTO_DCHECK_IS_ON()
+  for (const auto& block : blocks_) {
+    PERFETTO_DCHECK(block->references == 0);
   }
+#endif
+}
+
+ColumnBuffer::Block* Context::NewBlock() {
+  blocks_.push_back(std::make_unique<ColumnBuffer::Block>());
+  ColumnBuffer::Block* block = blocks_.back().get();
+  block->context = this;
+  return block;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

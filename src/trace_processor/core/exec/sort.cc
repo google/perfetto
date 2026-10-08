@@ -161,7 +161,8 @@ bool Sort::Serve(RowBatch& out, Breaker::State& state) const {
   }
   uint32_t count = std::min(kMaxBatchRows, s.rows.size() - s.emitted);
   const uint32_t* begin = s.order.data() + s.emitted;
-  s.emitted += s.rows.View(&out, Span<const uint32_t>(begin, begin + count));
+  s.emitted +=
+      s.rows.View(&out, Span<const uint32_t>(begin, begin + count), *s.context);
   return true;
 }
 

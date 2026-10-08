@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/tree_order.h"
 
 #include <benchmark/benchmark.h>
@@ -82,7 +83,9 @@ dataframe::Dataframe BuildTree(uint32_t rows,
 }
 
 void Run(benchmark::State& state, const Source& source, uint32_t rows) {
-  std::unique_ptr<OperatorState> run = source.MakeState();
+  // Before every batch and state, which hold its buffers.
+  Context context;
+  std::unique_ptr<OperatorState> run = source.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     source.Rewind(*run);

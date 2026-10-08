@@ -44,7 +44,7 @@ class StringSource final : public Source {
   StringSource(std::vector<StringPool::Id> keys, uint32_t chunk)
       : keys_(std::move(keys)), chunk_(chunk) {}
 
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   void Rewind(OperatorState& state) const override {
@@ -58,8 +58,9 @@ class StringSource final : public Source {
     }
     uint32_t count = std::min(chunk_, rows - s.emitted);
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
-    out.AddColumn(ColumnView::Reference(StorageType{String{}}, keys_.data()));
+    out.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{String{}}, keys_.data()));
     test::Window(&out, s.emitted, count);
     s.emitted += count;
     return true;
@@ -81,7 +82,7 @@ struct Output {
 };
 
 Output Drain(const Source& source) {
-  std::unique_ptr<OperatorState> state = source.MakeState();
+  std::unique_ptr<OperatorState> state = source.MakeState(test::TestContext());
   RowBatch batch;
   Output out;
   while (source.GetData(batch, *state)) {

@@ -40,7 +40,7 @@ class OneRowBatches final : public Source {
  public:
   explicit OneRowBatches(uint32_t batches) : batches_(batches) {}
 
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   void Rewind(OperatorState& state) const override {
@@ -52,7 +52,7 @@ class OneRowBatches final : public Source {
       return false;
     }
     out.Reset();
-    out.AddColumn(
+    out.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, s.next++));
     out.SetRowCount(1);
     return true;

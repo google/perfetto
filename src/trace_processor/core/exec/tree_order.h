@@ -104,7 +104,7 @@ class TreeParentFirst : public Operator {
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeParentFirst() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
@@ -155,6 +155,9 @@ class TreeParentFirst : public Operator {
     FlexVector<uint32_t> passing;
     FlexVector<uint32_t> holding;
     RowBatch held_batch;
+
+    // What rows let go are gathered into.
+    Context* context = nullptr;
 
     base::Status status = base::OkStatus();
   };

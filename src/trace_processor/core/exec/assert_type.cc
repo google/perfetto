@@ -165,8 +165,8 @@ const void* AssertType::Data(const ColumnChunk& chunk) const {
   }
 }
 
-std::unique_ptr<OperatorState> AssertType::MakeState() const {
-  return std::make_unique<State>();
+std::unique_ptr<OperatorState> AssertType::MakeState(Context& context) const {
+  return std::make_unique<State>(context);
 }
 
 base::Status AssertType::status(const OperatorState& state) const {
@@ -218,8 +218,8 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   if (column.kind() != ColumnView::Kind::kVariant && column.type() == type_) {
     return true;
   }
-  auto buffer = s.buffers.Acquire();
-  ColumnChunk& chunk = *buffer;
+  ColumnBuffer buffer = s.context->TakeBuffer();
+  ColumnChunk& chunk = buffer.chunk();
   chunk.validity.resize(kMaxBatchRows);
   if (column.kind() != ColumnView::Kind::kVariant) {
     bool widen = column.type().IsAnyOf<IntegerType>() &&

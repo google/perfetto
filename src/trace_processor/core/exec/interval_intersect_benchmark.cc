@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
 
 #include <benchmark/benchmark.h>
@@ -45,7 +46,7 @@ class Intervals final : public Source {
       key_.push_back(int64_t{i % 64});
     }
   }
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   void Rewind(OperatorState& state) const override {
@@ -60,8 +61,8 @@ class Intervals final : public Source {
     uint32_t count = std::min(kMaxBatchRows, rows - s.next);
     out.Reset();
     for (const std::vector<int64_t>* column : {&ts_, &dur_, &key_}) {
-      out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, column->data(),
-                                          nullptr, s.next));
+      out.AddBorrowedColumn(ColumnView::Reference(
+          StorageType{Int64{}}, column->data(), nullptr, s.next));
     }
     out.SetRowCount(count);
     s.next += count;
@@ -88,10 +89,12 @@ IntervalIntersectOperand Operand(const Intervals& source) {
 }
 
 void Run(benchmark::State& state, uint32_t rows) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
   Intervals a(rows);
   Intervals b(rows);
   IntervalIntersect intersect({Operand(a), Operand(b)});
-  auto op_state = intersect.MakeState();
+  auto op_state = intersect.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     intersect.Rewind(*op_state);

@@ -27,8 +27,10 @@ namespace perfetto::trace_processor::core::exec {
 Breaker::~Breaker() = default;
 Breaker::State::~State() = default;
 
-std::unique_ptr<OperatorState> Breaker::MakeState() const {
-  return CreateState();
+std::unique_ptr<OperatorState> Breaker::MakeState(Context& context) const {
+  std::unique_ptr<State> state = CreateState();
+  state->context = &context;
+  return state;
 }
 
 OpResult Breaker::Execute(const RowBatch& in,
