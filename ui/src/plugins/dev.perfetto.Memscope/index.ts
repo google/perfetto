@@ -20,6 +20,7 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import type {Setting} from '../../public/settings';
 import type {Trace} from '../../public/trace';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
+import HeapDumpExplorerPlugin from '../com.android.HeapDumpExplorer';
 import {ConnectionPage} from './views/connection';
 import {Dashboard} from './views/dashboard';
 import {LiveSession} from './sessions/live_session';
@@ -33,7 +34,7 @@ export default class MemscopePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memscope';
   static readonly description =
     'Live memory profiler for Android/Linux devices';
-  static readonly dependencies = [RecordPageV2];
+  static readonly dependencies = [RecordPageV2, HeapDumpExplorerPlugin];
   private static openByDefaultSetting: Setting<boolean>;
   private static hideDefaultChangedHintSetting: Setting<boolean>;
 
