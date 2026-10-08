@@ -54,7 +54,7 @@ interface BreakdownTrackSqlInfo {
   /**
    * This is the value that should be displayed in the
    * aggregation counter track. Required for MAX / SUM aggregation; ignored for
-   * COUNT.
+   * COUNT. Must be an integer column.
    */
   valueCol?: string;
   /**
@@ -162,10 +162,11 @@ interface Filter {
  *   slice columns        -> slice tracks
  *   pivot columns        -> slice tracks (sourced via an optional join)
  *
- * All counters are driven by ONE shared `interval_self_intersect` segments
- * table built once per instance, so the expensive overlap computation is paid
- * a single time instead of once per node. The per-node counter query is then a
- * cheap GROUP BY over those segments, and the counter renderers are lazy
+ * All counters are driven by ONE shared `INTERVAL FLATTEN` segments table built
+ * once per instance, holding the atomic overlap segments of every hierarchy
+ * level, so the expensive overlap computation is paid a single time instead of
+ * once per node. The per-node counter query is then a cheap filter over those
+ * segments, and the counter renderers are lazy
  * (CounterTrack.create), so the work scales with what the user views rather
  * than with the size of the hierarchy.
  */
@@ -180,11 +181,12 @@ export class BreakdownTracks {
   private readonly sliceJoinClause: string;
   private readonly pivotJoinClause: string;
 
-  // The three tables built once per BreakdownTracks instance (see buildTables);
+  // The tables built once per BreakdownTracks instance (see buildTables);
   // each name gets a UUID suffix so independent grids — e.g. the binder server
   // and client trees — never collide on a table name:
   //   intervals  one row per source interval (no joins).
-  //   segments   interval_self_intersect output: the atomic overlap segments.
+  //   segments   INTERVAL FLATTEN output: the atomic overlap segments of every
+  //              level, tagged with their level.
   //   projected  source rows + slice/pivot joins (may fan out 1:N) + ts/dur.
   private readonly intervalsTableName: string;
   private readonly segmentsTableName: string;
@@ -223,10 +225,9 @@ export class BreakdownTracks {
     this.sliceColNames = (props.slice?.columns ?? []).map((_, i) => `s${i}`);
     this.pivotColNames = (props.pivots?.columns ?? []).map((_, i) => `p${i}`);
 
-    this.modulesClause = [
-      ...(props.modules ?? []).map((m) => `INCLUDE PERFETTO MODULE ${m};`),
-      'INCLUDE PERFETTO MODULE intervals.intersect;',
-    ].join('\n');
+    this.modulesClause = (props.modules ?? [])
+      .map((m) => `INCLUDE PERFETTO MODULE ${m};`)
+      .join('\n');
 
     this.sliceJoinClause = props.slice?.joins
       ? this.getJoinClause(props.slice.joins)
@@ -236,33 +237,35 @@ export class BreakdownTracks {
       : '';
   }
 
-  // The aggregate evaluated over each atomic segment's active (non-end-marker)
-  // intervals. COUNT counts them; MAX/SUM reduce the denormalized agg_value.
-  // End-markers map to NULL / 0 so they contribute nothing and the counter
-  // naturally drops where intervals end. MAX maps end-markers to NULL (rather
-  // than a sentinel like 0) precisely because SQL aggregates skip NULL: a
-  // numeric sentinel could wrongly win the MAX when every active value is lower
-  // (e.g. all negative).
-  private aggValueExpr(): string {
+  // The INTERVAL FLATTEN aggregate evaluated over each atomic segment's active
+  // intervals.
+  private aggExpr(): string {
     switch (this.props.aggregationType) {
       case BreakdownTrackAggType.MAX:
-        return 'MAX(IIF(interval_ends_at_ts = FALSE, agg_value, NULL))';
+        return 'MAX(agg_value)';
       case BreakdownTrackAggType.SUM:
-        return 'SUM(IIF(interval_ends_at_ts = FALSE, agg_value, 0))';
+        return 'SUM(agg_value)';
       case BreakdownTrackAggType.COUNT:
-        return 'SUM(IIF(interval_ends_at_ts = FALSE, 1, 0))';
+        return 'COUNT(*)';
     }
     assertUnreachable(this.props.aggregationType);
   }
 
   private getAggregationQuery(filtersClause: string): string {
-    // One row per atomic segment, aggregating that segment's active intervals.
-    // Filters are raw equality on the pre-projected k* columns.
+    // One row per atomic segment of this node; filters are raw equality on the
+    // level and the pre-projected k* columns. FLATTEN emits nothing where no
+    // interval is active, so a 0 is added at the end of every run of segments
+    // to make the counter drop there.
     return `
-      SELECT MIN(ts) AS ts, ${this.aggValueExpr()} AS value
-      FROM ${this.segmentsTableName}
-      ${filtersClause}
-      GROUP BY group_id
+      WITH s AS (
+        SELECT ts, dur, value, LEAD(ts) OVER (ORDER BY ts) AS next_ts
+        FROM ${this.segmentsTableName}
+        ${filtersClause}
+      )
+      SELECT ts, value FROM s
+      UNION ALL
+      SELECT ts + dur AS ts, 0 AS value FROM s
+      WHERE next_ts IS NULL OR next_ts > ts + dur
       ORDER BY ts
     `;
   }
@@ -297,14 +300,14 @@ export class BreakdownTracks {
     ];
   }
 
-  // Builds the three tables that drive every track:
-  //   _breakdown_intervals: one row per source interval (id, ts, dur, the
+  // Builds the tables that drive every track:
+  //   _breakdown_intervals: one row per source interval (ts, dur, the
   //     breakdown columns, [agg_value]) from the aggregation table ONLY — no
   //     slice/pivot joins, so the overlap count is never inflated by a 1:N join.
-  //   _breakdown_segments: per-(atomic segment, active interval) rows from
-  //     interval_self_intersect over the intervals, with the breakdown columns
-  //     and agg_value inline so per-node counter queries are a plain GROUP BY
-  //     with no JOIN back.
+  //   _breakdown_segments: INTERVAL FLATTEN over the intervals, once per
+  //     hierarchy level (level i partitioned by the first i breakdown columns,
+  //     level 0 the unpartitioned root): one row per atomic segment with its
+  //     level and aggregate, so per-node counter queries are a plain filter.
   //   _breakdown_projected: one row per source row WITH the slice/pivot joins
   //     applied (so it may fan out 1:N) plus the slice/pivot ts/dur. Drives the
   //     hierarchy enumeration and the slice/pivot tracks.
@@ -312,36 +315,50 @@ export class BreakdownTracks {
     const agg = this.props.aggregation;
     const aggTs = agg.tsCol ?? 'ts';
     const aggDur = agg.durCol ?? 'dur';
-    const idExpr = this.props.sliceIdColumn ?? 'ROW_NUMBER() OVER ()';
     const hasValue = agg.valueCol !== undefined;
 
     const intervalCols = [
-      `${idExpr} AS id`,
       `${aggTs} AS ts`,
       `${aggDur} AS dur`,
       ...agg.columns.map((col, i) => `${col} AS k${i}`),
       ...(hasValue ? [`${agg.valueCol} AS agg_value`] : []),
     ].join(', ');
 
-    const denormCols = [
-      ...this.aggColNames.map((n) => `i.${n}`),
-      ...(hasValue ? ['i.agg_value'] : []),
-    ].join(', ');
-
     // Drop intervals that can't carry a count: a NULL id (e.g. binder_reply_id
-    // on oneway transactions) or a negative dur (dur = -1 marks an incomplete
-    // slice). ROW_NUMBER ids are never NULL, so the id check is only emitted
-    // when a real id column was supplied.
+    // on oneway transactions), a NULL or negative ts (FLATTEN rejects ts < 0),
+    // a negative dur (dur = -1 marks an incomplete slice) or a zero dur (an
+    // instant, which FLATTEN would otherwise count over a zero-width segment).
+    // ROW_NUMBER ids are never NULL, so the id check is only emitted when a
+    // real id column was supplied.
     const idCheck = this.props.sliceIdColumn
       ? `${this.props.sliceIdColumn} IS NOT NULL AND `
       : '';
+
+    // One FLATTEN input row per interval and level, keyed by the level and the
+    // breakdown columns above it (the deeper ones NULL). `level` must be a PER
+    // column: a real key can itself be NULL, so without it level 0 and level 1
+    // with a NULL k0 would share a group. With it, one FLATTEN computes every
+    // level's segments in a single pass.
+    const levelRows = Array.from(
+      {length: this.aggColNames.length + 1},
+      (_, level) => {
+        const cols = [
+          `${level} AS level`,
+          'ts',
+          'dur',
+          ...this.aggColNames.map((k, i) => (i < level ? k : `NULL AS ${k}`)),
+          ...(hasValue ? ['agg_value'] : []),
+        ];
+        return `SELECT ${cols.join(', ')} FROM ${this.intervalsTableName}`;
+      },
+    ).join('\n        UNION ALL ');
+    const perCols = ['level', ...this.aggColNames].join(', ');
 
     // The projection applies the slice/pivot joins, so a plain id column would
     // be ambiguous if a join table shares the name — e.g. the binder breakdown
     // tables also carry binder_reply_id, which the client perspective uses as
     // its id. Qualify it with the base table. The ROW_NUMBER fallback needs no
-    // qualification and can't be ambiguous. (The intervals table has no joins,
-    // so it keeps the unqualified idExpr.)
+    // qualification and can't be ambiguous.
     const projectedIdExpr = this.props.sliceIdColumn
       ? `${agg.tableName}.${this.props.sliceIdColumn}`
       : 'ROW_NUMBER() OVER ()';
@@ -354,17 +371,23 @@ export class BreakdownTracks {
     ].join(', ');
 
     await this.props.trace.engine.query(`
+      ${this.modulesClause}
+
       CREATE PERFETTO TABLE ${this.intervalsTableName} AS
       SELECT ${intervalCols}
       FROM ${agg.tableName}
-      WHERE ${idCheck}${aggTs} IS NOT NULL AND ${aggDur} >= 0;
+      WHERE ${idCheck}${aggTs} >= 0 AND ${aggDur} > 0;
 
       CREATE PERFETTO TABLE ${this.segmentsTableName} AS
-      SELECT iss.ts, iss.group_id, iss.interval_ends_at_ts, ${denormCols}
-      FROM interval_self_intersect!((
-        SELECT id, ts, dur FROM ${this.intervalsTableName}
-      )) iss
-      JOIN ${this.intervalsTableName} i USING(id);
+      FROM (
+        ${levelRows}
+      )
+      |> INTERVAL FLATTEN PER ${perCols} AGGREGATE ${this.aggExpr()} AS value;
+
+      -- Per-node queries filter on exactly these columns; without the index
+      -- each one scans every level's segments.
+      CREATE PERFETTO INDEX ${this.segmentsTableName}_idx
+      ON ${this.segmentsTableName}(${perCols});
 
       CREATE PERFETTO TABLE ${this.projectedTableName} AS
       SELECT ${projectedCols}
@@ -375,7 +398,6 @@ export class BreakdownTracks {
   }
 
   async createTracks(): Promise<TrackNode> {
-    await this.props.trace.engine.query(this.modulesClause);
     await this.buildTables();
 
     const rootTrackNode = await this.createCounterTrackNode(
@@ -556,9 +578,10 @@ export class BreakdownTracks {
   private async getCounterTrackSortOrder(
     filtersClause: string,
   ): Promise<number> {
-    const aggregationQuery = this.getAggregationQuery(filtersClause);
     const result = await this.props.trace.engine.query(`
-      SELECT MAX(value) as max_value FROM (${aggregationQuery})
+      SELECT MAX(value) as max_value
+      FROM ${this.segmentsTableName}
+      ${filtersClause}
     `);
     const maxValue = result.firstRow({max_value: NUM_NULL}).max_value;
     return maxValue === null ? 0 : maxValue;
@@ -568,11 +591,18 @@ export class BreakdownTracks {
     name: string,
     newFilters: Filter[],
   ): Promise<TrackNode> {
+    // A counter node's filters are exactly the breakdown columns above it, so
+    // its level in the hierarchy is the number of filters; the level selects
+    // its segments in the shared segments table.
+    const filters: Filter[] = [
+      {columnName: 'level', value: `${newFilters.length}`},
+      ...newFilters,
+    ];
     return this.createTrackNode(
       name,
-      newFilters,
+      filters,
       (uri, filtersClause) =>
-        // Lazy: getAggregationQuery is a cheap GROUP BY over the shared segments
+        // Lazy: getAggregationQuery is a cheap filter over the shared segments
         // table, and CounterTrack's useData fires it only on render — nothing is
         // materialized per node at trace load.
         CounterTrack.create({
@@ -584,6 +614,7 @@ export class BreakdownTracks {
           `,
         }),
       (filtersClause) => this.getCounterTrackSortOrder(filtersClause),
+      newFilters.length === 0 ? this.props.description : undefined,
     );
   }
 
@@ -592,6 +623,7 @@ export class BreakdownTracks {
     filters: Filter[],
     createTrack: (uri: string, filtersClause: string) => TrackRenderer,
     getSortOrder?: (filterClause: string) => Promise<number>,
+    description?: string,
   ): Promise<TrackNode> {
     const filtersClause =
       filters.length > 0 ? `\nWHERE ${buildFilterSqlClause(filters)}` : '';
@@ -602,8 +634,7 @@ export class BreakdownTracks {
     this.props.trace.tracks.registerTrack({
       uri,
       renderer,
-      ...(filters.length === 0 &&
-        this.props.description && {description: this.props.description}),
+      ...(description && {description}),
     });
 
     let sortOrder: number | undefined;
