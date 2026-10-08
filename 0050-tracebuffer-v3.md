@@ -1,6 +1,6 @@
 # TBv3 = TBv2 + a buffer of compressed bundles
 
-**Authors:** @sashwinbalaji
+**Authors:** @primiano @rsavitski @sashwinbalaji
 
 **Status:** Draft
 
