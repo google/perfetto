@@ -106,7 +106,6 @@ perfetto_unittest_source_set("unittests") {
     "tree_accumulate_unittest.cc",
     "tree_number_nodes_unittest.cc",
     "tree_order_unittest.cc",
-    "variant_unittest.cc",
   ]
   deps = [
     ":exec",

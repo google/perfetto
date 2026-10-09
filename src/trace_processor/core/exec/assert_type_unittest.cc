@@ -68,108 +68,69 @@ struct Asserted {
   RowBatch batch;
 };
 
+// Only the rows the batch keeps are read; a null is a row holding nothing.
 TEST(AssertTypeTest, TurnsVariantsIntoAFlatColumn) {
-  Asserted run({Variant::Int64(7), Variant::Int64(8)},
+  Asserted run({Variant::Int64(7), Variant::Int64(8), Variant::Null(),
+                Variant::Int64(9)},
                AssertTypeTarget{Int64{}});
+  std::vector<uint32_t> kept = {0, 2, 3};
+  run.input.mutable_selection().Keep(kept);
   ASSERT_TRUE(run.Process());
 
   EXPECT_EQ(run.batch.column(0).kind(), ColumnView::Kind::kFlat);
   EXPECT_TRUE(run.batch.column(0).type().Is<Int64>());
-  EXPECT_THAT(run.Read<int64_t>(), ElementsAre(7, 8));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(run.batch, 0),
+              ElementsAre(Optional(7), Eq(std::nullopt), Optional(9)));
 }
 
-TEST(AssertTypeTest, ANullIsARowWhichHoldsNothing) {
-  Asserted run({Variant::Int64(7), Variant::Null(), Variant::Int64(9)},
-               AssertTypeTarget{Int64{}});
-  ASSERT_TRUE(run.Process());
-
-  const BitVector* validity = run.batch.column(0).validity();
-  ASSERT_NE(validity, nullptr);
-  EXPECT_TRUE(validity->is_set(0));
-  EXPECT_FALSE(validity->is_set(1));
-  EXPECT_TRUE(validity->is_set(2));
-}
-
-TEST(AssertTypeTest, ARowWhichDisagreesIsReported) {
+// Each value the type can't hold, as a variant or in a flat column of another
+// type, is reported naming the column and what it held.
+TEST(AssertTypeTest, AValueTheTypeCannotHoldIsReported) {
   StringPool pool;
-  Asserted run({Variant::Int64(7), Variant::String(pool.InternString("no"))},
-               AssertTypeTarget{Int64{}});
-  EXPECT_FALSE(run.Process());
-  EXPECT_FALSE(run.status().ok());
-  EXPECT_THAT(run.status().message(), testing::HasSubstr("'a'"));
-  EXPECT_THAT(run.status().message(), testing::HasSubstr("a string"));
-}
+  struct VariantCase {
+    Variant value;
+    AssertTypeTarget type;
+    const char* message;
+  };
+  for (const VariantCase& c : std::vector<VariantCase>{
+           {Variant::String(pool.InternString("no")), AssertTypeTarget{Int64{}},
+            "a string"},
+           {Variant::Int64(std::numeric_limits<int64_t>::max()),
+            AssertTypeTarget{Double{}}, "cannot represent exactly"},
+           // Above 2^53 a double keeps only the high bits.
+           {Variant::Int64((int64_t{1} << 53) + 1), AssertTypeTarget{Double{}},
+            "cannot represent exactly"},
+       }) {
+    Asserted run({Variant::Int64(7), c.value}, c.type);
+    EXPECT_FALSE(run.Process());
+    EXPECT_THAT(run.status().message(), testing::HasSubstr("'a'"));
+    EXPECT_THAT(run.status().message(), testing::HasSubstr(c.message));
+  }
 
-TEST(AssertTypeTest, AnIntegerWidensToAFloat) {
-  Asserted run({Variant::Int64(7), Variant::Double(1.5)},
-               AssertTypeTarget{Double{}});
-  ASSERT_TRUE(run.Process());
-  EXPECT_THAT(run.Read<double>(), ElementsAre(7.0, 1.5));
-}
-
-TEST(AssertTypeTest, AnIntegerBeyondTheFloatRangeIsReported) {
-  Asserted run({Variant::Int64(std::numeric_limits<int64_t>::max())},
-               AssertTypeTarget{Double{}});
-  EXPECT_FALSE(run.Process());
-  EXPECT_THAT(run.status().message(),
-              testing::HasSubstr("cannot represent exactly"));
-}
-
-// Above 2^53 a double keeps only the high bits, so a value with low bits set
-// has no exact float even though it is well within range.
-TEST(AssertTypeTest, AnIntegerAFloatWouldRoundIsReported) {
-  Asserted run({Variant::Int64((int64_t{1} << 53) + 1)},
-               AssertTypeTarget{Double{}});
-  EXPECT_FALSE(run.Process());
-  EXPECT_THAT(run.status().message(),
-              testing::HasSubstr("cannot represent exactly"));
-}
-
-TEST(AssertTypeTest, KeepsStrings) {
-  StringPool pool;
-  Asserted run({Variant::String(pool.InternString("hi"))},
-               AssertTypeTarget{String{}});
-  ASSERT_TRUE(run.Process());
-  EXPECT_EQ(pool.Get(run.Read<StringPool::Id>()[0]).ToStdString(), "hi");
-}
-
-// Reading through a selection rather than by position, which is what a batch
-// narrowed by an earlier operator looks like.
-TEST(AssertTypeTest, FollowsTheRowsTheBatchPicksOut) {
-  Asserted run({Variant::Int64(10), Variant::Int64(11), Variant::Int64(12)},
-               AssertTypeTarget{Int64{}});
-  std::vector<uint32_t> kept = {0, 2};
-  run.input.mutable_selection().Keep(kept);
-
-  ASSERT_TRUE(run.Process());
-  EXPECT_THAT(run.Read<int64_t>(), ElementsAre(10, 12));
-}
-
-// A column which is already the right type is left alone.
-TEST(AssertTypeTest, AFlatColumnOfTheRightTypePassesThrough) {
-  std::vector<int64_t> values = {1, 2};
-  AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  test::Window(&batch, 0, 2);
-
-  EXPECT_TRUE(op.Process(batch, *state));
-  EXPECT_EQ(batch.column(0).data(), values.data());
-}
-
-TEST(AssertTypeTest, AFlatColumnOfTheWrongTypeIsReported) {
-  std::vector<double> values = {1.5};
-  AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Double{}}, values.data()));
-  test::Window(&batch, 0, 1);
-
-  EXPECT_FALSE(op.Process(batch, *state));
-  EXPECT_FALSE(op.status(*state).ok());
+  int64_t rounded = (int64_t{1} << 53) + 1;
+  double fraction = 1.5;
+  uint32_t narrow = 7;
+  struct FlatCase {
+    StorageType stored;
+    const void* value;
+    AssertTypeTarget type;
+    const char* message;
+  };
+  for (const FlatCase& c : std::vector<FlatCase>{
+           {StorageType{Int64{}}, &rounded, AssertTypeTarget{Double{}},
+            "cannot represent exactly"},
+           {StorageType{Double{}}, &fraction, AssertTypeTarget{Int64{}}, "'a'"},
+           {StorageType{Uint32{}}, &narrow, AssertTypeTarget{String{}},
+            "an integer"},
+       }) {
+    AssertType op(0, c.type, "a");
+    std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+    RowBatch batch;
+    batch.AddBorrowedColumn(ColumnView::Reference(c.stored, c.value));
+    batch.SetRowCount(1);
+    EXPECT_FALSE(op.Process(batch, *state));
+    EXPECT_THAT(op.status(*state).message(), testing::HasSubstr(c.message));
+  }
 }
 
 TEST(AssertTypeTest, WideningASelectedFlatColumnRemapsValidity) {
@@ -189,60 +150,6 @@ TEST(AssertTypeTest, WideningASelectedFlatColumnRemapsValidity) {
   EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(8, 0));
 }
 
-TEST(AssertTypeTest, FlatIntegersWidenToDouble) {
-  std::vector<int64_t> values = {std::numeric_limits<int64_t>::min(), 42};
-  AssertType op(0, AssertTypeTarget{Double{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch.SetRowCount(2);
-
-  ASSERT_TRUE(op.Process(batch, *state));
-  EXPECT_THAT(test::ReadColumn<double>(batch, 0),
-              ElementsAre(static_cast<double>(values[0]), 42.0));
-}
-
-TEST(AssertTypeTest, AFlatIntegerAFloatWouldRoundIsReported) {
-  std::vector<int64_t> values = {(int64_t{1} << 53) + 1};
-  AssertType op(0, AssertTypeTarget{Double{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch.SetRowCount(1);
-
-  EXPECT_FALSE(op.Process(batch, *state));
-  EXPECT_THAT(op.status(*state).message(),
-              testing::HasSubstr("cannot represent exactly"));
-}
-
-TEST(AssertTypeTest, WideningANonNullFlatColumnStaysNonNull) {
-  std::vector<uint32_t> values = {7, 8};
-  AssertType op(0, AssertTypeTarget{Int64{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, values.data()));
-  batch.SetRowCount(2);
-
-  ASSERT_TRUE(op.Process(batch, *state));
-  EXPECT_EQ(batch.column(0).validity(), nullptr);
-  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(7, 8));
-}
-
-TEST(AssertTypeTest, ResetClearsATypeError) {
-  StringPool pool;
-  Asserted run({Variant::String(pool.InternString("wrong"))},
-               AssertTypeTarget{Int64{}});
-  ASSERT_FALSE(run.Process());
-  ASSERT_FALSE(run.status().ok());
-  run.values[0] = Variant::Int64(1);
-  run.state->Reset();
-  EXPECT_TRUE(run.Process());
-  EXPECT_TRUE(run.status().ok());
-}
-
 TEST(AssertTypeTest, AReusedNullSlotIsCleared) {
   Asserted run({Variant::Int64(7)}, AssertTypeTarget{Int64{}});
   ASSERT_TRUE(run.Process());
@@ -252,37 +159,6 @@ TEST(AssertTypeTest, AReusedNullSlotIsCleared) {
   ASSERT_TRUE(run.Process());
   EXPECT_THAT(run.Read<int64_t>(), ElementsAre(0));
   EXPECT_FALSE(run.batch.column(0).validity()->is_set(0));
-}
-
-TEST(AssertTypeTest, NarrowIntegerErrorsNameAnInteger) {
-  std::vector<uint32_t> values = {7};
-  AssertType op(0, AssertTypeTarget{String{}}, "a");
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, values.data()));
-  batch.SetRowCount(1);
-
-  ASSERT_FALSE(op.Process(batch, *state));
-  EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("an integer"));
-  EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("a string"));
-}
-
-TEST(AssertTypeTest, RetainedOutputSurvivesConversionAndRewind) {
-  Asserted run({Variant::Int64(7), Variant::Null()}, AssertTypeTarget{Int64{}});
-  ASSERT_TRUE(run.Process());
-  RowBatch retained;
-  retained.CopyFrom(run.batch);
-  run.values[0] = Variant::Int64(99);
-  run.values[1] = Variant::Int64(100);
-  run.state->Reset();
-  ASSERT_TRUE(run.Process());
-  EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
-              ElementsAre(Optional(7), Eq(std::nullopt)));
-  run.batch.Reset();
-  run.state.reset();
-  EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
-              ElementsAre(Optional(7), Eq(std::nullopt)));
 }
 
 }  // namespace

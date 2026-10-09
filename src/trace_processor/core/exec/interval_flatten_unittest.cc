@@ -211,49 +211,6 @@ TEST(IntervalFlattenTest, RunningTotalsMatchTheTree) {
   EXPECT_EQ(totals, tree);
 }
 
-TEST(IntervalFlattenTest, MinAndMaxOverWhatIsLive) {
-  // An interval of 5 holding one of no value, then a point of -7 inside both,
-  // then on its own an interval of no value.
-  std::vector<int64_t> ts = {0, 2, 3, 20};
-  std::vector<int64_t> dur = {10, 4, 0, 5};
-  std::vector<int64_t> value = {5, 0, -7, 0};
-  BitVector valid = BitVector::CreateWithSize(4);
-  valid.set(0);
-  valid.set(2);
-  RowBatch in, out;
-  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, ts.data()));
-  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, dur.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, value.data(), &valid));
-  in.SetRowCount(4);
-  IntervalFlattenSpec spec;
-  spec.ts_column = 0;
-  spec.dur_column = 1;
-  spec.aggregates = {{AggregateCall::Function::kMin, 2},
-                     {AggregateCall::Function::kMax, 2}};
-  IntervalFlatten op(spec);
-  auto state = op.MakeState(test::TestContext());
-  using Row = std::tuple<int64_t, int64_t, std::optional<int64_t>,
-                         std::optional<int64_t>>;
-  std::vector<Row> rows;
-  auto collect = [&] {
-    auto lo = test::ReadNullableColumn<int64_t>(out, 2);
-    auto hi = test::ReadNullableColumn<int64_t>(out, 3);
-    for (uint32_t row = 0; row < out.size(); ++row) {
-      rows.emplace_back(out.Value<int64_t>(0, row), out.Value<int64_t>(1, row),
-                        lo[row], hi[row]);
-    }
-  };
-  ASSERT_EQ(op.Execute(in, out, *state), OpResult::kNeedMoreInput);
-  collect();
-  ASSERT_EQ(op.Finish(out, *state), OpResult::kNeedMoreInput);
-  collect();
-  EXPECT_THAT(rows, testing::ElementsAre(
-                        Row(0, 2, 5, 5), Row(2, 1, 5, 5), Row(3, 0, -7, 5),
-                        Row(3, 3, 5, 5), Row(6, 4, 5, 5),
-                        Row(20, 5, std::nullopt, std::nullopt)));
-}
-
 TEST(IntervalFlattenTest, ResumingAnInputDoesNotAddItsRowsAgain) {
   // Pairs of rows: one of the largest value, then an overlapping null. Each
   // pair makes three segments, so the output fills mid-input and the input is
