@@ -13,9 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# A latency CUJ with blocking calls on the main thread, the RenderThread and a
+# A latency CUJ with blocking calls on the main thread, two RenderThreads and a
 # background thread of SystemUI. Another process with some threads is added
 # first, so that the upid of SystemUI differs from the utid of its main thread.
+#
+# SystemUI can have several threads named "RenderThread" at once (e.g. extra
+# ones spawned for transient windows during unfold/unlock). Two are added here
+# so the test covers that case.
 
 import synth_common
 import sys
@@ -24,6 +28,7 @@ OTHER_PID = 100
 OTHER_TIDS = [101, 102, 103]
 SYSUI_PID = 1000
 SYSUI_RTID = 1500
+SYSUI_RTID_2 = 1501
 SYSUI_BG_TID = 1600
 
 trace = synth_common.create_trace()
@@ -41,6 +46,11 @@ trace.add_process(
 trace.add_thread(
     tid=SYSUI_RTID, tgid=SYSUI_PID, cmdline="RenderThread", name="RenderThread")
 trace.add_thread(
+    tid=SYSUI_RTID_2,
+    tgid=SYSUI_PID,
+    cmdline="RenderThread",
+    name="RenderThread")
+trace.add_thread(
     tid=SYSUI_BG_TID, tgid=SYSUI_PID, cmdline="Background", name="Background")
 
 trace.add_ftrace_packet(cpu=0)
@@ -52,7 +62,8 @@ trace.add_async_atrace_for_thread(
     tid=SYSUI_PID,
     pid=SYSUI_PID)
 
-# Main thread: must be in android_cuj_blocking_calls.
+# Main thread: must be in android_cuj_blocking_calls exactly once each, even
+# though the process has two RenderThreads.
 trace.add_atrace_for_thread(
     ts=12_000_000,
     ts_end=14_000_000,
@@ -66,12 +77,18 @@ trace.add_atrace_for_thread(
     tid=SYSUI_PID,
     pid=SYSUI_PID)
 
-# RenderThread: must be in android_cuj_blocking_calls.
+# RenderThreads: calls on both must be in android_cuj_blocking_calls.
 trace.add_atrace_for_thread(
     ts=19_000_000,
     ts_end=20_000_000,
     buf="CreateGraphicsPipeline",
     tid=SYSUI_RTID,
+    pid=SYSUI_PID)
+trace.add_atrace_for_thread(
+    ts=20_000_000,
+    ts_end=20_500_000,
+    buf="flush layers",
+    tid=SYSUI_RTID_2,
     pid=SYSUI_PID)
 
 # Background thread: must not be in android_cuj_blocking_calls.
