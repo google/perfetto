@@ -48,6 +48,7 @@ if (enable_perfetto_trace_processor) {
     ]
     deps = [
       "../:build_id",
+      "../:cold_sort",
       "../../../../gn:default_deps",
       "../../../../include/perfetto/protozero",
       "../../../../include/perfetto/trace_processor",

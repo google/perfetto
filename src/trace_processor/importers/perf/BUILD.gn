@@ -92,6 +92,7 @@ source_set("perf") {
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
+    "../../util:cold_sort",
     "../../util:trace_blob_view_reader",
     "../../util:trace_type",
     "../common",

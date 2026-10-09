@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 #include <sqlite3.h>
 #include <algorithm>
@@ -370,10 +371,10 @@ SqlSource SqlSource::Rewriter::Build() && {
 
   // Phase 2: sort the new rewrite vector by original offset and verify that the
   // original offsets are monotonic and non-overlapping.
-  std::sort(all_rewrites.begin(), all_rewrites.end(),
-            [](const SqlSource::Rewrite& a, const SqlSource::Rewrite& b) {
-              return a.original_sql_start < b.original_sql_start;
-            });
+  ColdSortByKey(all_rewrites.begin(), all_rewrites.end(),
+                [](const SqlSource::Rewrite& rewrite) {
+                  return rewrite.original_sql_start;
+                });
   for (uint32_t i = 1; i < all_rewrites.size(); ++i) {
     PERFETTO_CHECK(all_rewrites[i - 1].original_sql_end <=
                    all_rewrites[i].original_sql_start);

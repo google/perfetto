@@ -249,6 +249,19 @@ source_set("zip_reader") {
   }
 }
 
+perfetto_component("cold_sort") {
+  sources = [
+    "cold_sort.cc",
+    "cold_sort.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../../base",
+  ]
+}
+
 source_set("galloping_search") {
   sources = [ "galloping_search.h" ]
   deps = [ "../../../gn:default_deps" ]
@@ -447,6 +460,7 @@ source_set("trace_type") {
     "trace_type.h",
   ]
   deps = [
+    ":cold_sort",
     ":decompressor",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
@@ -492,6 +506,7 @@ source_set("flatbuffer_reader") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
+    "cold_sort_unittest.cc",
     "concurrency_stress_test_util_unittest.cc",
     "descriptors_unittest.cc",
     "flatbuffer_reader_unittest.cc",
@@ -516,6 +531,7 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
+    ":cold_sort",
     ":concurrency_stress_test_util",
     ":decompressor",
     ":descriptors",
