@@ -33,6 +33,23 @@
 namespace perfetto::trace_processor::pipeline {
 namespace {
 
+// An aggregate as the plan shows it, e.g. `SUM(#3)`.
+std::string AggregateString(const Aggregate& agg) {
+  switch (agg.function) {
+    case Aggregate::Function::kCountStar:
+      return "COUNT(*)";
+    case Aggregate::Function::kSum:
+      return "SUM(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kCount:
+      return "COUNT(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kMin:
+      return "MIN(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kMax:
+      return "MAX(#" + std::to_string(agg.column) + ")";
+  }
+  return "";
+}
+
 const char* TypeName(core::StorageType type) {
   switch (type.index()) {
     case core::StorageType::GetTypeIndex<core::Id>():
@@ -117,9 +134,8 @@ std::string LogicalPlanFormatter::TreeAccumulateString(
   out += ", node=#" + std::to_string(acc.node_column_);
   out += ", parent=#" + std::to_string(acc.parent_column_);
   for (const auto& agg : acc.aggregates_) {
-    PERFETTO_DCHECK(agg.function == TreeAccumulate::Function::kSum);
-    out += ", SUM(#" + std::to_string(agg.column) + ") -> " +
-           ColumnString(plan, agg.output);
+    out +=
+        ", " + AggregateString(agg) + " -> " + ColumnString(plan, agg.output);
   }
   return out + ")";
 }
@@ -133,15 +149,8 @@ std::string LogicalPlanFormatter::IntervalFlattenString(
     out += ", key=#" + std::to_string(key);
   }
   for (const auto& agg : flatten.aggregates_) {
-    switch (agg.function) {
-      case IntervalFlatten::Function::kCount:
-        out += ", COUNT(*)";
-        break;
-      case IntervalFlatten::Function::kSum:
-        out += ", SUM(#" + std::to_string(agg.column) + ")";
-        break;
-    }
-    out += " -> " + ColumnString(plan, agg.output);
+    out +=
+        ", " + AggregateString(agg) + " -> " + ColumnString(plan, agg.output);
   }
   return out + ") -> " + ColumnString(plan, flatten.out_ts_) + ", " +
          ColumnString(plan, flatten.out_dur_);

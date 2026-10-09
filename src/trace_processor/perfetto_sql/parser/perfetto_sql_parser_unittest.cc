@@ -653,11 +653,11 @@ TEST_F(PerfettoSqlParserTest, PipelineCompileErrors) {
                   .status()
                   .message(),
               HasSubstr("TREE ACCUMULATE: no such column: 'nope'"));
-  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP MAX(self) AS t")
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP AVG(self) AS t")
                   .status()
                   .message(),
-              HasSubstr("aggregate MAX is not supported yet"));
-  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP COUNT(*) AS n")
+              HasSubstr("aggregate AVG is not supported yet"));
+  EXPECT_THAT(ParsePipeline("FROM slice |> TREE ACCUMULATE UP COUNT(dur) AS n")
                   .status()
                   .message(),
               HasSubstr("aggregate COUNT is not supported yet"));
