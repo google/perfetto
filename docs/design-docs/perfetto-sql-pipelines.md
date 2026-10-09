@@ -279,6 +279,32 @@ When a pipeline chains multiple `TREE ACCUMULATE` stages:
 
 ---
 
+## `AGGREGATE`
+
+Implementation: `/src/trace_processor/core/exec/hash_aggregate.cc`
+
+`AGGREGATE` is a blocking stage which lowers to one `HashAggregate` operator. It
+does not keep or reorder rows. `GroupTable` hashes each row's `GROUP BY` columns
+and looks them up to find the row's group, numbering groups in the order they
+are first seen. Integer keys of every width agree with each other, a string is
+compared by its interned id, and `NULL`s agree with each other. Each group's
+aggregate states sit beside its keys in the table, and every row is added into
+its group's states as it is read, so memory follows the number of groups rather
+than rows. Once all input is read, the groups are emitted in the order each
+group's first row arrived.
+
+The aggregates are the executor's shared functions
+(`/src/trace_processor/core/exec/aggregate_function.h`), each called once a
+batch. A sum tracks whether it added any non-`NULL` value, so a sum of nothing
+is `NULL`, and uses checked 64-bit addition. Without `GROUP BY` every row
+belongs to the one group, which is emitted at the end of input even when there
+were no rows.
+
+Unused aggregates are pruned. The stage itself always stays, since it decides
+which rows there are.
+
+---
+
 ## `ORDER BY`
 
 Implementation: `/src/trace_processor/core/exec/sort.cc`
