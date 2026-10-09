@@ -36,7 +36,7 @@ struct IntervalFlattenSpec {
   uint32_t ts_column = 0;
   uint32_t dur_column = 0;
   std::vector<uint32_t> key_columns;
-  // As GroupBy appends. Unused without keys.
+  // As GroupedSort appends. Unused without keys.
   uint32_t group_column = 0;
   std::vector<AggregateCall> aggregates;
 };

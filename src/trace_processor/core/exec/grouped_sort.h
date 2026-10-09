@@ -14,48 +14,54 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_GROUP_BY_H_
-#define SRC_TRACE_PROCESSOR_CORE_EXEC_GROUP_BY_H_
+#ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_GROUPED_SORT_H_
+#define SRC_TRACE_PROCESSOR_CORE_EXEC_GROUPED_SORT_H_
 
 #include <cstdint>
 #include <memory>
-#include <string_view>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/core/exec/breaker.h"
-#include "src/trace_processor/core/exec/key_encoder.h"
+#include "src/trace_processor/core/exec/group_table.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/sorted_rows.h"
 #include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/util/bump_allocator.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-// Puts rows sharing their keys next to each other. Stable, so an order the
-// input had holds within each group. Appends each row's group number as a
+struct GroupedSortSpec {
+  // The columns whose rows need only be together, in no order: as GROUP BY's
+  // keys, where two rows holding no value agree. Any type; at least one.
+  std::vector<uint32_t> groups;
+  // What each group's rows are sorted by.
+  std::vector<SortKey> keys;
+};
+
+// Puts rows sharing their group columns next to each other, each group's
+// rows stably sorted by the keys, and appends each row's group number as a
 // Uint32 column, so what follows finds group boundaries without comparing
-// keys.
-class GroupBy : public Breaker {
+// values. Groups need only be together, so they come in the order first seen
+// rather than sorted: numbered by hashing their values, they are brought
+// together by a counting pass over the order the keys give. Rows are copied
+// once, in the final order.
+class GroupedSort : public Breaker {
  public:
-  explicit GroupBy(std::vector<uint32_t> key_columns);
-  ~GroupBy() override;
+  explicit GroupedSort(GroupedSortSpec);
+  ~GroupedSort() override;
 
  private:
   struct State : Breaker::State {
     ~State() override;
     void Reset() override;
 
-    KeyEncoder keys;
-    // The keys `group_of` views.
-    BumpAllocator group_keys;
-    base::FlatHashMapV2<std::string_view, uint32_t> group_of;
+    GroupTable group_table;
+    SortedRows rows;
+    // Each row's group, as held; then each row's group in the final order.
     FlexVector<uint32_t> groups;
-    RowStore rows;
-    FlexVector<uint32_t> next;
-    FlexVector<uint32_t> order;
     FlexVector<uint32_t> ordered_groups;
+    FlexVector<uint32_t> next;
+    FlexVector<uint32_t> scratch;
     uint32_t emitted = 0;
   };
 
@@ -64,9 +70,9 @@ class GroupBy : public Breaker {
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
 
-  std::vector<uint32_t> key_columns_;
+  GroupedSortSpec spec_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
 
-#endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_GROUP_BY_H_
+#endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_GROUPED_SORT_H_

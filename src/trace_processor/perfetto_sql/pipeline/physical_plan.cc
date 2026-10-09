@@ -25,7 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/assert_type.h"
-#include "src/trace_processor/core/exec/group_by.h"
+#include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -125,23 +125,32 @@ void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
   if (grouped && has(order_.ascending, ascending)) {
     return;
   }
-  // GroupBy is stable, so sorting first orders every group.
+  // One breaker, so rows are copied once: grouped by `keys`, if any, and
+  // sorted by `ascending` unless they already are.
+  std::vector<ex::SortKey> sort_keys;
   if (!order_.grouped_by.empty() || !has(order_.ascending, ascending)) {
-    ex::SortSpec sort;
-    sort.keys.push_back({Position(ascending), false});
-    operators_.push_back(std::make_unique<ex::Sort>(std::move(sort)));
+    sort_keys.push_back({Position(ascending), false});
+  }
+  if (keys.empty()) {
+    if (sort_keys.empty()) {
+      return;
+    }
+    operators_.push_back(
+        std::make_unique<ex::Sort>(ex::SortSpec{std::move(sort_keys)}));
     order_ = Order();
     order_.ascending.push_back(ascending);
+    return;
   }
-  if (!keys.empty()) {
-    std::vector<uint32_t> positions;
-    for (ColumnId key : keys) {
-      positions.push_back(Position(key));
-    }
-    operators_.push_back(std::make_unique<ex::GroupBy>(std::move(positions)));
-    order_.grouped_by = keys;
-    order_.group_column = column_count_++;
+  ex::GroupedSortSpec spec;
+  for (ColumnId key : keys) {
+    spec.groups.push_back(Position(key));
   }
+  spec.keys = std::move(sort_keys);
+  operators_.push_back(std::make_unique<ex::GroupedSort>(std::move(spec)));
+  order_ = Order();
+  order_.ascending.push_back(ascending);
+  order_.grouped_by = keys;
+  order_.group_column = column_count_++;
 }
 
 void Lowering::SortRows(const std::vector<SortKey>& keys) {
