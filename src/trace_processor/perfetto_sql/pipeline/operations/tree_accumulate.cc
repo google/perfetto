@@ -60,11 +60,11 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
   for (uint32_t i = 0; i < count; i++) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
-    ASSIGN_OR_RETURN(ColumnId value, c->ResolveSum(agg->expr));
+    ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
     std::string name = SpanText(c->parser(), agg->name);
-    ColumnId id = c->AddColumn(name, core::Int64{});
-    acc.aggregates_.push_back({TreeAccumulate::Function::kSum, value, id});
-    output.push_back({NamedColumn{std::move(name), id}, agg_id});
+    aggregate.output = c->AddColumn(name, core::Int64{});
+    acc.aggregates_.push_back(aggregate);
+    output.push_back({NamedColumn{std::move(name), aggregate.output}, agg_id});
   }
   // All expressions see the input scope. Add this stage's columns only after
   // resolving every aggregate; duplicate names are ambiguous on lookup.
@@ -76,11 +76,7 @@ base::Status TreeAccumulate::BuildPlan(Compiler* c, uint32_t stage) {
 }
 
 std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
-  aggregates_.erase(std::remove_if(aggregates_.begin(), aggregates_.end(),
-                                   [&](const TreeAccumulate::Aggregate& agg) {
-                                     return !(*needed)[agg.output];
-                                   }),
-                    aggregates_.end());
+  PruneAggregates(&aggregates_, needed);
 
   // A fold with nothing left to compute can go entirely. Checking that the
   // input is a valid tree is not something a fold promises on its own.
@@ -92,9 +88,6 @@ std::optional<uint32_t> TreeAccumulate::Prune(std::vector<bool>* needed) {
   const auto& acc = *this;
   (*needed)[acc.node_column_] = true;
   (*needed)[acc.parent_column_] = true;
-  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
-    (*needed)[agg.column] = true;
-  }
   return std::nullopt;
 }
 
@@ -104,20 +97,17 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
 
   const auto tree =
       c->PrepareTree(acc.node_column_, acc.parent_column_, acc.direction_);
-  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
-    PERFETTO_DCHECK(agg.function == TreeAccumulate::Function::kSum);
-    c->RequireInt64(agg.column);
+  // One operator folds every aggregate, appending their columns in order.
+  ex::TreeAccumulateSpec spec{tree.node, tree.parent, {}};
+  for (const Aggregate& agg : acc.aggregates_) {
+    spec.aggregates.push_back(LowerAggregate(c, agg));
   }
-  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
-    ex::TreeAccumulateSpec spec{
-        tree.node,
-        tree.parent,
-        {{ex::AggregateCall::Function::kSum, c->Position(agg.column)}}};
-    if (acc.direction_ == TreeDirection::kUp) {
-      c->AddOperator(std::make_unique<ex::TreeAccumulateUp>(spec));
-    } else {
-      c->AddOperator(std::make_unique<ex::TreeAccumulateDown>(spec));
-    }
+  if (acc.direction_ == TreeDirection::kUp) {
+    c->AddOperator(std::make_unique<ex::TreeAccumulateUp>(std::move(spec)));
+  } else {
+    c->AddOperator(std::make_unique<ex::TreeAccumulateDown>(std::move(spec)));
+  }
+  for (const Aggregate& agg : acc.aggregates_) {
     c->Define(agg.output);
   }
 }
@@ -138,14 +128,10 @@ void TreeAccumulate::Write(PlanWriter* c,
   c->writer().U8(static_cast<uint8_t>(acc.direction_));
   c->writer().Position(available, acc.node_column_);
   c->writer().Position(available, acc.parent_column_);
-  c->writer().Size(acc.aggregates_.size());
-  Available outputs;
-  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
-    c->writer().Position(available, agg.column);
-    c->writer().Str(c->plan().columns()[agg.output].name);
-    outputs.push_back(agg.output);
+  WriteAggregates(c, acc.aggregates_, available);
+  for (const Aggregate& agg : acc.aggregates_) {
+    available.push_back(agg.output);
   }
-  available.insert(available.end(), outputs.begin(), outputs.end());
 }
 
 void TreeAccumulate::DecodePlan(PlanReader* c, Available* available_columns) {
@@ -154,12 +140,8 @@ void TreeAccumulate::DecodePlan(PlanReader* c, Available* available_columns) {
   acc.direction_ = static_cast<TreeDirection>(c->reader().U8());
   acc.node_column_ = c->reader().Position(available);
   acc.parent_column_ = c->reader().Position(available);
-  acc.aggregates_.resize(c->reader().Count());
-  for (TreeAccumulate::Aggregate& agg : acc.aggregates_) {
-    agg.column = c->reader().Position(available);
-    agg.output = c->AddColumn(c->reader().Str(), core::Int64{});
-  }
-  for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
+  ReadAggregates(c, available, &acc.aggregates_);
+  for (const Aggregate& agg : acc.aggregates_) {
     available.push_back(agg.output);
   }
   c->AddNode(std::move(acc), {c->plan().root()});
