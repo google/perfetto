@@ -46,7 +46,11 @@ core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate& agg) {
   core::exec::AggregateCall call;
   call.function = agg.function;
   if (agg.reads_column()) {
-    c->RequireInt64(agg.column);
+    // TODO(lalitm): Replace this with numeric normalization and support
+    // Double totals. With dynamically typed input, a Double in a later batch
+    // may require promoting earlier Int64 values. Picking one numeric type
+    // for the whole column may then need a breaker that buffers the input.
+    c->Require(agg.column, core::Int64{});
     call.column = c->Position(agg.column);
   }
   return call;

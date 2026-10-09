@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -67,7 +69,7 @@ class PhysicalPlan {
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must already be resolved.
-std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan&);
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&);
 
 // -----------------------------------------------------------------------------
 // Lowering
@@ -102,8 +104,11 @@ class Lowering {
   explicit Lowering(const LogicalPlan& plan);
   // Dispatches to the operation, which is responsible for lowering its inputs.
   void LowerNode(PlanNodeId);
-  // Transfers the completed graph. Call after lowering the root, once only.
-  std::unique_ptr<PhysicalPlan> Finish();
+  // Returns the finished plan, or the error that stopped lowering. Call once,
+  // after lowering the root.
+  base::StatusOr<std::unique_ptr<PhysicalPlan>> Finish();
+  // Records an error that stops lowering. Only the first error is kept.
+  void Fail(base::Status);
 
   // ---------------------------------------------------------------------------
   // Execution graph
@@ -131,15 +136,28 @@ class Lowering {
   TreeColumns PrepareTree(ColumnId node, ColumnId parent, TreeDirection);
 
   // ---------------------------------------------------------------------------
-  // Runtime type checks
+  // Column types
   // ---------------------------------------------------------------------------
 
-  // Adds an Int64 assertion unless the type is already known or checked.
-  void RequireInt64(ColumnId column);
-  // Appends the assertion to an operand's steps, using its own batch position.
-  void RequireInt64(ColumnId column,
-                    uint32_t position,
-                    std::vector<core::exec::Pipeline::Step>* into);
+  // A column in one input's pipeline.
+  struct Side {
+    ColumnId column;
+
+    // The column's position in that pipeline's batches.
+    uint32_t position;
+
+    // The pipeline's steps, where conversions are added.
+    std::vector<core::exec::Pipeline::Step>* steps;
+  };
+  // Converts every side to the type they all convert to without loss, and
+  // returns it. Fails if some sides are strings and others numbers.
+  PlanType Unify(const std::vector<Side>&);
+  // Like Require below, for a column in an input with its own pipeline.
+  void Require(const Side& side, core::StorageType type);
+
+  // Converts `column` to `type`, failing lowering if it cannot be converted
+  // without loss.
+  void Require(ColumnId column, core::StorageType type);
 
   // ---------------------------------------------------------------------------
   // Batch column layout
@@ -170,6 +188,11 @@ class Lowering {
   uint32_t Position(ColumnId id) const;
 
  private:
+  // The type of `column`, after any conversion.
+  PlanType TypeOf(ColumnId column) const;
+  // Converts `side` to `type`. The conversion must be lossless.
+  void Convert(const Side& side, const PlanType& type);
+
   // ---------------------------------------------------------------------------
   // Shared layout and ordering state
   // ---------------------------------------------------------------------------
@@ -200,8 +223,10 @@ class Lowering {
   // Only live logical columns have a meaningful physical position.
   std::vector<uint32_t> positions_;
 
-  // Logical IDs whose values have already passed an Int64 assertion.
-  std::vector<bool> int64_columns_;
+  // For each logical column, the type it was converted to, if any.
+  std::vector<std::optional<core::StorageType>> converted_;
+
+  base::Status status_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

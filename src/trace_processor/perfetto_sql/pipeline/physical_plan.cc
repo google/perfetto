@@ -20,10 +20,15 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/sort.h"
@@ -32,12 +37,51 @@
 
 namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
+namespace {
+
+// Returns the type that both `a` and `b` convert to without loss. Returns
+// nullopt if one is a string and the other a number.
+//
+// A column of unknown type is checked at runtime to hold the other side's
+// type. For integers the check uses Int64, so it accepts any integer.
+std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
+  if (a.is_null()) {
+    return b;
+  }
+  if (b.is_null()) {
+    return a;
+  }
+  if (a.is_unknown() && b.is_unknown()) {
+    return a;
+  }
+  if (a.is_unknown() || b.is_unknown()) {
+    const PlanType& known = a.is_unknown() ? b : a;
+    if (known.storage()->IsAnyOf<core::IntegerType>()) {
+      return PlanType(core::Int64{});
+    }
+    return known;
+  }
+  core::StorageType x = *a.storage();
+  core::StorageType y = *b.storage();
+  if (x == y) {
+    return a;
+  }
+  if (x.Is<core::String>() || y.Is<core::String>()) {
+    return std::nullopt;
+  }
+  if (x.Is<core::Double>() || y.Is<core::Double>()) {
+    return PlanType(core::Double{});
+  }
+  return PlanType(core::Int64{});
+}
+
+}  // namespace
 
 Lowering::Lowering(const LogicalPlan& plan)
     : plan_(plan),
       out_(std::make_unique<PhysicalPlan>()),
       positions_(plan.columns().size(), std::numeric_limits<uint32_t>::max()),
-      int64_columns_(plan.columns().size(), false) {}
+      converted_(plan.columns().size()) {}
 
 uint32_t Lowering::Position(ColumnId id) const {
   PERFETTO_DCHECK(positions_[id] != std::numeric_limits<uint32_t>::max());
@@ -169,7 +213,7 @@ void Lowering::SortRows(const std::vector<SortKey>& keys) {
   ex::SortSpec sort;
   for (const SortKey& key : keys) {
     if (!plan_.columns()[key.column].type.storage()) {
-      RequireInt64(key.column);
+      Require(key.column, core::Int64{});
     }
     sort.keys.push_back({Position(key.column), key.descending});
   }
@@ -186,30 +230,79 @@ void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
   operators_.push_back(std::move(operation));
 }
 
-void Lowering::RequireInt64(ColumnId column) {
-  RequireInt64(column, Position(column), &operators_);
+void Lowering::Require(ColumnId column, core::StorageType type) {
+  Require({column, Position(column), &operators_}, type);
 }
 
-void Lowering::RequireInt64(ColumnId column,
-                            uint32_t position,
-                            std::vector<ex::Pipeline::Step>* into) {
-  // TODO(lalitm): Replace this with numeric normalization and support Double
-  // totals in tree accumulation. For dynamically typed inputs, a Double in a
-  // later batch may require promoting earlier Int64 values too. Choosing one
-  // numeric type for the whole column may therefore need a breaker that buffers
-  // input before emitting any values. Update logical result typing alongside
-  // the executor so SUM is no longer restricted to integers.
-  const auto& type = plan_.columns()[column].type;
-  if (type.Is<core::Int64>() || int64_columns_[column]) {
+void Lowering::Require(const Side& side, core::StorageType type) {
+  std::optional<PlanType> common = CommonType(TypeOf(side.column), type);
+  if (!common || !common->storage() || !(*common->storage() == type)) {
+    const char* what = type.Is<core::String>()   ? "strings"
+                       : type.Is<core::Double>() ? "numbers"
+                                                 : "integers";
+    Fail(base::ErrStatus("column '%s' must hold %s",
+                         plan_.columns()[side.column].name.c_str(), what));
     return;
   }
-  into->push_back(std::make_unique<ex::AssertType>(
-      position, ex::AssertTypeTarget{core::Int64{}},
-      plan_.columns()[column].name));
-  int64_columns_[column] = true;
+  Convert(side, type);
 }
 
-std::unique_ptr<PhysicalPlan> Lowering::Finish() {
+PlanType Lowering::Unify(const std::vector<Side>& sides) {
+  PlanType common = PlanType::Null();
+  for (const Side& side : sides) {
+    std::optional<PlanType> next = CommonType(common, TypeOf(side.column));
+    if (!next) {
+      Fail(base::ErrStatus(
+          "column '%s' holds strings in one input and numbers in another",
+          plan_.columns()[side.column].name.c_str()));
+      return common;
+    }
+    common = *next;
+  }
+  for (const Side& side : sides) {
+    Convert(side, common);
+  }
+  return common;
+}
+
+PlanType Lowering::TypeOf(ColumnId column) const {
+  if (converted_[column]) {
+    return *converted_[column];
+  }
+  return plan_.columns()[column].type;
+}
+
+void Lowering::Convert(const Side& side, const PlanType& type) {
+  PlanType from = TypeOf(side.column);
+  if (!type.storage() ||
+      (from.storage() && *from.storage() == *type.storage())) {
+    return;
+  }
+  converted_[side.column] = *type.storage();
+  if (from.is_null()) {
+    side.steps->push_back(
+        std::make_unique<ex::NullColumn>(side.position, *type.storage()));
+    return;
+  }
+  ex::AssertTypeTarget target = core::String{};
+  if (type.Is<core::Int64>()) {
+    target = core::Int64{};
+  } else if (type.Is<core::Double>()) {
+    target = core::Double{};
+  }
+  PERFETTO_DCHECK(target.Is<core::String>() == type.Is<core::String>());
+  side.steps->push_back(std::make_unique<ex::AssertType>(
+      side.position, target, plan_.columns()[side.column].name));
+}
+
+void Lowering::Fail(base::Status status) {
+  if (status_.ok()) {
+    status_ = std::move(status);
+  }
+}
+
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lowering::Finish() {
+  RETURN_IF_ERROR(status_);
   out_->pipeline_ = std::make_unique<ex::Pipeline>(
       *out_->input_, std::move(operators_), ex::ExecutionOptions());
   for (const NamedColumn& column : plan_.output()) {
@@ -221,7 +314,7 @@ std::unique_ptr<PhysicalPlan> Lowering::Finish() {
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
-std::unique_ptr<PhysicalPlan> Lower(const LogicalPlan& plan) {
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan& plan) {
   Lowering lowering(plan);
   lowering.LowerNode(plan.root());
   return lowering.Finish();

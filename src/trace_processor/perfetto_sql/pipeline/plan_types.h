@@ -34,8 +34,8 @@ using core::Schema;
 // Stable within a plan. Lowering assigns physical batch positions separately.
 using ColumnId = uint32_t;
 
-// What a plan knows a column holds: a storage type, nothing at all, which
-// converts to any type, or not yet known.
+// The type of a plan column. It is a storage type, Null or unknown. A Null
+// column has no values and converts to any type.
 // TODO(lalitm): make Null a core::StorageType, so the executor can carry a
 // column of no values without a buffer behind it.
 class PlanType {

@@ -129,7 +129,7 @@ PlanWriter::PlanWriter(const LogicalPlan& plan) : plan_(plan) {}
 
 PlanReader::PlanReader(Reader& r) : r_(r) {}
 
-// Tags for the types which are not storage types; a storage type is its
+// Tags for types that are not storage types. A storage type's tag is its
 // index plus kFirstStorageTag.
 constexpr uint8_t kUnknownTag = 0;
 constexpr uint8_t kNullTag = 1;

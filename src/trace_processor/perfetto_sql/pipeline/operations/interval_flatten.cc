@@ -114,8 +114,8 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   const auto& flatten = *this;
   c->LowerNode(node.children()[0]);
 
-  c->RequireInt64(flatten.ts_);
-  c->RequireInt64(flatten.dur_);
+  c->Require(flatten.ts_, core::Int64{});
+  c->Require(flatten.dur_, core::Int64{});
   c->PrepareGroups(flatten.keys_, flatten.ts_);
   ex::IntervalFlattenSpec spec;
   spec.ts_column = c->Position(flatten.ts_);
