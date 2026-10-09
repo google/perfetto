@@ -144,6 +144,29 @@ void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
   }
 }
 
+void Lowering::SortRows(const std::vector<SortKey>& keys) {
+  PERFETTO_DCHECK(!keys.empty());
+  const auto& sorted = order_.ascending;
+  if (keys.size() == 1 && !keys[0].descending && order_.grouped_by.empty() &&
+      std::find(sorted.begin(), sorted.end(), keys[0].column) != sorted.end()) {
+    return;
+  }
+  ex::SortSpec sort;
+  for (const SortKey& key : keys) {
+    if (!plan_.columns()[key.column].type) {
+      RequireInt64(key.column);
+    }
+    sort.keys.push_back({Position(key.column), key.descending});
+  }
+  operators_.push_back(std::make_unique<ex::Sort>(std::move(sort)));
+  order_ = Order();
+  if (!keys[0].descending) {
+    order_.ascending.push_back(keys[0].column);
+  }
+  // The rows no longer follow the tree, though their numbering still holds.
+  tree_direction_.reset();
+}
+
 void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
   operators_.push_back(std::move(operation));
 }

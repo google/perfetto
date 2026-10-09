@@ -85,7 +85,9 @@ function buildTabs(
   state: NavState,
   overview: OverviewData,
 ): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
-  const {engine, trace, navigateWithTabs, clearNavParam} = session;
+  const {engine, trace} = session;
+  const navigateWithTabs = session.navigateWithTabs.bind(session);
+  const clearNavParam = session.clearNavParam.bind(session);
   const hideExplanationSetting = session.hideDefaultChangedHint;
   const hideHint = hideExplanationSetting.get();
   const actions = new Map<string, TabActions>();
@@ -111,7 +113,7 @@ function buildTabs(
         upid: activeDump.upid,
         ts: activeDump.ts,
         state: session.flamegraphPanelState,
-        onStateChange: session.setFlamegraphPanelState,
+        onStateChange: session.setFlamegraphPanelState.bind(session),
         onShowObjects: (pathHashes, isDominator) =>
           session.openFlamegraph({
             pathHashes,
@@ -198,7 +200,7 @@ function buildTabs(
         trace,
         dump: activeDump,
         state: session.callstackPanelState,
-        onStateChange: session.setCallstackPanelState,
+        onStateChange: session.setCallstackPanelState.bind(session),
       }),
     },
   ];
@@ -247,7 +249,7 @@ function buildTabs(
         activeDump,
         heaps: overview.heaps,
         navigate: navigateWithTabs,
-        openFlamegraphPivotedAt: session.openFlamegraphPivotedAt,
+        openFlamegraphPivotedAt: session.openFlamegraphPivotedAt.bind(session),
         params: {id: obj.objId},
       }),
     });
@@ -300,16 +302,8 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
 
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
   oncreate({attrs}: m.VnodeDOM<HeapDumpPageAttrs>) {
-    attrs.session.setNavigateCallback((sub) => {
-      window.location.hash = `!/heapdump${sub ? '/' + sub : ''}`;
-    });
-    void attrs.session.loadOverview();
+    attrs.session.loadOverview();
   }
-
-  onremove({attrs}: m.VnodeDOM<HeapDumpPageAttrs>) {
-    attrs.session.setNavigateCallback(undefined);
-  }
-
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
     const {session, subpage} = attrs;
     session.syncFromSubpage(subpage);

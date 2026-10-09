@@ -179,6 +179,10 @@ def UploadSDK(api, ctx):
       sdk_staging.join('perfetto')
   ])
 
+  # Ship the LICENSE alongside the SDK sources in each zip.
+  api.file.copy('copy LICENSE', ctx.src_dir.join('LICENSE'),
+                sdk_staging.join('LICENSE'))
+
   gcs_upload_dir = ctx.maybe_git_tag if ctx.maybe_git_tag else ctx.git_revision
   gcs_base_path = '{}/sdk'.format(gcs_upload_dir)
 
@@ -201,9 +205,9 @@ def UploadSDK(api, ctx):
       api.gsutil.upload(zip_path, 'perfetto-luci-artifacts',
                         'latest-tagged/sdk/{}'.format(gcs_name))
 
-  zip_and_upload('cpp sdk', ['perfetto.h', 'perfetto.cc'],
+  zip_and_upload('cpp sdk', ['perfetto.h', 'perfetto.cc', 'LICENSE'],
                  'perfetto-cpp-sdk-src.zip')
-  zip_and_upload('c sdk', ['perfetto_c.h', 'perfetto_c.cc'],
+  zip_and_upload('c sdk', ['perfetto_c.h', 'perfetto_c.cc', 'LICENSE'],
                  'perfetto-c-sdk-src.zip')
 
 

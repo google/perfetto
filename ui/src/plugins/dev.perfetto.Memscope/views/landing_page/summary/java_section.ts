@@ -21,6 +21,7 @@ import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
+import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
@@ -599,7 +600,11 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName)),
+        classNameCell(c.typeName, data.retainerOf.get(c.typeName), () =>
+          trace.plugins
+            .getPlugin(HeapDumpExplorerPlugin)
+            .updateHeadDump(upid, cur.ts),
+        ),
         withDelta(
           c.reachableObjCount.toLocaleString(),
           b !== undefined

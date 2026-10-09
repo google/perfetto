@@ -179,7 +179,6 @@ MODULE_TAGS = {
     'chrome.event_latency_description': ['chrome', 'input'],
     'chrome.input': ['chrome', 'input'],
     'chrome.android_input': ['chrome', 'input'],
-    'chrome.scroll_interactions': ['chrome', 'input'],
     'chrome.interactions': ['chrome', 'input'],
     'chrome.web_content_interactions': ['chrome', 'input'],
 
@@ -250,7 +249,6 @@ MODULE_TAGS = {
     'graphs.partition': ['utilities'],
     'graphs.dominator_tree': ['utilities'],
     'graphs.search': ['utilities'],
-    'graphs.critical_path': ['utilities', 'performance'],
 
     # Utilities
     'time.conversion': ['utilities'],
@@ -319,18 +317,6 @@ def get_tags(module_name: str):
     List of tags for the module, or empty list if no tags defined
   """
   return MODULE_TAGS.get(module_name, [])
-
-
-def get_all_unique_tags():
-  """Get all unique tags across all modules.
-
-  Returns:
-    Sorted list of all unique tags
-  """
-  all_tags = set()
-  for tags in MODULE_TAGS.values():
-    all_tags.update(tags)
-  return sorted(all_tags)
 
 
 # Validate that all tags in MODULE_TAGS are from VALID_TAGS
