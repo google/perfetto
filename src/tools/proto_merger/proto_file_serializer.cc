@@ -22,15 +22,6 @@ namespace perfetto {
 namespace proto_merger {
 namespace {
 
-std::string DeletedComment(const std::string& prefix) {
-  std::string output;
-  output += "\n";
-  output += prefix + "  //\n";
-  output += prefix + "  // " + kDeletedCommentWarning + "\n";
-  output += prefix + "  //\n";
-  return output;
-}
-
 std::string SerializeComments(const std::string& prefix,
                               const std::vector<std::string>& lines) {
   std::string output;
@@ -132,11 +123,8 @@ std::string SerializeEnum(size_t indent, const ProtoFile::Enum& en) {
   for (const auto& value : en.values) {
     output += SerializeEnumValue(indent, value);
   }
-  if (!en.deleted_values.empty()) {
-    output += DeletedComment(prefix);
-    for (const auto& value : en.deleted_values) {
-      output += SerializeEnumValue(indent, value);
-    }
+  for (const auto& value : en.deleted_values) {
+    output += SerializeEnumValue(indent, value);
   }
   output += prefix + "}\n";
 
@@ -184,11 +172,8 @@ std::string SerializeOneof(size_t indent,
   for (const auto& field : oneof.fields) {
     output += SerializeField(indent, field, false, is_proto2);
   }
-  if (!oneof.deleted_fields.empty()) {
-    output += DeletedComment(prefix);
-    for (const auto& field : oneof.deleted_fields) {
-      output += SerializeField(indent, field, false, is_proto2);
-    }
+  for (const auto& field : oneof.deleted_fields) {
+    output += SerializeField(indent, field, false, is_proto2);
   }
   output += prefix + "}\n";
 
@@ -222,22 +207,17 @@ std::string SerializeMessage(size_t indent,
     output += SerializeExtensionsStatement(indent, statement);
   }
 
-  if (!message.deleted_enums.empty() || !message.deleted_fields.empty() ||
-      !message.deleted_nested_messages.empty() ||
-      !message.deleted_oneofs.empty()) {
-    output += DeletedComment(prefix);
-    for (const auto& en : message.deleted_enums) {
-      output += SerializeEnum(indent, en);
-    }
-    for (const auto& nested : message.deleted_nested_messages) {
-      output += SerializeMessage(indent, nested, is_proto2);
-    }
-    for (const auto& oneof : message.deleted_oneofs) {
-      output += SerializeOneof(indent, oneof, is_proto2);
-    }
-    for (const auto& field : message.deleted_fields) {
-      output += SerializeField(indent, field, true, is_proto2);
-    }
+  for (const auto& en : message.deleted_enums) {
+    output += SerializeEnum(indent, en);
+  }
+  for (const auto& nested : message.deleted_nested_messages) {
+    output += SerializeMessage(indent, nested, is_proto2);
+  }
+  for (const auto& oneof : message.deleted_oneofs) {
+    output += SerializeOneof(indent, oneof, is_proto2);
+  }
+  for (const auto& field : message.deleted_fields) {
+    output += SerializeField(indent, field, true, is_proto2);
   }
 
   output += prefix + "}\n";
@@ -259,16 +239,11 @@ std::string ProtoFileToDotProto(const ProtoFile& proto_file) {
     output += SerializeMessage(0, message, proto_file.is_proto2);
   }
 
-  if (!proto_file.deleted_enums.empty() ||
-      !proto_file.deleted_messages.empty()) {
-    output += DeletedComment("");
-
-    for (const auto& en : proto_file.deleted_enums) {
-      output += SerializeEnum(0, en);
-    }
-    for (const auto& nested : proto_file.deleted_messages) {
-      output += SerializeMessage(0, nested, proto_file.is_proto2);
-    }
+  for (const auto& en : proto_file.deleted_enums) {
+    output += SerializeEnum(0, en);
+  }
+  for (const auto& nested : proto_file.deleted_messages) {
+    output += SerializeMessage(0, nested, proto_file.is_proto2);
   }
   return output;
 }

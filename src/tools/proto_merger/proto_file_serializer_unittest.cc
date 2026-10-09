@@ -79,7 +79,7 @@ TEST(ProtoFileSerializerTest, DeletedMessageFieldIsPreserved) {
   std::string out = ProtoFileToDotProto(file);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
   EXPECT_THAT(out, HasSubstr("string deleted_upstream = 2;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, DeletedOneofFieldIsPreserved) {
@@ -97,7 +97,7 @@ TEST(ProtoFileSerializerTest, DeletedOneofFieldIsPreserved) {
   std::string out = ProtoFileToDotProto(file);
   EXPECT_THAT(out, HasSubstr("int32 keep_me = 1;"));
   EXPECT_THAT(out, HasSubstr("string deleted_upstream = 2;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, DeletedEnumValueIsPreserved) {
@@ -111,7 +111,7 @@ TEST(ProtoFileSerializerTest, DeletedEnumValueIsPreserved) {
   std::string out = ProtoFileToDotProto(file);
   EXPECT_THAT(out, HasSubstr("OK = 0;"));
   EXPECT_THAT(out, HasSubstr("LEGACY_STATUS = 1;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 // End-to-end regression test: a field deleted upstream inside a oneof (and a
@@ -196,7 +196,7 @@ TEST(ProtoFileSerializerTest, MergeDropsNonAllowlistedUpstreamFields) {
   EXPECT_THAT(out, Not(HasSubstr("new_upstream")));
 }
 
-void VerifyDeletedCommentNotDuplicated(
+void VerifyDeletedCommentStripped(
     const std::vector<std::string>& existing_comments) {
   ProtoFile input;
   {
@@ -219,26 +219,19 @@ void VerifyDeletedCommentNotDuplicated(
   ASSERT_TRUE(MergeProtoFiles(input, upstream, Allowlist{}, merged).ok());
 
   std::string out = ProtoFileToDotProto(merged);
-
-  size_t first_pos = out.find(kDeletedCommentWarning);
-  ASSERT_NE(first_pos, std::string::npos);
-  size_t second_pos = out.find(kDeletedCommentWarning, first_pos + 1);
-  EXPECT_EQ(second_pos, std::string::npos)
-      << "Comment was duplicated in output:\n"
-      << out;
+  EXPECT_THAT(out, Not(HasSubstr(kDeletedCommentWarning)));
 }
 
-// Test that we don't repeatedly add the "not present upstream" comment to
-// deleted fields when we perform a merge on an input that already has this
-// comment.
-TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedComment) {
-  VerifyDeletedCommentNotDuplicated(
+// Test that we strip any existing "not present upstream" comment from deleted
+// fields when we perform a merge on an input that already has this comment.
+TEST(ProtoFileSerializerTest, MergeStripsLegacyDeletedComment) {
+  VerifyDeletedCommentStripped(
       {"", " The following enums/messages/fields are not present upstream",
        ""});
 }
 
-TEST(ProtoFileSerializerTest, MergeDoesNotDuplicateDeletedCommentFormatted) {
-  VerifyDeletedCommentNotDuplicated(
+TEST(ProtoFileSerializerTest, MergeStripsLegacyDeletedCommentFormatted) {
+  VerifyDeletedCommentStripped(
       {"The following enums/messages/fields are not present upstream"});
 }
 
@@ -699,9 +692,9 @@ TEST(ProtoFileSerializerTest, ReservedUpstreamFieldIsMarkedDeprecated) {
   // 2. reserved_field is kept in active fields with [deprecated = true]
   EXPECT_THAT(out, HasSubstr("string reserved_field = 2 [deprecated = true];"));
 
-  // 3. truly_deleted_field is placed in the commented-out section
+  // 3. truly_deleted_field is preserved in deleted_fields without warning
   EXPECT_THAT(out, HasSubstr("bool truly_deleted_field = 3;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, EndToEndReservedFieldMerge) {
@@ -782,7 +775,7 @@ TEST(ProtoFileSerializerTest, EndToEndReservedFieldMerge) {
   EXPECT_THAT(out, HasSubstr("int32 active_field = 1;"));
   EXPECT_THAT(out, HasSubstr("string legacy_field = 2 [deprecated = true];"));
   EXPECT_THAT(out, HasSubstr("bool deleted_field = 3;"));
-  EXPECT_THAT(out, HasSubstr("not present upstream"));
+  EXPECT_THAT(out, Not(HasSubstr("not present upstream")));
 }
 
 TEST(ProtoFileSerializerTest, MapFieldsDoNotGetRepeatedOrEntryMessages) {
