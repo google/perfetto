@@ -122,6 +122,17 @@ class AggregateFunction {
                        uint32_t count,
                        GroupStates states,
                        bool* overflow) const = 0;
+  // Whether states can be taken back out of one another, as for counts and
+  // sums but not for, say, a maximum: Subtract and Prefix are then supported.
+  virtual bool can_subtract() const { return false; }
+  // As Combine, but takes each `from` state back out of `into`.
+  virtual void Subtract(const GroupMerge* merges,
+                        uint32_t count,
+                        GroupStates states,
+                        bool* overflow) const;
+  // Running totals over groups [0, count): adds each group's state into the
+  // next's, in order. Leaves `seen` alone.
+  virtual void Prefix(uint32_t count, GroupStates states, bool* overflow) const;
   // Writes the result of each of `groups` to `values`, and to `valid`
   // whether it holds one.
   virtual void Finalize(GroupStates states,
