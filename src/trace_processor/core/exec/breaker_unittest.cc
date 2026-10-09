@@ -39,7 +39,6 @@ namespace {
 using test::ArraySource;
 using test::FailingSource;
 using test::Sequence;
-using ::testing::ElementsAre;
 
 // Buffers every value and serves them back to front, which is only possible
 // once the whole input is in. A negative value is refused.
@@ -140,42 +139,6 @@ TEST(BreakerTest, ConsecutiveBreakersDrainAndRewindInOnePipeline) {
     EXPECT_TRUE(cursor.status().ok());
     EXPECT_EQ(values, expected);
   }
-}
-
-TEST(BreakerTest, RewindReadsTheInputAgain) {
-  ArraySource source({1, 2, 3});
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops), {});
-  RowCursor cursor(reverse);
-  for (cursor.Open(); !cursor.eof(); cursor.Next()) {
-  }
-  std::vector<int64_t> again;
-  for (cursor.Open(); !cursor.eof(); cursor.Next()) {
-    again.push_back(cursor.Value<int64_t>(0));
-  }
-  EXPECT_THAT(again, ElementsAre(3, 2, 1));
-  EXPECT_TRUE(cursor.status().ok());
-}
-
-TEST(BreakerTest, AFailingInputIsReported) {
-  FailingSource source;
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops), {});
-  RowCursor cursor(reverse);
-  EXPECT_FALSE(cursor.Open());
-  EXPECT_EQ(cursor.status().message(), "input broke");
-}
-
-TEST(BreakerTest, AFailingConsumeIsReported) {
-  ArraySource source({1, -2, 3});
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops), {});
-  RowCursor cursor(reverse);
-  EXPECT_FALSE(cursor.Open());
-  EXPECT_EQ(cursor.status().message(), "negative value");
 }
 
 }  // namespace

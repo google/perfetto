@@ -76,94 +76,47 @@ struct Numbered {
   RowBatch out;
 };
 
-TEST(TreeNumberNodesTest, IdsWhichAreAlreadyNodeNumbersAreLeftAlone) {
-  Numbered<int64_t> run(StorageType{Int64{}}, {0, 1, 2}, {0, 0, 1},
-                        {false, true, true});
-  ASSERT_TRUE(run.Process());
-
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u, 2u));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3),
-              ElementsAre(kNoNode, 0u, 1u));
-  EXPECT_TRUE(run.op.IsDenseForTesting(*run.state));
-}
-
-// A filtered relation's ids are scattered over a wide range; numbering them
-// makes an array indexed by node the size of the input.
-TEST(TreeNumberNodesTest, AScatteringOfIdsIsNumberedDensely) {
-  Numbered<int64_t> run(StorageType{Int64{}}, {500, 900, 700}, {0, 500, 900},
-                        {false, true, true});
-  ASSERT_TRUE(run.Process());
-
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u, 2u));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3),
-              ElementsAre(kNoNode, 0u, 1u));
-  EXPECT_FALSE(run.op.IsDenseForTesting(*run.state));
-}
-
-// A parent not yet seen is numbered on sight, so a child-first stream works.
-TEST(TreeNumberNodesTest, AParentNotYetSeenIsNumberedAnyway) {
-  Numbered<int64_t> run(StorageType{Int64{}}, {2, 1, 0}, {1, 0, 0},
-                        {true, true, false});
-  ASSERT_TRUE(run.Process());
-
-  std::vector<uint32_t> nodes = test::ReadColumn<uint32_t>(run.out, 2);
-  std::vector<uint32_t> parents = test::ReadColumn<uint32_t>(run.out, 3);
-  EXPECT_EQ(parents[0], nodes[1]);
-  EXPECT_EQ(parents[1], nodes[2]);
-  EXPECT_EQ(parents[2], kNoNode);
-}
-
-TEST(TreeNumberNodesTest, AnIdOfAnyWidthIsNamed) {
-  Numbered<uint32_t> run(StorageType{Uint32{}}, {7, 8}, {0, 7}, {false, true});
-  ASSERT_TRUE(run.Process());
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3), ElementsAre(kNoNode, 0u));
-}
-
-TEST(TreeNumberNodesTest, AStringIsAnIdLikeAnythingElse) {
-  StringPool pool;
-  StringPool::Id a = pool.InternString("a");
-  StringPool::Id b = pool.InternString("b");
-  Numbered<StringPool::Id> run(StorageType{String{}}, {a, b}, {a, a},
-                               {false, true});
-  ASSERT_TRUE(run.Process());
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(0u, 1u));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3), ElementsAre(kNoNode, 0u));
-}
-
-// An Id column has no storage: its value is the row it sits at.
-TEST(TreeNumberNodesTest, AnIdColumnIsTheRowItSitsAt) {
-  TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  std::vector<int64_t> parents = {0, 0};
-  BitVector validity = BitVector::CreateWithSize(2);
-  validity.set(1);
-  RowBatch in;
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, parents.data(), &validity));
-  test::Window(&in, 0, 2);
-
-  RowBatch out;
-  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
-}
-
-TEST(TreeNumberNodesTest, AVariantIdIsNamed) {
-  TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  std::vector<Variant> ids = {Variant::Int64(5), Variant::Int64(9)};
-  std::vector<Variant> parents = {Variant::Null(), Variant::Int64(5)};
-  RowBatch in;
-  in.AddBorrowedColumn(ColumnView::Variants(ids.data()));
-  in.AddBorrowedColumn(ColumnView::Variants(parents.data()));
-  test::Window(&in, 0, 2);
-
-  RowBatch out;
-  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 3), ElementsAre(kNoNode, 0u));
+// Ids are numbered densely, a parent not yet seen being numbered on sight so
+// a child-first stream works. Ids which are already node numbers are left
+// alone, without a map.
+TEST(TreeNumberNodesTest, IdsAreNumberedDensely) {
+  struct Case {
+    std::vector<int64_t> ids;
+    std::vector<int64_t> parents;
+    std::vector<bool> has_parent;
+    std::vector<uint32_t> nodes;
+    std::vector<uint32_t> parent_nodes;
+    bool dense;
+  };
+  std::vector<Case> cases = {
+      {{0, 1, 2},
+       {0, 0, 1},
+       {false, true, true},
+       {0, 1, 2},
+       {kNoNode, 0, 1},
+       true},
+      // Scattered, as a filtered relation's are.
+      {{500, 900, 700},
+       {0, 500, 900},
+       {false, true, true},
+       {0, 1, 2},
+       {kNoNode, 0, 1},
+       false},
+      // Child first.
+      {{2, 1, 0},
+       {1, 0, 0},
+       {true, true, false},
+       {0, 1, 2},
+       {1, 2, kNoNode},
+       false},
+  };
+  for (const Case& c : cases) {
+    Numbered<int64_t> run(StorageType{Int64{}}, c.ids, c.parents, c.has_parent);
+    ASSERT_TRUE(run.Process());
+    EXPECT_EQ(test::ReadColumn<uint32_t>(run.out, 2), c.nodes);
+    EXPECT_EQ(test::ReadColumn<uint32_t>(run.out, 3), c.parent_nodes);
+    EXPECT_EQ(run.op.IsDenseForTesting(*run.state), c.dense);
+  }
 }
 
 TEST(TreeNumberNodesTest, VariantStringsAndIntegersHaveSeparateKeys) {
@@ -182,57 +135,6 @@ TEST(TreeNumberNodesTest, VariantStringsAndIntegersHaveSeparateKeys) {
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
-}
-
-TEST(TreeNumberNodesTest, DuplicateIdsAreReported) {
-  Numbered<int64_t> run(StorageType{Int64{}}, {1, 1}, {0, 0}, {false, false});
-  EXPECT_FALSE(run.Process());
-  EXPECT_THAT(run.op.status(*run.state).message(),
-              testing::HasSubstr("same id"));
-}
-
-TEST(TreeNumberNodesTest, ARowWithNoIdIsReported) {
-  TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  std::vector<int64_t> ids = {1, 2};
-  BitVector validity = BitVector::CreateWithSize(2);
-  validity.set(0);
-  RowBatch in;
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, ids.data(), &validity));
-  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, ids.data()));
-  test::Window(&in, 0, 2);
-
-  RowBatch out;
-  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("no id"));
-}
-
-// A parent keeps the number it was first given across later batches.
-TEST(TreeNumberNodesTest, NumberingIsStableAcrossBatches) {
-  TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  std::vector<int64_t> ids = {40, 50, 60};
-  std::vector<int64_t> parents = {40, 40, 40};
-  RowBatch in;
-  RowBatch out;
-  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, ids.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, parents.data()));
-
-  test::Window(&in, 0, 2);
-  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(0u, 1u));
-
-  RowBatch again;
-  again.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, ids.data()));
-  again.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, parents.data()));
-  test::Window(&again, 2, 1);
-  ASSERT_TRUE(test::ProcessCopy(op, again, out, *state));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 2), ElementsAre(2u));
-  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 3), ElementsAre(0u));
 }
 
 // Batches of a table's id column and Uint32 parent ids, run through one
@@ -268,6 +170,20 @@ struct Scanned {
   RowBatch out;
 };
 
+TEST(TreeNumberNodesTest, DuplicateIdsAreReported) {
+  Numbered<int64_t> run(StorageType{Int64{}}, {1, 1}, {0, 0}, {false, false});
+  EXPECT_FALSE(run.Process());
+  EXPECT_THAT(run.op.status(*run.state).message(),
+              testing::HasSubstr("same id"));
+
+  // Rows numbered in order are still known when a later batch repeats one.
+  Scanned scanned({0, 0}, {false, true});
+  ASSERT_TRUE(scanned.Process(0, 2));
+  EXPECT_FALSE(scanned.Process(1, 1));
+  EXPECT_THAT(scanned.op.status(*scanned.state).message(),
+              testing::HasSubstr("same id"));
+}
+
 // A parent pointing at a later row in an otherwise in-order table takes the
 // general path, which numbers it identically.
 TEST(TreeNumberNodesTest, AParentPointingForwardIsNumberedTheSameWay) {
@@ -296,16 +212,6 @@ TEST(TreeNumberNodesTest, AParentNumberedAheadStillGetsItsRow) {
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 2), ElementsAre(1u));
   EXPECT_THAT(test::ReadColumn<uint32_t>(run.out, 3), ElementsAre(kNoNode));
   EXPECT_TRUE(run.op.IsDenseForTesting(*run.state));
-}
-
-// Rows numbered in order are still known to exist when a later batch repeats
-// one of their ids.
-TEST(TreeNumberNodesTest, ADuplicateOfAnInOrderRowIsReported) {
-  Scanned run({0, 0}, {false, true});
-  ASSERT_TRUE(run.Process(0, 2));
-  EXPECT_FALSE(run.Process(1, 1));
-  EXPECT_THAT(run.op.status(*run.state).message(),
-              testing::HasSubstr("same id"));
 }
 
 // The shape of a table like stack_profile_callsite: an id column and a

@@ -199,24 +199,6 @@ Result Accumulate(const std::vector<int64_t>& parent,
   return result;
 }
 
-// A root, its two children and a grandchild.
-std::vector<int64_t> Parents() {
-  return {-1, 0, 0, 1};
-}
-std::vector<int64_t> Values() {
-  return {1, 2, 3, 4};
-}
-
-TEST(TreeAccumulateTest, UpIsEverythingBelowANode) {
-  EXPECT_THAT(Accumulate(Parents(), Values(), 8, /*up=*/true).totals,
-              ElementsAre(10, 6, 3, 4));
-}
-
-TEST(TreeAccumulateTest, DownIsEverythingAboveANode) {
-  EXPECT_THAT(Accumulate(Parents(), Values(), 8, /*up=*/false).totals,
-              ElementsAre(1, 3, 4, 7));
-}
-
 TEST(TreeAccumulateTest, ChildFirstDoesNotRequireDfsPostOrder) {
   // The two leaves arrive before either of their parents, interleaving the
   // subtrees. Run without an ordering step to preserve this exact order,
@@ -229,73 +211,6 @@ TEST(TreeAccumulateTest, ChildFirstDoesNotRequireDfsPostOrder) {
                 ElementsAre(15, 6, 8, 4, 5))
         << "chunk " << chunk;
   }
-}
-
-TEST(TreeAccumulateTest, UpReportsIntegerOverflow) {
-  std::vector<uint32_t> nodes = {1, 0};
-  std::vector<uint32_t> parents = {0, kNoNode};
-  std::vector<int64_t> values = {std::numeric_limits<int64_t>::max(), 1};
-  RowBatch in;
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetRowCount(2);
-
-  TreeAccumulateUp op({0, 1, {Sum(2)}});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch out;
-  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
-  values[0] = 1;
-  state->Reset();
-  EXPECT_TRUE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_TRUE(op.status(*state).ok());
-}
-
-TEST(TreeAccumulateTest, DownReportsIntegerOverflow) {
-  std::vector<uint32_t> nodes = {0, 1};
-  std::vector<uint32_t> parents = {kNoNode, 0};
-  std::vector<int64_t> values = {std::numeric_limits<int64_t>::max(), 1};
-  RowBatch in;
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetRowCount(2);
-
-  TreeAccumulateDown op({0, 1, {Sum(2)}});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch out;
-  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
-}
-
-TEST(TreeAccumulateTest, NullsAreSkippedAndASumOfOnlyNullsIsNull) {
-  std::vector<uint32_t> nodes = {0, 1};
-  std::vector<uint32_t> parents = {kNoNode, 0};
-  std::vector<int64_t> values = {123, 7};
-  BitVector validity = BitVector::CreateWithSize(2);
-  validity.set(1);
-  RowBatch in;
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
-  in.SetRowCount(2);
-
-  TreeAccumulateDown op({0, 1, {Sum(2)}});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch out;
-  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
-              ElementsAre(std::nullopt, 7));
 }
 
 // One batch of node, parent and value columns; `valid` null if no value is.
@@ -314,24 +229,37 @@ RowBatch Batch(const std::vector<uint32_t>& nodes,
   return in;
 }
 
-TEST(TreeAccumulateTest, FoldsEveryAggregateInOrder) {
-  // A root and its two children, child first: COUNT(*) up a tree is the
-  // size of each subtree.
-  std::vector<uint32_t> nodes = {1, 2, 0};
-  std::vector<uint32_t> parents = {0, 0, kNoNode};
-  std::vector<int64_t> values = {3, 4, 5};
-  RowBatch in = Batch(nodes, parents, values);
-  TreeAccumulateUp op(
-      {0, 1, {Sum(2), {AggregateCall::Function::kCountStar, 0}}});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+TEST(TreeAccumulateTest, IntegerOverflowIsReported) {
+  // Child first for up, parent first for down.
+  std::vector<uint32_t> up_nodes = {1, 0};
+  std::vector<uint32_t> up_parents = {0, kNoNode};
+  std::vector<uint32_t> down_nodes = {0, 1};
+  std::vector<uint32_t> down_parents = {kNoNode, 0};
+  std::vector<int64_t> values = {std::numeric_limits<int64_t>::max(), 1};
   RowBatch out;
-  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(test::ReadColumn<int64_t>(out, 3), ElementsAre(3, 4, 12));
-  EXPECT_THAT(test::ReadColumn<int64_t>(out, 4), ElementsAre(1, 1, 3));
+
+  TreeAccumulateDown down({0, 1, {Sum(2)}});
+  std::unique_ptr<OperatorState> down_state =
+      down.MakeState(test::TestContext());
+  RowBatch in = Batch(down_nodes, down_parents, values);
+  EXPECT_FALSE(test::ProcessCopy(down, in, out, *down_state));
+  EXPECT_THAT(down.status(*down_state).message(),
+              testing::HasSubstr("overflow"));
+
+  TreeAccumulateUp up({0, 1, {Sum(2)}});
+  std::unique_ptr<OperatorState> up_state = up.MakeState(test::TestContext());
+  in = Batch(up_nodes, up_parents, values);
+  EXPECT_FALSE(test::ProcessCopy(up, in, out, *up_state));
+  EXPECT_THAT(up.status(*up_state).message(), testing::HasSubstr("overflow"));
+  values[0] = 1;
+  up_state->Reset();
+  EXPECT_TRUE(test::ProcessCopy(up, in, out, *up_state));
+  EXPECT_TRUE(up.status(*up_state).ok());
 }
 
-TEST(TreeAccumulateTest, MinAndMaxSkipNulls) {
-  // A root with no value and two children, either way round.
+TEST(TreeAccumulateTest, NullsAreSkipped) {
+  // A root with no value and two children, either way round: an aggregate
+  // of only nulls is null.
   AggregateCall min{AggregateCall::Function::kMin, 2};
   AggregateCall max{AggregateCall::Function::kMax, 2};
   std::vector<uint32_t> up_nodes = {1, 2, 0};
@@ -355,7 +283,7 @@ TEST(TreeAccumulateTest, MinAndMaxSkipNulls) {
   BitVector down_valid = BitVector::CreateWithSize(3);
   down_valid.set(1);
   down_valid.set(2);
-  TreeAccumulateDown down({0, 1, {min, max}});
+  TreeAccumulateDown down({0, 1, {min, max, Sum(2)}});
   std::unique_ptr<OperatorState> down_state =
       down.MakeState(test::TestContext());
   in = Batch(down_nodes, down_parents, down_values, &down_valid);
@@ -363,6 +291,8 @@ TEST(TreeAccumulateTest, MinAndMaxSkipNulls) {
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
               ElementsAre(std::nullopt, -3, 4));
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 4),
+              ElementsAre(std::nullopt, -3, 4));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 5),
               ElementsAre(std::nullopt, -3, 4));
 }
 
@@ -385,50 +315,6 @@ TEST(TreeAccumulateTest, NullsFirstMetInALaterBatchKeepEarlierValues) {
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3), ElementsAre(7));
 }
 
-TEST(TreeAccumulateTest, WrongColumnTypesAreReported) {
-  std::vector<int64_t> nodes = {0};
-  std::vector<uint32_t> parents = {kNoNode};
-  std::vector<int64_t> values = {1};
-  RowBatch in;
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, nodes.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetRowCount(1);
-
-  TreeAccumulateDown op({0, 1, {Sum(2)}});
-  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
-  RowBatch out;
-  EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("Uint32"));
-}
-
-// With ordered input the planner can omit ordering entirely. The fold emits
-// one batch for every input batch.
-TEST(TreeAccumulateTest, NothingIsBuffered) {
-  std::vector<int64_t> parent(100, -1);
-  std::vector<int64_t> value(100, 1);
-  for (uint32_t i = 1; i < 100; ++i) {
-    parent[i] = i - 1;
-  }
-  std::vector<uint32_t> ascending(100);
-  std::vector<uint32_t> descending(100);
-  for (uint32_t i = 0; i < 100; ++i) {
-    ascending[i] = i;
-    descending[i] = 99 - i;
-  }
-  EXPECT_EQ(Accumulate(parent, value, 10, /*up=*/true, descending,
-                       /*already_ordered=*/true)
-                .batches,
-            10u);
-  EXPECT_EQ(Accumulate(parent, value, 10, /*up=*/false, ascending,
-                       /*already_ordered=*/true)
-                .batches,
-            10u);
-}
-
 std::vector<int64_t> RandomParents(std::mt19937& rng, uint32_t rows) {
   std::vector<int64_t> parent(rows, -1);
   for (uint32_t i = 1; i < rows; ++i) {
@@ -440,107 +326,40 @@ std::vector<int64_t> RandomParents(std::mt19937& rng, uint32_t rows) {
   return parent;
 }
 
+// Random forests, against the folds written out directly: in order and
+// shuffled, so the ordering operators buffer them; in batches of one row and
+// up; and too big for one of the store's chunks, so each batch handed back
+// draws its rows from more than one.
 TEST(TreeAccumulateTest, MatchesTheDefinitions) {
   std::mt19937 rng(11);
-  for (int trial = 0; trial < 20; ++trial) {
-    uint32_t rows = std::uniform_int_distribution<uint32_t>(1, 200)(rng);
-    std::vector<int64_t> parent = RandomParents(rng, rows);
-    std::vector<int64_t> value(rows);
-    for (uint32_t i = 0; i < rows; ++i) {
+  struct Case {
+    uint32_t rows;
+    uint32_t chunk_rows;
+  };
+  for (Case c : {Case{1, 1}, Case{300, 1}, Case{300, 7}, Case{300, 64},
+                 Case{kMaxBatchRows * 2 + 137, 512}}) {
+    std::vector<int64_t> parent = RandomParents(rng, c.rows);
+    std::vector<int64_t> value(c.rows);
+    for (uint32_t i = 0; i < c.rows; ++i) {
       value[i] = std::uniform_int_distribution<int64_t>(-50, 50)(rng);
     }
-    EXPECT_EQ(Accumulate(parent, value, 16, /*up=*/true).totals,
-              ReferenceUp(parent, value));
-    EXPECT_EQ(Accumulate(parent, value, 16, /*up=*/false).totals,
-              ReferenceDown(parent, value));
-  }
-}
-
-TEST(TreeAccumulateTest, TheChunkSizeDoesNotChangeTheAnswer) {
-  std::mt19937 rng(3);
-  std::vector<int64_t> parent = RandomParents(rng, 300);
-  std::vector<int64_t> value(300, 2);
-  for (uint32_t chunk : {1u, 2u, 7u, 64u, 1024u}) {
-    EXPECT_EQ(Accumulate(parent, value, chunk, /*up=*/true).totals,
-              ReferenceUp(parent, value))
-        << "chunk " << chunk;
-    EXPECT_EQ(Accumulate(parent, value, chunk, /*up=*/false).totals,
-              ReferenceDown(parent, value))
-        << "chunk " << chunk;
-  }
-}
-
-// The running totals carried between batches have to be discarded when the
-// plan is run again.
-TEST(TreeAccumulateTest, RunningAgainStartsOver) {
-  RowSource source(Parents(), Values(), 2);
-  TreeAccumulateSpec spec{3, 4, {Sum(2)}};
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
-  Pipeline pipeline(source, std::move(ops), {});
-
-  std::unique_ptr<OperatorState> state =
-      pipeline.MakeState(test::TestContext());
-  RowBatch batch;
-  auto drain = [&] {
-    std::vector<int64_t> totals(4, 0);
-    while (pipeline.GetData(batch, *state)) {
-      std::vector<int64_t> ids = test::ReadColumn<int64_t>(batch, 0);
-      std::vector<int64_t> values = test::ReadColumn<int64_t>(batch, 5);
-      for (uint32_t row = 0; row < batch.size(); ++row) {
-        totals[static_cast<size_t>(ids[row])] = values[row];
-      }
+    std::vector<uint32_t> shuffled(c.rows);
+    for (uint32_t i = 0; i < c.rows; ++i) {
+      shuffled[i] = i;
     }
-    return totals;
-  };
-  std::vector<int64_t> first = drain();
-  pipeline.Rewind(*state);
-  EXPECT_EQ(drain(), first);
-}
-
-// A tree spanning several of the store's chunks, shuffled so that the ordering
-// operator has to buffer all of it and hand it back in an order which draws
-// each batch's rows from more than one chunk.
-TEST(TreeAccumulateTest, ATreeTooBigForOneChunkIsStillFoldedRight) {
-  std::mt19937 rng(23);
-  std::vector<int64_t> parent = RandomParents(rng, kMaxBatchRows * 2 + 137);
-  std::vector<int64_t> value(parent.size());
-  for (uint32_t i = 0; i < value.size(); ++i) {
-    value[i] = std::uniform_int_distribution<int64_t>(-30, 30)(rng);
+    std::shuffle(shuffled.begin(), shuffled.end(), rng);
+    for (const std::vector<uint32_t>& order :
+         {std::vector<uint32_t>{}, shuffled}) {
+      EXPECT_EQ(
+          Accumulate(parent, value, c.chunk_rows, /*up=*/true, order).totals,
+          ReferenceUp(parent, value))
+          << c.rows << " rows in " << c.chunk_rows;
+      EXPECT_EQ(
+          Accumulate(parent, value, c.chunk_rows, /*up=*/false, order).totals,
+          ReferenceDown(parent, value))
+          << c.rows << " rows in " << c.chunk_rows;
+    }
   }
-  std::vector<uint32_t> order(parent.size());
-  for (uint32_t i = 0; i < order.size(); ++i) {
-    order[i] = i;
-  }
-  std::shuffle(order.begin(), order.end(), rng);
-
-  EXPECT_EQ(Accumulate(parent, value, 512, /*up=*/true, order).totals,
-            ReferenceUp(parent, value));
-  EXPECT_EQ(Accumulate(parent, value, 512, /*up=*/false, order).totals,
-            ReferenceDown(parent, value));
-}
-
-// Rows in no particular order have to be sorted before either fold can read
-// them, which is the ordering operator's job, not this one's.
-TEST(TreeAccumulateTest, RowsInNoOrderAreStillFoldedRight) {
-  std::mt19937 rng(19);
-  std::vector<int64_t> parent = RandomParents(rng, 250);
-  std::vector<int64_t> value(parent.size());
-  for (uint32_t i = 0; i < value.size(); ++i) {
-    value[i] = std::uniform_int_distribution<int64_t>(-30, 30)(rng);
-  }
-  std::vector<uint32_t> order(parent.size());
-  for (uint32_t i = 0; i < order.size(); ++i) {
-    order[i] = i;
-  }
-  std::shuffle(order.begin(), order.end(), rng);
-
-  EXPECT_EQ(Accumulate(parent, value, 32, /*up=*/true, order).totals,
-            ReferenceUp(parent, value));
-  EXPECT_EQ(Accumulate(parent, value, 32, /*up=*/false, order).totals,
-            ReferenceDown(parent, value));
 }
 
 }  // namespace

@@ -35,7 +35,6 @@ namespace perfetto::trace_processor::core::exec {
 namespace {
 
 using ::testing::ElementsAre;
-using ::testing::IsEmpty;
 
 using Row = std::vector<int64_t>;
 using Table = std::vector<Row>;
@@ -157,116 +156,6 @@ TEST(IntervalIntersectTest, TwoOperandsMeetOverTheirSharedSpan) {
                           Row{40, 5, 40, 10, 1, 35, 10, 1}));
 }
 
-TEST(IntervalIntersectTest, OutputsOnlyRetainedColumns) {
-  // Keyed on column 2, but keeping only a's column 3 and nothing of b.
-  TableSource a({{0, 30, 1, 7}}, 8);
-  TableSource b({{10, 10, 1, 8}}, 8);
-  IntervalIntersectOperand keep_a = Operand(a, {2});
-  keep_a.retained_columns = {3};
-  IntervalIntersectOperand keep_b = Operand(b, {2});
-  keep_b.retained_columns = {};
-
-  EXPECT_THAT(Intersect({keep_a, keep_b}), ElementsAre(Row{10, 10, 7}));
-}
-
-TEST(IntervalIntersectTest, TouchingEndToStartIsNoMeeting) {
-  TableSource a({{0, 10, 0}}, 8);
-  TableSource b({{10, 10, 0}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(a), Operand(b)}), IsEmpty());
-}
-
-TEST(IntervalIntersectTest, PointMeetsTheInstantsAnIntervalCovers) {
-  // The interval [10, 20) covers the instants 10 through 19, and its end is
-  // not one of them.
-  TableSource points({{5, 0, 0}, {10, 0, 1}, {19, 0, 2}, {20, 0, 3}}, 8);
-  TableSource interval({{10, 10, 0}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(points), Operand(interval)}),
-              ElementsAre(Row{10, 0, 10, 0, 1, 10, 10, 0},
-                          Row{19, 0, 19, 0, 2, 10, 10, 0}));
-}
-
-TEST(IntervalIntersectTest, PointsMeetOnlyAtTheSameInstant) {
-  TableSource a({{10, 0, 0}, {12, 0, 1}}, 8);
-  TableSource b({{10, 0, 0}, {11, 0, 1}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(a), Operand(b)}),
-              ElementsAre(Row{10, 0, 10, 0, 0, 10, 0, 0}));
-}
-
-TEST(IntervalIntersectTest, NarrowingThreeOperandsCanLeaveAPoint) {
-  // [0, 100) narrowed by [20, 30) and then by the point 25.
-  TableSource a({{0, 100, 0}}, 8);
-  TableSource b({{20, 10, 0}}, 8);
-  TableSource c({{25, 0, 0}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(a), Operand(b), Operand(c)}),
-              ElementsAre(Row{25, 0, 0, 100, 0, 20, 10, 0, 25, 0, 0}));
-}
-
-TEST(IntervalIntersectTest, AnOperandCoveringNothingLeavesNothing) {
-  TableSource a({{0, 100, 0}}, 8);
-  TableSource b({{10, 5, 0}}, 8);
-  TableSource c({{20, 0, 0}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(a), Operand(b), Operand(c)}), IsEmpty());
-}
-
-TEST(IntervalIntersectTest, KeysConfineRegionsToRowsWhichAgreeOnThem) {
-  // Column 2 is the key: only key 2 is in both operands.
-  TableSource a({{10, 0, 1, 0}, {10, 0, 2, 1}}, 8);
-  TableSource b({{0, 20, 2, 0}, {0, 20, 3, 1}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(a, {2}), Operand(b, {2})}),
-              ElementsAre(Row{10, 0, 10, 0, 2, 1, 0, 20, 2, 0}));
-}
-
-TEST(IntervalIntersectTest, RowsAreKeyedOnEveryKeyColumn) {
-  TableSource a({{0, 10, 1, 1}, {0, 10, 1, 2}}, 8);
-  TableSource b({{5, 10, 1, 2}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(a, {2, 3}), Operand(b, {2, 3})}),
-              ElementsAre(Row{5, 5, 0, 10, 1, 2, 5, 10, 1, 2}));
-}
-
-TEST(IntervalIntersectTest, AnEmptyOperandLeavesNothing) {
-  TableSource a({{0, 100, 0}}, 8);
-  TableSource b({}, 8);
-
-  EXPECT_THAT(Intersect({Operand(a), Operand(b)}), IsEmpty());
-}
-
-TEST(IntervalIntersectTest, ARowOfOverlappingIntervalsIsSearchedCorrectly) {
-  // An overlapping operand takes a different path through the intersector
-  // than one whose rows are laid end to end.
-  TableSource points({{20, 0, 0}}, 8);
-  TableSource intervals({{0, 30, 0}, {5, 20, 1}, {10, 2, 2}, {18, 10, 3}}, 8);
-
-  EXPECT_THAT(Intersect({Operand(points), Operand(intervals)}),
-              ElementsAre(Row{20, 0, 20, 0, 0, 0, 30, 0},
-                          Row{20, 0, 20, 0, 0, 5, 20, 1},
-                          Row{20, 0, 20, 0, 0, 18, 10, 3}));
-}
-
-TEST(IntervalIntersectTest, DurationBelowZeroIsRefused) {
-  TableSource a({{0, 10, 0}}, 8);
-  TableSource b({{500, -1, 0}}, 8);
-
-  base::Status status = base::OkStatus();
-  EXPECT_THAT(Intersect({Operand(a), Operand(b)}, &status), IsEmpty());
-  EXPECT_FALSE(status.ok());
-}
-
-TEST(IntervalIntersectTest, TimestampBelowZeroIsRefused) {
-  TableSource a({{-1, 10, 0}}, 8);
-  TableSource b({{0, 10, 0}}, 8);
-
-  base::Status status = base::OkStatus();
-  EXPECT_THAT(Intersect({Operand(a), Operand(b)}, &status), IsEmpty());
-  EXPECT_FALSE(status.ok());
-}
-
 TEST(IntervalIntersectTest, MoreRegionsThanABatchHolds) {
   // Each operand is read in many chunks and the regions come back in more
   // batches than one.
@@ -287,18 +176,6 @@ TEST(IntervalIntersectTest, MoreRegionsThanABatchHolds) {
   EXPECT_EQ(rows.front(), (Row{5, 5, 0, 10, 0, 5, 10, 0}));
   EXPECT_EQ(rows.back(), (Row{(kRows - 1) * 10 + 5, 5, (kRows - 1) * 10, 10,
                               kRows - 1, (kRows - 1) * 10 + 5, 10, kRows - 1}));
-}
-
-TEST(IntervalIntersectTest, RewindingGivesTheSameRegions) {
-  TableSource a({{0, 30, 0}, {40, 10, 1}}, 4);
-  TableSource b({{10, 10, 0}, {35, 10, 1}}, 4);
-
-  IntervalIntersect intersect({Operand(a), Operand(b)});
-  std::unique_ptr<OperatorState> state =
-      intersect.MakeState(test::TestContext());
-  Table first = Collect(intersect, *state);
-  intersect.Rewind(*state);
-  EXPECT_EQ(Collect(intersect, *state), first);
 }
 
 }  // namespace

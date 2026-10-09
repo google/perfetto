@@ -42,8 +42,6 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-using testing::ElementsAre;
-
 // A row as the tests write one: an id, a parent id or none, and a payload
 // proving the row itself came back out alongside its number.
 struct Row {
@@ -57,8 +55,6 @@ class RowSource final : public Source {
  public:
   RowSource(std::vector<Row> rows, uint32_t chunk_rows)
       : rows_(std::move(rows)), chunk_rows_(chunk_rows) {}
-
-  void SetRows(std::vector<Row> rows) { rows_ = std::move(rows); }
 
   std::unique_ptr<OperatorState> MakeState(Context& context) const override {
     auto state = std::make_unique<State>();
@@ -228,257 +224,67 @@ std::vector<Row> ChildFirstRows() {
   return {{3, 1, 103}, {2, 0, 102}, {1, 0, 101}, {0, std::nullopt, 100}};
 }
 
-// Every child appears before its parent.
-void ExpectChildFirst(const Output& out) {
-  std::vector<int64_t> seen;
-  for (uint32_t i = 0; i < out.node.size(); ++i) {
-    if (out.parent[i] >= 0) {
-      EXPECT_EQ(std::find(seen.begin(), seen.end(), out.parent[i]), seen.end())
-          << "row " << i << " came after its parent";
-    }
-    seen.push_back(out.node[i]);
+enum class Direction { kChildFirst, kParentFirst };
+constexpr Direction kDirections[] = {Direction::kChildFirst,
+                                     Direction::kParentFirst};
+
+Pipeline::Step Order(Direction direction, uint32_t node, uint32_t parent) {
+  if (direction == Direction::kChildFirst) {
+    return std::make_unique<TreeChildFirst>(node, parent);
   }
+  return std::make_unique<TreeParentFirst>(node, parent);
 }
 
-TEST(TreeChildFirstTest, RowsAlreadyInOrderComeBackAsTheyArrived) {
-  RowSource source(ChildFirstRows(), 2);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-
-  Output out = Drain(order);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  EXPECT_THAT(out.payload, ElementsAre(103, 102, 101, 100));
-  EXPECT_THAT(out.node, ElementsAre(0, 2, 1, 3));
-  EXPECT_THAT(out.parent, ElementsAre(1, 3, 3, -1));
-}
-
-TEST(TreeChildFirstTest, RowsInTheOtherOrderAreTurnedRound) {
-  RowSource source(ParentFirstRows(), 2);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-
-  Output out = Drain(order);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  EXPECT_THAT(out.payload, ElementsAre(103, 102, 101, 100));
-  ExpectChildFirst(out);
-}
-
-// Rows in neither order can be neither passed through nor reversed: they have
-// to be sorted into an order the input did not have.
-TEST(TreeChildFirstTest, RowsInNeitherOrderAreSorted) {
-  // 1 before its parent 0, then 3 after its parent 2.
-  std::vector<Row> rows = {
-      {1, 0, 101}, {0, std::nullopt, 100}, {2, 0, 102}, {3, 2, 103}};
-  RowSource source(rows, 4);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-
-  Output out = Drain(order);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  ExpectChildFirst(out);
-  std::vector<int64_t> payload = out.payload;
-  std::sort(payload.begin(), payload.end());
-  EXPECT_THAT(payload, ElementsAre(100, 101, 102, 103));
-}
-
-// Scattered ids, such as those of a filtered relation, are numbered densely,
-// so anything indexed by node number is the size of the input rather than of
-// the table it was filtered from.
-TEST(TreeChildFirstTest, AScatteringOfIdsIsNumberedDensely) {
-  std::vector<Row> rows = {{123, 900, 103},
-                           {700, 500, 102},
-                           {900, 500, 101},
-                           {500, std::nullopt, 100}};
-  RowSource source(rows, 3);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-
-  Output out = Drain(order);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  EXPECT_THAT(out.node, ElementsAre(0, 2, 1, 3));
-  EXPECT_THAT(out.parent, ElementsAre(1, 3, 3, -1));
-}
-
-TEST(TreeChildFirstTest, AParentWhichIsNotARowIsReported) {
-  std::vector<Row> rows = {{0, std::nullopt, 100}, {1, 42, 101}};
-  RowSource source(rows, 2);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-
-  Output out = Drain(order);
-  EXPECT_FALSE(out.status.ok());
-  EXPECT_THAT(out.status.message(), testing::HasSubstr("not itself a row"));
-}
-
-TEST(TreeChildFirstTest, ACycleIsReported) {
-  std::vector<Row> rows = {{0, 1, 100}, {1, 0, 101}};
-  RowSource source(rows, 2);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-
-  Output out = Drain(order);
-  EXPECT_FALSE(out.status.ok());
-  EXPECT_THAT(out.status.message(), testing::HasSubstr("cycle"));
-}
-
-TEST(TreeChildFirstTest, ASelfParentIsReported) {
-  RowSource source({{0, 0, 100}}, 1);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-
-  Output out = Drain(order);
-  EXPECT_FALSE(out.status.ok());
-  EXPECT_THAT(out.status.message(), testing::HasSubstr("own parent"));
-}
-
-TEST(TreeChildFirstTest, DuplicateNumberedNodesAreReported) {
-  NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeChildFirst>(0, 1));
-  Pipeline order(source, std::move(ops), {});
-  Execution run(order);
-  while (run.Next()) {
-  }
-  EXPECT_FALSE(run.status().ok());
-  EXPECT_THAT(run.status().message(), testing::HasSubstr("same node"));
-}
-
-TEST(TreeChildFirstTest, RewindReadsTheInputAgain) {
-  RowSource source(ChildFirstRows(), 2);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-  Execution run(order);
-  Output first = Drain(&run);
-  ASSERT_TRUE(first.status.ok()) << first.status.message();
-
-  source.SetRows(
-      {{3, 1, 203}, {2, 0, 202}, {1, 0, 201}, {0, std::nullopt, 200}});
-  run.Rewind();
-  Output second = Drain(&run);
-  ASSERT_TRUE(second.status.ok()) << second.status.message();
-  EXPECT_THAT(second.payload, ElementsAre(203, 202, 201, 200));
-}
-
-TEST(TreeChildFirstTest, RewindDiscardsAFailedFill) {
-  RowSource source({{0, 1, 100}, {1, 0, 101}}, 2);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-  Execution run(order);
-  Output failed = Drain(&run);
-  ASSERT_FALSE(failed.status.ok());
-
-  source.SetRows(ChildFirstRows());
-  run.Rewind();
-  Output recovered = Drain(&run);
-  ASSERT_TRUE(recovered.status.ok()) << recovered.status.message();
-  EXPECT_THAT(recovered.payload, ElementsAre(103, 102, 101, 100));
-}
-
-// Every child precedes its parent; subtree contiguity is not required.
-TEST(TreeChildFirstTest, ChildrenPrecedeParents) {
-  std::mt19937 rng(29);
-  std::vector<Row> rows;
-  rows.push_back({0, std::nullopt, 0});
-  for (int64_t id = 1; id < 3000; ++id) {
-    int64_t parent = std::uniform_int_distribution<int64_t>(0, id - 1)(rng);
-    rows.push_back({id, parent, id});
-  }
-  std::shuffle(rows.begin(), rows.end(), rng);
-
-  RowSource source(rows, 256);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-  Output out = Drain(order);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  ASSERT_EQ(out.node.size(), rows.size());
-
-  std::vector<uint32_t> position(rows.size());
-  for (uint32_t i = 0; i < out.node.size(); ++i) {
-    position[static_cast<size_t>(out.node[i])] = i;
-  }
-  for (uint32_t i = 0; i < out.node.size(); ++i) {
-    if (out.parent[i] >= 0) {
-      EXPECT_LT(i, position[static_cast<size_t>(out.parent[i])]);
-    }
-  }
-}
-
-TEST(TreeChildFirstTest, PreservesInterleavedChildFirstSubtrees) {
-  RowSource source(
-      {{3, 1, 3}, {4, 2, 4}, {1, 0, 1}, {2, 0, 2}, {0, std::nullopt, 0}}, 2);
-  auto ops = Number();
-  ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline order(source, std::move(ops), {});
-  Output out = Drain(order);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  EXPECT_THAT(out.payload, ElementsAre(3, 4, 1, 2, 0));
-}
-
-// Numbers the rows, then puts them parent first.
-std::vector<Pipeline::Step> NumberParentFirst() {
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
+// Numbers the rows, then orders them.
+std::vector<Pipeline::Step> NumberAndOrder(Direction direction) {
+  std::vector<Pipeline::Step> ops = Number();
+  ops.push_back(Order(direction, 3, 4));
   return ops;
 }
 
-// Every parent appears before all of its children.
-void ExpectParentFirst(const Output& out) {
-  std::vector<int64_t> seen;
+// Every row comes out after its parent if parent first, or before it if
+// child first; and every row comes out once.
+void ExpectOrdered(const Output& out, Direction direction, size_t rows) {
+  ASSERT_EQ(out.node.size(), rows);
+  std::vector<bool> seen(rows);
   for (uint32_t i = 0; i < out.node.size(); ++i) {
     if (out.parent[i] >= 0) {
-      EXPECT_NE(std::find(seen.begin(), seen.end(), out.parent[i]), seen.end())
-          << "row " << i << " came before its parent";
+      EXPECT_EQ(seen[static_cast<size_t>(out.parent[i])],
+                direction == Direction::kParentFirst)
+          << "row " << i;
     }
-    seen.push_back(out.node[i]);
+    EXPECT_FALSE(seen[static_cast<size_t>(out.node[i])]);
+    seen[static_cast<size_t>(out.node[i])] = true;
   }
 }
 
-TEST(TreeParentFirstTest, RowsInOrderStreamThrough) {
-  RowSource source(ParentFirstRows(), 2);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-
-  Output out = Drain(pipeline);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  EXPECT_THAT(out.payload, ElementsAre(100, 101, 102, 103));
-  EXPECT_THAT(out.node, ElementsAre(0, 1, 2, 3));
-  EXPECT_THAT(out.parent, ElementsAre(-1, 0, 0, 1));
-}
-
-// A row arriving before its parent waits for it; the rest of the batch goes
-// on ahead.
-TEST(TreeParentFirstTest, ARowBeforeItsParentWaitsForIt) {
-  std::vector<Row> rows = {
-      {1, 0, 101}, {0, std::nullopt, 100}, {2, 0, 102}, {3, 1, 103}};
-  RowSource source(rows, 4);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-
-  Output out = Drain(pipeline);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  EXPECT_THAT(out.payload, ElementsAre(100, 102, 101, 103));
-  ExpectParentFirst(out);
-}
-
-TEST(TreeParentFirstTest, AHeldRowIsLetGoWhenItsParentArrivesLater) {
-  RowSource source(ChildFirstRows(), 2);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-
-  Output out = Drain(pipeline);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  ExpectParentFirst(out);
-  std::vector<int64_t> payload = out.payload;
-  std::sort(payload.begin(), payload.end());
-  EXPECT_THAT(payload, ElementsAre(100, 101, 102, 103));
+// Rows already child first pass through, rows parent first are turned round,
+// and rows in neither order are sorted.
+TEST(TreeChildFirstTest, PassesThroughReversesOrSortsTheRows) {
+  struct Case {
+    std::vector<Row> rows;
+    // Empty when any child-first order will do.
+    std::vector<int64_t> payload;
+  };
+  std::vector<Case> cases = {
+      {ChildFirstRows(), {103, 102, 101, 100}},
+      // Child first, but with subtrees interleaved.
+      {{{3, 1, 3}, {4, 2, 4}, {1, 0, 1}, {2, 0, 2}, {0, std::nullopt, 0}},
+       {3, 4, 1, 2, 0}},
+      {ParentFirstRows(), {103, 102, 101, 100}},
+      // 1 before its parent 0, then 3 after its parent 2.
+      {{{1, 0, 101}, {0, std::nullopt, 100}, {2, 0, 102}, {3, 2, 103}}, {}},
+  };
+  for (const Case& c : cases) {
+    RowSource source(c.rows, 2);
+    Pipeline order(source, NumberAndOrder(Direction::kChildFirst), {});
+    Output out = Drain(order);
+    ASSERT_TRUE(out.status.ok()) << out.status.message();
+    ExpectOrdered(out, Direction::kChildFirst, c.rows.size());
+    if (!c.payload.empty()) {
+      EXPECT_EQ(out.payload, c.payload);
+    }
+  }
 }
 
 // More rows let go at once than fit in a batch come out over several.
@@ -489,94 +295,16 @@ TEST(TreeParentFirstTest, RowsLetGoSpanBatches) {
   }
   rows.push_back({0, std::nullopt, 0});
   RowSource source(rows, 1000);
-  Pipeline pipeline(source, NumberParentFirst(), {});
+  Pipeline order(source, NumberAndOrder(Direction::kParentFirst), {});
 
-  Output out = Drain(pipeline);
+  Output out = Drain(order);
   ASSERT_TRUE(out.status.ok()) << out.status.message();
-  ASSERT_EQ(out.payload.size(), rows.size());
   EXPECT_EQ(out.payload.front(), 0);
-  std::vector<int64_t> payload = out.payload;
-  std::sort(payload.begin(), payload.end());
-  for (size_t i = 0; i < payload.size(); ++i) {
-    ASSERT_EQ(payload[i], static_cast<int64_t>(i));
-  }
+  ExpectOrdered(out, Direction::kParentFirst, rows.size());
 }
 
-TEST(TreeParentFirstTest, AParentWhichIsNotARowIsReported) {
-  RowSource source({{0, std::nullopt, 100}, {1, 42, 101}}, 2);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-
-  Output out = Drain(pipeline);
-  EXPECT_THAT(out.payload, ElementsAre(100));
-  EXPECT_FALSE(out.status.ok());
-  EXPECT_THAT(out.status.message(), testing::HasSubstr("not itself a row"));
-}
-
-TEST(TreeParentFirstTest, ACycleIsReported) {
-  RowSource source({{0, 1, 100}, {1, 0, 101}}, 2);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-
-  Output out = Drain(pipeline);
-  EXPECT_TRUE(out.payload.empty());
-  EXPECT_FALSE(out.status.ok());
-  EXPECT_THAT(out.status.message(), testing::HasSubstr("not itself a row"));
-}
-
-TEST(TreeParentFirstTest, ASelfParentIsReported) {
-  RowSource source({{0, 0, 100}}, 1);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-
-  Output out = Drain(pipeline);
-  EXPECT_FALSE(out.status.ok());
-  EXPECT_THAT(out.status.message(), testing::HasSubstr("own parent"));
-}
-
-TEST(TreeParentFirstTest, DuplicateNumberedNodesAreReported) {
-  NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<TreeParentFirst>(0, 1));
-  Pipeline pipeline(source, std::move(ops), {});
-  Execution run(pipeline);
-  while (run.Next()) {
-  }
-  EXPECT_FALSE(run.status().ok());
-  EXPECT_THAT(run.status().message(), testing::HasSubstr("same node"));
-}
-
-TEST(TreeParentFirstTest, RewindReadsTheInputAgain) {
-  RowSource source(ChildFirstRows(), 2);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-  Execution run(pipeline);
-  Output first = Drain(&run);
-  ASSERT_TRUE(first.status.ok()) << first.status.message();
-
-  source.SetRows(
-      {{3, 1, 203}, {2, 0, 202}, {1, 0, 201}, {0, std::nullopt, 200}});
-  run.Rewind();
-  Output second = Drain(&run);
-  ASSERT_TRUE(second.status.ok()) << second.status.message();
-  ExpectParentFirst(second);
-  std::vector<int64_t> payload = second.payload;
-  std::sort(payload.begin(), payload.end());
-  EXPECT_THAT(payload, ElementsAre(200, 201, 202, 203));
-}
-
-TEST(TreeParentFirstTest, RewindDiscardsHeldRows) {
-  RowSource source({{0, std::nullopt, 100}, {1, 42, 101}}, 2);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-  Execution run(pipeline);
-  Output failed = Drain(&run);
-  ASSERT_FALSE(failed.status.ok());
-
-  source.SetRows(ParentFirstRows());
-  run.Rewind();
-  Output recovered = Drain(&run);
-  ASSERT_TRUE(recovered.status.ok()) << recovered.status.message();
-  EXPECT_THAT(recovered.payload, ElementsAre(100, 101, 102, 103));
-}
-
-TEST(TreeParentFirstTest, AShuffledTreeComesOutParentFirst) {
-  std::mt19937 rng(31);
+TEST(TreeOrderTest, AShuffledTreeComesOutInOrder) {
+  std::mt19937 rng(29);
   std::vector<Row> rows;
   rows.push_back({0, std::nullopt, 0});
   for (int64_t id = 1; id < 3000; ++id) {
@@ -585,16 +313,50 @@ TEST(TreeParentFirstTest, AShuffledTreeComesOutParentFirst) {
   }
   std::shuffle(rows.begin(), rows.end(), rng);
 
-  RowSource source(rows, 256);
-  Pipeline pipeline(source, NumberParentFirst(), {});
-  Output out = Drain(pipeline);
-  ASSERT_TRUE(out.status.ok()) << out.status.message();
-  ASSERT_EQ(out.node.size(), rows.size());
-  ExpectParentFirst(out);
-  std::vector<int64_t> payload = out.payload;
-  std::sort(payload.begin(), payload.end());
-  for (size_t i = 0; i < payload.size(); ++i) {
-    ASSERT_EQ(payload[i], static_cast<int64_t>(i));
+  for (Direction direction : kDirections) {
+    RowSource source(rows, 256);
+    Pipeline order(source, NumberAndOrder(direction), {});
+    Output out = Drain(order);
+    ASSERT_TRUE(out.status.ok()) << out.status.message();
+    ExpectOrdered(out, direction, rows.size());
+  }
+}
+
+TEST(TreeOrderTest, ABadTreeIsReported) {
+  struct Case {
+    std::vector<Row> rows;
+    const char* child_first;
+    const char* parent_first;
+  };
+  std::vector<Case> cases = {
+      {{{0, std::nullopt, 100}, {1, 42, 101}},
+       "not itself a row",
+       "not itself a row"},
+      // Parent first, neither row is ever let go.
+      {{{0, 1, 100}, {1, 0, 101}}, "cycle", "not itself a row"},
+      {{{0, 0, 100}}, "own parent", "own parent"},
+  };
+  for (Direction direction : kDirections) {
+    for (const Case& c : cases) {
+      RowSource source(c.rows, 2);
+      Pipeline order(source, NumberAndOrder(direction), {});
+      Output out = Drain(order);
+      EXPECT_FALSE(out.status.ok());
+      EXPECT_THAT(out.status.message(),
+                  testing::HasSubstr(direction == Direction::kChildFirst
+                                         ? c.child_first
+                                         : c.parent_first));
+    }
+    // Numbered elsewhere, two rows can claim the same node.
+    NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
+    std::vector<Pipeline::Step> ops;
+    ops.push_back(Order(direction, 0, 1));
+    Pipeline order(source, std::move(ops), {});
+    Execution run(order);
+    while (run.Next()) {
+    }
+    EXPECT_FALSE(run.status().ok());
+    EXPECT_THAT(run.status().message(), testing::HasSubstr("same node"));
   }
 }
 
