@@ -306,21 +306,15 @@ base::StatusOr<ColumnId> Compiler::ResolveColumnExpr(uint32_t expr) const {
   return Resolve(table, SpanText(p_, ref.column), expr);
 }
 
-// Returns the column summed by `SUM(column)`, the only aggregate supported so
-// far.
-base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t expr) {
+// Resolves an aggregate call like `SUM(column)` to one of the executor's
+// shared functions and the column it reads. Its output is left to the stage.
+base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
   const auto* node = Node<SyntaqliteNode>(p_, expr);
   if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
     return Expected(expr, "an aggregate like SUM(column)");
   }
   const SyntaqliteFunctionCall& call = node->function_call;
   std::string function = base::ToUpper(SpanText(p_, call.func_name));
-  if (function != "SUM") {
-    return Unsupported(expr, "aggregate " + function);
-  }
-  if (call.flags.bits.star) {
-    return Expected(expr, "a column name, not *");
-  }
   if (call.flags.bits.distinct) {
     return Unsupported(expr, "DISTINCT");
   }
@@ -330,31 +324,36 @@ base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t expr) {
   if (syntaqlite_node_is_present(call.over_clause)) {
     return Unsupported(call.over_clause, "OVER");
   }
+  Aggregate aggregate;
+  if (function == "COUNT" && call.flags.bits.star) {
+    aggregate.function = Aggregate::Function::kCountStar;
+    return aggregate;
+  }
+  if (function == "SUM") {
+    aggregate.function = Aggregate::Function::kSum;
+  } else if (function == "MIN") {
+    aggregate.function = Aggregate::Function::kMin;
+  } else if (function == "MAX") {
+    aggregate.function = Aggregate::Function::kMax;
+  } else {
+    return Unsupported(expr, "aggregate " + function);
+  }
+  if (call.flags.bits.star) {
+    return Expected(expr, "a column name, not *");
+  }
   const auto* args = Node<SyntaqliteExprList>(p_, call.args);
   if (!syntaqlite_node_is_present(call.args) ||
       syntaqlite_list_count(args) != 1) {
     return Expected(expr, "exactly one argument");
   }
   uint32_t arg_id = syntaqlite_list_child_id(args, 0);
-  ASSIGN_OR_RETURN(ColumnId value, ResolveColumnExpr(arg_id));
-  const auto& type = plan_.columns()[value].type;
+  ASSIGN_OR_RETURN(aggregate.column, ResolveColumnExpr(arg_id));
+  const auto& type = plan_.columns()[aggregate.column].type;
   if (type && !(type->Is<core::Id>() || type->Is<core::Uint32>() ||
                 type->Is<core::Int32>() || type->Is<core::Int64>())) {
     return Expected(arg_id, "an integer column");
   }
-  return value;
-}
-
-bool Compiler::IsCountStar(uint32_t expr) const {
-  const auto* node = Node<SyntaqliteNode>(p_, expr);
-  if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
-    return false;
-  }
-  const SyntaqliteFunctionCall& call = node->function_call;
-  return call.flags.bits.star && !call.flags.bits.distinct &&
-         !syntaqlite_node_is_present(call.filter_clause) &&
-         !syntaqlite_node_is_present(call.over_clause) &&
-         base::CaseInsensitiveEqual(SpanText(p_, call.func_name), "COUNT");
+  return aggregate;
 }
 
 base::Status Compiler::CompilePipeline(uint32_t pipeline) {

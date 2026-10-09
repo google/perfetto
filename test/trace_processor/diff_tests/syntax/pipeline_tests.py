@@ -55,8 +55,8 @@ class PerfettoPipeline(TestSuite):
         PERFETTO PRAGMA pipelines = 1;
         CREATE PERFETTO TABLE piped AS
         FROM (SELECT id, parent_id, dur FROM slice)
-        |> TREE ACCUMULATE UP SUM(dur) AS subtree_dur
-        |> TREE ACCUMULATE DOWN SUM(dur) AS path_dur;
+        |> TREE ACCUMULATE UP SUM(dur) AS subtree_dur, COUNT(*) AS subtree_size
+        |> TREE ACCUMULATE DOWN SUM(dur) AS path_dur, COUNT(*) AS depth;
 
         CREATE PERFETTO TABLE closure AS
         WITH RECURSIVE descendants(root_id, id) AS (
@@ -75,16 +75,19 @@ class PerfettoPipeline(TestSuite):
           (SELECT count(*) FROM piped) AS rows,
           (
             SELECT count(*) FROM (
-              SELECT id, subtree_dur, path_dur FROM piped
+              SELECT id, subtree_dur, subtree_size, path_dur, depth FROM piped
               EXCEPT
               SELECT
-                up.id, up.subtree_dur, down.path_dur
+                up.id, up.subtree_dur, up.subtree_size, down.path_dur,
+                down.depth
               FROM (
-                SELECT ancestor AS id, sum(dur) AS subtree_dur
+                SELECT ancestor AS id, sum(dur) AS subtree_dur,
+                  count(*) AS subtree_size
                 FROM closure GROUP BY ancestor
               ) up
               JOIN (
-                SELECT c.descendant AS id, sum(s.dur) AS path_dur
+                SELECT c.descendant AS id, sum(s.dur) AS path_dur,
+                  count(*) AS depth
                 FROM closure c JOIN slice s ON s.id = c.ancestor
                 GROUP BY c.descendant
               ) down USING (id)
@@ -127,6 +130,52 @@ class PerfettoPipeline(TestSuite):
             SELECT count(*) FROM (
               SELECT ts, dur, n FROM macro
               EXCEPT SELECT ts, dur, n FROM piped
+            )
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        107295,0
+        """))
+
+  # Every aggregate over what's live in a segment, as the macro gives it.
+  def test_interval_flatten_aggregates_match_self_intersect(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT ts, dur, depth FROM slice WHERE dur > 0)
+        |> INTERVAL FLATTEN AGGREGATE
+          SUM(depth) AS total, MIN(depth) AS lo, MAX(depth) AS hi;
+
+        CREATE PERFETTO TABLE macro AS
+        SELECT
+          i.ts,
+          i.dur,
+          sum(IIF(i.interval_ends_at_ts, NULL, s.depth)) AS total,
+          min(IIF(i.interval_ends_at_ts, NULL, s.depth)) AS lo,
+          max(IIF(i.interval_ends_at_ts, NULL, s.depth)) AS hi
+        FROM interval_self_intersect!(
+          (SELECT id, ts, dur FROM slice WHERE dur > 0)
+        ) i
+        JOIN slice s ON s.id = i.id
+        GROUP BY i.group_id
+        HAVING sum(NOT i.interval_ends_at_ts) > 0;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (
+            SELECT count(*) FROM (
+              SELECT ts, dur, total, lo, hi FROM piped
+              EXCEPT SELECT ts, dur, total, lo, hi FROM macro
+            )
+          ) + (
+            SELECT count(*) FROM (
+              SELECT ts, dur, total, lo, hi FROM macro
+              EXCEPT SELECT ts, dur, total, lo, hi FROM piped
             )
           ) AS mismatches;
         """,
@@ -227,9 +276,9 @@ class PerfettoPipeline(TestSuite):
         query="""
         PERFETTO PRAGMA pipelines = 1;
         FROM (SELECT 1 AS id, NULL AS parent_id)
-        |> TREE ACCUMULATE UP MAX(id) AS biggest;
+        |> TREE ACCUMULATE UP AVG(id) AS biggest;
         """,
-        out=ExpectedError('aggregate MAX is not supported yet'))
+        out=ExpectedError('aggregate AVG is not supported yet'))
 
   def test_a_pipeline_needs_the_pragma(self):
     return DiffTestBlueprint(

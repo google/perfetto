@@ -3921,6 +3921,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_pipeline_plan",
     srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/aggregate.cc",
+        "src/trace_processor/perfetto_sql/pipeline/aggregate.h",
         "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
         "src/trace_processor/perfetto_sql/pipeline/catalog.h",
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
