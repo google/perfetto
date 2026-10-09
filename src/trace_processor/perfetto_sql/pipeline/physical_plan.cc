@@ -168,7 +168,7 @@ void Lowering::SortRows(const std::vector<SortKey>& keys) {
   }
   ex::SortSpec sort;
   for (const SortKey& key : keys) {
-    if (!plan_.columns()[key.column].type) {
+    if (!plan_.columns()[key.column].type.storage()) {
       RequireInt64(key.column);
     }
     sort.keys.push_back({Position(key.column), key.descending});
@@ -200,7 +200,7 @@ void Lowering::RequireInt64(ColumnId column,
   // input before emitting any values. Update logical result typing alongside
   // the executor so SUM is no longer restricted to integers.
   const auto& type = plan_.columns()[column].type;
-  if ((type && type->Is<core::Int64>()) || int64_columns_[column]) {
+  if (type.Is<core::Int64>() || int64_columns_[column]) {
     return;
   }
   into->push_back(std::make_unique<ex::AssertType>(
