@@ -171,11 +171,19 @@ struct AddressResult {
   bool binary_found = false;
   bool resolved = false;
 };
+struct PathSuccess {
+  std::string symbol_path;
+  // See SuccessfulMapping.
+  std::string binary_path;
+  uint64_t address_correction = 0;
+  uint32_t frame_count = 0;
+};
 struct MappingResult {
   MappingKey key;
   base::FlatHashMapV2<uint64_t, AddressResult> addresses;
-  // Resolved frame count per symbol path, in the order paths were used.
-  std::vector<std::pair<std::string, uint32_t>> successes;
+  // Resolved frame counts per symbol path and binary, in the order they were
+  // used.
+  std::vector<PathSuccess> successes;
   std::vector<SymbolPathAttempt> attempts;
 };
 struct MappingResults {
@@ -234,10 +242,17 @@ void SymbolizePendingAddresses(const std::vector<UnsymbolizedFrames>& groups,
       address.resolved = true;
       auto success = std::find_if(
           result.successes.begin(), result.successes.end(),
-          [&symbol_path](const auto& s) { return s.first == symbol_path; });
-      if (success == result.successes.end())
-        success = result.successes.emplace(success, symbol_path, 0);
-      success->second += address.frame_count;
+          [&](const PathSuccess& s) {
+            return s.symbol_path == symbol_path &&
+                   s.binary_path == symbols.binary_path &&
+                   s.address_correction == symbols.address_correction;
+          });
+      if (success == result.successes.end()) {
+        success = result.successes.insert(
+            success, {symbol_path, symbols.binary_path,
+                      symbols.address_correction, 0});
+      }
+      success->frame_count += address.frame_count;
       if (!module) {
         module = trace->add_packet()->set_module_symbols();
         module->set_path(group.mapping.name);
@@ -269,9 +284,10 @@ void CollectResults(const MappingResults& results, SymbolizerResult* result) {
           failure.frames_without_symbols += address.frame_count;
       }
     }
-    for (const auto& [path, count] : mapping.successes)
+    for (const auto& s : mapping.successes)
       result->successful_mappings.push_back(
-          {key.name, key.build_id, path, count, mapping.attempts});
+          {key.name, key.build_id, s.symbol_path, s.frame_count,
+           mapping.attempts, s.binary_path, s.address_correction});
     if (failure.frame_count)
       result->failed_mappings.push_back(std::move(failure));
   }
