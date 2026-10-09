@@ -26,12 +26,14 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {Memo} from '../../../base/memo';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 
 interface FlamegraphObjectsViewAttrs {
   readonly engine: Engine;
@@ -176,32 +178,35 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
   // change and disposes the previous one (SQLDataSource is a Disposable).
   const datasourceMemo = new Memo<SQLDataSource>();
   const counter = new RowCounter();
+  // The grid owns its filters; this mirrors them for the row count.
+  let filters: readonly Filter[] = [];
 
   return {
     onremove() {
       datasourceMemo.dispose();
+      counter.dispose();
     },
     view(vnode) {
       const {navigate, nodeName, onBackToTimeline} = vnode.attrs;
       const {pathHashes, isDominator, engine} = vnode.attrs;
 
-      const datasource = pathHashes
-        ? datasourceMemo.use({
-            key: {pathHashes, isDominator},
-            compute: () => {
-              const query = flamegraphQuery(pathHashes, isDominator);
-              const ds = new SQLDataSource({
-                engine,
-                tableOrSubquery: query,
-                preamble: SQL_PREAMBLE,
-              });
-              counter.init(engine, query, SQL_PREAMBLE);
-              return ds;
-            },
-          })
-        : null;
+      const query = pathHashes
+        ? flamegraphQuery(pathHashes, isDominator)
+        : undefined;
+      const datasource =
+        query !== undefined
+          ? datasourceMemo.use({
+              key: {pathHashes, isDominator},
+              compute: () =>
+                new SQLDataSource({
+                  engine,
+                  tableOrSubquery: query,
+                  preamble: SQL_PREAMBLE,
+                }),
+            })
+          : undefined;
 
-      if (!datasource) {
+      if (datasource === undefined || query === undefined) {
         return m(
           DetailsShell,
           {
@@ -224,8 +229,9 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
       return m(
         DetailsShell,
         {
-          title: counter.heading(
+          title: rowCountHeading(
             nodeName ? `Flamegraph: ${nodeName}` : 'Flamegraph Objects',
+            counter.use({engine, query, preamble: SQL_PREAMBLE, filters}),
           ),
           fillHeight: true,
           buttons: onBackToTimeline
@@ -254,7 +260,9 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             {id: 'heap', field: 'heap'},
           ],
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (newFilters) => {
+            filters = newFilters;
+          },
         }),
       );
     },
