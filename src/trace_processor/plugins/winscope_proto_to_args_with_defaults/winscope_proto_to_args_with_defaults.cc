@@ -125,9 +125,9 @@ using FlatKey = StringPool::Id;
 using Iid = int64_t;
 using DeinternedValue = StringPool::Id;
 
-using DeinternedIids = base::FlatHashMap<Iid, DeinternedValue>;
-using InternedData = base::FlatHashMap<FlatKey, DeinternedIids>;
-using ProtoToInternedData = base::FlatHashMap<ProtoId, InternedData>;
+using DeinternedIids = base::FlatHashMapV2<Iid, DeinternedValue>;
+using InternedData = base::FlatHashMapV2<FlatKey, DeinternedIids>;
+using ProtoToInternedData = base::FlatHashMapV2<ProtoId, InternedData>;
 
 ProtoToInternedData GetProtoToInternedData(const std::string& table_name,
                                            TraceStorage* storage) {

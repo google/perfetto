@@ -50,12 +50,12 @@ class RegisteredFileTracker {
   void IndexFileType(tables::FileTable::Id file_id, const TraceBlob& content);
 
   TraceProcessorContext* context_;
-  base::FlatHashMap<BuildId, tables::ElfFileTable::Id> files_by_build_id_;
+  base::FlatHashMapV2<BuildId, tables::ElfFileTable::Id> files_by_build_id_;
 
   // Indexed by `tables::FileTable::Id`
   std::vector<TraceBlob> file_content_;
 
-  base::FlatHashMap<StringId, tables::FileTable::Id> files_by_path_;
+  base::FlatHashMapV2<StringId, tables::FileTable::Id> files_by_path_;
 };
 
 }  // namespace perfetto::trace_processor

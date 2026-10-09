@@ -280,9 +280,9 @@ class GProfileBuilder {
                              loc.data.size()));
       }
     };
-    base::FlatHashMap<SerializedLocationId,
-                      std::vector<int64_t>,
-                      base::MurmurHash<SerializedLocationId>>
+    base::FlatHashMapV2<SerializedLocationId,
+                        std::vector<int64_t>,
+                        base::MurmurHash<SerializedLocationId>>
         samples_;
   };
 

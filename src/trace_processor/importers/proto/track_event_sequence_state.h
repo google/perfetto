@@ -106,7 +106,7 @@ class TrackEventSequenceState final
   int64_t thread_timestamp_ns_ = 0;
   int64_t thread_instruction_count_ = 0;
 
-  base::FlatHashMap<uint64_t /* uuid */, double /* value */>
+  base::FlatHashMapV2<uint64_t /* uuid */, double /* value */>
       incremental_counter_values_;
 };
 

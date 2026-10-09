@@ -154,12 +154,12 @@ class FuchsiaTraceParser
   uint64_t fuchsia_global_flow_id_counter_ = 1;
 
   // Maps a process-scoped Fuchsia flow identifier to its globally unique ID.
-  base::FlatHashMap<FuchsiaScopedFlowId, uint64_t, FuchsiaScopedFlowIdHasher>
+  base::FlatHashMapV2<FuchsiaScopedFlowId, uint64_t, FuchsiaScopedFlowIdHasher>
       fuchsia_active_flows_;
 
   // Maps a correlation ID to its global flow info.
   // Used for cross-process flow resolution.
-  base::FlatHashMap<uint64_t, GlobalFlowInfo> fuchsia_global_flows_;
+  base::FlatHashMapV2<uint64_t, GlobalFlowInfo> fuchsia_global_flows_;
 };
 
 }  // namespace perfetto::trace_processor

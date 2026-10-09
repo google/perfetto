@@ -49,7 +49,7 @@ struct GpuCounterSequenceState : PacketSequenceStateGeneration::CustomState {
   // Key: counter_descriptor_iid. Value: per-descriptor map of counter_id ->
   // track info. Presence of an iid key means the descriptor has already been
   // parsed (tracks interned, groups inserted) at tokenization time.
-  base::FlatHashMap<uint64_t, base::FlatHashMap<uint32_t, CounterTrackInfo>>
+  base::FlatHashMapV2<uint64_t, base::FlatHashMapV2<uint32_t, CounterTrackInfo>>
       descriptors;
 };
 

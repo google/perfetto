@@ -185,9 +185,9 @@ class TraceImporterRegistry {
   bool IsContainer(TraceImporterId id) const;
 
  private:
-  base::FlatHashMap<TraceImporterId,
-                    std::unique_ptr<TraceImporterBase>,
-                    TraceImporterId::Hasher>
+  base::FlatHashMapV2<TraceImporterId,
+                      std::unique_ptr<TraceImporterBase>,
+                      TraceImporterId::Hasher>
       importers_;
 };
 

@@ -39,7 +39,7 @@ struct Partition {
 };
 
 using Partitions =
-    base::FlatHashMap<uint64_t, Partition, base::AlreadyHashed<uint64_t>>;
+    base::FlatHashMapV2<uint64_t, Partition, base::AlreadyHashed<uint64_t>>;
 
 struct PartitionedTable {
   static constexpr char kName[] = "INTERVAL_TREE_PARTITIONS";

@@ -83,10 +83,10 @@ class SimpleperfProtoTracker {
 
  private:
   // Map from file_id to symbol table (list of symbol names)
-  base::FlatHashMap<uint32_t, std::vector<StringId>> symbol_tables_;
+  base::FlatHashMapV2<uint32_t, std::vector<StringId>> symbol_tables_;
 
   // Map from file_id to DummyMemoryMapping pointer
-  base::FlatHashMap<uint32_t, DummyMemoryMapping*> file_mappings_;
+  base::FlatHashMapV2<uint32_t, DummyMemoryMapping*> file_mappings_;
 
   // List of event types indexed by event_type_id
   std::vector<StringId> event_types_;

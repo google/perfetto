@@ -159,7 +159,7 @@ class AuxStreamManager {
   PerfTracker* const perf_tracker_;
 
   std::unique_ptr<AuxDataTokenizer> tokenizer_;
-  base::FlatHashMap<uint32_t, std::unique_ptr<AuxStream>>
+  base::FlatHashMapV2<uint32_t, std::unique_ptr<AuxStream>>
       auxdata_streams_by_cpu_;
   std::optional<TimeConvRecord> time_conv_;
 };

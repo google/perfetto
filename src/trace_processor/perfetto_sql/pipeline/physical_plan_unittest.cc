@@ -177,7 +177,7 @@ class PhysicalPlanTest : public ::testing::Test {
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
-  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
+  base::FlatHashMapV2<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
 TEST_F(PhysicalPlanTest, AFromAloneReadsTheSource) {

@@ -147,13 +147,14 @@ class PerfEventAttr : public RefCounted {
   std::optional<PerfCounter> global_counter_;
 
   // Keyed by cpu index. Per-cpu counters (pid == -1, cpu >= 0).
-  base::FlatHashMap<uint32_t, std::optional<PerfCounter>> cpu_counters_;
+  base::FlatHashMapV2<uint32_t, std::optional<PerfCounter>> cpu_counters_;
 
   // Keyed by utid. Per-thread counters (pid >= 0, cpu == -1).
-  base::FlatHashMap<UniqueTid, std::optional<PerfCounter>> thread_counters_;
+  base::FlatHashMapV2<UniqueTid, std::optional<PerfCounter>> thread_counters_;
 
   // Keyed by (utid, cpu). Per-(thread, cpu) counters (pid >= 0, cpu >= 0).
-  base::FlatHashMap<std::pair<UniqueTid, uint32_t>, std::optional<PerfCounter>>
+  base::FlatHashMapV2<std::pair<UniqueTid, uint32_t>,
+                      std::optional<PerfCounter>>
       thread_cpu_counters_;
 
   std::string event_name_;

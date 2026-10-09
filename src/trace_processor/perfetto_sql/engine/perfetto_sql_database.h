@@ -79,12 +79,12 @@ class PerfettoSqlDatabase {
   const sql_modules::RegisteredPackage* FindPackageForModule(
       const std::string& key) const;
   std::vector<std::pair<std::string, std::string>> GetModules() const;
-  base::FlatHashMap<std::string, sql_modules::RegisteredPackage>& packages() {
+  base::FlatHashMapV2<std::string, sql_modules::RegisteredPackage>& packages() {
     return packages_;
   }
 
-  base::FlatHashMap<std::string, Macro>& macros() { return macros_; }
-  const base::FlatHashMap<std::string, Macro>& macros() const {
+  base::FlatHashMapV2<std::string, Macro>& macros() { return macros_; }
+  const base::FlatHashMapV2<std::string, Macro>& macros() const {
     return macros_;
   }
   size_t macro_count() const { return macros_.size(); }
@@ -191,8 +191,8 @@ class PerfettoSqlDatabase {
   bool shared_schema_initialized_ PERFETTO_GUARDED_BY(shared_schema_mu_) =
       false;
 
-  base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
-  base::FlatHashMap<std::string, Macro> macros_;
+  base::FlatHashMapV2<std::string, sql_modules::RegisteredPackage> packages_;
+  base::FlatHashMapV2<std::string, Macro> macros_;
 
   sqlite::CommittedStateManager committed_dataframes_;
   sqlite::CommittedStateManager committed_runtime_table_functions_;

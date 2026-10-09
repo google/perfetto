@@ -457,7 +457,7 @@ base::Status PerfettoManifestReader::ApplyManifest() {
   // its embedded-id remap. Rows are allocated in manifest order, so machine ids
   // follow the order files list their machines in.
   auto& machine_table = *context_->storage->mutable_machine_table();
-  base::FlatHashMap<std::string, int64_t> name_to_id;
+  base::FlatHashMapV2<std::string, int64_t> name_to_id;
   int64_t next_id = kFirstManifestMachineId;
   auto raw_id_for_name = [&](const std::string& name) {
     if (int64_t* id = name_to_id.Find(name)) {

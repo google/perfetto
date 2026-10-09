@@ -129,8 +129,8 @@ class SummarizerImpl : public Summarizer {
   TraceProcessor* tp_;
   DescriptorPool* descriptor_pool_;
   std::string id_;
-  base::FlatHashMap<std::string, QueryState> query_states_;
-  base::FlatHashMap<std::string, bool>
+  base::FlatHashMapV2<std::string, QueryState> query_states_;
+  base::FlatHashMapV2<std::string, bool>
       included_modules_;  // Track included modules.
   uint32_t next_materialized_id_ = 0;
 };

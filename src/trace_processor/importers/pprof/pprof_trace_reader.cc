@@ -124,7 +124,7 @@ base::Status PprofTraceReader::ParseProfile() {
   };
 
   // Parse mappings and create VirtualMemoryMapping objects
-  base::FlatHashMap<uint64_t, VirtualMemoryMapping*> mappings;
+  base::FlatHashMapV2<uint64_t, VirtualMemoryMapping*> mappings;
   for (auto it = profile.mapping(); it; ++it) {
     const Mapping::Decoder mapping_decoder(*it);
     if (!mapping_decoder.has_id()) {
@@ -155,7 +155,7 @@ base::Status PprofTraceReader::ParseProfile() {
   }
 
   // Parse functions with source file and line information
-  base::FlatHashMap<uint64_t, FunctionInfo> functions;
+  base::FlatHashMapV2<uint64_t, FunctionInfo> functions;
   for (auto it = profile.function(); it; ++it) {
     const Function::Decoder func_decoder(*it);
     if (!func_decoder.has_id()) {
@@ -171,7 +171,7 @@ base::Status PprofTraceReader::ParseProfile() {
   }
 
   // Parse locations and create frames
-  base::FlatHashMap<uint64_t, FrameId> location_to_frame;
+  base::FlatHashMapV2<uint64_t, FrameId> location_to_frame;
   for (auto it = profile.location(); it; ++it) {
     const Location::Decoder loc_decoder(*it);
     if (!loc_decoder.has_id()) {

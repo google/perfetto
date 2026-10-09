@@ -105,12 +105,12 @@ class MappingTracker {
   MappingImpl& AddMapping(std::unique_ptr<MappingImpl> mapping);
 
   TraceProcessorContext* const context_;
-  base::FlatHashMap<MappingId, std::unique_ptr<VirtualMemoryMapping>>
+  base::FlatHashMapV2<MappingId, std::unique_ptr<VirtualMemoryMapping>>
       mappings_by_id_;
 
-  base::FlatHashMap<CreateMappingParams,
-                    VirtualMemoryMapping*,
-                    base::MurmurHash<CreateMappingParams>>
+  base::FlatHashMapV2<CreateMappingParams,
+                      VirtualMemoryMapping*,
+                      base::MurmurHash<CreateMappingParams>>
       interned_mappings_;
 
   struct NameAndBuildId {
@@ -128,17 +128,17 @@ class MappingTracker {
       return H::Combine(std::move(h), o.name, o.build_id);
     }
   };
-  base::FlatHashMap<NameAndBuildId,
-                    std::vector<VirtualMemoryMapping*>,
-                    base::MurmurHash<NameAndBuildId>>
+  base::FlatHashMapV2<NameAndBuildId,
+                      std::vector<VirtualMemoryMapping*>,
+                      base::MurmurHash<NameAndBuildId>>
       mappings_by_name_and_build_id_;
 
-  base::FlatHashMap<UniquePid, AddressRangeMap<UserMemoryMapping*>>
+  base::FlatHashMapV2<UniquePid, AddressRangeMap<UserMemoryMapping*>>
       user_memory_;
   AddressRangeMap<KernelMemoryMapping*> kernel_modules_;
   KernelMemoryMapping* kernel_ = nullptr;
 
-  base::FlatHashMap<UniquePid, AddressRangeMap<JitCache*>> jit_caches_;
+  base::FlatHashMapV2<UniquePid, AddressRangeMap<JitCache*>> jit_caches_;
 };
 
 }  // namespace perfetto::trace_processor

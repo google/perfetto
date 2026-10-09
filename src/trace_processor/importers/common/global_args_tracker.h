@@ -87,8 +87,8 @@ class GlobalArgsTracker {
     std::vector<CompactArg> args;
     // key -> index in `args`; empty below a threshold, where a linear scan over
     // `args` is cheaper than a hash lookup.
-    base::FlatHashMap<StringId, uint32_t> key_index;
-    base::FlatHashMap<StringId, size_t> array_indexes;
+    base::FlatHashMapV2<StringId, uint32_t> key_index;
+    base::FlatHashMapV2<StringId, size_t> array_indexes;
 
     void Reset() {
       args.clear();
@@ -222,6 +222,9 @@ class GlobalArgsTracker {
     return arg_set_id;
   }
 
+  // On FlatHashMapV1 rather than FlatHashMapV2: this map gets very large and
+  // is hit on every arg set, and V1's separate key and value arrays (rather
+  // than padded 16 byte key+value slots) make for fewer cache misses here.
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
       arg_row_for_hash_;
 

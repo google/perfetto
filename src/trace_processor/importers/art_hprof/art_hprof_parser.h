@@ -106,14 +106,14 @@ class ArtHprofParser : public ChunkedTraceReader {
   std::unique_ptr<HeapGraphBuilder> parser_;
 
   // HPROF ID → table row ID mappings, used during PopulateObjects/References.
-  base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id> class_map_;
-  base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>
+  base::FlatHashMapV2<uint64_t, tables::HeapGraphClassTable::Id> class_map_;
+  base::FlatHashMapV2<uint64_t, tables::HeapGraphClassTable::Id>
       class_object_map_;
   // Row id in the object table for each object in the heap graph, indexed by
   // ObjectIndex. kInvalidRow for objects which were not inserted.
   static constexpr uint32_t kInvalidRow = std::numeric_limits<uint32_t>::max();
   std::vector<uint32_t> object_rows_;
-  base::FlatHashMap<uint64_t, std::string> class_name_map_;
+  base::FlatHashMapV2<uint64_t, std::string> class_name_map_;
 };
 }  // namespace perfetto::trace_processor::art_hprof
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HPROF_PARSER_H_

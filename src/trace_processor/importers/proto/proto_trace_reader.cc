@@ -953,10 +953,10 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
   return base::OkStatus();
 }
 
-base::FlatHashMap<ClockTracker::ClockId /*Clock Id*/, int64_t /*Offset*/>
+base::FlatHashMapV2<ClockTracker::ClockId /*Clock Id*/, int64_t /*Offset*/>
 ProtoTraceReader::CalculateClockOffsets(
     std::vector<SyncClockSnapshots>& sync_clock_snapshots) {
-  base::FlatHashMap<ClockTracker::ClockId, int64_t /*Offset*/> clock_offsets;
+  base::FlatHashMapV2<ClockTracker::ClockId, int64_t /*Offset*/> clock_offsets;
 
   // The RemoteClockSync message contains a sequence of |synced_clocks|
   // messages. Each |synced_clocks| message contains pairs of ClockSnapshots
@@ -1174,7 +1174,7 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     uint32_t data_loss_writer_abort = 0;
     uint32_t data_loss_smb_full = 0;
   };
-  base::FlatHashMap<int32_t, BufStats> stats_per_buffer;
+  base::FlatHashMapV2<int32_t, BufStats> stats_per_buffer;
   for (auto it = evt.writer_stats(); it; ++it) {
     protos::pbzero::TraceStats::WriterStats::Decoder w(*it);
     auto seq_id = static_cast<uint32_t>(w.sequence_id());

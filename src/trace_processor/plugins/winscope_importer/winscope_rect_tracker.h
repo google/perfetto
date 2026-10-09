@@ -36,9 +36,9 @@ class WinscopeRectTracker {
   const tables::WinscopeRectTable::Id& GetOrInsertRow(geometry::Rect& rect);
 
  private:
-  base::FlatHashMap<geometry::Rect,
-                    tables::WinscopeRectTable::Id,
-                    base::MurmurHash<geometry::Rect>>
+  base::FlatHashMapV2<geometry::Rect,
+                      tables::WinscopeRectTable::Id,
+                      base::MurmurHash<geometry::Rect>>
       rows_;
 };
 

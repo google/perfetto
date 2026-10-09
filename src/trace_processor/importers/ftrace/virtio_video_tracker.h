@@ -75,7 +75,7 @@ class VirtioVideoTracker : public Destructible {
   StringId output_queue_id_;
 
   FieldsStringIds fields_string_ids_;
-  base::FlatHashMap<uint64_t, StringId> command_names_;
+  base::FlatHashMapV2<uint64_t, StringId> command_names_;
 };
 
 }  // namespace perfetto::trace_processor

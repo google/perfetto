@@ -102,8 +102,8 @@ class ProtoLogMessageDecoder {
 
  private:
   TraceProcessorContext* const context_;
-  base::FlatHashMap<uint64_t, TrackedGroup> tracked_groups_;
-  base::FlatHashMap<uint64_t, base::SmallVector<TrackedMessage, 1>>
+  base::FlatHashMapV2<uint64_t, TrackedGroup> tracked_groups_;
+  base::FlatHashMapV2<uint64_t, base::SmallVector<TrackedMessage, 1>>
       tracked_messages_;
 };
 

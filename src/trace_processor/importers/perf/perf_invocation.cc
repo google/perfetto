@@ -89,7 +89,7 @@ base::StatusOr<RefPtr<PerfInvocation>> PerfInvocation::Builder::Build() {
   }
 
   RefPtr<PerfEventAttr> first_attr;
-  base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id;
+  base::FlatHashMapV2<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id;
   for (const auto& entry : attr_with_ids_) {
     // Assign a distinct sampling stream id to each event description. Note: at
     // the time of writing, we do not correctly re-group the events if the
@@ -255,7 +255,7 @@ void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
 }
 
 void PerfInvocation::SetSimpleperfCounterScope(
-    const base::FlatHashMap<std::string, std::string>& entries) {
+    const base::FlatHashMapV2<std::string, std::string>& entries) {
   // perf_event_attr does not store the target pid/cpu passed to
   // perf_event_open. While Linux perf emits PERF_RECORD_ID_INDEX to map each
   // event ID to its (tid, cpu), simpleperf omits PERF_RECORD_ID_INDEX and

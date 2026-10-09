@@ -672,8 +672,8 @@ class JsonExporter {
     }
 
     const TraceStorage* storage_;
-    base::FlatHashMap<ArgSetId, Dom> args_sets_;
-    base::FlatHashMap<ArgSetId, int64_t> legacy_trace_ids_;
+    base::FlatHashMapV2<ArgSetId, Dom> args_sets_;
+    base::FlatHashMapV2<ArgSetId, int64_t> legacy_trace_ids_;
     const Dom empty_value_;
   };
 

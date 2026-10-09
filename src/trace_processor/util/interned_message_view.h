@@ -125,8 +125,8 @@ class InternedMessageView {
 
  private:
   using SubMessageViewMap =
-      base::FlatHashMap<uint32_t /*field_id*/,
-                        std::unique_ptr<InternedMessageView>>;
+      base::FlatHashMapV2<uint32_t /*field_id*/,
+                          std::unique_ptr<InternedMessageView>>;
 
   TraceBlobView message_;
 

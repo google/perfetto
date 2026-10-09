@@ -88,7 +88,7 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
 
   // Shared across all threads to avoid creating duplicate mappings.
   DummyMemoryMapping* dummy_mapping_ = nullptr;
-  base::FlatHashMap<std::string, DummyMemoryMapping*> mappings_;
+  base::FlatHashMapV2<std::string, DummyMemoryMapping*> mappings_;
 };
 
 }  // namespace perfetto::trace_processor::gecko_importer

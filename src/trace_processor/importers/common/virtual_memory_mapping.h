@@ -148,9 +148,9 @@ class VirtualMemoryMapping {
       return H::Combine(std::move(h), k.rel_pc, k.name_id);
     }
   };
-  base::FlatHashMap<FrameKey, FrameId, base::MurmurHash<FrameKey>>
+  base::FlatHashMapV2<FrameKey, FrameId, base::MurmurHash<FrameKey>>
       interned_frames_;
-  base::FlatHashMap<uint64_t, std::vector<FrameId>> frames_by_rel_pc_;
+  base::FlatHashMapV2<uint64_t, std::vector<FrameId>> frames_by_rel_pc_;
 };
 
 class KernelMemoryMapping : public VirtualMemoryMapping {
@@ -213,7 +213,7 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
                         k.line_number);
     }
   };
-  base::FlatHashMap<DummyFrameKey, FrameId, base::MurmurHash<DummyFrameKey>>
+  base::FlatHashMapV2<DummyFrameKey, FrameId, base::MurmurHash<DummyFrameKey>>
       interned_dummy_frames_;
 };
 

@@ -414,12 +414,12 @@ class TrackEventTracker {
   // Helper to record analysis errors with track_uuid arg
   void RecordTrackError(size_t stat_key, uint64_t track_uuid);
 
-  base::FlatHashMap<uint64_t /* uuid */, State> descriptor_tracks_state_;
+  base::FlatHashMapV2<uint64_t /* uuid */, State> descriptor_tracks_state_;
 
   // Stores the descriptor uuid used for the primary process/thread track
   // for the given upid / utid. Used for pid/tid reuse detection.
-  base::FlatHashMap<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
-  base::FlatHashMap<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
+  base::FlatHashMapV2<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
+  base::FlatHashMapV2<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
   std::unordered_set<uint32_t> sequences_with_first_packet_;
 

@@ -404,7 +404,7 @@ class ProtoToArgsParser {
 
     uint32_t flat_generation = 0;
     bool flat_eligible = false;
-    base::FlatHashMap<uint32_t, FlatField> flat_fields;
+    base::FlatHashMapV2<uint32_t, FlatField> flat_fields;
     // The override registered for this node's flat key, if any. Looked up
     // once when the node is created, so overrides must be registered before
     // the first parse.
@@ -453,7 +453,7 @@ class ProtoToArgsParser {
   // DebugAnnotation / NestedValue dictionary and array entries.
   void InternCurrentKey();
 
-  base::FlatHashMap<std::string, ParsingOverrideForField> field_overrides_;
+  base::FlatHashMapV2<std::string, ParsingOverrideForField> field_overrides_;
   const DescriptorPool& pool_;
   StringPool& string_pool_;
   // Arena of traversal-tree nodes, referenced by index. Persists across parses;
@@ -466,7 +466,7 @@ class ProtoToArgsParser {
   std::vector<std::string_view> flag_views_;
   // Edge -> child node index in |path_nodes_| (see |PathEdgeKey|). Roots are
   // keyed by pool descriptor index under the kNoPath parent.
-  base::FlatHashMap<uint64_t, uint32_t> path_index_;
+  base::FlatHashMapV2<uint64_t, uint32_t> path_index_;
   Key key_prefix_;
   // Parameters to ParseMessage that apply uniformly to every ProtoMessage
   // WorkItem on the stack. Set by ParseMessage; read by StepProtoMessage.

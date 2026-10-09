@@ -109,7 +109,7 @@ class TrackEventExtensionParser {
 // each registered field id to its owner.
 struct TrackEventExtensionParserContext {
   std::vector<std::unique_ptr<TrackEventExtensionParser>> parsers;
-  base::FlatHashMap<uint32_t, TrackEventExtensionParser*> parsers_by_field;
+  base::FlatHashMapV2<uint32_t, TrackEventExtensionParser*> parsers_by_field;
 };
 
 }  // namespace perfetto::trace_processor

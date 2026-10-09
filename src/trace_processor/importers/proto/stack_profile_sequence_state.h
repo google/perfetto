@@ -103,17 +103,17 @@ class StackProfileSequenceState final
     }
   };
 
-  base::FlatHashMap<OptionalUniquePidAndIid,
-                    VirtualMemoryMapping*,
-                    base::MurmurHash<OptionalUniquePidAndIid>>
+  base::FlatHashMapV2<OptionalUniquePidAndIid,
+                      VirtualMemoryMapping*,
+                      base::MurmurHash<OptionalUniquePidAndIid>>
       cached_mappings_;
-  base::FlatHashMap<OptionalUniquePidAndIid,
-                    FrameId,
-                    base::MurmurHash<OptionalUniquePidAndIid>>
+  base::FlatHashMapV2<OptionalUniquePidAndIid,
+                      FrameId,
+                      base::MurmurHash<OptionalUniquePidAndIid>>
       cached_frames_;
-  base::FlatHashMap<OptionalUniquePidAndIid,
-                    CallsiteId,
-                    base::MurmurHash<OptionalUniquePidAndIid>>
+  base::FlatHashMapV2<OptionalUniquePidAndIid,
+                      CallsiteId,
+                      base::MurmurHash<OptionalUniquePidAndIid>>
       cached_callstacks_;
 };
 

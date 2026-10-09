@@ -127,7 +127,7 @@ class PerfettoSqlParserTest : public ::testing::Test {
     return pipeline::LogicalPlanToString(pipeline->plan);
   }
 
-  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
+  base::FlatHashMapV2<std::string, PerfettoSqlParser::Macro> macros_;
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   pipeline::TestCatalog catalog_;

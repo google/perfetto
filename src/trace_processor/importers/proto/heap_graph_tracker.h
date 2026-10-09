@@ -200,13 +200,13 @@ class HeapGraphTracker : public Destructible {
 
     std::map<uint64_t, InternedType> interned_types;
     std::map<uint64_t, StringId> interned_location_names;
-    base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::RowNumber>
+    base::FlatHashMapV2<uint64_t, tables::HeapGraphObjectTable::RowNumber>
         object_id_to_db_row;
-    base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::RowNumber>
+    base::FlatHashMapV2<uint64_t, tables::HeapGraphClassTable::RowNumber>
         type_id_to_db_row;
     std::map<uint64_t, std::vector<tables::HeapGraphReferenceTable::RowNumber>>
         references_for_field_name_id;
-    base::FlatHashMap<uint64_t, InternedField> interned_fields;
+    base::FlatHashMapV2<uint64_t, InternedField> interned_fields;
     std::map<tables::HeapGraphClassTable::Id,
              std::vector<tables::HeapGraphObjectTable::RowNumber>>
         deferred_reference_objects_for_type_;
@@ -269,9 +269,9 @@ class HeapGraphTracker : public Destructible {
   tables::HeapGraphReferenceTable::Cursor referred_cursor_;
   tables::HeapGraphTable::Cursor heap_graph_cursor_;
 
-  base::FlatHashMap<StringId, std::vector<ClassRows>> class_to_rows_;
-  base::FlatHashMap<StringId,
-                    std::vector<tables::HeapGraphReferenceTable::RowNumber>>
+  base::FlatHashMapV2<StringId, std::vector<ClassRows>> class_to_rows_;
+  base::FlatHashMapV2<StringId,
+                      std::vector<tables::HeapGraphReferenceTable::RowNumber>>
       field_to_rows_;
 
   StringId cleaner_thunk_str_id_;

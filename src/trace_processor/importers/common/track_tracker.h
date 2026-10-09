@@ -237,6 +237,8 @@ class TrackTracker {
     base::ignore_result(dimensions_schema);
   }
 
+  // On FlatHashMapV1: interning a track looks it up here on every event, and
+  // FlatHashMapV2 measured slower for it.
   base::FlatHashMap<uint64_t, TrackId, base::AlreadyHashed<uint64_t>> tracks_;
 
   TraceProcessorContext* const context_;

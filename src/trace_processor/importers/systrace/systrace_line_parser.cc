@@ -77,7 +77,7 @@ base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
   }
 
-  base::FlatHashMap<std::string, std::string, base::MurmurHash<std::string>>
+  base::FlatHashMapV2<std::string, std::string, base::MurmurHash<std::string>>
       args;
   for (base::StringSplitter ss(line.args_str, ' '); ss.Next();) {
     std::string key;

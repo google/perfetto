@@ -794,7 +794,7 @@ namespace {
 class StringInterner {
  public:
   StringInterner(protos::pbzero::PerfettoMetatrace& event,
-                 base::FlatHashMap<std::string, uint64_t>& interned_strings)
+                 base::FlatHashMapV2<std::string, uint64_t>& interned_strings)
       : event_(event), interned_strings_(interned_strings) {}
 
   ~StringInterner() {
@@ -816,7 +816,7 @@ class StringInterner {
 
  private:
   protos::pbzero::PerfettoMetatrace& event_;
-  base::FlatHashMap<std::string, uint64_t>& interned_strings_;
+  base::FlatHashMapV2<std::string, uint64_t>& interned_strings_;
 
   base::SmallVector<std::pair<uint64_t, std::string>, 16> new_interned_strings_;
 };
@@ -835,7 +835,7 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
   }
 
   auto tid = static_cast<uint32_t>(base::GetThreadId());
-  base::FlatHashMap<std::string, uint64_t> interned_strings;
+  base::FlatHashMapV2<std::string, uint64_t> interned_strings;
   metatrace::DisableAndReadBuffer(
       [&trace, &interned_strings, tid](metatrace::Record* record) {
         auto* packet = trace->add_packet();

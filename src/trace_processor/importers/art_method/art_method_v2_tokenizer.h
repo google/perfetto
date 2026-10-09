@@ -78,8 +78,8 @@ class ArtMethodV2Tokenizer : public ChunkedTraceReader {
   uint64_t tsc_frequency_ = 0;
   std::string summary_;
 
-  base::FlatHashMap<uint64_t, ThreadInfo> thread_map_;
-  base::FlatHashMap<uint64_t, MethodInfo> method_map_;
+  base::FlatHashMapV2<uint64_t, ThreadInfo> thread_map_;
+  base::FlatHashMapV2<uint64_t, MethodInfo> method_map_;
 };
 
 }  // namespace perfetto::trace_processor::art_method

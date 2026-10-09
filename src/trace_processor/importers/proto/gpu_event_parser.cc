@@ -383,7 +383,7 @@ void GpuEventParser::InsertCounterGroups(
 
 void GpuEventParser::InsertCustomCounterGroups(
     const GpuCounterDescriptor::Decoder& desc,
-    const base::FlatHashMap<uint32_t, TrackId>& counter_id_to_track) {
+    const base::FlatHashMapV2<uint32_t, TrackId>& counter_id_to_track) {
   for (auto group_it = desc.counter_groups(); group_it; ++group_it) {
     GpuCounterDescriptor::GpuCounterGroupSpec::Decoder group(*group_it);
     if (!group.has_group_id()) {

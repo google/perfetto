@@ -36,10 +36,10 @@ class ProtoContentAnalyzer : public PacketAnalyzer {
     size_t size;
     size_t count;
   };
-  using PathToSamplesMap =
-      base::FlatHashMap<util::SizeProfileComputer::FieldPath,
-                        Sample,
-                        base::MurmurHash<util::SizeProfileComputer::FieldPath>>;
+  using PathToSamplesMap = base::FlatHashMapV2<
+      util::SizeProfileComputer::FieldPath,
+      Sample,
+      base::MurmurHash<util::SizeProfileComputer::FieldPath>>;
   using SampleAnnotation = PacketAnalyzer::SampleAnnotation;
 
   struct SampleAnnotationHasher {
@@ -56,7 +56,7 @@ class ProtoContentAnalyzer : public PacketAnalyzer {
     }
   };
   using AnnotatedSamplesMap = base::
-      FlatHashMap<SampleAnnotation, PathToSamplesMap, SampleAnnotationHasher>;
+      FlatHashMapV2<SampleAnnotation, PathToSamplesMap, SampleAnnotationHasher>;
 
   explicit ProtoContentAnalyzer(TraceProcessorContext* context);
   ~ProtoContentAnalyzer() override;

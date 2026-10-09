@@ -175,7 +175,7 @@ void DeobfuscationTracker::DeobfuscateProfiles(
     std::optional<uint32_t> obfuscated_line_end;
     std::optional<uint32_t> source_line_start;
   };
-  base::FlatHashMap<StringId, std::vector<MethodMappingInfo>> method_mappings;
+  base::FlatHashMapV2<StringId, std::vector<MethodMappingInfo>> method_mappings;
 
   for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
        ++class_it) {

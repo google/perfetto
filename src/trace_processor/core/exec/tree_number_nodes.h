@@ -87,7 +87,7 @@ class TreeNumberNodes final : public Transform {
     // so the map stays empty.
     bool dense = true;
     uint32_t numbered = 0;
-    base::FlatHashMap<Key, uint32_t> numbers;
+    base::FlatHashMapV2<Key, uint32_t> numbers;
     // Which nodes have had a row of their own, to catch an id used twice.
     BitVector has_row;
     // The batch's ids and parent ids, whatever type they arrived as.
