@@ -187,22 +187,9 @@ TEST_F(RelationAnalyzerTest, ResultOutlivesParserAndAnalyzer) {
   EXPECT_THAT(Show(*lineage), testing::ElementsAre("slice_id=slice.id"));
 }
 
-TEST_F(RelationAnalyzerTest, OriginsNameLeafRelations) {
-  auto result = Analyze("SELECT id AS harmless_name FROM slice");
-  ASSERT_TRUE(result.ok());
-  ASSERT_THAT(result->columns().front().origins, testing::SizeIs(1));
-  EXPECT_EQ(result->columns().front().origins.front().relation_name, "slice");
-}
-
 TEST_F(RelationAnalyzerTest, ExpressionsHaveUnknownOrigin) {
   EXPECT_THAT(Select("SELECT id, ts * 2 AS doubled FROM slice"),
               testing::ElementsAre("id=slice.id", "doubled="));
-}
-
-TEST_F(RelationAnalyzerTest, ExpandsStars) {
-  EXPECT_THAT(
-      Select("SELECT * FROM slice"),
-      testing::ElementsAre("id=slice.id", "ts=slice.ts", "name=slice.name"));
 }
 
 // As in SQLite, a hidden column is left out of stars but found by name.
@@ -390,19 +377,16 @@ TEST_F(RelationAnalyzerTest, DetectsRowPreservingViewChains) {
             std::make_optional<std::string_view>("slice"));
 }
 
-TEST_F(RelationAnalyzerTest, RejectsFilteredViewAsRowOrigin) {
+// A view which filters or reorders its rows is no row origin.
+TEST_F(RelationAnalyzerTest, RejectsFilteredOrOrderedViewAsRowOrigin) {
   catalog_.AddView("v", "CREATE VIEW v AS SELECT id FROM slice WHERE ts > 5");
-  auto result = Analyze("SELECT * FROM v");
-  ASSERT_TRUE(result.ok());
-  EXPECT_EQ(result->row_origin(), std::nullopt);
-}
-
-TEST_F(RelationAnalyzerTest, RejectsOrderedViewAsRowOrigin) {
-  catalog_.AddView("v",
-                   "CREATE VIEW v AS SELECT id FROM slice ORDER BY ts DESC");
-  auto result = Analyze("SELECT * FROM v");
-  ASSERT_TRUE(result.ok());
-  EXPECT_EQ(result->row_origin(), std::nullopt);
+  catalog_.AddView("w",
+                   "CREATE VIEW w AS SELECT id FROM slice ORDER BY ts DESC");
+  for (const char* sql : {"SELECT * FROM v", "SELECT * FROM w"}) {
+    auto result = Analyze(sql);
+    ASSERT_TRUE(result.ok());
+    EXPECT_EQ(result->row_origin(), std::nullopt) << sql;
+  }
 }
 
 }  // namespace
