@@ -490,6 +490,24 @@ class TrackEvent {
         DecayArgType(args)...);
   }
 
+  // Used by PERFETTO_INTERNAL_SCOPED_TRACK_EVENT_END.
+  static void TraceScopedEventEnd(size_t category_index)
+      PERFETTO_ALWAYS_INLINE {
+    CallIfCategoryEnabled(category_index, [category_index](uint32_t instances) {
+      TraceForCategory(instances, category_index, /*name=*/nullptr,
+                       protos::pbzero::TrackEvent::TYPE_SLICE_END);
+    });
+  }
+
+  template <typename CategoryType>
+  static void TraceScopedEventEndForDynamicCategory(
+      const CategoryType& category) PERFETTO_ALWAYS_INLINE {
+    CallIfEnabled([&category](uint32_t instances) {
+      TraceForCategory(instances, category, /*name=*/nullptr,
+                       protos::pbzero::TrackEvent::TYPE_SLICE_END);
+    });
+  }
+
   // TraceState overloads
   template <
       typename CategoryType,

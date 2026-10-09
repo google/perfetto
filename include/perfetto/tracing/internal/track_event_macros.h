@@ -160,6 +160,25 @@
     }                                                                          \
   } while (false)
 
+// Like TRACE_EVENT_END(category), but without lambdas. A lambda in the scoped
+// event finalizer's destructor makes MSVC hang when TRACE_EVENT is used inside
+// a lambda (without /permissive-). See
+// https://github.com/google/perfetto/issues/7591.
+#define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT_END(category)              \
+  do {                                                                  \
+    namespace tns = PERFETTO_TRACK_EVENT_NAMESPACE;                     \
+    PERFETTO_INTERNAL_STATIC_FOR_MSVC constexpr size_t PERFETTO_UID(    \
+        kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =        \
+        PERFETTO_GET_CATEGORY_INDEX(category);                          \
+    if (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(  \
+            category)) {                                                \
+      tns::TrackEvent::TraceScopedEventEndForDynamicCategory(category); \
+    } else {                                                            \
+      tns::TrackEvent::TraceScopedEventEnd(PERFETTO_UID(                \
+          kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_));      \
+    }                                                                   \
+  } while (false)
+
 // C++17 doesn't like a move constructor being defined for the EventFinalizer
 // class but C++11 and MSVC doesn't compile without it being defined so support
 // both.
@@ -181,7 +200,7 @@
       /* scope if used in a single line if statement.                      */ \
       EventFinalizer(...) {}                                                  \
       ~EventFinalizer() {                                                     \
-        TRACE_EVENT_END(category);                                            \
+        PERFETTO_INTERNAL_SCOPED_TRACK_EVENT_END(category);                   \
       }                                                                       \
                                                                               \
       EventFinalizer(const EventFinalizer&) = delete;                         \

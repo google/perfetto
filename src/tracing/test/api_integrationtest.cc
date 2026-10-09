@@ -3852,6 +3852,29 @@ TEST_P(PerfettoApiTest, TrackEventScoped) {
                   "E", "B:test.TestEvent", "B:test.AnotherEvent", "E", "E"));
 }
 
+// Regression test for https://github.com/google/perfetto/issues/7591.
+TEST_P(PerfettoApiTest, TrackEventScopedInsideLambda) {
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  auto simple = []() { TRACE_EVENT("test", "InLambda"); };
+  simple();
+
+  auto with_args = [](uint64_t arg) {
+    TRACE_EVENT("test", "InLambdaWithArgs", [&](perfetto::EventContext ctx) {
+      ctx.event()->set_log_message()->set_body_iid(arg);
+    });
+  };
+  with_args(123);
+
+  auto disabled = []() { TRACE_EVENT("foo", "DisabledEvent"); };
+  disabled();
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  EXPECT_THAT(slices, ElementsAre("B:test.InLambda", "E",
+                                  "B:test.InLambdaWithArgs", "E"));
+}
+
 // A class similar to what Protozero generates for extended message.
 class TestTrackEvent : public perfetto::protos::pbzero::TrackEvent {
  public:

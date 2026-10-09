@@ -37,7 +37,9 @@ Unreleased:
     * Added "Expand all" and "Collapse all" to the track menu to expand or
       collapse a track group and all of its descendants.
   SDK:
-    *
+    * Fixed MSVC hanging while compiling a scoped TRACE_EVENT used inside a
+      lambda when the legacy lambda processor is in use (C++17 without
+      /permissive-). See https://github.com/google/perfetto/issues/7591.
   Misc:
     * Added the `perfetto_cxx_standard` GN arg (default "c++17") to allow
       standalone builds to use a newer C++ standard (e.g. "c++20").
