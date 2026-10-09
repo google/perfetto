@@ -1996,6 +1996,7 @@ perfetto_cc_library(
         "src/base/dynamic_string_writer.cc",
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
+        "src/base/flat_hash_map.cc",
         "src/base/futex.cc",
         "src/base/getopt_compat.cc",
         "src/base/intrusive_list.cc",
