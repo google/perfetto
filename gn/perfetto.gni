@@ -190,6 +190,10 @@ declare_args() {
       (perfetto_build_standalone && is_clang &&
        (is_linux || (is_android && android_api_level >= 29)))
 
+  # Unwinder backend used by heapprofd and traced_perf:
+  # "libunwindstack" (default) or "libunwind".
+  perfetto_unwinder_backend = "libunwindstack"
+
   # The Trace Processor: offline analytical engine to process traces and compute
   # metrics using a SQL engine.
   if (!defined(enable_perfetto_trace_processor)) {
@@ -561,3 +565,11 @@ assert(!perfetto_use_pkgconfig || perfetto_use_system_protobuf,
 assert(
     !enable_perfetto_llvm_symbolizer || !use_custom_libcxx,
     "enable_perfetto_llvm_symbolizer and use_custom_libcxx are mutually exclusive. If you are seeing this error then you have set enable_perfetto_llvm_symbolizer=true and must set use_custom_libcxx=false to use llvm_symbolizer.")
+
+assert(perfetto_unwinder_backend == "libunwindstack" ||
+           perfetto_unwinder_backend == "libunwind",
+       "perfetto_unwinder_backend must be 'libunwindstack' or 'libunwind'")
+
+assert(perfetto_unwinder_backend != "libunwind" ||
+           (is_linux && !is_android && current_cpu == "x64"),
+       "libunwind backend is only supported on Linux x86_64")

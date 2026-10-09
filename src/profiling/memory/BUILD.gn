@@ -276,7 +276,7 @@ source_set("daemon") {
     "../common:proc_utils",
     "../common:producer_support",
     "../common:profiler_guardrails",
-    "../unwind/libunwindstack",
+    "../unwind:unwind_backend",
   ]
   public_deps = [
     "../../../protos/perfetto/config/profiling:cpp",
