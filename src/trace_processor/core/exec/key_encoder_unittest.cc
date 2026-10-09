@@ -25,7 +25,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -33,17 +33,23 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-std::optional<std::vector<std::string>> Keys(const ColumnView& column,
-                                             uint32_t rows) {
+// The keys of the `rows` rows of `column`, or of those `kept` keeps.
+std::optional<std::vector<std::string>> Keys(
+    const ColumnView& column,
+    uint32_t rows,
+    const std::vector<uint32_t>& kept = {}) {
   RowBatch batch;
-  batch.AddColumn(column);
-  batch.SetCardinality(rows);
+  batch.AddBorrowedColumn(column);
+  batch.SetRowCount(rows);
+  if (!kept.empty()) {
+    batch.mutable_selection().Keep(kept);
+  }
   KeyEncoder encoder;
   if (encoder.Encode(batch, {0})) {
     return std::nullopt;
   }
   std::vector<std::string> keys;
-  for (uint32_t row = 0; row < rows; ++row) {
+  for (uint32_t row = 0; row < batch.size(); ++row) {
     keys.emplace_back(encoder.Key(row));
   }
   return keys;
@@ -87,21 +93,16 @@ TEST(KeyEncoderTest, SelectedRowsKeepValuesAndNulls) {
     EXPECT_NE((*original)[0], (*original)[1]);
     EXPECT_NE((*original)[0], (*original)[2]);
 
-    column.SetRange(1);
-    auto ranged = Keys(column, 2);
-    ASSERT_TRUE(ranged.has_value());
-    EXPECT_EQ(*ranged,
-              (std::vector<std::string>{(*original)[1], (*original)[2]}));
-
-    // Compose reordered, repeated indices with the range. Validity must be
-    // checked at the physical row, not the logical row in this selection.
-    uint32_t indices[] = {1, 0, 1};
-    SelectionPool pool;
-    column.Slice(RowSelection::Indices(indices), 3, pool);
-    auto selected = Keys(column, 3);
-    ASSERT_TRUE(selected.has_value());
-    EXPECT_EQ(*selected, (std::vector<std::string>{
-                             (*original)[2], (*original)[1], (*original)[2]}));
+    // Keeping some of the rows of a window onto the values. Validity must be
+    // checked where the value is stored, not at the row kept.
+    auto kept = Keys(column, 3, {0, 2});
+    ASSERT_TRUE(kept.has_value());
+    EXPECT_EQ(*kept,
+              (std::vector<std::string>{(*original)[0], (*original)[2]}));
+    column.set_start(1);
+    auto windowed = Keys(column, 2, {1});
+    ASSERT_TRUE(windowed.has_value());
+    EXPECT_EQ(*windowed, (std::vector<std::string>{(*original)[2]}));
   };
   int32_t i32[] = {-1, 99, 7};
   uint32_t u32[] = {3, 99, 7};
@@ -129,9 +130,10 @@ TEST(KeyEncoderTest, AColumnKeepsItsType) {
   int64_t ints[] = {1};
   double doubles[] = {1.0};
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints));
-  batch.AddColumn(ColumnView::Reference(StorageType{Double{}}, doubles));
-  batch.SetCardinality(1);
+  batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, ints));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Double{}}, doubles));
+  batch.SetRowCount(1);
   KeyEncoder encoder;
   EXPECT_EQ(encoder.Encode(batch, {0}), std::nullopt);
   EXPECT_EQ(encoder.Encode(batch, {1}), 0u);

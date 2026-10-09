@@ -18,25 +18,24 @@
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_COLUMN_VIEW_H_
 
 #include <cstdint>
-#include <memory>
 #include <type_traits>
-#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-// One column of a RowBatch: a reference to storage the batch does not own,
-// plus the row selection currently applied to it.
+// One column of a RowBatch: a window onto storage the batch does not own.
+// Row `row` of the batch is the value at `start() + row`, and so is its bit
+// in the validity: moving the window moves both.
 class ColumnView {
  public:
   enum class Kind : uint8_t {
     kFlat,
+    // No storage: the value is where it would be stored.
     kSequence,
     // `data()` is a Variant array and `type()` is meaningless.
     kVariant,
@@ -46,68 +45,47 @@ class ColumnView {
 
   static ColumnView Reference(StorageType type,
                               const void* data,
-                              const BitVector* validity = nullptr) {
+                              const BitVector* validity = nullptr,
+                              uint32_t start = 0) {
     ColumnView view;
     view.type_ = type;
+    view.kind_ = Kind::kFlat;
     if (type.Is<Id>()) {
       PERFETTO_DCHECK(data == nullptr);
       view.kind_ = Kind::kSequence;
-      view.validity_ = validity;
-      return view;
     }
-    view.kind_ = Kind::kFlat;
     view.data_ = data;
     view.validity_ = validity;
+    view.start_ = start;
     return view;
   }
 
   // A column carrying a type per row rather than one for the whole column.
-  static ColumnView Variants(const Variant* data) {
+  static ColumnView Variants(const Variant* data, uint32_t start = 0) {
     ColumnView view;
     view.kind_ = Kind::kVariant;
     view.data_ = data;
+    view.start_ = start;
     return view;
   }
 
   Kind kind() const { return kind_; }
   StorageType type() const { return type_; }
-  RowSelection selection() const { return selection_; }
 
-  // Composes `selection` with the selection already applied, materializing the
-  // result into a pooled block if needed. Indices may repeat or reorder rows.
-  void Slice(RowSelection selection, uint32_t count, SelectionPool& pool);
+  // Where the batch's rows start in `data()` and `validity()`.
+  uint32_t start() const { return start_; }
+  void set_start(uint32_t start) { start_ = start; }
 
-  // Shares immutable physical indices; the caller must stop writing to rows.
-  void SetOwnedRows(std::shared_ptr<const FlexVector<uint32_t>> rows,
-                    uint32_t count) {
-    PERFETTO_DCHECK(rows && count <= rows->size());
-    selection_ = RowSelection::Indices(
-        Span<const uint32_t>(rows->data(), rows->data() + count));
-    selection_owner_ = std::move(rows);
+  // Where batch row `row` is stored.
+  PERFETTO_ALWAYS_INLINE uint32_t Index(uint32_t row) const {
+    return start_ + row;
   }
 
-  // Points this column at the run of physical rows starting at `offset`.
-  void SetRange(uint32_t offset) {
-    selection_ = RowSelection::Range(offset);
-    selection_owner_.reset();
-  }
-
-  // Takes over the selection `other` just composed. Columns sharing a
-  // selection before a slice still share one afterwards, so only the first of
-  // them has to do the work.
-  void AdoptSelection(const ColumnView& other) {
-    selection_ = other.selection_;
-    selection_owner_ = other.selection_owner_;
-  }
-
-  // The value at logical row `row`, resolved through this column's own row
-  // view. Reading is per column because a computed column added by an operator
-  // sits in its own index space rather than its input's.
+  // The value of batch row `row`, which must hold one.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE T Value(uint32_t row) const {
-    uint32_t index = selection_.GetIndex(row);
+  PERFETTO_ALWAYS_INLINE T At(uint32_t row) const {
+    uint32_t index = start_ + row;
     if constexpr (std::is_arithmetic_v<T>) {
-      // A sequence column has no storage: the value is the row it sits at.
       if (kind_ == Kind::kSequence) {
         return static_cast<T>(index);
       }
@@ -115,48 +93,23 @@ class ColumnView {
     return static_cast<const T*>(data_)[index];
   }
 
-  // The values this column reads from, before its selection is applied.
+  // Whether batch row `row` holds a value.
+  PERFETTO_ALWAYS_INLINE bool IsValid(uint32_t row) const {
+    return !validity_ || validity_->is_set(start_ + row);
+  }
+
+  // The values the window is onto.
   const void* data() const { return data_; }
 
-  // Which physical rows hold a value, or null when they all do.
+  // Which stored values are there, or null when they all are.
   const BitVector* validity() const { return validity_; }
 
  private:
   Kind kind_ = Kind::kFlat;
   StorageType type_{Id{}};
-  RowSelection selection_ = RowSelection::Range();
-  // Keeps composed indices immutable and alive independently of the producer.
-  std::shared_ptr<const FlexVector<uint32_t>> selection_owner_;
+  uint32_t start_ = 0;
   const void* data_ = nullptr;
   const BitVector* validity_ = nullptr;
-};
-
-// Reads a flat column's values through its selection and validity.
-template <typename T>
-class FlatColumnReader {
- public:
-  explicit FlatColumnReader(const ColumnView& column)
-      : data_(static_cast<const T*>(column.data())),
-        selection_(column.selection()),
-        validity_(column.validity()) {
-    PERFETTO_DCHECK(column.kind() == ColumnView::Kind::kFlat);
-    PERFETTO_DCHECK(column.type().Is<typename TypeTagFor<T>::type>());
-  }
-
-  // False if the row holds no value.
-  PERFETTO_ALWAYS_INLINE bool Read(uint32_t row, T* out) const {
-    uint32_t index = selection_.GetIndex(row);
-    if (validity_ && !validity_->is_set(index)) {
-      return false;
-    }
-    *out = data_[index];
-    return true;
-  }
-
- private:
-  const T* data_;
-  RowSelection selection_;
-  const BitVector* validity_;
 };
 
 // Whether two batches' views of a column can be combined. An implicit Id and

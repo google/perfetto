@@ -56,7 +56,7 @@ class IntervalFlatten : public Operator {
   explicit IntervalFlatten(IntervalFlattenSpec);
   ~IntervalFlatten() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
   OpResult Finish(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
@@ -82,6 +82,8 @@ class IntervalFlatten : public Operator {
     void Reset() override;
 
     base::Status status = base::OkStatus();
+    // What output columns are copied out to.
+    Context* context = nullptr;
     // The first unconsumed row when Execute yields a full output batch.
     uint32_t input_row = 0;
     // input_row can still be zero when draining the preceding group yields.
