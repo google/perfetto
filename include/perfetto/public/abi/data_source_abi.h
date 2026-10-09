@@ -276,6 +276,19 @@ PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
     struct PerfettoDsImpl*,
     bool configurable);
 
+// If `supports` is true, each instance of the data source can get a tracing v2
+// writer, if its config selects it. Start packets with
+// PerfettoDsTracerImplPacketBeginWithEncoding() and use the returned encoding.
+//
+// If false (the default), every instance gets a v1 writer.
+// PerfettoDsRegister() opts in by calling this with true.
+//
+// Should not be called after PerfettoDsImplRegister().
+//
+// Returns true if successful, false otherwise.
+PERFETTO_SDK_EXPORT bool PerfettoDsSetSupportsTracingV2(struct PerfettoDsImpl*,
+                                                        bool supports);
+
 // Registers the `*ds_impl` data source type.
 //
 // `ds_impl` must be obtained via a call to `PerfettoDsImplCreate()`.
@@ -373,9 +386,23 @@ PERFETTO_SDK_EXPORT void PerfettoDsImplTraceIterateBreak(
     struct PerfettoDsImpl* ds_impl,
     struct PerfettoDsImplTracerIterator* iterator);
 
-// Creates a new trace packet on `tracer`. Returns a stream writer that can be
-// used to write data to the packet. The caller must use
-// PerfettoDsTracerImplPacketEnd() when done.
+// The result of PerfettoDsTracerImplPacketBeginWithEncoding().
+struct PerfettoDsPacketBeginResult {
+  struct PerfettoStreamWriter writer;
+  // PerfettoPbMsgEncoding
+  uint32_t encoding;
+};
+
+// Starts a packet and returns its writer and its encoding.
+// - Use that encoding for all nested messages of the packet.
+// - Call PerfettoDsTracerImplPacketEnd() when the packet is complete.
+PERFETTO_SDK_EXPORT struct PerfettoDsPacketBeginResult
+PerfettoDsTracerImplPacketBeginWithEncoding(struct PerfettoDsTracerImpl*);
+
+// Starts a packet in length-delimited encoding, for clients built with older
+// headers.
+// Aborts on a tracing v2 writer, so a data source that opted in must use
+// PerfettoDsTracerImplPacketBeginWithEncoding().
 PERFETTO_SDK_EXPORT struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
     struct PerfettoDsTracerImpl* tracer);
 

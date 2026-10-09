@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -1410,6 +1411,24 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
       }
     }
 
+    // Select once per instance. Startup instances keep v1 after adoption,
+    // and intercepted instances use their own writer.
+    const uint32_t probability =
+        cfg.experimental_tracing_v2().use_v2_probability_percent();
+    internal_state->use_tracing_v2 =
+        !startup_session_id && !internal_state->interceptor_id &&
+        rds.params.supports_tracing_v2 && cfg.supports_tracing_v2() &&
+        probability > 0;
+    if (internal_state->use_tracing_v2 && probability < 100) {
+      // TODO(sashwinbalaji): Share this selection logic when other producers
+      // need it.
+      const uint64_t random = static_cast<uint64_t>(base::Uuidv4().lsb());
+      internal_state->use_tracing_v2 = random % 100 < probability;
+    }
+    // Complete initialization before writer threads can observe this instance.
+    if (internal_state->use_tracing_v2)
+      backend.producer->service_->InitializeV2RingBuffer(cfg);
+
     // This must be made at the end. See matching acquire-load in
     // DataSource::Trace().
     static_state.valid_instances.fetch_or(1 << i, std::memory_order_release);
@@ -2395,6 +2414,11 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
   if (startup_buffer_reservation) {
     return service->MaybeSharedMemoryArbiter()->CreateStartupTraceWriter(
         startup_buffer_reservation);
+  }
+
+  if (data_source->use_tracing_v2) {
+    return service->CreateTraceWriterV2(data_source->buffer_id,
+                                        buffer_exhausted_policy);
   }
   return service->CreateTraceWriter(data_source->buffer_id,
                                     buffer_exhausted_policy);
