@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/assert_type.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -83,6 +84,8 @@ dataframe::Dataframe BuildTree(uint32_t rows,
 // Runs the steps `make` builds over a scan of the tree, every run.
 template <typename MakeSteps>
 void Run(benchmark::State& state, bool child_first, MakeSteps make) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
   auto rows = static_cast<uint32_t>(state.range(0));
   StringPool pool;
   dataframe::Dataframe df = BuildTree(rows, child_first, &pool);
@@ -90,7 +93,7 @@ void Run(benchmark::State& state, bool child_first, MakeSteps make) {
                       df.shared_column(kValue), df.shared_column(kSmall)},
                      df.row_count());
   Pipeline pipeline(scan, make(), {});
-  std::unique_ptr<OperatorState> run = pipeline.MakeState();
+  std::unique_ptr<OperatorState> run = pipeline.MakeState(context);
   RowBatch scratch;
   for (auto _ : state) {
     pipeline.Rewind(*run);

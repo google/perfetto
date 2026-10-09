@@ -26,7 +26,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -81,9 +81,10 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   spec.aggregates = {{IntervalFlattenSpec::Function::kCount, 0},
                      {IntervalFlattenSpec::Function::kSum, 3}};
   IntervalFlatten op(spec);
-  auto state = op.MakeState();
-  // Refill the same borrowed buffers for each input batch. Retained group keys
-  // must survive this, and Reset must discard a previous execution's state.
+  auto state = op.MakeState(test::TestContext());
+  // Refill the same vectors for each input batch, published in a buffer each,
+  // as a source refilling its storage would. Retained group keys must survive
+  // this, and Reset must discard a previous execution's state.
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
     state->Reset();
@@ -92,23 +93,15 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
     auto key_valid = BitVector::CreateWithSize(chunk);
     auto weight_valid = BitVector::CreateWithSize(chunk);
     RowBatch in, out;
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ts.data()));
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur.data()));
-    in.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, key.data(), &key_valid));
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, weight.data(),
-                                       &weight_valid));
-    in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, groups.data()));
     std::vector<Output> actual;
     auto collect = [&] {
       ASSERT_LE(out.size(), kMaxBatchRows);
       auto keys = test::ReadNullableColumn<int64_t>(out, 2);
       auto sums = test::ReadNullableColumn<int64_t>(out, 4);
       for (uint32_t row = 0; row < out.size(); ++row) {
-        actual.emplace_back(out.column(0).Value<int64_t>(row),
-                            out.column(1).Value<int64_t>(row), keys[row],
-                            out.column(3).Value<int64_t>(row), sums[row],
-                            out.column(5).Value<uint32_t>(row));
+        actual.emplace_back(
+            out.Value<int64_t>(0, row), out.Value<int64_t>(1, row), keys[row],
+            out.Value<int64_t>(3, row), sums[row], out.Value<uint32_t>(5, row));
       }
     };
     for (uint32_t at = 0; at < input.size(); at += chunk) {
@@ -124,7 +117,14 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
         key_valid.change(row, value.group == 0);
         weight_valid.change(row, value.present);
       }
-      in.SetCardinality(count);
+      in.Reset();
+      Context& context = test::TestContext();
+      test::AddCopy(context, ts, nullptr, &in);
+      test::AddCopy(context, dur, nullptr, &in);
+      test::AddCopy(context, key, &key_valid, &in);
+      test::AddCopy(context, weight, &weight_valid, &in);
+      test::AddCopy(context, groups, nullptr, &in);
+      in.SetRowCount(count);
       OpResult result;
       uint32_t calls = 0;
       do {

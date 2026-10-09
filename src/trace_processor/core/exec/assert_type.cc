@@ -29,7 +29,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -92,24 +92,24 @@ bool ExactDouble(int64_t value, double* out) {
   return true;
 }
 
-// Copies the selected rows of a flat `column` into `out` through `convert`,
-// which returns false for a value it cannot convert. A null row is written as
-// zero so nothing downstream reads an uninitialised slot.
+// Copies the rows kept of a flat `column` into `out` through `convert`,
+// which returns false for a value it cannot convert, each at its batch row, as
+// every column of the batch has its rows. A null row is written as zero so
+// nothing downstream reads an uninitialised slot.
 template <typename From, typename To, typename Convert>
 bool WidenAs(const ColumnView& column,
-             uint32_t count,
+             const Selection& selection,
              Convert convert,
-             FlexVector<To>* out,
+             To* out,
              BitVector* out_validity) {
-  const BitVector* validity = column.validity();
   out_validity->ClearAllBits();
-  for (uint32_t row = 0; row < count; ++row) {
-    uint32_t index = column.selection().GetIndex(row);
-    if (validity && !validity->is_set(index)) {
-      (*out)[row] = To{};
+  for (uint32_t i = 0; i < selection.size(); ++i) {
+    uint32_t row = selection[i];
+    if (!column.IsValid(row)) {
+      out[row] = To{};
       continue;
     }
-    if (!convert(column.Value<From>(row), &(*out)[row])) {
+    if (!convert(column.At<From>(row), &out[row])) {
       return false;
     }
     out_validity->set(row);
@@ -120,18 +120,19 @@ bool WidenAs(const ColumnView& column,
 // The variant counterpart of WidenAs: a row is null when its cell is.
 template <typename To, typename Convert>
 bool Fill(const ColumnView& column,
-          uint32_t count,
+          const Selection& selection,
           Convert convert,
-          FlexVector<To>* out,
+          To* out,
           BitVector* out_validity) {
   out_validity->ClearAllBits();
-  for (uint32_t row = 0; row < count; ++row) {
-    Variant cell = column.Value<Variant>(row);
+  for (uint32_t i = 0; i < selection.size(); ++i) {
+    uint32_t row = selection[i];
+    Variant cell = column.At<Variant>(row);
     if (cell.type == Variant::Type::kNull) {
-      (*out)[row] = To{};
+      out[row] = To{};
       continue;
     }
-    if (!convert(cell, &(*out)[row])) {
+    if (!convert(cell, &out[row])) {
       return false;
     }
     out_validity->set(row);
@@ -154,18 +155,18 @@ AssertType::State::~State() = default;
 const void* AssertType::Data(const ColumnChunk& chunk) const {
   switch (target_.index()) {
     case AssertTypeTarget::GetTypeIndex<Int64>():
-      return chunk.Values<int64_t>().data();
+      return chunk.Values<int64_t>();
     case AssertTypeTarget::GetTypeIndex<Double>():
-      return chunk.Values<double>().data();
+      return chunk.Values<double>();
     case AssertTypeTarget::GetTypeIndex<String>():
-      return chunk.Values<StringPool::Id>().data();
+      return chunk.Values<StringPool::Id>();
     default:
       PERFETTO_FATAL("Unreachable");
   }
 }
 
-std::unique_ptr<OperatorState> AssertType::MakeState() const {
-  return std::make_unique<State>();
+std::unique_ptr<OperatorState> AssertType::MakeState(Context& context) const {
+  return std::make_unique<State>(context);
 }
 
 base::Status AssertType::status(const OperatorState& state) const {
@@ -177,23 +178,23 @@ void AssertType::State::Reset() {
 }
 
 bool AssertType::Widen(const ColumnView& column,
-                       uint32_t count,
+                       const Selection& selection,
                        ColumnChunk& chunk,
                        State& state) const {
   StorageType from = column.type();
   if (type_.Is<Int64>()) {
     PERFETTO_DCHECK((from.IsAnyOf<base::TypeSet<Id, Uint32, Int32>>()));
     if (from.Is<Int32>()) {
-      return WidenAs<int32_t>(column, count, Cast<int32_t, int64_t>,
-                              &chunk.Values<int64_t>(), &chunk.validity);
+      return WidenAs<int32_t>(column, selection, Cast<int32_t, int64_t>,
+                              chunk.Values<int64_t>(), &chunk.validity);
     }
-    return WidenAs<uint32_t>(column, count, Cast<uint32_t, int64_t>,
-                             &chunk.Values<int64_t>(), &chunk.validity);
+    return WidenAs<uint32_t>(column, selection, Cast<uint32_t, int64_t>,
+                             chunk.Values<int64_t>(), &chunk.validity);
   }
   PERFETTO_DCHECK(type_.Is<Double>());
   if (from.Is<Int32>()) {
-    return WidenAs<int32_t>(column, count, Cast<int32_t, double>,
-                            &chunk.Values<double>(), &chunk.validity);
+    return WidenAs<int32_t>(column, selection, Cast<int32_t, double>,
+                            chunk.Values<double>(), &chunk.validity);
   }
   if (from.Is<Int64>()) {
     auto exact = [&](int64_t value, double* out) {
@@ -203,12 +204,12 @@ bool AssertType::Widen(const ColumnView& column,
       state.status = NotExact(name_);
       return false;
     };
-    return WidenAs<int64_t>(column, count, exact, &chunk.Values<double>(),
+    return WidenAs<int64_t>(column, selection, exact, chunk.Values<double>(),
                             &chunk.validity);
   }
   PERFETTO_DCHECK(from.Is<Id>() || from.Is<Uint32>());
-  return WidenAs<uint32_t>(column, count, Cast<uint32_t, double>,
-                           &chunk.Values<double>(), &chunk.validity);
+  return WidenAs<uint32_t>(column, selection, Cast<uint32_t, double>,
+                           chunk.Values<double>(), &chunk.validity);
 }
 
 bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
@@ -217,8 +218,8 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   if (column.kind() != ColumnView::Kind::kVariant && column.type() == type_) {
     return true;
   }
-  auto buffer = s.buffers.Acquire();
-  ColumnChunk& chunk = *buffer;
+  ColumnBuffer buffer = s.context->TakeBuffer();
+  ColumnChunk& chunk = buffer.chunk();
   chunk.validity.resize(kMaxBatchRows);
   if (column.kind() != ColumnView::Kind::kVariant) {
     bool widen = column.type().IsAnyOf<IntegerType>() &&
@@ -228,7 +229,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
                                  Name(column.type()), Name(type_));
       return false;
     }
-    if (!Widen(column, batch.size(), chunk, s)) {
+    if (!Widen(column, batch.selection(), chunk, s)) {
       return false;
     }
     // A column without validity has no nulls to remap, so stays non-null.
@@ -244,12 +245,12 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
                                Name(cell.type), Name(type_));
     return false;
   };
-  uint32_t count = batch.size();
+  const Selection& selection = batch.selection();
   bool ok;
   switch (target_.index()) {
     case AssertTypeTarget::GetTypeIndex<Int64>():
       ok = Fill(
-          column, count,
+          column, selection,
           [&](const Variant& cell, int64_t* out) {
             if (cell.type != Variant::Type::kInt64) {
               return mismatch(cell);
@@ -257,11 +258,11 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
             *out = cell.AsInt64();
             return true;
           },
-          &chunk.Values<int64_t>(), &chunk.validity);
+          chunk.Values<int64_t>(), &chunk.validity);
       break;
     case AssertTypeTarget::GetTypeIndex<Double>():
       ok = Fill(
-          column, count,
+          column, selection,
           [&](const Variant& cell, double* out) {
             if (cell.type == Variant::Type::kDouble) {
               *out = cell.AsDouble();
@@ -276,11 +277,11 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
             s.status = NotExact(name_);
             return false;
           },
-          &chunk.Values<double>(), &chunk.validity);
+          chunk.Values<double>(), &chunk.validity);
       break;
     case AssertTypeTarget::GetTypeIndex<String>():
       ok = Fill(
-          column, count,
+          column, selection,
           [&](const Variant& cell, StringPool::Id* out) {
             if (cell.type != Variant::Type::kString) {
               return mismatch(cell);
@@ -288,7 +289,7 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
             *out = cell.AsString();
             return true;
           },
-          &chunk.Values<StringPool::Id>(), &chunk.validity);
+          chunk.Values<StringPool::Id>(), &chunk.validity);
       break;
     default:
       PERFETTO_FATAL("Unreachable");

@@ -28,7 +28,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -82,20 +82,23 @@ Pipeline::Pipeline(const Source& source,
 Pipeline::~Pipeline() = default;
 Pipeline::State::~State() = default;
 
-std::unique_ptr<OperatorState> Pipeline::MakeState() const {
+std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
   auto state = std::make_unique<State>();
-  state->owned_source_state = source_.MakeState();
+  state->context = &context;
+  state->owned_source_state = source_.MakeState(context);
   state->source = &source_;
   state->source_state = state->owned_source_state.get();
   for (const Step& step : steps_) {
     switch (step.index()) {
       case kTransformStep:
         state->operators.push_back(
-            base::unchecked_get<std::unique_ptr<Transform>>(step)->MakeState());
+            base::unchecked_get<std::unique_ptr<Transform>>(step)->MakeState(
+                context));
         break;
       case kOperatorStep:
         state->operators.push_back(
-            base::unchecked_get<std::unique_ptr<Operator>>(step)->MakeState());
+            base::unchecked_get<std::unique_ptr<Operator>>(step)->MakeState(
+                context));
         break;
     }
   }
@@ -195,7 +198,7 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
   }
   uint64_t remaining = options_.limit - s.emitted;
   if (batch->size() > remaining)
-    batch->Slice(RowSelection::Range(), static_cast<uint32_t>(remaining));
+    batch->mutable_selection().KeepRange(0, static_cast<uint32_t>(remaining));
   s.emitted += batch->size();
   if (s.emitted == options_.limit)
     Stop(s);
@@ -347,7 +350,7 @@ PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::Read(uint32_t segment,
       }
       return next;
     }
-    base::Status appended = c.buffered.Append(*next);
+    base::Status appended = c.buffered.Append(*next, *s.context);
     if (!appended.ok()) {
       Fail(s, std::move(appended));
       c.buffered.Clear();
@@ -368,9 +371,8 @@ bool Pipeline::GetData(RowBatch& out, OperatorState& state) const {
     out.Reset();
     return false;
   }
-  // Swapped, not copied, so released storage returns to its batch.
   if (batch != &out) {
-    out.SwapContents(*batch);
+    out.CopyFrom(*batch);
   }
   return true;
 }

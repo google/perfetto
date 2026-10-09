@@ -64,7 +64,7 @@ class IntervalIntersect : public Source {
   explicit IntervalIntersect(std::vector<IntervalIntersectOperand>);
   ~IntervalIntersect() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;

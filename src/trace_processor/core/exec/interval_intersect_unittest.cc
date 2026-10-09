@@ -27,7 +27,8 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -50,8 +51,10 @@ class TableSource final : public Source {
 
   uint32_t columns() const { return columns_; }
 
-  std::unique_ptr<OperatorState> MakeState() const override {
-    return std::make_unique<State>();
+  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
+    auto state = std::make_unique<State>();
+    state->context = &context;
+    return state;
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().offset = 0;
@@ -72,17 +75,16 @@ class TableSource final : public Source {
     }
     out.Reset();
     for (uint32_t c = 0; c < columns_; ++c) {
-      out.AddColumn(
-          ColumnView::Reference(StorageType{Int64{}}, s.columns[c].data()));
+      test::AddCopy(*s.context, s.columns[c], nullptr, &out);
     }
-    out.Compose(RowSelection::Range(0), count);
-    out.SetCardinality(count);
+    out.SetRowCount(count);
     s.offset += count;
     return true;
   }
 
  private:
   struct State : OperatorState {
+    Context* context = nullptr;
     ~State() override;
     uint32_t offset = 0;
     std::vector<std::vector<int64_t>> columns;
@@ -121,7 +123,7 @@ Table Collect(const IntervalIntersect& intersect,
     for (uint32_t row = 0; row < batch.size(); ++row) {
       Row out;
       for (uint32_t c = 0; c < batch.column_count(); ++c) {
-        out.push_back(batch.column(c).Value<int64_t>(row));
+        out.push_back(batch.Value<int64_t>(c, row));
       }
       rows.push_back(std::move(out));
     }
@@ -139,7 +141,8 @@ Table Collect(const IntervalIntersect& intersect,
 Table Intersect(std::vector<IntervalIntersectOperand> operands,
                 base::Status* status = nullptr) {
   IntervalIntersect intersect(std::move(operands));
-  std::unique_ptr<OperatorState> state = intersect.MakeState();
+  std::unique_ptr<OperatorState> state =
+      intersect.MakeState(test::TestContext());
   return Collect(intersect, *state, status);
 }
 
@@ -291,7 +294,8 @@ TEST(IntervalIntersectTest, RewindingGivesTheSameRegions) {
   TableSource b({{10, 10, 0}, {35, 10, 1}}, 4);
 
   IntervalIntersect intersect({Operand(a), Operand(b)});
-  std::unique_ptr<OperatorState> state = intersect.MakeState();
+  std::unique_ptr<OperatorState> state =
+      intersect.MakeState(test::TestContext());
   Table first = Collect(intersect, *state);
   intersect.Rewind(*state);
   EXPECT_EQ(Collect(intersect, *state), first);

@@ -65,9 +65,7 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
     }
     return cell.AsInt64();
   }
-  const core::BitVector* validity = view.validity();
-  uint32_t row = cursor.row();
-  if (validity && !validity->is_set(view.selection().GetIndex(row))) {
+  if (!view.IsValid(cursor.batch_row())) {
     return std::nullopt;
   }
   core::StorageType type = view.type();
@@ -300,7 +298,8 @@ TEST_F(PhysicalPlanTest, IntersectionCarriesOnlyColumnsUsedAfterIt) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
 
   const core::exec::Source& source = (*plan)->source();
-  auto state = source.MakeState();
+  core::exec::Context context;
+  auto state = source.MakeState(context);
   core::exec::RowBatch batch;
   ASSERT_TRUE(source.GetData(batch, *state));
   // The region's ts and dur, and q.y.

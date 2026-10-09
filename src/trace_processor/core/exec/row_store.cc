@@ -18,10 +18,25 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <limits>
-#include <type_traits>
+#include <memory>
+#include <utility>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/row_batch.h"
+#include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
+
+RowStore::RowStore() = default;
+RowStore::~RowStore() = default;
+
 base::Status RowStore::Append(const RowBatch& in) {
   if (!in.size()) {
     return base::OkStatus();
@@ -30,42 +45,26 @@ base::Status RowStore::Append(const RowBatch& in) {
     return base::ErrStatus("row store: too many rows");
   }
   if (size_) {
-    if (columns_.size() != in.column_count()) {
+    const RowBatch& first = *batches_[0];
+    if (first.column_count() != in.column_count()) {
       return base::ErrStatus("row store: column count changed");
     }
     for (uint32_t c = 0; c < in.column_count(); ++c) {
-      if (!SameLogicalType(columns_[c].batches.front().view, in.column(c))) {
+      if (!SameLogicalType(first.column(c), in.column(c))) {
         return base::ErrStatus("row store: column representation changed");
       }
     }
+  } else {
+    nullable_.assign(in.column_count(), false);
   }
-  columns_.resize(in.column_count());
+  if (held_ == batches_.size()) {
+    batches_.push_back(std::make_unique<RowBatch>());
+  }
+  batches_[held_++]->CopyFrom(in);
   for (uint32_t c = 0; c < in.column_count(); ++c) {
-    auto& column = columns_[c];
-    auto view = in.column(c);
-    auto owner = in.owner(c);
-    // Unknown borrowed storage must be materialized before retention.
-    if (!owner) {
-      if (column.copies_used == column.copies.size()) {
-        column.copies.emplace_back();
-      }
-      std::shared_ptr<ColumnChunk>& copy = column.copies[column.copies_used++];
-      if (!copy || copy.use_count() != 1) {
-        copy = std::make_shared<ColumnChunk>();
-      }
-      copy->CopyFrom(view, in.size(), 0);
-      view = copy->View(view, view.validity() != nullptr);
-      owner = copy;
+    if (in.column(c).validity()) {
+      nullable_[c] = true;
     }
-    column.nullable |= view.validity() != nullptr;
-    if (c) {
-      auto previous = columns_[c - 1].batches.back().view.selection();
-      auto selection = view.selection();
-      column.same_selection_as_previous &=
-          selection.data() == previous.data() &&
-          selection.offset() == previous.offset();
-    }
-    column.batches.push_back({std::move(view), std::move(owner)});
   }
   size_ += in.size();
   batch_of_row_.resize(size_, static_cast<uint32_t>(ends_.size()));
@@ -73,106 +72,73 @@ base::Status RowStore::Append(const RowBatch& in) {
   return base::OkStatus();
 }
 
+void RowStore::Clear() {
+  for (uint32_t i = 0; i < held_; ++i) {
+    batches_[i]->Reset();
+  }
+  held_ = 0;
+  ends_.clear();
+  batch_of_row_.clear();
+  nullable_.clear();
+  size_ = 0;
+}
+
 uint32_t RowStore::Find(uint32_t row) const {
   PERFETTO_DCHECK(row < size_);
   return batch_of_row_[row];
 }
+
 uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
+  out->Reset();
   if (!count) {
-    out->Reset();
     return 0;
   }
-  uint32_t index = Find(offset);
-  uint32_t start = index ? ends_[index - 1] : 0;
-  count = std::min(count, ends_[index] - offset);
-  out->Reset();
-  for (const auto& column : columns_) {
-    out->AddColumn(column.batches[index].view, column.batches[index].owner);
-  }
-  out->SetCardinality(ends_[index] - start);
-  out->Slice(RowSelection::Range(offset - start), count);
+  uint32_t batch = Find(offset);
+  uint32_t start = batch ? ends_[batch - 1] : 0;
+  count = std::min(count, ends_[batch] - offset);
+  out->CopyFrom(*batches_[batch]);
+  out->mutable_selection().KeepRange(offset - start, count);
   return count;
 }
-uint32_t RowStore::View(RowBatch* out, Span<const uint32_t> rows) {
+
+uint32_t RowStore::View(RowBatch* out,
+                        Span<const uint32_t> rows,
+                        Context& context) {
   out->Reset();
-  uint32_t count =
+  auto count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
   if (!count) {
     return 0;
   }
-  struct Location {
-    uint32_t batch;
-    uint32_t row;
-  };
-  std::array<Location, kMaxBatchRows> locations;
-  uint32_t index = Find(rows[0]);
-  uint32_t start = index ? ends_[index - 1] : 0;
+  // Which batch each row is in, and where in it: found once for every
+  // column. Rows taken out of order rarely come in runs from one batch, so
+  // each column is then copied a row at a time, not a run at a time.
+  std::array<uint32_t, kMaxBatchRows> sources;
+  std::array<uint32_t, kMaxBatchRows> batch_rows;
+  uint32_t batch = Find(rows[0]);
+  uint32_t start = batch ? ends_[batch - 1] : 0;
   for (uint32_t r = 0; r < count; ++r) {
-    if (rows[r] < start || rows[r] >= ends_[index]) {
-      index = Find(rows[r]);
-      start = index ? ends_[index - 1] : 0;
+    if (rows[r] < start || rows[r] >= ends_[batch]) {
+      batch = Find(rows[r]);
+      start = batch ? ends_[batch - 1] : 0;
     }
-    locations[r] = {index, rows[r] - start};
+    sources[r] = batch;
+    batch_rows[r] = batches_[batch]->selection()[rows[r] - start];
   }
-  std::array<uint32_t, kMaxBatchRows> physical;
-  for (uint32_t c = 0; c < columns_.size(); ++c) {
-    auto& column = columns_[c];
-    if (!c || !column.same_selection_as_previous) {
-      for (uint32_t r = 0; r < count; ++r) {
-        const auto& loc = locations[r];
-        physical[r] =
-            column.batches[loc.batch].view.selection().GetIndex(loc.row);
-      }
+  const RowBatch& first = *batches_[0];
+  views_.resize(held_);
+  for (uint32_t c = 0; c < first.column_count(); ++c) {
+    for (uint32_t b = 0; b < held_; ++b) {
+      views_[b] = &batches_[b]->column(c);
     }
-    const auto& first = column.batches[locations[0].batch];
-    auto view = first.view;
-    auto packed = column.buffers.Acquire();
-    auto gather = [&](auto value) {
-      using T = decltype(value);
-      T* dest = packed->Values<T>().data();
-      for (uint32_t r = 0; r < count; ++r) {
-        const auto& loc = locations[r];
-        auto* data =
-            static_cast<const T*>(column.batches[loc.batch].view.data());
-        if constexpr (std::is_same_v<T, uint32_t>) {
-          dest[r] = data ? data[physical[r]] : physical[r];
-        } else {
-          dest[r] = data[physical[r]];
-        }
-      }
-    };
-    if (view.kind() == ColumnView::Kind::kVariant) {
-      gather(Variant{});
-    } else if (view.type().Is<Id>() || view.type().Is<Uint32>()) {
-      gather(uint32_t{});
-    } else if (view.type().Is<Int32>()) {
-      gather(int32_t{});
-    } else if (view.type().Is<Int64>()) {
-      gather(int64_t{});
-    } else if (view.type().Is<Double>()) {
-      gather(double{});
-    } else {
-      gather(StringPool::Id{});
-    }
-    if (column.nullable) {
-      packed->validity.clear();
-      for (uint32_t begin = 0; begin < count; begin += 64) {
-        uint64_t word = 0;
-        uint32_t end = std::min(begin + 64, count);
-        for (uint32_t r = begin; r < end; ++r) {
-          const auto& loc = locations[r];
-          const auto& source = column.batches[loc.batch].view;
-          bool valid =
-              !source.validity() || source.validity()->is_set(physical[r]);
-          word |= static_cast<uint64_t>(valid) << (r - begin);
-        }
-        packed->validity.AppendWord(word);
-      }
-      packed->validity.resize(count);
-    }
-    out->AddColumn(packed->View(view, column.nullable), packed);
+    ColumnBuffer buffer = context.TakeBuffer();
+    ColumnChunk& chunk = buffer.chunk();
+    chunk.Gather(views_, sources.data(), batch_rows.data(), count, &bases_);
+    out->AddColumn(chunk.View(first.column(c), nullable_[c]),
+                   std::move(buffer));
   }
-  out->SetCardinality(count);
+  out->SetRowCount(count);
   return count;
 }
+
 }  // namespace perfetto::trace_processor::core::exec

@@ -26,7 +26,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -44,9 +44,28 @@ void Fill(RowBatch* batch,
           uint32_t offset,
           uint32_t count) {
   batch->Reset();
-  batch->AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch->Compose(RowSelection::Range(offset), count);
-  batch->SetCardinality(count);
+  batch->AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  test::Window(batch, offset, count);
+}
+
+// Fills a batch the way an operator computing a column does: into a buffer
+// of its own, taken afresh for each batch.
+void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
+  batch->Reset();
+  ColumnBuffer buffer = test::TestContext().TakeBuffer();
+  int64_t* data = buffer.chunk().Values<int64_t>();
+  std::copy(values.begin(), values.end(), data);
+  batch->AddColumn(ColumnView::Reference(StorageType{Int64{}}, data),
+                   std::move(buffer));
+  batch->SetRowCount(static_cast<uint32_t>(values.size()));
+}
+
+// Gathers `rows` of the store.
+uint32_t Gather(RowStore& store, RowBatch* out, std::vector<uint32_t> rows) {
+  return store.View(
+      out, Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
+      test::TestContext());
 }
 
 // Reads every row of the store back, a run at a time.
@@ -76,32 +95,30 @@ TEST(RowStoreTest, KeepsWhatSeveralBatchesCarried) {
   EXPECT_THAT(ReadAll(store, 0), ElementsAre(10, 11, 12, 13, 14));
 }
 
-// The reason a store exists: a source is free to overwrite the buffer a batch
-// was pointing at.
-TEST(RowStoreTest, SurvivesTheStorageItWasReadFromMovingOn) {
-  std::vector<int64_t> buffer = {1, 2, 3};
+// Holding a batch holds the buffers it is onto, so whoever filled them cannot
+// be handed them again to fill with the next batch.
+TEST(RowStoreTest, HoldsTheBuffersOfWhatItKeeps) {
   RowStore store;
   RowBatch batch;
-  Fill(&batch, buffer, 0, 3);
+  FillBuffer(&batch, {1, 2, 3});
   ASSERT_TRUE(store.Append(batch).ok());
 
-  buffer = {99, 99, 99};
+  FillBuffer(&batch, {99, 99, 99});
   EXPECT_THAT(ReadAll(store, 0), ElementsAre(1, 2, 3));
 }
 
-// Copies are reused after Clear(), but not while an earlier view holds one.
+// A view of what the store holds holds the same buffers, after the store lets
+// go of them too.
 TEST(RowStoreTest, AViewStillHeldSurvivesClearingAndRefilling) {
-  std::vector<int64_t> first = {1, 2, 3};
-  std::vector<int64_t> second = {7, 8, 9};
   RowStore store;
   RowBatch batch;
-  Fill(&batch, first, 0, 3);
+  FillBuffer(&batch, {1, 2, 3});
   ASSERT_TRUE(store.Append(batch).ok());
   RowBatch held;
   store.View(&held, 0, 3);
 
   store.Clear();
-  Fill(&batch, second, 0, 3);
+  FillBuffer(&batch, {7, 8, 9});
   ASSERT_TRUE(store.Append(batch).ok());
 
   EXPECT_THAT(test::ReadColumn<int64_t>(held, 0), ElementsAre(1, 2, 3));
@@ -122,18 +139,19 @@ TEST(RowStoreTest, RefillsAfterClearing) {
   EXPECT_THAT(ReadAll(store, 0), ElementsAre(7, 8));
 }
 
-// A batch narrowed to a scattering of rows is stored as those rows laid out
-// one after another, whatever the batch was pointing at.
-TEST(RowStoreTest, ReadsBackDenseWhateverArrived) {
+// A batch keeping only some of its rows hands back only those.
+TEST(RowStoreTest, ReadsBackOnlyTheRowsKept) {
   std::vector<int64_t> values = {10, 11, 12, 13, 14};
   RowStore store;
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  batch.mutable_column(0).SetOwnedRows(test::OwnedRows({4, 0, 2}), 3);
-  batch.SetCardinality(3);
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.SetRowCount(5);
+  std::vector<uint32_t> kept = {0, 2, 4};
+  batch.mutable_selection().Keep(kept);
   ASSERT_TRUE(store.Append(batch).ok());
 
-  EXPECT_THAT(ReadAll(store, 0), ElementsAre(14, 10, 12));
+  EXPECT_THAT(ReadAll(store, 0), ElementsAre(10, 12, 14));
 }
 
 TEST(RowStoreTest, HandsBackARunOfItsRows) {
@@ -158,7 +176,7 @@ TEST(RowStoreTest, HandsBackTheRowsAnOrderPicksOut) {
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
-  store.View(&out, Span<const uint32_t>(order.data(), order.data() + 3));
+  Gather(store, &out, order);
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(14, 13, 10));
 }
 
@@ -183,10 +201,9 @@ TEST(RowStoreTest, KeepsWhichRowsHeldNothing) {
   validity.set(2);
   RowStore store;
   RowBatch batch;
-  batch.AddColumn(
+  batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
-  batch.Compose(RowSelection::Range(0), 3);
-  batch.SetCardinality(3);
+  test::Window(&batch, 0, 3);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
@@ -208,9 +225,9 @@ TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
   BitVector validity = BitVector::CreateWithSize(1);
   int64_t null_value = 0;
   batch.Reset();
-  batch.AddColumn(
+  batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, &null_value, &validity));
-  batch.SetCardinality(1);
+  batch.SetRowCount(1);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
@@ -232,17 +249,14 @@ TEST(RowStoreTest, GatheringAcrossBatchesKeepsNulls) {
   BitVector validity = BitVector::CreateWithSize(2);
   validity.set(0);
   batch.Reset();
-  batch.AddColumn(
+  batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, more.data(), &validity));
-  batch.Compose(RowSelection::Range(0), 2);
-  batch.SetCardinality(2);
+  test::Window(&batch, 0, 2);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
   std::vector<uint32_t> order = {0, 3, 1, 4, 2};
-  ASSERT_EQ(
-      store.View(&out, Span<const uint32_t>(order.data(), order.data() + 5)),
-      5u);
+  ASSERT_EQ(Gather(store, &out, order), 5u);
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 0),
               ElementsAre(10, 20, 11, std::nullopt, 12));
 }
@@ -252,19 +266,21 @@ TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
   std::vector<double> doubles = {1.0, 2.0};
   RowStore store;
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints.data()));
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ints.data()));
-  batch.SetCardinality(1);
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, ints.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, ints.data()));
+  batch.SetRowCount(1);
   ASSERT_TRUE(store.Append(batch).ok());
 
   BitVector validity = BitVector::CreateWithSize(2);
   validity.set(1);
   batch.Reset();
-  batch.AddColumn(
+  batch.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, ints.data(), &validity));
-  batch.AddColumn(ColumnView::Reference(StorageType{Double{}}, doubles.data()));
-  batch.Compose(RowSelection::Range(1), 1);
-  batch.SetCardinality(1);
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Double{}}, doubles.data()));
+  test::Window(&batch, 1, 1);
   EXPECT_FALSE(store.Append(batch).ok());
 
   RowBatch out;
@@ -276,7 +292,7 @@ TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
 TEST(RowStoreTest, AZeroColumnBatchFixesTheSchema) {
   RowStore store;
   RowBatch empty_schema;
-  empty_schema.SetCardinality(2);
+  empty_schema.SetRowCount(2);
   ASSERT_TRUE(store.Append(empty_schema).ok());
 
   std::vector<int64_t> values = {1};
@@ -301,18 +317,18 @@ TEST(RowStoreTest, ViewingAnEmptySuffixReturnsAnEmptyBatch) {
   EXPECT_EQ(out.size(), 0u);
 }
 
-// An Id column has no storage: its value is the row it sits at, so storing one
-// means materialising those rows.
+// An Id column has no storage: its value is the row it sits at, so gathering
+// one means writing those rows out.
 TEST(RowStoreTest, AnIdColumnBecomesTheRowsItStoodFor) {
   RowStore store;
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
-  batch.Compose(RowSelection::Range(7), 3);
-  batch.SetCardinality(3);
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+  test::Window(&batch, 7, 3);
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch out;
-  store.View(&out, 0, 3);
+  Gather(store, &out, {0, 1, 2});
   ASSERT_TRUE(out.column(0).type().Is<Uint32>());
   const auto* data = static_cast<const uint32_t*>(out.column(0).data());
   EXPECT_THAT(std::vector<uint32_t>(data, data + 3), ElementsAre(7u, 8u, 9u));
@@ -326,15 +342,15 @@ TEST(RowStoreTest, ABatchOfADifferentShapeIsReported) {
   ASSERT_TRUE(store.Append(batch).ok());
 
   RowBatch wider;
-  wider.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  wider.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  wider.Compose(RowSelection::Range(0), 2);
-  wider.SetCardinality(2);
+  wider.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  wider.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  test::Window(&wider, 0, 2);
   EXPECT_FALSE(store.Append(wider).ok());
 }
 
-// Rows already appended are never copied again: each chunk is allocated once
-// and stays where it is, so the run a given row sits in keeps its address
+// Rows held are never copied: the run a given row sits in keeps its address
 // however many batches arrive after it.
 TEST(RowStoreTest, AppendingDoesNotMoveRetainedStorage) {
   const uint32_t kRows = 200000, kChunk = 2048;
@@ -354,8 +370,8 @@ TEST(RowStoreTest, AppendingDoesNotMoveRetainedStorage) {
   EXPECT_EQ(again.column(0).data(), first.column(0).data());
 }
 
-// A run never spans two chunks, so a caller asking for more than the rest of
-// one gets the rest of it and comes back for the next.
+// A run never spans two batches held, so a caller asking for more than the
+// rest of one gets the rest of it and comes back for the next.
 TEST(RowStoreTest, ARunStopsAtTheEndOfAnInputBatch) {
   std::vector<int64_t> values(kMaxBatchRows);
   RowStore store;
@@ -415,8 +431,7 @@ TEST(RowStoreTest, GathersRowsFromSeveralInputBatches) {
   std::vector<uint32_t> order = {kRows - 1, 0, kMaxBatchRows, kMaxBatchRows - 1,
                                  3};
   RowBatch out;
-  store.View(&out,
-             Span<const uint32_t>(order.data(), order.data() + order.size()));
+  Gather(store, &out, order);
   std::vector<int64_t> expected;
   for (uint32_t row : order) {
     expected.push_back(all[row]);
@@ -429,28 +444,17 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
   {
     RowStore store;
     RowBatch input, later;
-    auto values = std::make_shared<std::vector<int64_t>>(
-        std::initializer_list<int64_t>{10, 20, 30});
-    input.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values->data()),
-                    values);
-    input.SetCardinality(3);
+    FillBuffer(&input, {10, 20, 30});
+    const void* values = input.column(0).data();
     ASSERT_TRUE(store.Append(input).ok());
     ASSERT_EQ(store.View(&range, 0, 3), 3u);
-    EXPECT_EQ(range.column(0).data(), values->data());
-    std::vector<uint32_t> rows = {2, 0, 2};
-    store.View(&gathered, Span<const uint32_t>(rows.data(), rows.data() + 3));
-    EXPECT_NE(gathered.column(0).data(), values->data());
-    EXPECT_TRUE(gathered.column(0).selection().is_range());
-    rows = {1, 1, 0};
-    store.View(&later, Span<const uint32_t>(rows.data(), rows.data() + 3));
+    EXPECT_EQ(range.column(0).data(), values);
+    Gather(store, &gathered, {2, 0, 2});
+    EXPECT_NE(gathered.column(0).data(), values);
+    EXPECT_TRUE(gathered.selection().prefix());
+    Gather(store, &later, {1, 1, 0});
     store.Clear();
-    input.Reset();
-    auto replacement = std::make_shared<std::vector<int64_t>>(
-        std::initializer_list<int64_t>{40, 50, 60});
-    input.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, replacement->data()),
-        replacement);
-    input.SetCardinality(3);
+    FillBuffer(&input, {40, 50, 60});
     ASSERT_TRUE(store.Append(input).ok());
   }
   EXPECT_THAT(test::ReadColumn<int64_t>(range, 0), ElementsAre(10, 20, 30));
@@ -463,9 +467,8 @@ TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
                                  Variant::Double(1.5),
                                  Variant::String(pool.InternString("hi"))};
   RowBatch batch;
-  batch.AddColumn(ColumnView::Variants(values.data()));
-  batch.Compose(RowSelection::Range(0), 4);
-  batch.SetCardinality(4);
+  batch.AddBorrowedColumn(ColumnView::Variants(values.data()));
+  test::Window(&batch, 0, 4);
 
   RowStore store;
   ASSERT_TRUE(store.Append(batch).ok());
@@ -486,23 +489,19 @@ TEST(RowStoreTest, AnImplicitIdColumnCanBecomeAStoredOne) {
       std::make_shared<std::vector<uint32_t>>(std::vector<uint32_t>{40, 41});
   RowStore store;
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr), stored);
-  batch.Compose(RowSelection::Range(5), 2);
-  batch.SetCardinality(2);
+  batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  test::Window(&batch, 5, 2);
   ASSERT_TRUE(store.Append(batch).ok());
 
   batch.Reset();
-  batch.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, stored->data()),
-                  stored);
-  batch.SetCardinality(2);
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, stored->data()));
+  batch.SetRowCount(2);
   base::Status status = store.Append(batch);
   ASSERT_TRUE(status.ok()) << status.message();
 
-  std::vector<uint32_t> rows = {3, 0, 2, 1};
   RowBatch out;
-  ASSERT_EQ(store.View(&out, Span<const uint32_t>(rows.data(),
-                                                  rows.data() + rows.size())),
-            4u);
+  ASSERT_EQ(Gather(store, &out, {3, 0, 2, 1}), 4u);
   EXPECT_THAT(test::ReadColumn<uint32_t>(out, 0), ElementsAre(41, 5, 40, 6));
 }
 

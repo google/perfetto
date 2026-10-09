@@ -31,7 +31,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -56,7 +56,7 @@ class KeysSource final : public Source {
     }
   }
 
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   void Rewind(OperatorState& state) const override {
@@ -70,12 +70,12 @@ class KeysSource final : public Source {
     }
     uint32_t count = std::min(chunk_, rows - s.emitted);
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
-    out.AddColumn(
+    out.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+    out.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Int64{}}, first_.data(), &validity_));
-    out.AddColumn(ColumnView::Reference(StorageType{Double{}}, second_.data()));
-    out.Compose(RowSelection::Range(s.emitted), count);
-    out.SetCardinality(count);
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Double{}}, second_.data()));
+    test::Window(&out, s.emitted, count);
     s.emitted += count;
     return true;
   }
@@ -92,7 +92,7 @@ class KeysSource final : public Source {
 };
 
 std::vector<uint32_t> Ids(const Source& source, base::Status* status) {
-  std::unique_ptr<OperatorState> state = source.MakeState();
+  std::unique_ptr<OperatorState> state = source.MakeState(test::TestContext());
   RowBatch batch;
   std::vector<uint32_t> ids;
   while (source.GetData(batch, *state)) {
@@ -146,17 +146,18 @@ TEST(SortTest, NullsSortAsInSqlite) {
 
 TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
   Sort sort(SortSpec{{{1, false}, {2, true}}});
-  auto state = sort.MakeState();
+  auto state = sort.MakeState(test::TestContext());
   std::vector<int64_t> first = {2, 1, 2, 1};
   std::vector<int32_t> narrower = {2, 1, 2, 1};
   std::vector<double> second = {0.5, -1.5, -0.5, 2.5};
   RowBatch in;
   RowBatch out;
-  in.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
-  in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, first.data()));
+  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, first.data()));
   // The first key is valid, but the second cannot be used in a row layout.
-  in.AddColumn(ColumnView::Variants(nullptr));
-  in.SetCardinality(4);
+  in.AddBorrowedColumn(ColumnView::Variants(nullptr));
+  in.SetRowCount(4);
   ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kError);
   EXPECT_THAT(sort.status(*state).message(), testing::HasSubstr("key 2"));
 
@@ -166,11 +167,12 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
     state->Reset();
     ASSERT_TRUE(sort.status(*state).ok());
     if (change_type) {
-      in.SetColumn(
-          1, ColumnView::Reference(StorageType{Int32{}}, narrower.data()));
+      in.SetColumn(1,
+                   ColumnView::Reference(StorageType{Int32{}}, narrower.data()),
+                   ColumnBuffer());
     }
-    in.SetColumn(2,
-                 ColumnView::Reference(StorageType{Double{}}, second.data()));
+    in.SetColumn(2, ColumnView::Reference(StorageType{Double{}}, second.data()),
+                 ColumnBuffer());
     ASSERT_EQ(sort.Execute(in, out, *state), OpResult::kNeedMoreInput);
     ASSERT_EQ(sort.Finish(out, *state), OpResult::kHaveMoreOutput);
     // Equal first keys are ordered by the descending second key.
