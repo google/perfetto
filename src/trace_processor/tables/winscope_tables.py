@@ -666,7 +666,7 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         group='Winscope',
         columns={
             'ts':
-                'The timestamp the transition started playing - either dispatch time or send time',
+                'The first available timestamp for the transition, set according to the following fallback order: create > send > dispatch > abort > finish > merge',
             'transition_id':
                 'The id of the transition',
             'arg_set_id':
