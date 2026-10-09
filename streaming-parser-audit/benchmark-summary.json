@@ -1,0 +1,79 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "baseline": "Full storage, same release binary; not an unmodified-checkout overhead comparison",
+  "methodology": "5 fresh processes per mode/workload, alternating mode order; ru_utime+ru_stime, macOS ru_maxrss bytes; no SQL engine; globally ordered synthetic input; raw ftrace table disabled; 1MiB forced-sorter flushes; checksum sinks do not store output",
+  "results": [
+    {
+      "workload": "moving",
+      "mode": "full",
+      "cpu_s": 0.242203,
+      "wall_s": 0.24531445899999982,
+      "peak_rss_mib": 195.734375,
+      "sched_frontier": 0,
+      "completion_frontier": 0
+    },
+    {
+      "workload": "moving",
+      "mode": "sink",
+      "cpu_s": 0.36248,
+      "wall_s": 0.36542566600000015,
+      "peak_rss_mib": 195.8125,
+      "sched_frontier": 0,
+      "completion_frontier": 0
+    },
+    {
+      "workload": "moving",
+      "mode": "drop",
+      "cpu_s": 0.35747,
+      "wall_s": 0.36049695800000015,
+      "peak_rss_mib": 189.828125,
+      "sched_frontier": 0,
+      "completion_frontier": 0
+    },
+    {
+      "workload": "moving",
+      "mode": "frontier",
+      "cpu_s": 0.324772,
+      "wall_s": 0.32616479200000015,
+      "peak_rss_mib": 13.75,
+      "sched_frontier": 999424,
+      "completion_frontier": 999420
+    },
+    {
+      "workload": "pinned",
+      "mode": "full",
+      "cpu_s": 0.242697,
+      "wall_s": 0.24598133399999966,
+      "peak_rss_mib": 195.890625,
+      "sched_frontier": 0,
+      "completion_frontier": 0
+    },
+    {
+      "workload": "pinned",
+      "mode": "sink",
+      "cpu_s": 0.358895,
+      "wall_s": 0.3620223339999997,
+      "peak_rss_mib": 195.953125,
+      "sched_frontier": 0,
+      "completion_frontier": 0
+    },
+    {
+      "workload": "pinned",
+      "mode": "drop",
+      "cpu_s": 0.357566,
+      "wall_s": 0.36058212499999875,
+      "peak_rss_mib": 190.96875,
+      "sched_frontier": 0,
+      "completion_frontier": 0
+    },
+    {
+      "workload": "pinned",
+      "mode": "frontier",
+      "cpu_s": 0.327327,
+      "wall_s": 0.328864832999999,
+      "peak_rss_mib": 13.78125,
+      "sched_frontier": 999424,
+      "completion_frontier": 0
+    }
+  ]
+}

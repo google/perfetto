@@ -55,11 +55,12 @@ void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
 }
 
 void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
-  auto it_and_ins = flow_to_slice_map_.Insert(flow_id, slice_id);
+  auto it_and_ins = flow_to_slice_map_.Insert(flow_id, FlowSource{slice_id, 0});
   if (!it_and_ins.second) {
     context_->stats_tracker->IncrementStats(stats::flow_duplicate_id);
     return;
   }
+  it_and_ins.first->ts = context_->slice_tracker->GetSliceTimestamp(slice_id);
 }
 
 void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
@@ -78,13 +79,13 @@ void FlowTracker::Step(SliceId new_id, FlowId flow_id) {
     context_->stats_tracker->IncrementStats(stats::flow_step_without_start);
     return;
   }
-  SliceId existing_id = *it;
-  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
-  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
+  SliceId existing_id = it->id;
+  int64_t existing_ts = it->ts;
+  int64_t new_ts = context_->slice_tracker->GetSliceTimestamp(new_id);
   SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
   SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
   InsertFlow(flow_id, outgoing, incoming);
-  *it = new_id;
+  *it = FlowSource{new_id, new_ts};
 }
 
 void FlowTracker::End(TrackId track_id,
@@ -110,9 +111,9 @@ void FlowTracker::End(SliceId new_id, FlowId flow_id, bool close_flow) {
     context_->stats_tracker->IncrementStats(stats::flow_end_without_start);
     return;
   }
-  SliceId existing_id = *it;
-  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
-  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
+  SliceId existing_id = it->id;
+  int64_t existing_ts = it->ts;
+  int64_t new_ts = context_->slice_tracker->GetSliceTimestamp(new_id);
   SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
   SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
   if (close_flow)
@@ -144,7 +145,7 @@ void FlowTracker::ClosePendingEventsOnTrack(TrackId track_id,
     return;
 
   for (FlowId flow_id : *iter) {
-    SliceId slice_out_id = flow_to_slice_map_[flow_id];
+    SliceId slice_out_id = flow_to_slice_map_[flow_id].id;
     InsertFlow(flow_id, slice_out_id, slice_id);
   }
 

@@ -85,7 +85,11 @@ class FlowTracker {
     }
   };
 
-  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, SliceId>;
+  struct FlowSource {
+    SliceId id;
+    int64_t ts = 0;
+  };
+  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, FlowSource>;
   using PendingFlowsMap = base::FlatHashMap<TrackId, std::vector<FlowId>>;
   using V1FlowIdToFlowIdMap =
       base::FlatHashMap<V1FlowId, FlowId, V1FlowIdHasher>;

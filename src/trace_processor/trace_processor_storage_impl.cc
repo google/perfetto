@@ -83,6 +83,15 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(
   context()->reader_registry->Register(CreateSymbolsImporter());
 }
 
+TraceProcessorStorageImpl::TraceProcessorStorageImpl(
+    const TraceParserOptions& cfg)
+    : context_(TraceProcessorContext::CreateRootContext(cfg.parsing_config,
+                                                        nullptr,
+                                                        cfg)) {
+  context()->reader_registry->Register(CreateProtoImporter());
+  context()->reader_registry->Register(CreateSymbolsImporter());
+}
+
 TraceProcessorStorageImpl::~TraceProcessorStorageImpl() {}
 
 base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {

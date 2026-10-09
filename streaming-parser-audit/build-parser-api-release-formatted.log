@@ -1,0 +1,5 @@
+ninja: Entering directory `out/mac_release'
+[1/4] compile ../../src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.cc
+[2/4] compile ../../src/trace_processor/importers/common/thread_state_tracker.cc
+[3/4] compile ../../src/trace_processor/importers/common/slice_tracker.cc
+[4/4] link ./streaming_parser_benchmark

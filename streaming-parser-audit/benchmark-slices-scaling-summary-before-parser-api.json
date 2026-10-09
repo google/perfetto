@@ -1,0 +1,33 @@
+{
+  "methodology": "Five fresh-process medians, same SQL-free release binary, fixed dictionaries, ordered input with forced 1MiB sorter drains; input generation and tests completed before timing",
+  "results": [
+    {
+      "count": 1000000,
+      "mode": "full",
+      "cpu_s": 0.804608,
+      "peak_rss_mib": 100.078125
+    },
+    {
+      "count": 4000000,
+      "mode": "full",
+      "cpu_s": 3.215917,
+      "peak_rss_mib": 482.765625,
+      "slice_rows": 4000001,
+      "slice_frontier": 0
+    },
+    {
+      "count": 1000000,
+      "mode": "slice",
+      "cpu_s": 0.846658,
+      "peak_rss_mib": 13.296875
+    },
+    {
+      "count": 4000000,
+      "mode": "slice",
+      "cpu_s": 3.359,
+      "peak_rss_mib": 13.34375,
+      "slice_rows": 4000001,
+      "slice_frontier": 3999744
+    }
+  ]
+}

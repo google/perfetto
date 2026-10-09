@@ -35,6 +35,8 @@ class SchedEventState {
     // The pending scheduling slice that the next event will complete.
     uint32_t pending_slice_storage_idx = std::numeric_limits<uint32_t>::max();
 
+    int64_t pending_slice_start_ts = 0;
+
     // pid/utid/prio corresponding to the last sched_switch seen on this cpu
     // (its "next_*" fields). There is some duplication with respect to the
     // slices storage, but we don't always have a slice when decoding events in
