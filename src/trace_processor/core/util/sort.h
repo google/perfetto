@@ -21,156 +21,165 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <memory>
 #include <string_view>
 #include <type_traits>
 #include <vector>
 
-#include "perfetto/base/endian.h"
+#include "perfetto/ext/base/bits.h"
 
 namespace perfetto::trace_processor::core {
 namespace internal {
 
-// Extracts a radix of `kRadixBits` from `key` at `byte_offset`.
-template <uint32_t kRadixBits>
-inline uint32_t GetRadix(const uint8_t* key, size_t byte_offset) {
-  if constexpr (kRadixBits == 8) {
-    return key[byte_offset];
+// Splits a key of `key_bits` bits into digits of at most 16 bits, all the
+// same width. Each pass scatters every element, which costs several times
+// clearing and summing one count, so the split minimizes
+// passes * (4 * size + counts): the fewest passes for many elements, and
+// narrower digits, with more passes, for few.
+struct RadixDigits {
+  uint32_t passes;
+  uint32_t bits;
+};
+inline RadixDigits GetRadixDigits(uint32_t key_bits, size_t size) {
+  uint32_t fewest = (key_bits + 15) / 16;
+  if (fewest == 0) {
+    return {0, 0};
   }
-  if constexpr (kRadixBits == 16) {
-    uint16_t radix;
-    memcpy(&radix, key + byte_offset, sizeof(uint16_t));
-    // This is important: the input to `RadixSort` is always in big-endian
-    // format, so if we need to extract a 16-bit radix, we must convert it
-    // to host byte order.
-    return ::perfetto::base::BE16ToHost(radix);
+  RadixDigits best{};
+  uint64_t best_cost = std::numeric_limits<uint64_t>::max();
+  for (uint32_t passes = fewest; passes <= fewest + 2; ++passes) {
+    uint32_t bits = (key_bits + passes - 1) / passes;
+    uint64_t cost = static_cast<uint64_t>(passes) *
+                    ((4 * size) + (static_cast<uint64_t>(1) << bits));
+    if (cost < best_cost) {
+      best = {passes, bits};
+      best_cost = cost;
+    }
   }
-}
-
-// Performs a single pass of counting sort for the radix at `byte_offset`.
-// This is a stable sort.
-//
-// The algorithm consists of three main steps:
-// 1. Counting: Iterate through the source data and count the occurrences of
-//    each unique radix value. The radix is a `kRadixBits`-sized portion of the
-//    key at a specific `byte_offset`.
-// 2. Cumulative Sum: Transform the counts array into a cumulative sum array.
-//    Each element at index `i` will then represent the starting position in the
-//    destination array for all elements with radix `i`.
-// 3. Distribution: Iterate through the source data again. For each element,
-//    use the cumulative counts array to find its correct position in the
-//    destination array and place it there. The count for that radix is then
-//    incremented to ensure that the next element with the same radix is placed
-//    at the next position, maintaining stability.
-template <uint32_t kRadixBits, typename T, typename KeyExtractor>
-void CountingSortPass(T* source_begin,
-                      T* source_end,
-                      T* dest_begin,
-                      size_t byte_offset,
-                      KeyExtractor key_extractor,
-                      uint32_t* counts) {
-  constexpr uint32_t kRadixSize = 1u << kRadixBits;
-
-  // 1. Count frequencies of each radix value.
-  memset(counts, 0, kRadixSize * sizeof(uint32_t));
-  for (T* it = source_begin; it != source_end; ++it) {
-    const uint8_t* key = key_extractor(*it);
-    counts[GetRadix<kRadixBits>(key, byte_offset)]++;
-  }
-
-  // 2. Calculate cumulative counts to determine positions. Each entry
-  // `counts[i]` will store the starting index for elements with radix `i`.
-  uint32_t total = 0;
-  for (uint32_t i = 0; i < kRadixSize; ++i) {
-    uint32_t old_count = counts[i];
-    counts[i] = total;
-    total += old_count;
-  }
-
-  // 3. Place elements into the destination buffer in sorted order. By reading
-  // from `source_begin` and writing to `dest_begin` at the calculated
-  // positions, we preserve the relative order of equal elements, making this
-  // sort stable.
-  for (T* it = source_begin; it != source_end; ++it) {
-    const uint8_t* key = key_extractor(*it);
-    uint32_t& pos = counts[GetRadix<kRadixBits>(key, byte_offset)];
-    dest_begin[pos++] = *it;
-  }
+  return best;
 }
 
 }  // namespace internal
 
-// Sorts a collection of elements using a stable, in-place, Least Significant
-// Digit (LSD) radix sort. This implementation is designed for fixed-width,
-// unsigned integer keys.
+// The number of counts RadixSort() needs for `size` keys of `key_bits` bits.
+inline size_t RadixSortCountsSize(uint32_t key_bits, size_t size) {
+  internal::RadixDigits digits = internal::GetRadixDigits(key_bits, size);
+  return static_cast<size_t>(digits.passes) << digits.bits;
+}
+
+// Sorts [begin, end) by `key(element)`, a uint64_t, with a stable Least
+// Significant Digit (LSD) radix sort. Only the low `key_bits` bits of the keys
+// are sorted on: any bits above them must be the same in every key.
 //
-// The algorithm works by sorting the elements based on their keys, one "radix"
-// (a chunk of bits) at a time, starting from the least significant part of the
-// key and moving to the most significant. Each sorting pass uses a stable
-// counting sort, which is essential for the correctness of the overall radix
-// sort.
+// Each pass is a stable counting sort on one digit, from `source` into the
+// other buffer, and the two buffers then swap roles. The counts of every digit
+// are taken in one read of the input, and a pass is skipped when every element
+// has the same digit, as it would not move anything.
 //
-// A "ping-pong" buffering strategy is employed to optimize performance. Instead
-// of copying data back to the original buffer after each pass, the roles of the
-// source and destination buffers are swapped. This minimizes data movement. The
-// function returns a pointer to the buffer that contains the final sorted data.
-//
-// The sort processes the key in 16-bit chunks for efficiency. If the key width
-// is not a multiple of 2 bytes, a final 8-bit pass is performed on the most
-// significant byte.
-//
-// Stability: This sort is stable. The relative order of elements with equal
-// keys is preserved. This is guaranteed because each pass uses a stable
-// counting sort.
-//
-// @param begin Pointer to the first element of the collection to be sorted.
-// @param end Pointer to one past the last element of the collection.
-// @param scratch_begin Pointer to a buffer of at least `end - begin` elements,
-// used as scratch space.
-// @param counts A buffer of at least `1 << 16` elements, used by counting sort.
-// Passed in by the user to allow for allocation caching.
-// @param key_width The width of the keys in bytes.
-// @param key_extractor A functor that takes an element and returns a pointer to
-// the key data.
-// @return A pointer to the beginning of the sorted collection, which will be
-// either `begin` or `scratch_begin`.
-template <typename T, typename KeyExtractor>
+// @param scratch_begin A buffer of at least `end - begin` elements.
+// @param counts Reusable buffer with at least
+// `RadixSortCountsSize(key_bits, end - begin)` elements.
+// @return Whichever of `begin` and `scratch_begin` holds the sorted elements.
+template <typename T, typename Key>
 T* RadixSort(T* begin,
              T* end,
              T* scratch_begin,
              uint32_t* counts,
-             size_t key_width,
-             KeyExtractor key_extractor) {
+             uint32_t key_bits,
+             Key key) {
   static_assert(std::is_trivially_copyable_v<T>,
                 "T must be trivially copyable for radix sort to work.");
+  auto n = static_cast<size_t>(end - begin);
+  if (n <= 1 || key_bits == 0) {
+    return begin;
+  }
+  internal::RadixDigits digits = internal::GetRadixDigits(key_bits, n);
+  size_t buckets = static_cast<size_t>(1) << digits.bits;
+  uint64_t mask = buckets - 1;
 
+  // 1. Count frequencies for every digit in a single read of the input. Each
+  // digit has its own table of `buckets` counts. Sorting changes the order of
+  // elements but not these frequencies, so later passes can reuse them.
+  memset(counts, 0, digits.passes * buckets * sizeof(uint32_t));
+  for (T* it = begin; it != end; ++it) {
+    uint64_t k = key(*it);
+    for (uint32_t p = 0; p < digits.passes; ++p) {
+      ++counts[(p * buckets) + ((k >> (p * digits.bits)) & mask)];
+    }
+  }
   T* source = begin;
   T* dest = scratch_begin;
-  size_t num_elements = static_cast<size_t>(end - begin);
-
-  // Early return for small number of elements.
-  if (num_elements <= 1) {
-    return source;
-  }
-
-  // Process the key from least significant to most significant bytes.
-  int64_t remaining = static_cast<int64_t>(key_width);
-  // Process in 16-bit (2-byte) chunks for as long as possible.
-  while (remaining >= 2) {
-    size_t byte_offset = static_cast<size_t>(remaining - 2);
-    internal::CountingSortPass<16>(source, source + num_elements, dest,
-                                   byte_offset, key_extractor, counts);
-    // Swap buffers for the next pass.
+  // Process digits from least to most significant. Each pass must be stable
+  // to preserve the ordering established by the less significant digits.
+  for (uint32_t p = 0; p < digits.passes; ++p) {
+    uint32_t* count = counts + (p * buckets);
+    uint32_t shift = p * digits.bits;
+    // If every element is in the same bucket, this pass cannot change the
+    // order. Leave the data in `source` without swapping buffers.
+    if (count[(key(*source) >> shift) & mask] == n) {
+      continue;
+    }
+    // 2. Convert frequencies into the starting output position of each bucket.
+    uint32_t total = 0;
+    for (size_t d = 0; d < buckets; ++d) {
+      uint32_t c = count[d];
+      count[d] = total;
+      total += c;
+    }
+    // 3. Distribute elements in source order. Advancing each bucket's position
+    // after every write preserves the relative order of equal digits.
+    for (T* it = source; it != source + n; ++it) {
+      dest[count[(key(*it) >> shift) & mask]++] = *it;
+    }
+    // The next pass reads this pass's output, avoiding a copy back to `begin`.
     std::swap(source, dest);
-    remaining -= 2;
   }
-  // If there's a remaining byte, process it in a final 8-bit pass.
-  if (remaining == 1) {
-    internal::CountingSortPass<8>(source, source + num_elements, dest, 0,
-                                  key_extractor, counts);
-    std::swap(source, dest);
-  }
-  // The `source` pointer now points to the buffer with the sorted data.
   return source;
+}
+
+namespace internal {
+
+// Whether radix sorting `size` keys of `key_bits` bits is estimated to cost
+// less than comparing them. Each pass of RadixSort() reads and writes every
+// element, and clears and sums its counts.
+inline bool RadixSortIsCheaper(size_t size, uint32_t key_bits) {
+  RadixDigits digits = GetRadixDigits(key_bits, size);
+  uint64_t radix = static_cast<uint64_t>(digits.passes) *
+                   ((static_cast<uint64_t>(3) * size) +
+                    (static_cast<uint64_t>(1) << digits.bits));
+  uint64_t log2_size = 64 - base::CountLeadZeros64(size);
+  return radix < static_cast<uint64_t>(2) * size * log2_size;
+}
+
+}  // namespace internal
+
+// Stably sorts [begin, end) by `key(element)`, a uint64_t, of which only the
+// low `key_bits` bits may differ between elements. Uses RadixSort() when that
+// is estimated to be cheaper, as for large inputs, and otherwise std::sort(),
+// breaking ties on `position(element)`, the element's position in the input.
+//
+// @param scratch_begin A buffer of at least `end - begin` elements.
+// @return Whichever of `begin` and `scratch_begin` holds the sorted elements.
+template <typename T, typename Key, typename Position>
+T* StableSortByKey(T* begin,
+                   T* end,
+                   T* scratch_begin,
+                   uint32_t key_bits,
+                   Key key,
+                   Position position) {
+  auto size = static_cast<size_t>(end - begin);
+  if (internal::RadixSortIsCheaper(size, key_bits)) {
+    std::unique_ptr<uint32_t[]> counts(
+        new uint32_t[RadixSortCountsSize(key_bits, size)]);
+    return RadixSort(begin, end, scratch_begin, counts.get(), key_bits, key);
+  }
+  std::sort(begin, end, [&key, &position](const T& a, const T& b) {
+    uint64_t key_a = key(a);
+    uint64_t key_b = key(b);
+    return key_a != key_b ? key_a < key_b : position(a) < position(b);
+  });
+  return begin;
 }
 
 // Sorts a collection of elements using a Most Significant Digit (MSD) radix
