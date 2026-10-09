@@ -178,7 +178,7 @@ void AndroidProbesParser::ParseRailDescriptor(
                     idx);
       continue;
     }
-    static constexpr auto kPowerBlueprint = tracks::CounterBlueprint(
+    static constexpr auto kPowerBlueprint = tracks::MachineCounterBlueprint(
         "power_rails", tracks::UnknownUnitBlueprint(),
         tracks::DimensionBlueprints(
             tracks::kNameFromTraceDimensionBlueprint,
@@ -382,7 +382,7 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
         stats::entity_state_residency_invalid);
     return;
   }
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
+  static constexpr auto kBlueprint = tracks::MachineCounterBlueprint(
       "entity_state", tracks::UnknownUnitBlueprint(),
       tracks::DimensionBlueprints(
           tracks::StringDimensionBlueprint("entity_name"),
