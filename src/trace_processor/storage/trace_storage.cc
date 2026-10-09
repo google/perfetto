@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/storage/trace_storage.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -100,6 +101,12 @@ TraceStorage::~TraceStorage() {
         &tables_storage_[(i - 1) * sizeof(dataframe::Dataframe)])
         ->~Dataframe();
   }
+}
+
+SliceId TraceStorage::NextDetachedSliceId() {
+  next_detached_slice_id_ =
+      std::max(next_detached_slice_id_, slice_table().row_count());
+  return SliceId{next_detached_slice_id_++};
 }
 
 uint32_t TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
