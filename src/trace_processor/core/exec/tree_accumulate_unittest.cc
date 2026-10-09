@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <random>
 #include <utility>
 #include <vector>
@@ -40,6 +41,10 @@ namespace perfetto::trace_processor::core::exec {
 namespace {
 
 using ::testing::ElementsAre;
+
+AggregateCall Sum(uint32_t column) {
+  return {AggregateCall::Function::kSum, column};
+}
 
 // Emits id, parent id and a value, in whatever order the rows were given.
 class RowSource final : public Source {
@@ -168,7 +173,7 @@ Result Accumulate(const std::vector<int64_t>& parent,
       ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
     }
   }
-  TreeAccumulateSpec spec{3, 4, 2};
+  TreeAccumulateSpec spec{3, 4, {Sum(2)}};
   if (up) {
     ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
   } else {
@@ -239,7 +244,7 @@ TEST(TreeAccumulateTest, UpReportsIntegerOverflow) {
       ColumnView::Reference(StorageType{Int64{}}, values.data()));
   in.SetRowCount(2);
 
-  TreeAccumulateUp op({0, 1, 2});
+  TreeAccumulateUp op({0, 1, {Sum(2)}});
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
@@ -263,14 +268,14 @@ TEST(TreeAccumulateTest, DownReportsIntegerOverflow) {
       ColumnView::Reference(StorageType{Int64{}}, values.data()));
   in.SetRowCount(2);
 
-  TreeAccumulateDown op({0, 1, 2});
+  TreeAccumulateDown op({0, 1, {Sum(2)}});
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
 }
 
-TEST(TreeAccumulateTest, NullValuesContributeZero) {
+TEST(TreeAccumulateTest, NullsAreSkippedAndASumOfOnlyNullsIsNull) {
   std::vector<uint32_t> nodes = {0, 1};
   std::vector<uint32_t> parents = {kNoNode, 0};
   std::vector<int64_t> values = {123, 7};
@@ -285,11 +290,99 @@ TEST(TreeAccumulateTest, NullValuesContributeZero) {
       ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
   in.SetRowCount(2);
 
-  TreeAccumulateDown op({0, 1, 2});
+  TreeAccumulateDown op({0, 1, {Sum(2)}});
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
-  EXPECT_THAT(test::ReadColumn<int64_t>(out, 3), ElementsAre(0, 7));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
+              ElementsAre(std::nullopt, 7));
+}
+
+// One batch of node, parent and value columns; `valid` null if no value is.
+RowBatch Batch(const std::vector<uint32_t>& nodes,
+               const std::vector<uint32_t>& parents,
+               const std::vector<int64_t>& values,
+               const BitVector* valid = nullptr) {
+  RowBatch in;
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data(), valid));
+  in.SetRowCount(static_cast<uint32_t>(nodes.size()));
+  return in;
+}
+
+TEST(TreeAccumulateTest, FoldsEveryAggregateInOrder) {
+  // A root and its two children, child first: COUNT(*) up a tree is the
+  // size of each subtree.
+  std::vector<uint32_t> nodes = {1, 2, 0};
+  std::vector<uint32_t> parents = {0, 0, kNoNode};
+  std::vector<int64_t> values = {3, 4, 5};
+  RowBatch in = Batch(nodes, parents, values);
+  TreeAccumulateUp op(
+      {0, 1, {Sum(2), {AggregateCall::Function::kCountStar, 0}}});
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  RowBatch out;
+  ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 3), ElementsAre(3, 4, 12));
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 4), ElementsAre(1, 1, 3));
+}
+
+TEST(TreeAccumulateTest, MinAndMaxSkipNulls) {
+  // A root with no value and two children, either way round.
+  AggregateCall min{AggregateCall::Function::kMin, 2};
+  AggregateCall max{AggregateCall::Function::kMax, 2};
+  std::vector<uint32_t> up_nodes = {1, 2, 0};
+  std::vector<uint32_t> up_parents = {0, 0, kNoNode};
+  std::vector<int64_t> up_values = {-3, 4, 0};
+  BitVector up_valid = BitVector::CreateWithSize(3);
+  up_valid.set(0);
+  up_valid.set(1);
+  TreeAccumulateUp up({0, 1, {min, max}});
+  std::unique_ptr<OperatorState> up_state = up.MakeState(test::TestContext());
+  RowBatch out;
+  RowBatch in = Batch(up_nodes, up_parents, up_values, &up_valid);
+  ASSERT_TRUE(test::ProcessCopy(up, in, out, *up_state));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
+              ElementsAre(-3, 4, -3));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 4), ElementsAre(-3, 4, 4));
+
+  std::vector<uint32_t> down_nodes = {0, 1, 2};
+  std::vector<uint32_t> down_parents = {kNoNode, 0, 0};
+  std::vector<int64_t> down_values = {0, -3, 4};
+  BitVector down_valid = BitVector::CreateWithSize(3);
+  down_valid.set(1);
+  down_valid.set(2);
+  TreeAccumulateDown down({0, 1, {min, max}});
+  std::unique_ptr<OperatorState> down_state =
+      down.MakeState(test::TestContext());
+  in = Batch(down_nodes, down_parents, down_values, &down_valid);
+  ASSERT_TRUE(test::ProcessCopy(down, in, out, *down_state));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3),
+              ElementsAre(std::nullopt, -3, 4));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 4),
+              ElementsAre(std::nullopt, -3, 4));
+}
+
+TEST(TreeAccumulateTest, NullsFirstMetInALaterBatchKeepEarlierValues) {
+  // Children with values, then a root with none.
+  std::vector<uint32_t> children = {1, 2};
+  std::vector<uint32_t> to_root = {0, 0};
+  std::vector<int64_t> child_values = {3, 4};
+  std::vector<uint32_t> root = {0};
+  std::vector<uint32_t> no_parent = {kNoNode};
+  std::vector<int64_t> root_value = {99};
+  BitVector none = BitVector::CreateWithSize(1);
+  TreeAccumulateUp op({0, 1, {Sum(2)}});
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
+  RowBatch out;
+  RowBatch first = Batch(children, to_root, child_values);
+  ASSERT_TRUE(test::ProcessCopy(op, first, out, *state));
+  RowBatch second = Batch(root, no_parent, root_value, &none);
+  ASSERT_TRUE(test::ProcessCopy(op, second, out, *state));
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 3), ElementsAre(7));
 }
 
 TEST(TreeAccumulateTest, WrongColumnTypesAreReported) {
@@ -305,7 +398,7 @@ TEST(TreeAccumulateTest, WrongColumnTypesAreReported) {
       ColumnView::Reference(StorageType{Int64{}}, values.data()));
   in.SetRowCount(1);
 
-  TreeAccumulateDown op({0, 1, 2});
+  TreeAccumulateDown op({0, 1, {Sum(2)}});
   std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
@@ -381,7 +474,7 @@ TEST(TreeAccumulateTest, TheChunkSizeDoesNotChangeTheAnswer) {
 // plan is run again.
 TEST(TreeAccumulateTest, RunningAgainStartsOver) {
   RowSource source(Parents(), Values(), 2);
-  TreeAccumulateSpec spec{3, 4, 2};
+  TreeAccumulateSpec spec{3, 4, {Sum(2)}};
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeChildFirst>(3, 4));

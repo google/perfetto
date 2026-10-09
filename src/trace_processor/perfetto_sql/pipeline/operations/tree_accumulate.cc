@@ -109,8 +109,10 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
     c->RequireInt64(agg.column);
   }
   for (const TreeAccumulate::Aggregate& agg : acc.aggregates_) {
-    ex::TreeAccumulateSpec spec{tree.node, tree.parent,
-                                c->Position(agg.column)};
+    ex::TreeAccumulateSpec spec{
+        tree.node,
+        tree.parent,
+        {{ex::AggregateCall::Function::kSum, c->Position(agg.column)}}};
     if (acc.direction_ == TreeDirection::kUp) {
       c->AddOperator(std::make_unique<ex::TreeAccumulateUp>(spec));
     } else {

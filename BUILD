@@ -2589,6 +2589,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_exec_exec",
     srcs = [
+        "src/trace_processor/core/exec/aggregate_function.cc",
+        "src/trace_processor/core/exec/aggregate_function.h",
         "src/trace_processor/core/exec/assert_type.cc",
         "src/trace_processor/core/exec/assert_type.h",
         "src/trace_processor/core/exec/batch_buffer.cc",
