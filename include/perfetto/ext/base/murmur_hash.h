@@ -339,9 +339,15 @@ class MurmurHashCombiner {
 
 // Simple wrapper function around MurmurHashCombiner to improve clarity in
 // callsites to not have to instantiate the class, call Combine() then digest().
+// One built-in value has nothing to combine with, so it is just its hash.
 template <typename... Args>
 uint64_t MurmurHashCombine(const Args&... value) {
-  return MurmurHashCombiner::Combine(MurmurHashCombiner{}, value...).digest();
+  if constexpr (sizeof...(Args) == 1 &&
+                (murmur_internal::HasMurmurHashBuiltinValue<Args>() && ...)) {
+    return murmur_internal::MurmurHashBuiltinValue(value...);
+  } else {
+    return MurmurHashCombiner::Combine(MurmurHashCombiner{}, value...).digest();
+  }
 }
 
 // Simple wrapper function to compute a hash value for a single value.

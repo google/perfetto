@@ -24,14 +24,14 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
-#include "src/trace_processor/core/exec/group_by.h"
+#include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sort.h"
 
-// Sort and GroupBy run over 16 full batches, as over a large input, and over
-// one row, as when a small input is run over and over.
+// Sort and GroupedSort run over 16 full batches, as over a large input, and
+// over one row, as when a small input is run over and over.
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -88,20 +88,20 @@ void BM_SortInt64OneRow(benchmark::State& state) {
 BENCHMARK(BM_SortInt64OneRow);
 
 void BM_GroupByInt64(benchmark::State& state) {
-  GroupBy group_by({0});
+  GroupedSort group_by(GroupedSortSpec{{0}, {}});
   Run(state, group_by, kRows, static_cast<uint32_t>(state.range(0)));
 }
 BENCHMARK(BM_GroupByInt64)->Arg(16)->Arg(kRows);
 
 // Keys too long for std::string to hold inline.
 void BM_GroupByThreeKeys(benchmark::State& state) {
-  GroupBy group_by({0, 1, 2});
+  GroupedSort group_by(GroupedSortSpec{{0, 1, 2}, {}});
   Run(state, group_by, kRows, kRows, 3);
 }
 BENCHMARK(BM_GroupByThreeKeys);
 
 void BM_GroupByInt64OneRow(benchmark::State& state) {
-  GroupBy group_by({0});
+  GroupedSort group_by(GroupedSortSpec{{0}, {}});
   Run(state, group_by, 1, 1);
 }
 BENCHMARK(BM_GroupByInt64OneRow);

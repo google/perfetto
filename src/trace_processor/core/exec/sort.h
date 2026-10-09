@@ -19,23 +19,17 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <vector>
 
-#include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/exec/breaker.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_store.h"
-#include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/exec/sorted_rows.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 struct SortSpec {
-  struct Key {
-    uint32_t column = 0;
-    bool descending = false;
-  };
+  using Key = SortKey;
   std::vector<Key> keys;
 };
 
@@ -52,11 +46,7 @@ class Sort : public Breaker {
     ~State() override;
     void Reset() override;
 
-    std::vector<std::optional<RowLayout::Type>> types;
-    RowLayout layout;
-    FlexVector<uint8_t> keys;
-    RowStore rows;
-    FlexVector<uint32_t> order;
+    SortedRows rows;
     uint32_t emitted = 0;
   };
 
