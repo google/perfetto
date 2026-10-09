@@ -2013,6 +2013,115 @@ class TraceManifest(TestSuite):
         "b_slice",2000500
         '''))
 
+  # TRACE_FILE names the file's private per-file timeline explicitly, on both
+  # the source and the reference side; equivalent to omitting the clocks (see
+  # test_sync_to_clock_omitted_clockless_ref).
+  def test_trace_file_clock_explicit(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path': 'a.json'
+                        },
+                        {
+                            'path': 'b.json',
+                            'clocks': {
+                                'clock': 'TRACE_FILE',
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'a.json',
+                                    'clock': 'TRACE_FILE'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+            'b.json':
+                _json_trace('b_slice', pid=11),
+        }),
+        query='''
+          SELECT name, ts FROM slice
+          WHERE name IN ('a_slice', 'b_slice')
+          ORDER BY name;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "a_slice",2000000
+        "b_slice",2000500
+        '''))
+
+  # trace_time.clock TRACE_FILE makes the named file's private timeline trace
+  # time. b.json = a.json + 500, and b.json owns trace time, so b's slice keeps
+  # its identity ts and a's moves back by 500.
+  def test_trace_time_trace_file_clock(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'trace_time': {
+                        'clock': 'TRACE_FILE',
+                        'file': 'b.json'
+                    },
+                    'files': [
+                        {
+                            'path': 'a.json'
+                        },
+                        {
+                            'path': 'b.json',
+                            'clocks': {
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'a.json'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+            'b.json':
+                _json_trace('b_slice', pid=11),
+        }),
+        query='''
+          SELECT name, ts FROM slice
+          WHERE name IN ('a_slice', 'b_slice')
+          ORDER BY name;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "a_slice",1999500
+        "b_slice",2000000
+        '''))
+
+  # A per-file clock needs to know which file.
+  def test_error_trace_time_trace_file_clock_no_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'trace_time': {
+                        'clock': 'TRACE_FILE'
+                    },
+                    'files': [{
+                        'path': 'a.json'
+                    }],
+                }),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_manifest: trace_time: clock TRACE_FILE requires file'))
+
   # A multi-machine source names which of its declared machines owns the related
   # clock: multi.pb's vm BOOTTIME = server.pb's BOOTTIME + 500. server owns trace
   # time, so vm's slice lands 500ns after server's.
