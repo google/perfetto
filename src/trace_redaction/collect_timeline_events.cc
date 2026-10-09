@@ -38,13 +38,28 @@ using TaskNewtaskFtraceEvent = protos::pbzero::TaskNewtaskFtraceEvent;
 
 void MarkOpen(uint64_t ts,
               const ProcessTree::Process::Decoder& process,
+              bool normalize_uid,
               ProcessThreadTimeline* timeline) {
-  auto uid = static_cast<uint64_t>(process.uid());
-
-  // See "trace_redaction_framework.h" for why uid must be normalized.
-  auto e = ProcessThreadTimeline::Event::Open(ts, process.pid(), process.ppid(),
-                                              NormalizeUid(uid));
-  timeline->Append(e);
+  if (process.has_uid()) {
+    auto uid = static_cast<uint64_t>(process.uid());
+    // ProcessTree records full per-user Linux UIDs (e.g. 1010234 for User 10),
+    // whereas PackagesList only records base App IDs (e.g. 10234). When an
+    // explicit target UID is provided (--uid), store the full 64-bit UID so
+    // the timeline strictly isolates User 0 from User 10. When no target UID is
+    // provided (normalize_uid is true), normalize ProcessTree UIDs to their
+    // base App ID via ToAppId() so secondary profile processes match the base
+    // App ID resolved from PackagesList by FindPackageUid.
+    if (normalize_uid) {
+      uid = ToAppId(uid);
+    }
+    auto e = ProcessThreadTimeline::Event::Open(ts, process.pid(),
+                                                process.ppid(), uid);
+    timeline->Append(e);
+  } else {
+    auto e =
+        ProcessThreadTimeline::Event::Open(ts, process.pid(), process.ppid());
+    timeline->Append(e);
+  }
 }
 
 void MarkOpen(uint64_t ts,
@@ -87,9 +102,10 @@ void MarkOpen(const FtraceEvent::Decoder& event,
 
 void AppendEvents(uint64_t ts,
                   const ProcessTree::Decoder& tree,
+                  bool normalize_uid,
                   ProcessThreadTimeline* timeline) {
   for (auto it = tree.processes(); it; ++it) {
-    MarkOpen(ts, ProcessTree::Process::Decoder(*it), timeline);
+    MarkOpen(ts, ProcessTree::Process::Decoder(*it), normalize_uid, timeline);
   }
 
   for (auto it = tree.threads(); it; ++it) {
@@ -144,7 +160,7 @@ base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
   if (packet.has_process_tree()) {
     AppendEvents(packet.timestamp(),
                  ProcessTree::Decoder(packet.process_tree()),
-                 context->timeline.get());
+                 context->normalize_uid, context->timeline.get());
   }
 
   if (packet.has_ftrace_events()) {

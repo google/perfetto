@@ -24,21 +24,24 @@
 namespace perfetto::trace_redaction {
 
 base::Status FindPackageUid::Begin(Context* context) const {
+  if (context->package_uid.has_value()) {
+    context->normalize_uid = false;
+    return base::OkStatus();
+  }
+
   if (context->package_name.empty()) {
     return base::ErrStatus("FindPackageUid: missing package name.");
   }
 
-  if (context->package_uid.has_value()) {
-    return base::ErrStatus("FindPackageUid: package uid already found.");
-  }
-
+  context->normalize_uid = true;
   return base::OkStatus();
 }
 
 base::Status FindPackageUid::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
     Context* context) const {
-  // If a package has been found in a previous iteration, stop.
+  // If a package has been found in a previous iteration or passed via CLI,
+  // stop.
   if (context->package_uid.has_value()) {
     return base::OkStatus();
   }
@@ -64,8 +67,7 @@ base::Status FindPackageUid::Collect(
       continue;
     }
 
-    // See "trace_redaction_framework.cc" for info.uid() must be normalized.
-    context->package_uid = NormalizeUid(info.uid());
+    context->package_uid = ToAppId(info.uid());
     return base::OkStatus();
   }
 

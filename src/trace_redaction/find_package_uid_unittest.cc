@@ -196,9 +196,7 @@ TEST(FindPackageUidTest, FindsUidInPackageList) {
   ASSERT_OK(status) << status.message();
 
   ASSERT_TRUE(context.package_uid.has_value());
-
-  // context.package_uid should have been normalized already.
-  ASSERT_EQ(context.package_uid.value(), NormalizeUid(10205));
+  ASSERT_EQ(context.package_uid.value(), 10205u);
 }
 
 TEST(FindPackageUidTest, ContinuesOverNonPackageList) {
@@ -260,21 +258,6 @@ TEST(FindPackageUidTest, MissingPackageNameReturnsError) {
   ASSERT_FALSE(status.ok()) << status.message();
 }
 
-TEST(FindPackageUidTest, FailsIfUidStartsInitialized) {
-  const auto packet = CreatePackageListPacket();
-
-  Context context;
-  context.package_name = "com.google.android.uvexposurereporter";
-  context.package_uid = 1000;
-
-  const FindPackageUid find;
-
-  const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
-
-  base::Status status = find.Begin(&context);
-  ASSERT_FALSE(status.ok()) << status.message();
-}
-
 TEST(FindPackageUidTest, RejectsCaseMismatch) {
   const auto packet = CreatePackageListPacket();
 
@@ -296,6 +279,55 @@ TEST(FindPackageUidTest, RejectsCaseMismatch) {
   ASSERT_FALSE(status.ok()) << status.message();
 
   ASSERT_FALSE(context.package_uid.has_value());
+}
+
+TEST(FindPackageUidTest, SkipsWhenPrePopulated) {
+  const auto packet = CreatePackageListPacket();
+
+  Context context;
+  context.package_name = "com.google.android.uvexposurereporter";
+  constexpr uint64_t kWorkProfileUid = 1010234;
+  context.package_uid = kWorkProfileUid;
+  context.normalize_uid = true;
+
+  const FindPackageUid find;
+
+  const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
+
+  base::Status status = find.Begin(&context);
+  ASSERT_OK(status) << status.message();
+
+  status = find.Collect(decoder, &context);
+  ASSERT_OK(status) << status.message();
+
+  status = find.End(&context);
+  ASSERT_OK(status) << status.message();
+
+  ASSERT_TRUE(context.package_uid.has_value());
+  ASSERT_EQ(context.package_uid.value(), kWorkProfileUid);
+  ASSERT_FALSE(context.normalize_uid);
+}
+
+TEST(FindPackageUidTest, NormalizesUidInPackageList) {
+  protos::gen::TracePacket packet;
+  packet.set_trusted_uid(9999);
+  auto* package_list = packet.mutable_packages_list();
+  AddPackage("com.example.workapp", 1010205, 1, package_list);
+  const auto serialized = packet.SerializeAsString();
+
+  Context context;
+  context.package_name = "com.example.workapp";
+
+  const FindPackageUid find;
+  const auto decoder = protos::pbzero::TracePacket::Decoder(serialized);
+
+  ASSERT_OK(find.Begin(&context));
+  ASSERT_OK(find.Collect(decoder, &context));
+  ASSERT_OK(find.End(&context));
+
+  ASSERT_TRUE(context.package_uid.has_value());
+  ASSERT_EQ(context.package_uid.value(), 10205u);
+  ASSERT_TRUE(context.normalize_uid);
 }
 
 }  // namespace perfetto::trace_redaction

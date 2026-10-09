@@ -89,8 +89,8 @@ class PrunePackageListIntegrationTest
 };
 
 // It is possible for two packages_list to appear in the trace. The
-// find_package_uid will stop after the first one is found. Package uids are
-// appear as n * 1,000,000 where n is some integer. It is also possible for two
+// find_package_uid will stop after the first one is found. Multi-user package
+// uids appear as user_id * 100,000 + app_id. It is also possible for two
 // packages_list to contain copies of each other - for example
 // "com.Unity.com.unity.multiplayer.samples.coop" appears in both packages_list.
 TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
@@ -113,7 +113,7 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
     ASSERT_EQ(package.name(), kSomePackageName);
 
     ASSERT_TRUE(package.has_uid());
-    ASSERT_EQ(NormalizeUid(package.uid()), kSomePackageUid);
+    ASSERT_EQ(ToAppId(package.uid()), kSomePackageUid);
   }
 }
 
