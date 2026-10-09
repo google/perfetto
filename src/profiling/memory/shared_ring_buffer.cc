@@ -76,7 +76,7 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
 #endif
 
   if (!fd)
-    fd = base::TempFile::CreateUnlinked().ReleaseFD();
+    fd = base::TempFile::MaybeCreateUnlinked().ReleaseFD();
 
   PERFETTO_CHECK(fd);
   int res = ftruncate(fd.get(), static_cast<off_t>(size_with_meta));

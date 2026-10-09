@@ -80,7 +80,7 @@ std::string ShellPath() {
 
 // Writes kSimpleSystrace to a temp file and returns the TempFile object.
 base::TempFile WriteSimpleSystrace() {
-  auto f = base::TempFile::Create();
+  auto f = base::TempFile::CreateFileForTest();
   base::WriteAll(f.fd(), kSimpleSystrace.data(),
                  static_cast<size_t>(kSimpleSystrace.size()));
   return f;
@@ -88,7 +88,7 @@ base::TempFile WriteSimpleSystrace() {
 
 // Writes arbitrary content to a temp file and returns the TempFile object.
 base::TempFile WriteTempFile(const std::string& content) {
-  auto f = base::TempFile::Create();
+  auto f = base::TempFile::CreateFileForTest();
   base::WriteAll(f.fd(), content.data(), content.size());
   return f;
 }
@@ -259,7 +259,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAnalyzeProtoContent) {
 
 TEST(TraceProcessorShellIntegrationTest, ClassicExport) {
   auto trace = WriteSimpleSystrace();
-  auto out_db = base::TempFile::Create();
+  auto out_db = base::TempFile::CreateFileForTest();
   auto result = RunShell({"-e", out_db.path(), trace.path()});
   EXPECT_EQ(result.exit_code, 0);
   EXPECT_TRUE(base::FileExists(out_db.path()));
@@ -529,7 +529,7 @@ TEST(TraceProcessorShellIntegrationTest, RemoteQueryRoundTrip) {
 
   // -m against a remote session enables metatracing server-side and collects
   // the resulting trace client-side.
-  base::TempFile mt = base::TempFile::Create();
+  base::TempFile mt = base::TempFile::CreateFileForTest();
   auto r4 = RunShell({"query", "--remote", sock, "-m", mt.path(),
                       "SELECT count(*) FROM slice"});
   EXPECT_EQ(r4.exit_code, 0) << r4.out;
@@ -700,7 +700,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicExportQueryDisallowed) {
   // -e + -q should be disallowed with a clear error message.
   auto trace = WriteSimpleSystrace();
   auto query = WriteTempFile("SELECT 1;");
-  auto out_db = base::TempFile::Create();
+  auto out_db = base::TempFile::CreateFileForTest();
   auto result =
       RunShell({"-e", out_db.path(), "-q", query.path(), trace.path()});
   EXPECT_NE(result.exit_code, 0);
@@ -710,7 +710,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicExportQueryDisallowed) {
 TEST(TraceProcessorShellIntegrationTest, ClassicPerfFile) {
   // --perf-file FILE -Q "SQL" -> query --perf-file FILE trace "SQL"
   auto trace = WriteSimpleSystrace();
-  auto perf = base::TempFile::Create();
+  auto perf = base::TempFile::CreateFileForTest();
   auto result = RunShell(
       {"--perf-file", perf.path(), "-Q", "SELECT 200 + 61", trace.path()});
   EXPECT_EQ(result.exit_code, 0);
@@ -953,7 +953,7 @@ TEST(TraceProcessorShellIntegrationTest, SummarizeSubcommandNoTraceFails) {
 
 TEST(TraceProcessorShellIntegrationTest, ExportSubcommandSqlite) {
   auto trace = WriteSimpleSystrace();
-  auto out_db = base::TempFile::Create();
+  auto out_db = base::TempFile::CreateFileForTest();
   auto result =
       RunShell({"export", "sqlite", "-o", out_db.path(), trace.path()});
   EXPECT_EQ(result.exit_code, 0);
@@ -1012,7 +1012,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
 // This test requires llvm-symbolize on the PATH
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   const std::string& out_path = out_file.path();
 
   auto symbolize = [&](const std::string& in_file,
@@ -1333,7 +1333,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
   auto mapping = WriteTempFile(
       "com.example.Foo -> a.a:\n"
       "    void bar() -> b\n");
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
@@ -1369,7 +1369,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
 TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
   auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
   auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
@@ -1386,7 +1386,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
@@ -1407,7 +1407,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleHelpShowsProguardMap) {
 // the packet for the explicit package still appears in the bundle.
 TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   const std::string& out_path = out_file.path();
 
   auto result =

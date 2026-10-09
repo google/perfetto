@@ -47,7 +47,7 @@ int FuzzRingBuffer(const uint8_t* data, size_t size) {
   if (size <= sizeof(SharedRingBuffer::MetadataPage))
     return 0;
 
-  auto fd = base::TempFile::CreateUnlinked().ReleaseFD();
+  auto fd = base::TempFile::CreateUnlinkedFileForTest().ReleaseFD();
   PERFETTO_CHECK(fd);
 
   // Use fuzzer input to first fill the SharedRingBuffer::MetadataPage in the

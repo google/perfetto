@@ -51,7 +51,7 @@ sysfs / sysfs rw,nosuid,nodev,noexec,relatime 0 0
 devfs /dev devfs,local,nobrowse
 )";
 
-  base::TempFile tmp_file = base::TempFile::Create();
+  base::TempFile tmp_file = base::TempFile::CreateFileForTest();
   ASSERT_EQ(base::WriteAll(tmp_file.fd(), kMounts, sizeof(kMounts)),
             static_cast<ssize_t>(sizeof(kMounts)));
   std::multimap<BlockDeviceID, std::string> mounts =

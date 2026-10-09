@@ -65,7 +65,7 @@ constexpr char kTestFileContents[] =
 constexpr ssize_t kTestFileLength = base::ArraySize(kTestFileContents);
 
 TEST(BreakpadSymbolizerTest, SymbolFrames) {
-  base::TempFile test_file = base::TempFile::Create();
+  base::TempFile test_file = base::TempFile::CreateFileForTest();
   ASSERT_TRUE(*test_file);
   ssize_t written =
       base::WriteAll(test_file.fd(), kTestFileContents, kTestFileLength);
@@ -113,7 +113,7 @@ constexpr ssize_t kSourceLocationTestLength =
     base::ArraySize(kSourceLocationTestContents);
 
 TEST(BreakpadSymbolizerTest, SourceLocationInFrames) {
-  base::TempFile test_file = base::TempFile::Create();
+  base::TempFile test_file = base::TempFile::CreateFileForTest();
   ASSERT_TRUE(*test_file);
   ssize_t written = base::WriteAll(test_file.fd(), kSourceLocationTestContents,
                                    kSourceLocationTestLength);
@@ -145,7 +145,7 @@ TEST(BreakpadSymbolizerTest, SourceLocationInFrames) {
 }
 
 TEST(BreakpadSymbolizerTest, SourceLocationNotFound) {
-  base::TempFile test_file = base::TempFile::Create();
+  base::TempFile test_file = base::TempFile::CreateFileForTest();
   ASSERT_TRUE(*test_file);
   ssize_t written =
       base::WriteAll(test_file.fd(), kTestFileContents, kTestFileLength);

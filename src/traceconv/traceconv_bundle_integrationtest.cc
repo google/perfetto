@@ -53,7 +53,7 @@ class ArgvInvoker {
 };
 
 base::TempFile WriteTempFile(const std::string& content) {
-  auto f = base::TempFile::Create();
+  auto f = base::TempFile::CreateFileForTest();
   PERFETTO_CHECK(base::WriteAll(f.fd(), content.data(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
   return f;
@@ -115,7 +115,7 @@ class TraceconvBundleTest : public ::testing::Test {
     return names;
   }
 
-  base::TempFile output_file_ = base::TempFile::Create();
+  base::TempFile output_file_ = base::TempFile::CreateFileForTest();
   std::string input_trace_;
   std::string output_path_;
 };

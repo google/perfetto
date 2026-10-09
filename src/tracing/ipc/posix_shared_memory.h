@@ -45,8 +45,12 @@ class PosixSharedMemory : public SharedMemory {
     std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) override;
   };
 
-  // Creates a new SHM region. Crashes if the memory cannot be allocated.
-  static std::unique_ptr<PosixSharedMemory> Create(size_t size);
+  // Creates a new SHM region and returns nullptr on failure.
+  // Seals each memfd, so its size cannot change and it takes no more seals.
+  // If |require_sealed_memfd| is true, requires a sealed memfd, otherwise
+  // permits a temporary file fallback.
+  static std::unique_ptr<PosixSharedMemory> Create(size_t size,
+                                                   bool require_sealed_memfd);
 
   // Mmaps an existing SHM region for shared read/write access.
   // - Takes ownership of the descriptor, also on failure.

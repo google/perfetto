@@ -278,7 +278,7 @@ class DebuginfodIntegrationTest : public testing::Test {
     p.args.exec_cmd.insert(p.args.exec_cmd.end(), args.begin(), args.end());
     p.args.env = Environment(extra_env);
     p.args.stdin_mode = base::Subprocess::InputMode::kDevNull;
-    base::TempFile stdout_file = base::TempFile::Create();
+    base::TempFile stdout_file = base::TempFile::CreateFileForTest();
     p.args.stdout_mode = base::Subprocess::OutputMode::kFd;
     p.args.out_fd.reset(dup(stdout_file.fd()));
     p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;

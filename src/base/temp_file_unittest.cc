@@ -17,9 +17,14 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/file_utils.h"
 
+#include <stdlib.h>
 #include <sys/stat.h>
 
+#include <optional>
+#include <string>
+
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/utils.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
@@ -31,16 +36,22 @@ namespace perfetto {
 namespace base {
 namespace {
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+constexpr char kTempDirEnvVar[] = "TMP";
+#else
+constexpr char kTempDirEnvVar[] = "TMPDIR";
+#endif
+
 bool PathExists(const std::string& path) {
   struct stat stat_buf;
   return stat(path.c_str(), &stat_buf) == 0;
 }
 
-TEST(TempFileTest, Create) {
+TEST(TempFileTest, MaybeCreate) {
   std::string path;
   int fd;
   {
-    TempFile tf = TempFile::Create();
+    TempFile tf = TempFile::MaybeCreate();
     path = tf.path();
     fd = tf.fd();
     ASSERT_NE("", path);
@@ -73,7 +84,7 @@ TEST(TempFileTest, Create) {
 }
 
 TEST(TempFileTest, ReopenForWriting) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::CreateFileForTest();
   ASSERT_EQ(WriteAll(file.fd(), "old", 3), 3);
 
   ScopedFile reopened = OpenFile(file.path(), O_RDWR | O_TRUNC);
@@ -86,10 +97,10 @@ TEST(TempFileTest, ReopenForWriting) {
   EXPECT_EQ(contents, "new");
 }
 
-TEST(TempFileTest, CreateUnlinked) {
+TEST(TempFileTest, MaybeCreateUnlinked) {
   int fd;
   {
-    TempFile tf = TempFile::CreateUnlinked();
+    TempFile tf = TempFile::MaybeCreateUnlinked();
     ASSERT_EQ("", tf.path());
     fd = tf.fd();
     ASSERT_GE(fd, 0);
@@ -102,10 +113,76 @@ TEST(TempFileTest, CreateUnlinked) {
 #endif
 }
 
+TEST(TempFileTest, MaybeCreateUnlinkedReleaseFD) {
+  TempFile file = TempFile::MaybeCreateUnlinked();
+  ASSERT_GE(file.fd(), 0);
+  EXPECT_TRUE(file.path().empty());
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  struct stat stat_buf = {};
+  ASSERT_EQ(fstat(file.fd(), &stat_buf), 0);
+  EXPECT_EQ(stat_buf.st_nlink, 0u);
+#endif
+  ScopedFile fd = file.ReleaseFD();
+  EXPECT_EQ(file.fd(), -1);
+  ASSERT_EQ(WriteAll(*fd, "foo", 3), 3);
+  ASSERT_TRUE(SeekFile(*fd, 0));
+  std::string contents;
+  ASSERT_TRUE(ReadFileDescriptor(*fd, &contents));
+  EXPECT_EQ(contents, "foo");
+}
+
+TEST(TempFileTest, CreationFailureReturnsInvalidFile) {
+  // A regular file cannot serve as a temporary directory.
+  TempFile parent = TempFile::CreateFileForTest();
+  const char* value = getenv(kTempDirEnvVar);
+  const auto saved = value ? std::optional<std::string>(value) : std::nullopt;
+  SetEnv(kTempDirEnvVar, parent.path());
+  TempFile file = TempFile::MaybeCreate();
+  TempFile unlinked_file = TempFile::MaybeCreateUnlinked();
+  if (saved) {
+    SetEnv(kTempDirEnvVar, *saved);
+  } else {
+    UnsetEnv(kTempDirEnvVar);
+  }
+  EXPECT_EQ(file.fd(), -1);
+  EXPECT_TRUE(file.path().empty());
+  EXPECT_FALSE(file.ReleaseFD());
+  EXPECT_EQ(unlinked_file.fd(), -1);
+  EXPECT_TRUE(unlinked_file.path().empty());
+  EXPECT_FALSE(unlinked_file.ReleaseFD());
+}
+
+TEST(TempFileTest, UnlinkClearsPath) {
+  TempFile file = TempFile::CreateFileForTest();
+  const std::string path = file.path();
+  EXPECT_TRUE(file.Unlink());
+  EXPECT_TRUE(file.path().empty());
+  EXPECT_FALSE(PathExists(path));
+  // Unlink() also succeeds if the file is already unlinked.
+  EXPECT_TRUE(file.Unlink());
+  // The descriptor stays open.
+  EXPECT_EQ(WriteAll(file.fd(), "foo", 3), 3);
+}
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST(TempFileTest, UnlinkFailureKeepsPath) {
+  TempFile file = TempFile::CreateFileForTest();
+  const std::string path = file.path();
+  ASSERT_EQ(unlink(path.c_str()), 0);
+  EXPECT_FALSE(file.Unlink());
+  EXPECT_EQ(file.path(), path);
+
+  // The destructor aborts if it cannot unlink the path, so create it again.
+  ASSERT_TRUE(OpenFile(path, O_CREAT | O_RDWR, 0600));
+  EXPECT_TRUE(file.Unlink());
+  EXPECT_FALSE(PathExists(path));
+}
+#endif
+
 TEST(TempFileTest, ReleaseUnlinked) {
   ScopedFile fd;
   {
-    TempFile tf = TempFile::Create();
+    TempFile tf = TempFile::CreateFileForTest();
     fd = tf.ReleaseFD();
   }
   ASSERT_GE(write(*fd, "foo", 4), 0);
@@ -115,7 +192,7 @@ TEST(TempFileTest, ReleaseLinked) {
   ScopedFile fd;
   std::string path;
   {
-    TempFile tf = TempFile::CreateUnlinked();
+    TempFile tf = TempFile::CreateUnlinkedFileForTest();
     path = tf.path();
     fd = tf.ReleaseFD();
   }

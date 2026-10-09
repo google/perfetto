@@ -22,8 +22,10 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -62,8 +64,9 @@ TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
 }
 
 TEST(PosixSharedMemoryTest, DestructorClosesFD) {
-  std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::Create(base::GetSysPageSize());
+  std::unique_ptr<PosixSharedMemory> shm = PosixSharedMemory::Create(
+      base::GetSysPageSize(),
+      /*require_sealed_memfd=*/PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD));
   ASSERT_NE(shm.get(), nullptr);
   int fd = shm->fd();
   ASSERT_GE(fd, 0);
@@ -73,8 +76,63 @@ TEST(PosixSharedMemoryTest, DestructorClosesFD) {
   ASSERT_TRUE(IsFileDescriptorClosed(fd));
 }
 
+TEST(PosixSharedMemoryTest, CreateRequiresSealedMemfd) {
+  auto memory = PosixSharedMemory::Create(4096, /*require_sealed_memfd=*/true);
+  if (!HasMemfdSupport()) {
+    EXPECT_FALSE(memory);
+    return;
+  }
+  ASSERT_TRUE(memory);
+  constexpr int seals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
+  const int actual_seals = fcntl(memory->fd(), F_GET_SEALS);
+  ASSERT_GE(actual_seals, 0);
+  EXPECT_EQ(actual_seals & seals, seals);
+  EXPECT_EQ(ftruncate(memory->fd(), 2048), -1);
+  EXPECT_EQ(ftruncate(memory->fd(), 8192), -1);
+  EXPECT_EQ(fcntl(memory->fd(), F_ADD_SEALS, F_SEAL_WRITE), -1);
+  memcpy(memory->start(), "writable", 9);
+}
+
+// Without the requirement, Create() still prefers a sealed memfd.
+// It uses an unsealed temporary file only if memfd is not available.
+TEST(PosixSharedMemoryTest, CreatePermitsTempFileFallback) {
+  auto memory = PosixSharedMemory::Create(4096, /*require_sealed_memfd=*/false);
+  ASSERT_TRUE(memory);
+  EXPECT_EQ(memory->size(), 4096u);
+  memcpy(memory->start(), "writable", 9);
+  if (!HasMemfdSupport())
+    return;
+  constexpr int seals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
+  const int actual_seals = fcntl(memory->fd(), F_GET_SEALS);
+  ASSERT_GE(actual_seals, 0);
+  EXPECT_EQ(actual_seals & seals, seals);
+}
+
+#if GTEST_HAS_DEATH_TEST
+TEST(PosixSharedMemoryTest, CreateReturnsNullWhenFileDescriptorsAreExhausted) {
+  // Limit only the child so the test runner can still open files.
+  ASSERT_EXIT(
+      {
+        struct rlimit limit = {};
+        if (getrlimit(RLIMIT_NOFILE, &limit) != 0)
+          _exit(2);
+        limit.rlim_cur = 0;
+        if (setrlimit(RLIMIT_NOFILE, &limit) != 0)
+          _exit(3);
+        if (PosixSharedMemory::Create(4096,
+                                      /*require_sealed_memfd=*/true) ||
+            PosixSharedMemory::Create(4096,
+                                      /*require_sealed_memfd=*/false)) {
+          _exit(4);
+        }
+        _exit(0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+#endif
+
 TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
-  base::TempFile tmp_file = base::TempFile::CreateUnlinked();
+  base::TempFile tmp_file = base::TempFile::CreateUnlinkedFileForTest();
   const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, static_cast<off_t>(base::GetSysPageSize())));
   ASSERT_EQ(7, base::WriteAll(fd_num, "foobar", 7));
@@ -97,7 +155,7 @@ TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
-  base::TempFile tmp_file = base::TempFile::CreateUnlinked();
+  base::TempFile tmp_file = base::TempFile::CreateUnlinkedFileForTest();
   const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, static_cast<off_t>(base::GetSysPageSize())));
 
@@ -116,7 +174,7 @@ TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
 TEST(PosixSharedMemoryTest, AttachToFdRejectsNullAndEmpty) {
   EXPECT_FALSE(PosixSharedMemory::AttachToFd(
       base::ScopedFile(), /*require_seals_if_supported=*/false, 4096));
-  auto empty = base::TempFile::CreateUnlinked();
+  auto empty = base::TempFile::CreateUnlinkedFileForTest();
   int fd = empty.fd();
   EXPECT_FALSE(PosixSharedMemory::AttachToFd(
       empty.ReleaseFD(), /*require_seals_if_supported=*/false, 4096));
@@ -124,7 +182,7 @@ TEST(PosixSharedMemoryTest, AttachToFdRejectsNullAndEmpty) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFdRejectsReadOnly) {
-  auto file = base::TempFile::Create();
+  auto file = base::TempFile::CreateFileForTest();
   ASSERT_EQ(ftruncate(file.fd(), 4096), 0);
   auto read_only = base::OpenFile(file.path(), O_RDONLY);
   ASSERT_TRUE(read_only);
@@ -135,7 +193,10 @@ TEST(PosixSharedMemoryTest, AttachToFdRejectsReadOnly) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFdEnforcesMaxSize) {
-  auto memory = PosixSharedMemory::Create(4096);
+  auto memory = PosixSharedMemory::Create(
+      4096,
+      /*require_sealed_memfd=*/PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD));
+  ASSERT_TRUE(memory);
   for (size_t max_size : {size_t{0}, size_t{4095}}) {
     auto fd = base::DupFile(memory->fd());
     ASSERT_TRUE(fd);
@@ -157,8 +218,10 @@ TEST(PosixSharedMemoryTest, CreateAndMap) {
   // Deliberately trying to cover cases where the shm size is smaller than the
   // system page size (crbug.com/1116576).
   const size_t kLessThanAPage = 2048;
-  std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::Create(kLessThanAPage);
+  std::unique_ptr<PosixSharedMemory> shm = PosixSharedMemory::Create(
+      kLessThanAPage,
+      /*require_sealed_memfd=*/PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD));
+  ASSERT_TRUE(shm);
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(shm_start, nullptr);

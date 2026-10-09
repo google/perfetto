@@ -45,7 +45,7 @@ size_t TestDescriptorSize() {
 
 std::string FilterToText(FilterUtil& filter,
                          const std::optional<std::string>& bytecode = {}) {
-  auto tmp_file = perfetto::base::TempFile::Create();
+  auto tmp_file = perfetto::base::TempFile::CreateFileForTest();
   {
     perfetto::base::ScopedFstream tmp_stream(
         perfetto::base::OpenFstream(tmp_file.path(), "w"));

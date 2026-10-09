@@ -41,7 +41,7 @@ using testing::HasSubstr;
 
 class TarWriterTest : public ::testing::Test {
  protected:
-  TarWriterTest() : temp_file_(base::TempFile::Create()) {}
+  TarWriterTest() : temp_file_(base::TempFile::CreateFileForTest()) {}
 
   void SetUp() override { output_path_ = temp_file_.path(); }
 
@@ -54,7 +54,7 @@ class TarWriterTest : public ::testing::Test {
 
   // Helper to create a test file with specific content
   std::string CreateTestFile(const std::string& content) {
-    base::TempFile temp_test_file = base::TempFile::Create();
+    base::TempFile temp_test_file = base::TempFile::CreateFileForTest();
     std::string path = temp_test_file.path();
     std::ofstream file(path);
     file << content;

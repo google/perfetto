@@ -32,7 +32,7 @@ namespace {
 
 TEST(ProfilerCpuGuardrailsTest, Exceeded) {
   const auto clk = static_cast<unsigned long>(sysconf(_SC_CLK_TCK));
-  base::TempFile f = base::TempFile::CreateUnlinked();
+  base::TempFile f = base::TempFile::CreateUnlinkedFileForTest();
   constexpr const char stat[] =
       "2965981 (zsh) S 2965977 2965981 2965981 34822 2966607 4194304 6632 6697 "
       "0 0 1000000 6000000 4 1 20 0 1 0 227163466 15839232 2311 "
@@ -52,7 +52,7 @@ TEST(ProfilerCpuGuardrailsTest, Exceeded) {
 
 TEST(ProfilerCpuGuardrailsTest, NotExceeded) {
   const auto clk = static_cast<unsigned long>(sysconf(_SC_CLK_TCK));
-  base::TempFile f = base::TempFile::CreateUnlinked();
+  base::TempFile f = base::TempFile::CreateUnlinkedFileForTest();
   constexpr const char stat[] =
       "2965981 (zsh) S 2965977 2965981 2965981 34822 2966607 4194304 6632 6697 "
       "0 0 1000000 6000000 4 1 20 0 1 0 227163466 15839232 2311 "
@@ -71,7 +71,7 @@ TEST(ProfilerCpuGuardrailsTest, NotExceeded) {
 }
 
 TEST(ProfilerMemoryGuardrailsTest, Exceeded) {
-  base::TempFile f = base::TempFile::CreateUnlinked();
+  base::TempFile f = base::TempFile::CreateUnlinkedFileForTest();
   constexpr const char status[] =
       "VmPeak:\t    5432 kB\n"
       "VmSize:\t    5432 kB\n"
@@ -99,7 +99,7 @@ TEST(ProfilerMemoryGuardrailsTest, Exceeded) {
 }
 
 TEST(ProfilerMemoryGuardrailsTest, NotExceeded) {
-  base::TempFile f = base::TempFile::CreateUnlinked();
+  base::TempFile f = base::TempFile::CreateUnlinkedFileForTest();
   constexpr const char status[] =
       "VmPeak:\t    5432 kB\n"
       "VmSize:\t    5432 kB\n"

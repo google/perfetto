@@ -3858,7 +3858,7 @@ TEST(CpuReaderTest, FrozenPageRead) {
 
   // build test buffer with 8 pages
   size_t page_sz = base::GetSysPageSize();
-  base::TempFile test_pages = base::TempFile::CreateUnlinked();
+  base::TempFile test_pages = base::TempFile::CreateUnlinkedFileForTest();
   base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
   base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
   base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);

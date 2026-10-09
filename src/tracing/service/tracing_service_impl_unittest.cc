@@ -2797,7 +2797,7 @@ TEST_F(TracingServiceImplTest, CompressionWriteIntoFile) {
   ds_config->set_target_buffer(0);
   trace_config.set_write_into_file(true);
   trace_config.set_compression_type(TraceConfig::COMPRESSION_TYPE_DEFLATE);
-  base::TempFile tmp_file = base::TempFile::Create();
+  base::TempFile tmp_file = base::TempFile::CreateFileForTest();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
 
   producer->WaitForTracingSetup();
@@ -3095,7 +3095,7 @@ TEST_F(TracingServiceImplTest, FlushStrategies) {
     producer->Connect(svc.get(), producer_name);
     producer->RegisterDataSource("data_source");
 
-    base::TempFile tmp_file = base::TempFile::Create();
+    base::TempFile tmp_file = base::TempFile::CreateFileForTest();
     consumer->EnableTracing(cfg, base::ScopedFile(dup(tmp_file.fd())));
     producer->WaitForTracingSetup();
     producer->WaitForDataSourceSetup("data_source");
@@ -3211,7 +3211,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   trace_config.set_file_write_period_ms(100000);  // 100s
   const uint64_t kMaxFileSize = 1024;
   trace_config.set_max_file_size_bytes(kMaxFileSize);
-  base::TempFile tmp_file = base::TempFile::Create();
+  base::TempFile tmp_file = base::TempFile::CreateFileForTest();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
 
   producer->WaitForTracingSetup();
@@ -3274,7 +3274,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
 }
 
 TEST_F(TracingServiceImplTest, WriteIntoFileWithPath) {
-  auto tmp_file = base::TempFile::Create();
+  auto tmp_file = base::TempFile::CreateFileForTest();
   // Deletes the file (the service would refuse to overwrite an existing file)
   // without telling it to the underlying TempFile, so that its dtor will
   // unlink the file created by the service.
@@ -3340,7 +3340,7 @@ TEST_F(TracingServiceImplTest, FlushBeforeWriteIntoFile) {
   trace_config.set_file_write_period_ms(10000);  // 10s
   // Flush before write into file is turned on by default.
 
-  auto write_into_file_session_file = base::TempFile::Create();
+  auto write_into_file_session_file = base::TempFile::CreateFileForTest();
   consumer->EnableTracing(
       trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
 
@@ -3383,7 +3383,7 @@ TEST_F(TracingServiceImplTest, NoFlushBeforeWriteIntoFile) {
   trace_config.set_file_write_period_ms(10000);  // 10s
   trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_DISABLED);
 
-  auto write_into_file_session_file = base::TempFile::Create();
+  auto write_into_file_session_file = base::TempFile::CreateFileForTest();
   consumer->EnableTracing(
       trace_config, base::ScopedFile(dup(write_into_file_session_file.fd())));
 
@@ -3414,8 +3414,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionBeforeWrite) {
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
   }
 
-  auto write_into_file_session_file = base::TempFile::Create();
-  auto cloned_session_file = base::TempFile::Create();
+  auto write_into_file_session_file = base::TempFile::CreateFileForTest();
+  auto cloned_session_file = base::TempFile::CreateFileForTest();
 
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -3510,8 +3510,8 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionAfterWrite) {
     GTEST_SKIP() << "This test requires buffer_clone_preserve_read_iter=true";
   }
 
-  auto write_into_file_session_file = base::TempFile::Create();
-  auto cloned_session_file = base::TempFile::Create();
+  auto write_into_file_session_file = base::TempFile::CreateFileForTest();
+  auto cloned_session_file = base::TempFile::CreateFileForTest();
 
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -3628,8 +3628,9 @@ TEST_F(TracingServiceImplTest, WriteIntoFileCloneSessionLifecycleEvents) {
   std::unique_ptr<MockConsumer> clone_consumer;
   std::unique_ptr<TraceWriter> writer;
 
-  base::TempFile write_into_file_session_file = base::TempFile::Create();
-  base::TempFile cloned_session_file = base::TempFile::Create();
+  base::TempFile write_into_file_session_file =
+      base::TempFile::CreateFileForTest();
+  base::TempFile cloned_session_file = base::TempFile::CreateFileForTest();
 
   auto create_trace_config_fn = []() {
     TraceConfig trace_config;
@@ -3812,7 +3813,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileFilterMultipleChunks) {
   filt.EndMessage();
   trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize().bytecode);
 
-  base::TempFile tmp_file = base::TempFile::Create();
+  base::TempFile tmp_file = base::TempFile::CreateFileForTest();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
 
   producer->WaitForTracingSetup();
@@ -3863,7 +3864,7 @@ TEST_F(TracingServiceImplTest, WriteIntoFileFinalStats) {
   trace_config.set_write_into_file(true);
   trace_config.set_file_write_period_ms(5000);  // 5 seconds period
 
-  base::TempFile tmp_file = base::TempFile::Create();
+  base::TempFile tmp_file = base::TempFile::CreateFileForTest();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
 
   producer->WaitForTracingSetup();
@@ -4525,7 +4526,7 @@ TEST_F(TracingServiceImplTest, ResynchronizeTraceStreamUsingSyncMarker) {
   trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_ENABLED);
   trace_config.set_file_write_period_ms(100);
   trace_config.mutable_builtin_data_sources()->set_snapshot_interval_ms(100);
-  base::TempFile tmp_file = base::TempFile::Create();
+  base::TempFile tmp_file = base::TempFile::CreateFileForTest();
   consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
   producer->WaitForTracingSetup();
   producer->WaitForDataSourceSetup("data_source");
@@ -7510,7 +7511,7 @@ TEST_F(TracingServiceImplTest, CloneWithFileDescriptorNoWriteIntoFile) {
   }
   writer->Flush();
 
-  base::TempFile cloned_session_file = base::TempFile::Create();
+  base::TempFile cloned_session_file = base::TempFile::CreateFileForTest();
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
   EXPECT_CALL(*clone_consumer, OnSessionCloned(_))

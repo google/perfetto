@@ -899,7 +899,10 @@ base::Status Rpc::ExportSqlite(const ExportCallback& callback) {
   // database in a server-controlled temporary file and streams the bytes back
   // to the client. The client never names a path on the server, so this does
   // not expose the server's filesystem.
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::MaybeCreate();
+  if (file.fd() < 0) {
+    return base::ErrStatus("Failed to create temporary file for SQLite export");
+  }
 
   RpcExportOutput output(callback, file.path());
   RETURN_IF_ERROR(

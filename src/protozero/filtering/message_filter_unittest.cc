@@ -37,7 +37,7 @@ namespace protozero {
 namespace {
 
 TEST(MessageFilterTest, EndToEnd) {
-  auto schema = perfetto::base::TempFile::Create();
+  auto schema = perfetto::base::TempFile::CreateFileForTest();
   static const char kSchema[] = R"(
   syntax = "proto2";
   message FilterSchema {
@@ -195,7 +195,7 @@ TEST(MessageFilterTest, Passthrough) {
 }
 
 TEST(MessageFilterTest, ChangeRoot) {
-  auto schema = perfetto::base::TempFile::Create();
+  auto schema = perfetto::base::TempFile::CreateFileForTest();
   static const char kSchema[] = R"(
   syntax = "proto2";
   message FilterSchema {
@@ -293,7 +293,7 @@ TEST(MessageFilterTest, StringFilter) {
 
 TEST(MessageFilterTest, MalformedInput) {
   // Create and load a simple filter.
-  auto schema = perfetto::base::TempFile::Create();
+  auto schema = perfetto::base::TempFile::CreateFileForTest();
   static const char kSchema[] = R"(
   syntax = "proto2";
   message FilterSchema {

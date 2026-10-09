@@ -29,7 +29,7 @@ namespace {
 constexpr char kFakeFilePath[] = "bad/file/path";
 
 TEST(BreakpadParserTest, FileIsEmpty) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::CreateFileForTest();
   BreakpadParser parser(file.path());
   ASSERT_TRUE(parser.ParseFile());
   EXPECT_TRUE(parser.symbols_for_testing().empty());

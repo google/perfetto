@@ -266,7 +266,7 @@ class TestSysStatsDataSource : public SysStatsDataSource {
 };
 
 base::ScopedFile MockOpenReadOnly(const char* path) {
-  base::TempFile tmp_ = base::TempFile::CreateUnlinked();
+  base::TempFile tmp_ = base::TempFile::CreateUnlinkedFileForTest();
   if (!strcmp(path, "/proc/meminfo")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockMeminfo, strlen(kMockMeminfo), 0), 0);
   } else if (!strcmp(path, "/proc/vmstat")) {

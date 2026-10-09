@@ -256,7 +256,7 @@ const char kRestrictedKallsyms[] = R"(
 
 TEST(LazyKernelSymbolizerTest, CanReadKernelSymbolAddresses) {
   {
-    base::TempFile tmp = base::TempFile::Create();
+    base::TempFile tmp = base::TempFile::CreateFileForTest();
     base::WriteAll(tmp.fd(), kRestrictedKallsyms, sizeof(kRestrictedKallsyms));
     base::FlushFile(tmp.fd());
     EXPECT_FALSE(
@@ -264,7 +264,7 @@ TEST(LazyKernelSymbolizerTest, CanReadKernelSymbolAddresses) {
   }
 
   {
-    base::TempFile tmp = base::TempFile::Create();
+    base::TempFile tmp = base::TempFile::CreateFileForTest();
     base::WriteAll(tmp.fd(), kUnrestrictedKallsyms,
                    sizeof(kUnrestrictedKallsyms));
     base::FlushFile(tmp.fd());

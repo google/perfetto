@@ -86,7 +86,7 @@ class FileSystemPlatform final : public TraceProcessor::PlatformInterface {
 // by a standalone SQLite connection and re-attached and queried by a trace
 // processor.
 TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
-  base::TempFile output = base::TempFile::Create();
+  base::TempFile output = base::TempFile::CreateFileForTest();
 
   FileSystemPlatform platform;
   auto tp = TraceProcessor::CreateInstance(Config(), &platform);
