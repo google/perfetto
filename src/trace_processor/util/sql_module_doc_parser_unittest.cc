@@ -199,6 +199,18 @@ CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
   EXPECT_EQ(m.table_views[0].description, "");
 }
 
+TEST(SqlModuleDocParserTest, SeparatedSqlformatDirectiveIsNotDescription) {
+  auto m = Parse(R"(
+-- sqlformat file off
+
+CREATE PERFETTO MACRO _graph_scan_df_agg(x ColumnName)
+RETURNS _ProjectionFragment AS __intrinsic_stringify!($x);
+)");
+  ASSERT_TRUE(m.errors.empty());
+  ASSERT_EQ(m.macros.size(), 1u);
+  EXPECT_EQ(m.macros[0].description, "");
+}
+
 TEST(SqlModuleDocParserTest, MultiLineDescription) {
   auto m = Parse(R"(
 -- First line.
