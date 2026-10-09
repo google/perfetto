@@ -28,8 +28,17 @@ std::string GetSysTempDir();
 
 class TempFile {
  public:
-  static TempFile CreateUnlinked();
-  static TempFile Create();
+  // Creates a temporary file.
+  // On failure, returns an object with an empty path() and fd() == -1.
+  static TempFile MaybeCreate();
+
+  // Like MaybeCreate(), but unlinks the file while keeping its descriptor open.
+  static TempFile MaybeCreateUnlinked();
+
+  // Wrappers for tests that abort on failure. Production callers must use
+  // MaybeCreate() or MaybeCreateUnlinked() and handle failure themselves.
+  static TempFile CreateFileForTest();
+  static TempFile CreateUnlinkedFileForTest();
 
   TempFile(TempFile&&) noexcept;
   TempFile& operator=(TempFile&&);
@@ -41,10 +50,12 @@ class TempFile {
 
   // Unlinks the file from the filesystem but keeps the fd() open.
   // It is safe to call this multiple times.
-  void Unlink();
+  // Returns false on failure and leaves the path unchanged.
+  bool Unlink();
 
-  // Releases the underlying file descriptor. Will unlink the file from the
-  // filesystem if it was created via CreateUnlinked().
+  // Releases the underlying file descriptor.
+  // Will unlink the file from the filesystem if it is still linked.
+  // Aborts if unlink fails.
   ScopedFile ReleaseFD();
 
  private:

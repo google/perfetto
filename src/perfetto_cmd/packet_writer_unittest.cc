@@ -50,7 +50,7 @@ TracePacket CreateTracePacket(F fill_function) {
 }
 
 TEST(PacketWriterTest, FilePacketWriter) {
-  base::TempFile tmp = base::TempFile::CreateUnlinked();
+  base::TempFile tmp = base::TempFile::CreateUnlinkedFileForTest();
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 

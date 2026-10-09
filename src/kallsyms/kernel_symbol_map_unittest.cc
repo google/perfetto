@@ -81,7 +81,7 @@ TEST(KernelSymbolMapTest, ManyTokens) {
 }
 
 TEST(KernelSymbolMapTest, EdgeCases) {
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateFileForTest();
   static const char kContents[] = R"(ffffff8f73e2fa10 t one
 ffffff8f73e2fa20 t two_
 ffffff8f73e2fa30 t _three  [module_name_ignored]
@@ -152,7 +152,7 @@ TEST(KernelSymbolMapTest, GoldenTest) {
     symbols[addr] = sym_name;
     fake_kallsyms += line.ToStdString();
   }
-  base::TempFile tmp = base::TempFile::Create();
+  base::TempFile tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), fake_kallsyms.data(), fake_kallsyms.size());
   base::FlushFile(tmp.fd());
 

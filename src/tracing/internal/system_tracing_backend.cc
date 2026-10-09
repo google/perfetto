@@ -59,7 +59,11 @@ std::unique_ptr<ProducerEndpoint> SystemProducerTracingBackend::ConnectProducer(
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     shm = SharedMemoryWindows::Create(shmem_size_hint);
 #else
-    shm = PosixSharedMemory::Create(shmem_size_hint);
+    // In-tree builds only allow memfd, so the service can verify the seals.
+    shm = PosixSharedMemory::Create(
+        shmem_size_hint,
+        /*require_sealed_memfd=*/PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD));
+    PERFETTO_CHECK(shm);
 #endif
     arbiter = SharedMemoryArbiter::CreateUnboundInstance(
         shm.get(), shmem_page_size_hint, SharedMemoryABI::ShmemMode::kDefault);

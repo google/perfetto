@@ -255,7 +255,7 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::CreateFileForTest();
   const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
@@ -275,7 +275,7 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonAfterParsingTrace) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::CreateFileForTest();
   const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
@@ -298,7 +298,7 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonAfterParsingTrace) {
 
 TEST(TraceProcessorCustomConfigTest,
      RpcImplicitResetPreservesSqlFileAccessGrant) {
-  base::TempFile first_file = base::TempFile::Create();
+  base::TempFile first_file = base::TempFile::CreateFileForTest();
   auto file_system = io::CreateLocalFileSystem();
   FileSystemPlatform platform(file_system);
   Config config;
@@ -318,7 +318,7 @@ TEST(TraceProcessorCustomConfigTest,
   ASSERT_OK(rpc.NotifyEndOfFile());
   ASSERT_OK(rpc.Parse(TraceBlobView()));
 
-  base::TempFile second_file = base::TempFile::Create();
+  base::TempFile second_file = base::TempFile::CreateFileForTest();
   write_file(second_file.path());
 }
 
@@ -361,7 +361,7 @@ TEST(TraceProcessorCustomConfigTest,
 
 TEST(TraceProcessorCustomConfigTest,
      IntrinsicFileWriteUsesConfiguredFileSystem) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::CreateFileForTest();
   const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 

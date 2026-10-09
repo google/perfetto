@@ -760,7 +760,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
 
   if (pid == 0) {
     // Child process.
-    TempFile scoped_tmp = TempFile::CreateUnlinked();
+    TempFile scoped_tmp = TempFile::CreateUnlinkedFileForTest();
     int tmp_fd = scoped_tmp.fd();
     ASSERT_FALSE(ftruncate(tmp_fd, kTmpSize));
     char* mem = reinterpret_cast<char*>(

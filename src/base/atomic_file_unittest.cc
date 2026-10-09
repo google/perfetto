@@ -53,7 +53,7 @@ TEST(AtomicFileTest, PreservesDestinationUntilCommit) {
 }
 
 TEST(AtomicFileTest, AbandonPreservesDestinationAndDeletesTemporaryFile) {
-  auto destination = TempFile::Create();
+  auto destination = TempFile::CreateFileForTest();
   ASSERT_EQ(WriteAll(destination.fd(), "old", 3), 3);
   std::string temporary;
   {

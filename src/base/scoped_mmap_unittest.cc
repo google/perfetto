@@ -73,7 +73,7 @@ TEST_F(ScopedMmapTest, WholeOneByteFile) {
 // base::TempFile keeps the file open for writing, which used to make the
 // mapping fail on Windows.
 TEST_F(ScopedMmapTest, WholeFileHeldOpenForWriting) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::CreateFileForTest();
   ASSERT_EQ(WriteAll(file.fd(), "ccccc", 5), 5);
 
   ScopedMmap mapped = ReadMmapWholeFile(file.path());

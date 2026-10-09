@@ -71,7 +71,7 @@ TEST(CanProfileAndroidTest, DebuggableBuild) {
   std::string content = PackageListLine(
       pkg_uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
       /*profileable=*/false, /*installer=*/"@system");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   // non-app UIDs can be profiled
@@ -92,7 +92,7 @@ TEST(CanProfileAndroidTest, DebuggableApp) {
   std::string content = PackageListLine(
       uid, /*debuggable=*/true, /*profileable_from_shell=*/false,
       /*profileable=*/false, /*installer=*/"@system");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   // Debuggable apps can always be profiled (without installer constraint)
@@ -107,7 +107,7 @@ TEST(CanProfileAndroidTest, NonProfileableApp) {
   std::string content = PackageListLine(
       uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
       /*profileable=*/false, /*installer=*/"@system");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   // Opted out packages cannot be profiled
@@ -122,7 +122,7 @@ TEST(CanProfileAndroidTest, ProfileableApp) {
   std::string content = PackageListLine(
       uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
       /*profileable=*/true, /*installer=*/"@system");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   // Only profileable by the platform
@@ -137,7 +137,7 @@ TEST(CanProfileAndroidTest, ProfileableFromShellApp) {
   std::string content = PackageListLine(
       uid, /*debuggable=*/false, /*profileable_from_shell=*/true,
       /*profileable=*/true, /*installer=*/"@system");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), uid, /*installed_by=*/{},
@@ -152,7 +152,7 @@ TEST(CanProfileAndroidTest, UserProfileUidOffset) {
   std::string content = PackageListLine(
       u0_uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
       /*profileable=*/true, /*installer=*/"@system");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   // Only profileable by the platform
@@ -179,7 +179,7 @@ TEST(CanProfileAndroidTest, InstallerPackageConstraint) {
       uid_installed_by_store, /*debuggable=*/false,
       /*profileable_from_shell=*/true,
       /*profileable=*/true, /*installer=*/"com.installer.package");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   // Can profile if installer in the list (and other checks pass)
@@ -223,7 +223,7 @@ TEST(CanProfileAndroidTest, AppSandboxProcess) {
       PackageListLine(uid_nonprofileable_app, /*debuggable=*/false,
                       /*profileable_from_shell=*/false,
                       /*profileable=*/false, /*installer=*/"@system");
-  auto tmp = base::TempFile::Create();
+  auto tmp = base::TempFile::CreateFileForTest();
   base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
   // Sandbox profileable if the app is profileable
@@ -256,7 +256,7 @@ TEST(CanProfileAndroidTest, IsolatedProcess) {
         PackageListLine(10008, /*debuggable=*/true,
                         /*profileable_from_shell=*/true,
                         /*profileable=*/true, /*installer=*/"@system");
-    auto tmp = base::TempFile::Create();
+    auto tmp = base::TempFile::CreateFileForTest();
     base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
     // Any isolated process is thus profileable by trusted initiators
@@ -281,7 +281,7 @@ TEST(CanProfileAndroidTest, IsolatedProcess) {
         PackageListLine(10008, /*debuggable=*/false,
                         /*profileable_from_shell=*/false,
                         /*profileable=*/false, /*installer=*/"@system");
-    auto tmp = base::TempFile::Create();
+    auto tmp = base::TempFile::CreateFileForTest();
     base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
     // Conservatively conclude that an isolated process is not profileable

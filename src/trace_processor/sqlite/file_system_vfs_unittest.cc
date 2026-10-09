@@ -39,7 +39,7 @@ TEST(SqliteFileSystemVfsTest, CreatesReadableDatabase) {
       SqliteConnection::CreateConnectionToNewDatabase();
   ASSERT_NE(initialization_connection, nullptr);
 
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::CreateFileForTest();
   const std::string& path = file.path();
   auto file_system = io::CreateLocalFileSystem();
   ASSERT_OK_AND_ASSIGN(auto vfs, SqliteFileSystemVfs::Create(file_system));

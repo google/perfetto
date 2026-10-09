@@ -114,7 +114,7 @@ namespace {
 TEST_F(PerfettoCmdlineUnitTest, WriteFailureIgnoresLaterTraceData) {
   for (bool has_more : {true, false}) {
     SCOPED_TRACE(has_more);
-    base::TempFile out_file = base::TempFile::Create();
+    base::TempFile out_file = base::TempFile::CreateFileForTest();
     PerfettoCmd cmd;
     ASSERT_FALSE(ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(),
                                      "--time", "1s"})
@@ -141,7 +141,7 @@ TEST_F(PerfettoCmdlineUnitTest, WriteFailureIgnoresLaterTraceData) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, TraceDataTimeoutIgnoresLaterReplies) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   PerfettoCmd cmd;
   ASSERT_FALSE(
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s"})
@@ -168,7 +168,7 @@ TEST_F(PerfettoCmdlineUnitTest, TraceDataTimeoutIgnoresLaterReplies) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, FinalTraceDataIgnoresLaterReplies) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   PerfettoCmd cmd;
   ASSERT_FALSE(
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s"})
@@ -190,7 +190,7 @@ TEST_F(PerfettoCmdlineUnitTest, FinalTraceDataIgnoresLaterReplies) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeParsesAndStoresAttributes) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   PerfettoCmd cmd;
 
   std::optional<int> res = ParseCmdline(
@@ -217,7 +217,7 @@ TEST_F(PerfettoCmdlineUnitTest, AddAttributeParsesAndStoresAttributes) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeAllowsMissingEquals) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
@@ -233,7 +233,7 @@ TEST_F(PerfettoCmdlineUnitTest, AddAttributeAllowsMissingEquals) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyKey) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
@@ -243,7 +243,7 @@ TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyKey) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyArgument) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::CreateFileForTest();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
@@ -280,13 +280,13 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromInvalidTrace) {
     // an empty file returns an error. We should always check if the file is
     // empty before mmap-ing it, to see the difference between empty file and an
     // actual mmaping error.
-    base::TempFile empty_file = base::TempFile::Create();
+    base::TempFile empty_file = base::TempFile::CreateFileForTest();
     base::ScopedMmap mmaped =
         base::ReadMmapWholeFile(empty_file.path().c_str());
     ASSERT_FALSE(mmaped.IsValid());
   }
   {
-    base::TempFile text_file = base::TempFile::Create();
+    base::TempFile text_file = base::TempFile::CreateFileForTest();
     std::string data = "This is a text file!";
     base::WriteAll(text_file.fd(), data.data(), data.size());
     base::ScopedMmap mmaped = base::ReadMmapWholeFile(text_file.path());
@@ -298,7 +298,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromInvalidTrace) {
 TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
   // Trace with a reporter config and correct trusted_uid.
   {
-    base::TempFile trace_file = base::TempFile::Create();
+    base::TempFile trace_file = base::TempFile::CreateFileForTest();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -328,7 +328,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
 
   // Trace without an config.
   {
-    base::TempFile trace_file = base::TempFile::Create();
+    base::TempFile trace_file = base::TempFile::CreateFileForTest();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -350,7 +350,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
   // Trace with a potentially harmful android reporter config without
   // trusted_uid.
   {
-    base::TempFile trace_file = base::TempFile::Create();
+    base::TempFile trace_file = base::TempFile::CreateFileForTest();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -386,7 +386,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
 
 TEST_F(PerfettoCmdlineUnitTest,
        TruncatesIncompleteTrailingPacketAndAppendsAfterRebootEvent) {
-  base::TempFile trace_file = base::TempFile::Create();
+  base::TempFile trace_file = base::TempFile::CreateFileForTest();
   {
     std::vector<perfetto::TracePacket> packets;
     // Packet A: Config
@@ -487,7 +487,7 @@ TEST_F(PerfettoCmdlineUnitTest,
 
 TEST_F(PerfettoCmdlineUnitTest,
        TruncateAndAnnotatePersistentTraceCleanFileHasZeroTruncatedBytes) {
-  base::TempFile trace_file = base::TempFile::Create();
+  base::TempFile trace_file = base::TempFile::CreateFileForTest();
   {
     std::vector<perfetto::TracePacket> packets;
     packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -556,9 +556,9 @@ TEST_F(PerfettoCmdlineUnitTest,
 
 TEST_F(PerfettoCmdlineUnitTest,
        WaitForRebootTraceUploadOrCleanupActiveSessionPreservesFile) {
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::CreateFileForTest();
   std::string path = temp_file.path();
-  temp_file.Unlink();
+  ASSERT_TRUE(temp_file.Unlink());
   base::ScopedFile fd = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
   ASSERT_TRUE(fd);
   ASSERT_EQ(flock(fd.get(), LOCK_EX | LOCK_NB), 0);
@@ -578,9 +578,9 @@ TEST_F(PerfettoCmdlineUnitTest,
 
 TEST_F(PerfettoCmdlineUnitTest,
        WaitForRebootTraceUploadOrCleanupStaleFileCleansUpLeftover) {
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::CreateFileForTest();
   std::string path = temp_file.path();
-  temp_file.Unlink();
+  ASSERT_TRUE(temp_file.Unlink());
   base::ScopedFile fd = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
   EXPECT_TRUE(base::FileExists(path));
   fd.reset();  // File is closed/unlocked (previous session dead/crashed)
@@ -598,9 +598,9 @@ TEST_F(PerfettoCmdlineUnitTest,
 }
 
 TEST_F(PerfettoCmdlineUnitTest, FlockDetectsActiveSessionOnExistingFile) {
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::CreateFileForTest();
   std::string path = temp_file.path();
-  temp_file.Unlink();
+  ASSERT_TRUE(temp_file.Unlink());
   base::ScopedFile fd1 = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
   ASSERT_TRUE(fd1);
   ASSERT_EQ(flock(fd1.get(), LOCK_EX | LOCK_NB), 0);
@@ -619,9 +619,9 @@ TEST_F(PerfettoCmdlineUnitTest, FlockDetectsActiveSessionOnExistingFile) {
 TEST_F(
     PerfettoCmdlineUnitTest,
     WaitForRebootTraceUploadOrCleanupProcessCrashReleasesLockAndCleansUpFile) {
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::CreateFileForTest();
   std::string path = temp_file.path();
-  temp_file.Unlink();
+  ASSERT_TRUE(temp_file.Unlink());
 
   // Fork a child process that creates the persistent file, acquires the
   // exclusive flock, and then simulates an abnormal crash via abort().

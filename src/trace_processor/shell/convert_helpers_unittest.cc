@@ -37,7 +37,7 @@ std::string PathIn(const base::TempDir& dir, const char* name) {
 }
 
 base::TempFile TempFileWith(const std::string& content) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::CreateFileForTest();
   PERFETTO_CHECK(base::WriteAll(file.fd(), content.data(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
   return file;
@@ -67,7 +67,7 @@ TEST(ConvertHelpersTest, OpenConversionInputMissingFileFails) {
 }
 
 TEST(ConvertHelpersTest, OpenConversionOutputWritesFile) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::CreateFileForTest();
 
   std::ofstream owned;
   std::ostream* stream = nullptr;

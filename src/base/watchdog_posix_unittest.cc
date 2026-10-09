@@ -38,7 +38,7 @@ TEST(WatchdogPosixTest, ParseProcStat) {
       "94823961161728 94823961762781 140722993535472 0 0 0 2 3686400 134295555 "
       "0 0 0 17 2 0 0 0 0 0 94823961905904 94823961935208 94823993954304 "
       "140722993543678 140722993543691 140722993543691 140722993545195 0";
-  TempFile f = TempFile::CreateUnlinked();
+  TempFile f = TempFile::CreateUnlinkedFileForTest();
   WriteAll(f.fd(), stat, sizeof(stat));
   ASSERT_NE(lseek(f.fd(), 0, SEEK_SET), -1);
   ProcStat ps;
@@ -50,7 +50,7 @@ TEST(WatchdogPosixTest, ParseProcStat) {
 
 TEST(WatchdogPosixTest, ParseProcStatm) {
   constexpr const char statm[] = "1469 507 480 6 0 156 0";
-  TempFile f = TempFile::CreateUnlinked();
+  TempFile f = TempFile::CreateUnlinkedFileForTest();
   WriteAll(f.fd(), statm, sizeof(statm));
   ASSERT_NE(lseek(f.fd(), 0, SEEK_SET), -1);
   ProcStatm psm;

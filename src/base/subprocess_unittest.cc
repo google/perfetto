@@ -200,7 +200,7 @@ TEST(SubprocessTest, FeedbackLongInput) {
 
 TEST(SubprocessTest, CatLargeFile) {
   std::string contents = GenLargeString();
-  TempFile tf = TempFile::Create();
+  TempFile tf = TempFile::CreateFileForTest();
   WriteAll(tf.fd(), contents.data(), contents.size());
   FlushFile(tf.fd());
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

@@ -190,8 +190,8 @@ TEST(TraceRedactorPassTest, EmptyTimelineWithTimelineValidationReturnsError) {
 }
 
 TEST(TraceRedactorTest, EmptyTimelineReturnsError) {
-  auto input_file = base::TempFile::Create();
-  auto output_file = base::TempFile::Create();
+  auto input_file = base::TempFile::CreateFileForTest();
+  auto output_file = base::TempFile::CreateFileForTest();
 
   protos::gen::Trace trace;
   auto* packet = trace.add_packet();
@@ -232,8 +232,8 @@ TEST(TraceRedactorTest, EmptyTimelineReturnsError) {
 #define MAYBE_SinglePassAppendsAugmentAtEnd SinglePassAppendsAugmentAtEnd
 #endif
 TEST(TraceRedactorTest, MAYBE_SinglePassAppendsAugmentAtEnd) {
-  auto input_file = base::TempFile::Create();
-  auto output_file = base::TempFile::Create();
+  auto input_file = base::TempFile::CreateFileForTest();
+  auto output_file = base::TempFile::CreateFileForTest();
 
   protos::gen::Trace trace;
   {
@@ -289,8 +289,8 @@ TEST(TraceRedactorTest, MAYBE_SinglePassAppendsAugmentAtEnd) {
 #define MAYBE_MultiPassPipelineExecution MultiPassPipelineExecution
 #endif
 TEST(TraceRedactorTest, MAYBE_MultiPassPipelineExecution) {
-  auto input_file = base::TempFile::Create();
-  auto output_file = base::TempFile::Create();
+  auto input_file = base::TempFile::CreateFileForTest();
+  auto output_file = base::TempFile::CreateFileForTest();
 
   protos::gen::Trace trace;
   {
@@ -340,8 +340,8 @@ TEST(TraceRedactorTest, MAYBE_MultiPassPipelineExecution) {
 #define MAYBE_ThreePassPipelineExecution ThreePassPipelineExecution
 #endif
 TEST(TraceRedactorTest, MAYBE_ThreePassPipelineExecution) {
-  auto input_file = base::TempFile::Create();
-  auto output_file = base::TempFile::Create();
+  auto input_file = base::TempFile::CreateFileForTest();
+  auto output_file = base::TempFile::CreateFileForTest();
 
   protos::gen::Trace trace;
   {

@@ -26,7 +26,6 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -47,36 +46,49 @@ int kFileSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
 }  // namespace
 
 // static
-std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(size_t size) {
-  base::ScopedFile fd =
-      CreateMemfd("perfetto_shmem", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+std::unique_ptr<PosixSharedMemory> PosixSharedMemory::Create(
+    size_t size,
+    bool require_sealed_memfd) {
+  if (!size) {
+    PERFETTO_ELOG("Invalid shmem size %zu", size);
+    return nullptr;
+  }
+
+  base::ScopedFile fd;
+#if PERFETTO_MEMFD_ENABLED()
+  fd = CreateMemfd("perfetto_shmem", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+  if (!fd)
+    PERFETTO_DPLOG("memfd_create() failed");
+#else
+  if (require_sealed_memfd) {
+    PERFETTO_ELOG("Sealed memfd is not supported");
+    return nullptr;
+  }
+#endif  // PERFETTO_MEMFD_ENABLED()
+
   bool is_memfd = !!fd;
 
-  // In-tree builds only allow mem_fd, so we can inspect the seals to verify the
-  // fd is appropriately sealed. We'll crash in the PERFETTO_CHECK(fd) below if
-  // memfd_create failed.
-#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  if (!fd) {
+  if (!fd && !require_sealed_memfd) {
     // TODO: if this fails on Android we should fall back on ashmem.
-    PERFETTO_DPLOG("memfd_create() failed");
-    fd = base::TempFile::CreateUnlinked().ReleaseFD();
-  }
-#endif
-
-  PERFETTO_CHECK(fd);
-  int res = ftruncate(fd.get(), static_cast<off_t>(size));
-  PERFETTO_CHECK(res == 0);
-
-  if (is_memfd) {
-    // When memfd is supported, file seals should be, too.
-    res = fcntl(*fd, F_ADD_SEALS, kFileSeals);
-    PERFETTO_DCHECK(res == 0);
+    fd = base::TempFile::MaybeCreateUnlinked().ReleaseFD();
   }
 
-  // Callers require a valid buffer and do not handle allocation failure.
-  auto shm = MapFD(std::move(fd), size);
-  PERFETTO_CHECK(shm);
-  return shm;
+  if (!fd) {
+    PERFETTO_PLOG("Couldn't create shmem FD");
+    return nullptr;
+  }
+
+  if (ftruncate(fd.get(), static_cast<off_t>(size)) != 0) {
+    PERFETTO_PLOG("Couldn't resize shmem FD");
+    return nullptr;
+  }
+
+  if (is_memfd && fcntl(fd.get(), F_ADD_SEALS, kFileSeals) != 0) {
+    PERFETTO_PLOG("Couldn't seal shmem FD");
+    return nullptr;
+  }
+
+  return MapFD(std::move(fd), size);
 }
 
 // static
@@ -148,7 +160,12 @@ PosixSharedMemory::Factory::~Factory() {}
 
 std::unique_ptr<SharedMemory> PosixSharedMemory::Factory::CreateSharedMemory(
     size_t size) {
-  return PosixSharedMemory::Create(size);
+  // In-tree builds only allow memfd, so the service can verify the seals.
+  auto memory = PosixSharedMemory::Create(
+      size,
+      /*require_sealed_memfd=*/PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD));
+  PERFETTO_CHECK(memory);
+  return memory;
 }
 
 }  // namespace perfetto

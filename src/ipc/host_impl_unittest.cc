@@ -379,7 +379,7 @@ TEST_F(HostImplTest, SendFileDescriptor) {
   RequestProto req_args;
   cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
   auto on_reply_sent = task_runner_->CreateCheckpoint("on_reply_sent");
-  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::TempFile tx_file = base::TempFile::CreateUnlinkedFileForTest();
   ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
@@ -421,7 +421,7 @@ TEST_F(HostImplTest, ReceiveFileDescriptor) {
 
   static constexpr char kFileContent[] = "shared file";
   RequestProto req_args;
-  base::TempFile tx_file = base::TempFile::CreateUnlinked();
+  base::TempFile tx_file = base::TempFile::CreateUnlinkedFileForTest();
   ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
