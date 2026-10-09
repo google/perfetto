@@ -15,6 +15,7 @@
  */
 
 #include <cinttypes>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -30,6 +31,7 @@
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
+#include "perfetto/protozero/message.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -42,6 +44,9 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/resource.h>
+#include <unistd.h>
+
 #include "src/tracing/ipc/posix_shared_memory.h"
 #endif
 
@@ -72,6 +77,21 @@ class ProducerIPCClientTestPeer {
 
   static uint32_t protocol_abi_versions(const ProducerIPCClientImpl* client) {
     return client->protocol_abi_versions_;
+  }
+
+  // Null before the first InitializeV2RingBuffer() attempt, and after a
+  // sizing or allocation failure.
+  static tracing_v2::ProducerRingBufferArbiter* ring_buffer_arbiter(
+      const ProducerIPCClientImpl* client) {
+    return client->v2_ring_buffer_arbiter_.has_value()
+               ? client->v2_ring_buffer_arbiter_.value().get()
+               : nullptr;
+  }
+
+  // True after the first InitializeV2RingBuffer() attempt, also if it failed.
+  static bool ring_buffer_initialization_attempted(
+      const ProducerIPCClientImpl* client) {
+    return client->v2_ring_buffer_arbiter_.has_value();
   }
 
   // Acts like an InitializeConnection reply to |offered_versions|.
@@ -407,6 +427,38 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
     return test::ProducerIPCClientTestPeer::protocol_abi_versions(client());
   }
 
+  tracing_v2::ProducerRingBufferArbiter* ring_buffer_arbiter() {
+    return test::ProducerIPCClientTestPeer::ring_buffer_arbiter(client());
+  }
+
+  bool ring_buffer_initialization_attempted() {
+    return test::ProducerIPCClientTestPeer::
+        ring_buffer_initialization_attempted(client());
+  }
+
+  // One TRACE_BUFFER_V2 buffer, and one |data_source| that permits v2.
+  static TraceConfig RingBufferConfig(const std::string& data_source) {
+    TraceConfig config;
+    auto* buffer = config.add_buffers();
+    buffer->set_size_kb(64);
+    buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+    auto* source = config.add_data_sources()->mutable_config();
+    source->set_name(data_source);
+    source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+        100);
+    return config;
+  }
+
+  // The service handles requests from the producer in order.
+  // So after this round trip, the service handled all earlier requests, and
+  // the producer received their replies.
+  void Sync() {
+    std::string name = "sync_" + std::to_string(next_checkpoint_++);
+    auto synced = task_runner_->CreateCheckpoint(name);
+    producer_endpoint_->Sync(synced);
+    task_runner_->RunUntilCheckpoint(name);
+  }
+
   void Drain() {
     std::string name = "drain_" + std::to_string(next_checkpoint_++);
     auto drained = task_runner_->CreateCheckpoint(name);
@@ -457,6 +509,363 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
   std::unique_ptr<tracing_v2::SharedRingBuffer> ring_buffer_;
   size_t next_checkpoint_ = 0;
 };
+
+struct InstanceProtocolTestCase {
+  const char* name;
+  uint32_t common_versions;
+  bool request_v2;
+  std::optional<ProtocolAbiVersion> selected_version;
+};
+
+class InstanceProtocolIntegrationTest
+    : public RingBufferTransportIntegrationTest,
+      public testing::WithParamInterface<InstanceProtocolTestCase> {};
+
+// The caller selects the writer API, and initializes the ring buffer before it
+// requests a v2 writer.
+// The endpoint grants a request only if the common mask has its version.
+TEST_P(InstanceProtocolIntegrationTest, ExplicitWriterUsesRequestedProtocol) {
+  const auto& param = GetParam();
+  // Change the client's accepted set before any writers exist.
+  // The service still accepts both formats, so it would expose an invalid v1
+  // fallback.
+  EXPECT_CALL(producer_, OnConnect());
+  test::ProducerIPCClientTestPeer::OnConnectionInitialized(
+      client(), kProtocolAbiV1 | kProtocolAbiV2, param.common_versions);
+
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("perfetto.ring_buffer_arbiter");
+  producer_endpoint_->RegisterDataSource(descriptor);
+
+  DataSourceInstanceID instance = 0;
+  BufferID target_buffer = 0;
+  auto started = task_runner_->CreateCheckpoint("instance_started");
+  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig& setup) {
+        instance = id;
+        target_buffer = static_cast<BufferID>(setup.target_buffer());
+        EXPECT_TRUE(setup.supports_tracing_v2());
+        EXPECT_NE(setup.target_buffer(), 0u);
+      });
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig&) {
+        EXPECT_EQ(id, instance);
+        started();
+      });
+  consumer_endpoint_->EnableTracing(RingBufferConfig(descriptor.name()));
+  task_runner_->RunUntilCheckpoint("instance_started");
+  // The config permits v2, but setup does not allocate the ring buffer.
+  EXPECT_FALSE(ring_buffer_initialization_attempted());
+
+  std::unique_ptr<TraceWriter> writer;
+  if (param.request_v2) {
+    // Writer creation does not initialize the ring buffer.
+    auto early_writer = producer_endpoint_->CreateTraceWriterV2(
+        target_buffer, BufferExhaustedPolicy::kDrop);
+    EXPECT_EQ(early_writer->writer_id(), 0u);
+    EXPECT_FALSE(ring_buffer_initialization_attempted());
+
+    // Without v2 in the common mask, the endpoint allocates and attaches
+    // nothing.
+    producer_endpoint_->InitializeV2RingBuffer();
+    auto* arbiter = ring_buffer_arbiter();
+    EXPECT_EQ(arbiter != nullptr, param.selected_version.has_value());
+    EXPECT_EQ(ring_buffer_initialization_attempted(),
+              param.selected_version.has_value());
+    // A repeated call keeps the arbiter, so it does not attach again.
+    producer_endpoint_->InitializeV2RingBuffer();
+    EXPECT_EQ(ring_buffer_arbiter(), arbiter);
+
+    writer = producer_endpoint_->CreateTraceWriterV2(
+        target_buffer, BufferExhaustedPolicy::kDrop);
+  } else {
+    writer = producer_endpoint_->CreateTraceWriter(
+        target_buffer, BufferExhaustedPolicy::kDrop);
+  }
+  EXPECT_EQ(writer->writer_id() != 0, param.selected_version.has_value());
+  const std::string payload(2000, 'r');
+  {
+    auto packet = writer->NewTracePacket();
+    if (param.selected_version) {
+      // Only a ring buffer writer encodes nested messages as proto groups.
+      EXPECT_EQ(packet->encoding() == protozero::Message::Encoding::kProtoGroup,
+                param.selected_version == kProtocolAbiV2);
+    }
+    packet->set_for_testing()->set_str(payload);
+  }
+
+  if (param.selected_version == kProtocolAbiV2) {
+    // The packet was published while the attach reply was still pending.
+    auto* arbiter = ring_buffer_arbiter();
+    ASSERT_TRUE(arbiter);
+    EXPECT_FALSE(arbiter->IsReaderAttached());
+    Sync();
+    EXPECT_TRUE(arbiter->IsReaderAttached());
+  }
+
+  // Explicit v1 requests must also respect the common mask.
+  const bool supports_v1 = protocol_abi_versions() & kProtocolAbiV1;
+  auto legacy = producer_endpoint_->CreateTraceWriter(
+      target_buffer, BufferExhaustedPolicy::kDrop);
+  EXPECT_EQ(legacy->writer_id() != 0, supports_v1);
+  if (!supports_v1)
+    legacy->NewTracePacket()->set_for_testing()->set_str("forbidden v1");
+  legacy.reset();
+
+  auto written = task_runner_->CreateCheckpoint("instance_written");
+  writer->Flush(written);
+  task_runner_->RunUntilCheckpoint("instance_written");
+
+  EXPECT_CALL(producer_, Flush(_, _, _, _))
+      .WillOnce([&](FlushRequestID id, const DataSourceInstanceID* instances,
+                    size_t count, FlushFlags) {
+        ASSERT_EQ(count, 1u);
+        EXPECT_EQ(instances[0], instance);
+        writer->Flush();
+        producer_endpoint_->NotifyFlushComplete(id);
+      });
+  auto flushed = task_runner_->CreateCheckpoint("instance_flushed");
+  consumer_endpoint_->Flush(10000, [flushed](bool success) {
+    EXPECT_TRUE(success);
+    flushed();
+  });
+  task_runner_->RunUntilCheckpoint("instance_flushed");
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), param.selected_version ? 1u : 0u);
+  if (param.selected_version)
+    EXPECT_EQ(packets[0].for_testing().str(), payload);
+
+  writer.reset();
+  auto stopped = task_runner_->CreateCheckpoint("instance_stopped");
+  EXPECT_CALL(producer_, StopDataSource(instance));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(stopped));
+  consumer_endpoint_->DisableTracing();
+  task_runner_->RunUntilCheckpoint("instance_stopped");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    CommonVersions,
+    InstanceProtocolIntegrationTest,
+    testing::Values(InstanceProtocolTestCase{"BothRequestV2",
+                                             kProtocolAbiV1 | kProtocolAbiV2,
+                                             true, kProtocolAbiV2},
+                    InstanceProtocolTestCase{"BothRequestV1",
+                                             kProtocolAbiV1 | kProtocolAbiV2,
+                                             false, kProtocolAbiV1},
+                    InstanceProtocolTestCase{"V1Only", kProtocolAbiV1, false,
+                                             kProtocolAbiV1},
+                    InstanceProtocolTestCase{"V1OnlyRejectsV2", kProtocolAbiV1,
+                                             true, std::nullopt},
+                    InstanceProtocolTestCase{"V2Only", kProtocolAbiV2, true,
+                                             kProtocolAbiV2},
+                    InstanceProtocolTestCase{"V2OnlyRejectsV1", kProtocolAbiV2,
+                                             false, std::nullopt}),
+    [](const testing::TestParamInfo<InstanceProtocolTestCase>& info) {
+      return info.param.name;
+    });
+
+// The service rejects the ring buffer, so the arbiter enters kDetached.
+// The endpoint keeps the rejected arbiter, and does not attach again or fall
+// back to v1.
+TEST_F(RingBufferTransportIntegrationTest, RejectionStopsV2WithoutFallback) {
+  // Attach the service's one ring buffer for this producer first, so the
+  // attach request from InitializeV2RingBuffer() gets a rejection.
+  Attach();
+  auto setups = Start(RingBufferConfig("perfetto.test"), 1);
+  ASSERT_EQ(setups.size(), 1u);
+  const auto target = static_cast<BufferID>(setups[0].target_buffer());
+
+  producer_endpoint_->InitializeV2RingBuffer();
+  auto* arbiter = ring_buffer_arbiter();
+  ASSERT_TRUE(arbiter);
+  // A writer can publish before the reply arrives.
+  auto early_writer = producer_endpoint_->CreateTraceWriterV2(
+      target, BufferExhaustedPolicy::kDrop);
+  EXPECT_NE(early_writer->writer_id(), 0u);
+  early_writer->NewTracePacket()->set_for_testing()->set_str("early");
+  Sync();
+  EXPECT_FALSE(arbiter->IsReaderAttached());
+
+  // A later instance does not attach again.
+  // Its setup and a repeated InitializeV2RingBuffer() keep the rejected
+  // arbiter.
+  protos::gen::GetAsyncCommandResponse command;
+  auto* setup = command.mutable_setup_data_source();
+  setup->set_new_instance_id(100);
+  setup->mutable_config()->set_target_buffer(target);
+  setup->mutable_config()->set_supports_tracing_v2(true);
+  setup->mutable_config()
+      ->mutable_experimental_tracing_v2()
+      ->set_use_v2_probability_percent(100);
+  EXPECT_CALL(producer_, SetupDataSource(100, _));
+  test::ProducerIPCClientTestPeer::OnServiceRequest(client(), command);
+  producer_endpoint_->InitializeV2RingBuffer();
+  EXPECT_EQ(ring_buffer_arbiter(), arbiter);
+
+  // This writer keeps the rejected mapping.
+  // The service never reads it, so its packets never reach the trace.
+  early_writer->NewTracePacket()->set_for_testing()->set_str("after rejection");
+  // New writers of the instance are NullTraceWriters, with no v1 fallback.
+  auto writer = producer_endpoint_->CreateTraceWriterV2(
+      target, BufferExhaustedPolicy::kDrop);
+  EXPECT_EQ(writer->writer_id(), 0u);
+  writer->NewTracePacket()->set_for_testing()->set_str("no fallback");
+
+  // The connection stays up, and v1 writers still work.
+  auto legacy = producer_endpoint_->CreateTraceWriter(
+      target, BufferExhaustedPolicy::kDrop);
+  legacy->NewTracePacket()->set_for_testing()->set_str("legacy");
+  auto committed = task_runner_->CreateCheckpoint("legacy_after_rejection");
+  legacy->Flush(committed);
+  task_runner_->RunUntilCheckpoint("legacy_after_rejection");
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].for_testing().str(), "legacy");
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
+}
+
+// Disconnect detaches the arbiter.
+// The endpoint keeps the arbiter and the common mask, because writer threads
+// can still use them.
+TEST_F(RingBufferTransportIntegrationTest, DisconnectKeepsDetachedArbiter) {
+  auto setups = Start(RingBufferConfig("perfetto.test"), 1);
+  ASSERT_EQ(setups.size(), 1u);
+  const auto target = static_cast<BufferID>(setups[0].target_buffer());
+  producer_endpoint_->InitializeV2RingBuffer();
+  auto* arbiter = ring_buffer_arbiter();
+  ASSERT_TRUE(arbiter);
+  auto writer = producer_endpoint_->CreateTraceWriterV2(
+      target, BufferExhaustedPolicy::kDrop);
+  ASSERT_NE(writer->writer_id(), 0u);
+  Sync();
+  ASSERT_TRUE(arbiter->IsReaderAttached());
+
+  EXPECT_CALL(producer_, OnDisconnect());
+  producer_endpoint_->Disconnect();
+  EXPECT_EQ(ring_buffer_arbiter(), arbiter);
+  EXPECT_FALSE(arbiter->IsReaderAttached());
+  EXPECT_EQ(protocol_abi_versions(), kProtocolAbiV1 | kProtocolAbiV2);
+
+  // New v2 writers discard their packets.
+  // The existing writer keeps its mapping, and its drain requests do nothing.
+  EXPECT_EQ(producer_endpoint_
+                ->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop)
+                ->writer_id(),
+            0u);
+  writer->NewTracePacket()->set_for_testing()->set_str("after disconnect");
+  writer->Flush();
+  task_runner_->RunUntilIdle();
+
+  // A later call does not replace the arbiter that the writer uses.
+  producer_endpoint_->InitializeV2RingBuffer();
+  EXPECT_EQ(ring_buffer_arbiter(), arbiter);
+  writer.reset();
+  producer_endpoint_.reset();
+}
+
+// The endpoint can go away before the attach reply arrives.
+// Destruction of the IPC port then rejects the pending reply.
+// The reply callback holds a weak pointer to the arbiter, which the endpoint
+// destroyed first.
+TEST_F(RingBufferTransportIntegrationTest, DestroyEndpointWithPendingAttach) {
+  Start(RingBufferConfig("perfetto.test"), 1);
+  producer_endpoint_->InitializeV2RingBuffer();
+  ASSERT_TRUE(ring_buffer_arbiter());
+  producer_endpoint_.reset();
+  task_runner_->RunUntilIdle();
+}
+
+#if GTEST_HAS_DEATH_TEST
+// An allocation failure stays recorded for the connection.
+// Later calls do not retry, and v2 writers discard their packets without a
+// v1 fallback.
+// The child process has no free file descriptors, so memfd_create() fails.
+TEST_F(RingBufferTransportIntegrationTest, AllocationFailureIsNotRetried) {
+  auto setups = Start(RingBufferConfig("perfetto.test"), 1);
+  ASSERT_EQ(setups.size(), 1u);
+  const auto target = static_cast<BufferID>(setups[0].target_buffer());
+  ASSERT_EXIT(
+      {
+        struct rlimit limit = {};
+        if (getrlimit(RLIMIT_NOFILE, &limit) != 0)
+          _exit(2);
+        const struct rlimit saved_limit = limit;
+        limit.rlim_cur = 0;
+        if (setrlimit(RLIMIT_NOFILE, &limit) != 0)
+          _exit(3);
+        producer_endpoint_->InitializeV2RingBuffer();
+        if (setrlimit(RLIMIT_NOFILE, &saved_limit) != 0)
+          _exit(4);
+        if (!ring_buffer_initialization_attempted() || ring_buffer_arbiter())
+          _exit(5);
+
+        // Allocation can succeed now, but the endpoint does not try again.
+        producer_endpoint_->InitializeV2RingBuffer();
+        if (ring_buffer_arbiter())
+          _exit(6);
+        // A v1 writer would have a nonzero ID.
+        auto writer = producer_endpoint_->CreateTraceWriterV2(
+            target, BufferExhaustedPolicy::kDrop);
+        if (writer->writer_id() != 0)
+          _exit(7);
+        _exit(0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+#endif
+
+// A v2 packet that the producer published before its stop ack reaches the
+// trace.
+// Neither the writer nor the endpoint asks for a drain, because the service
+// drains the ring buffer when tracing stops.
+TEST_F(RingBufferTransportIntegrationTest, StopReadsUnflushedRingBufferData) {
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("perfetto.notifies_on_stop");
+  descriptor.set_will_notify_on_stop(true);
+  producer_endpoint_->RegisterDataSource(descriptor);
+
+  DataSourceInstanceID instance = 0;
+  BufferID target = 0;
+  auto started = task_runner_->CreateCheckpoint("stop_instance_started");
+  EXPECT_CALL(producer_, OnTracingSetup());
+  EXPECT_CALL(producer_, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig& setup) {
+        instance = id;
+        target = static_cast<BufferID>(setup.target_buffer());
+      });
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce(InvokeWithoutArgs(started));
+  consumer_endpoint_->EnableTracing(RingBufferConfig(descriptor.name()));
+  task_runner_->RunUntilCheckpoint("stop_instance_started");
+
+  // The service drains once when it accepts the ring buffer.
+  // After this round trip, the attach and that drain are done.
+  producer_endpoint_->InitializeV2RingBuffer();
+  Sync();
+
+  // One small packet stays below the drain threshold.
+  // The writer stays alive until the end, so its destructor does not flush.
+  auto writer = producer_endpoint_->CreateTraceWriterV2(
+      target, BufferExhaustedPolicy::kDrop);
+  ASSERT_NE(writer->writer_id(), 0u);
+  writer->NewTracePacket()->set_for_testing()->set_str("before stop");
+
+  auto stopped = task_runner_->CreateCheckpoint("stop_done");
+  EXPECT_CALL(producer_, StopDataSource(instance)).WillOnce([&] {
+    producer_endpoint_->NotifyDataSourceStopped(instance);
+  });
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(stopped));
+  consumer_endpoint_->DisableTracing();
+  task_runner_->RunUntilCheckpoint("stop_done");
+
+  auto packets = Read();
+  ASSERT_EQ(packets.size(), 1u);
+  EXPECT_EQ(packets[0].for_testing().str(), "before stop");
+  writer.reset();
+}
 
 TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
   TraceConfig config;

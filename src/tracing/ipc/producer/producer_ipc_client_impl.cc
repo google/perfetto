@@ -36,6 +36,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -250,8 +251,12 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
-  protocol_abi_versions_ = 0;
   data_sources_setup_.clear();
+  auto* arbiter = v2_ring_buffer_arbiter_.has_value()
+                      ? v2_ring_buffer_arbiter_.value().get()
+                      : nullptr;
+  if (arbiter)
+    arbiter->Disconnect();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
 
@@ -564,6 +569,52 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
   producer_port_->CommitData(req, std::move(async_response));
 }
 
+void ProducerIPCClientImpl::InitializeV2RingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+#if PERFETTO_TRACING_V2_IPC()
+  if (v2_ring_buffer_arbiter_.has_value() || !connected_ ||
+      !HasNegotiatedV2Abi()) {
+    return;
+  }
+
+  auto size = tracing_v2::RingBufferSizeForShmSizeHint(
+      shared_memory_size_hint_bytes_, TracingService::kMaxShmSize,
+      tracing_v2::kMinChunkSize);
+  if (!size) {
+    PERFETTO_ELOG("tracing v2: cannot size ring buffer for shmem size hint %zu",
+                  shared_memory_size_hint_bytes_);
+    v2_ring_buffer_arbiter_ = nullptr;
+    return;
+  }
+
+  std::shared_ptr<SharedMemory> memory =
+      PosixSharedMemory::Create(*size, /*require_sealed_memfd=*/true);
+  if (!memory) {
+    PERFETTO_ELOG("tracing v2: failed to allocate %zu-byte ring buffer", *size);
+    v2_ring_buffer_arbiter_ = nullptr;
+    return;
+  }
+
+  // The arbiter starts in kPending. After this method returns, writers can
+  // publish while awaiting the reply, dropping packets instead of stalling
+  // if space runs out.
+  v2_ring_buffer_arbiter_ =
+      std::make_unique<tracing_v2::ProducerRingBufferArbiter>(task_runner_,
+                                                              this, memory);
+
+  // Keep the arbiter in kPending until the service replies to the attach
+  // request. The callback sets kAttached on acceptance or kDetached on
+  // rejection.
+  auto* arbiter = v2_ring_buffer_arbiter_.value().get();
+  AttachV2RingBuffer(
+      memory, tracing_v2::kMinChunkSize,
+      [weak_arbiter = arbiter->GetWeakPtr()](bool reader_attached) {
+        if (weak_arbiter)
+          weak_arbiter->OnReaderAttachReply(reader_attached);
+      });
+#endif
+}
+
 void ProducerIPCClientImpl::AttachV2RingBuffer(
     const std::shared_ptr<SharedMemory>& memory,
     uint32_t chunk_size_bytes,
@@ -671,8 +722,27 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferExhaustedPolicy buffer_exhausted_policy) {
   // This method can be called by different threads. |shared_memory_arbiter_| is
   // thread-safe but be aware of accessing any other state in this function.
+  // |protocol_abi_versions_| does not change after setup.
+  if (!(protocol_abi_versions_ & kProtocolAbiV1)) {
+    PERFETTO_ELOG(
+        "Cannot create a v1 trace writer: v1 is not in the common protocol "
+        "mask (%x)",
+        protocol_abi_versions_);
+    return std::make_unique<NullTraceWriter>();
+  }
   return shared_memory_arbiter_->CreateTraceWriter(target_buffer,
                                                    buffer_exhausted_policy);
+}
+
+std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriterV2(
+    BufferID target_buffer,
+    BufferExhaustedPolicy policy) {
+  auto* arbiter = v2_ring_buffer_arbiter_.has_value()
+                      ? v2_ring_buffer_arbiter_.value().get()
+                      : nullptr;
+  if (!arbiter)
+    return std::make_unique<NullTraceWriter>();
+  return arbiter->CreateTraceWriter(target_buffer, policy);
 }
 
 SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {

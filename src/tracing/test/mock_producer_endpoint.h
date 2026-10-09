@@ -42,6 +42,12 @@ class MockProducerEndpoint : public TracingService::ProducerEndpoint {
               (const CommitDataRequest&, CommitDataCallback),
               (override));
   MOCK_METHOD(SharedMemory*, shared_memory, (), (const, override));
+  MOCK_METHOD(void,
+              AttachV2RingBuffer,
+              (const std::shared_ptr<SharedMemory>&,
+               uint32_t,
+               std::function<void(bool)>),
+              (override));
   MOCK_METHOD(void, DrainV2RingBuffer, (), (override));
   MOCK_METHOD(size_t, shared_buffer_page_size_kb, (), (const, override));
   MOCK_METHOD(std::unique_ptr<TraceWriter>,

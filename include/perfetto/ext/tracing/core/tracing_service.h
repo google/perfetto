@@ -146,6 +146,19 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
 
   virtual SharedMemory* shared_memory() const = 0;
 
+  // Attempts to allocate and attach the producer's tracing v2 ring buffer.
+  // Call on the endpoint thread after tracing setup, if the caller selects v2.
+  // Complete this call before allowing writer threads to call
+  // CreateTraceWriterV2().
+  // - After the first attempt, later calls on the same connection do nothing,
+  //   even if sizing, allocation or attachment failed.
+  //   This keeps the arbiter pointer stable for writer threads, which read it
+  //   without a lock.
+  // - Does not wait for the service's attach reply. Writers can publish while
+  //   the reply is pending.
+  // - Does nothing if the endpoint or the connection has no tracing v2.
+  virtual void InitializeV2RingBuffer();
+
   // Attaches the producer's tracing v2 ring buffer to the service, which
   // installs a reader for it. The producer calls this on the endpoint
   // sequence, before any DrainV2RingBuffer().
@@ -199,9 +212,24 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   // writer should be stored by the tracing service. This value is passed
   // upon creation of the data source (StartDataSource()) in the
   // DataSourceConfig.target_buffer().
+  //
+  // Kept for backward compatibility, because Chromium calls it directly.
+  // This method always creates a v1 writer, which writes into the
+  // shared memory buffer (SMB).
+  // If v1 is not in the connection's common mask, it returns a
+  // NullTraceWriter, which discards all packets.
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy) = 0;
+
+  // |CreateTraceWriter| equivalent for tracing service v2.
+  // Creates a ring buffer writer, or a NullTraceWriter on failure.
+  // - Any thread can call it after InitializeV2RingBuffer() returns.
+  // - Does not initialize the ring buffer, and never falls back to v1.
+  // - Endpoints without tracing v2 support return a NullTraceWriter by default.
+  virtual std::unique_ptr<TraceWriter> CreateTraceWriterV2(
+      BufferID,
+      BufferExhaustedPolicy);
 
   // TODO(eseckler): Also expose CreateStartupTraceWriter() ?
 
@@ -485,8 +513,9 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   // specifically:
   // 1) The Service will call Producer::* methods on the Service's task runner.
   // 2) The Producer should call ProducerEndpoint::* methods only on the
-  //    service's task runner, except for ProducerEndpoint::CreateTraceWriter(),
-  //    which can be called on any thread. To disconnect just destroy the
+  //    service's task runner, except for CreateTraceWriter() and
+  //    CreateTraceWriterV2(), which can be called on any thread.
+  //    To disconnect just destroy the
   //    returned ProducerEndpoint object. It is safe to destroy the Producer
   //    once the Producer::OnDisconnect() has been invoked.
   //
@@ -497,7 +526,7 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   // (e.g., if the hints are unreasonably large or other sizes were configured
   // in a tracing session's config). |in_process| enables the ProducerEndpoint
   // to manage its own shared memory and enables use of
-  // |ProducerEndpoint::CreateTraceWriter|.
+  // |ProducerEndpoint::CreateTraceWriter| and |CreateTraceWriterV2|.
   //
   // The producer can optionally provide a non-null |shm|, which the service
   // will adopt for the connection to the producer, provided it is correctly
