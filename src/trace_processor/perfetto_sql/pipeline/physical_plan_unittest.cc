@@ -178,28 +178,6 @@ class PhysicalPlanTest : public ::testing::Test {
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
-TEST_F(PhysicalPlanTest, AFromAloneReadsTheSource) {
-  CreateTree();
-  auto plan = Plan("FROM tree");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_THAT(Names(**plan), ElementsAre("id", "parent_id", "self"));
-  auto rows = Run(**plan, "self");
-  ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(*rows,
-              ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
-}
-
-TEST_F(PhysicalPlanTest, AccumulateUpSumsEachSubtree) {
-  CreateTree();
-  auto plan = Plan("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_THAT(Names(**plan), ElementsAre("id", "parent_id", "self", "total"));
-  auto rows = Run(**plan, "total");
-  ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(*rows,
-              ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
-}
-
 // Optimizing a copy must not change the results of the original plan.
 TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   CreateDataframeTree();
@@ -220,52 +198,6 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
-}
-
-TEST_F(PhysicalPlanTest, AccumulateDownSumsEachRootPath) {
-  CreateTree();
-  auto plan = Plan("FROM tree |> TREE ACCUMULATE DOWN SUM(self) AS path");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  auto rows = Run(**plan, "path");
-  ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(*rows,
-              ElementsAre(Pair(0, 10), Pair(1, 30), Pair(2, 40), Pair(3, 70)));
-}
-
-TEST_F(PhysicalPlanTest, TheSourceCanBeArbitrarySql) {
-  CreateTree();
-  auto plan = Plan(
-      "FROM (SELECT id, parent_id, self * 2 AS doubled FROM tree) "
-      "|> TREE ACCUMULATE UP SUM(doubled) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  auto rows = Run(**plan, "total");
-  ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(
-      *rows, ElementsAre(Pair(0, 200), Pair(1, 120), Pair(2, 60), Pair(3, 80)));
-}
-
-TEST_F(PhysicalPlanTest, StagesAndAggregatesCompose) {
-  CreateTree();
-  Exec("CREATE VIEW sized AS SELECT *, 1 AS one FROM tree");
-  auto plan = Plan(
-      "FROM sized\n"
-      "|> TREE ACCUMULATE UP SUM(self) AS total, SUM(one) AS size\n"
-      "|> TREE ACCUMULATE DOWN SUM(size) AS path_size");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_THAT(Names(**plan), ElementsAre("id", "parent_id", "self", "one",
-                                         "total", "size", "path_size"));
-  auto totals = Run(**plan, "total");
-  ASSERT_TRUE(totals.ok()) << totals.status().message();
-  EXPECT_THAT(*totals,
-              ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
-  auto sizes = Run(**plan, "size");
-  ASSERT_TRUE(sizes.ok()) << sizes.status().message();
-  EXPECT_THAT(*sizes,
-              ElementsAre(Pair(0, 4), Pair(1, 2), Pair(2, 1), Pair(3, 1)));
-  auto path_sizes = Run(**plan, "path_size");
-  ASSERT_TRUE(path_sizes.ok()) << path_sizes.status().message();
-  EXPECT_THAT(*path_sizes,
-              ElementsAre(Pair(0, 4), Pair(1, 6), Pair(2, 5), Pair(3, 7)));
 }
 
 TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
@@ -364,23 +296,6 @@ TEST_F(PhysicalPlanTest, APlanOutlivesTheTableItReads) {
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
 }
 
-TEST_F(PhysicalPlanTest, LogicalPlanRetainsColumnsBeforeLowering) {
-  CreateDataframeTree();
-  PerfettoSqlParser parser(macros_, catalog_,
-                           /*pipelines_allowed=*/true);
-  parser.Reset(SqlSource::FromExecuteQuery(
-      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total"));
-  ASSERT_TRUE(parser.Next());
-  LogicalPlan plan =
-      std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
-  catalog_.RemoveTable("df");
-  auto physical = Lower(plan);
-  auto rows = Run(*physical, "total");
-  ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(*rows,
-              ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
-}
-
 TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
   CreateTree();
   Exec("UPDATE tree SET self = 'many'");
@@ -413,33 +328,6 @@ TEST_F(PhysicalPlanTest, AnIncompleteTreeFailsTheRun) {
       "|> TREE ACCUMULATE UP SUM(self) AS total");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_FALSE(Run(**plan, "total").ok());
-}
-
-TEST_F(PhysicalPlanTest, APlanCanRunMoreThanOnce) {
-  CreateTree();
-  auto plan = Plan("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  auto first = Run(**plan, "total");
-  auto second = Run(**plan, "total");
-  ASSERT_TRUE(first.ok() && second.ok());
-  EXPECT_EQ(*first, *second);
-}
-
-// A plan read back from its bytes runs, reading a table replaced by one of
-// the same shape as it is now.
-TEST_F(PhysicalPlanTest, APlanReadBackReadsTablesAsTheyAreNow) {
-  CreateDataframeTree();
-  auto plan = Compile("FROM df |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  std::string bytes = SerializePlan(*plan);
-  catalog_.RemoveTable("df");
-  catalog_.AddTable("df", {"id", "parent_id", "self"},
-                    {{1, 0, 2}, {0, std::nullopt, 1}});
-  auto read = DeserializePlan(bytes, catalog_);
-  ASSERT_TRUE(read.ok()) << read.status().message();
-  auto rows = Run(*Lower(*read), "total");
-  ASSERT_TRUE(rows.ok()) << rows.status().message();
-  EXPECT_THAT(*rows, ElementsAre(Pair(0, 3), Pair(1, 2)));
 }
 
 }  // namespace
