@@ -154,14 +154,14 @@ INTERVAL INTERSECTION OF (
 3. **Use `PER` instead of partition column lists or `PARTITIONED`.**
    Write `PER cpu` or `PER utid, track_id`. For unpartitioned intersections,
    omit `PER` altogether.
-4. **Qualify operand columns, and leave region `ts`, `dur`, and `PER` columns bare.**
+4. **Bare `ts`, `dur`, and `PER` columns are the region's.**
    Bare `ts` and `dur` are the intersected region's start and duration. Bare
-   `cpu` is the partition key shared by the matched rows. All other operand
-   columns, including each operand's original unclipped `x.ts` and `x.dur`, must
-   be qualified with the operand's alias, such as `x.utid` or `y.freq`. Always
-   follow `INTERVAL INTERSECTION OF` with `|> SELECT ...`; without a `SELECT`
-   stage, every operand's `ts` and `dur` remain in the output row and produce
-   duplicate column names.
+   `cpu` is the partition key shared by the matched rows. Each operand's
+   original unclipped bounds need its alias: `x.ts` and `x.dur`. Any other
+   operand column can be written bare, such as `utid` or `freq`, unless two
+   operands have a column of that name, in which case qualify it: `x.utid`.
+   Without a `SELECT` stage, the result holds the region's `ts` and `dur`, the
+   `PER` columns, and every other operand column.
 5. **Watch for behavioral differences.**
    - **Rows with `dur IS NULL` or `ts IS NULL` are skipped.** If an input table
      computes duration with `lead(ts) OVER (...) - ts AS dur`, its final row has

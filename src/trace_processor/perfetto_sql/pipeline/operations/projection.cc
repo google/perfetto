@@ -164,12 +164,20 @@ base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
   return base::OkStatus();
 }
 
-// Replaces every alias with one covering the whole row as it is now.
+// Replaces every alias with one covering the row as a bare name sees it now.
+// Columns which only an earlier alias found go with that alias.
 base::Status BuildAsPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("AS");
   const auto* n = Node<SyntaqlitePerfettoPipeAs>(c->parser(), stage);
+  std::vector<Compiler::RowColumn> row;
+  for (const Compiler::RowColumn& column : c->row()) {
+    if (!column.qualified_only) {
+      row.push_back(column);
+    }
+  }
   c->ClearAliases();
-  c->AddAlias({SpanText(c->parser(), n->alias), c->row()});
+  c->AddAlias({SpanText(c->parser(), n->alias), row});
+  c->ReplaceRow(std::move(row));
   return base::OkStatus();
 }
 
@@ -216,7 +224,13 @@ ExpandStar(Compiler* c, uint32_t star_id, bool allow_unqualified_star) {
     if (!allow_unqualified_star) {
       return c->Expected(star_id, "a table alias before the star, as in `t.*`");
     }
-    columns = c->row();
+    // A bare star is the columns a bare name finds. Others, as an
+    // intersection's operand columns are, come through their alias.
+    for (const Compiler::RowColumn& column : c->row()) {
+      if (!column.qualified_only) {
+        columns.push_back(column);
+      }
+    }
   }
 
   if (syntaqlite_node_is_present(star->except)) {

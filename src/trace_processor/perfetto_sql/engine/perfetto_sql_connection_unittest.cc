@@ -699,6 +699,35 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL", "5,5,x"));
 
+  // A bare ts, dur or key is the region's, and an operand's other columns
+  // are found by their bare names too. So a star, or no stage at all, gives
+  // the region and what each operand carries, without the operands' own ts
+  // and dur.
+  const std::string kIntersection =
+      "INTERVAL INTERSECTION OF ("
+      "(SELECT ts, dur, name, n AS a_n FROM a) AS a, b AS b) PER name ";
+  for (const char* stage : {"", "|> SELECT *"}) {
+    SCOPED_TRACE(stage);
+    EXPECT_THAT(ColumnNames(kIntersection + stage),
+                testing::ElementsAre("ts", "dur", "name", "a_n", "n"));
+    rows = Rows(kIntersection + stage);
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL,3,2", "5,5,x,1,1"));
+  }
+  rows = Rows(kIntersection + "|> SELECT a_n, n, a.ts, b.ts AS b_ts");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,1,0,5", "3,2,0,5"));
+  // A new alias covers those same columns, so its ts is the region's.
+  rows = Rows(kIntersection + "|> AS u |> SELECT u.ts, u.a_n");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("5,1", "5,3"));
+  // Two operands with a column of one name make that name ambiguous.
+  EXPECT_THAT(Rows("INTERVAL INTERSECTION OF (a AS a, b AS b) PER name "
+                   "|> SELECT n")
+                  .status()
+                  .message(),
+              testing::HasSubstr("column 'n' is ambiguous"));
+
   // A key that holds strings in one operand and numbers in another is an
   // error when the plan is lowered.
   EXPECT_THAT(Rows(R"(

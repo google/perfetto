@@ -115,7 +115,9 @@ Result regions:      [-- 10 @ 1.8G --)[- 10 -]     [-- 20 @ 2.4G --)
   bare name.
 - **Accessing input columns:** Each input has an alias, here `AS s` and `AS f`.
   All columns from `s` and `f` are carried along and accessed via `s.<col>` and
-  `f.<col>`. This includes each input's original unclipped `s.ts` and `s.dur`.
+  `f.<col>`, or by their bare names when only one input has a column of that
+  name. Each input's original unclipped bounds need the alias: `s.ts` and
+  `s.dur`.
 
 ---
 

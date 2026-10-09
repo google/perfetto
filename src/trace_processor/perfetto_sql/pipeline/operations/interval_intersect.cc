@@ -119,14 +119,18 @@ base::Status IntervalIntersect::BuildPlan(Compiler* c, uint32_t node) {
       }
       operand.keys.push_back(*key);
     }
-    // Every operand column is carried, reachable through the operand's alias.
-    // A PER column holds the same value in every operand, so the first
-    // operand's is also the one a bare name finds.
+    // Every operand column is carried, reachable through the operand's alias
+    // and, for most, by its bare name too. The region's ts and dur are what
+    // a bare ts and dur mean, so an operand's own are found only through its
+    // alias. A PER column holds the same value in every operand, so only the
+    // first operand's is found by its bare name.
     Compiler::Alias operand_alias{*alias, {}};
     for (const NamedColumn& column : relation.columns) {
       bool is_key = std::find(operand.keys.begin(), operand.keys.end(),
                               column.id) != operand.keys.end();
-      c->Append(column, source_id, /*qualified_only=*/!(is_key && i == 0));
+      bool is_bound = column.id == operand.ts || column.id == operand.dur;
+      c->Append(column, source_id,
+                /*qualified_only=*/is_bound || (is_key && i != 0));
       operand_alias.columns.push_back(c->row().back());
       operand.carried.push_back(column.id);
     }
