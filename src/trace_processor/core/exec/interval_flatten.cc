@@ -44,21 +44,6 @@ bool IsInt64(const RowBatch& batch, uint32_t index) {
   return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Int64>();
 }
 
-// `function`'s result for each of `groups`, written into a buffer taken from
-// `context` for the batch served to hold.
-ColumnBuffer Finalized(Context& context,
-                       const AggregateFunction& function,
-                       GroupStates states,
-                       const uint32_t* groups,
-                       uint32_t count) {
-  ColumnBuffer buffer = context.TakeBuffer();
-  ColumnChunk& chunk = buffer.chunk();
-  chunk.validity.resize(kMaxBatchRows);
-  function.Finalize(states, groups, count, chunk.Values<int64_t>(),
-                    &chunk.validity);
-  return buffer;
-}
-
 constexpr auto kEndsLater = [](const auto& a, const auto& b) {
   return a.end > b.end;
 };
@@ -451,8 +436,8 @@ bool IntervalFlatten::AggregateDeltas(State& s) const {
   }
   const uint32_t* groups = GetTree().groups.data();
   for (uint32_t i = 0; i < functions_.size(); ++i) {
-    s.outputs[i] = Finalized(*s.context, *functions_[i], States(s, i, false),
-                             groups, count);
+    s.outputs[i] = FinalizeToBuffer(*s.context, *functions_[i],
+                                    States(s, i, false), groups, count);
   }
   return true;
 }
@@ -495,8 +480,8 @@ void IntervalFlatten::AggregateTree(State& s, bool* overflow) const {
     function.Combine(s.merges.data(), static_cast<uint32_t>(s.merges.size()),
                      states, overflow);
     function.Combine(tree.pushes.data(), 2 * leaves - 2, states, overflow);
-    s.outputs[i] = Finalized(*s.context, function, states,
-                             tree.groups.data() + leaves, count);
+    s.outputs[i] = FinalizeToBuffer(*s.context, function, states,
+                                    tree.groups.data() + leaves, count);
   }
 }
 
@@ -538,11 +523,10 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
     }
   }
   for (ColumnBuffer& buffer : s.outputs) {
-    ColumnChunk& chunk = buffer.chunk();
-    out.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, chunk.Values<int64_t>(),
-                              &chunk.validity),
-        std::move(buffer));
+    // Viewed before the move: the order arguments are evaluated in is
+    // unspecified.
+    ColumnView view = ResultView(buffer);
+    out.AddColumn(view, std::move(buffer));
   }
   out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, s.segment_groups),
                 std::move(s.group_buffer));

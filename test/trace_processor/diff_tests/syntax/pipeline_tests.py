@@ -184,6 +184,42 @@ class PerfettoPipeline(TestSuite):
         107295,0
         """))
 
+  # AGGREGATE ... GROUP BY gives what SQLite's GROUP BY does.
+  def test_aggregate_matches_group_by(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT track_id, name, depth, dur FROM slice)
+        |> AGGREGATE COUNT(*) AS n, SUM(dur) AS total, MIN(depth) AS lo,
+             MAX(dur) AS hi
+           GROUP BY track_id, name;
+
+        CREATE PERFETTO TABLE grouped AS
+        SELECT track_id, name, count(*) AS n, sum(dur) AS total,
+          min(depth) AS lo, max(dur) AS hi
+        FROM slice
+        GROUP BY track_id, name;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (
+            SELECT count(*) FROM (
+              SELECT * FROM piped EXCEPT SELECT * FROM grouped
+            )
+          ) + (
+            SELECT count(*) FROM (
+              SELECT * FROM grouped EXCEPT SELECT * FROM piped
+            )
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        583,0
+        """))
+
   # Per key, sum(n * dur) over segments equals sum(dur) over rows.
   def test_interval_flatten_keys_over_many_batches(self):
     return DiffTestBlueprint(

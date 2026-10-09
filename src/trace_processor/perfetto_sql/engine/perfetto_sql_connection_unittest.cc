@@ -1339,6 +1339,55 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
               testing::HasSubstr("COUNT"));
 }
 
+TEST_F(PerfettoSqlConnectionPipelineTest, Aggregate) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER, name TEXT);
+    INSERT INTO spans VALUES
+      (0, 10, 1, 'a'), (5, NULL, 1, 'b'), (15, 5, 2, 'a'), (7, 3, NULL, 'a'),
+      (30, 5, 2, NULL), (40, 7, NULL, 'b');
+  )")
+                  .ok());
+  // A null key is a group; null values are skipped.
+  auto rows = Rows(R"(
+    FROM spans
+    |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d, MIN(ts) AS lo, MAX(dur) AS hi
+       GROUP BY cpu
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("1,2,10,0,10", "2,2,10,15,5",
+                                          "NULL,2,10,7,7"));
+
+  // Keys of any type, renamed with AS, are what the next stage sees.
+  rows = Rows(R"(
+    FROM spans
+    |> AGGREGATE COUNT(*) AS n GROUP BY name AS label, cpu
+    |> SELECT label, cpu, n
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("NULL,2,1", "a,1,1", "a,2,1",
+                                          "a,NULL,1", "b,1,1", "b,NULL,1"));
+
+  // With no GROUP BY, the input is one group: a row even when it is empty.
+  rows = Rows("FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("6,30"));
+  rows = Rows(
+      "FROM (SELECT dur FROM spans WHERE ts < 0) "
+      "|> AGGREGATE COUNT(*) AS n, SUM(dur) AS d");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL"));
+
+  EXPECT_THAT(Rows("FROM (SELECT 9223372036854775807 AS v UNION ALL SELECT 1) "
+                   "|> AGGREGATE SUM(v) AS s")
+                  .status()
+                  .message(),
+              testing::HasSubstr("overflow"));
+  EXPECT_THAT(Rows("FROM spans |> AGGREGATE COUNT(*) AS cpu GROUP BY cpu")
+                  .status()
+                  .message(),
+              testing::HasSubstr("listed only once"));
+}
+
 // Every alias in pipe syntax needs AS, so a keyword after a relation, like
 // PER, is never taken for one.
 TEST_F(PerfettoSqlConnectionPipelineTest, AliasNeedsAs) {

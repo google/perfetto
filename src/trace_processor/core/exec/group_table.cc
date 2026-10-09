@@ -121,7 +121,7 @@ std::optional<uint32_t> GroupTable::FindOrCreate(
       kinds_.push_back(*kind);
     }
   }
-  stride_ = static_cast<uint32_t>(columns.size()) + 1;
+  stride_ = static_cast<uint32_t>(columns.size()) + 1 + payload_words_;
 
   Grow(size() + count);
   if (keys_.size() == 1 && !may_be_null) {
@@ -180,6 +180,7 @@ uint32_t GroupTable::Add(uint32_t row, uint64_t hash) {
   for (const FlexVector<int64_t>& keys : keys_) {
     group_rows_.push_back(keys[row]);
   }
+  group_rows_.push_back_multiple(0, payload_words_);
   return group;
 }
 
