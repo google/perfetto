@@ -1075,22 +1075,16 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     // Inner events are emitted from the outer event's argument list, both for a
-    // debug arg and inside a proto field. Uses a new thread so builders left in
-    // use by other tests on this thread don't matter.
-    Thread thread =
-        new Thread(
-            () ->
-                PerfettoTrace.instant(FOO_CATEGORY, "outer")
-                    .addArg("outer_arg", emitInnerEvent(1))
-                    .beginProto()
-                    .beginNested(33L)
-                    .addField(4L, emitInnerEvent(2))
-                    .addField(3, "outer_function")
-                    .endNested()
-                    .endProto()
-                    .emit());
-    thread.start();
-    thread.join();
+    // debug arg and inside a proto field.
+    PerfettoTrace.instant(FOO_CATEGORY, "outer")
+        .addArg("outer_arg", emitInnerEvent(1))
+        .beginProto()
+        .beginNested(33L)
+        .addField(4L, emitInnerEvent(2))
+        .addField(3, "outer_function")
+        .endNested()
+        .endProto()
+        .emit();
 
     byte[] traceBytes = session.close();
     Trace trace = Trace.parseFrom(traceBytes);
@@ -1122,19 +1116,12 @@ public class PerfettoTraceTest {
     TraceConfig traceConfig = getTraceConfig(FOO);
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
-    // More abandoned (never emitted) events than there are builders per thread.
-    // Uses a new thread so builders left in use by other tests on this thread
-    // don't matter and this test doesn't leave builders in use on the main thread.
-    Thread thread =
-        new Thread(
-            () -> {
-              for (int i = 0; i < 20; i++) {
-                PerfettoTrace.instant(FOO_CATEGORY, "abandoned").addArg("abandoned_arg", i);
-              }
-              PerfettoTrace.instant(FOO_CATEGORY, "event").addArg("arg", 42).emit();
-            });
-    thread.start();
-    thread.join();
+    // More abandoned (never emitted) events than there are builders pooled per
+    // thread, followed by a nested event.
+    for (int i = 0; i < 20; i++) {
+      PerfettoTrace.instant(FOO_CATEGORY, "abandoned").addArg("abandoned_arg", i);
+    }
+    PerfettoTrace.instant(FOO_CATEGORY, "outer").addArg("outer_arg", emitInnerEvent(42)).emit();
 
     byte[] traceBytes = session.close();
     Trace trace = Trace.parseFrom(traceBytes);
@@ -1143,8 +1130,10 @@ public class PerfettoTraceTest {
     }
 
     assertThat(getTrackEvent(trace, 0).getDebugAnnotations(0).getIntValue()).isEqualTo(42);
-    assertThat(getTrackEvent(trace, 1)).isNull();
-    assertThat(mEventNames).containsExactly("event");
+    assertThat(getTrackEvent(trace, 1).getDebugAnnotations(0).getIntValue()).isEqualTo(42);
+    assertThat(getTrackEvent(trace, 2)).isNull();
+    assertThat(mEventNames).containsExactly("inner", "outer");
+    assertThat(mDebugAnnotationNames).containsExactly("inner_arg", "outer_arg");
   }
 
   private TrackEvent getTrackEvent(Trace trace, int idx) {

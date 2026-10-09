@@ -38,7 +38,6 @@ import dev.perfetto.sdk.PerfettoTrackEventExtra.Proto;
 
 /** Builder for Perfetto track event extras. */
 public final class PerfettoTrackEventBuilder {
-  private static final String TAG = "PerfettoTrace";
   private static final int DEFAULT_EXTRA_CACHE_SIZE = 16;
   private static final int DEFAULT_PENDING_POINTERS_LIST_SIZE = 16;
 
@@ -49,14 +48,6 @@ public final class PerfettoTrackEventBuilder {
   private String mEventName = null;
   private boolean mIsBuilt = false;
   private boolean mIsDebug = false;
-
-  // Root builders only: true from initNewEvent() until emit().
-  private boolean mInUse = false;
-  // Root builders only: builder for events started while this one is in use.
-  private PerfettoTrackEventBuilder mNextRoot;
-  private int mRootDepth = 0;
-  // Used on the deepest root builder to log at most once per thread.
-  private boolean mLoggedMaxDepthWarning = false;
 
   private PerfettoTrackEventBuilder mParent;
   private FieldContainer mCurrentContainer;
@@ -148,55 +139,26 @@ public final class PerfettoTrackEventBuilder {
   private static final PerfettoTrackEventBuilder NO_OP_BUILDER =
       new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false, /* parent= */ null);
 
-  // Max root builders per thread. Past this depth the deepest one is reused.
-  private static final int MAX_ROOT_BUILDERS = 8;
+  private static final int MAX_POOLED_BUILDERS = 2;
 
-  public static final ThreadLocal<PerfettoTrackEventBuilder> sThreadLocalBuilder =
-      ThreadLocal.withInitial(
-          () -> new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null));
+  private static final ThreadLocal<PerfettoTrackEventBuilder[]> sThreadLocalBuilder =
+      ThreadLocal.withInitial(() -> new PerfettoTrackEventBuilder[MAX_POOLED_BUILDERS]);
 
   public static PerfettoTrackEventBuilder newEvent(
       int traceType, Category category, boolean isDebug) {
     if (category.isRegistered() && category.isEnabled()) {
-      PerfettoTrackEventBuilder builder = sThreadLocalBuilder.get();
-      if (builder.mInUse) {
-        builder = builder.nextFreeRoot();
+      PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+      for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
+        PerfettoTrackEventBuilder builder = pool[i];
+        if (builder != null) {
+          pool[i] = null;
+          return builder.initNewEvent(traceType, category, isDebug);
+        }
       }
-      return builder.initNewEvent(traceType, category, isDebug);
+      return new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null)
+          .initNewEvent(traceType, category, isDebug);
     }
     return NO_OP_BUILDER;
-  }
-
-  /**
-   * Returns a builder for an event started while this one is still being built
-   * on the same thread, e.g. by a call in its argument list that takes a traced
-   * lock. Reusing this builder would reset it and silently drop the outer event.
-   */
-  private PerfettoTrackEventBuilder nextFreeRoot() {
-    PerfettoTrackEventBuilder builder = this;
-    while (builder.mInUse && builder.mRootDepth < MAX_ROOT_BUILDERS - 1) {
-      if (builder.mNextRoot == null) {
-        builder.mNextRoot =
-            new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null);
-        builder.mNextRoot.mRootDepth = builder.mRootDepth + 1;
-      }
-      builder = builder.mNextRoot;
-    }
-    if (builder.mInUse && !builder.mLoggedMaxDepthWarning) {
-      builder.mLoggedMaxDepthWarning = true;
-      logMaxDepthWarning();
-    }
-    return builder;
-  }
-
-  private static void logMaxDepthWarning() {
-    System.err.println(
-        TAG
-            + ": Exceeded MAX_ROOT_BUILDERS ("
-            + MAX_ROOT_BUILDERS
-            + ") active or un-emitted builders on thread '"
-            + Thread.currentThread().getName()
-            + "'; reusing deepest builder.");
   }
 
   private PerfettoTrackEventBuilder(boolean isCategoryEnabled, PerfettoTrackEventBuilder parent) {
@@ -232,11 +194,22 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
+    if (mIsBuilt) {
+      return;
+    }
 
     mIsBuilt = true;
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
-    mInUse = false;
+    if (mParent == null) {
+      PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+      for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
+        if (pool[i] == null) {
+          pool[i] = this;
+          break;
+        }
+      }
+    }
   }
 
   /** Initialize the builder for a new trace event. */
@@ -246,7 +219,6 @@ public final class PerfettoTrackEventBuilder {
       return this;
     }
     mIsBuilt = false;
-    mInUse = true;
     mParent = null;
     mIsDebug = isDebug;
     updateNativeMemoryCleanerForDebug(mIsDebug);
