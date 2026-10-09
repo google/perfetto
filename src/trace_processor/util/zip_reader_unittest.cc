@@ -272,6 +272,50 @@ TEST(ZipReaderTest, Find) {
   ASSERT_EQ(nullptr, zr.Find("dirz/deflated_file"));
 }
 
+TEST(ZipReaderTest, MalformedZip64_MissingExtraField) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64TruncatedExtraField)];
+  memcpy(content, kTestZip64TruncatedExtraField, sizeof(content));
+  content[28] = 0x00;  // extra_field_len = 0, leaving 0xFFFFFFFF sentinels
+  ASSERT_THAT(zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, 41))),
+              IsError());
+}
+
+TEST(ZipReaderTest, ValidZip64_OnlyCompressedSizeSentinel) {
+  // The local header 0x0001 extra field carries both 8-byte sizes even if only
+  // compressed_size is 0xFFFFFFFF. The 2nd file header starts at offset 65,
+  // its 32-bit uncompressed_size at 65 + 22.
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64)];
+  memcpy(content, kTestZip64, sizeof(content));
+  const uint8_t kUncompressedSize[] = {89, 0, 0, 0};
+  memcpy(&content[87], kUncompressedSize, sizeof(kUncompressedSize));
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))));
+  ValidateTestZip(zr);
+}
+
+TEST(ZipReaderTest, MalformedZip_StoredSizeMismatch) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip)];
+  memcpy(content, kTestZip, sizeof(content));
+  content[22] = 5;  // uncompressed_size = 5 != compressed_size = 4
+  ASSERT_THAT(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))),
+      IsError());
+}
+
+TEST(ZipReaderTest, MalformedZip64_CompressedSizeOverflow) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64)];
+  memcpy(content, kTestZip64, sizeof(content));
+  content[8] = 8;                 // compression = deflate
+  memset(&content[53], 0xff, 8);  // zip64 compressed_size = UINT64_MAX
+  ASSERT_THAT(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))),
+      IsError());
+}
+
 // All the tests below require zlib.
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
@@ -336,6 +380,41 @@ TEST(ZipReaderTest, MalformedZip_DecomprError) {
   ASSERT_EQ(zr.files().size(), 2u);
   std::vector<uint8_t> ignored;
   ASSERT_OK(zr.files()[0].Decompress(&ignored));
+  ASSERT_THAT(zr.files()[1].Decompress(&ignored), IsError());
+}
+
+TEST(ZipReaderTest, MalformedZip64DataDescriptor_SizeMismatch) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64DataDescriptor)];
+  memcpy(content, kTestZip64DataDescriptor, sizeof(content));
+  content[129] = 0x99;  // Corrupt compressed_size in the 64-bit data descriptor
+  ASSERT_THAT(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))),
+      IsError());
+}
+
+TEST(ZipReaderTest, MalformedZip64_UncompressedSizeTooLarge) {
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64)];
+  memcpy(content, kTestZip64, sizeof(content));
+  content[116] = 100;  // 2nd file zip64 uncompressed_size: 89 -> 100
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))));
+  ASSERT_EQ(zr.files().size(), 2u);
+  std::vector<uint8_t> ignored;
+  ASSERT_THAT(zr.files()[1].Decompress(&ignored), IsError());
+}
+
+TEST(ZipReaderTest, MalformedZip64_HugeUncompressedSize) {
+  // A crafted header must not make Decompress() allocate ~1 PiB.
+  ZipReader zr;
+  uint8_t content[sizeof(kTestZip64)];
+  memcpy(content, kTestZip64, sizeof(content));
+  content[122] = 0x04;  // 2nd file zip64 uncompressed_size: 89 + 2^50
+  ASSERT_OK(
+      zr.Parse(TraceBlobView(TraceBlob::CopyFrom(content, sizeof(content)))));
+  ASSERT_EQ(zr.files().size(), 2u);
+  std::vector<uint8_t> ignored;
   ASSERT_THAT(zr.files()[1].Decompress(&ignored), IsError());
 }
 

@@ -124,6 +124,29 @@ TEST(GzipDecompressor, Streaming) {
   EXPECT_EQ(input, decompressed);
 }
 
+TEST(GzipDecompressor, SmallOutputBufferDrainsBufferedMatch) {
+  string input =
+      "The quick brown fox jumps over the lazy dog\n"
+      "The quick brown fox jumps over the lazy frog\n";
+  string compressed = TrivialGzipCompress(input);
+  GzipDecompressor decompressor;
+  decompressor.Feed(reinterpret_cast<const uint8_t*>(compressed.data()),
+                    compressed.size());
+  string decompressed;
+  uint8_t small_buf[16];
+  for (;;) {
+    auto res = decompressor.ExtractOutput(small_buf, sizeof(small_buf));
+    ASSERT_NE(res.ret, GzipDecompressor::ResultCode::kError);
+    decompressed.append(reinterpret_cast<const char*>(small_buf),
+                        res.bytes_written);
+    if (res.ret != GzipDecompressor::ResultCode::kOk) {
+      EXPECT_EQ(res.ret, GzipDecompressor::ResultCode::kEof);
+      break;
+    }
+  }
+  EXPECT_EQ(input, decompressed);
+}
+
 static std::string ReadFile(const std::string& file_name) {
   std::ifstream fd(file_name, std::ios::binary);
   std::stringstream buffer;

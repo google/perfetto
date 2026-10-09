@@ -54,6 +54,10 @@ class GzipDecompressor : public Decompressor {
     void operator()(z_stream_s*) const;
   };
   std::unique_ptr<z_stream_s, Deleter> z_stream_;
+  // Fed input that does not fit into zlib's 32-bit avail_in yet. It is handed
+  // to zlib in chunks as avail_in drains, so Feed()/ExtractOutput() accept
+  // buffers >= 4 GiB.
+  size_t pending_in_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::util
