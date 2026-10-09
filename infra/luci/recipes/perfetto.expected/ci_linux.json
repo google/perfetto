@@ -223,7 +223,8 @@
       "tracebox",
       "perfetto",
       "traced",
-      "traced_probes"
+      "traced_probes",
+      "heapprofd_glibc_preload"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -1091,6 +1092,146 @@
     ]
   },
   {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/linux-amd64/stripped/libheapprofd_glibc_preload.so",
+      "gs://perfetto-luci-artifacts//linux-amd64/libheapprofd_glibc_preload.so"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-amd64.Artifact upload.gsutil upload (13)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//linux-amd64/libheapprofd_glibc_preload.so@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/linux-amd64/stripped/libheapprofd_glibc_preload.so",
+      "gs://perfetto-luci-artifacts/latest/linux-amd64/libheapprofd_glibc_preload.so"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-amd64.Artifact upload.gsutil upload (14)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/linux-amd64/libheapprofd_glibc_preload.so@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"libheapprofd_glibc_preload.so\"}], \"install_mode\": \"\", \"package\": \"perfetto/heapprofd_glibc_preload/linux-amd64\", \"root\": \"[CACHE]/builder/perfetto/out/linux-amd64/stripped\"}",
+      "-out",
+      "[CLEANUP]/heapprofd_glibc_preload-linux-amd64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-amd64.Artifact upload.build perfetto/heapprofd_glibc_preload/linux-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\",@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/heapprofd_glibc_preload/linux-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/heapprofd_glibc_preload-linux-amd64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-amd64.Artifact upload.register perfetto/heapprofd_glibc_preload/linux-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\",@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/heapprofd_glibc_preload/linux-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/heapprofd_glibc_preload/linux-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/heapprofd_glibc_preload/linux-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
     "cmd": [],
     "name": "linux-arm"
   },
@@ -1156,7 +1297,8 @@
       "tracebox",
       "perfetto",
       "traced",
-      "traced_probes"
+      "traced_probes",
+      "heapprofd_glibc_preload"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -2024,6 +2166,146 @@
     ]
   },
   {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/linux-arm/stripped/libheapprofd_glibc_preload.so",
+      "gs://perfetto-luci-artifacts//linux-arm/libheapprofd_glibc_preload.so"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm.Artifact upload.gsutil upload (13)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//linux-arm/libheapprofd_glibc_preload.so@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/linux-arm/stripped/libheapprofd_glibc_preload.so",
+      "gs://perfetto-luci-artifacts/latest/linux-arm/libheapprofd_glibc_preload.so"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm.Artifact upload.gsutil upload (14)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/linux-arm/libheapprofd_glibc_preload.so@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"libheapprofd_glibc_preload.so\"}], \"install_mode\": \"\", \"package\": \"perfetto/heapprofd_glibc_preload/linux-arm\", \"root\": \"[CACHE]/builder/perfetto/out/linux-arm/stripped\"}",
+      "-out",
+      "[CLEANUP]/heapprofd_glibc_preload-linux-arm.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm.Artifact upload.build perfetto/heapprofd_glibc_preload/linux-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\",@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/heapprofd_glibc_preload/linux-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/heapprofd_glibc_preload-linux-arm.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm.Artifact upload.register perfetto/heapprofd_glibc_preload/linux-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\",@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/heapprofd_glibc_preload/linux-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/heapprofd_glibc_preload/linux-arm@https://chrome-infra-packages.appspot.com/p/perfetto/heapprofd_glibc_preload/linux-arm/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
     "cmd": [],
     "name": "linux-arm64"
   },
@@ -2089,7 +2371,8 @@
       "tracebox",
       "perfetto",
       "traced",
-      "traced_probes"
+      "traced_probes",
+      "heapprofd_glibc_preload"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -2957,6 +3240,146 @@
     ]
   },
   {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/linux-arm64/stripped/libheapprofd_glibc_preload.so",
+      "gs://perfetto-luci-artifacts//linux-arm64/libheapprofd_glibc_preload.so"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm64.Artifact upload.gsutil upload (13)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//linux-arm64/libheapprofd_glibc_preload.so@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/linux-arm64/stripped/libheapprofd_glibc_preload.so",
+      "gs://perfetto-luci-artifacts/latest/linux-arm64/libheapprofd_glibc_preload.so"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm64.Artifact upload.gsutil upload (14)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/latest/linux-arm64/libheapprofd_glibc_preload.so@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"libheapprofd_glibc_preload.so\"}], \"install_mode\": \"\", \"package\": \"perfetto/heapprofd_glibc_preload/linux-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/linux-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/heapprofd_glibc_preload-linux-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm64.Artifact upload.build perfetto/heapprofd_glibc_preload/linux-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\",@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/heapprofd_glibc_preload/linux-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/heapprofd_glibc_preload-linux-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "linux-arm64.Artifact upload.register perfetto/heapprofd_glibc_preload/linux-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\",@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/heapprofd_glibc_preload/linux-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/heapprofd_glibc_preload/linux-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/heapprofd_glibc_preload/linux-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
     "cmd": [],
     "name": "SDK upload"
   },
@@ -3020,6 +3443,35 @@
     "cmd": [
       "vpython3",
       "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "copy",
+      "[CACHE]/builder/perfetto/LICENSE",
+      "[CLEANUP]/sdk/LICENSE"
+    ],
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "SDK upload.copy LICENSE",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "vpython3",
+      "-u",
       "RECIPE_MODULE[recipe_engine::archive]/resources/archive.py"
     ],
     "luci_context": {
@@ -3035,7 +3487,7 @@
       }
     },
     "name": "SDK upload.zip cpp sdk",
-    "stdin": "{\"archive_type\": \"zip\", \"entries\": [{\"path\": \"[CLEANUP]/sdk/perfetto.h\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/perfetto.cc\", \"type\": \"file\"}], \"output\": \"[CLEANUP]/perfetto-cpp-sdk-src.zip\", \"root\": \"[CLEANUP]/sdk\"}",
+    "stdin": "{\"archive_type\": \"zip\", \"entries\": [{\"path\": \"[CLEANUP]/sdk/perfetto.h\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/perfetto.cc\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/LICENSE\", \"type\": \"file\"}], \"output\": \"[CLEANUP]/perfetto-cpp-sdk-src.zip\", \"root\": \"[CLEANUP]/sdk\"}",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
     ]
@@ -3121,7 +3573,7 @@
       }
     },
     "name": "SDK upload.zip c sdk",
-    "stdin": "{\"archive_type\": \"zip\", \"entries\": [{\"path\": \"[CLEANUP]/sdk/perfetto_c.h\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/perfetto_c.cc\", \"type\": \"file\"}], \"output\": \"[CLEANUP]/perfetto-c-sdk-src.zip\", \"root\": \"[CLEANUP]/sdk\"}",
+    "stdin": "{\"archive_type\": \"zip\", \"entries\": [{\"path\": \"[CLEANUP]/sdk/perfetto_c.h\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/perfetto_c.cc\", \"type\": \"file\"}, {\"path\": \"[CLEANUP]/sdk/LICENSE\", \"type\": \"file\"}], \"output\": \"[CLEANUP]/perfetto-c-sdk-src.zip\", \"root\": \"[CLEANUP]/sdk\"}",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
     ]

@@ -829,8 +829,10 @@ class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
     ASSERT_TRUE(res.ok()) << res.status().c_message();
   }
 
-  // Runs `sql` and returns the rows of the last statement as text, sorted.
-  base::StatusOr<std::vector<std::string>> Rows(const std::string& sql) {
+  // Runs `sql` and returns the rows of the last statement as text, sorted
+  // unless the order they came in is wanted.
+  base::StatusOr<std::vector<std::string>> Rows(const std::string& sql,
+                                                bool in_order = false) {
     auto res = connection_->ExecuteUntilLastStatement(
         SqlSource::FromExecuteQuery(sql));
     RETURN_IF_ERROR(res.status());
@@ -846,7 +848,9 @@ class PerfettoSqlConnectionPipelineTest : public PerfettoSqlConnectionTest {
       rows.push_back(std::move(row));
     }
     RETURN_IF_ERROR(res->stmt.status());
-    std::sort(rows.begin(), rows.end());
+    if (!in_order) {
+      std::sort(rows.begin(), rows.end());
+    }
     return rows;
   }
 
@@ -1333,6 +1337,96 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
                   .status()
                   .message(),
               testing::HasSubstr("COUNT"));
+}
+
+// Every alias in pipe syntax needs AS, so a keyword after a relation, like
+// PER, is never taken for one.
+TEST_F(PerfettoSqlConnectionPipelineTest, AliasNeedsAs) {
+  ASSERT_TRUE(Rows("CREATE TABLE t(ts INTEGER, dur INTEGER)").ok());
+  for (const char* query :
+       {"FROM t AS x |> SELECT x.ts", "FROM t |> SELECT ts AS start",
+        "FROM t |> SELECT t.ts AS start", "FROM t |> RENAME ts AS start"}) {
+    EXPECT_TRUE(Rows(query).ok()) << query;
+  }
+  for (const char* query :
+       {"FROM t x |> SELECT x.ts", "FROM t |> SELECT ts start",
+        "FROM t |> SELECT t.ts start", "FROM t |> RENAME ts start",
+        "FROM t |> AGGREGATE COUNT(*) AS n GROUP BY ts start"}) {
+    EXPECT_THAT(Rows(query).status().message(),
+                testing::HasSubstr("syntax error"))
+        << query;
+  }
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFillGapsParses) {
+  ASSERT_TRUE(
+      Rows("CREATE TABLE b(ts INTEGER, dur INTEGER, cpu INTEGER)").ok());
+  for (const char* operand :
+       {"b", "b PER cpu", "b AS x PER cpu", "(SELECT * FROM b) PER cpu"}) {
+    EXPECT_THAT(Rows(std::string("FROM (SELECT 2 AS ts, 3 AS dur, 1 AS cpu) "
+                                 "|> INTERVAL FILL GAPS WITH ") +
+                     operand)
+                    .status()
+                    .message(),
+                testing::HasSubstr("INTERVAL FILL GAPS is not supported yet"))
+        << operand;
+  }
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, OrderBy) {
+  ASSERT_TRUE(Rows(R"(
+    CREATE TABLE points(a INTEGER, b INTEGER, name TEXT);
+    INSERT INTO points VALUES
+      (2, 1, 'x'), (1, 5, 'y'), (NULL, 3, 'z'), (2, 0, 'w'), (1, 7, 'v');
+    CREATE PERFETTO TABLE typed AS SELECT a, b, name FROM points;
+  )")
+                  .ok());
+  // Nulls sort as in SQLite: first ascending, last descending. A later key
+  // only breaks ties, and each key has its own direction.
+  for (const char* from : {"points", "typed"}) {
+    SCOPED_TRACE(from);
+    auto rows =
+        Rows(std::string("FROM ") + from + " |> ORDER BY a, b DESC", true);
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows, testing::ElementsAre("NULL,3,z", "1,7,v", "1,5,y",
+                                            "2,1,x", "2,0,w"));
+    rows = Rows(std::string("FROM ") + from +
+                    " AS p |> ORDER BY p.a DESC, b |> SELECT name",
+                true);
+    ASSERT_TRUE(rows.ok()) << rows.status().message();
+    EXPECT_THAT(*rows, testing::ElementsAre("w", "x", "y", "v", "z"));
+  }
+
+  // A fold's rows can be put back in order, and folded again afterwards.
+  auto rows = Rows(R"(
+    FROM tree
+    |> TREE ACCUMULATE UP SUM(self) AS total
+    |> ORDER BY id
+    |> TREE ACCUMULATE UP SUM(total) AS again
+    |> ORDER BY id DESC
+    |> SELECT id, total, again
+  )",
+                   true);
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, testing::ElementsAre("3,40,40", "2,30,30", "1,60,100",
+                                          "0,100,230"));
+
+  // A string key is refused where its type is known, and fails the run
+  // where it is not.
+  EXPECT_THAT(
+      Rows("FROM typed |> ORDER BY name").status().message(),
+      testing::HasSubstr("ordering by a string column is not supported yet"));
+  EXPECT_FALSE(Rows("FROM points |> ORDER BY name").ok());
+  EXPECT_THAT(Rows("FROM points |> ORDER BY missing").status().message(),
+              testing::HasSubstr("missing"));
+
+  // A key parses as an expression, but only a column is supported.
+  for (const char* key : {"a + 1", "(a | b) DESC", "abs(a)"}) {
+    EXPECT_THAT(
+        Rows(std::string("FROM points |> ORDER BY ") + key).status().message(),
+        testing::HasSubstr(
+            "an expression other than a column is not supported yet"));
+  }
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, ForksRunPipelinesIndependently) {

@@ -21,6 +21,7 @@ import {AsyncMemo} from '../../../../../base/async_memo';
 import {Icons} from '../../../../../base/semantic_icons';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
+import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {
   LONG,
   NUM,
@@ -427,6 +428,10 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
           Anchor,
           {
             href: heapDumpBitmapsHref(),
+            onclick: () =>
+              trace.plugins
+                .getPlugin(HeapDumpExplorerPlugin)
+                .updateHeadDump(upid, cur.ts),
             icon: Icons.UpdateSelection,
           },
           'Open in Heap Dump Explorer',

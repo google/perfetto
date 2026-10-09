@@ -78,7 +78,7 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
       aggregate.function = IntervalFlatten::Function::kCount;
     } else {
       aggregate.function = IntervalFlatten::Function::kSum;
-      ASSIGN_OR_RETURN(aggregate.column, c->ResolveSum(agg_id, agg->expr));
+      ASSIGN_OR_RETURN(aggregate.column, c->ResolveSum(agg->expr));
     }
     std::string name = SpanText(c->parser(), agg->name);
     aggregate.output = c->AddColumn(name, core::Int64{});

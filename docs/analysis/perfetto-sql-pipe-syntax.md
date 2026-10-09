@@ -232,6 +232,30 @@ Accumulates sums up or down a tree defined by `id` and `parent_id`:
 
 ---
 
+### `ORDER BY`
+
+Sorts the rows:
+
+```sql
+|> ORDER BY <expr_1> [ASC | DESC] [, <expr_2> [ASC | DESC] ...]
+```
+
+- **Keys:** The first key decides the order and each later key breaks ties
+  among the ones before it. Each defaults to `ASC`. A key parses as an
+  expression, but only a column, optionally qualified, is supported yet. A
+  bitwise OR (`|`) must be in parentheses, since `|>` starts the next stage.
+- **Types:** Keys must be integer or floating-point columns. Ordering by a
+  string column is not supported yet. A key read from a SQL subquery or view
+  must hold integers.
+- **`NULL` values:** Sort as in SQLite: first when ascending, last when
+  descending.
+- **Ties:** Rows equal on every key keep the order they arrived in.
+- **Output:** Keeps all columns of the input row and existing table aliases.
+  A later `TREE ACCUMULATE` or `INTERVAL FLATTEN` stage arranges rows as it
+  needs, so put `ORDER BY` last to order a pipeline's result.
+
+---
+
 ### `SELECT`
 
 Replaces the current row with the specified items and clears all table aliases:
