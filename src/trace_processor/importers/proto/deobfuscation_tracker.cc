@@ -397,6 +397,12 @@ void DeobfuscationTracker::DeobfuscateHeapGraphClass(
     const std::vector<tables::HeapGraphClassTable::RowNumber>& rows,
     const ObfuscatedClass::Decoder& cls) {
   auto* class_table = context_->storage->mutable_heap_graph_class_table();
+  bool potentially_merged = false;
+  if (cls.has_merged_classes()) {
+    ObfuscatedClass::MergedClasses::Decoder mcs(cls.merged_classes());
+    potentially_merged =
+        mcs.unknown_merged_classes() || static_cast<bool>(mcs.merged_classes());
+  }
   for (tables::HeapGraphClassTable::RowNumber row : rows) {
     auto class_ref = row.ToRowReference(class_table);
     const base::StringView obfuscated_type_name =
@@ -406,6 +412,9 @@ void DeobfuscationTracker::DeobfuscateHeapGraphClass(
         DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
     class_ref.set_deobfuscated_name(context_->storage->InternString(
         base::StringView(deobfuscated_type_name)));
+    if (potentially_merged) {
+      class_ref.set_potentially_merged(true);
+    }
   }
 }
 

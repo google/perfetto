@@ -1056,6 +1056,12 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'potentially_merged',
+            CppBool(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -1074,7 +1080,10 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             'classloader_id':
                 '''''',
             'kind':
-                ''''''
+                '''''',
+            'potentially_merged':
+                '''True if other classes may have been merged into this class
+                by optimization (e.g. R8 class merging).''',
         }))
 
 HEAP_GRAPH_OBJECT_TABLE = Table(
