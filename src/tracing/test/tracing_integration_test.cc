@@ -595,6 +595,15 @@ TEST_P(InstanceProtocolIntegrationTest, ExplicitWriterUsesRequestedProtocol) {
     packet->set_for_testing()->set_str(payload);
   }
 
+  if (param.selected_version == kProtocolAbiV2) {
+    // The packet was published while the attach reply was still pending.
+    auto* arbiter = ring_buffer_arbiter();
+    ASSERT_TRUE(arbiter);
+    EXPECT_FALSE(arbiter->IsReaderAttached());
+    Sync();
+    EXPECT_TRUE(arbiter->IsReaderAttached());
+  }
+
   // Explicit v1 requests must also respect the common mask.
   const bool supports_v1 = protocol_abi_versions() & kProtocolAbiV1;
   auto legacy = producer_endpoint_->CreateTraceWriter(

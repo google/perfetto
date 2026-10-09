@@ -154,7 +154,8 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
   //   even if sizing, allocation or attachment failed.
   //   This keeps the arbiter pointer stable for writer threads, which read it
   //   without a lock.
-  // - Does not wait for the service's attach reply.
+  // - Does not wait for the service's attach reply. Writers can publish while
+  //   the reply is pending.
   // - Does nothing if the endpoint or the connection has no tracing v2.
   virtual void InitializeV2RingBuffer();
 

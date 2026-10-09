@@ -44,32 +44,23 @@ ProducerRingBufferArbiter::ProducerRingBufferArbiter(
   // ProducerIPCClientImpl and the in-process ProducerEndpointImpl both create
   // the SMB arbiter before they set up data sources.
   PERFETTO_CHECK(shared_memory_arbiter_);
-
-  // The reply callback moves kPending to kAttached, or to kDetached if the
-  // service rejects the ring buffer.
-  endpoint_->AttachV2RingBuffer(
-      memory_, kMinChunkSize,
-      [weak_this = weak_factory_.GetWeakPtr()](bool accepted) {
-        if (!weak_this)
-          return;
-        if (!accepted) {
-          PERFETTO_DLOG("tracing v2: ring buffer not accepted");
-          weak_this->Disconnect();
-          return;
-        }
-        weak_this->OnReaderAttached();
-      });
 }
 
 ProducerRingBufferArbiter::~ProducerRingBufferArbiter() {
   Disconnect();
 }
 
-void ProducerRingBufferArbiter::OnReaderAttached() {
+void ProducerRingBufferArbiter::OnReaderAttachReply(bool reader_attached) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // The accept reply can arrive after Disconnect().
+  // The attach reply can arrive after Disconnect().
   if (reader_state_.load() == ReaderState::kDetached)
     return;
+  if (!reader_attached) {
+    PERFETTO_ELOG("tracing v2: ring buffer attachment failed");
+    Disconnect();
+    return;
+  }
+  // Attachment is confirmed, so writers may stall if their policy allows.
   SetReaderState(ReaderState::kAttached);
 }
 

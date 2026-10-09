@@ -56,7 +56,6 @@ class ProducerRingBufferArbiterTestPeer;
 // - "writer" means TraceWriterV2Impl.
 //
 // This class:
-// - Attaches the endpoint's ring buffer to the service.
 // - Keeps the ring buffer mapping alive and owns the SharedRingBuffer view.
 // - Creates writers. Their WriterIDs come from the SMB arbiter, because v1
 //   and v2 writers of one producer share one ID pool.
@@ -80,11 +79,11 @@ class ProducerRingBufferArbiterTestPeer;
 // endpoint                   this class                   service
 //    |                           |                           |
 //    | constructor(memory)       |                           |
-//    |-------------------------->|                           |
-//    |<-- AttachV2RingBuffer() --|                           |
+//    |-------------------------->| kPending                  |
 //    |== AttachV2RingBuffer, with the memfd ================>| maps, checks,
 //    |<== reply =============================================| attaches
-//    |-- reply callback -------->| kAttached, or             |
+//    | OnReaderAttachReply()     |                           |
+//    |-------------------------->| kAttached, or             |
 //    |                           | kDetached if rejected     |
 //
 // - Later instances reuse the ring buffer.
@@ -140,17 +139,17 @@ class ProducerRingBufferArbiter {
   //   attach and drain requests in order. It ignores a drain for a ring
   //   buffer that it did not accept.
   //
-  //   Constructor              OnReaderAttached()
-  //   ----------> [ kPending ] ------------------> [ kAttached ]
-  //                    |                                 |
-  //                    +---------------+-----------------+
-  //                                    | Disconnect()
-  //                                    v
-  //                              [ kDetached ]
-  //                               (terminal)
+  //   Constructor               OnReaderAttachReply(true)
+  //   ----------> [ kPending ] --------------------------> [ kAttached ]
+  //                     |                                        |
+  //                     +-------------------+--------------------+
+  //                                         | Disconnect() or
+  //                                         | OnReaderAttachReply(false)
+  //                                         v
+  //                                   [ kDetached ]
+  //                                    (terminal)
   enum class ReaderState {
-    // No reader yet. The endpoint shared the ring buffer and waits for the
-    // service reply.
+    // The endpoint has not received an attach reply yet.
     // - Writers can already publish.
     // - The service can still reject the ring buffer.
     // - A writer does not wait for space in a full ring buffer. It drops the
@@ -195,10 +194,12 @@ class ProducerRingBufferArbiter {
     kUrgent,
   };
 
-  // |endpoint| receives AttachV2RingBuffer() and the drain requests.
+  // |endpoint| receives the drain requests.
   // |task_runner| runs the endpoint thread.
   // Both must be non-null and outlive this object.
-  // Sends an attach request for |memory| with chunks of kMinChunkSize bytes.
+  // Starts in kPending with chunks of kMinChunkSize bytes. The endpoint must
+  // initiate attachment before allowing writers to use this object, and call
+  // OnReaderAttachReply() when the reply arrives.
   // |memory| must be non-null and satisfy NumChunksForRingBufferLayout().
   ProducerRingBufferArbiter(base::TaskRunner* task_runner,
                             ProducerEndpoint* endpoint,
@@ -214,6 +215,11 @@ class ProducerRingBufferArbiter {
       delete;
 
   // Reader state:
+
+  // Called by the endpoint with the attach reply, on the endpoint thread.
+  // Enters kAttached on acceptance or kDetached on rejection. Does nothing
+  // after Disconnect(), because the reply can arrive after it.
+  void OnReaderAttachReply(bool reader_attached);
 
   // True in kAttached only. If false, nothing frees space in a full ring
   // buffer. Writers call it on their own thread.
@@ -256,14 +262,13 @@ class ProducerRingBufferArbiter {
   //   task sends nothing. The endpoint thread still runs |callback|.
   void Flush(std::function<void()>);
 
+  // The returned pointer can only be dereferenced on the endpoint thread.
+  base::WeakPtr<ProducerRingBufferArbiter> GetWeakPtr() const {
+    return weak_factory_.GetWeakPtr();
+  }
+
  private:
   friend class test::ProducerRingBufferArbiterTestPeer;
-
-  // The attach callback calls this on the endpoint thread when the service
-  // accepts the ring buffer.
-  // Does nothing after Disconnect(), because the accept reply can arrive
-  // after it.
-  void OnReaderAttached();
 
   // Runs on the endpoint thread. CHECKs that the transition is valid.
   void SetReaderState(ReaderState);
@@ -279,8 +284,7 @@ class ProducerRingBufferArbiter {
   // Runs tasks on the endpoint thread. Writers post drain and flush
   // requests here.
   base::TaskRunner* const task_runner_;
-  // Sends AttachV2RingBuffer and DrainV2RingBuffer to the service, on the
-  // endpoint thread only.
+  // Sends drain requests to the service, on the endpoint thread only.
   ProducerEndpoint* const endpoint_;
   // The SMB arbiter. Any thread allocates and releases WriterIDs here.
   SharedMemoryArbiter* const shared_memory_arbiter_;

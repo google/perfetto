@@ -16,7 +16,7 @@
 
 // Tests for ProducerRingBufferArbiter, the producer side of one tracing v2
 // ring buffer. They cover:
-// - Attach: the constructor's attach request and the service's reply.
+// - Attach: construction stays pending until the endpoint supplies a reply.
 // - Endpoints without v2: the ProducerEndpoint defaults discard v2 packets.
 // - Writers: WriterIDs from the SMB arbiter, and NullTraceWriters after a
 //   disconnect.
@@ -86,7 +86,7 @@ class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
   }
 };
 
-// --- The ring buffer and its attach request ---
+// --- The ring buffer and its attach reply ---
 
 // MockProducerEndpoint does not override InitializeV2RingBuffer() or
 // CreateTraceWriterV2(), so these calls use the ProducerEndpoint defaults.
@@ -101,10 +101,11 @@ TEST_F(ProducerRingBufferArbiterTest, EndpointWithoutV2DiscardsV2Packets) {
   WritePacket(writer.get(), "discarded");
 }
 
-TEST_F(ProducerRingBufferArbiterTest, ConstructorAttachesRingBuffer) {
-  EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, kChunkSize, _));
+TEST_F(ProducerRingBufferArbiterTest, ConstructorDoesNotAttachRingBuffer) {
+  EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, _, _)).Times(0);
   CreateRingBufferArbiter(/*num_chunks=*/4);
   EXPECT_EQ(service_memory_->size(), sizeof(RingBufferHeader) + BudgetFor(4));
+  EXPECT_EQ(reader_state(), ReaderState::kPending);
   EXPECT_FALSE(arbiter_->IsReaderAttached());
 
   AttachReader();
@@ -125,7 +126,6 @@ TEST_F(ProducerRingBufferArbiterTest, WritersShareOneRingBuffer) {
   auto writer = CreateWriter();
   ASSERT_TRUE(writer);
   EXPECT_TRUE(PacketReachesRingBuffer(writer.get()));
-  EXPECT_EQ(num_attach_requests_, 1u);
 }
 
 TEST_F(ProducerRingBufferArbiterTest, RejectedAttachGivesNullTraceWriters) {
@@ -141,15 +141,6 @@ TEST_F(ProducerRingBufferArbiterTest, RejectedAttachGivesNullTraceWriters) {
 
   // Existing writers keep the mapping.
   WritePacket(pending_writer.get(), "kept mapping");
-  EXPECT_EQ(num_attach_requests_, 1u);
-}
-
-// The attach callback holds a weak pointer, so a reply after destruction does
-// nothing.
-TEST_F(ProducerRingBufferArbiterTest, AttachReplyAfterDestructionIsIgnored) {
-  CreateRingBufferArbiter(/*num_chunks=*/4);
-  arbiter_.reset();
-  AttachReader();
 }
 
 // --- Writers ---

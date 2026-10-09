@@ -799,16 +799,29 @@ void ProducerEndpointImpl::InitializeV2RingBuffer() {
     return;
   }
 
-  auto memory = InProcessSharedMemory::Create(*size);
+  std::shared_ptr<SharedMemory> memory = InProcessSharedMemory::Create(*size);
   if (!memory) {
     PERFETTO_ELOG("tracing v2: failed to allocate %zu-byte ring buffer", *size);
     v2_ring_buffer_arbiter_ = nullptr;
     return;
   }
 
+  // Create the arbiter in kPending. Writers can publish in this state, but
+  // drop packets instead of stalling if space runs out.
   v2_ring_buffer_arbiter_ =
       std::make_unique<tracing_v2::ProducerRingBufferArbiter>(
-          weak_runner_.task_runner(), this, std::move(memory));
+          weak_runner_.task_runner(), this, memory);
+
+  // Keep the arbiter in kPending until the service replies to the attach
+  // request. The callback sets kAttached on acceptance or kDetached on
+  // rejection. The reply runs inline, so the arbiter must already be stored.
+  auto* arbiter = v2_ring_buffer_arbiter_.value().get();
+  AttachV2RingBuffer(
+      memory, tracing_v2::kMinChunkSize,
+      [weak_arbiter = arbiter->GetWeakPtr()](bool reader_attached) {
+        if (weak_arbiter)
+          weak_arbiter->OnReaderAttachReply(reader_attached);
+      });
 }
 
 void ProducerEndpointImpl::AttachV2RingBuffer(
