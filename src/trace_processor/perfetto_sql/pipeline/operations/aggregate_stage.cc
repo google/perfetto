@@ -45,8 +45,9 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
   const auto* n = Node<SyntaqlitePerfettoPipeAggregate>(c->parser(), stage);
 
   AggregateStage aggregate;
-  // Output column names, keys then aggregates. Each name must be unique.
-  std::vector<std::string> names;
+  // A key is listed once, as after PER. The names columns end up with can
+  // repeat, as in any row.
+  std::vector<std::string> listed;
   std::vector<std::pair<NamedColumn, uint32_t>> keys;
   if (syntaqlite_node_is_present(n->group_by)) {
     const auto* list =
@@ -60,10 +61,11 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
                                   : "";
       std::string name = SpanText(c->parser(), item->name);
       ASSIGN_OR_RETURN(ColumnId key, c->Resolve(qualifier, name, item_id));
+      RETURN_IF_ERROR(c->CheckListedOnce(
+          listed, qualifier.empty() ? name : qualifier + "." + name, item_id));
       if (IsSpanPresent(item->alias)) {
         name = SpanText(c->parser(), item->alias);
       }
-      RETURN_IF_ERROR(c->CheckListedOnce(names, name, item_id));
       aggregate.keys_.push_back(key);
       keys.push_back({NamedColumn{std::move(name), key}, item_id});
     }
@@ -77,7 +79,6 @@ base::Status AggregateStage::BuildPlan(Compiler* c, uint32_t stage) {
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
     ASSIGN_OR_RETURN(Aggregate resolved, c->ResolveAggregate(agg->expr));
     std::string name = SpanText(c->parser(), agg->name);
-    RETURN_IF_ERROR(c->CheckListedOnce(names, name, agg_id));
     resolved.output = c->AddColumn(name, core::Int64{});
     aggregate.aggregates_.push_back(resolved);
     aggregates.push_back(
