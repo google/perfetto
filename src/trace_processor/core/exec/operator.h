@@ -25,6 +25,8 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+class Context;
+
 // The mutable state of one execution of a plan.
 //
 // Operators and Sources are plan nodes: they stay const while running and hold
@@ -70,13 +72,14 @@ class Source {
   Source& operator=(const Source&) = delete;
 
   // A source wrapping another source creates that source's state too, so one
-  // call builds the whole chain.
-  virtual std::unique_ptr<OperatorState> MakeState() const = 0;
+  // call builds the whole chain. Any column a run fills for a batch comes from
+  // `context`, which outlives the state.
+  virtual std::unique_ptr<OperatorState> MakeState(Context& context) const = 0;
 
   // Fills `out` and returns true, or returns false when no batches are left.
-  // Owned columns remain valid while retained by a RowBatch. Unowned columns
-  // are borrowed until the next call; retaining consumers must materialize
-  // them. A successful empty batch is not exhaustion.
+  // A column it computes is in a buffer from the run's Context; one it
+  // borrows is onto storage which outlives the run (see RowBatch). A
+  // successful empty batch is not exhaustion.
   virtual bool GetData(RowBatch& out, OperatorState& state) const = 0;
 
   // The next batch, or null when none are left: `scratch` filled by
@@ -106,7 +109,7 @@ class Transform {
   Transform(const Transform&) = delete;
   Transform& operator=(const Transform&) = delete;
 
-  virtual std::unique_ptr<OperatorState> MakeState() const {
+  virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
   }
 
@@ -158,7 +161,7 @@ class Operator {
 
   const Traits& traits() const { return traits_; }
 
-  virtual std::unique_ptr<OperatorState> MakeState() const {
+  virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
   }
 

@@ -17,50 +17,43 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
 #define SRC_TRACE_PROCESSOR_CORE_EXEC_BATCH_BUFFER_H_
 
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-// Combines small batches column by column. Compatible backing storage is kept
-// as an indexed view. Only columns spanning different backing buffers are
-// packed. Published values and selections are immutable and retain their
-// owners. Packing preserves duplicates, nulls and floating-point bits. String
-// IDs refer to the process-lifetime pool; string payloads are not copied.
+// Combines small batches column by column, copying the rows each keeps into
+// one buffer per column. Copying preserves duplicates, nulls and
+// floating-point bits. String IDs refer to the process-lifetime pool; string
+// payloads are not copied.
 class BatchBuffer {
  public:
-  uint32_t size() const { return batch_.size(); }
-  base::Status Append(const RowBatch&);
-  void Take(RowBatch& out) {
-    out.SwapContents(batch_);
-    Clear();
-  }
+  uint32_t size() const { return size_; }
+  // Copies the rows `in` keeps, into buffers taken from `context`.
+  base::Status Append(const RowBatch& in, Context& context);
+  // Fills `out` with the rows combined, and empties the buffer.
+  void Take(RowBatch& out);
   void Clear() {
-    batch_.Reset();
+    size_ = 0;
     for (auto& column : columns_) {
-      column.packed.reset();
-      column.indices.reset();
+      column.packed = ColumnBuffer();
+      column.nullable = false;
     }
   }
 
  private:
-  // The storage for one column. The pools outlive Clear() so their buffers
-  // are reused by the next batch.
   struct Column {
-    BufferPool<ColumnChunk> chunks;
-    BufferPool<FlexVector<uint32_t>> index_pool;
-    // Values copied from different backing buffers into one.
-    std::shared_ptr<ColumnChunk> packed;
-    // Row indices into a backing buffer shared by every appended batch.
-    std::shared_ptr<FlexVector<uint32_t>> indices;
+    // The rows combined so far.
+    ColumnBuffer packed;
+    // The first batch's view, saying what the column holds.
+    ColumnView view;
+    bool nullable = false;
   };
-
-  RowBatch batch_;
+  uint32_t size_ = 0;
   std::vector<Column> columns_;
 };
 

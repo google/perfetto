@@ -26,13 +26,13 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/batch_buffer.h"
-#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/exec/row_store.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
@@ -45,36 +45,36 @@ namespace {
 
 using testing::ElementsAre;
 
-struct CountedBuffer {
-  CountedBuffer() { ++allocations; }
-  static uint32_t allocations;
-  uint32_t value = 0;
-};
-uint32_t CountedBuffer::allocations = 0;
+// A buffer from `context` holding `values`.
+ColumnBuffer Filled(Context& context, const std::vector<int64_t>& values) {
+  ColumnBuffer buffer = context.TakeBuffer();
+  std::copy(values.begin(), values.end(), buffer.chunk().Values<int64_t>());
+  return buffer;
+}
 
-TEST(ExecutorContractTest, RetentionSharesValuesAndReleasesLastOwner) {
-  auto values = std::make_shared<std::vector<int64_t>>(
-      std::initializer_list<int64_t>{10, 20, 30});
-  std::weak_ptr<std::vector<int64_t>> lifetime = values;
-  const void* backing = values->data();
+TEST(ExecutorContractTest, CopiesOfABatchHoldItsBuffers) {
+  Context context;
   RowBatch first, second;
+  const ColumnChunk* held;
   {
+    ColumnBuffer buffer = Filled(context, {10, 20, 30});
+    held = &buffer.chunk();
     RowBatch published;
-    published.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, values->data()), values);
-    published.SetCardinality(3);
+    published.AddColumn(ColumnView::Reference(StorageType{Int64{}},
+                                              buffer.chunk().Values<int64_t>()),
+                        buffer);
+    published.SetRowCount(3);
     first.CopyFrom(published);
     second.CopyFrom(published);
-    values.reset();
   }
-  EXPECT_FALSE(lifetime.expired());
-  EXPECT_EQ(first.column(0).data(), backing);
-  EXPECT_EQ(second.column(0).data(), backing);
+  // Still held, so not handed out again.
+  EXPECT_NE(&context.TakeBuffer().chunk(), held);
   first.Reset();
-  EXPECT_FALSE(lifetime.expired());
+  EXPECT_NE(&context.TakeBuffer().chunk(), held);
   EXPECT_THAT(test::ReadColumn<int64_t>(second, 0), ElementsAre(10, 20, 30));
   second.Reset();
-  EXPECT_TRUE(lifetime.expired());
+  // The last copy gone, it is the first handed out again.
+  EXPECT_EQ(&context.TakeBuffer().chunk(), held);
 }
 
 TEST(ExecutorContractTest, RetainedSelectionSurvivesProducerReuse) {
@@ -83,13 +83,10 @@ TEST(ExecutorContractTest, RetainedSelectionSurvivesProducerReuse) {
   RowBatch producer, retained;
   auto publish = [&](uint32_t offset) {
     producer.Reset();
-    auto view = ColumnView::Reference(StorageType{Int64{}}, values.data());
-    view.SetRange(offset);
-    producer.AddColumn(view);
-    producer.SetCardinality(3);
-    producer.Slice(RowSelection::Indices(Span<const uint32_t>(
-                       selected.data(), selected.data() + selected.size())),
-                   2);
+    producer.AddBorrowedColumn(ColumnView::Reference(
+        StorageType{Int64{}}, values.data(), nullptr, offset));
+    producer.SetRowCount(3);
+    producer.mutable_selection().Keep(selected);
   };
   publish(1);
   retained.CopyFrom(producer);
@@ -103,14 +100,17 @@ TEST(ExecutorContractTest, RetainedSelectionSurvivesProducerReuse) {
 TEST(ExecutorContractTest,
      RetainedComputedValuesSurviveNextExecutionAndRewind) {
   TreeAccumulateDown op({0, 1, 2});
-  auto state = op.MakeState();
+  auto state = op.MakeState(test::TestContext());
   std::vector<uint32_t> nodes{0, 1}, parents{kNoNode, 0};
   std::vector<int64_t> values{10, 20};
   RowBatch input, output, retained;
-  input.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
-  input.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  input.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  input.SetCardinality(2);
+  input.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
+  input.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
+  input.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  input.SetRowCount(2);
   ASSERT_TRUE(test::ProcessCopy(op, input, output, *state));
   retained.CopyFrom(output);
   EXPECT_THAT(test::ReadColumn<int64_t>(retained, 3), ElementsAre(10, 30));
@@ -121,53 +121,46 @@ TEST(ExecutorContractTest,
   EXPECT_THAT(test::ReadColumn<int64_t>(retained, 3), ElementsAre(10, 30));
 }
 
-TEST(ExecutorContractTest, ComposedSelectionsMatchScalarRows) {
+TEST(ExecutorContractTest, SelectionsMatchScalarRows) {
   std::mt19937 random(1729);
   for (uint32_t size : {1u, 2u, 17u, 2048u}) {
     for (uint32_t trial = 0; trial < 32; ++trial) {
       SCOPED_TRACE(testing::Message() << "size=" << size << " trial=" << trial);
-      std::vector<int64_t> values(size), computed(size);
-      std::vector<uint32_t> physical(size), logical;
-      auto valid = BitVector::CreateWithSize(size);
-      for (uint32_t i = 0; i < size; ++i) {
+      // Windows onto twice the rows, starting anywhere in the first half.
+      std::vector<int64_t> values(size * 2), computed(size);
+      std::vector<uint32_t> kept;
+      auto valid = BitVector::CreateWithSize(size * 2);
+      for (uint32_t i = 0; i < size * 2; ++i) {
         values[i] = 100 + i;
-        computed[i] = 10000 + i;
-        physical[i] = random() % size;
         if (random() % 3)
           valid.set(i);
-        if (random() % 2)
-          logical.push_back(i);
       }
+      for (uint32_t i = 0; i < size; ++i) {
+        computed[i] = 10000 + i;
+        if (random() % 2)
+          kept.push_back(i);
+      }
+      uint32_t start = static_cast<uint32_t>(random() % size);
       RowBatch batch;
-      auto ids = ColumnView::Reference(StorageType{Id{}}, nullptr);
-      auto data =
-          ColumnView::Reference(StorageType{Int64{}}, values.data(), &valid);
-      auto selection = test::OwnedRows(physical);
-      ids.SetOwnedRows(selection, size);
-      data.SetOwnedRows(selection, size);
-      batch.AddColumn(ids);
-      batch.AddColumn(data);
-      batch.AddColumn(
+      batch.AddBorrowedColumn(
+          ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr, start));
+      batch.AddBorrowedColumn(ColumnView::Reference(
+          StorageType{Int64{}}, values.data(), &valid, start));
+      batch.AddBorrowedColumn(
           ColumnView::Reference(StorageType{Int64{}}, computed.data()));
-      batch.SetCardinality(size);
+      batch.SetRowCount(size);
       std::vector<uint32_t> expected_ids;
       std::vector<std::optional<int64_t>> expected_values;
       std::vector<int64_t> expected_computed;
-      for (uint32_t i : logical) {
-        uint32_t row = physical[i];
+      for (uint32_t i : kept) {
+        uint32_t row = start + i;
         expected_ids.push_back(row);
         expected_values.push_back(valid.is_set(row)
                                       ? std::optional<int64_t>(values[row])
                                       : std::nullopt);
         expected_computed.push_back(computed[i]);
       }
-      if (logical.empty()) {
-        batch.Slice(RowSelection::Range(0), 0);
-      } else {
-        batch.Slice(RowSelection::Indices(Span<const uint32_t>(
-                        logical.data(), logical.data() + logical.size())),
-                    static_cast<uint32_t>(logical.size()));
-      }
+      batch.mutable_selection().Keep(kept);
       EXPECT_EQ(test::ReadColumn<uint32_t>(batch, 0), expected_ids);
       EXPECT_EQ(test::ReadNullableColumn<int64_t>(batch, 1), expected_values);
       EXPECT_EQ(test::ReadColumn<int64_t>(batch, 2), expected_computed);
@@ -177,43 +170,36 @@ TEST(ExecutorContractTest, ComposedSelectionsMatchScalarRows) {
   }
 }
 
-TEST(ExecutorContractTest, PublishedValidityRetainsItsOwner) {
-  struct Storage {
-    std::vector<int64_t> values{10, 20, 30};
-    BitVector validity = BitVector::CreateWithSize(3, true);
-  };
-  auto storage = std::make_shared<Storage>();
-  storage->validity.clear(1);
+TEST(ExecutorContractTest, HeldValidityOutlivesTheBatchItCameIn) {
+  Context context;
   RowBatch retained;
   {
+    ColumnBuffer buffer = Filled(context, {10, 20, 30});
+    BitVector& validity = buffer.chunk().validity;
+    validity = BitVector::CreateWithSize(3, true);
+    validity.clear(1);
     RowBatch output;
     output.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, storage->values.data(),
-                              &storage->validity),
-        storage);
-    output.SetCardinality(3);
+        ColumnView::Reference(StorageType{Int64{}},
+                              buffer.chunk().Values<int64_t>(), &validity),
+        buffer);
+    output.SetRowCount(3);
     retained.CopyFrom(output);
-    storage.reset();
   }
   EXPECT_THAT(test::ReadNullableColumn<int64_t>(retained, 0),
               ElementsAre(10, std::nullopt, 30));
 }
 
-TEST(ExecutorContractTest, PoolReusesOnlyReleasedBuffers) {
-  BufferPool<CountedBuffer> pool;
-  auto first = pool.Acquire();
-  first->value = 42;
-  auto retained = first;
-  first.reset();
-  auto next = pool.Acquire();
-  next->value = 7;
-  EXPECT_EQ(retained->value, 42u);
-  next.reset();
-  uint32_t allocations = CountedBuffer::allocations;
-  for (uint32_t i = 0; i < 100; ++i) {
-    auto reusable = pool.Acquire();
+TEST(ExecutorContractTest, ContextHandsBackTheLastBufferGivenBack) {
+  Context context;
+  const ColumnChunk* first;
+  {
+    ColumnBuffer buffer = context.TakeBuffer();
+    first = &buffer.chunk();
   }
-  EXPECT_EQ(CountedBuffer::allocations, allocations);
+  for (uint32_t i = 0; i < 100; ++i) {
+    EXPECT_EQ(&context.TakeBuffer().chunk(), first);
+  }
 }
 
 TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
@@ -222,16 +208,16 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
   std::vector<double> values(4);
   std::memcpy(values.data(), bits, sizeof(bits));
   std::vector<uint32_t> rows{1, 0, 1, 3};
-  auto view = ColumnView::Reference(StorageType{Double{}}, values.data());
-  view.SetOwnedRows(test::OwnedRows(rows), 4);
   RowBatch input, output;
-  input.AddColumn(view);
-  input.SetCardinality(4);
+  input.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Double{}}, values.data()));
+  input.SetRowCount(4);
   RowStore store;
   ASSERT_TRUE(store.Append(input).ok());
-  ASSERT_EQ(store.View(&output, 0, 4), 4u);
+  ASSERT_EQ(
+      store.View(&output, Span<const uint32_t>(rows), test::TestContext()), 4u);
   for (uint32_t i = 0; i < 4; ++i) {
-    double value = output.column(0).Value<double>(i);
+    double value = output.Value<double>(0, i);
     uint64_t actual;
     std::memcpy(&actual, &value, sizeof(actual));
     EXPECT_EQ(actual, bits[rows[i]]);
@@ -239,33 +225,34 @@ TEST(ExecutorContractTest, MaterializationPreservesFloatingPointBits) {
 }
 
 TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
+  Context context;
   RowStore store;
-  auto stable = std::make_shared<std::vector<int64_t>>(test::Sequence(256));
+  std::vector<int64_t> stable = test::Sequence(256);
   for (uint32_t batch = 0; batch < 2; ++batch) {
     RowBatch in;
-    auto original = ColumnView::Reference(StorageType{Int64{}}, stable->data());
-    original.SetRange(batch * 128);
-    in.AddColumn(original, stable);
-    in.AddColumn(original, stable);
-    auto local = std::make_shared<ColumnChunk>();
-    local->validity = BitVector::CreateWithSize(129);
+    auto original = ColumnView::Reference(StorageType{Int64{}}, stable.data(),
+                                          nullptr, batch * 128);
+    in.AddBorrowedColumn(original);
+    in.AddBorrowedColumn(original);
+    ColumnBuffer local = context.TakeBuffer();
+    ColumnChunk& chunk = local.chunk();
+    chunk.validity = BitVector::CreateWithSize(129);
     for (uint32_t r = 0; r < 129; ++r) {
-      local->Values<int64_t>()[r] = batch * 1000 + r;
+      chunk.Values<int64_t>()[r] = batch * 1000 + r;
       if (r % 3)
-        local->validity.set(r);
+        chunk.validity.set(r);
     }
     // One column mixes nullable and non-null batches; the next is always
-    // nullable and uses a different physical row space.
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}},
-                                       local->Values<int64_t>().data(),
-                                       batch ? nullptr : &local->validity),
-                 local);
-    auto shifted = ColumnView::Reference(StorageType{Int64{}},
-                                         local->Values<int64_t>().data(),
-                                         &local->validity);
-    shifted.SetRange(1);
-    in.AddColumn(shifted, local);
-    in.SetCardinality(128);
+    // nullable and is a different window onto its values.
+    in.AddColumn(
+        ColumnView::Reference(StorageType{Int64{}}, chunk.Values<int64_t>(),
+                              batch ? nullptr : &chunk.validity),
+        local);
+    in.AddColumn(
+        ColumnView::Reference(StorageType{Int64{}}, chunk.Values<int64_t>(),
+                              &chunk.validity, 1),
+        local);
+    in.SetRowCount(128);
     ASSERT_TRUE(store.Append(in).ok());
   }
   RowBatch retained;
@@ -286,13 +273,13 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
                         : std::nullopt);
     }
     RowBatch out;
-    ASSERT_EQ(store.View(&out, Span<const uint32_t>(order.data(),
-                                                    order.data() + count)),
-              count);
-    EXPECT_NE(out.column(0).data(), stable->data());
-    EXPECT_TRUE(out.column(0).selection().is_range());
-    EXPECT_EQ(out.column(0).selection().data(),
-              out.column(1).selection().data());
+    ASSERT_EQ(
+        store.View(&out,
+                   Span<const uint32_t>(order.data(), order.data() + count),
+                   context),
+        count);
+    EXPECT_NE(out.column(0).data(), stable.data());
+    EXPECT_TRUE(out.selection().prefix());
     EXPECT_EQ(test::ReadColumn<int64_t>(out, 0), expected_stable);
     EXPECT_EQ(test::ReadColumn<int64_t>(out, 1), expected_stable);
     EXPECT_EQ(test::ReadNullableColumn<int64_t>(out, 2), expected_mixed);
@@ -301,9 +288,9 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
       retained.CopyFrom(out);
   }
   store.Clear();
-  // Later gathers and destruction of the input batches cannot change output.
+  // Later gathers and letting go of the input cannot change what is held.
   EXPECT_EQ(retained.size(), 63u);
-  EXPECT_EQ(retained.column(2).Value<int64_t>(1), 1007);
+  EXPECT_EQ(retained.Value<int64_t>(2, 1), 1007);
   EXPECT_FALSE(retained.column(2).validity()->is_set(0));
 }
 
@@ -318,7 +305,7 @@ class ContractSource final : public Source {
     size_t next = 0;
     bool failed = false;
   };
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   void Rewind(OperatorState& state) const override {
@@ -334,8 +321,9 @@ class ContractSource final : public Source {
       return false;
     }
     const auto& values = chunks_[s.next++];
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-    out.SetCardinality(static_cast<uint32_t>(values.size()));
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, values.data()));
+    out.SetRowCount(static_cast<uint32_t>(values.size()));
     return true;
   }
   base::Status status(const OperatorState& state) const override {
@@ -354,7 +342,7 @@ class ContractFilter final : public Operator {
   struct State : OperatorState {
     std::vector<uint32_t> selected;
   };
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   OpResult Execute(const RowBatch& in,
@@ -364,13 +352,11 @@ class ContractFilter final : public Operator {
     rows.clear();
     for (uint32_t i = 0; i < in.size(); ++i) {
       ++evaluated;
-      if (in.column(0).Value<int64_t>(i) >= 0)
+      if (in.Value<int64_t>(0, i) >= 0)
         rows.push_back(i);
     }
     out.CopyFrom(in);
-    out.Slice(RowSelection::Indices(
-                  Span<const uint32_t>(rows.data(), rows.data() + rows.size())),
-              static_cast<uint32_t>(rows.size()));
+    out.mutable_selection().Keep(rows);
     return OpResult::kNeedMoreInput;
   }
   mutable uint32_t evaluated = 0;
@@ -479,7 +465,7 @@ class ContractFailure final : public Operator {
   struct State : OperatorState {
     bool failed = false;
   };
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   OpResult Execute(const RowBatch&,
@@ -521,7 +507,7 @@ TEST(ExecutorContractTest, ThroughputCombinesButFiniteDemandNeverLooksAhead) {
     if (limit != UINT32_MAX)
       options.limit = limit;
     Pipeline pipeline(source, {}, options);
-    auto state = pipeline.MakeState();
+    auto state = pipeline.MakeState(test::TestContext());
     RowBatch out;
     if (!limit) {
       EXPECT_FALSE(pipeline.GetData(out, *state));
@@ -552,7 +538,7 @@ TEST(ExecutorContractTest,
     options.target_batch_rows = 4;
     options.small_batch_rows = 1;
     Pipeline pipeline(source, {}, options);
-    auto state = pipeline.MakeState();
+    auto state = pipeline.MakeState(test::TestContext());
     RowBatch out;
     std::vector<int64_t> actual;
     while (pipeline.GetData(out, *state)) {
@@ -576,7 +562,7 @@ TEST(ExecutorContractTest, CancellationDropsPendingRowsAndRewindStartsFresh) {
   options.small_batch_rows = 1;
   options.cancelled = [&] { return cancel && source.pulls >= 2; };
   Pipeline pipeline(source, {}, options);
-  auto state = pipeline.MakeState();
+  auto state = pipeline.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(pipeline.GetData(out, *state));
   EXPECT_EQ(out.size(), 0u);
@@ -590,39 +576,37 @@ TEST(ExecutorContractTest, CancellationDropsPendingRowsAndRewindStartsFresh) {
   EXPECT_TRUE(pipeline.status(*state).ok());
 }
 
-TEST(ExecutorContractTest, CombiningMixedBackingOnlyPacksComputedValues) {
-  auto source = std::make_shared<std::vector<int64_t>>(
-      std::initializer_list<int64_t>{10, 20, 30, 40});
+TEST(ExecutorContractTest, CombiningAndReorderingCopyEveryColumn) {
+  Context context;
+  std::vector<int64_t> source = {10, 20, 30, 40};
   BatchBuffer buffer;
   RowStore store;
   for (uint32_t i : {3u, 1u, 3u, 0u}) {
-    auto computed = std::make_shared<std::vector<int64_t>>(1, 100 + i);
+    ColumnBuffer computed = Filled(context, {100 + i});
     RowBatch in;
-    auto original = ColumnView::Reference(StorageType{Int64{}}, source->data());
-    original.SetRange(i);
-    in.AddColumn(original, source);
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, computed->data()),
+    in.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, source.data(), nullptr, i));
+    in.AddColumn(ColumnView::Reference(StorageType{Int64{}},
+                                       computed.chunk().Values<int64_t>()),
                  computed);
-    in.SetCardinality(1);
-    ASSERT_TRUE(buffer.Append(in).ok());
+    in.SetRowCount(1);
+    ASSERT_TRUE(buffer.Append(in, context).ok());
     ASSERT_TRUE(store.Append(in).ok());
   }
   RowBatch output, retained;
   buffer.Take(output);
-  EXPECT_EQ(output.column(0).data(), source->data());
+  EXPECT_NE(output.column(0).data(), source.data());
   EXPECT_THAT(test::ReadColumn<int64_t>(output, 0),
               ElementsAre(40, 20, 40, 10));
   EXPECT_THAT(test::ReadColumn<int64_t>(output, 1),
               ElementsAre(103, 101, 103, 100));
-  // Reordered output is contiguous even for the stable source column.
+  // Reordered output is contiguous even for the column borrowing its storage.
   std::vector<uint32_t> order = {3, 0, 3, 1};
-  RowBatch reordered, second_view;
+  RowBatch reordered;
   auto rows = Span<const uint32_t>(order.data(), order.data() + order.size());
-  ASSERT_EQ(store.View(&reordered, rows), 4u);
-  EXPECT_NE(reordered.column(0).data(), source->data());
-  EXPECT_TRUE(reordered.column(0).selection().is_range());
-  EXPECT_TRUE(reordered.column(1).selection().is_range());
-  ASSERT_EQ(store.View(&second_view, rows), 4u);
+  ASSERT_EQ(store.View(&reordered, rows, context), 4u);
+  EXPECT_NE(reordered.column(0).data(), source.data());
+  EXPECT_TRUE(reordered.selection().prefix());
   store.Clear();
   EXPECT_THAT(test::ReadColumn<int64_t>(reordered, 0),
               ElementsAre(10, 40, 10, 20));
@@ -630,77 +614,37 @@ TEST(ExecutorContractTest, CombiningMixedBackingOnlyPacksComputedValues) {
               ElementsAre(100, 103, 100, 101));
   retained.CopyFrom(output);
   output.Reset();
-  // A later use must not overwrite the packed column retained above.
+  // Combining more must not overwrite the column held above.
   for (int64_t value : {7, 8}) {
-    auto data = std::make_shared<std::vector<int64_t>>(1, value);
+    ColumnBuffer data = Filled(context, {value});
     RowBatch in;
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, data->data()),
+    in.AddColumn(ColumnView::Reference(StorageType{Int64{}},
+                                       data.chunk().Values<int64_t>()),
                  data);
-    in.SetCardinality(1);
-    ASSERT_TRUE(buffer.Append(in).ok());
+    in.SetRowCount(1);
+    ASSERT_TRUE(buffer.Append(in, context).ok());
   }
   buffer.Take(output);
   EXPECT_THAT(test::ReadColumn<int64_t>(retained, 1),
               ElementsAre(103, 101, 103, 100));
 }
 
-TEST(ExecutorContractTest, DistinctSelectionSlotsReuseReleasedBuffers) {
-  auto values = std::make_shared<std::vector<int64_t>>(
-      std::initializer_list<int64_t>{0, 10, 20, 30, 40, 50, 60, 70});
-  RowBatch input;
-  for (uint32_t c = 0; c < 64; ++c) {
-    auto indices = std::make_shared<FlexVector<uint32_t>>();
-    indices->resize(8);
-    for (uint32_t r = 0; r < 8; ++r)
-      (*indices)[r] = (r * 3 + c) % 8;
-    auto view = ColumnView::Reference(StorageType{Int64{}}, values->data());
-    view.SetOwnedRows(indices, 8);
-    input.AddColumn(view, values);
-  }
-  input.SetCardinality(8);
-  std::vector<uint32_t> selected{0, 2, 3, 7};
-  RowBatch producer, retained;
-  auto publish = [&] {
-    producer.CopyFrom(input);
-    producer.Slice(RowSelection::Indices(Span<const uint32_t>(
-                       selected.data(), selected.data() + selected.size())),
-                   4);
-  };
-  publish();
-  std::vector<const uint32_t*> first;
-  for (uint32_t c = 0; c < 64; ++c)
-    first.push_back(producer.column(c).selection().data());
-  retained.CopyFrom(producer);
-  publish();
-  for (uint32_t c = 0; c < 64; ++c) {
-    EXPECT_NE(producer.column(c).selection().data(), first[c]);
-    for (uint32_t r = 0; r < 4; ++r)
-      EXPECT_EQ(retained.column(c).Value<int64_t>(r),
-                (*values)[(selected[r] * 3 + c) % 8]);
-  }
-  retained.Reset();
-  publish();
-  for (uint32_t c = 0; c < 64; ++c)
-    EXPECT_EQ(producer.column(c).selection().data(), first[c]);
-}
-
-TEST(ExecutorContractTest, NonAdjacentColumnsShareComposedSelection) {
+// Columns windowed differently onto the same values still keep the same
+// rows: the selection is the batch's.
+TEST(ExecutorContractTest, ColumnsWithDifferentWindowsShareTheSelection) {
   std::vector<int64_t> values{0, 10, 20, 30, 40, 50};
   RowBatch batch;
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  auto shifted = batch.column(0);
-  shifted.SetRange(1);
-  batch.AddColumn(shifted);
-  batch.AddColumn(batch.column(0));
-  batch.SetCardinality(4);
-  std::vector<uint32_t> rows{3, 0, 2};
-  batch.Slice(
-      RowSelection::Indices(Span<const uint32_t>(rows.data(), rows.data() + 3)),
-      3);
-  EXPECT_EQ(batch.column(0).selection().data(),
-            batch.column(2).selection().data());
-  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(30, 0, 20));
-  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 1), ElementsAre(40, 10, 30));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data(), nullptr, 1));
+  batch.AddBorrowedColumn(batch.column(0));
+  batch.SetRowCount(4);
+  std::vector<uint32_t> rows{0, 2, 3};
+  batch.mutable_selection().Keep(rows);
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 0), ElementsAre(0, 20, 30));
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 1), ElementsAre(10, 30, 40));
+  EXPECT_THAT(test::ReadColumn<int64_t>(batch, 2), ElementsAre(0, 20, 30));
 }
 
 }  // namespace

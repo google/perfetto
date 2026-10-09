@@ -29,7 +29,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -61,8 +61,10 @@ class RowSource final : public Source {
     }
   }
 
-  std::unique_ptr<OperatorState> MakeState() const override {
-    return std::make_unique<State>();
+  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
+    auto state = std::make_unique<State>();
+    state->context = &context;
+    return state;
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().offset = 0;
@@ -89,12 +91,10 @@ class RowSource final : public Source {
       }
     }
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.ids.data()));
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.parents.data(),
-                                        &s.validity));
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
-    out.Compose(RowSelection::Range(0), count);
-    out.SetCardinality(count);
+    test::AddCopy(*s.context, s.ids, nullptr, &out);
+    test::AddCopy(*s.context, s.parents, &s.validity, &out);
+    test::AddCopy(*s.context, s.values, nullptr, &out);
+    out.SetRowCount(count);
     s.offset += count;
     return true;
   }
@@ -102,6 +102,7 @@ class RowSource final : public Source {
  private:
   struct State : OperatorState {
     ~State() override;
+    Context* context = nullptr;
     uint32_t offset = 0;
     std::vector<int64_t> ids;
     std::vector<int64_t> parents;
@@ -175,7 +176,8 @@ Result Accumulate(const std::vector<int64_t>& parent,
   }
   Pipeline pipeline(source, std::move(ops), {});
 
-  std::unique_ptr<OperatorState> state = pipeline.MakeState();
+  std::unique_ptr<OperatorState> state =
+      pipeline.MakeState(test::TestContext());
   RowBatch batch;
   Result result;
   result.totals.assign(parent.size(), 0);
@@ -229,13 +231,16 @@ TEST(TreeAccumulateTest, UpReportsIntegerOverflow) {
   std::vector<uint32_t> parents = {0, kNoNode};
   std::vector<int64_t> values = {std::numeric_limits<int64_t>::max(), 1};
   RowBatch in;
-  in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
-  in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetCardinality(2);
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  in.SetRowCount(2);
 
   TreeAccumulateUp op({0, 1, 2});
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
@@ -250,13 +255,16 @@ TEST(TreeAccumulateTest, DownReportsIntegerOverflow) {
   std::vector<uint32_t> parents = {kNoNode, 0};
   std::vector<int64_t> values = {std::numeric_limits<int64_t>::max(), 1};
   RowBatch in;
-  in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
-  in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetCardinality(2);
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  in.SetRowCount(2);
 
   TreeAccumulateDown op({0, 1, 2});
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("overflow"));
@@ -269,14 +277,16 @@ TEST(TreeAccumulateTest, NullValuesContributeZero) {
   BitVector validity = BitVector::CreateWithSize(2);
   validity.set(1);
   RowBatch in;
-  in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
-  in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddColumn(
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, nodes.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
+  in.AddBorrowedColumn(
       ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
-  in.SetCardinality(2);
+  in.SetRowCount(2);
 
   TreeAccumulateDown op({0, 1, 2});
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   ASSERT_TRUE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 3), ElementsAre(0, 7));
@@ -287,13 +297,16 @@ TEST(TreeAccumulateTest, WrongColumnTypesAreReported) {
   std::vector<uint32_t> parents = {kNoNode};
   std::vector<int64_t> values = {1};
   RowBatch in;
-  in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, nodes.data()));
-  in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
-  in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  in.SetCardinality(1);
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, nodes.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Uint32{}}, parents.data()));
+  in.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data()));
+  in.SetRowCount(1);
 
   TreeAccumulateDown op({0, 1, 2});
-  std::unique_ptr<OperatorState> state = op.MakeState();
+  std::unique_ptr<OperatorState> state = op.MakeState(test::TestContext());
   RowBatch out;
   EXPECT_FALSE(test::ProcessCopy(op, in, out, *state));
   EXPECT_THAT(op.status(*state).message(), testing::HasSubstr("Uint32"));
@@ -375,7 +388,8 @@ TEST(TreeAccumulateTest, RunningAgainStartsOver) {
   ops.push_back(std::make_unique<TreeAccumulateUp>(spec));
   Pipeline pipeline(source, std::move(ops), {});
 
-  std::unique_ptr<OperatorState> state = pipeline.MakeState();
+  std::unique_ptr<OperatorState> state =
+      pipeline.MakeState(test::TestContext());
   RowBatch batch;
   auto drain = [&] {
     std::vector<int64_t> totals(4, 0);

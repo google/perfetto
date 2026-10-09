@@ -21,9 +21,8 @@
 
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
-#include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::exec {
@@ -31,35 +30,45 @@ namespace {
 
 using testing::ElementsAre;
 
-// A column composed inside one batch carries the block its indices were
-// materialized into. A batch adopting that column must not keep writing into
-// the block, or narrowing the adopter corrupts the batch it came from.
-TEST(RowBatchTest, AdoptingAComposedColumnLeavesTheOriginalAlone) {
+// A batch's selection is its own: narrowing a copy of it, which shares its
+// columns, leaves the batch it came from as it was.
+TEST(RowBatchTest, NarrowingACopyLeavesTheOriginalAlone) {
   std::vector<int64_t> values = {0, 1, 2, 3, 4, 5, 6, 7};
   std::vector<uint32_t> picks = {0, 2, 4};
   std::vector<uint32_t> narrower = {0, 2};
 
-  // A range not starting at zero followed by an indexed slice forces the
-  // indices into a block owned by `original`.
   RowBatch original;
-  original.AddColumn(
-      ColumnView::Reference(StorageType{Int64{}}, values.data()));
-  original.Compose(RowSelection::Range(2), 5);
-  original.SetCardinality(5);
-  ASSERT_TRUE(original.Slice(RowSelection::Indices(Span<const uint32_t>(
-                                 picks.data(), picks.data() + 3)),
-                             3));
+  original.AddBorrowedColumn(ColumnView::Reference(
+      StorageType{Int64{}}, values.data(), nullptr, /*start=*/2));
+  original.SetRowCount(5);
+  original.mutable_selection().Keep(picks);
   ASSERT_THAT(test::ReadColumn<int64_t>(original, 0), ElementsAre(2, 4, 6));
 
-  RowBatch adopter;
-  adopter.AddColumn(original.column(0));
-  adopter.SetCardinality(3);
-  ASSERT_TRUE(adopter.Slice(RowSelection::Indices(Span<const uint32_t>(
-                                narrower.data(), narrower.data() + 2)),
-                            2));
+  RowBatch copy;
+  copy.CopyFrom(original);
+  copy.mutable_selection().Keep(narrower);
 
-  EXPECT_THAT(test::ReadColumn<int64_t>(adopter, 0), ElementsAre(2, 6));
+  EXPECT_THAT(test::ReadColumn<int64_t>(copy, 0), ElementsAre(2, 6));
   EXPECT_THAT(test::ReadColumn<int64_t>(original, 0), ElementsAre(2, 4, 6));
+}
+
+// Keeping the first rows kept leaves the rest as they were: a prefix stays
+// one, so readers keep their contiguous paths.
+TEST(RowBatchTest, KeepingTheFirstRowsKeepsAPrefix) {
+  Selection selection;
+  selection.Reset(8);
+  std::vector<uint32_t> first = {0, 1, 2};
+  selection.Keep(first);
+  EXPECT_TRUE(selection.prefix());
+  EXPECT_EQ(selection.size(), 3u);
+
+  std::vector<uint32_t> picks = {1, 2};
+  selection.Keep(picks);
+  EXPECT_FALSE(selection.prefix());
+  std::vector<uint32_t> first_of_picks = {0};
+  selection.Keep(first_of_picks);
+  ASSERT_EQ(selection.size(), 1u);
+  EXPECT_EQ(selection[0], 1u);
 }
 
 }  // namespace
