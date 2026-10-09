@@ -139,14 +139,24 @@ public final class PerfettoTrackEventBuilder {
   private static final PerfettoTrackEventBuilder NO_OP_BUILDER =
       new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false, /* parent= */ null);
 
-  public static final ThreadLocal<PerfettoTrackEventBuilder> sThreadLocalBuilder =
-      ThreadLocal.withInitial(
-          () -> new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null));
+  private static final int MAX_POOLED_BUILDERS = 2;
+
+  private static final ThreadLocal<PerfettoTrackEventBuilder[]> sThreadLocalBuilder =
+      ThreadLocal.withInitial(() -> new PerfettoTrackEventBuilder[MAX_POOLED_BUILDERS]);
 
   public static PerfettoTrackEventBuilder newEvent(
       int traceType, Category category, boolean isDebug) {
     if (category.isRegistered() && category.isEnabled()) {
-      return sThreadLocalBuilder.get().initNewEvent(traceType, category, isDebug);
+      PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+      for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
+        PerfettoTrackEventBuilder builder = pool[i];
+        if (builder != null) {
+          pool[i] = null;
+          return builder.initNewEvent(traceType, category, isDebug);
+        }
+      }
+      return new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ true, /* parent= */ null)
+          .initNewEvent(traceType, category, isDebug);
     }
     return NO_OP_BUILDER;
   }
@@ -184,10 +194,22 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
+    if (mIsBuilt) {
+      return;
+    }
 
     mIsBuilt = true;
     PerfettoTrackEventExtra.native_emit(
         mTraceType, mCategory.getPtr(), mEventName, mExtra.getPtr());
+    if (mParent == null) {
+      PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
+      for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
+        if (pool[i] == null) {
+          pool[i] = this;
+          break;
+        }
+      }
+    }
   }
 
   /** Initialize the builder for a new trace event. */

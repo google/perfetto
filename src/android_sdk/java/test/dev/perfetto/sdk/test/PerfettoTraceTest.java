@@ -1064,6 +1064,78 @@ public class PerfettoTraceTest {
     assertThat(mDebugAnnotationNames).containsExactly("arg");
   }
 
+  private static long emitInnerEvent(long value) {
+    PerfettoTrace.instant(FOO_CATEGORY, "inner").addArg("inner_arg", value).emit();
+    return value;
+  }
+
+  @Test
+  public void testEventEmittedWhileBuildingAnother() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // Inner events are emitted from the outer event's argument list, both for a
+    // debug arg and inside a proto field.
+    PerfettoTrace.instant(FOO_CATEGORY, "outer")
+        .addArg("outer_arg", emitInnerEvent(1))
+        .beginProto()
+        .beginNested(33L)
+        .addField(4L, emitInnerEvent(2))
+        .addField(3, "outer_function")
+        .endNested()
+        .endProto()
+        .emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+    for (TracePacket packet : trace.getPacketList()) {
+      collectInternedData(packet);
+    }
+
+    TrackEvent inner1 = getTrackEvent(trace, 0);
+    TrackEvent inner2 = getTrackEvent(trace, 1);
+    TrackEvent outer = getTrackEvent(trace, 2);
+    assertThat(getTrackEvent(trace, 3)).isNull();
+
+    assertThat(inner1.getDebugAnnotations(0).getIntValue()).isEqualTo(1);
+    assertThat(inner1.hasSourceLocation()).isFalse();
+    assertThat(inner2.getDebugAnnotations(0).getIntValue()).isEqualTo(2);
+    assertThat(inner2.hasSourceLocation()).isFalse();
+
+    assertThat(outer.getDebugAnnotationsCount()).isEqualTo(1);
+    assertThat(outer.getDebugAnnotations(0).getIntValue()).isEqualTo(1);
+    assertThat(outer.getSourceLocation().getFunctionName()).isEqualTo("outer_function");
+    assertThat(outer.getSourceLocation().getLineNumber()).isEqualTo(2);
+
+    assertThat(mEventNames).containsExactly("inner", "outer");
+    assertThat(mDebugAnnotationNames).containsExactly("inner_arg", "outer_arg");
+  }
+
+  @Test
+  public void testAbandonedEventsDoNotBreakLaterEvents() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // More abandoned (never emitted) events than there are builders pooled per
+    // thread, followed by a nested event.
+    for (int i = 0; i < 20; i++) {
+      PerfettoTrace.instant(FOO_CATEGORY, "abandoned").addArg("abandoned_arg", i);
+    }
+    PerfettoTrace.instant(FOO_CATEGORY, "outer").addArg("outer_arg", emitInnerEvent(42)).emit();
+
+    byte[] traceBytes = session.close();
+    Trace trace = Trace.parseFrom(traceBytes);
+    for (TracePacket packet : trace.getPacketList()) {
+      collectInternedData(packet);
+    }
+
+    assertThat(getTrackEvent(trace, 0).getDebugAnnotations(0).getIntValue()).isEqualTo(42);
+    assertThat(getTrackEvent(trace, 1).getDebugAnnotations(0).getIntValue()).isEqualTo(42);
+    assertThat(getTrackEvent(trace, 2)).isNull();
+    assertThat(mEventNames).containsExactly("inner", "outer");
+    assertThat(mDebugAnnotationNames).containsExactly("inner_arg", "outer_arg");
+  }
+
   private TrackEvent getTrackEvent(Trace trace, int idx) {
     int curIdx = 0;
     for (TracePacket packet : trace.getPacketList()) {
