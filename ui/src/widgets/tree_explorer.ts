@@ -47,8 +47,21 @@ export interface TreeExplorerOptionalAction {
 // inspects elsewhere; COPY exports.
 export type ActionCategory = 'FOCUS' | 'FILTER' | 'DRILL' | 'COPY';
 
-export interface TreeExplorerOptionalMarker {
+// Visual indicator attached to a node.
+export interface TreeExplorerMarker {
   readonly name: string;
+  // Material icon drawn on the node instead of the default small square.
+  // When set, the tooltip shows the marker as a highlighted header row.
+  readonly icon?: string;
+  // Longer explanation shown in the tooltip under the marker name.
+  readonly description?: string;
+  // Color of the tooltip header row for icon markers. Defaults to 'warning'.
+  readonly tone?: TreeExplorerMarkerTone;
+}
+
+export type TreeExplorerMarkerTone = 'warning' | 'muted';
+
+export interface TreeExplorerOptionalMarker extends TreeExplorerMarker {
   isVisible: (properties: ReadonlyMap<string, string>) => boolean;
 }
 
@@ -68,7 +81,7 @@ export interface TreeExplorerNode {
   readonly cumulativeValue: number;
   readonly parentCumulativeValue?: number;
   readonly properties: ReadonlyMap<string, TreeExplorerPropertyDefinition>;
-  readonly marker?: string;
+  readonly marker?: TreeExplorerMarker;
   readonly xStart: number;
   readonly xEnd: number;
 }

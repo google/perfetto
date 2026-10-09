@@ -78,6 +78,32 @@
     color: var(--pf-color-text-muted);
     padding-bottom: 4px; // Extra gap between marker and function name
   }
+
+  .pf-flamegraph-tooltip-marker {
+    display: flex;
+    gap: 6px;
+    max-width: 360px;
+    margin-bottom: 4px;
+    padding: 6px 8px;
+    border-left: 3px solid var(--pf-color-warning);
+    background: color-mix(in srgb, var(--pf-color-warning) 10%, transparent);
+    font-size: var(--pf-font-size-s);
+  }
+
+  .pf-flamegraph-tooltip-marker--muted {
+    border-left-color: var(--pf-color-text-muted);
+    background: color-mix(in srgb, var(--pf-color-text-muted) 10%, transparent);
+
+    .pf-icon {
+      color: var(--pf-color-text-muted);
+    }
+  }
+
+  .pf-flamegraph-tooltip-marker__desc {
+    white-space: normal;
+    color: var(--pf-color-text-muted);
+    padding-top: 2px;
+  }
 }
 
 // All category buttons share the width of the widest one: equal 1fr columns in
