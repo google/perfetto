@@ -559,9 +559,16 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
   // Exercise the proxy used by producers, including its initialization call.
   ProxyProducerEndpoint proxy;
   proxy.set_backend(endpoint.get());
+  // This config must reach the endpoint through the proxy. The default 128 KiB
+  // hint fits 64 chunks of 1280 bytes after rounding down to a power of two.
+  DataSourceConfig config;
+  config.mutable_experimental_tracing_v2()
+      ->add_chunk_size_options()
+      ->set_size_bytes(1280);
   // The in-process service accepts the ring buffer inline.
-  proxy.InitializeV2RingBuffer();
-  EXPECT_GT(impl->ring_buffer_size_bytes(), 0u);
+  proxy.InitializeV2RingBuffer(config);
+  EXPECT_EQ(impl->ring_buffer_size_bytes(),
+            sizeof(tracing_v2::RingBufferHeader) + 64 * 1280);
 
   auto writer =
       proxy.CreateTraceWriterV2(target_buffer, BufferExhaustedPolicy::kDrop);
@@ -592,7 +599,8 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
 }
 
 // Only InitializeV2RingBuffer() allocates the ring buffer.
-// The first call attaches it, and later sessions reuse it.
+// The first call attaches it, and later sessions reuse it with the first
+// instance's chunk size and drain percentage.
 TEST_F(TracingServiceImplTest, InProcessRingBufferIsExplicitAndReused) {
   NiceMock<MockProducer> producer(&task_runner);
   auto endpoint = svc->ConnectProducer(
@@ -627,10 +635,16 @@ TEST_F(TracingServiceImplTest, InProcessRingBufferIsExplicitAndReused) {
       EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
     }
 
-    endpoint->InitializeV2RingBuffer();
-    // A zero size hint gives 128 KiB of chunks, and the header comes on top.
+    DataSourceConfig config;
+    auto* v2_config = config.mutable_experimental_tracing_v2();
+    v2_config->add_chunk_size_options()->set_size_bytes(session == 0 ? 768
+                                                                     : 512);
+    v2_config->set_drain_occupancy_percent(session == 0 ? -1 : 100);
+    endpoint->InitializeV2RingBuffer(config);
+    // The default 128 KiB size hint fits 128 chunks of 768 bytes.
+    // Later initialization calls keep that layout.
     EXPECT_EQ(impl->ring_buffer_size_bytes(),
-              sizeof(tracing_v2::RingBufferHeader) + 128 * 1024);
+              sizeof(tracing_v2::RingBufferHeader) + 128 * 768);
 
     // The service attaches one ring buffer for each producer, so it would
     // reject a second one, and its writers would discard their packets.
@@ -640,9 +654,9 @@ TEST_F(TracingServiceImplTest, InProcessRingBufferIsExplicitAndReused) {
     EXPECT_NE(writer->writer_id(), 0u);
     const std::string payload = "session " + std::to_string(session);
     writer->NewTracePacket()->set_for_testing()->set_str(payload);
-    auto flushed = task_runner.CreateCheckpoint(payload + " flushed");
-    writer->Flush(flushed);
-    task_runner.RunUntilCheckpoint(payload + " flushed");
+    // The first drain percentage (-1) requests a drain for each publication,
+    // including in the second session, without an explicit flush.
+    task_runner.RunUntilIdle();
     EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre(payload));
 
     writer.reset();
@@ -653,12 +667,13 @@ TEST_F(TracingServiceImplTest, InProcessRingBufferIsExplicitAndReused) {
 }
 
 // A size hint below two chunks cannot hold a ring buffer.
+// The failure is final, even if a later config would fit.
 // v2 writers discard their packets, and do not fall back to v1.
 TEST_F(TracingServiceImplTest, InProcessSizingFailureDisablesV2Writers) {
   NiceMock<MockProducer> producer(&task_runner);
   auto endpoint = svc->ConnectProducer(
       &producer, ClientIdentity(42, 1025), "ring_buffer",
-      /*shared_memory_size_hint_bytes=*/tracing_v2::kMinChunkSize,
+      /*shared_memory_size_hint_bytes=*/2 * tracing_v2::kMinChunkSize,
       /*in_process=*/true, TracingService::ProducerSMBScrapingMode::kDefault,
       /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
       /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV1 | kProtocolAbiV2);
@@ -678,7 +693,15 @@ TEST_F(TracingServiceImplTest, InProcessSizingFailureDisablesV2Writers) {
   task_runner.RunUntilIdle();
   ASSERT_NE(target, 0u);
 
-  endpoint->InitializeV2RingBuffer();
+  // The 512-byte hint holds only one chunk of 512 bytes.
+  DataSourceConfig too_large;
+  too_large.mutable_experimental_tracing_v2()
+      ->add_chunk_size_options()
+      ->set_size_bytes(2 * tracing_v2::kMinChunkSize);
+  endpoint->InitializeV2RingBuffer(too_large);
+  EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
+  // Two default 256-byte chunks would fit, but initialization must not retry.
+  endpoint->InitializeV2RingBuffer({});
   EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
   auto writer =
       endpoint->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop);
@@ -741,7 +764,7 @@ TEST_F(TracingServiceImplTest, RingBufferNeedsInProcessV2Connection) {
 
   for (TracingService::ProducerEndpoint* endpoint :
        {v1_endpoint.get(), ipc_endpoint.get()}) {
-    endpoint->InitializeV2RingBuffer();
+    endpoint->InitializeV2RingBuffer({});
     EXPECT_EQ(
         static_cast<ProducerEndpointImpl*>(endpoint)->ring_buffer_size_bytes(),
         0u);
@@ -787,7 +810,7 @@ TEST_F(TracingServiceImplTest, InProcessV2OnlyRejectsV1Writers) {
   EXPECT_EQ(legacy->writer_id(), 0u);
   legacy->NewTracePacket()->set_for_testing()->set_str("forbidden v1");
 
-  endpoint->InitializeV2RingBuffer();
+  endpoint->InitializeV2RingBuffer({});
   auto writer =
       endpoint->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop);
   EXPECT_NE(writer->writer_id(), 0u);
@@ -916,6 +939,66 @@ TEST_F(TracingServiceImplTest, RejectsInvalidTracingV2Settings) {
   consumer->EnableTracing(make_config(/*probability=*/100));
   consumer->DisableTracing();
   consumer->WaitForTracingDisabledWithError(IsEmpty());
+}
+
+// A chunk size must be valid for the ring buffer ABI.
+// The service checks every option, including those with weight 0.
+TEST_F(TracingServiceImplTest, RejectsInvalidChunkSizeOptions) {
+  auto make_config = [](uint32_t size,
+                        std::optional<uint32_t> weight = std::nullopt) {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* ds_config = config.add_data_sources()->mutable_config();
+    ds_config->set_name("data_source");
+    auto* option =
+        ds_config->mutable_experimental_tracing_v2()->add_chunk_size_options();
+    option->set_size_bytes(size);
+    if (weight)
+      option->set_weight(*weight);
+    return config;
+  };
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  for (uint32_t size : {0u, 255u, 258u, 65540u}) {
+    consumer->EnableTracing(make_config(size));
+    consumer->WaitForTracingDisabledWithError(HasSubstr("chunk_size_options"));
+  }
+  consumer->EnableTracing(make_config(258, /*weight=*/0));
+  consumer->WaitForTracingDisabledWithError(HasSubstr("chunk_size_options"));
+  for (uint32_t size : {256u, 65536u}) {
+    consumer->EnableTracing(make_config(size));
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabledWithError(IsEmpty());
+    consumer->FreeBuffers();
+  }
+}
+
+// drain_occupancy_percent must be -1 to 100.
+TEST_F(TracingServiceImplTest, RejectsInvalidDrainOccupancyPercent) {
+  auto make_config = [](int32_t percent) {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* ds_config = config.add_data_sources()->mutable_config();
+    ds_config->set_name("data_source");
+    ds_config->mutable_experimental_tracing_v2()->set_drain_occupancy_percent(
+        percent);
+    return config;
+  };
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  for (int32_t percent : {-2, 101}) {
+    consumer->EnableTracing(make_config(percent));
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("drain_occupancy_percent"));
+  }
+  for (int32_t percent : {-1, 100}) {
+    consumer->EnableTracing(make_config(percent));
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabledWithError(IsEmpty());
+    consumer->FreeBuffers();
+  }
 }
 
 // The consumer cannot set supports_tracing_v2. The service overwrites the

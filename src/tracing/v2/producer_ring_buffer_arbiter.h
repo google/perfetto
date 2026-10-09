@@ -197,13 +197,17 @@ class ProducerRingBufferArbiter {
   // |endpoint| receives the drain requests.
   // |task_runner| runs the endpoint thread.
   // Both must be non-null and outlive this object.
-  // Starts in kPending with chunks of kMinChunkSize bytes. The endpoint must
+  // Starts in kPending with chunks of |chunk_size| bytes. The endpoint must
   // initiate attachment before allowing writers to use this object, and call
   // OnReaderAttachReply() when the reply arrives.
   // |memory| must be non-null and satisfy NumChunksForRingBufferLayout().
+  // |drain_occupancy_threshold| is the number of outstanding positions at
+  // which a publication requests a drain, from 1 to the ring's chunk count.
   ProducerRingBufferArbiter(base::TaskRunner* task_runner,
                             ProducerEndpoint* endpoint,
-                            std::shared_ptr<SharedMemory> memory);
+                            std::shared_ptr<SharedMemory> memory,
+                            uint32_t chunk_size,
+                            uint32_t drain_occupancy_threshold);
 
   // The endpoint destroys this on its thread after all writers release their
   // IDs. Calls Disconnect().
@@ -249,6 +253,10 @@ class ProducerRingBufferArbiter {
 
   // The view that writers borrow. Fixed for the life of this object.
   SharedRingBuffer* ring_buffer() { return &ring_buffer_; }
+
+  uint32_t drain_occupancy_threshold() const {
+    return drain_occupancy_threshold_;
+  }
 
   // Drain requests, from writers on their own thread:
 
@@ -301,6 +309,12 @@ class ProducerRingBufferArbiter {
   const std::shared_ptr<SharedMemory> memory_;
   // The view that writers borrow.
   SharedRingBuffer ring_buffer_;
+  // A publication asks for a drain when the ring buffer has at least this many
+  // outstanding positions.
+  // - The count covers the positions of all writers.
+  // - It includes reservations whose chunks are not published yet.
+  // - Fixed at construction and shared by all writers.
+  const uint32_t drain_occupancy_threshold_;
 
   // --- Shared with writer threads. ---
 

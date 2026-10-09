@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/tracing/v2/producer_ring_buffer_test.h"
 #include "test/gtest_and_gmock.h"
 
@@ -93,7 +94,7 @@ class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
 TEST_F(ProducerRingBufferArbiterTest, EndpointWithoutV2DiscardsV2Packets) {
   EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, _, _)).Times(0);
   EXPECT_CALL(endpoint_, CreateTraceWriter(_, _)).Times(0);
-  endpoint_.InitializeV2RingBuffer();
+  endpoint_.InitializeV2RingBuffer({});
   auto writer = endpoint_.CreateTraceWriterV2(kTargetBuffer,
                                               BufferExhaustedPolicy::kDrop);
   ASSERT_TRUE(writer);
@@ -141,6 +142,17 @@ TEST_F(ProducerRingBufferArbiterTest, RejectedAttachGivesNullTraceWriters) {
 
   // Existing writers keep the mapping.
   WritePacket(pending_writer.get(), "kept mapping");
+}
+
+// --- Chunk size ---
+
+TEST_F(ProducerRingBufferArbiterTest, ConstructorUsesConfiguredChunkSize) {
+  CreateRingBufferArbiter(/*num_chunks=*/4, /*chunk_size=*/1024);
+  EXPECT_EQ(arbiter_->ring_buffer()->chunk_size(), 1024u);
+  EXPECT_EQ(arbiter_->ring_buffer()->num_chunks(), 4u);
+  AttachReader();
+  auto writer = CreateWriter();
+  EXPECT_TRUE(PacketReachesRingBuffer(writer.get()));
 }
 
 // --- Writers ---

@@ -43,7 +43,7 @@ class ProxyProducerEndpoint : public ProducerEndpoint {
   void CommitData(const CommitDataRequest&,
                   CommitDataCallback callback = {}) override;
   SharedMemory* shared_memory() const override;
-  void InitializeV2RingBuffer() override;
+  void InitializeV2RingBuffer(const DataSourceConfig&) override;
   void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
                           uint32_t chunk_size_bytes,
                           std::function<void(bool)> callback) override;

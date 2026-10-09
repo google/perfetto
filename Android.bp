@@ -23393,6 +23393,7 @@ filegroup {
     name: "perfetto_src_tracing_v2_unittests",
     srcs: [
         "src/tracing/v2/producer_ring_buffer_arbiter_unittest.cc",
+        "src/tracing/v2/producer_ring_buffer_config_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_abi_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_concurrency_unittest.cc",
         "src/tracing/v2/shared_ring_buffer_reader_unittest.cc",
@@ -23407,6 +23408,7 @@ filegroup {
     name: "perfetto_src_tracing_v2_v2",
     srcs: [
         "src/tracing/v2/producer_ring_buffer_arbiter.cc",
+        "src/tracing/v2/producer_ring_buffer_config.cc",
         "src/tracing/v2/shared_ring_buffer.cc",
         "src/tracing/v2/shared_ring_buffer_reader.cc",
         "src/tracing/v2/shared_ring_buffer_writer.cc",

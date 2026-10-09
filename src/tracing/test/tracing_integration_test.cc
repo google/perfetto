@@ -568,14 +568,25 @@ TEST_P(InstanceProtocolIntegrationTest, ExplicitWriterUsesRequestedProtocol) {
 
     // Without v2 in the common mask, the endpoint allocates and attaches
     // nothing.
-    producer_endpoint_->InitializeV2RingBuffer();
+    DataSourceConfig config;
+    auto* v2_config = config.mutable_experimental_tracing_v2();
+    auto* chunk_size_option = v2_config->add_chunk_size_options();
+    chunk_size_option->set_size_bytes(1024);
+    v2_config->set_drain_occupancy_percent(-1);
+    producer_endpoint_->InitializeV2RingBuffer(config);
     auto* arbiter = ring_buffer_arbiter();
     EXPECT_EQ(arbiter != nullptr, param.selected_version.has_value());
     EXPECT_EQ(ring_buffer_initialization_attempted(),
               param.selected_version.has_value());
-    // A repeated call keeps the arbiter, so it does not attach again.
-    producer_endpoint_->InitializeV2RingBuffer();
+    // A repeated call keeps the arbiter and its first settings.
+    chunk_size_option->set_size_bytes(512);
+    v2_config->set_drain_occupancy_percent(100);
+    producer_endpoint_->InitializeV2RingBuffer(config);
     EXPECT_EQ(ring_buffer_arbiter(), arbiter);
+    if (arbiter) {
+      EXPECT_EQ(arbiter->ring_buffer()->chunk_size(), 1024u);
+      EXPECT_EQ(arbiter->drain_occupancy_threshold(), 1u);
+    }
 
     writer = producer_endpoint_->CreateTraceWriterV2(
         target_buffer, BufferExhaustedPolicy::kDrop);
@@ -677,7 +688,7 @@ TEST_F(RingBufferTransportIntegrationTest, RejectionStopsV2WithoutFallback) {
   ASSERT_EQ(setups.size(), 1u);
   const auto target = static_cast<BufferID>(setups[0].target_buffer());
 
-  producer_endpoint_->InitializeV2RingBuffer();
+  producer_endpoint_->InitializeV2RingBuffer({});
   auto* arbiter = ring_buffer_arbiter();
   ASSERT_TRUE(arbiter);
   // A writer can publish before the reply arrives.
@@ -701,7 +712,7 @@ TEST_F(RingBufferTransportIntegrationTest, RejectionStopsV2WithoutFallback) {
       ->set_use_v2_probability_percent(100);
   EXPECT_CALL(producer_, SetupDataSource(100, _));
   test::ProducerIPCClientTestPeer::OnServiceRequest(client(), command);
-  producer_endpoint_->InitializeV2RingBuffer();
+  producer_endpoint_->InitializeV2RingBuffer({});
   EXPECT_EQ(ring_buffer_arbiter(), arbiter);
 
   // This writer keeps the rejected mapping.
@@ -733,7 +744,7 @@ TEST_F(RingBufferTransportIntegrationTest, DisconnectKeepsDetachedArbiter) {
   auto setups = Start(RingBufferConfig("perfetto.test"), 1);
   ASSERT_EQ(setups.size(), 1u);
   const auto target = static_cast<BufferID>(setups[0].target_buffer());
-  producer_endpoint_->InitializeV2RingBuffer();
+  producer_endpoint_->InitializeV2RingBuffer({});
   auto* arbiter = ring_buffer_arbiter();
   ASSERT_TRUE(arbiter);
   auto writer = producer_endpoint_->CreateTraceWriterV2(
@@ -759,7 +770,7 @@ TEST_F(RingBufferTransportIntegrationTest, DisconnectKeepsDetachedArbiter) {
   task_runner_->RunUntilIdle();
 
   // A later call does not replace the arbiter that the writer uses.
-  producer_endpoint_->InitializeV2RingBuffer();
+  producer_endpoint_->InitializeV2RingBuffer({});
   EXPECT_EQ(ring_buffer_arbiter(), arbiter);
   writer.reset();
   producer_endpoint_.reset();
@@ -771,7 +782,7 @@ TEST_F(RingBufferTransportIntegrationTest, DisconnectKeepsDetachedArbiter) {
 // destroyed first.
 TEST_F(RingBufferTransportIntegrationTest, DestroyEndpointWithPendingAttach) {
   Start(RingBufferConfig("perfetto.test"), 1);
-  producer_endpoint_->InitializeV2RingBuffer();
+  producer_endpoint_->InitializeV2RingBuffer({});
   ASSERT_TRUE(ring_buffer_arbiter());
   producer_endpoint_.reset();
   task_runner_->RunUntilIdle();
@@ -795,14 +806,14 @@ TEST_F(RingBufferTransportIntegrationTest, AllocationFailureIsNotRetried) {
         limit.rlim_cur = 0;
         if (setrlimit(RLIMIT_NOFILE, &limit) != 0)
           _exit(3);
-        producer_endpoint_->InitializeV2RingBuffer();
+        producer_endpoint_->InitializeV2RingBuffer({});
         if (setrlimit(RLIMIT_NOFILE, &saved_limit) != 0)
           _exit(4);
         if (!ring_buffer_initialization_attempted() || ring_buffer_arbiter())
           _exit(5);
 
         // Allocation can succeed now, but the endpoint does not try again.
-        producer_endpoint_->InitializeV2RingBuffer();
+        producer_endpoint_->InitializeV2RingBuffer({});
         if (ring_buffer_arbiter())
           _exit(6);
         // A v1 writer would have a nonzero ID.
@@ -842,7 +853,7 @@ TEST_F(RingBufferTransportIntegrationTest, StopReadsUnflushedRingBufferData) {
 
   // The service drains once when it accepts the ring buffer.
   // After this round trip, the attach and that drain are done.
-  producer_endpoint_->InitializeV2RingBuffer();
+  producer_endpoint_->InitializeV2RingBuffer({});
   Sync();
 
   // One small packet stays below the drain threshold.
