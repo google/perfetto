@@ -38,6 +38,8 @@ const ENABLE_BIGTRACE = process.env.ENABLE_BIGTRACE === 'true';
 const ENABLE_OPEN_PERFETTO_TRACE =
   process.env.ENABLE_OPEN_PERFETTO_TRACE === 'true';
 const IS_MEMORY64_ONLY = process.env.IS_MEMORY64_ONLY === 'true';
+const EXPERIMENTAL_MITHRIL_HMR =
+  process.env.EXPERIMENTAL_MITHRIL_HMR === 'true';
 
 // Unlike Rollup, Rolldown does not polyfill import.meta.url in IIFE bundles.
 // Some dependencies use it at module initialization time, so provide the
@@ -226,6 +228,206 @@ function pluginGenWasmGlueEsm() {
   };
 }
 
+// Dev-mode hot module replacement for Mithril components.
+//
+// A "component module" is a ui/src .ts file whose only runtime exports are
+// Mithril components (type-only exports are allowed). Components are
+// identified by an explicit type annotation:
+//      export class Foo implements m.ClassComponent<...> {...}
+//      export class Foo implements m.Component<...> {...}
+//      export function Foo(...): m.Component<...> {...}
+//      export const Foo: m.ClosureComponent<...> = ...;
+//      export const Foo: m.FactoryComponent<...> = ...;
+//      export const Foo: m.Component<...> = {...};
+// Such modules are rewritten so each exported component is wrapped by
+// hmrWrapComponent() (ui/src/core/hmr.ts) and the module self-accepts. On
+// update the runtime repoints the wrapper at the new component and remounts
+// the whole Mithril tree.
+//
+// Any other JS/TS change triggers a full page reload (which the
+// vite_live_reload.ts prompt intercepts). This is deliberate: letting Vite
+// propagate a non-component update up to a self-accepting component module
+// would re-execute only part of the graph and leave the app with two copies
+// of the changed module.
+//
+// The rewrite preserves line/column positions of the original code (the
+// `export` keyword is blanked, everything else is appended on the same line
+// or at the end of the file), so no source map is needed.
+//
+// NB: the wrapped export is a `const`, so exported function declarations lose
+// hoisting from the importer's point of view. This only matters for import
+// cycles that use a component before its module has finished evaluating.
+function pluginMithrilHmr() {
+  const HMR_RUNTIME = path.join(SRC, 'core/hmr.ts');
+  let tsPromise;
+  const loadTs = () =>
+    (tsPromise ??= import('typescript').then((m) => m.default));
+
+  // Files that were served as component modules (i.e. currently self-accept).
+  const componentModules = new Set();
+
+  const hasModifier = (ts, node, kind) =>
+    (node.modifiers ?? []).some((m) => m.kind === kind);
+
+  // True if `typeNode` is a reference to one of `names` (e.g. m.Component<A>).
+  const isTypeRef = (ts, sf, typeNode, names) =>
+    !!typeNode &&
+    ts.isTypeReferenceNode(typeNode) &&
+    names.includes(typeNode.typeName.getText(sf));
+
+  // If `stmt` is an exported component, returns its name, otherwise null.
+  function componentName(ts, sf, stmt) {
+    if (
+      hasModifier(ts, stmt, ts.SyntaxKind.DefaultKeyword) ||
+      hasModifier(ts, stmt, ts.SyntaxKind.DeclareKeyword)
+    ) {
+      return null;
+    }
+    if (ts.isClassDeclaration(stmt)) {
+      const implementsComponent = (stmt.heritageClauses ?? []).some(
+        (clause) =>
+          clause.token === ts.SyntaxKind.ImplementsKeyword &&
+          clause.types.some((t) =>
+            ['m.ClassComponent', 'm.Component'].includes(
+              t.expression.getText(sf),
+            ),
+          ),
+      );
+      return stmt.name && implementsComponent ? stmt.name.text : null;
+    }
+    if (ts.isFunctionDeclaration(stmt)) {
+      const ok =
+        stmt.name &&
+        stmt.body &&
+        !stmt.asteriskToken &&
+        !hasModifier(ts, stmt, ts.SyntaxKind.AsyncKeyword) &&
+        isTypeRef(ts, sf, stmt.type, ['m.Component']);
+      return ok ? stmt.name.text : null;
+    }
+    if (ts.isVariableStatement(stmt)) {
+      const list = stmt.declarationList;
+      if (!(list.flags & ts.NodeFlags.Const)) return null;
+      if (list.declarations.length !== 1) return null;
+      const decl = list.declarations[0];
+      if (!ts.isIdentifier(decl.name) || !decl.initializer) return null;
+      const init = decl.initializer;
+      const isClosure =
+        (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) &&
+        isTypeRef(ts, sf, decl.type, [
+          'm.ClosureComponent',
+          'm.FactoryComponent',
+        ]);
+      const isObject =
+        ts.isObjectLiteralExpression(init) &&
+        isTypeRef(ts, sf, decl.type, ['m.Component']);
+      return isClosure || isObject ? decl.name.text : null;
+    }
+    return null;
+  }
+
+  // Returns the list of exported components, or null if the module is not a
+  // component module.
+  function analyze(ts, file, code) {
+    const sf = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true);
+    const components = [];
+    for (const stmt of sf.statements) {
+      if (ts.isExportDeclaration(stmt)) {
+        const typeOnly =
+          stmt.isTypeOnly ||
+          (stmt.exportClause &&
+            ts.isNamedExports(stmt.exportClause) &&
+            !stmt.moduleSpecifier &&
+            stmt.exportClause.elements.every((e) => e.isTypeOnly));
+        if (!typeOnly) return null;
+        continue;
+      }
+      if (ts.isExportAssignment(stmt)) return null;
+      if (!hasModifier(ts, stmt, ts.SyntaxKind.ExportKeyword)) continue;
+      if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) {
+        continue;
+      }
+      const name = componentName(ts, sf, stmt);
+      if (name === null) return null;
+      const exportKw = stmt.modifiers.find(
+        (m) => m.kind === ts.SyntaxKind.ExportKeyword,
+      );
+      components.push({
+        name,
+        exportStart: exportKw.getStart(sf),
+        exportEnd: exportKw.getEnd(),
+        declEnd: stmt.getEnd(),
+      });
+    }
+    return components.length > 0 ? components : null;
+  }
+
+  return {
+    name: 'perfetto:mithril-hmr',
+    apply: 'serve',
+    enforce: 'pre',
+    async transform(code, id) {
+      const file = id.split('?', 1)[0];
+      if (!file.startsWith(SRC + path.sep) || !file.endsWith('.ts')) return;
+      if (file.endsWith('.d.ts') || file === HMR_RUNTIME) return;
+      // Cheap pre-filter before parsing.
+      if (!/\bexport\s+(abstract\s+class|class|function|const)\b/.test(code)) {
+        componentModules.delete(file);
+        return;
+      }
+      const components = analyze(await loadTs(), file, code);
+      if (!components) {
+        componentModules.delete(file);
+        return;
+      }
+      componentModules.add(file);
+
+      // Apply edits back-to-front so earlier offsets stay valid.
+      let out = code;
+      for (const c of [...components].reverse()) {
+        const local = `__hmr_${c.name}`;
+        out =
+          out.slice(0, c.declEnd) +
+          `; const ${local} = __hmrWrapComponent(import.meta.hot, ` +
+          `${JSON.stringify(c.name)}, ${c.name}); ` +
+          `export {${local} as ${c.name}};` +
+          out.slice(c.declEnd);
+        out =
+          out.slice(0, c.exportStart) +
+          ' '.repeat(c.exportEnd - c.exportStart) +
+          out.slice(c.exportEnd);
+      }
+      let rel = path
+        .relative(path.dirname(file), HMR_RUNTIME)
+        .replace(/\.ts$/, '')
+        .split(path.sep)
+        .join('/');
+      if (!rel.startsWith('.')) rel = './' + rel;
+      // ESM imports are hoisted, so appending it at the end is fine.
+      out +=
+        `\nimport {hmrWrapComponent as __hmrWrapComponent} from ` +
+        `${JSON.stringify(rel)};\n` +
+        `if (import.meta.hot) {\n  import.meta.hot.accept();\n}\n`;
+      return {code: out, map: null};
+    },
+    async hotUpdate({file, modules, read}) {
+      if (this.environment.name !== 'client') return;
+      if (modules.length === 0) return; // Not part of the module graph.
+      if (/\.(css|scss|sass)$/.test(file)) return; // Vite hot-swaps styles.
+      // Only take the HMR path if the module is a component module both
+      // before (so it currently self-accepts) and after the edit.
+      if (componentModules.has(file) && file.endsWith('.ts')) {
+        if (analyze(await loadTs(), file, await read())) return;
+      }
+      this.environment.hot.send({
+        type: 'full-reload',
+        path: '*',
+        triggeredBy: file,
+      });
+      return [];
+    },
+  };
+}
+
 // Per-bundle config: input file, output dir (relative to ui/out), and output
 // filename. Most bundles follow the standard convention; service_worker and
 // chrome_extension differ.
@@ -287,6 +489,7 @@ export default defineConfig(({command}) => {
       lezer(),
       pluginGenRelativeImports(),
       ...(isBuild ? [] : [pluginGenWasmGlueEsm()]),
+      ...(!isBuild && EXPERIMENTAL_MITHRIL_HMR ? [pluginMithrilHmr()] : []),
       ...(NO_SOURCE_MAPS ? [] : [pluginEmbedMinimalSourceMap()]),
     ],
     resolve: {
