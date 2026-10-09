@@ -140,14 +140,14 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   }
   spec.group_column = c->order().group_column;
   for (const IntervalFlatten::Aggregate& agg : flatten.aggregates_) {
-    ex::IntervalFlattenSpec::Aggregate lowered;
+    ex::AggregateCall lowered;
     switch (agg.function) {
       case IntervalFlatten::Function::kCount:
-        lowered.function = ex::IntervalFlattenSpec::Function::kCount;
+        lowered.function = ex::AggregateCall::Function::kCountStar;
         break;
       case IntervalFlatten::Function::kSum:
         c->RequireInt64(agg.column);
-        lowered.function = ex::IntervalFlattenSpec::Function::kSum;
+        lowered.function = ex::AggregateCall::Function::kSum;
         lowered.column = c->Position(agg.column);
         break;
     }

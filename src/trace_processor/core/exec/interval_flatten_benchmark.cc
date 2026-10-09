@@ -68,8 +68,8 @@ void Run(benchmark::State& state, uint32_t rows, uint32_t rows_per_group = 0) {
   IntervalFlattenSpec spec;
   spec.ts_column = 0;
   spec.dur_column = 1;
-  spec.aggregates = {{IntervalFlattenSpec::Function::kCount, 0},
-                     {IntervalFlattenSpec::Function::kSum, 2}};
+  spec.aggregates = {{AggregateCall::Function::kCountStar, 0},
+                     {AggregateCall::Function::kSum, 2}};
   if (rows_per_group) {
     spec.key_columns = {3};
     spec.group_column = 3;
