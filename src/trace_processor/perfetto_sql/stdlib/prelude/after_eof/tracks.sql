@@ -261,3 +261,96 @@ WHERE
     'gpu_log',
     'graphics_frame_event'
   );
+
+-- The dimensions of every track.
+--
+-- A dimension is a named, typed key/value which is part of a track's identity.
+-- There is one vocabulary for all of them:
+--  * *well known* dimensions (`machine`, `process`, `thread`, `cpu`, `gpu`)
+--    are written by trace processor for every track. Their values are trace
+--    processor identities (e.g. `machine.id`, `upid`, `utid`). Note that tracks
+--    only associated with a thread don't have a `process` dimension: use
+--    `thread.upid` for those.
+--  * *custom* dimensions are declared by producers with
+--    `TrackDescriptor.dimensions` (e.g. `rank` for a distributed training
+--    job). They apply to the declaring track plus the tracks of the same
+--    process/thread (if declared on a process/thread track) or its `parent_id`
+--    descendants otherwise.
+CREATE PERFETTO VIEW track_dimension(
+  -- The track this dimension applies to.
+  track_id JOINID(track.id),
+  -- The canonical dimension name, e.g. 'rank' or 'machine'.
+  name STRING,
+  -- The value, for integer valued dimensions.
+  int_value LONG,
+  -- The value, for string valued dimensions. Exactly one of `int_value` and
+  -- `string_value` is non-null.
+  string_value STRING,
+  -- Optional human readable label for this *value*. Presentation only: joins
+  -- should use the canonical value above. Always null for well known
+  -- dimensions: use the corresponding table (e.g. `process.name`) instead.
+  display_name STRING,
+  -- Whether this is a well known dimension, i.e. one which trace processor
+  -- understands and whose value means the same thing across data sources.
+  is_well_known BOOL
+)
+AS
+SELECT track_id, name, int_value, string_value, display_name, is_well_known
+FROM __intrinsic_track_dimension;
+
+-- The custom dimensions of every process, i.e. the ones declared on its root
+-- `TrackDescriptor`.
+--
+-- Use it for event tables which carry their own `upid` (e.g. `gpu_slice`)
+-- rather than inheriting it from the track.
+CREATE PERFETTO VIEW process_dimension(
+  -- The process this dimension applies to.
+  upid JOINID(process.id),
+  -- The canonical dimension name, e.g. 'rank'.
+  name STRING,
+  -- The value, for integer valued dimensions.
+  int_value LONG,
+  -- The value, for string valued dimensions.
+  string_value STRING,
+  -- Optional human readable label for this *value*.
+  display_name STRING,
+  -- Whether this is a well known dimension. Always false: the well known
+  -- identities of a process are columns of the `process` table.
+  is_well_known BOOL
+)
+AS
+SELECT upid, name, int_value, string_value, display_name, 0 AS is_well_known
+FROM __intrinsic_process_dimension;
+
+-- The custom dimensions of every thread: the ones declared on its root
+-- `TrackDescriptor` plus the ones it inherits from its process.
+CREATE PERFETTO VIEW thread_dimension(
+  -- The thread this dimension applies to.
+  utid JOINID(thread.id),
+  -- The canonical dimension name, e.g. 'rank'.
+  name STRING,
+  -- The value, for integer valued dimensions.
+  int_value LONG,
+  -- The value, for string valued dimensions.
+  string_value STRING,
+  -- Optional human readable label for this *value*.
+  display_name STRING,
+  -- Whether this is a well known dimension. Always false: the well known
+  -- identities of a thread are columns of the `thread` table.
+  is_well_known BOOL
+)
+AS
+SELECT utid, name, int_value, string_value, display_name, 0 AS is_well_known
+FROM __intrinsic_thread_dimension
+UNION ALL
+-- The process of a thread can be learned or change during the trace, so the
+-- inherited dimensions are joined through `thread.upid` rather than copied.
+SELECT
+  t.utid,
+  d.name,
+  d.int_value,
+  d.string_value,
+  d.display_name,
+  0 AS is_well_known
+FROM __intrinsic_process_dimension AS d
+JOIN thread AS t USING (upid);

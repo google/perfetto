@@ -26,9 +26,11 @@
 #include <unordered_set>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -42,6 +44,8 @@
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -109,7 +113,8 @@ constexpr auto kThreadTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::kThreadDimensionBlueprint,
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value"),
+        tracks::LongDimensionBlueprint("custom_dimensions_hash")),
     tracks::DynamicNameBlueprint());
 
 constexpr auto kProcessTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
@@ -118,7 +123,8 @@ constexpr auto kProcessTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::kProcessDimensionBlueprint,
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value"),
+        tracks::LongDimensionBlueprint("custom_dimensions_hash")),
     tracks::DynamicNameBlueprint());
 
 constexpr auto kGlobalTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
@@ -126,7 +132,8 @@ constexpr auto kGlobalTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
     tracks::DimensionBlueprints(
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value"),
+        tracks::LongDimensionBlueprint("custom_dimensions_hash")),
     tracks::DynamicNameBlueprint());
 
 std::pair<uint32_t, StringId> GetMergeKey(
@@ -229,6 +236,9 @@ TrackEventTracker::ResolveDescriptorTrack(uint64_t uuid) {
   auto* ptr = descriptor_tracks_state_.Find(uuid);
   PERFETTO_CHECK(ptr);
   ptr->resolved = std::move(resolved);
+  if (ptr->resolved) {
+    RecordScopeDimensions(uuid, *ptr->resolved);
+  }
   return ptr->resolved;
 }
 
@@ -475,6 +485,20 @@ TrackEventTracker::InternDescriptorTrackImpl(
       rr.set_parent_id(parent_track_id);
     }
   };
+  // Merged tracks are created lazily and there can be more than one of them
+  // for a single descriptor, so dimensions are recorded from the track
+  // creation callback. Only descriptors with the same dimensions are merged
+  // together (they are part of the merge key), so the dimensions of the
+  // descriptor creating the track apply to the whole merged track. Every other
+  // track is handled by |EnsureDescriptorTrackInterned|.
+  auto on_new_merged_track = [this, uuid, set_parent_id](bool set_parent) {
+    return [this, uuid, set_parent_id, set_parent](TrackId id) {
+      if (set_parent) {
+        set_parent_id(id);
+      }
+      RecordTrackDimensions(uuid, id);
+    };
+  };
   using M = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;
   if (parent_track_id) {
     // If we have the track id, we should also always have the resolved track
@@ -519,12 +543,12 @@ TrackEventTracker::InternDescriptorTrackImpl(
         auto [type, key] = GetMergeKey(*reservation, name);
         return context_->track_compressor->CreateTrackFactory(
             kThreadTrackMergedBlueprint,
-            tracks::Dimensions(parent_resolved_track->utid(),
-                               static_cast<int64_t>(reservation->parent_uuid),
-                               type, key),
+            tracks::Dimensions(
+                parent_resolved_track->utid(),
+                static_cast<int64_t>(reservation->parent_uuid), type, key,
+                static_cast<int64_t>(reservation->dimensions_hash)),
             tracks::DynamicName(name), args_fn_non_root,
-            parent_resolved_track->is_root() ? std::function<void(TrackId)>()
-                                             : set_parent_id);
+            on_new_merged_track(!parent_resolved_track->is_root()));
       }
       case ResolvedDescriptorTrack::Scope::kProcess: {
         // If parent is a process track, create another process-associated
@@ -570,12 +594,12 @@ TrackEventTracker::InternDescriptorTrackImpl(
         auto [type, key] = GetMergeKey(*reservation, translated_name);
         return context_->track_compressor->CreateTrackFactory(
             kProcessTrackMergedBlueprint,
-            tracks::Dimensions(parent_resolved_track->upid(),
-                               static_cast<int64_t>(reservation->parent_uuid),
-                               type, key),
+            tracks::Dimensions(
+                parent_resolved_track->upid(),
+                static_cast<int64_t>(reservation->parent_uuid), type, key,
+                static_cast<int64_t>(reservation->dimensions_hash)),
             tracks::DynamicName(translated_name), args_fn_non_root,
-            parent_resolved_track->is_root() ? std::function<void(TrackId)>()
-                                             : set_parent_id);
+            on_new_merged_track(!parent_resolved_track->is_root()));
       }
       case ResolvedDescriptorTrack::Scope::kGlobal:
         break;
@@ -610,9 +634,11 @@ TrackEventTracker::InternDescriptorTrackImpl(
   return context_->track_compressor->CreateTrackFactory(
       kGlobalTrackMergedBlueprint,
       tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid), type,
-                         key),
+                         key,
+                         static_cast<int64_t>(reservation->dimensions_hash)),
       tracks::DynamicName(name),
-      is_root_in_scope ? args_fn_root : args_fn_non_root, set_parent_id);
+      is_root_in_scope ? args_fn_root : args_fn_non_root,
+      on_new_merged_track(true));
 }
 
 std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
@@ -704,6 +730,163 @@ void TrackEventTracker::AddTrackArgs(
 
   if (!reservation.description.is_null()) {
     args.AddArg(description_key_, Variadic::String(reservation.description));
+  }
+}
+
+void TrackEventTracker::RecordScopeDimensions(
+    uint64_t uuid,
+    const ResolvedDescriptorTrack& resolved) {
+  State* state = descriptor_tracks_state_.Find(uuid);
+  if (!state || state->reservation.dimensions.empty() || !resolved.is_root()) {
+    return;
+  }
+  const DimensionVec& declared = state->reservation.dimensions;
+  switch (resolved.scope()) {
+    case ResolvedDescriptorTrack::Scope::kProcess: {
+      UniquePid upid = resolved.upid();
+      auto* table = context_->storage->mutable_process_dimension_table();
+      for (const auto& dim : declared) {
+        tables::ProcessDimensionTable::Row row;
+        row.upid = upid;
+        row.name = dim.name;
+        row.int_value = dim.int_value;
+        row.string_value = dim.string_value;
+        row.display_name = dim.display_name;
+        table->Insert(row);
+      }
+      dimensions_by_upid_[upid] = declared;
+      break;
+    }
+    case ResolvedDescriptorTrack::Scope::kThread: {
+      UniqueTid utid = resolved.utid();
+      // Only keep the dimensions the thread doesn't already inherit from its
+      // process: the inherited value wins over a conflicting one.
+      DimensionVec inherited;
+      std::optional<UniquePid> upid =
+          context_->storage->thread_table()[tables::ThreadTable::Id(utid)]
+              .upid();
+      if (upid) {
+        if (const DimensionVec* d = dimensions_by_upid_.Find(*upid); d) {
+          inherited = *d;
+        }
+      }
+      size_t inherited_count = inherited.size();
+      MergeDimensions(declared, &inherited);
+      DimensionVec own(
+          inherited.begin() + static_cast<std::ptrdiff_t>(inherited_count),
+          inherited.end());
+      if (own.empty()) {
+        return;
+      }
+      auto* table = context_->storage->mutable_thread_dimension_table();
+      for (const auto& dim : own) {
+        tables::ThreadDimensionTable::Row row;
+        row.utid = utid;
+        row.name = dim.name;
+        row.int_value = dim.int_value;
+        row.string_value = dim.string_value;
+        row.display_name = dim.display_name;
+        table->Insert(row);
+      }
+      dimensions_by_utid_[utid] = std::move(own);
+      break;
+    }
+    case ResolvedDescriptorTrack::Scope::kGlobal:
+      break;
+  }
+}
+
+void TrackEventTracker::RecordTrackDimensions(uint64_t uuid, TrackId track_id) {
+  const State* state = descriptor_tracks_state_.Find(uuid);
+  if (!state || !state->resolved) {
+    return;
+  }
+  // The overwhelmingly common case: no producer declared any dimension.
+  if (state->reservation.dimensions.empty() &&
+      dimensions_by_upid_.size() == 0 && dimensions_by_utid_.size() == 0 &&
+      dimensions_by_track_.size() == 0) {
+    return;
+  }
+  // Merged in order of precedence: a dimension already inherited from the
+  // process, thread or parent track wins over a conflicting declaration.
+  DimensionVec dims;
+  std::optional<UniquePid> upid;
+  std::optional<UniqueTid> utid;
+  switch (state->resolved->scope()) {
+    case ResolvedDescriptorTrack::Scope::kProcess:
+      upid = state->resolved->upid();
+      break;
+    case ResolvedDescriptorTrack::Scope::kThread:
+      utid = state->resolved->utid();
+      upid = context_->storage->thread_table()[tables::ThreadTable::Id(*utid)]
+                 .upid();
+      break;
+    case ResolvedDescriptorTrack::Scope::kGlobal:
+      break;
+  }
+  if (upid) {
+    if (const DimensionVec* d = dimensions_by_upid_.Find(*upid); d) {
+      MergeDimensions(*d, &dims);
+    }
+  }
+  if (utid) {
+    if (const DimensionVec* d = dimensions_by_utid_.Find(*utid); d) {
+      MergeDimensions(*d, &dims);
+    }
+  }
+  auto track = context_->storage->track_table()[track_id];
+  if (auto parent_id = track.parent_id(); parent_id) {
+    if (const DimensionVec* d = dimensions_by_track_.Find(parent_id->value);
+        d) {
+      MergeDimensions(*d, &dims);
+    }
+  }
+  // The dimensions of a root process/thread descriptor are already merged in
+  // as the dimensions of that process/thread above.
+  if (!state->resolved->is_root()) {
+    MergeDimensions(state->reservation.dimensions, &dims);
+  }
+  if (dims.empty()) {
+    return;
+  }
+  // A track can be shared by more than one descriptor (e.g. the thread track):
+  // only the first one records its dimensions.
+  auto [it, inserted] =
+      dimensions_by_track_.Insert(track_id.value, std::move(dims));
+  if (!inserted) {
+    return;
+  }
+  auto* table = context_->storage->mutable_track_dimension_table();
+  for (const auto& dim : *it) {
+    tables::TrackDimensionTable::Row row;
+    row.track_id = track_id;
+    row.name = dim.name;
+    row.int_value = dim.int_value;
+    row.string_value = dim.string_value;
+    row.display_name = dim.display_name;
+    row.is_well_known = 0;
+    table->Insert(row);
+  }
+}
+
+void TrackEventTracker::MergeDimensions(const DimensionVec& dims,
+                                        DimensionVec* out) {
+  for (const auto& dim : dims) {
+    auto existing =
+        std::find_if(out->begin(), out->end(),
+                     [&dim](const auto& o) { return o.name == dim.name; });
+    if (existing == out->end()) {
+      out->push_back(dim);
+      continue;
+    }
+    // Repeating the same value is fine. A different value is invalid
+    // producer input: the value which is already there (i.e. the inherited
+    // one) wins.
+    if (existing->int_value != dim.int_value ||
+        existing->string_value != dim.string_value) {
+      context_->global_stats_tracker->IncrementGlobalStats(
+          stats::track_dimension_conflicting_value);
+    }
   }
 }
 

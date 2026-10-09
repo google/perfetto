@@ -914,6 +914,21 @@ namespace perfetto::trace_processor::stats {
       "A TrackEventRangeOfInterest packet was received without the required "  \
       "start_us field. The packet is ignored. This is a bug in the trace "     \
       "producer."),                                                            \
+  F(track_descriptor_invalid_dimension,         kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension without a name, without a "      \
+      "value or with an iid which is not in the interned data of the "         \
+      "sequence. The dimension is ignored (only its display name for an "      \
+      "unknown display_name_iid). This is a bug in the trace producer."),      \
+  F(track_descriptor_reserved_dimension_name,   kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a custom dimension using a name reserved "   \
+      "for well known dimensions (machine, gpu, cpu, process, thread). These " \
+      "are synthesized by trace processor and cannot be redefined: the "       \
+      "dimension is ignored. This is a bug in the trace producer."),           \
+  F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kGlobal,           \
+      "A track declared a dimension which is already inherited from its "      \
+      "process, thread or ancestor track with a *different* value. The "       \
+      "inherited value is kept and the override is ignored. This is a bug in " \
+      "the trace producer."),                                                  \
   F(track_descriptor_invalid_child_ordering,    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor specified an invalid or unrecognized value for "      \
       "child_tracks_ordering. The descriptor is ignored. This is a bug in "    \

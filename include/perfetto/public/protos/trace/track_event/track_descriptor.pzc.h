@@ -31,6 +31,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_CounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StateDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ThreadDescriptor);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TrackDimension);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, ChildTracksOrdering){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor, UNKNOWN) = 0,
@@ -165,5 +166,10 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   enum perfetto_protos_TrackDescriptor_ThreadOrdering,
                   thread_ordering,
                   20);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  MSG,
+                  perfetto_protos_TrackDimension,
+                  dimensions,
+                  21);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACK_EVENT_TRACK_DESCRIPTOR_PZC_H_

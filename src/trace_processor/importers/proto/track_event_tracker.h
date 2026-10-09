@@ -23,6 +23,7 @@
 #include <unordered_set>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -79,6 +80,15 @@ class TrackEventTracker {
       kByKey = 2,
     };
 
+    // A producer-declared custom dimension (see TrackDescriptor.dimensions).
+    // Exactly one of |int_value| / |string_value| is set.
+    struct Dimension {
+      StringId name = kNullStringId;
+      std::optional<int64_t> int_value;
+      std::optional<StringId> string_value;
+      std::optional<StringId> display_name;
+    };
+
     uint64_t parent_uuid = 0;
     std::optional<int64_t> pid;
     std::optional<int64_t> tid;
@@ -103,6 +113,14 @@ class TrackEventTracker {
     SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
     StringId sibling_merge_key = kNullStringId;
 
+    // Producer-declared custom dimensions, sorted by name. Dimensions are part
+    // of the track's identity, so they are compared by |IsForSameTrack|.
+    std::vector<Dimension> dimensions;
+
+    // Order independent hash of the names and values of |dimensions| (0 if
+    // there are none), used as part of the sibling merge key.
+    uint64_t dimensions_hash = 0;
+
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
     bool IsForSameTrack(const DescriptorTrackReservation& other) {
@@ -113,11 +131,32 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
+      if (!HasSameDimensions(other)) {
+        return false;
+      }
       return std::tie(parent_uuid, pid, tid, is_counter, is_state,
                       sibling_merge_behavior, sibling_merge_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
                       other.is_state, other.sibling_merge_behavior,
                       other.sibling_merge_key);
+    }
+
+    // Whether |other| declares the same dimension names and values (display
+    // names only affect presentation and are ignored).
+    bool HasSameDimensions(const DescriptorTrackReservation& other) const {
+      if (dimensions_hash != other.dimensions_hash ||
+          dimensions.size() != other.dimensions.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < dimensions.size(); ++i) {
+        const Dimension& a = dimensions[i];
+        const Dimension& b = other.dimensions[i];
+        if (std::tie(a.name, a.int_value, a.string_value) !=
+            std::tie(b.name, b.int_value, b.string_value)) {
+          return false;
+        }
+      }
+      return true;
     }
   };
 
@@ -355,6 +394,8 @@ class TrackEventTracker {
         track_id_or_factory = std::nullopt;
   };
 
+  using DimensionVec = std::vector<DescriptorTrackReservation::Dimension>;
+
   std::optional<TrackId> InternDescriptorTrackForParent(
       uint64_t uuid,
       StringId event_name,
@@ -389,6 +430,10 @@ class TrackEventTracker {
       s = descriptor_tracks_state_.Find(uuid);
       PERFETTO_CHECK(s);
       s->track_id_or_factory = std::move(res);
+      // Merged tracks record their dimensions as they are created instead.
+      if (auto* track_id = std::get_if<TrackId>(&*s->track_id_or_factory)) {
+        RecordTrackDimensions(uuid, *track_id);
+      }
     }
     return s;
   }
@@ -411,6 +456,24 @@ class TrackEventTracker {
                     bool,
                     ArgsTracker::BoundInserter&);
 
+  // If the descriptor |uuid| is the root track of a process or thread (as
+  // described by |resolved|), records the custom dimensions it declares as
+  // dimensions of that process or thread: they apply to every track of the
+  // process or thread created from then on.
+  void RecordScopeDimensions(uint64_t uuid,
+                             const ResolvedDescriptorTrack& resolved);
+
+  // Computes the custom dimensions of |track_id|, the track created for the
+  // descriptor |uuid|, and writes them to the track dimension table. These are
+  // the dimensions of its process, of its thread, of its parent track and the
+  // ones declared on the descriptor itself.
+  void RecordTrackDimensions(uint64_t uuid, TrackId track_id);
+
+  // Appends the dimensions of |dims| to |out|, skipping the names |out|
+  // already has: repeating the same value is deduplicated while a different
+  // value records `track_dimension_conflicting_value`.
+  void MergeDimensions(const DimensionVec& dims, DimensionVec* out);
+
   // Helper to record analysis errors with track_uuid arg
   void RecordTrackError(size_t stat_key, uint64_t track_uuid);
 
@@ -422,6 +485,14 @@ class TrackEventTracker {
   base::FlatHashMap<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
   std::unordered_set<uint32_t> sequences_with_first_packet_;
+
+  // Custom dimensions declared on root process/thread descriptors. Thread
+  // dimensions exclude the ones inherited from the process.
+  base::FlatHashMap<UniquePid, DimensionVec> dimensions_by_upid_;
+  base::FlatHashMap<UniqueTid, DimensionVec> dimensions_by_utid_;
+  // Custom dimensions of the tracks created by this class which have any, so
+  // that their children can inherit them.
+  base::FlatHashMap<uint32_t /* TrackId */, DimensionVec> dimensions_by_track_;
 
   const StringId source_key_;
   const StringId source_id_key_;

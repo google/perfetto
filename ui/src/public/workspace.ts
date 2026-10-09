@@ -115,11 +115,42 @@ export class TrackNode {
   // track from the workspace.
   public removable: boolean;
 
-  // Optional subtitle displayed underneath the track name in the track shell.
-  public subtitle?: string;
-
   // Optional: A list of strings displayed as "chips" in the track shell.
   public chips?: ReadonlyArray<string>;
+
+  // The subtitle is composed of independent "items", each owned by a different
+  // contributor (e.g. Chrome process labels, track dimension labels). Keeping
+  // them separate means two contributors can annotate the same node without
+  // overwriting each other. Items render in insertion order.
+  private readonly _subtitleItems = new Map<string, string>();
+
+  // Optional subtitle displayed underneath the track name in the track shell.
+  //
+  // Reading this joins all the subtitle items; writing it sets the "default"
+  // item, which is what most callers want.
+  get subtitle(): string | undefined {
+    if (this._subtitleItems.size === 0) return undefined;
+    return Array.from(this._subtitleItems.values()).join(' · ');
+  }
+
+  set subtitle(text: string | undefined) {
+    this.setSubtitleItem('default', text);
+  }
+
+  /**
+   * Add, replace or (when |text| is undefined/empty) remove one contribution to
+   * this node's subtitle.
+   *
+   * @param id Stable identity of the contributor, e.g. 'dimensions'.
+   * @param text The text to display, or undefined to remove the item.
+   */
+  setSubtitleItem(id: string, text: string | undefined): void {
+    if (text === undefined || text === '') {
+      this._subtitleItems.delete(id);
+    } else {
+      this._subtitleItems.set(id, text);
+    }
+  }
 
   protected _collapsed = true;
   protected _children: Array<TrackNode> = [];

@@ -16,6 +16,7 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
+from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
@@ -89,7 +90,122 @@ TRACK_TABLE = Table(
         ),
     ])
 
+# The dimensions of every track: both the well known dimensions (machine,
+# process, thread, cpu, gpu) of every track, written when the track is created,
+# and the custom dimensions declared by producers on TrackDescriptors, written
+# when the track event track is created, after process/thread association and
+# `parent_id` inheritance have been applied.
+TRACK_DIMENSION_TABLE = Table(
+    python_module=__file__,
+    class_name="TrackDimensionTable",
+    sql_name="__intrinsic_track_dimension",
+    columns=[
+        C(
+            "track_id",
+            CppTableId(TRACK_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "name",
+            CppString(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "int_value",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "string_value",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "display_name",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+        # 1 for well known dimensions, 0 for custom ones.
+        C(
+            "is_well_known",
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+        ),
+    ])
+
+# The custom dimensions declared by producers on the root TrackDescriptor of a
+# process. They apply to every track and thread of the process.
+PROCESS_DIMENSION_TABLE = Table(
+    python_module=__file__,
+    class_name="ProcessDimensionTable",
+    sql_name="__intrinsic_process_dimension",
+    columns=[
+        C(
+            "upid",
+            CppTableId(PROCESS_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "name",
+            CppString(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "int_value",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "string_value",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "display_name",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+    ])
+
+# The custom dimensions declared by producers on the root TrackDescriptor of a
+# thread, excluding the ones it already inherits from its process. They apply
+# to every track of the thread.
+THREAD_DIMENSION_TABLE = Table(
+    python_module=__file__,
+    class_name="ThreadDimensionTable",
+    sql_name="__intrinsic_thread_dimension",
+    columns=[
+        C(
+            "utid",
+            CppTableId(THREAD_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "name",
+            CppString(),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "int_value",
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "string_value",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "display_name",
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+        ),
+    ])
+
 # Keep this list sorted.
 ALL_TABLES = [
+    PROCESS_DIMENSION_TABLE,
+    THREAD_DIMENSION_TABLE,
+    TRACK_DIMENSION_TABLE,
     TRACK_TABLE,
 ]

@@ -789,6 +789,7 @@ class TrackEvent(TestSuite):
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",400,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",500,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",600,"[NULL]"
+          "custom_dimensions_hash","custom_dimensions_hash",0,"[NULL]"
           "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
           "event.name","event.name","[NULL]","[NULL]"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
@@ -1582,4 +1583,504 @@ class TrackEvent(TestSuite):
         out=Csv("""
         "slice_count","slice_name","slice_ts","errors"
         1,"good",1000000,1
+        """))
+
+  # Producer-declared custom dimensions (TrackDescriptor.dimensions) and the
+  # well known dimensions synthesized by trace processor.
+  def test_track_event_dimensions(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT
+          d.track_id,
+          t.name AS track_name,
+          d.name,
+          d.int_value,
+          d.string_value,
+          d.display_name
+        FROM track_dimension AS d
+        JOIN track AS t ON t.id = d.track_id
+        WHERE d.is_well_known = 0
+        ORDER BY d.track_id, d.name;
+        """,
+        out=Csv("""
+        "track_id","track_name","name","int_value","string_value","display_name"
+        0,"[NULL]","rank",3,"[NULL]","[NULL]"
+        0,"[NULL]","stage","[NULL]","forward","[NULL]"
+        1,"async","rank",3,"[NULL]","[NULL]"
+        1,"async","stage","[NULL]","forward","[NULL]"
+        2,"[NULL]","rank",7,"[NULL]","worker-east"
+        3,"child","rank",7,"[NULL]","worker-east"
+        4,"[NULL]","chrome.process_label","[NULL]","IMDb: Ratings, Reviews","IMDb: Ratings, Reviews"
+        4,"[NULL]","chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/","Subframe: https://prebid.a-mo.net/"
+        5,"[NULL]","rank",3,"[NULL]","[NULL]"
+        5,"[NULL]","stage","[NULL]","forward","[NULL]"
+        """))
+
+  # Dimensions are a query axis: slices can be filtered/grouped by the
+  # dimensions of the track they are on, whatever the track type.
+  def test_track_event_dimensions_slice_join(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT
+          s.name AS slice,
+          d.name AS dimension,
+          d.int_value,
+          d.string_value
+        FROM slice AS s
+        JOIN track_dimension AS d USING (track_id)
+        WHERE d.is_well_known = 0
+        ORDER BY s.ts, d.name;
+        """,
+        out=Csv("""
+        "slice","dimension","int_value","string_value"
+        "work","rank",3,"[NULL]"
+        "work","stage","[NULL]","forward"
+        "other","rank",7,"[NULL]"
+        "frame","chrome.process_label","[NULL]","IMDb: Ratings, Reviews"
+        "frame","chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/"
+        "tick","rank",3,"[NULL]"
+        "tick","stage","[NULL]","forward"
+        """))
+
+  # Process/thread projections of the same declarations, for event tables which
+  # carry their own upid/utid instead of inheriting it from the track.
+  def test_track_event_dimensions_process_and_thread(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT 'process' AS scope, upid AS id, name, int_value, string_value
+        FROM process_dimension
+        WHERE is_well_known = 0
+        UNION ALL
+        SELECT 'thread' AS scope, utid AS id, name, int_value, string_value
+        FROM thread_dimension
+        WHERE is_well_known = 0
+        ORDER BY scope, id, name;
+        """,
+        out=Csv("""
+        "scope","id","name","int_value","string_value"
+        "process",1,"rank",3,"[NULL]"
+        "process",1,"stage","[NULL]","forward"
+        "process",2,"rank",7,"[NULL]"
+        "process",3,"chrome.process_label","[NULL]","IMDb: Ratings, Reviews"
+        "process",3,"chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/"
+        "thread",1,"rank",3,"[NULL]"
+        "thread",1,"stage","[NULL]","forward"
+        "thread",2,"rank",3,"[NULL]"
+        "thread",2,"stage","[NULL]","forward"
+        "thread",3,"rank",7,"[NULL]"
+        "thread",4,"chrome.process_label","[NULL]","IMDb: Ratings, Reviews"
+        "thread",4,"chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/"
+        """))
+
+  # Invalid dimension declarations are dropped and reported as stats: a child
+  # cannot override an inherited value, cannot use a reserved well known name
+  # and must provide a value.
+  def test_track_event_dimensions_invalid(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name IN (
+          'track_descriptor_invalid_dimension',
+          'track_descriptor_reserved_dimension_name',
+          'track_dimension_conflicting_value')
+          AND value > 0
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","value"
+        "track_descriptor_invalid_dimension",1
+        "track_descriptor_reserved_dimension_name",1
+        "track_dimension_conflicting_value",1
+        """))
+
+  # RFC resolution rule 4: a global track only gets the dimensions declared on
+  # itself or an explicit parent_uuid ancestor, plus synthesized well known
+  # ones. It must not pick up dimensions from unrelated trees or processes.
+  def test_track_event_dimensions_global_tracks(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "global parent"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            dimensions { name: "shard" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            parent_uuid: 1
+            name: "global child"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 3
+            name: "unrelated global"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 4
+            process { pid: 100 process_name: "p" }
+            dimensions { name: "rank" int_value: 9 }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 1 type: TYPE_INSTANT name: "a" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 2 type: TYPE_INSTANT name: "b" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 3 type: TYPE_INSTANT name: "c" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 4 type: TYPE_INSTANT name: "d" } }
+        """),
+        query="""
+        SELECT
+          t.name AS track,
+          group_concat(d.name || '=' || coalesce(d.int_value, d.string_value)) AS dimensions
+        FROM track AS t
+        LEFT JOIN track_dimension AS d ON d.track_id = t.id
+        GROUP BY t.id
+        ORDER BY t.id;
+        """,
+        out=Csv("""
+        "track","dimensions"
+        "global parent","machine=0,shard=1"
+        "global child","machine=0,shard=1"
+        "unrelated global","machine=0"
+        "[NULL]","machine=0,process=1,rank=9"
+        """))
+
+  # Well known dimensions are synthesized by trace processor from existing
+  # columns rather than declared by producers.
+  def test_track_event_dimensions_well_known(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions.textproto'),
+        query="""
+        SELECT DISTINCT name
+        FROM track_dimension
+        WHERE is_well_known = 1
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name"
+        "machine"
+        "process"
+        "thread"
+        """))
+
+  # Dimensions are part of the track identity: a re-emitted descriptor with
+  # different dimensions (including a first descriptor without any) is a
+  # conflicting reservation and the first descriptor is kept. Order and display
+  # names don't matter.
+  def test_track_event_dimensions_identity_reservation(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions_identity.textproto'),
+        query="""
+        SELECT
+          s.name AS slice,
+          (
+            SELECT group_concat(d.name || '=' || coalesce(d.int_value, d.string_value), ',')
+            FROM (
+              SELECT * FROM track_dimension
+              WHERE track_id = s.track_id AND is_well_known = 0
+              ORDER BY name
+            ) AS d
+          ) AS dimensions,
+          (
+            SELECT value FROM stats
+            WHERE name = 'track_descriptor_conflicting_reservation'
+          ) AS conflicts
+        FROM slice AS s
+        WHERE s.name IN ('g1_event', 'g2_event')
+        ORDER BY s.name;
+        """,
+        out=Csv("""
+        "slice","dimensions","conflicts"
+        "g1_event","rank=1,stage=fwd",2
+        "g2_event","[NULL]",2
+        """))
+
+  # Dimensions are part of the sibling merge key: siblings are only merged if
+  # they declare the same dimensions.
+  def test_track_event_dimensions_identity_merging(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_dimensions_identity.textproto'),
+        query="""
+        SELECT
+          s.name AS slice,
+          dense_rank() OVER (ORDER BY s.track_id) AS track_idx,
+          (
+            SELECT int_value FROM track_dimension
+            WHERE track_id = s.track_id AND name = 'rank'
+          ) AS rank
+        FROM slice AS s
+        JOIN track AS t ON t.id = s.track_id
+        WHERE t.name = 'step'
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "slice","track_idx","rank"
+        "rank1_a",1,1
+        "rank2",2,2
+        "rank1_b",1,1
+        "no_rank",3,"[NULL]"
+        """))
+
+  # String dimension values and display names can be interned with
+  # `string_value_iid` / `display_name_iid`. The resolved string is the value:
+  # it is the same identity (and merge key) as an inline `string_value` with
+  # the same contents. A value iid without interned data invalidates the
+  # dimension, a display name iid without interned data only drops the display
+  # name.
+  def test_track_event_dimensions_interned_string_value(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          sequence_flags: 2
+          interned_data {
+            track_dimension_strings { iid: 1 str: "fwd" }
+            track_dimension_strings { iid: 2 str: "forward pass" }
+          }
+          track_descriptor {
+            uuid: 10
+            process { pid: 100 process_name: "trainer" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 11
+            parent_uuid: 10
+            name: "step"
+            dimensions {
+              name: "stage" string_value_iid: 1 display_name_iid: 2
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 12
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "stage" string_value: "fwd" }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 13
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "stage" string_value_iid: 99 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 14
+            parent_uuid: 10
+            name: "other"
+            dimensions {
+              name: "stage" string_value: "bwd" display_name_iid: 98
+            }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 1000
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "interned" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 2000
+          track_event { track_uuid: 12 type: TYPE_INSTANT name: "inline" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 3000
+          track_event { track_uuid: 13 type: TYPE_INSTANT name: "unknown_iid" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 4000
+          track_event {
+            track_uuid: 14 type: TYPE_INSTANT name: "unknown_display_iid"
+          }
+        }
+        """),
+        query="""
+        SELECT
+          s.name AS slice,
+          dense_rank() OVER (ORDER BY s.track_id) AS track_idx,
+          (
+            SELECT string_value FROM track_dimension
+            WHERE track_id = s.track_id AND name = 'stage'
+          ) AS stage,
+          (
+            SELECT display_name FROM track_dimension
+            WHERE track_id = s.track_id AND name = 'stage'
+          ) AS stage_display_name,
+          (
+            SELECT value FROM stats
+            WHERE name = 'track_descriptor_invalid_dimension'
+          ) AS invalid
+        FROM slice AS s
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "slice","track_idx","stage","stage_display_name","invalid"
+        "interned",1,"fwd","forward pass",2
+        "inline",1,"fwd","forward pass",2
+        "unknown_iid",2,"[NULL]","[NULL]",2
+        "unknown_display_iid",3,"bwd","[NULL]",2
+        """))
+
+  # Dimensions declared on a thread descriptor apply to every track of the
+  # thread on top of the ones inherited from its process. A thread declaration
+  # conflicting with its process is ignored (and counted once).
+  def test_track_event_dimensions_thread(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            process { pid: 100 process_name: "trainer" }
+            dimensions { name: "rank" int_value: 3 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 11
+            thread { pid: 100 tid: 101 thread_name: "worker" }
+            dimensions { name: "stage" string_value: "fwd" }
+            dimensions { name: "rank" int_value: 4 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 12
+            parent_uuid: 11
+            name: "child"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 1000
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "on_thread" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 2000
+          track_event { track_uuid: 12 type: TYPE_INSTANT name: "on_child" } }
+        """),
+        query="""
+        SELECT
+          'thread' AS kind,
+          NULL AS slice,
+          d.name,
+          coalesce(d.int_value, d.string_value) AS value
+        FROM thread_dimension AS d
+        JOIN thread USING (utid)
+        WHERE thread.tid = 101
+        UNION ALL
+        SELECT
+          'track' AS kind,
+          s.name AS slice,
+          d.name,
+          coalesce(d.int_value, d.string_value) AS value
+        FROM slice AS s
+        JOIN track_dimension AS d USING (track_id)
+        WHERE d.is_well_known = 0
+        UNION ALL
+        SELECT 'stat' AS kind, NULL AS slice, name, value
+        FROM stats
+        WHERE name = 'track_dimension_conflicting_value'
+        ORDER BY kind, slice, name;
+        """,
+        out=Csv("""
+        "kind","slice","name","value"
+        "stat","[NULL]","track_dimension_conflicting_value",1
+        "thread","[NULL]","rank",3
+        "thread","[NULL]","stage","fwd"
+        "track","on_child","rank",3
+        "track","on_child","stage","fwd"
+        "track","on_thread","rank",3
+        "track","on_thread","stage","fwd"
+        """))
+
+  # Well known dimensions are written by trace processor for every track, not
+  # only track event ones. Tracks only associated with a thread have no
+  # `process` dimension.
+  def test_track_event_dimensions_well_known_all_tracks(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 0
+              cpu_frequency { state: 1000000 cpu_id: 1 }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 11
+            thread { pid: 100 tid: 101 thread_name: "worker" }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 2000
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "tick" } }
+        """),
+        query="""
+        SELECT
+          t.type,
+          (
+            SELECT group_concat(n, ',')
+            FROM (
+              SELECT
+                CASE
+                  WHEN d.name IN ('cpu', 'machine')
+                    THEN d.name || '=' || d.int_value
+                  ELSE d.name
+                END AS n
+              FROM track_dimension AS d
+              WHERE d.track_id = t.id AND d.is_well_known
+              ORDER BY d.name
+            )
+          ) AS dimensions
+        FROM track AS t
+        ORDER BY t.type;
+        """,
+        out=Csv("""
+        "type","dimensions"
+        "cpu_frequency","cpu=1,machine=0"
+        "thread_execution","machine=0,thread"
         """))
