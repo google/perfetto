@@ -99,6 +99,8 @@ const char* const kPipelines[] = {
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> SELECT ts, n",
     "FROM df |> ORDER BY self DESC, id |> SELECT id",
     "FROM spans |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n |> ORDER BY n",
+    "FROM spans |> AGGREGATE COUNT(*) AS n, SUM(dur) AS d GROUP BY cpu AS c",
+    "FROM spans |> AGGREGATE MAX(dur) AS m |> SELECT m",
     // Pruning removes the fold, whose node is left behind unread.
     "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id",
 };

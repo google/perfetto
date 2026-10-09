@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
@@ -144,6 +145,15 @@ class AggregateFunction {
 
 std::unique_ptr<AggregateFunction> MakeAggregateFunction(
     AggregateCall::Function);
+
+// `function`'s result for each of `groups`, written into a buffer taken from
+// `context` for a batch to hold; ResultView views it.
+ColumnBuffer FinalizeToBuffer(Context& context,
+                              const AggregateFunction& function,
+                              GroupStates states,
+                              const uint32_t* groups,
+                              uint32_t count);
+ColumnView ResultView(const ColumnBuffer& buffer);
 
 }  // namespace perfetto::trace_processor::core::exec
 

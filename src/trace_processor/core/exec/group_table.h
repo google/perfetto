@@ -48,6 +48,17 @@ class GroupTable {
   uint32_t size() const { return static_cast<uint32_t>(hashes_.size()); }
   void Clear();
 
+  // Gives each group `words` zeroed words of its own after its keys, for
+  // what the caller keeps of it. Call before the first batch.
+  void set_payload_words(uint32_t words) { payload_words_ = words; }
+  // Group g's payload; each group's starts `row_stride()` words after the
+  // one before's.
+  int64_t* payload(uint32_t group) {
+    return group_rows_.data() + uint64_t{group} * stride_ + stride_ -
+           payload_words_;
+  }
+  uint32_t row_stride() const { return stride_; }
+
  private:
   enum class Kind : uint8_t { kInteger, kDouble, kString };
 
@@ -76,6 +87,7 @@ class GroupTable {
   FlexVector<uint64_t> hashes_;
   FlexVector<int64_t> group_rows_;
   uint32_t stride_ = 0;
+  uint32_t payload_words_ = 0;
   std::vector<Kind> kinds_;
 
   // The batch's keys a column at a time, and which are null.

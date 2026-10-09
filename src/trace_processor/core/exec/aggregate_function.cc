@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -341,6 +342,25 @@ std::unique_ptr<AggregateFunction> MakeAggregateFunction(
       return std::make_unique<Extreme>(uint64_t{1} << 63);
   }
   return nullptr;
+}
+
+ColumnBuffer FinalizeToBuffer(Context& context,
+                              const AggregateFunction& function,
+                              GroupStates states,
+                              const uint32_t* groups,
+                              uint32_t count) {
+  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnChunk& chunk = buffer.chunk();
+  chunk.validity.resize(kMaxBatchRows);
+  function.Finalize(states, groups, count, chunk.Values<int64_t>(),
+                    &chunk.validity);
+  return buffer;
+}
+
+ColumnView ResultView(const ColumnBuffer& buffer) {
+  ColumnChunk& chunk = buffer.chunk();
+  return ColumnView::Reference(StorageType{Int64{}}, chunk.Values<int64_t>(),
+                               &chunk.validity);
 }
 
 }  // namespace perfetto::trace_processor::core::exec

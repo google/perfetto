@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
@@ -94,6 +95,8 @@ class LogicalPlanFormatter {
   static std::string IntervalIntersectString(const LogicalPlan&,
                                              const PlanNode&);
   static std::string OrderByString(const OrderBy&);
+  static std::string AggregateStageString(const LogicalPlan&,
+                                          const AggregateStage&);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
 };
 
@@ -189,6 +192,23 @@ std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
   return out + ")";
 }
 
+std::string LogicalPlanFormatter::AggregateStageString(
+    const LogicalPlan& plan,
+    const AggregateStage& aggregate) {
+  std::string out = "Aggregate(";
+  std::string separator;
+  for (ColumnId key : aggregate.keys_) {
+    out += separator + "key=#" + std::to_string(key);
+    separator = ", ";
+  }
+  for (const auto& agg : aggregate.aggregates_) {
+    out += separator + AggregateString(agg) + " -> " +
+           ColumnString(plan, agg.output);
+    separator = ", ";
+  }
+  return out + ")";
+}
+
 // Prints sources first so a pipeline reads in the order it runs.
 // Intersection operands are printed inline.
 std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
@@ -207,6 +227,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<IntervalFlatten>()) {
     return SubtreeString(plan, node.children()[0]) +
            IntervalFlattenString(plan, node.Cast<IntervalFlatten>()) + "\n";
+  }
+  if (node.Is<AggregateStage>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           AggregateStageString(plan, node.Cast<AggregateStage>()) + "\n";
   }
   if (node.Is<OrderBy>()) {
     return SubtreeString(plan, node.children()[0]) +

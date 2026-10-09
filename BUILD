@@ -2607,6 +2607,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/group_table.h",
         "src/trace_processor/core/exec/grouped_sort.cc",
         "src/trace_processor/core/exec/grouped_sort.h",
+        "src/trace_processor/core/exec/hash_aggregate.cc",
+        "src/trace_processor/core/exec/hash_aggregate.h",
         "src/trace_processor/core/exec/interval_flatten.cc",
         "src/trace_processor/core/exec/interval_flatten.h",
         "src/trace_processor/core/exec/interval_intersect.cc",
@@ -3895,6 +3897,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_pipeline_operations_operations",
     srcs = [
+        "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",
