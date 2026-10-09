@@ -17,11 +17,8 @@
 #ifndef SRC_PROFILING_MEMORY_UNWOUND_MESSAGES_H_
 #define SRC_PROFILING_MEMORY_UNWOUND_MESSAGES_H_
 
-#include <unwindstack/Maps.h>
-#include <unwindstack/Unwinder.h>
-
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -35,7 +32,7 @@ struct AllocRecord {
   uint64_t data_source_instance_id;
   uint64_t timestamp;
   AllocMetadata alloc_metadata;
-  std::vector<unwindstack::FrameData> frames;
+  std::vector<FrameData> frames;
   std::vector<std::string> build_ids;
 };
 

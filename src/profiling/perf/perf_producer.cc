@@ -24,9 +24,6 @@
 
 #include <unistd.h>
 
-#include <unwindstack/Error.h>
-#include <unwindstack/Unwinder.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/cpu_info.h"
@@ -57,6 +54,7 @@
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -327,41 +325,43 @@ protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
 }
 
 protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
-    unwindstack::ErrorCode error_code) {
+    UnwindErrorCode error_code) {
   using Profiling = protos::pbzero::Profiling;
   switch (error_code) {
-    case unwindstack::ERROR_NONE:
+    case UnwindErrorCode::kNone:
       return Profiling::UNWIND_ERROR_NONE;
-    case unwindstack::ERROR_MEMORY_INVALID:
+    case UnwindErrorCode::kMemoryInvalid:
       return Profiling::UNWIND_ERROR_MEMORY_INVALID;
-    case unwindstack::ERROR_UNWIND_INFO:
+    case UnwindErrorCode::kInvalidUnwindInfo:
       return Profiling::UNWIND_ERROR_UNWIND_INFO;
-    case unwindstack::ERROR_UNSUPPORTED:
+    case UnwindErrorCode::kUnsupported:
       return Profiling::UNWIND_ERROR_UNSUPPORTED;
-    case unwindstack::ERROR_INVALID_MAP:
+    case UnwindErrorCode::kInvalidMap:
       return Profiling::UNWIND_ERROR_INVALID_MAP;
-    case unwindstack::ERROR_MAX_FRAMES_EXCEEDED:
+    case UnwindErrorCode::kMaxFramesExceeded:
       return Profiling::UNWIND_ERROR_MAX_FRAMES_EXCEEDED;
-    case unwindstack::ERROR_REPEATED_FRAME:
+    case UnwindErrorCode::kRepeatedFrame:
       return Profiling::UNWIND_ERROR_REPEATED_FRAME;
-    case unwindstack::ERROR_INVALID_ELF:
+    case UnwindErrorCode::kInvalidElf:
       return Profiling::UNWIND_ERROR_INVALID_ELF;
-    case unwindstack::ERROR_SYSTEM_CALL:
+    case UnwindErrorCode::kSystemCall:
       return Profiling::UNWIND_ERROR_SYSTEM_CALL;
-    case unwindstack::ERROR_THREAD_TIMEOUT:
+    case UnwindErrorCode::kThreadTimeout:
       return Profiling::UNWIND_ERROR_THREAD_TIMEOUT;
-    case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
+    case UnwindErrorCode::kThreadDoesNotExist:
       return Profiling::UNWIND_ERROR_THREAD_DOES_NOT_EXIST;
-    case unwindstack::ERROR_BAD_ARCH:
+    case UnwindErrorCode::kBadArch:
       return Profiling::UNWIND_ERROR_BAD_ARCH;
-    case unwindstack::ERROR_MAPS_PARSE:
+    case UnwindErrorCode::kMapParseError:
       return Profiling::UNWIND_ERROR_MAPS_PARSE;
-    case unwindstack::ERROR_INVALID_PARAMETER:
+    case UnwindErrorCode::kInvalidParam:
       return Profiling::UNWIND_ERROR_INVALID_PARAMETER;
-    case unwindstack::ERROR_PTRACE_CALL:
+    case UnwindErrorCode::kPtraceCall:
       return Profiling::UNWIND_ERROR_PTRACE_CALL;
+    case UnwindErrorCode::kUnknownError:
+      return Profiling::UNWIND_ERROR_UNKNOWN;
   }
-  return Profiling::UNWIND_ERROR_UNKNOWN;
+  return Profiling::UNWIND_ERROR_UNKNOWN;  // unreachable; pacify -Wreturn
 }
 
 }  // namespace
@@ -1163,7 +1163,7 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   }
 
   perf_sample->set_callstack_iid(callstack_iid);
-  if (sample.unwind_error != unwindstack::ERROR_NONE) {
+  if (sample.unwind_error != UnwindErrorCode::kNone) {
     perf_sample->set_unwind_error(ToProtoEnum(sample.unwind_error));
   }
 }
