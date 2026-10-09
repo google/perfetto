@@ -153,6 +153,30 @@ later stage drops the column:
 
 ## Pipeline Stages
 
+### Aggregates
+
+`INTERVAL FLATTEN`, `TREE ACCUMULATE`, and `AGGREGATE` each take a list of
+aggregates, and all of them treat an aggregate the same way:
+
+```sql
+<aggregate> AS <name> [, <aggregate> AS <name> ...]
+```
+
+- **Forms:** `COUNT(*)`, `SUM([<qualifier>.]<column>)`,
+  `MIN([<qualifier>.]<column>)`, and `MAX([<qualifier>.]<column>)`. Each needs
+  an `AS` name. Expressions, `DISTINCT`, `FILTER`, `OVER`, and other aggregate
+  functions are rejected.
+- **`COUNT(*)`:** Counts rows, whatever they hold.
+- **`SUM`, `MIN`, and `MAX`:** Take a column of an integer type: `ID`,
+  `UINT32`, `INT32`, or `LONG`. They ignore `NULL` values, and return `NULL`
+  if every value they would read is `NULL`.
+- **Results:** `LONG` columns. Arithmetic uses checked signed 64-bit integers;
+  overflow causes an error.
+- **Scope:** Every aggregate in a stage reads the row before the stage. One
+  aggregate cannot read another's output.
+
+---
+
 ### `INTERVAL FLATTEN`
 
 Splits overlapping intervals into segments and aggregates the rows active in
@@ -169,15 +193,12 @@ each segment:
 - **Grouping:** Each distinct combination of `PER` values is flattened
   independently. Without `PER`, all rows belong to one group. `NULL` keys
   group together, as in SQL `GROUP BY`.
-- **Aggregates:** At least one is required. Supported forms are `COUNT(*)`
-  and `SUM([<qualifier>.]<column>)`. Each needs an `AS` name. `SUM` accepts
-  integer columns (`ID`, `UINT32`, `INT32`, or `LONG`), ignores `NULL` values,
-  and returns `NULL` if all contributing values are `NULL`. Expressions,
-  `DISTINCT`, `FILTER`, `OVER`, and other aggregate functions are unsupported.
+- **Aggregates:** At least one is required. See [Aggregates](#aggregates).
+  Each is taken over the rows covering a segment.
 - **Output:** Replaces the current row with `ts`, `dur`, the `PER` columns in
-  their listed order, and the named aggregates in their listed order. `ts`,
-  `dur`, and aggregates are `LONG` columns. Other input columns and all table
-  aliases are removed. Output names must be distinct.
+  their listed order, and the named aggregates in their listed order. `ts`
+  and `dur` are `LONG` columns. Other input columns and all table aliases are
+  removed. A `PER` column can be listed once.
 
 #### Interval semantics
 
@@ -203,30 +224,22 @@ For a worked example, see
 
 ### `TREE ACCUMULATE`
 
-Accumulates sums up or down a tree defined by `id` and `parent_id`:
+Accumulates aggregates up or down a tree defined by `id` and `parent_id`:
 
 ```sql
 |> TREE ACCUMULATE UP|DOWN
-  SUM([<qualifier>.]<col_1>) AS <out_1>
-  [, SUM([<qualifier>.]<col_2>) AS <out_2> ...]
+  <aggregate> AS <out_1> [, <aggregate> AS <out_2> ...]
 ```
 
 - **Tree structure columns:** Resolves bare `id` and `parent_id` in the current
   row. Root nodes have `parent_id IS NULL`.
 - **Directions:**
-  - `UP`: Bottom-up fold. Each node's aggregate is the sum of its own value and
-    the values of all its descendants. Output rows are emitted child-first.
-  - `DOWN`: Top-down fold. Each node's aggregate is the sum of its own value and
-    the values of all its ancestors. Output rows are emitted parent-first.
-- **Aggregate expressions:**
-  - Only `SUM(<column_ref>)` is currently supported. `DISTINCT`, `FILTER`,
-    `OVER`, `*`, non-column expressions, and other aggregate functions are
-    rejected.
-  - The target column must be an integer type: `ID`, `UINT32`, `INT32`, or
-    `LONG`. `NULL` values contribute `0`.
-  - All aggregates in a single stage resolve their input columns against the row
-    before the stage. A stage cannot reference an output column defined in the
-    same stage.
+  - `UP`: Bottom-up fold. Each node's aggregate is taken over its own row and
+    the rows of all its descendants. Output rows are emitted child-first.
+  - `DOWN`: Top-down fold. Each node's aggregate is taken over its own row and
+    the rows of all its ancestors. Output rows are emitted parent-first.
+- **Aggregates:** See [Aggregates](#aggregates). `COUNT(*)` going `DOWN` is a
+  node's depth, counting from 1.
 - **Output:** Keeps all columns of the input row and existing table aliases, and
   appends `<out_1>, <out_2>, ...` as `LONG` columns.
 
@@ -245,22 +258,15 @@ Collapses each group of rows into one row:
   can be a column of any type. `NULL` keys group together, as in SQL. Without
   `GROUP BY`, all rows form one group, which produces a row even when there
   are no rows.
-- **Aggregates:** At least one is required. Supported forms are `COUNT(*)`,
-  `SUM([<qualifier>.]<column>)`, `MIN([<qualifier>.]<column>)`, and
-  `MAX([<qualifier>.]<column>)`. Each needs an `AS` name. `SUM`, `MIN`, and
-  `MAX` accept integer columns (`ID`, `UINT32`, `INT32`, or `LONG`), ignore
-  `NULL` values, and return `NULL` if all contributing values are `NULL`.
-  Expressions, `DISTINCT`, `FILTER`, `OVER`, and other aggregate functions are
-  unsupported.
+- **Aggregates:** At least one is required. See [Aggregates](#aggregates).
+  Each is taken over the rows of a group.
 - **Output:** Replaces the current row with the `GROUP BY` columns in their
   listed order, then the named aggregates in their listed order. A key takes
-  its `AS` name if it has one, otherwise its unqualified column name.
-  Aggregates are `LONG` columns. Other input columns and all table aliases
-  are removed. Output names must be distinct.
+  its `AS` name if it has one, otherwise its unqualified column name. Other
+  input columns and all table aliases are removed. Output names must be
+  distinct.
 - **Order:** Groups come out in the order their first rows arrived. Use
   `ORDER BY` afterwards for any other order.
-- **Overflow:** Sums use checked signed 64-bit integers; overflow causes an
-  error.
 
 For example, CPU time per slice from an intersection:
 

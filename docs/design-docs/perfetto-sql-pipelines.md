@@ -140,11 +140,14 @@ cannot be reused. These preparation steps can buffer the input; the flattening
 step itself processes ordered batches incrementally.
 
 `IntervalFlatten` sweeps one group at a time. A min-heap tracks active interval
-endpoints. Running counts and sums are updated when intervals start or expire,
-so producing a segment does not require scanning every active interval. Each
-active interval retains its contributions so they can be subtracted at its
-endpoint. Sums also track the number of non-NULL contributions, allowing an
-all-NULL sum to remain NULL.
+endpoints. Each interval keeps its row's aggregate states in a slot of its own,
+and a batch of segments is aggregated at once from the slots live in each
+segment, so producing a segment does not require scanning every active interval.
+While no input has held a `NULL`, functions which can take a state back out, as
+counts and sums can, add each slot at its interval's first segment, subtract it
+at its end and take running totals. Otherwise, as for `MIN` and `MAX`, each slot
+is merged into a tree over the batch's segments. A sum tracks whether it added
+any non-`NULL` value, so an all-`NULL` sum stays `NULL`.
 
 Points at a timestamp are accumulated separately and emitted together once all
 rows starting at that timestamp have been consumed. Their totals include
@@ -249,21 +252,25 @@ as its parent has been emitted.
 
 ### 3. Accumulation: `TreeAccumulateUp` and `TreeAccumulateDown`
 
-Each `SUM(col)` in the stage runs a streaming `TreeAccumulateUp` or
-`TreeAccumulateDown` operator over the ordered batches:
+A stage runs one streaming `TreeAccumulateUp` or `TreeAccumulateDown` operator
+over the ordered batches, which computes every aggregate of the stage. The
+aggregates are the executor's shared functions
+(`/src/trace_processor/core/exec/aggregate_function.h`), as `INTERVAL FLATTEN`
+and `AGGREGATE` use:
 
-- The summed column is verified or widened to flat `Int64`, with `NULL` values
-  contributing `0`. Checked 64-bit addition is used so integer overflow is
-  reported as an error rather than wrapping silently.
-- The operator keeps a single `std::vector<int64_t>` indexed by node number:
-  - **`TreeAccumulateUp`:** When a row for `node` arrives, every descendant has
-    already been processed and added its subtree sum into `by_node[node]`. The
-    operator sets `total = value + by_node[node]`, writes `total` to the output
-    batch, and adds `total` into `by_node[parent]`.
-  - **`TreeAccumulateDown`:** When a row for `node` arrives, its `parent` has
-    already been processed and stored its path sum in `by_node[parent]`. The
-    operator sets `total = value + by_node[parent]`, stores `by_node[node] =
-    total`, and writes `total` to the output batch.
+- Each aggregated column is verified or widened to flat `Int64`. A sum skips
+  `NULL` values and tracks whether it added any, so a sum of nothing is `NULL`.
+  Checked 64-bit addition is used so integer overflow is reported as an error
+  rather than wrapping silently.
+- The operator keeps every aggregate's state for each node, in one vector
+  indexed by node number. For each batch, it adds every row into its node's
+  state, then merges states along the batch's edges in row order:
+  - **`TreeAccumulateUp`:** Rows arrive child first, so when a node's row
+    arrives every descendant has already merged its state into the node's.
+    The node's state is then merged into its parent's.
+  - **`TreeAccumulateDown`:** Rows arrive parent first, so when a node's row
+    arrives its parent's state already covers every ancestor. The parent's
+    state is merged into the node's.
 
 ### 4. Reuse across consecutive `TREE ACCUMULATE` stages
 
