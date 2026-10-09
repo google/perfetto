@@ -16555,6 +16555,10 @@ message ObfuscatedClass {
   message MergedClasses {
     optional string class_id_field_name = 1;
     repeated MergedClass merged_classes = 2;
+    // Set to true if other unknown classes may have been merged into this
+    // class by optimization (e.g. when using older R8 mapping versions that
+    // do not emit mergedClasses metadata).
+    optional bool unknown_merged_classes = 3;
   }
 
   optional MergedClasses merged_classes = 5;
