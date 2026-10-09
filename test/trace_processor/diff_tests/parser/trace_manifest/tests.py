@@ -187,6 +187,18 @@ def _proto_boot_snap(name, seq, uuid, boot, at):
       (boot, seq, uuid, seq, at, uuid, name, seq, at + 100000000, uuid))
 
 
+# Like _proto_boot_snap but with no ClockSnapshot and no timestamp_clock_id:
+# the packets name no clock at all (e.g. traces written by external tools).
+def _proto_no_snap(name, seq, uuid, at):
+  return TextProto(
+      'packet { trusted_packet_sequence_id: %d track_descriptor { uuid: %d } }\n'
+      'packet { trusted_packet_sequence_id: %d timestamp: %d\n'
+      '  track_event { type: TYPE_SLICE_BEGIN track_uuid: %d name: "%s" } }\n'
+      'packet { trusted_packet_sequence_id: %d timestamp: %d\n'
+      '  track_event { type: TYPE_SLICE_END track_uuid: %d } }\n' %
+      (seq, uuid, seq, at, uuid, name, seq, at + 100000000, uuid))
+
+
 # A perfetto_manifest entry attributing |path| to machine |name|.
 def _machine_file(path, name):
   return {'path': path, 'machine': {'name': name}}
@@ -1214,6 +1226,120 @@ class TraceManifest(TestSuite):
         "phone_slice",1100000000,"phone"
         "server_slice",1100000500,"server"
         '''))
+
+  # A pinned (no `clock`) proto file with no ClockSnapshot and no
+  # timestamp_clock_id must still have offset_ns applied: its events go through
+  # the file's private clock, which the manifest edge relates to the reference.
+  def test_sync_to_offset_pinned_proto_no_snapshot(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        _machine_file('phone.pb', 'phone'),
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'phone.pb',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'server.pb':
+                _proto_no_snap('server_slice', 2, 222, 1100000000),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "phone_slice",1100000000,"phone"
+        "server_slice",1100000500,"server"
+        '''))
+
+  # Same as above but naming the source clock: snapshot-less packets are in
+  # that clock, so the offset still applies.
+  def test_sync_to_offset_clock_proto_no_snapshot(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        _machine_file('phone.pb', 'phone'),
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'clock': 'BOOTTIME',
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'phone.pb',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'server.pb':
+                _proto_no_snap('server_slice', 2, 222, 1100000000),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "phone_slice",1100000000,"phone"
+        "server_slice",1100000500,"server"
+        '''))
+
+  # offset_ns belongs in `clocks`; placing it inside sync_to must not be
+  # silently ignored.
+  def test_error_offset_ns_inside_sync_to(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        _machine_file('phone.pb', 'phone'),
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'sync_to': {
+                                    'file': 'phone.pb',
+                                    'clock': 'BOOTTIME',
+                                    'offset_ns': 500
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'server.pb':
+                _proto_no_snap('server_slice', 2, 222, 1100000000),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_manifest: clocks: offset_ns belongs in the clocks block, '
+            'not inside sync_to.'))
 
   # sync_to.file naming an undeclared file is rejected.
   def test_error_sync_to_file_unknown(self):
