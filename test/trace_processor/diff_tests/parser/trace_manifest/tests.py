@@ -174,6 +174,19 @@ def _proto_rt(name, seq, uuid, boot, realtime, at):
        uuid))
 
 
+# A proto trace without any clock snapshot: one slice |name| whose packets
+# carry bare timestamps (timestamp_clock_id unset), as produced by tools that
+# do not emit ClockSnapshots.
+def _proto_no_snap(name, seq, uuid, at):
+  return TextProto(
+      'packet { trusted_packet_sequence_id: %d track_descriptor { uuid: %d } }\n'
+      'packet { trusted_packet_sequence_id: %d timestamp: %d\n'
+      '  track_event { type: TYPE_SLICE_BEGIN track_uuid: %d name: "%s" } }\n'
+      'packet { trusted_packet_sequence_id: %d timestamp: %d\n'
+      '  track_event { type: TYPE_SLICE_END track_uuid: %d } }\n' %
+      (seq, uuid, seq, at, uuid, name, seq, at + 100000000, uuid))
+
+
 # A proto trace with a BOOTTIME-only clock snapshot (no REALTIME): its events
 # are on a real BOOTTIME clock. One slice |name| at BOOTTIME |at|.
 def _proto_boot_snap(name, seq, uuid, boot, at):
@@ -1128,6 +1141,51 @@ class TraceManifest(TestSuite):
             'server.pb':
                 _proto_boot_snap('server_slice', 2, 222, 1000000000,
                                  1100000000),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "phone_slice",1100000000,"phone"
+        "server_slice",1100000500,"server"
+        '''))
+
+  # Same as test_sync_to_file_offset, but server.pb has no ClockSnapshot at
+  # all. Its bare timestamps are still BOOTTIME (the proto default), and the
+  # offset must still be applied to them.
+  def test_sync_to_file_offset_without_snapshot(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path': 'phone.pb',
+                            'machine': {
+                                'name': 'phone'
+                            }
+                        },
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'clock': 'BOOTTIME',
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'phone.pb',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'server.pb':
+                _proto_no_snap('server_slice', 2, 222, 1100000000),
         }),
         query=_ALIGN_QUERY,
         out=Csv('''

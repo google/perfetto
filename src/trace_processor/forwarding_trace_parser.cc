@@ -242,7 +242,18 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // (sets_default_clock=false); every other format converts its events through
   // the default clock via ClockTracker::ConvertDefaultClockToTraceTime.
   if (trace_clock) {
-    if (desc->sets_default_clock) {
+    // A manifest override that relates one of the file's own clocks (a source
+    // `clock` is given) needs the default clock set regardless: packets
+    // without a timestamp_clock_id are only converted through the default
+    // clock, so a proto file without any ClockSnapshot would otherwise never
+    // reach the override's edge and keep its raw timestamps, with the
+    // override silently ignored. The clock stays the format's source clock
+    // (BOOTTIME for proto, per the TracePacket spec); a ClockSnapshot later
+    // overwrites it as usual.
+    const bool relates_own_clock = manifest_entry &&
+                                   manifest_entry->clock_override &&
+                                   manifest_entry->clock_override->source_clock;
+    if (desc->sets_default_clock || relates_own_clock) {
       clock_tracker->SetTraceDefaultClock(*trace_clock);
     }
     if (desc->claims_global_clock) {
