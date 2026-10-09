@@ -89,6 +89,21 @@ inline bool CheckedAdd(int64_t a, int64_t b, int64_t* result) {
 #endif
 }
 
+// Subtracts `b` from `a` into `*result`, returning false on overflow. The
+// value of `*result` is unspecified when false is returned.
+inline bool CheckedSub(int64_t a, int64_t b, int64_t* result) {
+#if defined(__clang__) || defined(__GNUC__)
+  return !__builtin_sub_overflow(a, b, result);
+#else
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  if ((b < 0 && a > kMax + b) || (b > 0 && a < kMin + b))
+    return false;
+  *result = a - b;
+  return true;
+#endif
+}
+
 // Returns whether `value` is positive or negative zero. Compares the bit
 // pattern so it can be used in translation units compiled with -Wfloat-equal.
 inline bool IsZero(double value) {

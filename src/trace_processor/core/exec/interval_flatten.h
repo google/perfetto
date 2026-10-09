@@ -22,28 +22,23 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/aggregate_function.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
-#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 struct IntervalFlattenSpec {
-  enum class Function : uint8_t { kCount, kSum };
-  struct Aggregate {
-    Function function = Function::kCount;
-    // Unused by kCount.
-    uint32_t column = 0;
-  };
   uint32_t ts_column = 0;
   uint32_t dur_column = 0;
   std::vector<uint32_t> key_columns;
   // As GroupBy appends. Unused without keys.
   uint32_t group_column = 0;
-  std::vector<Aggregate> aggregates;
+  std::vector<AggregateCall> aggregates;
 };
 
 // INTERVAL FLATTEN. The input must be grouped by the keys and ordered by ts
@@ -51,6 +46,10 @@ struct IntervalFlattenSpec {
 // A row of no width becomes a segment of no width which also counts the rows
 // spanning it. Completed segments are emitted in bounded batches; only active
 // intervals and the keys needed by the current call are retained.
+//
+// Aggregates are computed with the shared functions a batch of segments at a
+// time: each interval's state is kept in a slot of its own, combined into a
+// tree over the segments it was live in, so any function works.
 class IntervalFlatten : public Operator {
  public:
   explicit IntervalFlatten(IntervalFlattenSpec);
@@ -62,18 +61,18 @@ class IntervalFlatten : public Operator {
   base::Status status(const OperatorState&) const override;
 
  private:
-  // A sum over some rows, and how many of them held a value.
-  struct Sum {
-    int64_t sum;
-    int64_t holding;
-  };
-  struct Totals {
-    int64_t count = 0;
-    std::vector<Sum> sums;
-  };
+  // A live interval: when it ends, the slot holding its aggregates' states,
+  // and the first segment of the output batch it's live in.
   struct Live {
     int64_t end;
     uint32_t slot;
+    uint32_t first;
+  };
+  // An interval's slot and the segments of the batch it was live in.
+  struct Range {
+    uint32_t slot;
+    uint32_t first;
+    uint32_t end;
   };
 
   struct State : OperatorState {
@@ -95,14 +94,32 @@ class IntervalFlatten : public Operator {
     // timestamp; its points remain pending until all rows at that time arrive.
     int64_t cursor = 0;
     int64_t input_ts = 0;
-    Totals live;
-    Totals instant;
+    // How many intervals of width are live, and the points at input_ts.
+    int64_t live = 0;
+    FlexVector<Live> instants;
     // A min-heap on end.
     FlexVector<Live> ends;
-    // Sum values of live rows, by slot.
+
+    // Every aggregate's states, `stride` words a group: the tree's nodes,
+    // then slots.
+    FlexVector<int64_t> states;
+    uint32_t stride = 0;
     uint32_t slots = 0;
-    FlexVector<Sum> slot_sums;
+    // Free slots, zeroed.
     FlexVector<uint32_t> free_slots;
+    // The intervals ended since the batch's last aggregation; then, while
+    // aggregating, those still live.
+    FlexVector<Range> ranges;
+    // The input rows added since the last aggregation (all from the input of
+    // this call), and their slots.
+    FlexVector<uint32_t> rows;
+    FlexVector<uint32_t> row_slots;
+    // The slots merged into the tree's nodes, or into and out of deltas.
+    FlexVector<GroupMerge> merges;
+    FlexVector<GroupMerge> subtracts;
+    // By aggregate.
+    std::vector<SeenBytes> seen_bytes;
+    AggregateInputLoader input;
 
     // Keys for the current input batch plus one carried key from the previous
     // input batch. Groups can share an output batch without retaining earlier
@@ -117,40 +134,48 @@ class IntervalFlatten : public Operator {
     // Active intervals remain in the heap until their ends are reached.
     uint32_t segments = 0;
     uint32_t segment_capacity = 0;
-    FlexVector<int64_t> segment_ts;
-    FlexVector<int64_t> segment_dur;
-    FlexVector<uint32_t> segment_groups;
+    // The segments' columns, written straight into the buffers the batch
+    // served holds: taken as its first segment is emitted.
+    ColumnBuffer ts_buffer;
+    ColumnBuffer dur_buffer;
+    ColumnBuffer group_buffer;
+    int64_t* segment_ts = nullptr;
+    int64_t* segment_dur = nullptr;
+    uint32_t* segment_groups = nullptr;
     FlexVector<uint32_t> segment_key_rows;
-    // What every kCount aggregate holds.
-    FlexVector<int64_t> segment_counts;
-    struct SegmentSums {
-      FlexVector<int64_t> values;
-      BitVector present;
-    };
-    std::vector<SegmentSums> segment_sums;
+    // By aggregate, the buffer the batch being served has its values in.
+    std::vector<ColumnBuffer> outputs;
     RowBatch served_keys;
   };
 
   bool RetainKeys(const RowBatch&, State&) const;
-  bool AddInterval(State&,
-                   int64_t start,
-                   int64_t length,
-                   Span<const FlatColumnReader<int64_t>> sums) const;
-  // Publishes any completed segments, or propagates an arithmetic error.
-  OpResult Yield(RowBatch&, State&, OpResult result) const;
+  bool AddInterval(State&, uint32_t row, int64_t start, int64_t length) const;
+  uint32_t TakeSlot(State&) const;
+  // Aggregates the batch, publishes any completed segments, or
+  // propagates an error. `in` is the input batch, if any.
+  OpResult Yield(RowBatch&, State&, OpResult result, const RowBatch* in) const;
+  bool Apply(State&, const RowBatch* in) const;
+  GroupStates States(State&, uint32_t i, bool nulls) const;
+  bool AggregateDeltas(State&) const;
+  void AggregateTree(State&, bool* overflow) const;
 
-  static bool Add(State&, int64_t a, int64_t b, int64_t* out);
   // Completes the last input timestamp and sweeps to time. Passing the maximum
-  // timestamp drains a group. False means an error or a full output batch;
-  // retrying resumes at the first segment which has not yet been emitted.
+  // timestamp drains a group. False means a full output batch; retrying
+  // resumes at the first segment which has not yet been emitted.
   bool Advance(State&, int64_t time) const;
-  bool Expire(State&, int64_t end) const;
-  bool Emit(State&, int64_t ts, int64_t dur, bool with_instant) const;
+  void Expire(State&, int64_t end) const;
+  void End(State&, const Live&) const;
+  bool Emit(State&, int64_t ts, int64_t dur) const;
   void GrowSegments(State&) const;
+  void TakeSegmentBuffers(State&) const;
 
   IntervalFlattenSpec spec_;
-  std::vector<uint32_t> sum_index_;
-  uint32_t sums_ = 0;
+  // By aggregate of the spec.
+  std::vector<std::unique_ptr<AggregateFunction>> functions_;
+  std::vector<uint32_t> offsets_;
+  uint32_t stride_ = 0;
+  // Whether every function can subtract, so AggregateDeltas may be used.
+  bool subtract_ = false;
 };
 
 }  // namespace perfetto::trace_processor::core::exec
