@@ -18,8 +18,11 @@
 
 #include <stdint.h>
 
+#include <limits>
+#include <optional>
 #include <vector>
 
+#include "perfetto/ext/base/utils.h"
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -189,6 +192,82 @@ TEST(SharedRingBufferABITest, ReplaceReadPos) {
   EXPECT_EQ(ReadPosOf(moved), 0x22222223u);
   EXPECT_EQ(ReplaceReadPos(PackRwPositions(7, 0xffffffffu), 0),
             PackRwPositions(7u, 0u));
+}
+
+// Layout
+// ------
+
+// The hint counts chunk bytes only.
+// The maximum and the result include the header.
+TEST(SharedRingBufferABITest, SizeForShmSizeHint) {
+  constexpr size_t kHeader = sizeof(RingBufferHeader);
+  constexpr size_t kMiB = 1024 * 1024;
+  constexpr size_t kMaxSize = std::numeric_limits<size_t>::max();
+  struct Case {
+    size_t hint;
+    size_t max;
+    uint32_t chunk_size;
+    std::optional<size_t> expected;
+  };
+  const Case cases[] = {
+      // A zero hint means 128 KiB of chunks.
+      {0, kMiB, 256, kHeader + 128 * 1024},
+      // A power-of-two number of chunks fits exactly.
+      {4 * 256, kMiB, 256, kHeader + 4 * 256},
+      {2 * kMaxChunkSize, kMiB, kMaxChunkSize, kHeader + 2 * kMaxChunkSize},
+      // Otherwise the chunk count rounds down to a power of two.
+      {5 * 256, kMiB, 256, kHeader + 4 * 256},
+      {8 * 256 - 1, kMiB, 256, kHeader + 4 * 256},
+      {7 * 512, kMiB, 512, kHeader + 4 * 512},
+      // The smallest layout has kMinChunksPerRing chunks.
+      {2 * 256, kMiB, 256, kHeader + 2 * 256},
+      {2 * 256 - 1, kMiB, 256, std::nullopt},
+      {256, kMiB, 256, std::nullopt},
+      // The maximum includes the header.
+      {kMiB, kHeader + 4 * 256, 256, kHeader + 4 * 256},
+      {kMiB, kHeader + 4 * 256 - 1, 256, kHeader + 2 * 256},
+      // A 32 MiB maximum, the value of kMaxShmSize, holds 16 MiB of chunks.
+      {32 * kMiB, 32 * kMiB, 256, kHeader + 16 * kMiB},
+      // A maximum at or below the smallest layout.
+      {kMiB, kHeader + 2 * 256, 256, kHeader + 2 * 256},
+      {kMiB, kHeader + 2 * 256 - 1, 256, std::nullopt},
+      {0, kHeader, 256, std::nullopt},
+      {0, kHeader - 1, 256, std::nullopt},
+      {0, 0, 256, std::nullopt},
+      // Invalid chunk sizes.
+      {kMiB, kMiB, 0, std::nullopt},
+      {kMiB, kMiB, kMinChunkSize - kChunkAlignmentBytes, std::nullopt},
+      {kMiB, kMiB, kMinChunkSize + 2, std::nullopt},
+      {kMiB, kMiB, kMaxChunkSize + kChunkAlignmentBytes, std::nullopt},
+      // Large inputs do not overflow.
+      {kMaxSize, kMiB, 256, kHeader + kMiB / 2},
+      {kMiB, kMaxSize, 256, kHeader + kMiB},
+  };
+
+  // Every result passes the layout check that the service applies.
+  // The check reads no memory, so one aligned byte is enough.
+  alignas(RingBufferHeader) static uint8_t start[1];
+  for (size_t i = 0; i < base::ArraySize(cases); ++i) {
+    SCOPED_TRACE(i);
+    const Case& c = cases[i];
+    const auto size = RingBufferSizeForShmSizeHint(c.hint, c.max, c.chunk_size);
+    EXPECT_EQ(size, c.expected);
+    if (size) {
+      EXPECT_TRUE(
+          NumChunksForRingBufferLayout(start, *size, c.chunk_size).ok());
+    }
+  }
+
+  // Without a byte limit, kMaxChunksPerRing limits a 64-bit result.
+  // On 32-bit, the address space is the limit.
+  const auto size = RingBufferSizeForShmSizeHint(kMaxSize, kMaxSize, 256);
+  ASSERT_TRUE(size);
+  if (sizeof(size_t) >= sizeof(uint64_t)) {
+    EXPECT_EQ(uint64_t{*size}, kHeader + uint64_t{kMaxChunksPerRing} * 256);
+  } else {
+    EXPECT_EQ(*size, kHeader + (size_t{1} << 31));
+  }
+  EXPECT_TRUE(NumChunksForRingBufferLayout(start, *size, 256).ok());
 }
 
 // Logical positions

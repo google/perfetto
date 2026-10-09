@@ -30,50 +30,36 @@
 
 namespace perfetto::tracing_v2 {
 
-// static
-std::unique_ptr<ProducerRingBufferArbiter> ProducerRingBufferArbiter::Create(
-    base::TaskRunner* task_runner,
-    ProducerEndpoint* endpoint,
-    SharedMemoryArbiter* shared_memory_arbiter,
-    std::shared_ptr<SharedMemory> ring_buffer_memory,
-    uint32_t chunk_size) {
-  if (!ring_buffer_memory) {
-    PERFETTO_ELOG("tracing v2: no ring buffer memory");
-    return nullptr;
-  }
-
-  if (ring_buffer_memory->size() > TracingService::kMaxShmSize) {
-    PERFETTO_ELOG("tracing v2: ring buffer size %zu is above the limit %zu",
-                  ring_buffer_memory->size(), TracingService::kMaxShmSize);
-    return nullptr;
-  }
-
-  base::StatusOr<uint32_t> num_chunks = NumChunksForRingBufferLayout(
-      ring_buffer_memory->start(), ring_buffer_memory->size(), chunk_size);
-  if (!num_chunks.ok()) {
-    PERFETTO_ELOG("tracing v2: %s", num_chunks.status().c_message());
-    return nullptr;
-  }
-
-  return std::unique_ptr<ProducerRingBufferArbiter>(
-      new ProducerRingBufferArbiter(task_runner, endpoint,
-                                    shared_memory_arbiter,
-                                    std::move(ring_buffer_memory), chunk_size));
-}
-
 ProducerRingBufferArbiter::ProducerRingBufferArbiter(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
-    SharedMemoryArbiter* shared_memory_arbiter,
-    std::shared_ptr<SharedMemory> ring_buffer_memory,
-    uint32_t chunk_size)
+    std::shared_ptr<SharedMemory> memory)
     : task_runner_(task_runner),
       endpoint_(endpoint),
-      shared_memory_arbiter_(shared_memory_arbiter),
-      memory_(std::move(ring_buffer_memory)),
+      shared_memory_arbiter_(endpoint->MaybeSharedMemoryArbiter()),
+      memory_(std::move(memory)),
       ring_buffer_(static_cast<uint8_t*>(memory_->start()),
                    memory_->size(),
-                   chunk_size) {}
+                   kMinChunkSize) {
+  // ProducerIPCClientImpl and the in-process ProducerEndpointImpl both create
+  // the SMB arbiter before they set up data sources.
+  PERFETTO_CHECK(shared_memory_arbiter_);
+
+  // The reply callback moves kPending to kAttached, or to kDetached if the
+  // service rejects the ring buffer.
+  endpoint_->AttachV2RingBuffer(
+      memory_, kMinChunkSize,
+      [weak_this = weak_factory_.GetWeakPtr()](bool accepted) {
+        if (!weak_this)
+          return;
+        if (!accepted) {
+          PERFETTO_DLOG("tracing v2: ring buffer not accepted");
+          weak_this->Disconnect();
+          return;
+        }
+        weak_this->OnReaderAttached();
+      });
+}
 
 ProducerRingBufferArbiter::~ProducerRingBufferArbiter() {
   Disconnect();

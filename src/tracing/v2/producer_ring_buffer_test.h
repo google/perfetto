@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -56,14 +57,16 @@ namespace perfetto::tracing_v2 {
 // - TraceWriterV2ImplTest, in trace_writer_v2_impl_unittest.cc.
 //
 // The producer side is the code under test:
-// - CreateRingBufferArbiter() creates a ProducerRingBufferArbiter on a new
-//   ring buffer.
+// - CreateRingBufferArbiter() allocates memory and creates |arbiter_|, which
+//   attaches that memory to the endpoint.
 // - CreateWriter() creates a TraceWriterV2Impl from that arbiter.
 //
 // The fake service side reads back what the writers published:
 // - |endpoint_| is a mock ProducerEndpoint. Its DrainV2RingBuffer() calls
 //   Drain(), but only after AttachReader(), as the service does after it
 //   accepts the ring buffer.
+// - Its AttachV2RingBuffer() keeps the mapping and the reply, and
+//   AttachReader() or RejectAttach() sends the reply later.
 // - Drain() reads the ring buffer with a SharedRingBufferReader, through its
 //   own view of the mapping. This fixture is that reader's delegate.
 //   OnChunkRead() and OnDataLoss() copy the chunks into |trace_buffer_|, as
@@ -75,7 +78,8 @@ namespace perfetto::tracing_v2 {
 class ProducerRingBufferTest : public ::testing::Test,
                                public SharedRingBufferReader::Delegate {
  protected:
-  static constexpr uint32_t kChunkSize = 256;
+  // The arbiter always uses this chunk size.
+  static constexpr uint32_t kChunkSize = kMinChunkSize;
   static constexpr BufferID kTargetBuffer = 7;
   static constexpr ProducerID kProducerId = 1;
   static constexpr size_t kSmbPageSize = 4096;
@@ -96,6 +100,20 @@ class ProducerRingBufferTest : public ::testing::Test,
           if (callback)
             callback();
         });
+    ON_CALL(endpoint_, AttachV2RingBuffer(_, _, _))
+        .WillByDefault([this](const std::shared_ptr<SharedMemory>& memory,
+                              uint32_t chunk_size,
+                              std::function<void(bool)> reply) {
+          ++num_attach_requests_;
+          // As the service does, the reader uses its own view of the mapping.
+          service_memory_ = memory;
+          reader_ring_buffer_ = std::make_unique<SharedRingBuffer>(
+              static_cast<uint8_t*>(service_memory_->start()),
+              service_memory_->size(), chunk_size);
+          reader_ = std::make_unique<SharedRingBufferReader>(
+              reader_ring_buffer_.get(), this);
+          attach_reply_ = std::move(reply);
+        });
     // Like the service, drain only after the reader is attached.
     ON_CALL(endpoint_, DrainV2RingBuffer()).WillByDefault([this] {
       ++num_drain_requests_;
@@ -105,34 +123,23 @@ class ProducerRingBufferTest : public ::testing::Test,
     smb_arbiter_ = SharedMemoryArbiter::CreateInstance(
         &smb_, kSmbPageSize, SharedMemoryABI::ShmemMode::kDefault, &endpoint_,
         &task_runner_);
+    ON_CALL(endpoint_, MaybeSharedMemoryArbiter())
+        .WillByDefault(::testing::Return(smb_arbiter_.get()));
   }
 
-  void TearDown() override {
-    // The reader view borrows the mapping that the ring buffer arbiter owns.
-    reader_.reset();
-    reader_ring_buffer_.reset();
-    arbiter_.reset();
+  // The budget for a ring buffer of |num_chunks| chunks, header not included.
+  static size_t BudgetFor(uint32_t num_chunks) {
+    return num_chunks * kChunkSize;
   }
 
-  static std::unique_ptr<SharedMemory> CreateRingBufferMemory(
-      uint32_t num_chunks) {
-    return std::make_unique<InProcessSharedMemory>(sizeof(RingBufferHeader) +
-                                                   num_chunks * kChunkSize);
-  }
-
-  // Creates the ring buffer arbiter with a ring buffer of |num_chunks|
-  // chunks. It starts in kPending.
+  // Gives |arbiter_| a ring buffer of |num_chunks| chunks.
+  // The ring buffer starts in kPending.
   void CreateRingBufferArbiter(uint32_t num_chunks) {
-    auto memory = CreateRingBufferMemory(num_chunks);
-    // As the service does, the reader uses its own view of the mapping.
-    reader_ring_buffer_ = std::make_unique<SharedRingBuffer>(
-        static_cast<uint8_t*>(memory->start()), memory->size(), kChunkSize);
-    arbiter_ = ProducerRingBufferArbiter::Create(&task_runner_, &endpoint_,
-                                                 smb_arbiter_.get(),
-                                                 std::move(memory), kChunkSize);
-    ASSERT_TRUE(arbiter_);
-    reader_ = std::make_unique<SharedRingBufferReader>(
-        reader_ring_buffer_.get(), this);
+    arbiter_ = std::make_unique<ProducerRingBufferArbiter>(
+        &task_runner_, &endpoint_,
+        std::make_shared<InProcessSharedMemory>(sizeof(RingBufferHeader) +
+                                                BudgetFor(num_chunks)));
+    ASSERT_TRUE(attach_reply_);
   }
 
   void CreateRingBufferArbiterWithReader(uint32_t num_chunks) {
@@ -142,8 +149,15 @@ class ProducerRingBufferTest : public ::testing::Test,
 
   // Acts like the service accepting the ring buffer.
   void AttachReader() {
+    ASSERT_TRUE(attach_reply_);
     service_reader_attached_ = true;
-    arbiter_->OnReaderAttached();
+    std::exchange(attach_reply_, nullptr)(true);
+  }
+
+  // Acts like the service rejecting the ring buffer.
+  void RejectAttach() {
+    ASSERT_TRUE(attach_reply_);
+    std::exchange(attach_reply_, nullptr)(false);
   }
 
   std::unique_ptr<TraceWriter> CreateWriter(
@@ -214,10 +228,13 @@ class ProducerRingBufferTest : public ::testing::Test,
   // The fake service side.
   std::unique_ptr<TraceBufferV2> trace_buffer_ =
       TraceBufferV2::Create(64 * 1024);
+  std::shared_ptr<SharedMemory> service_memory_;
   std::unique_ptr<SharedRingBuffer> reader_ring_buffer_;
   std::unique_ptr<SharedRingBufferReader> reader_;
+  std::function<void(bool)> attach_reply_;
   bool service_reader_attached_ = false;
 
+  uint32_t num_attach_requests_ = 0;
   uint32_t num_drain_requests_ = 0;
 };
 
