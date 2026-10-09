@@ -27,6 +27,13 @@
 namespace perfetto::base {
 namespace {
 
+TEST(MurmurHashTest, CombiningOneValueIsItsHash) {
+  EXPECT_EQ(MurmurHashCombine(int64_t{42}), MurmurHashValue(int64_t{42}));
+  EXPECT_EQ(MurmurHashCombine(3.5), MurmurHashValue(3.5));
+  EXPECT_NE(MurmurHashCombine(int64_t{1}, int64_t{2}),
+            MurmurHashCombine(int64_t{2}, int64_t{1}));
+}
+
 TEST(MurmurHashTest, StringView) {
   base::StringView a = "abc";
   base::StringView b = "def";
