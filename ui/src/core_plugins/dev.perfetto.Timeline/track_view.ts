@@ -208,11 +208,11 @@ export class TrackView {
         stickyTop: attrs.stickyTop,
         pluginId: renderer?.desc.pluginId,
         lite: attrs.lite,
-        onCollapsedChanged: (_, e) => {
+        onCollapsedChanged: (_, shiftKey) => {
           if (!node.hasChildren) return;
           // If the shift key is pressed with the click, then
           // expand or collapse this track and all descendant tracks.
-          if (e.shiftKey) {
+          if (shiftKey) {
             node.collapsed ? node.expandAll() : node.collapseAll();
           } else {
             // Otherwise, just toggle this track.
