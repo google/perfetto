@@ -53,6 +53,21 @@ namespace ex = core::exec;
 namespace analysis = ::perfetto::perfetto_sql::analysis;
 using core::StorageType;
 
+namespace {
+
+std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
+                                       std::string_view name) {
+  const std::vector<std::string>& names = dataframe.column_names();
+  for (uint32_t i = 0; i < names.size(); ++i) {
+    if (names[i] == name && !dataframe::IsHiddenColumn(names[i])) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 const OperationRegistration Scan::kRegistration{
     SYNTAQLITE_NODE_PERFETTO_PIPE_SOURCE, &BuildPlan,
     OperationRegistration::Encoding{0, true, &DecodePlan}};
@@ -75,8 +90,16 @@ base::StatusOr<SourceRelation> Scan::BuildRelation(Compiler* c,
   Scan scan;
   if (const dataframe::Dataframe* dataframe =
           Scan::FindDirectDataframe(c, *n)) {
-    scan = Scan::BuildDataframeScan(c, *dataframe,
-                                    SpanText(c->parser(), n->table_name));
+    // Hidden from SELECT * in SQLite, so hidden here too.
+    std::vector<DataframeColumn> columns;
+    const std::vector<std::string>& names = dataframe->column_names();
+    for (uint32_t i = 0; i < names.size(); ++i) {
+      if (!dataframe::IsHiddenColumn(names[i])) {
+        columns.push_back({names[i], i});
+      }
+    }
+    scan = Scan::BuildDataframeScan(
+        c, *dataframe, SpanText(c->parser(), n->table_name), columns);
   } else {
     ASSIGN_OR_RETURN(scan, Scan::BuildSqlScan(c, source));
   }
@@ -147,19 +170,17 @@ base::Status Scan::CheckSourceNames(Compiler* c,
 
 Scan Scan::BuildDataframeScan(Compiler* c,
                               const dataframe::Dataframe& dataframe,
-                              std::string name) {
+                              std::string name,
+                              const std::vector<DataframeColumn>& columns) {
   Scan scan;
   Scan::Dataframe source;
   source.name = std::move(name);
   source.row_count = dataframe.row_count();
-  const std::vector<std::string>& names = dataframe.column_names();
-  for (uint32_t i = 0; i < names.size(); ++i) {
-    // Hidden from SELECT * in SQLite, so hidden here too.
-    if (dataframe::IsHiddenColumn(names[i])) {
-      continue;
-    }
-    Scan::AddScanColumn(c, &scan, {names[i], dataframe.column_type(i)});
-    source.columns.push_back(dataframe.shared_column(i));
+  for (const DataframeColumn& column : columns) {
+    Scan::AddScanColumn(c, &scan,
+                        {column.name, dataframe.column_type(column.index)});
+    source.column_names.push_back(dataframe.column_names()[column.index]);
+    source.columns.push_back(dataframe.shared_column(column.index));
   }
   scan.source_ = std::move(source);
   return scan;
@@ -185,6 +206,28 @@ base::StatusOr<Scan> Scan::BuildSqlScan(Compiler* c, uint32_t from) {
     return c->Err(from, Compiler::Error::kUnsupported,
                   "reading a relation whose columns cannot be worked out",
                   " (" + lineage.status().message() + ")");
+  }
+  // A relation which keeps a dataframe's rows, only choosing and renaming its
+  // columns, is read from the dataframe rather than through SQLite. Its
+  // columns are then all plain references to the dataframe's.
+  if (std::optional<std::string_view> origin = lineage->row_origin()) {
+    const dataframe::Dataframe* dataframe = c->catalog().FindDataframe(*origin);
+    std::vector<DataframeColumn> columns;
+    // As for a table read directly, the dataframe must have stopped changing.
+    for (const analysis::ColumnLineage& column : lineage->columns()) {
+      std::optional<uint32_t> i;
+      if (dataframe && dataframe->finalized() && column.origins.size() == 1) {
+        i = FindScanColumn(*dataframe, column.origins[0].column_name);
+      }
+      if (!i) {
+        break;
+      }
+      columns.push_back({std::string(column.output_name), *i});
+    }
+    if (dataframe && columns.size() == lineage->columns().size()) {
+      return Scan::BuildDataframeScan(c, *dataframe, std::string(*origin),
+                                      columns);
+    }
   }
   Scan scan;
   // The relation as written, which the SQL building its dataframe reads.
@@ -233,10 +276,13 @@ std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
   switch (scan.source_.index()) {
     case base::variant_index<Scan::Source, Scan::Dataframe>(): {
       auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
+      std::vector<std::string> kept_names;
       std::vector<std::shared_ptr<const dataframe::Column>> kept;
       for (uint32_t i : keep) {
+        kept_names.push_back(std::move(dataframe.column_names[i]));
         kept.push_back(std::move(dataframe.columns[i]));
       }
+      dataframe.column_names = std::move(kept_names);
       dataframe.columns = std::move(kept);
       return std::nullopt;
     }
@@ -284,21 +330,6 @@ const OperationRegistration& Scan::registration() const {
   return kRegistration;
 }
 
-namespace {
-
-std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
-                                       const std::string& name) {
-  const std::vector<std::string>& names = dataframe.column_names();
-  for (uint32_t i = 0; i < names.size(); ++i) {
-    if (names[i] == name && !dataframe::IsHiddenColumn(names[i])) {
-      return i;
-    }
-  }
-  return std::nullopt;
-}
-
-}  // namespace
-
 std::unique_ptr<PlanOperation> Scan::Clone() const {
   return std::make_unique<Scan>(*this);
 }
@@ -321,11 +352,19 @@ void Scan::Write(PlanWriter* c,
       // SQL is moved out into dataframe arguments before a plan is written.
       PERFETTO_FATAL("Unknown scan source");
   }
+  const auto* data = std::get_if<Scan::Dataframe>(&scan.source_);
   c->writer().Size(scan.columns_.size());
   available.clear();
-  for (const NamedColumn& column : scan.columns_) {
+  for (size_t i = 0; i < scan.columns_.size(); ++i) {
+    const NamedColumn& column = scan.columns_[i];
     c->writer().Str(column.name);
     WriteType(&c->writer(), c->plan().columns()[column.id].type);
+    // The dataframe column read, if the scan renames it.
+    if (data) {
+      const std::string& read = data->column_names[i];
+      c->writer().Str(read == column.name ? std::string_view()
+                                          : std::string_view(read));
+    }
     available.push_back(column.id);
   }
 }
@@ -352,11 +391,17 @@ Available Scan::ReadPayload(PlanReader* c, Scan* scan) {
       c->reader().Fail();
       return {};
   }
+  auto* data = std::get_if<Scan::Dataframe>(&scan->source_);
   scan->columns_.resize(c->reader().Count());
   Available available;
   for (NamedColumn& column : scan->columns_) {
     column.name = c->reader().Str();
     column.id = c->AddColumn(column.name, ReadType(&c->reader()));
+    if (data) {
+      std::string read = c->reader().Str();
+      data->column_names.push_back(read.empty() ? column.name
+                                                : std::move(read));
+    }
     available.push_back(column.id);
   }
   return available;
@@ -375,10 +420,11 @@ base::Status Scan::ResolveDataframes(LogicalPlan* logical_plan,
     return base::ErrStatus("Pipeline: table '%s' no longer exists",
                            data->name.c_str());
   }
-  for (const NamedColumn& column : scan.columns_) {
-    std::optional<uint32_t> i = FindScanColumn(*dataframe, column.name);
+  for (size_t j = 0; j < scan.columns_.size(); ++j) {
+    std::optional<uint32_t> i =
+        FindScanColumn(*dataframe, data->column_names[j]);
     const std::optional<core::StorageType>& type =
-        plan.columns()[column.id].type;
+        plan.columns()[scan.columns_[j].id].type;
     if (!i || !type || !(*type == dataframe->column_type(*i))) {
       return base::ErrStatus(
           "Pipeline: table '%s' has changed since the pipeline was written",
@@ -430,6 +476,7 @@ base::Status Scan::BindDataframeArgs(
     // The dataframe was built after the plan was written, so it decides
     // what each column holds.
     plan.columns()[column.id].type = dataframe->column_type(*i);
+    data.column_names.push_back(column.name);
     data.columns.push_back(dataframe->shared_column(*i));
   }
   data.row_count = dataframe->row_count();
