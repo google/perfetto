@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 
@@ -93,6 +94,17 @@ void SeenBytes::Clear() {
 
 AggregateFunction::~AggregateFunction() = default;
 
+void AggregateFunction::Subtract(const GroupMerge*,
+                                 uint32_t,
+                                 GroupStates,
+                                 bool*) const {
+  PERFETTO_FATAL("Subtract on a function which can't");
+}
+
+void AggregateFunction::Prefix(uint32_t, GroupStates, bool*) const {
+  PERFETTO_FATAL("Prefix on a function which can't subtract");
+}
+
 namespace {
 
 // COUNT(*): how many rows a group holds.
@@ -116,6 +128,24 @@ class CountStar : public AggregateFunction {
     for (uint32_t i = 0; i < count; ++i) {
       states.words[merges[i].into * states.stride] +=
           states.words[merges[i].from * states.stride];
+    }
+  }
+  bool can_subtract() const override { return true; }
+  void Subtract(const GroupMerge* merges,
+                uint32_t count,
+                GroupStates states,
+                bool*) const override {
+    for (uint32_t i = 0; i < count; ++i) {
+      states.words[merges[i].into * states.stride] -=
+          states.words[merges[i].from * states.stride];
+    }
+  }
+  void Prefix(uint32_t count, GroupStates states, bool*) const override {
+    // The total stays in a register rather than waiting on each store.
+    int64_t total = 0;
+    for (uint32_t g = 0; g < count; ++g) {
+      total += states.words[g * states.stride];
+      states.words[g * states.stride] = total;
     }
   }
   void Finalize(GroupStates states,
@@ -182,6 +212,31 @@ class Sum final : public AggregateFunction {
       if (states.seen) {
         states.seen[merges[i].into] |= states.seen[merges[i].from];
       }
+    }
+    *overflow |= ovf;
+  }
+  bool can_subtract() const override { return true; }
+  void Subtract(const GroupMerge* merges,
+                uint32_t count,
+                GroupStates states,
+                bool* overflow) const override {
+    bool ovf = false;
+    for (uint32_t i = 0; i < count; ++i) {
+      int64_t& to = states.words[merges[i].into * states.stride];
+      int64_t from = states.words[merges[i].from * states.stride];
+      ovf |= !base::CheckedSub(to, from, &to);
+    }
+    *overflow |= ovf;
+  }
+  void Prefix(uint32_t count,
+              GroupStates states,
+              bool* overflow) const override {
+    // The total stays in a register rather than waiting on each store.
+    bool ovf = false;
+    int64_t total = 0;
+    for (uint32_t g = 0; g < count; ++g) {
+      ovf |= !base::CheckedAdd(total, states.words[g * states.stride], &total);
+      states.words[g * states.stride] = total;
     }
     *overflow |= ovf;
   }

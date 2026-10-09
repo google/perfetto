@@ -218,6 +218,20 @@ TEST(UtilsTest, RoundUpToPowerOfTwo) {
   EXPECT_EQ(RoundUpToPowerOfTwo((uint32_t{1} << 31) + 1), 0u);
 }
 
+TEST(UtilsTest, CheckedSub) {
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
+  int64_t result;
+  ASSERT_TRUE(CheckedSub(5, 7, &result));
+  EXPECT_EQ(result, -2);
+  // Subtracting the minimum is fine while the result stays representable.
+  ASSERT_TRUE(CheckedSub(-1, kMin, &result));
+  EXPECT_EQ(result, kMax);
+  EXPECT_FALSE(CheckedSub(0, kMin, &result));
+  EXPECT_FALSE(CheckedSub(kMin, 1, &result));
+  EXPECT_FALSE(CheckedSub(kMax, -1, &result));
+}
+
 TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
