@@ -39,6 +39,7 @@ import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
 import {renderMenu} from './demos/menu_demo';
+import {renderMergedClassWarning} from './demos/merged_class_warning_demo';
 import {renderMiddleEllipsis} from './demos/middle_ellipsis_demo';
 import {renderModal} from './demos/modal_demo';
 import {renderMultiselect} from './demos/multiselect_demo';
@@ -104,6 +105,11 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'hotkey', label: 'Hotkey', view: renderHotkey},
   {id: 'icon', label: 'Icon', view: renderIcon},
   {id: 'menu', label: 'Menu', view: renderMenu},
+  {
+    id: 'merged-class-warning',
+    label: 'MergedClassWarning',
+    view: renderMergedClassWarning,
+  },
   {id: 'middleellipsis', label: 'MiddleEllipsis', view: renderMiddleEllipsis},
   {id: 'modal', label: 'Modal', view: renderModal},
   {id: 'multiselect', label: 'Multiselect', view: renderMultiselect},

@@ -38,12 +38,15 @@ import {hash} from '../base/hash';
 import {escapeRegex} from './flamegraph_regex';
 import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
+import {Icon} from './icon';
+import {Intent} from './common';
 import {
   type ActionCategory,
   FILTER_TYPES,
   type FilterType,
   type TreeExplorerData,
   type TreeExplorerFilter,
+  type TreeExplorerMarker,
   type TreeExplorerMetric,
   type TreeExplorerNode,
   type TreeExplorerOptionalAction,
@@ -57,6 +60,8 @@ import {
 } from './tree_explorer';
 
 const LABEL_FONT_STYLE = '12px Roboto';
+const MARKER_ICON_SIZE_PX = 14;
+const MARKER_ICON_FONT_STYLE = `${MARKER_ICON_SIZE_PX}px Material Symbols Sharp`;
 const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
 const LABEL_PADDING_PX = 5;
@@ -501,26 +506,40 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       const MARKER_SIZE = 3;
       const MARKER_LEFT_MARGIN = 2;
       const MIN_WIDTH_FOR_MARKER = 15; // Don't show marker on very small nodes
-      const hasMarker =
-        source.kind === 'NODE' &&
-        nodes[source.queryIdx].marker !== undefined &&
-        width >= MIN_WIDTH_FOR_MARKER;
-      if (hasMarker) {
+      const marker =
+        source.kind === 'NODE' ? nodes[source.queryIdx].marker : undefined;
+      let labelX = x + LABEL_PADDING_PX;
+      let labelWidth = width - LABEL_PADDING_PX * 2;
+      if (marker?.icon !== undefined) {
+        // Icon markers sit inline before the label, so reserve space for them.
+        if (width >= MARKER_ICON_SIZE_PX + MARKER_LEFT_MARGIN * 2) {
+          ctx.fillStyle = textColor.cssString;
+          ctx.font = MARKER_ICON_FONT_STYLE;
+          ctx.fillText(
+            marker.icon,
+            x + MARKER_LEFT_MARGIN,
+            y + (NODE_HEIGHT - 1) / 2,
+          );
+          ctx.font = LABEL_FONT_STYLE;
+          const iconSpace = MARKER_LEFT_MARGIN + MARKER_ICON_SIZE_PX;
+          labelX = x + iconSpace + MARKER_LEFT_MARGIN;
+          labelWidth =
+            width - iconSpace - MARKER_LEFT_MARGIN - LABEL_PADDING_PX;
+        }
+      } else if (marker !== undefined && width >= MIN_WIDTH_FOR_MARKER) {
         ctx.fillStyle = textColor.cssString;
         const markerX = x + MARKER_LEFT_MARGIN;
         const markerY = y + 2; // Position at top of node with small margin
         ctx.fillRect(markerX, markerY, MARKER_SIZE, MARKER_SIZE);
       }
 
-      // Text positioning - no need to reserve space since marker is in top corner
-      const widthNoPadding = width - LABEL_PADDING_PX * 2;
-      if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
+      if (labelWidth >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
         ctx.fillStyle = textColor.cssString;
         ctx.fillText(
-          name.substring(0, widthNoPadding / this.labelCharWidth),
-          x + LABEL_PADDING_PX,
+          name.substring(0, labelWidth / this.labelCharWidth),
+          labelX,
           y + (NODE_HEIGHT - 1) / 2,
-          widthNoPadding,
+          labelWidth,
         );
       }
       if (highlighted) {
@@ -627,8 +646,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     return m(
       'div',
       // Show marker at the top of the tooltip
-      marker &&
-        m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
+      marker && renderTooltipMarker(marker),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', `${nameLabel}:`),
@@ -1120,6 +1138,30 @@ export function buildFlamegraphExportString(
     default:
       assertUnreachable(format);
   }
+}
+
+function renderTooltipMarker(marker: TreeExplorerMarker): m.Children {
+  if (marker.icon === undefined) {
+    return m(
+      '.tooltip-text-line',
+      m('.tooltip-marker-text', `■ ${marker.name}`),
+    );
+  }
+  const muted = marker.tone === 'muted';
+  return m(
+    '.pf-flamegraph-tooltip-marker',
+    {className: muted ? 'pf-flamegraph-tooltip-marker--muted' : undefined},
+    m(Icon, {
+      icon: marker.icon,
+      intent: muted ? Intent.None : Intent.Warning,
+    }),
+    m(
+      '.pf-flamegraph-tooltip-marker__body',
+      m('.tooltip-bold-text', marker.name),
+      marker.description !== undefined &&
+        m('.pf-flamegraph-tooltip-marker__desc', marker.description),
+    ),
+  );
 }
 
 function computeRenderNodes(
