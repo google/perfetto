@@ -19,27 +19,29 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-// The columns holding the tree structure and the values being summed. Node and
-// parent columns must be flat, non-null Uint32 columns; values must be flat
-// Int64. A null value contributes zero.
+// The columns holding the tree structure, and the aggregates folded along
+// it. Node and parent columns must be flat, non-null Uint32 columns.
 struct TreeAccumulateSpec {
   uint32_t node_column = 0;
   uint32_t parent_column = 1;
-  uint32_t value_column = 2;
+  std::vector<AggregateCall> aggregates;
 };
 
-// Sums each node's value with the values of everything below it.
+// Aggregates each node's row with the rows of everything below it.
 //
 // Requires rows child first, so every descendant has been seen when the node
 // arrives. Subtrees may be interleaved: DFS post-order is not required.
-// Input columns are preserved and one flat Int64 total column is appended.
+// Input columns are preserved and one Int64 column is appended for each
+// aggregate.
 class TreeAccumulateUp final : public Transform {
  public:
   explicit TreeAccumulateUp(TreeAccumulateSpec);
@@ -51,13 +53,14 @@ class TreeAccumulateUp final : public Transform {
 
  private:
   TreeAccumulateSpec spec_;
+  std::vector<std::unique_ptr<AggregateFunction>> functions_;
 };
 
-// Sums each node's value with the values of everything above it.
+// Aggregates each node's row with the rows of everything above it.
 //
 // Requires rows parent first, so every ancestor has been totalled when the node
-// arrives. Input columns are preserved and one flat Int64 total column is
-// appended.
+// arrives. Input columns are preserved and one Int64 column is appended for
+// each aggregate.
 class TreeAccumulateDown final : public Transform {
  public:
   explicit TreeAccumulateDown(TreeAccumulateSpec);
@@ -69,6 +72,7 @@ class TreeAccumulateDown final : public Transform {
 
  private:
   TreeAccumulateSpec spec_;
+  std::vector<std::unique_ptr<AggregateFunction>> functions_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

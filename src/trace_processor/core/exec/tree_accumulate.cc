@@ -16,40 +16,57 @@
 
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-// What one execution carries between batches: a running total per node.
+// What one execution carries between batches: the aggregates' state for each
+// node seen.
 class AccumulateState : public OperatorState {
  public:
-  explicit AccumulateState(Context& c)
-      : OperatorState(ResetEachRun{}), context(&c) {}
+  AccumulateState(Context& c, size_t aggregates)
+      : OperatorState(ResetEachRun{}), context(&c) {
+    seen.resize(aggregates);
+  }
   ~AccumulateState() override;
   void Reset() override {
-    by_node.clear();
+    states.clear();
+    for (SeenBytes& bytes : seen) {
+      bytes.Clear();
+    }
     status = base::OkStatus();
   }
 
-  std::vector<int64_t> by_node;
+  // By node, `stride` words apart: each aggregate's state in turn.
+  FlexVector<int64_t> states;
+  // By aggregate: see GroupStates::seen.
+  std::vector<SeenBytes> seen;
   std::vector<uint32_t> node_scratch;
   std::vector<uint32_t> parent_scratch;
-  std::vector<int64_t> value_scratch;
-  // What each batch's totals are written in.
+  // The edges of the batch's rows with a parent, in row order.
+  FlexVector<GroupMerge> merges;
+  AggregateInputLoader input;
+  // The rows kept's results, before they're written at the batch's rows.
+  FlexVector<int64_t> values;
+  BitVector valid;
+  // What each batch's columns are written in.
   Context* context;
   base::Status status = base::OkStatus();
 };
@@ -58,11 +75,11 @@ AccumulateState::~AccumulateState() = default;
 
 // The column's values at the rows kept, laid out flat, gathering once unless
 // the rows kept are the first ones.
-template <typename T>
-const T* Flatten(const ColumnView& column,
-                 const Selection& selection,
-                 std::vector<T>* scratch) {
-  const auto* data = static_cast<const T*>(column.data()) + column.start();
+const uint32_t* Flatten(const ColumnView& column,
+                        const Selection& selection,
+                        std::vector<uint32_t>* scratch) {
+  const auto* data =
+      static_cast<const uint32_t*>(column.data()) + column.start();
   if (selection.prefix()) {
     return data;
   }
@@ -73,76 +90,127 @@ const T* Flatten(const ColumnView& column,
   return scratch->data();
 }
 
-const int64_t* FlattenValues(const ColumnView& column,
-                             const Selection& selection,
-                             std::vector<int64_t>* scratch) {
-  const auto* data = static_cast<const int64_t*>(column.data());
-  const BitVector* validity = column.validity();
-  if (selection.prefix() && !validity) {
-    return data + column.start();
-  }
-  scratch->resize(selection.size());
-  for (uint32_t row = 0; row < selection.size(); ++row) {
-    uint32_t index = column.Index(selection[row]);
-    (*scratch)[row] = validity && !validity->is_set(index) ? 0 : data[index];
-  }
-  return scratch->data();
+bool IsNodeColumn(const ColumnView& column) {
+  return column.kind() == ColumnView::Kind::kFlat &&
+         column.type().Is<Uint32>() && column.validity() == nullptr;
 }
 
-base::Status Validate(const RowBatch& in, TreeAccumulateSpec spec) {
-  const ColumnView& node = in.column(spec.node_column);
-  const ColumnView& parent = in.column(spec.parent_column);
-  const ColumnView& value = in.column(spec.value_column);
-  bool nodes_ok = node.kind() == ColumnView::Kind::kFlat &&
-                  node.type().Is<Uint32>() && node.validity() == nullptr &&
-                  parent.kind() == ColumnView::Kind::kFlat &&
-                  parent.type().Is<Uint32>() && parent.validity() == nullptr;
-  if (!nodes_ok) {
-    return base::ErrStatus(
+std::vector<std::unique_ptr<AggregateFunction>> MakeFunctions(
+    const TreeAccumulateSpec& spec) {
+  std::vector<std::unique_ptr<AggregateFunction>> functions;
+  for (const AggregateCall& call : spec.aggregates) {
+    functions.push_back(MakeAggregateFunction(call.function));
+  }
+  return functions;
+}
+
+// Folds a batch of rows along the tree, appending each aggregate's column:
+// up adds each node's state into its parent's, rows child first; down adds
+// each parent's state into its node's, rows parent first. Either way every
+// row's node is complete by the time the batch is done.
+bool Accumulate(
+    const TreeAccumulateSpec& spec,
+    const std::vector<std::unique_ptr<AggregateFunction>>& functions,
+    bool up,
+    RowBatch& batch,
+    AccumulateState& s) {
+  const ColumnView& node_column = batch.column(spec.node_column);
+  const ColumnView& parent_column = batch.column(spec.parent_column);
+  if (!IsNodeColumn(node_column) || !IsNodeColumn(parent_column)) {
+    s.status = base::ErrStatus(
         "TREE ACCUMULATE: node columns must be non-null Uint32");
+    return false;
   }
-  if (value.kind() != ColumnView::Kind::kFlat || !value.type().Is<Int64>()) {
-    return base::ErrStatus("TREE ACCUMULATE: values must be Int64");
-  }
-  return base::OkStatus();
-}
+  const Selection& selection = batch.selection();
+  uint32_t count = batch.size();
+  const uint32_t* nodes = Flatten(node_column, selection, &s.node_scratch);
+  const uint32_t* parents =
+      Flatten(parent_column, selection, &s.parent_scratch);
 
-bool Add(AccumulateState& state, int64_t a, int64_t b, int64_t* out) {
-  if (base::CheckedAdd(a, b, out)) {
-    return true;
+  // Makes room for every node the batch names, and lists its edges.
+  uint32_t stride = 0;
+  for (const auto& function : functions) {
+    stride += function->state_words();
   }
-  state.status = base::ErrStatus("TREE ACCUMULATE: integer overflow");
-  return false;
-}
-
-void Grow(std::vector<int64_t>* by_node, uint32_t node) {
-  if (by_node->size() <= node) {
-    by_node->resize(node + 1, 0);
+  uint64_t nodes_needed = s.states.size() / std::max(stride, 1u);
+  s.merges.clear();
+  for (uint32_t row = 0; row < count; ++row) {
+    nodes_needed = std::max<uint64_t>(nodes_needed, uint64_t{nodes[row]} + 1);
+    if (parents[row] != kNoNode) {
+      nodes_needed =
+          std::max<uint64_t>(nodes_needed, uint64_t{parents[row]} + 1);
+      s.merges.push_back(up ? GroupMerge{parents[row], nodes[row]}
+                            : GroupMerge{nodes[row], parents[row]});
+    }
   }
-}
+  s.states.push_back_multiple(0, nodes_needed * stride - s.states.size());
 
-// Appends the column of totals in `buffer` to `batch`.
-void Emit(RowBatch& batch, ColumnBuffer buffer) {
-  const int64_t* totals = buffer.chunk().Values<int64_t>();
-  batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, totals),
-                  std::move(buffer));
+  bool overflow = false;
+  uint32_t offset = 0;
+  for (uint32_t a = 0; a < functions.size(); ++a) {
+    const AggregateFunction& function = *functions[a];
+    AggregateInput input;
+    input.rows = count;
+    if (function.reads_input() &&
+        !s.input.Load(batch.column(spec.aggregates[a].column), selection,
+                      nullptr, count, &input)) {
+      s.status = base::ErrStatus("TREE ACCUMULATE: values must be Int64");
+      return false;
+    }
+    GroupStates states{s.states.data() + offset, stride};
+    offset += function.state_words();
+    if (function.tracks_seen()) {
+      states.seen = s.seen[a].For(static_cast<uint32_t>(nodes_needed),
+                                  input.valid != nullptr);
+    }
+    function.Update(input, nodes, states, &overflow);
+    function.Combine(s.merges.data(), static_cast<uint32_t>(s.merges.size()),
+                     states, &overflow);
+
+    // Written at the batch's rows, as every column of it is.
+    ColumnBuffer buffer = s.context->TakeBuffer();
+    ColumnChunk& chunk = buffer.chunk();
+    int64_t* values = chunk.Values<int64_t>();
+    chunk.validity.resize(kMaxBatchRows);
+    if (selection.prefix()) {
+      function.Finalize(states, nodes, count, values, &chunk.validity);
+    } else {
+      s.values.resize(count);
+      s.valid.resize(count);
+      function.Finalize(states, nodes, count, s.values.data(), &s.valid);
+      for (uint32_t row = 0; row < count; ++row) {
+        values[selection[row]] = s.values[row];
+        chunk.validity.change(selection[row], s.valid.is_set(row));
+      }
+    }
+    batch.AddColumn(
+        ColumnView::Reference(StorageType{Int64{}}, values, &chunk.validity),
+        std::move(buffer));
+  }
+  if (overflow) {
+    s.status = base::ErrStatus("TREE ACCUMULATE: integer overflow");
+    return false;
+  }
+  return true;
 }
 
 }  // namespace
 
-TreeAccumulateUp::TreeAccumulateUp(TreeAccumulateSpec spec) : spec_(spec) {}
+TreeAccumulateUp::TreeAccumulateUp(TreeAccumulateSpec spec)
+    : spec_(std::move(spec)), functions_(MakeFunctions(spec_)) {}
 TreeAccumulateUp::~TreeAccumulateUp() = default;
 
-TreeAccumulateDown::TreeAccumulateDown(TreeAccumulateSpec spec) : spec_(spec) {}
+TreeAccumulateDown::TreeAccumulateDown(TreeAccumulateSpec spec)
+    : spec_(std::move(spec)), functions_(MakeFunctions(spec_)) {}
 TreeAccumulateDown::~TreeAccumulateDown() = default;
 
 std::unique_ptr<OperatorState> TreeAccumulateUp::MakeState(
     Context& context) const {
-  return std::make_unique<AccumulateState>(context);
+  return std::make_unique<AccumulateState>(context, functions_.size());
 }
 std::unique_ptr<OperatorState> TreeAccumulateDown::MakeState(
     Context& context) const {
-  return std::make_unique<AccumulateState>(context);
+  return std::make_unique<AccumulateState>(context, functions_.size());
 }
 
 base::Status TreeAccumulateUp::status(const OperatorState& state) const {
@@ -153,81 +221,13 @@ base::Status TreeAccumulateDown::status(const OperatorState& state) const {
 }
 
 bool TreeAccumulateUp::Process(RowBatch& batch, OperatorState& state) const {
-  AccumulateState& s = state.Cast<AccumulateState>();
-  s.status = Validate(batch, spec_);
-  if (!s.status.ok()) {
-    return false;
-  }
-  uint32_t count = batch.size();
-  const Selection& selection = batch.selection();
-  const uint32_t* nodes = Flatten<uint32_t>(batch.column(spec_.node_column),
-                                            selection, &s.node_scratch);
-  const uint32_t* parents = Flatten<uint32_t>(batch.column(spec_.parent_column),
-                                              selection, &s.parent_scratch);
-  const int64_t* values = FlattenValues(batch.column(spec_.value_column),
-                                        selection, &s.value_scratch);
-
-  // Written at the batch's rows, as every column of it is.
-  ColumnBuffer buffer = s.context->TakeBuffer();
-  int64_t* totals = buffer.chunk().Values<int64_t>();
-  for (uint32_t row = 0; row < count; ++row) {
-    uint32_t node = nodes[row];
-    Grow(&s.by_node, node);
-    // Every descendant has already been seen and added its value here, so the
-    // total is final the moment the node arrives.
-    int64_t total;
-    if (!Add(s, values[row], s.by_node[node], &total)) {
-      return false;
-    }
-    totals[selection[row]] = total;
-    uint32_t parent = parents[row];
-    if (parent != kNoNode) {
-      Grow(&s.by_node, parent);
-      if (!Add(s, s.by_node[parent], total, &s.by_node[parent])) {
-        return false;
-      }
-    }
-  }
-  Emit(batch, std::move(buffer));
-  return true;
+  return Accumulate(spec_, functions_, /*up=*/true, batch,
+                    state.Cast<AccumulateState>());
 }
 
 bool TreeAccumulateDown::Process(RowBatch& batch, OperatorState& state) const {
-  AccumulateState& s = state.Cast<AccumulateState>();
-  s.status = Validate(batch, spec_);
-  if (!s.status.ok()) {
-    return false;
-  }
-  uint32_t count = batch.size();
-  const Selection& selection = batch.selection();
-  const uint32_t* nodes = Flatten<uint32_t>(batch.column(spec_.node_column),
-                                            selection, &s.node_scratch);
-  const uint32_t* parents = Flatten<uint32_t>(batch.column(spec_.parent_column),
-                                              selection, &s.parent_scratch);
-  const int64_t* values = FlattenValues(batch.column(spec_.value_column),
-                                        selection, &s.value_scratch);
-
-  // Written at the batch's rows, as every column of it is.
-  ColumnBuffer buffer = s.context->TakeBuffer();
-  int64_t* totals = buffer.chunk().Values<int64_t>();
-  for (uint32_t row = 0; row < count; ++row) {
-    uint32_t parent = parents[row];
-    int64_t above = 0;
-    if (parent != kNoNode) {
-      Grow(&s.by_node, parent);
-      above = s.by_node[parent];
-    }
-    int64_t total;
-    if (!Add(s, values[row], above, &total)) {
-      return false;
-    }
-    uint32_t node = nodes[row];
-    Grow(&s.by_node, node);
-    s.by_node[node] = total;
-    totals[selection[row]] = total;
-  }
-  Emit(batch, std::move(buffer));
-  return true;
+  return Accumulate(spec_, functions_, /*up=*/false, batch,
+                    state.Cast<AccumulateState>());
 }
 
 }  // namespace perfetto::trace_processor::core::exec
