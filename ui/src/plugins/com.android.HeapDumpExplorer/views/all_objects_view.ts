@@ -190,7 +190,7 @@ export function AllObjectsView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     onremove() {

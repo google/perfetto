@@ -138,7 +138,7 @@ export function ArraysView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     onremove() {
