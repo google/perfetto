@@ -135,8 +135,7 @@ base::Status AddTracebackIfNeeded(base::Status status,
   }
   // Since the error is with the statement as a whole, just pass zero so the
   // traceback points to the start of the statement.
-  std::string traceback = source.AsTraceback(0);
-  status = base::ErrStatus("%s%s", traceback.c_str(), status.c_message());
+  status = source.AddTraceback(0, status);
   status.SetPayload("perfetto.dev/has_traceback", "true");
   return status;
 }
@@ -620,9 +619,7 @@ PerfettoSqlConnection::ExecuteStatements(SqlSource sql_source,
       PERFETTO_DCHECK(frame.aux);
       frame.aux->include_claim.ReleasePoisoned(result.status().message());
       PERFETTO_DCHECK(frame.aux->traceback_sql);
-      std::string traceback = frame.aux->traceback_sql->AsTraceback(0);
-      result = base::ErrStatus("%s%s", traceback.c_str(),
-                               result.status().c_message());
+      result = frame.aux->traceback_sql->AddTraceback(0, result.status());
     }
     execution_stack_.pop_back();
   }
@@ -648,21 +645,20 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
 
       PERFETTO_DCHECK(wc_aux.wildcard_traceback_sql);
       if (IsKeyOnIncludeStack(key)) {
-        std::string traceback = wc_aux.wildcard_traceback_sql->AsTraceback(0);
-        return base::ErrStatus(
-            "%sINCLUDE: cycle detected — module '%s' is already mid-import "
-            "in this execution.",
-            traceback.c_str(), key.c_str());
+        return wc_aux.wildcard_traceback_sql->AddTraceback(
+            0, base::ErrStatus("INCLUDE: cycle detected — module '%s' is "
+                               "already mid-import in this execution.",
+                               key.c_str()));
       }
       auto res = database_->TryClaimInclude(key);
       if (res.already_included) {
         continue;
       }
       if (res.poisoned) {
-        std::string traceback = wc_aux.wildcard_traceback_sql->AsTraceback(0);
-        return base::ErrStatus(
-            "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
-            traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+        return wc_aux.wildcard_traceback_sql->AddTraceback(
+            0, base::ErrStatus(
+                   "INCLUDE: module '%s' poisoned by earlier failure: %s",
+                   key.c_str(), res.poison_reason.c_str()));
       }
 
       // Copy traceback before PushIncludeFrame, which may invalidate frame ref.
@@ -1060,8 +1056,7 @@ PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
   auto sql = pipeline::SelectPipelineSql(plan);
   if (!sql.ok()) {
-    return base::ErrStatus("%s%s", source.AsTraceback(0).c_str(),
-                           sql.status().c_message());
+    return source.AddTraceback(0, sql.status());
   }
   SqliteConnection::PreparedStatement stmt =
       connection_->PrepareStatement(source.RewriteAllIgnoreExisting(
@@ -1331,21 +1326,20 @@ base::Status PerfettoSqlConnection::IncludeModuleImpl(
     std::string_view sql,
     const PerfettoSqlParser& parser) {
   if (IsKeyOnIncludeStack(key)) {
-    std::string traceback = parser.statement_sql().AsTraceback(0);
-    return base::ErrStatus(
-        "%sINCLUDE: cycle detected — module '%s' is already mid-import in "
-        "this execution.",
-        traceback.c_str(), key.c_str());
+    return parser.statement_sql().AddTraceback(
+        0, base::ErrStatus("INCLUDE: cycle detected — module '%s' is already "
+                           "mid-import in this execution.",
+                           key.c_str()));
   }
   auto res = database_->TryClaimInclude(key);
   if (res.already_included) {
     return base::OkStatus();
   }
   if (res.poisoned) {
-    std::string traceback = parser.statement_sql().AsTraceback(0);
-    return base::ErrStatus(
-        "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
-        traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+    return parser.statement_sql().AddTraceback(
+        0,
+        base::ErrStatus("INCLUDE: module '%s' poisoned by earlier failure: %s",
+                        key.c_str(), res.poison_reason.c_str()));
   }
   PushIncludeFrame(key, sql, parser.statement_sql(), std::move(res.claim),
                    builtin);
@@ -1614,21 +1608,22 @@ base::Status PerfettoSqlConnection::ExecuteCreateMacro(
   for (const auto& [name, type] : create_macro.args) {
     if (!IsTokenAllowedInMacro(type.sql())) {
       // TODO(lalitm): add a link to create macro documentation.
-      return base::ErrStatus(
-          "%sMacro '%s' argument '%s' is unknown type '%s'. Allowed types: "
-          "%s",
-          type.AsTraceback(0).c_str(), create_macro.name.sql().c_str(),
-          name.sql().c_str(), type.sql().c_str(),
-          GetTokenNamesAllowedInMacro().c_str());
+      return type.AddTraceback(
+          0, base::ErrStatus(
+                 "Macro '%s' argument '%s' is unknown type '%s'. Allowed "
+                 "types: %s",
+                 create_macro.name.sql().c_str(), name.sql().c_str(),
+                 type.sql().c_str(), GetTokenNamesAllowedInMacro().c_str()));
     }
   }
   if (!IsTokenAllowedInMacro(create_macro.returns.sql())) {
     // TODO(lalitm): add a link to create macro documentation.
-    return base::ErrStatus(
-        "%sMacro %s return type %s is unknown. Allowed types: %s",
-        create_macro.returns.AsTraceback(0).c_str(),
-        create_macro.name.sql().c_str(), create_macro.returns.sql().c_str(),
-        GetTokenNamesAllowedInMacro().c_str());
+    return create_macro.returns.AddTraceback(
+        0, base::ErrStatus("Macro %s return type %s is unknown. Allowed "
+                           "types: %s",
+                           create_macro.name.sql().c_str(),
+                           create_macro.returns.sql().c_str(),
+                           GetTokenNamesAllowedInMacro().c_str()));
   }
 
   std::vector<std::string> args;
@@ -1645,8 +1640,8 @@ base::Status PerfettoSqlConnection::ExecuteCreateMacro(
   if (auto* it = database_->macros().Find(create_macro.name.sql()); it) {
     if (!create_macro.replace) {
       // TODO(lalitm): add a link to create macro documentation.
-      return base::ErrStatus("%sMacro already exists",
-                             create_macro.name.AsTraceback(0).c_str());
+      return create_macro.name.AddTraceback(
+          0, base::ErrStatus("Macro already exists"));
     }
     *it = std::move(macro);
     return base::OkStatus();

@@ -159,10 +159,8 @@ SqliteConnection::PreparedStatement SqliteConnection::PrepareStatement(
       sqlite3_prepare_v2(db_.get(), sql.sql().c_str(), -1, &raw_stmt, nullptr);
   PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql)};
   if (err != SQLITE_OK) {
-    const char* errmsg = sqlite3_errmsg(db_.get());
-    std::string frame =
-        statement.sql_source_.AsTracebackForSqliteOffset(GetErrorOffset());
-    base::Status status = base::ErrStatus("%s%s", frame.c_str(), errmsg);
+    base::Status status = statement.sql_source_.AddTracebackForSqliteOffset(
+        GetErrorOffset(), base::ErrStatus("%s", sqlite3_errmsg(db_.get())));
     status.SetPayload("perfetto.dev/has_traceback", "true");
 
     statement.status_ = std::move(status);
@@ -293,10 +291,8 @@ bool SqliteConnection::PreparedStatement::Step() {
     return false;
   }
   sqlite3* db = sqlite3_db_handle(stmt_.get());
-  std::string frame =
-      sql_source_.AsTracebackForSqliteOffset(GetErrorOffsetDb(db));
-  const char* errmsg = sqlite3_errmsg(db);
-  status_ = base::ErrStatus("%s%s", frame.c_str(), errmsg);
+  status_ = sql_source_.AddTracebackForSqliteOffset(
+      GetErrorOffsetDb(db), base::ErrStatus("%s", sqlite3_errmsg(db)));
   return false;
 }
 

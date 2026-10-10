@@ -355,9 +355,9 @@ base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
     const pipeline::Catalog* catalog,
     uint32_t pipeline_id) {
   if (!catalog) {
-    return base::ErrStatus(
-        "%sPipelines are not enabled; set `PERFETTO PRAGMA pipelines = 1`",
-        NodeSource(rb, pipeline_id).AsTraceback(0).c_str());
+    return NodeSource(rb, pipeline_id)
+        .AddTraceback(0, base::ErrStatus("Pipelines are not enabled; set "
+                                         "`PERFETTO PRAGMA pipelines = 1`"));
   }
   return pipeline::Compile(
       p, pipeline_id, [&rb](uint32_t node) { return NodeSource(rb, node); },
@@ -711,8 +711,8 @@ bool PerfettoSqlParser::Impl::Next(
                      CurrentStatementDocOffset(synq);
       auto clamped =
           static_cast<uint32_t>(std::min<uint64_t>(off, stmt.sql().size()));
-      status = base::ErrStatus("%s%s", stmt.AsTraceback(clamped).c_str(),
-                               syntaqlite_result_error_msg(synq));
+      status = stmt.AddTraceback(
+          clamped, base::ErrStatus("%s", syntaqlite_result_error_msg(synq)));
       return false;
     }
     root = syntaqlite_result_root(synq);

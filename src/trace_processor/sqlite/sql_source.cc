@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if SQLITE_VERSION_NUMBER < 3041002
@@ -97,38 +98,38 @@ SqlSource::SqlSource(Node node) : root_(std::move(node)) {}
 
 SqlSource::SqlSource(std::string sql,
                      std::string name,
-                     bool include_traceback_header) {
+                     bool show_expanded_statement) {
   root_.name = std::move(name);
   // Leave |rewritten_sql_storage| unset: with no rewrites, |original_sql|
   // is the rewritten SQL. Avoids a full copy of every constructed SqlSource.
   root_.original_sql = std::move(sql);
-  root_.include_traceback_header = include_traceback_header;
+  root_.show_expanded_statement = show_expanded_statement;
 }
 
 SqlSource SqlSource::FromExecuteQuery(std::string sql) {
-  return {std::move(sql), "File \"stdin\"", true};
+  return {std::move(sql), "query", true};
 }
 
 SqlSource SqlSource::FromMetric(std::string sql, const std::string& name) {
-  return {std::move(sql), "Metric \"" + name + "\"", true};
+  return {std::move(sql), "metric " + name, true};
 }
 
 SqlSource SqlSource::FromMetricFile(std::string sql, const std::string& name) {
-  return {std::move(sql), "Metric file \"" + name + "\"", false};
+  return {std::move(sql), "metric " + name, false};
 }
 
 SqlSource SqlSource::FromModuleInclude(std::string sql,
                                        const std::string& module) {
-  return {std::move(sql), "Module include \"" + module + "\"", false};
+  return {std::move(sql), "module " + module, false};
 }
 
 SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {
-  return {std::move(sql), "Trace Processor Internal", false};
+  return {std::move(sql), "trace processor internal", false};
 }
 
 SqlSource SqlSource::FromMacroExpansion(std::string sql,
                                         const std::string& macro) {
-  return {std::move(sql), "Macro \"" + macro + "\"", false};
+  return {std::move(sql), "macro " + macro, false};
 }
 
 std::string SqlSource::AsTraceback(uint32_t offset) const {
@@ -137,6 +138,33 @@ std::string SqlSource::AsTraceback(uint32_t offset) const {
 
 std::string SqlSource::AsTracebackForSqliteOffset(
     std::optional<uint32_t> opt_offset) const {
+  return AsTraceback(ClampSqliteOffset(opt_offset));
+}
+
+base::Status SqlSource::AddTraceback(uint32_t offset,
+                                     const base::Status& status) const {
+  PERFETTO_DCHECK(!status.ok());
+  std::string message = AsTraceback(offset);
+  // If the message already starts with a traceback, the error was raised by
+  // nested SQL (e.g. a module or metric file) and already has its "error: "
+  // line: this traceback just becomes the outermost frames.
+  std::string_view inner = status.message();
+  size_t first = inner.find_first_not_of(' ');
+  if (first == std::string_view::npos || inner.substr(first, 4) != "--> ") {
+    message += "error: ";
+  }
+  message += inner;
+  return base::ErrStatus("%s", message.c_str());
+}
+
+base::Status SqlSource::AddTracebackForSqliteOffset(
+    std::optional<uint32_t> offset,
+    const base::Status& status) const {
+  return AddTraceback(ClampSqliteOffset(offset), status);
+}
+
+uint32_t SqlSource::ClampSqliteOffset(
+    std::optional<uint32_t> opt_offset) const {
   uint32_t offset = opt_offset.value_or(0);
   // It's possible for SQLite in rare cases to return an out-of-bounds
   // offset. This has been reported upstream; for now workaround this
@@ -144,7 +172,7 @@ std::string SqlSource::AsTracebackForSqliteOffset(
   if (offset > sql().size()) {
     offset = 0;
   }
-  return AsTraceback(offset);
+  return offset;
 }
 
 SqlSource SqlSource::Substr(uint32_t offset, uint32_t len) const {
@@ -200,27 +228,32 @@ std::string SqlSource::Node::SelfTraceback(uint32_t rewritten_offset,
   PERFETTO_DCHECK(original_offset <= original_sql.size());
   auto [o_context, o_caret_pos] =
       SqlContextAndCaretPos(original_sql, original_offset);
-  std::string header;
-  if (include_traceback_header) {
-    if (!rewrites.empty()) {
-      auto [r_context, r_caret_pos] =
-          SqlContextAndCaretPos(rewritten_sql(), rewritten_offset);
-      std::string caret = std::string(r_caret_pos, ' ') + "^";
-      base::StackString<1024> str("Fully expanded statement\n  %s\n  %s\n",
-                                  r_context.c_str(), caret.c_str());
-      header.append(str.c_str());
-    }
-    header += "Traceback (most recent call last):\n";
-  }
-
-  auto line_and_col =
+  auto [l, c] =
       GetLineAndColumnForOffset(original_sql, line, col, original_offset);
-  std::string caret = std::string(o_caret_pos, ' ') + "^";
-  base::StackString<1024> str("%s  %s line %u col %u\n    %s\n    %s\n",
-                              header.c_str(), name.c_str(), line_and_col.first,
-                              line_and_col.second, o_context.c_str(),
-                              caret.c_str());
-  return str.ToStdString();
+
+  // Laid out like a rustc diagnostic, with a gutter as wide as the line
+  // number:
+  //    --> query:12:8
+  //     |
+  //  12 | select t from slice
+  //     |        ^
+  std::string line_no = std::to_string(l);
+  std::string gutter(line_no.size(), ' ');
+  std::string res;
+  res +=
+      gutter + "--> " + name + ":" + line_no + ":" + std::to_string(c) + "\n";
+  res += gutter + " |\n";
+  res += line_no + " | " + o_context + "\n";
+  res += gutter + " | " + std::string(o_caret_pos, ' ') + "^\n";
+  if (show_expanded_statement && !rewrites.empty()) {
+    auto [r_context, r_caret_pos] =
+        SqlContextAndCaretPos(rewritten_sql(), rewritten_offset);
+    std::string indent = gutter + "         ";
+    res += gutter + " = note: fully expanded statement:\n";
+    res += indent + r_context + "\n";
+    res += indent + std::string(r_caret_pos, ' ') + "^\n";
+  }
+  return res;
 }
 
 SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
@@ -273,7 +306,7 @@ SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
       GetLineAndColumnForOffset(original_sql, line, col, original_offset_start);
   return Node{
       name,
-      include_traceback_header,
+      show_expanded_statement,
       line_and_col.first,
       line_and_col.second,
       new_original,
@@ -391,7 +424,7 @@ SqlSource SqlSource::Rewriter::Build() && {
                                   rewritten_bytes_in_rewrites -
                                   original_bytes_in_rewrites;
     rewrite.rewritten_sql_end = rewrite.rewritten_sql_start + source_size;
-    rewrite.rewrite_node.include_traceback_header = false;
+    rewrite.rewrite_node.show_expanded_statement = false;
 
     original_bytes_in_rewrites +=
         rewrite.original_sql_end - rewrite.original_sql_start;
