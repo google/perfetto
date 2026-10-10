@@ -114,6 +114,7 @@ SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
     : line_parser_(ctx),
       ctx_(ctx),
       stream_(ctx->sorter->CreateStream(
+          ctx->trace_id(),
           std::make_unique<SystraceLineSink>(&line_parser_))) {}
 SystraceTraceParser::~SystraceTraceParser() = default;
 

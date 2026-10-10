@@ -47,6 +47,7 @@ class SpeStream : public AuxDataStream {
       : context_(context),
         stream_(*stream),
         record_stream_(context->sorter->CreateStream(
+            context->trace_id(),
             std::make_unique<SpeRecordParserImpl>(context))) {}
 
   void OnDataLoss(uint64_t) override {

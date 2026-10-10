@@ -97,7 +97,8 @@ TEST_F(TraceSorterTest, TestFtrace) {
 
   auto sink = std::make_unique<MockSink<FtraceEventData>>();
   auto* sink_ptr = sink.get();
-  auto stream = context_.sorter->CreateStream(std::move(sink));
+  auto stream =
+      context_.sorter->CreateStream(context_.trace_id(), std::move(sink));
 
   EXPECT_CALL(*sink_ptr, MockParse(1000, _));
   stream->Push(1000, {std::move(view), 0});
@@ -110,7 +111,8 @@ TEST_F(TraceSorterTest, TestTracePacket) {
 
   auto sink = std::make_unique<MockSink<TracePacketData>>();
   auto* sink_ptr = sink.get();
-  auto stream = context_.sorter->CreateStream(std::move(sink));
+  auto stream =
+      context_.sorter->CreateStream(context_.trace_id(), std::move(sink));
 
   EXPECT_CALL(*sink_ptr, MockParse(1000, _));
   stream->Push(1000, {std::move(view), state});
@@ -126,11 +128,13 @@ TEST_F(TraceSorterTest, Ordering) {
 
   auto ftrace_sink = std::make_unique<MockSink<FtraceEventData>>();
   auto* ftrace_sink_ptr = ftrace_sink.get();
-  auto ftrace_stream = context_.sorter->CreateStream(std::move(ftrace_sink));
+  auto ftrace_stream = context_.sorter->CreateStream(context_.trace_id(),
+                                                     std::move(ftrace_sink));
 
   auto packet_sink = std::make_unique<MockSink<TracePacketData>>();
   auto* packet_sink_ptr = packet_sink.get();
-  auto packet_stream = context_.sorter->CreateStream(std::move(packet_sink));
+  auto packet_stream = context_.sorter->CreateStream(context_.trace_id(),
+                                                     std::move(packet_sink));
 
   InSequence s;
   EXPECT_CALL(*ftrace_sink_ptr, MockParse(1000, _));
@@ -158,7 +162,8 @@ TEST_F(TraceSorterTest, IncrementalExtraction) {
 
   auto sink = std::make_unique<MockSink<TracePacketData>>();
   auto* sink_ptr = sink.get();
-  auto stream = context_.sorter->CreateStream(std::move(sink));
+  auto stream =
+      context_.sorter->CreateStream(context_.trace_id(), std::move(sink));
 
   // Flush at the start of packet sequence to match behavior of the
   // service.
@@ -223,7 +228,8 @@ TEST_F(TraceSorterTest, OutOfOrder) {
 
   auto sink = std::make_unique<MockSink<TracePacketData>>();
   auto* sink_ptr = sink.get();
-  auto stream = context_.sorter->CreateStream(std::move(sink));
+  auto stream =
+      context_.sorter->CreateStream(context_.trace_id(), std::move(sink));
 
   context_.sorter->NotifyFlushEvent();
   context_.sorter->NotifyFlushEvent();
@@ -284,7 +290,8 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
   for (uint32_t i = 0; i < kMaxCpus; ++i) {
     auto sink = std::make_unique<MockSink<FtraceEventData>>();
     auto* sink_ptr = sink.get();
-    streams.emplace_back(context_.sorter->CreateStream(std::move(sink)));
+    streams.emplace_back(
+        context_.sorter->CreateStream(context_.trace_id(), std::move(sink)));
 
     EXPECT_CALL(*sink_ptr, MockParse(_, _))
         .WillRepeatedly(
@@ -334,7 +341,8 @@ TEST_F(TraceSorterTest, SetSortingMode) {
 
   auto sink = std::make_unique<MockSink<TracePacketData>>();
   auto* sink_ptr = sink.get();
-  auto stream = context_.sorter->CreateStream(std::move(sink));
+  auto stream =
+      context_.sorter->CreateStream(context_.trace_id(), std::move(sink));
 
   EXPECT_CALL(*sink_ptr, MockParse(1000, _));
   stream->Push(1000, {std::move(view_1), state});
@@ -372,7 +380,8 @@ TEST_F(TraceSorterTest, SetSortingModeAfterExtraction) {
 
   auto sink = std::make_unique<MockSink<TracePacketData>>();
   auto* sink_ptr = sink.get();
-  auto stream = context_.sorter->CreateStream(std::move(sink));
+  auto stream =
+      context_.sorter->CreateStream(context_.trace_id(), std::move(sink));
 
   EXPECT_CALL(*sink_ptr, MockParse(1000, _));
   stream->Push(1000, {std::move(view_1), state});
@@ -384,6 +393,142 @@ TEST_F(TraceSorterTest, SetSortingModeAfterExtraction) {
   // extracted.
   EXPECT_FALSE(
       context_.sorter->SetSortingMode(TraceSorter::SortingMode::kFullSort));
+}
+
+TEST_F(TraceSorterTest, MaxTimestampForTraceTwoTraces) {
+  TraceId trace_1{1};
+  TraceId trace_2{2};
+
+  auto sink_1a = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream_1a = context_.sorter->CreateStream(trace_1, std::move(sink_1a));
+  auto sink_1b = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream_1b = context_.sorter->CreateStream(trace_1, std::move(sink_1b));
+
+  auto sink_2a = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream_2a = context_.sorter->CreateStream(trace_2, std::move(sink_2a));
+  auto sink_2b = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream_2b = context_.sorter->CreateStream(trace_2, std::move(sink_2b));
+
+  stream_1a->Push(1000, {test_buffer_.slice_off(0, 1), 0});
+  stream_1a->Push(1200, {test_buffer_.slice_off(0, 1), 0});
+  stream_1b->Push(800, {test_buffer_.slice_off(0, 1), 0});
+  stream_1b->Push(1500, {test_buffer_.slice_off(0, 1), 0});
+
+  stream_2a->Push(2000, {test_buffer_.slice_off(0, 1), 0});
+  stream_2a->Push(2200, {test_buffer_.slice_off(0, 1), 0});
+  stream_2b->Push(1800, {test_buffer_.slice_off(0, 1), 0});
+  stream_2b->Push(2100, {test_buffer_.slice_off(0, 1), 0});
+
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace_1), 1500);
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace_2), 2200);
+}
+
+TEST_F(TraceSorterTest, MaxTimestampForTraceEmptyQueue) {
+  TraceId trace{1};
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream = context_.sorter->CreateStream(trace, std::move(sink));
+
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), std::nullopt);
+}
+
+TEST_F(TraceSorterTest, MaxTimestampForTraceTimestampZero) {
+  TraceId trace{1};
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream = context_.sorter->CreateStream(trace, std::move(sink));
+
+  stream->Push(0, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 0);
+}
+
+TEST_F(TraceSorterTest, MaxTimestampForTraceOneEmptyAndOneNonEmptyQueue) {
+  TraceId trace{1};
+  auto sink_a = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream_a = context_.sorter->CreateStream(trace, std::move(sink_a));
+  auto sink_b = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream_b = context_.sorter->CreateStream(trace, std::move(sink_b));
+
+  stream_b->Push(1000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 1000);
+}
+
+TEST_F(TraceSorterTest, MaxTimestampForTraceOutOfOrder) {
+  TraceId trace{1};
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream = context_.sorter->CreateStream(trace, std::move(sink));
+
+  stream->Push(2000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 2000);
+
+  stream->Push(1000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 2000);
+
+  stream->Push(2500, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 2500);
+
+  stream->Push(1500, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 2500);
+}
+
+TEST_F(TraceSorterTest, MaxTimestampForTraceAfterExtraction) {
+  TraceId trace{1};
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto* sink_ptr = sink.get();
+  auto stream = context_.sorter->CreateStream(trace, std::move(sink));
+
+  stream->Push(1000, {test_buffer_.slice_off(0, 1), 0});
+  stream->Push(2000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 2000);
+
+  EXPECT_CALL(*sink_ptr, MockParse(1000, _));
+  EXPECT_CALL(*sink_ptr, MockParse(2000, _));
+  context_.sorter->ExtractEventsForced();
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), std::nullopt);
+}
+
+// A synthetic timestamp (given by the tokenizer to data without one, possibly
+// taken from other traces) orders the event, but doesn't count towards the
+// trace's end.
+TEST_F(TraceSorterTest, MaxTimestampForTraceIgnoresSyntheticTimestamps) {
+  TraceId trace{1};
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto* sink_ptr = sink.get();
+  auto stream = context_.sorter->CreateStream(trace, std::move(sink));
+
+  stream->Push(1000, {test_buffer_.slice_off(0, 1), 0});
+  stream->PushWithSyntheticTimestamp(9000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 1000);
+  EXPECT_EQ(context_.sorter->max_timestamp(), 9000);
+
+  stream->Push(2000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace), 2000);
+
+  // A trace with only synthetic timestamps has no end.
+  TraceId synthetic_only{2};
+  auto other_sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto* other_sink_ptr = other_sink.get();
+  auto other =
+      context_.sorter->CreateStream(synthetic_only, std::move(other_sink));
+  other->PushWithSyntheticTimestamp(5000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(synthetic_only),
+            std::nullopt);
+
+  // The synthetic timestamps still decide the parsing order.
+  InSequence s;
+  EXPECT_CALL(*sink_ptr, MockParse(1000, _));
+  EXPECT_CALL(*sink_ptr, MockParse(2000, _));
+  EXPECT_CALL(*other_sink_ptr, MockParse(5000, _));
+  EXPECT_CALL(*sink_ptr, MockParse(9000, _));
+  context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(TraceSorterTest, MaxTimestampForTraceUnknownTraceId) {
+  TraceId trace_1{1};
+  TraceId trace_unknown{99};
+  auto sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto stream = context_.sorter->CreateStream(trace_1, std::move(sink));
+
+  stream->Push(1000, {test_buffer_.slice_off(0, 1), 0});
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace_unknown), std::nullopt);
 }
 
 }  // namespace

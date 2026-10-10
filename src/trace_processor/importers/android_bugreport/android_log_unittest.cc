@@ -115,8 +115,9 @@ TEST_F(AndroidLogReaderTest, PersistentLogFormat) {
 
   auto mock_parser = std::make_unique<EventParserMock>();
   auto* mock_parser_ptr = mock_parser.get();
-  AndroidLogReader reader(
-      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
+  AndroidLogReader reader(context(), 2020,
+                          context()->sorter->CreateStream(
+                              context()->trace_id(), std::move(mock_parser)));
 
   EXPECT_CALL(*mock_parser_ptr,
               Parse(base::MkTime(2020, 1, 2, 3, 4, 5) * kStoNs + 678901000,
@@ -159,8 +160,9 @@ TEST_F(AndroidLogReaderTest, PersistentLogFormatWithYear) {
 
   auto mock_parser = std::make_unique<EventParserMock>();
   auto* mock_parser_ptr = mock_parser.get();
-  AndroidLogReader reader(
-      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
+  AndroidLogReader reader(context(), 2020,
+                          context()->sorter->CreateStream(
+                              context()->trace_id(), std::move(mock_parser)));
 
   EXPECT_CALL(*mock_parser_ptr,
               Parse(base::MkTime(2023, 1, 2, 3, 4, 5) * kStoNs + 678901000,
@@ -202,8 +204,9 @@ TEST_F(AndroidLogReaderTest, MixedDateFormats) {
 
   auto mock_parser = std::make_unique<EventParserMock>();
   auto* mock_parser_ptr = mock_parser.get();
-  AndroidLogReader reader(
-      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
+  AndroidLogReader reader(context(), 2020,
+                          context()->sorter->CreateStream(
+                              context()->trace_id(), std::move(mock_parser)));
 
   // Lines with year should use the parsed year (2023, 2024)
   EXPECT_CALL(*mock_parser_ptr,
@@ -245,8 +248,9 @@ TEST_F(AndroidLogReaderTest, BugreportFormat) {
 
   auto mock_parser = std::make_unique<EventParserMock>();
   auto* mock_parser_ptr = mock_parser.get();
-  AndroidLogReader reader(
-      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
+  AndroidLogReader reader(context(), 2020,
+                          context()->sorter->CreateStream(
+                              context()->trace_id(), std::move(mock_parser)));
 
   EXPECT_CALL(*mock_parser_ptr,
               Parse(base::MkTime(2020, 7, 28, 14, 25, 20) * kStoNs + 355000000,
@@ -297,7 +301,8 @@ TEST_F(AndroidLogReaderTest, Dedupe) {
   auto* mock_parser_for_logcat_ptr = mock_parser_for_logcat.get();
   BufferingAndroidLogReader logcat_reader(
       context(), 2020,
-      context()->sorter->CreateStream(std::move(mock_parser_for_logcat)));
+      context()->sorter->CreateStream(context()->trace_id(),
+                                      std::move(mock_parser_for_logcat)));
 
   EXPECT_TRUE(logcat_reader
                   .Parse(TraceBlobView(
@@ -308,7 +313,8 @@ TEST_F(AndroidLogReaderTest, Dedupe) {
   auto* mock_parser_for_dumpstate_ptr = mock_parser_for_dumpstate.get();
   DedupingAndroidLogReader dumstate_reader(
       context(), 2020,
-      context()->sorter->CreateStream(std::move(mock_parser_for_dumpstate)),
+      context()->sorter->CreateStream(context()->trace_id(),
+                                      std::move(mock_parser_for_dumpstate)),
       false, std::move(logcat_reader).ConsumeBufferedEvents());
 
   EXPECT_CALL(*mock_parser_for_logcat_ptr,

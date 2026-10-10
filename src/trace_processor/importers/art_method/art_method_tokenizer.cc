@@ -101,7 +101,8 @@ uint16_t ToShort(const TraceBlobView& tbv) {
 ArtMethodTokenizer::ArtMethodTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(
-          ctx->sorter->CreateStream(std::make_unique<ArtMethodParser>(ctx))) {}
+          ctx->sorter->CreateStream(ctx->trace_id(),
+                                    std::make_unique<ArtMethodParser>(ctx))) {}
 ArtMethodTokenizer::~ArtMethodTokenizer() = default;
 
 base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {

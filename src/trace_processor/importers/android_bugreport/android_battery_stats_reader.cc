@@ -56,6 +56,7 @@ AndroidBatteryStatsReader::AndroidBatteryStatsReader(
       history_string_tracker_(
           std::make_unique<AndroidBatteryStatsHistoryStringTracker>()),
       stream_(context->sorter->CreateStream(
+          context->trace_id(),
           std::make_unique<AndroidDumpstateEventParser>(
               context,
               history_string_tracker_.get()))) {}

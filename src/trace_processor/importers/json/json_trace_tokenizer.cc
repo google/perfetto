@@ -532,10 +532,13 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
       parser_(ctx),
       v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(ctx)),
       json_stream_(
-          context_->sorter->CreateStream(std::make_unique<JsonSink>(&parser_))),
+          context_->sorter->CreateStream(context_->trace_id(),
+                                         std::make_unique<JsonSink>(&parser_))),
       systrace_stream_(context_->sorter->CreateStream(
+          context_->trace_id(),
           std::make_unique<SystraceSink>(&parser_))),
       v8_stream_(context_->sorter->CreateStream(
+          context_->trace_id(),
           std::make_unique<V8Sink>(v8_tracker_.get()))) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 

@@ -157,6 +157,7 @@ class InstrumentsXmlTokenizer::Impl {
         has_data_(false),
         clock_(ClockId::TraceFile(context->trace_id().value)),
         stream_(context->sorter->CreateStream(
+            context->trace_id(),
             std::make_unique<RowParser>(context, data_))) {}
   ~Impl() {
     if (parser_) {

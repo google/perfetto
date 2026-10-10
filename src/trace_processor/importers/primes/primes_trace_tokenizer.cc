@@ -40,9 +40,9 @@ namespace perfetto::trace_processor::primes {
 
 PrimesTraceTokenizer::PrimesTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(
-          ctx->sorter->CreateStream(std::make_unique<PrimesTraceParser>(ctx))) {
-}
+      stream_(ctx->sorter->CreateStream(
+          ctx->trace_id(),
+          std::make_unique<PrimesTraceParser>(ctx))) {}
 
 PrimesTraceTokenizer::~PrimesTraceTokenizer() = default;
 

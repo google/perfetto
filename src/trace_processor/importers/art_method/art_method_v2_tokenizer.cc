@@ -115,7 +115,8 @@ std::string ConstructPathname(base::StringView class_name,
 ArtMethodV2Tokenizer::ArtMethodV2Tokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(
-          ctx->sorter->CreateStream(std::make_unique<ArtMethodParser>(ctx))) {}
+          ctx->sorter->CreateStream(ctx->trace_id(),
+                                    std::make_unique<ArtMethodParser>(ctx))) {}
 
 ArtMethodV2Tokenizer::~ArtMethodV2Tokenizer() = default;
 

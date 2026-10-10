@@ -116,6 +116,7 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
       linux_perf_source_id_(context->storage->InternString("linux.perf")),
       perf_sample_tracker_(context),
       streaming_profile_stream_(context->sorter->CreateStream(
+          context->trace_id(),
           std::make_unique<StreamingProfileSink>(this))) {
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
   RegisterForField(TracePacket::kPerfSampleFieldNumber);

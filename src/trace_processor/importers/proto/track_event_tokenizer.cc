@@ -108,6 +108,7 @@ TrackEventTokenizer::TrackEventTokenizer(
       module_context_(module_context),
       v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(context)),
       v8_stream_(context->sorter->CreateStream(
+          context->trace_id(),
           std::make_unique<V8Sink>(v8_tracker_.get()))),
       counter_name_thread_time_id_(
           context_->storage->InternString("thread_time")),

@@ -585,7 +585,8 @@ base::StatusOr<GeckoProfile> ParseGeckoProfile(std::string_view json) {
 GeckoTraceTokenizer::GeckoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(
-          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))) {}
+          ctx->sorter->CreateStream(ctx->trace_id(),
+                                    std::make_unique<GeckoTraceParser>(ctx))) {}
 GeckoTraceTokenizer::~GeckoTraceTokenizer() = default;
 
 base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {

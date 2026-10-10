@@ -44,6 +44,7 @@ SparseCounterSink::~SparseCounterSink() = default;
 
 SparseCounterTracker::SparseCounterTracker(TraceProcessorContext* context)
     : stream_(context->sorter->CreateStream(
+          context->trace_id(),
           std::make_unique<SparseCounterSink>(context))) {}
 
 SparseCounterTracker::~SparseCounterTracker() = default;

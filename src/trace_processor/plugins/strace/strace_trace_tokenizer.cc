@@ -374,9 +374,9 @@ bool IsStraceFormatTrace(const uint8_t* ptr, size_t size) {
 
 StraceTraceTokenizer::StraceTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(
-          ctx->sorter->CreateStream(std::make_unique<StraceTraceParser>(ctx))) {
-}
+      stream_(ctx->sorter->CreateStream(
+          ctx->trace_id(),
+          std::make_unique<StraceTraceParser>(ctx))) {}
 StraceTraceTokenizer::~StraceTraceTokenizer() = default;
 
 base::Status StraceTraceTokenizer::Parse(TraceBlobView blob) {

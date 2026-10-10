@@ -33,6 +33,9 @@ class SparseCounterTrackerTest : public ::testing::Test {
  public:
   SparseCounterTrackerTest() {
     context.storage = std::make_unique<TraceStorage>();
+    context.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{0}});
     context.global_stats_tracker =
         std::make_unique<GlobalStatsTracker>(context.storage.get());
     context.event_tracker = std::make_unique<EventTracker>(&context);

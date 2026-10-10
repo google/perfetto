@@ -21,6 +21,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -67,6 +68,28 @@ bool TraceSorter::SetSortingMode(SortingMode sorting_mode) {
   }
   sorting_mode_ = sorting_mode;
   return true;
+}
+
+std::optional<int64_t> TraceSorter::MaxTimestampForTrace(
+    TraceId trace_id) const {
+  std::optional<int64_t> max_ts;
+  for (const auto& queue : queues_) {
+    if (queue.trace_id != trace_id || queue.events_.empty()) {
+      continue;
+    }
+    if (PERFETTO_LIKELY(!queue.has_synthetic_ts_)) {
+      max_ts = std::max(max_ts.value_or(queue.max_ts_), queue.max_ts_);
+      continue;
+    }
+    // Rare: only queues that received events with a synthetic timestamp need
+    // a scan, as |max_ts_| may come from one of them.
+    for (const auto& event : queue.events_) {
+      if (!event.synthetic_ts) {
+        max_ts = std::max(max_ts.value_or(event.ts), event.ts);
+      }
+    }
+  }
+  return max_ts;
 }
 
 void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {

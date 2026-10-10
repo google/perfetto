@@ -85,7 +85,8 @@ FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
       process_id_(context->storage->InternString("process")) {
   auto parser = std::make_unique<FuchsiaTraceParser>(context);
   parser_ = parser.get();
-  stream_ = context->sorter->CreateStream(std::move(parser));
+  stream_ =
+      context->sorter->CreateStream(context->trace_id(), std::move(parser));
   RegisterProvider(0, "");
 }
 

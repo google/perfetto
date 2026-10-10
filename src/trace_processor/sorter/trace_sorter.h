@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -121,9 +122,21 @@ class TraceSorter {
 
   ~TraceSorter();
 
+  // Creates a stream: a queue, owning |sink|, for events of the trace
+  // |trace_id|. Each queue records its trace, so that a trace's end is known
+  // before parsing (see MaxTimestampForTrace()).
   template <typename SinkType>
   std::unique_ptr<TraceSorter::Stream<typename SinkType::type>> CreateStream(
+      TraceId trace_id,
       std::unique_ptr<SinkType> sink);
+
+  // Returns the largest timestamp of the events pushed to the queues of
+  // |trace_id| and not extracted yet, or std::nullopt if there are none.
+  // Events pushed with a synthetic timestamp don't count: the tokenizer can
+  // take it from other traces (e.g. the latest timestamp pushed so far).
+  // Archives are fully sorted, so before their single extraction this is the
+  // trace's last timestamp.
+  std::optional<int64_t> MaxTimestampForTrace(TraceId trace_id) const;
 
   SortingMode sorting_mode() const { return sorting_mode_; }
   bool SetSortingMode(SortingMode sorting_mode);
@@ -171,6 +184,10 @@ class TraceSorter {
     // on the event type and duration.
     // TODO(sashwinbalaji): Update to bool.
     uint64_t is_json_event : 1;
+
+    // Indicates that |ts| was given by the tokenizer to data without a
+    // timestamp of its own (see Stream::PushWithSyntheticTimestamp()).
+    uint64_t synthetic_ts : 1;
 
     BumpAllocator::AllocId alloc_id() const {
       return BumpAllocator::AllocId{chunk_index, chunk_offset};
@@ -234,7 +251,8 @@ class TraceSorter {
     void Append(int64_t ts,
                 TraceTokenBuffer::Id id,
                 bool is_json_event,
-                bool use_slow_sorting) {
+                bool use_slow_sorting,
+                bool synthetic_ts) {
       {
         events_.emplace_back();
 
@@ -243,6 +261,10 @@ class TraceSorter {
         event.chunk_index = id.alloc_id.chunk_index;
         event.chunk_offset = id.alloc_id.chunk_offset;
         event.is_json_event = is_json_event;
+        event.synthetic_ts = synthetic_ts;
+      }
+      if (PERFETTO_UNLIKELY(synthetic_ts)) {
+        has_synthetic_ts_ = true;
       }
 
       // Events are often seen in order.
@@ -276,6 +298,10 @@ class TraceSorter {
     size_t sort_start_idx_ = 0;
     int64_t sort_min_ts_ = std::numeric_limits<int64_t>::max();
     std::unique_ptr<UntypedSink> sink;
+    // The trace whose events this queue holds.
+    TraceId trace_id;
+    // Whether any event was pushed with a synthetic timestamp.
+    bool has_synthetic_ts_ = false;
   };
 
   void SortAndExtractEventsUntilAllocId(BumpAllocator::AllocId alloc_id);
@@ -364,6 +390,23 @@ class TraceSorter::Stream {
  public:
   // Public API for tokenizers.
   void Push(int64_t ts, T data) {
+    PushImpl(ts, std::move(data), /*synthetic_ts=*/false);
+  }
+
+  // Like Push(), for data without a timestamp of its own, to which the
+  // tokenizer gave |ts| only to place it in the sorted order. Such events don't
+  // count towards their trace's end (see TraceSorter::MaxTimestampForTrace()).
+  void PushWithSyntheticTimestamp(int64_t ts, T data) {
+    PushImpl(ts, std::move(data), /*synthetic_ts=*/true);
+  }
+
+ private:
+  // Only the TraceSorter can create streams.
+  friend class TraceSorter;
+  Stream(TraceSorter* sorter, size_t queue_idx)
+      : sorter_(sorter), queue_idx_(queue_idx) {}
+
+  PERFETTO_ALWAYS_INLINE void PushImpl(int64_t ts, T data, bool synthetic_ts) {
     // Record the negative timestamp drop even when events are dropped
     // (tokenize-only mode): the UI's merge dialog dry-runs a tokenize-only
     // pass and relies on this stat to warn about misconfigured offsets.
@@ -382,15 +425,9 @@ class TraceSorter::Stream {
     TraceTokenBuffer::Id id = sorter_->token_buffer_.Append(std::move(data));
     Queue& queue = sorter_->queues_[queue_idx_];
     queue.Append(ts, id, std::is_same_v<T, JsonEvent>,
-                 sorter_->use_slow_sorting_);
+                 sorter_->use_slow_sorting_, synthetic_ts);
     sorter_->append_max_ts_ = std::max(sorter_->append_max_ts_, queue.max_ts_);
   }
-
- private:
-  // Only the TraceSorter can create streams.
-  friend class TraceSorter;
-  Stream(TraceSorter* sorter, size_t queue_idx)
-      : sorter_(sorter), queue_idx_(queue_idx) {}
 
   TraceSorter* sorter_;
   size_t queue_idx_;
@@ -399,7 +436,7 @@ class TraceSorter::Stream {
 // The factory method implementation (in the header due to templates).
 template <typename SinkType>
 std::unique_ptr<TraceSorter::Stream<typename SinkType::type>>
-TraceSorter::CreateStream(std::unique_ptr<SinkType> sink) {
+TraceSorter::CreateStream(TraceId trace_id, std::unique_ptr<SinkType> sink) {
   using T = typename SinkType::type;
   static_assert(
       std::is_base_of_v<Sink<T, SinkType>, SinkType>,
@@ -412,6 +449,7 @@ TraceSorter::CreateStream(std::unique_ptr<SinkType> sink) {
   // 2. Move the unique_ptr, upcasting it to the base class.
   //    The queue now owns the sink.
   queues_[queue_idx].sink = std::move(sink);
+  queues_[queue_idx].trace_id = trace_id;
 
   // 3. Create and return the type-safe input handle.
   return std::unique_ptr<Stream<T>>(new Stream<T>(this, queue_idx));

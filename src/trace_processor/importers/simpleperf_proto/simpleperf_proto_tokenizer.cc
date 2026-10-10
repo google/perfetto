@@ -57,6 +57,7 @@ SimpleperfProtoTokenizer::SimpleperfProtoTokenizer(
     TraceProcessorContext* context)
     : context_(context),
       stream_(context->sorter->CreateStream(
+          context->trace_id(),
           std::make_unique<SimpleperfProtoParser>(context, &tracker_))) {}
 
 SimpleperfProtoTokenizer::~SimpleperfProtoTokenizer() = default;

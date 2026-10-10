@@ -186,23 +186,27 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
       packet_sequence_id_key_id_(
           ctx->storage->InternString("packet_sequence_id")) {
   module_context_.trace_packet_stream = context_->sorter->CreateStream(
-      std::make_unique<TracePacketSink>(parser_.get()));
+      context_->trace_id(), std::make_unique<TracePacketSink>(parser_.get()));
   module_context_.track_event_stream = context_->sorter->CreateStream(
-      std::make_unique<TrackEventSink>(parser_.get()));
+      context_->trace_id(), std::make_unique<TrackEventSink>(parser_.get()));
   module_context_.ftrace_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
+        context_->trace_id(),
         std::make_unique<FtraceEventSink>(parser_.get(), cpu));
   };
   module_context_.etw_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
+        context_->trace_id(),
         std::make_unique<EtwEventSink>(parser_.get(), cpu));
   };
   module_context_.inline_sched_switch_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
+        context_->trace_id(),
         std::make_unique<InlineSchedSwitchSink>(parser_.get(), cpu));
   };
   module_context_.inline_sched_waking_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
+        context_->trace_id(),
         std::make_unique<InlineSchedWakingSink>(parser_.get(), cpu));
   };
   RegisterDefaultModules(&module_context_, context_);
@@ -559,9 +563,16 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
 
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
-  module_context_.trace_packet_stream->Push(
-      timestamp,
-      TracePacketData{std::move(packet), state->current_generation()});
+  TracePacketData data{std::move(packet), state->current_generation()};
+  if (PERFETTO_LIKELY(decoder.has_timestamp())) {
+    module_context_.trace_packet_stream->Push(timestamp, std::move(data));
+  } else {
+    // The timestamp only places the packet after everything pushed so far,
+    // by any trace (e.g. symbols in a later file of an archive). It must not
+    // stretch this trace's end.
+    module_context_.trace_packet_stream->PushWithSyntheticTimestamp(
+        timestamp, std::move(data));
+  }
 
   return base::OkStatus();
 }

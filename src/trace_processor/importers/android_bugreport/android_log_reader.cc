@@ -130,6 +130,7 @@ AndroidLogReader::AndroidLogReader(TraceProcessorContext* context)
     : AndroidLogReader(context,
                        GuessYear(context),
                        context->sorter->CreateStream(
+                           context->trace_id(),
                            std::make_unique<AndroidLogEventParser>(context))) {}
 
 AndroidLogReader::AndroidLogReader(
@@ -307,6 +308,7 @@ BufferingAndroidLogReader::BufferingAndroidLogReader(
           context,
           year,
           context->sorter->CreateStream(
+              context->trace_id(),
               std::make_unique<AndroidLogEventParser>(context)),
           wait_for_tz) {}
 
@@ -338,6 +340,7 @@ DedupingAndroidLogReader::DedupingAndroidLogReader(
           context,
           year,
           context->sorter->CreateStream(
+              context->trace_id(),
               std::make_unique<AndroidLogEventParser>(context)),
           wait_for_tz,
           std::move(events)) {}

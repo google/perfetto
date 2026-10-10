@@ -132,6 +132,7 @@ PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       perf_tracker_(ctx, ctx->perf_aux_tokenizer_registrations),
       stream_(ctx->sorter->CreateStream(
+          ctx->trace_id(),
           std::make_unique<RecordParser>(context_, &perf_tracker_))),
       aux_manager_(ctx, &perf_tracker_) {}
 
