@@ -83,7 +83,7 @@ export async function loadDumpsList(
       upid: it.upid,
       ts: Time.fromRaw(it.ts),
       processName: it.pname,
-      pid: it.pid ?? 0,
+      pid: it.pid,
     });
   }
   return result;
