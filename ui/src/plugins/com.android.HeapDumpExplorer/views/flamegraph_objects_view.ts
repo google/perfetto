@@ -101,8 +101,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
           ),
           str
             ? m(
-                'span',
-                {class: 'pf-hde-str-badge'},
+                'span.pf-hde-str-badge',
                 ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
               )
             : null,
@@ -215,8 +214,7 @@ export function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs>
             className: 'pf-hde-tab--padded',
           },
           m(
-            'div',
-            {class: 'pf-hde-card pf-hde-mb-3'},
+            '.pf-hde-card.pf-hde-mb-3',
             m(
               'p',
               'No flamegraph selection found. Select a node in the ',

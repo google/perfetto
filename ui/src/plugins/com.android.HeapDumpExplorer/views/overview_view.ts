@@ -198,14 +198,14 @@ function renderDuplicateSection(
   data: Row[],
   columns: Array<{id: string; field: string}>,
 ): m.Children {
-  return m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
+  return m('.pf-hde-card.pf-hde-mt-4', [
     m('h3', {class: 'pf-hde-sub-heading'}, title),
     m('p', {class: 'pf-hde-desc'}, [
       groupCount +
         ' group' +
         (groupCount > 1 ? 's' : '') +
         ' detected, wasting ',
-      m('span', {class: 'pf-hde-mono pf-hde-semibold'}, fmtSize(totalWasted)),
+      m('span.pf-hde-mono.pf-hde-semibold', fmtSize(totalWasted)),
       '. ',
       m(
         Anchor,
@@ -215,7 +215,7 @@ function renderDuplicateSection(
         linkLabel,
       ),
     ]),
-    m('div', {class: 'pf-hde-dup-grid-container'}, [
+    m('.pf-hde-dup-grid-container', [
       m(DataGrid, {
         schema,
         data,
@@ -313,7 +313,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               )
             : null,
 
-          m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
+          m('.pf-hde-card.pf-hde-mb-4', [
             m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
             m(Grid, {
               columns: [
@@ -351,7 +351,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               ]),
             }),
           ]),
-          m('div', {class: 'pf-hde-card'}, [
+          m('.pf-hde-card', [
             m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
             m(DataGrid, {
               schema: HEAP_SCHEMA,
@@ -365,7 +365,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
             }),
           ]),
           overview.oome !== undefined
-            ? m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
+            ? m('.pf-hde-card.pf-hde-mt-4', [
                 m('h3', {class: 'pf-hde-sub-heading'}, OOME_DETAILS_TITLE),
                 renderOomeDetailsGrid(overview.oome),
               ])
@@ -399,8 +399,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               )
             : overview.hasFieldValues
               ? m(
-                  'div',
-                  {class: 'pf-hde-card pf-hde-mt-4 pf-hde-mb-4'},
+                  '.pf-hde-card.pf-hde-mt-4.pf-hde-mb-4',
                   m(
                     'p',
                     {class: 'pf-hde-muted'},
@@ -435,8 +434,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               )
             : overview.hasFieldValues
               ? m(
-                  'div',
-                  {class: 'pf-hde-card pf-hde-mb-4'},
+                  '.pf-hde-card.pf-hde-mb-4',
                   m(
                     'p',
                     {class: 'pf-hde-muted'},

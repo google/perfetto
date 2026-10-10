@@ -93,8 +93,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
           ),
           str
             ? m(
-                'span',
-                {class: 'pf-hde-str-badge'},
+                'span.pf-hde-str-badge',
                 ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
               )
             : null,
