@@ -56,38 +56,24 @@ WITH
   )
 SELECT * FROM all_slices WHERE dur > 0 ORDER BY ts;
 
+-- Number of parallel TPU requests at any point in time. The weight 0
+-- background row spanning the whole trace makes INTERVAL FLATTEN also emit
+-- the gaps with zero requests.
+CREATE PERFETTO TABLE _tpu_requests_flattened AS
+FROM (
+  SELECT s.ts, s.dur, 1 AS n
+  FROM slice AS s
+  JOIN track AS t
+    ON s.track_id = t.id
+  WHERE
+    t.name = 'TPU Requests'
+    AND s.dur > 0
+  UNION ALL
+  SELECT trace_start() AS ts, trace_dur() AS dur, 0 AS n
+)
+|> INTERVAL FLATTEN AGGREGATE SUM(n) AS requests;
+
 -- Gapless time slices of TPU parallel requests from trace_start() to trace_end()
 CREATE PERFETTO TABLE _tpu_requests_count AS
-WITH
-  tpu_events AS (
-    -- Prepend 0 request slices up to first request events
-    SELECT trace_start() AS ts, 0 AS delta
-    UNION ALL
-    -- Request start
-    SELECT s.ts, 1 AS delta
-    FROM slice AS s
-    JOIN track AS t
-      ON s.track_id = t.id
-    WHERE
-      t.name = 'TPU Requests'
-    UNION ALL
-    -- Request end (no padding)
-    SELECT s.ts + s.dur AS ts, -1 AS delta
-    FROM slice AS s
-    JOIN track AS t
-      ON s.track_id = t.id
-    WHERE
-      t.name = 'TPU Requests'
-  ),
-  raw_counts AS (
-    SELECT ts, sum(delta) OVER (ORDER BY ts) AS raw_count FROM tpu_events
-  ),
-  final_counts AS (
-    SELECT
-      ts,
-      lead(ts, 1, trace_end()) OVER (ORDER BY ts) - ts AS dur,
-      -- Clamp between 0 and 16 to support higher concurrency tracking
-      max(0, min(16, raw_count)) AS requests
-    FROM (SELECT ts, max(raw_count) AS raw_count FROM raw_counts GROUP BY ts)
-  )
-SELECT * FROM final_counts WHERE dur > 0;
+-- Clamp to 16 to support higher concurrency tracking
+SELECT ts, dur, min(16, requests) AS requests FROM _tpu_requests_flattened;
