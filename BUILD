@@ -2831,6 +2831,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/jit_cache.h",
         "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.cc",
         "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h",
+        "src/trace_processor/importers/common/machine_data_claim_tracker.cc",
+        "src/trace_processor/importers/common/machine_data_claim_tracker.h",
         "src/trace_processor/importers/common/machine_tracker.cc",
         "src/trace_processor/importers/common/machine_tracker.h",
         "src/trace_processor/importers/common/mapping_tracker.cc",

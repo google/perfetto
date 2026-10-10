@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
@@ -1076,7 +1077,11 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
     RETURN_IF_ERROR(systrace_line_tokenizer_.Tokenize(raw_line, &line));
     auto trace_ts =
         context_->clock_tracker->ConvertDefaultClockToTraceTime(line.ts);
-    if (trace_ts) {
+    // Systrace lines are kernel data: drop them if another trace provides it
+    // for this machine at this time.
+    if (trace_ts &&
+        context_->machine_data_claim_tracker->ShouldImport(
+            context_, MachineDataClaimTracker::Kind::kKernel, *trace_ts)) {
       // SystraceLineParser populates tables from line.ts, so the conversion
       // must be written back, not just used as the sorting key.
       line.ts = *trace_ts;

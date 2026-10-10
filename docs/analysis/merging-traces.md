@@ -209,6 +209,24 @@ to the timeline (record clock snapshots or add a manifest `clocks` entry);
 `trace_sorter_negative_timestamp_dropped` counts events an `offset_ns`
 moved before the start of the timeline.
 
+When several traces from the same machine contain the same kind of
+machine-wide data (e.g. two traces with ftrace), `machine_data_claimed_by_other_trace`
+(severity `data_loss`) counts the data dropped because it overlapped another
+trace's data in time (see
+[Machine-wide data from several traces](/docs/concepts/merging-traces.md#machine-wide-data-from-several-traces)).
+Each occurrence is explained in the import logs:
+
+```sql
+SELECT
+  f.name AS trace,
+  l.ts AS first_dropped_ts,
+  extract_arg(l.arg_set_id, 'kind') AS kind,
+  extract_arg(l.arg_set_id, 'conflicting_trace_id') AS conflicting_trace_id
+FROM _trace_import_logs l
+JOIN trace_file f ON l.trace_id = f.id
+WHERE l.name = 'machine_data_claimed_by_other_trace';
+```
+
 Per-file metadata is available via the `metadata` table's `trace_id` column
 or, at a higher level, the `_metadata_by_trace` view in the
 `traceinfo.trace` stdlib module.
