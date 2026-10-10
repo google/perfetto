@@ -21,7 +21,7 @@ import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
 import {formatDuration} from '../../components/time_utils';
 import type {NavState, NavView} from './nav_state';
-import type * as queries from './queries';
+import type {HeapDump} from './types';
 import {OverviewView} from './views/overview_view';
 import {DominatorsView} from './views/dominators_view';
 import {ObjectView} from './views/object_view';
@@ -80,7 +80,7 @@ interface TabActions {
 
 function buildTabs(
   session: HeapDumpExplorerSession,
-  activeDump: queries.HeapDump,
+  activeDump: HeapDump,
   state: NavState,
 ): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
   const {engine, trace} = session;
@@ -262,7 +262,7 @@ function buildTabs(
   return {tabs: tabs.map((t) => ({...t, lazy: true})), actions};
 }
 
-function processLabel(d: queries.HeapDump): string {
+function processLabel(d: HeapDump): string {
   return d.processName !== null
     ? `${d.processName} (pid ${d.pid})`
     : `pid ${d.pid}`;

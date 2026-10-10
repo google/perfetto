@@ -25,7 +25,13 @@ import type {
   ColumnSchema,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
-import type {InstanceRow, InstanceDetail, PrimOrRef} from '../types';
+import type {
+  ArrayElem,
+  Field,
+  InstanceRow,
+  InstanceDetail,
+  HeapDump,
+} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import {downloadBlob} from '../download';
 import {
@@ -41,7 +47,6 @@ import {
   colHeader,
 } from '../components';
 import * as queries from '../queries';
-import type {HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {AsyncMemo} from '../../../base/async_memo';
@@ -100,9 +105,7 @@ function instanceRowToRow(r: InstanceRow): Row {
   };
 }
 
-type FieldRow = {name: string; typeName: string; value: PrimOrRef};
-
-function fieldRowToRow(f: FieldRow): Row {
+function fieldRowToRow(f: Field): Row {
   const v = f.value;
   if (v.kind === 'ref') {
     return {
@@ -138,9 +141,7 @@ function fieldRowToRow(f: FieldRow): Row {
   };
 }
 
-type ArrayElemRow = {idx: number; value: PrimOrRef};
-
-function arrayElemToRow(e: ArrayElemRow, elemTypeName: string): Row {
+function arrayElemToRow(e: ArrayElem, elemTypeName: string): Row {
   const v = e.value;
   if (v.kind === 'ref') {
     return {
@@ -916,7 +917,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
   };
 }
 
-function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
+function renderFieldsGrid(
+  fields: readonly Field[],
+  navigate: NavFn,
+): m.Children {
   if (fields.length === 0) {
     return m('.pf-hde-info-grid__label', 'No fields');
   }
@@ -943,7 +947,7 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
 }
 
 function renderArrayGrid(
-  elems: ArrayElemRow[],
+  elems: readonly ArrayElem[],
   elemTypeName: string,
   navigate: NavFn,
   onDownloadBytes?: () => void,
@@ -1050,7 +1054,7 @@ function classFilterLink(className: string, navigate: NavFn): m.Child {
 }
 
 function renderClassHierarchy(
-  hierarchy: string[],
+  hierarchy: readonly string[],
   navigate: NavFn,
 ): m.Children {
   const topDown = hierarchy.slice().reverse();

@@ -399,7 +399,10 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
 }
 
 /** Renders a single dominator-tree path as an indented arrow chain. */
-export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
+export function renderPath(
+  path: readonly PathEntry[],
+  navigate: NavFn,
+): m.Children {
   return m(
     '.pf-hde-view-stack--tight',
     path.map((pe, i) =>

@@ -21,6 +21,7 @@ import {NUM} from '../../trace_processor/query_result';
 import {SQL_PREAMBLE} from './components';
 import {flamegraphQuery} from './views/flamegraph_objects_view';
 import * as queries from './queries';
+import type {HeapDump} from './types';
 import {
   type DefaultNavView,
   type NavState,
@@ -71,7 +72,7 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 // the store, restoration is automatic. Non-serializable trace-derived data (the
 // dumps, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
-  private _dumps: ReadonlyArray<queries.HeapDump> = [];
+  private _dumps: ReadonlyArray<HeapDump> = [];
   private readonly _counts = new Map<string, number>();
 
   // Whether the trace has HPROF field values (heap_graph_primitive). Loaded
@@ -94,11 +95,11 @@ export class HeapDumpExplorerSession {
     return this.defaultFlamegraph.get() ? 'flamegraph' : 'overview';
   }
 
-  get dumps(): ReadonlyArray<queries.HeapDump> {
+  get dumps(): ReadonlyArray<HeapDump> {
     return this._dumps;
   }
 
-  get activeDump(): queries.HeapDump | null {
+  get activeDump(): HeapDump | null {
     const ref = this.store.state.activeDump;
     if (ref === undefined) return null;
     return (
@@ -137,7 +138,7 @@ export class HeapDumpExplorerSession {
     return restored;
   }
 
-  selectDump(d: queries.HeapDump): void {
+  selectDump(d: HeapDump): void {
     if (this.activeDump === d) return;
     this.switchToDump(d);
     const view = this.nav.view;
@@ -146,7 +147,7 @@ export class HeapDumpExplorerSession {
     }
   }
 
-  private switchToDump(d: queries.HeapDump): void {
+  private switchToDump(d: HeapDump): void {
     this._counts.clear();
     this.store.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
