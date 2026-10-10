@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -68,6 +69,40 @@ class FileExportOutput : public TraceProcessor::ExportOutput {
 
 bool StderrSupportsColors() {
   return base::StderrSupportsColor();
+}
+
+void PrintStatusLine(StatusLabelStyle style,
+                     std::string_view label,
+                     std::string_view message) {
+  const char* color = "";
+  switch (style) {
+    case StatusLabelStyle::kSuccess:
+      color = "\x1b[1;32m";
+      break;
+    case StatusLabelStyle::kHint:
+      color = "\x1b[1;36m";
+      break;
+    case StatusLabelStyle::kMuted:
+      color = "\x1b[2m";
+      break;
+  }
+  const bool colors = StderrSupportsColors();
+  std::string line;
+  if (colors) {
+    line += color;
+  }
+  line += label;
+  if (colors) {
+    line += "\x1b[0m";
+  }
+  if (!message.empty()) {
+    line += ": ";
+    line += message;
+  }
+  line += '\n';
+  // Don't let the line merge with a progress line which may be visible.
+  base::ProgressReporter::GetInstance().Clear();
+  fwrite(line.data(), 1, line.size(), stderr);
 }
 
 namespace {

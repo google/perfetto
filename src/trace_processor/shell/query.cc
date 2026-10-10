@@ -36,6 +36,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/shell/shell_utils.h"
 
 namespace perfetto::trace_processor {
 
@@ -186,11 +187,10 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
   }
 
   if (!quiet) {
-    PERFETTO_ILOG(
-        "Query execution time: %" PRIi64 " ms",
-        static_cast<int64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(exec_dur)
-                .count()));
+    int64_t ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(exec_dur).count();
+    PrintStatusLine(StatusLabelStyle::kMuted,
+                    "Query executed in " + std::to_string(ms) + " ms", "");
   }
   return base::OkStatus();
 }
