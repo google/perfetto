@@ -18,13 +18,17 @@ import shutil
 from typing import List, Optional, Union
 
 from perfetto.trace_processor.protos import ProtoFactory
+from perfetto.trace_processor.remote import TraceProcessorRemote
 
 
-class TraceProcessorHttp:
+class TraceProcessorHttp(TraceProcessorRemote):
 
   def __init__(self, url: str, protos: ProtoFactory):
     self.protos = protos
     self.conn = http.client.HTTPConnection(url)
+
+  def close(self):
+    self.conn.close()
 
   def execute_query(self, query: str):
     args = self.protos.QueryArgs()

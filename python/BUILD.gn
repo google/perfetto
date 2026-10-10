@@ -64,7 +64,11 @@ perfetto_py_library("trace_processor_py_no_resolvers") {
     "perfetto/trace_processor/platform.py",
     "perfetto/trace_processor/process_tree.py",
     "perfetto/trace_processor/protos.py",
+    "perfetto/trace_processor/remote.py",
+    "perfetto/trace_processor/remote_factory.py",
+    "perfetto/trace_processor/rpc.py",
     "perfetto/trace_processor/shell.py",
+    "perfetto/trace_processor/unix.py",
   ]
   data = [
     "perfetto/trace_processor/trace_processor.descriptor",

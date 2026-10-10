@@ -16,9 +16,11 @@
 import io
 import os
 import sqlite3
+import subprocess
 import tempfile
 import unittest
 from typing import Optional
+from unittest import mock
 
 import pandas as pd
 
@@ -742,3 +744,80 @@ class TestApi(unittest.TestCase):
           self.assertEqual(manifest_paths, set(arrow_names))
       finally:
         os.unlink(output_path)
+
+
+class TestApiUnixSession(unittest.TestCase):
+  """Tests TraceProcessor(remote=...) against a real `server unix` session."""
+
+  SESSION_NAME = 'test-session'
+
+  @classmethod
+  def setUpClass(cls):
+    # Point XDG_RUNTIME_DIR at a fresh temp dir so the session socket can't
+    # collide with a real session on this machine. The server inherits this
+    # environment, so both sides resolve the same socket path.
+    tmp_dir = tempfile.TemporaryDirectory()
+    cls.addClassCleanup(tmp_dir.cleanup)
+    env_patch = mock.patch.dict(os.environ, {'XDG_RUNTIME_DIR': tmp_dir.name})
+    env_patch.start()
+    cls.addClassCleanup(env_patch.stop)
+
+    stderr_file = tempfile.TemporaryFile()
+    cls.addClassCleanup(stderr_file.close)
+    cmd = [
+        os.environ['SHELL_PATH'], 'server', 'unix', '--name', cls.SESSION_NAME,
+        example_android_trace_path()
+    ]
+    server = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=stderr_file, text=True)
+    cls.addClassCleanup(cls._stop_server, server)
+
+    # The server loads the trace, binds the socket and only then prints a
+    # one-line startup record to stdout (its logs go to stderr). So any line
+    # means the session is ready; EOF means the server exited.
+    if not server.stdout.readline():
+      # The server wrote through a shared file offset, so rewind before reading.
+      stderr_file.seek(0)
+      raise RuntimeError('trace_processor server unix failed to start:\n' +
+                         stderr_file.read().decode())
+
+  @staticmethod
+  def _stop_server(server: subprocess.Popen):
+    server.terminate()
+    server.wait()
+    server.stdout.close()
+
+  def test_query(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      qr_iterator = tp.query('select * from slice limit 10')
+      dur_result = [
+          178646, 119740, 58073, 155000, 173177, 20209377, 3589167, 90104,
+          275312, 65313
+      ]
+      self.assertEqual([row.dur for row in qr_iterator], dur_result)
+
+  def test_query_large_result(self):
+    # Big enough that the server splits the result across many messages.
+    num_rows = 100000
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      qr_iterator = tp.query(f'''
+          with recursive n(i) as (
+            select 0 union all select i + 1 from n where i < {num_rows - 1}
+          )
+          select i from n
+      ''')
+      self.assertEqual([row.i for row in qr_iterator], list(range(num_rows)))
+
+  def test_query_error_then_recovers(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      with self.assertRaisesRegex(TraceProcessorException, 'no_such_table'):
+        tp.query('select * from no_such_table')
+      # The error response must be fully consumed, leaving the connection
+      # usable for the next query.
+      self.assertEqual(next(tp.query('select 1 as x')).x, 1)
+
+  def test_missing_session(self):
+    with self.assertRaisesRegex(TraceProcessorException,
+                                'No live trace processor session') as ctx:
+      TraceProcessor(remote='no-such-session')
+    self.assertIsInstance(ctx.exception.__cause__, FileNotFoundError)
