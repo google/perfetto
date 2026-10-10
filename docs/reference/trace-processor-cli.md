@@ -127,6 +127,19 @@ Each statement's result set is printed as CSV, and consecutive result sets
 are separated by a single blank line. The separator is unambiguous because
 every string value is quoted.
 
+With `--format markdown`, result sets are instead printed as compact markdown
+tables, without alignment padding. In them:
+
+- NULL values print as `NULL`; `|` and line breaks are escaped.
+- Results over `--max-rows` rows or `--max-bytes` bytes show only their first
+  and last rows (at most 20 of each), around a `| … N rows omitted … |` row.
+- Cells over `--max-cell-width` characters are cut with a `…(+N chars)`
+  marker.
+- A footer gives the row count for results which were capped, are empty or
+  have 10 or more rows. For example: `(first 20 and last 20 of 5000 rows. ...)`.
+
+By default nothing is capped.
+
 Flags:
 
 - `--remote ADDR`: run against a warm session instead of loading a local
@@ -138,6 +151,9 @@ Flags:
   finish.
 - `-W, --wide`: use double-width columns when printing results.
 - `--perf-file FILE`: write trace-load and query timings to `FILE`.
+- `--format FMT`: print results as `csv` (default) or `markdown`.
+- `--max-rows N`, `--max-bytes N`, `--max-cell-width N`: markdown output
+  limits (see above); `0` means no limit.
 - `--structured-query-id ID` plus `--summary-spec FILE` _(advanced)_: run a
   single structured query by ID from one or more
   [TraceSummarySpec](/docs/analysis/trace-summary.md) files, instead of the SQL sources

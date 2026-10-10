@@ -5782,6 +5782,8 @@ perfetto_filegroup(
         "src/trace_processor/shell/interactive.h",
         "src/trace_processor/shell/interactive_subcommand.cc",
         "src/trace_processor/shell/interactive_subcommand.h",
+        "src/trace_processor/shell/markdown_result_formatter.cc",
+        "src/trace_processor/shell/markdown_result_formatter.h",
         "src/trace_processor/shell/metatrace.cc",
         "src/trace_processor/shell/metatrace.h",
         "src/trace_processor/shell/metrics.cc",
