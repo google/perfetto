@@ -83,18 +83,21 @@ constexpr auto kCpuPerUidBlueprint = tracks::CounterBlueprint(
       return base::StackString<128>("CPU for UID %u CL%u", uid, cluster);
     }));
 
-constexpr auto kCpuTotalsBlueprint = tracks::CounterBlueprint(
-    "android_cpu_per_uid_totals",
-    tracks::StaticUnitBlueprint("ms"),
-    // TODO(lalitm): allow FnNameBlueprint and StringIdDimensionBlueprint to
-    // work together.
-    tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("type"),
-                                tracks::UintDimensionBlueprint("cluster")),
-    tracks::FnNameBlueprint([](base::StringView type, uint32_t cluster) {
-      return base::StackString<128>("CPU for %.*s CL%u",
-                                    static_cast<int>(type.size()), type.data(),
-                                    cluster);
-    }));
+// Machine-scoped, so that merged traces of one machine share one series per
+// type and cluster (see UpdateTotals()).
+constexpr auto kCpuTotalsBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "android_cpu_per_uid_totals",
+        tracks::StaticUnitBlueprint("ms"),
+        // TODO(lalitm): allow FnNameBlueprint and StringIdDimensionBlueprint to
+        // work together.
+        tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("type"),
+                                    tracks::UintDimensionBlueprint("cluster")),
+        tracks::FnNameBlueprint([](base::StringView type, uint32_t cluster) {
+          return base::StackString<128>("CPU for %.*s CL%u",
+                                        static_cast<int>(type.size()),
+                                        type.data(), cluster);
+        })));
 
 }  // namespace
 
@@ -214,7 +217,10 @@ void AndroidCpuPerUidModule::UpdateTotals(int64_t ts,
                                           uint64_t value) {
   TrackId track = context_->track_tracker->InternTrack(
       kCpuTotalsBlueprint, tracks::Dimensions(name, cluster));
-  context_->sparse_counter_tracker->PushCounter(ts, track, double(value));
+  // Each trace sums the totals from its own start: when several traces of the
+  // machine are merged, they are joined into one continuous series.
+  context_->sparse_counter_tracker->PushMachineSeriesCounter(ts, track,
+                                                             double(value));
 }
 
 std::pair<uint64_t, uint64_t> AndroidCpuPerUidModule::IncrementalStateUpdate(

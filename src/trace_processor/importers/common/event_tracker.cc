@@ -19,8 +19,10 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -57,6 +59,12 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
 std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
                                                    double value,
                                                    TrackId track_id) {
+  // Machine-scoped tracks keep one trace's values at a time when several
+  // traces of the machine are merged.
+  if (PERFETTO_UNLIKELY(
+          !MachineClaimTracker::KeepWrite(context_, track_id, timestamp))) {
+    return std::nullopt;
+  }
   auto* counters = context_->storage->mutable_counter_table();
   return counters->Insert({timestamp, track_id, value, {}}).id;
 }

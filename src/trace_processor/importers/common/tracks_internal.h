@@ -28,6 +28,13 @@
 
 namespace perfetto::trace_processor::tracks {
 
+// Whether the tracks of a blueprint belong to one trace (the default) or are
+// shared by all traces of a machine. See tracks::MachineScoped().
+enum class Scope : uint8_t {
+  kTrace,
+  kMachine,
+};
+
 template <typename... T>
 using DimensionsT = std::tuple<T...>;
 
@@ -69,6 +76,7 @@ struct BlueprintBase {
 
 template <typename NB, typename UB, typename DeB, typename... DB>
 struct BlueprintT : BlueprintBase {
+  static constexpr Scope kScope = Scope::kTrace;
   using name_blueprint_t = NB;
   using unit_blueprint_t = UB;
   using description_blueprint_t = DeB;
@@ -80,6 +88,13 @@ struct BlueprintT : BlueprintBase {
   name_blueprint_t name_blueprint;
   unit_blueprint_t unit_blueprint;
   description_blueprint_t description_blueprint;
+};
+
+// A blueprint whose tracks are shared by all traces of a machine. Created by
+// tracks::MachineScoped().
+template <typename BP>
+struct MachineScopedBlueprintT : BP {
+  static constexpr Scope kScope = Scope::kMachine;
 };
 
 template <typename... T>

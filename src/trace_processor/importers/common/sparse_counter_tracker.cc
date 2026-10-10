@@ -19,6 +19,7 @@
 #include <functional>
 
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -31,11 +32,22 @@ class SparseCounterSink
       : context_(context) {}
   ~SparseCounterSink() override;
   void Parse(int64_t ts, SparseCounterEvent event) {
-    context_->event_tracker->PushCounter(ts, event.value, event.track);
+    double value = event.value;
+    if (event.machine_series) {
+      MachineClaimTracker* claims = context_->machine_claim_tracker.get();
+      if (claims && claims->has_multiple_traces()) {
+        value = claims->SeriesValue(context_->trace_id(), event.track, ts,
+                                    value, &series_inputs_[event.track]);
+      }
+    }
+    context_->event_tracker->PushCounter(ts, value, event.track);
   }
 
  private:
   TraceProcessorContext* context_;
+
+  // This trace's state for each machine series it writes, in merges only.
+  base::FlatHashMap<TrackId, MachineClaimTracker::SeriesInput> series_inputs_;
 };
 
 SparseCounterSink::~SparseCounterSink() = default;
@@ -52,18 +64,31 @@ SparseCounterTracker::~SparseCounterTracker() = default;
 void SparseCounterTracker::PushCounter(int64_t ts,
                                        TrackId track,
                                        double value) {
+  Push(ts, track, value, /*machine_series=*/false);
+}
+
+void SparseCounterTracker::PushMachineSeriesCounter(int64_t ts,
+                                                    TrackId track,
+                                                    double value) {
+  Push(ts, track, value, /*machine_series=*/true);
+}
+
+void SparseCounterTracker::Push(int64_t ts,
+                                TrackId track,
+                                double value,
+                                bool machine_series) {
   auto [state, inserted] = track_state_.Insert(track, TrackState{});
   bool different = !std::equal_to<double>()(state->last_value, value);
 
   // If the value changed, write the previous value if it wasn't written.
   if (different && !inserted && !state->written) {
     stream_->Push(state->last_time,
-                  SparseCounterEvent{track, state->last_value});
+                  SparseCounterEvent{track, machine_series, state->last_value});
   }
 
   state->written = false;
   if (inserted || different) {
-    stream_->Push(ts, SparseCounterEvent{track, value});
+    stream_->Push(ts, SparseCounterEvent{track, machine_series, value});
     state->written = true;
   }
 

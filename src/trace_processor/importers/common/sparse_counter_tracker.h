@@ -29,8 +29,13 @@ namespace perfetto::trace_processor {
 
 struct alignas(8) SparseCounterEvent {
   TrackId track;
+  // Set for a cumulative series that continues across the traces of a machine
+  // (see SparseCounterTracker::PushMachineSeriesCounter()).
+  bool machine_series;
   double value;
 };
+static_assert(sizeof(SparseCounterEvent) == 16,
+              "SparseCounterEvent should stay small");
 
 // SparseCounterTracker helps efficiently write counter events into a trace by
 // omitting values not necessary to recreate the same track. Consider this:
@@ -55,12 +60,21 @@ class SparseCounterTracker {
   // increase per track (be >= to the last time).
   void PushCounter(int64_t ts, TrackId track, double value);
 
+  // Like PushCounter(), for a machine-scoped track holding a cumulative series
+  // that each trace counts from its own start (CPU-per-UID totals). When
+  // several traces of the machine are merged, the values written form one
+  // continuous series (see MachineClaimTracker::SeriesValue()); otherwise
+  // they are written as they are.
+  void PushMachineSeriesCounter(int64_t ts, TrackId track, double value);
+
  private:
   struct TrackState {
     double last_value = 0;
     int64_t last_time = 0;
     bool written = false;
   };
+
+  void Push(int64_t ts, TrackId track, double value, bool machine_series);
 
   std::unique_ptr<TraceSorter::Stream<SparseCounterEvent>> stream_;
   base::FlatHashMap<TrackId, TrackState> track_state_;

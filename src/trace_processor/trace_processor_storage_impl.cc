@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -163,6 +164,10 @@ base::Status TraceProcessorStorageImpl::OnPushDataToSorter() {
     }
   }
   if (context()->sorter) {
+    // Extraction empties the sorter queues, and with them each trace's end:
+    // read the ends first. Archives (the only inputs with several traces) are
+    // fully sorted, so this is before any event is parsed.
+    MachineClaimTracker::ReadTraceEnds(context());
     context()->sorter->ExtractEventsForced();
   }
   return base::OkStatus();

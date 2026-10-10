@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -46,11 +47,12 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
                                                    protozero::ConstBytes blob) {
   protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder evt(blob);
 
-  static constexpr auto kTrackBlueprint = tracks::SliceBlueprint(
-      "android_gpu_work_period",
-      tracks::DimensionBlueprints(tracks::kUgpuDimensionBlueprint,
-                                  tracks::kGpuIdDimensionBlueprint,
-                                  tracks::kUidDimensionBlueprint));
+  static constexpr auto kTrackBlueprint =
+      tracks::MachineScoped(tracks::SliceBlueprint(
+          "android_gpu_work_period",
+          tracks::DimensionBlueprints(tracks::kUgpuDimensionBlueprint,
+                                      tracks::kGpuIdDimensionBlueprint,
+                                      tracks::kUidDimensionBlueprint)));
   auto ugpu = context_->gpu_tracker->GetOrCreateGpu(
       static_cast<uint32_t>(evt.gpu_id()));
   TrackId track_id = context_->track_tracker->InternTrack(
@@ -73,6 +75,11 @@ void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
               gpu_id_key_id_,
               Variadic::Integer(static_cast<int64_t>(evt.gpu_id())));
         });
+    return;
+  }
+  // When several traces of this machine are merged, a period is kept only from
+  // the trace that owns its track at the period's start.
+  if (!MachineClaimTracker::KeepWrite(context_, track_id, timestamp)) {
     return;
   }
   const auto active_duration =

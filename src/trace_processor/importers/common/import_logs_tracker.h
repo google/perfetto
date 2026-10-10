@@ -60,6 +60,14 @@ class ImportLogsTracker {
       int64_t timestamp,
       std::function<void(ArgsTracker::BoundInserter&)> args_callback = {});
 
+  // Like RecordParserLog(), for an indexed stat: increments |stat_key| at
+  // |index|.
+  void RecordIndexedParserLog(
+      size_t stat_key,
+      int index,
+      int64_t timestamp,
+      std::function<void(ArgsTracker::BoundInserter&)> args_callback = {});
+
   // For "collection" logs (e.g. errors occurring during trace recording on
   // device).
   // Use when recording information that was explicitly supplied by the
@@ -89,6 +97,13 @@ class ImportLogsTracker {
 
  private:
   void RecordImportLog(
+      size_t stat_key,
+      std::optional<int64_t> timestamp,
+      std::optional<int64_t> byte_offset,
+      std::function<void(ArgsTracker::BoundInserter&)> args_callback);
+
+  // Adds the log row, without touching the stats.
+  void InsertImportLog(
       size_t stat_key,
       std::optional<int64_t> timestamp,
       std::optional<int64_t> byte_offset,

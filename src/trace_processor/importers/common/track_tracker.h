@@ -32,6 +32,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
@@ -205,11 +206,38 @@ class TrackTracker {
       const SetArgsCallback& args = {},
       const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
     uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
+    if constexpr (BlueprintT::kScope == tracks::Scope::kMachine) {
+      // Hand-built contexts in unit tests may have no per-machine state; their
+      // machine-scoped tracks are interned per trace.
+      if (MachineClaimTracker* machine = context_->machine_claim_tracker.get();
+          PERFETTO_LIKELY(machine)) {
+        if (TrackId* id = machine->FindTrack(hash); PERFETTO_LIKELY(id)) {
+          return *id;
+        }
+        return CreateMachineTrack(bp, hash, dims, name, args, unit);
+      }
+    }
     auto [it, inserted] = tracks_.Insert(hash, {});
     if (inserted) {
       *it = CreateTrack(bp, dims, name, args, unit);
     }
     return *it;
+  }
+
+  // Creates a machine-scoped track through this trace's tracker, so the first
+  // trace to intern it writes its name, dimensions and args, and adds it to
+  // the machine's map.
+  template <typename BlueprintT>
+  PERFETTO_NO_INLINE TrackId
+  CreateMachineTrack(const BlueprintT& bp,
+                     uint64_t hash,
+                     const typename BlueprintT::dimensions_t& dims,
+                     const typename BlueprintT::name_t& name,
+                     const SetArgsCallback& args,
+                     const typename BlueprintT::unit_t& unit) {
+    TrackId id = CreateTrack(bp, dims, name, args, unit);
+    context_->machine_claim_tracker->AddTrack(hash, id);
+    return id;
   }
 
   template <size_t i, typename TupleDimensions>

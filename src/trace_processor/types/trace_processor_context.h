@@ -48,6 +48,7 @@ class GlobalArgsTracker;
 class GlobalMetadataTracker;
 class GlobalStatsTracker;
 class ImportLogsTracker;
+class MachineClaimTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -256,6 +257,9 @@ class TraceProcessorContext {
   PerMachinePtr<CpuTracker> cpu_tracker;
   PerMachinePtr<GpuTracker> gpu_tracker;
   PerMachinePtr<UserTracker> user_tracker;
+  // Machine-scoped tracks: their intern map, and which trace's data they keep
+  // when several traces of this machine are merged.
+  PerMachinePtr<MachineClaimTracker> machine_claim_tracker;
 
   // Per-Machine, Per-Trace State
   // ==========================

@@ -39,7 +39,14 @@ void ImportLogsTracker::RecordImportLog(
     std::optional<int64_t> byte_offset,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
   context_->stats_tracker->IncrementStats(stat_key);
+  InsertImportLog(stat_key, timestamp, byte_offset, std::move(args_callback));
+}
 
+void ImportLogsTracker::InsertImportLog(
+    size_t stat_key,
+    std::optional<int64_t> timestamp,
+    std::optional<int64_t> byte_offset,
+    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
   tables::TraceImportLogsTable::Row row;
   row.trace_id = trace_id_;
   row.ts = timestamp;
@@ -70,6 +77,16 @@ void ImportLogsTracker::RecordParserLog(
     int64_t timestamp,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
   RecordImportLog(stat_key, timestamp,
+                  /*byte_offset=*/std::nullopt, std::move(args_callback));
+}
+
+void ImportLogsTracker::RecordIndexedParserLog(
+    size_t stat_key,
+    int index,
+    int64_t timestamp,
+    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+  context_->stats_tracker->IncrementIndexedStats(stat_key, index);
+  InsertImportLog(stat_key, timestamp,
                   /*byte_offset=*/std::nullopt, std::move(args_callback));
 }
 

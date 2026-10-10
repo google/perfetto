@@ -185,6 +185,11 @@ namespace perfetto::trace_processor::stats {
        "transition. Retry with a trace_processor version at least as new as "  \
        "the traced that recorded the trace; the raw state value is in the "    \
        "trace import logs."),                                                  \
+  F(machine_track_events_hidden,          kIndexed, kNotice,   kAnalysis, Scope::kMachineAndTrace,      \
+       "Events on a machine-wide track (indexed by track id) hidden because " \
+       "another trace of the same machine supplied that track at the time. "  \
+       "Usually copies; if the traces are from different devices or boots, "  \
+       "give each its own machine in a trace manifest."),                     \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
        "CpuInfo contained CPU feature bits not known to this version of "      \

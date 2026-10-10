@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -109,6 +110,7 @@ void InitPerMachineState(TraceProcessorContext* context, int64_t machine_id) {
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
   context->gpu_tracker = Ptr<GpuTracker>::MakeRoot(context);
   context->user_tracker = Ptr<UserTracker>::MakeRoot(context);
+  context->machine_claim_tracker = Ptr<MachineClaimTracker>::MakeRoot(context);
 }
 
 void CopyPerMachineState(const TraceProcessorContext* source,
@@ -120,6 +122,7 @@ void CopyPerMachineState(const TraceProcessorContext* source,
   dest->cpu_tracker = source->cpu_tracker.Fork();
   dest->gpu_tracker = source->gpu_tracker.Fork();
   dest->user_tracker = source->user_tracker.Fork();
+  dest->machine_claim_tracker = source->machine_claim_tracker.Fork();
 }
 
 void InitPerTraceState(TraceProcessorContext* context, TraceId trace_id) {
@@ -288,6 +291,7 @@ TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
 
     // Initialize per-trace & per-machine state.
     InitPerTraceAndMachineState(context.get(), machine_inserted);
+    context->machine_claim_tracker->AddTrace(trace_id);
 
     *it = std::move(context);
   }

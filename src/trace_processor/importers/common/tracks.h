@@ -119,6 +119,21 @@ constexpr auto DimensionBlueprints(DimensionBlueprint... dimensions) {
   return DimensionBlueprintsT<DimensionBlueprint...>{dimensions...};
 }
 
+// Makes the tracks of |blueprint| machine-scoped: all traces of a machine share
+// one track per dimensions, instead of one per trace. When several traces of a
+// machine are merged, each such track shows one trace's data at a time (see
+// MachineClaimTracker).
+//
+// Only for data about the machine itself: the dimensions name device
+// resources only (e.g. a CPU or a thermal zone, never a process, thread or
+// UID), and the values are instantaneous or counted since boot, so that every
+// trace of the machine records the same series.
+template <typename BP>
+constexpr auto MachineScoped(BP blueprint) {
+  static_assert(BP::kScope == Scope::kTrace, "Already machine-scoped");
+  return MachineScopedBlueprintT<BP>{blueprint};
+}
+
 // Adds a unit32_t dimension with the given name.
 constexpr auto UintDimensionBlueprint(const char name[]) {
   return DimensionBlueprintT<uint32_t>{{name}};

@@ -260,6 +260,10 @@ class TrackCompressor {
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
       TrackTracker::SetArgsCallback args = {},
       std::function<void(TrackId)> on_new_track = {}) {
+    // Compressed tracks are created per trace, bypassing the per-machine
+    // intern map of machine-scoped tracks.
+    static_assert(BlueprintT::kScope == tracks::Scope::kTrace,
+                  "Machine-scoped blueprints can't be compressed");
     return TrackFactory{
         tracks::HashFromBlueprintAndDimensions(bp, dims),
         TypeToNestingBehaviour(bp.type),
