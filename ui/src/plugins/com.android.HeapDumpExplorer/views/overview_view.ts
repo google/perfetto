@@ -293,7 +293,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
 
       const processLabel =
         (activeDump.processName ?? '<unknown>') +
-        (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
+        (activeDump.pid !== null ? ` (pid ${activeDump.pid})` : '');
       const infoRow = (property: string, value: string): GridRow => [
         m(GridCell, property),
         m(GridCell, value),

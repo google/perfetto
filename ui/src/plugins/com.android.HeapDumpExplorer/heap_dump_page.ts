@@ -263,9 +263,8 @@ function buildTabs(
 }
 
 function processLabel(d: HeapDump): string {
-  return d.processName !== null
-    ? `${d.processName} (pid ${d.pid})`
-    : `pid ${d.pid}`;
+  const name = d.processName ?? '<unknown>';
+  return d.pid !== null ? `${name} (pid ${d.pid})` : name;
 }
 
 function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {

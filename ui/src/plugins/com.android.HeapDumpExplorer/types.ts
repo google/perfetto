@@ -21,7 +21,7 @@ export interface HeapDump {
   readonly upid: number;
   readonly ts: time;
   readonly processName: string | null;
-  readonly pid: number;
+  readonly pid: number | null;
 }
 
 export interface HeapInfo {
