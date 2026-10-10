@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "src/trace_processor/shell/csv_result_formatter.h"
+#include "src/trace_processor/shell/markdown_result_formatter.h"
 
 namespace perfetto::trace_processor {
 
@@ -36,6 +37,9 @@ std::unique_ptr<ResultFormatter> CreateResultFormatter(
     case ResultFormat::kCsv:
       return std::make_unique<CsvResultFormatter>(std::move(column_names),
                                                   output);
+    case ResultFormat::kMarkdown:
+      return std::make_unique<MarkdownResultFormatter>(
+          options, std::move(column_names), output);
   }
   return nullptr;
 }
