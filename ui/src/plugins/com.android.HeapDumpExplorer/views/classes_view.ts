@@ -135,7 +135,6 @@ export function ClassesView({
     const names = await queries.getSubclassNames(engine, activeDump, root);
     if (!alive || names.length === 0) return;
     filters = [{field: 'cls', op: 'in' as const, value: names}];
-    m.redraw();
   }
 
   return {
