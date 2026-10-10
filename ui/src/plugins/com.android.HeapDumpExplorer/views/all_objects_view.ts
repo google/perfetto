@@ -190,7 +190,8 @@ export function AllObjectsView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    // Apply before rendering, so the first frame already shows the filter.
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     onremove() {

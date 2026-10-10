@@ -138,7 +138,8 @@ export function ArraysView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    // Apply before rendering, so the first frame already shows the filter.
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     onremove() {

@@ -443,7 +443,8 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         })
         .catch(console.error);
     },
-    onupdate(vnode) {
+    // Apply before rendering, so the first frame already shows the filter.
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
     },
     onremove() {

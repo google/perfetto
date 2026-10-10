@@ -191,7 +191,8 @@ export function StringsView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    // Apply before rendering, so the first frame already shows the filter.
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
