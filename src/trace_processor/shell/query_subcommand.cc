@@ -36,6 +36,7 @@
 #include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
+#include "src/trace_processor/shell/agent_mode.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
@@ -119,6 +120,21 @@ base::Status LoadSpecIntoSummarizer(Summarizer* summarizer,
   return base::OkStatus();
 }
 
+// Runs |sql|, printing every result set. On error, records which statement
+// failed so that it can be reported (see kFailedStatementPayload).
+base::Status RunAndPrint(TraceProcessor* tp,
+                         const std::string& sql,
+                         const ResultFormatOptions& format,
+                         const GlobalOptions& global) {
+  uint32_t statement = 0;
+  base::Status status = RunQueriesAndPrintResult(tp, sql, format, stdout,
+                                                 global.quiet, &statement);
+  if (!status.ok() && statement > 0) {
+    status.SetPayload(kFailedStatementPayload, std::to_string(statement));
+  }
+  return status;
+}
+
 }  // namespace
 
 const char* QuerySubcommand::name() const {
@@ -151,6 +167,12 @@ results over --max-rows rows or --max-bytes bytes show only their first and
 last rows plus a footer with the row count, and cells are
 cut at --max-cell-width characters.
 
+Agent mode is on when run by a coding agent (detected from its environment,
+e.g. CLAUDECODE or AI_AGENT) with stdout not a terminal and no --format;
+--agent / --no-agent force it on or off. In agent mode, results default to
+markdown capped at 1000 rows / 10KB with cells cut at 500 characters, and
+errors are printed as JSON.
+
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
   Executes a single structured query by ID from the given summary spec
@@ -175,6 +197,8 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
                  &perf_file_),
       StringFlag("format", '\0', "FMT",
                  "Output format: csv (default) or markdown.", &format_),
+      BoolFlag("agent", '\0', "Force agent mode on (see above).", &agent_),
+      BoolFlag("no-agent", '\0', "Force agent mode off.", &no_agent_),
       StringFlag("max-rows", '\0', "N",
                  "[markdown] Rows printed in full; larger results show only "
                  "their first and last rows. 0 for no limit.",
@@ -188,8 +212,10 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
   };
 }
 
-base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat() {
-  ResultFormatOptions options;
+base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat(
+    const AgentMode& agent_mode) {
+  ResultFormatOptions options =
+      agent_mode.enabled ? AgentResultFormatOptions() : ResultFormatOptions();
   if (format_ == "csv") {
     options.format = ResultFormat::kCsv;
   } else if (format_ == "markdown") {
@@ -223,7 +249,46 @@ base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat() {
 
 base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(RejectExtraPositionals(ctx, "query", 2));
-  ASSIGN_OR_RETURN(ResultFormatOptions format, ResolveFormat());
+  if (agent_ && no_agent_) {
+    return base::ErrStatus("query: --agent and --no-agent are exclusive");
+  }
+  std::optional<bool> force_agent;
+  if (agent_ || no_agent_) {
+    force_agent = agent_;
+  }
+  const bool stdout_is_tty = base::IsTty(stdout);
+  AgentMode agent_mode =
+      DecideAgentMode(force_agent, !format_.empty(), stdout_is_tty);
+  const bool quiet = ctx.global->quiet;
+  if (agent_mode.enabled && !quiet) {
+    PrintAgentModeNotice(agent_mode);
+  }
+
+  base::Status status = ExecuteAndPrint(ctx, agent_mode);
+  if (status.ok()) {
+    return status;
+  }
+  // Results printed before the error (e.g. by earlier statements) must come
+  // first when stdout and stderr go to the same place.
+  fflush(stdout);
+  if (agent_mode.enabled) {
+    fprintf(stderr, "%s\n", FormatErrorAsJson(status).c_str());
+  } else if (!force_agent && format_.empty() && !stdout_is_tty && !quiet) {
+    // Agents which don't set a known environment variable never get agent
+    // mode automatically. Their stdout is redirected, so when a query fails
+    // in that situation, point them at it.
+    fprintf(stderr, "%s\n", status.c_message());
+    PrintAgentModeHint();
+  } else {
+    return status;
+  }
+  status.SetPayload("perfetto.dev/has_printed_error", "1");
+  return status;
+}
+
+base::Status QuerySubcommand::ExecuteAndPrint(const SubcommandContext& ctx,
+                                              const AgentMode& agent_mode) {
+  ASSIGN_OR_RETURN(ResultFormatOptions format, ResolveFormat(agent_mode));
   // With --remote, the trace is already loaded server-side, so there is no
   // trace-file positional: the first positional (if any) is the SQL.
   std::string trace_file;
@@ -297,8 +362,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 #endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
-  auto status = RunQueriesAndPrintResult(tp.get(), sql, format, stdout,
-                                         ctx.global->quiet);
+  auto status = RunAndPrint(tp.get(), sql, format, *ctx.global);
   if (!status.ok()) {
     MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path);
     return status;
@@ -351,9 +415,9 @@ base::Status QuerySubcommand::RunStructuredQuery(
         structured_query_id_.c_str());
   }
 
-  RETURN_IF_ERROR(RunQueriesAndPrintResult(
-      tp.get(), "SELECT * FROM " + query_result.table_name, format, stdout,
-      ctx.global->quiet));
+  RETURN_IF_ERROR(RunAndPrint(tp.get(),
+                              "SELECT * FROM " + query_result.table_name,
+                              format, *ctx.global));
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!perf_file_.empty()) {

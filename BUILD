@@ -5766,6 +5766,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_shell_shell",
     srcs = [
+        "src/trace_processor/shell/agent_mode.cc",
+        "src/trace_processor/shell/agent_mode.h",
         "src/trace_processor/shell/bundle_subcommand.cc",
         "src/trace_processor/shell/bundle_subcommand.h",
         "src/trace_processor/shell/common_flags.cc",
