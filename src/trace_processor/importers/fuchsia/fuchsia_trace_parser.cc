@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -91,12 +92,86 @@ constexpr uint32_t kThreadDead = 5;
 
 constexpr int32_t kIdleWeight = std::numeric_limits<int32_t>::min();
 
+// CPU idle states (matching Linux/Android conventions: 0 is idle, 0xFFFFFFFF is
+// active/exit idle)
+constexpr double kCpuIdleState = 0.0;
+constexpr double kCpuActiveState =
+    static_cast<double>(std::numeric_limits<uint32_t>::max());
+
+// Trace contract for CPU frequency counter events emitted by Fuchsia CPU
+// drivers, aligned with the Linux ftrace "power/cpu_frequency" event: the
+// counter record carries the logical core index in the "cpu" argument and the
+// frequency in kHz in the "value" argument.
+constexpr char kCpuFrequencyCategory[] = "power";
+constexpr char kCpuFrequencyEventName[] = "cpu_frequency";
+constexpr char kCpuFrequencyCpuArg[] = "cpu";
+constexpr char kCpuFrequencyValueArg[] = "value";
+
 constexpr auto kCounterBlueprint = tracks::CounterBlueprint(
     "fuchsia_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
                                 tracks::kNameFromTraceDimensionBlueprint),
     tracks::DynamicNameBlueprint());
+
+// Returns the numeric value carried by |value| as a double, or std::nullopt if
+// the argument does not hold a numeric type. Range and finiteness checks are
+// left to the caller.
+std::optional<double> ArgValueToDouble(
+    const fuchsia_trace_utils::ArgValue& value) {
+  switch (value.Type()) {
+    case fuchsia_trace_utils::ArgValue::kInt32:
+      return static_cast<double>(value.Int32());
+    case fuchsia_trace_utils::ArgValue::kUint32:
+      return static_cast<double>(value.Uint32());
+    case fuchsia_trace_utils::ArgValue::kInt64:
+      return static_cast<double>(value.Int64());
+    case fuchsia_trace_utils::ArgValue::kUint64:
+      return static_cast<double>(value.Uint64());
+    case fuchsia_trace_utils::ArgValue::kDouble:
+      return value.Double();
+    case fuchsia_trace_utils::ArgValue::kNull:
+    case fuchsia_trace_utils::ArgValue::kString:
+    case fuchsia_trace_utils::ArgValue::kPointer:
+    case fuchsia_trace_utils::ArgValue::kKoid:
+    case fuchsia_trace_utils::ArgValue::kBool:
+    case fuchsia_trace_utils::ArgValue::kUnknown:
+      return std::nullopt;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+// Returns the logical CPU core index carried by |value|, or std::nullopt if the
+// value is not a valid core index. Negative and out of range indices
+// (>= CpuTracker::kMaxCpusPerMachine) are rejected, as are non-integer and
+// non-numeric argument types.
+std::optional<uint32_t> ExtractCpuCoreIndex(
+    const fuchsia_trace_utils::ArgValue& value) {
+  if (value.Type() == fuchsia_trace_utils::ArgValue::kDouble) {
+    return std::nullopt;
+  }
+  // Integers up to 2^53 round-trip exactly through a double, so every value in
+  // the valid core index range is compared and converted without loss below.
+  std::optional<double> core_index = ArgValueToDouble(value);
+  if (!core_index.has_value() || *core_index < 0 ||
+      *core_index >= CpuTracker::kMaxCpusPerMachine) {
+    return std::nullopt;
+  }
+  return static_cast<uint32_t>(*core_index);
+}
+
+// Returns the frequency in kHz carried by |value|, or std::nullopt if the
+// value is not a valid frequency. Negative and non-finite (NaN, infinity)
+// frequencies are rejected, as are non-numeric argument types.
+std::optional<double> ExtractFrequencyKhz(
+    const fuchsia_trace_utils::ArgValue& value) {
+  std::optional<double> frequency_khz = ArgValueToDouble(value);
+  if (!frequency_khz.has_value() || !std::isfinite(*frequency_khz) ||
+      *frequency_khz < 0) {
+    return std::nullopt;
+  }
+  return frequency_khz;
+}
 
 }  // namespace
 
@@ -106,6 +181,14 @@ FuchsiaTraceParser::FuchsiaTraceParser(TraceProcessorContext* context)
       waker_id_(context->storage->InternString("waker")),
       incoming_weight_id_(context->storage->InternString("incoming_weight")),
       outgoing_weight_id_(context->storage->InternString("outgoing_weight")),
+      cpu_frequency_category_id_(
+          context->storage->InternString(kCpuFrequencyCategory)),
+      cpu_frequency_name_id_(
+          context->storage->InternString(kCpuFrequencyEventName)),
+      cpu_frequency_cpu_arg_id_(
+          context->storage->InternString(kCpuFrequencyCpuArg)),
+      cpu_frequency_value_arg_id_(
+          context->storage->InternString(kCpuFrequencyValueArg)),
       running_string_id_(context->storage->InternString("Running")),
       runnable_string_id_(context->storage->InternString("R")),
       waking_string_id_(context->storage->InternString("W")),
@@ -329,69 +412,50 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           break;
         }
         case kCounter: {
-          UniquePid upid =
-              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
-          std::string name_str =
-              context_->storage->GetString(name).ToStdString();
           uint64_t counter_id;
           if (!cursor.ReadUint64(&counter_id)) {
             context_->stats_tracker->IncrementStats(
                 stats::fuchsia_record_read_error);
             return;
           }
+
+          // CPU frequency counters go to the standard per-core cpufreq tracks
+          // instead of to a generic process counter track.
+          if (cat == cpu_frequency_category_id_ &&
+              name == cpu_frequency_name_id_) {
+            ParseCpuFrequencyCounter(ts, *maybe_args);
+            break;
+          }
+
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
+          std::string name_str =
+              context_->storage->GetString(name).ToStdString();
+
           // Note: In the Fuchsia trace format, counter values are stored
           // in the arguments for the record, with the data series defined
           // by both the record name and the argument name. In Perfetto,
           // counters only have one name, so we combine both names into
           // one here.
           for (const Arg& arg : *maybe_args) {
+            std::optional<double> counter_value = ArgValueToDouble(arg.value);
+            if (!counter_value.has_value()) {
+              context_->stats_tracker->IncrementStats(
+                  stats::fuchsia_non_numeric_counters);
+              continue;
+            }
             std::string counter_name_str = name_str + ":";
             counter_name_str +=
                 context_->storage->GetString(arg.name).ToStdString();
             counter_name_str += ":" + std::to_string(counter_id);
-            bool is_valid_value = false;
-            double counter_value = -1;
-            switch (arg.value.Type()) {
-              case fuchsia_trace_utils::ArgValue::kInt32:
-                is_valid_value = true;
-                counter_value = static_cast<double>(arg.value.Int32());
-                break;
-              case fuchsia_trace_utils::ArgValue::kUint32:
-                is_valid_value = true;
-                counter_value = static_cast<double>(arg.value.Uint32());
-                break;
-              case fuchsia_trace_utils::ArgValue::kInt64:
-                is_valid_value = true;
-                counter_value = static_cast<double>(arg.value.Int64());
-                break;
-              case fuchsia_trace_utils::ArgValue::kUint64:
-                is_valid_value = true;
-                counter_value = static_cast<double>(arg.value.Uint64());
-                break;
-              case fuchsia_trace_utils::ArgValue::kDouble:
-                is_valid_value = true;
-                counter_value = arg.value.Double();
-                break;
-              case fuchsia_trace_utils::ArgValue::kNull:
-              case fuchsia_trace_utils::ArgValue::kString:
-              case fuchsia_trace_utils::ArgValue::kPointer:
-              case fuchsia_trace_utils::ArgValue::kKoid:
-              case fuchsia_trace_utils::ArgValue::kBool:
-              case fuchsia_trace_utils::ArgValue::kUnknown:
-                context_->stats_tracker->IncrementStats(
-                    stats::fuchsia_non_numeric_counters);
-                break;
-            }
-            if (is_valid_value) {
-              base::StringView counter_name_str_view(counter_name_str);
-              StringId counter_name_id =
-                  context_->storage->InternString(counter_name_str_view);
-              TrackId track = context_->track_tracker->InternTrack(
-                  kCounterBlueprint,
-                  tracks::Dimensions(upid, counter_name_str_view),
-                  tracks::DynamicName(counter_name_id));
-              context_->event_tracker->PushCounter(ts, counter_value, track);
-            }
+            base::StringView counter_name_str_view(counter_name_str);
+            StringId counter_name_id =
+                context_->storage->InternString(counter_name_str_view);
+            TrackId track = context_->track_tracker->InternTrack(
+                kCounterBlueprint,
+                tracks::Dimensions(upid, counter_name_str_view),
+                tracks::DynamicName(counter_name_id));
+            context_->event_tracker->PushCounter(ts, *counter_value, track);
           }
           break;
         }
@@ -614,6 +678,9 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           if (!incoming_is_idle) {
             SwitchTo(&incoming_thread, ts, cpu, incoming_priority);
           }
+
+          MaybePushCpuIdleTransition(ts, cpu, outgoing_is_idle,
+                                     incoming_is_idle);
           break;
         }
         case kSchedulerEventContextSwitch: {
@@ -695,6 +762,9 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           if (!incoming_is_idle) {
             SwitchTo(&incoming_thread, ts, cpu, incoming_weight);
           }
+
+          MaybePushCpuIdleTransition(ts, cpu, outgoing_is_idle,
+                                     incoming_is_idle);
           break;
         }
         case kSchedulerEventThreadWakeup: {
@@ -920,6 +990,51 @@ void FuchsiaTraceParser::Wake(Thread* thread,
   auto state_row_number =
       storage->mutable_thread_state_table()->Insert(state_row).row_number;
   thread->last_state_row = state_row_number;
+}
+
+void FuchsiaTraceParser::ParseCpuFrequencyCounter(
+    int64_t ts,
+    const std::vector<Arg>& args) {
+  std::optional<uint32_t> cpu;
+  std::optional<double> frequency_khz;
+  // A record which repeats "cpu" or "value", or which carries an unusable core
+  // index or frequency, does not honour the contract and is dropped whole.
+  bool is_valid_event = true;
+  for (const Arg& arg : args) {
+    if (arg.name == cpu_frequency_cpu_arg_id_) {
+      is_valid_event = is_valid_event && !cpu.has_value();
+      cpu = ExtractCpuCoreIndex(arg.value);
+      is_valid_event = is_valid_event && cpu.has_value();
+    } else if (arg.name == cpu_frequency_value_arg_id_) {
+      is_valid_event = is_valid_event && !frequency_khz.has_value();
+      frequency_khz = ExtractFrequencyKhz(arg.value);
+      is_valid_event = is_valid_event && frequency_khz.has_value();
+    }
+  }
+
+  if (!is_valid_event || !cpu.has_value() || !frequency_khz.has_value()) {
+    context_->stats_tracker->IncrementStats(stats::fuchsia_invalid_event);
+    return;
+  }
+
+  context_->cpu_tracker->GetOrCreateCpu(*cpu);
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kCpuFrequencyBlueprint, tracks::Dimensions(*cpu));
+  context_->event_tracker->PushCounter(ts, *frequency_khz, track);
+}
+
+void FuchsiaTraceParser::MaybePushCpuIdleTransition(int64_t ts,
+                                                    uint32_t cpu,
+                                                    bool outgoing_is_idle,
+                                                    bool incoming_is_idle) {
+  if (outgoing_is_idle == incoming_is_idle) {
+    return;
+  }
+  context_->cpu_tracker->GetOrCreateCpu(cpu);
+  TrackId idle_track = context_->track_tracker->InternTrack(
+      tracks::kCpuIdleBlueprint, tracks::Dimensions(cpu));
+  double value = incoming_is_idle ? kCpuIdleState : kCpuActiveState;
+  context_->event_tracker->PushCounter(ts, value, idle_track);
 }
 
 StringId FuchsiaTraceParser::IdForOutgoingThreadState(uint32_t state) {
