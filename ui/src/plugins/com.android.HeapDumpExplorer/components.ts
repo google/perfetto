@@ -25,6 +25,7 @@ import type {NavState} from './nav_state';
 import {Tooltip} from '../../widgets/tooltip';
 import {Icon} from '../../widgets/icon';
 import {Anchor} from '../../widgets/anchor';
+import {AsyncMemo} from '../../base/async_memo';
 
 export type NavFn = (
   view: NavState['view'],
@@ -263,78 +264,82 @@ export const SQL_PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;\n' +
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree';
 
+export interface RowCountArgs {
+  readonly engine: Engine;
+  // The (unfiltered) query backing the grid.
+  readonly query: string;
+  readonly preamble?: string;
+  // The grid's current filters.
+  readonly filters: readonly Filter[];
+}
+
+export interface RowCount {
+  // Undefined until loaded (or if the count failed).
+  readonly total?: number;
+  // Undefined when there are no filters, or until loaded.
+  readonly filtered?: number;
+}
+
 /**
- * Tracks total and filtered row counts for a SQL-backed DataGrid view.
- *  Call `init()` in oninit, pass `onFiltersChanged` to DataGrid, and read
- *  `heading()` for the formatted title.
+ * Total and filtered row counts for a SQL-backed DataGrid view.
+ * Call `use()` every render with the current query and filters, and pass the
+ * result to `rowCountHeading()`. Call `dispose()` in onremove.
  */
 export class RowCounter {
-  total: number | null = null;
-  filtered: number | null = null;
+  private readonly totalMemo = new AsyncMemo<number | undefined>();
+  private readonly filteredMemo = new AsyncMemo<number | undefined>();
 
-  private engine: Engine | null = null;
-  private baseQuery = '';
-  private preamble = '';
-  private currentFilters: readonly Filter[] = [];
+  use({engine, query, preamble, filters}: RowCountArgs): RowCount {
+    const prefix = preamble ? `${preamble};\n` : '';
+    const total = this.totalMemo.use({
+      key: {prefix, query},
+      compute: () =>
+        countRows(engine, `${prefix}SELECT COUNT(*) AS cnt FROM (${query})`),
+    }).data;
 
-  init(engine: Engine, query: string, preamble = '') {
-    this.engine = engine;
-    this.baseQuery = query;
-    this.preamble = preamble;
-    this.runCount();
+    if (filters.length === 0) return {total};
+
+    const where = filters.map((f) => filterToSql(f, f.field)).join(' AND ');
+    const filtered = this.filteredMemo.use({
+      key: {prefix, query, where},
+      // Keep showing the previous filtered count while the filters change.
+      retainOn: ['where'],
+      compute: () =>
+        countRows(
+          engine,
+          `${prefix}SELECT COUNT(*) AS cnt FROM (${query}) WHERE ${where}`,
+        ),
+    }).data;
+    return {total, filtered};
   }
 
-  /** Format a heading like "Objects (1,234)" or "Objects (42 / 1,234)". */
-  heading(label: string): string {
-    if (this.total === null) return label;
-    if (
-      this.filtered !== null &&
-      this.currentFilters.length > 0 &&
-      this.filtered !== this.total
-    ) {
-      return `${label} (${this.filtered.toLocaleString()} / ${this.total.toLocaleString()})`;
-    }
-    return `${label} (${this.total.toLocaleString()})`;
+  dispose(): void {
+    this.totalMemo.dispose();
+    this.filteredMemo.dispose();
   }
+}
 
-  /** Pass this as the DataGrid `onFiltersChanged` callback. */
-  readonly onFiltersChanged = (filters: readonly Filter[]) => {
-    this.currentFilters = filters;
-    this.runFilteredCount();
-  };
-
-  private runCount() {
-    if (!this.engine) return;
-    const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(`${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery})`)
-      .then((r) => {
-        this.total = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
+async function countRows(
+  engine: Engine,
+  sql: string,
+): Promise<number | undefined> {
+  try {
+    const r = await engine.query(sql);
+    return r.firstRow({cnt: NUM}).cnt;
+  } catch (e) {
+    console.error(e);
+    return undefined;
   }
+}
 
-  private runFilteredCount() {
-    if (!this.engine || this.currentFilters.length === 0) {
-      this.filtered = null;
-      m.redraw();
-      return;
-    }
-    const where = this.currentFilters
-      .map((f) => filterToSql(f, f.field))
-      .join(' AND ');
-    const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(
-        `${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery}) WHERE ${where}`,
-      )
-      .then((r) => {
-        this.filtered = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
+/** Format a heading like "Objects (1,234)" or "Objects (42 / 1,234)". */
+export function rowCountHeading(label: string, count: RowCount): string {
+  const {total, filtered} = count;
+  if (total === undefined) return label;
+  if (filtered !== undefined && filtered !== total) {
+    return `${label} (${filtered.toLocaleString()} / ${total.toLocaleString()})`;
   }
+  return `${label} (${total.toLocaleString()})`;
 }
 
 interface PrimOrRefCellAttrs {
