@@ -12,83 +12,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import abc
 from typing import List
 from typing import Optional
 from typing import Union
-from urllib.parse import urlparse
-
-from perfetto.common.exceptions import PerfettoException
-from perfetto.trace_processor.http import TraceProcessorHttp
-from perfetto.trace_processor.protos import ProtoFactory
-from perfetto.trace_processor.unix import TraceProcessorUnix
-from perfetto.trace_processor.unix import unix_socket_path_for
-
-# The concrete clients TraceProcessorRemote can route to.
-TraceProcessorClient = Union[TraceProcessorHttp, TraceProcessorUnix]
 
 
-class TraceProcessorRemote:
-  """Client for a trace processor server that is already running.
+class TraceProcessorRemote(abc.ABC):
+  """Interface for a connection to a running trace processor instance.
 
-  Picks a concrete client from |remote| using the same rules as
-  `trace_processor --remote` and forwards every method to it unchanged, so
-  TraceProcessor can use this exactly like TraceProcessorHttp.
+  TraceProcessor talks to trace processor only through this interface, so it
+  doesn't need to know which protocol or transport a connection uses.
 
-  Currently (see unix_socket_path_for()), a Unix socket session name or path
-  goes to TraceProcessorUnix, and anything else is treated as an HTTP address
-  and goes to TraceProcessorHttp.
+  Currently implemented by TraceProcessorHttp (HTTP server, also used for the
+  trace processor subprocess TraceProcessor starts itself) and
+  TraceProcessorRpc (RPC protocol over a byte transport, e.g.
+  TraceProcessorUnix for `trace_processor server unix` sessions). See
+  remote_factory.create_remote() to connect to a running instance.
   """
 
-  def __init__(self, remote: str, protos: ProtoFactory):
-    self._client = self._connect(remote, protos)
-
-  @staticmethod
-  def _connect(remote: str, protos: ProtoFactory) -> TraceProcessorClient:
-    socket_path = unix_socket_path_for(remote)
-    if socket_path:
-      try:
-        return TraceProcessorUnix(socket_path, protos=protos)
-      except (FileNotFoundError, ConnectionRefusedError) as ex:
-        # No socket file, or a stale one left behind by a dead server.
-        raise PerfettoException(
-            f"No live trace processor session '{remote}' at {socket_path}. "
-            "Start one with: trace_processor server unix --name <name> "
-            "<trace>") from ex
-
-    # Without a scheme (e.g. 'localhost:9123'), urlparse treats the host as
-    # the scheme and the port as the path, so we'd connect to the wrong
-    # address. Adding an explicit http:// makes parsing unambiguous.
-    p = urlparse(remote)
-    if p.scheme not in ('http', 'https'):
-      p = urlparse('http://' + remote)
-    return TraceProcessorHttp(p.netloc, protos=protos)
-
+  @abc.abstractmethod
   def execute_query(self, query: str):
-    return self._client.execute_query(query)
+    ...
 
+  @abc.abstractmethod
   def compute_metric(self, metrics: List[str]):
-    return self._client.compute_metric(metrics)
+    ...
 
+  @abc.abstractmethod
   def trace_summary(self,
                     specs: List[Union[str, bytes]],
                     metric_ids: Optional[List[str]] = None,
                     metadata_query_id: Optional[str] = None):
-    return self._client.trace_summary(specs, metric_ids, metadata_query_id)
+    ...
 
+  @abc.abstractmethod
   def enable_metatrace(self):
-    return self._client.enable_metatrace()
+    ...
 
+  @abc.abstractmethod
   def disable_and_read_metatrace(self):
-    return self._client.disable_and_read_metatrace()
+    ...
 
+  @abc.abstractmethod
   def export(self, output_file, export_format: str):
-    return self._client.export(output_file, export_format)
+    ...
 
+  @abc.abstractmethod
   def parse(self, chunk: bytes):
-    return self._client.parse(chunk)
+    ...
 
+  @abc.abstractmethod
   def notify_eof(self):
-    return self._client.notify_eof()
+    ...
 
+  @abc.abstractmethod
   def close(self):
-    self._client.close()
+    ...

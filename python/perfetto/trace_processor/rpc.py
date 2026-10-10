@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from perfetto.trace_processor.protos import ProtoFactory
+from perfetto.trace_processor.remote import TraceProcessorRemote
 
 
 def _not_supported_yet(what: str) -> NotImplementedError:
@@ -21,7 +22,7 @@ def _not_supported_yet(what: str) -> NotImplementedError:
       'session; only query() is.')
 
 
-class TraceProcessorRpc:
+class TraceProcessorRpc(TraceProcessorRemote):
   """Client side of the trace processor RPC protocol.
 
   Speaks the same byte protocol as the C++ RemoteTraceProcessor
@@ -44,10 +45,12 @@ class TraceProcessorRpc:
     batch of cells and only the last one flagged is_last_batch. They are
     merged here so callers get the same shape TraceProcessorHttp returns.
     """
-    request = self.protos.TraceProcessorRpc()
+    stream = self.protos.TraceProcessorRpcStream()
+    # Fill in the request in place inside the stream, so it isn't copied.
+    request = stream.msg.add()
     request.request = self.protos.TraceProcessorRpc.TPM_QUERY_STREAMING
     request.query_args.sql_query = query
-    self._send_request(request)
+    self.transport.send(stream.SerializeToString())
 
     result = self.protos.QueryResult()
     while True:
@@ -61,10 +64,10 @@ class TraceProcessorRpc:
   def close(self):
     self.transport.close()
 
-  # The methods below complete the client interface TraceProcessor expects
-  # (see TraceProcessorHttp). The protocol supports them, but they are not
-  # implemented over this client yet, so fail with a clear message instead of
-  # an AttributeError naming an internal method.
+  # The methods below complete the TraceProcessorRemote interface. The
+  # protocol supports them, but they are not implemented over this client yet,
+  # so fail with a clear message.
+  # TODO(gabiyev): implement these over the RPC protocol in a follow-up.
 
   def compute_metric(self, metrics):
     raise _not_supported_yet('metric()')
@@ -86,12 +89,6 @@ class TraceProcessorRpc:
 
   def notify_eof(self):
     raise _not_supported_yet('Loading a trace')
-
-  def _send_request(self, request):
-    """Wraps one TraceProcessorRpc in a TraceProcessorRpcStream and sends it."""
-    stream = self.protos.TraceProcessorRpcStream()
-    stream.msg.add().CopyFrom(request)
-    self.transport.send(stream.SerializeToString())
 
   def _recv_exactly(self, n: int) -> bytes:
     """Reads exactly `n` bytes; recv() alone may return fewer."""
