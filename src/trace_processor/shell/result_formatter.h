@@ -30,10 +30,24 @@ namespace perfetto::trace_processor {
 enum class ResultFormat {
   // Quoted CSV: the historical, machine-parseable format.
   kCsv,
+  // Compact markdown table without alignment padding.
+  kMarkdown,
 };
 
 struct ResultFormatOptions {
   ResultFormat format = ResultFormat::kCsv;
+
+  // The options below only apply to kMarkdown. 0 means "no limit".
+
+  // A result set with more rows or bytes than this is printed as its first
+  // and last rows with a marker row in between.
+  uint64_t max_rows = 0;
+  uint64_t max_bytes = 0;
+  // Cells with more characters than this are cut with a visible marker.
+  uint64_t max_cell_chars = 0;
+  // Once a result set is over the limits above, at most this many further
+  // rows are read before the statement is abandoned.
+  uint64_t max_rows_past_limit = 0;
 };
 
 // Prints a single result set. Rows are passed to AddRow() while the statement

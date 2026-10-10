@@ -32,6 +32,8 @@ source_set("shell") {
     "interactive.h",
     "interactive_subcommand.cc",
     "interactive_subcommand.h",
+    "markdown_result_formatter.cc",
+    "markdown_result_formatter.h",
     "metatrace.cc",
     "metatrace.h",
     "metrics.cc",
@@ -116,6 +118,7 @@ source_set("unittests") {
   sources = [
     "convert_helpers_unittest.cc",
     "find_subcommand_unittest.cc",
+    "markdown_result_formatter_unittest.cc",
     "shell_utils_unittest.cc",
     "subcommand_flags_unittest.cc",
   ]

@@ -18,7 +18,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -38,6 +40,7 @@
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/query.h"
+#include "src/trace_processor/shell/result_formatter.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
@@ -139,9 +142,14 @@ SQL can be provided in three ways:
   3. From stdin:           cat q.sql | tp query trace.pb
 
 Multiple semicolon-separated statements are supported: every statement's
-result set is printed as CSV, with consecutive result sets separated by a
-single blank line. Use -i to drop into an interactive shell after the
-queries complete.
+result set is printed, with consecutive result sets separated by a single
+blank line. Use -i to drop into an interactive shell after the queries
+complete.
+
+Output is CSV by default. --format markdown prints compact markdown tables:
+results over --max-rows rows or --max-bytes bytes show only their first and
+last rows plus a footer with the row count, and cells are
+cut at --max-cell-width characters.
 
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
@@ -165,11 +173,57 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
       BoolFlag("wide", 'W', "Double column width for output.", &wide_),
       StringFlag("perf-file", '\0', "FILE", "Write perf timing data to FILE.",
                  &perf_file_),
+      StringFlag("format", '\0', "FMT",
+                 "Output format: csv (default) or markdown.", &format_),
+      StringFlag("max-rows", '\0', "N",
+                 "[markdown] Rows printed in full; larger results show only "
+                 "their first and last rows. 0 for no limit.",
+                 &max_rows_),
+      StringFlag("max-bytes", '\0', "N",
+                 "[markdown] Like --max-rows but for bytes of output.",
+                 &max_bytes_),
+      StringFlag("max-cell-width", '\0', "N",
+                 "[markdown] Characters printed per cell. 0 for no limit.",
+                 &max_cell_width_),
   };
+}
+
+base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat() {
+  ResultFormatOptions options;
+  if (format_ == "csv") {
+    options.format = ResultFormat::kCsv;
+  } else if (format_ == "markdown") {
+    options.format = ResultFormat::kMarkdown;
+  } else if (!format_.empty()) {
+    return base::ErrStatus("query: unknown --format '%s' (csv or markdown)",
+                           format_.c_str());
+  }
+  struct {
+    const char* flag;
+    const std::string& value;
+    uint64_t* target;
+  } limits[] = {
+      {"--max-rows", max_rows_, &options.max_rows},
+      {"--max-bytes", max_bytes_, &options.max_bytes},
+      {"--max-cell-width", max_cell_width_, &options.max_cell_chars},
+  };
+  for (const auto& limit : limits) {
+    if (limit.value.empty()) {
+      continue;
+    }
+    std::optional<uint64_t> v = base::StringToUInt64(limit.value);
+    if (!v) {
+      return base::ErrStatus("query: %s expects a number, got '%s'", limit.flag,
+                             limit.value.c_str());
+    }
+    *limit.target = *v;
+  }
+  return options;
 }
 
 base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   RETURN_IF_ERROR(RejectExtraPositionals(ctx, "query", 2));
+  ASSIGN_OR_RETURN(ResultFormatOptions format, ResolveFormat());
   // With --remote, the trace is already loaded server-side, so there is no
   // trace-file positional: the first positional (if any) is the SQL.
   std::string trace_file;
@@ -178,7 +232,7 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 
   // Advanced: structured query mode.
   if (!structured_query_id_.empty()) {
-    return RunStructuredQuery(ctx, trace_file);
+    return RunStructuredQuery(ctx, trace_file, format);
   }
 
   // Determine SQL source:
@@ -243,7 +297,8 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 #endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
-  auto status = RunQueries(tp.get(), sql, true, ctx.global->quiet);
+  auto status = RunQueriesAndPrintResult(tp.get(), sql, format, stdout,
+                                         ctx.global->quiet);
   if (!status.ok()) {
     MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path);
     return status;
@@ -270,7 +325,8 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 
 base::Status QuerySubcommand::RunStructuredQuery(
     const SubcommandContext& ctx,
-    const std::string& trace_file) {
+    const std::string& trace_file,
+    const ResultFormatOptions& format) {
   if (structured_query_specs_.empty()) {
     return base::ErrStatus(
         "query: --structured-query-id requires at least one --summary-spec");
@@ -295,9 +351,9 @@ base::Status QuerySubcommand::RunStructuredQuery(
         structured_query_id_.c_str());
   }
 
-  RETURN_IF_ERROR(RunQueries(tp.get(),
-                             "SELECT * FROM " + query_result.table_name, true,
-                             ctx.global->quiet));
+  RETURN_IF_ERROR(RunQueriesAndPrintResult(
+      tp.get(), "SELECT * FROM " + query_result.table_name, format, stdout,
+      ctx.global->quiet));
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!perf_file_.empty()) {
