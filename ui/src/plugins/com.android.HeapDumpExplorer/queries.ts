@@ -246,9 +246,17 @@ async function batchBitmapBufferHashes(
   return result;
 }
 
+// Whether the trace has HPROF field values (heap_graph_primitive), needed by
+// the bitmap, string and array views.
+export async function hasFieldValues(engine: Engine): Promise<boolean> {
+  const res = await engine.query(`SELECT 1 FROM heap_graph_primitive LIMIT 1`);
+  return res.iter({}).valid();
+}
+
 export async function getOverview(
   engine: Engine,
   activeDump: HeapDump,
+  hasPrimitives: boolean,
 ): Promise<OverviewData> {
   const dumpFilter = dumpFilterSql(activeDump, 'o');
   const oomeInfo = await getOome(engine, activeDump);
@@ -326,10 +334,6 @@ export async function getOverview(
   // Duplicate bitmaps grouped by pixel content hash. Each bitmap's compressed
   // DumpData buffer is hashed to detect true content duplicates rather than
   // just matching on dimensions. Skipped for proto heap graphs (no HPROF data).
-  const hasPrimitivesRes = await engine.query(
-    `SELECT 1 FROM heap_graph_primitive LIMIT 1`,
-  );
-  const hasPrimitives = hasPrimitivesRes.iter({}).valid();
   const dupRes = hasPrimitives
     ? await engine.query(`
     SELECT
@@ -515,7 +519,6 @@ export async function getOverview(
     duplicateStrings:
       duplicateStrings.length > 0 ? duplicateStrings : undefined,
     duplicateArrays: duplicateArrays.length > 0 ? duplicateArrays : undefined,
-    hasFieldValues: hasPrimitives,
     oomScore,
     oomBucket,
     anonRssAndSwapSize,
