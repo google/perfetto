@@ -386,12 +386,8 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     // expects the value to be in micro-volts
     counter_value *= 1000;
   } else if (item.key == "Bs") {
-    static constexpr auto kBatteryStatusBlueprint = tracks::CounterBlueprint(
-        "battery_status", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(),
-        tracks::StaticNameBlueprint("BatteryStatus"));
-    counter_track =
-        context_->track_tracker->InternTrack(kBatteryStatusBlueprint);
+    counter_track = context_->track_tracker->InternTrack(
+        tracks::kAndroidBatteryStatusBlueprint);
     switch (item.value.at(0)) {
       case '?':
         counter_value = 1;  // BatteryManager.BATTERY_STATUS_UNKNOWN

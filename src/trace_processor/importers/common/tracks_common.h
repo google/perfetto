@@ -107,14 +107,15 @@ static constexpr auto kChromeProcessInstantBlueprint = tracks::SliceBlueprint(
 
 // Begin counter blueprints.
 
-inline constexpr auto kBatteryCounterBlueprint = tracks::CounterBlueprint(
-    "battery_counter",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(
-        tracks::StringDimensionBlueprint("battery_name"),
-        tracks::StringDimensionBlueprint("counter_name")),
-    tracks::FnNameBlueprint(
-        [](base::StringView battery_name, base::StringView counter_name) {
+inline constexpr auto kBatteryCounterBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "battery_counter",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::StringDimensionBlueprint("battery_name"),
+            tracks::StringDimensionBlueprint("counter_name")),
+        tracks::FnNameBlueprint([](base::StringView battery_name,
+                                   base::StringView counter_name) {
           if (battery_name.size() > 0) {
             return base::StackString<1024>(
                 "batt.%.*s.%.*s", int(battery_name.size()), battery_name.data(),
@@ -122,77 +123,88 @@ inline constexpr auto kBatteryCounterBlueprint = tracks::CounterBlueprint(
           }
           return base::StackString<1024>("batt.%.*s", int(counter_name.size()),
                                          counter_name.data());
-        }));
+        })));
 
-inline constexpr auto kClockFrequencyBlueprint = tracks::CounterBlueprint(
-    "clock_frequency",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
-    tracks::FnNameBlueprint([](base::StringView key) {
-      return base::StackString<255>("%.*s Frequency", int(key.size()),
-                                    key.data());
-    }));
+inline constexpr auto kClockFrequencyBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "clock_frequency",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
+        tracks::FnNameBlueprint([](base::StringView key) {
+          return base::StackString<255>("%.*s Frequency", int(key.size()),
+                                        key.data());
+        })));
 
-inline constexpr auto kClockStateBlueprint = tracks::CounterBlueprint(
-    "clock_state",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
-    tracks::FnNameBlueprint([](base::StringView key) {
-      return base::StackString<255>("%.*s State", int(key.size()), key.data());
-    }));
+inline constexpr auto kClockStateBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "clock_state",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
+        tracks::FnNameBlueprint([](base::StringView key) {
+          return base::StackString<255>("%.*s State", int(key.size()),
+                                        key.data());
+        })));
 
-inline constexpr auto kCpuFrequencyBlueprint = tracks::CounterBlueprint(
-    "cpu_frequency",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
-    tracks::StaticNameBlueprint("cpufreq"));
+inline constexpr auto kCpuFrequencyBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "cpu_frequency",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+        tracks::StaticNameBlueprint("cpufreq")));
 
-inline constexpr auto kCpuMaxFrequencyLimitBlueprint = tracks::CounterBlueprint(
-    "cpu_max_frequency_limit",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
-    tracks::FnNameBlueprint([](uint32_t cpu) {
-      return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
-    }));
+inline constexpr auto kCpuMaxFrequencyLimitBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "cpu_max_frequency_limit",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+        tracks::FnNameBlueprint([](uint32_t cpu) {
+          return base::StackString<255>("Cpu %u Max Freq Limit", cpu);
+        })));
 
-inline constexpr auto kCpuMinFrequencyLimitBlueprint = tracks::CounterBlueprint(
-    "cpu_min_frequency_limit",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
-    tracks::FnNameBlueprint([](uint32_t cpu) {
-      return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
-    }));
+inline constexpr auto kCpuMinFrequencyLimitBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "cpu_min_frequency_limit",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+        tracks::FnNameBlueprint([](uint32_t cpu) {
+          return base::StackString<255>("Cpu %u Min Freq Limit", cpu);
+        })));
 
-inline constexpr auto kGpuFrequencyBlueprint = tracks::CounterBlueprint(
-    "gpu_frequency",
-    tracks::StaticUnitBlueprint("kHz"),
-    tracks::DimensionBlueprints(kUgpuDimensionBlueprint,
-                                kGpuIdDimensionBlueprint),
-    tracks::StaticNameBlueprint("gpufreq"));
+inline constexpr auto kGpuFrequencyBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "gpu_frequency",
+        tracks::StaticUnitBlueprint("kHz"),
+        tracks::DimensionBlueprints(kUgpuDimensionBlueprint,
+                                    kGpuIdDimensionBlueprint),
+        tracks::StaticNameBlueprint("gpufreq")));
 
-inline constexpr auto kCpuIdleBlueprint = tracks::CounterBlueprint(
-    "cpu_idle",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kCpuDimensionBlueprint),
-    tracks::StaticNameBlueprint("cpuidle"));
+inline constexpr auto kCpuIdleBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "cpu_idle",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kCpuDimensionBlueprint),
+        tracks::StaticNameBlueprint("cpuidle")));
 
-inline constexpr auto kThermalTemperatureBlueprint = tracks::CounterBlueprint(
-    "thermal_temperature",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kThermalZoneDimensionBlueprint),
-    tracks::FnNameBlueprint([](base::StringView tz) {
-      return base::StackString<255>("%.*s Temperature",
-                                    static_cast<int>(tz.size()), tz.data());
-    }));
+inline constexpr auto kThermalTemperatureBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "thermal_temperature",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kThermalZoneDimensionBlueprint),
+        tracks::FnNameBlueprint([](base::StringView tz) {
+          return base::StackString<255>("%.*s Temperature",
+                                        static_cast<int>(tz.size()), tz.data());
+        })));
 
-inline constexpr auto kCoolingDeviceCounterBlueprint = tracks::CounterBlueprint(
-    "cooling_device_counter",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
-    tracks::FnNameBlueprint([](base::StringView cdev) {
-      return base::StackString<255>("%.*s Cooling Device",
-                                    static_cast<int>(cdev.size()), cdev.data());
-    }));
+inline constexpr auto kCoolingDeviceCounterBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "cooling_device_counter",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(kLinuxDeviceDimensionBlueprint),
+        tracks::FnNameBlueprint([](base::StringView cdev) {
+          return base::StackString<255>("%.*s Cooling Device",
+                                        static_cast<int>(cdev.size()),
+                                        cdev.data());
+        })));
 
 inline constexpr auto kChromeProcessStatsBlueprint = tracks::CounterBlueprint(
     "chrome_process_stats",
@@ -204,32 +216,33 @@ inline constexpr auto kChromeProcessStatsBlueprint = tracks::CounterBlueprint(
                                     name.data());
     }));
 
-inline constexpr auto kAndroidScreenStateBlueprint =
+inline constexpr auto kAndroidScreenStateBlueprint = tracks::MachineScoped(
     tracks::CounterBlueprint("screen_state",
                              tracks::UnknownUnitBlueprint(),
                              tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("ScreenState"));
+                             tracks::StaticNameBlueprint("ScreenState")));
 
-inline constexpr auto kAndroidBatteryStatusBlueprint =
+inline constexpr auto kAndroidBatteryStatusBlueprint = tracks::MachineScoped(
     tracks::CounterBlueprint("battery_status",
                              tracks::UnknownUnitBlueprint(),
                              tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("BatteryStatus"));
+                             tracks::StaticNameBlueprint("BatteryStatus")));
 
-inline constexpr auto kAndroidPlugTypeBlueprint =
+inline constexpr auto kAndroidPlugTypeBlueprint = tracks::MachineScoped(
     tracks::CounterBlueprint("plug_type",
                              tracks::UnknownUnitBlueprint(),
                              tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("PlugType"));
+                             tracks::StaticNameBlueprint("PlugType")));
 
-inline constexpr auto kAndroidBatteryStatsBlueprint = tracks::CounterBlueprint(
-    "battery_stats",
-    tracks::UnknownUnitBlueprint(),
-    tracks::DimensionBlueprints(
-        tracks::StringDimensionBlueprint("counter_key")),
-    tracks::FnNameBlueprint([](base::StringView name) {
-      return base::StackString<1024>("%.*s", int(name.size()), name.data());
-    }));
+inline constexpr auto kAndroidBatteryStatsBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "battery_stats",
+        tracks::UnknownUnitBlueprint(),
+        tracks::DimensionBlueprints(
+            tracks::StringDimensionBlueprint("counter_key")),
+        tracks::FnNameBlueprint([](base::StringView name) {
+          return base::StackString<1024>("%.*s", int(name.size()), name.data());
+        })));
 
 inline constexpr auto kAndroidAtraceCounterBlueprint = tracks::CounterBlueprint(
     "atrace_counter",
@@ -315,12 +328,13 @@ inline constexpr auto kPerfThreadCpuCounterBlueprint = tracks::CounterBlueprint(
         tracks::kNameFromTraceDimensionBlueprint),
     tracks::DynamicNameBlueprint());
 
-inline constexpr auto kGlobalGpuMemoryBlueprint = tracks::CounterBlueprint(
-    "gpu_memory",
-    tracks::kBytesUnitBlueprint,
-    tracks::DimensionBlueprints(kUgpuDimensionBlueprint,
-                                kGpuIdDimensionBlueprint),
-    tracks::StaticNameBlueprint("GPU Memory"));
+inline constexpr auto kGlobalGpuMemoryBlueprint =
+    tracks::MachineScoped(tracks::CounterBlueprint(
+        "gpu_memory",
+        tracks::kBytesUnitBlueprint,
+        tracks::DimensionBlueprints(kUgpuDimensionBlueprint,
+                                    kGpuIdDimensionBlueprint),
+        tracks::StaticNameBlueprint("GPU Memory")));
 
 inline constexpr auto kProcessGpuMemoryBlueprint = tracks::CounterBlueprint(
     "process_gpu_memory",

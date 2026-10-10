@@ -1928,10 +1928,11 @@ void FtraceParser::ParseCpuFreq(int64_t timestamp, ConstBytes blob) {
 }
 
 void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "cpu_frequency_throttle", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::StaticNameBlueprint("cpufreq_throttle"));
+  static constexpr auto kBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "cpu_frequency_throttle", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+          tracks::StaticNameBlueprint("cpufreq_throttle")));
   protos::pbzero::DcvshFreqFtraceEvent::Decoder freq(blob);
   TrackId track = context_->track_tracker->InternTrack(
       kBlueprint, tracks::Dimensions(static_cast<uint32_t>(freq.cpu())));
@@ -2342,7 +2343,7 @@ void FtraceParser::ParseGoogleIrmEvent(int64_t timestamp, ConstBytes blob) {
 
 namespace {
 
-constexpr auto kIonBlueprint = tracks::CounterBlueprint(
+constexpr auto kIonBlueprint = tracks::MachineScoped(tracks::CounterBlueprint(
     "ion",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("heap_name")),
@@ -2352,7 +2353,7 @@ constexpr auto kIonBlueprint = tracks::CounterBlueprint(
                                       heap_name.data());
       }
       return base::StackString<255>("mem.ion");
-    }));
+    })));
 
 constexpr auto kIonChangeBlueprint = tracks::CounterBlueprint(
     "ion_change",
@@ -2515,10 +2516,11 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
                                     protozero::ConstBytes data) {
   protos::pbzero::DmaHeapStatFtraceEvent::Decoder dma_heap(data);
 
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "android_dma_heap", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(),
-      tracks::StaticNameBlueprint("mem.dma_heap"));
+  static constexpr auto kBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "android_dma_heap", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(),
+          tracks::StaticNameBlueprint("mem.dma_heap")));
 
   // Push the global counter.
   TrackId track = context_->track_tracker->InternTrack(kBlueprint);
@@ -4130,34 +4132,37 @@ void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
                                         protozero::ConstBytes blob) {
   protos::pbzero::SchedCpuUtilCfsFtraceEvent::Decoder evt(blob);
 
-  static constexpr auto kUtilBlueprint = tracks::CounterBlueprint(
-      "cpu_utilization", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Util", cpu);
-      }));
+  static constexpr auto kUtilBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "cpu_utilization", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+          tracks::FnNameBlueprint([](uint32_t cpu) {
+            return base::StackString<255>("Cpu %u Util", cpu);
+          })));
   TrackId util_track = context_->track_tracker->InternTrack(
       kUtilBlueprint, tracks::Dimensions(evt.cpu()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.cpu_util()), util_track);
 
-  static constexpr auto kCapBlueprint = tracks::CounterBlueprint(
-      "cpu_capacity", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Cap", cpu);
-      }));
+  static constexpr auto kCapBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "cpu_capacity", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+          tracks::FnNameBlueprint([](uint32_t cpu) {
+            return base::StackString<255>("Cpu %u Cap", cpu);
+          })));
   TrackId cap_track = context_->track_tracker->InternTrack(
       kCapBlueprint, tracks::Dimensions(evt.cpu()));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.capacity()), cap_track);
 
-  static constexpr auto kNrRunningBlueprint = tracks::CounterBlueprint(
-      "cpu_nr_running", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
-      tracks::FnNameBlueprint([](uint32_t cpu) {
-        return base::StackString<255>("Cpu %u Nr Running", cpu);
-      }));
+  static constexpr auto kNrRunningBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "cpu_nr_running", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint),
+          tracks::FnNameBlueprint([](uint32_t cpu) {
+            return base::StackString<255>("Cpu %u Nr Running", cpu);
+          })));
   TrackId nr_track = context_->track_tracker->InternTrack(
       kNrRunningBlueprint, tracks::Dimensions(evt.cpu()));
   context_->event_tracker->PushCounter(

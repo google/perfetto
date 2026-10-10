@@ -126,12 +126,13 @@ void AndroidKernelWakelocksModule::UpdateCounter(
     const std::string& name,
     protos::pbzero::KernelWakelockData_Wakelock_Type type,
     uint64_t value) {
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "android_kernel_wakelock", tracks::StaticUnitBlueprint("ms"),
-      tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("wakelock_name"),
-          tracks::StringDimensionBlueprint("wakelock_type")),
-      tracks::DynamicNameBlueprint());
+  static constexpr auto kBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "android_kernel_wakelock", tracks::StaticUnitBlueprint("ms"),
+          tracks::DimensionBlueprints(
+              tracks::StringDimensionBlueprint("wakelock_name"),
+              tracks::StringDimensionBlueprint("wakelock_type")),
+          tracks::DynamicNameBlueprint()));
   StringId type_id;
   switch (type) {
     case protos::pbzero::KernelWakelockData_Wakelock_Type::WAKELOCK_TYPE_KERNEL:

@@ -335,10 +335,11 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
   auto total_energy = static_cast<double>(event.energy_uws());
   static constexpr auto kEnergyConsumerDimension =
       tracks::UintDimensionBlueprint("energy_consumer_id");
-  static constexpr auto kGlobalBlueprint = tracks::CounterBlueprint(
-      "android_energy_estimation_breakdown", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(kEnergyConsumerDimension),
-      tracks::DynamicNameBlueprint());
+  static constexpr auto kGlobalBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "android_energy_estimation_breakdown", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(kEnergyConsumerDimension),
+          tracks::DynamicNameBlueprint()));
   TrackId energy_track = context_->track_tracker->InternTrack(
       kGlobalBlueprint, tracks::Dimensions(consumer_id),
       tracks::DynamicName(descriptor->name),
@@ -382,12 +383,13 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
         stats::entity_state_residency_invalid);
     return;
   }
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "entity_state", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("entity_name"),
-          tracks::StringDimensionBlueprint("state_name")),
-      tracks::DynamicNameBlueprint());
+  static constexpr auto kBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "entity_state", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(
+              tracks::StringDimensionBlueprint("entity_name"),
+              tracks::StringDimensionBlueprint("state_name")),
+          tracks::DynamicNameBlueprint()));
   for (auto it = event.residency(); it; ++it) {
     protos::pbzero::EntityStateResidency::StateResidency::Decoder residency(
         *it);

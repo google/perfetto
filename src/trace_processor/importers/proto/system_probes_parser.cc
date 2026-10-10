@@ -376,13 +376,15 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
 void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::Decoder sys_stats(blob);
 
-  static constexpr auto kMeminfoBlueprint = tracks::CounterBlueprint(
-      "meminfo", tracks::kBytesUnitBlueprint,
-      tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("meminfo_key")),
-      tracks::FnNameBlueprint([](base::StringView name) {
-        return base::StackString<1024>("%.*s", int(name.size()), name.data());
-      }));
+  static constexpr auto kMeminfoBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "meminfo", tracks::kBytesUnitBlueprint,
+          tracks::DimensionBlueprints(
+              tracks::StringDimensionBlueprint("meminfo_key")),
+          tracks::FnNameBlueprint([](base::StringView name) {
+            return base::StackString<1024>("%.*s", int(name.size()),
+                                           name.data());
+          })));
   for (auto it = sys_stats.meminfo(); it; ++it) {
     protos::pbzero::SysStats::MeminfoValue::Decoder mi(*it);
     auto key = static_cast<size_t>(mi.key());
@@ -414,13 +416,15 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 
-  static constexpr auto kVmStatBlueprint = tracks::CounterBlueprint(
-      "vmstat", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("vmstat_key")),
-      tracks::FnNameBlueprint([](base::StringView name) {
-        return base::StackString<1024>("%.*s", int(name.size()), name.data());
-      }));
+  static constexpr auto kVmStatBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "vmstat", tracks::UnknownUnitBlueprint(),
+          tracks::DimensionBlueprints(
+              tracks::StringDimensionBlueprint("vmstat_key")),
+          tracks::FnNameBlueprint([](base::StringView name) {
+            return base::StackString<1024>("%.*s", int(name.size()),
+                                           name.data());
+          })));
   for (auto it = sys_stats.vmstat(); it; ++it) {
     protos::pbzero::SysStats::VmstatValue::Decoder vm(*it);
     auto key = static_cast<size_t>(vm.key());
@@ -443,15 +447,16 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
 
-    static constexpr auto kCpuStatBlueprint = tracks::CounterBlueprint(
-        "cpustat", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(
-            tracks::kCpuDimensionBlueprint,
-            tracks::StringDimensionBlueprint("cpustat_key")),
-        tracks::FnNameBlueprint([](uint32_t, base::StringView key) {
-          return base::StackString<1024>("cpu.times.%.*s", int(key.size()),
-                                         key.data());
-        }));
+    static constexpr auto kCpuStatBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "cpustat", tracks::UnknownUnitBlueprint(),
+            tracks::DimensionBlueprints(
+                tracks::kCpuDimensionBlueprint,
+                tracks::StringDimensionBlueprint("cpustat_key")),
+            tracks::FnNameBlueprint([](uint32_t, base::StringView key) {
+              return base::StackString<1024>("cpu.times.%.*s", int(key.size()),
+                                             key.data());
+            })));
     auto intern_track = [&](const char* name) {
       return context_->track_tracker->InternTrack(
           kCpuStatBlueprint, tracks::Dimensions(ct.cpu_id(), name));
@@ -477,12 +482,13 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = sys_stats.num_irq(); it; ++it) {
-    static constexpr auto kTrackBlueprint = tracks::CounterBlueprint(
-        "num_irq", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(tracks::kIrqDimensionBlueprint),
-        tracks::FnNameBlueprint([](uint32_t irq) {
-          return base::StackString<1024>("num_irq (id: %u)", irq);
-        }));
+    static constexpr auto kTrackBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "num_irq", tracks::UnknownUnitBlueprint(),
+            tracks::DimensionBlueprints(tracks::kIrqDimensionBlueprint),
+            tracks::FnNameBlueprint([](uint32_t irq) {
+              return base::StackString<1024>("num_irq (id: %u)", irq);
+            })));
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternTrack(
         kTrackBlueprint, tracks::Dimensions(ic.irq()));
@@ -491,12 +497,13 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = sys_stats.num_softirq(); it; ++it) {
-    static constexpr auto kTrackBlueprint = tracks::CounterBlueprint(
-        "num_softirq", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(tracks::kIrqDimensionBlueprint),
-        tracks::FnNameBlueprint([](uint32_t irq) {
-          return base::StackString<1024>("num_softirq (id: %u)", irq);
-        }));
+    static constexpr auto kTrackBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "num_softirq", tracks::UnknownUnitBlueprint(),
+            tracks::DimensionBlueprints(tracks::kIrqDimensionBlueprint),
+            tracks::FnNameBlueprint([](uint32_t irq) {
+              return base::StackString<1024>("num_softirq (id: %u)", irq);
+            })));
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternTrack(
         kTrackBlueprint, tracks::Dimensions(ic.irq()));
@@ -505,30 +512,32 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   if (sys_stats.has_num_forks()) {
-    static constexpr auto kBlueprint =
+    static constexpr auto kBlueprint = tracks::MachineScoped(
         tracks::CounterBlueprint("num_forks", tracks::UnknownUnitBlueprint(),
                                  tracks::DimensionBlueprints(),
-                                 tracks::StaticNameBlueprint("num_forks"));
+                                 tracks::StaticNameBlueprint("num_forks")));
     TrackId track = context_->track_tracker->InternTrack(kBlueprint);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_forks()), track);
   }
 
   if (sys_stats.has_num_irq_total()) {
-    static constexpr auto kBlueprint = tracks::CounterBlueprint(
-        "num_irq_total", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(),
-        tracks::StaticNameBlueprint("num_irq_total"));
+    static constexpr auto kBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "num_irq_total", tracks::UnknownUnitBlueprint(),
+            tracks::DimensionBlueprints(),
+            tracks::StaticNameBlueprint("num_irq_total")));
     TrackId track = context_->track_tracker->InternTrack(kBlueprint);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_irq_total()), track);
   }
 
   if (sys_stats.has_num_softirq_total()) {
-    static constexpr auto kBlueprint = tracks::CounterBlueprint(
-        "num_softirq_total", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(),
-        tracks::StaticNameBlueprint("num_softirq_total"));
+    static constexpr auto kBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "num_softirq_total", tracks::UnknownUnitBlueprint(),
+            tracks::DimensionBlueprints(),
+            tracks::StaticNameBlueprint("num_softirq_total")));
     TrackId track = context_->track_tracker->InternTrack(kBlueprint);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_softirq_total()), track);
@@ -537,18 +546,20 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   // Fragmentation of the kernel binary buddy memory allocator.
   // See /proc/buddyinfo in `man 5 proc`.
   for (auto it = sys_stats.buddy_info(); it; ++it) {
-    static constexpr auto kBlueprint = tracks::CounterBlueprint(
-        "buddyinfo", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(
-            tracks::StringDimensionBlueprint("buddyinfo_node"),
-            tracks::StringDimensionBlueprint("buddyinfo_zone"),
-            tracks::UintDimensionBlueprint("buddyinfo_chunk_size_kb")),
-        tracks::FnNameBlueprint([](base::StringView node, base::StringView zone,
-                                   uint32_t chunk_size_kb) {
-          return base::StackString<1024>(
-              "mem.buddyinfo[%.*s][%.*s][%u kB]", int(node.size()), node.data(),
-              int(zone.size()), zone.data(), chunk_size_kb);
-        }));
+    static constexpr auto kBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "buddyinfo", tracks::UnknownUnitBlueprint(),
+            tracks::DimensionBlueprints(
+                tracks::StringDimensionBlueprint("buddyinfo_node"),
+                tracks::StringDimensionBlueprint("buddyinfo_zone"),
+                tracks::UintDimensionBlueprint("buddyinfo_chunk_size_kb")),
+            tracks::FnNameBlueprint([](base::StringView node,
+                                       base::StringView zone,
+                                       uint32_t chunk_size_kb) {
+              return base::StackString<1024>(
+                  "mem.buddyinfo[%.*s][%.*s][%u kB]", int(node.size()),
+                  node.data(), int(zone.size()), zone.data(), chunk_size_kb);
+            })));
     protos::pbzero::SysStats::BuddyInfo::Decoder bi(*it);
     int order = 0;
     for (auto order_it = bi.order_pages(); order_it; ++order_it) {
@@ -577,14 +588,15 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       context_->stats_tracker->IncrementStats(stats::psi_unknown_resource);
       return;
     }
-    static constexpr auto kBlueprint = tracks::CounterBlueprint(
-        "psi", tracks::UnknownUnitBlueprint(),
-        tracks::DimensionBlueprints(
-            tracks::StringDimensionBlueprint("psi_resource")),
-        tracks::FnNameBlueprint([](base::StringView resource) {
-          return base::StackString<1024>("psi.%.*s", int(resource.size()),
-                                         resource.data());
-        }));
+    static constexpr auto kBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "psi", tracks::UnknownUnitBlueprint(),
+            tracks::DimensionBlueprints(
+                tracks::StringDimensionBlueprint("psi_resource")),
+            tracks::FnNameBlueprint([](base::StringView resource) {
+              return base::StackString<1024>("psi.%.*s", int(resource.size()),
+                                             resource.data());
+            })));
     // Unit = total blocked time on this resource in nanoseconds.
     TrackId track = context_->track_tracker->InternTrack(
         kBlueprint, tracks::Dimensions(resource_key));
@@ -593,13 +605,14 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = sys_stats.thermal_zone(); it; ++it) {
-    static constexpr auto kBlueprint = tracks::CounterBlueprint(
-        "thermal_temperature_sys", tracks::StaticUnitBlueprint("C"),
-        tracks::DimensionBlueprints(tracks::kThermalZoneDimensionBlueprint),
-        tracks::FnNameBlueprint([](base::StringView thermal_zone) {
-          return base::StackString<1024>("%.*s", int(thermal_zone.size()),
-                                         thermal_zone.data());
-        }));
+    static constexpr auto kBlueprint =
+        tracks::MachineScoped(tracks::CounterBlueprint(
+            "thermal_temperature_sys", tracks::StaticUnitBlueprint("C"),
+            tracks::DimensionBlueprints(tracks::kThermalZoneDimensionBlueprint),
+            tracks::FnNameBlueprint([](base::StringView thermal_zone) {
+              return base::StackString<1024>("%.*s", int(thermal_zone.size()),
+                                             thermal_zone.data());
+            })));
     protos::pbzero::SysStats::ThermalZone::Decoder thermal(*it);
     TrackId track = context_->track_tracker->InternTrack(
         kBlueprint, tracks::Dimensions(thermal.type()));
@@ -627,14 +640,16 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::CpuIdleState::Decoder cpuidle_state(blob);
   uint32_t cpu = cpuidle_state.cpu_id();
-  static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "cpu_idle_state", tracks::StaticUnitBlueprint("us"),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint,
-                                  tracks::StringDimensionBlueprint("state")),
-      tracks::FnNameBlueprint([](uint32_t cpu, base::StringView state) {
-        return base::StackString<1024>("cpuidle%u.%.*s", cpu, int(state.size()),
-                                       state.data());
-      }));
+  static constexpr auto kBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "cpu_idle_state", tracks::StaticUnitBlueprint("us"),
+          tracks::DimensionBlueprints(
+              tracks::kCpuDimensionBlueprint,
+              tracks::StringDimensionBlueprint("state")),
+          tracks::FnNameBlueprint([](uint32_t cpu, base::StringView state) {
+            return base::StackString<1024>("cpuidle%u.%.*s", cpu,
+                                           int(state.size()), state.data());
+          })));
 
   for (auto f = cpuidle_state.cpuidle_state_entry(); f; ++f) {
     protos::pbzero::SysStats::CpuIdleStateEntry::Decoder idle(*f);
@@ -652,14 +667,15 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
 void SystemProbesParser::ParseSlabInfo(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::SlabInfo::Decoder slab(blob);
 
-  static constexpr auto kSlabBlueprint = tracks::CounterBlueprint(
-      "slabinfo", tracks::kBytesUnitBlueprint,
-      tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("slab_name")),
-      tracks::FnNameBlueprint([](base::StringView name) {
-        return base::StackString<1024>("mem.slab.%.*s", int(name.size()),
-                                       name.data());
-      }));
+  static constexpr auto kSlabBlueprint =
+      tracks::MachineScoped(tracks::CounterBlueprint(
+          "slabinfo", tracks::kBytesUnitBlueprint,
+          tracks::DimensionBlueprints(
+              tracks::StringDimensionBlueprint("slab_name")),
+          tracks::FnNameBlueprint([](base::StringView name) {
+            return base::StackString<1024>("mem.slab.%.*s", int(name.size()),
+                                           name.data());
+          })));
 
   TrackId track = context_->track_tracker->InternTrack(
       kSlabBlueprint, tracks::Dimensions(slab.name()));
