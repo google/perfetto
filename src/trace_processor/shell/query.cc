@@ -56,7 +56,8 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
                                       const std::string& sql_query,
                                       const ResultFormatOptions& format,
                                       FILE* output,
-                                      bool quiet) {
+                                      bool quiet,
+                                      uint32_t* statements_started) {
   PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
 
   // Statements are executed one at a time and every statement's result set
@@ -68,6 +69,11 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
   uint32_t offset = 0;
   bool executed_any_statement = false;
   bool printed_any_result = false;
+  uint32_t started = 0;
+  if (!statements_started) {
+    statements_started = &started;
+  }
+  *statements_started = 0;
   for (;;) {
     auto query_start = std::chrono::steady_clock::now();
     std::optional<Iterator> it =
@@ -75,6 +81,7 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
     if (!it.has_value()) {
       break;
     }
+    ++*statements_started;
     RETURN_IF_ERROR(it->Status());
     executed_any_statement = true;
 
@@ -178,7 +185,8 @@ base::Status RunQueries(TraceProcessor* trace_processor,
                         bool quiet) {
   if (expect_output) {
     return RunQueriesAndPrintResult(trace_processor, queries,
-                                    ResultFormatOptions(), stdout, quiet);
+                                    ResultFormatOptions(), stdout, quiet,
+                                    nullptr);
   }
   return RunQueriesWithoutOutput(trace_processor, queries);
 }
