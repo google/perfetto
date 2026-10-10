@@ -90,10 +90,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
               }),
           },
           m(
-            'span',
-            {
-              class: 'pf-hde-mono pf-hde-break-all',
-            },
+            'span.pf-hde-mono.pf-hde-break-all',
             str
               ? '"' +
                   (str.length > 300 ? str.slice(0, 300) + '\u2026' : str) +
@@ -211,7 +208,7 @@ export function StringsView({
         return m(
           DetailsShell,
           {title: 'Strings', fillHeight: true, className: 'pf-hde-tab--padded'},
-          m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+          m('.pf-hde-loading', m(Spinner, {easing: true})),
         );
       }
 
@@ -254,7 +251,7 @@ export function StringsView({
           className: 'pf-hde-tab--padded',
         },
         [
-          m('div', {class: 'pf-hde-card pf-hde-mb-4 pf-hde-flex-none'}, [
+          m('.pf-hde-card.pf-hde-mb-4.pf-hde-flex-none', [
             m(DataGrid, {
               schema: SUMMARY_SCHEMA,
               data: summaryRows,

@@ -47,7 +47,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
     view(vnode) {
       const {row, navigate} = vnode.attrs;
       if (!row || row.id === 0) {
-        return m('span', {class: 'pf-hde-badge-referent'}, 'ROOT');
+        return m('span.pf-hde-badge-referent', 'ROOT');
       }
       const full = 'className' in row ? (row as InstanceRow) : null;
       return m(
@@ -55,13 +55,9 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         full &&
           full.reachabilityName !== 'unreachable' &&
           full.reachabilityName !== 'strong'
-          ? m(
-              'span',
-              {class: 'pf-hde-badge-reachability'},
-              full.reachabilityName,
-            )
+          ? m('span.pf-hde-badge-reachability', full.reachabilityName)
           : null,
-        full?.isRoot ? m('span', {class: 'pf-hde-badge-root'}, 'root') : null,
+        full?.isRoot ? m('span.pf-hde-badge-root', 'root') : null,
         m(
           Anchor,
           {
@@ -71,11 +67,8 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         ),
         row.str != null
           ? m(
-              'span',
-              {
-                class: 'pf-hde-badge-string',
-                title: row.str.length > 80 ? row.str : undefined,
-              },
+              'span.pf-hde-badge-string',
+              {title: row.str.length > 80 ? row.str : undefined},
               '"' +
                 (row.str.length > 80
                   ? row.str.slice(0, 80) + '\u2026'
@@ -85,8 +78,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
           : null,
         full?.referent
           ? m(
-              'span',
-              {class: 'pf-hde-badge-referent'},
+              'span.pf-hde-badge-referent',
               ' for ',
               m(InstanceLink, {
                 row: full.referent,
@@ -114,11 +106,9 @@ export function Section(): m.Component<SectionAttrs> {
     },
     view(vnode) {
       return m(
-        'div',
-        {class: 'pf-hde-section'},
+        '.pf-hde-section',
         m(
-          'div',
-          {class: 'pf-hde-section__header'},
+          '.pf-hde-section__header',
           m(
             'button',
             {
@@ -128,7 +118,7 @@ export function Section(): m.Component<SectionAttrs> {
               },
               'aria-expanded': open,
             },
-            m('span', {class: 'pf-hde-section__title'}, vnode.attrs.title),
+            m('span.pf-hde-section__title', vnode.attrs.title),
             m(
               'svg',
               {
@@ -145,16 +135,13 @@ export function Section(): m.Component<SectionAttrs> {
           ),
           vnode.attrs.actions !== undefined
             ? m(
-                'div',
-                {
-                  class: 'pf-hde-section__actions',
-                  onclick: (e: Event) => e.stopPropagation(),
-                },
+                '.pf-hde-section__actions',
+                {onclick: (e: Event) => e.stopPropagation()},
                 vnode.attrs.actions,
               )
             : null,
         ),
-        open ? m('div', {class: 'pf-hde-section__body'}, vnode.children) : null,
+        open ? m('.pf-hde-section__body', vnode.children) : null,
       );
     },
   };
@@ -163,7 +150,7 @@ export function Section(): m.Component<SectionAttrs> {
 /** Renders a size value as a right-aligned formatted byte string. */
 export function sizeRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m('span', {class: 'pf-hde-mono'}, fmtSize(Number(value ?? 0))),
+    content: m('span.pf-hde-mono', fmtSize(Number(value ?? 0))),
     align: 'right',
   };
 }
@@ -171,11 +158,7 @@ export function sizeRenderer(value: SqlValue): CellRenderResult {
 /** Renders a numeric count value as a right-aligned locale string. */
 export function countRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m(
-      'span',
-      {class: 'pf-hde-mono'},
-      Number(value ?? 0).toLocaleString(),
-    ),
+    content: m('span.pf-hde-mono', Number(value ?? 0).toLocaleString()),
     align: 'right',
   };
 }
@@ -248,8 +231,7 @@ export const COL_INFO = {
 // Label + info icon for DataGrid column titles.
 export function colHeader(label: string, info: m.Children): m.Children {
   return m(
-    'span',
-    {class: 'pf-hde-col-header'},
+    'span.pf-hde-col-header',
     label,
     m(
       Tooltip,
@@ -356,7 +338,7 @@ export function PrimOrRefCell(): m.Component<PrimOrRefCellAttrs> {
           navigate,
         });
       }
-      return m('span', {class: 'pf-hde-mono'}, v.v);
+      return m('span.pf-hde-mono', v.v);
     },
   };
 }
@@ -419,8 +401,7 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
 /** Renders a single dominator-tree path as an indented arrow chain. */
 export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
   return m(
-    'div',
-    {class: 'pf-hde-view-stack--tight'},
+    '.pf-hde-view-stack--tight',
     path.map((pe, i) =>
       m(
         'div',
@@ -430,9 +411,9 @@ export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
           style: {'--pf-hde-depth': String(i)},
         },
         [
-          m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '\u2192'),
+          m('span.pf-hde-path-arrow', i === 0 ? '' : '\u2192'),
           m(InstanceLink, {row: pe.row, navigate}),
-          pe.field ? m('span', {class: 'pf-hde-path-field'}, pe.field) : null,
+          pe.field ? m('span.pf-hde-path-field', pe.field) : null,
         ],
       ),
     ),

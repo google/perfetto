@@ -274,9 +274,8 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
   if (allDumps.length <= 1 || active === null) return null;
 
   return m(
-    'div',
-    {class: 'pf-hde-dump-selector'},
-    m('span', {class: 'pf-hde-dump-selector__label'}, 'Heap dump:'),
+    '.pf-hde-dump-selector',
+    m('span.pf-hde-dump-selector__label', 'Heap dump:'),
     m(
       PopupMenu,
       {
@@ -314,10 +313,9 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     const overview = session.cachedOverview;
     if (active === null || overview === null) {
       return m(
-        'div',
-        {class: 'pf-hde-page'},
+        '.pf-hde-page',
         renderDumpSelector(session),
-        m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+        m('.pf-hde-loading', m(Spinner, {easing: true})),
       );
     }
 
@@ -327,8 +325,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     const {tabs, actions} = buildTabs(session, active, session.nav, overview);
 
     return m(
-      'div',
-      {class: 'pf-hde-page'},
+      '.pf-hde-page',
       renderDumpSelector(session),
       m(
         'main',
