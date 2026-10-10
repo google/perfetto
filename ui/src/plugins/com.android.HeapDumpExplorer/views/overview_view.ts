@@ -25,7 +25,7 @@ import * as queries from '../queries';
 import {fmtSize} from '../format';
 import type {NavState} from '../nav_state';
 import {type NavFn, sizeRenderer} from '../components';
-import type {HeapDump} from '../queries';
+import type {HeapDump} from '../types';
 import {Callout} from '../../../widgets/callout';
 import {Button} from '../../../widgets/button';
 import {

@@ -36,10 +36,13 @@ import type {
   DuplicateBitmapGroup,
   DuplicateStringGroup,
   DuplicateArrayGroup,
+  Field,
+  ArrayElem,
+  HeapDump,
 } from './types';
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
-import {type time, Time} from '../../base/time';
+import {Time} from '../../base/time';
 
 /**
  * Reinterpret a SQL int64 as an unsigned 64-bit native pointer.
@@ -52,14 +55,9 @@ function toNativePtr(v: bigint): bigint {
   return BigInt.asUintN(64, v);
 }
 
-export interface HeapDump {
-  readonly upid: number;
-  readonly ts: time;
-  readonly processName: string | null;
-  readonly pid: number;
-}
-
-export async function loadDumpsList(engine: Engine): Promise<HeapDump[]> {
+export async function loadDumpsList(
+  engine: Engine,
+): Promise<readonly HeapDump[]> {
   const res = await engine.query(`
     SELECT
       g.upid AS upid,
@@ -566,16 +564,14 @@ export async function getOome(
   return undefined;
 }
 
-type FieldEntry = {name: string; typeName: string; value: PrimOrRef};
-
 /** Fetch primitive and reference field values for an object. */
 async function fetchFieldValues(
   engine: Engine,
   activeDump: HeapDump,
   refSetId: number | null,
   fieldSetId: number | null,
-): Promise<FieldEntry[]> {
-  const fields: FieldEntry[] = [];
+): Promise<Field[]> {
+  const fields: Field[] = [];
 
   if (fieldSetId !== null) {
     const fRes = await engine.query(`
@@ -706,9 +702,9 @@ export async function fetchShortestPathFromRoot(
 /** Batch-fetch shortest reference paths for multiple objects. */
 export async function fetchShortestPaths(
   engine: Engine,
-  ids: number[],
-): Promise<Map<number, PathEntry[]>> {
-  const result = new Map<number, PathEntry[]>();
+  ids: readonly number[],
+): Promise<Map<number, readonly PathEntry[]>> {
+  const result = new Map<number, readonly PathEntry[]>();
   if (ids.length === 0) return result;
 
   await requireDominatorTree(engine);
@@ -850,9 +846,9 @@ export async function fetchShortestPaths(
 /** Batch-fetch dominator-tree paths for multiple objects. */
 export async function fetchDominatorPaths(
   engine: Engine,
-  ids: number[],
-): Promise<Map<number, PathEntry[]>> {
-  const result = new Map<number, PathEntry[]>();
+  ids: readonly number[],
+): Promise<Map<number, readonly PathEntry[]>> {
+  const result = new Map<number, readonly PathEntry[]>();
   if (ids.length === 0) return result;
 
   await requireDominatorTree(engine);
@@ -1055,10 +1051,10 @@ export async function getInstance(
 
   const reachabilityName = KIND_TO_REACHABILITY[classKind] ?? 'strong';
 
-  const row = rowFromIter({...oit, class_kind: classKind});
-  row.reachabilityName = reachabilityName;
+  const baseRow = rowFromIter({...oit, class_kind: classKind});
 
   // Detect referent for Reference subclasses.
+  let referent: InstanceRow | null = null;
   if (reachabilityName !== 'strong' && refSetId !== null) {
     const refResult = await engine.query(`
       SELECT
@@ -1082,14 +1078,14 @@ export async function getInstance(
     });
     if (rit.valid() && rit.owned_id !== null && rit.owned_id !== 0) {
       const refCls = className(rit.ref_cls, rit.ref_deob);
-      row.referent = {
+      referent = {
         id: rit.owned_id,
         display: makeDisplay(refCls, rit.owned_id),
         className: refCls,
         isRoot: false,
         rootTypeNames: null,
         reachabilityName: 'strong',
-        heap: row.heap,
+        heap: baseRow.heap,
         shallowJava: 0,
         shallowNative: 0,
         retainedTotal: 0,
@@ -1103,6 +1099,8 @@ export async function getInstance(
       };
     }
   }
+
+  const row: InstanceRow = {...baseRow, reachabilityName, referent};
 
   // Look up the java.lang.Class<X> object for this class.
   let classObjRow: InstanceRow | null = null;
@@ -1129,7 +1127,7 @@ export async function getInstance(
 
   let arrayLength = 0;
   let elemTypeName: string | null = null;
-  const arrayElems: InstanceDetail['arrayElems'] = [];
+  const arrayElems: ArrayElem[] = [];
   if (isArrayInstance) {
     elemTypeName = fullClassName.slice(0, -2); // "int[]" → "int"
     if (arrayDataId !== null && arrayElementType !== null) {
@@ -1297,7 +1295,7 @@ export async function getInstance(
 export async function getClassHierarchy(
   engine: Engine,
   startClassId: number,
-): Promise<string[]> {
+): Promise<readonly string[]> {
   const res = await engine.query(`
     INCLUDE PERFETTO MODULE graphs.search;
 
@@ -1354,7 +1352,7 @@ export async function getSubclassNames(
   engine: Engine,
   activeDump: HeapDump,
   rootName: string,
-): Promise<string[]> {
+): Promise<readonly string[]> {
   const res = await engine.query(`
     INCLUDE PERFETTO MODULE graphs.search;
     SELECT DISTINCT coalesce(c.deobfuscated_name, c.name) AS name
@@ -1615,7 +1613,7 @@ export async function search(
   engine: Engine,
   activeDump: HeapDump,
   query: string,
-): Promise<InstanceRow[]> {
+): Promise<readonly InstanceRow[]> {
   await requireDominatorTree(engine);
   if (query.startsWith('0x') || query.startsWith('0X')) {
     const numId = parseInt(query, 16);
@@ -1652,7 +1650,7 @@ export async function search(
 export async function getStringList(
   engine: Engine,
   activeDump: HeapDump,
-): Promise<StringListRow[]> {
+): Promise<readonly StringListRow[]> {
   await requireDominatorTree(engine);
   const res = await engine.query(`
     SELECT
@@ -1716,7 +1714,7 @@ export async function getStringList(
 export async function getBitmapList(
   engine: Engine,
   activeDump: HeapDump,
-): Promise<BitmapListRow[]> {
+): Promise<readonly BitmapListRow[]> {
   await requireDominatorTree(engine);
   const dumpData = await loadBitmapDumpData(engine, activeDump);
 
@@ -1908,7 +1906,7 @@ function primFieldValue(it: {
 /** Fetch reachable (cumulative) sizes for a set of object IDs. */
 async function getReachableSizes(
   engine: Engine,
-  ids: number[],
+  ids: readonly number[],
 ): Promise<Map<number, {size: number; native: number; count: number}>> {
   await engine.query(
     `INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree`,
@@ -1939,7 +1937,7 @@ async function getReachableSizes(
  */
 export async function enrichWithReachable(
   engine: Engine,
-  rows: InstanceRow[],
+  rows: readonly InstanceRow[],
 ): Promise<void> {
   const unenriched = rows.filter((r) => r.reachableSize === null);
   if (unenriched.length === 0) return;
@@ -1958,7 +1956,7 @@ export async function enrichWithReachable(
  */
 export async function enrichFieldsWithReachable(
   engine: Engine,
-  fields: {name: string; typeName: string; value: PrimOrRef}[],
+  fields: readonly Field[],
 ): Promise<void> {
   const ids: number[] = [];
   for (const f of fields) {
@@ -1983,7 +1981,7 @@ export async function enrichFieldsWithReachable(
  */
 export async function enrichArrayElemsWithReachable(
   engine: Engine,
-  elems: {idx: number; value: PrimOrRef}[],
+  elems: readonly ArrayElem[],
 ): Promise<void> {
   const ids: number[] = [];
   for (const e of elems) {

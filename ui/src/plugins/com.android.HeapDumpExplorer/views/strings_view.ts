@@ -34,7 +34,8 @@ import {
   colHeader,
 } from '../components';
 import * as queries from '../queries';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {AsyncMemo} from '../../../base/async_memo';
