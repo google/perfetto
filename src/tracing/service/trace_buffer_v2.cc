@@ -245,9 +245,10 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   size_t next_chunk_off = chunk_list.at(next_list_idx);      // O(1)
   TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
 
-  if (!seq_->is_smb_v2 && last_chunk_id.has_value() &&
-      next_chunk->chunk_id != *last_chunk_id + 1)
-    sequence_gap_detected_ = true;
+  // Flag a gap between the current and next chunk. If a packet spans this
+  // gap, reassembly uses the flag to detect missing fragments.
+  sequence_gap_detected_ = !seq_->is_smb_v2 && last_chunk_id.has_value() &&
+                           next_chunk->chunk_id != *last_chunk_id + 1;
 
   chunk_ = next_chunk;
   list_idx_ = next_list_idx;
@@ -311,22 +312,7 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
                            : 0,
                        iter_->chunk_id, end_->chunk_id);
 
-  if (seq_->is_smb_v2)
-    return;
-
-  if (seq_->last_chunk_consumed.has_value()) {
-    const auto& last = *seq_->last_chunk_consumed;
-    // Re-admit: an incomplete chunk that was evicted has been re-committed
-    // with strictly more payload. The chunk_id is unchanged, so the +1
-    // successor check below would fire spuriously even though the re-admit
-    // recovered the deferred fragments without losing data. Keep this
-    // predicate in sync with the re-admit acceptance check in
-    // TraceBufferV2::CopyChunkUntrusted.
-    bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
-    if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
-      AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
-    }
-  }
+  ReportReadGapBeforeChunk();
 }
 
 bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
@@ -379,6 +365,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         return false;  // There are no more chunks in the sequence.
       iter_ = next_chunk;
       frag_iter_ = FragIterator(next_chunk);
+      ReportReadGapBeforeChunk();
       continue;
     }
 
@@ -476,6 +463,27 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
         break;  // case kFragBegin
     }  // switch(frag.type)
   }  // for(;;)
+}
+
+void ChunkSeqReader::ReportReadGapBeforeChunk() {
+  // Report missing chunks before iter_. Skip chunks with consumed payload
+  // so that resuming a read does not report the same gap again.
+  if (seq_->is_smb_v2 || iter_->unread_payload_off() != 0 ||
+      !seq_->last_chunk_consumed.has_value()) {
+    return;
+  }
+
+  const auto& last = *seq_->last_chunk_consumed;
+  // Re-admit: an incomplete chunk that was evicted has been re-committed
+  // with strictly more payload. The chunk_id is unchanged, so the +1
+  // successor check below would fire spuriously even though the re-admit
+  // recovered the deferred fragments without losing data. Keep this
+  // predicate in sync with the re-admit acceptance check in
+  // TraceBufferV2::CopyChunkUntrusted.
+  bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
+  if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
+    AddSeqDataLoss(seq_, DataLossReason::DATA_LOSS_READ_GAP);
+  }
 }
 
 void ChunkSeqReader::ConsumeFragment(TBChunk* chunk, Frag* frag) {
@@ -985,7 +993,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   // the chunk was evicted while incomplete (scraped) and the new commit has
   // strictly more payload. In that case we re-admit it so the previously-
   // dropped fragments can be recovered. Keep this acceptance condition in
-  // sync with the re-admit branch of the gap check in ChunkSeqReader's ctor.
+  // sync with the re-admit branch in ChunkSeqReader::ReportReadGapBeforeChunk.
   //
   // When re-admitting, |previously_consumed_payload| records how many payload
   // bytes were already consumed before eviction, so we can skip them below.
