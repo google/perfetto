@@ -3226,6 +3226,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_perf_text_perf_text",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_scatter_mipmap_operator_scatter_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",
@@ -20549,6 +20550,15 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/plugins/scatter_mipmap_operator:scatter_mipmap_operator
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_scatter_mipmap_operator_scatter_mipmap_operator",
+    srcs: [
+        "src/trace_processor/plugins/scatter_mipmap_operator/scatter_mipmap_index.cc",
+        "src/trace_processor/plugins/scatter_mipmap_operator/scatter_mipmap_operator.cc",
+    ],
+}
+
 // GN: //src/trace_processor/plugins/slice_mipmap_operator:slice_mipmap_operator
 filegroup {
     name: "perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
@@ -21616,6 +21626,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_perf_text_perf_text",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_scatter_mipmap_operator_scatter_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",
@@ -24678,6 +24689,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_perf_text_perf_text",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_scatter_mipmap_operator_scatter_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_unittests",
@@ -25829,6 +25841,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_plugins_perf_text_perf_text",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_scatter_mipmap_operator_scatter_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",
@@ -26548,6 +26561,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_plugins_perf_text_perf_text",
         ":perfetto_src_trace_processor_plugins_perfetto_manifest_perfetto_manifest",
         ":perfetto_src_trace_processor_plugins_pprof_functions_pprof_functions",
+        ":perfetto_src_trace_processor_plugins_scatter_mipmap_operator_scatter_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_slice_mipmap_operator_slice_mipmap_operator",
         ":perfetto_src_trace_processor_plugins_span_join_operator_span_join_operator",
         ":perfetto_src_trace_processor_plugins_sql_stats_table_sql_stats_table",

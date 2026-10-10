@@ -207,6 +207,7 @@ from diff_tests.syntax.multi_statement_tests import PerfettoMultiStatement
 from diff_tests.syntax.stdlib_docs_tests import StdlibDocs
 from diff_tests.syntax.structured_query_tests import StructuredQueryTests
 from diff_tests.syntax.pipeline_tests import PerfettoPipeline
+from diff_tests.syntax.scatter_mipmap_tests import PerfettoScatterMipmap
 from diff_tests.syntax.table_function_tests import PerfettoTableFunction
 from diff_tests.syntax.table_tests import PerfettoTable
 from diff_tests.syntax.view_tests import PerfettoView
@@ -409,6 +410,7 @@ def fetch_all_diff_tests(
       PerfettoMacro,
       PerfettoMultiStatement,
       PerfettoPipeline,
+      PerfettoScatterMipmap,
       PerfettoTable,
       PerfettoTableFunction,
       PerfettoView,
