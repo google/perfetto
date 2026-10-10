@@ -21,8 +21,6 @@ INCLUDE PERFETTO MODULE linux.irqs;
 
 INCLUDE PERFETTO MODULE wattson.cpu.idle;
 
-INCLUDE PERFETTO MODULE wattson.utils;
-
 -- Get slices only where there is transition from deep idle to active
 CREATE PERFETTO TABLE _idle_exits AS
 SELECT ts, dur, cpu, idle, _auto_id AS group_id
@@ -155,9 +153,9 @@ FROM _irq_w_tasks_info;
 CREATE PERFETTO TABLE _active_state_w_tasks AS
 INTERVAL INTERSECTION OF (
   _all_tasks_flattened_slices AS task,
-  _ii_subquery!(_idle_exits) AS idle
+  _idle_exits AS idle
 ) PER cpu
-|> SELECT ts, dur, cpu, task.utid, task.is_irq, idle.id AS idle_group;
+|> SELECT ts, dur, cpu, task.utid, task.is_irq, idle.group_id AS idle_group;
 
 CREATE PERFETTO INDEX _active_state_w_tasks_group ON _active_state_w_tasks(
   idle_group,

@@ -21,6 +21,15 @@ INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
+-- Synthesized swapper gaps (which can span multiple idle exits) clipped to
+-- each deep idle exit they overlap.
+CREATE PERFETTO TABLE _ii_idle_swapper_gaps AS
+INTERVAL INTERSECTION OF (
+  (SELECT ts, dur, cpu FROM _wattson_task_slices WHERE idle_group IS NULL) AS gap,
+  _idle_exits AS idle
+) PER cpu
+|> SELECT ts, dur, cpu, idle.group_id AS idle_group;
+
 -- Tasks that ran within each deep idle exit, keyed by the idle exit they belong
 -- to. Materialized because the three aggregates in _idle_w_tasks below all read
 -- it.
@@ -30,14 +39,7 @@ FROM _wattson_task_slices
 WHERE
   idle_group IS NOT NULL
 UNION ALL
-SELECT ii.ts, ii.dur, ii.cpu, 0 AS utid, ii.id_1 AS idle_group
-FROM _interval_intersect!(
-  (
-    (SELECT 0 AS id, ts, dur, cpu FROM _wattson_task_slices WHERE idle_group IS NULL),
-    _ii_subquery!(_idle_exits)
-  ),
-  (cpu)
-) AS ii;
+SELECT ts, dur, cpu, 0 AS utid, idle_group FROM _ii_idle_swapper_gaps;
 
 -- Gets the slices where the CPU transitions from deep idle to active, and the
 -- associated task that causes the idle exit
