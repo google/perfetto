@@ -25,7 +25,7 @@ import type {
   ColumnSchema,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
-import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
+import type {InstanceRow, InstanceDetail, PrimOrRef} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import {downloadBlob} from '../download';
 import {
@@ -61,7 +61,6 @@ export type OpenFlamegraphPivotedAt = (
 interface ObjectViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
   readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;

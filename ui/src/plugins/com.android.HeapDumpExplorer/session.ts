@@ -29,7 +29,6 @@ import {
   stateToSubpage,
   subpageToState,
 } from './nav_state';
-import type {OverviewData} from './types';
 import type {TreeExplorerState} from '../../widgets/tree_explorer';
 import type {HdeState} from './persisted_state';
 import {
@@ -70,11 +69,14 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 // serializes into permalinks and restores before the plugin loads. The session
 // is a thin controller over it: mutations are store edits, views render from
 // the store, restoration is automatic. Non-serializable trace-derived data (the
-// dumps, overview, per-tab counts) is cached here instead.
+// dumps, per-tab counts) is cached here instead.
 export class HeapDumpExplorerSession {
   private _dumps: ReadonlyArray<queries.HeapDump> = [];
-  private _overview: OverviewData | null = null;
   private readonly _counts = new Map<string, number>();
+
+  // Whether the trace has HPROF field values (heap_graph_primitive). Loaded
+  // with the dumps.
+  hasFieldValues = false;
 
   // Set when the plugin auto-redirected to HDE on load; gates the
   // "default view changed" hint on the overview.
@@ -109,6 +111,7 @@ export class HeapDumpExplorerSession {
   // true if a valid permalink was restored, otherwise resets to the first dump.
   async loadDumps(): Promise<boolean> {
     this._dumps = await queries.loadDumpsList(this.engine);
+    this.hasFieldValues = await queries.hasFieldValues(this.engine);
     const ref = this.store.state.activeDump;
     const restored =
       ref !== undefined &&
@@ -144,7 +147,6 @@ export class HeapDumpExplorerSession {
   }
 
   private switchToDump(d: queries.HeapDump): void {
-    this._overview = null;
     this._counts.clear();
     this.store.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
@@ -153,7 +155,6 @@ export class HeapDumpExplorerSession {
       s.flamegraphPanelState = undefined;
       s.callstackPanelState = undefined;
     });
-    void this.loadOverview();
   }
 
   get nav(): NavState {
@@ -397,26 +398,6 @@ export class HeapDumpExplorerSession {
       },
     });
     this.navigate('flamegraph');
-  }
-
-  get cachedOverview(): OverviewData | null {
-    return this._overview;
-  }
-
-  // Pins the dump at fetch start; if the user switches dumps before the result
-  // arrives, the result is dropped instead of briefly showing the wrong dump.
-  async loadOverview(): Promise<void> {
-    if (this._overview !== null) return;
-    const dump = this.activeDump;
-    if (dump === null) return;
-    try {
-      const data = await queries.getOverview(this.engine, dump);
-      if (this.activeDump === dump) {
-        this._overview = data;
-      }
-    } catch (err) {
-      console.error('Failed to load overview:', err);
-    }
   }
 }
 

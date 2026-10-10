@@ -18,6 +18,10 @@ import type {SqlValue, Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {OverviewData} from '../types';
+import type {Engine} from '../../../trace_processor/engine';
+import {AsyncMemo} from '../../../base/async_memo';
+import {Spinner} from '../../../widgets/spinner';
+import * as queries from '../queries';
 import {fmtSize} from '../format';
 import type {NavState} from '../nav_state';
 import {type NavFn, sizeRenderer} from '../components';
@@ -227,24 +231,39 @@ function renderDuplicateSection(
 }
 
 interface OverviewViewAttrs {
-  readonly overview: OverviewData;
+  readonly engine: Engine;
   readonly activeDump: HeapDump;
+  readonly hasFieldValues: boolean;
   readonly navigate: NavFn;
   readonly showDefaultChangedHint: boolean;
   readonly onBackToTimeline: () => void;
   readonly onDismissDefaultChangedHint: () => void;
 }
 export function OverviewView(): m.Component<OverviewViewAttrs> {
+  // Loaded here rather than up front, so it's only computed if the overview is
+  // actually opened.
+  const overviewMemo = new AsyncMemo<OverviewData>();
   return {
+    onremove() {
+      overviewMemo.dispose();
+    },
     view(vnode) {
       const {
-        overview,
+        engine,
         activeDump,
+        hasFieldValues,
         navigate,
         showDefaultChangedHint,
         onBackToTimeline,
         onDismissDefaultChangedHint,
       } = vnode.attrs;
+      const {data: overview} = overviewMemo.use({
+        key: {upid: activeDump.upid, ts: activeDump.ts},
+        compute: () => queries.getOverview(engine, activeDump, hasFieldValues),
+      });
+      if (overview === undefined) {
+        return m('.pf-hde-loading', m(Spinner, {easing: true}));
+      }
       const showHint = showDefaultChangedHint;
       const heapIndices: number[] = [];
       for (let i = 0; i < overview.heaps.length; i++) {
@@ -397,7 +416,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   {id: 'wasted_bytes', field: 'wasted_bytes'},
                 ],
               )
-            : overview.hasFieldValues
+            : hasFieldValues
               ? m(
                   '.pf-hde-card.pf-hde-mt-4.pf-hde-mb-4',
                   m(
@@ -432,7 +451,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   {id: 'wasted_bytes', field: 'wasted_bytes'},
                 ],
               )
-            : overview.hasFieldValues
+            : hasFieldValues
               ? m(
                   '.pf-hde-card.pf-hde-mb-4',
                   m(
