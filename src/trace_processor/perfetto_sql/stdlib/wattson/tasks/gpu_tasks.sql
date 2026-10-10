@@ -25,18 +25,13 @@ WHERE
   s.dur > 0;
 
 -- Calculate the number of active GPU tasks at any point in time.
+--
+-- The weight 0 background row, spanning from the first task start to the last
+-- task end, makes INTERVAL FLATTEN also emit the gaps with zero active tasks.
 CREATE PERFETTO TABLE _gpu_active_task_count AS
-WITH
-  events AS (
-    SELECT ts, 1 AS delta FROM _gpu_tasks
-    UNION ALL
-    SELECT ts + dur AS ts, -1 AS delta FROM _gpu_tasks
-  ),
-  running_tasks AS (
-    SELECT ts, sum(delta) OVER (ORDER BY ts) AS active_tasks FROM events
-  ),
-  running_tasks_with_dur AS (
-    SELECT ts, lead(ts) OVER (ORDER BY ts) - ts AS dur, active_tasks
-    FROM running_tasks
-  )
-SELECT ts, dur, active_tasks FROM running_tasks_with_dur WHERE dur > 0;
+FROM (
+  SELECT ts, dur, 1 AS n FROM _gpu_tasks
+  UNION ALL
+  SELECT min(ts) AS ts, max(ts + dur) - min(ts) AS dur, 0 AS n FROM _gpu_tasks
+)
+|> INTERVAL FLATTEN AGGREGATE SUM(n) AS active_tasks;
