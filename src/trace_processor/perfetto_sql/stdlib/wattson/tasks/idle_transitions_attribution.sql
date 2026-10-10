@@ -13,15 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.estimates;
 
 INCLUDE PERFETTO MODULE wattson.tasks.attribution;
 
 INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
-
-INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Synthesized swapper gaps (which can span multiple idle exits) clipped to
 -- each deep idle exit they overlap.
@@ -140,18 +136,19 @@ AS
 -- definition has a utid = 0, upid = 0, and by definition will not be defined,
 -- so need to UNION to manually add swapper thread
 WITH
+  -- Clip each cost slice to [$ts, $ts + $dur), with the same half-open and
+  -- zero-duration point semantics as interval intersection.
   base AS (
     SELECT
-      cost.estimated_mw * ii.dur / 1e9 AS idle_cost_mws,
-      cost.utid,
-      cost.upid,
-      cost.uid,
-      cost.cpu
-    FROM _interval_intersect_single!(
-    $ts, $dur, _ii_subquery!(_idle_transition_cost)
-  ) AS ii
-    JOIN _idle_transition_cost AS cost
-      ON cost._auto_id = id
+      estimated_mw * (min(ts + dur, $ts + $dur) - max(ts, $ts)) / 1e9 AS idle_cost_mws,
+      utid,
+      upid,
+      uid,
+      cpu
+    FROM _idle_transition_cost
+    WHERE
+      (ts < $ts + $dur OR (ts = $ts AND $dur = 0))
+      AND (ts + dur > $ts OR (ts = $ts AND dur = 0))
   )
 SELECT idle_cost_mws, utid, upid, uid, cpu FROM base
 UNION ALL
