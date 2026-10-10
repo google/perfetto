@@ -55,6 +55,9 @@ struct SourceRelation {
 // nested class's member initializers as parsed once the enclosing class is.
 struct ScanDataframe {
   std::string name;
+  // By scan column, the dataframe column it reads: its own name unless the
+  // view it is read through renames it.
+  std::vector<std::string> column_names;
   // Resolved at compile time; only the selected columns are retained.
   std::vector<std::shared_ptr<const dataframe::Column>> columns;
   uint32_t row_count = 0;
@@ -92,6 +95,11 @@ class Scan : public PlanOperation {
   // sources become dataframe arguments when the plan is written into SQL, and
   // those are bound to dataframes when it is loaded.
   using Source = std::variant<Dataframe, SqlSource, DataframeArg>;
+  // A column a dataframe scan reads, and the name it is read as.
+  struct DataframeColumn {
+    std::string name;
+    uint32_t index;
+  };
 
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
@@ -126,7 +134,8 @@ class Scan : public PlanOperation {
                                        uint32_t at);
   static Scan BuildDataframeScan(Compiler*,
                                  const dataframe::Dataframe& dataframe,
-                                 std::string name);
+                                 std::string name,
+                                 const std::vector<DataframeColumn>& columns);
   static base::StatusOr<Scan> BuildSqlScan(Compiler*, uint32_t from);
   static void AddScanColumn(Compiler*, Scan* scan, ColumnSchema column);
 
