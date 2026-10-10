@@ -104,6 +104,9 @@ Reader-side:
 * `ReadNextTracePacket()`: called once for each packet until either there are
   no more packets in the buffer or TracingServiceImpl decided it has read
   enough data for the current task (to avoid saturating the IPC channel).
+* `MaybeCompact()`: optionally compacts buffers after all read batches finish
+  and their packets are released. Call `BeginRead()` before reading again.
+  See [Compaction](#compaction).
 
 ## Key challenges
 
@@ -710,6 +713,66 @@ In order to deal with this we introduce a two layer walk in the readback code:
 In the code, the outer layer walk is implemented by
 `TraceBufferV2::ReadNextTracePacket()` while the inner walk is implemented by
 the `class ChunkSeqReader::ReadNextPacketInSeqOrder()`.
+
+### Compaction
+
+Reads turn consumed chunks into padding without releasing their pages, so
+compaction moves live chunks together to reclaim unused space.
+The session-wide `TraceConfig.experimental_trace_buffer_v2_compaction` flag
+enables this behavior and defaults to false.
+Compaction applies only to writable TraceBufferV2 `RING_BUFFER` buffers because
+`DISCARD` buffers must keep their write cursor to stop writes at the end.
+The temporary flag will be removed once compaction becomes the default.
+
+Packet slices point into the buffer, so the service compacts only after all
+read batches finish and callers stop using those slices.
+For consumer reads, it posts a task that runs after `OnTraceData()` returns,
+while file output compacts after the packets are written.
+`MaybeCompact()` also resets the cached `ChunkSeqReader` because chunk offsets
+can change, so callers must use `BeginRead()` before the next read.
+
+Reads can leave incomplete chunks or chunks that wait for a patch, and new
+chunks can arrive before compaction runs.
+`MaybeCompact()` collects pointers to their offsets in `SequenceState::chunks`
+without scanning padding, then sorts those pointers by offset.
+The sort costs O(N log N) for N live chunks.
+
+After a wrap, chunks at or after `wr_` are older than those before it.
+If live chunks are on both sides of `wr_`, it therefore skips compaction
+because address order differs from ring order.
+Otherwise, it moves chunks to the front in address order and updates each
+offset in its original queue entry, preserving sequence order.
+It also recomputes each moved chunk's checksum because the checksum includes
+the offset.
+
+Compaction then sets `wr_` and `used_size_` to the total size of the remaining
+chunks so the next writes append there.
+As a result, incomplete chunks can remain until later writes overwrite them.
+
+Bytes beyond the old `used_size_` are already zero, so compaction clears only
+`[new used_size_, old used_size_)` with `memset`.
+This keeps the entire unused tail zero-filled.
+If no live chunk remains, the zeroed header at offset 0 is an empty padding
+chunk, so the reader needs no special case.
+
+To reduce page faults, compaction uses the previous written extent to estimate
+how much capacity later writes will need.
+It retains the old `used_size_` plus `old_used_size / kSpareCapacityDivisor`,
+capped at `size_`, preserving resident spare pages without touching nonresident
+pages.
+Smaller write cycles lower the retention boundary, and another compaction
+with no live chunks or new writes can release all whole pages.
+
+To release those pages, `PagedMemory::AdviseDontNeedAfter()` rounds the boundary
+up and the allocation's end down to system-page boundaries, preserving partial
+pages.
+It then passes the whole-page range to `AdviseDontNeed()`, whose behavior
+depends on the platform and can be a no-op.
+
+The `compactions` counter includes completed compactions even when no chunks
+move, while `compactions_skipped` counts skips due to live chunks on both sides
+of `wr_`.
+Neither counter includes calls on `DISCARD` or read-only buffers.
 
 ## Benchmarks
 

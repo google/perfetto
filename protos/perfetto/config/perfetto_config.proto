@@ -5218,7 +5218,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 50.
+// Next id: 51.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -5284,6 +5284,10 @@ message TraceConfig {
     optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
+
+  // Enables compaction after reads for this session's TraceBufferV2.
+  // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
+  optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
     // Filters and data-source specific config. It contains also the unique name

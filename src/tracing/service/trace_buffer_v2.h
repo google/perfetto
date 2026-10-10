@@ -599,6 +599,17 @@ class TraceBufferV2 : public TraceBuffer {
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) override;
 
+  // Compacts writable kOverwrite buffers by moving live chunks to the front
+  // in ring order.
+  // It clears the unused tail and retains pages for the old |used_size_| plus
+  // 1/|kSpareCapacityDivisor| of it, capped at the buffer size.
+  // It advises the OS to release the whole pages after that range.
+  // If live chunks are on both sides of the write cursor, it skips compaction.
+  //
+  // Compaction can invalidate packet slices from earlier reads, so the caller
+  // must not use those packets after MaybeCompact().
+  void MaybeCompact() override;
+
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset.
   //
@@ -615,7 +626,7 @@ class TraceBufferV2 : public TraceBuffer {
   }
   const TraceStats::BufferStats& stats() const override { return stats_; }
   const WriterStats& writer_stats() const override { return writer_stats_; }
-  bool has_data() const override { return used_size_ > 0; }
+  bool has_data() const override { return has_data_; }
   void set_read_only() override { read_only_ = true; }
   BufType buf_type() const override { return kV2; }
 
@@ -663,7 +674,7 @@ class TraceBufferV2 : public TraceBuffer {
     PERFETTO_DCHECK(off <= size_ - sizeof(TBChunk));
   }
 
-  // This should only be used when followed by a placement new.
+  // Used for placement new and to update the checksum after moving a chunk.
   TBChunk* GetTBChunkAtUnchecked(size_t off) {
     DcheckIsAlignedAndWithinBounds(off);
     return reinterpret_cast<TBChunk*>(begin() + off);
@@ -703,10 +714,16 @@ class TraceBufferV2 : public TraceBuffer {
   base::PagedMemory data_;
   size_t size_ = 0;  // Size in bytes of |data_|.
 
-  // High watermark. The number of bytes (<= |size_|) written into the buffer
-  // before the first wraparound. This increases as data is written into the
-  // buffer and then saturates at |size_|.
+  // High watermark of the written bytes (<= |size_|).
+  // Writes increase it until the write cursor wraps around, and MaybeCompact()
+  // sets it to the total size of the remaining chunks.
+  // Reads and overwrites stop here, and [used_size_, size_) is zero-filled.
   size_t used_size_ = 0;
+
+  // Set when the first chunk is written, and never cleared.
+  // Unlike |used_size_|, this stays set when compaction empties the buffer.
+  // As in TraceBufferV1, clear_before_clone uses it to skip unused buffers.
+  bool has_data_ = false;
 
   size_t wr_ = 0;  // Write cursor (offset since start()).
   size_t rd_ = 0;  // Read cursor. Reset to wr_ on every BeginRead().

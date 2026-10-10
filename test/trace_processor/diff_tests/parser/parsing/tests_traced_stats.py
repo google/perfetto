@@ -327,3 +327,31 @@ class ParsingTracedStats(TestSuite):
         "stat_rows"
         0
         """))
+
+  # Check that the TraceBufferV2 compaction counters of each buffer map to
+  # `traced_buf_compactions` and `traced_buf_compactions_skipped`.
+  def test_buffer_compaction_stats(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+          trace_stats {
+            buffer_stats { compactions: 3 compactions_skipped: 1 }
+            buffer_stats { compactions: 5 }
+          }
+        }
+        """),
+        query="""
+          SELECT name, idx, value
+          FROM stats
+          WHERE name GLOB 'traced_buf_compactions*'
+          ORDER BY name, idx;
+        """,
+        out=Csv("""
+        "name","idx","value"
+        "traced_buf_compactions",0,3
+        "traced_buf_compactions",1,5
+        "traced_buf_compactions_skipped",0,1
+        "traced_buf_compactions_skipped",1,0
+        """))

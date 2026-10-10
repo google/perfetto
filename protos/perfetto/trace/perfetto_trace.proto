@@ -5218,7 +5218,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 50.
+// Next id: 51.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -5284,6 +5284,10 @@ message TraceConfig {
     optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
+
+  // Enables compaction after reads for this session's TraceBufferV2.
+  // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
+  optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
     // Filters and data-source specific config. It contains also the unique name
@@ -6287,7 +6291,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 23.
+  // Next id: 25.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6360,6 +6364,27 @@ message TraceStats {
 
     // Num. times the ring buffer wrapped around.
     optional uint64 write_wrap_count = 4;
+
+    // Number of completed TraceBufferV2 compactions.
+    // Includes compactions that move no chunks and excludes calls that skip
+    // compaction, such as calls on DISCARD or read-only buffers.
+    //
+    // Compaction moves remaining chunks to the front and clears the unused
+    // tail.
+    // It keeps the pages that a similar write cycle can reuse, and releases
+    // the other whole pages where supported.
+    // The next writes start after the remaining chunks, which can reduce how
+    // often |write_wrap_count| and |chunks_overwritten| increase.
+    // Incomplete chunks can remain until later writes overwrite them.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions = 23;
+
+    // Number of TraceBufferV2 compactions skipped because live chunks were
+    // on both sides of the write cursor.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions_skipped = 24;
 
     // Num. out-of-band (OOB) patches that succeeded.
     optional uint64 patches_succeeded = 5;

@@ -724,6 +724,8 @@ bool TraceBufferV1::ReadNextTracePacket(
   }  // for(;;MoveNext()) [iterate over chunks].
 }
 
+void TraceBufferV1::MaybeCompact() {}
+
 TraceBufferV1::ReadAheadResult TraceBufferV1::ReadAhead(TracePacket* packet) {
   static_assert(static_cast<ChunkID>(kMaxChunkID + 1) == 0,
                 "relying on kMaxChunkID to wrap naturally");

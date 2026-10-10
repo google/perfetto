@@ -248,6 +248,9 @@ class TraceBufferV1 : public TraceBuffer {
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) override;
 
+  // No-op. TraceBufferV1 does not compact its buffer.
+  void MaybeCompact() override;
+
   // Creates a read-only clone of the trace buffer. Calls to
   // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned
   // TraceBuffer will CHECK().

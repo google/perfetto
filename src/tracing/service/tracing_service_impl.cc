@@ -2564,6 +2564,16 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
             return;
           ReadBuffersIntoConsumer(tsid, weak_consumer.get());
         });
+  } else if (tracing_session->config
+                 .experimental_trace_buffer_v2_compaction()) {
+    // Use PostTask instead of compacting inline after OnTraceData(), as the
+    // consumer's OnTraceData() can call FreeBuffers() or destroy the service.
+    // So by using weak_runner_, we skip the task if the service is destroyed.
+    weak_runner_.PostTask([this, tsid] {
+      TracingSession* tracing_session = GetTracingSession(tsid);
+      if (tracing_session)
+        MaybeCompactBuffers(tracing_session);
+    });
   }
 
   // Keep this as tail call, just in case the consumer re-enters.
@@ -2621,6 +2631,10 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
           if (tracing_session->state == TracingSession::STARTED)
             DisableTracing(tsid);
           return;
+        }
+
+        if (tracing_session->config.experimental_trace_buffer_v2_compaction()) {
+          MaybeCompactBuffers(tracing_session);
         }
 
         if (tracing_session->fflush_post_write) {
@@ -3082,6 +3096,15 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
   PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
                 (total_wr_size + 1023) / 1024, stop_writing_into_file);
   return stop_writing_into_file;
+}
+
+void TracingServiceImpl::MaybeCompactBuffers(TracingSession* tracing_session) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (BufferID buf_id : tracing_session->buffers_index) {
+    auto tbuf_iter = buffers_.find(buf_id);
+    if (tbuf_iter != buffers_.end())
+      tbuf_iter->second->MaybeCompact();
+  }
 }
 
 void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,

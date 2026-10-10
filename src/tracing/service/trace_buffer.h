@@ -112,6 +112,12 @@ class TraceBuffer {
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) = 0;
 
+  // Attempts to reclaim unused buffer space.
+  // The caller must release all packets from previous reads before this call,
+  // because their slices can point into the buffer.
+  // Call BeginRead() before reading again.
+  virtual void MaybeCompact() = 0;
+
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset, as if no Read() had been called.
   virtual std::unique_ptr<TraceBuffer> CloneReadOnly() const = 0;
