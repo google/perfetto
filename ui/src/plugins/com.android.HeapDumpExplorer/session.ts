@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
 import type {Setting} from '../../public/settings';
@@ -142,7 +141,6 @@ export class HeapDumpExplorerSession {
     if (view === 'object' || view === 'flamegraph-objects') {
       this.navigate(this.defaultView);
     }
-    m.redraw();
   }
 
   private switchToDump(d: queries.HeapDump): void {
@@ -176,7 +174,6 @@ export class HeapDumpExplorerSession {
       s.nav = sub;
     });
     this.trace.navigate(makeHref(sub));
-    m.redraw();
   }
 
   navigateWithTabs(view: NavView, params?: Record<string, unknown>): void {
@@ -317,7 +314,6 @@ export class HeapDumpExplorerSession {
       .query(`${SQL_PREAMBLE}; SELECT COUNT(*) AS c FROM (${q})`)
       .then((r) => {
         this._counts.set(key, r.firstRow({c: NUM}).c);
-        m.redraw();
       })
       .catch(console.error);
   }
@@ -420,8 +416,6 @@ export class HeapDumpExplorerSession {
       }
     } catch (err) {
       console.error('Failed to load overview:', err);
-    } finally {
-      m.redraw();
     }
   }
 }
