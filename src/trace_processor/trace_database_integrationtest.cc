@@ -1107,12 +1107,11 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageExecuteQuery) {
   ASSERT_FALSE(it.Next());
   ASSERT_FALSE(it.Status().ok());
 
-  ASSERT_THAT(it.Status().message(),
-              testing::Eq(R"(Traceback (most recent call last):
-  File "stdin" line 1 col 8
-    select t from slice
-           ^
-no such column: t)"));
+  ASSERT_THAT(it.Status().message(), testing::Eq(R"( --> query:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)"));
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
@@ -1125,14 +1124,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    select RUN_METRIC('foo/bar.sql')
-    ^
-  Metric file "foo/bar.sql" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | select RUN_METRIC('foo/bar.sql')
+  | ^
+ --> metric foo/bar.sql:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
@@ -1148,14 +1148,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    include perfetto module foo.bar
-    ^
-  Module include "foo.bar" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | include perfetto module foo.bar
+  | ^
+ --> module foo.bar:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, FunctionRegistrationError) {

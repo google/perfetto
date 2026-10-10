@@ -68,10 +68,6 @@ Compiler::Compiler(SyntaqliteParser* p,
                    const Catalog& c)
     : p_(p), source_(source), catalog_(c) {}
 
-std::string Compiler::Traceback(uint32_t node) const {
-  return source_(node).AsTraceback(0);
-}
-
 base::Status Compiler::Unsupported(uint32_t at, std::string_view what) const {
   return Err(at, Error::kUnsupported, what);
 }
@@ -172,9 +168,10 @@ base::Status Compiler::Err(uint32_t at,
       {"no such table alias: '", "'"},
   };
   const Shape& shape = kShapes[static_cast<size_t>(error)];
-  return base::ErrStatus(
-      "%s%s: %s%.*s%s%s", Traceback(at).c_str(), scope_.operation, shape.prefix,
-      static_cast<int>(what.size()), what.data(), shape.suffix, detail.c_str());
+  return source_(at).AddTraceback(
+      0, base::ErrStatus("%s: %s%.*s%s%s", scope_.operation, shape.prefix,
+                         static_cast<int>(what.size()), what.data(),
+                         shape.suffix, detail.c_str()));
 }
 
 std::string Compiler::Origin(const RowColumn& column) const {

@@ -239,7 +239,6 @@ class Compiler {
 
   // How a user could write a reference to `column`, to tell candidates apart.
   std::string Origin(const RowColumn& column) const;
-  std::string Traceback(uint32_t node) const;
 
   // ---------------------------------------------------------------------------
   // Shared compiler state

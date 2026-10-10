@@ -754,7 +754,7 @@ TEST_F(PerfettoSqlParserTest, PipelineErrorsCarryATraceback) {
 
   plan = ParsePipeline("FROM slice\n|> TREE ACCUMULATE UP SUM(nope) AS t");
   ASSERT_FALSE(plan.ok());
-  EXPECT_THAT(plan.status().message(), HasSubstr("    nope\n"));
+  EXPECT_THAT(plan.status().message(), HasSubstr("| nope\n"));
   EXPECT_THAT(plan.status().message(), HasSubstr("^"));
 }
 
