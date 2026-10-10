@@ -229,6 +229,14 @@ message PerfEventConfig {
     // it to the same value. The profiler will choose one bin for all those data
     // sources.
     optional uint32 process_shard_count = 6;
+
+    // If set, a process is also in scope if one of its ancestors is in
+    // |target_pid|: the workers a server forks, the compilers a build runs.
+    // Ancestry is read from the parent pid chain when the process is first
+    // sampled, so a process whose parent exited before then has been
+    // reparented and is not covered. The names of the descendants do not
+    // matter, unlike |target_cmdline|.
+    optional bool target_pid_descendants = 7;
   }
 
   // Userspace unwinding mode.

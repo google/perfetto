@@ -19,9 +19,11 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <unwindstack/Error.h>
@@ -254,6 +256,31 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
   }
 }
 
+// How far up the parent chain a process is looked for in the target's
+// descendants. Deeper than any real process tree; stops a loop on a pid
+// reused mid-walk.
+constexpr int kMaxAncestorDepth = 64;
+
+// The parent pid of |pid|, from /proc/<pid>/stat, whose fourth field it is.
+// The second field is the command name in parentheses, which can itself
+// hold spaces and parentheses, so the fields after it are found from the
+// last ')'.
+std::optional<pid_t> ReadParentPid(pid_t pid) {
+  std::string stat;
+  if (!base::ReadFile("/proc/" + std::to_string(pid) + "/stat", &stat))
+    return std::nullopt;
+  size_t end = stat.rfind(')');
+  if (end == std::string::npos || end + 4 > stat.size())
+    return std::nullopt;
+  // ") S 1234 ..."
+  const char* fields = stat.c_str() + end + 4;
+  char* parsed_end = nullptr;
+  long ppid = strtol(fields, &parsed_end, 10);
+  if (parsed_end == fields)
+    return std::nullopt;
+  return static_cast<pid_t>(ppid);
+}
+
 uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
   // Normally, we'd schedule the next tick at the next |period_ms|
   // boundary of the boot clock. However, to avoid aligning the read tasks of
@@ -372,7 +399,8 @@ bool PerfProducer::ShouldRejectDueToFilter(
     const TargetFilter& filter,
     bool skip_cmdline,
     base::FlatSet<std::string>* additional_cmdlines,
-    std::function<bool(std::string*)> read_proc_pid_cmdline) {
+    std::function<bool(std::string*)> read_proc_pid_cmdline,
+    std::function<std::optional<pid_t>(pid_t)> read_ppid) {
   PERFETTO_CHECK(additional_cmdlines);
 
   std::string cmdline;
@@ -413,6 +441,17 @@ bool PerfProducer::ShouldRejectDueToFilter(
   }
   if (filter.pids.count(pid)) {
     return false;
+  }
+  if (filter.pid_descendants && !filter.pids.empty()) {
+    pid_t p = pid;
+    for (int depth = 0; depth < kMaxAncestorDepth; depth++) {
+      std::optional<pid_t> ppid = read_ppid(p);
+      if (!ppid.has_value() || *ppid <= 1)
+        break;
+      if (filter.pids.count(*ppid))
+        return false;
+      p = *ppid;
+    }
   }
 
   // Empty allow filter means keep everything that isn't explicitly excluded.
@@ -925,7 +964,8 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
               pid, event_config.filter(), is_kthread, &ds.additional_cmdlines,
               [pid](std::string* cmdline) {
                 return glob_aware::ReadProcCmdlineForPID(pid, cmdline);
-              })) {
+              },
+              ReadParentPid)) {
         process_state = ProcessTrackingStatus::kRejected;
         EmitSkippedSample(ds_id, std::move(sample.value()),
                           SampleSkipReason::kRejected);
