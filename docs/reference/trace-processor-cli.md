@@ -138,7 +138,9 @@ Flags:
   finish.
 - `-W, --wide`: use double-width columns when printing results.
 - `--perf-file FILE`: write trace-load and query timings to `FILE`.
-- `--format FMT`: print results as `csv` (default) or `markdown`.
+- `--format FMT`: print results as `csv` (default) or `markdown`. Turns off
+  automatic [agent mode](#agent-mode).
+- `--agent`, `--no-agent`: force [agent mode](#agent-mode) on or off.
 - `--max-rows N`, `--max-bytes N`, `--max-cell-width N`: limits on the rows,
   bytes and characters per cell printed for each result set; `0` means no
   limit. Their defaults and effect depend on the format, see below.
@@ -181,6 +183,50 @@ rest of it is not read. Pass `--max-rows 0 --max-bytes 0` to print every row.
 A footer gives the row count for results which were capped, are empty or have
 10 or more rows. For example: `(first 20 and last 20 of 5000 rows. ...)`. When
 reading stopped early, the count is a lower bound.
+
+#### {#agent-mode} Agent mode
+
+Agent mode tunes `query` output for coding agents, which read output through
+a pipe, can't scroll or ask for omitted data and pay for every token.
+
+It turns on automatically when all of these hold:
+
+- A coding-agent environment variable is set (see below).
+- stdout is not a terminal.
+- No `--format` was given: an explicit format is a deliberate choice, e.g. by
+  a script parsing the output.
+
+A one-line notice on stderr says when it turned on. `--agent` and
+`--no-agent` force it on or off.
+
+The environment variables checked are the same as DuckDB's:
+
+| Variable | Set by |
+| --- | --- |
+| `AI_AGENT`, `AGENT` | Generic markers, e.g. Claude Code, Goose, Amp |
+| `CLAUDECODE` | Claude Code |
+| `CODEX_CI`, `CODEX_SANDBOX`, `CODEX_THREAD_ID` | Codex |
+| `CURSOR_AGENT` | Cursor |
+| `GEMINI_CLI` | Gemini CLI |
+| `COPILOT_AGENT`, `COPILOT_CLI`, `COPILOT_AGENT_SESSION_ID` | GitHub Copilot |
+
+In agent mode:
+
+- Results default to markdown, capped at 1000 rows and 10000 bytes, with
+  cells cut at 500 characters. Explicit `--format` and `--max-*` flags take
+  precedence.
+- Once a result is 100,000 rows past the cap, the rest of it is not read and
+  the footer gives the row count as a lower bound.
+- Errors are printed to stderr as a single line of JSON. Only `error` is
+  always present; see the example below.
+
+```json
+{"error":"no such column: foo","statement":2,"location":"query:1:8","traceback":"...","hint":"..."}
+```
+
+When a query fails with stdout redirected and agent mode was neither detected
+nor declined, a one-line hint on stderr points at `--agent`. This lets agents
+which don't set any of the variables above find it.
 
 ### {#subcommand-interactive} `interactive`: REPL
 

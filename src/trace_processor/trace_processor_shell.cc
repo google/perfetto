@@ -225,10 +225,22 @@ void PrintAgentGuide(const char* argv0) {
 
    Tables and modules created in one call stay available for the next.
    Several ';'-separated statements per call are fine; each result set is
-   printed as CSV. One-shot form (re-parses the trace every time, only for a
+   printed in turn. One-shot form (re-parses the trace every time, only for a
    single quick question): %s query TRACE_FILE "SELECT ..."
 
-2. Discover instead of guessing.
+2. Reading output. Run by a coding agent (e.g. CLAUDECODE set, stdout not a
+   terminal), `query` is in agent mode:
+   - Results are compact markdown tables.
+   - Results over 1000 rows or 10KB show their first and last 20 rows and a
+     footer like `(first 20 and last 20 of 5000 rows. ...)`. Aggregate or
+     LIMIT rather than raising the caps (--max-rows/--max-bytes, 0 = no
+     limit).
+   - Cells are cut at 500 characters (--max-cell-width).
+   - Errors are one JSON line on stderr with the error, the failing
+     statement, its location (query:LINE:COL) and often a hint.
+   --agent / --no-agent force it on or off; --format csv gives plain CSV.
+
+3. Discover instead of guessing.
 
      SELECT * FROM slice LIMIT 0;                     -- exact columns of any
                                                       -- table, view or query
@@ -246,7 +258,7 @@ void PrintAgentGuide(const char* argv0) {
    ready-made tables for most common questions; prefer it over hand-written
    joins on raw tables.
 
-3. Core tables: slice (anything with a duration), thread, process,
+4. Core tables: slice (anything with a duration), thread, process,
    thread_state (Running/Runnable/Sleeping), sched (on-CPU time), counter,
    track, args. Frequently useful modules:
      slices.with_context      thread_slice / process_slice / thread_or_process_slice
@@ -258,7 +270,7 @@ void PrintAgentGuide(const char* argv0) {
      linux.cpu.frequency      cpu frequency residency
      stacks.cpu_profiling     CPU sampling call stacks
 
-4. PerfettoSQL rules of thumb.
+5. PerfettoSQL rules of thumb.
    - Join on utid/upid (unique per trace), never tid/pid (recycled by the OS);
      report thread/process names to the user, not ids.
    - dur = -1 means the slice was still open at trace end; dur = 0 is an
@@ -266,7 +278,7 @@ void PrintAgentGuide(const char* argv0) {
    - Use GLOB or regexp(pattern, str, 'i') for matching, not LIKE.
    - Aggregate (COUNT/GROUP BY/LIMIT) rather than dumping raw rows.
 
-5. More: https://perfetto.dev/docs/analysis/trace-processor (reference),
+6. More: https://perfetto.dev/docs/analysis/trace-processor (reference),
    https://perfetto.dev/docs/getting-started/using-ai (agent skill with
    guided Android memory and GPU workflows, plus an installable bundle).
 )",
@@ -1213,6 +1225,9 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       args.emplace_back("-i");
     if (options.wide)
       args.emplace_back("-W");
+    // Agent mode is a feature of the query subcommand: the classic interface
+    // keeps printing exactly what it always has.
+    args.emplace_back("--no-agent");
     if (!options.perf_file_path.empty()) {
       args.emplace_back("--perf-file");
       args.emplace_back(options.perf_file_path);
@@ -1244,7 +1259,10 @@ int PERFETTO_EXPORT_ENTRYPOINT TraceProcessorShellMain(int argc, char** argv) {
   auto shell = TraceProcessorShell::CreateWithDefaultPlatform();
   auto status = shell->Run(argc, argv);
   if (!status.ok()) {
-    fprintf(stderr, "%s\n", status.c_message());
+    // Some errors are printed where they happen (e.g. as JSON for agents).
+    if (!status.GetPayload("perfetto.dev/has_printed_error")) {
+      fprintf(stderr, "%s\n", status.c_message());
+    }
     return 1;
   }
   return 0;
