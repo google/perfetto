@@ -32,7 +32,7 @@
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
 
 namespace perfetto {
-class TraceBufferV2;
+class TraceBuffer;
 namespace tracing_v2 {
 
 namespace test {
@@ -40,9 +40,9 @@ class ServiceRingBufferDrainerTestPeer;
 }  // namespace test
 
 // Copies published data from one producer connection's v2 ring buffer into
-// authorized TraceBufferV2 destinations. ProducerRingBufferArbiter manages the
-// producer side. See AttachV2RingBuffer in producer_port.proto for the IPC
-// flow.
+// authorized trace buffers that support SMB v2. ProducerRingBufferArbiter
+// manages the producer side. See AttachV2RingBuffer in producer_port.proto for
+// the IPC flow.
 //
 // All operations, including construction and destruction, run on the service
 // sequence.
@@ -64,16 +64,16 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
    public:
     virtual ~Delegate();
 
-    // Returns a TraceBufferV2 that the producer may write to, or nullptr.
-    // The service owns the buffer, which must remain valid during
-    // OnChunkRead().
-    virtual TraceBufferV2* GetRingBufferDestination(BufferID) = 0;
+    // Returns a trace buffer that the producer may write to and that supports
+    // SMB v2, or nullptr. The service owns the buffer, which must remain valid
+    // during OnChunkRead().
+    virtual TraceBuffer* GetV2RingBufferDestination(BufferID) = 0;
 
-    // Calls |callback| inline for each buffer that GetRingBufferDestination()
+    // Calls |callback| inline for each buffer that GetV2RingBufferDestination()
     // would return. Buffer references are valid only during the callback.
     // The callback must not change the set of destinations or destroy a buffer.
-    virtual void ForEachRingBufferDestination(
-        const std::function<void(TraceBufferV2&)>& callback) = 0;
+    virtual void ForEachV2RingBufferDestination(
+        const std::function<void(TraceBuffer&)>& callback) = 0;
 
     // Adds |count| to the service's chunks_discarded statistic for chunks that
     // never reached a trace buffer. Excludes loss reported by the producer.
