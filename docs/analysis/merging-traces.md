@@ -111,7 +111,9 @@ trace_processor merged.tar
 ```
 
 Files given the same machine name share one machine; distinct names create
-distinct `machine` table rows.
+distinct `machine` table rows. Distinct machine names also keep separate boots
+or devices from sharing machine tracks; see
+[Limitations](/docs/concepts/merging-traces.md#limitations).
 
 ### Placing a clockless trace against a system trace
 
@@ -208,6 +210,23 @@ The stats to watch for merges: `clock_sync_unrelatable_clock_domains` and
 to the timeline (record clock snapshots or add a manifest `clocks` entry);
 `trace_sorter_negative_timestamp_dropped` counts events an `offset_ns`
 moved before the start of the timeline.
+
+When merging traces from the same machine, Trace Processor records deduplication
+and slice-cutting stats and import logs:
+
+- `machine_track_events_hidden` (`notice` severity, indexed by `track_id`):
+  counts counter and GPU work-period events dropped because another trace owned
+  the track. The `_trace_import_logs` view records `track_id` and
+  `owner_trace_id` on the first hidden write per trace and track.
+- `machine_sched_events_hidden` (`notice` severity): counts scheduling events
+  dropped because another trace owned scheduling on the machine.
+  `_trace_import_logs` records `owner_trace_id` on the first hidden scheduling
+  event per trace.
+- `machine_sched_open_rows_cut` (`info` severity): counts open rows cut at
+  ftrace end when 2+ traces record switches. Cut slices keep a null `end_state`;
+  stdlib queries that skip `dur = -1` count cut rows as complete;
+  `dur != -1 AND end_state IS NULL` finds cut slices (plus slices whose switch
+  had an invalid `prev_state`, counted in `task_state_invalid`).
 
 Per-file metadata is available via the `metadata` table's `trace_id` column
 or, at a higher level, the `_metadata_by_trace` view in the

@@ -126,6 +126,37 @@ NOTE: `machine.id` (the table row id) is not stable across Perfetto
 versions. Use `machine.raw_id` or `machine.name` to identify machines in
 queries.
 
+## Merging traces from the same machine
+
+When several files in a merge map to the same machine (for example, files
+without a manifest machine, or files assigned the same machine name), they
+share the machine's hardware tracks and scheduling timeline rather than
+creating duplicate tracks or showing conflicting running states on a CPU.
+
+- **Ownership and handovers:** The first trace to write a machine-wide track
+  owns it until that trace ends, then the next trace takes over; hidden events
+  from other traces are
+  [dropped and counted](/docs/analysis/merging-traces.md#checking).
+- **Machine-wide counters and GPU work periods:** Machine-scoped tracks (CPU,
+  GPU, thermal, sys_stats memory/PSI/IRQ, battery, wakelock, energy, entity
+  state residency and DMA heap counters, CPU-per-UID totals and GPU work
+  periods) are claimed until the owner trace ends. Disk stats, network, power
+  rails, Linux RPM, IRQ and softirq slices, statsd, and process data stay per
+  trace; `android_cpu_per_uid_totals` continues as one series by adding the new
+  owner's increase.
+- **Scheduling claims:** Only a context switch claims scheduling, from the
+  trace's first switch until its last ftrace event. Fuchsia, ETW, and
+  generic-kernel scheduling stay per trace.
+- **Wakeups and non-switch events:** When two or more traces have ftrace data,
+  wakeups, blocked reasons, and new-task runnable states apply only from the
+  owner; while unowned, they are dropped and not counted.
+- **Open-row cut:** When two or more traces on a machine record context
+  switches, each trace's open sched slices and thread states end at its last
+  ftrace event.
+- **Process and thread lifecycle:** Forks, new-tasks, and exits apply from every
+  trace; a repeat with the same tid or pid and timestamp reuses the thread or
+  process.
+
 ## Relationship to live multi-machine recording
 
 Merging is one of three ways to get a trace spanning several machines; the
@@ -147,6 +178,25 @@ from different host machines.
 - The UI builds merged inputs as an in-memory TAR, which limits individual
   files to sizes whose length encodes in 12 octal digits (about 8 GB) and
   member names to 99 characters.
+- Files share the default machine unless they carry embedded machine ids or a
+  manifest or merge-dialog machine name; two Android devices that both send
+  `SystemInfo` still merge onto one machine and hide each other's data. Giving
+  each boot or device its own machine name in the manifest or merge dialog
+  allows traces to align by `REALTIME` (when clock snapshots are present)
+  without sharing machine tracks or hiding data.
+- Three UI plugins (`dev.perfetto.EntityStateResidency`,
+  `com.android.GpuWorkPeriod`, and `com.android.CpuPerUid`) have track URIs
+  without a machine prefix on multi-machine traces; duplicate track URIs cause
+  the UI to fail with a `RegistryError` if multiple machines emit the same
+  track data.
+- Counter and GPU work-period claims extend to the owner trace's end even if
+  the owner stopped emitting samples earlier, hiding concurrent samples from
+  other traces.
+- A GPU work period that spans an owner trace's end is lost.
+- A bugreport battery history that starts earlier will claim battery and
+  screen tracks over a concurrent system trace.
+- Cumulative CPU-per-UID totals rely on linear interpolation at handovers,
+  which assumes a steady rate across the handover window and is approximate.
 
 ## Next steps
 

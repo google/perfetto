@@ -34,6 +34,87 @@ def _cpu_freq(ts, state, cpu=0):
           f'state: {state} cpu_id: {cpu} }} }}')
 
 
+def _default_comm(pid):
+  if pid == 0:
+    return 'swapper'
+  if pid in (10, 20, 30, 40):
+    return f't{pid // 10}'
+  return f't{pid}'
+
+
+def _sched_switch(ts,
+                  prev_pid,
+                  next_pid,
+                  prev_state=0,
+                  prev_comm=None,
+                  next_comm=None,
+                  prev_prio=120,
+                  next_prio=120):
+  if prev_comm is None:
+    prev_comm = _default_comm(prev_pid)
+  if next_comm is None:
+    next_comm = _default_comm(next_pid)
+  return (f'event {{ timestamp: {ts} pid: {prev_pid} sched_switch {{ '
+          f'prev_comm: "{prev_comm}" prev_pid: {prev_pid} '
+          f'prev_state: {prev_state} prev_prio: {prev_prio} '
+          f'next_comm: "{next_comm}" next_pid: {next_pid} '
+          f'next_prio: {next_prio} }} }}')
+
+
+def _sched_waking(ts, wakee_pid, pid=0, comm=None, prio=120, target_cpu=0):
+  if comm is None:
+    comm = _default_comm(wakee_pid)
+  return (f'event {{ timestamp: {ts} pid: {pid} sched_waking {{ '
+          f'comm: "{comm}" pid: {wakee_pid} prio: {prio} '
+          f'target_cpu: {target_cpu} }} }}')
+
+
+def _task_newtask(ts, new_pid, pid=1, comm=None, clone_flags=65536):
+  if comm is None:
+    comm = _default_comm(new_pid)
+  return (f'event {{ timestamp: {ts} pid: {pid} task_newtask {{ '
+          f'pid: {new_pid} comm: "{comm}" clone_flags: {clone_flags} }} }}')
+
+
+def _sched_overlap_invariant_sql():
+  return """(
+    (SELECT count(*) FROM (
+       SELECT ts, LAG(ts + dur) OVER (PARTITION BY ucpu ORDER BY ts, dur) AS prev_end,
+              LAG(dur) OVER (PARTITION BY ucpu ORDER BY ts, dur) AS prev_dur
+       FROM sched_slice
+     ) WHERE prev_dur = -1 OR ts < prev_end) +
+    (SELECT count(*) FROM (
+       SELECT ts, LAG(ts + dur) OVER (PARTITION BY utid ORDER BY ts, dur) AS prev_end,
+              LAG(dur) OVER (PARTITION BY utid ORDER BY ts, dur) AS prev_dur
+       FROM thread_state
+     ) WHERE prev_dur = -1 OR ts < prev_end)
+  )"""
+
+
+def _sched_slices_query(include_overlap_check=False):
+  overlap = (f', {_sched_overlap_invariant_sql()} AS overlap'
+             if include_overlap_check else '')
+  return f"""
+    SELECT s.ts, s.dur, s.end_state, t.tid{overlap}
+    FROM sched_slice s JOIN thread t ON s.utid = t.utid
+    ORDER BY s.ts;
+  """
+
+
+def _compact_sched(interns, switches, wakings=(), cpu=0):
+  parts = [f'intern_table: "{s}"' for s in interns]
+  for ts_delta, next_pid, prev_state, comm_idx in switches:
+    parts.append(f'switch_timestamp: {ts_delta} switch_next_pid: {next_pid} '
+                 f'switch_prev_state: {prev_state} switch_next_prio: 120 '
+                 f'switch_next_comm_index: {comm_idx}')
+  for ts_delta, pid, target_cpu, comm_idx in wakings:
+    parts.append(f'waking_timestamp: {ts_delta} waking_pid: {pid} '
+                 f'waking_target_cpu: {target_cpu} waking_prio: 120 '
+                 f'waking_comm_index: {comm_idx}')
+  return (f'packet {{ ftrace_events {{ cpu: {cpu} '
+          f'compact_sched {{ {" ".join(parts)} }} }} }}')
+
+
 def _two_trace_zip(trace1,
                    trace2=None,
                    name1='trace1.pftrace',
@@ -42,6 +123,20 @@ def _two_trace_zip(trace1,
   return ZipTrace({
       name1: TextProto(trace1),
       name2: TextProto(trace1 if trace2 is None else trace2),
+  })
+
+
+def _three_trace_zip(trace1,
+                     trace2,
+                     trace3,
+                     name1='trace1.pftrace',
+                     name2='trace2.pftrace',
+                     name3='trace3.pftrace'):
+  """ZIP with 3 traces."""
+  return ZipTrace({
+      name1: TextProto(trace1),
+      name2: TextProto(trace2),
+      name3: TextProto(trace3),
   })
 
 
@@ -1913,4 +2008,794 @@ class Zip(TestSuite):
         "cpu_frequency",1,0
         "entity_state",1,0
         "gpu_frequency",1,0
+        '''))
+
+  # Sched: identical overlap in two traces. First trace owns scheduling; second
+  # trace's scheduling events are hidden; blocked reasons attach to owner's
+  # blocked state; raw ftrace_event has 2x rows; open rows cut at trace end.
+  def test_machine_sched_identical_overlap(self):
+    payload = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 20, prev_state=2),
+        'event { timestamp: 2001 pid: 10 sched_blocked_reason { pid: 10 io_wait: 1 } }',
+        _sched_waking(2500, 10, pid=20),
+        _sched_switch(3000, 20, 10),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query=f'''
+          SELECT 'slice' AS section, s.ts, s.dur, s.end_state, t.tid,
+                 NULL AS io_wait, NULL AS count_val
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'thread_state', ts.ts, ts.dur, ts.state, t.tid, ts.io_wait, NULL
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid = 10
+          UNION ALL
+          SELECT 'ftrace_event', NULL, NULL, NULL, NULL, NULL, count(*)
+          FROM ftrace_event
+          UNION ALL
+          SELECT 'import_log', l.ts, NULL,
+                 printf('%s writer=%s owner=%s', l.name, tf_writer.name, tf_owner.name),
+                 NULL, NULL, NULL
+          FROM _trace_import_logs l
+          JOIN __intrinsic_trace_file tf_writer ON l.trace_id = tf_writer.id
+          JOIN args a_owner ON l.arg_set_id = a_owner.arg_set_id AND a_owner.key = 'owner_trace_id'
+          JOIN __intrinsic_trace_file tf_owner ON a_owner.int_value = tf_owner.id
+          WHERE l.name = 'machine_sched_events_hidden'
+          UNION ALL
+          SELECT 'overlap', NULL, NULL, NULL, NULL, NULL, {_sched_overlap_invariant_sql()}
+          UNION ALL
+          SELECT 'stat', NULL, NULL, name, NULL, NULL, cast(value AS INT)
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          ORDER BY section, ts, tid, end_state;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid","io_wait","count_val"
+        "ftrace_event","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",10
+        "import_log",1000,"[NULL]","machine_sched_events_hidden writer=trace2.pftrace owner=trace1.pftrace","[NULL]","[NULL]","[NULL]"
+        "overlap","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0
+        "slice",1000,1000,"D",10,"[NULL]","[NULL]"
+        "slice",2000,1000,"R",20,"[NULL]","[NULL]"
+        "slice",3000,0,"[NULL]",10,"[NULL]","[NULL]"
+        "stat","[NULL]","[NULL]","machine_sched_events_hidden","[NULL]","[NULL]",5
+        "stat","[NULL]","[NULL]","machine_sched_open_rows_cut","[NULL]","[NULL]",3
+        "thread_state",1000,1000,"Running",10,"[NULL]","[NULL]"
+        "thread_state",2000,500,"D",10,1,"[NULL]"
+        "thread_state",2500,500,"R",10,"[NULL]","[NULL]"
+        "thread_state",3000,0,"Running",10,"[NULL]","[NULL]"
+        '''))
+
+  # Sched: wakeup before first switch. Sched waking at 900 is dropped while
+  # scheduling is unowned. Trace 2 switches first at 1000 and claims
+  # [1000, 3000].
+  def test_machine_sched_wakeup_before_first_switch(self):
+    payload = _ftrace(
+        _sched_waking(900, 30),
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 30, prev_state=1),
+        _sched_switch(3000, 30, 0),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query=f'''
+          SELECT 'thread_state' AS section, ts.ts, ts.dur, ts.state, t.tid, NULL AS count_val
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid = 30
+          UNION ALL
+          SELECT 'overlap', NULL, NULL, NULL, NULL, {_sched_overlap_invariant_sql()}
+          UNION ALL
+          SELECT 'stat', NULL, NULL, name, NULL, cast(sum(value) AS INT)
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          GROUP BY name
+          ORDER BY section, ts, state;
+        ''',
+        out=Csv('''
+        "section","ts","dur","state","tid","count_val"
+        "overlap","[NULL]","[NULL]","[NULL]","[NULL]",0
+        "stat","[NULL]","[NULL]","machine_sched_events_hidden","[NULL]",3
+        "stat","[NULL]","[NULL]","machine_sched_open_rows_cut","[NULL]",3
+        "thread_state",2000,1000,"Running",30,"[NULL]"
+        "thread_state",3000,0,"R",30,"[NULL]"
+        '''))
+
+  # Sched: task_newtask before first switch. Fork reuse creates 1 thread;
+  # newtask Runnable state at 900 is dropped while scheduling is unowned;
+  # overlap = 0.
+  def test_machine_sched_newtask_before_first_switch(self):
+    payload = _ftrace(
+        _task_newtask(900, 40, pid=10),
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 40, prev_state=1),
+        _sched_switch(3000, 40, 0),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(payload),
+        query=f'''
+          SELECT 'thread' AS section, t.tid, t.start_ts AS ts, NULL AS dur, t.name AS state
+          FROM thread t WHERE t.tid = 40
+          UNION ALL
+          SELECT 'thread_state', t.tid, ts.ts, ts.dur, ts.state
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid = 40
+          UNION ALL
+          SELECT 'overlap', NULL, NULL, {_sched_overlap_invariant_sql()}, NULL
+          ORDER BY section, ts, state;
+        ''',
+        out=Csv('''
+        "section","tid","ts","dur","state"
+        "overlap","[NULL]","[NULL]",0,"[NULL]"
+        "thread",40,900,"[NULL]","t4"
+        "thread_state",40,2000,1000,"Running"
+        "thread_state",40,3000,0,"R"
+        '''))
+
+  # Sched: two sessions start together with identical first events; trace 2
+  # stops at 3000, trace 1 continues to 6000+. Sched waking at 900 is dropped
+  # (unowned); trace 2 wins the tie at 1000 due to sorter queue extraction
+  # order and owns [1000, 3000]; trace 2's open rows are cut at 3000; trace 1
+  # takes over at 5000.
+  def test_machine_sched_sessions_start_together(self):
+    common = (
+        _sched_waking(900, 30),
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 30, prev_state=1),
+        _sched_switch(3000, 30, 0, prev_state=1),
+    )
+    trace_long = _ftrace(
+        *common,
+        _sched_switch(5000, 0, 30),
+        _sched_switch(6000, 30, 0, prev_state=1),
+    )
+    trace_short = _ftrace(*common)
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_long, trace_short),
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS ts, NULL AS dur, NULL AS state,
+                 NULL AS tid, {_sched_overlap_invariant_sql()} AS count_val
+          UNION ALL
+          SELECT 'slice', s.ts, s.dur, s.end_state, t.tid, NULL
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'thread_state', ts.ts, ts.dur, ts.state, t.tid, NULL
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid = 30
+          UNION ALL
+          SELECT 'stat', NULL, NULL, printf('%s trace=%s', s.name, tf.name),
+                 NULL, cast(s.value AS INT)
+          FROM stats s
+          JOIN __intrinsic_trace_file tf ON s.trace_id = tf.id
+          WHERE s.name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND s.value > 0
+          ORDER BY section, ts, tid, state;
+        ''',
+        out=Csv('''
+        "section","ts","dur","state","tid","count_val"
+        "overlap","[NULL]","[NULL]","[NULL]","[NULL]",0
+        "slice",1000,1000,"S",10,"[NULL]"
+        "slice",2000,1000,"S",30,"[NULL]"
+        "slice",5000,1000,"S",30,"[NULL]"
+        "stat","[NULL]","[NULL]","machine_sched_events_hidden trace=trace1.pftrace","[NULL]",3
+        "stat","[NULL]","[NULL]","machine_sched_open_rows_cut trace=trace1.pftrace","[NULL]",2
+        "stat","[NULL]","[NULL]","machine_sched_open_rows_cut trace=trace2.pftrace","[NULL]",3
+        "thread_state",2000,1000,"Running",30,"[NULL]"
+        "thread_state",3000,0,"S",30,"[NULL]"
+        "thread_state",5000,1000,"Running",30,"[NULL]"
+        "thread_state",6000,0,"S",30,"[NULL]"
+        '''))
+
+  # Sched: partial overlap between trace A [1000, 3000] and trace B
+  # [2000, 4000]. In [2000, 3000], B is hidden. At 3000, A's open slice
+  # is cut. B takes over at 3500 and cuts at 4000.
+  def test_machine_sched_partial_overlap(self):
+    trace_a = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2500, 10, 20),
+        _sched_waking(3000, 30, pid=20),
+    )
+    trace_b = _ftrace(
+        _sched_switch(2000, 0, 20),
+        _sched_switch(2800, 20, 30),
+        _sched_switch(3500, 30, 10),
+        _sched_switch(4000, 10, 0),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=_sched_slices_query(include_overlap_check=True),
+        out=Csv('''
+        "ts","dur","end_state","tid","overlap"
+        1000,1500,"R",10,0
+        2500,500,"[NULL]",20,0
+        3500,500,"R",10,0
+        4000,0,"[NULL]",0,0
+        '''))
+
+  # Sched: trace B [2000, 3000] is strictly inside trace A [1000, 4000].
+  # B's switches are hidden; B still recorded scheduling, so A's trailing open
+  # rows at 4000 are cut (dur = 0); B's task_newtask at 2500 creates the thread
+  # without a Runnable thread_state.
+  def test_machine_sched_b_inside_a(self):
+    trace_a = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(4000, 10, 20),
+    )
+    trace_b = _ftrace(
+        _sched_switch(2000, 0, 30),
+        _task_newtask(2500, 50),
+        _sched_switch(3000, 30, 0),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS ts, {_sched_overlap_invariant_sql()} AS dur,
+                 NULL AS end_state, NULL AS tid, NULL AS name
+          UNION ALL
+          SELECT 'slice', s.ts, s.dur, s.end_state, t.tid, NULL
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'thread', t.start_ts, NULL, NULL, t.tid, t.name
+          FROM thread t WHERE t.tid = 50
+          UNION ALL
+          SELECT 'thread_state', ts.ts, ts.dur, ts.state, t.tid, NULL
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid = 50
+          UNION ALL
+          SELECT 'stat', NULL, cast(value AS INT), name, NULL, NULL
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          ORDER BY section, ts, tid, end_state;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid","name"
+        "overlap","[NULL]",0,"[NULL]","[NULL]","[NULL]"
+        "slice",1000,3000,"R",10,"[NULL]"
+        "slice",4000,0,"[NULL]",20,"[NULL]"
+        "stat","[NULL]",3,"machine_sched_events_hidden","[NULL]","[NULL]"
+        "stat","[NULL]",3,"machine_sched_open_rows_cut","[NULL]","[NULL]"
+        "thread",2500,"[NULL]","[NULL]",50,"t50"
+        '''))
+
+  # Sched: consecutive traces A [1000, 2000] and B [3000, 4000]. A's open row
+  # at 2000 is cut to 2000 - ts and does not span the gap. B owns [3000, 4000].
+  def test_machine_sched_consecutive(self):
+    trace_a = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(1600, 10, 20),
+        _sched_waking(2000, 30, pid=20),
+    )
+    trace_b = _ftrace(
+        _sched_switch(3000, 0, 10),
+        _sched_switch(3600, 10, 20),
+        _sched_switch(4000, 20, 0),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=_sched_slices_query(include_overlap_check=True),
+        out=Csv('''
+        "ts","dur","end_state","tid","overlap"
+        1000,600,"R",10,0
+        1600,400,"[NULL]",20,0
+        3000,600,"R",10,0
+        3600,400,"R",20,0
+        4000,0,"[NULL]",0,0
+        '''))
+
+  # Sched: 3 chained traces. A [1000, 2000]; B and C wake tid 77 at 2100 in the
+  # handover gap (dropped while unowned); B claims [2200, 3500]; C's events are
+  # hidden; C takes over at 4500; overlap = 0.
+  def test_machine_sched_three_traces_chained(self):
+    trace_a = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 0, prev_state=1),
+    )
+    trace_b = _ftrace(
+        _sched_waking(2100, 77, comm='t7'),
+        _sched_switch(2200, 0, 77, next_comm='t7'),
+        _sched_switch(3500, 77, 0, prev_state=1, prev_comm='t7'),
+    )
+    trace_c = _ftrace(
+        _sched_waking(2100, 77, comm='t7'),
+        _sched_switch(2300, 0, 88, next_comm='t8'),
+        _sched_switch(4500, 88, 0, prev_state=1, prev_comm='t8'),
+    )
+    return DiffTestBlueprint(
+        trace=_three_trace_zip(trace_a, trace_b, trace_c),
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS ts, {_sched_overlap_invariant_sql()} AS dur,
+                 NULL AS end_state, NULL AS tid
+          UNION ALL
+          SELECT 'slice', s.ts, s.dur, s.end_state, t.tid
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid
+          WHERE s.dur > 0 OR s.ts = 4500
+          UNION ALL
+          SELECT 'thread_state', ts.ts, ts.dur, ts.state, t.tid
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid = 77
+          ORDER BY section, ts, tid;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid"
+        "overlap","[NULL]",0,"[NULL]","[NULL]"
+        "slice",1000,1000,"S",10
+        "slice",2200,1300,"S",77
+        "slice",4500,0,"[NULL]",0
+        "thread_state",2200,1300,"Running",77
+        "thread_state",3500,0,"S",77
+        '''))
+
+  # Sched: early ftrace stop in trace A at 2000 with a non-ftrace event at 5000.
+  # Trace B's ftrace runs [1500, 4000]. A's claim ends at 2000; B takes over
+  # at 2500.
+  def test_machine_sched_early_ftrace_stop(self):
+    trace_a = f"""
+        {_ftrace(
+            _sched_switch(1000, 0, 10),
+            _sched_switch(1600, 10, 20),
+            _sched_switch(2000, 20, 10),
+        )}
+        packet {{
+          timestamp: 5000
+          generic_gpu_frequency_event {{ gpu_id: 0 frequency_khz: 1500000 }}
+        }}
+        """
+    trace_b = _ftrace(
+        _sched_switch(1500, 0, 20),
+        _sched_switch(1800, 20, 30),
+        _sched_switch(2500, 30, 10),
+        _sched_switch(4000, 10, 0),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=_sched_slices_query(include_overlap_check=True),
+        out=Csv('''
+        "ts","dur","end_state","tid","overlap"
+        1000,600,"R",10,0
+        1600,400,"R",20,0
+        2000,0,"[NULL]",10,0
+        2500,1500,"R",10,0
+        4000,0,"[NULL]",0,0
+        '''))
+
+  # Sched: pre-soft-drop switch does not claim scheduling. A's switch at
+  # 1000 <= 1500 soft-drop does not claim; B claims at 1200 until 2500
+  # (hiding A's switch at 2000); A takes over at 3000.
+  def test_machine_sched_soft_drop_claim(self):
+    trace_a = f"""
+        packet {{
+          ftrace_events {{
+            cpu: 0
+            previous_bundle_end_timestamp: 1500
+            {_sched_switch(1000, 0, 10)}
+            {_sched_switch(2000, 10, 20)}
+            {_sched_switch(3000, 20, 10)}
+          }}
+        }}
+        """
+    trace_b = _ftrace(
+        _sched_switch(1200, 0, 30),
+        _sched_switch(2500, 30, 10),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=_sched_slices_query(include_overlap_check=True),
+        out=Csv('''
+        "ts","dur","end_state","tid","overlap"
+        1200,1300,"R",30,0
+        2500,0,"[NULL]",10,0
+        3000,0,"[NULL]",10,0
+        '''))
+
+  # Sched: trace B has only wakeups and task_newtask. Events at 500 and 2500
+  # are dropped while scheduling is unowned; events at 1500 are hidden during
+  # A's claim. Only 1 trace recorded switches, so no end-of-load cut occurs.
+  def test_machine_sched_wakeups_only(self):
+    trace_a = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 20),
+    )
+    trace_b = _ftrace(
+        _task_newtask(500, 50),
+        _sched_waking(500, 50, pid=1),
+        _task_newtask(1500, 60),
+        _sched_waking(1500, 60, pid=1),
+        _task_newtask(2500, 70),
+        _sched_waking(2500, 70, pid=1),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS tid, NULL AS ts,
+                 {_sched_overlap_invariant_sql()} AS dur, NULL AS state
+          UNION ALL
+          SELECT 'thread' AS section, t.tid, NULL AS ts, NULL AS dur, NULL AS state
+          FROM thread t WHERE t.tid IN (50, 60, 70)
+          UNION ALL
+          SELECT 'thread_state', t.tid, ts.ts, ts.dur, ts.state
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid IN (50, 60, 70)
+          UNION ALL
+          SELECT 'slice', t.tid, s.ts, s.dur, s.end_state
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid = 20
+          UNION ALL
+          SELECT 'stat', cast(value AS INT), NULL, NULL, name
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          ORDER BY section, tid, ts;
+        ''',
+        out=Csv('''
+        "section","tid","ts","dur","state"
+        "overlap","[NULL]","[NULL]",0,"[NULL]"
+        "slice",20,2000,-1,"[NULL]"
+        "stat",2,"[NULL]","[NULL]","machine_sched_events_hidden"
+        "thread",50,"[NULL]","[NULL]","[NULL]"
+        "thread",60,"[NULL]","[NULL]","[NULL]"
+        "thread",70,"[NULL]","[NULL]","[NULL]"
+        '''))
+
+  # Sched: same task_newtask at the same timestamp in both traces creates one
+  # process and thread row. Reused PID at a different timestamp creates new
+  # rows. sched_process_free in both traces sets end_ts on the first
+  # incarnation. Only 1 Runnable thread_state row per task_newtask is created
+  # when scheduling is owned.
+  def test_machine_sched_same_fork_and_newtask(self):
+    trace_a = _ftrace(
+        _sched_switch(500, 0, 1, next_comm='init'),
+        _task_newtask(1000, 100, comm='proc_a', clone_flags=0),
+        _task_newtask(1500, 101, pid=100, comm='th_a', clone_flags=65536),
+        'event { timestamp: 3000 pid: 100 sched_process_free { comm: "th_a" pid: 101 prio: 120 } }',
+        'event { timestamp: 3500 pid: 1 sched_process_free { comm: "proc_a" pid: 100 prio: 120 } }',
+        _task_newtask(5000, 100, comm='proc_b', clone_flags=0),
+        _task_newtask(5500, 101, pid=100, comm='th_b', clone_flags=65536),
+        _sched_switch(6000, 1, 0, prev_comm='init'),
+    )
+    trace_b = _ftrace(
+        _task_newtask(1000, 100, comm='proc_a', clone_flags=0),
+        _task_newtask(1500, 101, pid=100, comm='th_a', clone_flags=65536),
+        'event { timestamp: 3000 pid: 100 sched_process_free { comm: "th_a" pid: 101 prio: 120 } }',
+        'event { timestamp: 3500 pid: 1 sched_process_free { comm: "proc_a" pid: 100 prio: 120 } }',
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=f'''
+          SELECT 'overlap' AS kind, NULL AS pid, NULL AS name, {_sched_overlap_invariant_sql()} AS start_ts,
+                 NULL AS end_ts, NULL AS state
+          UNION ALL
+          SELECT 'process' AS kind, p.pid, p.name, p.start_ts, p.end_ts, NULL AS state
+          FROM process p WHERE p.pid = 100
+          UNION ALL
+          SELECT 'thread', t.tid, t.name, t.start_ts, t.end_ts, NULL
+          FROM thread t WHERE t.tid IN (100, 101)
+          UNION ALL
+          SELECT 'thread_state', t.tid, t.name, ts.ts, NULL, ts.state
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid IN (100, 101)
+          ORDER BY kind, start_ts, pid;
+        ''',
+        out=Csv('''
+        "kind","pid","name","start_ts","end_ts","state"
+        "overlap","[NULL]","[NULL]",0,"[NULL]","[NULL]"
+        "process",100,"proc_a",1000,3500,"[NULL]"
+        "process",100,"proc_b",5000,"[NULL]","[NULL]"
+        "thread",100,"proc_a",1000,3500,"[NULL]"
+        "thread",101,"th_a",1500,3000,"[NULL]"
+        "thread",100,"proc_b",5000,"[NULL]","[NULL]"
+        "thread",101,"th_b",5500,"[NULL]","[NULL]"
+        "thread_state",100,"proc_a",1000,"[NULL]","R"
+        "thread_state",101,"th_a",1500,"[NULL]","R"
+        "thread_state",100,"proc_b",5000,"[NULL]","R"
+        "thread_state",101,"th_b",5500,"[NULL]","R"
+        '''))
+
+  # Sched: compact_sched in both traces (testing last_utid tracking while
+  # hidden).
+  def test_machine_sched_compact_handover(self):
+    trace_a = _compact_sched(
+        ['t1', 't2'],
+        [(1000, 10, 0, 0), (1000, 20, 0, 1)],
+        [(1200, 20, 0, 1)],
+    )
+    trace_b = _compact_sched(
+        ['t25', 't3', 't4'],
+        [(1400, 25, 0, 0), (100, 30, 0, 1), (1000, 40, 0, 2), (500, 30, 0, 1)],
+        [(1600, 10, 0, 1)],
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS ts, {_sched_overlap_invariant_sql()} AS dur,
+                 NULL AS end_state, NULL AS tid, NULL AS state
+          UNION ALL
+          SELECT 'slice' AS section, s.ts, s.dur, s.end_state, t.tid, NULL AS state
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'raw_event', e.ts, a.int_value, a.key, NULL, NULL
+          FROM ftrace_event e JOIN args a USING (arg_set_id)
+          WHERE e.name = 'sched_switch' AND a.key = 'prev_pid' AND e.ts = 2500
+          UNION ALL
+          SELECT 'thread_state', ts.ts, ts.dur, NULL, t.tid, ts.state
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid
+          WHERE t.tid = 20 AND ts.state = 'R'
+          UNION ALL
+          SELECT 'stat', NULL, cast(sum(value) AS INT), name, NULL, NULL
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          GROUP BY name
+          ORDER BY section, ts, tid, end_state;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid","state"
+        "overlap","[NULL]",0,"[NULL]","[NULL]","[NULL]"
+        "raw_event",2500,30,"prev_pid","[NULL]","[NULL]"
+        "slice",2000,0,"[NULL]",20,"[NULL]"
+        "slice",2500,500,"R",40,"[NULL]"
+        "slice",3000,0,"[NULL]",30,"[NULL]"
+        "stat","[NULL]",3,"machine_sched_events_hidden","[NULL]","[NULL]"
+        "stat","[NULL]",6,"machine_sched_open_rows_cut","[NULL]","[NULL]"
+        "thread_state",1200,800,"[NULL]",20,"R"
+        '''))
+
+  # Sched: compact_sched in trace A and regular sched_switch in trace B.
+  # A claims [1000, 2500]; B claims after handover from 2800.
+  def test_machine_sched_compact_and_regular(self):
+    trace_a = _compact_sched(
+        ['t1', 't2'],
+        [(1000, 10, 0, 0), (500, 20, 0, 1), (1000, 10, 0, 0)],
+    )
+    trace_b = _ftrace(
+        _sched_switch(2000, 0, 20),
+        _sched_switch(2800, 20, 30),
+        _sched_switch(3500, 30, 10),
+        _sched_switch(4000, 10, 20),
+    )
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query=_sched_slices_query(include_overlap_check=True),
+        out=Csv('''
+        "ts","dur","end_state","tid","overlap"
+        1500,1000,"R",20,0
+        2500,0,"[NULL]",10,0
+        2800,700,"R",30,0
+        3500,500,"R",10,0
+        4000,0,"[NULL]",20,0
+        '''))
+
+  # Sched: systrace merge with sched_switch, sched_waking, and
+  # sched_blocked_reason.
+  def test_machine_sched_systrace_merge(self):
+    sys1 = '''# tracer: nop
+#
+          <idle>-0     (-----) [000] ....    1.000000: sched_switch: prev_comm=swapper prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=taskA next_pid=10 next_prio=120
+           taskA-10    (-----) [000] ....    2.000000: sched_switch: prev_comm=taskA prev_pid=10 prev_prio=120 prev_state=D ==> next_comm=swapper next_pid=0 next_prio=120
+          <idle>-0     (-----) [000] d..3    2.000001: sched_blocked_reason: pid=10 iowait=1 caller=func_foo
+          <idle>-0     (-----) [000] ....    2.500000: sched_waking: comm=taskA pid=10 prio=120 target_cpu=000
+          <idle>-0     (-----) [000] ....    3.000000: sched_switch: prev_comm=swapper prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=taskA next_pid=10 next_prio=120
+'''
+    sys2 = '''# tracer: nop
+#
+           taskB-20    (-----) [000] ....    2.200000: sched_waking: comm=taskA pid=10 prio=120 target_cpu=000
+           taskB-20    (-----) [000] ....    2.800000: sched_switch: prev_comm=taskB prev_pid=20 prev_prio=120 prev_state=R ==> next_comm=taskA next_pid=10 next_prio=120
+          <idle>-0     (-----) [000] ....    3.500000: sched_switch: prev_comm=taskA prev_pid=10 prev_prio=120 prev_state=R ==> next_comm=taskB next_pid=20 next_prio=120
+          <idle>-0     (-----) [000] ....    4.000000: sched_switch: prev_comm=taskB prev_pid=20 prev_prio=120 prev_state=R ==> next_comm=swapper next_pid=0 next_prio=120
+'''
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'sys1.systrace': sys1,
+            'sys2.systrace': sys2,
+        }),
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS ts, NULL AS dur, NULL AS end_state,
+                 NULL AS tid, NULL AS io_wait, {_sched_overlap_invariant_sql()} AS blocked_function
+          UNION ALL
+          SELECT 'slice' AS section, s.ts, s.dur, s.end_state, t.tid,
+                 NULL AS io_wait, NULL AS blocked_function
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'thread_state', ts.ts, ts.dur, ts.state, t.tid, ts.io_wait, ts.blocked_function
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid
+          WHERE t.tid = 10 AND ts.state = 'D'
+          UNION ALL
+          SELECT 'stat', NULL, NULL, name, cast(sum(value) AS INT), NULL, NULL
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          GROUP BY name
+          ORDER BY section, ts, end_state;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid","io_wait","blocked_function"
+        "overlap","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0
+        "slice",1000000000,1000000000,"D",10,"[NULL]","[NULL]"
+        "slice",3000000000,0,"[NULL]",10,"[NULL]","[NULL]"
+        "slice",3500000000,500000000,"R",20,"[NULL]","[NULL]"
+        "stat","[NULL]","[NULL]","machine_sched_events_hidden",2,"[NULL]","[NULL]"
+        "stat","[NULL]","[NULL]","machine_sched_open_rows_cut",5,"[NULL]","[NULL]"
+        "thread_state",2000000000,500000000,"D",10,1,"func_foo"
+        '''))
+
+  # Sched: JSON systemTraceEvents merge with overlapping sched_switch lines.
+  # Trace 1 claims [1.0s, 3.0s]; trace 2's switch at 2.8s is hidden; trace 1's
+  # open slice is cut at 3.0s; trace 2 takes over at 3.5s; overlap = 0.
+  def test_machine_sched_json_systrace_merge(self):
+    sys1 = '''# tracer: nop
+#
+          <idle>-0     (-----) [000] ....    1.000000: sched_switch: prev_comm=swapper prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=taskA next_pid=10 next_prio=120
+           taskA-10    (-----) [000] ....    2.000000: sched_switch: prev_comm=taskA prev_pid=10 prev_prio=120 prev_state=D ==> next_comm=swapper next_pid=0 next_prio=120
+          <idle>-0     (-----) [000] ....    3.000000: sched_switch: prev_comm=swapper prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=taskA next_pid=10 next_prio=120
+'''
+    sys2 = '''# tracer: nop
+#
+           taskB-20    (-----) [000] ....    2.800000: sched_switch: prev_comm=taskB prev_pid=20 prev_prio=120 prev_state=R ==> next_comm=taskA next_pid=10 next_prio=120
+          <idle>-0     (-----) [000] ....    3.500000: sched_switch: prev_comm=taskA prev_pid=10 prev_prio=120 prev_state=R ==> next_comm=taskB next_pid=20 next_prio=120
+          <idle>-0     (-----) [000] ....    4.000000: sched_switch: prev_comm=taskB prev_pid=20 prev_prio=120 prev_state=R ==> next_comm=swapper next_pid=0 next_prio=120
+'''
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'trace1.json':
+                json.dumps({
+                    'traceEvents': [],
+                    'systemTraceEvents': sys1
+                }),
+            'trace2.json':
+                json.dumps({
+                    'traceEvents': [],
+                    'systemTraceEvents': sys2
+                }),
+        }),
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS ts, NULL AS dur, NULL AS end_state,
+                 NULL AS tid, {_sched_overlap_invariant_sql()} AS count_val
+          UNION ALL
+          SELECT 'slice', s.ts, s.dur, s.end_state, t.tid, NULL
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'stat', NULL, NULL, name, NULL, cast(sum(value) AS INT)
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          GROUP BY name
+          ORDER BY section, ts;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid","count_val"
+        "overlap","[NULL]","[NULL]","[NULL]","[NULL]",0
+        "slice",1000000000,1000000000,"D",10,"[NULL]"
+        "slice",3000000000,0,"[NULL]",10,"[NULL]"
+        "slice",3500000000,500000000,"R",20,"[NULL]"
+        "stat","[NULL]","[NULL]","machine_sched_events_hidden","[NULL]",1
+        "stat","[NULL]","[NULL]","machine_sched_open_rows_cut","[NULL]",7
+        '''))
+
+  # Guard: single trace in zip keeps open rows with dur = -1 and zero stats.
+  def test_machine_sched_single_trace_unchanged(self):
+    payload = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 20),
+    )
+    return DiffTestBlueprint(
+        trace=ZipTrace({'trace.pftrace': TextProto(payload)}),
+        query='''
+          SELECT 'slice' AS section, s.ts, s.dur, s.end_state, t.tid
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'stat', NULL, cast(value AS INT), name, NULL
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          ORDER BY section, ts, end_state;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid"
+        "slice",1000,1000,"R",10
+        "slice",2000,-1,"[NULL]",20
+        '''))
+
+  # Guard: trace with sched merged with non-sched trace keeps open rows with
+  # dur = -1.
+  def test_machine_sched_plus_non_sched_trace(self):
+    trace_a = _ftrace(
+        _sched_switch(1000, 0, 10),
+        _sched_switch(2000, 10, 20),
+    )
+    trace_b = _ftrace(_cpu_freq(1500, 1000000), _cpu_freq(3000, 1200000))
+    return DiffTestBlueprint(
+        trace=_two_trace_zip(trace_a, trace_b),
+        query='''
+          SELECT 'slice' AS section, s.ts, s.dur, s.end_state, t.tid,
+                 (SELECT coalesce(sum(value), 0) FROM stats WHERE name = 'machine_sched_events_hidden') AS hidden_events,
+                 (SELECT coalesce(sum(value), 0) FROM stats WHERE name = 'machine_sched_open_rows_cut') AS cut_rows
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+        "section","ts","dur","end_state","tid","hidden_events","cut_rows"
+        "slice",1000,1000,"R",10,0,0
+        "slice",2000,-1,"[NULL]",20,0,0
+        '''))
+
+  # Guard: separate machines keep separate sched slices with dur = -1 and zero
+  # stats.
+  def test_machine_sched_different_machines(self):
+    payload = _ftrace(_sched_switch(1000, 0, 10))
+    manifest = json.dumps({
+        'perfetto_manifest': {
+            'version':
+                1,
+            'files': [
+                {
+                    'path': 'trace1.pftrace',
+                    'machine': {
+                        'name': 'm1'
+                    }
+                },
+                {
+                    'path': 'trace2.pftrace',
+                    'machine': {
+                        'name': 'm2'
+                    }
+                },
+            ],
+        }
+    })
+    return DiffTestBlueprint(
+        trace=ZipTrace({
+            'meta.json': manifest,
+            'trace1.pftrace': TextProto(payload),
+            'trace2.pftrace': TextProto(payload),
+        }),
+        query='''
+          SELECT m.name AS machine_name, s.ts, s.dur, t.tid,
+                 (SELECT coalesce(sum(value), 0) FROM stats WHERE name = 'machine_sched_events_hidden') AS hidden_events,
+                 (SELECT coalesce(sum(value), 0) FROM stats WHERE name = 'machine_sched_open_rows_cut') AS cut_rows
+          FROM sched_slice s
+          JOIN cpu c ON s.ucpu = c.ucpu
+          JOIN machine m ON c.machine_id = m.id
+          JOIN thread t ON s.utid = t.utid
+          WHERE t.tid != 0
+          ORDER BY machine_name, s.ts;
+        ''',
+        out=Csv('''
+        "machine_name","ts","dur","tid","hidden_events","cut_rows"
+        "m1",1000,-1,10,0,0
+        "m2",1000,-1,10,0,0
+        '''))
+
+  # Guard: merges with one ftrace trace are unchanged; pre-switch wakeup kept.
+  def test_machine_sched_plus_logcat_keeps_wakeup(self):
+    trace = ZipTrace({
+        'trace.pftrace':
+            TextProto(
+                _ftrace(
+                    _sched_waking(900, 30),
+                    _sched_switch(1000, 0, 10),
+                    _sched_switch(2000, 10, 30, prev_state=1),
+                    _sched_switch(3000, 30, 0),
+                )),
+        'logcat.txt':
+            '06-24 16:32:00.000 1000 1000 I tag: hello\n',
+    })
+    return DiffTestBlueprint(
+        trace=trace,
+        query=f'''
+          SELECT 'overlap' AS section, NULL AS ts, {_sched_overlap_invariant_sql()} AS dur,
+                 NULL AS state, NULL AS tid
+          UNION ALL
+          SELECT 'slice', s.ts, s.dur, s.end_state, t.tid
+          FROM sched_slice s JOIN thread t ON s.utid = t.utid WHERE t.tid != 0
+          UNION ALL
+          SELECT 'thread_state', ts.ts, ts.dur, ts.state, t.tid
+          FROM thread_state ts JOIN thread t ON ts.utid = t.utid WHERE t.tid = 30
+          UNION ALL
+          SELECT 'stat', NULL, cast(value AS INT), name, NULL
+          FROM stats
+          WHERE name IN ('machine_sched_events_hidden', 'machine_sched_open_rows_cut')
+            AND value > 0
+          ORDER BY section, ts, tid;
+        ''',
+        out=Csv('''
+        "section","ts","dur","state","tid"
+        "overlap","[NULL]",0,"[NULL]","[NULL]"
+        "slice",1000,1000,"S",10
+        "slice",2000,1000,"R",30
+        "thread_state",900,1100,"R",30
+        "thread_state",2000,1000,"Running",30
+        "thread_state",3000,-1,"R",30
         '''))

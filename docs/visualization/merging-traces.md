@@ -74,12 +74,11 @@ so on their card. For the rest, the **Align:** dropdown offers:
 
 ### Machines
 
-The **Machine:** dropdown attributes a file to a device. Keep **Default** to
-merge the trace onto the shared timeline alongside the host data, or use
-**+ Add machine...** to create a named machine (for example "server") so
-the merged trace keeps that device's CPUs, processes and threads grouped
-separately. Pick the same machine for several files to put them all on that
-device.
+The **Machine:** dropdown attributes a file to a device. Keep **Default** (or
+pick the same machine for several files) to share CPU scheduling and machine
+tracks across traces from one device, dropping duplicate data. Use
+**+ Add machine...** to keep distinct devices or boots grouped separately; see
+[Limitations](/docs/concepts/merging-traces.md#limitations).
 
 ![Assigning a trace to a named machine](/docs/images/merging-traces-machines.png)
 
@@ -120,7 +119,9 @@ traces recorded minutes apart legitimately produce a long timeline with
 activity clustered at each end.
 
 The Trace Info page (info icon in the sidebar) breaks stats, import errors
-and data losses down per input trace and machine.
+and data losses down per input trace and machine. It also lists notices for data
+hidden when traces of one machine overlap; see
+[Checking the result](/docs/analysis/merging-traces.md#checking).
 
 ## Reusing a merge outside the UI
 
