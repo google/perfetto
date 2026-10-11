@@ -104,7 +104,12 @@ class ProtoFieldParserFSM {
         // The field type is legit, now check it's well formed and within
         // boundaries.
         if (field_type == static_cast<uint64_t>(ProtoWireType::kVarInt)) {
-          state_ = kVarIntValue;
+          if (field_id ==
+              protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber) {
+            state_ = kPreviousPacketDroppedValue;
+          } else {
+            state_ = kVarIntValue;
+          }
         } else if (field_type ==
                    static_cast<uint64_t>(ProtoWireType::kFixed32)) {
           return 4;
@@ -117,6 +122,14 @@ class ProtoFieldParserFSM {
         } else {
           state_ = kUnknownFieldType;
         }
+        return 0;
+      }
+
+      case kPreviousPacketDroppedValue: {
+        // If the field appears more than once, protobuf uses the last value.
+        // Replace the bits here so we report the same loss as a packet reader.
+        previous_packet_dropped_ = static_cast<uint32_t>(varint);
+        state_ = kFieldPreamble;
         return 0;
       }
 
@@ -151,12 +164,14 @@ class ProtoFieldParserFSM {
   // hasn't started parsing any preamble.
   bool valid() const { return state_ == kFieldPreamble && varint_shift_ == 0; }
   int state() const { return static_cast<int>(state_); }
+  uint32_t previous_packet_dropped() const { return previous_packet_dropped_; }
 
  private:
   enum State {
-    kFieldPreamble = 0,  // Parsing the varint for the field preamble.
-    kVarIntValue,        // Parsing the varint value for the field payload.
-    kLenDelimitedLen,    // Parsing the length of the length-delimited field.
+    kFieldPreamble = 0,           // Parsing a varint for the field preamble.
+    kVarIntValue,                 // Parsing a varint field value.
+    kLenDelimitedLen,             // Parsing a length-delimited field's length.
+    kPreviousPacketDroppedValue,  // Parsing previous_packet_dropped.
 
     // Error states:
     kWroteReservedField,  // Tried to set a reserved field id.
@@ -168,12 +183,14 @@ class ProtoFieldParserFSM {
   State state_ = kFieldPreamble;
   uint64_t varint_ = 0;
   uint32_t varint_shift_ = 0;
+  uint32_t previous_packet_dropped_ = 0;
 };
 
 }  // namespace
 
 // static
-bool PacketStreamValidator::Validate(const Slices& slices) {
+bool PacketStreamValidator::Validate(const Slices& slices,
+                                     uint32_t* previous_packet_dropped) {
   ProtoFieldParserFSM parser;
   size_t skip_bytes = 0;
   for (const Slice& slice : slices) {
@@ -189,8 +206,11 @@ bool PacketStreamValidator::Validate(const Slices& slices) {
       }
     }
   }
-  if (skip_bytes == 0 && parser.valid())
+  if (skip_bytes == 0 && parser.valid()) {
+    if (previous_packet_dropped)
+      *previous_packet_dropped = parser.previous_packet_dropped();
     return true;
+  }
 
   PERFETTO_DLOG("Packet validation error (state %d, skip = %zu)",
                 parser.state(), skip_bytes);

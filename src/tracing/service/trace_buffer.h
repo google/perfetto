@@ -49,11 +49,19 @@ class TraceBuffer {
 
   // Type of trace buffer implementation.
   // TODO(primiano): remove this once TraceBufferV2 proves itself.
-  // kV2 is experimental.
+  // kV2 and kV3 are experimental.
   enum BufType {
     kV1,
     kV2,
+    kV3,
   };
+
+  // The largest slice that the service passes to a consumer. The consumer IPC
+  // sends each slice in one frame, so a buffer that returns a large packet as
+  // contiguous memory must split it into slices of at most this size.
+  // This is ipc::kIPCBufferSize - 512. See the assertion in
+  // tracing_integration_test.cc and b/195065199.
+  static constexpr size_t kMaxTracePacketSliceSize = 128 * 1024 - 512;
 
   // Argument for out-of-band patches applied through TryPatchChunkContents().
   struct Patch {
@@ -145,6 +153,19 @@ class TraceBuffer {
   // updates the statistic and does not record a gap on any packet sequence.
   virtual void RecordAbiViolation() = 0;
 
+  // Call this after copying the chunks and applying the patches in a write
+  // batch. A batch is one CommitData request, one scrape of a producer's
+  // shared memory or one drain of its SMB v2 ring buffer.
+  //
+  // Chunks can arrive out of ChunkID order and patches follow their chunks.
+  // The buffer must wait for this call before reading the new chunks so it
+  // sees the whole batch. TraceBufferV3 uses this point to bundle packets
+  // from staging.
+  //
+  // The caller must release all packets from previous reads before this call,
+  // because it can reuse the memory backing their slices.
+  virtual void EndWriteBatch() = 0;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -164,6 +185,15 @@ class TraceBuffer {
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) = 0;
+
+  // Returns true if ReadNextTracePacket() returns only packets that passed
+  // PacketStreamValidator. Otherwise, the caller must validate each packet.
+  virtual bool returns_validated_packets() const = 0;
+
+  // Returns the total number of packets this buffer dropped because they
+  // failed PacketStreamValidator. Returns 0 if validation is left to the
+  // caller.
+  virtual uint64_t packets_dropped_by_validation() const = 0;
 
   // Attempts to reclaim unused buffer space.
   // The caller must release all packets from previous reads before this call,

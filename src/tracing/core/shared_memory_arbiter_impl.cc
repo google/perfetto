@@ -40,7 +40,7 @@ static_assert(sizeof(BufferID) == sizeof(uint16_t),
 
 constexpr size_t kMaxCommitDataRequestChunkSize =
     128 * 1024 - 512;  // This is ipc::kIPCBufferSize - 512, see
-                       // |kMaxTracePacketSliceSize| in tracing_service_impl.h
+                       // |kMaxTracePacketSliceSize| in trace_buffer.h
 
 // Conservative upper bound of a ChunkToPatch's serialized size, used to bound
 // how many patches are packed into one request. Over-estimating only causes an

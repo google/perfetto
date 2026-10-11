@@ -204,6 +204,11 @@ struct SequenceState {
   // This is effectively a deque of TBChunk* (% a call to GetTBChunkAt(off)).
   base::CircularQueue<size_t> chunks;
 
+  // True while TraceBufferV3 has bundles that refer to this sequence, so
+  // DeleteStaleEmptySequences() keeps its state even if |chunks| is empty.
+  // Set by ProtectSequencePruning() and cleared by AllowSequencePruning().
+  bool protected_from_pruning = false;
+
   // All chunks of a sequence use the same format: either the legacy SMB v1 or
   // the newer proto-group based SMB v2. SMB v2 chunks are immutable, arrive in
   // order and need rewriting at readback.
@@ -513,6 +518,9 @@ class TraceBufferV2 : public TraceBuffer {
 
   void RecordAbiViolation() override;
 
+  // No-op. TraceBufferV2 needs no extra work when a write batch ends.
+  void EndWriteBatch() override;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -558,6 +566,13 @@ class TraceBufferV2 : public TraceBuffer {
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) override;
 
+  // Returns false. The caller must validate packets returned by
+  // ReadNextTracePacket().
+  bool returns_validated_packets() const override;
+
+  // Returns 0 because validation happens in the caller.
+  uint64_t packets_dropped_by_validation() const override;
+
   // Compacts the buffer by moving live chunks to the front in ring order.
   // It clears the unused tail and retains pages for the old |used_size_| plus
   // 1/|kSpareCapacityDivisor| of it, capped at the buffer size.
@@ -592,6 +607,51 @@ class TraceBufferV2 : public TraceBuffer {
   bool has_data() const override { return has_data_; }
   BufType buf_type() const override { return kV2; }
 
+  // ------------------------------------------------------------------------
+  // Helpers for TraceBufferV3, which stages chunks in this buffer before
+  // compressing complete packets into bundles.
+  // ------------------------------------------------------------------------
+
+  // Compacts like MaybeCompact(), and also compacts a kDiscard buffer that
+  // still accepts writes. Does nothing if the buffer is read-only or has
+  // stopped accepting writes.
+  //
+  // TraceBufferV3 calls this after the bundling pass of a write batch, so a
+  // kDiscard staging buffer can reuse the space of bundled chunks.
+  //
+  // Compaction can invalidate packet slices, so the caller must finish using
+  // packets from previous reads before this call. Call BeginRead() before
+  // reading again.
+  void CompactIfWritable();
+
+  // Returns true once a kDiscard buffer rejects a chunk because it does
+  // not fit before the end of the buffer. All later chunk writes are
+  // discarded, even after reads consume existing chunks.
+  bool discards_writes() const { return discard_writes_; }
+
+  // Keeps the sequence's state until AllowSequencePruning(), even if
+  // all its chunks have been consumed. TraceBufferV3 protects it while any
+  // bundle refers to the sequence. This preserves last_chunk_consumed so
+  // staging can still detect gaps and reject duplicate chunks.
+  //
+  // The sequence must exist. Pair each call with AllowSequencePruning().
+  // Calls must not nest.
+  void ProtectSequencePruning(ProducerAndWriterID);
+
+  // Makes the sequence eligible for pruning again once it has no chunks.
+  // If already empty, it ages as though its last chunk was just consumed.
+  // The sequence must exist and be protected from pruning.
+  void AllowSequencePruning(ProducerAndWriterID);
+
+  // Adds |reasons| and DATA_LOSS_PRESENT to the sequence's pending loss bits.
+  // |reasons| must not be 0. The next packet read from this sequence reports
+  // them along with any loss already recorded. Does nothing if the sequence is
+  // absent.
+  //
+  // TraceBufferV3 uses this to carry loss forward after dropping packets
+  // that it already read from staging.
+  void AddSequenceDataLoss(ProducerAndWriterID, uint32_t reasons);
+
   void DumpForTesting();
 
  private:
@@ -600,6 +660,7 @@ class TraceBufferV2 : public TraceBuffer {
   using ChunkSeqReader = internal::ChunkSeqReader;
 
   friend class TraceBufferV2Test;
+  friend class TraceBufferV3Test;
   friend class internal::ChunkSeqReader;
   friend class internal::ChunkSeqIterator;
 
@@ -709,7 +770,8 @@ class TraceBufferV2 : public TraceBuffer {
   // BufIterator.
   std::unordered_map<ProducerAndWriterID, SequenceState> sequences_;
 
-  // COUNT(sequences_) WHERE sequence.chunks.empty().
+  // COUNT(sequences_) WHERE sequence.chunks.empty()
+  // AND NOT sequence.protected_from_pruning.
   // This is maintained best effort and needs revalidation against sequences_.
   size_t empty_sequences_ = 0;
 

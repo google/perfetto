@@ -38,7 +38,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/ipc/test/test_socket.h"
 #include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
-#include "src/tracing/service/tracing_service_impl.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -116,7 +116,6 @@ namespace {
 
 using testing::_;
 using testing::InvokeWithoutArgs;
-using tracing_service::TracingServiceImpl;
 
 ipc::TestSocket kProducerSock{"tracing_test-producer"};
 ipc::TestSocket kConsumerSock{"tracing_test-consumer"};
@@ -194,7 +193,7 @@ void CheckTraceStats(const protos::gen::TracePacket& packet) {
   EXPECT_EQ(0u, buf_stats.abi_violations());
 }
 
-static_assert(TracingServiceImpl::kMaxTracePacketSliceSize <=
+static_assert(TraceBuffer::kMaxTracePacketSliceSize <=
                   ipc::kIPCBufferSize - 512,
               "Tracing service max packet slice should be smaller than IPC "
               "buffer size (with some headroom)");

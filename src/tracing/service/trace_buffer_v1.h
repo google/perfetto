@@ -222,6 +222,9 @@ class TraceBufferV1 : public TraceBuffer {
 
   void RecordAbiViolation() override;
 
+  // No-op. TraceBufferV1 needs no extra work when a write batch ends.
+  void EndWriteBatch() override;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -262,6 +265,13 @@ class TraceBufferV1 : public TraceBuffer {
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) override;
+
+  // Returns false. The caller must validate packets returned by
+  // ReadNextTracePacket().
+  bool returns_validated_packets() const override;
+
+  // Returns 0 because validation happens in the caller.
+  uint64_t packets_dropped_by_validation() const override;
 
   // No-op. TraceBufferV1 does not compact its buffer.
   void MaybeCompact() override;

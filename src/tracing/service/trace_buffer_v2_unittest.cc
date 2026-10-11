@@ -43,6 +43,7 @@ using DataLossReason = protos::pbzero::TracePacket_DataLossReason;
 using ::testing::ContainerEq;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
+using ::testing::Not;
 using ::testing::UnorderedElementsAre;
 
 class TraceBufferV2Test : public testing::Test {
@@ -5215,6 +5216,159 @@ TEST_F(TraceBufferV2Test, Compaction_FullyDrainedBuffer) {
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(64 - 16, 'b')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// ---------------------
+// Support for TraceBufferV3 (staging buffer)
+// ---------------------
+
+// A sequence protected from pruning keeps its state even when it has no
+// chunks and enough other sequences become empty to trigger pruning.
+// Once pruning is allowed again, it ages like any other empty sequence
+// and is pruned in its turn.
+TEST_F(TraceBufferV2Test, Staging_SequenceProtectedFromPruning) {
+  ResetBuffer(64 * 1024);
+  auto write_and_read = [&](ProducerID producer, ChunkID chunk_id) {
+    CreateChunk(producer, WriterID(1), chunk_id)
+        .AddPacket(32 - 16, 'a')
+        .CopyIntoTraceBuffer();
+    trace_buffer()->BeginRead();
+    uint32_t dropped = 0;
+    EXPECT_FALSE(ReadPacket(nullptr, &dropped).empty());
+    EXPECT_THAT(ReadPacket(), IsEmpty());
+    return dropped;
+  };
+  const ProducerAndWriterID kProtectedSequence = MkProducerAndWriterID(1, 1);
+
+  // Read a packet of {1, 1} and protect the sequence from pruning before
+  // the next read erases its chunk.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32 - 16, 'a')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), Not(IsEmpty()));
+  trace_buffer()->ProtectSequencePruning(kProtectedSequence);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+  EXPECT_EQ(sequence_count(), 1u);
+  EXPECT_EQ(empty_sequence_count(), 0u);
+
+  // 2000 other sequences come and go. The oldest are pruned.
+  for (ProducerID producer = 2; producer < 2002; producer++)
+    write_and_read(producer, 0);
+  EXPECT_LT(sequence_count(), 1200u);
+  EXPECT_LE(empty_sequence_count(), 1152u);
+
+  // The protected sequence remembers chunk 0, so chunk 2 reports a gap.
+  EXPECT_NE(write_and_read(1, 2), 0u);
+  EXPECT_EQ(write_and_read(1, 3), 0u);
+
+  // Allowing pruning makes this the youngest empty sequence.
+  const size_t empty_before = empty_sequence_count();
+  trace_buffer()->AllowSequencePruning(kProtectedSequence);
+  EXPECT_EQ(empty_sequence_count(), empty_before + 1);
+  for (ProducerID producer = 3000; producer < 3500; producer++)
+    write_and_read(producer, 0);
+  EXPECT_NE(write_and_read(1, 5), 0u);  // Chunk 4 is missing.
+
+  // More empty sequences trigger pruning, which forgets its last ChunkID.
+  for (ProducerID producer = 4000; producer < 6000; producer++)
+    write_and_read(producer, 0);
+  EXPECT_EQ(write_and_read(1, 9), 0u);
+}
+
+// The owner of a staging buffer lost packets after it read them. The loss is
+// reported on the next packet that is read from the sequence.
+TEST_F(TraceBufferV2Test, Staging_AddSequenceDataLoss) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32 - 16, 'a')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), Not(IsEmpty()));
+
+  trace_buffer()->AddSequenceDataLoss(MkProducerAndWriterID(1, 1),
+                                      DataLossReason::DATA_LOSS_SMB_FULL);
+  // A sequence that the buffer does not know is ignored.
+  trace_buffer()->AddSequenceDataLoss(MkProducerAndWriterID(7, 7),
+                                      DataLossReason::DATA_LOSS_SMB_FULL);
+  EXPECT_EQ(sequence_count(), 1u);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(32 - 16, 'b')
+      .AddPacket(32 - 16, 'c')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  uint32_t dropped = 0;
+  ASSERT_THAT(ReadPacket(nullptr, &dropped), Not(IsEmpty()));
+  EXPECT_EQ(dropped, static_cast<uint32_t>(DataLossReason::DATA_LOSS_PRESENT |
+                                           DataLossReason::DATA_LOSS_SMB_FULL));
+  ASSERT_THAT(ReadPacket(nullptr, &dropped), Not(IsEmpty()));
+  EXPECT_EQ(dropped, 0u);
+}
+
+// MaybeCompact() never compacts a kDiscard buffer, so that reads do not make
+// room for writes. CompactIfWritable() does, until the buffer rejects a
+// write.
+TEST_F(TraceBufferV2Test, Staging_CompactIfWritableOnDiscardBuffer) {
+  ResetBuffer(4096, TraceBuffer::kDiscard);
+  auto write = [&](ChunkID chunk_id) {
+    CreateChunk(ProducerID(1), WriterID(1), chunk_id)
+        .AddPacket(1024 - 16, static_cast<char>('a' + chunk_id))
+        .CopyIntoTraceBuffer();
+  };
+  auto read_all = [&] {
+    size_t num_packets = 0;
+    trace_buffer()->BeginRead();
+    while (!ReadPacket().empty())
+      num_packets++;
+    return num_packets;
+  };
+
+  write(0);
+  write(1);
+  write(2);
+  EXPECT_EQ(read_all(), 3u);
+  trace_buffer()->MaybeCompact();
+  EXPECT_EQ(trace_buffer()->used_size(), 3072u);
+  EXPECT_EQ(0u, trace_buffer()->stats().compactions());
+
+  trace_buffer()->CompactIfWritable();
+  EXPECT_EQ(trace_buffer()->used_size(), 0u);
+  EXPECT_EQ(1u, trace_buffer()->stats().compactions());
+  EXPECT_FALSE(trace_buffer()->discards_writes());
+
+  // The buffer accepts another 4096 bytes. A chunk that waits for the rest
+  // of its packet moves to the front and keeps its contents.
+  write(3);
+  CreateChunk(ProducerID(1), WriterID(2), ChunkID(0))
+      .AddPacket(1024 - 16, 'w', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(read_all(), 1u);
+  trace_buffer()->CompactIfWritable();
+  EXPECT_EQ(trace_buffer()->used_size(), 1024u);
+  write(4);
+  write(5);
+  write(6);
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_discarded());
+  EXPECT_EQ(7u * 1024 + 1024, trace_buffer()->stats().bytes_written());
+
+  // The buffer is full. Once it rejects a write it stays closed, and
+  // compaction no longer makes room.
+  write(7);
+  EXPECT_TRUE(trace_buffer()->discards_writes());
+  EXPECT_EQ(1u, trace_buffer()->stats().chunks_discarded());
+  EXPECT_EQ(read_all(), 3u);
+  trace_buffer()->CompactIfWritable();
+  EXPECT_EQ(2u, trace_buffer()->stats().compactions());
+  write(8);
+  EXPECT_EQ(2u, trace_buffer()->stats().chunks_discarded());
+  EXPECT_EQ(read_all(), 0u);
+
+  // A clone keeps the stopped state.
+  std::unique_ptr<TraceBuffer> clone = trace_buffer()->CloneReadOnly();
+  ASSERT_TRUE(clone);
+  EXPECT_EQ(clone->used_size(), trace_buffer()->used_size());
+  EXPECT_TRUE(static_cast<TraceBufferV2*>(clone.get())->discards_writes());
 }
 
 }  // namespace perfetto

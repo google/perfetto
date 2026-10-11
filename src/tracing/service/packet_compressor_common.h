@@ -32,8 +32,8 @@ namespace packet_compressor {
 // shared by the zlib and zstd compressors into this header, so each codec is
 // just its own streaming loop.
 
-// Size of each compressed output slice. Mirrors the service's
-// kMaxTracePacketSliceSize.
+// Size of each compressed output slice. Mirrors
+// TraceBuffer::kMaxTracePacketSliceSize.
 inline constexpr size_t kCompressSliceSize = 128 * 1024 - 512;
 
 // Builds the proto preamble (field tag + length) that the zlib and zstd packet

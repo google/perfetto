@@ -6338,7 +6338,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 25.
+  // Next id: 36.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6363,6 +6363,8 @@ message TraceStats {
     // Note that this represents the total size of buffered data in the buffer,
     // yet this data may be spread non-contiguously through the buffer and may
     // be overridden before the utilization reaches 100%.
+    // This calculation does not apply to TraceBufferV3, where |bytes_written|
+    // counts staging chunk bytes and |bytes_read| counts decoded record bytes.
     optional uint64 bytes_read = 14;
 
     // Num. bytes that were allocated as padding between chunks in the circular
@@ -6414,7 +6416,10 @@ message TraceStats {
 
     // Number of completed TraceBufferV2 compactions.
     // Includes compactions that move no chunks and excludes calls that skip
-    // compaction, such as calls on DISCARD or read-only buffers.
+    // compaction, such as calls on read-only or DISCARD buffers.
+    // For TraceBufferV3, counts staging compactions. In DISCARD mode, staging
+    // compacts after the bundling pass of each write batch, until that
+    // bundling stops. Reads never compact a DISCARD staging buffer.
     //
     // Compaction moves remaining chunks to the front and clears the unused
     // tail.
@@ -6477,6 +6482,65 @@ message TraceStats {
     // four-byte length field. The packet can be valid. Loss is reported on the
     // next packet of the same sequence.
     optional uint64 oversized_packets_dropped = 22;
+
+    // The fields below are for TraceBufferV3 only. It copies chunks into a
+    // staging TraceBufferV2, then moves their packets into compressed
+    // bundles. Most counters above come from staging, with these exceptions.
+    // - |buffer_size| is the capacity of the bundled buffer.
+    // - |bytes_read| counts decoded record bytes for packets returned to the
+    //   consumer. Each record has two varints, a sequence index and a packet
+    //   size, followed by the packet bytes. A clone resets this counter to 0.
+    // - |chunks_read| and |readaheads_*| stay 0. Staging reads are counted in
+    //   the separate |staging_*| fields below.
+    //
+    // |bytes_written| counts staging chunk bytes, including chunk headers.
+    // |bytes_overwritten| and |chunks_overwritten| count chunks lost in staging
+    // before bundling. Bundle overwrites are counted in |bundles_overwritten|.
+    //
+    // Introduced in v59 / Android 26Q4+.
+
+    // Number of bundles stored or kept as pending in DISCARD mode. Counts
+    // bundles built during writes and reads. Moving a pending bundle into the
+    // bundled buffer does not count it again. Reads and overwrites do not
+    // decrease this counter or the two byte totals below. A clone copies them.
+    optional uint64 bundles_written = 25;
+
+    // Total uncompressed record bytes in the bundles counted in
+    // |bundles_written|. Includes each packet and its two preceding varints.
+    optional uint64 bundle_bytes_uncompressed = 26;
+
+    // Total bytes of the bundles counted in |bundles_written|. Includes each
+    // bundle's header, sequence list and zstd frame.
+    optional uint64 bundle_bytes_compressed = 27;
+
+    // Number of bundles overwritten with unread packets in RING_BUFFER mode.
+    // Counts each bundle once, even if it was partly read.
+    optional uint64 bundles_overwritten = 28;
+
+    // Number of bundles dropped because their complete stored size exceeded
+    // |buffer_size| or their uncompressed record size did not fit the 32-bit
+    // size field in the bundle header. A large packet can exceed either limit
+    // on its own. This happens in both RING_BUFFER and DISCARD mode.
+    optional uint64 bundles_too_large = 29;
+
+    // Number of bundles dropped because their metadata, zstd frame or
+    // records were invalid. A nonzero value points to a service bug or
+    // corrupted memory.
+    optional uint64 bundles_corrupted = 35;
+
+    // Elapsed time of the longest bundling pass, in microseconds. Includes
+    // staging reads, packet validation, compression, storing bundles and any
+    // compaction. A pass that finds no readable packets still counts. The
+    // pass runs on the service thread, so it blocks all other service work.
+    optional uint64 bundling_max_us = 30;
+
+    // The equivalents of |bytes_read|, |chunks_read|, |readaheads_succeeded|
+    // and |readaheads_failed| for the reads that move packets out of the
+    // staging buffer. A clone resets these counters to 0.
+    optional uint64 staging_bytes_read = 31;
+    optional uint64 staging_chunks_read = 32;
+    optional uint64 staging_readaheads_succeeded = 33;
+    optional uint64 staging_readaheads_failed = 34;
   }
 
   // Stats for the TraceBuffer(s) of the current trace session.

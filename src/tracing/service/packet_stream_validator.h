@@ -17,6 +17,8 @@
 #ifndef SRC_TRACING_SERVICE_PACKET_STREAM_VALIDATOR_H_
 #define SRC_TRACING_SERVICE_PACKET_STREAM_VALIDATOR_H_
 
+#include <stdint.h>
+
 #include "perfetto/ext/tracing/core/slice.h"
 
 namespace perfetto {
@@ -34,7 +36,16 @@ class PacketStreamValidator {
  public:
   PacketStreamValidator() = delete;
 
-  static bool Validate(const Slices&);
+  // Returns whether the packet in |slices| is valid.
+  // If |previous_packet_dropped| is supplied, writes the packet's loss bits
+  // to it. If the field is absent, writes 0. If repeated, uses the last value.
+  // Leaves the output unchanged if validation fails.
+  //
+  // TraceBufferV3 combines these bits with its own before appending a loss
+  // field. Otherwise the new field would hide the packet's existing loss on
+  // readback.
+  static bool Validate(const Slices& slices,
+                       uint32_t* previous_packet_dropped = nullptr);
 };
 
 }  // namespace perfetto

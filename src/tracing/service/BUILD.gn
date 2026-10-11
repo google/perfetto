@@ -87,6 +87,17 @@ source_set("service") {
   }
   if (enable_perfetto_zstd) {
     deps += [ ":zstd_compressor" ]
+
+    # TraceBufferV3 keeps its packets compressed with zstd. A build without
+    # zstd does not include it, so CreateTraceBuffer() returns nullptr for kV3.
+    deps += [
+      ":zstd_frame_codec",
+      "../../../gn:zstd",
+    ]
+    sources += [
+      "trace_buffer_v3.cc",
+      "trace_buffer_v3.h",
+    ]
   }
 }
 
@@ -130,6 +141,20 @@ if (enable_perfetto_zstd) {
     sources = [
       "zstd_compressor.cc",
       "zstd_compressor.h",
+    ]
+  }
+
+  # Compresses and decompresses the zstd frames stored in TraceBufferV3 bundles.
+  source_set("zstd_frame_codec") {
+    deps = [
+      "../../../gn:default_deps",
+      "../../../gn:zstd",
+      "../../../include/perfetto/protozero",
+      "../../base",
+    ]
+    sources = [
+      "zstd_frame_codec.cc",
+      "zstd_frame_codec.h",
     ]
   }
 }
@@ -183,6 +208,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../src/protozero/filtering:bytecode_generator",
     "../../base",
     "../../base:test_support",
+    "../../protovm",
     "../../protozero",
     "../core",
     "../test:test_support",
@@ -200,6 +226,7 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_zstd) {
     deps += [
       ":zstd_compressor",
+      ":zstd_frame_codec",
       "../../../gn:zstd",
     ]
   }
@@ -217,6 +244,13 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_zlib || enable_perfetto_zstd) {
     deps += [ ":packet_compressor_common" ]
     sources += [ "compressor_unittest.cc" ]
+  }
+
+  if (enable_perfetto_zstd) {
+    sources += [
+      "trace_buffer_v3_unittest.cc",
+      "zstd_frame_codec_unittest.cc",
+    ]
   }
 
   # These tests rely on test_task_runner.h which
