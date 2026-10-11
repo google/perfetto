@@ -35,7 +35,7 @@
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
-#include "src/tracing/service/trace_buffer_v2.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "src/tracing/service/tracing_service_structs.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -855,21 +855,22 @@ void ProducerEndpointImpl::DrainV2RingBuffer() {
     v2_ring_buffer_drainer_->Drain();
 }
 
-TraceBufferV2* ProducerEndpointImpl::GetRingBufferDestination(BufferID id) {
+TraceBuffer* ProducerEndpointImpl::GetV2RingBufferDestination(BufferID id) {
   if (!is_allowed_target_buffer(id))
     return nullptr;
 
-  // The producer supplies |id| through shared memory. Check that the allowed
-  // destination is a TraceBufferV2 before casting.
-  return static_cast<TraceBufferV2*>(
-      service_->GetBufferByID(id, TraceBuffer::BufType::kV2));
+  // The producer supplies |id| through shared memory. Check that the
+  // destination buffer supports tracing v2 otherwise return nullptr.
+  TraceBuffer* buffer = service_->GetBufferByID(id);
+  return buffer && buffer->supports_tracing_v2() ? buffer : nullptr;
 }
 
-void ProducerEndpointImpl::ForEachRingBufferDestination(
-    const std::function<void(TraceBufferV2&)>& callback) {
+void ProducerEndpointImpl::ForEachV2RingBufferDestination(
+    const std::function<void(TraceBuffer&)>& callback) {
   for (BufferID id : allowed_target_buffers_) {
-    if (auto* buffer = service_->GetBufferByID(id, TraceBuffer::BufType::kV2))
-      callback(*static_cast<TraceBufferV2*>(buffer));
+    TraceBuffer* buffer = service_->GetBufferByID(id);
+    if (buffer && buffer->supports_tracing_v2())
+      callback(*buffer);
   }
 }
 

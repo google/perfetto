@@ -78,11 +78,11 @@ std::string Packet(const std::string& value) {
 // Stands in for ProducerEndpointImpl. It authorizes one destination.
 class FakeDelegate : public ServiceRingBufferDrainer::Delegate {
  public:
-  TraceBufferV2* GetRingBufferDestination(BufferID id) override {
+  TraceBuffer* GetV2RingBufferDestination(BufferID id) override {
     return id == kBuffer ? buffer.get() : nullptr;
   }
-  void ForEachRingBufferDestination(
-      const std::function<void(TraceBufferV2&)>& callback) override {
+  void ForEachV2RingBufferDestination(
+      const std::function<void(TraceBuffer&)>& callback) override {
     callback(*buffer);
   }
   void OnRingBufferChunksDiscarded(uint64_t count) override {
