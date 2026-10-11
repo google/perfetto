@@ -274,7 +274,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     ];
     return m(
       TabStrip,
-      {},
+      {variant: 'underline'},
       tabs.map((t) =>
         m(
           TabStrip.Tab,
