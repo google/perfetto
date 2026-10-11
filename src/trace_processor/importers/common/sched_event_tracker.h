@@ -18,10 +18,12 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_TRACKER_H_
 
 #include <cstdint>
+#include <limits>
 
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
@@ -83,7 +85,34 @@ class SchedEventTracker : public Destructible {
     r.set_end_state(prev_state);
   }
 
+  // Closes open scheduling slices on all CPUs in |state| at |end_ts| with a
+  // null end_state, returning the number of slices closed.
+  uint32_t ClosePendingSlicesAt(SchedEventState* state, int64_t end_ts) {
+    uint32_t closed = 0;
+    for (auto& pending : state->pending_sched_per_cpu()) {
+      if (pending.pending_slice_storage_idx ==
+          std::numeric_limits<uint32_t>::max()) {
+        continue;
+      }
+      if (ClosePendingSliceAtEnd(pending.pending_slice_storage_idx, end_ts)) {
+        ++closed;
+      }
+      pending.pending_slice_storage_idx = std::numeric_limits<uint32_t>::max();
+    }
+    return closed;
+  }
+
  private:
+  bool ClosePendingSliceAtEnd(uint32_t pending_slice_idx, int64_t end_ts) {
+    auto* slices = context_->storage->mutable_sched_slice_table();
+    auto r = (*slices)[pending_slice_idx];
+    if (r.dur() != -1 || end_ts < r.ts()) {
+      return false;
+    }
+    r.set_dur(end_ts - r.ts());
+    return true;
+  }
+
   TraceProcessorContext* const context_;
 };
 

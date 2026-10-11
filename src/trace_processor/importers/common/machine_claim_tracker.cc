@@ -23,7 +23,10 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_state.h"
+#include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -62,7 +65,43 @@ void MachineClaimTracker::ReadTraceEnds(TraceProcessorContext* context) {
       if (end) {
         self->SetTraceEnd(trace, *end);
       }
+      std::optional<int64_t> ftrace_end =
+          context->sorter->MaxFtraceTimestampForTrace(trace);
+      if (ftrace_end) {
+        self->SetFtraceEnd(trace, *ftrace_end);
+      }
     }
+  }
+}
+
+// static
+void MachineClaimTracker::CloseOpenSchedRows(TraceProcessorContext* context) {
+  MachineClaimTracker* self = context->machine_claim_tracker.get();
+  if (!self || self->sched_trace_count_ < 2) {
+    return;
+  }
+  uint32_t trace = context->trace_id().value;
+  if (trace >= self->sched_traces_.size() ||
+      !self->sched_traces_[trace].records_sched) {
+    return;
+  }
+  int64_t end_ts = self->FtraceEnd(trace);
+  if (end_ts == kUnknownEnd) {
+    return;
+  }
+  uint32_t cut = 0;
+  if (SchedEventState* sched_state = self->sched_traces_[trace].sched_state;
+      sched_state && context->sched_event_tracker) {
+    cut +=
+        context->sched_event_tracker->ClosePendingSlicesAt(sched_state, end_ts);
+  }
+  if (context->thread_state_tracker) {
+    cut += static_cast<ThreadStateTracker*>(context->thread_state_tracker.get())
+               ->CloseOpenStatesAt(end_ts);
+  }
+  if (cut > 0) {
+    context->stats_tracker->IncrementStats(stats::machine_sched_open_rows_cut,
+                                           static_cast<int64_t>(cut));
   }
 }
 
@@ -92,17 +131,46 @@ int64_t MachineClaimTracker::TraceEnd(uint32_t trace) const {
   return trace < trace_ends_.size() ? trace_ends_[trace] : kUnknownEnd;
 }
 
-MachineClaimTracker::Claim MachineClaimTracker::Decide(uint32_t owner,
-                                                       TraceId trace,
-                                                       int64_t ts) const {
+void MachineClaimTracker::SetFtraceEnd(TraceId trace, int64_t end) {
+  if (trace.value >= ftrace_ends_.size()) {
+    ftrace_ends_.resize(trace.value + 1, kUnknownEnd);
+  }
+  ftrace_ends_[trace.value] = end;
+  sched_shared_ =
+      std::count_if(ftrace_ends_.begin(), ftrace_ends_.end(),
+                    [](int64_t e) { return e != kUnknownEnd; }) >= 2;
+}
+
+int64_t MachineClaimTracker::FtraceEnd(uint32_t trace) const {
+  return trace < ftrace_ends_.size() ? ftrace_ends_[trace] : kUnknownEnd;
+}
+
+void MachineClaimTracker::NoteSchedSwitch(TraceId trace,
+                                          SchedEventState* sched_state) {
+  if (trace.value >= sched_traces_.size()) {
+    sched_traces_.resize(trace.value + 1);
+  }
+  SchedTraceState& state = sched_traces_[trace.value];
+  if (!state.records_sched) {
+    state.sched_state = sched_state;
+    state.records_sched = true;
+    ++sched_trace_count_;
+  }
+}
+
+MachineClaimTracker::Claim MachineClaimTracker::Decide(
+    uint32_t owner,
+    TraceId trace,
+    int64_t ts,
+    int64_t owner_end) const {
   if (owner == trace.value || owner == kNotMachineTrack) {
     return Claim::kOwned;
   }
   if (owner == kNoOwner) {
     return Claim::kFirstWrite;
   }
-  // The owner holds the track up to and including its end.
-  return ts > TraceEnd(owner) ? Claim::kHandover : Claim::kHidden;
+  // The owner holds the claim up to and including its end.
+  return ts > owner_end ? Claim::kHandover : Claim::kHidden;
 }
 
 MachineClaimTracker::Claim MachineClaimTracker::Check(TraceId trace,
@@ -113,7 +181,8 @@ MachineClaimTracker::Claim MachineClaimTracker::Check(TraceId trace,
   if (track.value >= owners_.size()) {
     return Claim::kOwned;
   }
-  return Decide(owners_[track.value], trace, ts);
+  uint32_t owner = owners_[track.value];
+  return Decide(owner, trace, ts, TraceEnd(owner));
 }
 
 bool MachineClaimTracker::Keep(TraceProcessorContext* writer,
@@ -124,7 +193,7 @@ bool MachineClaimTracker::Keep(TraceProcessorContext* writer,
   }
   uint32_t& owner = owners_[track.value];
   TraceId trace = writer->trace_id();
-  switch (Decide(owner, trace, ts)) {
+  switch (Decide(owner, trace, ts, TraceEnd(owner))) {
     case Claim::kOwned:
       return true;
     case Claim::kFirstWrite:
@@ -156,6 +225,68 @@ void MachineClaimTracker::RecordHidden(TraceProcessorContext* writer,
   }
   writer->stats_tracker->IncrementIndexedStats(
       stats::machine_track_events_hidden, index);
+}
+
+MachineClaimTracker::Claim MachineClaimTracker::CheckSched(TraceId trace,
+                                                           int64_t ts) const {
+  return Decide(sched_owner_, trace, ts, FtraceEnd(sched_owner_));
+}
+
+bool MachineClaimTracker::KeepSwitch(TraceProcessorContext* writer,
+                                     SchedEventState* sched_state,
+                                     int64_t ts) {
+  TraceId trace = writer->trace_id();
+  NoteSchedSwitch(trace, sched_state);
+  switch (CheckSched(trace, ts)) {
+    case Claim::kOwned:
+      return true;
+    case Claim::kFirstWrite:
+    case Claim::kHandover:
+      sched_owner_ = trace.value;
+      return true;
+    case Claim::kHidden:
+      RecordSchedHidden(writer, ts, sched_owner_);
+      return false;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+bool MachineClaimTracker::KeepEvent(TraceProcessorContext* writer, int64_t ts) {
+  switch (CheckSched(writer->trace_id(), ts)) {
+    case Claim::kOwned:
+      return true;
+    case Claim::kFirstWrite:
+    case Claim::kHandover:
+      // No trace owns scheduling: dropped, uncounted, like events before the
+      // soft-drop point. Several traces may write here, and only a context
+      // switch decides which one is shown.
+      return false;
+    case Claim::kHidden:
+      RecordSchedHidden(writer, ts, sched_owner_);
+      return false;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+void MachineClaimTracker::RecordSchedHidden(TraceProcessorContext* writer,
+                                            int64_t ts,
+                                            uint32_t owner) {
+  uint32_t trace = writer->trace_id().value;
+  if (trace >= sched_traces_.size()) {
+    sched_traces_.resize(trace + 1);
+  }
+  if (!sched_traces_[trace].logged_hidden) {
+    sched_traces_[trace].logged_hidden = true;
+    if (writer->import_logs_tracker) {
+      writer->import_logs_tracker->RecordParserLog(
+          stats::machine_sched_events_hidden, ts,
+          [this, owner](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(owner_trace_id_key_, Variadic::Integer(owner));
+          });
+      return;
+    }
+  }
+  writer->stats_tracker->IncrementStats(stats::machine_sched_events_hidden);
 }
 
 double MachineClaimTracker::SeriesValue(TraceId trace,

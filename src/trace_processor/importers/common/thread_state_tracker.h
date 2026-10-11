@@ -102,6 +102,10 @@ class ThreadStateTracker : public Destructible {
 
   StringId GetPrevEndState(UniqueTid utid);
 
+  // Closes open thread_state rows at |end_ts|, returning the number of rows
+  // closed.
+  uint32_t CloseOpenStatesAt(int64_t end_ts);
+
  private:
   void AddOpenState(int64_t ts,
                     UniqueTid utid,

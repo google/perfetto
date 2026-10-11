@@ -256,6 +256,21 @@ StringId ThreadStateTracker::GetPrevEndState(UniqueTid utid) {
   return row_ref->state();
 }
 
+uint32_t ThreadStateTracker::CloseOpenStatesAt(int64_t end_ts) {
+  uint32_t closed = 0;
+  for (const auto& entry : prev_row_numbers_for_thread_) {
+    if (!entry.has_value()) {
+      continue;
+    }
+    auto row_ref = RowNumToRef(entry->last_row);
+    if (row_ref.dur() == -1 && end_ts >= row_ref.ts()) {
+      row_ref.set_dur(end_ts - row_ref.ts());
+      ++closed;
+    }
+  }
+  return closed;
+}
+
 bool ThreadStateTracker::IsRunning(StringId state) {
   return state == running_string_id_;
 }

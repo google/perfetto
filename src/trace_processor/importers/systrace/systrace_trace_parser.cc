@@ -115,7 +115,8 @@ SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
       ctx_(ctx),
       stream_(ctx->sorter->CreateStream(
           ctx->trace_id(),
-          std::make_unique<SystraceLineSink>(&line_parser_))) {}
+          std::make_unique<SystraceLineSink>(&line_parser_),
+          /*is_ftrace=*/true)) {}
 SystraceTraceParser::~SystraceTraceParser() = default;
 
 base::Status SystraceTraceParser::Parse(TraceBlobView blob) {

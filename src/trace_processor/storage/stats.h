@@ -190,6 +190,14 @@ namespace perfetto::trace_processor::stats {
        "another trace of the same machine supplied that track at the time. "  \
        "Usually copies; if the traces are from different devices or boots, "  \
        "give each its own machine in a trace manifest."),                     \
+  F(machine_sched_events_hidden,          kSingle,  kNotice,   kAnalysis, Scope::kMachineAndTrace,      \
+       "Scheduling events hidden because another trace of the same machine " \
+       "supplied scheduling at the time. If the traces are from different "  \
+       "devices or boots, give each its own machine in a trace manifest."),  \
+  F(machine_sched_open_rows_cut,          kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
+       "Open sched_slice and thread_state rows ended at this trace's last "   \
+       "ftrace event because several traces of the same machine recorded "    \
+       "scheduling."),                                                        \
   F(meminfo_unknown_keys,                 kSingle,  kError,    kAnalysis, Scope::kMachineAndTrace, ""), \
   F(cpu_info_unknown_cpu_features,        kSingle,  kInfo,     kAnalysis, Scope::kMachineAndTrace,      \
        "CpuInfo contained CPU feature bits not known to this version of "      \

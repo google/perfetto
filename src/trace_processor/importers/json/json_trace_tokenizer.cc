@@ -536,7 +536,8 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
                                          std::make_unique<JsonSink>(&parser_))),
       systrace_stream_(context_->sorter->CreateStream(
           context_->trace_id(),
-          std::make_unique<SystraceSink>(&parser_))),
+          std::make_unique<SystraceSink>(&parser_),
+          /*is_ftrace=*/true)),
       v8_stream_(context_->sorter->CreateStream(
           context_->trace_id(),
           std::make_unique<V8Sink>(v8_tracker_.get()))) {}

@@ -192,7 +192,8 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
   module_context_.ftrace_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
         context_->trace_id(),
-        std::make_unique<FtraceEventSink>(parser_.get(), cpu));
+        std::make_unique<FtraceEventSink>(parser_.get(), cpu),
+        /*is_ftrace=*/true);
   };
   module_context_.etw_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
@@ -202,12 +203,14 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
   module_context_.inline_sched_switch_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
         context_->trace_id(),
-        std::make_unique<InlineSchedSwitchSink>(parser_.get(), cpu));
+        std::make_unique<InlineSchedSwitchSink>(parser_.get(), cpu),
+        /*is_ftrace=*/true);
   };
   module_context_.inline_sched_waking_stream_factory = [this](uint32_t cpu) {
     return context_->sorter->CreateStream(
         context_->trace_id(),
-        std::make_unique<InlineSchedWakingSink>(parser_.get(), cpu));
+        std::make_unique<InlineSchedWakingSink>(parser_.get(), cpu),
+        /*is_ftrace=*/true);
   };
   RegisterDefaultModules(&module_context_, context_);
   if (context_->register_additional_proto_modules) {

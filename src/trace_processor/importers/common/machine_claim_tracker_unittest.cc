@@ -33,8 +33,11 @@
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_state.h"
+#include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/sparse_counter_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
@@ -42,6 +45,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -354,6 +358,389 @@ TEST_F(MachineClaimTrackerTest, ForkQueueTagged) {
   ctx1_->sparse_counter_tracker->PushCounter(500, track, 1.0);
   EXPECT_EQ(root_.sorter->MaxTimestampForTrace(TraceId{1}), 500);
   EXPECT_EQ(root_.sorter->MaxTimestampForTrace(TraceId{2}), std::nullopt);
+}
+
+// Sched switches claim scheduling up to ftrace_end; events at ts <= ftrace_end
+// from other traces are hidden and increment machine_sched_events_hidden.
+TEST_F(MachineClaimTrackerTest, SchedSwitchClaimsUntilFtraceEnd) {
+  TraceProcessorContext* ctxA = ctx1_;
+  TraceProcessorContext* ctxB = ctx2_;
+  TraceProcessorContext* ctxC =
+      root_.ForkContextForTrace(TraceId{3}, /*default_raw_machine_id=*/0);
+
+  claims_->SetFtraceEnd(TraceId{1}, 200);
+  claims_->SetFtraceEnd(TraceId{2}, 300);
+  claims_->SetFtraceEnd(TraceId{3}, 400);
+  ASSERT_TRUE(claims_->sched_shared());
+
+  SchedEventState sched_stateA;
+  SchedEventState sched_stateB;
+  SchedEventState sched_stateC;
+
+  // Only KeepSchedSwitch claims.
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctxA, &sched_stateA, 100));
+
+  // Owner keeps switches up to ftrace_end (inclusive).
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctxA, &sched_stateA, 150));
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctxA, &sched_stateA, 200));
+
+  // Owner keeps non-claiming events up to ftrace_end (inclusive).
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedEvent(ctxA, 120));
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedEvent(ctxA, 200));
+
+  // Another trace's switches and wakeups at ts <= ftrace_end(owner) are hidden.
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedSwitch(ctxB, &sched_stateB, 110));
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctxB, 120));
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedSwitch(ctxB, &sched_stateB, 200));
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctxB, 200));
+
+  // ctxC's switches and wakeups at ts <= ftrace_end(owner) are also hidden.
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedSwitch(ctxC, &sched_stateC, 130));
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctxC, 140));
+
+  // Hidden events increment stats::machine_sched_events_hidden.
+  EXPECT_EQ(
+      ctxB->global_stats_tracker->GetStats(ctxB->machine_id(), ctxB->trace_id(),
+                                           stats::machine_sched_events_hidden),
+      4);
+  EXPECT_EQ(
+      ctxC->global_stats_tracker->GetStats(ctxC->machine_id(), ctxC->trace_id(),
+                                           stats::machine_sched_events_hidden),
+      2);
+  EXPECT_EQ(
+      ctxA->global_stats_tracker->GetStats(ctxA->machine_id(), ctxA->trace_id(),
+                                           stats::machine_sched_events_hidden),
+      0);
+
+  // Record one import log per trace with owner_trace_id.
+  const auto& logs = root_.storage->trace_import_logs_table();
+  EXPECT_EQ(logs.row_count(), 2u);
+
+  StringId owner_trace_id_key = root_.storage->InternString("owner_trace_id");
+  const auto& args = root_.storage->arg_table();
+
+  bool found_log_b = false;
+  bool found_log_c = false;
+  for (uint32_t i = 0; i < logs.row_count(); ++i) {
+    uint32_t log_trace_id =
+        logs.dataframe()
+            .template GetCellUnchecked<
+                tables::TraceImportLogsTable::ColumnIndex::trace_id>(
+                tables::TraceImportLogsTable::kSpec, i);
+    int64_t log_stat_key =
+        logs.dataframe()
+            .template GetCellUnchecked<
+                tables::TraceImportLogsTable::ColumnIndex::stat_key>(
+                tables::TraceImportLogsTable::kSpec, i);
+    EXPECT_EQ(log_stat_key,
+              static_cast<int64_t>(stats::machine_sched_events_hidden));
+    ASSERT_TRUE(logs[i].arg_set_id().has_value());
+    uint32_t arg_set_id = *logs[i].arg_set_id();
+
+    std::optional<int64_t> logged_owner_trace_id;
+    for (auto arg_it = args.IterateRows(); arg_it; ++arg_it) {
+      if (arg_it.arg_set_id() == arg_set_id &&
+          arg_it.key() == owner_trace_id_key) {
+        logged_owner_trace_id = arg_it.int_value();
+      }
+    }
+    ASSERT_TRUE(logged_owner_trace_id.has_value());
+    EXPECT_EQ(*logged_owner_trace_id,
+              static_cast<int64_t>(ctxA->trace_id().value));
+
+    if (log_trace_id == ctxB->trace_id().value) {
+      found_log_b = true;
+    } else if (log_trace_id == ctxC->trace_id().value) {
+      found_log_c = true;
+    }
+  }
+  EXPECT_TRUE(found_log_b);
+  EXPECT_TRUE(found_log_c);
+}
+
+// Scheduling events are not gated when fewer than two traces have ftrace ends.
+TEST_F(MachineClaimTrackerTest, SchedNotSharedUntilTwoTracesHaveFtraceEnds) {
+  EXPECT_FALSE(claims_->sched_shared());
+
+  claims_->SetFtraceEnd(TraceId{1}, 500);
+  EXPECT_FALSE(claims_->sched_shared());
+
+  SchedEventState sched_state1;
+  SchedEventState sched_state2;
+
+  // With only one trace having a known ftrace end, sched_shared() is false:
+  // switches and events are always kept, no hidden stats are recorded, and
+  // NoteSchedSwitch is not called.
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctx1_, &sched_state1, 100));
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedEvent(ctx1_, 120));
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctx2_, &sched_state2, 100));
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedEvent(ctx2_, 120));
+
+  EXPECT_EQ(ctx1_->global_stats_tracker->GetStats(
+                ctx1_->machine_id(), ctx1_->trace_id(),
+                stats::machine_sched_events_hidden),
+            0);
+  EXPECT_EQ(ctx2_->global_stats_tracker->GetStats(
+                ctx2_->machine_id(), ctx2_->trace_id(),
+                stats::machine_sched_events_hidden),
+            0);
+
+  // CloseOpenSchedRows does nothing because fewer than two traces recorded
+  // switches.
+  MachineClaimTracker::CloseOpenSchedRows(ctx1_);
+  EXPECT_EQ(ctx1_->global_stats_tracker->GetStats(
+                ctx1_->machine_id(), ctx1_->trace_id(),
+                stats::machine_sched_open_rows_cut),
+            0);
+
+  // Once a second trace has an ftrace end, sched_shared() becomes true.
+  claims_->SetFtraceEnd(TraceId{2}, 600);
+  EXPECT_TRUE(claims_->sched_shared());
+}
+
+// Non-claiming events while no trace owns scheduling are dropped uncounted.
+// Only a context switch claims scheduling.
+TEST_F(MachineClaimTrackerTest, SchedEventsDroppedWhileUnowned) {
+  claims_->SetFtraceEnd(TraceId{1}, 80);
+  claims_->SetFtraceEnd(TraceId{2}, 150);
+  ASSERT_TRUE(claims_->sched_shared());
+
+  // (i) Before any switch, non-claiming events from either trace are dropped
+  // uncounted, leave hidden stats at 0, write no import log, and do not claim.
+  EXPECT_EQ(claims_->CheckSched(ctx1_->trace_id(), 20),
+            MachineClaimTracker::Claim::kFirstWrite);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctx1_, 20));
+
+  EXPECT_EQ(claims_->CheckSched(ctx2_->trace_id(), 25),
+            MachineClaimTracker::Claim::kFirstWrite);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctx2_, 25));
+
+  EXPECT_EQ(ctx1_->global_stats_tracker->GetStats(
+                ctx1_->machine_id(), ctx1_->trace_id(),
+                stats::machine_sched_events_hidden),
+            0);
+  EXPECT_EQ(ctx2_->global_stats_tracker->GetStats(
+                ctx2_->machine_id(), ctx2_->trace_id(),
+                stats::machine_sched_events_hidden),
+            0);
+  EXPECT_EQ(root_.storage->trace_import_logs_table().row_count(), 0u);
+
+  // A later switch from the other trace (trace 1) still sees kFirstWrite and
+  // claims.
+  SchedEventState sched_state1;
+  EXPECT_EQ(claims_->CheckSched(ctx1_->trace_id(), 30),
+            MachineClaimTracker::Claim::kFirstWrite);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctx1_, &sched_state1, 30));
+
+  // (ii) While T1 owns, T1's events are kept and T2's are hidden and counted
+  // (+ one import log).
+  EXPECT_EQ(claims_->CheckSched(ctx1_->trace_id(), 40),
+            MachineClaimTracker::Claim::kOwned);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedEvent(ctx1_, 40));
+
+  EXPECT_EQ(claims_->CheckSched(ctx2_->trace_id(), 50),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctx2_, 50));
+
+  EXPECT_EQ(ctx2_->global_stats_tracker->GetStats(
+                ctx2_->machine_id(), ctx2_->trace_id(),
+                stats::machine_sched_events_hidden),
+            1);
+  EXPECT_EQ(ctx1_->global_stats_tracker->GetStats(
+                ctx1_->machine_id(), ctx1_->trace_id(),
+                stats::machine_sched_events_hidden),
+            0);
+
+  const auto& logs = root_.storage->trace_import_logs_table();
+  ASSERT_EQ(logs.row_count(), 1u);
+  StringId owner_trace_id_key = root_.storage->InternString("owner_trace_id");
+  const auto& args = root_.storage->arg_table();
+  ASSERT_TRUE(logs[0].arg_set_id().has_value());
+  std::optional<int64_t> logged_owner;
+  for (auto it = args.IterateRows(); it; ++it) {
+    if (it.arg_set_id() == *logs[0].arg_set_id() &&
+        it.key() == owner_trace_id_key) {
+      logged_owner = it.int_value();
+    }
+  }
+  ASSERT_TRUE(logged_owner.has_value());
+  EXPECT_EQ(*logged_owner, static_cast<int64_t>(ctx1_->trace_id().value));
+
+  // (iii) After T1's ftrace end and before T2's first switch:
+  // Non-owner events are dropped uncounted on kHandover; owner remains T1.
+  EXPECT_EQ(claims_->CheckSched(ctx2_->trace_id(), 90),
+            MachineClaimTracker::Claim::kHandover);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctx2_, 90));
+  EXPECT_EQ(ctx2_->global_stats_tracker->GetStats(
+                ctx2_->machine_id(), ctx2_->trace_id(),
+                stats::machine_sched_events_hidden),
+            1);
+  EXPECT_EQ(root_.storage->trace_import_logs_table().row_count(), 1u);
+
+  EXPECT_EQ(claims_->CheckSched(ctx2_->trace_id(), 95),
+            MachineClaimTracker::Claim::kHandover);
+
+  // (iv) After T2's switch, T2 claims and T2's events are kept.
+  SchedEventState sched_state2;
+  EXPECT_EQ(claims_->CheckSched(ctx2_->trace_id(), 100),
+            MachineClaimTracker::Claim::kHandover);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctx2_, &sched_state2, 100));
+
+  EXPECT_EQ(claims_->CheckSched(ctx2_->trace_id(), 110),
+            MachineClaimTracker::Claim::kOwned);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedEvent(ctx2_, 110));
+}
+
+// Trace B's switch at ts > ftrace_end(A) returns Claim::kHandover, claims
+// scheduling until ftrace_end(B), and hides A's or C's events in
+// (ftrace_end(A), ftrace_end(B)].
+TEST_F(MachineClaimTrackerTest, SchedHandoverAfterFtraceEnd) {
+  TraceProcessorContext* ctxA = ctx1_;
+  TraceProcessorContext* ctxB = ctx2_;
+  TraceProcessorContext* ctxC =
+      root_.ForkContextForTrace(TraceId{3}, /*default_raw_machine_id=*/0);
+
+  claims_->SetFtraceEnd(TraceId{1}, 100);
+  claims_->SetFtraceEnd(TraceId{2}, 200);
+  claims_->SetFtraceEnd(TraceId{3}, 300);
+
+  SchedEventState sched_stateA;
+  SchedEventState sched_stateB;
+  SchedEventState sched_stateC;
+
+  // A claims first switch.
+  EXPECT_EQ(claims_->CheckSched(ctxA->trace_id(), 50),
+            MachineClaimTracker::Claim::kFirstWrite);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctxA, &sched_stateA, 50));
+
+  // B's switch before ftrace_end(A) is hidden.
+  EXPECT_EQ(claims_->CheckSched(ctxB->trace_id(), 80),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedSwitch(ctxB, &sched_stateB, 80));
+
+  // B's switch at ts > ftrace_end(A) returns kHandover and claims scheduling.
+  EXPECT_EQ(claims_->CheckSched(ctxB->trace_id(), 120),
+            MachineClaimTracker::Claim::kHandover);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctxB, &sched_stateB, 120));
+
+  // Events past ftrace_end(A) while B owns exercise Decide() directly.
+  EXPECT_EQ(claims_->CheckSched(ctxA->trace_id(), 130),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedSwitch(ctxA, &sched_stateA, 130));
+  EXPECT_EQ(claims_->CheckSched(ctxA->trace_id(), 135),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctxA, 135));
+
+  EXPECT_EQ(claims_->CheckSched(ctxC->trace_id(), 150),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedSwitch(ctxC, &sched_stateC, 150));
+  EXPECT_EQ(claims_->CheckSched(ctxC->trace_id(), 155),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctxC, 155));
+
+  // Boundary condition: ts == ftrace_end(B) is hidden for A and C, owned for B.
+  EXPECT_EQ(claims_->CheckSched(ctxA->trace_id(), 200),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedSwitch(ctxA, &sched_stateA, 200));
+  EXPECT_EQ(claims_->CheckSched(ctxC->trace_id(), 200),
+            MachineClaimTracker::Claim::kHidden);
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctxC, 200));
+
+  EXPECT_EQ(claims_->CheckSched(ctxB->trace_id(), 200),
+            MachineClaimTracker::Claim::kOwned);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctxB, &sched_stateB, 200));
+  EXPECT_EQ(claims_->CheckSched(ctxB->trace_id(), 200),
+            MachineClaimTracker::Claim::kOwned);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedEvent(ctxB, 200));
+
+  // C's switch at ts > ftrace_end(B) returns kHandover.
+  EXPECT_EQ(claims_->CheckSched(ctxC->trace_id(), 250),
+            MachineClaimTracker::Claim::kHandover);
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctxC, &sched_stateC, 250));
+}
+
+// CloseOpenSchedRows cuts open sched_slice and thread_state rows only when
+// two or more traces on the machine recorded scheduling switches.
+TEST_F(MachineClaimTrackerTest,
+       CloseOpenSchedRowsOnlyWhenTwoOrMoreTracesRecordSched) {
+  claims_->SetFtraceEnd(TraceId{1}, 500);
+  claims_->SetFtraceEnd(TraceId{2}, 800);
+
+  SchedEventState sched_state1;
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctx1_, &sched_state1, 100));
+
+  uint32_t slice1_idx = ctx1_->sched_event_tracker->AddStartSlice(
+      0, 100, /*next_utid=*/1, /*next_prio=*/120);
+  sched_state1.GetPendingSchedInfoForCpu(0)->pending_slice_storage_idx =
+      slice1_idx;
+
+  auto* tst1 = ThreadStateTracker::GetOrCreate(ctx1_);
+  StringId running = ctx1_->storage->InternString("Running");
+  tst1->PushThreadState(100, /*utid=*/1, running, /*cpu=*/0);
+
+  // A 2nd trace calls only KeepSchedEvent (after ftrace_end, before next
+  // switch), not KeepSchedSwitch.
+  EXPECT_FALSE(MachineClaimTracker::KeepSchedEvent(ctx2_, 550));
+
+  // With only 1 trace recording a switch, CloseOpenSchedRows leaves open rows
+  // untouched and stats::machine_sched_open_rows_cut == 0.
+  MachineClaimTracker::CloseOpenSchedRows(ctx1_);
+
+  const auto& sched_slices = root_.storage->sched_slice_table();
+  ASSERT_EQ(sched_slices.row_count(), 1u);
+  EXPECT_EQ(sched_slices[0].dur(), -1);
+
+  const auto& thread_states = root_.storage->thread_state_table();
+  ASSERT_EQ(thread_states.row_count(), 1u);
+  EXPECT_EQ(thread_states[0].dur(), -1);
+
+  EXPECT_EQ(ctx1_->global_stats_tracker->GetStats(
+                ctx1_->machine_id(), ctx1_->trace_id(),
+                stats::machine_sched_open_rows_cut),
+            0);
+
+  // Add another open sched_slice and open thread_state at ts == ftrace_end.
+  uint32_t slice1_idx_end = ctx1_->sched_event_tracker->AddStartSlice(
+      1, 500, /*next_utid=*/2, /*next_prio=*/120);
+  sched_state1.GetPendingSchedInfoForCpu(1)->pending_slice_storage_idx =
+      slice1_idx_end;
+  tst1->PushThreadState(500, /*utid=*/2, running, /*cpu=*/1);
+
+  // Now trace 2 records a switch on the machine.
+  SchedEventState sched_state2;
+  EXPECT_TRUE(MachineClaimTracker::KeepSchedSwitch(ctx2_, &sched_state2, 600));
+
+  uint32_t slice2_idx = ctx2_->sched_event_tracker->AddStartSlice(
+      0, 600, /*next_utid=*/3, /*next_prio=*/120);
+  sched_state2.GetPendingSchedInfoForCpu(0)->pending_slice_storage_idx =
+      slice2_idx;
+
+  auto* tst2 = ThreadStateTracker::GetOrCreate(ctx2_);
+  tst2->PushThreadState(600, /*utid=*/3, running, /*cpu=*/0);
+
+  // With 2 traces recording switches, CloseOpenSchedRows cuts open rows.
+  MachineClaimTracker::CloseOpenSchedRows(ctx1_);
+
+  EXPECT_EQ(ctx1_->global_stats_tracker->GetStats(
+                ctx1_->machine_id(), ctx1_->trace_id(),
+                stats::machine_sched_open_rows_cut),
+            4);
+  EXPECT_EQ(sched_slices[0].dur(), 400);
+  EXPECT_EQ(sched_slices[0].end_state(), kNullStringId);
+  EXPECT_EQ(sched_slices[1].dur(), 0);
+  EXPECT_EQ(sched_slices[1].end_state(), kNullStringId);
+  EXPECT_EQ(thread_states[0].dur(), 400);
+  EXPECT_EQ(thread_states[1].dur(), 0);
+
+  MachineClaimTracker::CloseOpenSchedRows(ctx2_);
+
+  EXPECT_EQ(ctx2_->global_stats_tracker->GetStats(
+                ctx2_->machine_id(), ctx2_->trace_id(),
+                stats::machine_sched_open_rows_cut),
+            2);
+  EXPECT_EQ(sched_slices[2].dur(), 200);
+  EXPECT_EQ(sched_slices[2].end_state(), kNullStringId);
+  EXPECT_EQ(thread_states[2].dur(), 200);
 }
 
 class MachineTrackInterningTest : public ::testing::Test {

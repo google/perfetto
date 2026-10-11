@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
@@ -135,8 +136,10 @@ base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     context_->process_tracker->UpdateThreadName(wakee_utid, name_id,
                                                 ThreadNamePriority::kFtrace);
 
-    ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
-        line.ts, wakee_utid, utid);
+    if (MachineClaimTracker::KeepSchedEvent(context_, line.ts)) {
+      ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
+          line.ts, wakee_utid, utid);
+    }
 
   } else if (line.event_name == "cpu_frequency") {
     std::optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
@@ -314,8 +317,10 @@ base::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
     StringId blocked_function =
         context_->storage->InternString(base::StringView(args["caller"]));
-    ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
-        wakee_utid, static_cast<bool>(*io_wait), blocked_function);
+    if (MachineClaimTracker::KeepSchedEvent(context_, line.ts)) {
+      ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
+          wakee_utid, static_cast<bool>(*io_wait), blocked_function);
+    }
   } else if (line.event_name == "rss_stat") {
     // Format: rss_stat: size=8437760 member=1 curr=1 mm_id=2824390453
     auto size = base::StringToInt64(args["size"]);

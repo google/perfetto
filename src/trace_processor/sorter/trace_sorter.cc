@@ -72,9 +72,22 @@ bool TraceSorter::SetSortingMode(SortingMode sorting_mode) {
 
 std::optional<int64_t> TraceSorter::MaxTimestampForTrace(
     TraceId trace_id) const {
+  return MaxTimestampForTraceImpl(trace_id, QueueFilter::kAll);
+}
+
+std::optional<int64_t> TraceSorter::MaxFtraceTimestampForTrace(
+    TraceId trace_id) const {
+  return MaxTimestampForTraceImpl(trace_id, QueueFilter::kFtraceOnly);
+}
+
+std::optional<int64_t> TraceSorter::MaxTimestampForTraceImpl(
+    TraceId trace_id,
+    QueueFilter filter) const {
   std::optional<int64_t> max_ts;
   for (const auto& queue : queues_) {
-    if (queue.trace_id != trace_id || queue.events_.empty()) {
+    if (queue.trace_id != trace_id ||
+        (filter == QueueFilter::kFtraceOnly && !queue.is_ftrace_) ||
+        queue.events_.empty()) {
       continue;
     }
     if (PERFETTO_LIKELY(!queue.has_synthetic_ts_)) {

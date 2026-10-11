@@ -531,5 +531,112 @@ TEST_F(TraceSorterTest, MaxTimestampForTraceUnknownTraceId) {
   EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace_unknown), std::nullopt);
 }
 
+TEST_F(TraceSorterTest, MaxFtraceTimestampForTraceNonFtraceOrSyntheticOnly) {
+  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  TraceId trace_non_ftrace{1};
+  TraceId trace_synthetic{2};
+
+  // Trace 1 has only non-ftrace queues (TrackEventData and JsonEvent) with
+  // non-synthetic timestamps.
+  auto track_event_sink = std::make_unique<MockSink<TrackEventData>>();
+  auto track_event_stream = context_.sorter->CreateStream(
+      trace_non_ftrace, std::move(track_event_sink));
+  track_event_stream->Push(1000,
+                           TrackEventData(test_buffer_.slice_off(0, 1), state));
+
+  auto json_sink = std::make_unique<MockSink<JsonEvent>>();
+  auto json_stream =
+      context_.sorter->CreateStream(trace_non_ftrace, std::move(json_sink));
+  json_stream->Push(2000, JsonEvent{});
+
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace_non_ftrace), 2000);
+  EXPECT_EQ(context_.sorter->MaxFtraceTimestampForTrace(trace_non_ftrace),
+            std::nullopt);
+
+  // Trace 2 has ftrace queues, but only synthetic-timestamp events.
+  auto ftrace_sink = std::make_unique<MockSink<FtraceData>>();
+  auto ftrace_stream = context_.sorter->CreateStream(
+      trace_synthetic, std::move(ftrace_sink), /*is_ftrace=*/true);
+  FtraceData ftrace_data;
+  ftrace_data.packet = test_buffer_.slice_off(0, 1);
+  ftrace_data.sequence_state = state;
+  ftrace_stream->PushWithSyntheticTimestamp(5000, std::move(ftrace_data));
+
+  auto sched_switch_sink = std::make_unique<MockSink<InlineSchedSwitch>>();
+  auto sched_switch_stream = context_.sorter->CreateStream(
+      trace_synthetic, std::move(sched_switch_sink), /*is_ftrace=*/true);
+  sched_switch_stream->PushWithSyntheticTimestamp(6000, InlineSchedSwitch{});
+
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace_synthetic),
+            std::nullopt);
+  EXPECT_EQ(context_.sorter->MaxFtraceTimestampForTrace(trace_synthetic),
+            std::nullopt);
+}
+
+TEST_F(TraceSorterTest, MaxFtraceTimestampForTraceMaxAcrossFtraceQueues) {
+  auto state = PacketSequenceStateGeneration::CreateFirst(&context_);
+  TraceId trace_1{1};
+  TraceId trace_2{2};
+
+  // Create queues for trace_1 across ftrace-capable event types:
+  // FtraceData, InlineSchedSwitch, InlineSchedWaking, and FtraceEventData.
+  auto ftrace_sink = std::make_unique<MockSink<FtraceData>>();
+  auto ftrace_stream = context_.sorter->CreateStream(
+      trace_1, std::move(ftrace_sink), /*is_ftrace=*/true);
+  FtraceData data1;
+  data1.packet = test_buffer_.slice_off(0, 1);
+  data1.sequence_state = state;
+  ftrace_stream->Push(1000, std::move(data1));
+  FtraceData data2;
+  data2.packet = test_buffer_.slice_off(0, 1);
+  data2.sequence_state = state;
+  // A synthetic-timestamp event on an ftrace queue should be ignored.
+  ftrace_stream->PushWithSyntheticTimestamp(9000, std::move(data2));
+
+  auto sched_switch_sink = std::make_unique<MockSink<InlineSchedSwitch>>();
+  auto sched_switch_stream = context_.sorter->CreateStream(
+      trace_1, std::move(sched_switch_sink), /*is_ftrace=*/true);
+  sched_switch_stream->Push(1800, InlineSchedSwitch{});
+
+  auto sched_waking_sink = std::make_unique<MockSink<InlineSchedWaking>>();
+  auto sched_waking_stream = context_.sorter->CreateStream(
+      trace_1, std::move(sched_waking_sink), /*is_ftrace=*/true);
+  sched_waking_stream->Push(2000, InlineSchedWaking{});
+
+  auto ftrace_event_sink = std::make_unique<MockSink<FtraceEventData>>();
+  auto ftrace_event_stream = context_.sorter->CreateStream(
+      trace_1, std::move(ftrace_event_sink), /*is_ftrace=*/true);
+  ftrace_event_stream->Push(2200,
+                            FtraceEventData{test_buffer_.slice_off(0, 1), 0});
+
+  // Non-ftrace queues for trace_1 with larger timestamps should be ignored by
+  // MaxFtraceTimestampForTrace.
+  auto track_event_sink = std::make_unique<MockSink<TrackEventData>>();
+  auto track_event_stream =
+      context_.sorter->CreateStream(trace_1, std::move(track_event_sink));
+  track_event_stream->Push(3000,
+                           TrackEventData(test_buffer_.slice_off(0, 1), state));
+
+  auto json_sink = std::make_unique<MockSink<JsonEvent>>();
+  auto json_stream =
+      context_.sorter->CreateStream(trace_1, std::move(json_sink));
+  json_stream->Push(4000, JsonEvent{});
+
+  // Ftrace queue for trace_2 with a larger timestamp should also be ignored.
+  auto trace2_ftrace_sink = std::make_unique<MockSink<FtraceData>>();
+  auto trace2_ftrace_stream = context_.sorter->CreateStream(
+      trace_2, std::move(trace2_ftrace_sink), /*is_ftrace=*/true);
+  FtraceData data_t2;
+  data_t2.packet = test_buffer_.slice_off(0, 1);
+  data_t2.sequence_state = state;
+  trace2_ftrace_stream->Push(5000, std::move(data_t2));
+
+  EXPECT_EQ(context_.sorter->MaxFtraceTimestampForTrace(trace_1), 2200);
+  EXPECT_EQ(context_.sorter->MaxTimestampForTrace(trace_1), 4000);
+  EXPECT_EQ(context_.sorter->MaxFtraceTimestampForTrace(trace_2), 5000);
+  EXPECT_EQ(context_.sorter->MaxFtraceTimestampForTrace(TraceId{99}),
+            std::nullopt);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

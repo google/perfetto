@@ -194,6 +194,7 @@ void TraceProcessorStorageImpl::OnEventsFullyExtracted() {
     it.value()->file_io_tracker->OnEventsFullyExtracted();
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();
+    MachineClaimTracker::CloseOpenSchedRows(it.value().get());
   }
 }
 

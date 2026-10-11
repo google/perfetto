@@ -44,6 +44,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -1170,7 +1171,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSchedBlockedReasonFieldNumber: {
-        ParseSchedBlockedReason(fld_bytes, seq_state);
+        ParseSchedBlockedReason(ts, fld_bytes, seq_state);
         break;
       }
       case FtraceEvent::kFastrpcDmaStatFieldNumber: {
@@ -1910,8 +1911,10 @@ void FtraceParser::ParseSchedWaking(int64_t timestamp,
   context_->process_tracker->UpdateThreadName(wakee_utid, name_id,
                                               ThreadNamePriority::kFtrace);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp,
-                                                             wakee_utid, utid);
+  if (MachineClaimTracker::KeepSchedEvent(context_, timestamp)) {
+    ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
+        timestamp, wakee_utid, utid);
+  }
 }
 
 void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {
@@ -2760,8 +2763,10 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
 
     proc_tracker->AssociateCreatedProcessToParentThread(upid, source_utid);
 
-    ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
-        timestamp, new_utid, source_utid);
+    if (MachineClaimTracker::KeepSchedEvent(context_, timestamp)) {
+      ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+          timestamp, new_utid, source_utid);
+    }
     return;
   }
 
@@ -2774,8 +2779,10 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   proc_tracker->AssociateThreads(source_utid, new_utid,
                                  /*associate_main_threads*/ true);
 
-  ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
-      timestamp, new_utid, source_utid);
+  if (MachineClaimTracker::KeepSchedEvent(context_, timestamp)) {
+    ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+        timestamp, new_utid, source_utid);
+  }
 }
 
 void FtraceParser::ParseTaskRename(ConstBytes blob) {
@@ -3276,6 +3283,7 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
 }
 
 void FtraceParser::ParseSchedBlockedReason(
+    int64_t timestamp,
     protozero::ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
   protos::pbzero::SchedBlockedReasonFtraceEvent::Decoder event(blob);
@@ -3285,8 +3293,10 @@ void FtraceParser::ParseSchedBlockedReason(
   std::optional<StringId> blocked_function_str_id = seq_state->InternedStringId(
       protos::pbzero::InternedData::kKernelSymbolsFieldNumber, caller_iid);
 
-  ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
-      utid, event.io_wait(), blocked_function_str_id);
+  if (MachineClaimTracker::KeepSchedEvent(context_, timestamp)) {
+    ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
+        utid, event.io_wait(), blocked_function_str_id);
+  }
 }
 
 void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,

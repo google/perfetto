@@ -124,11 +124,14 @@ class TraceSorter {
 
   // Creates a stream: a queue, owning |sink|, for events of the trace
   // |trace_id|. Each queue records its trace, so that a trace's end is known
-  // before parsing (see MaxTimestampForTrace()).
+  // before parsing (see MaxTimestampForTrace()). |is_ftrace| marks per-CPU
+  // ftrace, compact-sched and systrace queues (see
+  // MaxFtraceTimestampForTrace()).
   template <typename SinkType>
   std::unique_ptr<TraceSorter::Stream<typename SinkType::type>> CreateStream(
       TraceId trace_id,
-      std::unique_ptr<SinkType> sink);
+      std::unique_ptr<SinkType> sink,
+      bool is_ftrace = false);
 
   // Returns the largest timestamp of the events pushed to the queues of
   // |trace_id| and not extracted yet, or std::nullopt if there are none.
@@ -137,6 +140,10 @@ class TraceSorter {
   // Archives are fully sorted, so before their single extraction this is the
   // trace's last timestamp.
   std::optional<int64_t> MaxTimestampForTrace(TraceId trace_id) const;
+
+  // Like MaxTimestampForTrace(), over only the ftrace, compact-sched and
+  // systrace queues of |trace_id|.
+  std::optional<int64_t> MaxFtraceTimestampForTrace(TraceId trace_id) const;
 
   SortingMode sorting_mode() const { return sorting_mode_; }
   bool SetSortingMode(SortingMode sorting_mode);
@@ -302,9 +309,18 @@ class TraceSorter {
     TraceId trace_id;
     // Whether any event was pushed with a synthetic timestamp.
     bool has_synthetic_ts_ = false;
+    // Whether this queue holds ftrace, compact-sched or systrace events.
+    bool is_ftrace_ = false;
+  };
+
+  enum class QueueFilter : uint8_t {
+    kAll,
+    kFtraceOnly,
   };
 
   void SortAndExtractEventsUntilAllocId(BumpAllocator::AllocId alloc_id);
+  std::optional<int64_t> MaxTimestampForTraceImpl(TraceId trace_id,
+                                                  QueueFilter filter) const;
 
   static TraceTokenBuffer::Id GetTokenBufferId(const TimestampedEvent& event) {
     return TraceTokenBuffer::Id{event.alloc_id()};
@@ -436,7 +452,9 @@ class TraceSorter::Stream {
 // The factory method implementation (in the header due to templates).
 template <typename SinkType>
 std::unique_ptr<TraceSorter::Stream<typename SinkType::type>>
-TraceSorter::CreateStream(TraceId trace_id, std::unique_ptr<SinkType> sink) {
+TraceSorter::CreateStream(TraceId trace_id,
+                          std::unique_ptr<SinkType> sink,
+                          bool is_ftrace) {
   using T = typename SinkType::type;
   static_assert(
       std::is_base_of_v<Sink<T, SinkType>, SinkType>,
@@ -450,6 +468,7 @@ TraceSorter::CreateStream(TraceId trace_id, std::unique_ptr<SinkType> sink) {
   //    The queue now owns the sink.
   queues_[queue_idx].sink = std::move(sink);
   queues_[queue_idx].trace_id = trace_id;
+  queues_[queue_idx].is_ftrace_ = is_ftrace;
 
   // 3. Create and return the type-safe input handle.
   return std::unique_ptr<Stream<T>>(new Stream<T>(this, queue_idx));

@@ -26,6 +26,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
@@ -95,7 +96,14 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   if (prev_state_string_id == kNullStringId) {
     context_->stats_tracker->IncrementStats(stats::task_state_invalid);
   }
+  // |pending_slice_idx| is only set once this trace owns scheduling, and it
+  // keeps it up to its last ftrace event, so a non-owner never enters here.
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
+    PERFETTO_DCHECK(
+        !context_->machine_claim_tracker ||
+        !context_->machine_claim_tracker->sched_shared() ||
+        context_->machine_claim_tracker->CheckSched(context_->trace_id(), ts) ==
+            MachineClaimTracker::Claim::kOwned);
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
       context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
@@ -118,14 +126,19 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   AddRawSchedSwitchEvent(cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio,
                          prev_state, next_pid, next_comm_id, next_prio);
 
+  pending_sched->last_pid = next_pid;
+  pending_sched->last_utid = next_utid;
+  pending_sched->last_prio = next_prio;
+  if (!MachineClaimTracker::KeepSchedSwitch(context_, &sched_event_state_,
+                                            ts)) {
+    return;
+  }
+
   auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
       cpu, ts, next_utid, next_prio);
 
   // Finally, update the info for the next sched switch on this CPU.
   pending_sched->pending_slice_storage_idx = new_slice_idx;
-  pending_sched->last_pid = next_pid;
-  pending_sched->last_utid = next_utid;
-  pending_sched->last_prio = next_prio;
 
   // Update the ThreadState table.
   ThreadStateTracker::GetOrCreate(context_)->PushSchedSwitchEvent(
@@ -155,6 +168,10 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
     pending_sched->last_pid = next_pid;
     pending_sched->last_utid = next_utid;
     pending_sched->last_prio = next_prio;
+    // No row to write, but a real switch still claims scheduling.
+    if (!parse_only_into_raw) {
+      MachineClaimTracker::KeepSchedSwitch(context_, &sched_event_state_, ts);
+    }
     // Note: no pending slice, so leave |pending_slice_storage_idx| in its
     // invalid state.
     return;
@@ -197,8 +214,11 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // * updated |pending_sched->last_*| fields
   // * still-defaulted |pending_slice_storage_idx|
   // This is similar to the first compact_sched_switch per cpu.
-  if (PERFETTO_UNLIKELY(parse_only_into_raw))
+  if (PERFETTO_UNLIKELY(parse_only_into_raw) ||
+      !MachineClaimTracker::KeepSchedSwitch(context_, &sched_event_state_,
+                                            ts)) {
     return;
+  }
 
   // Update per-cpu Sched table.
   auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
@@ -258,8 +278,10 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
     add_raw_arg(SW::kTargetCpuFieldNumber, Variadic::Integer(target_cpu));
   }
 
-  if (PERFETTO_UNLIKELY(parse_only_into_raw))
+  if (PERFETTO_UNLIKELY(parse_only_into_raw) ||
+      !MachineClaimTracker::KeepSchedEvent(context_, ts)) {
     return;
+  }
 
   // Add a waking entry to the ThreadState table.
   auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
