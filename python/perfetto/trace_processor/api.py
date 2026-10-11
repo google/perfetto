@@ -22,7 +22,7 @@ from perfetto.trace_processor.backend_factory import create_http_backend
 from perfetto.trace_processor.backend_factory import create_remote_backend
 from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
-from perfetto.trace_processor.shell import TraceProcessorShell
+from perfetto.trace_processor.shell import TraceProcessorHttpSubprocess
 from perfetto.trace_uri_resolver import registry
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
@@ -360,7 +360,8 @@ class TraceProcessor:
       return create_http_backend(addr, protos=self.protos)
     if remote:
       return create_remote_backend(remote, protos=self.protos)
-    return TraceProcessorShell(self.config, self.platform_delegate, self.protos)
+    return TraceProcessorHttpSubprocess(self.config, self.platform_delegate,
+                                        self.protos)
 
   def _parse_trace(self, trace: TraceReference):
     resolved_lst = self.resolver_registry.resolve(trace)

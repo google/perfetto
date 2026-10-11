@@ -144,7 +144,7 @@ def load_shell(
   return url, p, temp_stdout, temp_stderr, job_handle
 
 
-class TraceProcessorShell(TraceProcessorHttp):
+class TraceProcessorHttpSubprocess(TraceProcessorHttp):
   """A trace_processor_shell subprocess, started and owned by this object.
 
   Talks to the subprocess over HTTP (hence the TraceProcessorHttp base class)
