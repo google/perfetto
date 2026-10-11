@@ -23,14 +23,17 @@ from typing import List, Optional, Union
 from urllib import request, error
 
 from perfetto.common.exceptions import PerfettoException
+from perfetto.trace_processor.http import TraceProcessorHttp
 from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.process_tree import (create_kill_on_close_job,
                                                    terminate_process_tree)
+from perfetto.trace_processor.protos import ProtoFactory
 
 # Import TYPE_CHECKING to avoid circular imports
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
   from perfetto.trace_processor.api import SqlPackage
+  from perfetto.trace_processor.api import TraceProcessorConfig
 
 # Default port that trace_processor_shell runs on
 TP_PORT = 9001
@@ -139,3 +142,41 @@ def load_shell(
                             "increasing load_timeout in TraceProcessorConfig.")
 
   return url, p, temp_stdout, temp_stderr, job_handle
+
+
+class TraceProcessorHttpSubprocess(TraceProcessorHttp):
+  """A trace_processor_shell subprocess, started and owned by this object.
+
+  Talks to the subprocess over HTTP (hence the TraceProcessorHttp base class)
+  and shuts it down in close().
+  """
+
+  def __init__(self, config: 'TraceProcessorConfig',
+               platform_delegate: PlatformDelegate, protos: ProtoFactory):
+    (url, self.subprocess, self._tp_stdout, self._tp_stderr,
+     self._job_handle) = load_shell(
+         config.bin_path,
+         config.unique_port,
+         config.verbose,
+         config.ingest_ftrace_in_raw,
+         config.enable_dev_features,
+         platform_delegate,
+         config.load_timeout,
+         config.extra_flags,
+         config.add_sql_packages,
+         config.fetch_latest_trace_processor,
+         config.enable_sql_file_access,
+     )
+    super().__init__(url, protos)
+
+  def close(self):
+    if self.subprocess:
+      # Force-kill the whole process tree (the trace_processor subprocess and
+      # any descendants). This never blocks, so it cannot hang on shutdown.
+      terminate_process_tree(self.subprocess, self._job_handle)
+      # Set to None so a second close() is a no-op.
+      self.subprocess = None
+      self._job_handle = None
+      self._tp_stdout.close()
+      self._tp_stderr.close()
+    super().close()
