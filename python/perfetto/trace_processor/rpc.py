@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from perfetto.common.exceptions import PerfettoException
 from perfetto.trace_processor.protos import ProtoFactory
-from perfetto.trace_processor.remote import TraceProcessorRemote
+from perfetto.trace_processor.backend import TraceProcessorBackend
 
 
 def _not_supported_yet(what: str) -> NotImplementedError:
@@ -22,7 +23,7 @@ def _not_supported_yet(what: str) -> NotImplementedError:
       'session; only query() is.')
 
 
-class TraceProcessorRpc(TraceProcessorRemote):
+class TraceProcessorRpc(TraceProcessorBackend):
   """Client side of the trace processor RPC protocol.
 
   Speaks the same byte protocol as the C++ RemoteTraceProcessor
@@ -31,12 +32,13 @@ class TraceProcessorRpc(TraceProcessorRemote):
   server answers with a stream of TraceProcessorRpc messages, each framed
   as a length-delimited protobuf field (tag 0x0A, varint length, payload).
 
-  Works over any transport providing send(bytes), recv(max_bytes) and close().
+  Works over any transport providing send(bytes), read(n) and close(), where
+  read(n) returns exactly n bytes or raises ConnectionError.
   """
 
   def __init__(self, transport, protos: ProtoFactory):
+    super().__init__(protos)
     self.transport = transport
-    self.protos = protos
 
   def execute_query(self, query: str):
     """Runs `query` and returns a single QueryResult.
@@ -52,19 +54,19 @@ class TraceProcessorRpc(TraceProcessorRemote):
     request.query_args.sql_query = query
     self.transport.send(stream.SerializeToString())
 
-    result = self.protos.QueryResult()
+    rpc_message = self.protos.TraceProcessorRpc()
     while True:
-      msg = self._read_message()
-      # Repeated fields (batch, column_names) are appended; scalar fields
-      # (error, statement_count) are overwritten if set in this message.
-      result.MergeFrom(msg.query_result)
+      rpc_message.MergeFromString(self._read_payload())
+      self._check_envelope(rpc_message)
+      result = rpc_message.query_result
+      # Each message adds exactly one batch, so batch[-1] is the newest one.
       if result.batch and result.batch[-1].is_last_batch:
         return result
 
   def close(self):
     self.transport.close()
 
-  # The methods below complete the TraceProcessorRemote interface. The
+  # The methods below complete the TraceProcessorBackend interface. The
   # protocol supports them, but they are not implemented over this client yet,
   # so fail with a clear message.
   # TODO(gabiyev): implement these over the RPC protocol in a follow-up.
@@ -90,16 +92,22 @@ class TraceProcessorRpc(TraceProcessorRemote):
   def notify_eof(self):
     raise _not_supported_yet('Loading a trace')
 
-  def _recv_exactly(self, n: int) -> bytes:
-    """Reads exactly `n` bytes; recv() alone may return fewer."""
-    buf = b''
-    while len(buf) < n:
-      chunk = self.transport.recv(n - len(buf))
-      if not chunk:
-        # recv() returns empty bytes once the peer has disconnected.
-        raise ConnectionError('Trace processor session closed the connection')
-      buf += chunk
-    return buf
+  def _check_envelope(self, rpc_message):
+    """Raises if the server replied with an error instead of a result.
+
+    Mirrors CheckRpcEnvelope() in remote_trace_processor.cc.
+    """
+    if rpc_message.HasField('fatal_error'):
+      # E.g. a framing error. The server closes the connection after this.
+      raise PerfettoException(
+          f'Trace processor session error: {rpc_message.fatal_error}')
+    if rpc_message.HasField('invalid_request'):
+      # The server doesn't know this request type and sends nothing else for
+      # it, so without this check we'd wait for a result forever.
+      method = self.protos.TraceProcessorRpc.TraceProcessorMethod.Name(
+          rpc_message.invalid_request)
+      raise PerfettoException(
+          f'Trace processor session does not support {method}')
 
   def _read_varint(self) -> int:
     """Reads a protobuf varint (base-128, little-endian, MSB = continuation)."""
@@ -107,7 +115,7 @@ class TraceProcessorRpc(TraceProcessorRemote):
     shift = 0
     while True:
       # Indexing into 'bytes' produces an 'int'.
-      byte = self._recv_exactly(1)[0]
+      byte = self.transport.read(1)[0]
       # Each varint byte carries its payload in the low 7 bits, least
       # significant group first, so shift each new group further left.
       result |= (byte & 0x7F) << shift
@@ -116,15 +124,12 @@ class TraceProcessorRpc(TraceProcessorRemote):
         return result
       shift += 7
 
-  def _read_message(self):
-    """Reads and parses the next TraceProcessorRpc off the stream."""
+  def _read_payload(self) -> bytes:
+    """Reads the next TraceProcessorRpc off the stream, still serialized."""
     # Every message is TraceProcessorRpcStream.msg (field 1, length-delimited),
     # whose tag is (1 << 3) | 2 == 0x0A.
-    tag = self._recv_exactly(1)[0]
+    tag = self.transport.read(1)[0]
     if tag != 0x0A:
       raise ValueError(f'Unexpected tag {tag:#x} in trace processor stream')
     length = self._read_varint()
-    data = self._recv_exactly(length)
-    msg = self.protos.TraceProcessorRpc()
-    msg.ParseFromString(data)
-    return msg
+    return self.transport.read(length)

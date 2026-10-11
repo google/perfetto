@@ -57,25 +57,35 @@ class UnixTransport:
   """Moves raw bytes over an AF_UNIX stream socket.
 
   Knows nothing about protos or framing: that's TraceProcessorRpc's job. Any
-  object with the same send()/recv()/close() methods can replace this one.
+  object with the same send()/read()/close() methods can replace this one.
   """
 
   def __init__(self, path: str):
-    self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-      self.sock.connect(path)
+      self._sock.connect(path)
     except OSError:
-      self.sock.close()
+      self._sock.close()
       raise
+    # Set up a buffered reader around the socket.
+    self._reader = self._sock.makefile('rb')
 
   def send(self, data: bytes):
-    self.sock.sendall(data)
+    self._sock.sendall(data)
 
-  def recv(self, max_bytes: int) -> bytes:
-    return self.sock.recv(max_bytes)
+  def read(self, n: int) -> bytes:
+    """Reads exactly `n` bytes, or raises if the connection closes first."""
+    data = self._reader.read(n)
+    if len(data) < n:
+      # A buffered read only returns fewer bytes once the peer disconnected.
+      raise ConnectionError('Trace processor session closed the connection')
+    return data
 
   def close(self):
-    self.sock.close()
+    # The socket's file descriptor stays open until its makefile() reader is
+    # closed too, so close both.
+    self._reader.close()
+    self._sock.close()
 
 
 class TraceProcessorUnix(TraceProcessorRpc):

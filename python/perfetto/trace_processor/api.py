@@ -17,13 +17,12 @@ from typing import Any, Dict, List, Optional, Union
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import QueryResultIterator
-from perfetto.trace_processor.http import TraceProcessorHttp
+from perfetto.trace_processor.backend import TraceProcessorBackend
 from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
-from perfetto.trace_processor.remote import TraceProcessorRemote
+from perfetto.trace_processor.remote_factory import create_http_remote
 from perfetto.trace_processor.remote_factory import create_remote
-from perfetto.trace_processor.shell import load_shell
-from perfetto.trace_processor.process_tree import terminate_process_tree
+from perfetto.trace_processor.shell import TraceProcessorShell
 from perfetto.trace_uri_resolver import registry
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
@@ -182,7 +181,7 @@ class TraceProcessor:
         processor and the Python binding.
       addr (deprecated): address of a running trace processor instance. Use
         |remote| instead of this field: specifying both will cause an
-        exception to be thrown.
+        exception to be thrown. Always treated as an HTTP address (host:port).
       file_path (deprecated): path to a trace file to load. Use
         |trace| instead of this field: specifying both will cause
         an exception to be thrown.
@@ -193,8 +192,7 @@ class TraceProcessor:
           "trace and file_path cannot both be specified.")
     if addr and remote:
       raise TraceProcessorException("addr and remote cannot both be specified.")
-    remote = remote or addr
-    if remote and config.enable_sql_file_access:
+    if (remote or addr) and config.enable_sql_file_access:
       raise TraceProcessorException(
           "enable_sql_file_access cannot grant file access to a remote Trace "
           "Processor; the server must be started with "
@@ -205,11 +203,11 @@ class TraceProcessor:
     self.protos = ProtoFactory(self.platform_delegate)
     self.resolver_registry = config.resolver_registry or \
       self.platform_delegate.default_resolver_registry()
-    self._remote = self._create_tp_client(remote)
+    self._backend = self._create_backend(remote, addr)
     # Deprecated: only kept for backwards compatibility, as external code reads
-    # |self.http| directly. Use |self._remote| inside this class.
+    # |self.http| directly. Use |self._backend| inside this class.
     # TODO(gabiyev): remove once external users have migrated.
-    self.http = self._remote
+    self.http = self._backend
 
     if trace or file_path:
       try:
@@ -232,7 +230,7 @@ class TraceProcessor:
       as_pandas_dataframe() function, or a polars dataframe by calling
       as_polars_dataframe(), after calling query.
     """
-    response = self._remote.execute_query(sql)
+    response = self._backend.execute_query(sql)
     if response.error:
       raise TraceProcessorException(response.error)
 
@@ -265,7 +263,7 @@ class TraceProcessor:
     Returns:
       The trace summary data as a proto message
     """
-    response = self._remote.trace_summary(specs, metric_ids, metadata_query_id)
+    response = self._backend.trace_summary(specs, metric_ids, metadata_query_id)
     if response.error:
       raise TraceProcessorException(response.error)
 
@@ -276,7 +274,7 @@ class TraceProcessor:
   def enable_metatrace(self):
     """Enable metatrace for the currently running trace_processor.
     """
-    return self._remote.enable_metatrace()
+    return self._backend.enable_metatrace()
 
   def disable_and_read_metatrace(self):
     """Disable and return the metatrace formed from the currently running
@@ -284,7 +282,7 @@ class TraceProcessor:
     returns the serialized bytes of the metatrace data directly. Raises
     TraceProcessorException if the response returns with an error.
     """
-    response = self._remote.disable_and_read_metatrace()
+    response = self._backend.disable_and_read_metatrace()
     if response.error:
       raise TraceProcessorException(response.error)
 
@@ -304,7 +302,7 @@ class TraceProcessor:
     Returns:
       The metrics data as a proto message
     """
-    response = self._remote.compute_metric(metrics)
+    response = self._backend.compute_metric(metrics)
     if response.error:
       raise TraceProcessorException(response.error)
 
@@ -331,7 +329,7 @@ class TraceProcessor:
       export_format: Either `arrow_tar`, `perfetto` or `sqlite`.
     """
     with open(output_path, 'wb') as f:
-      self._remote.export(f, export_format)
+      self._backend.export(f, export_format)
 
   @property
   def metadata(self) -> Dict[str, str]:
@@ -346,25 +344,22 @@ class TraceProcessor:
     """
     return self._metadata
 
-  def _create_tp_client(self, remote: Optional[str]) -> TraceProcessorRemote:
+  @property
+  def subprocess(self):
+    """The trace_processor_shell process, or None when connected remotely.
+
+    Deprecated: only kept for backwards compatibility, as external code reads
+    it directly.
+    """
+    return getattr(getattr(self, '_backend', None), 'subprocess', None)
+
+  def _create_backend(self, remote: Optional[str],
+                      addr: Optional[str]) -> TraceProcessorBackend:
+    if addr:
+      return create_http_remote(addr, protos=self.protos)
     if remote:
       return create_remote(remote, protos=self.protos)
-
-    (url, self.subprocess, self._tp_stdout, self._tp_stderr,
-     self._job_handle) = load_shell(
-         self.config.bin_path,
-         self.config.unique_port,
-         self.config.verbose,
-         self.config.ingest_ftrace_in_raw,
-         self.config.enable_dev_features,
-         self.platform_delegate,
-         self.config.load_timeout,
-         self.config.extra_flags,
-         self.config.add_sql_packages,
-         self.config.fetch_latest_trace_processor,
-         self.config.enable_sql_file_access,
-     )
-    return TraceProcessorHttp(url, protos=self.protos)
+    return TraceProcessorShell(self.config, self.platform_delegate, self.protos)
 
   def _parse_trace(self, trace: TraceReference):
     resolved_lst = self.resolver_registry.resolve(trace)
@@ -382,11 +377,11 @@ class TraceProcessor:
     # Capture metadata from the resolved trace
     self._metadata = resolved.metadata
     for chunk in resolved.generator:
-      result = self._remote.parse(chunk)
+      result = self._backend.parse(chunk)
       if result.error:
         raise TraceProcessorException(
             f'Failed while parsing trace. Error message: {result.error}')
-    self._remote.notify_eof()
+    self._backend.notify_eof()
 
   def __enter__(self):
     return self
@@ -402,19 +397,5 @@ class TraceProcessor:
     self.close()
 
   def close(self):
-    if getattr(self, 'subprocess', None):
-      # Force-kill the whole process tree (the trace_processor subprocess and
-      # any descendants). This never blocks, so it cannot hang on shutdown.
-      terminate_process_tree(self.subprocess, self._job_handle)
-      # Set to None so a second close() is a no-op.
-      self.subprocess = None
-      self._job_handle = None
-      if getattr(self, '_tp_stdout', None):
-        self._tp_stdout.close()
-        self._tp_stdout = None
-      if getattr(self, '_tp_stderr', None):
-        self._tp_stderr.close()
-        self._tp_stderr = None
-
-    if hasattr(self, '_remote'):
-      self._remote.close()
+    if hasattr(self, '_backend'):
+      self._backend.close()

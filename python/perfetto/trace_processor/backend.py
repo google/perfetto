@@ -17,19 +17,16 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from perfetto.trace_processor.protos import ProtoFactory
 
-class TraceProcessorRemote(abc.ABC):
-  """Interface for a connection to a running trace processor instance.
 
-  TraceProcessor talks to trace processor only through this interface, so it
-  doesn't need to know which protocol or transport a connection uses.
-
-  Currently implemented by TraceProcessorHttp (HTTP server, also used for the
-  trace processor subprocess TraceProcessor starts itself) and
-  TraceProcessorRpc (RPC protocol over a byte transport, e.g.
-  TraceProcessorUnix for `trace_processor server unix` sessions). See
-  remote_factory.create_remote() to connect to a running instance.
+class TraceProcessorBackend(abc.ABC):
+  """Interface that the TraceProcessor client API uses to communicate with
+  different trace processor backends.
   """
+
+  def __init__(self, protos: ProtoFactory):
+    self.protos = protos
 
   @abc.abstractmethod
   def execute_query(self, query: str):
