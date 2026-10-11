@@ -1166,6 +1166,39 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_oversized_packets_dropped, buf_num,
         static_cast<int64_t>(buf.oversized_packets_dropped()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_written, buf_num,
+        static_cast<int64_t>(buf.bundles_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundle_bytes_uncompressed, buf_num,
+        static_cast<int64_t>(buf.bundle_bytes_uncompressed()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundle_bytes_compressed, buf_num,
+        static_cast<int64_t>(buf.bundle_bytes_compressed()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_overwritten, buf_num,
+        static_cast<int64_t>(buf.bundles_overwritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_too_large, buf_num,
+        static_cast<int64_t>(buf.bundles_too_large()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundles_corrupted, buf_num,
+        static_cast<int64_t>(buf.bundles_corrupted()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bundling_max_us, buf_num,
+        static_cast<int64_t>(buf.bundling_max_us()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_bytes_read, buf_num,
+        static_cast<int64_t>(buf.staging_bytes_read()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_chunks_read, buf_num,
+        static_cast<int64_t>(buf.staging_chunks_read()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_readaheads_succeeded, buf_num,
+        static_cast<int64_t>(buf.staging_readaheads_succeeded()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_staging_readaheads_failed, buf_num,
+        static_cast<int64_t>(buf.staging_readaheads_failed()));
   }
 
   struct BufStats {

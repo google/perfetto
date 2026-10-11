@@ -568,6 +568,13 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
 
   service_->ApplyChunkPatches(id_, req_untrusted.chunks_to_patch());
 
+  // The request is one write batch: all its chunks and patches are copied.
+  // It can only reach the buffers that this producer writes to.
+  for (BufferID buffer_id : allowed_target_buffers_) {
+    if (TraceBuffer* buffer = service_->GetBufferByID(buffer_id))
+      buffer->EndWriteBatch();
+  }
+
   if (req_untrusted.flush_request_id()) {
     service_->NotifyFlushDoneForProducer(id_, req_untrusted.flush_request_id());
   }

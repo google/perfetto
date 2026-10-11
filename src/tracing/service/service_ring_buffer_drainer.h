@@ -102,6 +102,9 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   // position or retry limit schedules another pass after a delay. At most one
   // retry task is pending at a time.
   //
+  // One call is one write batch. It ends with EndWriteBatch() on each
+  // authorized destination, also after a protocol error.
+  //
   // A protocol error stops all future reads and records one ABI violation in
   // each authorized destination. Data already copied is kept. The producer
   // stays connected without notification or a v1 fallback. When the ring buffer

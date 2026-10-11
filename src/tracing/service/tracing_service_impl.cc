@@ -353,7 +353,8 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
 
 // Creates an empty trace buffer of the given implementation.
 // Returns nullptr if the memory allocation fails, or if this build does not
-// have the implementation.
+// have the implementation. EnableTracing() rejects a config that asks for the
+// latter, so a buffer of that type never exists.
 std::unique_ptr<TraceBuffer> CreateTraceBuffer(
     TraceBuffer::BufType type,
     size_t size_in_bytes,
@@ -819,6 +820,18 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                         PerfettoStatsdAtom::kTracedEnableTracingTooManyBuffers);
     return PERFETTO_SVC_ERR("Too many buffers configured (%zu)", num_buffers);
   }
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+  // TraceBufferV3 compresses with zstd. Fail, so that the consumer does not
+  // get another buffer implementation than the one it asked for.
+  for (const auto& buf : cfg.buffers()) {
+    if (buf.experimental_mode() == TraceConfig::BufferConfig::TRACE_BUFFER_V3) {
+      return PERFETTO_SVC_ERR(
+          "BufferConfig.experimental_mode = TRACE_BUFFER_V3 needs zstd, which "
+          "this build of the tracing service does not have");
+    }
+  }
+#endif
 
   // Build a map of buffer names to indices for named buffer resolution.
   // Also validate that buffer names are unique within the session.
@@ -1300,6 +1313,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
             : TraceBuffer::kOverwrite;
     std::unique_ptr<TraceBuffer> new_buffer;
     switch (buffer_cfg.experimental_mode()) {
+      case TraceConfig::BufferConfig::TRACE_BUFFER_V3:
+        new_buffer = CreateTraceBuffer(TraceBuffer::kV3, buf_size, policy);
+        break;
       case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
         new_buffer = CreateTraceBuffer(TraceBuffer::kV2, buf_size, policy);
         break;
@@ -2470,6 +2486,13 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
             *target_buffer_id, packet_count, packet_flags, chunk_complete,
             chunk->payload_begin(), chunk->payload_size());
       });
+
+  // The scrape is one write batch. Its chunks are in page order, so a buffer
+  // can only read them now that all of them are copied.
+  for (BufferID buffer_id : session_buffers) {
+    if (TraceBuffer* buf = GetBufferByID(buffer_id))
+      buf->EndWriteBatch();
+  }
 }
 
 void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
@@ -2870,6 +2893,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       continue;
     }
     TraceBuffer& tbuf = *tbuf_iter->second;
+    const bool needs_validation = !tbuf.returns_validated_packets();
     tbuf.BeginRead();
     while (!did_hit_threshold) {
       TracePacket packet;
@@ -2887,7 +2911,8 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       // it is false if the platform doesn't support it.
 
       PERFETTO_DCHECK(packet.size() > 0);
-      if (!PacketStreamValidator::Validate(packet.slices())) {
+      if (needs_validation &&
+          !PacketStreamValidator::Validate(packet.slices())) {
         tracing_session->invalid_packets++;
         PERFETTO_DLOG("Dropping invalid packet");
         continue;
@@ -2895,12 +2920,13 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
 
       // Append a slice with the trusted field data. This can't be spoofed
       // because above we validated that the existing slices don't contain any
-      // trusted fields. For added safety we append instead of prepending
-      // because according to protobuf semantics, if the same field is
-      // encountered multiple times the last instance takes priority. Note that
-      // truncated packets are also rejected, so the producer can't give us a
-      // partial packet (e.g., a truncated string) which only becomes valid when
-      // the trusted data is appended here.
+      // trusted fields (or the buffer did, see returns_validated_packets()).
+      // For added safety we append instead of prepending because according to
+      // protobuf semantics, if the same field is encountered multiple times the
+      // last instance takes priority. Note that truncated packets are also
+      // rejected, so the producer can't give us a partial packet (e.g., a
+      // truncated string) which only becomes valid when the trusted data is
+      // appended here.
       Slice slice = Slice::Allocate(32);
       protozero::StaticBuffered<protos::pbzero::TracePacket> trusted_packet(
           slice.own_data(), slice.size);
@@ -4207,7 +4233,6 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   trace_stats.set_total_buffers(static_cast<uint32_t>(buffers_.size()));
   trace_stats.set_chunks_discarded(chunks_discarded_);
   trace_stats.set_patches_discarded(patches_discarded_);
-  trace_stats.set_invalid_packets(tracing_session->invalid_packets);
   trace_stats.set_flushes_requested(tracing_session->flushes_requested);
   trace_stats.set_flushes_succeeded(tracing_session->flushes_succeeded);
   trace_stats.set_flushes_failed(tracing_session->flushes_failed);
@@ -4224,6 +4249,9 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       filt_stats->add_bytes_discarded_per_buffer(value);
   }
 
+  // ReadBuffers() counts the invalid packets of the buffers that it validates.
+  // The other buffers drop and count them before the read.
+  uint64_t invalid_packets = tracing_session->invalid_packets;
   for (BufferID buf_id : tracing_session->buffers_index) {
     TraceBuffer* buf = GetBufferByID(buf_id);
     if (!buf) {
@@ -4231,7 +4259,9 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       continue;
     }
     *trace_stats.add_buffer_stats() = buf->stats();
+    invalid_packets += buf->packets_dropped_by_validation();
   }  // for (buf in session).
+  trace_stats.set_invalid_packets(invalid_packets);
 
   if (!tracing_session->config.builtin_data_sources()
            .disable_chunk_usage_histograms()) {

@@ -76,6 +76,11 @@ void ServiceRingBufferDrainer::Drain() {
   if (PERFETTO_UNLIKELY(num_rejected != 0))
     delegate_->OnRingBufferChunksDiscarded(num_rejected);
 
+  // The reader has copied every chunk of this pass. A pass that ends with a
+  // protocol error keeps the chunks it copied before the error.
+  delegate_->ForEachV2RingBufferDestination(
+      [](TraceBuffer& buffer) { buffer.EndWriteBatch(); });
+
   if (PERFETTO_UNLIKELY(reader_.has_protocol_error())) {
     // Record the error in every authorized destination. Later drains return
     // above, so each destination counts this violation only once.
