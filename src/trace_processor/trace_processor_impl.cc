@@ -677,7 +677,8 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 
 std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
     const std::string& sql,
-    uint32_t* offset) {
+    uint32_t* offset,
+    const StatementOptions& options) {
   PERFETTO_CHECK(offset);
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_NEXT_STATEMENT",
                     [&](metatrace::Record* r) { r->AddArg("query", sql); });
@@ -724,7 +725,7 @@ std::optional<Iterator> TraceProcessorImpl::ExecuteNextStatement(
   }
   *offset = start + end_offset;
   return Iterator(std::make_unique<SqliteIteratorImpl>(
-      this, std::move(**result), sql_stats_row));
+      this, std::move(**result), sql_stats_row, options.max_rows));
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {

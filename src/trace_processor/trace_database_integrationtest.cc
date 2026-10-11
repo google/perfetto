@@ -1101,6 +1101,31 @@ TEST_F(TraceProcessorIntegrationTest, TraceWithUuidReadInParts) {
   EXPECT_STREQ(it.Get(0).string_value, "123e4567-e89b-12d3-a456-426655443322");
 }
 
+TEST_F(TraceProcessorIntegrationTest, ExecuteNextStatementMaxRows) {
+  ASSERT_OK(NotifyEndOfFile());
+  // An unbounded result: only terminates because of |max_rows|.
+  std::string sql =
+      "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) "
+      "SELECT x FROM c; SELECT 42";
+  uint32_t offset = 0;
+  TraceProcessor::StatementOptions options;
+  options.max_rows = 3;
+  auto it = Processor()->ExecuteNextStatement(sql, &offset, options);
+  ASSERT_TRUE(it.has_value());
+  int64_t rows = 0;
+  while (it->Next()) {
+    ASSERT_EQ(it->Get(0).long_value, ++rows);
+  }
+  ASSERT_OK(it->Status());
+  ASSERT_EQ(rows, 3);
+
+  // The next statement is unaffected.
+  it = Processor()->ExecuteNextStatement(sql, &offset);
+  ASSERT_TRUE(it.has_value());
+  ASSERT_TRUE(it->Next());
+  ASSERT_EQ(it->Get(0).long_value, 42);
+}
+
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageExecuteQuery) {
   ASSERT_OK(NotifyEndOfFile());
   auto it = Query("select t from slice");

@@ -40,9 +40,12 @@ class TraceProcessorImpl;
 // ExecutionResult and reads cells directly from the sqlite statement.
 class SqliteIteratorImpl final : public IteratorImpl {
  public:
+  // |max_rows|, if non-zero, is the number of rows after which Next()
+  // returns false without executing the statement any further.
   SqliteIteratorImpl(TraceProcessorImpl* impl,
                      base::StatusOr<PerfettoSqlConnection::ExecutionResult>,
-                     uint32_t sql_stats_row);
+                     uint32_t sql_stats_row,
+                     uint64_t max_rows = 0);
   ~SqliteIteratorImpl() override;
 
   SqliteIteratorImpl(SqliteIteratorImpl&) noexcept = delete;
@@ -52,33 +55,12 @@ class SqliteIteratorImpl final : public IteratorImpl {
   SqliteIteratorImpl& operator=(SqliteIteratorImpl&&) = default;
 
   bool Next() override {
-    // In the past, we used to call sqlite3_step for the first time in this
-    // function which 1:1 matched Next calls to sqlite3_step calls. However,
-    // with the introduction of multi-statement support, we tokenize the
-    // queries and so we need to *not* call step the first time Next is
-    // called.
-    //
-    // Aside: if we could, we would change the API to match the new setup
-    // (i.e. implement operator bool, make Next return nothing similar to C++
-    // iterators); however, too many clients depend on the current behavior so
-    // we have to keep the API as is.
-    if (!called_next_) {
-      // Delegate to the cc file to prevent trace_storage.h include in this
-      // file.
-      RecordFirstNextInSqlStats();
-      called_next_ = true;
-      return result_.ok() && !result_->stmt.IsDone();
-    }
-    if (!result_.ok()) {
+    if (max_rows_ && rows_ == max_rows_) {
       return false;
     }
-
-    bool has_more = result_->stmt.Step();
-    if (!result_->stmt.status().ok()) {
-      PERFETTO_DCHECK(!has_more);
-      result_ = result_->stmt.status();
-    }
-    return has_more;
+    bool has_row = NextRow();
+    rows_ += has_row;
+    return has_row;
   }
 
   SqlValue Get(uint32_t col) const override {
@@ -156,10 +138,42 @@ class SqliteIteratorImpl final : public IteratorImpl {
 
   void RecordFirstNextInSqlStats();
 
+  bool NextRow() {
+    // In the past, we used to call sqlite3_step for the first time in this
+    // function which 1:1 matched Next calls to sqlite3_step calls. However,
+    // with the introduction of multi-statement support, we tokenize the
+    // queries and so we need to *not* call step the first time Next is
+    // called.
+    //
+    // Aside: if we could, we would change the API to match the new setup
+    // (i.e. implement operator bool, make Next return nothing similar to C++
+    // iterators); however, too many clients depend on the current behavior so
+    // we have to keep the API as is.
+    if (!called_next_) {
+      // Delegate to the cc file to prevent trace_storage.h include in this
+      // file.
+      RecordFirstNextInSqlStats();
+      called_next_ = true;
+      return result_.ok() && !result_->stmt.IsDone();
+    }
+    if (!result_.ok()) {
+      return false;
+    }
+
+    bool has_more = result_->stmt.Step();
+    if (!result_->stmt.status().ok()) {
+      PERFETTO_DCHECK(!has_more);
+      result_ = result_->stmt.status();
+    }
+    return has_more;
+  }
+
   ScopedTraceProcessor trace_processor_;
   base::StatusOr<PerfettoSqlConnection::ExecutionResult> result_;
   uint32_t sql_stats_row_ = 0;
   bool called_next_ = false;
+  uint64_t max_rows_ = 0;
+  uint64_t rows_ = 0;
 };
 
 }  // namespace trace_processor

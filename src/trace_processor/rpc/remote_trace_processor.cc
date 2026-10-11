@@ -337,11 +337,15 @@ Iterator RemoteTraceProcessor::ExecuteQuery(const std::string& sql) {
 
 std::optional<Iterator> RemoteTraceProcessor::ExecuteNextStatement(
     const std::string& sql,
-    uint32_t* offset) {
+    uint32_t* offset,
+    const StatementOptions& options) {
   auto req = BuildStream(RpcProto::TPM_STATEMENT_STREAMING, [&](RpcProto* rpc) {
     auto* args = rpc->set_statement_args();
     args->set_sql(sql);
     args->set_start_offset(*offset);
+    if (options.max_rows) {
+      args->set_max_rows(options.max_rows);
+    }
   });
   if (base::Status s = SendStream(req); !s.ok())
     return ErrorIterator(std::move(s));

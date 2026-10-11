@@ -74,10 +74,22 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
     statements_started = &started;
   }
   *statements_started = 0;
+
+  // When the formatter is going to abandon a result after a bounded number of
+  // rows, tell the trace processor upfront: over --remote this keeps the
+  // server from computing (and the client from draining) rows which will
+  // never be read. The formatter abandons the result after at most
+  // |max_rows| + 1 rows (when the row limit is exceeded) plus
+  // |max_rows_past_limit|, so it always gives up before this limit is
+  // reached: rows are never silently dropped.
+  TraceProcessor::StatementOptions options;
+  if (format.max_rows && format.max_rows_past_limit) {
+    options.max_rows = format.max_rows + 1 + format.max_rows_past_limit;
+  }
   for (;;) {
     auto query_start = std::chrono::steady_clock::now();
     std::optional<Iterator> it =
-        trace_processor->ExecuteNextStatement(sql_query, &offset);
+        trace_processor->ExecuteNextStatement(sql_query, &offset, options);
     if (!it.has_value()) {
       break;
     }

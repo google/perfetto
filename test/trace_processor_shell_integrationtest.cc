@@ -597,6 +597,32 @@ TEST(TraceProcessorShellIntegrationTest, ServerKillHttpDeferred) {
   EXPECT_THAT(result.out, HasSubstr("not supported"));
 }
 
+TEST(TraceProcessorShellIntegrationTest, RemoteAgentModeStopsEarly) {
+  // In agent mode, `query` abandons huge results after a bounded number of
+  // rows. Over --remote, the limit is sent to the server, which stops
+  // executing the statement: an unbounded query must terminate.
+  auto trace = WriteSimpleSystrace();
+  base::TempDir dir = base::TempDir::Create();
+  std::string sock = dir.path() + "/s.sock";
+
+  base::Subprocess server(
+      {ShellPath(), "server", "unix", "--path", sock, trace.path()});
+  server.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
+  server.args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
+  server.Start();
+  ASSERT_TRUE(WaitForSocketBound(sock));
+
+  auto r = RunShell(
+      {"query", "--remote", sock, "--agent",
+       "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) "
+       "SELECT x FROM c"});
+  EXPECT_EQ(r.exit_code, 0) << r.out;
+  EXPECT_THAT(r.out, HasSubstr("rows; stopped reading early"));
+
+  server.KillAndWaitForTermination(SIGTERM);
+  EXPECT_TRUE(WaitForFileState(sock, /*want_exists=*/false));
+}
+
 TEST(TraceProcessorShellIntegrationTest, RemoteWebSocketRoundTrip) {
   // `query --remote host:port` connects to the http server's /websocket
   // endpoint and runs over the same RPC byte-pipe as the unix transport.

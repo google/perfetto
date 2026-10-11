@@ -133,8 +133,26 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // Errors are reported via the returned Iterator's Status(), with
   // tracebacks referencing the full |sql| source; |*offset| is unchanged on
   // error.
-  virtual std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
-                                                       uint32_t* offset) = 0;
+  std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
+                                               uint32_t* offset) {
+    return ExecuteNextStatement(sql, offset, StatementOptions());
+  }
+
+  // Options for ExecuteNextStatement.
+  struct StatementOptions {
+    // If non-zero, the returned Iterator yields at most this many rows: the
+    // statement stops being executed once they have been read, so huge (or
+    // unbounded) results cost no more than the rows asked for, including
+    // over RPC. The Iterator does not say whether rows were dropped; ask
+    // for one more row than needed to tell.
+    uint64_t max_rows = 0;
+  };
+
+  // Same as above, with |options|.
+  virtual std::optional<Iterator> ExecuteNextStatement(
+      const std::string& sql,
+      uint32_t* offset,
+      const StatementOptions& options) = 0;
 
   // Registers SQL files with the associated path under the package named
   // |sql_package.name|.

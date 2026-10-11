@@ -60,8 +60,11 @@ class RemoteTraceProcessor : public TraceProcessor {
 
   // TraceProcessor:
   Iterator ExecuteQuery(const std::string& sql) override;
-  std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
-                                               uint32_t* offset) override;
+  using TraceProcessor::ExecuteNextStatement;
+  std::optional<Iterator> ExecuteNextStatement(
+      const std::string& sql,
+      uint32_t* offset,
+      const StatementOptions& options) override;
   base::Status RegisterSqlPackage(SqlPackage) override;
   base::Status Summarize(const TraceSummaryComputationSpec& computation,
                          const std::vector<TraceSummarySpecBytes>& specs,

@@ -234,6 +234,11 @@ message StatementArgs {
   optional uint32 start_offset = 2;
   // Optional string to tag this query with for performance diagnostic purposes.
   optional string tag = 3;
+  // If non-zero, at most this many rows are returned: the statement stops
+  // being executed once they have been produced. The result does not say
+  // whether rows were dropped; ask for one more row than needed to tell.
+  // Servers predating this field ignore it and return every row.
+  optional uint64 max_rows = 4;
 }
 
 // Output for the /query endpoint.

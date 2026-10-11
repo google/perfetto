@@ -30,10 +30,12 @@ namespace perfetto::trace_processor {
 SqliteIteratorImpl::SqliteIteratorImpl(
     TraceProcessorImpl* trace_processor,
     base::StatusOr<PerfettoSqlConnection::ExecutionResult> result,
-    uint32_t sql_stats_row)
+    uint32_t sql_stats_row,
+    uint64_t max_rows)
     : trace_processor_(trace_processor),
       result_(std::move(result)),
-      sql_stats_row_(sql_stats_row) {}
+      sql_stats_row_(sql_stats_row),
+      max_rows_(max_rows) {}
 
 SqliteIteratorImpl::~SqliteIteratorImpl() {
   if (trace_processor_) {

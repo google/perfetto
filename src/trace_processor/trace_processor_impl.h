@@ -77,8 +77,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   Iterator ExecuteQuery(const std::string& sql) override;
 
-  std::optional<Iterator> ExecuteNextStatement(const std::string& sql,
-                                               uint32_t* offset) override;
+  using TraceProcessor::ExecuteNextStatement;
+  std::optional<Iterator> ExecuteNextStatement(
+      const std::string& sql,
+      uint32_t* offset,
+      const StatementOptions& options) override;
 
   base::Status RegisterSqlPackage(SqlPackage) override;
 

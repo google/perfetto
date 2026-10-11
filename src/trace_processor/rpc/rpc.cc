@@ -458,6 +458,8 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
       protos::pbzero::StatementArgs::Decoder stmt_args(args.data, args.size);
       std::string sql = stmt_args.sql().ToStdString();
       uint32_t offset = stmt_args.start_offset();
+      TraceProcessor::StatementOptions options;
+      options.max_rows = stmt_args.max_rows();
 
       PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_STATEMENT",
                         [&](metatrace::Record* r) {
@@ -480,7 +482,7 @@ void Rpc::ParseRpcRequest(Outbox& outbox,
         break;
       }
       std::optional<Iterator> it =
-          trace_processor_->ExecuteNextStatement(sql, &offset);
+          trace_processor_->ExecuteNextStatement(sql, &offset, options);
       if (!it.has_value()) {
         StatementStreamHeader header{offset, /*statement_executed=*/false};
         SendSingleStatementResponse(req_type, &tx_seq_id_, outbox, &header,
