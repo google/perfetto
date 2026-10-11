@@ -29,10 +29,7 @@ export const HelpTooltip: m.Component<HelpTooltipAttrs> = {
     return m(
       Tooltip,
       {
-        trigger: m(
-          'span.pf-memscope-help',
-          m(Icon, {icon: Icons.Help}),
-        ),
+        trigger: m('span.pf-memscope-help', m(Icon, {icon: Icons.Help})),
       },
       attrs.content,
     );

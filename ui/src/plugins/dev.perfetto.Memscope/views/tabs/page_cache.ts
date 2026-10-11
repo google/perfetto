@@ -258,8 +258,8 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
             'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
           ]),
           m('div', [
-            'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem '
-              + 'via the linux.sys_stats data source (traced_probes).',
+            'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem ' +
+              'via the linux.sys_stats data source (traced_probes).',
           ]),
         ]),
       }),
@@ -291,13 +291,13 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
         title: 'Page Cache Activity',
         help: m.fragment({}, [
           m('div', [
-            'Shown as rates (delta/s). Refaults = workingset_refault_file '
-              + '(evicted pages needed again). Stolen = pgsteal_file (pages reclaimed). '
-              + 'Scanned = pgscan_file (pages considered for reclaim).',
+            'Shown as rates (delta/s). Refaults = workingset_refault_file ' +
+              '(evicted pages needed again). Stolen = pgsteal_file (pages reclaimed). ' +
+              'Scanned = pgscan_file (pages considered for reclaim).',
           ]),
           m('div', [
-            'Source: /proc/vmstat counters via the linux.sys_stats data source '
-              + '(traced_probes).',
+            'Source: /proc/vmstat counters via the linux.sys_stats data source ' +
+              '(traced_probes).',
           ]),
         ]),
       }),

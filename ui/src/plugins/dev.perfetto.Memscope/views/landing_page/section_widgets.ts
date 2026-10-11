@@ -52,9 +52,7 @@ export function emptyPanel(opts: {
 // A section panel shown while its data is loading: the panel is laid out
 // immediately with a loading placeholder in the body, so the page doesn't
 // jump as sections resolve.
-export function loadingPanel(opts: {
-  title: string;
-}): m.Child {
+export function loadingPanel(opts: {title: string}): m.Child {
   return m(
     Panel,
     m(Panel.Header, {title: opts.title}),

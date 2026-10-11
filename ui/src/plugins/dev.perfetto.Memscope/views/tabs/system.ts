@@ -242,13 +242,13 @@ export function renderSystemTab(session: LiveSession): m.Children {
         title: 'System Memory',
         help: m.fragment({}, [
           m('div', [
-            'Stacked areas partition MemTotal. Anon = Active(anon) + Inactive(anon). '
-              + 'Page cache = Active(file) + Inactive(file) \u2212 Shmem. '
-              + 'Unaccounted = MemTotal \u2212 sum of all other categories.',
+            'Stacked areas partition MemTotal. Anon = Active(anon) + Inactive(anon). ' +
+              'Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
+              'Unaccounted = MemTotal \u2212 sum of all other categories.',
           ]),
           m('div', [
-            'Source: linux.sys_stats data source (traced_probes) polling /proc/meminfo; '
-              + 'DMA-BUF from the dma_heap_stat ftrace event.',
+            'Source: linux.sys_stats data source (traced_probes) polling /proc/meminfo; ' +
+              'DMA-BUF from the dma_heap_stat ftrace event.',
           ]),
         ]),
       }),

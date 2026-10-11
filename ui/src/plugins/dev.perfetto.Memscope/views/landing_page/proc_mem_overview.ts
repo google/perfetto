@@ -336,10 +336,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       spanSeconds > 0 ? (total / spanSeconds) * 3600 : undefined;
 
     return m(Inset, {className: 'pf-memscope-growth'}, [
-      m(
-        '.pf-memscope-growth__label',
-        'Memory delta',
-      ),
+      m('.pf-memscope-growth__label', 'Memory delta'),
       m('.pf-memscope-growth__headline', [
         m(
           'span.pf-memscope-growth__delta',

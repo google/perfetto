@@ -19,10 +19,7 @@ import type {
   LineChartSeries,
 } from '../../../components/widgets/charts/line_chart';
 import type {App} from '../../../public/app';
-import {
-  Button,
-  ButtonVariant,
-} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Intent} from '../../../widgets/common';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';

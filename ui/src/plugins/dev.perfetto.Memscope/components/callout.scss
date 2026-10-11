@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@use '../tokens' as t;
+@use "../tokens" as t;
 // Callout strip: a leading icon plus a one-line message, tinted by intent.
 // Mirrors the colour treatment of the shared `widgets/callout` Callout
 // (pf-color-primary/success/warning/danger via the `pf-intent-*` classes), with

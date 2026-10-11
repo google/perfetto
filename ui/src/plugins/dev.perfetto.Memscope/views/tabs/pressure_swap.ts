@@ -169,8 +169,8 @@ function renderLmkPanel(
       help: m.fragment({}, [
         m('div', 'Low Memory Killer events recorded during this session.'),
         m('div', [
-          'Source: lowmemorykiller ftrace events + lmkd atrace, '
-            + 'captured by the linux.ftrace data source (traced).',
+          'Source: lowmemorykiller ftrace events + lmkd atrace, ' +
+            'captured by the linux.ftrace data source (traced).',
         ]),
       ]),
     }),
@@ -226,12 +226,12 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
         title: 'Memory Pressure (PSI)',
         help: m.fragment({}, [
           m('div', [
-            'Derived: cumulative \u00b5s converted to ms/s rate. '
-              + '"some" = at least one task stalled, "full" = all tasks stalled.',
+            'Derived: cumulative \u00b5s converted to ms/s rate. ' +
+              '"some" = at least one task stalled, "full" = all tasks stalled.',
           ]),
           m('div', [
-            'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full) via the '
-              + 'linux.sys_stats data source (traced_probes).',
+            'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full) via the ' +
+              'linux.sys_stats data source (traced_probes).',
           ]),
         ]),
       }),
@@ -262,13 +262,13 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
         title: 'Page Faults',
         help: m.fragment({}, [
           m('div', [
-            'Derived: cumulative counts converted to faults/s rate. '
-              + 'Minor (pgfault) = page in RAM but not in TLB. '
-              + 'Major (pgmajfault) = page must be read from disk.',
+            'Derived: cumulative counts converted to faults/s rate. ' +
+              'Minor (pgfault) = page in RAM but not in TLB. ' +
+              'Major (pgmajfault) = page must be read from disk.',
           ]),
           m('div', [
-            'Source: /proc/vmstat counters pgfault, pgmajfault via the '
-              + 'linux.sys_stats data source (traced_probes).',
+            'Source: /proc/vmstat counters pgfault, pgmajfault via the ' +
+              'linux.sys_stats data source (traced_probes).',
           ]),
         ]),
       }),
@@ -300,8 +300,8 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
               'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
             ]),
             m('div', [
-              'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached via the '
-                + 'linux.sys_stats data source (traced_probes).',
+              'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached via the ' +
+                'linux.sys_stats data source (traced_probes).',
             ]),
           ]),
         }),
@@ -335,8 +335,8 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
               'Derived: cumulative page counts converted to pages/s rate.',
             ]),
             m('div', [
-              'Source: /proc/vmstat counters pswpin, pswpout via the '
-                + 'linux.sys_stats data source (traced_probes).',
+              'Source: /proc/vmstat counters pswpin, pswpout via the ' +
+                'linux.sys_stats data source (traced_probes).',
             ]),
           ]),
         }),

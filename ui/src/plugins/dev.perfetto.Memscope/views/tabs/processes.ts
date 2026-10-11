@@ -546,14 +546,14 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
             m(HelpTooltip, {
               content: m.fragment({}, [
                 m('div', [
-                  'Stacked memory per process (or per category / OOM bucket). '
-                    + 'Totals may exceed actual usage because RSS counts shared '
-                    + 'pages (COW, mmap) in every process that maps them.',
+                  'Stacked memory per process (or per category / OOM bucket). ' +
+                    'Totals may exceed actual usage because RSS counts shared ' +
+                    'pages (COW, mmap) in every process that maps them.',
                 ]),
                 m('div', [
-                  'Source: linux.process_stats data source (traced_probes) polling '
-                    + '/proc/<pid>/smem, /proc/<pid>/stat and oom_score_adj; '
-                    + 'DMA-BUF from the dma_heap_stat ftrace event.',
+                  'Source: linux.process_stats data source (traced_probes) polling ' +
+                    '/proc/<pid>/smem, /proc/<pid>/stat and oom_score_adj; ' +
+                    'DMA-BUF from the dma_heap_stat ftrace event.',
                 ]),
               ]),
             }),

@@ -173,7 +173,6 @@ export class LiveSession {
     }
   }
 
-
   /** Starts a heap profiling session for a single process. */
   async startProfile(pid: number, processName: string): Promise<void> {
     if (this.profileImpl) {

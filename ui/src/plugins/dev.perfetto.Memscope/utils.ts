@@ -69,9 +69,7 @@ export function chartXWindow(xMax: number): {min: number; max: number} {
 }
 
 /** Formats x-axis ticks relative to the latest sample: 0s on the right. */
-export function formatRelativeXValue(
-  xMax: number,
-): (v: number) => string {
+export function formatRelativeXValue(xMax: number): (v: number) => string {
   return (v: number) => `${(v - xMax).toFixed(0)}s`;
 }
 
