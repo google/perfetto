@@ -21190,6 +21190,7 @@ filegroup {
         "src/trace_processor/shell/export_subcommand.cc",
         "src/trace_processor/shell/interactive.cc",
         "src/trace_processor/shell/interactive_subcommand.cc",
+        "src/trace_processor/shell/markdown_result_formatter.cc",
         "src/trace_processor/shell/metatrace.cc",
         "src/trace_processor/shell/metrics.cc",
         "src/trace_processor/shell/metrics_subcommand.cc",
@@ -21219,6 +21220,7 @@ filegroup {
     srcs: [
         "src/trace_processor/shell/convert_helpers_unittest.cc",
         "src/trace_processor/shell/find_subcommand_unittest.cc",
+        "src/trace_processor/shell/markdown_result_formatter_unittest.cc",
         "src/trace_processor/shell/shell_utils_unittest.cc",
         "src/trace_processor/shell/subcommand_flags_unittest.cc",
     ],
