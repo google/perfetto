@@ -149,6 +149,16 @@ class TestApi(unittest.TestCase):
         expected_regex='.*Trace Processor RPC API version:.*'):
       TraceProcessor(trace=io.BytesIO(b''), config=config)
 
+  def test_close_stops_shell(self):
+    tp = create_tp(trace=example_android_trace_path())
+    shell = tp.subprocess
+    self.assertIsNone(shell.poll())
+    tp.close()
+    # wait() raises TimeoutExpired if the shell is still running.
+    shell.wait(timeout=10)
+    # A second close() must be a no-op.
+    tp.close()
+
   def test_trace_path(self):
     # Get path to trace_processor_shell and construct TraceProcessor
     tp = create_tp(trace=example_android_trace_path())

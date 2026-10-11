@@ -18,10 +18,10 @@ from typing import Any, Dict, List, Optional, Union
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import QueryResultIterator
 from perfetto.trace_processor.backend import TraceProcessorBackend
+from perfetto.trace_processor.backend_factory import create_http_backend
+from perfetto.trace_processor.backend_factory import create_remote_backend
 from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
-from perfetto.trace_processor.remote_factory import create_http_remote
-from perfetto.trace_processor.remote_factory import create_remote
 from perfetto.trace_processor.shell import TraceProcessorShell
 from perfetto.trace_uri_resolver import registry
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
@@ -108,7 +108,8 @@ class TraceProcessorConfig:
 
   # If True, SQL functions may access files visible to a locally launched
   # Trace Processor shell. Do not enable this when executing untrusted SQL.
-  # This option cannot grant access to a Trace Processor connected via `addr`.
+  # This option cannot grant access to a Trace Processor connected via
+  # `remote` or `addr`.
   enable_sql_file_access: bool = False
 
   def __init__(
@@ -217,7 +218,7 @@ class TraceProcessor:
         raise ex
 
   def query(self, sql: str):
-    """Executes passed in SQL query using class defined HTTP API, and returns
+    """Executes passed in SQL query on the trace processor backend, and returns
     the response as a QueryResultIterator. Raises TraceProcessorException if
     the response returns with an error.
 
@@ -356,9 +357,9 @@ class TraceProcessor:
   def _create_backend(self, remote: Optional[str],
                       addr: Optional[str]) -> TraceProcessorBackend:
     if addr:
-      return create_http_remote(addr, protos=self.protos)
+      return create_http_backend(addr, protos=self.protos)
     if remote:
-      return create_remote(remote, protos=self.protos)
+      return create_remote_backend(remote, protos=self.protos)
     return TraceProcessorShell(self.config, self.platform_delegate, self.protos)
 
   def _parse_trace(self, trace: TraceReference):
@@ -393,7 +394,7 @@ class TraceProcessor:
 
   def __del__(self):
     # Fallback for callers that skip close()/the context manager, so temp files
-    # and the HTTP connection don't leak (as a "ResourceWarning: unclosed file").
+    # and the connection don't leak (as a "ResourceWarning: unclosed file").
     self.close()
 
   def close(self):

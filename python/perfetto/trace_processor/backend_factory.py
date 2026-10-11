@@ -15,15 +15,15 @@
 from urllib.parse import urlparse
 
 from perfetto.common.exceptions import PerfettoException
+from perfetto.trace_processor.backend import TraceProcessorBackend
 from perfetto.trace_processor.http import TraceProcessorHttp
 from perfetto.trace_processor.protos import ProtoFactory
-from perfetto.trace_processor.backend import TraceProcessorBackend
 from perfetto.trace_processor.unix import TraceProcessorUnix
 from perfetto.trace_processor.unix import unix_socket_path_for
 
 
-def create_http_remote(addr: str,
-                       protos: ProtoFactory) -> TraceProcessorBackend:
+def create_http_backend(addr: str,
+                        protos: ProtoFactory) -> TraceProcessorBackend:
   """Connects to the trace processor HTTP server at |addr| (host:port)."""
   # Without a scheme (e.g. 'localhost:9123'), urlparse treats the host as
   # the scheme and the port as the path, so we'd connect to the wrong
@@ -34,7 +34,8 @@ def create_http_remote(addr: str,
   return TraceProcessorHttp(p.netloc, protos=protos)
 
 
-def create_remote(remote: str, protos: ProtoFactory) -> TraceProcessorBackend:
+def create_remote_backend(remote: str,
+                          protos: ProtoFactory) -> TraceProcessorBackend:
   """Connects to the already running trace processor instance |remote|.
 
   Uses the same rules as `trace_processor --remote` (see
@@ -51,4 +52,4 @@ def create_remote(remote: str, protos: ProtoFactory) -> TraceProcessorBackend:
           f"No live trace processor session '{remote}' at {socket_path}. "
           "Start one with: trace_processor server unix --name <name> "
           "<trace>") from ex
-  return create_http_remote(remote, protos)
+  return create_http_backend(remote, protos)
