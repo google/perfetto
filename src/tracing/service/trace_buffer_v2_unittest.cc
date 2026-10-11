@@ -4493,8 +4493,8 @@ TEST_F(TraceBufferV2Test, V2Rewrite_PreservesEarlierLossReasons) {
 // producer 1 must not block SMB v2 writes from producer 2.
 TEST_F(TraceBufferV2Test, V2Admission_RejectsOnlyProtoVmProducers) {
   ResetBuffer(4096);
-  trace_buffer()->MaybeSetUpProtoVm("test", "", 1024, 1);
-  ASSERT_EQ(trace_buffer()->GetProtoVmInstances().size(), 1u);
+  trace_buffer()->protovms()->MaybeSetUp("test", "", 1024, 1);
+  ASSERT_EQ(trace_buffer()->protovms()->instances().size(), 1u);
   auto packet = MakeSimpleGroupPacket(1, 42);
   auto frag = MakeFragView(packet);
   EXPECT_FALSE(trace_buffer()->CopyChunkV2Untrusted(MakeV2SeqProps(1, 1), &frag,
