@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/importers/common/process_tracker.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -25,8 +27,10 @@
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_claim_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
@@ -670,6 +674,306 @@ TEST_F(ProcessTrackerTest, ReaffirmedThreadUpdatesLiveTid) {
   // Bare lookup should now return utid_a again.
   ASSERT_EQ(context.process_tracker->GetThreadOrNull(500), utid_a);
   ASSERT_EQ(context.process_tracker->GetOrCreateThread(500), utid_a);
+}
+
+TEST_F(ProcessTrackerTest, SameMachineForkReuse) {
+  context.machine_claim_tracker =
+      std::make_unique<MachineClaimTracker>(&context);
+  context.machine_claim_tracker->AddTrace(TraceId{1});
+  context.machine_claim_tracker->AddTrace(TraceId{2});
+  ASSERT_TRUE(context.machine_claim_tracker->has_multiple_traces());
+
+  // Create a parent process to test parent upid adoption during fork reuse.
+  UniquePid parent_proc = context.process_tracker->StartNewProcess(
+      500, std::nullopt, /*pid=*/10, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  size_t init_procs = context.storage->process_table().row_count();
+  size_t init_threads = context.storage->thread_table().row_count();
+
+  // Calling StartNewProcess twice with the same (pid, ts) returns the same
+  // upid and preserves the main thread's utid and start_ts without creating
+  // a second process or main thread row.
+  StringId name1 = context.storage->InternString("proc1");
+  UniquePid upid1 = context.process_tracker->StartNewProcess(
+      1000, std::nullopt, /*pid=*/123, name1, ThreadNamePriority::kFtrace);
+  std::optional<UniqueTid> opt_utid1 =
+      context.process_tracker->GetThreadOrNull(123);
+  ASSERT_TRUE(opt_utid1.has_value());
+  UniqueTid utid1 = *opt_utid1;
+
+  EXPECT_EQ(context.storage->process_table()[upid1].start_ts(), 1000);
+  EXPECT_EQ(context.storage->process_table()[upid1].name(), name1);
+  EXPECT_FALSE(
+      context.storage->process_table()[upid1].parent_upid().has_value());
+  EXPECT_EQ(context.storage->thread_table()[utid1].start_ts(), 1000);
+  EXPECT_EQ(context.storage->thread_table()[utid1].name(), name1);
+  EXPECT_EQ(context.storage->process_table().row_count(), init_procs + 1);
+  EXPECT_EQ(context.storage->thread_table().row_count(), init_threads + 1);
+
+  StringId name2 = context.storage->InternString("proc1_renamed");
+  UniquePid upid2 = context.process_tracker->StartNewProcess(
+      1000, parent_proc, /*pid=*/123, name2, ThreadNamePriority::kProcessTree);
+
+  EXPECT_EQ(upid1, upid2);
+  EXPECT_EQ(context.process_tracker->GetThreadOrNull(123), utid1);
+  EXPECT_EQ(context.storage->process_table()[upid1].start_ts(), 1000);
+  EXPECT_EQ(context.storage->process_table()[upid1].name(), name2);
+  EXPECT_EQ(context.storage->process_table()[upid1].parent_upid(), parent_proc);
+  EXPECT_EQ(context.storage->thread_table()[utid1].start_ts(), 1000);
+  EXPECT_EQ(context.storage->thread_table()[utid1].name(), name2);
+  EXPECT_EQ(context.storage->process_table().row_count(), init_procs + 1);
+  EXPECT_EQ(context.storage->thread_table().row_count(), init_threads + 1);
+}
+
+TEST_F(ProcessTrackerTest, SameMachineThreadReuse) {
+  context.machine_claim_tracker =
+      std::make_unique<MachineClaimTracker>(&context);
+  context.machine_claim_tracker->AddTrace(TraceId{1});
+  context.machine_claim_tracker->AddTrace(TraceId{2});
+  ASSERT_TRUE(context.machine_claim_tracker->has_multiple_traces());
+
+  // Calling StartNewThread twice with the same (tid, ts) returns the same
+  // utid without inserting a duplicate thread row.
+  size_t threads_before = context.storage->thread_table().row_count();
+  UniqueTid thread_utid1 =
+      context.process_tracker->StartNewThread(2000, /*tid=*/456);
+  EXPECT_EQ(context.storage->thread_table().row_count(), threads_before + 1);
+  EXPECT_EQ(context.storage->thread_table()[thread_utid1].start_ts(), 2000);
+  EXPECT_EQ(context.process_tracker->GetThreadOrNull(456), thread_utid1);
+
+  UniqueTid thread_utid2 =
+      context.process_tracker->StartNewThread(2000, /*tid=*/456);
+  EXPECT_EQ(thread_utid1, thread_utid2);
+  EXPECT_EQ(context.storage->thread_table().row_count(), threads_before + 1);
+  EXPECT_EQ(context.storage->thread_table()[thread_utid2].start_ts(), 2000);
+}
+
+TEST_F(ProcessTrackerTest, SameMachineReusedClonesQueueNoPendingAssociations) {
+  context.machine_claim_tracker =
+      std::make_unique<MachineClaimTracker>(&context);
+  context.machine_claim_tracker->AddTrace(TraceId{1});
+  context.machine_claim_tracker->AddTrace(TraceId{2});
+  ASSERT_TRUE(context.machine_claim_tracker->has_multiple_traces());
+
+  // Case 1: Source thread already has a process.
+  // Reused clones whose source already has a upid do not queue pending
+  // associations.
+  UniquePid upid = context.process_tracker->StartNewProcess(
+      1000, std::nullopt, /*pid=*/100, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  std::optional<UniqueTid> opt_main =
+      context.process_tracker->GetThreadOrNull(100);
+  ASSERT_TRUE(opt_main.has_value());
+  UniqueTid main_utid = *opt_main;
+
+  constexpr uint32_t kClones = 1000;
+  std::vector<UniqueTid> clone_utids;
+  clone_utids.reserve(kClones);
+
+  // Trace 1 creates K clones and associates each with main_utid.
+  for (uint32_t i = 0; i < kClones; ++i) {
+    uint32_t tid_i = 1000 + i;
+    int64_t ts_i = 2000 + i;
+    UniqueTid clone = context.process_tracker->StartNewThread(ts_i, tid_i);
+    context.process_tracker->AssociateThreads(main_utid, clone, true);
+    clone_utids.push_back(clone);
+  }
+  EXPECT_EQ(context.process_tracker->PendingThreadAssociationCountForTesting(),
+            0u);
+
+  // Trace 2 re-observes the same K clones with identical (tid, ts).
+  // StartNewThread returns the existing utid and AssociateThreads returns early
+  // without queuing pending associations.
+  for (uint32_t i = 0; i < kClones; ++i) {
+    uint32_t tid_i = 1000 + i;
+    int64_t ts_i = 2000 + i;
+    UniqueTid reused = context.process_tracker->StartNewThread(ts_i, tid_i);
+    EXPECT_EQ(reused, clone_utids[i]);
+    context.process_tracker->AssociateThreads(main_utid, reused, true);
+  }
+  EXPECT_EQ(context.process_tracker->PendingThreadAssociationCountForTesting(),
+            0u);
+  EXPECT_EQ(context.stats_tracker->GetStats(stats::process_tracker_errors), 0);
+
+  // The process has exactly 1 (main) + K (clones) threads.
+  size_t threads_in_proc = 0;
+  for (uint32_t i = 0; i < context.storage->thread_table().row_count(); ++i) {
+    if (context.storage->thread_table()[i].upid() == upid) {
+      ++threads_in_proc;
+    }
+  }
+  EXPECT_EQ(threads_in_proc, 1u + kClones);
+
+  // Case 2: Source thread has NO process yet.
+  // Associations are queued while the source thread has no process and
+  // resolved once the source thread is mapped to a process.
+  UniqueTid unresolved_source =
+      context.process_tracker->StartNewThread(5000, /*tid=*/5000);
+  ASSERT_FALSE(
+      context.storage->thread_table()[unresolved_source].upid().has_value());
+
+  constexpr uint32_t kUnresolvedClones = 10;
+  std::vector<UniqueTid> unresolved_clone_utids;
+  for (uint32_t i = 0; i < kUnresolvedClones; ++i) {
+    UniqueTid clone =
+        context.process_tracker->StartNewThread(5100 + i, 6000 + i);
+    context.process_tracker->AssociateThreads(unresolved_source, clone, true);
+    unresolved_clone_utids.push_back(clone);
+  }
+  EXPECT_EQ(context.process_tracker->PendingThreadAssociationCountForTesting(),
+            kUnresolvedClones);
+
+  // Trace 2 re-observes the unresolved clones with identical (tid, ts).
+  // StartNewThread returns the existing utid. Because unresolved_source has no
+  // process yet, AssociateThreads queues a duplicate pair for each clone (the
+  // accepted residual).
+  for (uint32_t i = 0; i < kUnresolvedClones; ++i) {
+    UniqueTid reused =
+        context.process_tracker->StartNewThread(5100 + i, 6000 + i);
+    EXPECT_EQ(reused, unresolved_clone_utids[i]);
+    context.process_tracker->AssociateThreads(unresolved_source, reused, true);
+  }
+  EXPECT_EQ(context.process_tracker->PendingThreadAssociationCountForTesting(),
+            2 * kUnresolvedClones);
+
+  // Once unresolved_source is mapped to a process, pending associations
+  // resolve together.
+  context.process_tracker->UpdateThread(/*tid=*/5000, /*pid=*/5000);
+  UniquePid unresolved_proc = context.process_tracker->GetOrCreateProcess(5000);
+  EXPECT_EQ(context.process_tracker->PendingThreadAssociationCountForTesting(),
+            0u);
+  EXPECT_EQ(context.storage->thread_table()[unresolved_source].upid(),
+            unresolved_proc);
+  for (UniqueTid clone : unresolved_clone_utids) {
+    EXPECT_EQ(context.storage->thread_table()[clone].upid(), unresolved_proc);
+  }
+  EXPECT_EQ(context.stats_tracker->GetStats(stats::process_tracker_errors), 0);
+}
+
+TEST_F(ProcessTrackerTest, SameMachinePidReuseDifferentOrNullTimestamp) {
+  context.machine_claim_tracker =
+      std::make_unique<MachineClaimTracker>(&context);
+  context.machine_claim_tracker->AddTrace(TraceId{1});
+  context.machine_claim_tracker->AddTrace(TraceId{2});
+  ASSERT_TRUE(context.machine_claim_tracker->has_multiple_traces());
+
+  // Thread created without start_ts via GetOrCreateThread(tid) followed by
+  // StartNewThread(200, tid) creates a new utid.
+  UniqueTid tid_null = context.process_tracker->GetOrCreateThread(50);
+  EXPECT_FALSE(
+      context.storage->thread_table()[tid_null].start_ts().has_value());
+
+  UniqueTid tid_200 = context.process_tracker->StartNewThread(200, 50);
+  EXPECT_NE(tid_null, tid_200);
+
+  // Calling StartNewThread twice with null timestamp does not reuse utid.
+  UniqueTid null_t1 =
+      context.process_tracker->StartNewThread(std::nullopt, /*tid=*/55);
+  UniqueTid null_t2 =
+      context.process_tracker->StartNewThread(std::nullopt, /*tid=*/55);
+  EXPECT_NE(null_t1, null_t2);
+
+  // Process created without start_ts via UpdateThread(tid, pid) followed by
+  // StartNewProcess(200, ..., pid, ...) creates a new upid and main thread
+  // utid.
+  UniqueTid main_null =
+      context.process_tracker->UpdateThread(/*tid=*/60, /*pid=*/60);
+  UniquePid pid_null = *context.storage->thread_table()[main_null].upid();
+  EXPECT_FALSE(
+      context.storage->process_table()[pid_null].start_ts().has_value());
+
+  UniquePid pid_200 = context.process_tracker->StartNewProcess(
+      200, std::nullopt, /*pid=*/60, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  EXPECT_NE(pid_null, pid_200);
+  EXPECT_NE(context.process_tracker->GetThreadOrNull(60), main_null);
+
+  // Calling StartNewProcess twice with null timestamp does not reuse upid.
+  UniquePid null_p1 = context.process_tracker->StartNewProcess(
+      std::nullopt, std::nullopt, /*pid=*/65, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  UniquePid null_p2 = context.process_tracker->StartNewProcess(
+      std::nullopt, std::nullopt, /*pid=*/65, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  EXPECT_NE(null_p1, null_p2);
+
+  // Process/thread created with earlier start_ts = 100 followed by
+  // timestamp 200 creates a new upid / utid.
+  UniquePid proc_100 = context.process_tracker->StartNewProcess(
+      100, std::nullopt, /*pid=*/70, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  UniquePid proc_200 = context.process_tracker->StartNewProcess(
+      200, std::nullopt, /*pid=*/70, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  EXPECT_NE(proc_100, proc_200);
+
+  UniqueTid th_100 = context.process_tracker->StartNewThread(100, /*tid=*/80);
+  UniqueTid th_200 = context.process_tracker->StartNewThread(200, /*tid=*/80);
+  EXPECT_NE(th_100, th_200);
+
+  // Thread with start_ts = 100 ends via EndThread(150, tid); subsequent
+  // StartNewThread(100, tid) is not reused because it is no longer in
+  // live_tid_.
+  UniqueTid th_ended = context.process_tracker->StartNewThread(100, /*tid=*/90);
+  context.process_tracker->EndThread(150, /*tid=*/90);
+  EXPECT_FALSE(context.process_tracker->GetThreadOrNull(90).has_value());
+
+  UniqueTid th_after_end =
+      context.process_tracker->StartNewThread(100, /*tid=*/90);
+  EXPECT_NE(th_ended, th_after_end);
+
+  // Process with start_ts = 100 ends via EndThread(150, pid); subsequent
+  // StartNewProcess(100, ..., pid, ...) is not reused because it is no
+  // longer in pids_ or live_tid_.
+  UniquePid proc_ended = context.process_tracker->StartNewProcess(
+      100, std::nullopt, /*pid=*/95, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  context.process_tracker->EndThread(150, /*tid=*/95);
+  EXPECT_FALSE(context.process_tracker->GetThreadOrNull(95).has_value());
+
+  UniquePid proc_after_end = context.process_tracker->StartNewProcess(
+      100, std::nullopt, /*pid=*/95, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  EXPECT_NE(proc_ended, proc_after_end);
+}
+
+TEST_F(ProcessTrackerTest, SingleTraceSameTimestampNotReused) {
+  context.machine_claim_tracker =
+      std::make_unique<MachineClaimTracker>(&context);
+  context.machine_claim_tracker->AddTrace(TraceId{1});
+  ASSERT_FALSE(context.machine_claim_tracker->has_multiple_traces());
+
+  // On a single-trace machine, calling StartNewProcess twice with the same
+  // timestamp creates a new upid.
+  UniquePid proc1 = context.process_tracker->StartNewProcess(
+      100, std::nullopt, /*pid=*/123, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  UniquePid proc2 = context.process_tracker->StartNewProcess(
+      100, std::nullopt, /*pid=*/123, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  EXPECT_NE(proc1, proc2);
+
+  // Calling StartNewThread twice with the same timestamp creates a new utid.
+  UniqueTid thread1 = context.process_tracker->StartNewThread(100, /*tid=*/456);
+  UniqueTid thread2 = context.process_tracker->StartNewThread(100, /*tid=*/456);
+  EXPECT_NE(thread1, thread2);
+
+  // When machine_claim_tracker is null (default single-trace session),
+  // StartNewProcess and StartNewThread also do not reuse rows.
+  context.machine_claim_tracker.reset(nullptr);
+  ASSERT_FALSE(context.machine_claim_tracker);
+
+  UniquePid proc3 = context.process_tracker->StartNewProcess(
+      100, std::nullopt, /*pid=*/789, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  UniquePid proc4 = context.process_tracker->StartNewProcess(
+      100, std::nullopt, /*pid=*/789, kNullStringId,
+      ThreadNamePriority::kFtrace);
+  EXPECT_NE(proc3, proc4);
+
+  UniqueTid thread3 = context.process_tracker->StartNewThread(100, /*tid=*/999);
+  UniqueTid thread4 = context.process_tracker->StartNewThread(100, /*tid=*/999);
+  EXPECT_NE(thread3, thread4);
 }
 
 }  // namespace

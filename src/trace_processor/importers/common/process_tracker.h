@@ -17,7 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PROCESS_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PROCESS_TRACKER_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -233,6 +235,10 @@ class ProcessTracker {
     return std::make_pair(deque.begin(), deque.end());
   }
 
+  size_t PendingThreadAssociationCountForTesting() const {
+    return pending_assocs_.size();
+  }
+
   // Marks the two threads as belonging to the same process, even if we don't
   // know which one yet. If one of the two threads is later mapped to a process,
   // the other will be mapped to the same process. The order of the two threads
@@ -282,6 +288,8 @@ class ProcessTracker {
   // Repoints live_tid_[tid] at the newest alive incarnation in |tids_| (or
   // erases it). Cold path: lifecycle transitions only.
   void RefreshLiveTid(int64_t tid);
+
+  bool HasMultipleTraces() const;
 
   // Refreshes live_tid_ for every thread of |upid|, when it ends or is
   // recycled.
@@ -337,9 +345,15 @@ class ProcessTracker {
   // changes).
   base::FlatHashMap<int64_t /* tid */, std::vector<UniqueTid>> tids_;
 
-  // Cache of the newest alive incarnation of each tid: the answer to a bare
+  // Cache of the newest alive incarnation of each tid (and its start
+  // timestamp, for same-machine fork/new-task reuse): the answer to a bare
   // (no parent pid) lookup. Kept in sync via tids_ on lifecycle transitions.
-  base::FlatHashMap<int64_t /* tid */, UniqueTid> live_tid_;
+  static constexpr int64_t kNoStartTs = std::numeric_limits<int64_t>::min();
+  struct LiveThread {
+    UniqueTid utid = 0;
+    int64_t start_ts = kNoStartTs;
+  };
+  base::FlatHashMap<int64_t /* tid */, LiveThread> live_tid_;
 
   // upid -> its utids, used to refresh live_tid_ when a process ends or its pid
   // is recycled.
