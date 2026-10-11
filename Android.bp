@@ -21182,6 +21182,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_shell_shell",
     srcs: [
+        "src/trace_processor/shell/agent_mode.cc",
         "src/trace_processor/shell/bundle_subcommand.cc",
         "src/trace_processor/shell/common_flags.cc",
         "src/trace_processor/shell/convert_helpers.cc",
@@ -21218,6 +21219,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_shell_unittests",
     srcs: [
+        "src/trace_processor/shell/agent_mode_unittest.cc",
         "src/trace_processor/shell/convert_helpers_unittest.cc",
         "src/trace_processor/shell/find_subcommand_unittest.cc",
         "src/trace_processor/shell/markdown_result_formatter_unittest.cc",

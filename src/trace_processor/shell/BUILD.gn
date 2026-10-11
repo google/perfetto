@@ -16,6 +16,8 @@ import("../../../gn/perfetto.gni")
 
 source_set("shell") {
   sources = [
+    "agent_mode.cc",
+    "agent_mode.h",
     "bundle_subcommand.cc",
     "bundle_subcommand.h",
     "common_flags.cc",
@@ -79,6 +81,7 @@ source_set("shell") {
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
     "../util:json_value",
+    "../util:simple_json_serializer",
     "../util:stdlib",
     "../util:tar_writer",
     "../util/deobfuscation:deobfuscator",
@@ -116,6 +119,7 @@ source_set("subcommands") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "agent_mode_unittest.cc",
     "convert_helpers_unittest.cc",
     "find_subcommand_unittest.cc",
     "markdown_result_formatter_unittest.cc",

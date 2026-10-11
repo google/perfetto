@@ -319,6 +319,7 @@ class StructuredQueryTestExecutor(TestExecutor):
         cmd = [
             self.trace_processor_path,
             'query',
+            '--no-agent',
             '--analyze-trace-proto-content',
             '--crop-track-events',
             '--extra-checks',
