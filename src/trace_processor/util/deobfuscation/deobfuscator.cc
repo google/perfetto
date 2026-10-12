@@ -42,14 +42,64 @@ namespace {
 using SimpleJsonParser = perfetto::trace_processor::json::SimpleJsonParser;
 using FieldResult = perfetto::trace_processor::json::FieldResult;
 
-// Json keys used to parse merged classes.
+// Json keys used to parse merged classes and mapping header.
 constexpr std::string_view kMergedClassesId =
     "com.android.tools.r8.mergedClasses";
+constexpr std::string_view kMappingHeaderId = "com.android.tools.r8.mapping";
 constexpr std::string_view kIdKey = "id";
+constexpr std::string_view kVersionKey = "version";
 constexpr std::string_view kClassNameKey = "name";
 constexpr std::string_view kClassIdKey = "classId";
 constexpr std::string_view kClassIdFieldKey = "classIdField";
 constexpr std::string_view kMergedClassesKey = "mergedClasses";
+
+// Parses R8 `#
+// {"id":"com.android.tools.r8.mapping","version":"<major>.<minor>"}` header
+// comment and sets `supports_merged_classes` to true if version >= 2.3.
+void ParseMappingHeaderComment(std::string_view json_str,
+                               bool* supports_merged_classes) {
+  if (json_str.find(kMappingHeaderId) == std::string_view::npos) {
+    return;
+  }
+  SimpleJsonParser parser(json_str);
+  if (!parser.Parse().ok()) {
+    return;
+  }
+  bool is_mapping_header = false;
+  std::string version;
+  base::Status s =
+      parser.ForEachField([&](std::string_view key) -> FieldResult {
+        if (key == kIdKey) {
+          if (auto val = parser.GetString(); val && *val == kMappingHeaderId) {
+            is_mapping_header = true;
+          }
+          return FieldResult::Handled{};
+        }
+        if (key == kVersionKey) {
+          if (auto val = parser.GetString()) {
+            version = std::string(*val);
+          }
+          return FieldResult::Handled{};
+        }
+        return FieldResult::Skip{};
+      });
+  if (!s.ok() || !is_mapping_header || version.empty()) {
+    return;
+  }
+  size_t dot = version.find('.');
+  if (dot == std::string::npos) {
+    return;
+  }
+  auto major =
+      base::StringViewToInt32(std::string_view(version).substr(0, dot));
+  auto minor =
+      base::StringViewToInt32(std::string_view(version).substr(dot + 1));
+  if (major.has_value() && minor.has_value()) {
+    if (*major > 2 || (*major == 2 && *minor >= 3)) {
+      *supports_merged_classes = true;
+    }
+  }
+}
 
 struct ProguardClass {
   std::string obfuscated_name;
@@ -162,7 +212,8 @@ base::Status ParseMergedClass(SimpleJsonParser& parser,
 // Parses R8 `com.android.tools.r8.mergedClasses` JSON comment string in
 // Proguard mapping.
 base::Status ParseMergedClassesComment(std::string_view json_str,
-                                       ObfuscatedClass& target_class) {
+                                       ObfuscatedClass& target_class,
+                                       bool* supports_merged_classes) {
   if (json_str.find(kMergedClassesKey) == std::string_view::npos) {
     // Avoid full parsing if possible.
     return base::OkStatus();
@@ -188,6 +239,7 @@ base::Status ParseMergedClassesComment(std::string_view json_str,
   RETURN_IF_ERROR(s);
 
   if (is_merged_classes_id) {
+    *supports_merged_classes = true;
     *target_class.mutable_merged_classes() = std::move(mcs);
   }
   return base::OkStatus();
@@ -451,17 +503,20 @@ base::Status ProguardParser::AddLine(std::string line) {
     return base::Status();
 
   if (line[first_ch_pos] == '#') {
-    if (current_class_ == nullptr) {
+    size_t json_start = line.find('{');
+    if (json_start == std::string::npos) {
       return base::Status();
     }
-    size_t json_start = line.find('{');
-    if (json_start != std::string::npos) {
-      std::string_view json_sv = std::string_view(line).substr(json_start);
-      base::Status s = ParseMergedClassesComment(json_sv, *current_class_);
-      if (!s.ok()) {
-        PERFETTO_ELOG("Failed to parse merged classes comment: %s\non line %s",
-                      s.message().c_str(), line.c_str());
-      }
+    std::string_view json_sv = std::string_view(line).substr(json_start);
+    if (current_class_ == nullptr) {
+      ParseMappingHeaderComment(json_sv, &supports_merged_classes_);
+      return base::Status();
+    }
+    base::Status s = ParseMergedClassesComment(json_sv, *current_class_,
+                                               &supports_merged_classes_);
+    if (!s.ok()) {
+      PERFETTO_ELOG("Failed to parse merged classes comment: %s\non line %s",
+                    s.message().c_str(), line.c_str());
     }
     return base::Status();
   }
@@ -536,11 +591,25 @@ bool ProguardParser::AddLines(std::string contents) {
   return true;
 }
 
+std::map<std::string, ObfuscatedClass> ProguardParser::ConsumeMapping() {
+  if (!supports_merged_classes_) {
+    for (auto& [obfuscated_name, cls] : mapping_) {
+      if (obfuscated_name != cls.deobfuscated_name()) {
+        cls.mutable_merged_classes()->unknown_merged_classes = true;
+      }
+    }
+  }
+  return std::move(mapping_);
+}
+
 static void SerializeMergedClasses(
     const profiling::ObfuscatedClass::MergedClasses& src,
     perfetto::protos::pbzero::ObfuscatedClass::MergedClasses* dest) {
   if (!src.class_id_field_name.empty()) {
     dest->set_class_id_field_name(src.class_id_field_name);
+  }
+  if (src.unknown_merged_classes) {
+    dest->set_unknown_merged_classes(true);
   }
   for (const auto& mc : src.merged_classes) {
     auto* dest_mc = dest->add_merged_classes();
@@ -550,7 +619,8 @@ static void SerializeMergedClasses(
     if (mc.class_id.has_value()) {
       dest_mc->set_class_id(*mc.class_id);
     }
-    if (!mc.nested_merged_classes.merged_classes.empty()) {
+    if (!mc.nested_merged_classes.merged_classes.empty() ||
+        mc.nested_merged_classes.unknown_merged_classes) {
       SerializeMergedClasses(mc.nested_merged_classes,
                              dest_mc->set_merged_classes());
     }
@@ -560,7 +630,7 @@ static void SerializeMergedClasses(
 static void SerializeTopLevelMergedClasses(
     const profiling::ObfuscatedClass::MergedClasses& src,
     perfetto::protos::pbzero::ObfuscatedClass* dest) {
-  if (!src.merged_classes.empty()) {
+  if (!src.merged_classes.empty() || src.unknown_merged_classes) {
     SerializeMergedClasses(src, dest->set_merged_classes());
   }
 }
