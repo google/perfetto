@@ -282,8 +282,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Copy empty file.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     ASSERT_OK(CopyFileContents(*src, *dst));
     assert_file_content_fn(dst, "");
@@ -291,8 +291,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Copy small file.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     std::string payload = "payload\n\r123";
     WriteAll(*src, payload.data(), payload.size());
@@ -307,8 +307,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Copy large file.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     std::string payload(35678, 'A');
     WriteAll(*src, payload.data(), payload.size());
@@ -319,8 +319,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Test CopyFileContents doesn't change 'src' offset.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst = TempFile::Create().ValueOrDie();
 
     std::string payload = "payload\n\r123";
     WriteAll(*src, payload.data(), payload.size());
@@ -338,8 +338,8 @@ TEST(UtilsTest, CopyFileContents) {
 
   // Test CopyFileContents doesn't change 'src' offset when failed.
   {
-    TempFile src = TempFile::Create();
-    TempFile dst_normal_file = TempFile::Create();
+    TempFile src = TempFile::Create().ValueOrDie();
+    TempFile dst_normal_file = TempFile::Create().ValueOrDie();
     ScopedFile dst_read_only = OpenFile(dst_normal_file.path(), O_RDONLY);
 
     std::string payload = "payload\n\r123";
@@ -371,7 +371,7 @@ TEST(UtilsTest, CopyFileContents) {
     std::string src_content;
     ASSERT_TRUE(ReadFileDescriptor(*proc_self_src, &src_content));
 
-    TempFile dst = TempFile::Create();
+    TempFile dst = TempFile::Create().ValueOrDie();
     ASSERT_OK(CopyFileContents(*proc_self_src, *dst));
     assert_file_content_fn(dst, src_content);
   }
@@ -379,7 +379,7 @@ TEST(UtilsTest, CopyFileContents) {
 }
 
 TEST(UtilsTest, SeekFile) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
 
   ASSERT_TRUE(SeekFile(*file, 3));
@@ -389,7 +389,7 @@ TEST(UtilsTest, SeekFile) {
 }
 
 TEST(UtilsTest, TruncateFile) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   ASSERT_EQ(WriteAll(*file, "abcdef", 6), 6);
 
   ASSERT_TRUE(TruncateFile(*file, 3));
@@ -411,13 +411,13 @@ TEST(UtilsTest, SeekAndTruncateFileErrors) {
   EXPECT_FALSE(TruncateFile(-1, 0));
 
   constexpr uint64_t kTooLarge = std::numeric_limits<uint64_t>::max();
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   EXPECT_FALSE(SeekFile(*file, kTooLarge));
   EXPECT_FALSE(TruncateFile(*file, kTooLarge));
 }
 
 TEST(UtilsTest, GetFileSize) {
-  TempFile file = TempFile::Create();
+  TempFile file = TempFile::Create().ValueOrDie();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
   ASSERT_EQ(payload.size(), static_cast<size_t>(16));
@@ -441,7 +441,7 @@ TEST(UtilsTest, OpenFstreamTextModeNotSupported) {
 }
 
 TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
-  TempFile tmp_file = TempFile::Create();
+  TempFile tmp_file = TempFile::Create().ValueOrDie();
   const std::string& tmp_path = tmp_file.path();
   // Explicitly set the string size, we want to write all data to the file.
   std::string payload("foo\nbar\0baz\r\nqux", 16);
@@ -465,7 +465,7 @@ TEST(UtilsTest, OpenFstreamAlwaysBinaryMode) {
   }
 
   {
-    TempFile file = TempFile::Create();
+    TempFile file = TempFile::Create().ValueOrDie();
     WriteAll(*file, payload.data(), payload.size());
 
     auto fstream = OpenFstream(file.path(), "r");

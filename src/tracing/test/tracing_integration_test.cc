@@ -385,7 +385,8 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
 
   void Attach() {
     memory_ = PosixSharedMemory::Create(sizeof(tracing_v2::RingBufferHeader) +
-                                        16 * 256);
+                                        16 * 256)
+                  .ValueOrDie();
     ring_buffer_ = std::make_unique<tracing_v2::SharedRingBuffer>(
         static_cast<uint8_t*>(memory_->start()), memory_->size(), 256);
     auto attached = task_runner_->CreateCheckpoint("ring_buffer_attached");
@@ -719,7 +720,8 @@ TEST_F(RingBufferTransportIntegrationTest, EarlyPublicationAndDrain) {
   task_runner_->RunUntilCheckpoint("ring_buffer_started");
 
   std::shared_ptr<PosixSharedMemory> memory =
-      PosixSharedMemory::Create(sizeof(tracing_v2::RingBufferHeader) + 4 * 256);
+      PosixSharedMemory::Create(sizeof(tracing_v2::RingBufferHeader) + 4 * 256)
+          .ValueOrDie();
   tracing_v2::SharedRingBuffer ring_buffer(
       static_cast<uint8_t*>(memory->start()), memory->size(), 256);
   auto writer = tracing_v2::test::MakeWriter(&ring_buffer, 2, target);
@@ -788,7 +790,8 @@ TEST_F(RingBufferTransportIntegrationTest,
        RejectsInvalidAndDuplicateRingBuffers) {
   auto attach = [&](size_t size, uint32_t chunk_size, bool accepted,
                     const char* checkpoint) {
-    std::shared_ptr<PosixSharedMemory> memory = PosixSharedMemory::Create(size);
+    std::shared_ptr<PosixSharedMemory> memory =
+        PosixSharedMemory::Create(size).ValueOrDie();
     auto done = task_runner_->CreateCheckpoint(checkpoint);
     producer_endpoint_->AttachV2RingBuffer(memory, chunk_size,
                                            [=](bool result) {
@@ -974,7 +977,8 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   ds_config->set_name("perfetto.test");
   ds_config->set_target_buffer(0);
   trace_config.set_write_into_file(true);
-  base::TempFile tmp_file = base::TempFile::CreateUnlinked();
+  base::TempFile tmp_file =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   consumer_endpoint_->EnableTracing(trace_config,
                                     base::ScopedFile(dup(tmp_file.fd())));
 

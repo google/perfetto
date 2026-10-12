@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_BASE_STATUS_OR_H_
 
 #include <optional>
+#include <utility>
 
 #include "perfetto/base/status.h"
 
@@ -50,6 +51,14 @@ class StatusOr {
 
   bool ok() const { return status_.ok(); }
   const base::Status& status() const { return status_; }
+
+  // If ok(), returns the value by moving it.
+  // Otherwise, logs the error message and aborts.
+  T ValueOrDie() && {
+    if (!ok())
+      PERFETTO_FATAL("%s", status_.c_message());
+    return std::move(*value_);
+  }
 
   T& value() {
     PERFETTO_DCHECK(status_.ok());
