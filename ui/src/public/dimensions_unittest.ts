@@ -53,32 +53,44 @@ describe('formatDimensionLabel', () => {
 });
 
 describe('visibleDimensionNames', () => {
-  test('hides dimensions with a single distinct value', () => {
+  test('hides integer dimensions with a single distinct value', () => {
     const visible = visibleDimensionNames([
       intDim('rank', 3),
       intDim('rank', 3),
-      strDim('stage', 'forward'),
     ]);
     expect(Array.from(visible)).toEqual([]);
   });
 
-  test('shows dimensions which disambiguate tracks', () => {
+  test('shows integer dimensions which disambiguate tracks', () => {
     const visible = visibleDimensionNames([
       intDim('rank', 3),
       intDim('rank', 7),
-      strDim('stage', 'forward'),
     ]);
     expect(Array.from(visible)).toEqual(['rank']);
   });
 
-  test('dimensions collapse independently', () => {
+  test('integer dimensions collapse independently', () => {
     const visible = visibleDimensionNames([
       intDim('rank', 3),
       intDim('rank', 7),
-      strDim('stage', 'forward'),
-      strDim('stage', 'backward'),
+      intDim('stream', 0),
+      intDim('stream', 0),
     ]);
-    expect(Array.from(visible).sort()).toEqual(['rank', 'stage']);
+    expect(Array.from(visible)).toEqual(['rank']);
+  });
+
+  test('always shows string dimensions, even with a single value', () => {
+    // A Chrome frame title on the single renderer of a trace: one value, but
+    // it is emitted precisely to be shown.
+    const visible = visibleDimensionNames([
+      strDim('chrome.process_label', 'IMDb: Ratings, Reviews'),
+      strDim('stage', 'forward'),
+      strDim('stage', 'forward'),
+    ]);
+    expect(Array.from(visible).sort()).toEqual([
+      'chrome.process_label',
+      'stage',
+    ]);
   });
 
   test('hides the rank of a trace with a single rank', () => {
