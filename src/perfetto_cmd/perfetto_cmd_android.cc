@@ -200,15 +200,17 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
   base::Status status = ReportTraceToAndroidFramework(
       trace_fd, bytes_written, uuid, trace_config_->unique_session_name(),
       trace_config_->android_report_config(), statsd_logging_);
-  if (!status.ok()) {
-    PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
-  }
 
   if (!persistent_file_path_.empty()) {
     // Explicitly release the advisory lock before unlinking the file.
     flock(trace_fd, LOCK_UN);
     PERFETTO_CHECK(unlink(persistent_file_path_.c_str()) == 0 ||
                    errno == ENOENT);
+    persistent_file_path_.clear();
+  }
+
+  if (!status.ok()) {
+    PERFETTO_FATAL("ReportTraceToAndroidFramework: %s", status.c_message());
   }
 }
 

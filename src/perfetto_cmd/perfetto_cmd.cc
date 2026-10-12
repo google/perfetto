@@ -137,6 +137,19 @@ PerfettoCmd::~PerfettoCmd() {
       task_runner_.RemoveFileDescriptorWatch(ctrl_c_evt_.fd());
     }
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (!persistent_file_path_.empty()) {
+    // Should be safe to unconditionally unlink here.
+    // If another persistent session is running with the same
+    // unique_session_name, `persistent_file_path_` should be empty.
+    PERFETTO_CHECK(unlink(persistent_file_path_.c_str()) == 0 ||
+                   errno == ENOENT);
+    persistent_file_path_.clear();
+  }
+  packet_writer_.reset();
+  trace_out_stream_.reset();
+#endif
 }
 
 void PerfettoCmd::PrintUsage(const char* argv0) {
