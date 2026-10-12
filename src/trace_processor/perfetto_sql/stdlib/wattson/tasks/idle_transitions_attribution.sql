@@ -17,6 +17,8 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.estimates;
 
+INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+
 INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 INCLUDE PERFETTO MODULE wattson.utils;
@@ -109,35 +111,18 @@ WHERE
 -- Interval intersect with the estimate power track, so that each slice can be
 -- attributed to the power of the CPU in that time duration
 CREATE PERFETTO TABLE _idle_transition_cost AS
-SELECT
-  ii.ts,
-  ii.dur,
-  tasks.cpu,
-  tasks.utid,
-  tasks.upid,
-  tasks.uid,
-  CASE tasks.cpu
-    WHEN 0 THEN power.cpu0_mw
-    WHEN 1 THEN power.cpu1_mw
-    WHEN 2 THEN power.cpu2_mw
-    WHEN 3 THEN power.cpu3_mw
-    WHEN 4 THEN power.cpu4_mw
-    WHEN 5 THEN power.cpu5_mw
-    WHEN 6 THEN power.cpu6_mw
-    WHEN 7 THEN power.cpu7_mw
-    ELSE 0
-  END AS estimated_mw
-FROM _interval_intersect!(
+INTERVAL INTERSECTION OF (
+  _idle_w_tasks AS tasks,
+  _unioned_wattson_estimates_mw AS power,
   (
-    _ii_subquery!(_idle_w_tasks),
-    _ii_subquery!(_system_state_mw)
-  ),
-  ()
-) AS ii
-JOIN _idle_w_tasks AS tasks
-  ON tasks._auto_id = id_0
-JOIN _system_state_mw AS power
-  ON power._auto_id = id_1;
+    SELECT c.cpu, s.ts, s.dur
+    FROM (SELECT DISTINCT cpu FROM _idle_w_tasks) AS c
+    CROSS JOIN (
+      SELECT min(ts) AS ts, max(ts + dur) - min(ts) AS dur FROM _system_state_mw
+    ) AS s
+  ) AS window
+) PER cpu
+|> SELECT ts, dur, cpu, tasks.utid, tasks.upid, tasks.uid, power.estimated_mw;
 
 -- Macro for easily filtering idle attribution to a specified time window. This
 -- information can then further be filtered by specific CPU and GROUP BY on
