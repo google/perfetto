@@ -20,8 +20,10 @@ Dimensions are one vocabulary for all of these:
   different data sources refers to the same real thing, which is what makes
   merging and specialized presentation possible.
 - **Custom dimensions** are declared by the producer and are specific to the
-  workload: `rank`, `shard`, `stage`, … Their identity is local to the
-  producer, so they are labels and query keys, not merge keys.
+  workload: `rank`, `shard`, `stage`, … Their values are local to the
+  producer, so unlike well known dimensions they never merge tracks across
+  data sources. They are still part of the identity of the track they are
+  declared on (see [Track identity](#track-identity)).
 
 ## Producer surface
 
@@ -39,7 +41,7 @@ message Dimension {
 ```
 
 The `display_name` only changes the *rendered* label — the canonical typed
-value is what SQL and merging use.
+value is what SQL, track identity and merging use.
 
 With the SDK, dimensions are set like any other track metadata:
 
@@ -51,6 +53,10 @@ rank->set_name("rank");
 rank->set_int_value(3);
 perfetto::TrackEvent::SetTrackDescriptor(perfetto::ProcessTrack::Current(), desc);
 ```
+
+As dimensions are part of the track identity, this has to happen before the
+SDK emits the first descriptor for the track (i.e. before tracing starts for
+the process track).
 
 A dimension has no scope field. It is declared on a track and applies to:
 
@@ -64,6 +70,23 @@ value for an inherited name is invalid: the inherited value is kept and
 `track_dimension_conflicting_value` is recorded. Producers cannot declare a
 custom dimension using a well known name
 (`track_descriptor_reserved_dimension_name`).
+
+### Track identity
+
+The dimensions declared on a descriptor (names and values; neither the order
+nor `display_name` matter) are part of the identity of that track:
+
+- they are fixed for the lifetime of the track: every descriptor emitted for a
+  `uuid`, starting with the first one, must declare the same dimensions. A
+  descriptor declaring different dimensions, including one adding dimensions
+  to a track first described without any, is rejected as a conflicting
+  reservation (`track_descriptor_conflicting_reservation`) and the first one is
+  kept.
+- they are part of the sibling merge key: siblings are only merged (by name or
+  by `sibling_merge_key`) if they declare the same dimensions, so e.g. two
+  `"step"` tracks of different ranks under the same parent stay separate.
+  Merged tracks carry the canonical form of the dimensions in their
+  `custom_dimensions` track dimension.
 
 ## Trace processor
 

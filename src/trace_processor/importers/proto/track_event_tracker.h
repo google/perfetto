@@ -113,10 +113,14 @@ class TrackEventTracker {
     SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
     StringId sibling_merge_key = kNullStringId;
 
-    // Producer-declared custom dimensions. Dimensions are *not* part of the
-    // track's identity, so they are deliberately not considered by
-    // |IsForSameTrack|.
+    // Producer-declared custom dimensions.
     std::vector<Dimension> dimensions;
+
+    // Canonical, order independent, representation of the names and values of
+    // |dimensions| (null if there are none). Dimensions are part of the
+    // track's identity, so this is compared by |IsForSameTrack| and is part of
+    // the sibling merge key.
+    StringId dimensions_key = kNullStringId;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
@@ -129,10 +133,11 @@ class TrackEventTracker {
         return false;
       }
       return std::tie(parent_uuid, pid, tid, is_counter, is_state,
-                      sibling_merge_behavior, sibling_merge_key) ==
+                      sibling_merge_behavior, sibling_merge_key,
+                      dimensions_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
                       other.is_state, other.sibling_merge_behavior,
-                      other.sibling_merge_key);
+                      other.sibling_merge_key, other.dimensions_key);
     }
   };
 
