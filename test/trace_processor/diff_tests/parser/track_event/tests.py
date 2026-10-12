@@ -1783,6 +1783,81 @@ class TrackEvent(TestSuite):
         "g2_event","[NULL]",2
         """))
 
+  # The declared dimensions are normalized: sorted by name and without repeated
+  # names, a name declared twice keeping its first value. Re-emitting the same
+  # dimensions in another order or with a repeated name is the same identity.
+  def test_track_event_dimensions_normalized(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "repeated"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            dimensions { name: "rank" int_value: 1 }
+            dimensions { name: "stage" string_value: "fwd" }
+            dimensions { name: "rank" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 1
+            name: "repeated"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            dimensions { name: "stage" string_value: "fwd" }
+            dimensions { name: "rank" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            name: "conflicting"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+            dimensions { name: "shard" int_value: 1 }
+            dimensions { name: "shard" int_value: 2 }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 1 type: TYPE_INSTANT name: "on_repeated" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 200
+          track_event { track_uuid: 2 type: TYPE_INSTANT name: "on_conflicting" } }
+        """),
+        query="""
+        SELECT
+          'slice' AS kind,
+          s.name,
+          (
+            SELECT group_concat(d.name || '=' || coalesce(d.int_value, d.string_value), ',')
+            FROM (
+              SELECT * FROM track_dimension
+              WHERE track_id = s.track_id AND NOT is_well_known
+              ORDER BY name
+            ) AS d
+          ) AS value
+        FROM slice AS s
+        UNION ALL
+        SELECT 'stat' AS kind, name, value
+        FROM stats
+        WHERE name IN (
+          'track_descriptor_conflicting_reservation',
+          'track_dimension_conflicting_value')
+        ORDER BY kind, name;
+        """,
+        out=Csv("""
+        "kind","name","value"
+        "slice","on_conflicting","shard=1"
+        "slice","on_repeated","rank=1,stage=fwd"
+        "stat","track_descriptor_conflicting_reservation",0
+        "stat","track_dimension_conflicting_value",1
+        """))
+
   # Dimensions are part of the sibling merge key: siblings are only merged if
   # they declare the same dimensions.
   def test_track_event_dimensions_identity_merging(self):

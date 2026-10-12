@@ -15,8 +15,8 @@
  */
 
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
+#include "src/trace_processor/util/cold_sort.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -28,7 +28,6 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -171,27 +170,26 @@ void ParseTrackDimensions(
     return;
   }
 
-  // Dimensions are part of the track identity: sort them by name so that the
-  // declaration order doesn't matter and hash the interned ids of the names
-  // and values. The hash is part of the sibling merge key, while
-  // |IsForSameTrack| compares the sorted dimensions themselves. Display names
-  // only affect presentation, so they are not part of either.
+  // Dimensions are part of the track identity, so they are normalized: sorted
+  // by name, so that the declaration order doesn't matter, and without
+  // repeated names. A name declared more than once keeps its first value.
   auto& dims = reservation->dimensions;
-  std::stable_sort(
+  ColdStableSortByKey(
       dims.begin(), dims.end(),
-      [](const Reservation::Dimension& a, const Reservation::Dimension& b) {
-        return a.name.raw_id() < b.name.raw_id();
-      });
-  base::FnvHasher hasher;
-  for (const auto& dim : dims) {
-    hasher.Update(dim.name.raw_id());
-    if (dim.int_value) {
-      hasher.Update(*dim.int_value);
-    } else {
-      hasher.Update(dim.string_value->raw_id());
+      [](const Reservation::Dimension& d) { return d.name.raw_id(); });
+  size_t kept = 0;
+  for (size_t i = 0; i < dims.size(); ++i) {
+    if (kept > 0 && dims[kept - 1].name == dims[i].name) {
+      if (dims[kept - 1].int_value != dims[i].int_value ||
+          dims[kept - 1].string_value != dims[i].string_value) {
+        errors->push_back(stats::track_dimension_conflicting_value);
+      }
+      continue;
     }
+    dims[kept++] = dims[i];
   }
-  reservation->dimensions_hash = hasher.digest();
+  dims.resize(kept);
+  reservation->dimensions_hash = Reservation::HashDimensions(dims);
 }
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {

@@ -113,12 +113,12 @@ class TrackEventTracker {
     SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
     StringId sibling_merge_key = kNullStringId;
 
-    // Producer-declared custom dimensions, sorted by name. Dimensions are part
-    // of the track's identity, so they are compared by |IsForSameTrack|.
+    // Producer-declared custom dimensions, sorted by name and without repeated
+    // names. Dimensions are part of the track's identity, so they are compared
+    // by |IsForSameTrack|.
     std::vector<Dimension> dimensions;
 
-    // Order independent hash of the names and values of |dimensions| (0 if
-    // there are none), used as part of the sibling merge key.
+    // HashDimensions() of |dimensions|.
     uint64_t dimensions_hash = 0;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
@@ -147,6 +147,10 @@ class TrackEventTracker {
       return dimensions_hash == other.dimensions_hash &&
              SameDimensions(dimensions, other.dimensions);
     }
+
+    // Hash of the names and typed values of |dims|, sorted by name. Display
+    // names only affect presentation and are not part of it.
+    static uint64_t HashDimensions(const std::vector<Dimension>& dims);
 
     // Whether |a| and |b|, both sorted by name, have the same dimension names
     // and values. Display names only affect presentation and are ignored.

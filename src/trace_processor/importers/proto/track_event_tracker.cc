@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
@@ -198,6 +199,13 @@ TrackCompressor::TrackFactory CreateMergedTrackFactory(
       tracks::DynamicName(name), std::move(args), std::move(on_new_track));
 }
 
+// Part of the hash of a dimension, so that e.g. the integer 5 doesn't collide
+// with the string interned with id 5.
+enum class DimensionValueType : uint8_t {
+  kInt = 0,
+  kString = 1,
+};
+
 std::pair<uint32_t, StringId> GetMergeKey(
     const TrackEventTracker::DescriptorTrackReservation& reservation,
     StringId name) {
@@ -241,6 +249,24 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       track_uuid_key_id_(context->storage->InternString("track_uuid")),
       parent_uuid_key_id_(context->storage->InternString("parent_uuid")),
       context_(context) {}
+
+// static
+uint64_t TrackEventTracker::DescriptorTrackReservation::HashDimensions(
+    const std::vector<Dimension>& dims) {
+  base::MurmurHashCombiner hasher;
+  for (const auto& dim : dims) {
+    if (dim.int_value) {
+      hasher.Combine(dim.name.raw_id(),
+                     static_cast<uint8_t>(DimensionValueType::kInt),
+                     *dim.int_value);
+    } else {
+      hasher.Combine(dim.name.raw_id(),
+                     static_cast<uint8_t>(DimensionValueType::kString),
+                     dim.string_value->raw_id());
+    }
+  }
+  return hasher.digest();
+}
 
 void TrackEventTracker::ReserveDescriptorTrack(
     uint64_t uuid,
