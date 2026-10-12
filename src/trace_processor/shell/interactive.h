@@ -31,7 +31,6 @@ class DescriptorPool;
 namespace perfetto::trace_processor {
 
 struct InteractiveOptions {
-  uint32_t column_width;
   MetricV1OutputFormat metric_v1_format;
   std::vector<MetricExtension> extensions;
   std::vector<MetricNameAndPath> metrics;

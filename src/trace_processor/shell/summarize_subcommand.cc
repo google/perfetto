@@ -181,12 +181,9 @@ base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
 
   if (interactive_) {
     RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(), InteractiveOptions{20u,
-                                     MetricV1OutputFormat::kNone,
-                                     {},
-                                     {},
-                                     nullptr,
-                                     ctx.global->quiet}));
+        tp.get(),
+        InteractiveOptions{
+            MetricV1OutputFormat::kNone, {}, {}, nullptr, ctx.global->quiet}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));

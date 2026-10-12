@@ -121,6 +121,18 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
     for (uint32_t c = 0; c < it->ColumnCount(); c++) {
       column_names.push_back(it->GetColumnName(c));
     }
+    auto separate = [&]() {
+      if (printed_any_result) {
+        fprintf(output, "\n");
+      }
+      printed_any_result = true;
+    };
+    // Paged formatters print while rows are added; others only in Finish(),
+    // so that a failing statement prints nothing.
+    const bool paged = format.page_rows != 0;
+    if (paged) {
+      separate();
+    }
     auto formatter =
         CreateResultFormatter(format, std::move(column_names), output);
     std::vector<SqlValue> cells(it->ColumnCount());
@@ -146,12 +158,12 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
     // executing SQL and can be non-trivial), and we want to exclude the time
     // spent printing the result (which can be significant for large results),
     // so formatters buffer rows until Finish().
-    exec_dur += std::chrono::steady_clock::now() - query_start;
-
-    if (printed_any_result) {
-      fprintf(output, "\n");
+    exec_dur += formatter->FirstPromptTime().value_or(
+                    std::chrono::steady_clock::now()) -
+                query_start;
+    if (!paged) {
+      separate();
     }
-    printed_any_result = true;
     formatter->Finish();
   }
   if (!executed_any_statement) {

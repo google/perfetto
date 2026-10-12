@@ -18,6 +18,10 @@ Unreleased:
      e.g. `TraceProcessor(remote='my-session')`. Only `query()` is supported
      over Unix sockets for now. `remote` also accepts HTTP addresses, and
      `addr` is deprecated in its favour.
+   * The interactive shell now prints results as aligned tables with columns
+     sized to their contents, and prints the result of every statement in the
+     input rather than only the last. Ctrl-D at the paging prompt now ends the
+     current result instead of exiting the shell.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.

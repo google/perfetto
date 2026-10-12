@@ -21204,6 +21204,7 @@ filegroup {
         "src/trace_processor/shell/shell_utils.cc",
         "src/trace_processor/shell/sql_packages.cc",
         "src/trace_processor/shell/summarize_subcommand.cc",
+        "src/trace_processor/shell/table_result_formatter.cc",
         "src/trace_processor/shell/util_subcommand.cc",
     ],
 }
@@ -21228,6 +21229,7 @@ filegroup {
         "src/trace_processor/shell/markdown_result_formatter_unittest.cc",
         "src/trace_processor/shell/shell_utils_unittest.cc",
         "src/trace_processor/shell/subcommand_flags_unittest.cc",
+        "src/trace_processor/shell/table_result_formatter_unittest.cc",
     ],
 }
 
