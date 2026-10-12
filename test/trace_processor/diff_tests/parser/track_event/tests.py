@@ -1591,7 +1591,7 @@ class TrackEvent(TestSuite):
         trace=Path('track_event_dimensions.textproto'),
         query="""
         SELECT
-          d.track_id,
+          extract_arg(t.dimension_arg_set_id, 'track_uuid') AS track_uuid,
           t.name AS track_name,
           d.name,
           d.int_value,
@@ -1600,18 +1600,18 @@ class TrackEvent(TestSuite):
         FROM track_dimension AS d
         JOIN track AS t ON t.id = d.track_id
         WHERE d.is_well_known = 0
-        ORDER BY d.track_id, d.name;
+        ORDER BY track_uuid, d.name;
         """,
         out=Csv("""
-        "track_id","track_name","name","int_value","string_value","display_name"
-        0,"[NULL]","rank",3,"[NULL]","[NULL]"
-        0,"[NULL]","stage","[NULL]","forward","[NULL]"
-        1,"async","rank",3,"[NULL]","[NULL]"
-        1,"async","stage","[NULL]","forward","[NULL]"
-        2,"[NULL]","rank",7,"[NULL]","worker-east"
-        3,"child","rank",7,"[NULL]","worker-east"
-        4,"[NULL]","chrome.process_label","[NULL]","IMDb: Ratings, Reviews","IMDb: Ratings, Reviews"
-        4,"[NULL]","chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/","Subframe: https://prebid.a-mo.net/"
+        "track_uuid","track_name","name","int_value","string_value","display_name"
+        10,"[NULL]","rank",3,"[NULL]","[NULL]"
+        10,"[NULL]","stage","[NULL]","forward","[NULL]"
+        11,"async","rank",3,"[NULL]","[NULL]"
+        11,"async","stage","[NULL]","forward","[NULL]"
+        20,"[NULL]","rank",7,"[NULL]","worker-east"
+        21,"child","rank",7,"[NULL]","worker-east"
+        30,"[NULL]","chrome.process_label","[NULL]","IMDb: Ratings, Reviews","IMDb: Ratings, Reviews"
+        30,"[NULL]","chrome.process_label2","[NULL]","Subframe: https://prebid.a-mo.net/","Subframe: https://prebid.a-mo.net/"
         """))
 
   # Dimensions are a query axis: slices can be filtered/grouped by the
@@ -1785,18 +1785,28 @@ class TrackEvent(TestSuite):
         query="""
         SELECT
           t.name AS track,
-          group_concat(d.name || '=' || coalesce(d.int_value, d.string_value)) AS dimensions
+          (
+            SELECT group_concat(n, ',')
+            FROM (
+              SELECT
+                CASE
+                  WHEN d.is_well_known THEN d.name
+                  ELSE d.name || '=' || coalesce(d.int_value, d.string_value)
+                END AS n
+              FROM track_dimension AS d
+              WHERE d.track_id = t.id
+              ORDER BY d.name
+            )
+          ) AS dimensions
         FROM track AS t
-        LEFT JOIN track_dimension AS d ON d.track_id = t.id
-        GROUP BY t.id
-        ORDER BY t.id;
+        ORDER BY t.name;
         """,
         out=Csv("""
         "track","dimensions"
-        "global parent","machine=0,shard=1"
-        "global child","machine=0,shard=1"
-        "unrelated global","machine=0"
-        "[NULL]","machine=0,process=1,rank=9"
+        "[NULL]","machine,process,rank=9"
+        "global child","machine,shard=1"
+        "global parent","machine,shard=1"
+        "unrelated global","machine"
         """))
 
   # Well known dimensions are synthesized by trace processor from existing
@@ -1932,7 +1942,9 @@ class TrackEvent(TestSuite):
         query="""
         SELECT
           s.name AS slice,
-          dense_rank() OVER (ORDER BY s.track_id) AS track_idx,
+          dense_rank() OVER (
+            ORDER BY (SELECT min(ts) FROM slice WHERE track_id = s.track_id)
+          ) AS track_idx,
           (
             SELECT int_value FROM track_dimension
             WHERE track_id = s.track_id AND name = 'rank'
@@ -2281,7 +2293,7 @@ class TrackEvent(TestSuite):
         SELECT 'error' AS kind, name, extract_arg(arg_set_id, 'track_uuid')
         FROM _trace_import_logs
         WHERE name = 'track_dimension_conflicting_value'
-        ORDER BY kind, name;
+        ORDER BY kind, name, value;
         """,
         out=Csv("""
         "kind","name","value"
@@ -2361,23 +2373,26 @@ class TrackEvent(TestSuite):
           t.type,
           (
             SELECT group_concat(d.name || '=' || coalesce(d.int_value, d.string_value), ',')
-            FROM track_dimension AS d
-            WHERE d.track_id = t.id AND NOT d.is_well_known
+            FROM (
+              SELECT * FROM track_dimension
+              WHERE track_id = t.id AND NOT is_well_known
+              ORDER BY name
+            ) AS d
           ) AS dimensions
         FROM track AS t
-        ORDER BY t.id;
+        ORDER BY t.type;
         """,
         out=Csv("""
         "name","type","dimensions"
-        "[NULL]","thread_execution","[NULL]"
         "mem.rss.anon","process_memory","[NULL]"
         "[NULL]","process_track_event","rank=3"
+        "[NULL]","thread_execution","[NULL]"
         """))
 
-  # Well known dimensions are written by trace processor for every track, not
+  # Well known dimensions are derived by trace processor for every track, not
   # only track event ones. Tracks only associated with a thread have no
   # `process` dimension. The `cpu` dimension is the machine aware `ucpu`, so
-  # CPU 1 of the remote machine is 4096 + 1.
+  # CPU 1 of each machine is a different CPU.
   def test_track_event_dimensions_well_known_all_tracks(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -2409,28 +2424,38 @@ class TrackEvent(TestSuite):
           track_event { track_uuid: 11 type: TYPE_INSTANT name: "tick" } }
         """),
         query="""
-        SELECT
-          t.type,
-          (
-            SELECT group_concat(n, ',')
-            FROM (
-              SELECT
-                CASE
-                  WHEN d.name IN ('cpu', 'machine')
-                    THEN d.name || '=' || d.int_value
-                  ELSE d.name
-                END AS n
-              FROM track_dimension AS d
-              WHERE d.track_id = t.id AND d.is_well_known
-              ORDER BY d.name
-            )
-          ) AS dimensions
-        FROM track AS t
-        ORDER BY t.type, t.id;
+        SELECT type, dimensions
+        FROM (
+          SELECT
+            t.type,
+            (
+              SELECT group_concat(n, ',')
+              FROM (
+                SELECT
+                  CASE d.name
+                    WHEN 'cpu' THEN 'cpu=' || (
+                      SELECT c.cpu || '@' || m.raw_id
+                      FROM cpu AS c
+                      JOIN machine AS m ON m.id = c.machine_id
+                      WHERE c.id = d.int_value
+                    )
+                    WHEN 'machine' THEN 'machine=' || (
+                      SELECT raw_id FROM machine WHERE id = d.int_value
+                    )
+                    ELSE d.name
+                  END AS n
+                FROM track_dimension AS d
+                WHERE d.track_id = t.id AND d.is_well_known
+                ORDER BY d.name
+              )
+            ) AS dimensions
+          FROM track AS t
+        )
+        ORDER BY type, dimensions;
         """,
         out=Csv("""
         "type","dimensions"
-        "cpu_frequency","cpu=1,machine=0"
-        "cpu_frequency","cpu=4097,machine=1"
+        "cpu_frequency","cpu=1@0,machine=0"
+        "cpu_frequency","cpu=1@349028234,machine=349028234"
         "thread_execution","machine=0,thread"
         """))
