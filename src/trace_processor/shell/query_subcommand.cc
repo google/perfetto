@@ -217,7 +217,7 @@ base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat(
   ResultFormatOptions options =
       agent_mode.enabled ? DefaultMarkdownOptions() : ResultFormatOptions();
   if (format_ == "csv") {
-    options.format = ResultFormat::kCsv;
+    options = ResultFormatOptions();
   } else if (format_ == "markdown") {
     options = DefaultMarkdownOptions();
   } else if (!format_.empty()) {
