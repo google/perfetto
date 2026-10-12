@@ -266,7 +266,7 @@ uint64_t TrackEventTracker::DescriptorTrackReservation::HashDimensions(
   return hasher.digest();
 }
 
-void TrackEventTracker::ReserveDescriptorTrack(
+bool TrackEventTracker::ReserveDescriptorTrack(
     uint64_t uuid,
     const DescriptorTrackReservation& reservation) {
   if (uuid == kDefaultDescriptorTrackUuid && reservation.parent_uuid) {
@@ -276,17 +276,17 @@ void TrackEventTracker::ReserveDescriptorTrack(
           inserter.AddArg(parent_uuid_key_id_,
                           Variadic::UnsignedInteger(reservation.parent_uuid));
         });
-    return;
+    return false;
   }
 
   auto [it, inserted] = descriptor_tracks_state_.Insert(uuid, {reservation});
   if (inserted) {
     has_dimensions_ |= !reservation.dimensions.empty();
-    return;
+    return true;
   }
   if (!it->reservation.IsForSameTrack(reservation)) {
     RecordTrackError(stats::track_descriptor_conflicting_reservation, uuid);
-    return;
+    return false;
   }
 
   if (!reservation.name.is_null()) {
@@ -312,6 +312,7 @@ void TrackEventTracker::ReserveDescriptorTrack(
   }
   it->reservation.min_timestamp =
       std::min(it->reservation.min_timestamp, reservation.min_timestamp);
+  return false;
 }
 
 std::optional<TrackEventTracker::ResolvedDescriptorTrack>

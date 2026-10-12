@@ -247,8 +247,9 @@ class TrackEventTracker {
   // Associate a TrackDescriptor track identified by the given |uuid| with a
   // given track description. This is called during tokenization. If a
   // reservation for the same |uuid| already exists, verifies that the present
-  // reservation matches the new one.
-  void ReserveDescriptorTrack(uint64_t uuid, const DescriptorTrackReservation&);
+  // reservation matches the new one. Returns whether this is the first
+  // reservation for |uuid|.
+  bool ReserveDescriptorTrack(uint64_t uuid, const DescriptorTrackReservation&);
 
   // Resolves a descriptor track UUID to a `ResolvedDescriptorTrack` object.
   // This object contains information about the track's scope (global, process,

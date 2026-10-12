@@ -362,18 +362,25 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         context_->storage->InternString(track.description());
   }
 
-  if (track.has_dimensions()) {
-    std::vector<size_t> dimension_errors;
-    if (!ParseTrackDimensions(context_, args.state.get(), track, &reservation,
-                              &dimension_errors)) {
-      RecordTokenizationErrorWithTrackUuid(
-          stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
-      return ModuleResult::Handled();
-    }
-    for (size_t stat : dimension_errors) {
-      RecordTokenizationErrorWithTrackUuid(stat, track.uuid(), args.packet);
-    }
+  std::vector<size_t> dimension_errors;
+  if (track.has_dimensions() &&
+      !ParseTrackDimensions(context_, args.state.get(), track, &reservation,
+                            &dimension_errors)) {
+    RecordTokenizationErrorWithTrackUuid(
+        stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
+    return ModuleResult::Handled();
   }
+  // Producers re-emit their descriptors (e.g. on every incremental state
+  // clear), so the errors of the dimensions are only recorded for the first
+  // reservation of a uuid.
+  auto reserve = [&]() {
+    if (track_event_tracker_->ReserveDescriptorTrack(track.uuid(),
+                                                     reservation)) {
+      for (size_t stat : dimension_errors) {
+        RecordTokenizationErrorWithTrackUuid(stat, track.uuid(), args.packet);
+      }
+    }
+  };
 
   if (args.decoder.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
@@ -408,7 +415,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         reservation.use_synthetic_tid = chrome_thread.is_sandboxed_tid();
       }
     }
-    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+    reserve();
 
     if (args.state->IsIncrementalStateValid()) {
       TokenizeThreadDescriptor(*args.state, thread,
@@ -433,7 +440,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 
     reservation.pid = static_cast<uint32_t>(process.pid());
     reservation.min_timestamp = args.ts;
-    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+    reserve();
 
     return ModuleResult::Ignored();
   }
@@ -506,7 +513,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     // Incrementally encoded counters are only valid on a single sequence.
-    track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+    reserve();
 
     return ModuleResult::Ignored();
   }
@@ -515,7 +522,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.is_state = true;
   }
 
-  track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+  reserve();
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();

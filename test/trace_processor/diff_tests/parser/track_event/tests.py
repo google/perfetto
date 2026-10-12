@@ -1662,6 +1662,72 @@ class TrackEvent(TestSuite):
         "track_dimension_conflicting_value",1
         """))
 
+  # Producers re-emit their descriptors, e.g. on every incremental state
+  # clear: the errors of their dimensions are only recorded once per
+  # descriptor.
+  def test_track_event_dimensions_errors_once(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "bad"
+            dimensions { name: "cpu" int_value: 1 }
+            dimensions { name: "shard" }
+            dimensions { name: "rank" int_value: 1 }
+            dimensions { name: "rank" int_value: 2 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 10
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "bad"
+            dimensions { name: "cpu" int_value: 1 }
+            dimensions { name: "shard" }
+            dimensions { name: "rank" int_value: 1 }
+            dimensions { name: "rank" int_value: 2 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 20
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            name: "bad"
+            dimensions { name: "cpu" int_value: 1 }
+            dimensions { name: "shard" }
+            dimensions { name: "rank" int_value: 1 }
+            dimensions { name: "rank" int_value: 2 }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 1 type: TYPE_INSTANT name: "a" } }
+        """),
+        query="""
+        SELECT name, value
+        FROM stats
+        WHERE name IN (
+          'track_descriptor_conflicting_reservation',
+          'track_descriptor_invalid_dimension',
+          'track_descriptor_reserved_dimension_name',
+          'track_dimension_conflicting_value')
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","value"
+        "track_descriptor_conflicting_reservation",0
+        "track_descriptor_invalid_dimension",1
+        "track_descriptor_reserved_dimension_name",1
+        "track_dimension_conflicting_value",1
+        """))
+
   # A global track only gets the dimensions declared on itself or an explicit
   # parent_uuid ancestor, plus synthesized well known ones. It must not pick up
   # dimensions from unrelated trees or processes.
