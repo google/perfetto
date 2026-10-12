@@ -789,7 +789,6 @@ class TrackEvent(TestSuite):
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",400,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",500,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",600,"[NULL]"
-          "custom_dimensions_hash","custom_dimensions_hash",0,"[NULL]"
           "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
           "event.name","event.name","[NULL]","[NULL]"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
