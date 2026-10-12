@@ -27,23 +27,18 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/shell/result_formatter.h"
 
 namespace perfetto::trace_processor {
-
-struct QueryResult {
-  std::vector<std::string> column_names;
-  std::vector<std::vector<std::string>> rows;
-};
-
-base::StatusOr<QueryResult> ExtractQueryResult(Iterator* it, bool has_more);
-
-void PrintQueryResultAsCsv(const QueryResult& result, FILE* output);
 
 base::Status RunQueriesWithoutOutput(TraceProcessor* trace_processor,
                                      const std::string& sql_query);
 
+// Runs every statement in |sql_query| and prints each result set to |output|
+// in |format|.
 base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
                                       const std::string& sql_query,
+                                      const ResultFormatOptions& format,
                                       FILE* output,
                                       bool quiet);
 
