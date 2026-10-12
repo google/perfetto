@@ -136,6 +136,7 @@ int AccessReg(unw_addr_space_t /*as*/,
     return -UNW_EINVAL;
   auto* state = static_cast<CursorState*>(arg);
   const CpuRegisters& r = *state->sample->regs;
+  // TODO(safayat): Add 32-bit x86 (__i386__ / UNW_X86_*) support if needed.
   switch (regnum) {
     case UNW_X86_64_RAX:
       *valp = r.raw_data[PERF_REG_X86_AX];
@@ -223,14 +224,7 @@ LibunwindContext::LibunwindContext(base::ScopedFile maps_fd,
 }
 
 LibunwindContext::~LibunwindContext() {
-  for (auto it = dso_mmaps_.GetIterator(); it; ++it) {
-    if (it.value().edi.di_debug.format != -1 &&
-        it.value().edi.di_debug.u.ti.table_data) {
-      free(it.value().edi.di_debug.u.ti.table_data);
-    }
-    if (it.value().data)
-      munmap(it.value().data, it.value().size);
-  }
+  ResetMaps();
   if (addr_space_)
     unw_destroy_addr_space(addr_space_);
 }
@@ -250,6 +244,15 @@ std::unique_ptr<UnwindContext> UnwindContext::Create(base::ScopedFile maps_fd,
 
 void LibunwindContext::ResetMaps() {
   maps_.clear();
+  for (auto it = dso_mmaps_.GetIterator(); it; ++it) {
+    if (it.value().edi.di_debug.format != -1 &&
+        it.value().edi.di_debug.u.ti.table_data) {
+      free(it.value().edi.di_debug.u.ti.table_data);
+    }
+    if (it.value().data)
+      munmap(it.value().data, it.value().size);
+  }
+  dso_mmaps_.Clear();
   if (addr_space_)
     unw_flush_cache(addr_space_, 0, 0);
 }

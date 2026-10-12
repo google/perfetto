@@ -22,7 +22,6 @@
 #include <string>
 #include <vector>
 
-#include <libunwind-x86_64.h>
 #include <libunwind.h>
 
 #include "perfetto/base/time.h"
