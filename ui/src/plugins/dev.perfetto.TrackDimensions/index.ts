@@ -48,10 +48,10 @@ interface KeyedDimension {
  *
  * Dimensions are a trace processor concept first: this plugin implements the
  * shared presentation half of it, i.e. the collapse rule ("only show a
- * dimension when it tells the peers apart") and the subtitle labels which come
- * out of it. Well known dimensions which already
- * have specialized presentation (GPU hierarchy, machine name suffixes) are
- * skipped: see public/dimensions.ts.
+ * dimension when it has more than one value in the trace") and the subtitle
+ * labels which come out of it. Well known dimensions which already have
+ * specialized presentation (GPU hierarchy, machine name suffixes) are skipped:
+ * see public/dimensions.ts.
  */
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackDimensions';
@@ -69,30 +69,14 @@ export default class implements PerfettoPlugin {
       if (!trackDims.length && !processDims.length && !threadDims.length) {
         return;
       }
-      const cohorts = await queryCohortSizes(ctx);
 
-      // The collapse rule is global: a dimension disambiguates nothing when
-      // every one of its peers carries it with the same value.
-      const absentOnSomePeers = new Set<string>();
-      addNamesMissingFromSomePeer(trackDims, cohorts.tracks, absentOnSomePeers);
-      addNamesMissingFromSomePeer(
-        processDims,
-        cohorts.processes,
-        absentOnSomePeers,
-      );
-      addNamesMissingFromSomePeer(
-        threadDims,
-        cohorts.threads,
-        absentOnSomePeers,
-      );
-      const visible = visibleDimensionNames(
-        [
-          ...trackDims.map((d) => d.dimension),
-          ...processDims.map((d) => d.dimension),
-          ...threadDims.map((d) => d.dimension),
-        ],
-        absentOnSomePeers,
-      );
+      // The collapse rule is global: a dimension disambiguates nothing when it
+      // has a single value in the whole trace.
+      const visible = visibleDimensionNames([
+        ...trackDims.map((d) => d.dimension),
+        ...processDims.map((d) => d.dimension),
+        ...threadDims.map((d) => d.dimension),
+      ]);
       if (visible.size === 0) return;
 
       const byNode = new Map<TrackNode, Dimension[]>();
@@ -145,24 +129,6 @@ export default class implements PerfettoPlugin {
   }
 }
 
-// Records the dimensions which only some of the tracks/processes/threads in
-// |dims| carry: those still disambiguate, even when every value is the same.
-function addNamesMissingFromSomePeer(
-  dims: ReadonlyArray<KeyedDimension>,
-  cohortSize: number,
-  out: Set<string>,
-): void {
-  const keysByName = new Map<string, Set<number>>();
-  for (const {key, dimension} of dims) {
-    const keys = keysByName.get(dimension.name) ?? new Set<number>();
-    keys.add(key);
-    keysByName.set(dimension.name, keys);
-  }
-  for (const [name, keys] of keysByName) {
-    if (keys.size < cohortSize) out.add(name);
-  }
-}
-
 function isShownByAncestor(
   node: TrackNode,
   dimension: Dimension,
@@ -211,16 +177,6 @@ async function queryDimensions(
     ORDER BY ${keyColumn}, name
   `);
   return readDimensions(res);
-}
-
-async function queryCohortSizes(ctx: Trace) {
-  const res = await ctx.engine.query(`
-    SELECT
-      (SELECT count(*) FROM track) AS tracks,
-      (SELECT count(*) FROM process) AS processes,
-      (SELECT count(*) FROM thread) AS threads
-  `);
-  return res.firstRow({tracks: NUM, processes: NUM, threads: NUM});
 }
 
 function readDimensions(res: QueryResult): ReadonlyArray<KeyedDimension> {
