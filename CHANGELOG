@@ -3,6 +3,21 @@ Unreleased:
    * Changed compression logic to always emit clock snapshot, trace config and
    trace UUID uncompressed for metadata inspection by on-device tools.
   Trace Processor:
+   * SQL errors are now laid out like rustc diagnostics: a
+     `--> source:line:col` location naming where the SQL came from (query,
+     module, macro or metric), a line-number gutter and a caret, with the
+     message on a final `error:` line.
+   * `trace_processor query` can now print results as compact markdown tables
+     with `--format markdown`. Markdown output is capped at 1000 rows, 10000
+     bytes and 500 characters per cell by default. `--max-rows`, `--max-bytes`
+     and `--max-cell-width` change the limits, and also apply to CSV output
+     when passed explicitly.
+   * Added agent mode to `trace_processor query`. When it is run by a coding
+     agent (detected from environment variables such as `CLAUDECODE` or
+     `AI_AGENT`) with stdout not a terminal, results default to markdown and
+     errors are printed as a single line of JSON. `--agent` and `--no-agent`
+     force it on or off. See
+     https://perfetto.dev/docs/reference/trace-processor-cli#agent-mode.
    * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
      all_data_source_started_ns, ...) to trace time when primary_trace_clock
      is not BOOTTIME. They were previously stored unconverted, which could
