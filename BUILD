@@ -1721,6 +1721,7 @@ perfetto_filegroup(
         "include/perfetto/public/protos/trace/track_event/debug_annotation.pzc.h",
         "include/perfetto/public/protos/trace/track_event/state_descriptor.pzc.h",
         "include/perfetto/public/protos/trace/track_event/track_descriptor.pzc.h",
+        "include/perfetto/public/protos/trace/track_event/track_dimension.pzc.h",
         "include/perfetto/public/protos/trace/track_event/track_event.pzc.h",
         "include/perfetto/public/protos/trace/trigger.pzc.h",
     ],
@@ -10306,7 +10307,6 @@ perfetto_proto_library(
         "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
         "protos/perfetto/trace/track_event/counter_descriptor.proto",
         "protos/perfetto/trace/track_event/debug_annotation.proto",
-        "protos/perfetto/trace/track_event/dimension.proto",
         "protos/perfetto/trace/track_event/log_message.proto",
         "protos/perfetto/trace/track_event/process_descriptor.proto",
         "protos/perfetto/trace/track_event/range_of_interest.proto",
@@ -10316,6 +10316,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/track_event/task_execution.proto",
         "protos/perfetto/trace/track_event/thread_descriptor.proto",
         "protos/perfetto/trace/track_event/track_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_dimension.proto",
         "protos/perfetto/trace/track_event/track_event.proto",
     ],
     visibility = [

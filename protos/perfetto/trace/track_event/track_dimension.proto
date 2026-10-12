@@ -59,7 +59,7 @@ package perfetto.protos;
 //  * sibling tracks are only merged (see
 //    `TrackDescriptor.sibling_merge_behavior`) if they declare the same
 //    dimensions.
-message Dimension {
+message TrackDimension {
   // The canonical dimension key, e.g. "rank". Must be non-empty and must not
   // be one of the reserved names listed above.
   optional string name = 1;
