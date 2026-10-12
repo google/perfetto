@@ -789,7 +789,7 @@ class TrackEvent(TestSuite):
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",400,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",500,"[NULL]"
           "chrome_histogram_sample.sample","chrome_histogram_sample.sample",600,"[NULL]"
-          "custom_dimensions","custom_dimensions","[NULL]","[NULL]"
+          "custom_dimensions_hash","custom_dimensions_hash",0,"[NULL]"
           "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
           "event.name","event.name","[NULL]","[NULL]"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
@@ -1828,18 +1828,20 @@ class TrackEvent(TestSuite):
         SELECT
           s.name AS slice,
           dense_rank() OVER (ORDER BY s.track_id) AS track_idx,
-          extract_arg(t.dimension_arg_set_id, 'custom_dimensions')
-            AS custom_dimensions
+          (
+            SELECT int_value FROM track_dimension
+            WHERE track_id = s.track_id AND name = 'rank'
+          ) AS rank
         FROM slice AS s
         JOIN track AS t ON t.id = s.track_id
         WHERE t.name = 'step'
         ORDER BY s.ts;
         """,
         out=Csv("""
-        "slice","track_idx","custom_dimensions"
-        "rank1_a",1,"rank=1,stage='fwd'"
-        "rank2",2,"rank=2,stage='fwd'"
-        "rank1_b",1,"rank=1,stage='fwd'"
+        "slice","track_idx","rank"
+        "rank1_a",1,1
+        "rank2",2,2
+        "rank1_b",1,1
         "no_rank",3,"[NULL]"
         """))
 

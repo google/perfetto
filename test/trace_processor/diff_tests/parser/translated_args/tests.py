@@ -33,7 +33,7 @@ class TranslatedArgs(TestSuite):
           "android_view_dump.activity.view.class_name","android_view_dump.activity[0].view[2].class_name","[NULL]","ghi"
           "android_view_dump.activity.name","android_view_dump.activity[1].name","[NULL]","B1"
           "android_view_dump.activity.view.class_name","android_view_dump.activity[1].view[0].class_name","[NULL]","class_J"
-          "custom_dimensions","custom_dimensions","[NULL]","[NULL]"
+          "custom_dimensions_hash","custom_dimensions_hash",0,"[NULL]"
           "event.category","event.category","[NULL]","cat1"
           "event.name","event.name","[NULL]","name1"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"

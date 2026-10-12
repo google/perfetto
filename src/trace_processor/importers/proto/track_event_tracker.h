@@ -108,14 +108,13 @@ class TrackEventTracker {
     SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
     StringId sibling_merge_key = kNullStringId;
 
-    // Producer-declared custom dimensions.
+    // Producer-declared custom dimensions, sorted by name. Dimensions are part
+    // of the track's identity, so they are compared by |IsForSameTrack|.
     std::vector<Dimension> dimensions;
 
-    // Canonical, order independent, representation of the names and values of
-    // |dimensions| (null if there are none). Dimensions are part of the
-    // track's identity, so this is compared by |IsForSameTrack| and is part of
-    // the sibling merge key.
-    StringId dimensions_key = kNullStringId;
+    // Order independent hash of the names and values of |dimensions| (0 if
+    // there are none), used as part of the sibling merge key.
+    uint64_t dimensions_hash = 0;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
@@ -127,12 +126,32 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
+      if (!HasSameDimensions(other)) {
+        return false;
+      }
       return std::tie(parent_uuid, pid, tid, is_counter, is_state,
-                      sibling_merge_behavior, sibling_merge_key,
-                      dimensions_key) ==
+                      sibling_merge_behavior, sibling_merge_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
                       other.is_state, other.sibling_merge_behavior,
-                      other.sibling_merge_key, other.dimensions_key);
+                      other.sibling_merge_key);
+    }
+
+    // Whether |other| declares the same dimension names and values (display
+    // names only affect presentation and are ignored).
+    bool HasSameDimensions(const DescriptorTrackReservation& other) const {
+      if (dimensions_hash != other.dimensions_hash ||
+          dimensions.size() != other.dimensions.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < dimensions.size(); ++i) {
+        const Dimension& a = dimensions[i];
+        const Dimension& b = other.dimensions[i];
+        if (std::tie(a.name, a.int_value, a.string_value) !=
+            std::tie(b.name, b.int_value, b.string_value)) {
+          return false;
+        }
+      }
+      return true;
     }
   };
 
