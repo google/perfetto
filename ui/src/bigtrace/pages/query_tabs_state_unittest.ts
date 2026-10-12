@@ -252,13 +252,15 @@ describe('per-mode row and trace limits', () => {
       undefined,
       true,
     );
-    tab.traceLimit = 123;
+    tab.limit = 0;
+    tab.traceLimit = 0;
     tab.tableTtlDays = 45;
     (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
     const restored = new QueryTabsState().tabs.find(
       (t) => t.editorText === 'select 1',
     )!;
-    expect(restored.traceLimit).toBe(123);
+    expect(restored.limit).toBe(0);
+    expect(restored.traceLimit).toBe(0);
     expect(restored.tableTtlDays).toBe(45);
   });
 });
