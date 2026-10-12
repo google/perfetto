@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type m from 'mithril';
 import {ensureExists} from '../base/assert';
 import {
   AsyncMemo,
@@ -32,8 +31,9 @@ import {
   UNKNOWN,
 } from '../trace_processor/query_result';
 import type {
-  TreeExplorerActionContext,
   TreeExplorerData,
+  TreeExplorerNodeIconFn,
+  TreeExplorerNodeTooltipRenderer,
   TreeExplorerOptionalAction,
   TreeExplorerOptionalMarker,
   TreeExplorerPropertyDefinition,
@@ -130,17 +130,12 @@ export interface TreeExplorerQueryMetric {
   // Optional icon drawn before a node's name (unlike optionalMarker, which is
   // a small dot in the corner). Called with the node's properties; return a
   // Material icon name, or undefined for no icon.
-  readonly optionalNodeIcon?: (
-    properties: ReadonlyMap<string, string>,
-  ) => string | undefined;
+  readonly optionalNodeIcon?: TreeExplorerNodeIconFn;
 
   // Optional custom renderer for a node's flamegraph tooltip. Receives the
   // default tooltip content and returns what to show, e.g. to add content
   // above or below it.
-  readonly optionalNodeTooltipRenderer?: (
-    ctx: TreeExplorerActionContext,
-    defaultContent: m.Children,
-  ) => m.Children;
+  readonly optionalNodeTooltipRenderer?: TreeExplorerNodeTooltipRenderer;
 }
 
 export interface MetricsFromTableOrSubqueryOptions {

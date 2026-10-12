@@ -47,6 +47,19 @@ export interface TreeExplorerOptionalAction {
 // inspects elsewhere; COPY exports.
 export type ActionCategory = 'FOCUS' | 'FILTER' | 'DRILL' | 'COPY';
 
+// Picks the Material icon to draw before a node's name from the node's
+// properties, or returns undefined for no icon.
+export type TreeExplorerNodeIconFn = (
+  properties: ReadonlyMap<string, string>,
+) => string | undefined;
+
+// Renders a node's tooltip. Receives the default tooltip content and returns
+// what to show instead, e.g. the default content with extra content added.
+export type TreeExplorerNodeTooltipRenderer = (
+  ctx: TreeExplorerActionContext,
+  defaultContent: m.Children,
+) => m.Children;
+
 export interface TreeExplorerOptionalMarker {
   readonly name: string;
   isVisible: (properties: ReadonlyMap<string, string>) => boolean;
@@ -83,12 +96,8 @@ export interface TreeExplorerData {
   readonly maxDepth: number;
   readonly nodeActions: ReadonlyArray<TreeExplorerOptionalAction>;
   readonly rootActions: ReadonlyArray<TreeExplorerOptionalAction>;
-  // Optional custom renderer for a node's tooltip. Receives the default
-  // tooltip content and returns what to show instead.
-  readonly renderNodeTooltip?: (
-    ctx: TreeExplorerActionContext,
-    defaultContent: m.Children,
-  ) => m.Children;
+  // Optional custom renderer for a node's tooltip.
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 }
 
 const TREE_EXPLORER_FILTER_SCHEMA = z
