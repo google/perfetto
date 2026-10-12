@@ -44,12 +44,25 @@ export class TrackDimensionsSection implements TrackEventDetailsPanelSection {
     this.dimensions = [];
     // Resolve the dimensions of the track the selected event lives on. The
     // track comes from the event itself rather than from the UI track, because
-    // one UI track can multiplex several trace processor tracks.
+    // one UI track can multiplex several trace processor tracks. Well known
+    // dimensions have no display name in trace processor: their names are
+    // looked up from the corresponding tables.
     const res = await this.trace.engine.query(`
-      SELECT DISTINCT name, int_value, string_value, display_name, is_well_known
-      FROM track_dimension
-      WHERE track_id = (SELECT track_id FROM slice WHERE id = ${selection.eventId})
-      ORDER BY is_well_known DESC, name
+      SELECT DISTINCT
+        d.name,
+        d.int_value,
+        d.string_value,
+        coalesce(d.display_name, CASE d.name
+          WHEN 'process' THEN (SELECT name FROM process WHERE upid = d.int_value)
+          WHEN 'thread' THEN (SELECT name FROM thread WHERE utid = d.int_value)
+          WHEN 'machine' THEN (SELECT name FROM machine WHERE id = d.int_value)
+        END) AS display_name,
+        d.is_well_known
+      FROM track_dimension AS d
+      WHERE d.track_id = (
+        SELECT track_id FROM slice WHERE id = ${selection.eventId}
+      )
+      ORDER BY d.is_well_known DESC, d.name
     `);
     const it = res.iter({
       name: STR,
