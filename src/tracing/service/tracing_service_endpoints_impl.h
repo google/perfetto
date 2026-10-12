@@ -37,6 +37,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
+#include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
 // This header contains the declarations for the 3 abtract classes
 // (ProducerEndpointImpl, ConsumerEndpointImpl, RelayEndpointImpl).
@@ -88,6 +89,9 @@ class ProducerEndpointImpl
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID,
       BufferExhaustedPolicy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriterV2(
+      BufferID,
+      BufferExhaustedPolicy) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;
@@ -120,6 +124,7 @@ class ProducerEndpointImpl
   }
 
   // TracingService::ProducerEndpoint implementation for tracing v2.
+  void InitializeV2RingBuffer() override;
   void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
                           uint32_t chunk_size_bytes,
                           std::function<void(bool)>) override;
@@ -186,6 +191,23 @@ class ProducerEndpointImpl
   // Bitmask of the common versions supplied to ConnectProducer(). Fixed for
   // the connection.
   const uint32_t protocol_abi_versions_;
+
+  // Owns the ring buffer and creates v2 writers.
+  //
+  // States:
+  // - nullopt: initialization has not been attempted.
+  // - nullptr: sizing or allocation failed.
+  //   Later InitializeV2RingBuffer() calls on the same connection do not retry
+  //   initialization, to avoid changing the pointer while v2 writer threads
+  //   read it without a lock.
+  // - Non-null pointer: the arbiter exists and tracks service attachment.
+  //
+  // Set by InitializeV2RingBuffer() when an instance selects v2, before the
+  // first in-process v2 writer.
+  // Writer threads then read it without a lock.
+  // For an IPC producer, the arbiter lives in the producer process.
+  std::optional<std::unique_ptr<tracing_v2::ProducerRingBufferArbiter>>
+      v2_ring_buffer_arbiter_;
 
   // |v2_ring_buffer_drainer_| owns the reader and keeps the ring buffer mapped.
   // The reader's destination checks use |allowed_target_buffers_|.

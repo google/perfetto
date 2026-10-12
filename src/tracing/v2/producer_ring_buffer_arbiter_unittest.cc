@@ -16,7 +16,9 @@
 
 // Tests for ProducerRingBufferArbiter, the producer side of one tracing v2
 // ring buffer. They cover:
-// - Creation: the arbiter rejects a mapping with an invalid layout.
+// - Creation: Create() returns the error status of a failed allocation.
+// - Attach: a new arbiter stays pending until the endpoint supplies a reply.
+// - Endpoints without v2: the ProducerEndpoint defaults discard v2 packets.
 // - Writers: WriterIDs from the SMB arbiter, and NullTraceWriters after a
 //   disconnect.
 // - Drain requests: RequestDrain() merges requests into one task. On the
@@ -29,14 +31,13 @@
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
-#include <stdint.h>
-
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "src/tracing/core/in_process_shared_memory.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/tracing/v2/producer_ring_buffer_test.h"
 #include "test/gtest_and_gmock.h"
 
@@ -47,6 +48,11 @@ namespace test {
 // Gives tests access to the private state of ProducerRingBufferArbiter.
 class ProducerRingBufferArbiterTestPeer {
  public:
+  static ProducerRingBufferArbiter::ReaderState reader_state(
+      const ProducerRingBufferArbiter* arbiter) {
+    return arbiter->reader_state_.load();
+  }
+
   // Sets the merge flag of PostDrainTask() without posting the drain task.
   // This is the state of a writer that claimed the pending drain task but
   // did not post it yet. A test cannot stop a real writer in that window.
@@ -61,25 +67,84 @@ namespace {
 
 using ::testing::_;
 using DrainUrgency = ProducerRingBufferArbiter::DrainUrgency;
-using ProducerRingBufferArbiterTest = ProducerRingBufferTest;
+using ReaderState = ProducerRingBufferArbiter::ReaderState;
 
-// --- Creation ---
+class ProducerRingBufferArbiterTest : public ProducerRingBufferTest {
+ protected:
+  ReaderState reader_state() const {
+    return test::ProducerRingBufferArbiterTestPeer::reader_state(
+        arbiter_.get());
+  }
 
-TEST_F(ProducerRingBufferArbiterTest, CreateRejectsInvalidLayout) {
-  auto create = [&](std::unique_ptr<SharedMemory> memory, uint32_t chunk_size) {
-    return ProducerRingBufferArbiter::Create(&task_runner_, &endpoint_,
-                                             smb_arbiter_.get(),
-                                             std::move(memory), chunk_size);
-  };
-  EXPECT_FALSE(create(nullptr, kChunkSize));
-  // 4096 bytes minus the header is not a whole number of chunks.
-  EXPECT_FALSE(
-      create(std::make_unique<InProcessSharedMemory>(4096), kChunkSize));
-  // Three chunks is not a power of two.
-  EXPECT_FALSE(create(CreateRingBufferMemory(3), kChunkSize));
-  // Chunk size below the minimum.
-  EXPECT_FALSE(create(CreateRingBufferMemory(4), 8));
-  EXPECT_TRUE(create(CreateRingBufferMemory(4), kChunkSize));
+  // Writes one packet with |writer|, flushes, and returns true if the fake
+  // service read it from the ring buffer.
+  bool PacketReachesRingBuffer(TraceWriter* writer) {
+    WritePacket(writer, "probe");
+    writer->Flush();
+    task_runner_.RunUntilIdle();
+    const auto packets = ReadPackets();
+    return packets.size() == 1 &&
+           packets[0].packet.for_testing().str() == "probe";
+  }
+};
+
+// --- The ring buffer and its attach reply ---
+
+// MockProducerEndpoint does not override InitializeV2RingBuffer() or
+// CreateTraceWriterV2(), so these calls use the ProducerEndpoint defaults.
+TEST_F(ProducerRingBufferArbiterTest, EndpointWithoutV2DiscardsV2Packets) {
+  EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, _, _)).Times(0);
+  EXPECT_CALL(endpoint_, CreateTraceWriter(_, _)).Times(0);
+  endpoint_.InitializeV2RingBuffer();
+  auto writer = endpoint_.CreateTraceWriterV2(kTargetBuffer,
+                                              BufferExhaustedPolicy::kDrop);
+  ASSERT_TRUE(writer);
+  EXPECT_EQ(writer->writer_id(), 0u);
+  WritePacket(writer.get(), "discarded");
+}
+
+// Create() returns the error status of the allocation function.
+TEST_F(ProducerRingBufferArbiterTest, CreateFailsIfAllocationFails) {
+  auto arbiter_or = ProducerRingBufferArbiter::Create(
+      &task_runner_, &endpoint_, BudgetFor(4),
+      [](size_t) -> base::StatusOr<std::shared_ptr<SharedMemory>> {
+        return base::ErrStatus("no memory");
+      });
+  ASSERT_FALSE(arbiter_or.ok());
+  EXPECT_STREQ(arbiter_or.status().c_message(), "no memory");
+}
+
+TEST_F(ProducerRingBufferArbiterTest, CreateDoesNotAttachRingBuffer) {
+  EXPECT_CALL(endpoint_, AttachV2RingBuffer(_, _, _)).Times(0);
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  EXPECT_EQ(arbiter_->memory()->size(),
+            sizeof(RingBufferHeader) + BudgetFor(4));
+  EXPECT_EQ(reader_state(), ReaderState::kPending);
+  EXPECT_FALSE(arbiter_->IsReaderAttached());
+
+  AttachReader();
+  EXPECT_EQ(reader_state(), ReaderState::kAttached);
+  EXPECT_TRUE(arbiter_->IsReaderAttached());
+
+  auto writer = CreateWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_NE(writer->writer_id(), 0u);
+  EXPECT_TRUE(PacketReachesRingBuffer(writer.get()));
+}
+
+TEST_F(ProducerRingBufferArbiterTest, RejectedAttachGivesNullTraceWriters) {
+  CreateRingBufferArbiter(/*num_chunks=*/4);
+  auto pending_writer = CreateWriter();
+  EXPECT_NE(pending_writer->writer_id(), 0u);
+
+  RejectAttach();
+  EXPECT_EQ(reader_state(), ReaderState::kDetached);
+  auto writer = CreateWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_EQ(writer->writer_id(), 0u);
+
+  // Existing writers keep the mapping.
+  WritePacket(pending_writer.get(), "kept mapping");
 }
 
 // --- Writers ---
@@ -98,7 +163,7 @@ TEST_F(ProducerRingBufferArbiterTest, NullTraceWriterAfterDisconnect) {
 TEST_F(ProducerRingBufferArbiterTest, LateAttachReplyAfterDisconnectIsIgnored) {
   CreateRingBufferArbiter(/*num_chunks=*/4);
   arbiter_->Disconnect();
-  arbiter_->OnReaderAttached();
+  AttachReader();
   EXPECT_FALSE(arbiter_->IsReaderAttached());
   EXPECT_EQ(CreateWriter()->writer_id(), 0u);
 }

@@ -16,6 +16,8 @@
 
 #include "src/tracing/test/proxy_producer_endpoint.h"
 
+#include <utility>
+
 #include "perfetto/ext/tracing/core/trace_writer.h"
 
 namespace perfetto {
@@ -73,6 +75,31 @@ SharedMemory* ProxyProducerEndpoint::shared_memory() const {
   }
   return backend_->shared_memory();
 }
+void ProxyProducerEndpoint::InitializeV2RingBuffer() {
+  if (!backend_) {
+    return;
+  }
+  backend_->InitializeV2RingBuffer();
+}
+void ProxyProducerEndpoint::AttachV2RingBuffer(
+    const std::shared_ptr<SharedMemory>& memory,
+    uint32_t chunk_size_bytes,
+    std::function<void(bool)> callback) {
+  // Without a backend, the default implementation rejects the ring buffer, so
+  // the callback still runs.
+  if (!backend_) {
+    ProducerEndpoint::AttachV2RingBuffer(memory, chunk_size_bytes,
+                                         std::move(callback));
+    return;
+  }
+  backend_->AttachV2RingBuffer(memory, chunk_size_bytes, std::move(callback));
+}
+void ProxyProducerEndpoint::DrainV2RingBuffer() {
+  if (!backend_) {
+    return;
+  }
+  backend_->DrainV2RingBuffer();
+}
 size_t ProxyProducerEndpoint::shared_buffer_page_size_kb() const {
   if (!backend_) {
     return 0;
@@ -86,6 +113,15 @@ std::unique_ptr<TraceWriter> ProxyProducerEndpoint::CreateTraceWriter(
     return nullptr;
   }
   return backend_->CreateTraceWriter(target_buffer, buffer_exhausted_policy);
+}
+std::unique_ptr<TraceWriter> ProxyProducerEndpoint::CreateTraceWriterV2(
+    BufferID target_buffer,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
+  if (!backend_) {
+    return ProducerEndpoint::CreateTraceWriterV2(target_buffer,
+                                                 buffer_exhausted_policy);
+  }
+  return backend_->CreateTraceWriterV2(target_buffer, buffer_exhausted_policy);
 }
 SharedMemoryArbiter* ProxyProducerEndpoint::MaybeSharedMemoryArbiter() {
   if (!backend_) {

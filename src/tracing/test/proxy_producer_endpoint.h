@@ -43,10 +43,18 @@ class ProxyProducerEndpoint : public ProducerEndpoint {
   void CommitData(const CommitDataRequest&,
                   CommitDataCallback callback = {}) override;
   SharedMemory* shared_memory() const override;
+  void InitializeV2RingBuffer() override;
+  void AttachV2RingBuffer(const std::shared_ptr<SharedMemory>&,
+                          uint32_t chunk_size_bytes,
+                          std::function<void(bool)> callback) override;
+  void DrainV2RingBuffer() override;
   size_t shared_buffer_page_size_kb() const override;
   std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy) override;
+  std::unique_ptr<TraceWriter> CreateTraceWriterV2(
+      BufferID,
+      BufferExhaustedPolicy) override;
   SharedMemoryArbiter* MaybeSharedMemoryArbiter() override;
   bool IsShmemProvidedByProducer() const override;
   void NotifyFlushComplete(FlushRequestID) override;

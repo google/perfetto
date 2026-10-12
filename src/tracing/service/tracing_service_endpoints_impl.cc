@@ -21,6 +21,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/version.h"
@@ -29,11 +30,14 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_impl.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
@@ -644,9 +648,28 @@ bool ProducerEndpointImpl::IsShmemProvidedByProducer() const {
 std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriter(
     BufferID buf_id,
     BufferExhaustedPolicy buffer_exhausted_policy) {
+  if (!(protocol_abi_versions_ & kProtocolAbiV1)) {
+    PERFETTO_ELOG(
+        "Cannot create a v1 trace writer: v1 is not in the common protocol "
+        "mask (%x)",
+        protocol_abi_versions_);
+    return std::make_unique<NullTraceWriter>();
+  }
   PERFETTO_DCHECK(MaybeSharedMemoryArbiter());
   return MaybeSharedMemoryArbiter()->CreateTraceWriter(buf_id,
                                                        buffer_exhausted_policy);
+}
+
+// Can be called on any thread.
+std::unique_ptr<TraceWriter> ProducerEndpointImpl::CreateTraceWriterV2(
+    BufferID buf_id,
+    BufferExhaustedPolicy buffer_exhausted_policy) {
+  auto* arbiter = v2_ring_buffer_arbiter_.has_value()
+                      ? v2_ring_buffer_arbiter_->get()
+                      : nullptr;
+  if (!arbiter)
+    return std::make_unique<NullTraceWriter>();
+  return arbiter->CreateTraceWriter(buf_id, buffer_exhausted_policy);
 }
 
 void ProducerEndpointImpl::NotifyFlushComplete(FlushRequestID id) {
@@ -758,6 +781,36 @@ bool ProducerEndpointImpl::IsAndroidProcessFrozen() {
 
 #endif
   return false;
+}
+
+void ProducerEndpointImpl::InitializeV2RingBuffer() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (v2_ring_buffer_arbiter_.has_value() || !in_process_ ||
+      !(protocol_abi_versions_ & kProtocolAbiV2)) {
+    return;
+  }
+
+  auto arbiter_or = tracing_v2::ProducerRingBufferArbiter::Create(
+      weak_runner_.task_runner(), this, shmem_size_hint_bytes_,
+      [](size_t size) -> base::StatusOr<std::shared_ptr<SharedMemory>> {
+        return std::shared_ptr<SharedMemory>(
+            InProcessSharedMemory::Create(size));
+      });
+  if (!arbiter_or.ok()) {
+    PERFETTO_ELOG("tracing v2: cannot create ring buffer: %s",
+                  arbiter_or.status().c_message());
+    v2_ring_buffer_arbiter_ = nullptr;
+    return;
+  }
+  v2_ring_buffer_arbiter_ = std::move(*arbiter_or);
+
+  auto* arbiter = v2_ring_buffer_arbiter_->get();
+  AttachV2RingBuffer(
+      arbiter->memory(), tracing_v2::kMinChunkSize,
+      [weak_arbiter = arbiter->GetWeakPtr()](bool reader_attached) {
+        if (weak_arbiter)
+          weak_arbiter->OnReaderAttachReply(reader_attached);
+      });
 }
 
 void ProducerEndpointImpl::AttachV2RingBuffer(

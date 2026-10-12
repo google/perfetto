@@ -79,7 +79,7 @@ import "protos/perfetto/config/qnx/qnx_config.proto";
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 148
+// Next id: 149
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -198,6 +198,23 @@ message DataSourceConfig {
   // Not supported: a ProtoVM data source on the same buffer.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional bool supports_tracing_v2 = 147;
+
+  // Experimental.
+  // Lets the producer write this data source through the tracing v2 ring
+  // buffer.
+  // - Selecting v2 requires a TRACE_BUFFER_V2 target buffer and support from
+  //   the producer and data source.
+  // - Instances that do not select v2 use v1 only if the connection permits it.
+  //   If neither transport is available, writers discard their data.
+  // - If the producer cannot create or attach the ring buffer, selected
+  //   instances discard their data and do not fall back to v1.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2, from 0 (the default) to 100.
+    // The service rejects a nonzero use_v2_probability_percent and a
+    // ProtoVM data source on the same buffer.
+    optional uint32 use_v2_probability_percent = 1;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
