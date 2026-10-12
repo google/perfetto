@@ -38,6 +38,7 @@
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/query.h"
+#include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 
@@ -214,16 +215,18 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   double load_s = static_cast<double>(t_load.count()) / 1e9;
   if (!ctx.global->quiet && ctx.global->remote_addr.empty() && !interactive_ &&
       load_s >= kSlowParseSeconds) {
-    fprintf(
-        stderr,
-        "Tip: parsing took %.1fs and `query TRACE` re-parses on every call. "
-        "To run many queries, load once and reuse the session:\n"
-        "  trace_processor server unix --name S --daemonize %s\n"
-        "  trace_processor query --remote S \"SELECT ...\"\n"
-        "  trace_processor server kill S\n"
-        "Schema discovery and PerfettoSQL tips: `trace_processor help "
-        "agent`.\n",
-        load_s, trace_file.c_str());
+    PrintStatusLine(
+        StatusLabelStyle::kHint, "Tip",
+        base::StackString<64>("parsing took %.1fs", load_s).ToStdString() +
+            " and `query TRACE` re-parses on every call. To run many "
+            "queries, load once and reuse the session:\n"
+            "  trace_processor server unix --name S --daemonize " +
+            trace_file +
+            "\n"
+            "  trace_processor query --remote S \"SELECT ...\"\n"
+            "  trace_processor server kill S\n"
+            "Scripts and AI agents: `trace_processor help agent` covers "
+            "this, schema discovery and PerfettoSQL tips.");
   }
 
   if (!query_file_.empty()) {

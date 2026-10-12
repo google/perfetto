@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -39,6 +40,13 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+constexpr char kBoldGreen[] = "\x1b[1;32m";
+constexpr char kBoldCyan[] = "\x1b[1;36m";
+constexpr char kBoldRed[] = "\x1b[1;31m";
+constexpr char kBoldYellow[] = "\x1b[1;33m";
+constexpr char kDim[] = "\x1b[2m";
+constexpr char kReset[] = "\x1b[0m";
 
 class FileExportOutput : public TraceProcessor::ExportOutput {
  public:
@@ -70,6 +78,40 @@ bool StderrSupportsColors() {
   return base::StderrSupportsColor();
 }
 
+void PrintStatusLine(StatusLabelStyle style,
+                     std::string_view label,
+                     std::string_view message) {
+  const char* color = "";
+  switch (style) {
+    case StatusLabelStyle::kSuccess:
+      color = kBoldGreen;
+      break;
+    case StatusLabelStyle::kHint:
+      color = kBoldCyan;
+      break;
+    case StatusLabelStyle::kMuted:
+      color = kDim;
+      break;
+  }
+  const bool colors = StderrSupportsColors();
+  std::string line;
+  if (colors) {
+    line += color;
+  }
+  line += label;
+  if (colors) {
+    line += kReset;
+  }
+  if (!message.empty()) {
+    line += ": ";
+    line += message;
+  }
+  line += '\n';
+  // Don't let the line merge with a progress line which may be visible.
+  base::ProgressReporter::GetInstance().Clear();
+  fwrite(line.data(), 1, line.size(), stderr);
+}
+
 namespace {
 
 base::Status PrintStatsSection(TraceProcessor* tp,
@@ -82,7 +124,7 @@ base::Status PrintStatsSection(TraceProcessor* tp,
   while (it.Next()) {
     if (first) {
       base::StackString<256> line("  %s%s%s", colors ? color : "", header,
-                                  colors ? "\x1b[0m" : "");
+                                  colors ? kReset : "");
       fprintf(stderr, "%s\n", line.c_str());
       first = false;
     }
@@ -135,24 +177,23 @@ base::Status PrintStats(TraceProcessor* tp) {
 
   const bool colors = StderrSupportsColors();
   base::StackString<64> title("\n%sTrace health issues:%s\n",
-                              colors ? "\x1b[1;33m" : "",
-                              colors ? "\x1b[0m" : "");
+                              colors ? kBoldYellow : "", colors ? kReset : "");
   fprintf(stderr, "\n%s\n", title.c_str());
 
   RETURN_IF_ERROR(PrintStatsSection(
-      tp, "Trace errors", "\x1b[1;31m",
+      tp, "Trace errors", kBoldRed,
       "SELECT name, idx, value, description FROM stats "
       "WHERE severity = 'error' AND source = 'trace' AND value > 0 "
       "ORDER BY name, idx"));
 
   RETURN_IF_ERROR(PrintStatsSection(
-      tp, "Import errors", "\x1b[1;31m",
+      tp, "Import errors", kBoldRed,
       "SELECT name, idx, value, description FROM stats "
       "WHERE severity = 'error' AND source = 'analysis' AND value > 0 "
       "ORDER BY name, idx"));
 
   RETURN_IF_ERROR(
-      PrintStatsSection(tp, "Data losses", "\x1b[1;33m",
+      PrintStatsSection(tp, "Data losses", kBoldYellow,
                         "SELECT name, idx, value, description FROM stats "
                         "WHERE severity = 'data_loss' AND value > 0 "
                         "ORDER BY name, idx"));
