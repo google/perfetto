@@ -40,6 +40,10 @@ namespace perfetto::trace_processor::core::dataframe {
 class Dataframe;
 }  // namespace perfetto::trace_processor::core::dataframe
 
+namespace perfetto::perfetto_sql::analysis {
+class RelationLineage;
+}  // namespace perfetto::perfetto_sql::analysis
+
 namespace perfetto::trace_processor::pipeline {
 
 class Lowering;
@@ -136,7 +140,20 @@ class Scan : public PlanOperation {
                                  const dataframe::Dataframe& dataframe,
                                  std::string name,
                                  const std::vector<DataframeColumn>& columns);
-  static base::StatusOr<Scan> BuildSqlScan(Compiler*, uint32_t from);
+  // The columns of a source read through SQLite.
+  static base::StatusOr<perfetto_sql::analysis::RelationLineage> AnalyzeSource(
+      Compiler*,
+      uint32_t from);
+  // The finalized dataframe a source keeps the rows of, if it only chooses
+  // and renames that dataframe's columns, which are added to `columns`.
+  static const dataframe::Dataframe* FindRenamedDataframe(
+      Compiler*,
+      const perfetto_sql::analysis::RelationLineage& lineage,
+      std::vector<DataframeColumn>* columns);
+  static Scan BuildSqlScan(
+      Compiler*,
+      uint32_t from,
+      const perfetto_sql::analysis::RelationLineage& lineage);
   static void AddScanColumn(Compiler*, Scan* scan, ColumnSchema column);
 
   const OperationRegistration& registration() const override;

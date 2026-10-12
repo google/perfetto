@@ -101,7 +101,16 @@ base::StatusOr<SourceRelation> Scan::BuildRelation(Compiler* c,
     scan = Scan::BuildDataframeScan(
         c, *dataframe, SpanText(c->parser(), n->table_name), columns);
   } else {
-    ASSIGN_OR_RETURN(scan, Scan::BuildSqlScan(c, source));
+    ASSIGN_OR_RETURN(analysis::RelationLineage lineage,
+                     Scan::AnalyzeSource(c, source));
+    std::vector<DataframeColumn> columns;
+    if (const dataframe::Dataframe* renamed =
+            Scan::FindRenamedDataframe(c, lineage, &columns)) {
+      scan = Scan::BuildDataframeScan(
+          c, *renamed, std::string(*lineage.row_origin()), columns);
+    } else {
+      scan = Scan::BuildSqlScan(c, source, lineage);
+    }
   }
   RETURN_IF_ERROR(Scan::CheckSourceNames(c, scan.columns_, source));
   SourceRelation relation;
@@ -186,7 +195,8 @@ Scan Scan::BuildDataframeScan(Compiler* c,
   return scan;
 }
 
-base::StatusOr<Scan> Scan::BuildSqlScan(Compiler* c, uint32_t from) {
+base::StatusOr<analysis::RelationLineage> Scan::AnalyzeSource(Compiler* c,
+                                                              uint32_t from) {
   // The columns come from semantic analysis alone: the SQL is only run where
   // the pipeline is written, which is the only place everything it reads is
   // in scope.
@@ -207,32 +217,43 @@ base::StatusOr<Scan> Scan::BuildSqlScan(Compiler* c, uint32_t from) {
                   "reading a relation whose columns cannot be worked out",
                   " (" + lineage.status().message() + ")");
   }
-  // A relation which keeps a dataframe's rows, only choosing and renaming its
-  // columns, is read from the dataframe rather than through SQLite. Its
-  // columns are then all plain references to the dataframe's.
-  if (std::optional<std::string_view> origin = lineage->row_origin()) {
-    const dataframe::Dataframe* dataframe = c->catalog().FindDataframe(*origin);
-    std::vector<DataframeColumn> columns;
-    // As for a table read directly, the dataframe must have stopped changing.
-    for (const analysis::ColumnLineage& column : lineage->columns()) {
-      std::optional<uint32_t> i;
-      if (dataframe && dataframe->finalized() && column.origins.size() == 1) {
-        i = FindScanColumn(*dataframe, column.origins[0].column_name);
-      }
-      if (!i) {
-        break;
-      }
-      columns.push_back({std::string(column.output_name), *i});
-    }
-    if (dataframe && columns.size() == lineage->columns().size()) {
-      return Scan::BuildDataframeScan(c, *dataframe, std::string(*origin),
-                                      columns);
-    }
+  return lineage;
+}
+
+const dataframe::Dataframe* Scan::FindRenamedDataframe(
+    Compiler* c,
+    const analysis::RelationLineage& lineage,
+    std::vector<DataframeColumn>* columns) {
+  std::optional<std::string_view> origin = lineage.row_origin();
+  if (!origin) {
+    return nullptr;
   }
+  const dataframe::Dataframe* dataframe = c->catalog().FindDataframe(*origin);
+  // As for a table read directly, the dataframe must have stopped changing.
+  if (!dataframe || !dataframe->finalized()) {
+    return nullptr;
+  }
+  for (const analysis::ColumnLineage& column : lineage.columns()) {
+    if (column.origins.size() != 1) {
+      return nullptr;
+    }
+    std::optional<uint32_t> i =
+        FindScanColumn(*dataframe, column.origins[0].column_name);
+    if (!i) {
+      return nullptr;
+    }
+    columns->push_back({std::string(column.output_name), *i});
+  }
+  return dataframe;
+}
+
+Scan Scan::BuildSqlScan(Compiler* c,
+                        uint32_t from,
+                        const analysis::RelationLineage& lineage) {
   Scan scan;
   // The relation as written, which the SQL building its dataframe reads.
   scan.source_ = c->SourceForNode(from);
-  for (const analysis::ColumnLineage& column : lineage->columns()) {
+  for (const analysis::ColumnLineage& column : lineage.columns()) {
     std::optional<StorageType> type;
     if (std::optional<analysis::ColumnType> traced = column.type()) {
       type = sql_schema::ToStorageType(*traced);
