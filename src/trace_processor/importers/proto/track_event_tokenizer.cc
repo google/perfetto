@@ -60,6 +60,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
+#include "protos/perfetto/trace/track_event/dimension.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/range_of_interest.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
@@ -85,6 +86,14 @@ constexpr protozero::SelectiveDecodeMask<
 static_assert(decltype(kLegacyTrackEventFields)::kMaxFieldId < 64,
               "mask must fit one presence word");
 using protos::pbzero::CounterDescriptor;
+
+// Dimensions which trace processor recognizes and synthesizes itself, and
+// whose canonical value means the same thing across data sources. Producers
+// cannot declare a custom dimension with one of these names.
+bool IsWellKnownDimensionName(base::StringView name) {
+  return name == "machine" || name == "gpu" || name == "cpu" ||
+         name == "process" || name == "thread";
+}
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
  public:
@@ -253,6 +262,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         context_->storage->InternString(track.description());
   }
 
+  if (track.has_dimensions()) {
+    TokenizeTrackDimensions(args, track, reservation);
+  }
+
   if (args.decoder.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
         static_cast<uint32_t>(args.decoder.trusted_pid()), track.uuid());
@@ -398,6 +411,55 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
 }  // namespace perfetto::trace_processor
+
+void TrackEventTokenizer::TokenizeTrackDimensions(
+    const TokenizePacketArgs& args,
+    const protos::pbzero::TrackDescriptor::Decoder& track,
+    TrackEventTracker::DescriptorTrackReservation& reservation) {
+  using Reservation = TrackEventTracker::DescriptorTrackReservation;
+  for (auto it = track.dimensions(); it; ++it) {
+    protos::pbzero::Dimension::Decoder dim(*it);
+
+    base::StringView name = dim.name();
+    if (name.empty()) {
+      RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
+                           track.uuid());
+      continue;
+    }
+    if (IsWellKnownDimensionName(name)) {
+      RecordDimensionError(stats::track_descriptor_reserved_dimension_name,
+                           args, track.uuid());
+      continue;
+    }
+
+    Reservation::Dimension out;
+    out.name = context_->storage->InternString(name);
+    if (dim.has_int_value()) {
+      out.int_value = dim.int_value();
+    } else if (dim.has_string_value()) {
+      out.string_value = context_->storage->InternString(dim.string_value());
+    } else {
+      RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
+                           track.uuid());
+      continue;
+    }
+    if (dim.has_display_name()) {
+      out.display_name = context_->storage->InternString(dim.display_name());
+    }
+    reservation.dimensions.push_back(out);
+  }
+}
+
+void TrackEventTokenizer::RecordDimensionError(size_t stat_key,
+                                               const TokenizePacketArgs& args,
+                                               uint64_t track_uuid) {
+  context_->import_logs_tracker->RecordTokenizationLog(
+      stat_key, args.packet->offset(),
+      [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(track_uuid_key_id_,
+                        Variadic::UnsignedInteger(track_uuid));
+      });
+}
 
 ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     const TokenizePacketArgs& args) {

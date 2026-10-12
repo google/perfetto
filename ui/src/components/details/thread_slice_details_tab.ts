@@ -22,6 +22,7 @@ import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
+import {TrackDimensionsSection} from './track_dimensions_section';
 import {Tree} from '../../widgets/tree';
 import {hasArgs} from './args';
 import {
@@ -233,9 +234,14 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private readonly trace: Trace;
   private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
+  // Every slice sits on a track, and every track has dimensions, so this
+  // section is built in rather than wired up by each caller.
+  private readonly dimensions: TrackDimensionsSection;
+
   constructor(trace: Trace, attrs?: ThreadSliceDetailsPanelAttrs) {
     this.trace = trace;
     this.attrs = attrs ?? {};
+    this.dimensions = new TrackDimensionsSection(trace);
   }
 
   async load(selection: TrackEventSelection) {
@@ -258,14 +264,11 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
 
     // Load additional sections
     const sectionsToLoad = [
+      this.dimensions,
       ...(this.attrs.leftSections ?? []),
       ...(this.attrs.rightSections ?? []),
     ];
-    if (sectionsToLoad.length > 0) {
-      await Promise.all(
-        sectionsToLoad.map((section) => section.load(selection)),
-      );
-    }
+    await Promise.all(sectionsToLoad.map((section) => section.load(selection)));
   }
 
   render() {
@@ -278,9 +281,10 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     const additionalLeft = this.attrs.leftSections?.map((section) =>
       section.render(),
     );
-    const additionalRight = this.attrs.rightSections?.map((section) =>
-      section.render(),
-    );
+    const additionalRight = [
+      ...(this.attrs.rightSections?.map((section) => section.render()) ?? []),
+      this.dimensions.render(),
+    ];
 
     return m(
       DetailsShell,

@@ -1,0 +1,157 @@
+# A distributed training-like trace: two processes of the same name which are
+# only distinguishable by the producer-declared `rank` dimension.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 10
+    process {
+      pid: 100
+      process_name: "trainer"
+    }
+    dimensions {
+      name: "rank"
+      int_value: 3
+    }
+    dimensions {
+      name: "stage"
+      string_value: "forward"
+    }
+  }
+}
+# A child track of the process track: inherits both dimensions.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 11
+    parent_uuid: 10
+    name: "async"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+# A thread of the process: inherits both dimensions through `upid`.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 12
+    thread {
+      pid: 100
+      tid: 101
+      thread_name: "main"
+    }
+  }
+}
+# A second process with a different rank and a display name for it.
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 20
+    process {
+      pid: 200
+      process_name: "trainer"
+    }
+    dimensions {
+      name: "rank"
+      int_value: 7
+      display_name: "worker-east"
+    }
+  }
+}
+# Invalid producer input, all of which must be ignored:
+#  * a dimension which overrides an inherited value,
+#  * a dimension using a reserved well known name,
+#  * a dimension without a value.
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  track_descriptor {
+    uuid: 21
+    parent_uuid: 20
+    name: "child"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+    dimensions {
+      name: "rank"
+      int_value: 4
+    }
+    dimensions {
+      name: "machine"
+      int_value: 1
+    }
+    dimensions {
+      name: "shard"
+    }
+  }
+}
+# A Chrome-shaped process: several ordered labels, one dimension each, with a
+# display name so they render as bare titles.
+packet {
+  trusted_packet_sequence_id: 3
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 30
+    process {
+      pid: 300
+      process_name: "Renderer"
+    }
+    dimensions {
+      name: "chrome.process_label"
+      string_value: "IMDb: Ratings, Reviews"
+      display_name: "IMDb: Ratings, Reviews"
+    }
+    dimensions {
+      name: "chrome.process_label2"
+      string_value: "Subframe: https://prebid.a-mo.net/"
+      display_name: "Subframe: https://prebid.a-mo.net/"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 3
+  timestamp: 1300
+  track_event {
+    track_uuid: 30
+    type: TYPE_INSTANT
+    name: "frame"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    track_uuid: 11
+    type: TYPE_SLICE_BEGIN
+    name: "work"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    track_uuid: 11
+    type: TYPE_SLICE_END
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1500
+  track_event {
+    track_uuid: 12
+    type: TYPE_INSTANT
+    name: "tick"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 1200
+  track_event {
+    track_uuid: 21
+    type: TYPE_INSTANT
+    name: "other"
+  }
+}

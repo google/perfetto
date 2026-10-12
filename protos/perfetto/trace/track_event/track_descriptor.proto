@@ -21,6 +21,7 @@ import "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
 import "protos/perfetto/trace/track_event/counter_descriptor.proto";
+import "protos/perfetto/trace/track_event/dimension.proto";
 import "protos/perfetto/trace/track_event/state_descriptor.proto";
 
 package perfetto.protos;
@@ -38,7 +39,7 @@ package perfetto.protos;
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 21.
+// Next id: 22.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -381,4 +382,18 @@ message TrackDescriptor {
     THREAD_ORDERING_EXPLICIT = 1;
   }
   optional ThreadOrdering thread_ordering = 20;
+
+  // Custom, producer-declared dimensions for this track. Repeated so that a
+  // track can carry more than one independent dimension (e.g. `rank` and
+  // `stage`).
+  //
+  // Dimensions declared here are resolved onto this track *and* onto the
+  // tracks which inherit from it: tracks of the same process if `process` is
+  // set, tracks of the same thread if `thread` is set, and `parent_uuid`
+  // descendants otherwise. See Dimension for the full resolution rules.
+  //
+  // Well-known dimensions (`machine`, `gpu`, `cpu`, `process`, `thread`) are
+  // synthesized by trace processor from the typed fields above and from import
+  // context: producers must *not* declare them here.
+  repeated Dimension dimensions = 21;
 }

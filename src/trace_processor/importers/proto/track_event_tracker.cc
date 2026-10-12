@@ -216,6 +216,13 @@ void TrackEventTracker::ReserveDescriptorTrack(
       rr.set_name(reservation.name);
     }
   }
+  // Dimensions are not part of the track identity, so a re-emitted descriptor
+  // is allowed to be the first one carrying them (e.g. because the producer
+  // only learns its rank after the first descriptor was emitted).
+  if (it->reservation.dimensions.empty() && !reservation.dimensions.empty()) {
+    it->reservation.dimensions = reservation.dimensions;
+  }
+
   it->reservation.min_timestamp =
       std::min(it->reservation.min_timestamp, reservation.min_timestamp);
 }
@@ -475,6 +482,18 @@ TrackEventTracker::InternDescriptorTrackImpl(
       rr.set_parent_id(parent_track_id);
     }
   };
+  // Merged tracks are created lazily and there can be more than one of them
+  // for a single descriptor, so dimensions are recorded from the track
+  // creation callback. Every other track is handled once, at end of trace, by
+  // |OnEventsFullyExtracted|.
+  auto on_new_merged_track = [this, uuid, set_parent_id](bool set_parent) {
+    return [this, uuid, set_parent_id, set_parent](TrackId id) {
+      if (set_parent) {
+        set_parent_id(id);
+      }
+      RecordDeclaredDimensions(uuid, id);
+    };
+  };
   using M = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;
   if (parent_track_id) {
     // If we have the track id, we should also always have the resolved track
@@ -523,8 +542,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
                                static_cast<int64_t>(reservation->parent_uuid),
                                type, key),
             tracks::DynamicName(name), args_fn_non_root,
-            parent_resolved_track->is_root() ? std::function<void(TrackId)>()
-                                             : set_parent_id);
+            on_new_merged_track(!parent_resolved_track->is_root()));
       }
       case ResolvedDescriptorTrack::Scope::kProcess: {
         // If parent is a process track, create another process-associated
@@ -574,8 +592,7 @@ TrackEventTracker::InternDescriptorTrackImpl(
                                static_cast<int64_t>(reservation->parent_uuid),
                                type, key),
             tracks::DynamicName(translated_name), args_fn_non_root,
-            parent_resolved_track->is_root() ? std::function<void(TrackId)>()
-                                             : set_parent_id);
+            on_new_merged_track(!parent_resolved_track->is_root()));
       }
       case ResolvedDescriptorTrack::Scope::kGlobal:
         break;
@@ -612,7 +629,8 @@ TrackEventTracker::InternDescriptorTrackImpl(
       tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid), type,
                          key),
       tracks::DynamicName(name),
-      is_root_in_scope ? args_fn_root : args_fn_non_root, set_parent_id);
+      is_root_in_scope ? args_fn_root : args_fn_non_root,
+      on_new_merged_track(true));
 }
 
 std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
@@ -704,6 +722,80 @@ void TrackEventTracker::AddTrackArgs(
 
   if (!reservation.description.is_null()) {
     args.AddArg(description_key_, Variadic::String(reservation.description));
+  }
+}
+
+void TrackEventTracker::OnEventsFullyExtracted() {
+  // Collect the uuids first: resolving a track can insert into the state map,
+  // which invalidates iterators.
+  std::vector<uint64_t> uuids;
+  for (auto it = descriptor_tracks_state_.GetIterator(); it; ++it) {
+    if (!it.value().reservation.dimensions.empty() &&
+        !it.value().dimensions_recorded) {
+      uuids.push_back(it.key());
+    }
+  }
+  for (uint64_t uuid : uuids) {
+    // Resolving associates the descriptor with its process/thread; a track row
+    // is *not* required, as a process descriptor whose events all live on its
+    // threads still declares dimensions for that process.
+    if (!ResolveDescriptorTrack(uuid)) {
+      continue;
+    }
+    State* state = descriptor_tracks_state_.Find(uuid);
+    auto* id = state->track_id_or_factory
+                   ? std::get_if<TrackId>(&*state->track_id_or_factory)
+                   : nullptr;
+    RecordDeclaredDimensions(uuid, id ? std::make_optional(*id) : std::nullopt);
+  }
+}
+
+void TrackEventTracker::RecordDeclaredDimensions(
+    uint64_t uuid,
+    std::optional<TrackId> track_id) {
+  State* state = descriptor_tracks_state_.Find(uuid);
+  if (!state || state->reservation.dimensions.empty()) {
+    return;
+  }
+  // A dimension declared on the *root* track of a process/thread applies to
+  // every track associated with that process/thread (see the resolution rules
+  // on TrackDescriptor.dimensions). Anything else applies to the declaring
+  // track and its `parent_id` descendants.
+  std::optional<UniquePid> upid;
+  std::optional<UniqueTid> utid;
+  if (const auto& resolved = state->resolved; resolved && resolved->is_root()) {
+    switch (resolved->scope()) {
+      case ResolvedDescriptorTrack::Scope::kProcess:
+        upid = resolved->upid();
+        break;
+      case ResolvedDescriptorTrack::Scope::kThread:
+        utid = resolved->utid();
+        break;
+      case ResolvedDescriptorTrack::Scope::kGlobal:
+        break;
+    }
+  }
+  // Dimensions declared on a track which is neither a root process nor a root
+  // thread track only apply through the track hierarchy, so they need a track.
+  if (!track_id && !upid && !utid) {
+    return;
+  }
+  state->dimensions_recorded = true;
+  auto* table = context_->storage->mutable_track_dimension_decl_table();
+  for (const auto& dim : state->reservation.dimensions) {
+    tables::TrackDimensionDeclTable::Row row;
+    row.declaring_track_id = track_id;
+    row.name = dim.name;
+    row.int_value = dim.int_value;
+    row.string_value = dim.string_value.is_null()
+                           ? std::nullopt
+                           : std::make_optional(dim.string_value);
+    row.display_name = dim.display_name.is_null()
+                           ? std::nullopt
+                           : std::make_optional(dim.display_name);
+    row.upid = upid;
+    row.utid = utid;
+    table->Insert(row);
   }
 }
 

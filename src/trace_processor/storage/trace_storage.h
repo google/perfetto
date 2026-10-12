@@ -244,6 +244,20 @@ class TraceStorage {
     return mutable_table<tables::TrackTable>();
   }
 
+  const tables::TrackDimensionDeclTable& track_dimension_decl_table() const {
+    return table<tables::TrackDimensionDeclTable>();
+  }
+  tables::TrackDimensionDeclTable* mutable_track_dimension_decl_table() {
+    return mutable_table<tables::TrackDimensionDeclTable>();
+  }
+
+  const tables::TrackDimensionTable& track_dimension_table() const {
+    return table<tables::TrackDimensionTable>();
+  }
+  tables::TrackDimensionTable* mutable_track_dimension_table() {
+    return mutable_table<tables::TrackDimensionTable>();
+  }
+
   const tables::GpuContextTable& gpu_context_table() const {
     return table<tables::GpuContextTable>();
   }

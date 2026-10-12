@@ -25,11 +25,13 @@
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/selective_trace_packet_decoder.h"
+#include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -66,6 +68,17 @@ class TrackEventTokenizer {
   void TokenizeThreadDescriptor(PacketSequenceStateGeneration& state,
                                 const protos::pbzero::ThreadDescriptor_Decoder&,
                                 bool use_synthetic_tid);
+
+  // Parses `TrackDescriptor.dimensions` into |reservation|, rejecting invalid
+  // and reserved (well known) dimension names.
+  void TokenizeTrackDimensions(
+      const TokenizePacketArgs& args,
+      const protos::pbzero::TrackDescriptor::Decoder& track,
+      TrackEventTracker::DescriptorTrackReservation& reservation);
+
+  void RecordDimensionError(size_t stat_key,
+                            const TokenizePacketArgs& args,
+                            uint64_t track_uuid);
   template <typename T>
   bool AddExtraCounterValues(
       PacketSequenceStateGeneration& state,
