@@ -400,6 +400,21 @@ describe('TrackNode subtitles', () => {
     expect(node.subtitle).toBe('label');
   });
 
+  test('clones keep every subtitle item', () => {
+    const node = new TrackNode({subtitle: 'example.com'});
+    node.setSubtitleItem('dimensions', 'rank 3');
+    const child = new TrackNode({subtitle: 'child'});
+    node.addChildLast(child);
+
+    const cloned = node.clone(/* deep= */ true);
+    expect(cloned.subtitle).toBe('example.com · rank 3');
+    expect(cloned.children[0].subtitle).toBe('child');
+
+    // The items are copied, not shared.
+    cloned.setSubtitleItem('dimensions', undefined);
+    expect(node.subtitle).toBe('example.com · rank 3');
+  });
+
   test('subtitle is undefined when there are no items', () => {
     const node = new TrackNode();
     expect(node.subtitle).toBeUndefined();

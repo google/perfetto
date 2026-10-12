@@ -559,6 +559,11 @@ export class TrackNode {
    */
   clone(deep = false): TrackNode {
     const cloned = new TrackNode({...this, id: undefined});
+    // The subtitle is an accessor over the subtitle items rather than an own
+    // property, so the spread above doesn't copy it.
+    for (const [id, text] of this._subtitleItems) {
+      cloned.setSubtitleItem(id, text);
+    }
     if (deep) {
       this.children.forEach((c) => {
         cloned.addChildLast(c.clone(deep));
