@@ -811,3 +811,42 @@ describe('experiment filter', () => {
     expect(tab.experimentFilter?.experimentName).toBeUndefined();
   });
 });
+
+describe('addSharedTraceListTab', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+    bigTraceSettingsStorage.register({
+      id: TRACE_UUIDS_SETTING_ID,
+      name: 'Trace UUIDs',
+      description: '',
+      type: 'string-array',
+      schema: z.array(z.string()) as never,
+      defaultValue: [] as string[],
+      category: 'TRACE_ADDRESS',
+      disabled: true,
+    });
+  });
+
+  test('opens a new configured tab in UUID mode', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.addSharedTraceListTab({
+      traceUuids: ['u1', 'u2'],
+      sourceUrl: 'https://example.com/traces',
+      title: 'Sample traces',
+      perfettoSql: 'SELECT 1',
+    });
+    expect(tabs.tabs).toHaveLength(2);
+    expect(tabs.activeTabId).toBe(tab.id);
+    expect(tab.configured).toBe(true);
+    expect(tab.title).toBe('Sample traces');
+    expect(tab.editorText).toBe(
+      '-- Sample traces\n-- Source: https://example.com/traces\n\nSELECT 1\n',
+    );
+    expect(traceUuidsActive(tab)).toBe(true);
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual(['u1', 'u2']);
+  });
+});
