@@ -99,7 +99,7 @@ TEST(ExecutorContractTest, RetainedSelectionSurvivesProducerReuse) {
 
 TEST(ExecutorContractTest,
      RetainedComputedValuesSurviveNextExecutionAndRewind) {
-  TreeAccumulateDown op({0, 1, 2});
+  TreeAccumulateDown op({0, 1, {{AggregateCall::Function::kSum, 2}}});
   auto state = op.MakeState(test::TestContext());
   std::vector<uint32_t> nodes{0, 1}, parents{kNoNode, 0};
   std::vector<int64_t> values{10, 20};
