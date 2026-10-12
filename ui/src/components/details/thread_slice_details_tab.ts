@@ -281,10 +281,12 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     const additionalLeft = this.attrs.leftSections?.map((section) =>
       section.render(),
     );
+    // Sections with nothing to show render to null/undefined: drop them so an
+    // empty right hand side is still omitted.
     const additionalRight = [
       ...(this.attrs.rightSections?.map((section) => section.render()) ?? []),
       this.dimensions.render(),
-    ];
+    ].filter((section) => section !== null && section !== undefined);
 
     return m(
       DetailsShell,
@@ -300,7 +302,11 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
           renderDetails(this.trace, slice, this.breakdownByThreadState),
           additionalLeft,
         ),
-        this.renderRhs(this.trace, slice, additionalRight),
+        this.renderRhs(
+          this.trace,
+          slice,
+          additionalRight.length > 0 ? additionalRight : undefined,
+        ),
       ),
     );
   }

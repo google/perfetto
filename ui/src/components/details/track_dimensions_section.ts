@@ -19,7 +19,7 @@ import type {TrackEventDetailsPanelSection} from './thread_slice_details_tab';
 import {type Dimension, dimensionValue} from '../../public/dimensions';
 import {Section} from '../../widgets/section';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 /**
  * Shows the *effective* dimensions of the track the selected event is on.
@@ -30,6 +30,10 @@ import {NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
  * collapse rule is applied here: when you have asked for the details of one
  * event you want its full identity, even the parts which are uniform across
  * the trace.
+ *
+ * The section is only shown if the track has at least one custom dimension:
+ * the well known ones alone (machine, process, thread, ...) are already shown
+ * elsewhere in the details panel.
  */
 export class TrackDimensionsSection implements TrackEventDetailsPanelSection {
   private dimensions: Dimension[] = [];
@@ -42,7 +46,7 @@ export class TrackDimensionsSection implements TrackEventDetailsPanelSection {
     // track comes from the event itself rather than from the UI track, because
     // one UI track can multiplex several trace processor tracks.
     const res = await this.trace.engine.query(`
-      SELECT DISTINCT name, int_value, string_value, display_name
+      SELECT DISTINCT name, int_value, string_value, display_name, is_well_known
       FROM track_dimension
       WHERE track_id = (SELECT track_id FROM slice WHERE id = ${selection.eventId})
       ORDER BY is_well_known DESC, name
@@ -52,14 +56,20 @@ export class TrackDimensionsSection implements TrackEventDetailsPanelSection {
       int_value: NUM_NULL,
       string_value: STR_NULL,
       display_name: STR_NULL,
+      is_well_known: NUM,
     });
+    let hasCustom = false;
     for (; it.valid(); it.next()) {
+      hasCustom = hasCustom || it.is_well_known === 0;
       this.dimensions.push({
         name: it.name,
         intValue: it.int_value,
         stringValue: it.string_value,
         displayName: it.display_name,
       });
+    }
+    if (!hasCustom) {
+      this.dimensions = [];
     }
   }
 
