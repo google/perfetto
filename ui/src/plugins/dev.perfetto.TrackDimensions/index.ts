@@ -21,25 +21,20 @@ import {
   formatDimensionLabels,
   visibleDimensionNames,
 } from '../../public/dimensions';
-import {
-  NUM,
-  NUM_NULL,
-  type QueryResult,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import TrackEventPlugin from '../dev.perfetto.TrackEvent';
 
 // The subtitle item id used for dimension labels. Distinct from the ids used by
 // other contributors (e.g. Chrome process labels) so the two compose instead of
 // overwriting each other.
 const SUBTITLE_ITEM_ID = 'dimensions';
 
-// A dimension plus the id of the thing it applies to: a track id, a upid or a
-// utid depending on which relation it was read from.
-interface KeyedDimension {
-  readonly key: number;
+// A custom dimension of a trace processor track.
+interface TrackDimension {
+  readonly trackId: number;
+  // The upid of the process if the track is the root track of a process
+  // descriptor, i.e. the process track.
+  readonly processUpid: number | null;
   readonly dimension: Dimension;
 }
 
@@ -47,35 +42,21 @@ interface KeyedDimension {
  * Surfaces track dimensions in the timeline.
  *
  * Dimensions are a trace processor concept first: this plugin implements the
- * shared presentation half of it, i.e. the collapse rule (string dimensions
- * are always shown, integer ones only when they have more than one value in
- * the trace) and the subtitle labels which come out of it. Well known dimensions which already have
- * specialized presentation (GPU hierarchy, machine name suffixes) are skipped:
- * see public/dimensions.ts.
+ * shared presentation half of it, i.e. the collapse rule (see
+ * visibleDimensionNames) and the subtitle labels which come out of it. Well
+ * known dimensions which already have specialized presentation (GPU hierarchy,
+ * machine name suffixes) are skipped: see public/dimensions.ts.
  */
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackDimensions';
-  static readonly dependencies = [ProcessThreadGroupsPlugin, TrackEventPlugin];
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     // Wait for the trace to be ready: every plugin has had a chance to build
     // its part of the workspace by then, which is what we annotate.
     ctx.onTraceReady.addListener(async () => {
-      const [trackDims, processDims, threadDims] = await Promise.all([
-        queryDimensions(ctx, 'track_dimension', 'track_id'),
-        queryDimensions(ctx, 'process_dimension', 'upid'),
-        queryDimensions(ctx, 'thread_dimension', 'utid'),
-      ]);
-      if (!trackDims.length && !processDims.length && !threadDims.length) {
-        return;
-      }
-
-      // The collapse rule is global: see visibleDimensionNames.
-      const visible = visibleDimensionNames([
-        ...trackDims.map((d) => d.dimension),
-        ...processDims.map((d) => d.dimension),
-        ...threadDims.map((d) => d.dimension),
-      ]);
+      const trackDims = await queryDimensions(ctx);
+      const visible = visibleDimensionNames(trackDims.map((d) => d.dimension));
       if (visible.size === 0) return;
 
       const byNode = new Map<TrackNode, Dimension[]>();
@@ -90,29 +71,18 @@ export default class implements PerfettoPlugin {
         }
       };
 
-      // Process and thread groups are keyed by upid/utid rather than by track.
-      for (const {key, dimension} of processDims) {
-        add(
-          ctx.plugins
-            .getPlugin(ProcessThreadGroupsPlugin)
-            .getGroupForProcess(key),
-          dimension,
-        );
-      }
-      for (const {key, dimension} of threadDims) {
-        add(
-          ctx.plugins
-            .getPlugin(ProcessThreadGroupsPlugin)
-            .getGroupForThread(key),
-          dimension,
-        );
-      }
-
-      // Everything else is keyed by trace processor track id, which we map back
-      // to workspace nodes through the tracks' `trackIds` tag.
+      // Trace processor tracks are mapped back to workspace nodes through the
+      // tracks' `trackIds` tag. The dimensions of a process are the ones of its
+      // process track, so they also label the process group itself rather than
+      // only the process track, which is one of its children (or not shown at
+      // all if it has no events).
       const nodesByTrackId = getNodesByTrackId(ctx);
-      for (const {key, dimension} of trackDims) {
-        add(nodesByTrackId.get(key), dimension);
+      const processGroups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);
+      for (const {trackId, processUpid, dimension} of trackDims) {
+        add(nodesByTrackId.get(trackId), dimension);
+        if (processUpid !== null) {
+          add(processGroups.getGroupForProcess(processUpid), dimension);
+        }
       }
 
       for (const [node, dims] of byNode) {
@@ -166,35 +136,44 @@ function getNodesByTrackId(ctx: Trace): Map<number, TrackNode> {
 // the filter when a well known dimension starts being labelled by this pass.
 async function queryDimensions(
   ctx: Trace,
-  table: string,
-  keyColumn: string,
-): Promise<ReadonlyArray<KeyedDimension>> {
+): Promise<ReadonlyArray<TrackDimension>> {
+  // The root track of a process descriptor is the only track event track with
+  // a process which is the root of its scope.
   const res = await ctx.engine.query(`
-    SELECT ${keyColumn} AS key, name, int_value, string_value, display_name
-    FROM ${table}
-    WHERE is_well_known = 0
-    ORDER BY ${keyColumn}, name
+    SELECT
+      d.track_id AS trackId,
+      iif(
+        extract_arg(t.source_arg_set_id, 'is_root_in_scope'),
+        extract_arg(t.dimension_arg_set_id, 'upid'),
+        NULL
+      ) AS processUpid,
+      d.name,
+      d.int_value AS intValue,
+      d.string_value AS stringValue,
+      d.display_name AS displayName
+    FROM track_dimension AS d
+    JOIN track AS t ON t.id = d.track_id
+    WHERE NOT d.is_well_known
+    ORDER BY d.track_id, d.name
   `);
-  return readDimensions(res);
-}
-
-function readDimensions(res: QueryResult): ReadonlyArray<KeyedDimension> {
   const it = res.iter({
-    key: NUM,
+    trackId: NUM,
+    processUpid: NUM_NULL,
     name: STR,
-    int_value: NUM_NULL,
-    string_value: STR_NULL,
-    display_name: STR_NULL,
+    intValue: NUM_NULL,
+    stringValue: STR_NULL,
+    displayName: STR_NULL,
   });
-  const out: KeyedDimension[] = [];
+  const out: TrackDimension[] = [];
   for (; it.valid(); it.next()) {
     out.push({
-      key: it.key,
+      trackId: it.trackId,
+      processUpid: it.processUpid,
       dimension: {
         name: it.name,
-        intValue: it.int_value,
-        stringValue: it.string_value,
-        displayName: it.display_name,
+        intValue: it.intValue,
+        stringValue: it.stringValue,
+        displayName: it.displayName,
       },
     });
   }
