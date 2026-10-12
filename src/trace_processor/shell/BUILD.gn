@@ -117,6 +117,7 @@ source_set("unittests") {
   testonly = true
   sources = [
     "convert_helpers_unittest.cc",
+    "csv_result_formatter_unittest.cc",
     "find_subcommand_unittest.cc",
     "markdown_result_formatter_unittest.cc",
     "shell_utils_unittest.cc",

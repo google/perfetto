@@ -70,22 +70,10 @@ void AppendEscaped(std::string_view s, std::string* out) {
 }
 
 void AppendString(std::string_view s, uint64_t max_chars, std::string* out) {
-  // Counts UTF-8 code points (i.e. every byte which is not a continuation
-  // byte) so that cells are never cut in the middle of a character.
-  size_t cut = s.size();
-  uint64_t chars = 0;
-  for (size_t i = 0; i < s.size(); ++i) {
-    if ((static_cast<uint8_t>(s[i]) & 0xC0) == 0x80) {
-      continue;
-    }
-    if (max_chars && chars == max_chars) {
-      cut = i;
-    }
-    ++chars;
-  }
-  AppendEscaped(s.substr(0, cut), out);
-  if (cut < s.size()) {
-    *out += "…(+" + std::to_string(chars - max_chars) + " chars)";
+  uint64_t dropped = CutToChars(&s, max_chars);
+  AppendEscaped(s, out);
+  if (dropped) {
+    *out += CutMarker(dropped);
   }
 }
 

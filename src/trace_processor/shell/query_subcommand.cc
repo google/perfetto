@@ -149,7 +149,9 @@ complete.
 Output is CSV by default. --format markdown prints compact markdown tables:
 results over --max-rows rows (default 1000) or --max-bytes bytes (default
 10000) show only their first and last rows plus a footer with the row count,
-and cells are cut at --max-cell-width characters (default 500).
+and cells are cut at --max-cell-width characters (default 500). CSV has no
+limits by default; if any are passed, results over them are cut to their
+first rows and a note is printed to stderr.
 
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
@@ -176,14 +178,13 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
       StringFlag("format", '\0', "FMT",
                  "Output format: csv (default) or markdown.", &format_),
       StringFlag("max-rows", '\0', "N",
-                 "[markdown] Rows printed in full; larger results show only "
-                 "their first and last rows. 0 for no limit.",
+                 "Rows printed in full; larger results are cut. 0 for no "
+                 "limit.",
                  &max_rows_),
       StringFlag("max-bytes", '\0', "N",
-                 "[markdown] Like --max-rows but for bytes of output.",
-                 &max_bytes_),
+                 "Like --max-rows but for bytes of output.", &max_bytes_),
       StringFlag("max-cell-width", '\0', "N",
-                 "[markdown] Characters printed per cell. 0 for no limit.",
+                 "Characters printed per cell. 0 for no limit.",
                  &max_cell_width_),
   };
 }

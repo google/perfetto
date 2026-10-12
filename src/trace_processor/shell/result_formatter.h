@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
@@ -37,10 +38,10 @@ enum class ResultFormat {
 struct ResultFormatOptions {
   ResultFormat format = ResultFormat::kCsv;
 
-  // The options below only apply to kMarkdown. 0 means "no limit".
+  // 0 means "no limit" for all the options below.
 
-  // A result set with more rows or bytes than this is printed as its first
-  // and last rows with a marker row in between.
+  // A result set with more rows or bytes than this is cut: markdown prints its
+  // first and last rows with a marker row in between, CSV its first rows.
   uint64_t max_rows = 0;
   uint64_t max_bytes = 0;
   // Cells with more characters than this are cut with a visible marker.
@@ -64,6 +65,13 @@ class ResultFormatter {
   // Prints the result set. Called exactly once, after the last row.
   virtual void Finish() = 0;
 };
+
+// Cuts |s| to at most |max_chars| UTF-8 code points (no limit if 0), never in
+// the middle of a character. Returns the number of code points dropped.
+uint64_t CutToChars(std::string_view* s, uint64_t max_chars);
+
+// The marker appended to a cell from which CutToChars() dropped characters.
+std::string CutMarker(uint64_t dropped_chars);
 
 // Markdown options with the limits used unless overridden by flags.
 ResultFormatOptions DefaultMarkdownOptions();
