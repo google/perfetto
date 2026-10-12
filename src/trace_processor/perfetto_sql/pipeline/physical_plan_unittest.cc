@@ -443,5 +443,26 @@ TEST_F(PhysicalPlanTest, APlanReadBackReadsTablesAsTheyAreNow) {
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 3), Pair(1, 2)));
 }
 
+// A relation which only picks and renames a dataframe's columns is read from
+// the dataframe, not through SQLite, and is read back so too.
+TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
+  CreateDataframeTree();
+  auto plan = Compile(
+      "FROM (SELECT id, parent_id, self AS own, self AS copy FROM df) "
+      "|> TREE ACCUMULATE UP SUM(own) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  auto moved = MoveSqlSourcesToDataframeArgs(std::move(*plan));
+  EXPECT_TRUE(moved.args.empty());
+  auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
+  ASSERT_TRUE(read.ok()) << read.status().message();
+  auto lowered = Lower(*read);
+  EXPECT_THAT(Names(*lowered),
+              ElementsAre("id", "parent_id", "own", "copy", "total"));
+  auto rows = Run(*lowered, "copy");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::pipeline

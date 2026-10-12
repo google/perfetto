@@ -221,6 +221,37 @@ class PerfettoPipeline(TestSuite):
         74228,0
         """))
 
+  # thread_state only renames __intrinsic_thread_state's columns, reading
+  # ucpu twice, so it is read from the table without SQLite.
+  def test_a_renaming_view_reads_its_table(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE by_dur AS
+        FROM thread_state
+        |> ORDER BY dur, id
+        |> SELECT id, cpu, ucpu, state;
+
+        SELECT
+          (SELECT count(*) FROM by_dur) AS rows,
+          (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, * FROM by_dur) AS p
+            JOIN (
+              SELECT row_number() OVER (ORDER BY dur, id) AS n, *
+              FROM thread_state
+            ) AS s USING (n)
+            WHERE p.id != s.id OR p.cpu IS NOT s.cpu
+              OR p.ucpu IS NOT s.ucpu OR p.state != s.state
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        549904,0
+        """))
+
   def test_pipeline_errors_name_the_problem(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
