@@ -71,9 +71,13 @@ base::StatusOr<uint32_t> ParseClockName(const json::Dom& value) {
     return BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
   if (name == "BOOTTIME")
     return BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
+  // The file's own private per-file timeline.
+  if (name == "TRACE_FILE")
+    return BuiltinClock::BUILTIN_CLOCK_TRACE_FILE;
   return base::ErrStatus(
       "perfetto_manifest: unknown clock name: %s. Use one of REALTIME, "
-      "REALTIME_COARSE, MONOTONIC, MONOTONIC_COARSE, MONOTONIC_RAW, BOOTTIME.",
+      "REALTIME_COARSE, MONOTONIC, MONOTONIC_COARSE, MONOTONIC_RAW, BOOTTIME, "
+      "TRACE_FILE.",
       name.c_str());
 }
 
@@ -102,7 +106,9 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   }
   if (clocks.HasMember("clock")) {
     ASSIGN_OR_RETURN(uint32_t source_clock, ParseClockName(clocks["clock"]));
-    result.source_clock = source_clock;
+    // TRACE_FILE is the same as omitting the clock (pin the private clock).
+    if (source_clock != protos::pbzero::BUILTIN_CLOCK_TRACE_FILE)
+      result.source_clock = source_clock;
   }
 
   if (!clocks.HasMember("sync_to")) {
@@ -133,7 +139,8 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
   }
   if (sync_to.HasMember("clock")) {
     ASSIGN_OR_RETURN(uint32_t ref_clock, ParseClockName(sync_to["clock"]));
-    result.ref_clock = ref_clock;
+    if (ref_clock != protos::pbzero::BUILTIN_CLOCK_TRACE_FILE)
+      result.ref_clock = ref_clock;
   }
 
   if (sync_to.HasMember("offset_ns")) {
@@ -548,26 +555,6 @@ base::Status PerfettoManifestReader::ApplyManifest() {
     return *name_to_id.Find(*ref_machine);
   };
 
-  // Claim the global trace time clock directly: the manifest is the first file,
-  // so its claim wins over later traces. trace_time.file (+ .machine) pins it
-  // to that file's (pre-allocated) machine.
-  if (state->trace_time_clock) {
-    ClockId trace_time = ClockId::Machine(*state->trace_time_clock);
-    if (state->trace_time_file || state->trace_time_machine) {
-      ASSIGN_OR_RETURN(
-          int64_t raw,
-          resolve_ref("trace_time: file", "trace_time: machine",
-                      state->trace_time_file, state->trace_time_machine,
-                      /*fallback=*/0));
-      trace_time = ClockId::Machine(EnsureMachineRow(context_, raw),
-                                    *state->trace_time_clock);
-    }
-    context_->trace_time_state->TrySetClock(trace_time, file_id_);
-    context_->global_metadata_tracker->SetMetadata(
-        std::nullopt, std::nullopt, metadata::trace_time_clock_id,
-        Variadic::Integer(*state->trace_time_clock));
-  }
-
   // Resolves which machine declared by |entry| owns its source clock: the named
   // |source_machine| (which must be one this file itself declares), or - when
   // unset - the file's sole machine. A multi-machine file is several machines,
@@ -619,6 +606,35 @@ base::Status PerfettoManifestReader::ApplyManifest() {
         "the `path` of an entry in the `files` array.",
         path.c_str());
   };
+
+  // Claim the global trace time clock directly: the manifest is the first file,
+  // so its claim wins over later traces. trace_time.file (+ .machine) pins it
+  // to that file's (pre-allocated) machine.
+  if (state->trace_time_clock) {
+    ClockId trace_time = ClockId::Machine(*state->trace_time_clock);
+    if (state->trace_time_file || state->trace_time_machine) {
+      ASSIGN_OR_RETURN(
+          int64_t raw,
+          resolve_ref("trace_time: file", "trace_time: machine",
+                      state->trace_time_file, state->trace_time_machine,
+                      /*fallback=*/0));
+      trace_time = ClockId::Machine(EnsureMachineRow(context_, raw),
+                                    *state->trace_time_clock);
+    }
+    // TRACE_FILE: trace time is |file|'s private per-file clock.
+    if (*state->trace_time_clock == protos::pbzero::BUILTIN_CLOCK_TRACE_FILE) {
+      if (!state->trace_time_file) {
+        return base::ErrStatus(
+            "perfetto_manifest: trace_time: clock TRACE_FILE requires file");
+      }
+      ASSIGN_OR_RETURN(trace_time.trace_file_id,
+                       find_trace_file_id(*state->trace_time_file));
+    }
+    context_->trace_time_state->TrySetClock(trace_time, file_id_);
+    context_->global_metadata_tracker->SetMetadata(
+        std::nullopt, std::nullopt, metadata::trace_time_clock_id,
+        Variadic::Integer(*state->trace_time_clock));
+  }
 
   // Add every override's cross-machine edge to the global clock graph now,
   // before any file is parsed (a file may reference another parsed later),
