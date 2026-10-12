@@ -25,9 +25,9 @@ import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
  * Shows the *effective* dimensions of the track the selected event is on.
  *
  * This is the details-panel half of the dimension presentation layer: it reads
- * exactly the same trace processor rows as the track subtitles do, so the
- * timeline and the details panel can never disagree. Unlike subtitles, no
- * collapse rule is applied here: when you have asked for the details of one
+ * the same trace processor rows (`track_dimension`) as the track subtitles do,
+ * so the timeline and the details panel can never disagree. Unlike subtitles,
+ * no collapse rule is applied here: when you have asked for the details of one
  * event you want its full identity, even the parts which are uniform across
  * the trace.
  *
@@ -42,6 +42,9 @@ export class TrackDimensionsSection implements TrackEventDetailsPanelSection {
 
   async load(selection: TrackEventSelection): Promise<void> {
     this.dimensions = [];
+    if (!(await hasCustomDimensions(this.trace))) {
+      return;
+    }
     // Resolve the dimensions of the track the selected event lives on. The
     // track comes from the event itself rather than from the UI track, because
     // one UI track can multiplex several trace processor tracks. Well known
@@ -102,6 +105,25 @@ export class TrackDimensionsSection implements TrackEventDetailsPanelSection {
       ),
     );
   }
+}
+
+// Whether the trace has any custom dimension, looked up once per trace: almost
+// no trace has any, and the section is loaded on every slice selection.
+const customDimensionsByTrace = new WeakMap<Trace, Promise<boolean>>();
+
+function hasCustomDimensions(trace: Trace): Promise<boolean> {
+  let result = customDimensionsByTrace.get(trace);
+  if (result === undefined) {
+    result = trace.engine
+      .query(
+        `SELECT EXISTS(
+          SELECT 1 FROM track_dimension WHERE NOT is_well_known
+        ) AS has_custom`,
+      )
+      .then((res) => res.firstRow({has_custom: NUM}).has_custom !== 0);
+    customDimensionsByTrace.set(trace, result);
+  }
+  return result;
 }
 
 // Shows the canonical value, with the optional display name next to it: joins
