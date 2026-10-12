@@ -423,7 +423,20 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
   for (auto it = track.dimensions(); it; ++it) {
     protos::pbzero::TrackDimension::Decoder dim(*it);
 
+    StringId name_id = kNullStringId;
     base::StringView name = dim.name();
+    if (dim.has_name_iid()) {
+      std::optional<StringId> interned = args.state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.name_iid());
+      if (!interned) {
+        RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
+                             track.uuid());
+        continue;
+      }
+      name_id = *interned;
+      name = context_->storage->GetString(name_id);
+    }
     if (name.empty()) {
       RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
                            track.uuid());
@@ -436,7 +449,8 @@ void TrackEventTokenizer::TokenizeTrackDimensions(
     }
 
     Reservation::Dimension out;
-    out.name = context_->storage->InternString(name);
+    out.name =
+        name_id.is_null() ? context_->storage->InternString(name) : name_id;
     if (dim.has_int_value()) {
       out.int_value = dim.int_value();
     } else if (dim.has_string_value()) {

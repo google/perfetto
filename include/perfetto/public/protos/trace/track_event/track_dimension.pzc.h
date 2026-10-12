@@ -29,6 +29,11 @@ PERFETTO_PB_MSG(perfetto_protos_TrackDimension);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDimension, STRING, const char*, name, 1);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDimension,
                   VARINT,
+                  uint64_t,
+                  name_iid,
+                  7);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDimension,
+                  VARINT,
                   int64_t,
                   int_value,
                   2);

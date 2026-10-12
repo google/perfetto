@@ -82,8 +82,8 @@ message InternedData {
   repeated InternedString debug_annotation_string_values = 29;
   // Interned correlation ids in track_event.
   repeated InternedString correlation_id_str = 43;
-  // Interned string values and display names of TrackDimensions (see
-  // TrackDimension.string_value_iid and TrackDimension.display_name_iid).
+  // Interned names, string values and display names of TrackDimensions (see
+  // TrackDimension.name_iid, string_value_iid and display_name_iid).
   repeated InternedString track_dimension_strings = 52;
 
   //

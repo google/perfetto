@@ -61,7 +61,12 @@ package perfetto.protos;
 message TrackDimension {
   // The canonical dimension key, e.g. "rank". Must be non-empty and must not
   // be one of the reserved names listed above.
-  optional string name = 1;
+  oneof name_field {
+    string name = 1;
+    // Interned version of `name`: corresponds to the `track_dimension_strings`
+    // field in InternedData, looked up like `string_value_iid`.
+    uint64 name_iid = 7;
+  }
 
   // The typed value of the dimension. This is the value used for SQL queries,
   // track identity and (for well-known dimensions) merging, so it must be
