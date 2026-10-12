@@ -924,11 +924,11 @@ namespace perfetto::trace_processor::stats {
       "for well known dimensions (machine, gpu, cpu, process, thread). These " \
       "are synthesized by trace processor and cannot be redefined: the "       \
       "dimension is ignored. This is a bug in the trace producer."),           \
-  F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kGlobal,           \
-      "A track declared a dimension which is already inherited from its "      \
-      "process, thread or ancestor track with a *different* value. The "       \
-      "inherited value is kept and the override is ignored. This is a bug in " \
-      "the trace producer."),                                                  \
+  F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension which it already inherits "      \
+      "from a parent_uuid ancestor, or declares twice, with a *different* "    \
+      "value. The inherited (or first declared) value is kept and the other "  \
+      "one is ignored. This is a bug in the trace producer."),                 \
   F(track_descriptor_invalid_child_ordering,    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor specified an invalid or unrecognized value for "      \
       "child_tracks_ordering. The descriptor is ignored. This is a bug in "    \

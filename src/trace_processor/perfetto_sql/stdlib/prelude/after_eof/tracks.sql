@@ -273,9 +273,11 @@ WHERE
 --    `thread.upid` for those.
 --  * *custom* dimensions are declared by producers with
 --    `TrackDescriptor.dimensions` (e.g. `rank` for a distributed training
---    job). They apply to the declaring track plus the tracks of the same
---    process/thread (if declared on a process/thread track) or its `parent_id`
---    descendants otherwise.
+--    job). They apply to the declaring track and its `parent_uuid`
+--    descendants, nothing else: e.g. a dimension declared on a process track
+--    only reaches the tracks of its threads if they are `parent_uuid` children
+--    of the process track. Use `thread.upid` to join the tracks of a thread to
+--    the tracks of its process otherwise.
 CREATE PERFETTO VIEW track_dimension(
   -- The track this dimension applies to.
   track_id JOINID(track.id),
@@ -297,60 +299,3 @@ CREATE PERFETTO VIEW track_dimension(
 AS
 SELECT track_id, name, int_value, string_value, display_name, is_well_known
 FROM __intrinsic_track_dimension;
-
--- The custom dimensions of every process, i.e. the ones declared on its root
--- `TrackDescriptor`.
---
--- Use it for event tables which carry their own `upid` (e.g. `gpu_slice`)
--- rather than inheriting it from the track.
-CREATE PERFETTO VIEW process_dimension(
-  -- The process this dimension applies to.
-  upid JOINID(process.id),
-  -- The canonical dimension name, e.g. 'rank'.
-  name STRING,
-  -- The value, for integer valued dimensions.
-  int_value LONG,
-  -- The value, for string valued dimensions.
-  string_value STRING,
-  -- Optional human readable label for this *value*.
-  display_name STRING,
-  -- Whether this is a well known dimension. Always false: the well known
-  -- identities of a process are columns of the `process` table.
-  is_well_known BOOL
-)
-AS
-SELECT upid, name, int_value, string_value, display_name, 0 AS is_well_known
-FROM __intrinsic_process_dimension;
-
--- The custom dimensions of every thread: the ones declared on its root
--- `TrackDescriptor` plus the ones it inherits from its process.
-CREATE PERFETTO VIEW thread_dimension(
-  -- The thread this dimension applies to.
-  utid JOINID(thread.id),
-  -- The canonical dimension name, e.g. 'rank'.
-  name STRING,
-  -- The value, for integer valued dimensions.
-  int_value LONG,
-  -- The value, for string valued dimensions.
-  string_value STRING,
-  -- Optional human readable label for this *value*.
-  display_name STRING,
-  -- Whether this is a well known dimension. Always false: the well known
-  -- identities of a thread are columns of the `thread` table.
-  is_well_known BOOL
-)
-AS
-SELECT utid, name, int_value, string_value, display_name, 0 AS is_well_known
-FROM __intrinsic_thread_dimension
-UNION ALL
--- The process of a thread can be learned or change during the trace, so the
--- inherited dimensions are joined through `thread.upid` rather than copied.
-SELECT
-  t.utid,
-  d.name,
-  d.int_value,
-  d.string_value,
-  d.display_name,
-  0 AS is_well_known
-FROM __intrinsic_process_dimension AS d
-JOIN thread AS t USING (upid);

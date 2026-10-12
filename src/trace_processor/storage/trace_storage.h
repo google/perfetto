@@ -251,20 +251,6 @@ class TraceStorage {
     return mutable_table<tables::TrackDimensionTable>();
   }
 
-  const tables::ProcessDimensionTable& process_dimension_table() const {
-    return table<tables::ProcessDimensionTable>();
-  }
-  tables::ProcessDimensionTable* mutable_process_dimension_table() {
-    return mutable_table<tables::ProcessDimensionTable>();
-  }
-
-  const tables::ThreadDimensionTable& thread_dimension_table() const {
-    return table<tables::ThreadDimensionTable>();
-  }
-  tables::ThreadDimensionTable* mutable_thread_dimension_table() {
-    return mutable_table<tables::ThreadDimensionTable>();
-  }
-
   const tables::GpuContextTable& gpu_context_table() const {
     return table<tables::GpuContextTable>();
   }

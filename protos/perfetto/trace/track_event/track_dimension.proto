@@ -39,12 +39,11 @@ package perfetto.protos;
 // `track_descriptor_reserved_dimension_name` import error.
 //
 // A dimension has no scope field: it is declared on the track described by the
-// containing TrackDescriptor and applies to that track plus:
-//  * every track associated with the same process, if declared on a process
-//    track,
-//  * every track associated with the same thread, if declared on a thread
-//    track,
-//  * every `parent_uuid` descendant, if declared on any other track.
+// containing TrackDescriptor and applies to that track and its `parent_uuid`
+// descendants, whether it is a process, thread or any other track. In
+// particular, a dimension declared on a process track doesn't apply to the
+// threads of the process unless their tracks are `parent_uuid` descendants of
+// the process track.
 //
 // Declaring a *different* value for a dimension name which is already
 // inherited from an ancestor is invalid: trace processor records an import

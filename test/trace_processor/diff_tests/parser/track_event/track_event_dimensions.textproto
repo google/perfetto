@@ -31,7 +31,8 @@ packet {
     sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
   }
 }
-# A thread of the process: inherits both dimensions through `upid`.
+# A thread of the process which isn't a parent_uuid child of the process track,
+# so it doesn't inherit its dimensions.
 packet {
   trusted_packet_sequence_id: 1
   timestamp: 0

@@ -17935,12 +17935,11 @@ message StateDescriptor {}
 // `track_descriptor_reserved_dimension_name` import error.
 //
 // A dimension has no scope field: it is declared on the track described by the
-// containing TrackDescriptor and applies to that track plus:
-//  * every track associated with the same process, if declared on a process
-//    track,
-//  * every track associated with the same thread, if declared on a thread
-//    track,
-//  * every `parent_uuid` descendant, if declared on any other track.
+// containing TrackDescriptor and applies to that track and its `parent_uuid`
+// descendants, whether it is a process, thread or any other track. In
+// particular, a dimension declared on a process track doesn't apply to the
+// threads of the process unless their tracks are `parent_uuid` descendants of
+// the process track.
 //
 // Declaring a *different* value for a dimension name which is already
 // inherited from an ancestor is invalid: trace processor records an import
@@ -18352,10 +18351,8 @@ message TrackDescriptor {
   // track can carry more than one independent dimension (e.g. `rank` and
   // `stage`).
   //
-  // Dimensions declared here are resolved onto this track *and* onto the
-  // tracks which inherit from it: tracks of the same process if `process` is
-  // set, tracks of the same thread if `thread` is set, and `parent_uuid`
-  // descendants otherwise. See TrackDimension for the full resolution rules.
+  // Dimensions declared here apply to this track and its `parent_uuid`
+  // descendants. See TrackDimension for the full resolution rules.
   //
   // Dimensions are part of the track's identity: every descriptor emitted for
   // this `uuid` must declare the same dimensions, starting with the first one,
