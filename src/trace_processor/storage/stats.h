@@ -915,10 +915,12 @@ namespace perfetto::trace_processor::stats {
       "start_us field. The packet is ignored. This is a bug in the trace "     \
       "producer."),                                                            \
   F(track_descriptor_invalid_dimension,         kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
-      "A TrackDescriptor declared a dimension without a name, without a "      \
-      "value or with an iid which is not in the interned data of the "         \
-      "sequence. The dimension is ignored (only its display name for an "      \
-      "unknown display_name_iid). This is a bug in the trace producer."),      \
+      "A TrackDescriptor declared a dimension without a name or without a "    \
+      "value, which is ignored, or with an iid which is not in the interned "  \
+      "data of the sequence. A descriptor with an unknown name or value iid "  \
+      "is ignored entirely, so that a later re-emission with the interned "    \
+      "data can still be reserved; an unknown display_name_iid only drops "    \
+      "the display name."),                                                    \
   F(track_descriptor_reserved_dimension_name,   kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor declared a custom dimension using a name reserved "   \
       "for well known dimensions (machine, gpu, cpu, process, thread). These " \

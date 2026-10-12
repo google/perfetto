@@ -1960,9 +1960,10 @@ class TrackEvent(TestSuite):
   # Dimension names, string values and display names can be interned with
   # `name_iid` / `string_value_iid` / `display_name_iid`. The resolved strings
   # are the name and value: they are the same identity (and merge key) as
-  # inline strings with the same contents. A name or value iid without
-  # interned data invalidates the dimension, a display name iid without
-  # interned data only drops the display name.
+  # inline strings with the same contents. A descriptor with a name or value
+  # iid without interned data is ignored, so that a re-emission with the
+  # interned data (e.g. after the original was lost) is still accepted. A
+  # display name iid without interned data only drops the display name.
   def test_track_event_dimensions_interned_string_value(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -2051,12 +2052,27 @@ class TrackEvent(TestSuite):
             dimensions { name_iid: 97 string_value: "fwd" }
           }
         }
+        packet {
+          trusted_packet_sequence_id: 2
+          timestamp: 0
+          incremental_state_cleared: true
+          sequence_flags: 2
+          interned_data {
+            track_dimension_strings { iid: 99 str: "fwd" }
+          }
+          track_descriptor {
+            uuid: 13
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "stage" string_value_iid: 99 }
+          }
+        }
         packet { trusted_packet_sequence_id: 1 timestamp: 1000
           track_event { track_uuid: 11 type: TYPE_INSTANT name: "interned" } }
         packet { trusted_packet_sequence_id: 1 timestamp: 2000
           track_event { track_uuid: 12 type: TYPE_INSTANT name: "inline" } }
         packet { trusted_packet_sequence_id: 1 timestamp: 3000
-          track_event { track_uuid: 13 type: TYPE_INSTANT name: "unknown_iid" } }
+          track_event { track_uuid: 13 type: TYPE_INSTANT name: "reemitted" } }
         packet { trusted_packet_sequence_id: 1 timestamp: 4000
           track_event {
             track_uuid: 14 type: TYPE_INSTANT name: "unknown_display_iid"
@@ -2073,7 +2089,9 @@ class TrackEvent(TestSuite):
         query="""
         SELECT
           s.name AS slice,
-          dense_rank() OVER (ORDER BY s.track_id) AS track_idx,
+          dense_rank() OVER (
+            ORDER BY (SELECT min(ts) FROM slice WHERE track_id = s.track_id)
+          ) AS track_idx,
           (
             SELECT string_value FROM track_dimension
             WHERE track_id = s.track_id AND name = 'stage'
@@ -2093,10 +2111,10 @@ class TrackEvent(TestSuite):
         "slice","track_idx","stage","stage_display_name","invalid"
         "interned",1,"fwd","forward pass",3
         "inline",1,"fwd","forward pass",3
-        "unknown_iid",2,"[NULL]","[NULL]",3
-        "unknown_display_iid",3,"bwd","[NULL]",3
+        "reemitted",1,"fwd","forward pass",3
+        "unknown_display_iid",2,"bwd","[NULL]",3
         "interned_name",1,"fwd","forward pass",3
-        "unknown_name_iid",2,"[NULL]","[NULL]",3
+        "unknown_name_iid",3,"[NULL]","[NULL]",3
         """))
 
   # Dimensions only flow down parent_uuid: a process or thread track is just a

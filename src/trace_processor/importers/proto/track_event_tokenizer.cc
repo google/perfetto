@@ -100,8 +100,12 @@ bool IsWellKnownDimensionName(base::StringView name) {
 
 // Parses `TrackDescriptor.dimensions` into |reservation|. Dimensions without a
 // name or value, or with a reserved (well known) name, are dropped and their
-// errors appended to |errors|.
-void ParseTrackDimensions(
+// errors appended to |errors|. Returns false if a name or value iid is not in
+// the interned data of the sequence (e.g. because that data was lost): the
+// whole descriptor must then be ignored rather than reserved with a partial
+// set of dimensions, which would make a later re-emission with the interned
+// data a conflicting reservation.
+bool ParseTrackDimensions(
     TraceProcessorContext* context,
     PacketSequenceStateGeneration* state,
     const protos::pbzero::TrackDescriptor::Decoder& track,
@@ -118,8 +122,7 @@ void ParseTrackDimensions(
           protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
           dim.name_iid());
       if (!interned) {
-        errors->push_back(stats::track_descriptor_invalid_dimension);
-        continue;
+        return false;
       }
       name_id = *interned;
       name = context->storage->GetString(name_id);
@@ -145,8 +148,7 @@ void ParseTrackDimensions(
           protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
           dim.string_value_iid());
       if (!out.string_value) {
-        errors->push_back(stats::track_descriptor_invalid_dimension);
-        continue;
+        return false;
       }
     } else {
       errors->push_back(stats::track_descriptor_invalid_dimension);
@@ -167,7 +169,7 @@ void ParseTrackDimensions(
     reservation->dimensions.push_back(out);
   }
   if (reservation->dimensions.empty()) {
-    return;
+    return true;
   }
 
   // Dimensions are part of the track identity, so they are normalized: sorted
@@ -190,6 +192,7 @@ void ParseTrackDimensions(
   }
   dims.resize(kept);
   reservation->dimensions_hash = Reservation::HashDimensions(dims);
+  return true;
 }
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
@@ -361,8 +364,12 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 
   if (track.has_dimensions()) {
     std::vector<size_t> dimension_errors;
-    ParseTrackDimensions(context_, args.state.get(), track, &reservation,
-                         &dimension_errors);
+    if (!ParseTrackDimensions(context_, args.state.get(), track, &reservation,
+                              &dimension_errors)) {
+      RecordTokenizationErrorWithTrackUuid(
+          stats::track_descriptor_invalid_dimension, track.uuid(), args.packet);
+      return ModuleResult::Handled();
+    }
     for (size_t stat : dimension_errors) {
       RecordTokenizationErrorWithTrackUuid(stat, track.uuid(), args.packet);
     }
