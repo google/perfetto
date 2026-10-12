@@ -175,7 +175,7 @@ RETURNS TableOrSubquery
 AS (
   -- 1. Cache base components
   WITH
-    base_components AS (
+    base_components AS MATERIALIZED (
       SELECT
         *
       FROM _wattson_base_components_avg_mw!($window_table)

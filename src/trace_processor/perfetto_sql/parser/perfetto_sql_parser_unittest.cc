@@ -628,7 +628,7 @@ TEST_F(PerfettoSqlParserTest, PipelineSyntaxErrors) {
                   .message(),
               HasSubstr("syntax error"));
   EXPECT_THAT(ParsePipeline("FROM slice |> WHERE dur > 0").status().message(),
-              HasSubstr("syntax error near 'WHERE'"));
+              HasSubstr("WHERE is not supported yet"));
   EXPECT_THAT(ParsePipeline("FROM a JOIN b ON a.x = b.y |> TREE ACCUMULATE "
                             "UP SUM(a) AS b")
                   .status()

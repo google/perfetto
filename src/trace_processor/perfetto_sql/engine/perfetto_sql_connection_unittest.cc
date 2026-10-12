@@ -1018,7 +1018,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest, Errors) {
   EXPECT_THAT(Rows("CREATE PERFETTO TABLE t AS FROM tree |> WHERE id = 1")
                   .status()
                   .message(),
-              testing::HasSubstr("syntax error near 'WHERE'"));
+              testing::HasSubstr("WHERE is not supported yet"));
   // Semantic analysis cannot yet describe every relation.
   EXPECT_THAT(Rows("FROM (VALUES (1, 2))").status().message(),
               testing::HasSubstr(

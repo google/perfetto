@@ -223,13 +223,6 @@ constexpr bool HasMurmurHashBuiltinValue() {
                         uint64_t>;
 }
 
-// Helper to check if two types are integeral and U is convertible to T.
-template <typename T, typename U>
-constexpr bool IsConvertibleIntegral() {
-  return std::is_integral_v<T> && std::is_integral_v<U> &&
-         std::is_convertible_v<U, T>;
-}
-
 // Helper to check if a type is string-like (i.e. string, c-string or string
 // views).
 template <typename T>
@@ -239,13 +232,24 @@ constexpr bool IsStringLike() {
          std::is_same_v<T, base::StringView> || std::is_same_v<T, const char*>;
 }
 
-// Helper to check if heterogeneous lookup is allowed between T and U.
-// Only allows it for convertible integral types and string-like types.
+// Helper to check if heterogeneous lookup is allowed between T and U: only
+// between string-like types. Other types (e.g. integers) are converted to T by
+// the caller instead, as converting them is cheap, and hashing them as is
+// could differ (e.g. a negative int hashed for a uint32_t key).
 template <typename T, typename U>
 constexpr bool AllowsHeterogeneousLookup() {
-  return IsConvertibleIntegral<T, U>() ||
-         (IsStringLike<T>() && IsStringLike<U>());
+  return IsStringLike<T>() && IsStringLike<U>();
 }
+
+// MurmurHash<T> is transparent (i.e. supports heterogeneous lookups) only for
+// string-like T.
+template <typename T, bool = IsStringLike<T>()>
+struct MurmurHashTransparency {};
+
+template <typename T>
+struct MurmurHashTransparency<T, true> {
+  using is_transparent = void;
+};
 
 // Helper to detect pointers in Combine(...).
 // Hashing pointers directly is prohibited as it often indicates a misuse
@@ -358,13 +362,10 @@ uint64_t MurmurHashValue(const T& value) {
 // std::hash<T> drop-in class which uses MurmurHashValue as the primitive.
 // All specializations consistently delegate to MurmurHashValue.
 template <typename T>
-struct MurmurHash {
-  using is_transparent = void;
-
+struct MurmurHash : murmur_internal::MurmurHashTransparency<T> {
   uint64_t operator()(const T& value) const { return MurmurHashValue(value); }
 
-  // Heterogeneous lookup support. Only allowed for types where it makes sense
-  // (e.g. string-like types and convertible integral types).
+  // Heterogeneous lookup support, between string-like types only.
   template <typename U>
   auto operator()(const U& value) const -> std::enable_if_t<
       murmur_internal::AllowsHeterogeneousLookup<T, std::decay_t<const U>>(),
