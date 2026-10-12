@@ -47,5 +47,10 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDimension,
                   const char*,
                   display_name,
                   4);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDimension,
+                  VARINT,
+                  uint64_t,
+                  display_name_iid,
+                  6);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACK_EVENT_TRACK_DIMENSION_PZC_H_

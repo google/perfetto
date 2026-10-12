@@ -1843,10 +1843,12 @@ class TrackEvent(TestSuite):
         "no_rank",3,"[NULL]"
         """))
 
-  # String dimension values can be interned with `string_value_iid`. The
-  # resolved string is the value: it is the same identity (and merge key) as an
-  # inline `string_value` with the same contents. An iid without interned data
-  # is invalid and ignored.
+  # String dimension values and display names can be interned with
+  # `string_value_iid` / `display_name_iid`. The resolved string is the value:
+  # it is the same identity (and merge key) as an inline `string_value` with
+  # the same contents. A value iid without interned data invalidates the
+  # dimension, a display name iid without interned data only drops the display
+  # name.
   def test_track_event_dimensions_interned_string_value(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -1856,7 +1858,8 @@ class TrackEvent(TestSuite):
           incremental_state_cleared: true
           sequence_flags: 2
           interned_data {
-            debug_annotation_string_values { iid: 1 str: "fwd" }
+            track_dimension_strings { iid: 1 str: "fwd" }
+            track_dimension_strings { iid: 2 str: "forward pass" }
           }
           track_descriptor {
             uuid: 10
@@ -1871,7 +1874,9 @@ class TrackEvent(TestSuite):
             uuid: 11
             parent_uuid: 10
             name: "step"
-            dimensions { name: "stage" string_value_iid: 1 }
+            dimensions {
+              name: "stage" string_value_iid: 1 display_name_iid: 2
+            }
           }
         }
         packet {
@@ -1896,12 +1901,30 @@ class TrackEvent(TestSuite):
             dimensions { name: "stage" string_value_iid: 99 }
           }
         }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          sequence_flags: 2
+          track_descriptor {
+            uuid: 14
+            parent_uuid: 10
+            name: "other"
+            dimensions {
+              name: "stage" string_value: "bwd" display_name_iid: 98
+            }
+          }
+        }
         packet { trusted_packet_sequence_id: 1 timestamp: 1000
           track_event { track_uuid: 11 type: TYPE_INSTANT name: "interned" } }
         packet { trusted_packet_sequence_id: 1 timestamp: 2000
           track_event { track_uuid: 12 type: TYPE_INSTANT name: "inline" } }
         packet { trusted_packet_sequence_id: 1 timestamp: 3000
           track_event { track_uuid: 13 type: TYPE_INSTANT name: "unknown_iid" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 4000
+          track_event {
+            track_uuid: 14 type: TYPE_INSTANT name: "unknown_display_iid"
+          }
+        }
         """),
         query="""
         SELECT
@@ -1912,6 +1935,10 @@ class TrackEvent(TestSuite):
             WHERE track_id = s.track_id AND name = 'stage'
           ) AS stage,
           (
+            SELECT display_name FROM track_dimension
+            WHERE track_id = s.track_id AND name = 'stage'
+          ) AS stage_display_name,
+          (
             SELECT value FROM stats
             WHERE name = 'track_descriptor_invalid_dimension'
           ) AS invalid
@@ -1919,8 +1946,9 @@ class TrackEvent(TestSuite):
         ORDER BY s.ts;
         """,
         out=Csv("""
-        "slice","track_idx","stage","invalid"
-        "interned",1,"fwd",1
-        "inline",1,"fwd",1
-        "unknown_iid",2,"[NULL]",1
+        "slice","track_idx","stage","stage_display_name","invalid"
+        "interned",1,"fwd","forward pass",2
+        "inline",1,"fwd","forward pass",2
+        "unknown_iid",2,"[NULL]","[NULL]",2
+        "unknown_display_iid",3,"bwd","[NULL]",2
         """))
