@@ -15,9 +15,8 @@
 import m from 'mithril';
 import {
   ClassNameWithWarning,
-  MERGED_CLASS_WARNING_DESCRIPTION,
   MERGED_CLASS_WARNING_ICON,
-  MERGED_CLASS_WARNING_TITLE,
+  mergedClassNodeTooltipRenderer,
 } from '../../../components/merged_class_warning';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
@@ -28,7 +27,6 @@ import {Flamegraph} from '../../../widgets/flamegraph';
 import {PopupPosition} from '../../../widgets/popup';
 import type {
   TreeExplorerData,
-  TreeExplorerMarker,
   TreeExplorerMetric,
   TreeExplorerNode,
   TreeExplorerState,
@@ -302,31 +300,24 @@ const CLASS_TREE: ReadonlyArray<ClassTreeSpec> = [
   },
 ];
 
-type MarkerStyle = 'icon' | 'square (existing)';
-
 const METRIC_NAME = 'Object Size';
 const FLAMEGRAPH_METRICS: ReadonlyArray<TreeExplorerMetric> = [
   {name: METRIC_NAME, unit: 'B', nameColumnLabel: 'Class'},
 ];
 
-function markerFor(style: MarkerStyle): TreeExplorerMarker {
-  if (style === 'icon') {
-    return {
-      name: MERGED_CLASS_WARNING_TITLE,
-      icon: MERGED_CLASS_WARNING_ICON,
-      description: MERGED_CLASS_WARNING_DESCRIPTION,
-    };
-  }
-  return {name: MERGED_CLASS_WARNING_TITLE};
-}
+// Column that would flag merged classes in the real heap graph query.
+const MERGED_PROPERTY = 'potentially_merged';
 
 function cumulative(spec: ClassTreeSpec): number {
   return (spec.children ?? []).reduce((s, c) => s + cumulative(c), spec.self);
 }
 
-function buildFlamegraphData(style: MarkerStyle): TreeExplorerData {
+// Builds the data the Flamegraph widget receives. In the real UI this is
+// produced by the tree explorer fetcher from a metric that sets
+// `optionalNodeIcon: mergedClassNodeIcon(...)` and
+// `optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(...)`.
+function buildFlamegraphData(): TreeExplorerData {
   const nodes: TreeExplorerNode[] = [];
-  const marker = markerFor(style);
   let nextId = 0;
   let maxDepth = 0;
 
@@ -341,6 +332,7 @@ function buildFlamegraphData(style: MarkerStyle): TreeExplorerData {
     const id = nextId++;
     const cum = cumulative(spec);
     maxDepth = Math.max(maxDepth, depth);
+    const merged = isMerged(spec.name) ? '1' : '0';
     nodes.push({
       id,
       parentId,
@@ -349,8 +341,18 @@ function buildFlamegraphData(style: MarkerStyle): TreeExplorerData {
       selfValue: spec.self,
       cumulativeValue: cum,
       parentCumulativeValue: parentCumulative,
-      properties: new Map(),
-      marker: isMerged(spec.name) ? marker : undefined,
+      properties: new Map([
+        [
+          MERGED_PROPERTY,
+          {
+            displayName: 'Potentially merged',
+            value: merged,
+            isVisible: false,
+            isAggregatable: false,
+          },
+        ],
+      ]),
+      icon: merged === '1' ? MERGED_CLASS_WARNING_ICON : undefined,
       xStart,
       xEnd: xStart + cum,
     });
@@ -375,19 +377,12 @@ function buildFlamegraphData(style: MarkerStyle): TreeExplorerData {
     maxDepth,
     nodeActions: [],
     rootActions: [],
+    renderNodeTooltip: mergedClassNodeTooltipRenderer(MERGED_PROPERTY),
   };
 }
 
-// Cached so the Flamegraph does not reset its zoom/hover on every redraw.
-const flamegraphDataCache = new Map<MarkerStyle, TreeExplorerData>();
-function flamegraphData(style: MarkerStyle): TreeExplorerData {
-  let data = flamegraphDataCache.get(style);
-  if (data === undefined) {
-    data = buildFlamegraphData(style);
-    flamegraphDataCache.set(style, data);
-  }
-  return data;
-}
+// Built once so the Flamegraph does not reset its zoom/hover on every redraw.
+const FLAMEGRAPH_DATA = buildFlamegraphData();
 
 let flamegraphState: TreeExplorerState = {
   selectedMetricId: METRIC_NAME,
@@ -493,32 +488,20 @@ export function renderMergedClassWarning(): m.Children {
         'p',
         'Flagged nodes draw the warning glyph before the class name on the ',
         'canvas. Hovering a node shows the warning as a callout at the top of ',
-        'the existing node tooltip, so there is only ever one tooltip. Switch ',
-        m('code', 'markerStyle'),
-        ' to compare with the existing small-square marker.',
+        'the existing node tooltip, so there is only ever one tooltip.',
       ),
     ]),
-    renderWidgetShowcase({
-      renderWidget: ({markerStyle}) =>
-        m(
-          '',
-          {style: {height: '220px', width: '100%'}},
-          m(Flamegraph, {
-            metrics: FLAMEGRAPH_METRICS,
-            state: flamegraphState,
-            data: flamegraphData(markerStyle as MarkerStyle),
-            onStateChange: (s) => {
-              flamegraphState = s;
-            },
-          }),
-        ),
-      initialOpts: {
-        markerStyle: new EnumOption<MarkerStyle[]>('icon', [
-          'icon',
-          'square (existing)',
-        ]),
-      },
-      noPadding: true,
-    }),
+    m(
+      '',
+      {style: {height: '220px'}},
+      m(Flamegraph, {
+        metrics: FLAMEGRAPH_METRICS,
+        state: flamegraphState,
+        data: FLAMEGRAPH_DATA,
+        onStateChange: (s) => {
+          flamegraphState = s;
+        },
+      }),
+    ),
   ];
 }

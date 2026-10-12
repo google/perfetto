@@ -38,3 +38,26 @@
 .pf-merged-class-warning__desc {
   color: var(--pf-color-text-muted);
 }
+
+// Same look as the callout originally prototyped inside the flamegraph
+// tooltip.
+.pf-merged-class-warning-callout {
+  display: flex;
+  gap: 6px;
+  max-width: 360px;
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--pf-color-warning);
+  background: color-mix(in srgb, var(--pf-color-warning) 10%, transparent);
+  font-size: var(--pf-font-size-s);
+}
+
+.pf-merged-class-warning-callout__title {
+  font-weight: 600;
+}
+
+.pf-merged-class-warning-callout__desc {
+  white-space: normal;
+  color: var(--pf-color-text-muted);
+  padding-top: 2px;
+}
