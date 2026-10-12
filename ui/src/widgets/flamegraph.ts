@@ -38,12 +38,15 @@ import {hash} from '../base/hash';
 import {escapeRegex} from './flamegraph_regex';
 import type {MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
+import {Icon} from './icon';
+import {Intent} from './common';
 import {
   type ActionCategory,
   FILTER_TYPES,
   type FilterType,
   type TreeExplorerData,
   type TreeExplorerFilter,
+  type TreeExplorerMarker,
   type TreeExplorerMetric,
   type TreeExplorerNode,
   type TreeExplorerOptionalAction,
@@ -61,6 +64,12 @@ const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
 const LABEL_PADDING_PX = 5;
 const LABEL_MIN_WIDTH_FOR_TEXT_PX = 5;
+const MARKER_LEFT_MARGIN_PX = 2;
+const MARKER_SQUARE_SIZE_PX = 3;
+const MARKER_SQUARE_MIN_NODE_WIDTH_PX = 15;
+const MARKER_ICON_SIZE_PX = 14;
+const MARKER_ICON_GAP_PX = 2; // Between the icon and the label.
+const MARKER_ICON_FONT_STYLE = `${MARKER_ICON_SIZE_PX}px Material Symbols Sharp`;
 const PADDING_NODE_COUNT = 8;
 
 interface BaseSource {
@@ -497,30 +506,20 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       ctx.fillStyle = bgColor.cssString;
       ctx.fillRect(x, y, width - 1, NODE_HEIGHT - 1);
 
-      // Render marker
-      const MARKER_SIZE = 3;
-      const MARKER_LEFT_MARGIN = 2;
-      const MIN_WIDTH_FOR_MARKER = 15; // Don't show marker on very small nodes
-      const hasMarker =
-        source.kind === 'NODE' &&
-        nodes[source.queryIdx].marker !== undefined &&
-        width >= MIN_WIDTH_FOR_MARKER;
-      if (hasMarker) {
-        ctx.fillStyle = textColor.cssString;
-        const markerX = x + MARKER_LEFT_MARGIN;
-        const markerY = y + 2; // Position at top of node with small margin
-        ctx.fillRect(markerX, markerY, MARKER_SIZE, MARKER_SIZE);
-      }
-
-      // Text positioning - no need to reserve space since marker is in top corner
-      const widthNoPadding = width - LABEL_PADDING_PX * 2;
-      if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
+      const marker =
+        source.kind === 'NODE' ? nodes[source.queryIdx].marker : undefined;
+      const labelStart =
+        marker !== undefined
+          ? drawNodeMarker(ctx, marker, x, y, width, textColor.cssString)
+          : LABEL_PADDING_PX;
+      const labelWidth = width - labelStart - LABEL_PADDING_PX;
+      if (labelWidth >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
         ctx.fillStyle = textColor.cssString;
         ctx.fillText(
-          name.substring(0, widthNoPadding / this.labelCharWidth),
-          x + LABEL_PADDING_PX,
+          name.substring(0, labelWidth / this.labelCharWidth),
+          x + labelStart,
           y + (NODE_HEIGHT - 1) / 2,
-          widthNoPadding,
+          labelWidth,
         );
       }
       if (highlighted) {
@@ -627,8 +626,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     return m(
       'div',
       // Show marker at the top of the tooltip
-      marker &&
-        m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
+      marker && renderTooltipMarker(marker),
       m(
         '.tooltip-text-line',
         m('.tooltip-bold-text', `${nameLabel}:`),
@@ -1120,6 +1118,66 @@ export function buildFlamegraphExportString(
     default:
       assertUnreachable(format);
   }
+}
+
+// Draws `marker` at the left edge of a flamegraph node and returns the x
+// offset, relative to the node's left edge, at which the label should start.
+// Square markers sit in the top-left corner and leave the label where it is;
+// icon markers sit inline before the label and push it right. Markers that
+// do not fit in the node are not drawn.
+function drawNodeMarker(
+  ctx: CanvasRenderingContext2D,
+  marker: TreeExplorerMarker,
+  x: number,
+  y: number,
+  width: number,
+  color: string,
+): number {
+  ctx.fillStyle = color;
+  if (marker.icon !== undefined) {
+    const labelStart =
+      MARKER_LEFT_MARGIN_PX + MARKER_ICON_SIZE_PX + MARKER_ICON_GAP_PX;
+    if (width < labelStart) {
+      return LABEL_PADDING_PX;
+    }
+    ctx.font = MARKER_ICON_FONT_STYLE;
+    ctx.fillText(
+      marker.icon,
+      x + MARKER_LEFT_MARGIN_PX,
+      y + (NODE_HEIGHT - 1) / 2,
+    );
+    // Restore the label font, which the caller relies on.
+    ctx.font = LABEL_FONT_STYLE;
+    return labelStart;
+  }
+  if (width >= MARKER_SQUARE_MIN_NODE_WIDTH_PX) {
+    ctx.fillRect(
+      x + MARKER_LEFT_MARGIN_PX,
+      y + 2,
+      MARKER_SQUARE_SIZE_PX,
+      MARKER_SQUARE_SIZE_PX,
+    );
+  }
+  return LABEL_PADDING_PX;
+}
+
+function renderTooltipMarker(marker: TreeExplorerMarker): m.Children {
+  if (marker.icon === undefined) {
+    return m(
+      '.tooltip-text-line',
+      m('.tooltip-marker-text', `■ ${marker.name}`),
+    );
+  }
+  return m(
+    '.pf-flamegraph-tooltip-marker',
+    m(Icon, {icon: marker.icon, intent: Intent.Warning}),
+    m(
+      '.pf-flamegraph-tooltip-marker__body',
+      m('.tooltip-bold-text', marker.name),
+      marker.description !== undefined &&
+        m('.pf-flamegraph-tooltip-marker__desc', marker.description),
+    ),
+  );
 }
 
 function computeRenderNodes(
