@@ -83,7 +83,9 @@ void PopEnd(FlexVector<Live>& heap) {
 // AggregateDeltas), then a slot for each live interval.
 constexpr uint32_t kFirstSlot = 2 * kMaxBatchRows;
 
-// The same for every tree, so built once.
+// The same for every run, so it is shared instead of stored in each run's
+// state. It is built on first use instead of being constexpr, which keeps its
+// ~24 KB out of the binary.
 struct Tree {
   Tree() {
     for (uint32_t k = 0; k < kFirstSlot; ++k) {
