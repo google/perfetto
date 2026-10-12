@@ -38,6 +38,15 @@ import {
 } from '../../../base/trace_converter';
 
 import {showModal} from '../../../widgets/modal';
+import {
+  mergedClassNodeIcon,
+  mergedClassNodeTooltipRenderer,
+} from '../../../components/merged_class_warning';
+import {
+  MERGED_CLASS_FLAMEGRAPH_PROPERTY,
+  MERGED_CLASS_PROPERTY,
+  mergedClassColumnSql,
+} from '../../dev.perfetto.HeapProfile/merged_class_sql';
 import {NUM} from '../../../trace_processor/query_result';
 
 // Referenced by session.openFlamegraphPivotedAt.
@@ -62,6 +71,7 @@ interface FlamegraphViewAttrs {
 const UNAGG_PROPS = [
   {name: 'root_type', displayName: 'Root Type'},
   {name: 'heap_type', displayName: 'Heap Type'},
+  MERGED_CLASS_FLAMEGRAPH_PROPERTY,
   {
     name: 'path_hash_stable',
     displayName: 'Path Hash',
@@ -106,14 +116,19 @@ function buildMetric(
         heap_type,
         ${valueColumn} as value,
         ${otherCol},
-        CAST(path_hash_stable AS TEXT) AS path_hash_stable
-      from ${tree}
+        CAST(path_hash_stable AS TEXT) AS path_hash_stable,
+        ${mergedClassColumnSql('t.name')}
+      from ${tree} t
       where graph_sample_ts = ${ts} and upid = ${upid}
     `,
     unaggregatableProperties: UNAGG_PROPS,
     aggregatableProperties:
       valueColumn === 'self_size' ? [SELF_COUNT_AGG_PROP] : [],
     optionalNodeActions: [showObjectsAction],
+    optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
+    optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
+      MERGED_CLASS_PROPERTY,
+    ),
   };
 }
 

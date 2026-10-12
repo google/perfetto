@@ -52,6 +52,15 @@ import {Icon} from '../../widgets/icon';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
+  mergedClassNodeIcon,
+  mergedClassNodeTooltipRenderer,
+} from '../../components/merged_class_warning';
+import {
+  MERGED_CLASS_FLAMEGRAPH_PROPERTY,
+  MERGED_CLASS_PROPERTY,
+  mergedClassColumnSql,
+} from './merged_class_sql';
+import {
   buildOomeCallstackMetrics,
   loadOomeDetails,
   renderOomeDetails,
@@ -444,13 +453,15 @@ function flamegraphMetrics(
               heap_type,
               self_size as value,
               self_count,
-              path_hash_stable
-            from _heap_graph_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name')}
+            from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -471,6 +482,10 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
+          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
+          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
+            MERGED_CLASS_PROPERTY,
+          ),
         },
         {
           name: 'Object Count',
@@ -486,13 +501,15 @@ function flamegraphMetrics(
               heap_type,
               self_size,
               self_count as value,
-              path_hash_stable
-            from _heap_graph_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name')}
+            from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -508,6 +525,10 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
+          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
+          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
+            MERGED_CLASS_PROPERTY,
+          ),
         },
         {
           name: 'Dominated Object Size',
@@ -523,13 +544,15 @@ function flamegraphMetrics(
               heap_type,
               self_size as value,
               self_count,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name')}
+            from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -550,6 +573,10 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
+          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
+          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
+            MERGED_CLASS_PROPERTY,
+          ),
         },
         {
           name: 'Dominated Object Count',
@@ -565,13 +592,15 @@ function flamegraphMetrics(
               heap_type,
               self_size,
               self_count as value,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name')}
+            from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -587,6 +616,10 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
+          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
+          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
+            MERGED_CLASS_PROPERTY,
+          ),
         },
       ];
     case ProfileType.OOME_CALLSTACK:

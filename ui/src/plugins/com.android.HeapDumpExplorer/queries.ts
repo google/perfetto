@@ -250,6 +250,24 @@ export async function hasFieldValues(engine: Engine): Promise<boolean> {
   return res.iter({}).valid();
 }
 
+// Names (deobfuscated where possible) of classes that may include other
+// classes merged in by app optimization (e.g. R8 class merging). Empty unless
+// the trace includes a deobfuscation mapping.
+export async function getPotentiallyMergedClasses(
+  engine: Engine,
+): Promise<ReadonlySet<string>> {
+  const res = await engine.query(`
+    SELECT DISTINCT coalesce(deobfuscated_name, name) AS name
+    FROM heap_graph_class
+    WHERE potentially_merged
+  `);
+  const names = new Set<string>();
+  for (const it = res.iter({name: STR}); it.valid(); it.next()) {
+    names.add(it.name);
+  }
+  return names;
+}
+
 export async function getOverview(
   engine: Engine,
   activeDump: HeapDump,

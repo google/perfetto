@@ -130,6 +130,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        potentiallyMergedClasses: session.potentiallyMergedClasses,
         initialRootClass:
           state.view === 'classes' ? state.params.rootClass : undefined,
       }),
@@ -142,6 +143,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
+        potentiallyMergedClasses: session.potentiallyMergedClasses,
         initialClass: state.view === 'objects' ? state.params.cls : undefined,
       }),
     },
@@ -152,6 +154,7 @@ function buildTabs(
         engine,
         activeDump,
         navigate: navigateWithTabs,
+        potentiallyMergedClasses: session.potentiallyMergedClasses,
       }),
     },
     {
@@ -186,6 +189,7 @@ function buildTabs(
         engine,
         activeDump,
         navigate: navigateWithTabs,
+        potentiallyMergedClasses: session.potentiallyMergedClasses,
         clearNavParam,
         initialArrayHash:
           state.view === 'arrays' ? state.params.arrayHash : undefined,
@@ -222,6 +226,7 @@ function buildTabs(
       content: m(FlamegraphObjectsView, {
         engine,
         navigate: navigateWithTabs,
+        potentiallyMergedClasses: session.potentiallyMergedClasses,
         pathHashes: fg.pathHashes,
         isDominator: fg.isDominator,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
@@ -249,6 +254,7 @@ function buildTabs(
         navigate: navigateWithTabs,
         openFlamegraphPivotedAt: session.openFlamegraphPivotedAt.bind(session),
         params: {id: obj.objId},
+        potentiallyMergedClasses: session.potentiallyMergedClasses,
       }),
     });
     actions.set(key, {

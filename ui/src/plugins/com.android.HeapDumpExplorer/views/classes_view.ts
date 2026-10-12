@@ -33,6 +33,7 @@ import type {HeapDump} from '../types';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {ClassNameWithWarning} from '../../../components/merged_class_warning';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
@@ -40,6 +41,7 @@ interface ClassesViewAttrs {
   readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly initialRootClass?: string;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 const PREAMBLE =
@@ -60,19 +62,25 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     cls: {
       title: 'Class',
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m(
-          Anchor,
-          {
-            onclick: () => navigate('objects', {cls: String(value)}),
-          },
-          String(value),
-        ),
+        m(ClassNameWithWarning, {
+          name: m(
+            Anchor,
+            {
+              onclick: () => navigate('objects', {cls: String(value)}),
+            },
+            String(value),
+          ),
+          potentiallyMerged: potentiallyMergedClasses.has(String(value)),
+        }),
     },
     cnt: {
       title: 'Count',
@@ -161,7 +169,7 @@ export function ClassesView({
       counter.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, potentiallyMergedClasses} = vnode.attrs;
 
       return m(
         DetailsShell,
@@ -173,7 +181,7 @@ export function ClassesView({
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(navigate, potentiallyMergedClasses),
           data: datasource,
           fillHeight: true,
           initialColumns: [
