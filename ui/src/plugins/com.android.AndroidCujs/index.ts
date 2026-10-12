@@ -171,35 +171,17 @@ function generateLatencyCujTrackConfig(cujNames: string | string[] = []) {
 const LATENCY_CUJ_QUERY = `
     SELECT
       CASE
-        WHEN
-          EXISTS(
-              SELECT 1
-              FROM slice AS cuj_state_marker
-                     JOIN track marker_track
-                          ON marker_track.id = cuj_state_marker.track_id
-              WHERE
-                cuj_state_marker.ts >= cuj.ts
-                AND cuj_state_marker.ts + cuj_state_marker.dur <= cuj.ts + cuj.dur
-                AND marker_track.name = cuj.name AND (
-                    cuj_state_marker.name GLOB 'cancel'
-                    OR cuj_state_marker.name GLOB 'timeout')
-            )
-          THEN ' ❌ '
+        WHEN state IN ('canceled', 'timeout') THEN ' ❌ '
         ELSE ' ✅ '
-        END || cuj.name AS name,
-      cuj.dur / 1e6 as dur_ms,
-      cuj.ts,
-      cuj.dur,
-      cuj.track_id,
-      cuj.slice_id
-    FROM slice AS cuj
-           JOIN process_track AS pt
-                ON cuj.track_id = pt.id
-    WHERE cuj.name GLOB 'L<*>'
-      AND cuj.dur > 0
+      END || cuj_slice_name AS name,
+      dur / 1e6 AS dur_ms,
+      ts,
+      dur,
+      slice_id
+    FROM android_sysui_latency_cujs
 `;
 
-const LATENCY_COLUMNS = ['name', 'dur_ms', 'ts', 'dur', 'track_id', 'slice_id'];
+const LATENCY_COLUMNS = ['name', 'dur_ms', 'ts', 'dur', 'slice_id'];
 
 const ALL_BLOCKING_CALLS_OPTION = 'all blocking calls';
 
@@ -209,26 +191,19 @@ const BLOCKING_CALLS_PRECONDITIONS = `
 
 const BLOCKING_CALLS_PROCESSES_QUERY = `
     INCLUDE PERFETTO MODULE android.cujs.base;
-    SELECT DISTINCT process.name AS process_name
-    FROM process_track
-    JOIN slice ON slice.track_id = process_track.id
-    JOIN process USING (upid)
-    WHERE _is_cuj_slice!(slice)
-      AND slice.dur > 0
-      AND process.name IS NOT NULL
-    ORDER BY process.name
+    SELECT DISTINCT process_name
+    FROM android_cuj_processes
+    ORDER BY process_name
 `;
 
 function blockingCallNamesForProcessQuery(processName: string): string {
   const escapedProcess = processName.replace(/'/g, "''");
   return `
-    SELECT DISTINCT bc.name
-    FROM android_cuj_blocking_calls bc
-    JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
-    WHERE bc.utid = cuj.ui_thread
-      AND bc.process_name = '${escapedProcess}'
-      AND bc.name IS NOT NULL
-    ORDER BY bc.name
+    SELECT DISTINCT name
+    FROM android_cuj_blocking_calls
+    WHERE process_name = '${escapedProcess}'
+      AND name IS NOT NULL
+    ORDER BY name
   `;
 }
 
@@ -239,25 +214,23 @@ function blockingCallsDuringCujsQuery(
   const escapedProcess = processName.replace(/'/g, "''");
   const blockingCallFilter =
     blockingCallName !== undefined
-      ? `AND bc.name = '${blockingCallName.replace(/'/g, "''")}'`
+      ? `AND name = '${blockingCallName.replace(/'/g, "''")}'`
       : '';
   return `
     SELECT DISTINCT
-      bc.slice_id,
-      bc.name,
-      bc.ts,
-      bc.ts_end,
-      bc.dur,
-      bc.cuj_id,
-      bc.cuj_name,
-      bc.process_name,
-      bc.upid,
-      bc.utid,
+      slice_id,
+      name,
+      ts,
+      ts_end,
+      dur,
+      cuj_id,
+      cuj_name,
+      process_name,
+      upid,
+      utid,
       'slice' AS table_name
-    FROM android_cuj_blocking_calls bc
-    JOIN android_jank_latency_cujs cuj USING (cuj_id, cuj_type, upid)
-    WHERE bc.utid = cuj.ui_thread
-      AND bc.process_name = '${escapedProcess}'
+    FROM android_cuj_blocking_calls
+    WHERE process_name = '${escapedProcess}'
       ${blockingCallFilter}
   `;
 }
@@ -292,7 +265,7 @@ function generateCujTrackConfig(
   // This method expects the caller to have run JANK_CUJ_QUERY_PRECONDITIONS
   // Not running the precondition query here to save time in case already run
   const inList = cujNameInList(cujNames);
-  const filterCuj = inList ? ` AND cuj.name IN (${inList})` : '';
+  const filterCuj = inList ? ` WHERE cuj_slice_name IN (${inList})` : '';
 
   return {
     data: {
@@ -338,11 +311,13 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'com.android.ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
-      callback: () =>
+      callback: async () => {
+        await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
         ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: LATENCY_CUJ_QUERY,
           title: 'Android Latency CUJs',
-        }),
+        });
+      },
     });
 
     ctx.commands.registerCommand({
@@ -360,6 +335,7 @@ export default class implements PerfettoPlugin {
   }
 
   async pinLatencyCujs(ctx: Trace) {
+    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
     await addDebugSliceTrack({
       trace: ctx,
       data: {

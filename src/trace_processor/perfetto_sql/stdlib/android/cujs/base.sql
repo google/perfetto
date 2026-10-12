@@ -403,3 +403,26 @@ WHERE
   OR (state IS NULL AND cuj.dur > 4e6)
 ORDER BY
   ts;
+
+-- Distinct processes that emitted at least one jank or latency CUJ.
+CREATE PERFETTO VIEW android_cuj_processes(
+  -- Process upid.
+  upid JOINID(process.id),
+  -- Process pid.
+  pid LONG,
+  -- Name of the process emitting CUJs.
+  process_name STRING
+)
+AS
+SELECT DISTINCT
+  process.upid AS upid,
+  process.pid AS pid,
+  process.name AS process_name
+FROM process_track
+JOIN slice
+  ON slice.track_id = process_track.id
+JOIN process USING (upid)
+WHERE
+  _is_cuj_slice!(slice)
+  AND slice.dur > 0
+  AND process.name IS NOT NULL;
