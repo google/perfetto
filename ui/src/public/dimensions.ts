@@ -23,8 +23,7 @@
 // The generic collapse pass which turns these labels into track subtitles lives
 // in the dev.perfetto.TrackDimensions plugin.
 
-// A single effective dimension of a track/process/thread, as returned by trace
-// processor.
+// A single effective dimension of a track, as returned by trace processor.
 export interface Dimension {
   readonly name: string;
   readonly intValue?: number | null;
@@ -81,15 +80,15 @@ export function formatDimensionLabels(
 }
 
 /**
- * The shared collapse rule, which decides which dimensions are labelled:
- *  - integer dimensions are identifiers, so they are only worth showing when
- *    they disambiguate something, i.e. when the trace has more than one
- *    distinct value for them. E.g. the `rank` of a trace recorded by a single
- *    training process is not labelled.
- *  - string dimensions are always labelled: they are typically emitted to be
- *    shown, e.g. the frame titles of a Chrome renderer process.
- * Dimensions which already have a specialized presentation are never labelled
- * here.
+ * The shared collapse rule: a dimension is only labelled when it disambiguates
+ * something, i.e. when it has more than one distinct value, whatever the type
+ * of its values. E.g. the `rank` of a trace recorded by a single training
+ * process is not labelled. Dimensions collapse independently, and the ones
+ * which already have a specialized presentation are never labelled here.
+ *
+ * Distinct values are counted across the whole trace: a first cut of the RFC's
+ * "applicable tracks", which labels a dimension with several values anywhere
+ * in the trace on every track it applies to.
  *
  * @param dimensions Every effective dimension in the trace.
  * @returns The names of the dimensions which should be labelled.
@@ -98,17 +97,13 @@ export function visibleDimensionNames(
   dimensions: ReadonlyArray<Dimension>,
 ): Set<string> {
   const values = new Map<string, Set<string>>();
-  const visible = new Set<string>();
   for (const dimension of dimensions) {
     if (PRESENTED_ELSEWHERE.has(dimension.name)) continue;
-    if (dimension.intValue === undefined || dimension.intValue === null) {
-      visible.add(dimension.name);
-      continue;
-    }
     const distinct = values.get(dimension.name) ?? new Set<string>();
     distinct.add(dimensionValue(dimension));
     values.set(dimension.name, distinct);
   }
+  const visible = new Set<string>();
   for (const [name, distinct] of values) {
     if (distinct.size > 1) visible.add(name);
   }
