@@ -59,7 +59,8 @@ uint64_t ToOrderedKey(K key) {
 template <typename It, typename Key>
 void SortByKey(It begin, It end, Key key) {
   using T = typename std::iterator_traits<It>::value_type;
-  PERFETTO_DCHECK(end - begin <= std::numeric_limits<uint32_t>::max());
+  PERFETTO_DCHECK(static_cast<uint64_t>(end - begin) <=
+                  std::numeric_limits<uint32_t>::max());
   auto size = static_cast<uint32_t>(end - begin);
   if (size < 2) {
     return;
