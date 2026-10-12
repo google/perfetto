@@ -19,9 +19,9 @@
 
 #include <cstdint>
 #include <optional>
-#include <unordered_map>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 
@@ -83,10 +83,12 @@ class TrackEventDimensionResolver {
   TraceProcessorContext* const context_;
   TraceStorage* const storage_;
 
-  std::unordered_map<uint32_t, DimensionVec> by_upid_;
-  std::unordered_map<uint32_t, DimensionVec> by_utid_;
-  std::unordered_map<uint32_t, DimensionVec> by_track_;
-  std::unordered_map<uint32_t, DimensionVec> resolved_;
+  base::FlatHashMap<UniquePid, DimensionVec> by_upid_;
+  base::FlatHashMap<UniqueTid, DimensionVec> by_utid_;
+  base::FlatHashMap<uint32_t /* TrackId */, DimensionVec> by_track_;
+  // Memoized results of |Resolve|. Note that inserting invalidates pointers
+  // and references to the values.
+  base::FlatHashMap<uint32_t /* TrackId */, DimensionVec> resolved_;
 };
 
 }  // namespace perfetto::trace_processor
