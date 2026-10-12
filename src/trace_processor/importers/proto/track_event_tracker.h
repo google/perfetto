@@ -144,29 +144,24 @@ class TrackEventTracker {
     // Whether |other| declares the same dimension names and values (display
     // names only affect presentation and are ignored).
     bool HasSameDimensions(const DescriptorTrackReservation& other) const {
-      return dimensions_hash == other.dimensions_hash &&
-             SameDimensions(dimensions, other.dimensions);
-    }
-
-    // Hash of the names and typed values of |dims|, sorted by name. Display
-    // names only affect presentation and are not part of it.
-    static uint64_t HashDimensions(const std::vector<Dimension>& dims);
-
-    // Whether |a| and |b|, both sorted by name, have the same dimension names
-    // and values. Display names only affect presentation and are ignored.
-    static bool SameDimensions(const std::vector<Dimension>& a,
-                               const std::vector<Dimension>& b) {
-      if (a.size() != b.size()) {
+      if (dimensions_hash != other.dimensions_hash ||
+          dimensions.size() != other.dimensions.size()) {
         return false;
       }
-      for (size_t i = 0; i < a.size(); ++i) {
-        if (std::tie(a[i].name, a[i].int_value, a[i].string_value) !=
-            std::tie(b[i].name, b[i].int_value, b[i].string_value)) {
+      for (size_t i = 0; i < dimensions.size(); ++i) {
+        const Dimension& a = dimensions[i];
+        const Dimension& b = other.dimensions[i];
+        if (std::tie(a.name, a.int_value, a.string_value) !=
+            std::tie(b.name, b.int_value, b.string_value)) {
           return false;
         }
       }
       return true;
     }
+
+    // Hash of the names and typed values of |dims|, sorted by name. Display
+    // names only affect presentation and are not part of it.
+    static uint64_t HashDimensions(const std::vector<Dimension>& dims);
   };
 
   // A descriptor track which has been resolved to a concrete track in the
@@ -499,10 +494,6 @@ class TrackEventTracker {
   // Whether any descriptor declared custom dimensions: if none did, no track
   // has any and |RecordTrackDimensions| has nothing to do.
   bool has_dimensions_ = false;
-  // The custom dimensions recorded for each track created once any descriptor
-  // declared dimensions, so that a track shared by several descriptors (e.g.
-  // a thread track) can be checked to be claimed with the same dimensions.
-  base::FlatHashMap<uint32_t /* TrackId */, DimensionVec> dimensions_by_track_;
 
   const StringId source_key_;
   const StringId source_id_key_;

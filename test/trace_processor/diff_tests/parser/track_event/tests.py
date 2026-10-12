@@ -2295,6 +2295,46 @@ class TrackEvent(TestSuite):
         "slice","on_standalone","stage=fwd"
         """))
 
+  # Two thread descriptors for the same tid don't share the thread track: the
+  # second one is a tid reuse and gets a thread of its own, so each track gets
+  # the dimensions of a single descriptor whatever the order they are parsed
+  # in.
+  def test_track_event_dimensions_same_tid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          incremental_state_cleared: true
+          track_descriptor { uuid: 20 thread { pid: 10 tid: 11 } } }
+        packet { trusted_packet_sequence_id: 2 timestamp: 100
+          incremental_state_cleared: true
+          track_descriptor { uuid: 21 thread { pid: 10 tid: 11 }
+            dimensions { name: "rank" int_value: 3 } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 200
+          track_event { track_uuid: 20 type: TYPE_INSTANT name: "without" } }
+        packet { trusted_packet_sequence_id: 2 timestamp: 300
+          track_event { track_uuid: 21 type: TYPE_INSTANT name: "with" } }
+        """),
+        query="""
+        SELECT
+          s.name AS slice,
+          t.tid,
+          (
+            SELECT group_concat(d.name || '=' || d.int_value, ',')
+            FROM track_dimension AS d
+            WHERE d.track_id = s.track_id AND NOT d.is_well_known
+          ) AS dimensions,
+          (SELECT count(DISTINCT utid) FROM thread WHERE tid = 11) AS threads
+        FROM slice AS s
+        JOIN thread_track AS tt ON tt.id = s.track_id
+        JOIN thread AS t USING (utid)
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "slice","tid","dimensions","threads"
+        "without",11,"[NULL]",2
+        "with",11,"rank=3",2
+        """))
+
   # Writing dimensions as tracks are created doesn't depend on the order in
   # which tracks and descriptors show up: a track gets the dimensions of its own
   # descriptor and its parent_uuid ancestors, never the ones of descriptors it

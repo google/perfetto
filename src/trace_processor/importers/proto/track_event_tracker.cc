@@ -827,18 +827,13 @@ void TrackEventTracker::RecordTrackDimensions(uint64_t uuid, TrackId track_id) {
   if (!has_dimensions_) {
     return;
   }
+  // Every track gets its dimensions from a single descriptor, so they never
+  // need reconciling: the siblings sharing a merged track have the same
+  // dimensions (they are part of the merge key), and the thread track of a
+  // root thread descriptor is not shared with another descriptor (one for the
+  // same tid is a tid reuse and gets a new thread) but only with tracks of
+  // other data sources, which have no custom dimensions.
   const DimensionVec& dims = ResolveDimensions(uuid);
-  // Dimensions are part of the identity of a track, so a descriptor sharing a
-  // track with another one (e.g. the thread track) must declare the same
-  // dimensions: otherwise it is a conflicting reservation and the dimensions
-  // of the first descriptor are kept.
-  auto [it, inserted] = dimensions_by_track_.Insert(track_id.value, dims);
-  if (!inserted) {
-    if (!DescriptorTrackReservation::SameDimensions(*it, dims)) {
-      RecordTrackError(stats::track_descriptor_conflicting_reservation, uuid);
-    }
-    return;
-  }
   auto* table = context_->storage->mutable_track_dimension_table();
   for (const auto& dim : dims) {
     tables::TrackDimensionTable::Row row;
