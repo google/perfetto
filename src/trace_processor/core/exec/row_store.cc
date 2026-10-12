@@ -133,7 +133,8 @@ uint32_t RowStore::View(RowBatch* out,
     }
     ColumnBuffer buffer = context.TakeBuffer();
     ColumnChunk& chunk = buffer.chunk();
-    chunk.Gather(views_, sources.data(), batch_rows.data(), count, &bases_);
+    chunk.Gather(views_, sources.data(), batch_rows.data(), count, nullable_[c],
+                 &bases_);
     out->AddColumn(chunk.View(first.column(c), nullable_[c]),
                    std::move(buffer));
   }

@@ -51,11 +51,13 @@ struct ColumnChunk {
 
   // Copies, for each i below `count`, batch row rows[i] of views[sources[i]]
   // into this chunk at i. The views hold one type. The type is dispatched on
-  // once, however the rows interleave the views; `bases` is scratch.
+  // once, however the rows interleave the views. `nullable` is whether any of
+  // `views` has nulls; `bases` is scratch.
   void Gather(const std::vector<const ColumnView*>& views,
               const uint32_t* sources,
               const uint32_t* rows,
               uint32_t count,
+              bool nullable,
               std::vector<const void*>* bases);
 
   // Copies the first `count` of `data`, present where `present` says if not

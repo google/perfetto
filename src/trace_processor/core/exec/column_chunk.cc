@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
@@ -146,11 +147,11 @@ void ColumnChunk::Gather(const std::vector<const ColumnView*>& views,
                          const uint32_t* sources,
                          const uint32_t* rows,
                          uint32_t count,
+                         bool nullable,
                          std::vector<const void*>* bases) {
-  bool nullable = false;
   bool sequence = false;
   for (const ColumnView* view : views) {
-    nullable |= view->validity() != nullptr;
+    PERFETTO_DCHECK(nullable || !view->validity());
     sequence |= view->kind() == ColumnView::Kind::kSequence;
   }
   DispatchOnType(*views[0], [&](auto type) {
@@ -200,18 +201,7 @@ ColumnView ColumnChunk::View(const ColumnView& source, bool nullable) const {
     return ColumnView::Variants(Values<Variant>());
   }
   auto type = source.type().Is<Id>() ? StorageType{Uint32{}} : source.type();
-  const void* data;
-  if (type.Is<Uint32>()) {
-    data = Values<uint32_t>();
-  } else if (type.Is<Int32>()) {
-    data = Values<int32_t>();
-  } else if (type.Is<Int64>()) {
-    data = Values<int64_t>();
-  } else if (type.Is<Double>()) {
-    data = Values<double>();
-  } else {
-    data = Values<StringPool::Id>();
-  }
-  return ColumnView::Reference(type, data, nullable ? &validity : nullptr);
+  return ColumnView::Reference(type, storage.data(),
+                               nullable ? &validity : nullptr);
 }
 }  // namespace perfetto::trace_processor::core::exec
