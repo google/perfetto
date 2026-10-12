@@ -62,13 +62,14 @@ inline uint32_t GetRadix(const uint8_t* key, size_t byte_offset) {
 //    incremented to ensure that the next element with the same radix is placed
 //    at the next position, maintaining stability.
 template <uint32_t kRadixBits, typename T, typename KeyExtractor>
-void CountingSortPass(T* source_begin,
+bool CountingSortPass(T* source_begin,
                       T* source_end,
                       T* dest_begin,
                       size_t byte_offset,
                       KeyExtractor key_extractor,
                       uint32_t* counts) {
   constexpr uint32_t kRadixSize = 1u << kRadixBits;
+  const auto num_elements = static_cast<uint32_t>(source_end - source_begin);
 
   // 1. Count frequencies of each radix value.
   memset(counts, 0, kRadixSize * sizeof(uint32_t));
@@ -82,6 +83,9 @@ void CountingSortPass(T* source_begin,
   uint32_t total = 0;
   for (uint32_t i = 0; i < kRadixSize; ++i) {
     uint32_t old_count = counts[i];
+    if (old_count == num_elements) {
+      return false;
+    }
     counts[i] = total;
     total += old_count;
   }
@@ -95,6 +99,7 @@ void CountingSortPass(T* source_begin,
     uint32_t& pos = counts[GetRadix<kRadixBits>(key, byte_offset)];
     dest_begin[pos++] = *it;
   }
+  return true;
 }
 
 }  // namespace internal
@@ -157,17 +162,19 @@ T* RadixSort(T* begin,
   // Process in 16-bit (2-byte) chunks for as long as possible.
   while (remaining >= 2) {
     size_t byte_offset = static_cast<size_t>(remaining - 2);
-    internal::CountingSortPass<16>(source, source + num_elements, dest,
-                                   byte_offset, key_extractor, counts);
-    // Swap buffers for the next pass.
-    std::swap(source, dest);
+    if (internal::CountingSortPass<16>(source, source + num_elements, dest,
+                                       byte_offset, key_extractor, counts)) {
+      // Swap buffers for the next pass.
+      std::swap(source, dest);
+    }
     remaining -= 2;
   }
   // If there's a remaining byte, process it in a final 8-bit pass.
   if (remaining == 1) {
-    internal::CountingSortPass<8>(source, source + num_elements, dest, 0,
-                                  key_extractor, counts);
-    std::swap(source, dest);
+    if (internal::CountingSortPass<8>(source, source + num_elements, dest, 0,
+                                      key_extractor, counts)) {
+      std::swap(source, dest);
+    }
   }
   // The `source` pointer now points to the buffer with the sorted data.
   return source;
