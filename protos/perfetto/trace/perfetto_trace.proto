@@ -15798,7 +15798,7 @@ message EventName {
 // Note: field IDs up to 15 should be used for frequent data only.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 51.
+// Next id: 53.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
