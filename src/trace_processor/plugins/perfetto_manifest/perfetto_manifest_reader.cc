@@ -136,6 +136,11 @@ base::StatusOr<ClockOverride> ParseClocks(const json::Dom& clocks) {
     result.ref_clock = ref_clock;
   }
 
+  if (sync_to.HasMember("offset_ns")) {
+    return base::ErrStatus(
+        "perfetto_manifest: clocks: offset_ns belongs in the clocks block, "
+        "not inside sync_to.");
+  }
   if (clocks.HasMember("offset_ns")) {
     if (!clocks["offset_ns"].IsIntegral()) {
       return base::ErrStatus(
