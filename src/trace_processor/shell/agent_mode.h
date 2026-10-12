@@ -22,7 +22,6 @@
 #include <string>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/shell/result_formatter.h"
 
 namespace perfetto::trace_processor::shell {
 
@@ -45,9 +44,6 @@ struct AgentMode {
 AgentMode DecideAgentMode(std::optional<bool> force,
                           bool explicit_format,
                           bool stdout_is_tty);
-
-// Result output defaults in agent mode. Explicit flags take precedence.
-ResultFormatOptions AgentResultFormatOptions();
 
 // Status payload key: the 1-based index of the SQL statement which failed.
 // Reported by FormatErrorAsJson.

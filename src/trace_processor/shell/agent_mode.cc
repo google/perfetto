@@ -25,7 +25,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/shell/result_formatter.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/util/simple_json_serializer.h"
 
@@ -126,16 +125,6 @@ AgentMode DecideAgentMode(std::optional<bool> force,
   mode.detected_env_var = DetectAgentEnvVar();
   mode.enabled = mode.detected_env_var.has_value();
   return mode;
-}
-
-ResultFormatOptions AgentResultFormatOptions() {
-  ResultFormatOptions options;
-  options.format = ResultFormat::kMarkdown;
-  options.max_rows = 1000;
-  options.max_bytes = 10000;
-  options.max_cell_chars = 500;
-  options.max_rows_past_limit = 100000;
-  return options;
 }
 
 void PrintAgentModeNotice(const AgentMode& mode) {

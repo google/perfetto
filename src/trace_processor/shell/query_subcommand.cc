@@ -172,8 +172,7 @@ first rows and a note is printed to stderr.
 Agent mode is on when run by a coding agent (detected from its environment,
 e.g. CLAUDECODE or AI_AGENT) with stdout not a terminal and no --format;
 --agent / --no-agent force it on or off. In agent mode, results default to
-markdown capped at 1000 rows / 10KB with cells cut at 500 characters, and
-errors are printed as JSON.
+markdown and errors are printed as JSON.
 
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
@@ -216,7 +215,7 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
 base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat(
     const AgentMode& agent_mode) {
   ResultFormatOptions options =
-      agent_mode.enabled ? AgentResultFormatOptions() : ResultFormatOptions();
+      agent_mode.enabled ? DefaultMarkdownOptions() : ResultFormatOptions();
   if (format_ == "csv") {
     options.format = ResultFormat::kCsv;
   } else if (format_ == "markdown") {
