@@ -35,12 +35,14 @@ base::Status RunQueriesWithoutOutput(TraceProcessor* trace_processor,
                                      const std::string& sql_query);
 
 // Runs every statement in |sql_query| and prints each result set to |output|
-// in |format|.
+// in |format|. If |statements_started| is not null, it is set to the number
+// of statements started: on error, the 1-based index of the failing one.
 base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
                                       const std::string& sql_query,
                                       const ResultFormatOptions& format,
                                       FILE* output,
-                                      bool quiet);
+                                      bool quiet,
+                                      uint32_t* statements_started);
 
 base::Status RunQueries(TraceProcessor* trace_processor,
                         const std::string& queries,

@@ -98,6 +98,29 @@ struct SubprocessResult {
   std::string out;
 };
 
+// Agent mode (see src/trace_processor/shell/agent_mode.cc) changes the output
+// of `query` when the shell is run by a coding agent. Unset the variables
+// which turn it on, so that tests see the same output whoever runs them: the
+// shell inherits this process's environment.
+void UnsetAgentEnvVars() {
+  static constexpr const char* kAgentEnvVars[] = {
+      "AI_AGENT",
+      "AGENT",
+      "CLAUDECODE",
+      "CODEX_CI",
+      "CODEX_SANDBOX",
+      "CODEX_THREAD_ID",
+      "CURSOR_AGENT",
+      "GEMINI_CLI",
+      "COPILOT_AGENT",
+      "COPILOT_CLI",
+      "COPILOT_AGENT_SESSION_ID",
+  };
+  for (const char* var : kAgentEnvVars) {
+    base::UnsetEnv(var);
+  }
+}
+
 // Runs trace_processor_shell with the given args. stdout and stderr are both
 // captured into `out`.
 SubprocessResult RunShell(std::initializer_list<std::string> extra_args) {
@@ -106,6 +129,7 @@ SubprocessResult RunShell(std::initializer_list<std::string> extra_args) {
   for (const auto& a : extra_args) {
     p.args.exec_cmd.push_back(a);
   }
+  UnsetAgentEnvVars();
   p.args.stdin_mode = base::Subprocess::InputMode::kDevNull;
   p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
   p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
@@ -831,6 +855,17 @@ TEST(TraceProcessorShellIntegrationTest, QueryZeroRowResultPrintsHeader) {
       {"query", trace.path(), "SELECT 1 AS empty_but_visible WHERE 0"});
   EXPECT_EQ(result.exit_code, 0) << result.out;
   EXPECT_THAT(result.out, HasSubstr("empty_but_visible"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryAgentMode) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell(
+      {"query", "--agent", trace.path(), "SELECT 1 AS a; SELECT nope"});
+  EXPECT_EQ(result.exit_code, 1) << result.out;
+  // Results printed before the error come first.
+  EXPECT_THAT(result.out,
+              HasSubstr("| a |\n|---|\n| 1 |\n"
+                        R"({"error":"no such column: nope","statement":2,)"));
 }
 
 TEST(TraceProcessorShellIntegrationTest, QueryNoTraceError) {
