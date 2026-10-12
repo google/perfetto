@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
@@ -96,6 +97,101 @@ using protos::pbzero::CounterDescriptor;
 bool IsWellKnownDimensionName(base::StringView name) {
   return name == "machine" || name == "gpu" || name == "cpu" ||
          name == "process" || name == "thread";
+}
+
+// Parses `TrackDescriptor.dimensions` into |reservation|. Dimensions without a
+// name or value, or with a reserved (well known) name, are dropped and their
+// errors appended to |errors|.
+void ParseTrackDimensions(
+    TraceProcessorContext* context,
+    PacketSequenceStateGeneration* state,
+    const protos::pbzero::TrackDescriptor::Decoder& track,
+    TrackEventTracker::DescriptorTrackReservation* reservation,
+    std::vector<size_t>* errors) {
+  using Reservation = TrackEventTracker::DescriptorTrackReservation;
+  for (auto it = track.dimensions(); it; ++it) {
+    protos::pbzero::TrackDimension::Decoder dim(*it);
+
+    StringId name_id = kNullStringId;
+    base::StringView name = dim.name();
+    if (dim.has_name_iid()) {
+      std::optional<StringId> interned = state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.name_iid());
+      if (!interned) {
+        errors->push_back(stats::track_descriptor_invalid_dimension);
+        continue;
+      }
+      name_id = *interned;
+      name = context->storage->GetString(name_id);
+    }
+    if (name.empty()) {
+      errors->push_back(stats::track_descriptor_invalid_dimension);
+      continue;
+    }
+    if (IsWellKnownDimensionName(name)) {
+      errors->push_back(stats::track_descriptor_reserved_dimension_name);
+      continue;
+    }
+
+    Reservation::Dimension out;
+    out.name =
+        name_id.is_null() ? context->storage->InternString(name) : name_id;
+    if (dim.has_int_value()) {
+      out.int_value = dim.int_value();
+    } else if (dim.has_string_value()) {
+      out.string_value = context->storage->InternString(dim.string_value());
+    } else if (dim.has_string_value_iid()) {
+      out.string_value = state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.string_value_iid());
+      if (!out.string_value) {
+        errors->push_back(stats::track_descriptor_invalid_dimension);
+        continue;
+      }
+    } else {
+      errors->push_back(stats::track_descriptor_invalid_dimension);
+      continue;
+    }
+    if (dim.has_display_name()) {
+      out.display_name = context->storage->InternString(dim.display_name());
+    } else if (dim.has_display_name_iid()) {
+      // The display name only affects presentation: an unknown iid drops it
+      // but keeps the dimension.
+      out.display_name = state->InternedStringId(
+          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
+          dim.display_name_iid());
+      if (!out.display_name) {
+        errors->push_back(stats::track_descriptor_invalid_dimension);
+      }
+    }
+    reservation->dimensions.push_back(out);
+  }
+  if (reservation->dimensions.empty()) {
+    return;
+  }
+
+  // Dimensions are part of the track identity: sort them by name so that the
+  // declaration order doesn't matter and hash the interned ids of the names
+  // and values. The hash is part of the sibling merge key, while
+  // |IsForSameTrack| compares the sorted dimensions themselves. Display names
+  // only affect presentation, so they are not part of either.
+  auto& dims = reservation->dimensions;
+  std::stable_sort(
+      dims.begin(), dims.end(),
+      [](const Reservation::Dimension& a, const Reservation::Dimension& b) {
+        return a.name.raw_id() < b.name.raw_id();
+      });
+  base::FnvHasher hasher;
+  for (const auto& dim : dims) {
+    hasher.Update(dim.name.raw_id());
+    if (dim.int_value) {
+      hasher.Update(*dim.int_value);
+    } else {
+      hasher.Update(dim.string_value->raw_id());
+    }
+  }
+  reservation->dimensions_hash = hasher.digest();
 }
 
 class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
@@ -266,7 +362,12 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   }
 
   if (track.has_dimensions()) {
-    TokenizeTrackDimensions(args, track, reservation);
+    std::vector<size_t> dimension_errors;
+    ParseTrackDimensions(context_, args.state.get(), track, &reservation,
+                         &dimension_errors);
+    for (size_t stat : dimension_errors) {
+      RecordTokenizationErrorWithTrackUuid(stat, track.uuid(), args.packet);
+    }
   }
 
   if (args.decoder.has_trusted_pid()) {
@@ -414,113 +515,6 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
 }  // namespace perfetto::trace_processor
-
-void TrackEventTokenizer::TokenizeTrackDimensions(
-    const TokenizePacketArgs& args,
-    const protos::pbzero::TrackDescriptor::Decoder& track,
-    TrackEventTracker::DescriptorTrackReservation& reservation) {
-  using Reservation = TrackEventTracker::DescriptorTrackReservation;
-  for (auto it = track.dimensions(); it; ++it) {
-    protos::pbzero::TrackDimension::Decoder dim(*it);
-
-    StringId name_id = kNullStringId;
-    base::StringView name = dim.name();
-    if (dim.has_name_iid()) {
-      std::optional<StringId> interned = args.state->InternedStringId(
-          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
-          dim.name_iid());
-      if (!interned) {
-        RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
-                             track.uuid());
-        continue;
-      }
-      name_id = *interned;
-      name = context_->storage->GetString(name_id);
-    }
-    if (name.empty()) {
-      RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
-                           track.uuid());
-      continue;
-    }
-    if (IsWellKnownDimensionName(name)) {
-      RecordDimensionError(stats::track_descriptor_reserved_dimension_name,
-                           args, track.uuid());
-      continue;
-    }
-
-    Reservation::Dimension out;
-    out.name =
-        name_id.is_null() ? context_->storage->InternString(name) : name_id;
-    if (dim.has_int_value()) {
-      out.int_value = dim.int_value();
-    } else if (dim.has_string_value()) {
-      out.string_value = context_->storage->InternString(dim.string_value());
-    } else if (dim.has_string_value_iid()) {
-      out.string_value = args.state->InternedStringId(
-          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
-          dim.string_value_iid());
-      if (!out.string_value) {
-        RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
-                             track.uuid());
-        continue;
-      }
-    } else {
-      RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
-                           track.uuid());
-      continue;
-    }
-    if (dim.has_display_name()) {
-      out.display_name = context_->storage->InternString(dim.display_name());
-    } else if (dim.has_display_name_iid()) {
-      // The display name only affects presentation: an unknown iid drops it
-      // but keeps the dimension.
-      out.display_name = args.state->InternedStringId(
-          protos::pbzero::InternedData::kTrackDimensionStringsFieldNumber,
-          dim.display_name_iid());
-      if (!out.display_name) {
-        RecordDimensionError(stats::track_descriptor_invalid_dimension, args,
-                             track.uuid());
-      }
-    }
-    reservation.dimensions.push_back(out);
-  }
-  if (reservation.dimensions.empty()) {
-    return;
-  }
-
-  // Dimensions are part of the track identity: sort them by name so that the
-  // declaration order doesn't matter and hash the interned ids of the names
-  // and values. The hash is part of the sibling merge key, while
-  // |IsForSameTrack| compares the sorted dimensions themselves. Display names
-  // only affect presentation, so they are not part of either.
-  auto& dims = reservation.dimensions;
-  std::stable_sort(
-      dims.begin(), dims.end(),
-      [](const Reservation::Dimension& a, const Reservation::Dimension& b) {
-        return a.name.raw_id() < b.name.raw_id();
-      });
-  base::FnvHasher hasher;
-  for (const auto& dim : dims) {
-    hasher.Update(dim.name.raw_id());
-    if (dim.int_value) {
-      hasher.Update(*dim.int_value);
-    } else {
-      hasher.Update(dim.string_value->raw_id());
-    }
-  }
-  reservation.dimensions_hash = hasher.digest();
-}
-
-void TrackEventTokenizer::RecordDimensionError(size_t stat_key,
-                                               const TokenizePacketArgs& args,
-                                               uint64_t track_uuid) {
-  context_->import_logs_tracker->RecordTokenizationLog(
-      stat_key, args.packet->offset(),
-      [this, track_uuid](ArgsTracker::BoundInserter& inserter) {
-        inserter.AddArg(track_uuid_key_id_,
-                        Variadic::UnsignedInteger(track_uuid));
-      });
-}
 
 ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     const TokenizePacketArgs& args) {
