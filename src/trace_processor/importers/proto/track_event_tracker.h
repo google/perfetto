@@ -31,7 +31,6 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/importers/proto/track_event_dimension_resolver.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -82,7 +81,13 @@ class TrackEventTracker {
     };
 
     // A producer-declared custom dimension (see TrackDescriptor.dimensions).
-    using Dimension = TrackEventDimensionResolver::Dimension;
+    // Exactly one of |int_value| / |string_value| is set.
+    struct Dimension {
+      StringId name = kNullStringId;
+      std::optional<int64_t> int_value;
+      std::optional<StringId> string_value;
+      std::optional<StringId> display_name;
+    };
 
     uint64_t parent_uuid = 0;
     std::optional<int64_t> pid;
@@ -373,11 +378,6 @@ class TrackEventTracker {
 
   void OnFirstPacketOnSequence(uint32_t packet_sequence_id);
 
-  // Called once all events have been extracted: records the dimensions
-  // declared by every descriptor track into the declaration table and resolves
-  // them into the effective dimensions of every track.
-  void OnEventsFullyExtracted();
-
   std::optional<int64_t> range_of_interest_start_us() const {
     return range_of_interest_start_us_;
   }
@@ -392,10 +392,9 @@ class TrackEventTracker {
     std::optional<ResolvedDescriptorTrack> resolved = std::nullopt;
     std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
         track_id_or_factory = std::nullopt;
-    // Whether the dimensions declared on this descriptor have already been
-    // written to the declaration table.
-    bool dimensions_recorded = false;
   };
+
+  using DimensionVec = std::vector<DescriptorTrackReservation::Dimension>;
 
   std::optional<TrackId> InternDescriptorTrackForParent(
       uint64_t uuid,
@@ -431,6 +430,10 @@ class TrackEventTracker {
       s = descriptor_tracks_state_.Find(uuid);
       PERFETTO_CHECK(s);
       s->track_id_or_factory = std::move(res);
+      // Merged tracks record their dimensions as they are created instead.
+      if (auto* track_id = std::get_if<TrackId>(&*s->track_id_or_factory)) {
+        RecordTrackDimensions(uuid, *track_id);
+      }
     }
     return s;
   }
@@ -453,12 +456,23 @@ class TrackEventTracker {
                     bool,
                     ArgsTracker::BoundInserter&);
 
-  // Writes the dimensions declared on the descriptor track |uuid| into the
-  // `__intrinsic_track_dimension_decl` table, anchoring them to the process,
-  // thread or track they were declared on, and hands them to
-  // |dimension_resolver_|, which turns them into the effective dimensions of
-  // every track.
-  void RecordDeclaredDimensions(uint64_t uuid, std::optional<TrackId>);
+  // If the descriptor |uuid| is the root track of a process or thread (as
+  // described by |resolved|), records the custom dimensions it declares as
+  // dimensions of that process or thread: they apply to every track of the
+  // process or thread created from then on.
+  void RecordScopeDimensions(uint64_t uuid,
+                             const ResolvedDescriptorTrack& resolved);
+
+  // Computes the custom dimensions of |track_id|, the track created for the
+  // descriptor |uuid|, and writes them to the track dimension table. These are
+  // the dimensions of its process, of its thread, of its parent track and the
+  // ones declared on the descriptor itself.
+  void RecordTrackDimensions(uint64_t uuid, TrackId track_id);
+
+  // Appends the dimensions of |dims| to |out|, skipping the names |out|
+  // already has: repeating the same value is deduplicated while a different
+  // value records `track_dimension_conflicting_value`.
+  void MergeDimensions(const DimensionVec& dims, DimensionVec* out);
 
   // Helper to record analysis errors with track_uuid arg
   void RecordTrackError(size_t stat_key, uint64_t track_uuid);
@@ -472,7 +486,13 @@ class TrackEventTracker {
 
   std::unordered_set<uint32_t> sequences_with_first_packet_;
 
-  TrackEventDimensionResolver dimension_resolver_;
+  // Custom dimensions declared on root process/thread descriptors. Thread
+  // dimensions exclude the ones inherited from the process.
+  base::FlatHashMap<UniquePid, DimensionVec> dimensions_by_upid_;
+  base::FlatHashMap<UniqueTid, DimensionVec> dimensions_by_utid_;
+  // Custom dimensions of the tracks created by this class which have any, so
+  // that their children can inherit them.
+  base::FlatHashMap<uint32_t /* TrackId */, DimensionVec> dimensions_by_track_;
 
   const StringId source_key_;
   const StringId source_id_key_;

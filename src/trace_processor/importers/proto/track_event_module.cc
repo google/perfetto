@@ -103,7 +103,6 @@ void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
 
 void TrackEventModule::OnEventsFullyExtracted() {
   parser_.OnEventsFullyExtracted();
-  track_event_tracker_->OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor

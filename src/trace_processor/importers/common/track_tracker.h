@@ -197,6 +197,9 @@ class TrackTracker {
                    uint32_t,
                    const SetArgsCallback&);
 
+  // Writes a well known dimension (see the `track_dimension` table) of |track|.
+  void AddWellKnownDimension(TrackId track, StringId name, int64_t value);
+
   template <typename BlueprintT>
   PERFETTO_ALWAYS_INLINE TrackId InternTrackInner(
       const BlueprintT& bp,
@@ -242,6 +245,11 @@ class TrackTracker {
   TraceProcessorContext* const context_;
   ArgsTracker args_tracker_;
   StringId description_key_id_;
+  StringId machine_dimension_id_;
+  StringId process_dimension_id_;
+  StringId thread_dimension_id_;
+  StringId cpu_dimension_id_;
+  StringId gpu_dimension_id_;
 };
 
 }  // namespace perfetto::trace_processor

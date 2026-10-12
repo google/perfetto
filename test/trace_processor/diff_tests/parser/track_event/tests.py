@@ -1954,3 +1954,133 @@ class TrackEvent(TestSuite):
         "unknown_iid",2,"[NULL]","[NULL]",2
         "unknown_display_iid",3,"bwd","[NULL]",2
         """))
+
+  # Dimensions declared on a thread descriptor apply to every track of the
+  # thread on top of the ones inherited from its process. A thread declaration
+  # conflicting with its process is ignored (and counted once).
+  def test_track_event_dimensions_thread(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            process { pid: 100 process_name: "trainer" }
+            dimensions { name: "rank" int_value: 3 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 11
+            thread { pid: 100 tid: 101 thread_name: "worker" }
+            dimensions { name: "stage" string_value: "fwd" }
+            dimensions { name: "rank" int_value: 4 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 12
+            parent_uuid: 11
+            name: "child"
+            sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 1000
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "on_thread" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 2000
+          track_event { track_uuid: 12 type: TYPE_INSTANT name: "on_child" } }
+        """),
+        query="""
+        SELECT
+          'thread' AS kind,
+          NULL AS slice,
+          d.name,
+          coalesce(d.int_value, d.string_value) AS value
+        FROM thread_dimension AS d
+        JOIN thread USING (utid)
+        WHERE thread.tid = 101
+        UNION ALL
+        SELECT
+          'track' AS kind,
+          s.name AS slice,
+          d.name,
+          coalesce(d.int_value, d.string_value) AS value
+        FROM slice AS s
+        JOIN track_dimension AS d USING (track_id)
+        WHERE d.is_well_known = 0
+        UNION ALL
+        SELECT 'stat' AS kind, NULL AS slice, name, value
+        FROM stats
+        WHERE name = 'track_dimension_conflicting_value'
+        ORDER BY kind, slice, name;
+        """,
+        out=Csv("""
+        "kind","slice","name","value"
+        "stat","[NULL]","track_dimension_conflicting_value",1
+        "thread","[NULL]","rank",3
+        "thread","[NULL]","stage","fwd"
+        "track","on_child","rank",3
+        "track","on_child","stage","fwd"
+        "track","on_thread","rank",3
+        "track","on_thread","stage","fwd"
+        """))
+
+  # Well known dimensions are written by trace processor for every track, not
+  # only track event ones. Tracks only associated with a thread have no
+  # `process` dimension.
+  def test_track_event_dimensions_well_known_all_tracks(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 0
+              cpu_frequency { state: 1000000 cpu_id: 1 }
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 11
+            thread { pid: 100 tid: 101 thread_name: "worker" }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 2000
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "tick" } }
+        """),
+        query="""
+        SELECT
+          t.type,
+          (
+            SELECT group_concat(n, ',')
+            FROM (
+              SELECT
+                CASE
+                  WHEN d.name IN ('cpu', 'machine')
+                    THEN d.name || '=' || d.int_value
+                  ELSE d.name
+                END AS n
+              FROM track_dimension AS d
+              WHERE d.track_id = t.id AND d.is_well_known
+              ORDER BY d.name
+            )
+          ) AS dimensions
+        FROM track AS t
+        ORDER BY t.type;
+        """,
+        out=Csv("""
+        "type","dimensions"
+        "cpu_frequency","cpu=1,machine=0"
+        "thread_execution","machine=0,thread"
+        """))
