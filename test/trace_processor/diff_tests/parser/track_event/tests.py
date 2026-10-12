@@ -1884,6 +1884,79 @@ class TrackEvent(TestSuite):
         "no_rank",3,"[NULL]"
         """))
 
+  # Siblings are merged on their effective dimensions, inherited ones
+  # included: a sibling redundantly declaring the rank of its parent is merged
+  # with one which only inherits it, but not with one which has another
+  # dimension.
+  def test_track_event_dimensions_merge_effective(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            process { pid: 100 process_name: "trainer" }
+            dimensions { name: "rank" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 11
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "rank" int_value: 1 }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor { uuid: 12 parent_uuid: 10 name: "step" }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 13
+            parent_uuid: 10
+            name: "step"
+            dimensions { name: "stage" string_value: "fwd" }
+          }
+        }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "redundant" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 200
+          track_event { track_uuid: 12 type: TYPE_INSTANT name: "inherited" } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 300
+          track_event { track_uuid: 13 type: TYPE_INSTANT name: "other" } }
+        """),
+        query="""
+        SELECT
+          s.name AS slice,
+          dense_rank() OVER (
+            ORDER BY (SELECT min(ts) FROM slice WHERE track_id = s.track_id)
+          ) AS track_idx,
+          (
+            SELECT group_concat(d.name || '=' || coalesce(d.int_value, d.string_value), ',')
+            FROM (
+              SELECT * FROM track_dimension
+              WHERE track_id = s.track_id AND NOT is_well_known
+              ORDER BY name
+            ) AS d
+          ) AS dimensions
+        FROM slice AS s
+        ORDER BY s.ts;
+        """,
+        out=Csv("""
+        "slice","track_idx","dimensions"
+        "redundant",1,"rank=1"
+        "inherited",1,"rank=1"
+        "other",2,"rank=1,stage=fwd"
+        """))
+
   # Dimension names, string values and display names can be interned with
   # `name_iid` / `string_value_iid` / `display_name_iid`. The resolved strings
   # are the name and value: they are the same identity (and merge key) as
