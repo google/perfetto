@@ -42,7 +42,11 @@ ORDER BY
 CREATE PERFETTO TABLE _mipmap_flat_slice AS
 SELECT _slice_flattened.*
 FROM _slice_flattened
-JOIN _mipmap_startup USING (utid);
+JOIN _mipmap_startup USING (utid)
+JOIN track
+  ON _slice_flattened.track_id = track.id
+WHERE
+  track.type = 'thread_execution';
 
 -- Span join flattened slices with thread states to get thread state information for each slice.
 CREATE VIRTUAL TABLE _mipmap_flat_slice_thread_states_and_slices_sp USING SPAN_LEFT_JOIN(
