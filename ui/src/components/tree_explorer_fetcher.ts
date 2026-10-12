@@ -134,7 +134,8 @@ export interface TreeExplorerQueryMetric {
 
   // Optional custom renderer for a node's flamegraph tooltip. Receives the
   // default tooltip content and returns what to show, e.g. to add content
-  // above or below it.
+  // above or below it. Also used, with null default content, for the hover
+  // text of the node's icon in the Call Tree and Functions tables.
   readonly optionalNodeTooltipRenderer?: TreeExplorerNodeTooltipRenderer;
 }
 

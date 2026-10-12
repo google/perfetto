@@ -55,6 +55,8 @@ export type TreeExplorerNodeIconFn = (
 
 // Renders a node's tooltip. Receives the default tooltip content and returns
 // what to show instead, e.g. the default content with extra content added.
+// The Call Tree and Functions tables have no node tooltip; they call this with
+// null default content and show the result when hovering the node's icon.
 export type TreeExplorerNodeTooltipRenderer = (
   ctx: TreeExplorerActionContext,
   defaultContent: m.Children,

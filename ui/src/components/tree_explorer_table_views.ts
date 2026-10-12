@@ -39,6 +39,8 @@ import type {
 } from './widgets/datagrid/data_source';
 import type {IdBasedTree} from './widgets/datagrid/model';
 import type {Row, SqlValue} from '../trace_processor/query_result';
+import {Icon} from '../widgets/icon';
+import {Tooltip} from '../widgets/tooltip';
 
 const DEFAULT_TREE: IdBasedTree = {
   idField: 'id',
@@ -60,13 +62,16 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
   private source?: TreeExplorerTreeDataSource;
   private sourceData?: TreeExplorerData;
   private tree?: IdBasedTree;
+  private nodesById = new Map<number, TreeExplorerNode>();
 
   view({attrs}: m.CVnode<TreeExplorerTreeViewAttrs>): m.Children {
     if (this.source === undefined || this.sourceData !== attrs.data) {
       this.sourceData = attrs.data;
       this.source = new TreeExplorerTreeDataSource(attrs.data);
       this.tree = undefined;
+      this.nodesById = new Map(attrs.data.nodes.map((n) => [n.id, n]));
     }
+    const {data} = attrs;
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
     return m(DataGrid, {
@@ -76,7 +81,16 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
       // row-level grid filters have no meaning on a tree walk.
       disableFilterControls: true,
       schema: {
-        name: {title: 'Name', columnType: 'text'},
+        name: {
+          title: 'Name',
+          columnType: 'text',
+          cellRenderer: (value: SqlValue, row: Row) =>
+            renderNodeName(
+              data,
+              this.nodesById.get(Number(row.id)),
+              String(value),
+            ),
+        },
         total: {
           title: 'Total',
           columnType: 'quantitative',
@@ -272,12 +286,15 @@ export interface TreeExplorerFlatViewAttrs {
 export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatViewAttrs> {
   private rows?: readonly Row[];
   private rowsData?: TreeExplorerData;
+  private iconNodesByName = new Map<string, TreeExplorerNode>();
 
   view({attrs}: m.CVnode<TreeExplorerFlatViewAttrs>): m.Children {
     if (this.rows === undefined || this.rowsData !== attrs.data) {
       this.rowsData = attrs.data;
       this.rows = flatFunctionRows(attrs.data);
+      this.iconNodesByName = iconNodesByName(attrs.data);
     }
+    const {data} = attrs;
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
     return m(DataGrid, {
@@ -285,7 +302,16 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
       fillHeight: true,
       disableFilterControls: true,
       schema: {
-        name: {title: 'Name', columnType: 'text'},
+        name: {
+          title: 'Name',
+          columnType: 'text',
+          cellRenderer: (value: SqlValue) =>
+            renderNodeName(
+              data,
+              this.iconNodesByName.get(String(value)),
+              String(value),
+            ),
+        },
         self: {
           title: 'Self',
           columnType: 'quantitative',
@@ -317,6 +343,51 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
       ],
     });
   }
+}
+
+// Name cell for the table views: the node's icon (if any) followed by its
+// name. Hovering the icon shows the extra content from `renderNodeTooltip`,
+// called without default content since the tables have no node tooltip.
+function renderNodeName(
+  data: TreeExplorerData,
+  node: TreeExplorerNode | undefined,
+  name: string,
+): m.Children {
+  if (node?.icon === undefined) {
+    return name;
+  }
+  const icon = m(Icon, {
+    className: 'pf-tree-explorer__node-icon',
+    icon: node.icon,
+  });
+  const tooltip = data.renderNodeTooltip?.(
+    {
+      properties: new Map(
+        [...node.properties].map(([key, {value}]) => [key, value]),
+      ),
+      node,
+    },
+    null,
+  );
+  return m(
+    'span.pf-tree-explorer__node-name',
+    tooltip === undefined ? icon : m(Tooltip, {trigger: icon}, tooltip),
+    name,
+  );
+}
+
+// The Functions view merges every node with the same name into one row, so
+// a row shows an icon if any node with that name has one.
+function iconNodesByName(
+  data: TreeExplorerData,
+): Map<string, TreeExplorerNode> {
+  const result = new Map<string, TreeExplorerNode>();
+  for (const node of data.nodes) {
+    if (node.icon !== undefined && !result.has(node.name)) {
+      result.set(node.name, node);
+    }
+  }
+  return result;
 }
 
 function flatFunctionRows(data: TreeExplorerData): readonly Row[] {
