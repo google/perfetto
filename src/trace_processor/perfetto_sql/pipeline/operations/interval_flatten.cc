@@ -73,13 +73,7 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
   for (uint32_t i = 0; i < syntaqlite_list_count(list); ++i) {
     uint32_t agg_id = syntaqlite_list_child_id(list, i);
     const auto* agg = Node<SyntaqlitePerfettoAggregate>(c->parser(), agg_id);
-    IntervalFlatten::Aggregate aggregate;
-    if (c->IsCountStar(agg->expr)) {
-      aggregate.function = IntervalFlatten::Function::kCount;
-    } else {
-      aggregate.function = IntervalFlatten::Function::kSum;
-      ASSIGN_OR_RETURN(aggregate.column, c->ResolveSum(agg->expr));
-    }
+    ASSIGN_OR_RETURN(Aggregate aggregate, c->ResolveAggregate(agg->expr));
     std::string name = SpanText(c->parser(), agg->name);
     aggregate.output = c->AddColumn(name, core::Int64{});
     flatten.aggregates_.push_back(aggregate);
@@ -106,21 +100,12 @@ base::Status IntervalFlatten::BuildPlan(Compiler* c, uint32_t stage) {
 
 std::optional<uint32_t> IntervalFlatten::Prune(std::vector<bool>* needed) {
   auto& flatten = *this;
-  aggregates_.erase(std::remove_if(aggregates_.begin(), aggregates_.end(),
-                                   [&](const IntervalFlatten::Aggregate& agg) {
-                                     return !(*needed)[agg.output];
-                                   }),
-                    aggregates_.end());
+  PruneAggregates(&aggregates_, needed);
   // Unlike a fold, it stays with no aggregates left: its rows are segments.
   (*needed)[flatten.ts_] = true;
   (*needed)[flatten.dur_] = true;
   for (ColumnId key : flatten.keys_) {
     (*needed)[key] = true;
-  }
-  for (const IntervalFlatten::Aggregate& agg : aggregates_) {
-    if (agg.function == IntervalFlatten::Function::kSum) {
-      (*needed)[agg.column] = true;
-    }
   }
   return std::nullopt;
 }
@@ -139,19 +124,8 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
     spec.key_columns.push_back(c->Position(key));
   }
   spec.group_column = c->order().group_column;
-  for (const IntervalFlatten::Aggregate& agg : flatten.aggregates_) {
-    ex::AggregateCall lowered;
-    switch (agg.function) {
-      case IntervalFlatten::Function::kCount:
-        lowered.function = ex::AggregateCall::Function::kCountStar;
-        break;
-      case IntervalFlatten::Function::kSum:
-        c->RequireInt64(agg.column);
-        lowered.function = ex::AggregateCall::Function::kSum;
-        lowered.column = c->Position(agg.column);
-        break;
-    }
-    spec.aggregates.push_back(lowered);
+  for (const Aggregate& agg : flatten.aggregates_) {
+    spec.aggregates.push_back(LowerAggregate(c, agg));
   }
   c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
 
@@ -162,7 +136,7 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   for (ColumnId key : flatten.keys_) {
     c->Define(key);
   }
-  for (const IntervalFlatten::Aggregate& agg : flatten.aggregates_) {
+  for (const Aggregate& agg : flatten.aggregates_) {
     c->Define(agg.output);
   }
   c->SetOrder({flatten.keys_, c->AllocateTemporaryColumn(), {flatten.out_ts_}});
@@ -188,19 +162,12 @@ void IntervalFlatten::Write(PlanWriter* c,
   for (ColumnId key : flatten.keys_) {
     c->writer().Position(available, key);
   }
-  c->writer().Size(flatten.aggregates_.size());
-  for (const IntervalFlatten::Aggregate& agg : flatten.aggregates_) {
-    c->writer().U8(static_cast<uint8_t>(agg.function));
-    if (agg.function == IntervalFlatten::Function::kSum) {
-      c->writer().Position(available, agg.column);
-    }
-    c->writer().Str(c->plan().columns()[agg.output].name);
-  }
+  WriteAggregates(c, flatten.aggregates_, available);
   c->writer().Str(c->plan().columns()[flatten.out_ts_].name);
   c->writer().Str(c->plan().columns()[flatten.out_dur_].name);
   available = {flatten.out_ts_, flatten.out_dur_};
   available.insert(available.end(), flatten.keys_.begin(), flatten.keys_.end());
-  for (const IntervalFlatten::Aggregate& agg : flatten.aggregates_) {
+  for (const Aggregate& agg : flatten.aggregates_) {
     available.push_back(agg.output);
   }
 }
@@ -214,27 +181,12 @@ void IntervalFlatten::DecodePlan(PlanReader* c, Available* available_columns) {
   for (ColumnId& key : flatten.keys_) {
     key = c->reader().Position(available);
   }
-  flatten.aggregates_.resize(c->reader().Count());
-  for (IntervalFlatten::Aggregate& agg : flatten.aggregates_) {
-    switch (c->reader().U8()) {
-      case static_cast<uint8_t>(IntervalFlatten::Function::kCount):
-        agg.function = IntervalFlatten::Function::kCount;
-        break;
-      case static_cast<uint8_t>(IntervalFlatten::Function::kSum):
-        agg.function = IntervalFlatten::Function::kSum;
-        agg.column = c->reader().Position(available);
-        break;
-      default:
-        c->reader().Fail();
-        break;
-    }
-    agg.output = c->AddColumn(c->reader().Str(), core::Int64{});
-  }
+  ReadAggregates(c, available, &flatten.aggregates_);
   flatten.out_ts_ = c->AddColumn(c->reader().Str(), core::Int64{});
   flatten.out_dur_ = c->AddColumn(c->reader().Str(), core::Int64{});
   available = {flatten.out_ts_, flatten.out_dur_};
   available.insert(available.end(), flatten.keys_.begin(), flatten.keys_.end());
-  for (const IntervalFlatten::Aggregate& agg : flatten.aggregates_) {
+  for (const Aggregate& agg : flatten.aggregates_) {
     available.push_back(agg.output);
   }
   c->AddNode(std::move(flatten), {c->plan().root()});
