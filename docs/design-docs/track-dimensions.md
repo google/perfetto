@@ -94,7 +94,7 @@ nor `display_name` matter) are part of the identity of that track:
 |---|---|
 | Parse `dimensions`, reject invalid or reserved names | `importers/proto/track_event_tokenizer.cc` |
 | Record declarations against the process/thread/track they were declared on | `importers/proto/track_event_tracker.cc` → `__intrinsic_track_dimension_decl` |
-| Resolve inheritance into effective per-track dimensions (whole-trace pass) | `importers/common/track_dimension_resolver.cc` → `__intrinsic_track_dimension` |
+| Resolve inheritance into effective per-track dimensions, once all events have been extracted | `importers/proto/track_event_dimension_resolver.cc` (owned by `TrackEventTracker`) → `__intrinsic_track_dimension` |
 | Public query surface, incl. synthesized well known dimensions | `perfetto_sql/stdlib/prelude/after_eof/tracks.sql` |
 
 Declarations are recorded even when the descriptor never gets a track of its

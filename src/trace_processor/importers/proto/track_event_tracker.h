@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/track_event_dimension_resolver.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -81,13 +82,7 @@ class TrackEventTracker {
     };
 
     // A producer-declared custom dimension (see TrackDescriptor.dimensions).
-    // Exactly one of |int_value| / |string_value| is set.
-    struct Dimension {
-      StringId name = kNullStringId;
-      std::optional<int64_t> int_value;
-      StringId string_value = kNullStringId;
-      StringId display_name = kNullStringId;
-    };
+    using Dimension = TrackEventDimensionResolver::Dimension;
 
     uint64_t parent_uuid = 0;
     std::optional<int64_t> pid;
@@ -360,7 +355,8 @@ class TrackEventTracker {
   void OnFirstPacketOnSequence(uint32_t packet_sequence_id);
 
   // Called once all events have been extracted: records the dimensions
-  // declared by every descriptor track into the declaration table.
+  // declared by every descriptor track into the declaration table and resolves
+  // them into the effective dimensions of every track.
   void OnEventsFullyExtracted();
 
   std::optional<int64_t> range_of_interest_start_us() const {
@@ -440,8 +436,9 @@ class TrackEventTracker {
 
   // Writes the dimensions declared on the descriptor track |uuid| into the
   // `__intrinsic_track_dimension_decl` table, anchoring them to the process,
-  // thread or track they were declared on. `ResolveTrackDimensions` turns
-  // those declarations into the effective dimensions of every track.
+  // thread or track they were declared on, and hands them to
+  // |dimension_resolver_|, which turns them into the effective dimensions of
+  // every track.
   void RecordDeclaredDimensions(uint64_t uuid, std::optional<TrackId>);
 
   // Helper to record analysis errors with track_uuid arg
@@ -455,6 +452,8 @@ class TrackEventTracker {
   base::FlatHashMap<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
   std::unordered_set<uint32_t> sequences_with_first_packet_;
+
+  TrackEventDimensionResolver dimension_resolver_;
 
   const StringId source_key_;
   const StringId source_id_key_;
