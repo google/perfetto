@@ -90,11 +90,11 @@ TRACK_TABLE = Table(
         ),
     ])
 
-# The dimensions of every track: both the well known dimensions (machine,
-# process, thread, cpu, gpu) of every track, written when the track is created,
-# and the custom dimensions declared by producers on TrackDescriptors, written
-# when the track event track is created: the ones declared on its own
-# descriptor plus the ones inherited from its `parent_uuid` ancestors.
+# The custom dimensions of every track, written when the track event track is
+# created: the ones declared on its own TrackDescriptor plus the ones inherited
+# from its `parent_uuid` ancestors. The well known dimensions (machine, process,
+# thread, cpu, gpu) are derived from the track table by the public
+# `track_dimension` view, which adds them on top of this table.
 TRACK_DIMENSION_TABLE = Table(
     python_module=__file__,
     class_name="TrackDimensionTable",
@@ -123,12 +123,6 @@ TRACK_DIMENSION_TABLE = Table(
         C(
             "display_name",
             CppOptional(CppString()),
-            cpp_access=CppAccess.READ,
-        ),
-        # 1 for well known dimensions, 0 for custom ones.
-        C(
-            "is_well_known",
-            CppUint32(),
             cpp_access=CppAccess.READ,
         ),
     ])

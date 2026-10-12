@@ -267,10 +267,10 @@ WHERE
 -- A dimension is a named, typed key/value which is part of a track's identity.
 -- There is one vocabulary for all of them:
 --  * *well known* dimensions (`machine`, `process`, `thread`, `cpu`, `gpu`)
---    are written by trace processor for every track. Their values are trace
---    processor identities (e.g. `machine.id`, `upid`, `utid`). Note that tracks
---    only associated with a thread don't have a `process` dimension: use
---    `thread.upid` for those.
+--    are derived by trace processor for every track. Their values are trace
+--    processor identities (`machine.id`, `upid`, `utid`, `cpu.id`, `gpu.id`).
+--    Note that tracks only associated with a thread don't have a `process`
+--    dimension: use `thread.upid` for those.
 --  * *custom* dimensions are declared by producers with
 --    `TrackDescriptor.dimensions` (e.g. `rank` for a distributed training
 --    job). They apply to the declaring track and its `parent_uuid`
@@ -297,5 +297,63 @@ CREATE PERFETTO VIEW track_dimension(
   is_well_known BOOL
 )
 AS
-SELECT track_id, name, int_value, string_value, display_name, is_well_known
-FROM __intrinsic_track_dimension;
+-- Only the custom dimensions are stored: the well known ones are columns or
+-- dimension args of the track, so they are added here rather than at import.
+SELECT track_id, name, int_value, string_value, display_name, 0 AS is_well_known
+FROM __intrinsic_track_dimension
+UNION ALL
+SELECT
+  id AS track_id,
+  'machine' AS name,
+  machine_id AS int_value,
+  NULL AS string_value,
+  NULL AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track
+UNION ALL
+SELECT
+  id AS track_id,
+  'process' AS name,
+  upid AS int_value,
+  NULL AS string_value,
+  NULL AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track
+WHERE
+  upid IS NOT NULL
+UNION ALL
+SELECT
+  id AS track_id,
+  'thread' AS name,
+  utid AS int_value,
+  NULL AS string_value,
+  NULL AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track
+WHERE
+  utid IS NOT NULL
+UNION ALL
+-- Tracks only have the per machine CPU number: the machine aware id is the one
+-- of the CPU with that number on the machine of the track.
+SELECT
+  t.id AS track_id,
+  'cpu' AS name,
+  c.id AS int_value,
+  NULL AS string_value,
+  NULL AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track AS t
+JOIN cpu AS c
+  ON c.machine_id = t.machine_id
+  AND c.cpu = extract_arg(t.dimension_arg_set_id, 'cpu')
+UNION ALL
+SELECT
+  id AS track_id,
+  'gpu' AS name,
+  extract_arg(dimension_arg_set_id, 'ugpu') AS int_value,
+  NULL AS string_value,
+  NULL AS display_name,
+  1 AS is_well_known
+FROM __intrinsic_track
+WHERE
+  extract_arg(dimension_arg_set_id, 'ugpu') IS NOT NULL;

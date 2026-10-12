@@ -842,7 +842,6 @@ void TrackEventTracker::RecordTrackDimensions(uint64_t uuid, TrackId track_id) {
     row.int_value = dim.int_value;
     row.string_value = dim.string_value;
     row.display_name = dim.display_name;
-    row.is_well_known = 0;
     table->Insert(row);
   }
 }

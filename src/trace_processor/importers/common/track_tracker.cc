@@ -34,12 +34,7 @@ namespace perfetto::trace_processor {
 TrackTracker::TrackTracker(TraceProcessorContext* context)
     : context_(context),
       args_tracker_(context),
-      description_key_id_(context->storage->InternString("description")),
-      machine_dimension_id_(context->storage->InternString("machine")),
-      process_dimension_id_(context->storage->InternString("process")),
-      thread_dimension_id_(context->storage->InternString("thread")),
-      cpu_dimension_id_(context->storage->InternString("cpu")),
-      gpu_dimension_id_(context->storage->InternString("gpu")) {}
+      description_key_id_(context->storage->InternString("description")) {}
 
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                StringId name,
@@ -49,26 +44,16 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                uint32_t d_size,
                                const SetArgsCallback& args) {
   tables::TrackTable::Row row(name);
-  // The well known `cpu` and `gpu` dimensions use the machine aware `ucpu` and
-  // `ugpu` identities, so that they mean the same thing across machines: the
-  // raw `gpu` number of a track always comes with its `ugpu`.
-  std::optional<int64_t> ucpu;
-  std::optional<int64_t> ugpu;
   const auto* dims = blueprint.dimension_blueprints.data();
   for (uint32_t i = 0; i < d_size; ++i) {
     base::StringView str(dims[i].name.data(), dims[i].name.size());
-    bool is_int = d_args[i].value.type == Variadic::kInt;
-    int64_t int_value = is_int ? d_args[i].value.int_value : 0;
-    if (str == "cpu" && is_int) {
-      ucpu =
-          context_->cpu_tracker->MarkCpuValid(static_cast<uint32_t>(int_value))
-              .value;
-    } else if (str == "ugpu" && is_int) {
-      ugpu = int_value;
-    } else if (str == "utid" && is_int) {
-      row.utid = static_cast<uint32_t>(int_value);
-    } else if (str == "upid" && is_int) {
-      row.upid = static_cast<uint32_t>(int_value);
+    if (str == "cpu" && d_args[i].value.type == Variadic::kInt) {
+      context_->cpu_tracker->MarkCpuValid(
+          static_cast<uint32_t>(d_args[i].value.int_value));
+    } else if (str == "utid" && d_args[i].value.type == Variadic::kInt) {
+      row.utid = static_cast<uint32_t>(d_args[i].value.int_value);
+    } else if (str == "upid" && d_args[i].value.type == Variadic::kInt) {
+      row.upid = static_cast<uint32_t>(d_args[i].value.int_value);
     }
     StringId key = context_->storage->InternString(str);
     d_args[i].key = key;
@@ -85,26 +70,6 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
   row.event_type = context_->storage->InternString(blueprint.event_type);
   row.counter_unit = counter_unit;
   TrackId id = context_->storage->mutable_track_table()->Insert(row).id;
-
-  // Well known dimensions are written for every track as it is created, so
-  // that `track_dimension` is a plain table rather than synthesized at query
-  // time. Note that tracks only associated with a thread don't get a
-  // `process` dimension: the process of a thread is often only known later in
-  // the trace, so it is reached through `thread.upid` instead.
-  AddWellKnownDimension(id, machine_dimension_id_, row.machine_id.value);
-  if (row.upid) {
-    AddWellKnownDimension(id, process_dimension_id_, *row.upid);
-  }
-  if (row.utid) {
-    AddWellKnownDimension(id, thread_dimension_id_, *row.utid);
-  }
-  if (ucpu) {
-    AddWellKnownDimension(id, cpu_dimension_id_, *ucpu);
-  }
-  if (ugpu) {
-    AddWellKnownDimension(id, gpu_dimension_id_, *ugpu);
-  }
-
   if (description != kNullStringId || args) {
     auto inserter = args_tracker_.AddArgsTo(id);
     if (description != kNullStringId) {
@@ -115,17 +80,6 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
     }
   }
   return id;
-}
-
-void TrackTracker::AddWellKnownDimension(TrackId track,
-                                         StringId name,
-                                         int64_t value) {
-  tables::TrackDimensionTable::Row row;
-  row.track_id = track;
-  row.name = name;
-  row.int_value = value;
-  row.is_well_known = 1;
-  context_->storage->mutable_track_dimension_table()->Insert(row);
 }
 
 }  // namespace perfetto::trace_processor

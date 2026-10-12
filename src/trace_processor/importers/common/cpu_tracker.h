@@ -58,16 +58,14 @@ class CpuTracker {
     return tables::CpuTable::Id(ucpu);
   }
 
-  // Returns the CpuTable::Id, i.e. the `ucpu`, of |cpu|.
-  tables::CpuTable::Id MarkCpuValid(uint32_t cpu) {
+  void MarkCpuValid(uint32_t cpu) {
     PERFETTO_CHECK(cpu < kMaxCpusPerMachine);
-    auto ucpu = ucpu_offset_ + cpu;
     if (PERFETTO_LIKELY(cpu_ids_[cpu])) {
-      return tables::CpuTable::Id(ucpu);
+      return;
     }
+    auto ucpu = ucpu_offset_ + cpu;
     auto& cpu_table = *context_->storage->mutable_cpu_table();
     cpu_table[ucpu].set_cpu(cpu);
-    return tables::CpuTable::Id(ucpu);
   }
 
   // Sets or updates the information for the specified CPU in the CpuTable.
