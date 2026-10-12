@@ -398,6 +398,7 @@ export class SearchBenchmarkPage implements m.ClassComponent<PageAttrs> {
     );
 
     const results: SearchResultEvent[] = [];
+    // eventIds, tses and trackUris are parallel arrays of totalResults length.
     for (let i = 0; i < searchResults.totalResults; i++) {
       results.push({
         id: searchResults.eventIds[i]!,

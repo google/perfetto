@@ -15,6 +15,7 @@
 import './treetable.scss';
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
+import type {NonEmpty} from '../../base/array_utils';
 
 interface ColumnDescriptor<T> {
   name: string;
@@ -22,7 +23,7 @@ interface ColumnDescriptor<T> {
 }
 
 export interface TreeTableAttrs<T> {
-  columns: ColumnDescriptor<T>[];
+  columns: NonEmpty<ColumnDescriptor<T>>;
   getChildren: (row: T) => T[] | undefined;
   rows: T[];
 }

@@ -137,6 +137,7 @@ export function renderTabs(): m.Children {
                   );
                   if (draggedIdx === -1) return;
                   const [dragged] = tabEntries.splice(draggedIdx, 1);
+                  if (dragged === undefined) return;
                   if (beforeKey === undefined) {
                     tabEntries.push(dragged!);
                   } else {

@@ -410,8 +410,9 @@ function buildWhereClause(
 
     if (eqValues.length > 0 || hasNull) {
       const parts: string[] = [];
-      if (eqValues.length === 1) {
-        const v = eqValues[0];
+      const onlyEqValue = eqValues[0];
+      if (eqValues.length === 1 && onlyEqValue !== undefined) {
+        const v = onlyEqValue;
         parts.push(
           `${column} = ${typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : v}`,
         );
@@ -424,7 +425,10 @@ function buildWhereClause(
       if (hasNull) {
         parts.push(`${column} IS NULL`);
       }
-      clauses.push(parts.length > 1 ? `(${parts.join(' OR ')})` : parts[0]!);
+      const firstPart = parts[0];
+      if (firstPart !== undefined) {
+        clauses.push(parts.length > 1 ? `(${parts.join(' OR ')})` : firstPart);
+      }
     }
 
     for (const rc of rangeConditions) {
@@ -442,7 +446,7 @@ export function createDefaultChartConfig(
   columns: ReadonlyArray<{name: string}>,
   chartType: ChartType = 'bar',
 ): ChartConfig {
-  const column = columns.length > 0 ? columns[0]!.name : '';
+  const column = columns[0]?.name ?? '';
   return {
     id: generateChartId(),
     column,

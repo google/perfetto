@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertDefined} from './assert';
 import {Canvas2DRenderer} from './canvas2d_renderer';
 import {SLICE_GAP_PX} from './renderer';
 import type {Transform1D} from './geom';
@@ -45,6 +46,8 @@ describe('Canvas2DRenderer.drawSlices', () => {
 
     expect(rects.length).toBe(2);
     const [a, b] = rects;
-    expect(b!.x - (a!.x + a!.w)).toBeCloseTo(SLICE_GAP_PX);
+    assertDefined(a);
+    assertDefined(b);
+    expect(b.x - (a.x + a.w)).toBeCloseTo(SLICE_GAP_PX);
   });
 });

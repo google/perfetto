@@ -271,11 +271,12 @@ export function getActiveGridConfig(
   if ('schema' in configOrPresets) {
     return configOrPresets;
   }
-  if (configOrPresets.length === 0) {
+  const idx = Math.min(Math.max(0, presetIndex), configOrPresets.length - 1);
+  const preset = configOrPresets[idx];
+  if (preset === undefined) {
     throw new Error('No presets provided');
   }
-  const idx = Math.min(Math.max(0, presetIndex), configOrPresets.length - 1);
-  return getPresetConfig(configOrPresets[idx]!);
+  return getPresetConfig(preset);
 }
 
 interface PreparedAggregation extends AsyncDisposable {

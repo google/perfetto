@@ -265,16 +265,9 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
         return m('.pf-hde-loading', m(Spinner, {easing: true}));
       }
       const showHint = showDefaultChangedHint;
-      const heapIndices: number[] = [];
-      for (let i = 0; i < overview.heaps.length; i++) {
-        const h = overview.heaps[i]!;
-        if (h.java + h.native_ > 0) {
-          heapIndices.push(i);
-        }
-      }
-      const heaps = heapIndices.map((i) => overview.heaps[i]);
-      const totalJava = heaps.reduce((a, h) => a + h!.java, 0);
-      const totalNative = heaps.reduce((a, h) => a + h!.native_, 0);
+      const heaps = overview.heaps.filter((h) => h.java + h.native_ > 0);
+      const totalJava = heaps.reduce((a, h) => a + h.java, 0);
+      const totalNative = heaps.reduce((a, h) => a + h.native_, 0);
 
       const heapRows: Row[] = [
         {
@@ -284,10 +277,10 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
           total_size: totalJava + totalNative,
         },
         ...heaps.map((h) => ({
-          heap: h!.name,
-          java_size: h!.java,
-          native_size: h!.native_,
-          total_size: h!.java + h!.native_,
+          heap: h.name,
+          java_size: h.java,
+          native_size: h.native_,
+          total_size: h.java + h.native_,
         })),
       ];
 

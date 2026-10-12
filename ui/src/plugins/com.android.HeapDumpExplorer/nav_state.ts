@@ -121,6 +121,7 @@ export function subpageToState(
   if (!subpage) return defaultNavState(defaultView);
 
   const [path, queryStr] = subpage.split('?', 2);
+  if (path === undefined) return defaultNavState(defaultView);
   const sp = new URLSearchParams(queryStr ?? '');
 
   // Parse view_param format (e.g. "object_0x123", "flamegraph_objects_1_a,b").

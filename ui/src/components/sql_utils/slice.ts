@@ -153,9 +153,6 @@ export async function getSlice(
   if (result.length > 1) {
     throw new Error(`slice table has more than one row with id ${id}`);
   }
-  if (result.length === 0) {
-    return undefined;
-  }
   return result[0];
 }
 
@@ -196,9 +193,11 @@ export async function getDescendantSliceTree(
   );
   for (const [_, slice] of Object.entries(slices)) {
     if (slice.parentId !== undefined) {
-      const parent = slices[slice.parentId]!;
-      slice.parent = parent;
-      parent.children.push(slice);
+      const parent = slices[slice.parentId];
+      if (parent !== undefined) {
+        slice.parent = parent;
+        parent.children.push(slice);
+      }
     }
   }
   return slices[id];

@@ -176,8 +176,8 @@ export default class implements PerfettoPlugin {
       this.disableTimelineSync(this._sessionId);
       const selectedClients = new Array<ClientId>();
       const sel = ensureExists(clientsSelect).selectedOptions;
-      for (let i = 0; i < sel.length; i++) {
-        const clientId = parseInt(sel[i]!.value);
+      for (const opt of sel) {
+        const clientId = parseInt(opt.value);
         if (!isNaN(clientId)) selectedClients.push(clientId);
       }
       selectedClients.push(this._clientId); // Always add ourselves.

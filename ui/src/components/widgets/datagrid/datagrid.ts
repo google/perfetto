@@ -19,7 +19,7 @@ import {classNames} from '../../../base/classnames';
 import {download} from '../../../base/download_utils';
 import {Icons} from '../../../base/semantic_icons';
 import {shortUuid} from '../../../base/uuid';
-import {exists, isNumeric, maybeUndefined} from '../../../base/utils';
+import {exists, isNumeric} from '../../../base/utils';
 import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
@@ -109,8 +109,9 @@ function sqlValuesEqual(a: SqlValue, b: SqlValue): boolean {
 // Compare two GroupPaths for equality.
 function groupPathsEqual(a: GroupPath, b: GroupPath): boolean {
   if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (!sqlValuesEqual(a[i]!, b[i]!)) return false;
+  for (const [i, value] of a.entries()) {
+    // Lengths are checked to match above.
+    if (!sqlValuesEqual(value, b[i]!)) return false;
   }
   return true;
 }
@@ -907,10 +908,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const newColumns = [...this.columns];
     const [removed] = newColumns.splice(fromIndex, 1);
+    if (removed === undefined) return;
     let insertIndex = toIndex;
     if (fromIndex < toIndex) insertIndex--;
     if (position === 'after') insertIndex++;
-    newColumns.splice(insertIndex, 0, removed!);
+    newColumns.splice(insertIndex, 0, removed);
 
     this.columns = newColumns;
     attrs.onColumnsChanged?.(newColumns);
@@ -1152,7 +1154,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   ): void {
     if (!this.pivot?.aggregates) return;
 
-    const existingAgg = maybeUndefined(this.pivot.aggregates[index]);
+    const existingAgg = this.pivot.aggregates[index];
     if (!existingAgg) return;
 
     if (existingAgg.function === 'COUNT') {
@@ -1246,10 +1248,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const groupBy = [...this.pivot.groupBy];
     const [removed] = groupBy.splice(fromIndex, 1);
+    if (removed === undefined) return;
     let insertIndex = toIndex;
     if (fromIndex < toIndex) insertIndex--;
     if (position === 'after') insertIndex++;
-    groupBy.splice(insertIndex, 0, removed!);
+    groupBy.splice(insertIndex, 0, removed);
 
     const newPivot: Pivot = {...this.pivot, groupBy};
     this.pivot = newPivot;
@@ -1266,10 +1269,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     const aggregates = [...this.pivot.aggregates];
     const [removed] = aggregates.splice(fromIndex, 1);
+    if (removed === undefined) return;
     let insertIndex = toIndex;
     if (fromIndex < toIndex) insertIndex--;
     if (position === 'after') insertIndex++;
-    aggregates.splice(insertIndex, 0, removed!);
+    aggregates.splice(insertIndex, 0, removed);
 
     const newPivot: Pivot = {...this.pivot, aggregates};
     this.pivot = newPivot;
@@ -1674,7 +1678,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         return this.columns.map((col) => {
           const {field} = col;
           const alias = getColumnAlias(col);
-          const value = maybeUndefined(row[alias]);
+          const value = row[alias];
 
           if (value === undefined) {
             return renderMissingCell();
@@ -1834,8 +1838,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       'ASC';
 
     // Build groupBy columns
-    for (let i = 0; i < pivot.groupBy.length; i++) {
-      const groupByCol = pivot.groupBy[i]!;
+    for (const [i, groupByCol] of pivot.groupBy.entries()) {
       const field = groupByCol.field;
       const sort = groupByCol.sort;
       const colId = groupByCol.id;
@@ -1914,8 +1917,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Build aggregate columns
     const aggregates = pivot.aggregates ?? [];
-    for (let i = 0; i < aggregates.length; i++) {
-      const agg = aggregates[i]!;
+    for (const [i, agg] of aggregates.entries()) {
       const sort = agg.sort;
       const alias = getAggregateAlias(agg);
 
@@ -2081,10 +2083,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           : numGroupBy - 1;
 
         // Render groupBy columns
-        for (let i = 0; i < numGroupBy; i++) {
-          const groupByCol = pivot.groupBy[i]!;
+        for (const [i, groupByCol] of pivot.groupBy.entries()) {
           const {id, field} = groupByCol;
-          const value = row[id]!;
+          const value = row[id] ?? null;
 
           // Column is a rollup if its index is greater than the row's level
           const isRollupColumn = i > rowLevel;
@@ -2159,11 +2160,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                         // Build a row with only the groupBy columns up to rowLevel
                         const drillDownRow: {field: string; value: SqlValue}[] =
                           [];
-                        for (let j = 0; j <= rowLevel; j++) {
-                          const col = pivot.groupBy[j]!;
+                        for (const col of pivot.groupBy.slice(
+                          0,
+                          rowLevel + 1,
+                        )) {
                           drillDownRow.push({
                             field: col.field,
-                            value: row[col.id]!,
+                            value: row[col.id] ?? null,
                           });
                         }
                         this.drillDown(drillDownRow, attrs);
@@ -2172,7 +2175,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     showFilterControls && m(MenuDivider),
                   ],
                   showFilterControls &&
-                    m(CellFilterMenu!, {
+                    m(CellFilterMenu, {
                       value,
                       onFilterAdd: (filter) =>
                         this.addFilter({field, ...filter}, attrs),
@@ -2199,9 +2202,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               onclick: () => {
                 // Build a row with only the groupBy columns up to rowLevel
                 const drillDownRow: {field: string; value: SqlValue}[] = [];
-                for (let j = 0; j <= rowLevel; j++) {
-                  const col = pivot.groupBy[j]!;
-                  drillDownRow.push({field: col.field, value: row[col.id]!});
+                for (const col of pivot.groupBy.slice(0, rowLevel + 1)) {
+                  drillDownRow.push({
+                    field: col.field,
+                    value: row[col.id] ?? null,
+                  });
                 }
                 this.drillDown(drillDownRow, attrs);
               },
@@ -2214,7 +2219,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         // Render aggregate columns
         for (const agg of aggregates) {
           const alias = getAggregateAlias(agg);
-          const value = row[alias]!;
+          const value = row[alias] ?? null;
 
           // For aggregates with a field, we can use the field's cell renderer
           let cellRenderer =
@@ -2304,11 +2309,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       columnNames = buildColumnNames(schema, fieldPaths);
 
       // Map aliases to field paths for column name lookup
-      for (let i = 0; i < columns.length; i++) {
-        const alias = columns[i]!;
-        const field = fieldPaths[i]!;
+      for (const col of this.columns) {
+        const alias = getColumnAlias(col);
+        const field = col.field;
         if (alias !== field) {
-          columnNames[alias] = columnNames[field]!;
+          columnNames[alias] = columnNames[field] ?? field;
         }
       }
     }

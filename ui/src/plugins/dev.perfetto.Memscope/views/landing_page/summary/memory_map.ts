@@ -183,7 +183,9 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
     }
 
     const snaps = data.snapshots;
-    if (snaps.length === 0) {
+    const first = snaps[0];
+    const last = snaps[snaps.length - 1];
+    if (first === undefined || last === undefined) {
       return emptyPanel({
         title: TITLE,
         subtitle,
@@ -225,8 +227,6 @@ export class MemoryMap implements m.ClassComponent<MemoryMapAttrs> {
       },
     }).data?.tree;
 
-    const first = snaps[0]!;
-    const last = snaps[snaps.length - 1]!;
     // Insight: biggest slice of the latest snapshot + fastest-growing slice.
     const catVal = (s: MemSnapshot, key: string) => {
       const r = s.byCategory.get(key);
@@ -532,6 +532,7 @@ function buildMemTree(
     (b) => snap.fileByBucket.get(b.key) ?? 0,
   );
   const bucketTotal = bucketBytes.reduce((s, b) => s + b, 0);
+  // bucketBytes is mapped from FILE_BUCKETS, so the lengths match.
   const fileChildren = FILE_BUCKETS.map((b, i) =>
     seg(
       b.label,

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../../base/assert';
 import {
   TimeRangeSourceNode,
   type TimeRangeSourceNodeAttrs,
@@ -334,21 +335,23 @@ describe('TimeRangeSourceNode', () => {
       const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.finalCols.length).toBe(3);
-      expect(node.finalCols[0]!.name).toBe('id');
-      expect(node.finalCols[1]!.name).toBe('ts');
-      expect(node.finalCols[2]!.name).toBe('dur');
+      expect(ensureDefined(node.finalCols[0]).name).toBe('id');
+      expect(ensureDefined(node.finalCols[1]).name).toBe('ts');
+      expect(ensureDefined(node.finalCols[2]).name).toBe('dur');
     });
 
     it('should have correct column types', () => {
       const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.finalCols.length).toBe(3);
-      expect(node.finalCols[0]!.name).toBe('id');
-      expect(node.finalCols[0]!.type).toEqual({kind: 'int'});
-      expect(node.finalCols[1]!.name).toBe('ts');
-      expect(node.finalCols[1]!.type).toEqual({kind: 'timestamp'});
-      expect(node.finalCols[2]!.name).toBe('dur');
-      expect(node.finalCols[2]!.type).toEqual({kind: 'duration'});
+      expect(ensureDefined(node.finalCols[0]).name).toBe('id');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual({kind: 'int'});
+      expect(ensureDefined(node.finalCols[1]).name).toBe('ts');
+      expect(ensureDefined(node.finalCols[1]).type).toEqual({
+        kind: 'timestamp',
+      });
+      expect(ensureDefined(node.finalCols[2]).name).toBe('dur');
+      expect(ensureDefined(node.finalCols[2]).type).toEqual({kind: 'duration'});
     });
   });
 

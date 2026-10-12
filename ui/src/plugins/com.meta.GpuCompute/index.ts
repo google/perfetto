@@ -162,8 +162,9 @@ class Compute {
       // Guard against stale async completions: if the sliceId changed
       // while the query was in flight, discard the result.
       if (this.sliceId !== requestedSliceId) return;
-      const hasMetrics = Array.isArray(data) && data.length > 0;
-      this.setToolbarInfo(hasMetrics ? data[0]!.toolbar : undefined);
+      const firstMetric = Array.isArray(data) ? data[0] : undefined;
+      const hasMetrics = firstMetric !== undefined;
+      this.setToolbarInfo(firstMetric?.toolbar);
       if (!hasMetrics) {
         this.sliceId = firstId;
         this.ctx.activeInfoTab = 'summary';
@@ -284,10 +285,11 @@ class Compute {
             this.engine,
             id,
           );
-          const hasMetrics = Array.isArray(data) && data.length > 0;
+          const firstMetric = Array.isArray(data) ? data[0] : undefined;
+          const hasMetrics = firstMetric !== undefined;
           return {
             hasMetrics,
-            toolbar: hasMetrics ? data[0]!.toolbar : undefined,
+            toolbar: firstMetric?.toolbar,
           };
         },
       });

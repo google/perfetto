@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
+import {ensureDefined} from '../../base/assert';
 import m from 'mithril';
 import {BigtraceAsyncDataSource} from './bigtrace_async_data_source';
 import {FETCH_DEBOUNCE_MS} from './fetch_scheduler';
@@ -120,7 +121,7 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
   // Settle the first window so later renders are range changes, not initial.
   async function loaded(ds: BigtraceAsyncDataSource, calls: Call[]) {
     ds.useRows(model(0, 100));
-    calls[0]!.resolve(PAGE);
+    ensureDefined(calls[0]).resolve(PAGE);
     await vi.advanceTimersByTimeAsync(0);
     calls.length = 0;
   }
@@ -143,7 +144,7 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     ds.useRows(model(0, 100));
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS * 4);
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.signal?.aborted).toBe(false);
+    expect(ensureDefined(calls[0]).signal?.aborted).toBe(false);
   });
 
   test('a burst of scroll ticks costs one fetch, for the last window', async () => {
@@ -159,7 +160,7 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
 
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.offset).toBe(800);
+    expect(ensureDefined(calls[0]).offset).toBe(800);
   });
 
   test('a newer window aborts the request it replaces', async () => {
@@ -170,14 +171,14 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     ds.useRows(model(200, 100));
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
     expect(calls).toHaveLength(1);
-    const superseded = calls[0]!;
+    const superseded = ensureDefined(calls[0]);
 
     // Scroll on while that one is still in flight.
     ds.useRows(model(900, 100));
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
     expect(calls).toHaveLength(2);
     expect(superseded.signal?.aborted).toBe(true);
-    expect(calls[1]!.signal?.aborted).toBe(false);
+    expect(ensureDefined(calls[1]).signal?.aborted).toBe(false);
   });
 
   test('a superseded reply does not replace the newer window', async () => {
@@ -191,9 +192,9 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     await vi.advanceTimersByTimeAsync(FETCH_DEBOUNCE_MS);
 
     // The abandoned request answers anyway, after the newer one landed.
-    calls[1]!.resolve({...PAGE, rows: [{a: 'new'}]});
+    ensureDefined(calls[1]).resolve({...PAGE, rows: [{a: 'new'}]});
     await vi.advanceTimersByTimeAsync(0);
-    calls[0]!.resolve({...PAGE, rows: [{a: 'stale'}]});
+    ensureDefined(calls[0]).resolve({...PAGE, rows: [{a: 'stale'}]});
     await vi.advanceTimersByTimeAsync(0);
 
     expect(ds.useRows(model(900, 100)).rows).toEqual([{a: 'new'}]);

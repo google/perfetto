@@ -52,7 +52,7 @@ export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
     if (err.error === null || err.error === undefined) {
       // Wasm case.
       const errLines = `${err.message}`.split('\n');
-      errMsg = errLines[0]!;
+      errMsg = errLines[0] ?? '';
       errorObj = {stack: errLines.slice(1).join('\n')};
     } else {
       // Standard JS case.

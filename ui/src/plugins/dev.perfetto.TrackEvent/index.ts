@@ -203,6 +203,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
 
       const kind = isCounter ? COUNTER_TRACK_KIND : SLICE_TRACK_KIND;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      // split() always yields at least one element.
+      const firstTrackId = trackIds[0]!;
       const trackName = getTrackName({
         name,
         utid,
@@ -217,20 +219,20 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         machineLabelIndex,
         numMachines,
       });
-      const uri = `/track_event_${trackIds[0]}`;
+      const uri = `/track_event_${firstTrackId}`;
       if (hasData && isCounter) {
         // Don't show any builtin counter.
         if (builtinCounterType !== null) {
           continue;
         }
         assertTrue(trackIds.length === 1);
-        const trackId = trackIds[0]!;
+        const trackId = firstTrackId;
         ctx.tracks.registerTrack({
           uri,
           description: description ?? undefined,
           tags: {
             kinds: [kind],
-            trackIds: [trackIds[0]!],
+            trackIds: [firstTrackId],
             upid: upid ?? undefined,
             utid: utid ?? undefined,
             trackEvent: true,
@@ -264,7 +266,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
           renderer: await createTraceProcessorStateTrack({
             trace: ctx,
             uri,
-            trackId: trackIds[0]!,
+            trackId: firstTrackId,
             trackName,
           }),
         });
@@ -336,7 +338,7 @@ export default class TrackEventPlugin implements PerfettoPlugin {
         uri,
       });
       parent.addChildInOrder(node);
-      trackIdToTrackNode.set(trackIds[0]!, node);
+      trackIdToTrackNode.set(firstTrackId, node);
     }
 
     ctx.selection.registerAreaSelectionTab(

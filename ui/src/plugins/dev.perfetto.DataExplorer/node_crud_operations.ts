@@ -245,12 +245,11 @@ export async function addSourceNode(
 
   // If no nodes were successfully created, return early
   // (errors were already logged in the try-catch above)
-  if (newNodes.length === 0) {
+  const lastNode = newNodes[newNodes.length - 1];
+  if (lastNode === undefined) {
     console.warn('No nodes were created from the preCreate result');
     return;
   }
-
-  const lastNode = newNodes[newNodes.length - 1]!;
   deps.onStateUpdate((currentState) => ({
     ...currentState,
     rootNodes: [...currentState.rootNodes, ...newNodes],

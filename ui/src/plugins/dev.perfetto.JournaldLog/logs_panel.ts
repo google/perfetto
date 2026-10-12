@@ -220,10 +220,10 @@ export class JournaldLogPanel implements m.ClassComponent<JournaldLogPanelAttrs>
   ): ReadonlyArray<GridRow> {
     const trace = this.trace;
     const rows: GridRow[] = [];
-    for (let i = 0; i < entries.timestamps.length; i++) {
+    for (const [i, ts] of entries.timestamps.entries()) {
+      // All LogEntries arrays are filled row by row, so their lengths match.
       const priority = entries.priorities[i]!;
       const priorityName = JOURNALD_PRIORITIES[priority] ?? '?';
-      const ts = entries.timestamps[i]!;
       const eventId = entries.ids[i]!;
       const priorityClass = classForPriority(priority);
       const isHighlighted = entries.isHighlighted[i];

@@ -54,7 +54,7 @@ export class TouchscreenHandler {
   private tapStartTime = 0;
   private tapGeneration = 0;
   private lastTouch?: Touch;
-  private lastPinch?: Touch[];
+  private lastPinch?: [Touch, Touch];
   private mode?: 'deciding' | 'pinch' | 'pan' | 'mouse_emulation';
 
   constructor(target: HTMLElement, callbacks: TouchHandlerCallbacks) {
@@ -101,7 +101,8 @@ export class TouchscreenHandler {
 
     if (e.touches.length !== 1) return;
 
-    const t = e.touches[0]!;
+    const t = e.touches[0];
+    if (t === undefined) return;
     this.tapStart = t;
     this.tapStartTime = performance.now();
     this.lastTouch = t;
@@ -156,7 +157,8 @@ export class TouchscreenHandler {
     // 1. A pan, which is a tapdown followed by a rapid movement.
     // 2. A mouse-like touchmouse_emulation event, which we trigger when the user
     //    taps down and then doesn't move for TAP_TIMEOUT_MS.
-    const t = e.touches[0]!;
+    const t = e.touches[0];
+    if (t === undefined) return;
     const dXInit = t.clientX - this.tapStart.clientX;
     const dYInit = t.clientY - this.tapStart.clientY;
     const distSq = dXInit * dXInit + dYInit * dYInit;
@@ -200,8 +202,8 @@ export class TouchscreenHandler {
     this.lastTouch = undefined;
     this.lastPinch = undefined;
 
-    if (mode === 'mouse_emulation') {
-      const t = e.changedTouches[0]!;
+    const t = e.changedTouches[0];
+    if (mode === 'mouse_emulation' && t !== undefined) {
       this.callbacks.onTapUp?.({
         deltaX: 0,
         deltaY: 0,
@@ -213,22 +215,25 @@ export class TouchscreenHandler {
 
   private handlePinch(e: TouchEvent) {
     if (e.touches.length !== 2) return;
+    const t0 = e.touches[0];
+    const t1 = e.touches[1];
+    if (t0 === undefined || t1 === undefined) return;
 
     if (this.lastPinch === undefined) {
-      this.lastPinch = [e.touches[0]!, e.touches[1]!];
+      this.lastPinch = [t0, t1];
     }
 
-    function distance(t: ArrayLike<Touch>) {
-      const dX = t[0]!.clientX - t[1]!.clientX;
-      const dY = t[0]!.clientY - t[1]!.clientY;
+    function distance(t: [Touch, Touch]) {
+      const dX = t[0].clientX - t[1].clientX;
+      const dY = t[0].clientY - t[1].clientY;
       return Math.sqrt(dX * dX + dY * dY);
     }
 
-    const delta = Math.round(distance(this.lastPinch!) - distance(e.touches));
-    this.lastPinch = [e.touches[0]!, e.touches[1]!];
+    const delta = Math.round(distance(this.lastPinch) - distance([t0, t1]));
+    this.lastPinch = [t0, t1];
 
-    const midX = (e.touches[0]!.clientX + e.touches[1]!.clientX) / 2;
-    const midY = (e.touches[0]!.clientY + e.touches[1]!.clientY) / 2;
+    const midX = (t0.clientX + t1.clientX) / 2;
+    const midY = (t0.clientY + t1.clientY) / 2;
 
     this.callbacks.onPinchZoom?.({
       clientX: Math.round(midX),

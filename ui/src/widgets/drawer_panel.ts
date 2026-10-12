@@ -161,11 +161,12 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
     }
 
     // Determine mode: tabs mode if tabs array is provided and non-empty
-    const isTabsMode = tabs !== undefined && tabs.length > 0;
+    const firstTab = tabs?.[0];
+    const isTabsMode = tabs !== undefined && firstTab !== undefined;
 
     // Get active tab key (controlled or uncontrolled)
     const activeKey = isTabsMode
-      ? (activeTabKey ?? this.internalActiveTab ?? tabs[0]!.key)
+      ? (activeTabKey ?? this.internalActiveTab ?? firstTab.key)
       : undefined;
 
     // Render tabs UI and drawer content based on mode

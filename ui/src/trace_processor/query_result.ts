@@ -51,7 +51,12 @@
 import '../base/static_initializers';
 import protobuf from 'protobufjs/minimal';
 import {defer, type Deferred} from '../base/deferred';
-import {ensureExists, assertFalse, assertTrue} from '../base/assert';
+import {
+  ensureDefined,
+  ensureExists,
+  assertFalse,
+  assertTrue,
+} from '../base/assert';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, type duration, Time, type time} from '../base/time';
 
@@ -857,9 +862,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     }
 
     let row = 0;
-    const batches = this.batches;
-    for (let b = 0; b < batches.length; b++) {
-      const batch = batches[b]!;
+    for (const batch of this.batches) {
       if (batch.numCells === 0) continue;
       const bytes = batch.batchBytes;
       const f64 = batch.float64Cells;
@@ -897,6 +900,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
           numColumns,
           c,
           expType,
+          // numColumns === colNames.length, so c is always in range.
           colNames[c]!,
           row, // Rows already decoded from earlier batches.
           this._errorInfo,
@@ -1365,6 +1369,7 @@ class RowIteratorImpl implements RowIteratorBase {
     // Read the current row.
     for (let i = 0; i < numColumns; i++) {
       const cellType = batchBytes[this.nextCellTypeOff++];
+      // numColumns === this.columnNames.length, so i is always in range.
       const colName = this.columnNames[i]!;
       const expType = colTypes[i];
 
@@ -1493,7 +1498,7 @@ class RowIteratorImpl implements RowIteratorBase {
       numColumns,
       col,
       expType,
-      this.columnNames[col]!,
+      ensureDefined(this.columnNames[col]),
       0,
       this.resultObj.errorInfo,
     );

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../../../base/assert';
 import {Select} from '../../../../widgets/select';
 import {Callout} from '../../../../widgets/callout';
 import {Form, FormSection} from '../../../../widgets/form';
@@ -58,8 +59,10 @@ export interface AddColumnsSuggestionModalAttrs {
 export class AddColumnsSuggestionModal implements m.ClassComponent<AddColumnsSuggestionModalAttrs> {
   oncreate({attrs}: m.VnodeDOM<AddColumnsSuggestionModalAttrs>) {
     // Auto-select if there's only one suggestion and nothing is selected yet
-    if (attrs.suggestions.length === 1 && !attrs.selectedTable) {
-      attrs.onTableSelect(attrs.suggestions[0]!.suggestedTable);
+    const onlySuggestion =
+      attrs.suggestions.length === 1 ? attrs.suggestions[0] : undefined;
+    if (onlySuggestion !== undefined && !attrs.selectedTable) {
+      attrs.onTableSelect(onlySuggestion.suggestedTable);
     }
   }
 
@@ -174,12 +177,12 @@ export class AddColumnsSuggestionModal implements m.ClassComponent<AddColumnsSug
               },
               onColumnToggle: (index: number, checked: boolean) => {
                 if (!tableInfo) return;
-                const colName = tableInfo.columns[index]!.name;
+                const colName = ensureDefined(tableInfo.columns[index]).name;
                 onColumnToggle(colName, checked);
               },
               onColumnAlias: (index: number, alias: string) => {
                 if (!tableInfo) return;
-                const colName = tableInfo.columns[index]!.name;
+                const colName = ensureDefined(tableInfo.columns[index]).name;
                 onColumnAlias(colName, alias);
               },
             }),

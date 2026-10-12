@@ -175,13 +175,14 @@ export class WasmTraceAnalyzer implements TraceAnalyzer {
           'sub-trace individually.',
       );
     }
-    if (leafNodes.length === 0) {
+    const firstLeaf = leafNodes[0];
+    if (firstLeaf === undefined) {
       throw new Error('Could not determine trace type');
     }
 
     const signals = await queryFileSignals(engine);
     return {
-      format: mapTraceType(leafNodes[0]!),
+      format: mapTraceType(firstLeaf),
       ...signals,
     };
   }

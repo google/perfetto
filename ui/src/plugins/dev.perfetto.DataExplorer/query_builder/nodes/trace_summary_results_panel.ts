@@ -99,8 +99,7 @@ function parseTraceSummaryProto(data: Uint8Array): MetricBundleResult[] {
         valueIndex: 0,
       });
     } else {
-      for (let i = 0; i < specs.length; i++) {
-        const spec = specs[i]!;
+      for (const [i, spec] of specs.entries()) {
         metrics.push({
           metricId: spec.id ?? `${bundle.bundleId ?? 'unknown'}_${i}`,
           valueName: spec.value ?? 'value',
@@ -126,9 +125,9 @@ function parseTraceSummaryProto(data: Uint8Array): MetricBundleResult[] {
       const rows: Row[] = [];
       for (const row of bundle.row ?? []) {
         const rowData: Row = {};
-        for (let i = 0; i < dimensionNames.length; i++) {
+        for (const [i, dimName] of dimensionNames.entries()) {
           const dimValue = row.dimension?.[i];
-          rowData[dimensionNames[i]!] =
+          rowData[dimName] =
             dimValue !== undefined && dimValue !== null
               ? parseDimensionValue(dimValue)
               : null;
@@ -307,11 +306,11 @@ export class TraceSummaryResultsPanel implements m.ClassComponent<TraceSummaryRe
             title: 'No metric data returned',
           });
         }
-        if (bundles.length === 1) {
-          const bundle = bundles[0]!;
+        const onlyBundle = bundles.length === 1 ? bundles[0] : undefined;
+        if (onlyBundle !== undefined) {
           return m(DataGrid, {
-            data: bundle.rows,
-            schema: bundle.schema,
+            data: onlyBundle.rows,
+            schema: onlyBundle.schema,
             fillHeight: true,
           });
         }
@@ -403,8 +402,9 @@ export class TraceSummaryResultsPanel implements m.ClassComponent<TraceSummaryRe
       } else if (result.protoSummary) {
         const bundles = parseTraceSummaryProto(result.protoSummary);
         this.executionState = {kind: 'done', bundles, durationMs};
-        if (bundles.length > 0) {
-          this.activeTab ??= bundles[0]!.metricId;
+        const firstBundle = bundles[0];
+        if (firstBundle !== undefined) {
+          this.activeTab ??= firstBundle.metricId;
         }
       } else {
         this.executionState = {kind: 'error', message: 'No results returned'};

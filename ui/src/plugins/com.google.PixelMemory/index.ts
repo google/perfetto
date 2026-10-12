@@ -14,6 +14,7 @@
 
 import {addDebugCounterTrack} from '../../components/tracks/debug_tracks';
 import {Time} from '../../base/time';
+import {isNonEmpty, type NonEmpty} from '../../base/array_utils';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
@@ -171,7 +172,7 @@ export default class implements PerfettoPlugin {
   private async prepareAnnotationData(
     ctx: Trace,
     id: string,
-    pidList: string[],
+    pidList: NonEmpty<string>,
     sqlValueExpr: string,
     titleSuffix: string,
     trash: AsyncDisposableStack,
@@ -205,7 +206,7 @@ export default class implements PerfettoPlugin {
           ts,
           (${sqlValueExpr}) AS value
         FROM process_memory_breakdown
-        WHERE pid = ${pidList[0]} AND value IS NOT NULL
+        WHERE pid = ${noteTarget} AND value IS NOT NULL
         ORDER BY value DESC, ts ASC
         LIMIT 1
       `;
@@ -240,7 +241,7 @@ export default class implements PerfettoPlugin {
           .map((pid) => pid.trim())
           .filter((pid) => pid);
 
-        if (pidList.length === 0) {
+        if (!isNonEmpty(pidList)) {
           return;
         }
 

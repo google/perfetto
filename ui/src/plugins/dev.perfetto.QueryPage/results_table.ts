@@ -48,12 +48,12 @@ import {Stack} from '../../widgets/stack';
 
 // Tables whose IDs can be linked from the query results.
 // 'auto' uses heuristics to detect slice-like rows.
-const ID_TABLE_OPTIONS: ReadonlyArray<{label: string; sqlTable: string}> = [
+const ID_TABLE_OPTIONS = [
   {label: 'Auto-Detect', sqlTable: 'auto'},
   {label: 'slice.id', sqlTable: 'slice'},
   {label: 'sched_slice.id', sqlTable: 'sched_slice'},
   {label: 'thread_state.id', sqlTable: 'thread_state'},
-];
+] as const satisfies ReadonlyArray<{label: string; sqlTable: string}>;
 
 interface ResultsError {
   readonly kind: 'error';
@@ -100,7 +100,7 @@ export interface ResultsTableAttrs {
  */
 export class ResultsTable implements m.Component<ResultsTableAttrs> {
   // The selected table for linking ID column values.
-  private selectedIdTable = ID_TABLE_OPTIONS[0]!.sqlTable;
+  private selectedIdTable: string = ID_TABLE_OPTIONS[0].sqlTable;
 
   // DataSource backing the grid. Built lazily from the result rows  and cached
   // for the lifetime of this instance.

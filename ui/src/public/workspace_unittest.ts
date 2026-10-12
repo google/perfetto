@@ -370,9 +370,9 @@ test('TrackNode::clone(deep)', () => {
   expect(cloned.removable).toBe(root.removable);
   expect(cloned.children).toHaveLength(2);
 
-  expect(cloned.children[0]!.name).toBe(childA.name);
-  expect(cloned.children[0]!.uri).toBe(childA.uri);
+  expect(cloned.children[0]?.name).toBe(childA.name);
+  expect(cloned.children[0]?.uri).toBe(childA.uri);
 
-  expect(cloned.children[1]!.name).toBe(childB.name);
-  expect(cloned.children[1]!.uri).toBe(childB.uri);
+  expect(cloned.children[1]?.name).toBe(childB.name);
+  expect(cloned.children[1]?.uri).toBe(childB.uri);
 });

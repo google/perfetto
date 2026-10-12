@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import fuzzysort from 'fuzzysort';
+import {ensureDefined} from './assert';
 
 export interface FuzzySegment {
   readonly matching: boolean;
@@ -75,7 +76,7 @@ export function fuzzySearch<T>(
     const result = fuzzySearchMultiKey(items, [keyLookup], searchTerm);
     return result.map((res) => ({
       item: res.item,
-      segments: res.segments[0]!,
+      segments: ensureDefined(res.segments[0]),
       score: res.score,
     }));
   } else {

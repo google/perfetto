@@ -63,6 +63,7 @@ export class SettingsShell implements m.ClassComponent<SettingsShellAttrs> {
 
     this.observer = new IntersectionObserver(
       ([entry]) => {
+        if (entry === undefined) return;
         header.classList.toggle(
           'pf-settings-shell__header--stuck',
           !entry!.isIntersecting,

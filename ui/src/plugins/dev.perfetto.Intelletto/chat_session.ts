@@ -172,17 +172,15 @@ export class ChatSession {
           case 'toolresult':
             // Attach the result to the most recent matching tool-call line that
             // doesn't have one yet (tool calls within a round execute in order).
-            for (let i = this.lines.length - 1; i >= 0; i--) {
-              const line = this.lines[i]!;
-              if (
-                line.role === 'toolcall' &&
-                line.text === evt.name &&
-                line.toolResult === undefined
-              ) {
-                line.toolResult = evt.result;
-                line.toolError = evt.isError;
-                break;
-              }
+            const line = this.lines.findLast(
+              (l) =>
+                l.role === 'toolcall' &&
+                l.text === evt.name &&
+                l.toolResult === undefined,
+            );
+            if (line !== undefined) {
+              line.toolResult = evt.result;
+              line.toolError = evt.isError;
             }
             break;
           case 'usage':

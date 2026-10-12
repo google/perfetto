@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../base/assert';
 import {
   getAllNodes,
   getAllDownstreamNodes,
@@ -507,8 +508,10 @@ describe('graph_utils', () => {
 
       const group = result.value;
       expect(group.externalConnections).toHaveLength(1);
-      expect(group.externalConnections[0]!.sourceNode).toBe(ext);
-      expect(group.externalConnections[0]!.innerTargetNode).toBe(a);
+      expect(ensureDefined(group.externalConnections[0]).sourceNode).toBe(ext);
+      expect(ensureDefined(group.externalConnections[0]).innerTargetNode).toBe(
+        a,
+      );
     });
 
     it('should set outer nodes as nextNodes on the group', () => {
@@ -790,8 +793,10 @@ describe('graph_utils', () => {
       expect(group.endNode).toBe(c);
       // A feeds into B from outside
       expect(group.externalConnections).toHaveLength(1);
-      expect(group.externalConnections[0]!.sourceNode).toBe(a);
-      expect(group.externalConnections[0]!.innerTargetNode).toBe(b);
+      expect(ensureDefined(group.externalConnections[0]).sourceNode).toBe(a);
+      expect(ensureDefined(group.externalConnections[0]).innerTargetNode).toBe(
+        b,
+      );
       // outer is the successor
       expect(group.nextNodes).toHaveLength(1);
       expect(group.nextNodes[0]).toBe(outer);

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertTrue} from '../../../../base/assert';
+import type {ReadonlyNonEmpty} from '../../../../base/array_utils';
 import type {ProbeSetting} from '../../config/config_interfaces';
 import {Select} from '../../../../widgets/select';
 
@@ -24,7 +24,7 @@ export interface DropdownOption<T extends string | number> {
 
 export interface DropdownAttrs<T extends string | number> {
   readonly title: string;
-  readonly options: ReadonlyArray<DropdownOption<T>>;
+  readonly options: ReadonlyNonEmpty<DropdownOption<T>>;
   readonly defaultValue?: T;
 }
 
@@ -32,7 +32,6 @@ export class Dropdown<T extends string | number> implements ProbeSetting {
   private _value: T;
 
   constructor(readonly attrs: DropdownAttrs<T>) {
-    assertTrue(attrs.options.length > 0);
     this._value = this.defaultValue();
   }
 

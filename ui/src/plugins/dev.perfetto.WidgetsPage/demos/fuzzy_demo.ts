@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {fuzzySearch, type FuzzySegment} from '../../../base/fuzzy';
+import {ensureDefined} from '../../../base/assert';
 import {TextInput} from '../../../widgets/text_input';
 import {Checkbox} from '../../../widgets/checkbox';
 import {Card, CardStack} from '../../../widgets/card';
@@ -90,13 +91,10 @@ function generateSampleItems(): SampleItem[] {
   const items: SampleItem[] = [];
   let idCounter = 1;
 
-  function toCamelCase(words: string[]): string {
+  function toCamelCase([first = '', ...rest]: string[]): string {
     return (
-      words[0]!.toLowerCase() +
-      words
-        .slice(1)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join('')
+      first.toLowerCase() +
+      rest.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
     );
   }
 
@@ -186,8 +184,8 @@ export function renderFuzzyDemo(): m.Children {
       );
       results = searchResults.map((res) => ({
         item: res.item,
-        nameSegments: res.segments[0]!,
-        categorySegments: res.segments[1]!,
+        nameSegments: ensureDefined(res.segments[0]),
+        categorySegments: ensureDefined(res.segments[1]),
         score: res.score,
       }));
     } else {

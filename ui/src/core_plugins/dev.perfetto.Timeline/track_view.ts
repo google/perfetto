@@ -457,11 +457,11 @@ export class TrackView {
     const searchIndex = trace.search.resultIndex;
     const searchResults = trace.search.searchResults;
 
-    if (searchIndex !== -1 && searchResults !== undefined) {
+    if (searchResults !== undefined) {
       // using _ = autoTimer();
       const uri = searchResults.trackUris[searchIndex]!;
       // Highlight if this or any children match the search results
-      if (uri === node.uri || node.getTrackByUri(uri)) {
+      if (uri !== undefined && (uri === node.uri || node.getTrackByUri(uri))) {
         return true;
       }
     }
