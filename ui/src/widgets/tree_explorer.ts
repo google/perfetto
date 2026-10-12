@@ -47,17 +47,8 @@ export interface TreeExplorerOptionalAction {
 // inspects elsewhere; COPY exports.
 export type ActionCategory = 'FOCUS' | 'FILTER' | 'DRILL' | 'COPY';
 
-// Visual indicator attached to a node.
-export interface TreeExplorerMarker {
+export interface TreeExplorerOptionalMarker {
   readonly name: string;
-  // Material icon drawn on the node instead of the default small square.
-  // When set, the tooltip shows the marker as a highlighted header row.
-  readonly icon?: string;
-  // Longer explanation shown in the tooltip under the marker name.
-  readonly description?: string;
-}
-
-export interface TreeExplorerOptionalMarker extends TreeExplorerMarker {
   isVisible: (properties: ReadonlyMap<string, string>) => boolean;
 }
 
@@ -77,7 +68,9 @@ export interface TreeExplorerNode {
   readonly cumulativeValue: number;
   readonly parentCumulativeValue?: number;
   readonly properties: ReadonlyMap<string, TreeExplorerPropertyDefinition>;
-  readonly marker?: TreeExplorerMarker;
+  readonly marker?: string;
+  // Material icon drawn on the node before its name.
+  readonly icon?: string;
   readonly xStart: number;
   readonly xEnd: number;
 }
@@ -90,6 +83,12 @@ export interface TreeExplorerData {
   readonly maxDepth: number;
   readonly nodeActions: ReadonlyArray<TreeExplorerOptionalAction>;
   readonly rootActions: ReadonlyArray<TreeExplorerOptionalAction>;
+  // Optional custom renderer for a node's tooltip. Receives the default
+  // tooltip content and returns what to show instead.
+  readonly renderNodeTooltip?: (
+    ctx: TreeExplorerActionContext,
+    defaultContent: m.Children,
+  ) => m.Children;
 }
 
 const TREE_EXPLORER_FILTER_SCHEMA = z

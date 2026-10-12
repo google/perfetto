@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type m from 'mithril';
 import {ensureExists} from '../base/assert';
 import {
   AsyncMemo,
@@ -31,9 +32,9 @@ import {
   UNKNOWN,
 } from '../trace_processor/query_result';
 import type {
+  TreeExplorerActionContext,
   TreeExplorerData,
   TreeExplorerOptionalAction,
-  TreeExplorerMarker,
   TreeExplorerOptionalMarker,
   TreeExplorerPropertyDefinition,
   TreeExplorerState,
@@ -120,10 +121,26 @@ export interface TreeExplorerQueryMetric {
 
   // Optional marker to be displayed on nodes. Marker appears as a visual
   // indicator (small dot) on the left side of flamegraph nodes and is shown
-  // in the tooltip.
+  // in the tooltip. For an icon before the node's name, see
+  // optionalNodeIcon.
   //
   // Examples include marking inlined functions, optimized code, etc.
   readonly optionalMarker?: TreeExplorerOptionalMarker;
+
+  // Optional icon drawn before a node's name (unlike optionalMarker, which is
+  // a small dot in the corner). Called with the node's properties; return a
+  // Material icon name, or undefined for no icon.
+  readonly optionalNodeIcon?: (
+    properties: ReadonlyMap<string, string>,
+  ) => string | undefined;
+
+  // Optional custom renderer for a node's flamegraph tooltip. Receives the
+  // default tooltip content and returns what to show, e.g. to add content
+  // above or below it.
+  readonly optionalNodeTooltipRenderer?: (
+    ctx: TreeExplorerActionContext,
+    defaultContent: m.Children,
+  ) => m.Children;
 }
 
 export interface MetricsFromTableOrSubqueryOptions {
@@ -304,6 +321,8 @@ async function computeTree(
     optionalNodeActions,
     optionalRootActions,
     optionalMarker,
+    optionalNodeIcon,
+    optionalNodeTooltipRenderer,
   } = metricTable.metric;
   const agg = aggregatableProperties ?? [];
   const aggCols = agg.map((x) => x.name);
@@ -412,17 +431,15 @@ async function computeTree(
       }
     }
 
-    // Evaluate marker
-    let marker: TreeExplorerMarker | undefined;
-    if (
-      optionalMarker &&
-      optionalMarker.isVisible(
-        new Map([...properties].map(([k, v]) => [k, v.value])),
-      )
-    ) {
-      const {name, icon, description} = optionalMarker;
-      marker = {name, icon, description};
+    // Evaluate marker and icon
+    const propertyValues = new Map(
+      [...properties].map(([k, v]) => [k, v.value]),
+    );
+    let marker: string | undefined;
+    if (optionalMarker && optionalMarker.isVisible(propertyValues)) {
+      marker = optionalMarker.name;
     }
+    const icon = optionalNodeIcon?.(propertyValues);
 
     nodes.push({
       id: it.id,
@@ -436,6 +453,7 @@ async function computeTree(
       xEnd: it.xEnd,
       properties,
       marker,
+      icon,
     });
     if (it.depth === 1) {
       postiveRootsValue += it.cumulativeValue;
@@ -454,5 +472,6 @@ async function computeTree(
     maxDepth,
     nodeActions,
     rootActions,
+    renderNodeTooltip: optionalNodeTooltipRenderer,
   };
 }
