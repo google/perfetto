@@ -31,10 +31,8 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/result_formatter.h"
-#include "src/trace_processor/shell/shell_utils.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
@@ -174,24 +172,64 @@ void RunAndPrint(TraceProcessor* trace_processor,
   }
 }
 
+// Commands which no longer work. They are left out of .help but still
+// recognized, so that anyone using them is told what to do instead.
+struct RetiredCommand {
+  const char* name;
+  const char* note;
+};
+constexpr RetiredCommand kRetiredCommands[] = {
+    {"dump",
+     "was removed: use `trace_processor export sqlite -o FILE TRACE_FILE` "
+     "instead"},
+    {"load-metrics-sql",
+     "was removed with the deprecated v1 metrics workflow: see "
+     "https://perfetto.dev/docs/analysis/metrics"},
+    {"run-metrics",
+     "was removed with the deprecated v1 metrics workflow: see "
+     "https://perfetto.dev/docs/analysis/metrics"},
+    {"width",
+     "is deprecated and does nothing: columns are now sized to their "
+     "contents"},
+};
+
+void PrintRetiredNote(const char* what, const char* note) {
+  PERFETTO_ELOG(
+      "%s %s. If this affects you, please file a bug at "
+      "https://github.com/google/perfetto/issues",
+      what, note);
+}
+
+// Prints the note for |command| if it is retired. Returns whether it was.
+bool MaybePrintRetiredCommand(const char* command) {
+  for (const auto& retired : kRetiredCommands) {
+    if (strcmp(command, retired.name) == 0) {
+      PrintRetiredNote(("." + std::string(retired.name)).c_str(), retired.note);
+      return true;
+    }
+  }
+  return false;
+}
+
 void PrintShellUsage() {
   PERFETTO_ELOG(R"(
 Available commands:
 .quit, .q         Exit the shell.
 .help             This text.
-.dump FILE        Export the trace as a sqlite database.
 .read FILE        Executes the queries in the FILE.
 .reset            Destroys all tables/view created by the user.
-.load-metrics-sql Reloads SQL from extension and custom metric paths
-                  specified in command line args.
-.run-metrics      Runs metrics specified in command line args
-                  and prints the result.
-.width WIDTH      No-op, kept for compatibility: columns are sized to
-                  their contents.
 )");
 }
 
 }  // namespace
+
+shell::FlagSpec RetiredWideFlag() {
+  return {"wide", 'W', false, nullptr, nullptr, [](const char*) {
+            PrintRetiredNote("-W/--wide",
+                             "is deprecated and does nothing: columns are now "
+                             "sized to their contents");
+          }};
+}
 
 base::Status StartInteractiveShell(TraceProcessor* trace_processor,
                                    const InteractiveOptions& options) {
@@ -213,11 +251,11 @@ base::Status StartInteractiveShell(TraceProcessor* trace_processor,
       if (strcmp(command, "quit") == 0 || strcmp(command, "q") == 0) {
         break;
       }
+      if (MaybePrintRetiredCommand(command)) {
+        continue;
+      }
       if (strcmp(command, "help") == 0) {
         PrintShellUsage();
-      } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
-        if (!ExportTraceToDatabase(trace_processor, arg).ok())
-          PERFETTO_ELOG("Database export failed");
       } else if (strcmp(command, "reset") == 0) {
         trace_processor->RestoreInitialTables();
       } else if (strcmp(command, "read") == 0 && strlen(arg)) {
@@ -227,26 +265,6 @@ base::Status StartInteractiveShell(TraceProcessor* trace_processor,
           continue;
         }
         RunAndPrint(trace_processor, sql, options.quiet);
-      } else if (strcmp(command, "width") == 0) {
-        PERFETTO_ELOG(
-            ".width does nothing: columns are sized to their contents");
-      } else if (strcmp(command, "load-metrics-sql") == 0) {
-        base::Status status = LoadMetricsAndExtensionsSql(
-            trace_processor, options.metrics, options.extensions);
-        if (!status.ok()) {
-          PERFETTO_ELOG("%s", status.c_message());
-        }
-      } else if (strcmp(command, "run-metrics") == 0) {
-        if (options.metrics.empty()) {
-          PERFETTO_ELOG("No metrics specified on command line");
-          continue;
-        }
-
-        base::Status status = RunMetrics(trace_processor, options.metrics,
-                                         options.metric_v1_format);
-        if (!status.ok()) {
-          fprintf(stderr, "%s\n", status.c_message());
-        }
       } else {
         PrintShellUsage();
       }

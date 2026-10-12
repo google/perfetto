@@ -72,6 +72,9 @@ namespace {
 void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
   char buf[256];
   for (const auto& f : flags) {
+    if (!f.help) {
+      continue;
+    }
     if (f.short_name) {
       snprintf(buf, sizeof(buf), "  -%c, --%-24s %s\n", f.short_name,
                f.long_name, f.help);

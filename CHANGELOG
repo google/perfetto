@@ -37,6 +37,10 @@ Unreleased:
      sized to their contents, and prints the result of every statement in the
      input rather than only the last. Ctrl-D at the paging prompt now ends the
      current result instead of exiting the shell.
+   * Removed the `.dump`, `.load-metrics-sql` and `.run-metrics` interactive
+     shell commands, and deprecated `.width` and `-W/--wide`, which no longer
+     do anything. Using any of them prints what to do instead: for `.dump`,
+     use `trace_processor export sqlite`.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.

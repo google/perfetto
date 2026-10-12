@@ -201,12 +201,6 @@ base::Status PrintStats(TraceProcessor* tp) {
   return base::OkStatus();
 }
 
-base::Status ExportTraceToDatabase(TraceProcessor* trace_processor,
-                                   const std::string& output_name) {
-  return ExportTrace(trace_processor, TraceProcessor::ExportFormat::kSqlite,
-                     output_name);
-}
-
 base::Status ExportTrace(TraceProcessor* trace_processor,
                          TraceProcessor::ExportFormat format,
                          const std::string& output_name) {
