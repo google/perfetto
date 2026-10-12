@@ -167,21 +167,13 @@ select_body_end(A) ::= . { A = pCtx->last_shifted_end; }
 
 // ---------- Pipelines ----------
 
-// `|>` is not a token the SQLite tokenizer knows, so a pipe is `|` directly
-// followed by `>`. No valid SQL expression contains those two in a row, but
-// an expression can end in `|`, so nothing that ends in a bare expression may
-// precede a pipe: see perfetto_pipe_source.
+// `|>`, a token of its own (see perfetto.tokens), so anything, an expression
+// included, can end right before it.
 %type perfetto_pipe {int}
-perfetto_pipe(A) ::= BITOR(B) GT(G). {
-    if (B.layer_id != G.layer_id || B.offset + B.n != G.offset) {
-        pCtx->error = 1;
-    }
-    A = 0;
-}
+perfetto_pipe(A) ::= PIPE. { A = 0; }
 
-// What a pipeline may start from: a table or a parenthesised subquery. A join
-// is not allowed here since its ON clause is an expression, whose trailing `|`
-// would be ambiguous with the pipe; wrap it in a subquery instead.
+// What a pipeline may start from: a table or a parenthesised subquery, which
+// is how to start from a join.
 //
 // An alias needs AS, as every alias in pipe syntax does. A bare alias would
 // take a keyword which falls back to an identifier for one, like the PER in
@@ -348,10 +340,9 @@ perfetto_pipe_set_list(A) ::= perfetto_pipe_set_list(L) COMMA
     A = synq_parse_perfetto_pipe_set_item_list(pCtx, L, X);
 }
 
-// ORDER BY's list: `expr [ASC | DESC], ...`. A term ends at `|`, since `|>`
-// is two tokens: a top-level bitwise OR needs parentheses.
+// ORDER BY's list: `expr [ASC | DESC], ...`.
 %type perfetto_pipe_order_term {uint32_t}
-perfetto_pipe_order_term(A) ::= expr(E). [BITNOT] {
+perfetto_pipe_order_term(A) ::= expr(E). {
     A = synq_parse_perfetto_pipe_order_term(pCtx, E, SYNTAQLITE_SORT_ORDER_NONE);
 }
 perfetto_pipe_order_term(A) ::= expr(E) ASC. {
@@ -389,6 +380,9 @@ perfetto_pipe_group_by(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
 perfetto_pipe_group_by(A) ::= GROUP BY perfetto_pipe_group_list(L). { A = L; }
 
 %type perfetto_pipe_stage {uint32_t}
+perfetto_pipe_stage(A) ::= WHERE expr(E). {
+    A = synq_parse_perfetto_pipe_where(pCtx, E);
+}
 perfetto_pipe_stage(A) ::= SELECT perfetto_pipe_select_list(L). {
     A = synq_parse_perfetto_pipe_select(pCtx, L);
 }

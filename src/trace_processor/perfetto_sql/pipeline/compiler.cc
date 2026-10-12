@@ -147,6 +147,8 @@ base::Status Compiler::BuildOperation(uint32_t stage) {
     switch (tag) {
       case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
         return Unsupported(stage, "INTERVAL FILL GAPS");
+      case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
+        return Unsupported(stage, "WHERE");
       default:
         PERFETTO_FATAL("Unknown pipeline stage");
     }
