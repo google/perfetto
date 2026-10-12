@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SHELL_CSV_RESULT_FORMATTER_H_
 #define SRC_TRACE_PROCESSOR_SHELL_CSV_RESULT_FORMATTER_H_
 
+#include <cstdint>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -29,9 +30,15 @@ namespace perfetto::trace_processor {
 // Prints a result set as CSV with every string quoted, NULL as "[NULL]" and
 // doubles with six decimal places. Diff tests and scripts depend on this exact
 // format: do not change it.
+//
+// A result set over the limits in the options is cut to its first rows. The
+// note saying so goes to |notes| so that |output| stays valid CSV.
 class CsvResultFormatter : public ResultFormatter {
  public:
-  CsvResultFormatter(std::vector<std::string> column_names, FILE* output);
+  CsvResultFormatter(const ResultFormatOptions& options,
+                     std::vector<std::string> column_names,
+                     FILE* output,
+                     FILE* notes);
   ~CsvResultFormatter() override;
 
   CsvResultFormatter(const CsvResultFormatter&) = delete;
@@ -41,9 +48,18 @@ class CsvResultFormatter : public ResultFormatter {
   void Finish() override;
 
  private:
+  std::string FormatRow(const SqlValue* cells) const;
+
+  const ResultFormatOptions options_;
   const std::vector<std::string> column_names_;
   FILE* const output_;
+  FILE* const notes_;
   std::string rows_;
+  uint64_t rows_kept_ = 0;
+  uint64_t row_count_ = 0;
+  uint64_t rows_past_limit_ = 0;
+  bool limit_exceeded_ = false;
+  bool stopped_early_ = false;
 };
 
 }  // namespace perfetto::trace_processor

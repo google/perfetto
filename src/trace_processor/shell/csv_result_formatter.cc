@@ -17,8 +17,10 @@
 #include "src/trace_processor/shell/csv_result_formatter.h"
 
 #include <cinttypes>
+#include <cstdint>
 #include <cstdio>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -27,40 +29,75 @@
 
 namespace perfetto::trace_processor {
 
-CsvResultFormatter::CsvResultFormatter(std::vector<std::string> column_names,
-                                       FILE* output)
-    : column_names_(std::move(column_names)), output_(output) {}
+CsvResultFormatter::CsvResultFormatter(const ResultFormatOptions& options,
+                                       std::vector<std::string> column_names,
+                                       FILE* output,
+                                       FILE* notes)
+    : options_(options),
+      column_names_(std::move(column_names)),
+      output_(output),
+      notes_(notes) {}
 
 CsvResultFormatter::~CsvResultFormatter() = default;
 
-bool CsvResultFormatter::AddRow(const SqlValue* cells) {
+std::string CsvResultFormatter::FormatRow(const SqlValue* cells) const {
+  std::string row;
   for (size_t c = 0; c < column_names_.size(); c++) {
     if (c > 0) {
-      rows_ += ',';
+      row += ',';
     }
     const SqlValue& value = cells[c];
     switch (value.type) {
       case SqlValue::Type::kNull:
-        rows_ += "\"[NULL]\"";
+        row += "\"[NULL]\"";
         break;
       case SqlValue::Type::kDouble:
-        rows_ += base::StackString<256>("%f", value.double_value).ToStdString();
+        row += base::StackString<256>("%f", value.double_value).ToStdString();
         break;
       case SqlValue::Type::kLong:
-        rows_ +=
+        row +=
             base::StackString<256>("%" PRIi64, value.long_value).ToStdString();
         break;
-      case SqlValue::Type::kString:
-        rows_ += '"';
-        rows_ += value.string_value;
-        rows_ += '"';
+      case SqlValue::Type::kString: {
+        std::string_view str = value.string_value;
+        uint64_t dropped = CutToChars(&str, options_.max_cell_chars);
+        row += '"';
+        row += str;
+        if (dropped) {
+          row += CutMarker(dropped);
+        }
+        row += '"';
         break;
+      }
       case SqlValue::Type::kBytes:
-        rows_ += "\"<raw bytes>\"";
+        row += "\"<raw bytes>\"";
         break;
     }
   }
-  rows_ += '\n';
+  row += '\n';
+  return row;
+}
+
+bool CsvResultFormatter::AddRow(const SqlValue* cells) {
+  ++row_count_;
+  if (!limit_exceeded_) {
+    std::string row = FormatRow(cells);
+    // The first row is always kept so that wide rows still show something.
+    bool over_rows = options_.max_rows && rows_kept_ >= options_.max_rows;
+    bool over_bytes = options_.max_bytes && rows_kept_ > 0 &&
+                      rows_.size() + row.size() > options_.max_bytes;
+    if (!over_rows && !over_bytes) {
+      rows_ += row;
+      ++rows_kept_;
+      return true;
+    }
+    limit_exceeded_ = true;
+  }
+  if (options_.max_rows_past_limit &&
+      ++rows_past_limit_ >= options_.max_rows_past_limit) {
+    stopped_early_ = true;
+    return false;
+  }
   return true;
 }
 
@@ -75,6 +112,12 @@ void CsvResultFormatter::Finish() {
   header += '\n';
   fwrite(header.data(), 1, header.size(), output_);
   fwrite(rows_.data(), 1, rows_.size(), output_);
+  if (limit_exceeded_) {
+    fprintf(notes_,
+            "(first %" PRIu64 " of %s%" PRIu64
+            " rows. Pass --max-rows 0 --max-bytes 0 for all)\n",
+            rows_kept_, stopped_early_ ? "at least " : "", row_count_);
+  }
 }
 
 }  // namespace perfetto::trace_processor

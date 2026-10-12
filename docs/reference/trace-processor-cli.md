@@ -123,9 +123,9 @@ trace_processor query -f queries.sql trace.pftrace
 cat queries.sql | trace_processor query trace.pftrace
 ```
 
-Each statement's result set is printed as CSV, and consecutive result sets
-are separated by a single blank line. The separator is unambiguous because
-every string value is quoted.
+Each statement's result set is printed to stdout, and consecutive result sets
+are separated by a single blank line. `--format` picks between
+[CSV](#query-csv), the default, and [markdown](#query-markdown).
 
 Flags:
 
@@ -138,10 +138,49 @@ Flags:
   finish.
 - `-W, --wide`: use double-width columns when printing results.
 - `--perf-file FILE`: write trace-load and query timings to `FILE`.
+- `--format FMT`: print results as `csv` (default) or `markdown`.
+- `--max-rows N`, `--max-bytes N`, `--max-cell-width N`: limits on the rows,
+  bytes and characters per cell printed for each result set; `0` means no
+  limit. Their defaults and effect depend on the format, see below.
 - `--structured-query-id ID` plus `--summary-spec FILE` _(advanced)_: run a
   single structured query by ID from one or more
   [TraceSummarySpec](/docs/analysis/trace-summary.md) files, instead of the SQL sources
   above.
+
+#### {#query-csv} CSV output
+
+CSV is the default format, meant for scripts. Every string value is quoted,
+so the blank line between result sets is unambiguous.
+
+CSV has no limits by default. If any `--max-*` flag is passed:
+
+- Results over the row or byte limit are cut to their first rows.
+- Cells over `--max-cell-width` characters are cut with a `…(+N chars)`
+  marker.
+- A note giving the row count is printed to stderr, so stdout stays valid
+  CSV.
+
+#### {#query-markdown} Markdown output
+
+`--format markdown` prints each result set as a compact markdown table,
+without alignment padding. NULL values print as `NULL`; `|` and line breaks
+are escaped.
+
+Markdown is meant to be read, so it is capped by default:
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--max-rows` | 1000 | Larger results show only their first and last rows. |
+| `--max-bytes` | 10000 | Same, for bytes of output. |
+| `--max-cell-width` | 500 | Longer cells are cut with a `…(+N chars)` marker. |
+
+A capped result shows at most 20 rows at each end, around a
+`| … N rows omitted … |` row. Once a result is 100,000 rows past the cap, the
+rest of it is not read. Pass `--max-rows 0 --max-bytes 0` to print every row.
+
+A footer gives the row count for results which were capped, are empty or have
+10 or more rows. For example: `(first 20 and last 20 of 5000 rows. ...)`. When
+reading stopped early, the count is a lower bound.
 
 ### {#subcommand-interactive} `interactive`: REPL
 

@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
@@ -30,10 +31,24 @@ namespace perfetto::trace_processor {
 enum class ResultFormat {
   // Quoted CSV: the historical, machine-parseable format.
   kCsv,
+  // Compact markdown table without alignment padding.
+  kMarkdown,
 };
 
 struct ResultFormatOptions {
   ResultFormat format = ResultFormat::kCsv;
+
+  // 0 means "no limit" for all the options below.
+
+  // A result set with more rows or bytes than this is cut: markdown prints its
+  // first and last rows with a marker row in between, CSV its first rows.
+  uint64_t max_rows = 0;
+  uint64_t max_bytes = 0;
+  // Cells with more characters than this are cut with a visible marker.
+  uint64_t max_cell_chars = 0;
+  // Once a result set is over the limits above, at most this many further
+  // rows are read before the statement is abandoned.
+  uint64_t max_rows_past_limit = 0;
 };
 
 // Prints a single result set. Rows are passed to AddRow() while the statement
@@ -50,6 +65,16 @@ class ResultFormatter {
   // Prints the result set. Called exactly once, after the last row.
   virtual void Finish() = 0;
 };
+
+// Cuts |s| to at most |max_chars| UTF-8 code points (no limit if 0), never in
+// the middle of a character. Returns the number of code points dropped.
+uint64_t CutToChars(std::string_view* s, uint64_t max_chars);
+
+// The marker appended to a cell from which CutToChars() dropped characters.
+std::string CutMarker(uint64_t dropped_chars);
+
+// Markdown options with the limits used unless overridden by flags.
+ResultFormatOptions DefaultMarkdownOptions();
 
 std::unique_ptr<ResultFormatter> CreateResultFormatter(
     const ResultFormatOptions& options,
