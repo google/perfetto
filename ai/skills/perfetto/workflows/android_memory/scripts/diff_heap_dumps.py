@@ -16,11 +16,14 @@
 
 import argparse
 from collections import defaultdict
-import csv
 from dataclasses import dataclass, field
-import io
-import subprocess
 import sys
+
+try:
+  from perfetto.trace_processor import TraceProcessor, TraceProcessorException
+except ModuleNotFoundError as error:
+  raise SystemExit('Error: perfetto Python package not found; '
+                   'install it with `pip install perfetto`') from error
 
 HEAP_SUMMARY_QUERY = """
 INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_stats;
@@ -125,44 +128,56 @@ class Growth:
     return self.obj_count_delta > 0 or self.dominated_bytes_delta > 0
 
 
-def query(session: str, trace_processor: str, sql: str) -> list[dict[str, str]]:
-  """Runs a query against a warm session and returns its CSV rows."""
-  command = [trace_processor, 'query', '--remote', session, '-f', '-']
+def open_session(session: str) -> TraceProcessor:
   try:
-    result = subprocess.run(
-        command, input=sql, capture_output=True, text=True, check=True)
-  except FileNotFoundError as error:
-    raise HeapDiffError(f'{trace_processor} not found; pass --trace-processor '
-                        'with its path') from error
-  except subprocess.CalledProcessError as error:
-    raise HeapDiffError(f'querying session `{session}` failed: '
-                        f'{error.stderr.strip()}') from error
-  return list(csv.DictReader(io.StringIO(result.stdout)))
-
-
-def snapshot_id_of(row: dict[str, str]) -> SnapshotId:
-  return SnapshotId(int(row['graph_sample_ts']), int(row['upid']))
-
-
-def load_snapshots(session: str,
-                   trace_processor: str) -> dict[SnapshotId, Snapshot]:
-  snapshots = {
-      snapshot_id_of(row):
-          Snapshot(
-              row['process_name'],
-              HeapSummary(
-                  int(row['total_obj_count']), int(row['total_bytes']),
-                  int(row['reachable_obj_count']), int(row['reachable_bytes'])))
-      for row in query(session, trace_processor, HEAP_SUMMARY_QUERY)
-  }
-  if not snapshots:
+    return TraceProcessor(remote=session)
+  except TypeError as error:
+    raise HeapDiffError('installed perfetto package does not support '
+                        'TraceProcessor(remote=...); upgrade with '
+                        '`pip install --upgrade perfetto`') from error
+  except (TraceProcessorException, OSError) as error:
     raise HeapDiffError(
-        f'`{session}` holds no Java heap graph; is it a heap dump?')
-  for row in query(session, trace_processor, CLASS_AGGREGATION_QUERY):
+        f'connecting to session `{session}` failed: {error}') from error
+
+
+def query_rows(tp: TraceProcessor, session: str,
+               sql: str) -> list[TraceProcessor.Row]:
+  try:
+    return list(tp.query(sql))
+  except (TraceProcessorException, OSError) as error:
+    raise HeapDiffError(
+        f'querying session `{session}` failed: {error}') from error
+
+
+def snapshot_id_of(row: TraceProcessor.Row) -> SnapshotId:
+  return SnapshotId(row.graph_sample_ts, row.upid)
+
+
+def snapshot_from_row(row: TraceProcessor.Row) -> Snapshot:
+  summary = HeapSummary(
+      row.total_obj_count,
+      row.total_bytes,
+      row.reachable_obj_count,
+      row.reachable_bytes,
+  )
+  return Snapshot(row.process_name, summary)
+
+
+def load_snapshots(session: str) -> dict[SnapshotId, Snapshot]:
+  with open_session(session) as tp:
+    summary_rows = query_rows(tp, session, HEAP_SUMMARY_QUERY)
+    if not summary_rows:
+      raise HeapDiffError(
+          f'`{session}` holds no Java heap graph; is it a heap dump?')
+    class_rows = query_rows(tp, session, CLASS_AGGREGATION_QUERY)
+  snapshots = {
+      snapshot_id_of(row): snapshot_from_row(row) for row in summary_rows
+  }
+  for row in class_rows:
     classes = snapshots[snapshot_id_of(row)].classes
-    classes[row['category']][row['class_name']] = Metrics(
-        int(row['obj_count']), int(row['self_bytes']),
-        int(row['dominated_bytes']))
+    classes[row.category][row.class_name] = Metrics(row.obj_count,
+                                                    row.self_bytes,
+                                                    row.dominated_bytes)
   return snapshots
 
 
@@ -252,10 +267,10 @@ def print_class_growths(title: str, growths: list[Growth]) -> None:
 
 
 def report(args: argparse.Namespace) -> None:
-  before_snapshots = load_snapshots(args.before_session, args.trace_processor)
+  before_snapshots = load_snapshots(args.before_session)
   after_snapshots = (
       before_snapshots if args.after_session == args.before_session else
-      load_snapshots(args.after_session, args.trace_processor))
+      load_snapshots(args.after_session))
 
   before_id = select_snapshot(before_snapshots, args.before_session,
                               args.before_upid, args.before_ts)
@@ -291,7 +306,6 @@ def parse_args() -> argparse.Namespace:
   parser.add_argument('--before-ts', type=int)
   parser.add_argument('--after-upid', type=int)
   parser.add_argument('--after-ts', type=int)
-  parser.add_argument('--trace-processor', default='trace_processor')
   return parser.parse_args()
 
 

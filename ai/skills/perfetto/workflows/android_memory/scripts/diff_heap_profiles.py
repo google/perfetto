@@ -16,11 +16,14 @@
 
 import argparse
 from collections import defaultdict
-import csv
 from dataclasses import dataclass, field
-import io
-import subprocess
 import sys
+
+try:
+  from perfetto.trace_processor import TraceProcessor, TraceProcessorException
+except ModuleNotFoundError as error:
+  raise SystemExit('Error: perfetto Python package not found; '
+                   'install it with `pip install perfetto`') from error
 
 # Lists every (process, heap_name) profile recorded in the trace with its
 # whole-trace totals. In heap_profile_allocation, allocations have positive
@@ -176,35 +179,39 @@ def compact_callstack(chain: list[FrameNode]) -> str:
       format_frame(f.function_name, f.mapping_name) for f in kept)
 
 
-def query(session: str, trace_processor: str, sql: str) -> list[dict[str, str]]:
-  command = [trace_processor, 'query', '--remote', session, '-f', '-']
+def open_session(session: str) -> TraceProcessor:
   try:
-    result = subprocess.run(
-        command, input=sql, capture_output=True, text=True, check=True)
-  except FileNotFoundError as error:
+    return TraceProcessor(remote=session)
+  except TypeError as error:
+    raise HeapProfileDiffError('installed perfetto package does not support '
+                               'TraceProcessor(remote=...); upgrade with '
+                               '`pip install --upgrade perfetto`') from error
+  except (TraceProcessorException, OSError) as error:
     raise HeapProfileDiffError(
-        f'{trace_processor} not found; pass --trace-processor with its path'
-    ) from error
-  except subprocess.CalledProcessError as error:
-    raise HeapProfileDiffError(
-        f'querying session `{session}` failed: {error.stderr.strip()}'
-    ) from error
-  return list(csv.DictReader(io.StringIO(result.stdout)))
+        f'connecting to session `{session}` failed: {error}') from error
 
 
-def select_profile_row(rows: list[dict[str,
-                                       str]], session: str, upid: int | None,
-                       heap_name: str | None) -> dict[str, str]:
+def query_rows(tp: TraceProcessor, session: str,
+               sql: str) -> list[TraceProcessor.Row]:
+  try:
+    return list(tp.query(sql))
+  except (TraceProcessorException, OSError) as error:
+    raise HeapProfileDiffError(
+        f'querying session `{session}` failed: {error}') from error
+
+
+def select_profile_row(rows: list[TraceProcessor.Row], session: str,
+                       upid: int | None,
+                       heap_name: str | None) -> TraceProcessor.Row:
   if not rows:
     raise HeapProfileDiffError(
         f'`{session}` holds no heap_profile_allocation rows')
   matches = [
-      r for r in rows if (upid is None or int(r['upid']) == upid) and
-      (heap_name is None or r['heap_name'] == heap_name)
+      r for r in rows if (upid is None or r.upid == upid) and
+      (heap_name is None or r.heap_name == heap_name)
   ]
   available = ', '.join(
-      f"upid={r['upid']} ({r['process_name']}) heap={r['heap_name']}"
-      for r in rows)
+      f'upid={r.upid} ({r.process_name}) heap={r.heap_name}' for r in rows)
   if not matches:
     raise HeapProfileDiffError(
         f'`{session}`: no profile with upid={upid}, heap_name={heap_name}. '
@@ -217,32 +224,39 @@ def select_profile_row(rows: list[dict[str,
   return matches[0]
 
 
-def load_profile(session: str, trace_processor: str, upid: int | None,
-                 heap_name: str | None) -> tuple[ProfileId, Profile]:
-  row = select_profile_row(
-      query(session, trace_processor, PROFILE_LIST_QUERY), session, upid,
-      heap_name)
-  profile_id = ProfileId(int(row['upid']), row['heap_name'])
-  sql = CALLSTACK_TREE_QUERY_TEMPLATE.format(
-      upid=profile_id.upid, heap_name=profile_id.heap_name)
+def frame_node_from_row(row: TraceProcessor.Row) -> FrameNode:
+  return FrameNode(
+      node_id=row.id,
+      parent_id=row.parent_id,
+      function_name=row.function_name,
+      mapping_name=row.mapping_name,
+      self_metrics=Metrics(
+          row.self_unreleased_bytes,
+          row.self_alloc_bytes,
+          row.self_unreleased_count,
+          row.self_alloc_count,
+      ),
+  )
 
-  nodes: dict[int, FrameNode] = {}
-  for r in query(session, trace_processor, sql):
-    parent_raw = r['parent_id']
-    parent_id = None if parent_raw in ('', '[NULL]') else int(parent_raw)
-    node_id = int(r['id'])
-    nodes[node_id] = FrameNode(
-        node_id=node_id,
-        parent_id=parent_id,
-        function_name=r['function_name'],
-        mapping_name=r['mapping_name'],
-        self_metrics=Metrics(
-            int(r['self_unreleased_bytes']),
-            int(r['self_alloc_bytes']),
-            int(r['self_unreleased_count']),
-            int(r['self_alloc_count']),
-        ),
-    )
+
+def fetch_profile_nodes(
+    session: str, upid: int | None,
+    heap_name: str | None) -> tuple[ProfileId, str, dict[int, FrameNode]]:
+  with open_session(session) as tp:
+    row = select_profile_row(
+        query_rows(tp, session, PROFILE_LIST_QUERY), session, upid, heap_name)
+    profile_id = ProfileId(row.upid, row.heap_name)
+    sql = CALLSTACK_TREE_QUERY_TEMPLATE.format(
+        upid=profile_id.upid, heap_name=profile_id.heap_name)
+    tree_rows = query_rows(tp, session, sql)
+  nodes = {r.id: frame_node_from_row(r) for r in tree_rows}
+  return profile_id, row.process_name, nodes
+
+
+def load_profile(session: str, upid: int | None,
+                 heap_name: str | None) -> tuple[ProfileId, Profile]:
+  profile_id, process_name, nodes = fetch_profile_nodes(session, upid,
+                                                        heap_name)
 
   summary = Metrics()
   functions: dict[str, Metrics] = {}
@@ -287,7 +301,7 @@ def load_profile(session: str, trace_processor: str, upid: int | None,
   }
 
   return profile_id, Profile(
-      process_name=row['process_name'],
+      process_name=process_name,
       summary=summary,
       functions=specific_functions,
       callstacks=callstacks,
@@ -362,11 +376,10 @@ def report(args: argparse.Namespace) -> None:
   if args.before_session == args.after_session:
     raise HeapProfileDiffError(
         'before_session and after_session must be two distinct sessions')
-  before_id, before = load_profile(args.before_session, args.trace_processor,
-                                   args.before_upid, args.heap_name)
-  after_id, after = load_profile(args.after_session, args.trace_processor,
-                                 args.after_upid, args.heap_name or
-                                 before_id.heap_name)
+  before_id, before = load_profile(args.before_session, args.before_upid,
+                                   args.heap_name)
+  after_id, after = load_profile(args.after_session, args.after_upid,
+                                 args.heap_name or before_id.heap_name)
   print(f'- **Before**: `upid={before_id.upid}` (`{before.process_name}`), '
         f'`heap_name={before_id.heap_name}`')
   print(f'- **After**: `upid={after_id.upid}` (`{after.process_name}`), '
@@ -416,7 +429,6 @@ def parse_args() -> argparse.Namespace:
       '--top-functions', type=int, default=DEFAULT_TOP_FUNCTIONS)
   parser.add_argument(
       '--top-callstacks', type=int, default=DEFAULT_TOP_CALLSTACKS)
-  parser.add_argument('--trace-processor', default='trace_processor')
   return parser.parse_args()
 
 
