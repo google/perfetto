@@ -49,8 +49,8 @@ class KeyEncoder {
   enum class Kind : uint8_t { kInteger, kDouble, kString };
   // Lays out one column's keys, for columns of one storage type.
   using Writer = void (*)(const ColumnView& column,
+                          const Selection& selection,
                           RowLayout::Slot slot,
-                          uint32_t count,
                           uint8_t* rows);
 
   // Checks each column can be a key of the kind it was before, laying the

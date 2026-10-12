@@ -33,7 +33,7 @@
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -60,8 +60,10 @@ class RowSource final : public Source {
 
   void SetRows(std::vector<Row> rows) { rows_ = std::move(rows); }
 
-  std::unique_ptr<OperatorState> MakeState() const override {
-    return std::make_unique<State>();
+  std::unique_ptr<OperatorState> MakeState(Context& context) const override {
+    auto state = std::make_unique<State>();
+    state->context = &context;
+    return state;
   }
   void Rewind(OperatorState& state) const override {
     state.Cast<State>().offset = 0;
@@ -88,13 +90,10 @@ class RowSource final : public Source {
       }
     }
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.ids.data()));
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.parents.data(),
-                                        &s.validity));
-    out.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, s.payloads.data()));
-    out.Compose(RowSelection::Range(0), count);
-    out.SetCardinality(count);
+    test::AddCopy(*s.context, s.ids, nullptr, &out);
+    test::AddCopy(*s.context, s.parents, &s.validity, &out);
+    test::AddCopy(*s.context, s.payloads, nullptr, &out);
+    out.SetRowCount(count);
     s.offset += count;
     return true;
   }
@@ -102,6 +101,7 @@ class RowSource final : public Source {
  private:
   struct State : OperatorState {
     ~State() override;
+    Context* context = nullptr;
     uint32_t offset = 0;
     std::vector<int64_t> ids;
     std::vector<int64_t> parents;
@@ -124,7 +124,7 @@ class NumberedSource final : public Source {
         parents_(std::move(parents)),
         payloads_(std::move(payloads)) {}
 
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   void Rewind(OperatorState& state) const override {
@@ -136,12 +136,13 @@ class NumberedSource final : public Source {
       return false;
     }
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, nodes_.data()));
-    out.AddColumn(
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Uint32{}}, nodes_.data()));
+    out.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Uint32{}}, parents_.data()));
-    out.AddColumn(
+    out.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Int64{}}, payloads_.data()));
-    out.SetCardinality(static_cast<uint32_t>(nodes_.size()));
+    out.SetRowCount(static_cast<uint32_t>(nodes_.size()));
     s.emitted = true;
     return true;
   }
@@ -161,7 +162,7 @@ class NumberedSource final : public Source {
 class Execution {
  public:
   explicit Execution(const Source& source)
-      : source_(source), state_(source.MakeState()) {}
+      : source_(source), state_(source.MakeState(test::TestContext())) {}
 
   RowBatch* Next() {
     return source_.GetData(batch_, *state_) ? &batch_ : nullptr;

@@ -28,7 +28,9 @@
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/util/heap.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -48,6 +50,19 @@ template <typename Live>
 void PushEnd(FlexVector<Live>& heap, Live live) {
   heap.push_back(live);
   HeapSiftUp(heap.data(), heap.size() - 1, live, kEndsLater);
+}
+
+// Appends to `out` a copy of the first `count` of `values`, present where
+// `present` says if not null, in a buffer taken from `context`.
+template <typename T>
+void AddCopy(Context& context,
+             const T* values,
+             const BitVector* present,
+             uint32_t count,
+             RowBatch& out) {
+  ColumnBuffer buffer = context.TakeBuffer();
+  ColumnView view = buffer.chunk().Fill(values, present, count);
+  out.AddColumn(view, std::move(buffer));
 }
 
 template <typename Live>
@@ -74,8 +89,10 @@ IntervalFlatten::IntervalFlatten(IntervalFlattenSpec spec)
 IntervalFlatten::~IntervalFlatten() = default;
 IntervalFlatten::State::~State() = default;
 
-std::unique_ptr<OperatorState> IntervalFlatten::MakeState() const {
+std::unique_ptr<OperatorState> IntervalFlatten::MakeState(
+    Context& context) const {
   auto state = std::make_unique<State>();
+  state->context = &context;
   state->live.sums.resize(sums_);
   state->instant = state->live;
   state->segment_sums.resize(sums_);
@@ -101,12 +118,12 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
         "INTERVAL FLATTEN: ts, dur and summed columns must be Int64");
     return OpResult::kError;
   }
-  FlatColumnReader<int64_t> ts(in.column(spec_.ts_column));
-  FlatColumnReader<int64_t> dur(in.column(spec_.dur_column));
+  FlatColumnReader<int64_t> ts(in, spec_.ts_column);
+  FlatColumnReader<int64_t> dur(in, spec_.dur_column);
   base::SmallVector<FlatColumnReader<int64_t>, 4> sums;
   for (const IntervalFlattenSpec::Aggregate& agg : spec_.aggregates) {
     if (agg.function == IntervalFlattenSpec::Function::kSum) {
-      sums.emplace_back(in.column(agg.column));
+      sums.emplace_back(in, agg.column);
     }
   }
   // A full output batch can interrupt consumption of the same input. Keep its
@@ -118,7 +135,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
     s.input_pending = true;
   }
   bool keyed = !spec_.key_columns.empty();
-  const ColumnView* groups = keyed ? &in.column(spec_.group_column) : nullptr;
+
   uint32_t rows = in.size();
   for (; s.input_row < rows; ++s.input_row) {
     uint32_t row = s.input_row;
@@ -132,7 +149,7 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
           base::ErrStatus("INTERVAL FLATTEN: a row's ts or dur is below zero");
       return OpResult::kError;
     }
-    uint32_t group = keyed ? groups->Value<uint32_t>(row) : 0;
+    uint32_t group = keyed ? in.Value<uint32_t>(spec_.group_column, row) : 0;
     if (!s.in_group || group != s.input_group) {
       if (s.in_group) {
         // Finish the old group before accepting any rows from the new one.
@@ -224,11 +241,7 @@ bool IntervalFlatten::RetainKeys(const RowBatch& in, State& s) const {
   }
   s.key_row = 0;
   s.first_key = s.key_rows.size();
-  s.retained.Reset();
-  for (uint32_t column : spec_.key_columns) {
-    s.retained.AddColumn(in.column(column), in.owner(column));
-  }
-  s.retained.SetCardinality(in.size());
+  s.retained.Project(in, spec_.key_columns);
   s.status = s.key_rows.Append(s.retained);
   return s.status.ok();
 }
@@ -374,30 +387,28 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
   if (count == 0) {
     return result;
   }
-  auto add = [&](StorageType type, const void* values,
-                 const BitVector* validity) {
-    ColumnView view = ColumnView::Reference(type, values, validity);
-    out.AddColumn(view);
-  };
-  add(StorageType{Int64{}}, s.segment_ts.data(), nullptr);
-  add(StorageType{Int64{}}, s.segment_dur.data(), nullptr);
+  // The segments are rewritten for the next batch before this one need be
+  // done with, so each column is copied out to a buffer of its own.
+  Context& context = *s.context;
+  AddCopy(context, s.segment_ts.data(), nullptr, count, out);
+  AddCopy(context, s.segment_dur.data(), nullptr, count, out);
   if (!spec_.key_columns.empty()) {
     const uint32_t* rows = s.segment_key_rows.data();
-    s.key_rows.View(&s.served_keys, {rows, rows + count});
+    s.key_rows.View(&s.served_keys, {rows, rows + count}, *s.context);
     for (uint32_t k = 0; k < s.served_keys.column_count(); ++k) {
-      out.AddColumn(s.served_keys.column(k), s.served_keys.owner(k));
+      out.AddColumn(s.served_keys.column(k), s.served_keys.buffer(k));
     }
   }
   for (uint32_t a = 0; a < spec_.aggregates.size(); ++a) {
     if (spec_.aggregates[a].function == IntervalFlattenSpec::Function::kSum) {
       const State::SegmentSums& sum = s.segment_sums[sum_index_[a]];
-      add(StorageType{Int64{}}, sum.values.data(), &sum.present);
+      AddCopy(context, sum.values.data(), &sum.present, count, out);
     } else {
-      add(StorageType{Int64{}}, s.segment_counts.data(), nullptr);
+      AddCopy(context, s.segment_counts.data(), nullptr, count, out);
     }
   }
-  add(StorageType{Uint32{}}, s.segment_groups.data(), nullptr);
-  out.SetCardinality(count);
+  AddCopy(context, s.segment_groups.data(), nullptr, count, out);
+  out.SetRowCount(count);
   return result;
 }
 

@@ -29,48 +29,48 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/layout_column.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
 void WriteSequence(const ColumnView& column,
+                   const Selection& selection,
                    RowLayout::Slot slot,
-                   uint32_t count,
                    uint8_t* rows) {
-  WriteLayoutColumn<int64_t>(column, slot, count, rows,
+  WriteLayoutColumn<int64_t>(column, selection, slot, rows,
                              [](uint32_t index) { return int64_t{index}; });
 }
 
 template <typename Stored>
 void WriteInteger(const ColumnView& column,
+                  const Selection& selection,
                   RowLayout::Slot slot,
-                  uint32_t count,
                   uint8_t* rows) {
   const auto* data = static_cast<const Stored*>(column.data());
-  WriteLayoutColumn<int64_t>(column, slot, count, rows, [data](uint32_t index) {
-    return int64_t{data[index]};
-  });
+  WriteLayoutColumn<int64_t>(
+      column, selection, slot, rows,
+      [data](uint32_t index) { return int64_t{data[index]}; });
 }
 
 void WriteDouble(const ColumnView& column,
+                 const Selection& selection,
                  RowLayout::Slot slot,
-                 uint32_t count,
                  uint8_t* rows) {
   const auto* data = static_cast<const double*>(column.data());
-  WriteLayoutColumn<double>(column, slot, count, rows,
+  WriteLayoutColumn<double>(column, selection, slot, rows,
                             [data](uint32_t index) { return data[index]; });
 }
 
 // Not nullable: the null id is 0.
 void WriteString(const ColumnView& column,
+                 const Selection& selection,
                  RowLayout::Slot slot,
-                 uint32_t count,
                  uint8_t* rows) {
-  FlatColumnReader<StringPool::Id> ids(column);
+  FlatColumnReader<StringPool::Id> ids(column, selection);
   RowLayout::Write<uint32_t>(
-      slot, count,
+      slot, selection.size(),
       [&](uint32_t row, uint32_t* out) {
         StringPool::Id id;
         *out = ids.Read(row, &id) ? id.raw_id() : 0;
@@ -109,7 +109,7 @@ PERFETTO_ALWAYS_INLINE void KeyEncoder::WriteKeys(
   const uint32_t* index = columns.data();
   for (const KeyColumn *c = key_columns_.data(), *end = c + key_columns_.size();
        c != end; ++c, ++index) {
-    c->writer(batch.column(*index), c->slot, count, rows);
+    c->writer(batch.column(*index), batch.selection(), c->slot, rows);
   }
 }
 

@@ -45,7 +45,7 @@ class TreeAccumulateUp final : public Transform {
   explicit TreeAccumulateUp(TreeAccumulateSpec);
   ~TreeAccumulateUp() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
@@ -63,7 +63,7 @@ class TreeAccumulateDown final : public Transform {
   explicit TreeAccumulateDown(TreeAccumulateSpec);
   ~TreeAccumulateDown() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool Process(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 

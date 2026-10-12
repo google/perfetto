@@ -29,11 +29,11 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/types.h"
-#include "src/trace_processor/core/exec/buffer_pool.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 
@@ -46,9 +46,14 @@ class DataframeScan::Expander {
  public:
   virtual ~Expander();
 
-  // Appends an owned column containing rows [from, from + count), laid out
-  // densely from zero. Called with successive ranges starting at row zero.
-  virtual void Expand(uint32_t from, uint32_t count, RowBatch& out) = 0;
+  // Sets `view` to rows [from, from + count), laid out densely from zero, in
+  // a buffer taken from `context` into `buffer`. Called with successive
+  // ranges starting at row zero.
+  virtual void Expand(uint32_t from,
+                      uint32_t count,
+                      Context& context,
+                      ColumnView* view,
+                      ColumnBuffer* buffer) = 0;
 
   virtual void Rewind() = 0;
 };
@@ -63,32 +68,35 @@ class ExpanderImpl final : public DataframeScan::Expander {
   ExpanderImpl(StorageType type, const T* packed, const BitVector* bits)
       : type_(type), packed_(packed), bits_(bits) {}
 
-  void Expand(uint32_t from, uint32_t count, RowBatch& out) override {
+  void Expand(uint32_t from,
+              uint32_t count,
+              Context& context,
+              ColumnView* view,
+              ColumnBuffer* buffer) override {
     PERFETTO_DCHECK(from == next_);
-    auto buffer = buffers_.Acquire();
-    buffer->values.resize(kMaxBatchRows);
-    buffer->validity.resize(kMaxBatchRows);
-    buffer->validity.ClearAllBits();
+    *buffer = context.TakeBuffer();
+    ColumnChunk& chunk = buffer->chunk();
+    T* values = chunk.Values<T>();
+    chunk.validity.resize(kMaxBatchRows);
+    chunk.validity.ClearAllBits();
     for (uint32_t row = 0; row < count; ++row) {
       if (bits_->is_set(from + row)) {
         if constexpr (std::is_same_v<T, uint32_t>) {
-          buffer->values[row] =
+          values[row] =
               packed_ ? packed_[consumed_] : static_cast<uint32_t>(consumed_);
         } else {
           PERFETTO_DCHECK(packed_);
-          buffer->values[row] = packed_[consumed_];
+          values[row] = packed_[consumed_];
         }
         ++consumed_;
-        buffer->validity.set(row);
+        chunk.validity.set(row);
       } else {
         // Written even for a null row, so the storage is readable everywhere.
-        buffer->values[row] = T{};
+        values[row] = T{};
       }
     }
     next_ = from + count;
-    auto view =
-        ColumnView::Reference(type_, buffer->values.data(), &buffer->validity);
-    out.AddColumn(std::move(view), std::move(buffer));
+    *view = ColumnView::Reference(type_, values, &chunk.validity);
   }
 
   void Rewind() override {
@@ -97,15 +105,9 @@ class ExpanderImpl final : public DataframeScan::Expander {
   }
 
  private:
-  struct Buffer {
-    FlexVector<T> values;
-    BitVector validity;
-  };
-
   StorageType type_;
   const T* packed_;
   const BitVector* bits_;
-  BufferPool<Buffer> buffers_;
   // How many of the packed values have been read, which is how many rows
   // before `next_` hold one.
   uint32_t consumed_ = 0;
@@ -146,42 +148,47 @@ DataframeScan::DataframeScan(
 DataframeScan::~DataframeScan() = default;
 DataframeScan::State::~State() = default;
 
-std::unique_ptr<OperatorState> DataframeScan::MakeState() const {
+std::unique_ptr<OperatorState> DataframeScan::MakeState(
+    Context& context) const {
   auto state = std::make_unique<State>();
-  state->columns.resize(columns_.size());
-  state->expanders.resize(columns_.size());
+  state->context = &context;
+  state->lent.resize(columns_.size());
+  std::vector<std::unique_ptr<Expander>> expanders(columns_.size());
   for (uint32_t i = 0; i < columns_.size(); ++i) {
     const dataframe::Column& column = *columns_[i];
     StorageType type = column.storage.type();
     if (type.Is<Id>()) {
       const auto& nulls = column.null_storage;
       if (nulls.nullability().Is<NonNull>()) {
-        state->columns[i] = ColumnView::Reference(type, nullptr, nullptr);
+        state->lent[i] = ColumnView::Reference(type, nullptr, nullptr);
       } else if (nulls.nullability().Is<DenseNull>()) {
-        state->columns[i] =
+        state->lent[i] =
             ColumnView::Reference(type, nullptr, &nulls.GetNullBitVector());
       } else {
-        state->expanders[i] = std::make_unique<ExpanderImpl<uint32_t>>(
+        expanders[i] = std::make_unique<ExpanderImpl<uint32_t>>(
             StorageType{Uint32{}}, nullptr, &nulls.GetNullBitVector());
       }
       continue;
     }
     if (type.Is<Uint32>()) {
-      BuildColumn<uint32_t>(column, type, &state->columns[i],
-                            &state->expanders[i]);
+      BuildColumn<uint32_t>(column, type, &state->lent[i], &expanders[i]);
     } else if (type.Is<Int32>()) {
-      BuildColumn<int32_t>(column, type, &state->columns[i],
-                           &state->expanders[i]);
+      BuildColumn<int32_t>(column, type, &state->lent[i], &expanders[i]);
     } else if (type.Is<Int64>()) {
-      BuildColumn<int64_t>(column, type, &state->columns[i],
-                           &state->expanders[i]);
+      BuildColumn<int64_t>(column, type, &state->lent[i], &expanders[i]);
     } else if (type.Is<Double>()) {
-      BuildColumn<double>(column, type, &state->columns[i],
-                          &state->expanders[i]);
+      BuildColumn<double>(column, type, &state->lent[i], &expanders[i]);
     } else {
-      BuildColumn<StringPool::Id>(column, type, &state->columns[i],
-                                  &state->expanders[i]);
+      BuildColumn<StringPool::Id>(column, type, &state->lent[i], &expanders[i]);
     }
+  }
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    if (expanders[i]) {
+      state->expanded.push_back({i, std::move(expanders[i])});
+    }
+  }
+  if (!state->expanded.empty()) {
+    state->buffers.resize(columns_.size());
   }
   return state;
 }
@@ -189,10 +196,8 @@ std::unique_ptr<OperatorState> DataframeScan::MakeState() const {
 void DataframeScan::Rewind(OperatorState& state) const {
   State& s = state.Cast<State>();
   s.emitted = 0;
-  for (const std::unique_ptr<Expander>& expander : s.expanders) {
-    if (expander) {
-      expander->Rewind();
-    }
+  for (State::Expanded& expanded : s.expanded) {
+    expanded.expander->Rewind();
   }
 }
 
@@ -203,19 +208,17 @@ bool DataframeScan::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
   uint32_t count = std::min(kMaxBatchRows, rows - s.emitted);
-  out.Reset();
-  for (uint32_t i = 0; i < s.columns.size(); ++i) {
-    ColumnView view = s.columns[i];
-    if (s.expanders[i]) {
-      // Expanded values are laid out from zero, so the column sits in its own
-      // index space rather than the dataframe's.
-      s.expanders[i]->Expand(s.emitted, count, out);
-    } else {
-      view.SetRange(s.emitted);
-      out.AddColumn(std::move(view), columns_[i]);
-    }
+  // Only the windows move: the views stay as they were lent.
+  for (ColumnView& view : s.lent) {
+    view.set_start(s.emitted);
   }
-  out.SetCardinality(count);
+  for (State::Expanded& expanded : s.expanded) {
+    expanded.expander->Expand(s.emitted, count, *s.context,
+                              &s.lent[expanded.column],
+                              &s.buffers[expanded.column]);
+  }
+  out.SetColumns(s.lent, s.buffers);
+  out.SetRowCount(count);
   s.emitted += count;
   return true;
 }

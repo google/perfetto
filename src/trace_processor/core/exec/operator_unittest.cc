@@ -26,7 +26,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/span.h"
 #include "test/gtest_and_gmock.h"
@@ -42,7 +42,7 @@ using ::testing::ElementsAre;
 // are scratch for one execution, so they live in the state, not the plan.
 class DropOddRows final : public Operator {
  public:
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
 
@@ -55,9 +55,8 @@ class DropOddRows final : public Operator {
       selected[count++] = row;
     }
     out.CopyFrom(in);
-    out.Slice(
-        RowSelection::Indices(Span<const uint32_t>(selected, selected + count)),
-        count);
+    out.mutable_selection().Keep(
+        Span<const uint32_t>(selected, selected + count));
     return OpResult::kNeedMoreInput;
   }
 
@@ -75,7 +74,7 @@ DropOddRows::State::~State() = default;
 class Execution {
  public:
   explicit Execution(const Source& source)
-      : source_(source), state_(source.MakeState()) {}
+      : source_(source), state_(source.MakeState(test::TestContext())) {}
 
   RowBatch* Next() {
     return source_.GetData(batch_, *state_) ? &batch_ : nullptr;
@@ -102,7 +101,7 @@ std::vector<uint32_t> Drain(const Pipeline& pipeline) {
 // not fit in a single batch.
 class Twice final : public Operator {
  public:
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
 
@@ -182,9 +181,9 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 8, 16));
 }
 
-// The storage a batch composes its selections into belongs to the batch and is
-// reused by the next one, so a pipeline stops allocating once it is running.
-TEST(OperatorTest, ComposedViewsReuseTheBatchesStorage) {
+// Dropping rows narrows a batch's selection and leaves its columns as the
+// source made them: windows onto its rows, kept or not.
+TEST(OperatorTest, NarrowingLeavesTheColumnsAlone) {
   ArraySource source(Sequence(kMaxBatchRows * 4));
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<DropOddRows>());
@@ -192,13 +191,12 @@ TEST(OperatorTest, ComposedViewsReuseTheBatchesStorage) {
   Pipeline pipeline(source, std::move(ops), {});
 
   Execution run(pipeline);
-  RowBatch* batch = run.Next();
-  ASSERT_NE(batch, nullptr);
-  const uint32_t* block = batch->column(0).selection().data();
-  ASSERT_NE(block, nullptr) << "expected a composed view";
-  uint32_t batches = 1;
-  while ((batch = run.Next()) != nullptr) {
-    EXPECT_EQ(batch->column(0).selection().data(), block);
+  uint32_t batches = 0;
+  while (RowBatch* batch = run.Next()) {
+    EXPECT_EQ(batch->row_count(), kMaxBatchRows);
+    EXPECT_EQ(batch->size(), kMaxBatchRows / 4);
+    EXPECT_FALSE(batch->selection().prefix());
+    EXPECT_EQ(batch->column(0).start(), batches * kMaxBatchRows);
     ++batches;
   }
   EXPECT_EQ(batches, 4u);
@@ -215,9 +213,9 @@ TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   EXPECT_EQ(rows.back(), kMaxBatchRows * 2u + 6u);
 }
 
-// An operator adding a computed column cannot put it in the index space its
-// input arrived in, so it uses its own. Reading either column has to go
-// through that column's own selection.
+// Columns of one batch can be windows starting in different places, as a
+// computed column starts at zero whatever its input's window. Reading either
+// has to go through that column's own window.
 TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
   std::vector<int64_t> payload = {10, 11, 12, 13};
   std::vector<int64_t> computed = {90, 91};
@@ -228,7 +226,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
                   const std::vector<int64_t>* computed)
         : payload_(payload), computed_(computed) {}
 
-    std::unique_ptr<OperatorState> MakeState() const override {
+    std::unique_ptr<OperatorState> MakeState(Context&) const override {
       return std::make_unique<State>();
     }
     void Rewind(OperatorState& state) const override {
@@ -241,14 +239,13 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
       }
       s.done = true;
       batch_.Reset();
-      batch_.AddColumn(
-          ColumnView::Reference(StorageType{Int64{}}, payload_->data()));
       // The payload is read from half way in; the computed column is a
       // separate array read from the start.
-      batch_.Compose(RowSelection::Range(2), 2);
-      batch_.AddColumn(
+      batch_.AddBorrowedColumn(ColumnView::Reference(
+          StorageType{Int64{}}, payload_->data(), nullptr, 2));
+      batch_.AddBorrowedColumn(
           ColumnView::Reference(StorageType{Int64{}}, computed_->data()));
-      batch_.SetCardinality(2);
+      batch_.SetRowCount(2);
       return true;
     }
 
@@ -309,7 +306,7 @@ class Trailer final : public Operator {
  public:
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   OpResult Execute(const RowBatch& in,
@@ -328,10 +325,9 @@ class Trailer final : public Operator {
     if (s.let_go == count_) {
       return OpResult::kNeedMoreInput;
     }
-    out.AddColumn(ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
-    out.Compose(RowSelection::Range(static_cast<uint32_t>(first_) + s.let_go),
-                1);
-    out.SetCardinality(1);
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Id{}}, nullptr, nullptr));
+    test::Window(&out, static_cast<uint32_t>(first_) + s.let_go, 1);
     return ++s.let_go == count_ ? OpResult::kNeedMoreInput
                                 : OpResult::kHaveMoreOutput;
   }
@@ -446,7 +442,7 @@ TEST(FinishTest, AFailingFinishIsReported) {
 // Keeps every second row in place, remembering the batch it was given.
 class DropOddRowsInPlace final : public Transform {
  public:
-  std::unique_ptr<OperatorState> MakeState() const override {
+  std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
 
@@ -457,9 +453,8 @@ class DropOddRowsInPlace final : public Transform {
     for (uint32_t row = 0; row < batch.size(); row += 2) {
       s.selected[count++] = row;
     }
-    batch.Slice(RowSelection::Indices(
-                    Span<const uint32_t>(s.selected, s.selected + count)),
-                count);
+    batch.mutable_selection().Keep(
+        Span<const uint32_t>(s.selected, s.selected + count));
     return true;
   }
 
@@ -490,7 +485,7 @@ TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   steps.push_back(std::move(drop));
   Pipeline pipeline(source, std::move(steps), {});
 
-  auto state = pipeline.MakeState();
+  auto state = pipeline.MakeState(test::TestContext());
   RowBatch scratch;
   pipeline.Rewind(*state);
   RowBatch* batch = pipeline.Next(scratch, *state);
