@@ -126,6 +126,7 @@ cat queries.sql | trace_processor query trace.pftrace
 Each statement's result set is printed to stdout, and consecutive result sets
 are separated by a single blank line. `--format` picks between
 [CSV](#query-csv), the default, and [markdown](#query-markdown).
+[Agent mode](#agent-mode) switches the default to markdown.
 
 Flags:
 
@@ -212,11 +213,9 @@ The environment variables checked are the same as DuckDB's:
 
 In agent mode:
 
-- Results default to markdown, capped at 1000 rows and 10000 bytes, with
-  cells cut at 500 characters. Explicit `--format` and `--max-*` flags take
-  precedence.
-- Once a result is 100,000 rows past the cap, the rest of it is not read and
-  the footer gives the row count as a lower bound.
+- Results default to markdown, with its
+  [default limits](#query-markdown). Explicit `--format` and `--max-*` flags
+  take precedence.
 - Errors are printed to stderr as a single line of JSON. Only `error` is
   always present; see the example below.
 
