@@ -29,6 +29,16 @@ namespace perfetto::trace_processor {
 
 ResultFormatter::~ResultFormatter() = default;
 
+ResultFormatOptions DefaultMarkdownOptions() {
+  ResultFormatOptions options;
+  options.format = ResultFormat::kMarkdown;
+  options.max_rows = 1000;
+  options.max_bytes = 10000;
+  options.max_cell_chars = 500;
+  options.max_rows_past_limit = 100000;
+  return options;
+}
+
 std::unique_ptr<ResultFormatter> CreateResultFormatter(
     const ResultFormatOptions& options,
     std::vector<std::string> column_names,

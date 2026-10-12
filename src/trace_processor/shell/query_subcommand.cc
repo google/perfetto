@@ -147,9 +147,9 @@ blank line. Use -i to drop into an interactive shell after the queries
 complete.
 
 Output is CSV by default. --format markdown prints compact markdown tables:
-results over --max-rows rows or --max-bytes bytes show only their first and
-last rows plus a footer with the row count, and cells are
-cut at --max-cell-width characters.
+results over --max-rows rows (default 1000) or --max-bytes bytes (default
+10000) show only their first and last rows plus a footer with the row count,
+and cells are cut at --max-cell-width characters (default 500).
 
 Advanced (for debugging/testing structured queries):
   --structured-query-id ID --summary-spec FILE [...]
@@ -193,7 +193,7 @@ base::StatusOr<ResultFormatOptions> QuerySubcommand::ResolveFormat() {
   if (format_ == "csv") {
     options.format = ResultFormat::kCsv;
   } else if (format_ == "markdown") {
-    options.format = ResultFormat::kMarkdown;
+    options = DefaultMarkdownOptions();
   } else if (!format_.empty()) {
     return base::ErrStatus("query: unknown --format '%s' (csv or markdown)",
                            format_.c_str());

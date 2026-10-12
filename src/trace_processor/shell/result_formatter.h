@@ -65,6 +65,9 @@ class ResultFormatter {
   virtual void Finish() = 0;
 };
 
+// Markdown options with the limits used unless overridden by flags.
+ResultFormatOptions DefaultMarkdownOptions();
+
 std::unique_ptr<ResultFormatter> CreateResultFormatter(
     const ResultFormatOptions& options,
     std::vector<std::string> column_names,
