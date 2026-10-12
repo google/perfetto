@@ -2072,7 +2072,8 @@ class TrackEvent(TestSuite):
 
   # Well known dimensions are written by trace processor for every track, not
   # only track event ones. Tracks only associated with a thread have no
-  # `process` dimension.
+  # `process` dimension. The `cpu` dimension is the machine aware `ucpu`, so
+  # CPU 1 of the remote machine is 4096 + 1.
   def test_track_event_dimensions_well_known_all_tracks(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -2085,6 +2086,11 @@ class TrackEvent(TestSuite):
               cpu_frequency { state: 1000000 cpu_id: 1 }
             }
           }
+        }
+        packet {
+          timestamp: 1500
+          generic_kernel_cpu_freq_event { cpu: 1 freq_hz: 2500000000 }
+          machine_id: 349028234
         }
         packet {
           trusted_packet_sequence_id: 1
@@ -2116,10 +2122,11 @@ class TrackEvent(TestSuite):
             )
           ) AS dimensions
         FROM track AS t
-        ORDER BY t.type;
+        ORDER BY t.type, t.id;
         """,
         out=Csv("""
         "type","dimensions"
         "cpu_frequency","cpu=1,machine=0"
+        "cpu_frequency","cpu=4097,machine=1"
         "thread_execution","machine=0,thread"
         """))

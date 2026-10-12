@@ -49,11 +49,10 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                uint32_t d_size,
                                const SetArgsCallback& args) {
   tables::TrackTable::Row row(name);
-  // The canonical (machine aware) `ucpu`/`ugpu` identities win over the raw
-  // `cpu`/`gpu` numbers when a track has both.
-  std::optional<int64_t> cpu;
+  // The well known `cpu` and `gpu` dimensions use the machine aware `ucpu` and
+  // `ugpu` identities, so that they mean the same thing across machines: the
+  // raw `gpu` number of a track always comes with its `ugpu`.
   std::optional<int64_t> ucpu;
-  std::optional<int64_t> gpu;
   std::optional<int64_t> ugpu;
   const auto* dims = blueprint.dimension_blueprints.data();
   for (uint32_t i = 0; i < d_size; ++i) {
@@ -61,12 +60,9 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
     bool is_int = d_args[i].value.type == Variadic::kInt;
     int64_t int_value = is_int ? d_args[i].value.int_value : 0;
     if (str == "cpu" && is_int) {
-      context_->cpu_tracker->MarkCpuValid(static_cast<uint32_t>(int_value));
-      cpu = int_value;
-    } else if (str == "ucpu" && is_int) {
-      ucpu = int_value;
-    } else if (str == "gpu" && is_int) {
-      gpu = int_value;
+      ucpu =
+          context_->cpu_tracker->MarkCpuValid(static_cast<uint32_t>(int_value))
+              .value;
     } else if (str == "ugpu" && is_int) {
       ugpu = int_value;
     } else if (str == "utid" && is_int) {
@@ -102,11 +98,11 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
   if (row.utid) {
     AddWellKnownDimension(id, thread_dimension_id_, *row.utid);
   }
-  if (ucpu || cpu) {
-    AddWellKnownDimension(id, cpu_dimension_id_, ucpu ? *ucpu : *cpu);
+  if (ucpu) {
+    AddWellKnownDimension(id, cpu_dimension_id_, *ucpu);
   }
-  if (ugpu || gpu) {
-    AddWellKnownDimension(id, gpu_dimension_id_, ugpu ? *ugpu : *gpu);
+  if (ugpu) {
+    AddWellKnownDimension(id, gpu_dimension_id_, *ugpu);
   }
 
   if (description != kNullStringId || args) {
