@@ -840,6 +840,105 @@ class AndroidStdlib(TestSuite):
                 "AIDL::java::INetworkStatsService::getIfaceStats::server","INetworkStatsService","getIfaceStats","com.android.phone","system_server","m.android.phone",1469,2721,1,-800,-900,1737124369273,1737124378273,957260,95254,957260,95254,1737124406331,54810,1,33,"[NULL]",0,"[NULL]"
         """))
 
+  def test_binder_parcel_size(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "client_proc" }
+            processes { pid: 200 ppid: 1 cmdline: "server_proc" }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000000
+              pid: 100
+              binder_transaction {
+                debug_id: 1 target_node: 10 to_proc: 200 to_thread: 200
+                reply: 0 flags: 0x10 code: 1
+              }
+            }
+            event {
+              timestamp: 1100000
+              pid: 200
+              binder_transaction_received { debug_id: 1 }
+            }
+            event {
+              timestamp: 1110000
+              pid: 200
+              print { buf: "I|200|Parcel size: 4096\n" }
+            }
+            event {
+              timestamp: 1120000
+              pid: 200
+              print { buf: "B|200|AIDL::java::IFoo::bar::server\n" }
+            }
+            event {
+              timestamp: 1180000
+              pid: 200
+              print { buf: "E|200\n" }
+            }
+            event {
+              timestamp: 1200000
+              pid: 200
+              binder_transaction {
+                debug_id: 2 target_node: 20 to_proc: 100 to_thread: 100
+                reply: 1 flags: 0x0 code: 0
+              }
+            }
+            event {
+              timestamp: 1300000
+              pid: 100
+              binder_transaction_received { debug_id: 2 }
+            }
+            event {
+              timestamp: 2000000
+              pid: 100
+              binder_transaction {
+                debug_id: 3 target_node: 10 to_proc: 200 to_thread: 0
+                reply: 0 flags: 0x11 code: 2
+              }
+            }
+            event {
+              timestamp: 2100000
+              pid: 200
+              binder_transaction_received { debug_id: 3 }
+            }
+            event {
+              timestamp: 2110000
+              pid: 200
+              print { buf: "I|200|Parcel size: 8192\n" }
+            }
+            event {
+              timestamp: 2120000
+              pid: 200
+              print { buf: "B|200|AIDL::java::IFoo::onewayBaz::server\n" }
+            }
+            event {
+              timestamp: 2150000
+              pid: 200
+              print { buf: "E|200\n" }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.binder;
+        SELECT
+          aidl_name,
+          is_sync,
+          parcel_size
+        FROM android_binder_txns
+        ORDER BY client_ts;
+      """,
+        out=Csv("""
+        "aidl_name","is_sync","parcel_size"
+        "AIDL::java::IFoo::bar::server",1,4096
+        "AIDL::java::IFoo::onewayBaz::server",0,8192
+        """))
+
   def test_binder_outgoing_graph(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),

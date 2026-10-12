@@ -511,7 +511,9 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- Whether client package is debuggable.
   is_client_package_debuggable BOOL,
   -- Whether server package is debuggable.
-  is_server_package_debuggable BOOL
+  is_server_package_debuggable BOOL,
+  -- Size of the parcel in bytes if existing.
+  parcel_size LONG
 )
 AS
 WITH
@@ -519,6 +521,26 @@ WITH
     SELECT *, 1 AS is_sync FROM _sync_binder_metrics_by_txn
     UNION ALL
     SELECT *, 0 AS is_sync FROM _async_binder_metrics_by_txn
+  ),
+  binder_parcel_size AS (
+    SELECT
+      coalesce(parent_id, iif(prev_name = 'binder async rcv', prev_id, NULL)) AS binder_reply_id,
+      max(cast_int!(substr(name, 14))) AS parcel_size
+    FROM (
+      SELECT
+        parent_id,
+        name,
+        lag(id) OVER (PARTITION BY track_id ORDER BY ts, id) AS prev_id,
+        lag(name) OVER (PARTITION BY track_id ORDER BY ts, id) AS prev_name
+      FROM slice
+      WHERE
+        name = 'binder async rcv'
+        OR name GLOB 'Parcel size: *'
+    )
+    WHERE
+      name GLOB 'Parcel size: *'
+    GROUP BY
+      binder_reply_id
   )
 SELECT
   str_split(aidl_name, '::', 2) AS interface,
@@ -529,12 +551,15 @@ SELECT
   client_process_metadata.version_code AS client_package_version_code,
   server_process_metadata.version_code AS server_package_version_code,
   client_process_metadata.debuggable AS is_client_package_debuggable,
-  server_process_metadata.debuggable AS is_server_package_debuggable
+  server_process_metadata.debuggable AS is_server_package_debuggable,
+  binder_parcel_size.parcel_size
 FROM all_binder
 LEFT JOIN android_process_metadata AS client_process_metadata
   ON all_binder.client_upid = client_process_metadata.upid
 LEFT JOIN android_process_metadata AS server_process_metadata
   ON all_binder.server_upid = server_process_metadata.upid
+LEFT JOIN binder_parcel_size
+  ON all_binder.binder_reply_id = binder_parcel_size.binder_reply_id
 ORDER BY
   binder_txn_id;
 

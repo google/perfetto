@@ -49,6 +49,7 @@ SELECT AndroidBinderMetric(
         'aidl_name', aidl_name,
         'aidl_ts', aidl_ts,
         'aidl_dur', aidl_dur,
+        'parcel_size', parcel_size,
         'client_process', client_process,
         'client_thread', client_thread,
         'is_main_thread', is_main_thread,

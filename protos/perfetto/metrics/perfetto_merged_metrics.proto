@@ -818,13 +818,14 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
-  // Next field id: 31
+  // Next field id: 33
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
     optional int64 aidl_ts = 22;
     optional int64 aidl_dur = 23;
     optional bool is_sync = 21;
+    optional int64 parcel_size = 32;
     // Client
     // Removed: was binder_txn_id
     reserved 2;
