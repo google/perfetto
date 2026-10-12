@@ -1389,8 +1389,8 @@ display_id (	R	displayId#
 build_id (	RbuildId
 address (Raddress(
 google_lookup_id (	RgoogleLookupId
-¬
-3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"ã
+¥
+3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"Ü
 AndroidBinderMetrice
 process_breakdown (28.perfetto.protos.AndroidBinderMetric.PerProcessBreakdownRprocessBreakdown{
 unaggregated_txn_breakdown (2=.perfetto.protos.AndroidBinderMetric.UnaggregatedTxnBreakdownRunaggregatedTxnBreakdown
@@ -1399,15 +1399,34 @@ display_id (	R	displayId#
 pid (Rpid
 
 slice_name (	R	sliceName
-count (RcountÍ
-
+count (RcountÆ
 UnaggregatedTxnBreakdown
 	aidl_name (	RaidlName
 aidl_ts (RaidlTs
 aidl_dur (RaidlDur
 is_sync (RisSync
 parcel_size  (R
-parcelSize%
+parcelSize(
+heap_increase_kb! (RheapIncreaseKb'
+heap_size_min_kb" (RheapSizeMinKb'
+heap_size_max_kb# (RheapSizeMaxKb7
+heap_utid_increase_bytes$ (RheapUtidIncreaseBytes1
+heap_utid_increase_kb% (RheapUtidIncreaseKb-
+heap_utid_min_bytes& (RheapUtidMinBytes-
+heap_utid_max_bytes' (RheapUtidMaxBytes7
+heap_proc_increase_bytes( (RheapProcIncreaseBytes1
+heap_proc_increase_kb) (RheapProcIncreaseKb-
+heap_proc_min_bytes* (RheapProcMinBytes-
+heap_proc_max_bytes+ (RheapProcMaxBytes>
+rss_anon_utid_increase_bytes, (RrssAnonUtidIncreaseBytes8
+rss_anon_utid_increase_kb- (RrssAnonUtidIncreaseKb4
+rss_anon_utid_min_bytes. (RrssAnonUtidMinBytes4
+rss_anon_utid_max_bytes/ (RrssAnonUtidMaxBytes>
+rss_anon_proc_increase_bytes0 (RrssAnonProcIncreaseBytes8
+rss_anon_proc_increase_kb1 (RrssAnonProcIncreaseKb4
+rss_anon_proc_min_bytes2 (RrssAnonProcMinBytes4
+rss_anon_proc_max_bytes3 (RrssAnonProcMaxBytes
+	during_gc4 (RduringGc%
 client_process (	RclientProcess#
 client_thread (	RclientThread$
 is_main_thread (RisMainThread

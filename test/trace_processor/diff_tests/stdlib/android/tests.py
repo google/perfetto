@@ -939,6 +939,336 @@ class AndroidStdlib(TestSuite):
         "AIDL::java::IFoo::onewayBaz::server",0,8192
         """))
 
+  def test_binder_server_heap_metrics(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "client_proc" }
+            processes { pid: 200 ppid: 1 cmdline: "server_proc" }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 900000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1000\n" }
+            }
+            event {
+              timestamp: 1000000
+              pid: 100
+              binder_transaction {
+                debug_id: 1 target_node: 10 to_proc: 200 to_thread: 200
+                reply: 0 flags: 0x10 code: 1
+              }
+            }
+            event {
+              timestamp: 1100000
+              pid: 200
+              binder_transaction_received { debug_id: 1 }
+            }
+            event {
+              timestamp: 1120000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1600\n" }
+            }
+            event {
+              timestamp: 1150000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|800\n" }
+            }
+            event {
+              timestamp: 1180000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1200\n" }
+            }
+            event {
+              timestamp: 1200000
+              pid: 200
+              binder_transaction {
+                debug_id: 2 target_node: 20 to_proc: 100 to_thread: 100
+                reply: 1 flags: 0x0 code: 0
+              }
+            }
+            event {
+              timestamp: 1300000
+              pid: 100
+              binder_transaction_received { debug_id: 2 }
+            }
+            event {
+              timestamp: 1500000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|5000\n" }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.binder;
+        SELECT
+          heap_increase_kb,
+          heap_size_min_kb,
+          heap_size_max_kb,
+          heap_utid_increase_bytes,
+          during_gc
+        FROM android_binder_txns
+        ORDER BY client_ts;
+      """,
+        out=Csv("""
+        "heap_increase_kb","heap_size_min_kb","heap_size_max_kb","heap_utid_increase_bytes","during_gc"
+        1000.000000,800.000000,1600.000000,1024000,1
+        """))
+
+  def test_binder_server_memory_and_gc_metrics(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "client_proc" }
+            processes { pid: 200 ppid: 1 cmdline: "server_proc" }
+            threads { tid: 201 tgid: 200 name: "server_bg_worker" }
+            threads { tid: 202 tgid: 200 name: "HeapTaskDaemon" }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            # Baseline counters before Txn 1
+            event {
+              timestamp: 900000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1000\n" }
+            }
+            event {
+              timestamp: 910000
+              pid: 200
+              print { buf: "C|200|mem.rss.anon|409600\n" }
+            }
+            # Txn 1: [1100000, 1200000] on tid 200 (no GC, no heap drop -> during_gc = 0)
+            event {
+              timestamp: 1000000
+              pid: 100
+              binder_transaction {
+                debug_id: 1 target_node: 10 to_proc: 200 to_thread: 200
+                reply: 0 flags: 0x10 code: 1
+              }
+            }
+            event {
+              timestamp: 1100000
+              pid: 200
+              binder_transaction_received { debug_id: 1 }
+            }
+            # tid 200 allocates +200 KB heap (1000 -> 1200 KB) and +8192 B anon RSS
+            event {
+              timestamp: 1120000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1200\n" }
+            }
+            event {
+              timestamp: 1130000
+              pid: 200
+              print { buf: "C|200|mem.rss.anon|417792\n" }
+            }
+            # tid 201 (other thread in pid 200) allocates +300 KB heap (1200 -> 1500 KB) and +16384 B anon RSS
+            event {
+              timestamp: 1150000
+              pid: 201
+              print { buf: "C|200|Heap size (KB)|1500\n" }
+            }
+            event {
+              timestamp: 1160000
+              pid: 201
+              print { buf: "C|200|mem.rss.anon|434176\n" }
+            }
+            event {
+              timestamp: 1200000
+              pid: 200
+              binder_transaction {
+                debug_id: 2 target_node: 20 to_proc: 100 to_thread: 100
+                reply: 1 flags: 0x0 code: 0
+              }
+            }
+            event {
+              timestamp: 1250000
+              pid: 100
+              binder_transaction_received { debug_id: 2 }
+            }
+            # Generational CMC GC on HeapTaskDaemon (tid 202):
+            # Young concurrent mark compact GC [1900000, 2000000]
+            # -> ThreadListFlip [2000000, 2050000]
+            # -> CompactionPhase [2050000, 2250000]
+            event {
+              timestamp: 1900000
+              pid: 202
+              print { buf: "B|200|Young concurrent mark compact GC\n" }
+            }
+            event {
+              timestamp: 2000000
+              pid: 202
+              print { buf: "E|200\n" }
+            }
+            event {
+              timestamp: 2000000
+              pid: 202
+              print { buf: "B|200|ThreadListFlip\n" }
+            }
+            event {
+              timestamp: 2050000
+              pid: 202
+              print { buf: "E|200\n" }
+            }
+            event {
+              timestamp: 2050000
+              pid: 202
+              print { buf: "B|200|CompactionPhase\n" }
+            }
+            # Txn 2: [2100000, 2200000] overlaps CompactionPhase -> during_gc = 1
+            event {
+              timestamp: 2080000
+              pid: 100
+              binder_transaction {
+                debug_id: 3 target_node: 10 to_proc: 200 to_thread: 200
+                reply: 0 flags: 0x10 code: 1
+              }
+            }
+            event {
+              timestamp: 2100000
+              pid: 200
+              binder_transaction_received { debug_id: 3 }
+            }
+            event {
+              timestamp: 2150000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1600\n" }
+            }
+            event {
+              timestamp: 2200000
+              pid: 200
+              binder_transaction {
+                debug_id: 4 target_node: 20 to_proc: 100 to_thread: 100
+                reply: 1 flags: 0x0 code: 0
+              }
+            }
+            event {
+              timestamp: 2220000
+              pid: 100
+              binder_transaction_received { debug_id: 4 }
+            }
+            event {
+              timestamp: 2250000
+              pid: 202
+              print { buf: "E|200\n" }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.binder;
+        SELECT
+          heap_utid_increase_bytes,
+          heap_utid_increase_kb,
+          heap_utid_min_bytes,
+          heap_utid_max_bytes,
+          heap_proc_increase_bytes,
+          heap_proc_increase_kb,
+          heap_proc_min_bytes,
+          heap_proc_max_bytes,
+          rss_anon_utid_increase_bytes,
+          rss_anon_utid_increase_kb,
+          rss_anon_utid_min_bytes,
+          rss_anon_utid_max_bytes,
+          rss_anon_proc_increase_bytes,
+          rss_anon_proc_increase_kb,
+          rss_anon_proc_min_bytes,
+          rss_anon_proc_max_bytes,
+          during_gc
+        FROM android_binder_txns
+        ORDER BY client_ts;
+      """,
+        out=Csv("""
+        "heap_utid_increase_bytes","heap_utid_increase_kb","heap_utid_min_bytes","heap_utid_max_bytes","heap_proc_increase_bytes","heap_proc_increase_kb","heap_proc_min_bytes","heap_proc_max_bytes","rss_anon_utid_increase_bytes","rss_anon_utid_increase_kb","rss_anon_utid_min_bytes","rss_anon_utid_max_bytes","rss_anon_proc_increase_bytes","rss_anon_proc_increase_kb","rss_anon_proc_min_bytes","rss_anon_proc_max_bytes","during_gc"
+        204800,200.000000,1228800,1228800,512000,500.000000,1228800,1536000,8192,8.000000,417792,417792,24576,24.000000,417792,434176,0
+        102400,100.000000,1638400,1638400,102400,100.000000,1638400,1638400,0,0.000000,"[NULL]","[NULL]",0,0.000000,"[NULL]","[NULL]",1
+        """))
+
+  def test_garbage_collection_cmc_compaction_phase(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes { pid: 200 ppid: 1 cmdline: "server_proc" }
+            threads { tid: 202 tgid: 200 name: "HeapTaskDaemon" }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 900000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|2000\n" }
+            }
+            event {
+              timestamp: 1000000
+              pid: 202
+              print { buf: "B|200|Young concurrent mark compact GC\n" }
+            }
+            event {
+              timestamp: 1300000
+              pid: 202
+              print { buf: "E|200\n" }
+            }
+            event {
+              timestamp: 1300000
+              pid: 202
+              print { buf: "B|200|ThreadListFlip\n" }
+            }
+            event {
+              timestamp: 1350000
+              pid: 202
+              print { buf: "E|200\n" }
+            }
+            event {
+              timestamp: 1350000
+              pid: 202
+              print { buf: "B|200|CompactionPhase\n" }
+            }
+            event {
+              timestamp: 1750000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1000\n" }
+            }
+            event {
+              timestamp: 1800000
+              pid: 202
+              print { buf: "E|200\n" }
+            }
+            event {
+              timestamp: 1850000
+              pid: 200
+              print { buf: "C|200|Heap size (KB)|1000\n" }
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.garbage_collection;
+        SELECT
+          gc_type,
+          is_mark_compact,
+          gc_ts,
+          gc_dur,
+          reclaimed_mb
+        FROM android_garbage_collection_events
+        ORDER BY gc_ts;
+      """,
+        out=Csv("""
+        "gc_type","is_mark_compact","gc_ts","gc_dur","reclaimed_mb"
+        "young",1,1000000,800000,1.000000
+        """))
+
   def test_binder_outgoing_graph(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),

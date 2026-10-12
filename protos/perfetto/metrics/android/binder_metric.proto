@@ -32,7 +32,7 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
-  // Next field id: 33
+  // Next field id: 53
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
@@ -40,6 +40,26 @@ message AndroidBinderMetric {
     optional int64 aidl_dur = 23;
     optional bool is_sync = 21;
     optional int64 parcel_size = 32;
+    optional double heap_increase_kb = 33;
+    optional double heap_size_min_kb = 34;
+    optional double heap_size_max_kb = 35;
+    optional int64 heap_utid_increase_bytes = 36;
+    optional double heap_utid_increase_kb = 37;
+    optional int64 heap_utid_min_bytes = 38;
+    optional int64 heap_utid_max_bytes = 39;
+    optional int64 heap_proc_increase_bytes = 40;
+    optional double heap_proc_increase_kb = 41;
+    optional int64 heap_proc_min_bytes = 42;
+    optional int64 heap_proc_max_bytes = 43;
+    optional int64 rss_anon_utid_increase_bytes = 44;
+    optional double rss_anon_utid_increase_kb = 45;
+    optional int64 rss_anon_utid_min_bytes = 46;
+    optional int64 rss_anon_utid_max_bytes = 47;
+    optional int64 rss_anon_proc_increase_bytes = 48;
+    optional double rss_anon_proc_increase_kb = 49;
+    optional int64 rss_anon_proc_min_bytes = 50;
+    optional int64 rss_anon_proc_max_bytes = 51;
+    optional bool during_gc = 52;
     // Client
     // Removed: was binder_txn_id
     reserved 2;

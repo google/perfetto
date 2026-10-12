@@ -20,6 +20,8 @@ INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Collect all GC slices. There's typically one enclosing slice but sometimes the
 -- CompactionPhase is outside the nesting and we need to include that.
+-- In Generational Concurrent Mark-Compact (CMC) GC, ThreadListFlip sits at
+-- lead(..., 1) and CompactionPhase sits at lead(..., 2).
 CREATE PERFETTO VIEW _gc_slice AS
 WITH
   concurrent AS (
@@ -27,7 +29,11 @@ WITH
       id AS gc_id,
       name AS gc_name,
       lead(name) OVER (PARTITION BY track_id ORDER BY ts) AS compact_name,
+      lead(ts) OVER (PARTITION BY track_id ORDER BY ts) AS compact_ts,
       lead(dur) OVER (PARTITION BY track_id ORDER BY ts) AS compact_dur,
+      lead(name, 2) OVER (PARTITION BY track_id ORDER BY ts) AS compact_name_2,
+      lead(ts, 2) OVER (PARTITION BY track_id ORDER BY ts) AS compact_ts_2,
+      lead(dur, 2) OVER (PARTITION BY track_id ORDER BY ts) AS compact_dur_2,
       ts AS gc_ts,
       iif(dur = -1, trace_end() - slice.ts, slice.dur) AS gc_dur,
       ts,
@@ -41,35 +47,45 @@ WITH
     FROM thread_slice AS slice
     WHERE
       depth = 0
+  ),
+  with_compact AS (
+    SELECT
+      *,
+      CASE
+        WHEN compact_name = 'CompactionPhase'
+        OR compact_name = 'Background concurrent copying GC' THEN gc_dur
+        + iif(compact_dur = -1, trace_end() - compact_ts, compact_dur)
+        WHEN compact_name = 'ThreadListFlip'
+        AND compact_name_2 = 'CompactionPhase' THEN iif(
+          compact_dur_2 = -1,
+          trace_end() - ts,
+          compact_ts_2 + compact_dur_2 - ts
+        )
+        WHEN compact_name = 'ThreadListFlip' THEN iif(
+          compact_dur = -1,
+          trace_end() - ts,
+          compact_ts + compact_dur - ts
+        )
+        ELSE gc_dur
+      END AS total_gc_dur
+    FROM concurrent
+    WHERE
+      gc_name GLOB '*concurrent*GC'
   )
 SELECT
   gc_id,
   gc_name,
   ts AS gc_ts,
   ts,
-  gc_dur
-  + iif(
-    compact_name = 'CompactionPhase'
-    OR compact_name = 'Background concurrent copying GC',
-    compact_dur,
-    0
-  ) AS gc_dur,
-  gc_dur
-  + iif(
-    compact_name = 'CompactionPhase'
-    OR compact_name = 'Background concurrent copying GC',
-    compact_dur,
-    0
-  ) AS dur,
+  total_gc_dur AS gc_dur,
+  total_gc_dur AS dur,
   utid,
   tid,
   upid,
   pid,
   thread_name,
   process_name
-FROM concurrent
-WHERE
-  gc_name GLOB '*concurrent*GC';
+FROM with_compact;
 
 -- Extract the heap counter into <ts, dur, upid>
 CREATE PERFETTO VIEW _gc_heap_counter AS
@@ -130,7 +146,7 @@ SELECT
   CASE
     WHEN gc_name GLOB '*NativeAlloc*' THEN 'native_alloc'
     WHEN gc_name GLOB '*Alloc*' THEN 'alloc'
-    WHEN gc_name GLOB '*young*' THEN 'young'
+    WHEN gc_name GLOB '*[Yy]oung*' THEN 'young'
     WHEN gc_name GLOB '*CollectorTransition*' THEN 'collector_transition'
     WHEN gc_name GLOB '*Explicit*' THEN 'explicit'
     ELSE 'full'

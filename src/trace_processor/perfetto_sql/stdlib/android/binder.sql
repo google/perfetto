@@ -14,11 +14,17 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.garbage_collection;
+
 INCLUDE PERFETTO MODULE android.process_metadata;
 
 INCLUDE PERFETTO MODULE android.suspend;
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE slices.flow;
+
+PERFETTO PRAGMA pipelines = 1;
 
 -- Count Binder transactions per process.
 CREATE PERFETTO VIEW android_binder_metrics_by_process(
@@ -444,6 +450,162 @@ LEFT JOIN _oom_score AS server_oom
   AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
 
 -- Breakdown binder transactions per txn.
+CREATE PERFETTO TABLE _binder_server_replies AS
+SELECT
+  binder_reply_id AS id,
+  server_ts AS ts,
+  max(server_dur, 1) AS dur,
+  server_utid AS utid,
+  server_upid AS upid
+FROM (
+  SELECT binder_reply_id, server_ts, server_dur, server_utid, server_upid
+  FROM _binder_txn_merged
+  UNION ALL
+  SELECT binder_reply_id, server_ts, server_dur, server_utid, server_upid
+  FROM _binder_async_txn
+)
+WHERE
+  binder_reply_id IS NOT NULL
+  AND server_ts IS NOT NULL
+  AND server_dur >= 0
+  AND server_utid IS NOT NULL
+  AND server_upid IS NOT NULL;
+
+CREATE PERFETTO TABLE _binder_raw_gc_intervals AS
+SELECT
+  gc_ts AS ts,
+  iif(gc_dur < 0, max(trace_end() - gc_ts, 1), max(gc_dur, 1)) AS dur,
+  upid
+FROM android_garbage_collection_events
+WHERE
+  upid IS NOT NULL
+  AND gc_ts IS NOT NULL
+UNION ALL
+SELECT
+  s.ts,
+  iif(s.dur < 0, max(trace_end() - s.ts, 1), max(s.dur, 1)) AS dur,
+  t.upid
+FROM slice AS s
+JOIN thread_track AS tt ON tt.id = s.track_id
+JOIN thread AS t ON t.utid = tt.utid
+WHERE
+  t.upid IS NOT NULL
+  AND (t.name GLOB 'HeapTaskDaemon*'
+  OR s.name GLOB '*GC*'
+  OR s.name IN (
+    'CompactionPhase',
+    'ThreadListFlip',
+    'PrepareForCompaction',
+    'MarkingPhase',
+    'ReclaimPhase'
+  ));
+
+CREATE PERFETTO TABLE _binder_gc_intervals AS
+SELECT row_number() OVER () AS id, ts, dur, upid FROM _binder_raw_gc_intervals;
+
+CREATE PERFETTO TABLE _binder_reply_gc AS
+SELECT DISTINCT ii.id_0 AS binder_reply_id
+FROM _interval_intersect!((_binder_server_replies, _binder_gc_intervals), (upid)) AS ii;
+
+CREATE PERFETTO TABLE _binder_mem_counter_events AS
+WITH
+  raw AS (
+    SELECT
+      c.id,
+      c.ts,
+      pct.upid,
+      extract_arg(c.arg_set_id, 'utid') AS utid,
+      iif(pct.name = 'Heap size (KB)', 1, 0) AS is_heap,
+      iif(
+        pct.name = 'Heap size (KB)',
+        cast_int!(round(c.value * 1024.0)),
+        cast_int!(round(c.value))
+      ) AS val_bytes,
+      c.track_id
+    FROM process_counter_track AS pct
+    JOIN counter AS c
+      ON c.track_id = pct.id
+    WHERE
+      pct.name IN ('Heap size (KB)', 'mem.rss.anon')
+      AND pct.upid IS NOT NULL
+  ),
+  deltas AS (
+    SELECT
+      id,
+      ts,
+      upid,
+      utid,
+      is_heap,
+      val_bytes,
+      val_bytes
+      - coalesce(
+        lag(val_bytes) OVER (PARTITION BY track_id ORDER BY ts, id),
+        val_bytes
+      ) AS raw_delta_bytes
+    FROM raw
+  )
+SELECT
+  id,
+  ts,
+  1 AS dur,
+  upid,
+  utid,
+  is_heap,
+  val_bytes,
+  max(0, raw_delta_bytes) AS delta_bytes,
+  iif(is_heap = 1 AND raw_delta_bytes < 0, 1, 0) AS is_heap_drop
+FROM deltas;
+
+CREATE PERFETTO TABLE _binder_mem_counter_events_utid AS
+SELECT id, ts, dur, utid, is_heap, val_bytes, delta_bytes
+FROM _binder_mem_counter_events
+WHERE
+  utid IS NOT NULL;
+
+CREATE PERFETTO TABLE _binder_utid_innermost AS
+SELECT
+  ii.id_0 AS binder_reply_id,
+  m.is_heap,
+  m.val_bytes,
+  m.delta_bytes,
+  row_number() OVER (PARTITION BY ii.id_1 ORDER BY r.dur ASC, ii.id_0 DESC) AS rn
+FROM _interval_intersect!((_binder_server_replies, _binder_mem_counter_events_utid), (utid)) AS ii
+JOIN _binder_server_replies AS r
+  ON r.id = ii.id_0
+JOIN _binder_mem_counter_events_utid AS m
+  ON m.id = ii.id_1;
+
+CREATE PERFETTO TABLE _binder_reply_mem_utid AS
+SELECT
+  binder_reply_id,
+  sum(iif(is_heap = 1, delta_bytes, 0)) AS heap_utid_increase_bytes,
+  min(iif(is_heap = 1, val_bytes, NULL)) AS heap_utid_min_bytes,
+  max(iif(is_heap = 1, val_bytes, NULL)) AS heap_utid_max_bytes,
+  sum(iif(is_heap = 0, delta_bytes, 0)) AS rss_anon_utid_increase_bytes,
+  min(iif(is_heap = 0, val_bytes, NULL)) AS rss_anon_utid_min_bytes,
+  max(iif(is_heap = 0, val_bytes, NULL)) AS rss_anon_utid_max_bytes
+FROM _binder_utid_innermost
+WHERE
+  rn = 1
+GROUP BY
+  binder_reply_id;
+
+CREATE PERFETTO TABLE _binder_reply_mem_proc AS
+SELECT
+  ii.id_0 AS binder_reply_id,
+  max(m.is_heap_drop) AS had_heap_drop,
+  sum(iif(m.is_heap = 1, m.delta_bytes, 0)) AS heap_proc_increase_bytes,
+  min(iif(m.is_heap = 1, m.val_bytes, NULL)) AS heap_proc_min_bytes,
+  max(iif(m.is_heap = 1, m.val_bytes, NULL)) AS heap_proc_max_bytes,
+  sum(iif(m.is_heap = 0, m.delta_bytes, 0)) AS rss_anon_proc_increase_bytes,
+  min(iif(m.is_heap = 0, m.val_bytes, NULL)) AS rss_anon_proc_min_bytes,
+  max(iif(m.is_heap = 0, m.val_bytes, NULL)) AS rss_anon_proc_max_bytes
+FROM _interval_intersect!((_binder_server_replies, _binder_mem_counter_events), (upid)) AS ii
+JOIN _binder_mem_counter_events AS m
+  ON m.id = ii.id_1
+GROUP BY
+  ii.id_0;
+
 -- It returns data about the client and server ends of every binder transaction async.
 CREATE PERFETTO TABLE android_binder_txns(
   -- Fully qualified name of the binder endpoint if existing.
@@ -513,7 +675,47 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- Whether server package is debuggable.
   is_server_package_debuggable BOOL,
   -- Size of the parcel in bytes if existing.
-  parcel_size LONG
+  parcel_size LONG,
+  -- Positive increase in thread-attributed server Java heap size (KB) during the server reply.
+  heap_increase_kb DOUBLE,
+  -- Minimum thread-attributed server Java heap size (KB) during the server reply if existing.
+  heap_size_min_kb DOUBLE,
+  -- Maximum thread-attributed server Java heap size (KB) during the server reply if existing.
+  heap_size_max_kb DOUBLE,
+  -- Positive increase in thread-attributed server Java heap size (bytes) during the server reply.
+  heap_utid_increase_bytes LONG,
+  -- Positive increase in thread-attributed server Java heap size (KB) during the server reply.
+  heap_utid_increase_kb DOUBLE,
+  -- Minimum thread-attributed server Java heap size (bytes) during the server reply if existing.
+  heap_utid_min_bytes LONG,
+  -- Maximum thread-attributed server Java heap size (bytes) during the server reply if existing.
+  heap_utid_max_bytes LONG,
+  -- Positive increase in process-wide server Java heap size (bytes) during the server reply.
+  heap_proc_increase_bytes LONG,
+  -- Positive increase in process-wide server Java heap size (KB) during the server reply.
+  heap_proc_increase_kb DOUBLE,
+  -- Minimum process-wide server Java heap size (bytes) during the server reply if existing.
+  heap_proc_min_bytes LONG,
+  -- Maximum process-wide server Java heap size (bytes) during the server reply if existing.
+  heap_proc_max_bytes LONG,
+  -- Positive increase in thread-attributed server anonymous RSS (bytes) during the server reply.
+  rss_anon_utid_increase_bytes LONG,
+  -- Positive increase in thread-attributed server anonymous RSS (KB) during the server reply.
+  rss_anon_utid_increase_kb DOUBLE,
+  -- Minimum thread-attributed server anonymous RSS (bytes) during the server reply if existing.
+  rss_anon_utid_min_bytes LONG,
+  -- Maximum thread-attributed server anonymous RSS (bytes) during the server reply if existing.
+  rss_anon_utid_max_bytes LONG,
+  -- Positive increase in process-wide server anonymous RSS (bytes) during the server reply.
+  rss_anon_proc_increase_bytes LONG,
+  -- Positive increase in process-wide server anonymous RSS (KB) during the server reply.
+  rss_anon_proc_increase_kb DOUBLE,
+  -- Minimum process-wide server anonymous RSS (bytes) during the server reply if existing.
+  rss_anon_proc_min_bytes LONG,
+  -- Maximum process-wide server anonymous RSS (bytes) during the server reply if existing.
+  rss_anon_proc_max_bytes LONG,
+  -- Whether any GC event, CMC phase slice, or heap size drop overlapped the server reply on server_upid.
+  during_gc BOOL
 )
 AS
 WITH
@@ -552,7 +754,47 @@ SELECT
   server_process_metadata.version_code AS server_package_version_code,
   client_process_metadata.debuggable AS is_client_package_debuggable,
   server_process_metadata.debuggable AS is_server_package_debuggable,
-  binder_parcel_size.parcel_size
+  binder_parcel_size.parcel_size,
+  round(
+    coalesce(_binder_reply_mem_utid.heap_utid_increase_bytes, 0) / 1024.0,
+    2
+  ) AS heap_increase_kb,
+  _binder_reply_mem_utid.heap_utid_min_bytes / 1024.0 AS heap_size_min_kb,
+  _binder_reply_mem_utid.heap_utid_max_bytes / 1024.0 AS heap_size_max_kb,
+  coalesce(_binder_reply_mem_utid.heap_utid_increase_bytes, 0) AS heap_utid_increase_bytes,
+  round(
+    coalesce(_binder_reply_mem_utid.heap_utid_increase_bytes, 0) / 1024.0,
+    2
+  ) AS heap_utid_increase_kb,
+  _binder_reply_mem_utid.heap_utid_min_bytes,
+  _binder_reply_mem_utid.heap_utid_max_bytes,
+  coalesce(_binder_reply_mem_proc.heap_proc_increase_bytes, 0) AS heap_proc_increase_bytes,
+  round(
+    coalesce(_binder_reply_mem_proc.heap_proc_increase_bytes, 0) / 1024.0,
+    2
+  ) AS heap_proc_increase_kb,
+  _binder_reply_mem_proc.heap_proc_min_bytes,
+  _binder_reply_mem_proc.heap_proc_max_bytes,
+  coalesce(_binder_reply_mem_utid.rss_anon_utid_increase_bytes, 0) AS rss_anon_utid_increase_bytes,
+  round(
+    coalesce(_binder_reply_mem_utid.rss_anon_utid_increase_bytes, 0) / 1024.0,
+    2
+  ) AS rss_anon_utid_increase_kb,
+  _binder_reply_mem_utid.rss_anon_utid_min_bytes,
+  _binder_reply_mem_utid.rss_anon_utid_max_bytes,
+  coalesce(_binder_reply_mem_proc.rss_anon_proc_increase_bytes, 0) AS rss_anon_proc_increase_bytes,
+  round(
+    coalesce(_binder_reply_mem_proc.rss_anon_proc_increase_bytes, 0) / 1024.0,
+    2
+  ) AS rss_anon_proc_increase_kb,
+  _binder_reply_mem_proc.rss_anon_proc_min_bytes,
+  _binder_reply_mem_proc.rss_anon_proc_max_bytes,
+  iif(
+    _binder_reply_gc.binder_reply_id IS NOT NULL
+    OR coalesce(_binder_reply_mem_proc.had_heap_drop, 0) = 1,
+    1,
+    0
+  ) AS during_gc
 FROM all_binder
 LEFT JOIN android_process_metadata AS client_process_metadata
   ON all_binder.client_upid = client_process_metadata.upid
@@ -560,6 +802,12 @@ LEFT JOIN android_process_metadata AS server_process_metadata
   ON all_binder.server_upid = server_process_metadata.upid
 LEFT JOIN binder_parcel_size
   ON all_binder.binder_reply_id = binder_parcel_size.binder_reply_id
+LEFT JOIN _binder_reply_gc
+  ON all_binder.binder_reply_id = _binder_reply_gc.binder_reply_id
+LEFT JOIN _binder_reply_mem_utid
+  ON all_binder.binder_reply_id = _binder_reply_mem_utid.binder_reply_id
+LEFT JOIN _binder_reply_mem_proc
+  ON all_binder.binder_reply_id = _binder_reply_mem_proc.binder_reply_id
 ORDER BY
   binder_txn_id;
 
