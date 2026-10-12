@@ -72,31 +72,15 @@ void MergeAllowlistedOptions(
   if (allowlisted_options.empty())
     return;
 
-  out.erase(
-      std::remove_if(out.begin(), out.end(),
-                     [&](const ProtoFile::Option& opt) {
-                       if (!IsAllowlistedOption(opt.key, allowlisted_options))
-                         return false;
-                       return std::none_of(
-                           upstream.begin(), upstream.end(),
-                           [&](const ProtoFile::Option& upstream_opt) {
-                             return upstream_opt.key == opt.key;
-                           });
-                     }),
-      out.end());
+  auto is_allowlisted = [&](const ProtoFile::Option& opt) {
+    return IsAllowlistedOption(opt.key, allowlisted_options);
+  };
 
-  for (const auto& upstream_opt : upstream) {
-    if (IsAllowlistedOption(upstream_opt.key, allowlisted_options)) {
-      auto it = std::find_if(out.begin(), out.end(),
-                             [&](const ProtoFile::Option& opt) {
-                               return opt.key == upstream_opt.key;
-                             });
-      if (it != out.end()) {
-        it->value = upstream_opt.value;
-      } else {
-        out.push_back(upstream_opt);
-      }
-    }
+  out.erase(std::remove_if(out.begin(), out.end(), is_allowlisted), out.end());
+
+  for (const auto& opt : upstream) {
+    if (is_allowlisted(opt))
+      out.push_back(opt);
   }
 }
 
