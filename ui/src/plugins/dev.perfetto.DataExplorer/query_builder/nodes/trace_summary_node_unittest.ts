@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../base/assert';
 import {TraceSummaryNode} from './trace_summary_node';
 import {MetricsNode, type MetricsNodeAttrs} from './metrics_node';
 import {NodeType} from '../../query_node';
@@ -170,7 +171,9 @@ describe('TraceSummaryNode', () => {
       const spec = node.getTraceSummarySpec();
       expect(spec).toBeDefined();
       expect(spec?.metricTemplateSpec).toHaveLength(1);
-      expect(spec?.metricTemplateSpec?.[0]!.idPrefix).toBe('my_metric');
+      expect(ensureDefined(spec?.metricTemplateSpec?.[0]).idPrefix).toBe(
+        'my_metric',
+      );
     });
 
     test('bundles multiple Metrics nodes', () => {
@@ -196,8 +199,12 @@ describe('TraceSummaryNode', () => {
       connectSecondary(metrics2, node, 1);
 
       const spec = node.getTraceSummarySpec();
-      expect(spec?.metricTemplateSpec?.[0]!.idPrefix).toBe('first_metric');
-      expect(spec?.metricTemplateSpec?.[1]!.idPrefix).toBe('second_metric');
+      expect(ensureDefined(spec?.metricTemplateSpec?.[0]).idPrefix).toBe(
+        'first_metric',
+      );
+      expect(ensureDefined(spec?.metricTemplateSpec?.[1]).idPrefix).toBe(
+        'second_metric',
+      );
     });
   });
 

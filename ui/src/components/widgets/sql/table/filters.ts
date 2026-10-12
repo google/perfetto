@@ -97,7 +97,10 @@ export function isFilterEqual(a: Filter, b: Filter): boolean {
   return (
     a.op === b.op &&
     a.columns.length === b.columns.length &&
-    a.columns.every((c, i) => isSqlColumnEqual(c, b.columns[i]!))
+    a.columns.every((c, i) => {
+      const other = b.columns[i];
+      return other !== undefined && isSqlColumnEqual(c, other);
+    })
   );
 }
 
@@ -106,7 +109,10 @@ export function areFiltersEqual(
   b: ReadonlyArray<Filter>,
 ) {
   if (a.length !== b.length) return false;
-  return a.every((f, i) => isFilterEqual(f, b[i]!));
+  return a.every((f, i) => {
+    const other = b[i];
+    return other !== undefined && isFilterEqual(f, other);
+  });
 }
 
 export function renderFilters(filters: Filters): m.Children {
@@ -149,8 +155,9 @@ export class StandardFilters {
   }
 
   static valueIsOneOf(col: SqlColumn, values: SqlValue[]): Filter {
-    if (values.length === 1) {
-      return StandardFilters.valueEquals(col, values[0]!);
+    const firstVal = values[0];
+    if (values.length === 1 && firstVal !== undefined) {
+      return StandardFilters.valueEquals(col, firstVal);
     }
     if (values.length === 0) {
       return {

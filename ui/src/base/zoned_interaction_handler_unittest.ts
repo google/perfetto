@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from './assert';
 import {ZonedInteractionHandler} from './zoned_interaction_handler';
 
 describe('ZonedInteractionHandler', () => {
@@ -188,7 +189,7 @@ describe('ZonedInteractionHandler', () => {
     );
 
     expect(handleWheel).toHaveBeenCalled();
-    expect(handleWheel.mock.calls[0]![0]).toMatchObject({
+    expect(ensureDefined(handleWheel.mock.calls[0])[0]).toMatchObject({
       position: {x: 50, y: 50},
       deltaX: 5,
       deltaY: 10,

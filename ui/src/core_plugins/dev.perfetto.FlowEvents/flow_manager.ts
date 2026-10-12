@@ -625,7 +625,8 @@ export class FlowManager {
 function findAnotherFlowExcept(boundFlows: Flow[], flowId: number): number {
   let selectedFlowFound = false;
 
-  if (boundFlows.length === 0) {
+  const firstFlow = boundFlows[0];
+  if (firstFlow === undefined) {
     return -1;
   }
 
@@ -638,5 +639,5 @@ function findAnotherFlowExcept(boundFlows: Flow[], flowId: number): number {
       selectedFlowFound = true;
     }
   }
-  return boundFlows[0]!.id;
+  return firstFlow.id;
 }

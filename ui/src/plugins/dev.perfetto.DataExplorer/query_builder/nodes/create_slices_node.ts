@@ -195,13 +195,17 @@ export class CreateSlicesNode implements QueryNode {
     );
 
     // Auto-select starts timestamp if there's only one option
-    if (startsTimestampCols.length === 1 && !this.attrs.startsTsColumn) {
-      this.attrs.startsTsColumn = startsTimestampCols[0]!.name;
+    const onlyStartsTsCol =
+      startsTimestampCols.length === 1 ? startsTimestampCols[0] : undefined;
+    if (onlyStartsTsCol !== undefined && !this.attrs.startsTsColumn) {
+      this.attrs.startsTsColumn = onlyStartsTsCol.name;
     }
 
     // Auto-select ends timestamp if there's only one option
-    if (endsTimestampCols.length === 1 && !this.attrs.endsTsColumn) {
-      this.attrs.endsTsColumn = endsTimestampCols[0]!.name;
+    const onlyEndsTsCol =
+      endsTimestampCols.length === 1 ? endsTimestampCols[0] : undefined;
+    if (onlyEndsTsCol !== undefined && !this.attrs.endsTsColumn) {
+      this.attrs.endsTsColumn = onlyEndsTsCol.name;
     }
 
     // Auto-select duration columns in ts_dur mode
@@ -209,8 +213,10 @@ export class CreateSlicesNode implements QueryNode {
       const startsDurationCols = this.startsNode.finalCols.filter(
         (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.DURATION),
       );
-      if (startsDurationCols.length === 1 && !this.attrs.startsDurColumn) {
-        this.attrs.startsDurColumn = startsDurationCols[0]!.name;
+      const onlyStartsDurCol =
+        startsDurationCols.length === 1 ? startsDurationCols[0] : undefined;
+      if (onlyStartsDurCol !== undefined && !this.attrs.startsDurColumn) {
+        this.attrs.startsDurColumn = onlyStartsDurCol.name;
       }
     }
 
@@ -218,8 +224,10 @@ export class CreateSlicesNode implements QueryNode {
       const endsDurationCols = this.endsNode.finalCols.filter(
         (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.DURATION),
       );
-      if (endsDurationCols.length === 1 && !this.attrs.endsDurColumn) {
-        this.attrs.endsDurColumn = endsDurationCols[0]!.name;
+      const onlyEndsDurCol =
+        endsDurationCols.length === 1 ? endsDurationCols[0] : undefined;
+      if (onlyEndsDurCol !== undefined && !this.attrs.endsDurColumn) {
+        this.attrs.endsDurColumn = onlyEndsDurCol.name;
       }
     }
   }
@@ -455,10 +463,10 @@ export class CreateSlicesNode implements QueryNode {
     );
 
     // Display the auto-selected column if there's only one option
-    const autoTsColumn =
-      timestampCols.length === 1 ? timestampCols[0]!.name : tsColumn;
-    const autoDurColumn =
-      durationCols.length === 1 ? durationCols[0]!.name : durColumn;
+    const onlyTsCol = timestampCols.length === 1 ? timestampCols[0] : undefined;
+    const onlyDurCol = durationCols.length === 1 ? durationCols[0] : undefined;
+    const autoTsColumn = onlyTsCol?.name ?? tsColumn;
+    const autoDurColumn = onlyDurCol?.name ?? durColumn;
 
     return [
       // Mode selector

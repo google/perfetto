@@ -537,13 +537,15 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
             });
           };
 
-          if (joinidColumns.length === 1) {
+          const onlyJoinid =
+            joinidColumns.length === 1 ? joinidColumns[0] : undefined;
+          if (onlyJoinid !== undefined) {
             // Single joinid column - show columns directly under "From {table}"
             tableSubmenus.push(
               m(
                 MenuItem,
                 {label: `From ${tableName}`},
-                buildColumnItems(joinidColumns[0]!.joinidColumn),
+                buildColumnItems(onlyJoinid.joinidColumn),
               ),
             );
           } else {
@@ -614,12 +616,11 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
               if (normalizedFilters.length > 1) {
                 operator = filter.op === 'not in' ? 'AND' : 'OR';
               }
-              attrs.onFilterAdd(
+              const onlyFilter =
                 normalizedFilters.length === 1
-                  ? normalizedFilters[0]!
-                  : normalizedFilters,
-                operator,
-              );
+                  ? normalizedFilters[0]
+                  : undefined;
+              attrs.onFilterAdd(onlyFilter ?? normalizedFilters, operator);
             } else {
               // Legacy: add filters directly to node attrs
               const filterNode = attrs.node as FilterNode;

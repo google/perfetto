@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {assertExists, assertIsInstance} from '../../base/assert';
 import {Memo} from '../../base/memo';
-import {maybeUndefined} from '../../base/utils';
 import {TreeExplorerPanel} from '../../components/tree_explorer_panel';
 import {TreeExplorerFetcher} from '../../components/tree_explorer_fetcher';
 import type {Trace} from '../../public/trace';
@@ -50,7 +49,7 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
     // supplied, or if we can't find a match.
     const selectedProfile =
       attrs.profiles.find((p) => p.id === attrs.state.selectedProfileId) ??
-      maybeUndefined(attrs.profiles[0]);
+      attrs.profiles[0];
 
     if (selectedProfile === undefined) {
       return this.renderEmptyState();
@@ -101,8 +100,9 @@ export class AggregateProfilesPage implements m.ClassComponent<AggregateProfiles
       (p) => p.id === attrs.state.selectedProfileId,
     );
     const next = Math.max(cur, 0) + step;
-    if (next >= 0 && next < attrs.profiles.length) {
-      this.selectProfile(attrs, attrs.profiles[next]!);
+    const profile = attrs.profiles[next];
+    if (profile !== undefined) {
+      this.selectProfile(attrs, profile);
     }
   }
 

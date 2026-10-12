@@ -23,6 +23,7 @@
  * 3. FilterDuringNode - Node with primary input + multiple secondary inputs
  */
 
+import {ensureDefined} from '../../../../base/assert';
 import {IntervalIntersectNode} from './interval_intersect_node';
 import {AddColumnsNode} from './add_columns_node';
 import {FilterDuringNode} from './filter_during_node';
@@ -1368,7 +1369,7 @@ describe('Connection Management', () => {
         return {child, portIndex};
       });
 
-      expect(childConnections[0]!.portIndex).toBe(1); // B was at port 1
+      expect(ensureDefined(childConnections[0]).portIndex).toBe(1); // B was at port 1
 
       // Disconnect nodeB
       removeConnection(nodeA, nodeB);
@@ -2095,13 +2096,13 @@ describe('Connection Management', () => {
       qnode: QueryNode,
       nodeLayouts: Map<string, {x: number; y: number}>,
     ): QueryNode | undefined {
+      const child =
+        qnode.nextNodes.length === 1 ? qnode.nextNodes[0] : undefined;
       if (
-        qnode.nextNodes.length === 1 &&
-        qnode.nextNodes[0] !== undefined &&
-        singleNodeOperation(qnode.nextNodes[0].type) &&
-        !nodeLayouts.has(qnode.nextNodes[0].nodeId)
+        child !== undefined &&
+        singleNodeOperation(child.type) &&
+        !nodeLayouts.has(child.nodeId)
       ) {
-        const child = qnode.nextNodes[0];
         // Only dock the child if it's part of the primary flow chain
         if ('primaryInput' in child && child.primaryInput === qnode) {
           return child;
@@ -2425,8 +2426,8 @@ describe('Connection Management', () => {
 
       // VERIFY: B was connected via secondary input, so it's NOT orphaned
       expect(childConnections.length).toBe(1);
-      expect(childConnections[0]!.child).toBe(nodeB);
-      expect(childConnections[0]!.portIndex).toBeDefined(); // Secondary input!
+      expect(ensureDefined(childConnections[0]).child).toBe(nodeB);
+      expect(ensureDefined(childConnections[0]).portIndex).toBeDefined(); // Secondary input!
 
       // VERIFY BUG: Buggy code incorrectly treats B as orphaned
       expect(buggyOrphanedChildren).toContain(nodeB); // BUG!
@@ -2595,8 +2596,8 @@ describe('Connection Management', () => {
       );
 
       // Union allows unbounded inputs
-      for (let i = 0; i < nodes.length; i++) {
-        addConnection(nodes[i]!, unionNode, i);
+      for (const [i, node] of nodes.entries()) {
+        addConnection(node, unionNode, i);
       }
 
       // With 10 inputs, validation should pass (unbounded max)

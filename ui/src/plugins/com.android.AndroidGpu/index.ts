@@ -39,8 +39,8 @@ export default class implements PerfettoPlugin {
 
     for (const track of gpuCounterTracks) {
       const trackIds = track.tags?.trackIds;
-      if (trackIds === undefined || trackIds.length !== 1) continue;
-      const trackId = trackIds[0]!;
+      const trackId = trackIds?.[0];
+      if (trackId === undefined || trackIds?.length !== 1) continue;
 
       const name = String(track.tags?.name ?? '');
       const unit = String(track.tags?.unit ?? '');

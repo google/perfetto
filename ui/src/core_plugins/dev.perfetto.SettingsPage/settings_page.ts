@@ -19,6 +19,7 @@ import type {
 } from '../../core/settings_manager';
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
+import {ensureDefined} from '../../base/assert';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {getZodSchemaInfo} from '../../base/zod_utils';
 import {CardStack} from '../../widgets/card';
@@ -179,8 +180,8 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
       this.filterText,
     ).map((res) => ({
       item: res.item,
-      nameSegments: res.segments[0]!,
-      descriptionSegments: res.segments[1]!,
+      nameSegments: ensureDefined(res.segments[0]),
+      descriptionSegments: ensureDefined(res.segments[1]),
     }));
   }
 

@@ -398,7 +398,7 @@ export class TimelineImpl implements Timeline {
         return getTraceMidnightInTimezone(
           this.traceInfo.start,
           this.traceInfo.unixOffset,
-          timezoneOffsetMap[this.timezoneOverride.get()]!,
+          this.customTimezoneOffset,
         );
       case TimestampFormat.TraceTz:
         return getTraceMidnightInTimezone(
@@ -433,7 +433,7 @@ export class TimelineImpl implements Timeline {
   }
 
   get customTimezoneOffset(): number {
-    return timezoneOffsetMap[this.timezoneOverride.get()]!;
+    return timezoneOffsetMap[this.timezoneOverride.get()] ?? 0;
   }
 
   // Animate to a new visible window using ease-in-ease-out

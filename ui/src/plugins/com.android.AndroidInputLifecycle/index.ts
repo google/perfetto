@@ -159,7 +159,8 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
       name: 'Android: Pin input pipeline related tracks',
       callback: async () => {
         const apps = await this.getUniqueInputApps(trace);
-        if (apps.length === 0) {
+        const firstApp = apps[0];
+        if (firstApp === undefined) {
           await showModal({
             title: 'Pin input pipeline related tracks',
             icon: 'warning',
@@ -172,7 +173,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
           return;
         }
 
-        let selectedApp = apps[0];
+        let selectedApp = firstApp;
 
         await showModal({
           title: 'Pin input pipeline tracks for app',
@@ -330,9 +331,9 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
         }
       }
 
-      for (let i = 0; i < steps.length - 1; i++) {
-        const start = steps[i]!;
-        const end = steps[i + 1]!;
+      for (const [i, start] of steps.entries()) {
+        const end = steps[i + 1];
+        if (end === undefined) break;
         connections.push({
           start: {
             trackUri: start.trackUri,

@@ -274,7 +274,8 @@ export class ThreadSliceAggregator implements Aggregator {
             return String(id);
           }
 
-          if (tracks.length !== 1) {
+          const firstTrack = tracks[0];
+          if (tracks.length !== 1 || firstTrack === undefined) {
             return m(
               PopupMenu,
               {
@@ -300,7 +301,7 @@ export class ThreadSliceAggregator implements Aggregator {
               ),
             );
           } else {
-            const track = tracks[0]!;
+            const track = firstTrack;
             return m(
               Anchor,
               {

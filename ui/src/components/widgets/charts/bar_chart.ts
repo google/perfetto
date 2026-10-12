@@ -263,7 +263,8 @@ function buildBarOption(
       formatter: isStacked
         ? undefined
         : (params: Array<{name?: string; value?: number}>) => {
-            const p = Array.isArray(params) ? params[0]! : params;
+            const p = Array.isArray(params) ? params[0] : params;
+            if (p === undefined) return '';
             return renderTooltip([
               m('div', p.name ?? ''),
               m('div', `${measureLabel}: ${fmtMeasure(p.value ?? 0)}`),
@@ -408,10 +409,9 @@ function buildBarEventHandlers(
           const minIdx = Math.max(0, startIdx);
           const maxIdx = Math.min(items.length - 1, endIdx);
           if (minIdx <= maxIdx) {
-            const labels: Array<string | number> = [];
-            for (let i = minIdx; i <= maxIdx; i++) {
-              labels.push(items[i]!.label);
-            }
+            const labels: Array<string | number> = items
+              .slice(minIdx, maxIdx + 1)
+              .map((item) => item.label);
             if (labels.length > 0) {
               onBrush(labels);
             }

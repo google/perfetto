@@ -80,9 +80,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       },
     );
 
-    if (prevRelatedStates.length > 0) {
-      relatedStates.prev = prevRelatedStates[0];
-    }
+    relatedStates.prev = prevRelatedStates[0];
 
     const nextRelatedStates = await getThreadStateFromConstraints(
       this.trace.engine,
@@ -95,9 +93,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
       },
     );
 
-    if (nextRelatedStates.length > 0) {
-      relatedStates.next = nextRelatedStates[0];
-    }
+    relatedStates.next = nextRelatedStates[0];
 
     // note: this might be valid even if there is no |waker| slice, in the case
     // of an interrupt wakeup while in the idle process (which is omitted from
@@ -275,10 +271,12 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
     };
 
     const renderWakees = (related: RelatedThreadStates) => {
-      if (related.wakee === undefined || related.wakee.length == 0) {
+      const wakee = related.wakee;
+      const firstWakee = wakee?.[0];
+      if (wakee === undefined || firstWakee === undefined) {
         return null;
       }
-      const hasInterruptCtx = related.wakee[0]!.wakerInterruptCtx !== undefined;
+      const hasInterruptCtx = firstWakee.wakerInterruptCtx !== undefined;
       return m(
         TreeNode,
         {
@@ -286,7 +284,7 @@ export class ThreadStateDetailsPanel implements TrackEventDetailsPanel {
             ? 'Woken threads'
             : 'Woken threads (maybe interrupt)',
         },
-        related.wakee.map((state) =>
+        wakee.map((state) =>
           m(TreeNode, {
             left: m(Timestamp, {
               trace: this.trace,

@@ -120,7 +120,7 @@ export class RecordingManager {
     if (this.target && targets.includes(this.target)) {
       return; // The currently selected target is still valid, retain it.
     }
-    this.target = targets.length > 0 ? targets[0] : undefined;
+    this.target = targets[0];
     this.app.raf.scheduleFullRedraw();
   }
 
@@ -260,11 +260,12 @@ export class RecordingManager {
   loadDefaultConfig() {
     // Load first preset if available
     const presets = getPresetsForPlatform(this.currentPlatform);
-    if (presets.length > 0) {
+    const firstPreset = presets[0];
+    if (firstPreset !== undefined) {
       this.loadConfig({
-        config: presets[0]!.session,
-        configId: `preset:${presets[0]!.id}`,
-        configName: presets[0]!.title,
+        config: firstPreset.session,
+        configId: `preset:${firstPreset.id}`,
+        configName: firstPreset.title,
       });
     } else {
       this.clearSession();

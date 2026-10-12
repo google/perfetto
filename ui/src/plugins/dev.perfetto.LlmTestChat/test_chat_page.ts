@@ -28,7 +28,6 @@ import {TextInput} from '../../widgets/text_input';
 import type {LlmGateway, ModelDetails} from '../dev.perfetto.Llm/gateway';
 import type {Message} from '../dev.perfetto.Llm/protocol';
 import {assertTrue} from '../../base/assert';
-import {maybeUndefined} from '../../base/utils';
 
 // A stable key for a (provider, model) pair, used as the <select> value.
 function modelKey(rm: ModelDetails): string {
@@ -74,7 +73,7 @@ export class LlmTestChatPage implements m.ClassComponent<LlmTestChatPageAttrs> {
     }
 
     // If no model is specifically chosen, just return the first one
-    const firstModel = maybeUndefined(models[0]);
+    const firstModel = models[0];
     return firstModel;
   }
 

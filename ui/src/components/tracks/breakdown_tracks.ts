@@ -495,13 +495,12 @@ export class BreakdownTracks {
       colIndex: number,
     ) => Promise<TrackNode>,
   ): Promise<{currentNode: TrackNode; currentFilters: Filter[]}> {
-    for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+    for (const [colIndex, colName] of columns.entries()) {
       let children = cache.get(currentNode.uri!);
       if (!children) {
         children = new Map<string, TrackNode>();
         cache.set(currentNode.uri!, children);
       }
-      const colName = columns[colIndex]!;
       const colResRaw = iter.get(colName);
       const childName = colResRaw === null ? 'NULL' : colResRaw.toString();
 

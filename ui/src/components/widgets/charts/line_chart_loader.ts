@@ -180,14 +180,20 @@ function downsample(
   maxPoints: number,
 ): LineChartPoint[] {
   if (points.length <= maxPoints) return [...points];
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (first === undefined || last === undefined) return [];
   if (maxPoints <= 2) {
-    return [points[0]!, points[points.length - 1]!];
+    return [first, last];
   }
-  const result: LineChartPoint[] = [points[0]!];
+  const result: LineChartPoint[] = [first];
   const step = (points.length - 1) / (maxPoints - 1);
   for (let i = 1; i < maxPoints - 1; i++) {
-    result.push(points[Math.round(i * step)]!);
+    const pt = points[Math.round(i * step)];
+    if (pt !== undefined) {
+      result.push(pt);
+    }
   }
-  result.push(points[points.length - 1]!);
+  result.push(last);
   return result;
 }

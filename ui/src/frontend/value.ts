@@ -156,8 +156,8 @@ function renderValue(name: string, value: Value): m.Children {
     return m(TreeNode, {left, right: `array[${nodes.length}]`}, nodes);
   } else if (isDict(value)) {
     const nodes: m.Children[] = [];
-    for (const key of Object.keys(value.items)) {
-      nodes.push(renderValue(key, value.items[key]!));
+    for (const [key, item] of Object.entries(value.items)) {
+      nodes.push(renderValue(key, item));
     }
     return m(TreeNode, {left, right: `dict`}, nodes);
   } else {
@@ -187,8 +187,8 @@ function renderValue(name: string, value: Value): m.Children {
 // Render a given dictionary to a tree.
 export function renderDict(dict: Dict): m.Child {
   const rows: m.Children[] = [];
-  for (const key of Object.keys(dict.items)) {
-    rows.push(renderValue(key, dict.items[key]!));
+  for (const [key, item] of Object.entries(dict.items)) {
+    rows.push(renderValue(key, item));
   }
   return m(Tree, rows);
 }

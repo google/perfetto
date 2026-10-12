@@ -15,7 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 import {v4} from 'uuid';
-import {assertTrue} from '../../base/assert';
+import {assertTrue, ensureDefined} from '../../base/assert';
 import type {App} from '../../public/app';
 import {Button, type ButtonAttrs} from '../../widgets/button';
 import {Checkbox} from '../../widgets/checkbox';
@@ -529,8 +529,8 @@ class PerfCpuConfigurationController {
         .map((option) => option.id),
     );
     this.metricOptions.forEach((metric) => {
-      metric.checked = availableMetrics[metric.id]!.events.every((eventName) =>
-        completePmuList.has(eventName),
+      metric.checked = ensureDefined(availableMetrics[metric.id]).events.every(
+        (eventName) => completePmuList.has(eventName),
       );
     });
 
@@ -543,9 +543,10 @@ class PerfCpuConfigurationController {
 
   get metricsPmus(): Set<string> {
     const pmus = new Set<string>();
+    const cpuDesc = this.cpuDesc;
     this.metricOptions.forEach((metric) => {
-      if (metric.checked) {
-        this.cpuDesc?.metrics[metric.id]!.events.forEach((eventName) =>
+      if (metric.checked && cpuDesc !== undefined) {
+        ensureDefined(cpuDesc.metrics[metric.id]).events.forEach((eventName) =>
           pmus.add(eventName),
         );
       }
@@ -571,9 +572,9 @@ class PerfCpuConfigurationController {
 
     this.metricOptions.forEach((metric) => {
       if (!metric.checked) {
-        metric.checked = availableMetrics[metric.id]!.events.every(
-          (eventName) => completePmuList.has(eventName),
-        );
+        metric.checked = ensureDefined(
+          availableMetrics[metric.id],
+        ).events.every((eventName) => completePmuList.has(eventName));
       }
     });
 
@@ -907,7 +908,8 @@ class PerfConfiguration implements m.ClassComponent<PerfConfigurationAttrs> {
             throw new Error('Not an input element');
           }
           if (!e.target.files) return;
-          const file = e.target.files[0]!;
+          const file = e.target.files[0];
+          if (file === undefined) return;
           const reader = new FileReader();
           reader.onloadend = () => {
             if (reader.error) {
@@ -1092,7 +1094,9 @@ function tracedPerf(
           name: cpuState.cpuLeader,
           rawEvent: {
             type: cpuPerfType,
-            config: Number(cpuDesc.events[cpuState.cpuLeader]!.code),
+            config: Number(
+              ensureDefined(cpuDesc.events[cpuState.cpuLeader]).code,
+            ),
           },
         };
 
@@ -1103,7 +1107,7 @@ function tracedPerf(
               name: pmu,
               rawEvent: {
                 type: cpuPerfType,
-                config: Number(cpuDesc.events[pmu]!.code),
+                config: Number(ensureDefined(cpuDesc.events[pmu]).code),
               },
             };
           });

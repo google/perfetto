@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../../../base/assert';
 import type {Brand} from '../../../../base/brand';
 import {Time} from '../../../../base/time';
 import {exists} from '../../../../base/utils';
@@ -472,11 +473,13 @@ class DataController {
     const data: Data = {
       valueExpressions: this.expressions,
       values: [],
-      argSetExpressions: this.argSets.map((index) => this.expressions[index]!),
+      argSetExpressions: this.argSets.map((index) =>
+        ensureDefined(this.expressions[index]),
+      ),
       argSets: [],
       sqlIdRefs: this.sqlIdRefs.map((ref) => ({
         tableName: ref.tableName,
-        idExpression: this.expressions[ref.id]!,
+        idExpression: ensureDefined(this.expressions[ref.id]),
       })),
       sqlIdRefData: [],
     };
@@ -495,8 +498,8 @@ class DataController {
       WHERE id = ${this.id}
     `)
     ).firstRow({});
-    for (let i = 0; i < this.expressions.length; ++i) {
-      data.values.push(row[label(i)]!);
+    for (const i of this.expressions.keys()) {
+      data.values.push(ensureDefined(row[label(i)]));
     }
 
     // Fetch the arg sets based on the fetched arg set ids.
@@ -767,8 +770,8 @@ function renderValue(
       });
     }
     case 'sql_id_ref':
-      const ref = data.sqlIdRefs[value.ref]!;
-      const refData = data.sqlIdRefData[value.ref]!;
+      const ref = ensureDefined(data.sqlIdRefs[value.ref]);
+      const refData = ensureDefined(data.sqlIdRefData[value.ref]);
       let rhs: m.Children;
       let children: m.Children;
       if (refData instanceof Err) {

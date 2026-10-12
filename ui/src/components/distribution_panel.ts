@@ -14,6 +14,7 @@
 
 import './distribution_panel.scss';
 import m from 'mithril';
+import {ensureDefined} from '../base/assert';
 import {AsyncMemo} from '../base/async_memo';
 import {Icons} from '../base/semantic_icons';
 import type {Trace} from '../public/trace';
@@ -627,7 +628,10 @@ function requiredSchema(
     ...columns,
     ...(inputs.filter === undefined ? [] : [inputs.filter.col]),
   ])) {
-    schema[col] = inputs.dataset.schema[col]!;
+    schema[col] = ensureDefined(
+      inputs.dataset.schema[col],
+      `Column '${col}' not found in dataset schema`,
+    );
   }
   return schema;
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../base/assert';
 import {
   AggregationNode,
   placeholderNewColumnName,
@@ -20,6 +21,7 @@ import {
 } from './aggregation_node';
 import type {Trace} from '../../../../public/trace';
 import type {QueryNode} from '../../query_node';
+import type {ColumnInfo} from '../column_info';
 import {
   createMockNode,
   createColumnInfo,
@@ -137,7 +139,7 @@ describe('AggregationNode', () => {
           (agg.column !== undefined && agg.aggregationOp !== undefined);
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(true);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(true);
     });
 
     it('should validate PERCENTILE with column and percentile value', () => {
@@ -161,7 +163,7 @@ describe('AggregationNode', () => {
         }
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(true);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(true);
     });
 
     it('should invalidate PERCENTILE with percentile value out of range', () => {
@@ -185,7 +187,7 @@ describe('AggregationNode', () => {
         }
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(false);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(false);
     });
 
     it('should invalidate PERCENTILE without percentile value', () => {
@@ -208,7 +210,7 @@ describe('AggregationNode', () => {
         }
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(false);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(false);
     });
 
     it('should invalidate PERCENTILE without column', () => {
@@ -231,7 +233,7 @@ describe('AggregationNode', () => {
         }
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(false);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(false);
     });
 
     it('should validate MEDIAN with column', () => {
@@ -254,7 +256,7 @@ describe('AggregationNode', () => {
         }
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(true);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(true);
     });
 
     it('should invalidate MEDIAN without column', () => {
@@ -276,7 +278,7 @@ describe('AggregationNode', () => {
         }
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(false);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(false);
     });
 
     it('should validate SUM with column', () => {
@@ -299,7 +301,7 @@ describe('AggregationNode', () => {
         }
       }
 
-      expect(node.attrs.aggregations[0]!.isValid).toBe(true);
+      expect(ensureDefined(node.attrs.aggregations[0]).isValid).toBe(true);
     });
   });
 
@@ -326,9 +328,13 @@ describe('AggregationNode', () => {
 
       expect(node.attrs.aggregations).toBeDefined();
       expect(node.attrs.aggregations.length).toBe(1);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('PERCENTILE');
-      expect(node.attrs.aggregations[0]!.percentile).toBe(95);
-      expect(node.attrs.aggregations[0]!.newColumnName).toBe('p95_dur');
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'PERCENTILE',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).percentile).toBe(95);
+      expect(ensureDefined(node.attrs.aggregations[0]).newColumnName).toBe(
+        'p95_dur',
+      );
     });
 
     it('should serialize COUNT(*) aggregation without column', () => {
@@ -351,9 +357,13 @@ describe('AggregationNode', () => {
 
       expect(node.attrs.aggregations).toBeDefined();
       expect(node.attrs.aggregations.length).toBe(1);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('COUNT(*)');
-      expect(node.attrs.aggregations[0]!.column).toBeUndefined();
-      expect(node.attrs.aggregations[0]!.newColumnName).toBe('total_count');
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'COUNT(*)',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).column).toBeUndefined();
+      expect(ensureDefined(node.attrs.aggregations[0]).newColumnName).toBe(
+        'total_count',
+      );
     });
 
     it('should serialize MEDIAN aggregation', () => {
@@ -377,9 +387,15 @@ describe('AggregationNode', () => {
 
       expect(node.attrs.aggregations).toBeDefined();
       expect(node.attrs.aggregations.length).toBe(1);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('MEDIAN');
-      expect(node.attrs.aggregations[0]!.column?.name).toBe('value');
-      expect(node.attrs.aggregations[0]!.newColumnName).toBe('median_value');
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'MEDIAN',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).column?.name).toBe(
+        'value',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).newColumnName).toBe(
+        'median_value',
+      );
     });
 
     it('should serialize multiple aggregations including new types', () => {
@@ -414,10 +430,16 @@ describe('AggregationNode', () => {
       ];
 
       expect(node.attrs.aggregations.length).toBe(3);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('COUNT(*)');
-      expect(node.attrs.aggregations[1]!.aggregationOp).toBe('MEDIAN');
-      expect(node.attrs.aggregations[2]!.aggregationOp).toBe('PERCENTILE');
-      expect(node.attrs.aggregations[2]!.percentile).toBe(99);
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'COUNT(*)',
+      );
+      expect(ensureDefined(node.attrs.aggregations[1]).aggregationOp).toBe(
+        'MEDIAN',
+      );
+      expect(ensureDefined(node.attrs.aggregations[2]).aggregationOp).toBe(
+        'PERCENTILE',
+      );
+      expect(ensureDefined(node.attrs.aggregations[2]).percentile).toBe(99);
     });
   });
 
@@ -441,9 +463,13 @@ describe('AggregationNode', () => {
       );
 
       expect(node.attrs.aggregations.length).toBe(1);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('PERCENTILE');
-      expect(node.attrs.aggregations[0]!.percentile).toBe(95);
-      expect(node.attrs.aggregations[0]!.newColumnName).toBe('p95_dur');
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'PERCENTILE',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).percentile).toBe(95);
+      expect(ensureDefined(node.attrs.aggregations[0]).newColumnName).toBe(
+        'p95_dur',
+      );
     });
 
     it('should deserialize COUNT(*) aggregation without column', () => {
@@ -463,9 +489,13 @@ describe('AggregationNode', () => {
       );
 
       expect(node.attrs.aggregations.length).toBe(1);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('COUNT(*)');
-      expect(node.attrs.aggregations[0]!.column).toBeUndefined();
-      expect(node.attrs.aggregations[0]!.newColumnName).toBe('total_count');
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'COUNT(*)',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).column).toBeUndefined();
+      expect(ensureDefined(node.attrs.aggregations[0]).newColumnName).toBe(
+        'total_count',
+      );
     });
 
     it('should deserialize MEDIAN aggregation', () => {
@@ -486,9 +516,15 @@ describe('AggregationNode', () => {
       );
 
       expect(node.attrs.aggregations.length).toBe(1);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('MEDIAN');
-      expect(node.attrs.aggregations[0]!.column?.name).toBe('value');
-      expect(node.attrs.aggregations[0]!.newColumnName).toBe('median_value');
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'MEDIAN',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).column?.name).toBe(
+        'value',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).newColumnName).toBe(
+        'median_value',
+      );
     });
 
     it('should migrate old COUNT_ALL to COUNT(*) for backward compatibility', () => {
@@ -510,9 +546,13 @@ describe('AggregationNode', () => {
       );
 
       expect(node.attrs.aggregations.length).toBe(1);
-      expect(node.attrs.aggregations[0]!.aggregationOp).toBe('COUNT(*)');
-      expect(node.attrs.aggregations[0]!.column).toBeUndefined();
-      expect(node.attrs.aggregations[0]!.newColumnName).toBe('total_count');
+      expect(ensureDefined(node.attrs.aggregations[0]).aggregationOp).toBe(
+        'COUNT(*)',
+      );
+      expect(ensureDefined(node.attrs.aggregations[0]).column).toBeUndefined();
+      expect(ensureDefined(node.attrs.aggregations[0]).newColumnName).toBe(
+        'total_count',
+      );
     });
   });
 
@@ -697,7 +737,7 @@ describe('AggregationNode', () => {
 
   describe('column type propagation', () => {
     it('should set INT type for COUNT aggregation', () => {
-      const inputCols = [
+      const inputCols: [ColumnInfo, ColumnInfo] = [
         createColumnInfo('id', 'int'),
         createColumnInfo('dur', 'duration'),
       ];
@@ -719,8 +759,10 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(1);
-      expect(node.finalCols[0]!.name).toBe('count_dur');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.INT);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('count_dur');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
     });
 
     it('should set INT type for COUNT(*) aggregation', () => {
@@ -742,12 +784,14 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(1);
-      expect(node.finalCols[0]!.name).toBe('total_count');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.INT);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('total_count');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
     });
 
     it('should preserve type for SUM aggregation', () => {
-      const inputCols = [
+      const inputCols: [ColumnInfo] = [
         {
           name: 'dur',
           checked: false,
@@ -772,12 +816,14 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(1);
-      expect(node.finalCols[0]!.name).toBe('total_dur');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.DURATION);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('total_dur');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.DURATION,
+      );
     });
 
     it('should preserve type for MIN/MAX aggregations', () => {
-      const inputCols = [
+      const inputCols: [ColumnInfo] = [
         {
           name: 'ts',
           checked: false,
@@ -808,14 +854,18 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(2);
-      expect(node.finalCols[0]!.name).toBe('min_ts');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
-      expect(node.finalCols[1]!.name).toBe('max_ts');
-      expect(node.finalCols[1]!.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('min_ts');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.TIMESTAMP,
+      );
+      expect(ensureDefined(node.finalCols[1]).name).toBe('max_ts');
+      expect(ensureDefined(node.finalCols[1]).type).toEqual(
+        PerfettoSqlTypes.TIMESTAMP,
+      );
     });
 
     it('should set DOUBLE type for MEAN aggregation', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
+      const inputCols: [ColumnInfo] = [createColumnInfo('value', 'int')];
       const mockInput = createMockNode({columns: inputCols});
       const node = createAggregationNodeWithInput(
         {
@@ -834,12 +884,14 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(1);
-      expect(node.finalCols[0]!.name).toBe('avg_value');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.DOUBLE);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('avg_value');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.DOUBLE,
+      );
     });
 
     it('should set DOUBLE type for MEDIAN aggregation', () => {
-      const inputCols = [createColumnInfo('dur', 'int')];
+      const inputCols: [ColumnInfo] = [createColumnInfo('dur', 'int')];
       const mockInput = createMockNode({columns: inputCols});
       const node = createAggregationNodeWithInput(
         {
@@ -858,12 +910,14 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(1);
-      expect(node.finalCols[0]!.name).toBe('median_dur');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.DOUBLE);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('median_dur');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.DOUBLE,
+      );
     });
 
     it('should set DOUBLE type for DURATION_WEIGHTED_MEAN aggregation', () => {
-      const inputCols = [createColumnInfo('dur', 'duration')];
+      const inputCols: [ColumnInfo] = [createColumnInfo('dur', 'duration')];
       const mockInput = createMockNode({columns: inputCols});
       const node = createAggregationNodeWithInput(
         {
@@ -882,12 +936,14 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(1);
-      expect(node.finalCols[0]!.name).toBe('weighted_avg_dur');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.DOUBLE);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('weighted_avg_dur');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.DOUBLE,
+      );
     });
 
     it('should set DOUBLE type for PERCENTILE aggregation', () => {
-      const inputCols = [createColumnInfo('dur', 'int')];
+      const inputCols: [ColumnInfo] = [createColumnInfo('dur', 'int')];
       const mockInput = createMockNode({columns: inputCols});
       const node = createAggregationNodeWithInput(
         {
@@ -907,12 +963,14 @@ describe('AggregationNode', () => {
       );
 
       expect(node.finalCols.length).toBe(1);
-      expect(node.finalCols[0]!.name).toBe('p95_dur');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.DOUBLE);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('p95_dur');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.DOUBLE,
+      );
     });
 
     it('should include GROUP BY columns with their original types', () => {
-      const inputCols = [
+      const inputCols: [ColumnInfo, ColumnInfo] = [
         {
           name: 'name',
           checked: true,
@@ -926,8 +984,8 @@ describe('AggregationNode', () => {
           trace: createMockTrace(),
           groupByColumns: [
             {
-              name: inputCols[0]!.name,
-              type: inputCols[0]!.type,
+              name: inputCols[0].name,
+              type: inputCols[0].type,
               checked: true,
             },
           ],
@@ -946,10 +1004,14 @@ describe('AggregationNode', () => {
       // First column should be the GROUP BY column (name) with preserved STRING type
       // Second column should be the aggregation result (total_value) with INT type
       expect(node.finalCols.length).toBe(2);
-      expect(node.finalCols[0]!.name).toBe('name');
-      expect(node.finalCols[0]!.type).toEqual(PerfettoSqlTypes.STRING);
-      expect(node.finalCols[1]!.name).toBe('total_value');
-      expect(node.finalCols[1]!.type).toEqual(PerfettoSqlTypes.INT);
+      expect(ensureDefined(node.finalCols[0]).name).toBe('name');
+      expect(ensureDefined(node.finalCols[0]).type).toEqual(
+        PerfettoSqlTypes.STRING,
+      );
+      expect(ensureDefined(node.finalCols[1]).name).toBe('total_value');
+      expect(ensureDefined(node.finalCols[1]).type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
     });
   });
 

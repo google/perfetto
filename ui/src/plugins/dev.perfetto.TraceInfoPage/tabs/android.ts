@@ -408,7 +408,7 @@ class AndroidAflagsSection implements m.ClassComponent<AndroidAflagsSectionAttrs
     }
 
     const timestamps = Array.from(new Set(aflags.map((f) => f.ts))).sort();
-    if (this.selectedTs === undefined && timestamps.length > 0) {
+    if (this.selectedTs === undefined) {
       this.selectedTs = timestamps[0];
     }
 

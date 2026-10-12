@@ -84,6 +84,8 @@ export class Canvas2DRenderer implements Renderer {
     const {offset, scale} = xTransform;
     let previousColor: number | undefined = undefined;
 
+    // Hot loop: all buffers are parallel arrays holding at least `count`
+    // elements, so indexing by i < count is always in range.
     for (let i = 0; i < count; i++) {
       // Transform X from data space to screen space (centered)
       const screenX = xs[i]! * scale + offset;
@@ -134,6 +136,8 @@ export class Canvas2DRenderer implements Renderer {
     const {offset, scale} = xTransform;
     let previousColor: number | undefined = undefined;
 
+    // Hot loop: all buffers are parallel arrays holding at least `count`
+    // elements, so indexing by i < count is always in range.
     for (let i = 0; i < count; i++) {
       const depth = depths[i]!;
 
@@ -244,6 +248,8 @@ export class Canvas2DRenderer implements Renderer {
     ctx.strokeStyle = strokeColor.cssString;
     ctx.beginPath();
 
+    // Hot loop: all buffers are parallel arrays holding at least `count`
+    // elements, so indexing by i < count is always in range.
     for (let i = 0; i < count; i++) {
       // Compute segment bounds
       const x = Math.round(tx(xs[i]!));

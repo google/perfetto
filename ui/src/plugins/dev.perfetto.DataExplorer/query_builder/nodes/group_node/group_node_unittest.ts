@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../../base/assert';
 import {GroupNode, type ExternalGroupConnection} from '.';
 import {NodeType} from '../../../query_node';
 import {
@@ -228,11 +229,13 @@ describe('GroupNode', () => {
 
       expect(cloned.externalConnections).toHaveLength(1);
       // The inner target should be a cloned node, not the original
-      const clonedTarget = cloned.externalConnections[0]!.innerTargetNode;
+      const clonedTarget = ensureDefined(
+        cloned.externalConnections[0],
+      ).innerTargetNode;
       expect(clonedTarget).not.toBe(a);
       expect(cloned.innerNodes).toContain(clonedTarget);
       // The source node should still reference the original external node
-      expect(cloned.externalConnections[0]!.sourceNode).toBe(ext);
+      expect(ensureDefined(cloned.externalConnections[0]).sourceNode).toBe(ext);
     });
 
     it('should not share state between original and clone', () => {

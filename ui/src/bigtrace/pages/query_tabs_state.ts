@@ -15,6 +15,7 @@
 import type {DataSource} from '../../components/widgets/datagrid/data_source';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row as DataGridRow} from '../../trace_processor/query_result';
+import {ensureDefined} from '../../base/assert';
 import {debounce} from '../../base/rate_limiters';
 import {shortUuid} from '../../base/uuid';
 import type {
@@ -755,8 +756,8 @@ export class QueryTabsState {
   closeTab(tabId: string): void {
     if (this.tabs.length <= 1) return;
     const index = this.tabs.findIndex((t) => t.id === tabId);
-    if (index === -1) return;
-    const tabToClose = this.tabs[index]!;
+    const tabToClose = this.tabs[index];
+    if (tabToClose === undefined) return;
     if (tabToClose.pollInterval !== undefined) {
       window.clearTimeout(tabToClose.pollInterval);
       tabToClose.pollInterval = undefined;
@@ -767,7 +768,7 @@ export class QueryTabsState {
     this.tabs.splice(index, 1);
     if (this.activeTabId === tabId) {
       const newIndex = Math.min(index, this.tabs.length - 1);
-      this.activeTabId = this.tabs[newIndex]!.id;
+      this.activeTabId = ensureDefined(this.tabs[newIndex]).id;
     }
     this.markDirty();
   }
@@ -782,17 +783,18 @@ export class QueryTabsState {
 
   reorderTab(draggedId: string, beforeId: string | undefined): void {
     const draggedIndex = this.tabs.findIndex((t) => t.id === draggedId);
-    if (draggedIndex === -1) return;
-    const [dragged] = this.tabs.splice(draggedIndex, 1);
+    const dragged = this.tabs[draggedIndex];
+    if (dragged === undefined) return;
+    this.tabs.splice(draggedIndex, 1);
     if (beforeId === undefined) {
-      this.tabs.push(dragged!);
+      this.tabs.push(dragged);
       return;
     }
     const beforeIndex = this.tabs.findIndex((t) => t.id === beforeId);
     if (beforeIndex === -1) {
-      this.tabs.push(dragged!);
+      this.tabs.push(dragged);
     } else {
-      this.tabs.splice(beforeIndex, 0, dragged!);
+      this.tabs.splice(beforeIndex, 0, dragged);
     }
   }
 
@@ -864,8 +866,9 @@ export class QueryTabsState {
       if (!found) {
         // Restored tabs get new IDs, so activate by index instead.
         const idx = parsed.tabs.findIndex((t) => t.id === parsed.activeTabId);
-        if (idx >= 0 && idx < this.tabs.length) {
-          this.activeTabId = this.tabs[idx]!.id;
+        const tab = this.tabs[idx];
+        if (tab !== undefined) {
+          this.activeTabId = tab.id;
         }
       }
     }

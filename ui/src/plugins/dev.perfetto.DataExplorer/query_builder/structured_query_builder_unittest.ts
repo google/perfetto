@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../base/assert';
 import protos from '../../../protos';
 import {StructuredQueryBuilder} from './structured_query_builder';
 import {type QueryNode, NodeType} from '../query_node';
@@ -90,8 +91,8 @@ describe('StructuredQueryBuilder', () => {
       StructuredQueryBuilder.applyNodeColumnSelection(sq, node);
 
       expect(sq.selectColumns.length).toBe(2);
-      expect(sq.selectColumns[0]!.columnName).toBe('id');
-      expect(sq.selectColumns[1]!.columnName).toBe('age');
+      expect(ensureDefined(sq.selectColumns[0]).columnName).toBe('id');
+      expect(ensureDefined(sq.selectColumns[1]).columnName).toBe('age');
     });
 
     it('should include aliases when present', () => {
@@ -114,8 +115,8 @@ describe('StructuredQueryBuilder', () => {
       StructuredQueryBuilder.applyNodeColumnSelection(sq, node);
 
       expect(sq.selectColumns.length).toBe(1);
-      expect(sq.selectColumns[0]!.columnName).toBe('id');
-      expect(sq.selectColumns[0]!.alias).toBe('identifier');
+      expect(ensureDefined(sq.selectColumns[0]).columnName).toBe('id');
+      expect(ensureDefined(sq.selectColumns[0]).alias).toBe('identifier');
     });
 
     it('should handle empty column list', () => {

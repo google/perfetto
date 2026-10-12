@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../../../base/assert';
 import {Callout} from '../../../../widgets/callout';
 import {Form, FormSection} from '../../../../widgets/form';
 import {IssueList, OutlinedField} from '../widgets';
@@ -136,11 +137,11 @@ export class AddColumnsConfigurationModal implements m.ClassComponent<AddColumns
           onRightColumnChange(columnName);
         },
         onColumnToggle: (index: number, checked: boolean) => {
-          const colName = rightCols[index]!.name;
+          const colName = ensureDefined(rightCols[index]).name;
           onColumnToggle(colName, checked);
         },
         onColumnAlias: (index: number, alias: string) => {
-          const colName = rightCols[index]!.name;
+          const colName = ensureDefined(rightCols[index]).name;
           onColumnAlias(colName, alias);
         },
       }),

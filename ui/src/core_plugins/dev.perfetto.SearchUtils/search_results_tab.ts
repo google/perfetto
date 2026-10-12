@@ -69,6 +69,8 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
     const rowData: Row[] = [];
 
     if (searchResults) {
+      // eventIds, tses and trackUris are parallel arrays of totalResults
+      // length.
       for (let i = 0; i < searchResults.totalResults; i++) {
         const eventId = searchResults.eventIds[i]!;
         const ts = searchResults.tses[i]!;

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../base/assert';
 import type {Trace} from '../../public/trace';
 import {BLOB, LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
@@ -194,8 +195,10 @@ export class VideoFramePlayer {
   // Seek and move the timeline cursor together. The details panel's load()
   // skips re-decoding when the selection is already the seeked frame.
   private selectAndSeek(idx: number): void {
+    const frame = this.frames[idx];
+    if (frame === undefined) return;
     void this.seekToIndex(idx);
-    this.trace.selection.selectTrackEvent(this.trackUri, this.frames[idx]!.id);
+    this.trace.selection.selectTrackEvent(this.trackUri, frame.id);
   }
 
   togglePlay(): void {
@@ -243,8 +246,9 @@ export class VideoFramePlayer {
       error: (e) => console.warn('VideoFrames:', e),
     });
     decoder.configure(decoderConfig(setup));
-    for (let i = 0; i < range.length; i++) {
-      decoder.decode(chunkFor(setup, range[i]!, datas[i]!, i === 0));
+    for (const [i, frame] of range.entries()) {
+      // fetchAuData returns one entry per id, so datas matches range.
+      decoder.decode(chunkFor(setup, frame, datas[i]!, i === 0));
     }
     await decoder.flush().catch(() => undefined);
     if (decoder.state !== 'closed') decoder.close();
@@ -357,17 +361,17 @@ export class VideoFramePlayer {
       if (token !== this.token) return;
       // Drop seed frames decoded before fromIdx without painting (they
       // exist only to prime the decoder's reference list).
-      while (session.queue.length > 0 && session.queue[0]!.idx < fromIdx) {
+      while (session.queue[0] !== undefined && session.queue[0].idx < fromIdx) {
         session.queue.shift()!.frame.close();
       }
       let due: QueuedFrame | undefined;
       if (!started) {
         // Paint the first frame immediately and anchor the clock to it.
-        if (session.queue.length > 0) {
-          due = session.queue.shift();
+        due = session.queue.shift();
+        if (due !== undefined) {
           started = true;
           lastWallMs = performance.now();
-          playbackTs = this.frames[due!.idx]!.ts;
+          playbackTs = ensureDefined(this.frames[due.idx]).ts;
         }
       } else {
         const nowMs = performance.now();
@@ -377,8 +381,8 @@ export class VideoFramePlayer {
         lastWallMs = nowMs;
         // Drain all frames whose ts is now due; paint only the latest.
         while (
-          session.queue.length > 0 &&
-          this.frames[session.queue[0]!.idx]!.ts <= playbackTs
+          session.queue[0] !== undefined &&
+          ensureDefined(this.frames[session.queue[0].idx]).ts <= playbackTs
         ) {
           if (due !== undefined) due.frame.close();
           due = session.queue.shift();
@@ -393,7 +397,7 @@ export class VideoFramePlayer {
           // re-seeking while playing, so the canvas doesn't flicker.
           this.trace.selection.selectTrackEvent(
             this.trackUri,
-            this.frames[due.idx]!.id,
+            ensureDefined(this.frames[due.idx]).id,
           );
           m.redraw();
         }
@@ -421,12 +425,13 @@ export class VideoFramePlayer {
       const end = Math.min(base + FETCH_BATCH, this.frames.length);
       const batch = this.frames.slice(base, end);
       const datas = await this.fetchAuData(batch.map((f) => f.id));
-      for (let i = 0; i < batch.length; i++) {
+      for (const [i, frame] of batch.entries()) {
         if (!(await this.waitForDecoderCapacity(token, session.decoder))) {
           return;
         }
         session.decoder.decode(
-          chunkFor(setup, batch[i]!, datas[i]!, base + i === k),
+          // fetchAuData returns one entry per id, so datas matches batch.
+          chunkFor(setup, frame, datas[i]!, base + i === k),
         );
       }
     }
@@ -452,7 +457,7 @@ export class VideoFramePlayer {
   // frame to seed the reference list before any non-key frame.
   private nearestKey(idx: number): number {
     let k = idx;
-    while (k >= 0 && !this.frames[k]!.isKey) k--;
+    while (k >= 0 && !ensureDefined(this.frames[k]).isKey) k--;
     // -1 when no key frame precedes idx, e.g. a ring buffer whose start (and
     // the GOP's key frame) was overwritten. Such frames can't be decoded.
     return k;
@@ -462,8 +467,8 @@ export class VideoFramePlayer {
     if (this.setup !== undefined) return this.setup;
     if (this.configId === undefined || this.codecString === undefined) return;
     const [config] = await this.fetchAuData([this.configId]);
-    if (config!.length === 0) return;
-    this.setup = {codecString: this.codecString, config: config!};
+    if (config === undefined || config.length === 0) return;
+    this.setup = {codecString: this.codecString, config};
     return this.setup;
   }
 

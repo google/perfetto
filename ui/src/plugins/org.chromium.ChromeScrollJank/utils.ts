@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Anchor} from '../../widgets/anchor';
 import {Icons} from '../../base/semantic_icons';
+import {assertDefined} from '../../base/assert';
 import type {Trace} from '../../public/trace';
 import type {
   QueryResult,
@@ -152,7 +153,9 @@ export function rows<R extends SpecType>(
   for (const it = queryResult.iter(spec); it.valid(); it.next()) {
     const row: Row = {};
     for (const key of Object.keys(spec)) {
-      row[key] = it[key]!;
+      const value = it[key];
+      assertDefined(value);
+      row[key] = value;
     }
     results.push(row as InferRowType<R>);
   }

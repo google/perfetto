@@ -151,13 +151,11 @@ export class BigtraceAsyncDataSource implements DataSource {
 
     const mappedRows = this.loadedRows.map((row) => {
       const mappedRow: Row = {};
-      for (const key in row) {
-        if (Object.prototype.hasOwnProperty.call(row, key)) {
-          const col = model.columns?.find((c) => c.field === key);
-          const alias =
-            col !== undefined && col.alias !== undefined ? col.alias : key;
-          mappedRow[alias] = row[key]!;
-        }
+      for (const [key, value] of Object.entries(row)) {
+        const col = model.columns?.find((c) => c.field === key);
+        const alias =
+          col !== undefined && col.alias !== undefined ? col.alias : key;
+        mappedRow[alias] = value;
       }
       return mappedRow;
     });

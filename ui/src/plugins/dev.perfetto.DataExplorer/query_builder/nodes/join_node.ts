@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../../../base/assert';
 import {
   type QueryNode,
   nextNodeId,
@@ -326,26 +327,28 @@ export class JoinNode implements QueryNode {
               },
               onLeftColumnToggle: (index: number, checked: boolean) => {
                 if (this.attrs.leftColumns) {
-                  this.attrs.leftColumns[index]!.checked = checked;
+                  ensureDefined(this.attrs.leftColumns[index]).checked =
+                    checked;
                   this.context.onchange?.();
                 }
               },
               onRightColumnToggle: (index: number, checked: boolean) => {
                 if (this.attrs.rightColumns) {
-                  this.attrs.rightColumns[index]!.checked = checked;
+                  ensureDefined(this.attrs.rightColumns[index]).checked =
+                    checked;
                   this.context.onchange?.();
                 }
               },
               onLeftColumnAlias: (index: number, alias: string) => {
                 if (this.attrs.leftColumns) {
-                  this.attrs.leftColumns[index]!.alias =
+                  ensureDefined(this.attrs.leftColumns[index]).alias =
                     alias.trim() === '' ? undefined : alias;
                   this.context.onchange?.();
                 }
               },
               onRightColumnAlias: (index: number, alias: string) => {
                 if (this.attrs.rightColumns) {
-                  this.attrs.rightColumns[index]!.alias =
+                  ensureDefined(this.attrs.rightColumns[index]).alias =
                     alias.trim() === '' ? undefined : alias;
                   this.context.onchange?.();
                 }

@@ -187,10 +187,11 @@ function parseMemoryOverviewSubpage(subpage?: string): MemoryOverviewSubpage {
     return {tab: 'summary'};
   }
   const parts = subpage.split('/').filter((x) => x !== '');
-  if (parts.length === 0) {
+  const first = parts[0];
+  if (first === undefined) {
     return {tab: 'summary'};
   }
-  const upid = parseInt(parts[0]!, 10);
+  const upid = parseInt(first, 10);
   const tab = parts[1] === 'smaps' ? 'smaps' : 'summary';
   return {
     upid: Number.isNaN(upid) ? Number.NaN : upid,

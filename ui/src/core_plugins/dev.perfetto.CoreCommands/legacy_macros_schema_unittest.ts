@@ -27,8 +27,8 @@ describe('legacyMacrosConfigSchema', () => {
     const result = legacyMacrosConfigSchema.parse(input);
 
     expect(result['my-macro']).toHaveLength(2);
-    expect(result['my-macro']![0]!.id).toBe('dev.perfetto.RunQuery');
-    expect(result['my-macro']![0]!.args).toEqual(['SELECT * FROM slice']);
+    expect(result['my-macro']?.[0]?.id).toBe('dev.perfetto.RunQuery');
+    expect(result['my-macro']?.[0]?.args).toEqual(['SELECT * FROM slice']);
     expect(result['another-macro']).toHaveLength(1);
   });
 

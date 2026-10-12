@@ -17,6 +17,7 @@ import {
   initializeServers,
   buildFetchRequest,
 } from './extension_server';
+import {ensureDefined} from '../../base/assert';
 import type {AppImpl} from '../../core/app_impl';
 import type {Macro} from '../../core/command_manager';
 import type {SqlPackage} from '../../public/extra_sql_packages';
@@ -239,7 +240,7 @@ describe('extension_server', () => {
       const mockApp = createMockAppImpl();
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
-      const macrosResult = await mockApp.getMacrosAdded()[0];
+      const macrosResult = await ensureDefined(mockApp.getMacrosAdded()[0]);
       expect(macrosResult).toEqual(macros.map((m) => ({...m, source: 'Test'})));
     });
 
@@ -262,9 +263,9 @@ describe('extension_server', () => {
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const [macros, sqlPackages, protos] = await Promise.all([
-        mockApp.getMacrosAdded()[0],
-        mockApp.getSqlPackagesAdded()[0],
-        mockApp.getProtoDescriptorsAdded()[0],
+        ensureDefined(mockApp.getMacrosAdded()[0]),
+        ensureDefined(mockApp.getSqlPackagesAdded()[0]),
+        ensureDefined(mockApp.getProtoDescriptorsAdded()[0]),
       ]);
 
       expect(macros).toEqual([]);
@@ -292,7 +293,7 @@ describe('extension_server', () => {
         testExtServer(), // Requesting 'default' module which doesn't exist
       ]);
 
-      const macros = await mockApp.getMacrosAdded()[0];
+      const macros = await ensureDefined(mockApp.getMacrosAdded()[0]);
       expect(macros).toEqual([]);
     });
 
@@ -303,9 +304,9 @@ describe('extension_server', () => {
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       const [macros, sqlPackages, protos] = await Promise.all([
-        mockApp.getMacrosAdded()[0],
-        mockApp.getSqlPackagesAdded()[0],
-        mockApp.getProtoDescriptorsAdded()[0],
+        ensureDefined(mockApp.getMacrosAdded()[0]),
+        ensureDefined(mockApp.getSqlPackagesAdded()[0]),
+        ensureDefined(mockApp.getProtoDescriptorsAdded()[0]),
       ]);
 
       expect(macros).toEqual([]);
@@ -351,7 +352,7 @@ describe('extension_server', () => {
       expect(mockApp.addSqlPackages).toHaveBeenCalledTimes(1);
       expect(mockApp.addProtoDescriptors).toHaveBeenCalledTimes(1);
 
-      const macros = await mockApp.getMacrosAdded()[0]!;
+      const macros = await ensureDefined(mockApp.getMacrosAdded()[0]);
       expect(macros.map((m) => m.id).sort()).toEqual([
         'test.android1',
         'test.default1',
@@ -399,7 +400,7 @@ describe('extension_server', () => {
         testExtServer({enabledModules: ['default', 'android']}),
       ]);
 
-      const sqlPackages = await mockApp.getSqlPackagesAdded()[0]!;
+      const sqlPackages = await ensureDefined(mockApp.getSqlPackagesAdded()[0]);
       expect(sqlPackages).toHaveLength(1);
       expect(sqlPackages[0]?.name).toBe('test');
       expect(sqlPackages[0]?.modules.map((m) => m.name).sort()).toEqual([
@@ -434,7 +435,7 @@ describe('extension_server', () => {
       const mockApp = createMockAppImpl();
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
-      const sqlPackages = await mockApp.getSqlPackagesAdded()[0]!;
+      const sqlPackages = await ensureDefined(mockApp.getSqlPackagesAdded()[0]);
       expect(sqlPackages).toHaveLength(1);
       expect(sqlPackages[0]?.name).toBe('myext');
       expect(sqlPackages[0]?.modules).toHaveLength(2);
@@ -465,7 +466,7 @@ describe('extension_server', () => {
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Should return empty array due to validation failure
-      const macros = await mockApp.getMacrosAdded()[0];
+      const macros = await ensureDefined(mockApp.getMacrosAdded()[0]);
       expect(macros).toEqual([]);
     });
 
@@ -494,7 +495,7 @@ describe('extension_server', () => {
       initializeServers(mockApp as unknown as AppImpl, [testExtServer()]);
 
       // Should return empty array due to validation failure
-      const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
+      const sqlPackages = await ensureDefined(mockApp.getSqlPackagesAdded()[0]);
       expect(sqlPackages).toEqual([]);
     });
   });

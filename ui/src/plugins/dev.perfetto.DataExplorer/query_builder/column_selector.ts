@@ -93,7 +93,7 @@ export class ColumnSelector implements m.ClassComponent<ColumnSelectorAttrs> {
                 onchange: (e) => {
                   const newColumns = [...columns];
                   newColumns[index] = {
-                    ...newColumns[index]!,
+                    ...col,
                     checked: (e.target as HTMLInputElement).checked,
                   };
                   onColumnsChange(newColumns);
@@ -110,7 +110,8 @@ export class ColumnSelector implements m.ClassComponent<ColumnSelectorAttrs> {
                     onReorder: (from: number, to: number) => {
                       const newColumns = [...columns];
                       const [removed] = newColumns.splice(from, 1);
-                      newColumns.splice(to, 0, removed!);
+                      if (removed === undefined) return;
+                      newColumns.splice(to, 0, removed);
                       onColumnsChange(newColumns);
                     },
                   },

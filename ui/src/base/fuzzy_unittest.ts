@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from './assert';
 import {fuzzySearch} from './fuzzy';
 
 describe('fuzzySearch', () => {
@@ -94,8 +95,10 @@ describe('fuzzySearch', () => {
         't_r_a_c_e',
       ];
       const results = fuzzySearch(items, (x) => x, 'trace');
-      for (let i = 0; i < results.length - 1; i++) {
-        expect(results[i]!.score).toBeGreaterThanOrEqual(results[i + 1]!.score);
+      for (const [i, cur] of results.entries()) {
+        const next = results[i + 1];
+        if (next === undefined) break;
+        expect(cur.score).toBeGreaterThanOrEqual(next.score);
       }
     });
 
@@ -123,20 +126,25 @@ describe('fuzzySearch', () => {
 
     it('produces valid matching segments for exact match', () => {
       const results = fuzzySearch(['foo'], (x) => x, 'foo');
-      expect(results[0]!.segments).toEqual([{matching: true, value: 'foo'}]);
+      expect(ensureDefined(results[0]).segments).toEqual([
+        {matching: true, value: 'foo'},
+      ]);
     });
 
     it('produces non-matching single segment for empty search term', () => {
       const results = fuzzySearch(['foo'], (x) => x, '');
-      expect(results[0]!.segments).toEqual([{matching: false, value: 'foo'}]);
+      expect(ensureDefined(results[0]).segments).toEqual([
+        {matching: false, value: 'foo'},
+      ]);
     });
 
     it('correctly splits matching and non-matching segments', () => {
       const results = fuzzySearch(['ababc'], (x) => x, 'abc');
       expect(results.length).toBe(1);
-      const reconstructed = results[0]!.segments.map((s) => s.value).join('');
+      const result = ensureDefined(results[0]);
+      const reconstructed = result.segments.map((s) => s.value).join('');
       expect(reconstructed).toBe('ababc');
-      const matchedText = results[0]!.segments
+      const matchedText = result.segments
         .filter((s) => s.matching)
         .map((s) => s.value)
         .join('');
@@ -173,34 +181,41 @@ describe('fuzzySearch', () => {
       const results = fuzzySearch(items, keyLookups, 'Data');
       expect(results.length).toBeGreaterThan(0);
       for (const res of results) {
-        expect(res.segments[0]!.map((s) => s.value).join('')).toBe(
-          res.item.name,
-        );
-        expect(res.segments[1]!.map((s) => s.value).join('')).toBe(
-          res.item.source,
-        );
+        expect(
+          ensureDefined(res.segments[0])
+            .map((s) => s.value)
+            .join(''),
+        ).toBe(res.item.name);
+        expect(
+          ensureDefined(res.segments[1])
+            .map((s) => s.value)
+            .join(''),
+        ).toBe(res.item.source);
       }
     });
 
     it('handles empty search query for multi-key lookup', () => {
       const results = fuzzySearch(items, keyLookups, '');
       expect(results.length).toBe(items.length);
-      for (let i = 0; i < items.length; i++) {
-        expect(results[i]!.item).toEqual(items[i]);
-        expect(results[i]!.score).toBe(1);
-        expect(results[i]!.segments[0]).toEqual([
-          {matching: false, value: items[i]!.name},
+      for (const [i, item] of items.entries()) {
+        const result = ensureDefined(results[i]);
+        expect(result.item).toEqual(item);
+        expect(result.score).toBe(1);
+        expect(result.segments[0]).toEqual([
+          {matching: false, value: item.name},
         ]);
-        expect(results[i]!.segments[1]).toEqual([
-          {matching: false, value: items[i]!.source},
+        expect(result.segments[1]).toEqual([
+          {matching: false, value: item.source},
         ]);
       }
     });
 
     it('orders multi-key results by overall match score', () => {
       const results = fuzzySearch(items, keyLookups, 'Data');
-      for (let i = 0; i < results.length - 1; i++) {
-        expect(results[i]!.score).toBeGreaterThanOrEqual(results[i + 1]!.score);
+      for (const [i, cur] of results.entries()) {
+        const next = results[i + 1];
+        if (next === undefined) break;
+        expect(cur.score).toBeGreaterThanOrEqual(next.score);
       }
     });
   });
