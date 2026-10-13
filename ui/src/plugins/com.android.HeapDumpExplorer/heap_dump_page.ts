@@ -189,7 +189,6 @@ function buildTabs(
         engine,
         activeDump,
         navigate: navigateWithTabs,
-        potentiallyMergedClasses: session.potentiallyMergedClasses,
         clearNavParam,
         initialArrayHash:
           state.view === 'arrays' ? state.params.arrayHash : undefined,
