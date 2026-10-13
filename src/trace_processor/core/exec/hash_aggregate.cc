@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <utility>
 
@@ -182,9 +183,7 @@ bool HashAggregate::Serve(RowBatch& out, Breaker::State& state) const {
   // Output up to a full batch of groups.
   uint32_t count = std::min(kMaxBatchRows, groups - s.emitted);
   s.served_rows.resize(count);
-  for (uint32_t i = 0; i < count; ++i) {
-    s.served_rows[i] = s.emitted + i;
-  }
+  std::iota(s.served_rows.begin(), s.served_rows.end(), s.emitted);
   const uint32_t* rows = s.served_rows.data();
   for (uint32_t k = 0; k < spec_.key_columns.size(); ++k) {
     ColumnBuffer buffer = s.context->TakeBuffer();
