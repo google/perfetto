@@ -204,8 +204,7 @@ class ProducerRingBufferArbiter {
 
   // Sizes and allocates a ring buffer from |config|, then creates its arbiter
   // in kPending.
-  // - ResolveProducerRingBufferConfig() takes the chunk size and the drain
-  //   occupancy threshold from |config|.
+  // - The chunk size and the drain occupancy threshold come from |config|.
   // - |task_runner| and |endpoint| must outlive the arbiter.
   // - |allocate_shared_memory| must return a mapping of the size it is given.
   // - Returns an error status if sizing or allocation fails.
