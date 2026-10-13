@@ -175,7 +175,7 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this.doNavigate(sub);
+    this.trace.navigate(makeHref(sub));
     m.redraw();
   }
 
@@ -201,11 +201,9 @@ export class HeapDumpExplorerSession {
     this.store.edit((s) => {
       s.nav = sub;
     });
-    this.doNavigate(sub);
-  }
-
-  private doNavigate(sub: string | undefined): void {
-    this.trace.navigate(`#!/heapdump${sub ? '/' + sub : ''}`);
+    // Replace the current URL instead of navigating to avoid creating a new
+    // history entry and creating a navigation trap.
+    location.replace(makeHref(sub));
   }
 
   // Mirrors URL-driven nav (back/forward, address bar) into the store, on path
@@ -426,4 +424,8 @@ export class HeapDumpExplorerSession {
       m.redraw();
     }
   }
+}
+
+function makeHref(sub: string | undefined): string {
+  return `#!/heapdump${sub ? '/' + sub : ''}`;
 }
