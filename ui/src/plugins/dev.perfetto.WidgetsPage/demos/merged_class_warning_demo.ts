@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {
   ClassNameWithWarning,
-  MERGED_CLASS_WARNING_ICON,
+  mergedClassNodeIcon,
   mergedClassNodeTooltipRenderer,
 } from '../../../components/merged_class_warning';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
@@ -313,9 +313,8 @@ function cumulative(spec: ClassTreeSpec): number {
 }
 
 // Builds the data the Flamegraph widget receives. In the real UI this is
-// produced by the tree explorer fetcher from a metric that sets
-// `optionalNodeIcon: mergedClassNodeIcon(...)` and
-// `optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(...)`.
+// produced by the tree explorer fetcher from a metric whose SQL query has a
+// `potentially_merged` column.
 function buildFlamegraphData(): TreeExplorerData {
   const nodes: TreeExplorerNode[] = [];
   let nextId = 0;
@@ -352,7 +351,7 @@ function buildFlamegraphData(): TreeExplorerData {
           },
         ],
       ]),
-      icon: merged === '1' ? MERGED_CLASS_WARNING_ICON : undefined,
+      propertyValues: new Map([[MERGED_PROPERTY, merged]]),
       xStart,
       xEnd: xStart + cum,
     });
@@ -377,7 +376,6 @@ function buildFlamegraphData(): TreeExplorerData {
     maxDepth,
     nodeActions: [],
     rootActions: [],
-    renderNodeTooltip: mergedClassNodeTooltipRenderer(MERGED_PROPERTY),
   };
 }
 
@@ -498,6 +496,8 @@ export function renderMergedClassWarning(): m.Children {
         metrics: FLAMEGRAPH_METRICS,
         state: flamegraphState,
         data: FLAMEGRAPH_DATA,
+        nodeIcon: mergedClassNodeIcon(MERGED_PROPERTY),
+        renderNodeTooltip: mergedClassNodeTooltipRenderer(MERGED_PROPERTY),
         onStateChange: (s) => {
           flamegraphState = s;
         },

@@ -20,9 +20,10 @@
 //     this for class names in tables and labels.
 //  2. MergedClassWarning: just the warning icon.
 //  3. mergedClassNodeIcon() and mergedClassNodeTooltipRenderer(): flamegraph
-//     metric hooks that draw the icon on flagged nodes and add a warning
-//     callout to their tooltip. The flamegraph is a canvas, so it cannot use
-//     1. or 2.
+//     hooks, passed as the TreeExplorerPanel `nodeIcon` and
+//     `renderNodeTooltip` attrs, that draw the icon on flagged nodes and add a
+//     warning callout to their tooltip. The flamegraph is a canvas, so it
+//     cannot use 1. or 2.
 
 import './merged_class_warning.scss';
 import m from 'mithril';
@@ -112,7 +113,7 @@ class MergedClassWarningCallout implements m.ClassComponent {
   }
 }
 
-// Flamegraph metric hooks below.
+// Flamegraph hooks below.
 // `propertyName` is the column in the flamegraph's SQL query that holds the
 // flag (1 = potentially merged). The flamegraph drops extra columns unless
 // they're listed in the metric's `unaggregatableProperties`, so make sure it
