@@ -34,9 +34,9 @@ namespace perfetto::trace_processor::core::exec {
 // A group's keys are stored next to each other.
 //
 // Integers of any width compare equal if their values are equal. Doubles are
-// compared by their bits and strings by their interned id. Nulls are equal to
-// each other and to nothing else. A column must hold the same kind of key in
-// every batch.
+// compared by their bits, with 0.0 and -0.0 equal, and strings by their
+// interned id. Nulls are equal to each other and to nothing else. A column
+// must hold the same kind of key in every batch.
 class GroupTable {
  public:
   // Writes the group number of each row of `batch` to `groups`, with

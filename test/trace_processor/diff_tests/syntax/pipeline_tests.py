@@ -452,6 +452,30 @@ class PerfettoPipeline(TestSuite):
         10,10,"[NULL]","two"
         """))
 
+  # -0.0 and 0.0 are the same key, as they are under GROUP BY.
+  def test_interval_intersection_per_a_negative_zero_key(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 10 AS dur, 0.0 AS k, 'pos' AS name
+        UNION ALL SELECT 0, 10, -0.0, 'neg';
+
+        CREATE PERFETTO TABLE b AS SELECT 0 AS ts, 10 AS dur, 0.0 AS k;
+
+        CREATE PERFETTO TABLE met AS
+        INTERVAL INTERSECTION OF (a AS x, b AS y) PER k
+        |> SELECT ts, dur, x.name;
+
+        SELECT ts, dur, name FROM met ORDER BY name;
+        """,
+        out=Csv("""
+        "ts","dur","name"
+        0,10,"neg"
+        0,10,"pos"
+        """))
+
   # A row with no duration has no bounds, so it covers nothing; the last row
   # of a table built with `lead(ts) - ts` is usually one of these.
   def test_interval_intersection_skips_a_row_without_bounds(self):

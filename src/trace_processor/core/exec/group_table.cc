@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
@@ -69,10 +70,18 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
   } else if (column.type().Is<Int32>()) {
     kind = Kind::kInteger;
     Gather<int32_t>(column, selection, count, keys);
-  } else if (column.type().Is<Int64>() || column.type().Is<Double>()) {
-    // A double is compared by its bits.
-    kind = column.type().Is<Int64>() ? Kind::kInteger : Kind::kDouble;
+  } else if (column.type().Is<Int64>()) {
+    kind = Kind::kInteger;
     Gather<int64_t>(column, selection, count, keys);
+  } else if (column.type().Is<Double>()) {
+    // A double is compared by its bits, made the same for equal values such
+    // as 0.0 and -0.0.
+    kind = Kind::kDouble;
+    const auto* data = static_cast<const double*>(column.data());
+    for (uint32_t row = 0; row < count; ++row) {
+      keys[row] = static_cast<int64_t>(
+          base::CanonicalFloatBits(data[column.Index(selection[row])]));
+    }
   } else if (column.type().Is<String>()) {
     // A string is compared by its interned id. A null string has the null id
     // and is not a null key.
@@ -80,7 +89,8 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
     Gather<uint32_t>(column, selection, count, keys);
     if (const BitVector* validity = column.validity()) {
       for (uint32_t row = 0; row < count; ++row) {
-        keys[row] &= -int64_t{validity->is_set(column.Index(selection[row]))};
+        bool valid = validity->is_set(column.Index(selection[row]));
+        keys[row] = valid ? keys[row] : 0;
       }
     }
     return kind;
@@ -90,7 +100,7 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
   if (const BitVector* validity = column.validity()) {
     for (uint32_t row = 0; row < count; ++row) {
       bool valid = validity->is_set(column.Index(selection[row]));
-      keys[row] &= -int64_t{valid};
+      keys[row] = valid ? keys[row] : 0;
       nulls_[row] |= uint64_t{!valid} << k;
     }
   }

@@ -65,7 +65,7 @@ TEST(GroupTableTest, NumbersKeysInTheOrderFirstSeen) {
 }
 
 // Integers of different widths are equal if their values are. Nulls equal
-// each other but not zero. Doubles compare by bits, so -0 is not 0. Strings
+// each other but not zero. -0.0 is 0.0, as in SQLite. Strings
 // compare by id. A key of several columns matches only if all columns do.
 TEST(GroupTableTest, WhichKeysAgree) {
   {
@@ -98,7 +98,7 @@ TEST(GroupTableTest, WhichKeysAgree) {
     EXPECT_THAT(
         Groups(table,
                {ColumnView::Reference(StorageType{Double{}}, keys.data())}, 4),
-        ElementsAre(0, 1, 2, 0));
+        ElementsAre(0, 1, 1, 0));
   }
   {
     GroupTable table;
