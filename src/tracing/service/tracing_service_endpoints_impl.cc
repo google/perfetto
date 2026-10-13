@@ -511,8 +511,8 @@ void ProducerEndpointImpl::CommitData(const CommitDataRequest& req_untrusted,
       // page() against the service-side SMB which can be smaller than the
       // producer-side emulated SMB (issue #6051).
       const std::string& data = entry.data();
-      if (data.size() > SharedMemoryABI::Chunk::kMaxSize) {
-        PERFETTO_DFATAL("IPC data commit too large: %zu", data.size());
+      if (data.empty() || data.size() > SharedMemoryABI::Chunk::kMaxSize) {
+        PERFETTO_DFATAL("IPC data commit of invalid size: %zu", data.size());
         continue;  // A malicious or buggy producer
       }
       // |data| is not altered, but we need to const_cast becasue Chunk data

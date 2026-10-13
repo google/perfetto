@@ -665,11 +665,7 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
   }  // scoped_lock
 
   if (req) {
-    if (use_shmem_emulation_) {
-      CommitDataWithSplitting(std::move(req), std::move(callback));
-    } else {
-      producer_endpoint_->CommitData(*req, std::move(callback));
-    }
+    CommitDataWithSplitting(std::move(req), std::move(callback));
   } else if (callback) {
     // If |req| was nullptr, it means that an enqueued deferred commit was
     // executed just before this. At this point send an empty commit request
@@ -682,8 +678,6 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
 void SharedMemoryArbiterImpl::CommitDataWithSplitting(
     std::unique_ptr<CommitDataRequest> req,
     std::function<void()> callback) {
-  PERFETTO_DCHECK(use_shmem_emulation_);
-
   // If the request is small enough to be sent in a single IPC avoid the request
   // splitting. |estimated_bytes| includes a conservative bound for the patches,
   // which are serialized into the request too.
@@ -708,7 +702,9 @@ void SharedMemoryArbiterImpl::CommitDataWithSplitting(
     // error on the receiving side. This is based on the fact that chunks
     // cannot be greater than |kMaxPageSize| in size, which is less than
     // |kIPCBufferSize|. We provide 512-bytes of headroom for message
-    // overhead.
+    // overhead. Without inlined data (the real-shmem case) a request can
+    // still outgrow the frame: a commit batches up to half the SMB and a
+    // large SMB holds tens of thousands of chunks, each an entry here.
     uint32_t ctm_bytes = EstimateChunkToMoveSize(ctm);
     if (current_req_bytes != 0 &&
         current_req_bytes + ctm_bytes >= kMaxCommitDataRequestChunkSize) {
@@ -723,7 +719,10 @@ void SharedMemoryArbiterImpl::CommitDataWithSplitting(
     new_ctm->set_chunk(ctm.chunk());
     new_ctm->set_target_buffer(ctm.target_buffer());
     new_ctm->set_chunk_incomplete(ctm.chunk_incomplete());
-    new_ctm->set_data(ctm.data());
+    // The service treats a present |data| field as an inlined chunk, so an
+    // empty one must stay absent.
+    if (ctm.has_data())
+      new_ctm->set_data(ctm.data());
   }
 
   // Split the patches too, instead of appending all of them to the last

@@ -506,6 +506,61 @@ TEST_P(SharedMemoryArbiterImplTest, CommitDataSplittingHonorsIpcBufferSize) {
   EXPECT_EQ(flush_ids, 1u);
 }
 
+// In shared memory mode a CommitDataRequest carries no chunk data, only one
+// ChunksToMove entry per chunk, and it used to be sent unsplit. A commit
+// batches up to half the SMB, so a large SMB with small chunks commits tens of
+// thousands of entries at once: more than one IPC frame holds, which
+// disconnected the producer with "IPC Frame too large".
+TEST_P(SharedMemoryArbiterImplTest, CommitDataSplitsInSharedMemoryMode) {
+  constexpr size_t kMaxCommitDataRequestChunkSize = 128 * 1024 - 512;
+  if (page_size() != 4096)
+    GTEST_SKIP() << "the entry count depends on the page size";
+
+  // 16 MB of 4 KB pages, fourteen chunks each: the flush at half the buffer
+  // carries about 28,000 entries.
+  auto buf = std::make_unique<TestSharedMemory>(16 * 1024 * 1024);
+  arbiter_.reset(new SharedMemoryArbiterImpl(
+      buf->start(), buf->size(), ShmemMode::kDefault, page_size(),
+      &mock_producer_endpoint_, task_runner_.get()));
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
+      SharedMemoryABI::PageLayout::kPageDiv14);
+
+  std::vector<size_t> emitted_sizes;
+  size_t total_moves = 0;
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillRepeatedly([&](const CommitDataRequest& r,
+                          MockProducerEndpoint::CommitDataCallback) {
+        emitted_sizes.push_back(r.SerializeAsString().size());
+        total_moves += r.chunks_to_move().size();
+      });
+
+  // Return completed chunks until the pending commit reaches half the buffer,
+  // which flushes it synchronously.
+  PatchList ignored;
+  size_t returned = 0;
+  while (emitted_sizes.empty()) {
+    SharedMemoryABI::ChunkHeader header = {};
+    header.writer_id.store(1, std::memory_order_relaxed);
+    header.chunk_id.store(static_cast<uint32_t>(returned),
+                          std::memory_order_relaxed);
+    SharedMemoryABI::Chunk chunk =
+        arbiter_->GetNewChunk(header, BufferExhaustedPolicy::kStall);
+    ASSERT_TRUE(chunk.is_valid());
+    arbiter_->ReturnCompletedChunk(std::move(chunk), 1, &ignored);
+    returned++;
+  }
+
+  // The flush ran inside the last GetNewChunk(), before that chunk was
+  // returned: commit it too, so every chunk is accounted for.
+  arbiter_->FlushPendingCommitDataRequests();
+
+  ASSERT_GT(emitted_sizes.size(), 1u);
+  for (size_t size : emitted_sizes)
+    EXPECT_LE(size, kMaxCommitDataRequestChunkSize);
+  EXPECT_EQ(total_moves, returned);
+  arbiter_.reset();
+}
+
 // Regression test for https://github.com/google/perfetto/issues/6426.
 // The splitting logic used to count only the raw chunk data against the size
 // limit, ignoring the per-ChunkToMove proto framing (field tags, varints,
