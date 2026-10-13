@@ -18,10 +18,10 @@ import("perfetto_cpp_blob_header.gni")
 # Thin wrapper around perfetto_cpp_blob_header that emits a
 # {descriptor_name}.h header containing the bytes of a proto descriptor file
 # (file produced by protoc, or a path on disk) as packed words with
-# byte-oriented data() and size() accessors.
+# an owning Decode() accessor over a compressed payload.
 #
 # The C++ symbol name is derived from the descriptor file basename: e.g.
-# 'test_messages.descriptor' produces a `kTestMessagesDescriptor` array.
+# 'test_messages.descriptor' produces a `kTestMessagesDescriptor` encoded blob.
 template("perfetto_cc_proto_descriptor") {
   is_target = defined(invoker.descriptor_target)
   is_path = defined(invoker.descriptor_path)
@@ -51,7 +51,15 @@ template("perfetto_cc_proto_descriptor") {
     _namespace = invoker.namespace
   }
 
-  perfetto_cpp_blob_header(target_name) {
+  group(target_name) {
+    forward_variables_from(invoker, [ "testonly" ])
+    public_deps = [
+      ":${target_name}_blob",
+      "$perfetto_root_path/src/base:embedded_blob",
+    ]
+  }
+
+  perfetto_cpp_blob_header("${target_name}_blob") {
     forward_variables_from(invoker, [ "testonly" ])
     script = "$perfetto_root_path/python/tools/cpp_blob_emitter.py"
     sources = [ descriptor_file_path ]
@@ -62,7 +70,11 @@ template("perfetto_cc_proto_descriptor") {
       _namespace,
       "--symbol-suffix",
       "Descriptor",
+      "--encoded",
     ]
+    if (enable_perfetto_zlib) {
+      extra_args += [ "--compress" ]
+    }
     deps = _deps
   }
 }

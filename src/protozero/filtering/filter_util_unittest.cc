@@ -15,6 +15,7 @@
  */
 
 #include "src/protozero/filtering/filter_util.h"
+#include "perfetto/ext/base/no_destructor.h"
 
 #include <cstdint>
 #include <optional>
@@ -35,12 +36,18 @@ namespace protozero {
 
 namespace {
 
+const perfetto::base::DecodedBlob& TestDescriptorBlob() {
+  static perfetto::base::NoDestructor<perfetto::base::DecodedBlob> blob(
+      perfetto::kFilterUtilTestMessagesDescriptor.Decode());
+  return blob.ref();
+}
+
 const uint8_t* TestDescriptor() {
-  return perfetto::kFilterUtilTestMessagesDescriptor.data();
+  return TestDescriptorBlob().data();
 }
 
 size_t TestDescriptorSize() {
-  return perfetto::kFilterUtilTestMessagesDescriptor.size();
+  return TestDescriptorBlob().size();
 }
 
 std::string FilterToText(FilterUtil& filter,

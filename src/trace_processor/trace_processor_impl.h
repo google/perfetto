@@ -47,6 +47,7 @@
 namespace perfetto::trace_processor {
 
 class SqliteIteratorImpl;
+class SqlBundle;
 
 // Coordinates the loading of traces from an arbitrary source and allows
 // execution of SQL queries on the events in these traces.
@@ -165,6 +166,7 @@ class TraceProcessorImpl : public TraceProcessor,
     TraceProcessorContext* context;
     TraceStorage* storage;
     const Config& config;
+    std::shared_ptr<const SqlBundle>& stdlib;
     const std::list<SqlPackage>& packages;
     std::vector<metrics::SqlMetricFile>& sql_metrics;
     const DescriptorPool* metrics_descriptor_pool;
@@ -191,6 +193,8 @@ class TraceProcessorImpl : public TraceProcessor,
   // from this list, so RegisterDataframes runs exactly once per plugin.
   std::vector<PluginDataframe> plugin_dataframes_;
 
+  // Keep borrowed module bodies alive until after the connection is destroyed.
+  std::shared_ptr<const SqlBundle> stdlib_;
   std::unique_ptr<PerfettoSqlConnection> engine_;
 
   DescriptorPool metrics_descriptor_pool_;

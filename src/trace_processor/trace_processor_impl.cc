@@ -335,6 +335,13 @@ TraceProcessorImpl::TraceProcessorImpl(
     const Config& cfg,
     TraceProcessor::PlatformInterface* platform)
     : TraceProcessorStorageImpl(cfg, platform), config_(cfg) {
+  const auto metrics_descriptor = kMetricsDescriptor.Decode();
+  const auto all_chrome_metrics_descriptor =
+      kAllChromeMetricsDescriptor.Decode();
+  const auto all_webview_metrics_descriptor =
+      kAllWebviewMetricsDescriptor.Decode();
+  const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
+
   // TODO(lalitm): plugins should self-register via PERFETTO_TP_REGISTER_PLUGIN
   // (a global static initializer). That's currently disabled due to build-time
   // issues, so instead each plugin exposes an explicit Register* function that
@@ -507,18 +514,18 @@ TraceProcessorImpl::TraceProcessorImpl(
 
   // Add metrics to descriptor pool
   metrics_descriptor_pool_.AddFromFileDescriptorSet(
-      kMetricsDescriptor.data(), kMetricsDescriptor.size(), skip_prefixes);
+      metrics_descriptor.data(), metrics_descriptor.size(), skip_prefixes);
   metrics_descriptor_pool_.AddFromFileDescriptorSet(
-      kAllChromeMetricsDescriptor.data(), kAllChromeMetricsDescriptor.size(),
-      skip_prefixes);
+      all_chrome_metrics_descriptor.data(),
+      all_chrome_metrics_descriptor.size(), skip_prefixes);
   metrics_descriptor_pool_.AddFromFileDescriptorSet(
-      kAllWebviewMetricsDescriptor.data(), kAllWebviewMetricsDescriptor.size(),
-      skip_prefixes);
+      all_webview_metrics_descriptor.data(),
+      all_webview_metrics_descriptor.size(), skip_prefixes);
 
   // Add the summary descriptor to the summary pool.
   {
     base::Status status = context()->descriptor_pool_->AddFromFileDescriptorSet(
-        kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
+        trace_summary_descriptor.data(), trace_summary_descriptor.size());
     PERFETTO_CHECK(status.ok());
   }
 
@@ -529,6 +536,7 @@ TraceProcessorImpl::TraceProcessorImpl(
       context(),
       context()->storage.get(),
       config_,
+      stdlib_,
       registered_sql_packages_,
       sql_metrics_,
       &metrics_descriptor_pool_,
@@ -550,8 +558,8 @@ TraceProcessorImpl::TraceProcessorImpl(
     // implicitly commits after each statement.
     PerfettoSqlConnection::Transaction txn(engine_.get());
     for (const auto& file_to_sql :
-         SqlBundle(sql_metrics::kAmalgamatedSqlMetrics.data(),
-                   sql_metrics::kAmalgamatedSqlMetrics.size())) {
+         SqlBundle::Decode(sql_metrics::kAmalgamatedSqlMetrics.data(),
+                           sql_metrics::kAmalgamatedSqlMetrics.size())) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
       RegisterMetricImpl(file_to_sql.path, std::string(file_to_sql.sql_view()));
@@ -907,6 +915,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
       context(),
       context()->storage.get(),
       config_,
+      stdlib_,
       registered_sql_packages_,
       sql_metrics_,
       &metrics_descriptor_pool_,
@@ -1113,9 +1122,9 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     }
   }
 
-  // Stream stdlib straight from rodata into the connection. The bundle is
+  // Register stdlib from the shared decoded buffer. The bundle is
   // sorted by path so package entries are contiguous: flush whenever the
-  // package name changes. Bodies stay as string_views into kStdlib.
+  // package name changes. The processor retains the buffer backing the views.
   {
     auto flush = [&](const std::string& pkg,
                      sql_modules::RegisteredPackage rp) {
@@ -1126,7 +1135,8 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     };
     std::string current_pkg;
     std::optional<sql_modules::RegisteredPackage> rp;
-    for (const auto& f : stdlib::GetStdlibBundle()) {
+    args.stdlib = stdlib::GetStdlibBundle();
+    for (const auto& f : *args.stdlib) {
       std::string include_key = sql_modules::GetIncludeKey(f.path);
       std::string pkg = sql_modules::GetPackageName(include_key);
       if (pkg != current_pkg) {
@@ -1212,8 +1222,9 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
       ".perfetto.protos.TraceSummarySpec");
   if (!opt_idx) {
+    const auto trace_summary_descriptor = kTraceSummaryDescriptor.Decode();
     metrics_descriptor_pool_.AddFromFileDescriptorSet(
-        kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
+        trace_summary_descriptor.data(), trace_summary_descriptor.size());
   }
 
   // Auto-generate a unique id for table namespacing. The id is embedded in

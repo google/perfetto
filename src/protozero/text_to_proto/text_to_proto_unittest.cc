@@ -36,8 +36,10 @@ perfetto::base::StatusOr<std::vector<uint8_t>> Parse(
     const std::string& root_type,
     const std::string& input,
     bool allow_unknown_fields = false) {
-  return TextToProto(kTestMessagesDescriptor.data(),
-                     kTestMessagesDescriptor.size(), root_type, "test", input,
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
+  return TextToProto(test_messages_descriptor.data(),
+                     test_messages_descriptor.size(), root_type, "test", input,
                      allow_unknown_fields);
 }
 

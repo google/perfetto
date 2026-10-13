@@ -133,9 +133,11 @@ std::string BuildMessage(int nested, int repeated) {
 }
 
 void BM_ProtoToArgsParser(benchmark::State& state) {
+  const auto test_messages_descriptor = kTestMessagesDescriptor.Decode();
+
   DescriptorPool pool;
-  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
+  auto status = pool.AddFromFileDescriptorSet(test_messages_descriptor.data(),
+                                              test_messages_descriptor.size());
   PERFETTO_CHECK(status.ok());
 
   std::string bytes = BuildMessage(static_cast<int>(state.range(0)),

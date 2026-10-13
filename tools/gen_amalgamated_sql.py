@@ -16,7 +16,10 @@
 C++ header of packed uint64_t words.
 
 The generated blob is consumed at runtime by `SqlBundle` (see
-`src/trace_processor/util/sql_bundle.h`). Wire format:
+`src/trace_processor/util/sql_bundle.h`). It starts with a codec byte
+(0 = none, 1 = zlib, 2 = zstd) and a little-endian uint32_t uncompressed size,
+followed by the encoded payload.
+Uncompressed payload wire format:
 
   uint32_t count;
   for (count) {
@@ -84,6 +87,7 @@ def main():
   parser.add_argument('--namespace', required=True)
   parser.add_argument('--gen-dir', default='')
   parser.add_argument('--root-dir', default=None)
+  parser.add_argument('--compression', choices=['none', 'zlib'], default='zlib')
   parser.add_argument('inputs', nargs='+')
   args = parser.parse_args()
 
@@ -105,11 +109,12 @@ def main():
       file_to_sql[relpath] = f.read()
 
   blob = pack_bundle(file_to_sql)
-  cpp_blob_emitter.emit_array(
+  cpp_blob_emitter.emit_encoded_array(
       blob,
       args.output,
       symbol=cpp_blob_emitter.derive_symbol(args.output),
       namespace=args.namespace,
+      compression=args.compression,
       include_guard=cpp_blob_emitter.derive_include_guard(
           args.output, args.gen_dir))
   return 0

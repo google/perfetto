@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/gzip_decompressor.h"
+#include "src/base/gzip_decompressor.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -29,7 +29,7 @@
 struct z_stream_s {};
 #endif
 
-namespace perfetto::trace_processor::util {
+namespace perfetto::base {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
@@ -105,4 +105,4 @@ void GzipDecompressor::Deleter::operator()(z_stream_s*) const {}
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
-}  // namespace perfetto::trace_processor::util
+}  // namespace perfetto::base

@@ -17,44 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_GZIP_DECOMPRESSOR_H_
 #define SRC_TRACE_PROCESSOR_UTIL_GZIP_DECOMPRESSOR_H_
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-
+#include "src/base/gzip_decompressor.h"
 #include "src/trace_processor/util/decompressor.h"
-
-struct z_stream_s;
 
 namespace perfetto::trace_processor::util {
 
-// gzip/deflate Decompressor. Obtain one via CreateDecompressor(); construct
-// directly only to pin the InputMode (e.g. raw deflate for zip entries).
-class GzipDecompressor : public Decompressor {
- public:
-  enum class InputMode {
-    // The input stream contains a gzip header. This is for the common case of
-    // decompressing .gz files.
-    kGzip = 0,
-
-    // A raw deflate stream. This is for the case of uncompressing files from
-    // a .zip archive, where the compression type is specified in the zip file
-    // entry, rather than in the stream header.
-    kRawDeflate = 1,
-  };
-
-  explicit GzipDecompressor(InputMode = InputMode::kGzip);
-
-  void Feed(const uint8_t* data, size_t size) final;
-  Result ExtractOutput(uint8_t* out, size_t out_capacity) final;
-  void Reset() final;
-  size_t AvailIn() const final;
-
- private:
-  struct Deleter {
-    void operator()(z_stream_s*) const;
-  };
-  std::unique_ptr<z_stream_s, Deleter> z_stream_;
-};
+using base::GzipDecompressor;
 
 }  // namespace perfetto::trace_processor::util
 

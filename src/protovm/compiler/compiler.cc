@@ -28,14 +28,17 @@ Compiler::Compiler() : emitter_(&pool_) {}
 base::StatusOr<std::string> Compiler::Compile(
     std::string_view config_textproto,
     std::string_view descriptor_bytes) {
+  const auto compile_config_descriptor =
+      perfetto::kCompileConfigDescriptor.Decode();
+
   RETURN_IF_ERROR(pool_.AddFromFileDescriptorSet(
       reinterpret_cast<const uint8_t*>(descriptor_bytes.data()),
       descriptor_bytes.size()));
 
   ASSIGN_OR_RETURN(
       auto proto,
-      protozero::TextToProto(perfetto::kCompileConfigDescriptor.data(),
-                             perfetto::kCompileConfigDescriptor.size(),
+      protozero::TextToProto(compile_config_descriptor.data(),
+                             compile_config_descriptor.size(),
                              ".perfetto.protos.CompileConfig",
                              "compile_config.textproto", config_textproto));
 
