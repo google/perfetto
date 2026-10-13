@@ -102,7 +102,7 @@ function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
       title: 'Dimensions',
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+        m('span.pf-hde-mono', String(value ?? '')),
     },
     self_size: {
       title: 'Shallow',
@@ -160,37 +160,37 @@ function makeBitmapListSchema(navigate: NavFn): ColumnSchema {
       title: colHeader('Storage', COL_INFO.bitmapStorage),
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+        m('span.pf-hde-mono', String(value ?? '')),
     },
     bitmap_id: {
       title: colHeader('Bitmap ID', COL_INFO.bitmapId),
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+        m('span.pf-hde-mono', String(value ?? '')),
     },
     source_id: {
       title: colHeader('Source ID', COL_INFO.bitmapSource),
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+        m('span.pf-hde-mono', String(value ?? '')),
     },
     source_process_name: {
       title: colHeader('Source Process', COL_INFO.bitmapSource),
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+        m('span.pf-hde-mono', String(value ?? '')),
     },
     source_pid: {
       title: colHeader('Source PID', COL_INFO.bitmapSource),
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue) =>
-        m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+        m('span.pf-hde-mono', String(value ?? '')),
     },
     source_storage: {
       title: colHeader('Source Storage', COL_INFO.bitmapSource),
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m('span', {class: 'pf-hde-mono'}, String(value ?? '')),
+        m('span.pf-hde-mono', String(value ?? '')),
     },
   };
 }
@@ -267,24 +267,18 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
               data: bitmap.data,
             })
           : bitmap === 'loading'
-            ? m('span', {class: 'pf-hde-bitmap-card__secondary'}, '\u2026')
+            ? m('span.pf-hde-bitmap-card__secondary', '\u2026')
             : bitmap === 'error'
-              ? m('span', {class: 'pf-hde-bitmap-card__secondary'}, 'no data')
+              ? m('span.pf-hde-bitmap-card__secondary', 'no data')
               : !row.hasPixelData
-                ? m(
-                    'span',
-                    {class: 'pf-hde-bitmap-card__secondary'},
-                    'no pixel data',
-                  )
+                ? m('span.pf-hde-bitmap-card__secondary', 'no pixel data')
                 : null;
 
       return m(
-        'div',
-        {class: 'pf-hde-bitmap-card'},
+        '.pf-hde-bitmap-card',
         m(
-          'div',
+          '.pf-hde-bitmap-card__image',
           {
-            class: 'pf-hde-bitmap-card__image',
             style: {
               maxWidth: `${dpW}px`,
               maxHeight: '45vh',
@@ -294,38 +288,23 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
           imageArea,
         ),
         m(
-          'div',
-          {class: 'pf-hde-bitmap-card__info'},
+          '.pf-hde-bitmap-card__info',
           m(
             'div',
             null,
+            m('span.pf-hde-mono', `${row.width}\u00d7${row.height} px`),
+            m('span.pf-hde-bitmap-card__secondary', `${dpW}\u00d7${dpH} dp`),
+            m('span.pf-hde-bitmap-card__secondary', `@${dpi}dpi`),
             m(
-              'span',
-              {class: 'pf-hde-mono'},
-              `${row.width}\u00d7${row.height} px`,
-            ),
-            m(
-              'span',
-              {class: 'pf-hde-bitmap-card__secondary'},
-              `${dpW}\u00d7${dpH} dp`,
-            ),
-            m('span', {class: 'pf-hde-bitmap-card__secondary'}, `@${dpi}dpi`),
-            m(
-              'span',
-              {class: 'pf-hde-bitmap-card__secondary'},
+              'span.pf-hde-bitmap-card__secondary',
               fmtSize(row.row.retainedTotal),
             ),
             row.storageType !== null
-              ? m(
-                  'span',
-                  {class: 'pf-hde-bitmap-card__secondary'},
-                  row.storageType,
-                )
+              ? m('span.pf-hde-bitmap-card__secondary', row.storageType)
               : null,
             row.sourceId !== null
               ? m(
-                  'span',
-                  {class: 'pf-hde-bitmap-card__secondary'},
+                  'span.pf-hde-bitmap-card__secondary',
                   `from ${row.sourceProcessName ?? '?'} (${row.sourcePid ?? '?'})`,
                 )
               : null,
@@ -346,16 +325,11 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
           vnode.attrs.pathData !== undefined &&
           vnode.attrs.pathData !== null
           ? m(
-              'div',
-              {class: 'pf-hde-bitmap-card__path'},
-              m(
-                'div',
-                {class: 'pf-hde-muted-heading'},
-                PATH_HEADING[vnode.attrs.pathMode],
-              ),
+              '.pf-hde-bitmap-card__path',
+              m('.pf-hde-muted-heading', PATH_HEADING[vnode.attrs.pathMode]),
               vnode.attrs.pathData.length > 0
                 ? renderPath(vnode.attrs.pathData, navigate)
-                : m('span', {class: 'pf-hde-muted'}, 'No path to GC root.'),
+                : m('span.pf-hde-muted', 'No path to GC root.'),
             )
           : null,
       );
@@ -451,7 +425,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         return m(
           DetailsShell,
           {title: 'Bitmaps', fillHeight: true, className: 'pf-hde-tab--padded'},
-          m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+          m('.pf-hde-loading', m(Spinner, {easing: true})),
         );
       }
 
@@ -511,7 +485,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
           buttons: m(
             'label',
             {class: 'pf-hde-heading-control'},
-            m('span', {class: 'pf-hde-heading-control__label'}, 'Path'),
+            m('span.pf-hde-heading-control__label', 'Path'),
             m(
               Select,
               {
@@ -545,7 +519,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
           ),
         },
         [
-          m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
+          m('.pf-hde-card.pf-hde-mb-4', [
             m(DataGrid, {
               schema: SUMMARY_SCHEMA,
               data: [
@@ -568,8 +542,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
           ]),
           withPixels.length > 0
             ? m(
-                'div',
-                {class: 'pf-hde-mb-4'},
+                '.pf-hde-mb-4',
                 withPixels.map((r) =>
                   m(BitmapCard, {
                     key: r.row.id,
@@ -587,7 +560,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
               )
             : null,
           withPixels.length > 0
-            ? m('div', {class: 'pf-hde-mb-4'}, [
+            ? m('.pf-hde-mb-4', [
                 m(
                   'h3',
                   {class: 'pf-hde-muted-heading'},
@@ -604,7 +577,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
               ])
             : null,
           withoutPixels.length > 0
-            ? m('div', {class: 'pf-hde-mb-4'}, [
+            ? m('.pf-hde-mb-4', [
                 m(
                   'h3',
                   {class: 'pf-hde-muted-heading pf-hde-mt-4'},
