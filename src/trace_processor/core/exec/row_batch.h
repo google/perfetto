@@ -135,6 +135,11 @@ class RowBatch {
   void AddBorrowedColumn(const ColumnView& view) {
     AddColumn(view, ColumnBuffer());
   }
+  // Adds a column of `type` where every row is null.
+  void AddNullColumn(StorageType type, Context& context) {
+    const ColumnBuffer& nulls = context.NullBuffer();
+    AddColumn(NullView(type, nulls), nulls);
+  }
   // Replaces all columns with `views`. `buffers[i]` is the buffer of
   // `views[i]`, or null if it borrows its storage. Nothing is copied, so the
   // caller must keep both alive and unchanged until the batch is next filled.
@@ -151,6 +156,11 @@ class RowBatch {
     own_buffers_[column] = std::move(buffer);
     Repoint();
   }
+  // Replaces `column` with a column of `type` where every row is null.
+  void SetNullColumn(uint32_t column, StorageType type, Context& context) {
+    const ColumnBuffer& nulls = context.NullBuffer();
+    SetColumn(column, NullView(type, nulls), nulls);
+  }
 
   // Removes every column and row.
   void Reset() {
@@ -161,6 +171,14 @@ class RowBatch {
   }
 
  private:
+  static ColumnView NullView(StorageType type, const ColumnBuffer& nulls) {
+    // An Id column has no storage for nulls, so use Uint32, which holds the
+    // same values.
+    StorageType stored = type.Is<Id>() ? StorageType{Uint32{}} : type;
+    return ColumnView::Reference(stored, nulls.chunk().storage.data(),
+                                 &nulls.chunk().validity);
+  }
+
   void SetColumns(const ColumnView* views,
                   uint32_t view_count,
                   const ColumnBuffer* buffers,

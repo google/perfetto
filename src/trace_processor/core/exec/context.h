@@ -105,6 +105,10 @@ class Context {
     return ColumnBuffer(block);
   }
 
+  // A shared buffer for columns with no values: every row is null and every
+  // value is zero.
+  const ColumnBuffer& NullBuffer();
+
  private:
   friend class ColumnBuffer;
 
@@ -116,6 +120,7 @@ class Context {
 
   std::vector<std::unique_ptr<ColumnBuffer::Block>> blocks_;
   ColumnBuffer::Block* free_ = nullptr;
+  ColumnBuffer nulls_;
 };
 
 inline void ColumnBuffer::Release() {
