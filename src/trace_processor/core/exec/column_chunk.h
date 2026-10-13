@@ -49,6 +49,13 @@ struct ColumnChunk {
   // `offset`, preserving value bits and nulls.
   void CopyFrom(const RowBatch& batch, uint32_t column, uint32_t offset);
 
+  // Copies `count` of the rows `batch` keeps of its `column`, from the
+  // `first`, into this chunk last first, preserving value bits and nulls.
+  void CopyReversedFrom(const RowBatch& batch,
+                        uint32_t column,
+                        uint32_t first,
+                        uint32_t count);
+
   // Copies, for each i below `count`, batch row rows[i] of views[sources[i]]
   // into this chunk at i. The views hold one type. The type is dispatched on
   // once, however the rows interleave the views. `nullable` is whether any of

@@ -464,8 +464,7 @@ class PerfettoSqlConnection {
                               const PerfettoSqlParser& parser);
 
   // Creates a runtime table and registers it with SQLite.
-  base::Status ExecuteCreateTable(PerfettoSqlParser::CreateTable create_table,
-                                  const SqlSource& statement_sql);
+  base::Status ExecuteCreateTable(PerfettoSqlParser::CreateTable create_table);
 
   base::Status ExecuteCreateView(const PerfettoSqlParser::CreateView&);
 

@@ -131,6 +131,54 @@ TEST(SortTest, OrdersManyBatchesStably) {
   EXPECT_EQ(ids, expected);
 }
 
+// Rows already in order, ties included, come back as they arrived.
+TEST(SortTest, RowsAlreadyInOrderComeBackAsTheyArrived) {
+  std::vector<int64_t> values(3 * kMaxBatchRows + 17);
+  for (uint32_t i = 0; i < values.size(); ++i) {
+    values[i] = static_cast<int64_t>(i / 3) - 100;
+  }
+  test::ArraySource source(values);
+  Pipeline sorted(source, SortBy({{1, false}}), {});
+
+  base::Status status;
+  std::vector<uint32_t> ids = Ids(sorted, &status);
+  ASSERT_TRUE(status.ok()) << status.message();
+  std::vector<uint32_t> expected(values.size());
+  std::iota(expected.begin(), expected.end(), 0u);
+  EXPECT_EQ(ids, expected);
+}
+
+// One row out of place at the very end still sorts everything.
+TEST(SortTest, ALastRowOutOfOrderIsSorted) {
+  std::vector<int64_t> values(kMaxBatchRows + 5);
+  std::iota(values.begin(), values.end(), int64_t{1});
+  values.back() = 0;
+  test::ArraySource source(values);
+  Pipeline sorted(source, SortBy({{1, false}}), {});
+
+  base::Status status;
+  std::vector<uint32_t> ids = Ids(sorted, &status);
+  ASSERT_TRUE(status.ok()) << status.message();
+  ASSERT_EQ(ids.size(), values.size());
+  EXPECT_EQ(ids.front(), values.size() - 1);
+  EXPECT_EQ(ids[1], 0u);
+}
+
+// Nulls in their place, ascending or descending, count as in order.
+TEST(SortTest, NullsInPlaceCountAsInOrder) {
+  base::Status status;
+  {
+    KeysSource source({std::nullopt, std::nullopt, 1, 3}, {0, 0, 0, 0}, 3);
+    Pipeline sorted(source, SortBy({{1, false}}), {});
+    EXPECT_THAT(Ids(sorted, &status), ElementsAre(0, 1, 2, 3));
+  }
+  {
+    KeysSource source({3, 1, 1, std::nullopt}, {0, 2, 1, 0}, 3);
+    Pipeline sorted(source, SortBy({{1, true}, {2, true}}), {});
+    EXPECT_THAT(Ids(sorted, &status), ElementsAre(0, 1, 2, 3));
+  }
+}
+
 TEST(SortTest, NullsSortAsInSqlite) {
   KeysSource source({3, std::nullopt, 1, std::nullopt}, {0, 0, 0, 0}, 3);
   base::Status status;

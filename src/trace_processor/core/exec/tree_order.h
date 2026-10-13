@@ -63,7 +63,7 @@ class TreeChildFirst : public Breaker {
     bool child_first = true;
 
     // The node and parent of each row in order of arrival, and each node's
-    // row: what a sort needs.
+    // row: what a sort needs, so only filled for one.
     FlexVector<uint32_t> nodes;
     FlexVector<uint32_t> parents;
     FlexVector<uint32_t> row_of_node;
@@ -144,6 +144,9 @@ class TreeParentFirst : public Operator {
 
     Nodes nodes;
     Held held;
+    // While every row so far arrived numbered in order (see Execute), how
+    // many there were: then they are all out, and no other node is known.
+    uint32_t in_order = 0;
 
     // Rows of `held` on their way out after the current batch, served a
     // batch at a time from `served`.

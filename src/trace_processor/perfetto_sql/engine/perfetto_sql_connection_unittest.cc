@@ -942,6 +942,51 @@ TEST_F(PerfettoSqlConnectionPipelineTest, CreatePerfettoTableAsPipeline) {
   EXPECT_THAT(*rows, testing::ElementsAre("0,100", "1,60", "2,30", "3,40"));
 }
 
+// A table built from a pipeline's batches holds every kind of value as one
+// built through SQLite would: ids, nulls, doubles and strings.
+TEST_F(PerfettoSqlConnectionPipelineTest, CreatePerfettoTableKeepsEveryType) {
+  auto rows = Rows(R"(
+    CREATE PERFETTO TABLE df AS SELECT * FROM tree;
+    CREATE PERFETTO TABLE from_sql AS
+    FROM (SELECT id, parent_id, self, self * 1.5 AS f, name FROM tree)
+    |> TREE ACCUMULATE UP SUM(self) AS total;
+    CREATE PERFETTO TABLE from_df(id LONG, parent_id LONG, self LONG,
+                                  name STRING, total LONG) AS
+    FROM df |> TREE ACCUMULATE UP SUM(self) AS total;
+    SELECT s.id, s.parent_id, s.f, s.name, s.total, d.total, typeof(s.f)
+    FROM from_sql s JOIN from_df d USING (id)
+  )");
+  ASSERT_TRUE(rows.ok()) << rows.status().c_message();
+  EXPECT_THAT(*rows, testing::ElementsAre("0,NULL,15.0,root,100,100,real",
+                                          "1,0,30.0,a,60,60,real",
+                                          "2,0,45.0,NULL,30,30,real",
+                                          "3,1,60.0,c,40,40,real"));
+}
+
+TEST_F(PerfettoSqlConnectionPipelineTest, CreatePerfettoTableReportsErrors) {
+  EXPECT_THAT(Rows(R"(
+    CREATE PERFETTO TABLE t AS
+    FROM (SELECT * FROM tree WHERE id != 0) |> TREE ACCUMULATE UP SUM(self)
+    AS total
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("not itself a row"));
+  EXPECT_THAT(Rows(R"(
+    CREATE PERFETTO TABLE t(id STRING) AS
+    FROM tree |> TREE ACCUMULATE UP SUM(self) AS total
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("CREATE PERFETTO TABLE"));
+  EXPECT_THAT(Rows(R"(
+    CREATE PERFETTO TABLE t AS FROM tree |> SELECT id AS "a b"
+  )")
+                  .status()
+                  .message(),
+              testing::HasSubstr("alphanumeric"));
+}
+
 TEST_F(PerfettoSqlConnectionPipelineTest, RunsBetweenOtherStatements) {
   auto rows = Rows(R"(
     FROM tree |> TREE ACCUMULATE UP SUM(self) AS total;

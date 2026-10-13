@@ -25,7 +25,9 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
@@ -133,6 +135,16 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
   // defined above.
   static constexpr sqlite3_module kModule = CreateModule();
 };
+
+// Runs `plan` into a dataframe with `column_names`, as CREATE PERFETTO TABLE
+// would build one from SelectPipelineSql(plan), but reading the executor's
+// batches directly rather than each value through SQLite.
+base::StatusOr<dataframe::Dataframe> BuildDataframeFromPipeline(
+    PerfettoSqlConnection& connection,
+    StringPool* pool,
+    const pipeline::LogicalPlan& plan,
+    std::vector<std::string> column_names,
+    const dataframe::AdhocDataframeBuilder::Options& options);
 
 }  // namespace perfetto::trace_processor
 

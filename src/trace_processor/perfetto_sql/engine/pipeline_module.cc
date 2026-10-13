@@ -30,22 +30,32 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/operator.h"
+#include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 #include "src/trace_processor/perfetto_sql/engine/sqlite_dataframe_builder.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -430,6 +440,135 @@ int PipelineModule::Rowid(sqlite3_vtab_cursor* cursor, sqlite_int64*) {
   return sqlite::utils::SetError(cursor->pVtab,
                                  "__intrinsic_pipeline: a pipeline's rows have "
                                  "no rowid");
+}
+
+namespace {
+
+// Appends the values of `view` at the rows `selection` keeps to column `col`,
+// each as a `Pushed`.
+template <typename T, typename Pushed = T>
+bool AppendFlat(const ColumnView& view,
+                const core::exec::Selection& selection,
+                uint32_t col,
+                dataframe::AdhocDataframeBuilder* builder) {
+  const T* data = static_cast<const T*>(view.data());
+  const core::BitVector* validity = view.validity();
+  for (uint32_t i = 0; i < selection.size(); ++i) {
+    uint32_t index = view.Index(selection[i]);
+    if (validity && !validity->is_set(index)) {
+      builder->PushNull(col);
+    } else if (!builder->PushNonNull(col, static_cast<Pushed>(data[index]))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool AppendColumn(const ColumnView& view,
+                  const core::exec::Selection& selection,
+                  uint32_t col,
+                  dataframe::AdhocDataframeBuilder* builder) {
+  if (view.kind() == ColumnView::Kind::kVariant) {
+    for (uint32_t i = 0; i < selection.size(); ++i) {
+      Variant cell = view.At<Variant>(selection[i]);
+      bool ok = true;
+      switch (cell.type) {
+        case Variant::Type::kNull:
+          builder->PushNull(col);
+          break;
+        case Variant::Type::kInt64:
+          ok = builder->PushNonNull(col, cell.AsInt64());
+          break;
+        case Variant::Type::kDouble:
+          ok = builder->PushNonNull(col, cell.AsDouble());
+          break;
+        case Variant::Type::kString:
+          ok = builder->PushNonNull(col, cell.AsString());
+          break;
+      }
+      if (!ok) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (view.kind() == ColumnView::Kind::kSequence) {
+    for (uint32_t i = 0; i < selection.size(); ++i) {
+      uint32_t index = view.Index(selection[i]);
+      if (view.validity() && !view.validity()->is_set(index)) {
+        builder->PushNull(col);
+      } else if (!builder->PushNonNull(col, index)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  core::StorageType type = view.type();
+  if (type.Is<core::Uint32>())
+    return AppendFlat<uint32_t>(view, selection, col, builder);
+  if (type.Is<core::Int32>())
+    return AppendFlat<int32_t, int64_t>(view, selection, col, builder);
+  if (type.Is<core::Int64>())
+    return AppendFlat<int64_t>(view, selection, col, builder);
+  if (type.Is<core::Double>())
+    return AppendFlat<double>(view, selection, col, builder);
+  if (type.Is<core::String>())
+    return AppendFlat<StringPool::Id>(view, selection, col, builder);
+  PERFETTO_FATAL("Unexpected column type");
+}
+
+}  // namespace
+
+base::StatusOr<dataframe::Dataframe> BuildDataframeFromPipeline(
+    PerfettoSqlConnection& connection,
+    StringPool* pool,
+    const pipeline::LogicalPlan& plan,
+    std::vector<std::string> column_names,
+    const dataframe::AdhocDataframeBuilder::Options& options) {
+  pipeline::PlanWithDataframeArgs moved =
+      pipeline::MoveSqlSourcesToDataframeArgs(plan);
+  if (!moved.args.empty()) {
+    // The relations read from SQL are built into dataframes as
+    // SelectPipelineSql would have them built.
+    ASSIGN_OR_RETURN(
+        SqliteConnection::PreparedStatement stmt,
+        connection.PrepareSqliteStatement(
+            SqlSource::FromTraceProcessorImplementation(
+                "SELECT " + pipeline::DataframesSql(moved.args))));
+    stmt.Step();
+    RETURN_IF_ERROR(stmt.status());
+    const auto* list = sqlite::value::Pointer<DataframeList>(
+        sqlite3_column_value(stmt.sqlite_stmt(), 0), kDataframesPointerType);
+    if (!list) {
+      return base::ErrStatus("%s: expected dataframes",
+                             pipeline::kPipelineFunction);
+    }
+    std::vector<const dataframe::Dataframe*> inputs;
+    for (const SharedDataframe& input : list->dataframes) {
+      inputs.push_back(input.get());
+    }
+    // Once bound, the plan shares ownership of each column it reads.
+    RETURN_IF_ERROR(pipeline::BindDataframeArgs(moved.plan, inputs, pool));
+  }
+  std::unique_ptr<pipeline::PhysicalPlan> physical = pipeline::Lower(moved.plan);
+  const auto& columns = physical->columns();
+  dataframe::AdhocDataframeBuilder builder(std::move(column_names), pool,
+                                           options);
+  core::exec::Context context;
+  core::exec::RowBatch scratch;
+  const core::exec::Source& source = physical->source();
+  std::unique_ptr<core::exec::OperatorState> state = source.MakeState(context);
+  source.Rewind(*state);
+  while (const core::exec::RowBatch* batch = source.Next(scratch, *state)) {
+    for (uint32_t c = 0; c < columns.size(); ++c) {
+      if (!AppendColumn(batch->column(columns[c].index), batch->selection(), c,
+                        &builder)) {
+        return builder.status();
+      }
+    }
+  }
+  RETURN_IF_ERROR(source.status(*state));
+  return std::move(builder).Build();
 }
 
 }  // namespace perfetto::trace_processor

@@ -56,6 +56,7 @@ class Sort : public Breaker {
     RowLayout layout;
     FlexVector<uint8_t> keys;
     RowStore rows;
+    // The order to emit the rows in. Empty means in arrival order.
     FlexVector<uint32_t> order;
     uint32_t emitted = 0;
   };

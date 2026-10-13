@@ -222,15 +222,10 @@ ValidateAndGetEffectiveSchema(
   return effective_schema;
 }
 
-base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
-    const SqliteConnection::PreparedStatement& stmt,
-    const char* tag) {
-  auto columns =
-      static_cast<uint32_t>(sqlite3_column_count(stmt.sqlite_stmt()));
-  std::vector<std::string> column_names;
-  for (uint32_t i = 0; i < columns; ++i) {
-    std::string col_name =
-        sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));
+base::Status ValidateColumnNames(const std::vector<std::string>& column_names,
+                                 const char* tag) {
+  for (uint32_t i = 0; i < column_names.size(); ++i) {
+    const std::string& col_name = column_names[i];
     if (col_name.empty()) {
       return base::ErrStatus("%s: column %u: name must not be empty", tag, i);
     }
@@ -246,8 +241,21 @@ base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
           "characters and underscores.",
           tag, i, col_name.c_str());
     }
-    column_names.push_back(col_name);
   }
+  return base::OkStatus();
+}
+
+base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
+    const SqliteConnection::PreparedStatement& stmt,
+    const char* tag) {
+  auto columns =
+      static_cast<uint32_t>(sqlite3_column_count(stmt.sqlite_stmt()));
+  std::vector<std::string> column_names;
+  for (uint32_t i = 0; i < columns; ++i) {
+    column_names.emplace_back(
+        sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i)));
+  }
+  RETURN_IF_ERROR(ValidateColumnNames(column_names, tag));
   return column_names;
 }
 
@@ -808,7 +816,7 @@ base::StatusOr<SqlSource> PerfettoSqlConnection::ResolveExtensionStatement(
     RETURN_IF_ERROR(AddTracebackIfNeeded(ExecuteCreateFunction(*cf), stmt_sql));
   } else if (auto* cst = std::get_if<PerfettoSqlParser::CreateTable>(&stmt)) {
     RETURN_IF_ERROR(AddTracebackIfNeeded(
-        ExecuteCreateTable(std::move(*cst), stmt_sql), stmt_sql));
+        ExecuteCreateTable(std::move(*cst)), stmt_sql));
   } else if (const auto* create_view =
                  std::get_if<PerfettoSqlParser::CreateView>(&stmt)) {
     RETURN_IF_ERROR(
@@ -975,38 +983,58 @@ base::Status PerfettoSqlConnection::RegisterLegacyRuntimeFunction(
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateTable(
-    PerfettoSqlParser::CreateTable create_table,
-    const SqlSource& statement_sql) {
+    PerfettoSqlParser::CreateTable create_table) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
                     "CREATE PERFETTO TABLE",
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-  const auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
-  base::StatusOr<SqliteConnection::PreparedStatement> stmt_or =
-      logical ? PreparePipeline(*logical, statement_sql)
-              : connection_->PrepareStatement(
-                    std::move(std::get<SqlSource>(create_table.body)));
-  ASSIGN_OR_RETURN(auto stmt, std::move(stmt_or));
-  RETURN_IF_ERROR(stmt.status());
-  ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
-                                          stmt, "CREATE PERFETTO TABLE"));
-  ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
-                                    column_names, create_table.schema,
-                                    "CREATE PERFETTO TABLE"));
-  ASSIGN_OR_RETURN(auto types, GetTypesFromSelectStatement(
-                                   false, schema, column_names,
-                                   create_table.name, "CREATE PERFETTO TABLE"));
-  stmt.Step();
-  RETURN_IF_ERROR(stmt.status());
-  SqliteDataframeBuilderOptions options;
-  options.column_types = std::move(types);
   const std::string error_context =
       "CREATE PERFETTO TABLE(" + create_table.name + ")";
-  ASSIGN_OR_RETURN(auto builder, BuildRuntimeDataframeFromSqliteStatement(
-                                     pool_, std::move(column_names), &stmt,
-                                     error_context, std::move(options)));
-  ASSIGN_OR_RETURN(auto dataframe, std::move(builder).Build());
+  std::optional<dataframe::Dataframe> built;
+  if (const auto* logical =
+          std::get_if<pipeline::LogicalPlan>(&create_table.body)) {
+    // A pipeline's batches go straight into the table, without SQLite.
+    std::vector<std::string> column_names;
+    for (const pipeline::NamedColumn& column : logical->output()) {
+      column_names.push_back(column.name);
+    }
+    RETURN_IF_ERROR(ValidateColumnNames(column_names, "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
+                                      column_names, create_table.schema,
+                                      "CREATE PERFETTO TABLE"));
+    dataframe::AdhocDataframeBuilder::Options options;
+    ASSIGN_OR_RETURN(options.types,
+                     GetTypesFromSelectStatement(false, schema, column_names,
+                                                 create_table.name,
+                                                 "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(built,
+                     BuildDataframeFromPipeline(*this, pool_, *logical,
+                                                std::move(column_names),
+                                                options));
+  } else {
+    auto stmt = connection_->PrepareStatement(
+        std::move(std::get<SqlSource>(create_table.body)));
+    RETURN_IF_ERROR(stmt.status());
+    ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
+                                            stmt, "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
+                                      column_names, create_table.schema,
+                                      "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(auto types,
+                     GetTypesFromSelectStatement(false, schema, column_names,
+                                                 create_table.name,
+                                                 "CREATE PERFETTO TABLE"));
+    stmt.Step();
+    RETURN_IF_ERROR(stmt.status());
+    SqliteDataframeBuilderOptions options;
+    options.column_types = std::move(types);
+    ASSIGN_OR_RETURN(auto builder, BuildRuntimeDataframeFromSqliteStatement(
+                                       pool_, std::move(column_names), &stmt,
+                                       error_context, std::move(options)));
+    ASSIGN_OR_RETURN(built, std::move(builder).Build());
+  }
+  dataframe::Dataframe dataframe = std::move(*built);
 
   base::StackString<1024> drop("DROP TABLE IF EXISTS %s;",
                                create_table.name.c_str());

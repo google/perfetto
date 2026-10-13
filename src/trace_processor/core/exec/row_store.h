@@ -54,6 +54,14 @@ class RowStore {
   // into buffers taken from `context`. Returns how many.
   uint32_t View(RowBatch* out, Span<const uint32_t> rows, Context& context);
 
+  // Copies up to `count` rows before `end`, last first, into buffers taken
+  // from `context`. A run stops at the start of a batch appended, so it can be
+  // shorter: returns how many rows it has.
+  uint32_t ViewReversed(RowBatch* out,
+                        uint32_t end,
+                        uint32_t count,
+                        Context& context) const;
+
   // Lets go of every row held.
   void Clear();
 

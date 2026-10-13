@@ -461,6 +461,53 @@ TEST(RowStoreTest, RetainedViewsSurviveGatherClearAndDestruction) {
   EXPECT_THAT(test::ReadColumn<int64_t>(gathered, 0), ElementsAre(30, 10, 30));
 }
 
+// Reversed runs come back last row first, each stopping at the start of the
+// batch it was appended in.
+TEST(RowStoreTest, ReversedRunsStopAtTheStartOfAnInputBatch) {
+  std::vector<int64_t> values = {10, 11, 12, 13, 14};
+  RowStore store;
+  RowBatch batch;
+  Fill(&batch, values, 0, 2);
+  ASSERT_TRUE(store.Append(batch).ok());
+  Fill(&batch, values, 2, 3);
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  RowBatch out;
+  ASSERT_EQ(store.ViewReversed(&out, 5, 5, test::TestContext()), 3u);
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(14, 13, 12));
+  ASSERT_EQ(store.ViewReversed(&out, 4, 1, test::TestContext()), 1u);
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(13));
+  ASSERT_EQ(store.ViewReversed(&out, 2, 5, test::TestContext()), 2u);
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(11, 10));
+  EXPECT_EQ(store.ViewReversed(&out, 2, 0, test::TestContext()), 0u);
+  EXPECT_EQ(out.size(), 0u);
+}
+
+// Reversing reads only the rows a batch kept, with their nulls, and turns an
+// implicit id into the rows it stood for.
+TEST(RowStoreTest, ReversedRunsKeepNullsAndOnlyTheRowsKept) {
+  std::vector<int64_t> values = {10, 11, 12, 13, 14};
+  BitVector validity = BitVector::CreateWithSize(5);
+  validity.set(0);
+  validity.set(4);
+  RowBatch batch;
+  batch.AddBorrowedColumn(
+      ColumnView::Reference(StorageType{Int64{}}, values.data(), &validity));
+  batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Id{}}, nullptr));
+  batch.SetRowCount(5);
+  std::vector<uint32_t> kept = {0, 2, 4};
+  batch.mutable_selection().Keep(kept);
+  RowStore store;
+  ASSERT_TRUE(store.Append(batch).ok());
+
+  RowBatch out;
+  ASSERT_EQ(store.ViewReversed(&out, 3, 3, test::TestContext()), 3u);
+  EXPECT_THAT(test::ReadNullableColumn<int64_t>(out, 0),
+              ElementsAre(14, std::nullopt, 10));
+  ASSERT_TRUE(out.column(1).type().Is<Uint32>());
+  EXPECT_THAT(test::ReadColumn<uint32_t>(out, 1), ElementsAre(4u, 2u, 0u));
+}
+
 TEST(RowStoreTest, KeepsAColumnWhoseTypeIsPerRow) {
   StringPool pool;
   std::vector<Variant> values = {Variant::Int64(7), Variant::Null(),

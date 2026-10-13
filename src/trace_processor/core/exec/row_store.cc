@@ -142,4 +142,26 @@ uint32_t RowStore::View(RowBatch* out,
   return count;
 }
 
+uint32_t RowStore::ViewReversed(RowBatch* out,
+                                uint32_t end,
+                                uint32_t count,
+                                Context& context) const {
+  out->Reset();
+  if (!count) {
+    return 0;
+  }
+  uint32_t batch = Find(end - 1);
+  uint32_t start = batch ? ends_[batch - 1] : 0;
+  count = std::min(count, end - start);
+  const RowBatch& in = *batches_[batch];
+  for (uint32_t c = 0; c < in.column_count(); ++c) {
+    ColumnBuffer buffer = context.TakeBuffer();
+    ColumnChunk& chunk = buffer.chunk();
+    chunk.CopyReversedFrom(in, c, end - count - start, count);
+    out->AddColumn(chunk.View(in.column(c), nullable_[c]), std::move(buffer));
+  }
+  out->SetRowCount(count);
+  return count;
+}
+
 }  // namespace perfetto::trace_processor::core::exec

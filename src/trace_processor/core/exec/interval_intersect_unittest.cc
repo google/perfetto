@@ -230,6 +230,16 @@ TEST(IntervalIntersectTest, RowsAreKeyedOnEveryKeyColumn) {
               ElementsAre(Row{5, 5, 0, 10, 1, 2, 5, 10, 1, 2}));
 }
 
+// Rows arriving out of order meet as they would in order.
+TEST(IntervalIntersectTest, RowsOutOfOrderMeetAsInOrder) {
+  TableSource a({{40, 10, 1}, {0, 30, 0}}, 1);
+  TableSource b({{35, 10, 1}, {10, 10, 0}}, 1);
+
+  EXPECT_THAT(Intersect({Operand(a), Operand(b)}),
+              ElementsAre(Row{10, 10, 0, 30, 0, 10, 10, 0},
+                          Row{40, 5, 40, 10, 1, 35, 10, 1}));
+}
+
 TEST(IntervalIntersectTest, AnEmptyOperandLeavesNothing) {
   TableSource a({{0, 100, 0}}, 8);
   TableSource b({}, 8);

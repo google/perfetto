@@ -38,6 +38,15 @@ PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan) {
   return out;
 }
 
+std::string DataframesSql(const std::vector<std::string>& args) {
+  std::vector<std::string> dataframes;
+  for (const std::string& arg : args) {
+    dataframes.push_back("(" + arg + ")");
+  }
+  return std::string(kDataframesFunction) + "(" + base::Join(dataframes, ", ") +
+         ")";
+}
+
 base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan) {
   if (plan.output().size() > kMaxPipelineColumns) {
     return base::ErrStatus("A pipeline can output at most %u columns, not %zu",
@@ -51,13 +60,8 @@ base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan) {
   }
   std::string arguments = "X'" + base::ToHex(SerializePlan(moved.plan)) + "'";
   if (!moved.args.empty()) {
-    std::vector<std::string> dataframes;
-    for (const std::string& arg : moved.args) {
-      dataframes.push_back("(" + arg + ")");
-    }
     // A subquery, so SQLite builds the list once rather than on every filter.
-    arguments += ", (SELECT " + std::string(kDataframesFunction) + "(" +
-                 base::Join(dataframes, ", ") + "))";
+    arguments += ", (SELECT " + DataframesSql(moved.args) + ")";
   }
   return "SELECT " + base::Join(columns, ", ") + " FROM " + kPipelineFunction +
          "(" + arguments + ")";

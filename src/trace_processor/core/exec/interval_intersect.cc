@@ -235,13 +235,17 @@ base::Status Collect(const IntervalIntersectOperand& operand,
   // which never overlaps itself down a cheaper path.
   for (size_t g = 0; g < groups.used; ++g) {
     Group& group = *groups.all[g];
-    std::sort(group.intervals.begin(), group.intervals.end(),
-              [](const Interval& a, const Interval& b) {
-                if (a.start != b.start) {
-                  return a.start < b.start;
-                }
-                return a.end != b.end ? a.end < b.end : a.id < b.id;
-              });
+    auto by_start = [](const Interval& a, const Interval& b) {
+      if (a.start != b.start) {
+        return a.start < b.start;
+      }
+      return a.end != b.end ? a.end < b.end : a.id < b.id;
+    };
+    // Rows often arrive in order already: checking is cheaper than sorting.
+    if (!std::is_sorted(group.intervals.begin(), group.intervals.end(),
+                        by_start)) {
+      std::sort(group.intervals.begin(), group.intervals.end(), by_start);
+    }
     for (size_t i = 1; i < group.intervals.size() && group.nonoverlapping;
          ++i) {
       group.nonoverlapping =

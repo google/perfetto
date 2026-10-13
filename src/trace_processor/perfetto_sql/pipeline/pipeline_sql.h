@@ -53,6 +53,10 @@ struct PlanWithDataframeArgs {
 };
 PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan);
 
+// The SQL expression gathering the dataframes built by `args`, as moved out by
+// MoveSqlSourcesToDataframeArgs, into the list a pipeline reads them from.
+std::string DataframesSql(const std::vector<std::string>& args);
+
 // SQL reading `plan`'s output under its own column names. The plan is
 // serialized into the SQL, and each relation it reads from SQL is built into a
 // dataframe where that SQL runs, so it sees whatever is in scope there.

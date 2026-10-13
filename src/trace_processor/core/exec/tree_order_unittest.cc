@@ -115,26 +115,31 @@ class RowSource final : public Source {
 
 RowSource::State::~State() = default;
 
+// Emits rows already numbered, `chunk_rows` to a batch.
 class NumberedSource final : public Source {
  public:
   NumberedSource(std::vector<uint32_t> nodes,
                  std::vector<uint32_t> parents,
-                 std::vector<int64_t> payloads)
+                 std::vector<int64_t> payloads,
+                 uint32_t chunk_rows = kMaxBatchRows)
       : nodes_(std::move(nodes)),
         parents_(std::move(parents)),
-        payloads_(std::move(payloads)) {}
+        payloads_(std::move(payloads)),
+        chunk_rows_(chunk_rows) {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
   void Rewind(OperatorState& state) const override {
-    state.Cast<State>().emitted = false;
+    state.Cast<State>().offset = 0;
   }
   bool GetData(RowBatch& out, OperatorState& state) const override {
     State& s = state.Cast<State>();
-    if (s.emitted) {
+    auto total = static_cast<uint32_t>(nodes_.size());
+    if (s.offset == total) {
       return false;
     }
+    uint32_t count = std::min(chunk_rows_, total - s.offset);
     out.Reset();
     out.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Uint32{}}, nodes_.data()));
@@ -142,20 +147,22 @@ class NumberedSource final : public Source {
         ColumnView::Reference(StorageType{Uint32{}}, parents_.data()));
     out.AddBorrowedColumn(
         ColumnView::Reference(StorageType{Int64{}}, payloads_.data()));
-    out.SetRowCount(static_cast<uint32_t>(nodes_.size()));
-    s.emitted = true;
+    test::Window(&out, s.offset, count);
+    s.offset += count;
     return true;
   }
 
  private:
   struct State : OperatorState {
-    bool emitted = false;
+    uint32_t offset = 0;
   };
 
   std::vector<uint32_t> nodes_;
   std::vector<uint32_t> parents_;
   std::vector<int64_t> payloads_;
+  uint32_t chunk_rows_;
 };
+
 
 // Drives a plan the way an executor does: it creates the state and owns the
 // batch, leaving the plan const.
@@ -210,6 +217,21 @@ Output Drain(Execution* run) {
 Output Drain(const Source& source) {
   Execution run(source);
   return Drain(&run);
+}
+
+// The payloads of what `source` gives `op`, in the order they came out.
+Output DrainNumbered(const Source& source, Pipeline::Step op) {
+  std::vector<Pipeline::Step> ops;
+  ops.push_back(std::move(op));
+  Pipeline pipeline(source, std::move(ops), {});
+  Execution run(pipeline);
+  Output out;
+  while (RowBatch* batch = run.Next()) {
+    std::vector<int64_t> payload = test::ReadColumn<int64_t>(*batch, 2);
+    out.payload.insert(out.payload.end(), payload.begin(), payload.end());
+  }
+  out.status = run.status();
+  return out;
 }
 
 std::vector<Pipeline::Step> Number() {
@@ -413,6 +435,62 @@ TEST(TreeChildFirstTest, ChildrenPrecedeParents) {
   }
 }
 
+// A long parent first input, as a table scanned in id order gives, comes back
+// exactly reversed however its batches fall.
+TEST(TreeChildFirstTest, ALongParentFirstInputIsReversedAcrossBatches) {
+  std::mt19937 rng(37);
+  std::vector<Row> rows;
+  rows.push_back({0, std::nullopt, 0});
+  for (int64_t id = 1; id < 3 * kMaxBatchRows + 11; ++id) {
+    int64_t parent = std::uniform_int_distribution<int64_t>(0, id - 1)(rng);
+    rows.push_back({id, parent, id});
+  }
+  for (uint32_t chunk : {7u, 300u, kMaxBatchRows}) {
+    RowSource source(rows, chunk);
+    auto ops = Number();
+    ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
+    Pipeline order(source, std::move(ops), {});
+    Output out = Drain(order);
+    ASSERT_TRUE(out.status.ok()) << out.status.message();
+    ASSERT_EQ(out.payload.size(), rows.size());
+    for (size_t i = 0; i < rows.size(); ++i) {
+      ASSERT_EQ(out.payload[i], static_cast<int64_t>(rows.size() - 1 - i))
+          << "chunk " << chunk;
+    }
+    ExpectChildFirst(out);
+  }
+}
+
+// Batches numbered in order, then one which is not, are sorted like any other
+// input.
+TEST(TreeChildFirstTest, AnOrderedPrefixThenDisorderIsSorted) {
+  NumberedSource source({0, 1, 2, 3, 5, 4}, {kNoNode, 0, 1, 0, 4, 2},
+                        {100, 101, 102, 103, 105, 104}, 2);
+  Output out = DrainNumbered(source, std::make_unique<TreeChildFirst>(0, 1));
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  EXPECT_THAT(out.payload, testing::UnorderedElementsAre(100, 101, 102, 103,
+                                                         104, 105));
+  auto at = [&](int64_t payload) {
+    return std::find(out.payload.begin(), out.payload.end(), payload) -
+           out.payload.begin();
+  };
+  EXPECT_LT(at(105), at(104));
+  EXPECT_LT(at(104), at(102));
+  EXPECT_LT(at(102), at(101));
+  EXPECT_LT(at(101), at(100));
+  EXPECT_LT(at(103), at(100));
+}
+
+// A node named before its row leaves a gap, so the batches after it are not
+// known to be in order however they look.
+TEST(TreeChildFirstTest, ANodeNamedAheadOfItsRowIsStillChecked) {
+  NumberedSource source({0, 1, 3, 4}, {kNoNode, 2, kNoNode, 3},
+                        {100, 101, 103, 104}, 2);
+  Output out = DrainNumbered(source, std::make_unique<TreeChildFirst>(0, 1));
+  EXPECT_FALSE(out.status.ok());
+  EXPECT_THAT(out.status.message(), testing::HasSubstr("not itself a row"));
+}
+
 TEST(TreeChildFirstTest, PreservesInterleavedChildFirstSubtrees) {
   RowSource source(
       {{3, 1, 3}, {4, 2, 4}, {1, 0, 1}, {2, 0, 2}, {0, std::nullopt, 0}}, 2);
@@ -500,6 +578,32 @@ TEST(TreeParentFirstTest, RowsLetGoSpanBatches) {
   for (size_t i = 0; i < payload.size(); ++i) {
     ASSERT_EQ(payload[i], static_cast<int64_t>(i));
   }
+}
+
+// Batches numbered in order pass through as they are, however many there are.
+TEST(TreeParentFirstTest, BatchesNumberedInOrderStreamThrough) {
+  std::vector<uint32_t> nodes, parents;
+  std::vector<int64_t> payloads;
+  for (uint32_t node = 0; node < 10; ++node) {
+    nodes.push_back(node);
+    parents.push_back(node == 0 ? kNoNode : node / 2);
+    payloads.push_back(100 + node);
+  }
+  NumberedSource source(nodes, parents, payloads, 3);
+  Output out = DrainNumbered(source, std::make_unique<TreeParentFirst>(0, 1));
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  EXPECT_THAT(out.payload, ElementsAre(100, 101, 102, 103, 104, 105, 106, 107,
+                                       108, 109));
+}
+
+// A node named before its row is not out, so rows under it wait even when
+// their batch looks in order.
+TEST(TreeParentFirstTest, ANodeNamedAheadOfItsRowHoldsRowsUnderIt) {
+  NumberedSource source({0, 3, 4, 5, 1, 2}, {kNoNode, kNoNode, 1, 4, kNoNode, 0},
+                        {100, 103, 104, 105, 101, 102}, 2);
+  Output out = DrainNumbered(source, std::make_unique<TreeParentFirst>(0, 1));
+  ASSERT_TRUE(out.status.ok()) << out.status.message();
+  EXPECT_THAT(out.payload, ElementsAre(100, 103, 101, 102, 104, 105));
 }
 
 TEST(TreeParentFirstTest, AParentWhichIsNotARowIsReported) {

@@ -143,6 +143,19 @@ void ColumnChunk::CopyFrom(const RowBatch& batch,
   }
 }
 
+void ColumnChunk::CopyReversedFrom(const RowBatch& batch,
+                                   uint32_t column,
+                                   uint32_t first,
+                                   uint32_t count) {
+  const ColumnView& view = batch.column(column);
+  const Selection& selection = batch.selection();
+  uint32_t start = view.start();
+  uint32_t last = first + count - 1;
+  Copy(
+      view, [&](uint32_t i) { return start + selection[last - i]; }, count, 0,
+      *this);
+}
+
 void ColumnChunk::Gather(const std::vector<const ColumnView*>& views,
                          const uint32_t* sources,
                          const uint32_t* rows,
