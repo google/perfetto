@@ -20,14 +20,9 @@
 }
 
 .pf-merged-class-warning__icon {
-  font-size: 16px;
+  font-size: 1.2em;
   cursor: help;
   flex-shrink: 0;
-}
-
-.pf-merged-class-warning__tooltip {
-  max-width: 320px;
-  white-space: normal;
 }
 
 .pf-merged-class-warning__title {
@@ -39,25 +34,10 @@
   color: var(--pf-color-text-muted);
 }
 
-// Same look as the callout originally prototyped inside the flamegraph
-// tooltip.
-.pf-merged-class-warning-callout {
-  display: flex;
-  gap: 6px;
+// The flamegraph tooltip sizes itself to its content, so cap the callout's
+// width there to keep the description wrapping.
+.pf-merged-class-flamegraph-callout {
   max-width: 360px;
   margin-bottom: 4px;
-  padding: 6px 8px;
-  border-left: 3px solid var(--pf-color-warning);
-  background: color-mix(in srgb, var(--pf-color-warning) 10%, transparent);
-  font-size: var(--pf-font-size-s);
-}
-
-.pf-merged-class-warning-callout__title {
-  font-weight: 600;
-}
-
-.pf-merged-class-warning-callout__desc {
   white-space: normal;
-  color: var(--pf-color-text-muted);
-  padding-top: 2px;
 }

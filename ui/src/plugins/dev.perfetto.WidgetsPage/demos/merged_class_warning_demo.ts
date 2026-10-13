@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ClassNameWithWarning} from '../../../components/merged_class_warning';
 import {
-  ClassNameWithWarning,
   mergedClassNodeIcon,
   mergedClassNodeTooltipRenderer,
-} from '../../../components/merged_class_warning';
+} from '../../../components/merged_class_flamegraph_hooks';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {InMemoryDataSource} from '../../../components/widgets/datagrid/in_memory_data_source';

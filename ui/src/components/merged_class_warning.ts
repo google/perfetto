@@ -19,24 +19,20 @@
 //  1. ClassNameWithWarning: a class name followed by the warning icon. Use
 //     this for class names in tables and labels.
 //  2. MergedClassWarning: just the warning icon.
-//  3. mergedClassNodeIcon() and mergedClassNodeTooltipRenderer(): flamegraph
-//     hooks, passed as the TreeExplorerPanel `nodeIcon` and
-//     `renderNodeTooltip` attrs, that draw the icon on flagged nodes and add a
-//     warning callout to their tooltip. The flamegraph is a canvas, so it
-//     cannot use 1. or 2.
+//  3. MergedClassWarningCallout: icon, title and description in a callout.
+//
+// Flamegraph hooks built on these live in merged_class_flamegraph_hooks.ts,
+// keeping this module components-only so it stays hot-reloadable.
 
 import './merged_class_warning.scss';
 import m from 'mithril';
+import {Icons} from '../base/semantic_icons';
+import {Callout} from '../widgets/callout';
 import {Icon} from '../widgets/icon';
 import {Intent} from '../widgets/common';
 import {PopupPosition} from '../widgets/popup';
 import {Tooltip} from '../widgets/tooltip';
-import type {
-  TreeExplorerNodeIconFn,
-  TreeExplorerNodeTooltipRenderer,
-} from '../widgets/tree_explorer';
 
-export const MERGED_CLASS_WARNING_ICON = 'warning';
 const MERGED_CLASS_WARNING_TITLE = 'Possibly merged class';
 const MERGED_CLASS_WARNING_DESCRIPTION =
   'This class may include code from several source classes that were ' +
@@ -55,7 +51,7 @@ export class MergedClassWarning implements m.ClassComponent<MergedClassWarningAt
       {
         trigger: m(Icon, {
           className: 'pf-merged-class-warning__icon',
-          icon: MERGED_CLASS_WARNING_ICON,
+          icon: Icons.Warning,
           intent: Intent.Warning,
           filled: true,
         }),
@@ -91,53 +87,14 @@ export class ClassNameWithWarning implements m.ClassComponent<ClassNameWithWarni
   }
 }
 
-// Warning callout (icon, title and description) shown at the top of a
-// flagged node's flamegraph tooltip.
-class MergedClassWarningCallout implements m.ClassComponent {
+// Warning callout with the icon, title and description.
+export class MergedClassWarningCallout implements m.ClassComponent {
   view(): m.Children {
     return m(
-      '.pf-merged-class-warning-callout',
-      m(Icon, {icon: MERGED_CLASS_WARNING_ICON, intent: Intent.Warning}),
-      m(
-        '.pf-merged-class-warning-callout__body',
-        m(
-          '.pf-merged-class-warning-callout__title',
-          MERGED_CLASS_WARNING_TITLE,
-        ),
-        m(
-          '.pf-merged-class-warning-callout__desc',
-          MERGED_CLASS_WARNING_DESCRIPTION,
-        ),
-      ),
+      Callout,
+      {icon: Icons.Warning, intent: Intent.Warning},
+      m('.pf-merged-class-warning__title', MERGED_CLASS_WARNING_TITLE),
+      MERGED_CLASS_WARNING_DESCRIPTION,
     );
   }
-}
-
-// Flamegraph hooks below.
-// `propertyName` is the column in the flamegraph's SQL query that holds the
-// flag (1 = potentially merged). The flamegraph drops extra columns unless
-// they're listed in the metric's `unaggregatableProperties`, so make sure it
-// is declared in there.
-
-// Hook that tells the flamegraph to draw a warning icon if the node is flagged
-// as a merged class.
-export function mergedClassNodeIcon(
-  propertyName: string,
-): TreeExplorerNodeIconFn {
-  return (properties) =>
-    properties.get(propertyName) === '1'
-      ? MERGED_CLASS_WARNING_ICON
-      : undefined;
-}
-
-// Hook that tells the flamegraph to modify the rendered tooltip with a text
-// callout warning explaining that this node has been flagged as a merged
-// class.
-export function mergedClassNodeTooltipRenderer(
-  propertyName: string,
-): TreeExplorerNodeTooltipRenderer {
-  return ({properties}, defaultContent) => [
-    properties.get(propertyName) === '1' && m(MergedClassWarningCallout),
-    defaultContent,
-  ];
 }
