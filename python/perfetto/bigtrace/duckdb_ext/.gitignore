@@ -1,0 +1,4 @@
+generated/
+*.so
+*.duckdb_extension
+__pycache__/
