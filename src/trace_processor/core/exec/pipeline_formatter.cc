@@ -25,6 +25,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/assert_type.h"
+#include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
@@ -182,6 +183,9 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
 }
 
 std::string PipelineFormatter::OperatorString(const Operator& op) {
+  if (op.Is<CombineBatches>()) {
+    return "CombineBatches";
+  }
   if (op.Is<Sort>()) {
     return "Sort(" + Keys(static_cast<const Sort&>(op).spec_.keys) + ")";
   }

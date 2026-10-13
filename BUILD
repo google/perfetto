@@ -2602,6 +2602,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/column_chunk.cc",
         "src/trace_processor/core/exec/column_chunk.h",
         "src/trace_processor/core/exec/column_view.h",
+        "src/trace_processor/core/exec/combine_batches.cc",
+        "src/trace_processor/core/exec/combine_batches.h",
         "src/trace_processor/core/exec/context.cc",
         "src/trace_processor/core/exec/context.h",
         "src/trace_processor/core/exec/dataframe_scan.cc",

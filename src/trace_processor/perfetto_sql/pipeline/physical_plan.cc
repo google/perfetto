@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/assert_type.h"
+#include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
@@ -231,6 +232,13 @@ uint32_t Lowering::RequireGroupNumbers(const std::vector<ColumnId>& keys) {
   return group_numbers_.back().position;
 }
 
+void Lowering::RequireFullBatches() {
+  if (!full_batches_) {
+    AddOrderIndependent(std::make_unique<ex::CombineBatches>());
+    full_batches_ = true;
+  }
+}
+
 Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
                                                 ColumnId parent,
                                                 TreeDirection direction) {
@@ -250,8 +258,10 @@ Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
     AddBreaker(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
                                                     tree_columns_->parent));
   } else {
+    // Rows are output as their parents arrive, so batches can be small.
     AddOperator(std::make_unique<ex::TreeParentFirst>(tree_columns_->node,
                                                       tree_columns_->parent));
+    DeclareSmallBatches();
   }
   arrangements_.clear();
   tree_walk_ = direction;
@@ -280,6 +290,10 @@ void Lowering::DeclareSortedWithinGroups(
   arrangements_.push_back({keys, sorted_by});
 }
 
+void Lowering::DeclareSmallBatches() {
+  full_batches_ = false;
+}
+
 void Lowering::DeclareGroupNumbers(const std::vector<ColumnId>& keys,
                                    uint32_t position) {
   group_numbers_.push_back({keys, position});
@@ -288,6 +302,7 @@ void Lowering::DeclareGroupNumbers(const std::vector<ColumnId>& keys,
 void Lowering::ResetLayout() {
   column_count_ = 0;
   open_sort_.reset();
+  full_batches_ = true;
   arrangements_.clear();
   tree_walk_.reset();
   tree_columns_.reset();
@@ -369,6 +384,7 @@ void Lowering::AddOrderIndependent(core::exec::Pipeline::Step step) {
 }
 
 void Lowering::AddSort(core::exec::Pipeline::Step sort) {
+  RequireFullBatches();
   open_sort_ = OpenSort{operators_.size(), arrangements_, tree_walk_};
   operators_.push_back(std::move(sort));
 }
@@ -379,6 +395,7 @@ void Lowering::AddOrderDependent(core::exec::Pipeline::Step step) {
 }
 
 void Lowering::AddBreaker(core::exec::Pipeline::Step breaker) {
+  RequireFullBatches();
   open_sort_.reset();
   operators_.push_back(std::move(breaker));
 }
@@ -451,8 +468,7 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
 }
 
 std::unique_ptr<ex::Pipeline> Lowering::Build() {
-  return std::make_unique<ex::Pipeline>(*input_, std::move(operators_),
-                                        ex::ExecutionOptions());
+  return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
 PlanLowering::PlanLowering(const LogicalPlan& plan)

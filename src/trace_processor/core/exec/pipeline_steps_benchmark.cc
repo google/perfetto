@@ -92,7 +92,7 @@ void Run(benchmark::State& state, bool child_first, MakeSteps make) {
   DataframeScan scan({df.shared_column(kId), df.shared_column(kParent),
                       df.shared_column(kValue), df.shared_column(kSmall)},
                      df.row_count());
-  Pipeline pipeline(scan, make(), {});
+  Pipeline pipeline(scan, make());
   std::unique_ptr<OperatorState> run = pipeline.MakeState(context);
   RowBatch scratch;
   for (auto _ : state) {

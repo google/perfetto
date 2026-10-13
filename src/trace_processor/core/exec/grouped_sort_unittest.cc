@@ -71,13 +71,13 @@ std::vector<Pipeline::Step> GroupOn(uint32_t column,
 // their input order, or are sorted by the keys if there are any.
 TEST(GroupedSortTest, GroupsInOrderOfFirstRow) {
   test::ArraySource source({7, 3, 7, 5, 3, 7});
-  Pipeline grouped(source, GroupOn(1), {});
+  Pipeline grouped(source, GroupOn(1));
   Output out = Drain(grouped);
   ASSERT_TRUE(out.status.ok()) << out.status.message();
   EXPECT_THAT(out.ids, ElementsAre(0, 2, 5, 1, 4, 3));
   EXPECT_THAT(out.groups, ElementsAre(0, 0, 0, 1, 1, 2));
 
-  Pipeline sorted(source, GroupOn(1, {{0, /*descending=*/true}}), {});
+  Pipeline sorted(source, GroupOn(1, {{0, /*descending=*/true}}));
   out = Drain(sorted);
   ASSERT_TRUE(out.status.ok()) << out.status.message();
   EXPECT_THAT(out.ids, ElementsAre(5, 2, 0, 4, 1, 3));
