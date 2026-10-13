@@ -50,10 +50,10 @@ struct AggregateInput {
 // rows and copying them otherwise.
 class AggregateInputLoader {
  public:
-  // Loads `count` of the rows `selection` keeps: the first, or if `rows` is
-  // given those (by position among the rows kept). Returns false if the
-  // column can't be aggregated.
-  bool Load(const ColumnView& column,
+  // Loads `count` selected rows. If `rows` is given, it lists which selected
+  // rows to load. Otherwise the first `count` are loaded. The planner
+  // guarantees the column is flat Int64.
+  void Load(const ColumnView& column,
             const Selection& selection,
             const uint32_t* rows,
             uint32_t count,

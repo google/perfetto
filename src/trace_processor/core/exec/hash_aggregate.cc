@@ -150,11 +150,9 @@ bool HashAggregate::Consume(const RowBatch& in, Breaker::State& state) const {
     const AggregateFunction& function = *functions_[a];
     AggregateInput input;
     input.rows = rows;
-    if (function.reads_input() &&
-        !s.input.Load(in.column(spec_.aggregates[a].column), in.selection(),
-                      nullptr, rows, &input)) {
-      s.status = base::ErrStatus("AGGREGATE: aggregated columns must be Int64");
-      return false;
+    if (function.reads_input()) {
+      s.input.Load(in.column(spec_.aggregates[a].column), in.selection(),
+                   nullptr, rows, &input);
     }
     GroupStates states{payloads + offsets_[a], stride};
     if (function.tracks_seen()) {

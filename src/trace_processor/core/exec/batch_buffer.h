@@ -34,7 +34,7 @@ class BatchBuffer {
  public:
   uint32_t size() const { return size_; }
   // Copies the rows `in` keeps, into buffers taken from `context`.
-  base::Status Append(const RowBatch& in, Context& context);
+  void Append(const RowBatch& in, Context& context);
   // Fills `out` with the rows combined, and empties the buffer.
   void Take(RowBatch& out);
   void Clear() {
