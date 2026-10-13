@@ -110,26 +110,28 @@ RETURNS TABLE(
 )
 AS
 WITH
-  sf_vsync AS (
+  sf_vsync AS MATERIALIZED (
     SELECT DISTINCT cuj_id, sf_vsync AS vsync
     FROM _android_jank_cuj_app_sf_frame_timeline_match
+  ),
+  sf_main_slices AS MATERIALIZED (
+    SELECT
+      utid,
+      slice.id,
+      slice.name,
+      slice.ts,
+      slice.dur,
+      slice.ts + slice.dur AS ts_end,
+      CAST(str_split(slice.name, " ", 1) AS INTEGER) AS vsync
+    FROM _android_sf_main_thread AS main_thread
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name GLOB $slice_name_glob
+      AND slice.dur > 0
   )
-SELECT
-  cuj_id,
-  utid,
-  sf_vsync.vsync,
-  slice.id,
-  slice.name,
-  slice.ts,
-  slice.dur,
-  slice.ts + slice.dur AS ts_end
-FROM slice
-JOIN _android_sf_main_thread AS main_thread USING (track_id)
-JOIN sf_vsync
-  ON CAST(str_split(slice.name, " ", 1) AS INTEGER) = sf_vsync.vsync
-WHERE
-  slice.name GLOB $slice_name_glob
-  AND slice.dur > 0
+SELECT cuj_id, utid, sf_vsync.vsync, s.id, s.name, s.ts, s.dur, s.ts_end
+FROM sf_main_slices AS s
+JOIN sf_vsync USING (vsync)
 ORDER BY
   cuj_id,
   vsync;

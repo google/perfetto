@@ -21,13 +21,13 @@ INCLUDE PERFETTO MODULE android.surfaceflinger;
 
 -- Extracts the vsync ID from a slice name like "Choreographer#doFrame 1234".
 CREATE PERFETTO FUNCTION _vsync_from_name(slice_name STRING)
-RETURNS STRING
+RETURNS LONG
 AS
 SELECT CAST(STR_SPLIT($slice_name, " ", 1) AS INTEGER);
 
 -- Extracts the GPU completion fence ID from fence-related slice names.
 CREATE PERFETTO FUNCTION _gpu_completion_fence_id_from_name(slice_name STRING)
-RETURNS STRING
+RETURNS LONG
 AS
 SELECT
   CASE
@@ -184,21 +184,24 @@ CREATE PERFETTO TABLE _android_jank_cuj_draw_frame_slice(
   vsync LONG
 )
 AS
-SELECT
-  cuj_id,
-  render_thread.upid,
-  render_thread.utid,
-  slice.*,
-  slice.ts + slice.dur AS ts_end,
-  _vsync_from_name(slice.name) AS vsync
+WITH
+  draw_frame_slices AS MATERIALIZED (
+    SELECT
+      slice.*,
+      slice.ts + slice.dur AS ts_end,
+      _vsync_from_name(slice.name) AS vsync
+    FROM (SELECT DISTINCT track_id FROM android_jank_cuj_render_thread)
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name GLOB 'DrawFrame*'
+      AND slice.dur > 0
+  )
+SELECT cuj_id, render_thread.upid, render_thread.utid, s.*
 FROM _android_jank_cuj_do_frames AS do_frame
 JOIN android_jank_cuj_render_thread AS render_thread USING (cuj_id)
-JOIN slice
-  ON slice.track_id = render_thread.track_id
-WHERE
-  slice.name GLOB 'DrawFrame*'
-  AND _vsync_from_name(slice.name) = do_frame.vsync
-  AND slice.dur > 0;
+JOIN draw_frame_slices AS s
+  ON s.track_id = render_thread.track_id
+  AND s.vsync = do_frame.vsync;
 
 -- Descendants of DrawFrames containing the GPU completion fence ID used for
 -- signaling that the GPU finished drawing.
@@ -287,21 +290,24 @@ CREATE PERFETTO TABLE _android_jank_cuj_hwc_release_slice(
   draw_frame_slice_id ID(slice.id)
 )
 AS
-SELECT
-  fence.cuj_id,
-  vsync,
-  slice.*,
-  slice.ts + slice.dur AS ts_end,
-  fence.fence_idx,
-  draw_frame_slice_id
+WITH
+  hwc_release_slices AS MATERIALIZED (
+    SELECT
+      slice.*,
+      slice.ts + slice.dur AS ts_end,
+      _gpu_completion_fence_id_from_name(slice.name) AS fence_idx
+    FROM (SELECT DISTINCT track_id FROM _android_jank_cuj_hwc_release_thread)
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name GLOB 'waiting for HWC release *'
+      AND slice.dur > 0
+  )
+SELECT fence.cuj_id, vsync, s.*, draw_frame_slice_id
 FROM _android_jank_cuj_hwc_release_thread AS hwc_release_thread
-JOIN slice USING (track_id)
+JOIN hwc_release_slices AS s USING (track_id)
 JOIN _android_jank_cuj_hwc_release_fence AS fence
   ON fence.cuj_id = hwc_release_thread.cuj_id
-  AND fence.fence_idx = _gpu_completion_fence_id_from_name(slice.name)
-WHERE
-  slice.name GLOB 'waiting for HWC release *'
-  AND slice.dur > 0;
+  AND fence.fence_idx = s.fence_idx;
 
 -- GPU completion slices indicating when the GPU finished drawing.
 CREATE PERFETTO TABLE _android_jank_cuj_gpu_completion_slice(
@@ -347,26 +353,49 @@ CREATE PERFETTO TABLE _android_jank_cuj_gpu_completion_slice(
   fence_idx LONG
 )
 AS
+WITH
+  gpu_completion_slices AS MATERIALIZED (
+    SELECT
+      slice.*,
+      slice.ts + slice.dur AS ts_end,
+      _gpu_completion_fence_id_from_name(slice.name) AS fence_idx
+    FROM (SELECT DISTINCT track_id FROM _android_jank_cuj_gpu_completion_thread)
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name GLOB 'waiting for GPU completion *'
+      AND slice.dur > 0
+  )
 SELECT
   fence.cuj_id,
   vsync,
-  slice.*,
-  slice.ts + slice.dur AS ts_end,
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  s.category,
+  s.name,
+  s.depth,
+  s.parent_id,
+  s.arg_set_id,
+  s.thread_ts,
+  s.thread_dur,
+  s.thread_instruction_count,
+  s.thread_instruction_delta,
+  s.cat,
+  s.slice_id,
+  s.ts_end,
   hwc_release.ts_end AS hwc_release_ts_end,
   fence.fence_idx
 FROM _android_jank_cuj_gpu_completion_thread AS gpu_completion_thread
-JOIN slice USING (track_id)
+JOIN gpu_completion_slices AS s USING (track_id)
 JOIN _android_jank_cuj_gpu_completion_fence AS fence
   ON fence.cuj_id = gpu_completion_thread.cuj_id
-  AND fence.fence_idx = _gpu_completion_fence_id_from_name(slice.name)
+  AND fence.fence_idx = s.fence_idx
 LEFT JOIN _android_jank_cuj_hwc_release_slice AS hwc_release USING (
   cuj_id,
   vsync,
   draw_frame_slice_id
-)
-WHERE
-  slice.name GLOB 'waiting for GPU completion *'
-  AND slice.dur > 0;
+);
 
 -- NOTE: _find_android_jank_cuj_sf_main_thread_slice, _android_jank_cuj_sf_commit_slice,
 -- _android_jank_cuj_sf_composite_slice, and _android_jank_cuj_sf_on_message_invalidate_slice
@@ -392,14 +421,23 @@ CREATE PERFETTO TABLE _android_jank_cuj_sf_gpu_completion_fence(
   fence_idx LONG
 )
 AS
-SELECT
-  cuj_id,
-  vsync,
-  sf_root_slice.id AS sf_root_slice_id,
-  _gpu_completion_fence_id_from_name(fence.name) AS fence_idx
+WITH
+  sf_fence_slices AS MATERIALIZED (
+    SELECT
+      slice.ts,
+      slice.ts + slice.dur AS ts_end,
+      _gpu_completion_fence_id_from_name(slice.name) AS fence_idx
+    FROM _android_sf_main_thread
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name GLOB '*GPU completion fence*'
+  )
+SELECT cuj_id, vsync, sf_root_slice.id AS sf_root_slice_id, fence.fence_idx
 FROM _android_jank_cuj_sf_root_slice AS sf_root_slice
-JOIN descendant_slice(sf_root_slice.id) AS fence
-  ON fence.name GLOB '*GPU completion fence*';
+JOIN sf_fence_slices AS fence
+  ON fence.ts >= sf_root_slice.ts
+  AND fence.ts <= sf_root_slice.ts_end
+  AND fence.ts_end <= sf_root_slice.ts_end;
 
 -- SF GPU completion slices indicating when the GPU finished drawing.
 CREATE PERFETTO TABLE _android_jank_cuj_sf_gpu_completion_slice(
@@ -443,20 +481,25 @@ CREATE PERFETTO TABLE _android_jank_cuj_sf_gpu_completion_slice(
   fence_idx LONG
 )
 AS
-SELECT
-  fence.cuj_id,
-  vsync,
-  slice.*,
-  slice.ts + slice.dur AS ts_end,
-  fence.fence_idx
-FROM _android_jank_cuj_sf_gpu_completion_fence AS fence
-JOIN _android_jank_cuj_sf_gpu_completion_thread AS gpu_completion_thread
-JOIN slice
-  ON slice.track_id = gpu_completion_thread.track_id
-  AND fence.fence_idx = _gpu_completion_fence_id_from_name(slice.name)
-WHERE
-  slice.name GLOB 'waiting for GPU completion *'
-  AND slice.dur > 0;
+WITH
+  sf_gpu_completion_slices AS MATERIALIZED (
+    SELECT
+      slice.*,
+      slice.ts + slice.dur AS ts_end,
+      _gpu_completion_fence_id_from_name(slice.name) AS fence_idx
+    FROM (
+      SELECT DISTINCT track_id FROM _android_jank_cuj_sf_gpu_completion_thread
+    )
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name GLOB 'waiting for GPU completion *'
+      AND slice.dur > 0
+  )
+SELECT fence.cuj_id, vsync, s.*
+FROM _android_jank_cuj_sf_gpu_completion_thread AS gpu_completion_thread
+JOIN sf_gpu_completion_slices AS s USING (track_id)
+JOIN _android_jank_cuj_sf_gpu_completion_fence AS fence
+  ON fence.fence_idx = s.fence_idx;
 
 -- REThreaded::drawLayers on RenderEngine thread.
 -- These will be only relevant if SF is doing client composition so we check if
@@ -506,31 +549,47 @@ CREATE PERFETTO TABLE _android_jank_cuj_sf_draw_layers_slice(
 )
 AS
 WITH
-  compose_surfaces AS (
+  sf_compose_slices AS MATERIALIZED (
+    SELECT slice.ts, slice.ts + slice.dur AS ts_end
+    FROM _android_sf_main_thread
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name = 'composeSurfaces'
+  ),
+  compose_surfaces AS MATERIALIZED (
     SELECT
       cuj_id,
       vsync,
       sf_root_slice.id AS sf_root_slice_id,
       compose_surfaces.ts,
-      compose_surfaces.ts + compose_surfaces.dur AS ts_end
+      compose_surfaces.ts_end
     FROM _android_jank_cuj_sf_root_slice AS sf_root_slice
-    JOIN descendant_slice(sf_root_slice.id) AS compose_surfaces
-      ON compose_surfaces.name = 'composeSurfaces'
+    JOIN sf_compose_slices AS compose_surfaces
+      ON compose_surfaces.ts >= sf_root_slice.ts
+      AND compose_surfaces.ts <= sf_root_slice.ts_end
+      AND compose_surfaces.ts_end <= sf_root_slice.ts_end
+  ),
+  re_draw_layers AS MATERIALIZED (
+    SELECT slice.*, slice.ts + slice.dur AS ts_end
+    FROM (
+      SELECT DISTINCT track_id FROM _android_jank_cuj_sf_render_engine_thread
+    )
+    JOIN slice USING (track_id)
+    WHERE
+      slice.name = 'REThreaded::drawLayers'
+      AND slice.dur > 0
   )
 SELECT
   cuj_id,
   re_thread.utid,
   vsync,
   draw_layers.*,
-  draw_layers.ts + draw_layers.dur AS ts_end,
   -- Store composeSurfaces ts as this will simplify calculating frame boundaries
   compose_surfaces.ts AS ts_compose_surfaces
 FROM compose_surfaces
 JOIN _android_jank_cuj_sf_render_engine_thread AS re_thread
-JOIN slice AS draw_layers
+JOIN re_draw_layers AS draw_layers
   ON draw_layers.track_id = re_thread.track_id
   AND draw_layers.ts >= compose_surfaces.ts
-  AND draw_layers.ts + draw_layers.dur <= compose_surfaces.ts_end
-WHERE
-  draw_layers.name = 'REThreaded::drawLayers'
-  AND draw_layers.dur > 0;
+  AND draw_layers.ts <= compose_surfaces.ts_end
+  AND draw_layers.ts_end <= compose_surfaces.ts_end;
