@@ -555,6 +555,18 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('ts or dur is below zero'))
 
+  def test_interval_intersection_refuses_an_overflowing_end(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 9223372036854775800 AS ts, 100 AS dur;
+        CREATE PERFETTO TABLE b AS SELECT 0 AS ts, 10 AS dur;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT ts, dur;
+        """,
+        out=ExpectedError('integer overflow'))
+
   def test_interval_intersection_needs_the_pragma(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),

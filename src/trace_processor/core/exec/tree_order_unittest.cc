@@ -519,7 +519,7 @@ TEST(TreeParentFirstTest, ACycleIsReported) {
   Output out = Drain(pipeline);
   EXPECT_TRUE(out.payload.empty());
   EXPECT_FALSE(out.status.ok());
-  EXPECT_THAT(out.status.message(), testing::HasSubstr("not itself a row"));
+  EXPECT_THAT(out.status.message(), testing::HasSubstr("cycle"));
 }
 
 TEST(TreeParentFirstTest, ASelfParentIsReported) {

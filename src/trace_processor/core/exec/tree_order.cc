@@ -385,13 +385,25 @@ OpResult TreeParentFirst::Execute(const RowBatch& in,
 OpResult TreeParentFirst::Finish(RowBatch& out, OperatorState& state) const {
   State& s = state.Cast<State>();
   out.Reset();
-  if (s.held.rows.size() != s.held.let_go) {
-    s.status = base::ErrStatus(
-        "%s: a row names a parent which is not itself a row in the input",
-        kParentFirst);
-    return OpResult::kError;
+  uint32_t stuck = s.held.rows.size() - s.held.let_go;
+  if (stuck == 0) {
+    return OpResult::kNeedMoreInput;
   }
-  return OpResult::kNeedMoreInput;
+  // Rows still held wait on nodes which never came out: one no row has, or
+  // ones in a cycle, whose rows wait on each other.
+  for (uint32_t node = 0; node < s.nodes.first_waiting.size(); ++node) {
+    if (s.nodes.first_waiting[node] != kNoNode &&
+        !s.nodes.has_row.is_set(node)) {
+      s.status = base::ErrStatus(
+          "%s: a row names a parent which is not itself a row in the input",
+          kParentFirst);
+      return OpResult::kError;
+    }
+  }
+  s.status = base::ErrStatus(
+      "%s: the rows are not a tree, because %u of them are in a cycle",
+      kParentFirst, stuck);
+  return OpResult::kError;
 }
 
 void TreeParentFirst::State::Reset() {

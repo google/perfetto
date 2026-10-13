@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/containers/interval_intersector.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -216,11 +217,14 @@ base::Status Collect(const IntervalIntersectOperand& operand,
             "below zero",
             which + 1);
       }
+      int64_t end;
+      if (!base::CheckedAdd(start, length, &end)) {
+        return base::ErrStatus("INTERVAL INTERSECTION: integer overflow");
+      }
       std::string_view key = keys.Key(row);
       Group& group = groups.Get(key);
-      group.intervals.push_back({static_cast<Ts>(start),
-                                 static_cast<Ts>(start + length),
-                                 store.size() + row});
+      group.intervals.push_back(
+          {static_cast<Ts>(start), static_cast<Ts>(end), store.size() + row});
     }
     retained.Project(batch, operand.retained_columns);
     RETURN_IF_ERROR(store.Append(retained));

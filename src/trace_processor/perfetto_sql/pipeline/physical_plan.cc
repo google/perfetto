@@ -125,6 +125,8 @@ void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
   if (grouped && has(order_.ascending, ascending)) {
     return;
   }
+  // The rows are reordered, so they no longer follow the tree.
+  tree_direction_.reset();
   // GroupBy is stable, so sorting first orders every group.
   if (!order_.grouped_by.empty() || !has(order_.ascending, ascending)) {
     ex::SortSpec sort;
