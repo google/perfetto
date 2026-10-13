@@ -407,7 +407,6 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
           pathMaps[mode].set(id, paths.get(id) ?? []);
         }
         pathsFetched[mode] = true;
-        m.redraw();
       })
       .catch(console.error);
   }
@@ -429,16 +428,12 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         .then((r) => {
           if (!alive) return;
           rows = r;
-          m.redraw();
           // Enrich with reachable sizes asynchronously.
           queries
             .enrichWithReachable(
               vnode.attrs.engine,
               r.map((b) => b.row),
             )
-            .then(() => {
-              if (alive) m.redraw();
-            })
             .catch(console.error);
         })
         .catch(console.error);
