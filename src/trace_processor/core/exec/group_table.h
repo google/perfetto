@@ -50,6 +50,30 @@ class GroupTable {
   uint32_t size() const { return static_cast<uint32_t>(hashes_.size()); }
   void Clear();
 
+  // Reserves `words` zeroed words after each group's keys for the caller to
+  // store per-group data. Must be called before the first batch.
+  void set_payload_words(uint32_t words) { payload_words_ = words; }
+  // The payload of `group`. Consecutive groups' payloads are `row_stride()`
+  // words apart.
+  int64_t* payload(uint32_t group) {
+    return group_rows_.data() + uint64_t{group} * stride_ + stride_ -
+           payload_words_;
+  }
+  uint32_t row_stride() const { return stride_; }
+
+  // Key `k` of `group` as stored: integers as int64, doubles as their bits
+  // and strings as their interned id.
+  int64_t Key(uint32_t group, uint32_t k) const {
+    return group_rows_.data()[uint64_t{group} * stride_ + 1 + k];
+  }
+
+  // Whether key `k` of `group` is null.
+  bool IsNull(uint32_t group, uint32_t k) const {
+    auto nulls =
+        static_cast<uint64_t>(group_rows_.data()[uint64_t{group} * stride_]);
+    return (nulls >> k) & 1;
+  }
+
  private:
   enum class Kind : uint8_t { kInteger, kDouble, kString };
 
@@ -76,10 +100,14 @@ class GroupTable {
   // The hash of each group.
   FlexVector<uint64_t> hashes_;
 
-  // Each group's null bits followed by its keys, `stride_` words per group.
-  // Keeping them together means comparing a group reads one cache line.
+  // Each group's null bits, then its keys, then its payload. Each group takes
+  // `stride_` words. Keeping them together means comparing a group reads one
+  // cache line.
   FlexVector<int64_t> group_rows_;
   uint32_t stride_ = 0;
+
+  // The number of payload words per group.
+  uint32_t payload_words_ = 0;
 
   // The kind of each key column.
   std::vector<Kind> kinds_;

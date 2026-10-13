@@ -21,3 +21,11 @@ BM_GroupBy/1/512/0/16                ?
 BM_GroupBy/2/512/0/16                ?
 BM_GroupBy/3/512/0/16                ?
 BM_GroupBy/4/512/0/16                ?
+BM_HashAggregate/8/1                 ?
+BM_HashAggregate/8/3                 ?
+BM_HashAggregate/512/1               ?
+BM_HashAggregate/512/3               ?
+BM_HashAggregate/8192/1              ?
+BM_HashAggregate/8192/3              ?
+BM_HashAggregate/32768/1             ?
+BM_HashAggregate/32768/3             ?
