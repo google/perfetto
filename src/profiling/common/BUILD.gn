@@ -27,7 +27,10 @@ source_set("interner") {
 # other targets in this file cannot be used outside of profiler builds.
 if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
   source_set("unwind_support") {
-    public_deps = [ "../../../gn:libunwindstack" ]
+    public_deps = [
+      "../../../gn:libunwindstack",
+      "../unwind:unwind_core",
+    ]
     deps = [
       "../../../gn:default_deps",
       "../../../src/base",
