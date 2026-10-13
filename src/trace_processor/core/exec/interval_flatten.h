@@ -52,6 +52,9 @@ struct IntervalFlattenSpec {
 // tree over the segments it was live in, so any function works.
 class IntervalFlatten : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit IntervalFlatten(IntervalFlattenSpec);
   ~IntervalFlatten() override;
 
@@ -61,6 +64,8 @@ class IntervalFlatten : public Operator {
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   // A live interval: when it ends, the slot holding its aggregates' states,
   // and the first segment of the output batch it's live in.
   struct Live {

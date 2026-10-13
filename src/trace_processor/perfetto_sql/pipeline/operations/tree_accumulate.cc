@@ -96,7 +96,7 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
 
   const auto tree =
-      c->PrepareTree(acc.node_column_, acc.parent_column_, acc.direction_);
+      c->RequireTreeWalk(acc.node_column_, acc.parent_column_, acc.direction_);
   // One operator folds every aggregate, appending their columns in order.
   ex::TreeAccumulateSpec spec{tree.node, tree.parent, {}};
   for (const Aggregate& agg : acc.aggregates_) {
@@ -108,7 +108,7 @@ void TreeAccumulate::Lower(Lowering* c, const PlanNode& node) const {
     c->AddOperator(std::make_unique<ex::TreeAccumulateDown>(std::move(spec)));
   }
   for (const Aggregate& agg : acc.aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
 }
 

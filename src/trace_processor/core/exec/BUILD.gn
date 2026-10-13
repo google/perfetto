@@ -79,9 +79,14 @@ source_set("exec") {
 
 source_set("test_utils") {
   testonly = true
-  sources = [ "test_utils.h" ]
+  sources = [
+    "pipeline_formatter.cc",
+    "pipeline_formatter.h",
+    "test_utils.h",
+  ]
   deps = [
     ":exec",
+    "../../../../gn:default_deps",
     "../../../base",
     "../common",
     "../util",

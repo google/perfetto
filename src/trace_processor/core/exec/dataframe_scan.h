@@ -48,6 +48,9 @@ namespace perfetto::trace_processor::core::exec {
 // have been finalized before its columns were captured.
 class DataframeScan : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   DataframeScan(std::vector<std::shared_ptr<const dataframe::Column>> columns,
                 uint32_t row_count);
   ~DataframeScan() override;
@@ -61,6 +64,8 @@ class DataframeScan : public Source {
   class Expander;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : OperatorState {
     ~State() override;
     // What batches are pointed at: by column, the view of the rows last

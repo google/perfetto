@@ -110,7 +110,7 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   ex::HashAggregateSpec spec;
   for (ColumnId key : keys_) {
-    spec.key_columns.push_back(c->Position(key));
+    spec.key_columns.push_back(c->QueryPosition(key));
   }
   for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
@@ -120,12 +120,12 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   // The output has one row per group, in no particular order.
   c->ResetLayout();
   for (ColumnId key : keys_) {
-    c->Define(key);
+    c->DeclareColumn(key);
   }
   for (const Aggregate& agg : aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
-  c->SetOrder({});
+  c->DeclareOrder({});
 }
 
 const OperationRegistration& AggregateStage::registration() const {
