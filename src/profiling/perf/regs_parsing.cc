@@ -21,23 +21,11 @@
 #include <unistd.h>
 
 #include <cinttypes>
+#include <cstring>
 #include <memory>
 
-#include <unwindstack/Elf.h>
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineRiscv64.h>
-#include <unwindstack/Regs.h>
-#include <unwindstack/RegsArm.h>
-#include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsRiscv64.h>
-#include <unwindstack/RegsX86.h>
-#include <unwindstack/RegsX86_64.h>
-#include <unwindstack/UserArm.h>
-#include <unwindstack/UserArm64.h>
-#include <unwindstack/UserRiscv64.h>
-#include <unwindstack/UserX86.h>
-#include <unwindstack/UserX86_64.h>
+#include "perfetto/base/logging.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 // kernel uapi headers
 #include <uapi/asm-arm/asm/perf_regs.h>
@@ -75,41 +63,42 @@ const char* ReadValue(T* value_out, const char* ptr) {
 // them will be used during unwinding.
 // TODO(rsavitski): cleanly detect 32 bit traced_perf builds being side-loaded
 // onto a system with 64 bit userspace processes.
-uint64_t PerfUserRegsMask(unwindstack::ArchEnum arch) {
-  switch (static_cast<uint8_t>(arch)) {  // cast to please -Wswitch-enum
-    case unwindstack::ARCH_ARM64:
+uint64_t PerfUserRegsMask(CpuArch arch) {
+  switch (arch) {
+    case CpuArch::ARM64:
       return (1ULL << PERF_REG_ARM64_MAX) - 1;
-    case unwindstack::ARCH_ARM:
+    case CpuArch::ARM:
       return (1ULL << PERF_REG_ARM_MAX) - 1;
     // perf on x86_64 doesn't allow sampling ds/es/fs/gs registers. See
     // arch/x86/kernel/perf_regs.c in the kernel.
-    case unwindstack::ARCH_X86_64:
+    case CpuArch::X86_64:
       return (((1ULL << PERF_REG_X86_64_MAX) - 1) & ~(1ULL << PERF_REG_X86_DS) &
               ~(1ULL << PERF_REG_X86_ES) & ~(1ULL << PERF_REG_X86_FS) &
               ~(1ULL << PERF_REG_X86_GS));
     // Note: excluding these segment registers might not be necessary on x86,
     // but they won't be used anyway (so follow x64).
-    case unwindstack::ARCH_X86:
+    case CpuArch::X86:
       return ((1ULL << PERF_REG_X86_32_MAX) - 1) & ~(1ULL << PERF_REG_X86_DS) &
              ~(1ULL << PERF_REG_X86_ES) & ~(1ULL << PERF_REG_X86_FS) &
              ~(1ULL << PERF_REG_X86_GS);
-    case unwindstack::ARCH_RISCV64:
+    case CpuArch::RISCV64:
       return (1ULL << PERF_REG_RISCV_MAX) - 1;
-    default:
-      PERFETTO_FATAL("Unsupported architecture");
+    case CpuArch::UNKNOWN:
+      break;
   }
+  PERFETTO_FATAL("Unsupported architecture");
 }
 
 // Adjusts the given architecture enum based on the ABI (as recorded in the perf
 // sample). Note: we do not support 64 bit samples on a 32 bit daemon build, so
 // this only converts from 64 bit to 32 bit architectures.
 // TODO(rsavitski): on riscv64, are 32 bit userspace processes possible?
-unwindstack::ArchEnum ArchForAbi(unwindstack::ArchEnum arch, uint64_t abi) {
-  if (arch == unwindstack::ARCH_ARM64 && abi == PERF_SAMPLE_REGS_ABI_32) {
-    return unwindstack::ARCH_ARM;
+CpuArch ArchForAbi(CpuArch arch, uint64_t abi) {
+  if (arch == CpuArch::ARM64 && abi == PERF_SAMPLE_REGS_ABI_32) {
+    return CpuArch::ARM;
   }
-  if (arch == unwindstack::ARCH_X86_64 && abi == PERF_SAMPLE_REGS_ABI_32) {
-    return unwindstack::ARCH_X86;
+  if (arch == CpuArch::X86_64 && abi == PERF_SAMPLE_REGS_ABI_32) {
+    return CpuArch::X86;
   }
   return arch;
 }
@@ -123,100 +112,94 @@ struct RawRegisterData {
   uint64_t regs[kMaxSize] = {};
 };
 
-// First converts the |RawRegisterData| array to libunwindstack's "user"
-// register structs (which match the ptrace/coredump format, also available at
-// <sys/user.h>), then constructs the relevant unwindstack::Regs subclass out
-// of the latter.
-std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
-    const RawRegisterData& raw_regs,
-    unwindstack::ArchEnum arch) {
-  if (arch == unwindstack::ARCH_ARM64) {
-    static_assert(static_cast<int>(unwindstack::ARM64_REG_R0) ==
-                          static_cast<int>(PERF_REG_ARM64_X0) &&
-                      static_cast<int>(unwindstack::ARM64_REG_R0) == 0,
-                  "register layout mismatch");
-    static_assert(static_cast<int>(unwindstack::ARM64_REG_PC) ==
-                      static_cast<int>(PERF_REG_ARM64_PC),
-                  "register layout mismatch");
-    // Both the perf_event register order and the "user" format are derived from
-    // "struct pt_regs", so we can directly memcpy all of the registers.
-    unwindstack::arm64_user_regs arm64_user_regs = {};
-    memcpy(&arm64_user_regs.regs[0], &raw_regs.regs[0],
+// Converts the kernel uapi |RawRegisterData| array to |CpuRegisters| (which
+// uses DWARF register ordering).
+CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
+  if (arch == CpuArch::ARM64) {
+    static_assert(
+        static_cast<int>(ARM64_REG_X0) == static_cast<int>(PERF_REG_ARM64_X0) &&
+            static_cast<int>(ARM64_REG_X0) == 0,
+        "register layout mismatch");
+    static_assert(
+        static_cast<int>(ARM64_REG_PC) == static_cast<int>(PERF_REG_ARM64_PC),
+        "register layout mismatch");
+    CpuRegisters cpu_regs(CpuArch::ARM64);
+    memcpy(cpu_regs.regs, raw_regs.regs,
            sizeof(uint64_t) * (PERF_REG_ARM64_PC + 1));
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsArm64::Read(&arm64_user_regs));
+    return cpu_regs;
   }
 
-  if (arch == unwindstack::ARCH_ARM) {
-    static_assert(static_cast<int>(unwindstack::ARM_REG_R0) ==
-                          static_cast<int>(PERF_REG_ARM_R0) &&
-                      static_cast<int>(unwindstack::ARM_REG_R0) == 0,
-                  "register layout mismatch");
-    static_assert(static_cast<int>(unwindstack::ARM_REG_LAST) ==
-                      static_cast<int>(PERF_REG_ARM_MAX),
-                  "register layout mismatch");
-    // As with arm64, the layouts match, but we need to downcast to u32.
-    unwindstack::arm_user_regs arm_user_regs = {};
-    for (size_t i = 0; i < unwindstack::ARM_REG_LAST; i++) {
-      arm_user_regs.regs[i] = static_cast<uint32_t>(raw_regs.regs[i]);
+  if (arch == CpuArch::ARM) {
+    static_assert(
+        static_cast<int>(ARM_REG_R0) == static_cast<int>(PERF_REG_ARM_R0) &&
+            static_cast<int>(ARM_REG_R0) == 0,
+        "register layout mismatch");
+    static_assert(
+        static_cast<int>(ARM_REG_MAX) == static_cast<int>(PERF_REG_ARM_MAX),
+        "register layout mismatch");
+    CpuRegisters cpu_regs(CpuArch::ARM);
+    for (size_t i = 0; i < ARM_REG_MAX; i++) {
+      cpu_regs.regs[i] = static_cast<uint32_t>(raw_regs.regs[i]);
     }
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsArm::Read(&arm_user_regs));
+    return cpu_regs;
   }
 
-  if (arch == unwindstack::ARCH_X86_64) {
-    // We've sampled more registers than what libunwindstack will use. Don't
-    // copy over cs/ss/flags.
-    unwindstack::x86_64_user_regs x86_64_user_regs = {};
-    x86_64_user_regs.rax = raw_regs.regs[PERF_REG_X86_AX];
-    x86_64_user_regs.rbx = raw_regs.regs[PERF_REG_X86_BX];
-    x86_64_user_regs.rcx = raw_regs.regs[PERF_REG_X86_CX];
-    x86_64_user_regs.rdx = raw_regs.regs[PERF_REG_X86_DX];
-    x86_64_user_regs.r8 = raw_regs.regs[PERF_REG_X86_R8];
-    x86_64_user_regs.r9 = raw_regs.regs[PERF_REG_X86_R9];
-    x86_64_user_regs.r10 = raw_regs.regs[PERF_REG_X86_R10];
-    x86_64_user_regs.r11 = raw_regs.regs[PERF_REG_X86_R11];
-    x86_64_user_regs.r12 = raw_regs.regs[PERF_REG_X86_R12];
-    x86_64_user_regs.r13 = raw_regs.regs[PERF_REG_X86_R13];
-    x86_64_user_regs.r14 = raw_regs.regs[PERF_REG_X86_R14];
-    x86_64_user_regs.r15 = raw_regs.regs[PERF_REG_X86_R15];
-    x86_64_user_regs.rdi = raw_regs.regs[PERF_REG_X86_DI];
-    x86_64_user_regs.rsi = raw_regs.regs[PERF_REG_X86_SI];
-    x86_64_user_regs.rbp = raw_regs.regs[PERF_REG_X86_BP];
-    x86_64_user_regs.rsp = raw_regs.regs[PERF_REG_X86_SP];
-    x86_64_user_regs.rip = raw_regs.regs[PERF_REG_X86_IP];
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsX86_64::Read(&x86_64_user_regs));
+  if (arch == CpuArch::X86_64) {
+    CpuRegisters cpu_regs(CpuArch::X86_64);
+    cpu_regs.regs[X86_64_REG_RAX] = raw_regs.regs[PERF_REG_X86_AX];
+    cpu_regs.regs[X86_64_REG_RBX] = raw_regs.regs[PERF_REG_X86_BX];
+    cpu_regs.regs[X86_64_REG_RCX] = raw_regs.regs[PERF_REG_X86_CX];
+    cpu_regs.regs[X86_64_REG_RDX] = raw_regs.regs[PERF_REG_X86_DX];
+    cpu_regs.regs[X86_64_REG_R8] = raw_regs.regs[PERF_REG_X86_R8];
+    cpu_regs.regs[X86_64_REG_R9] = raw_regs.regs[PERF_REG_X86_R9];
+    cpu_regs.regs[X86_64_REG_R10] = raw_regs.regs[PERF_REG_X86_R10];
+    cpu_regs.regs[X86_64_REG_R11] = raw_regs.regs[PERF_REG_X86_R11];
+    cpu_regs.regs[X86_64_REG_R12] = raw_regs.regs[PERF_REG_X86_R12];
+    cpu_regs.regs[X86_64_REG_R13] = raw_regs.regs[PERF_REG_X86_R13];
+    cpu_regs.regs[X86_64_REG_R14] = raw_regs.regs[PERF_REG_X86_R14];
+    cpu_regs.regs[X86_64_REG_R15] = raw_regs.regs[PERF_REG_X86_R15];
+    cpu_regs.regs[X86_64_REG_RDI] = raw_regs.regs[PERF_REG_X86_DI];
+    cpu_regs.regs[X86_64_REG_RSI] = raw_regs.regs[PERF_REG_X86_SI];
+    cpu_regs.regs[X86_64_REG_RBP] = raw_regs.regs[PERF_REG_X86_BP];
+    cpu_regs.regs[X86_64_REG_RSP] = raw_regs.regs[PERF_REG_X86_SP];
+    cpu_regs.regs[X86_64_REG_RIP] = raw_regs.regs[PERF_REG_X86_IP];
+    return cpu_regs;
   }
 
-  if (arch == unwindstack::ARCH_X86) {
-    // We've sampled more registers than what libunwindstack will use. Don't
-    // copy over cs/ss/flags.
-    unwindstack::x86_user_regs x86_user_regs = {};
-    x86_user_regs.eax = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_AX]);
-    x86_user_regs.ebx = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BX]);
-    x86_user_regs.ecx = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_CX]);
-    x86_user_regs.edx = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DX]);
-    x86_user_regs.ebp = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BP]);
-    x86_user_regs.edi = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DI]);
-    x86_user_regs.esi = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SI]);
-    x86_user_regs.esp = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SP]);
-    x86_user_regs.eip = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_IP]);
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsX86::Read(&x86_user_regs));
+  if (arch == CpuArch::X86) {
+    CpuRegisters cpu_regs(CpuArch::X86);
+    cpu_regs.regs[X86_REG_EAX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_AX]);
+    cpu_regs.regs[X86_REG_EBX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BX]);
+    cpu_regs.regs[X86_REG_ECX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_CX]);
+    cpu_regs.regs[X86_REG_EDX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DX]);
+    cpu_regs.regs[X86_REG_EBP] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BP]);
+    cpu_regs.regs[X86_REG_EDI] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DI]);
+    cpu_regs.regs[X86_REG_ESI] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SI]);
+    cpu_regs.regs[X86_REG_ESP] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SP]);
+    cpu_regs.regs[X86_REG_EIP] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_IP]);
+    return cpu_regs;
   }
 
-  if (arch == unwindstack::ARCH_RISCV64) {
-    static_assert(static_cast<int>(unwindstack::RISCV64_REG_PC) ==
+  if (arch == CpuArch::RISCV64) {
+    static_assert(static_cast<int>(RISCV64_REG_PC) ==
                           static_cast<int>(PERF_REG_RISCV_PC) &&
-                      static_cast<int>(unwindstack::RISCV64_REG_PC) == 0,
+                      static_cast<int>(RISCV64_REG_PC) == 0,
                   "register layout mismatch");
-    static_assert(static_cast<int>(unwindstack::RISCV64_REG_REAL_COUNT) ==
+    static_assert(static_cast<int>(RISCV64_REG_VLENB) ==
                       static_cast<int>(PERF_REG_RISCV_MAX),
                   "register layout mismatch");
-    // Register layout matches, pass the raw data to the Read call.
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsRiscv64::Read(&raw_regs.regs[0]));
+    CpuRegisters cpu_regs(CpuArch::RISCV64);
+    memcpy(cpu_regs.regs, raw_regs.regs, sizeof(uint64_t) * PERF_REG_RISCV_MAX);
+    return cpu_regs;
   }
 
   PERFETTO_FATAL("Unsupported architecture");
@@ -224,14 +207,14 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
 
 }  // namespace
 
-uint64_t PerfUserRegsMaskForArch(unwindstack::ArchEnum arch) {
+uint64_t PerfUserRegsMaskForArch(CpuArch arch) {
   return PerfUserRegsMask(arch);
 }
 
 // Assumes that the sampling was configured with
-// |PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch())|.
-std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
-  unwindstack::ArchEnum requested_arch = unwindstack::Regs::CurrentArch();
+// |PerfUserRegsMaskForArch(CurrentCpuArch())|.
+std::optional<CpuRegisters> ReadPerfUserRegsData(const char** data) {
+  CpuArch requested_arch = CurrentCpuArch();
 
   // Layout, assuming a sparse bitmask requesting r1 and r15:
   // userspace thread: [u64 abi] [u64 r1] [u64 r15]
@@ -244,7 +227,7 @@ std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
   // which doesn't have userspace registers.
   if (sampled_abi == PERF_SAMPLE_REGS_ABI_NONE) {
     *data = parse_pos;  // adjust caller's parsing position
-    return nullptr;
+    return std::nullopt;
   }
 
   // Unpack the densely-packed register values into |RawRegisterData|, which has
@@ -267,15 +250,15 @@ std::unique_ptr<unwindstack::Regs> ReadPerfUserRegsData(const char** data) {
   // arm32 register bank. See "Fundamentals of ARMv8-A" (ARM DOC
   // 100878_0100_en), page 28.
   // x86-64 doesn't need any such fixups.
-  if (requested_arch == unwindstack::ARCH_ARM64 &&
+  if (requested_arch == CpuArch::ARM64 &&
       sampled_abi == PERF_SAMPLE_REGS_ABI_32) {
     raw_regs.regs[PERF_REG_ARM_PC] = raw_regs.regs[PERF_REG_ARM64_PC];
   }
 
   *data = parse_pos;  // adjust caller's parsing position
 
-  unwindstack::ArchEnum sampled_arch = ArchForAbi(requested_arch, sampled_abi);
-  return ToLibUnwindstackRegs(raw_regs, sampled_arch);
+  CpuArch sampled_arch = ArchForAbi(requested_arch, sampled_abi);
+  return PerfRegsToCpuRegs(raw_regs, sampled_arch);
 }
 
 }  // namespace profiling

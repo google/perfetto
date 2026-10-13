@@ -27,9 +27,6 @@
 #include <cinttypes>
 #include <new>
 
-#include <unwindstack/Regs.h>
-#include <unwindstack/RegsGetLocal.h>
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -44,6 +41,9 @@
 #include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/unwind/cpu_registers.h"
+// TODO(safayat): get local regs?
+#include "src/profiling/unwind/get_asm_regs.h"
 
 namespace perfetto {
 namespace profiling {
@@ -345,36 +345,36 @@ bool Client::IsPostFork() {
   return false;
 }
 
-ssize_t Client::GetStackRegister(unwindstack::ArchEnum arch) {
+ssize_t Client::GetStackRegister(CpuArch arch) {
   ssize_t reg_sp, reg_size;
   switch (arch) {
-    case unwindstack::ARCH_X86:
-      reg_sp = unwindstack::X86_REG_SP;
+    case CpuArch::X86:
+      reg_sp = X86_REG_ESP;
       reg_size = sizeof(uint32_t);
       break;
-    case unwindstack::ARCH_X86_64:
-      reg_sp = unwindstack::X86_64_REG_SP;
+    case CpuArch::X86_64:
+      reg_sp = X86_64_REG_RSP;
       reg_size = sizeof(uint64_t);
       break;
-    case unwindstack::ARCH_ARM:
-      reg_sp = unwindstack::ARM_REG_SP;
+    case CpuArch::ARM:
+      reg_sp = ARM_REG_SP;
       reg_size = sizeof(uint32_t);
       break;
-    case unwindstack::ARCH_ARM64:
-      reg_sp = unwindstack::ARM64_REG_SP;
+    case CpuArch::ARM64:
+      reg_sp = ARM64_REG_SP;
       reg_size = sizeof(uint64_t);
       break;
-    case unwindstack::ARCH_RISCV64:
-      reg_sp = unwindstack::RISCV64_REG_SP;
+    case CpuArch::RISCV64:
+      reg_sp = RISCV64_REG_SP;
       reg_size = sizeof(uint64_t);
       break;
-    case unwindstack::ARCH_UNKNOWN:
+    case CpuArch::UNKNOWN:
       return -1;
   }
   return reg_sp * reg_size;
 }
 
-uintptr_t Client::GetStackAddress(char* reg_data, unwindstack::ArchEnum arch) {
+uintptr_t Client::GetStackAddress(char* reg_data, CpuArch arch) {
   ssize_t reg = GetStackRegister(arch);
   if (reg < 0)
     return reinterpret_cast<uintptr_t>(nullptr);
@@ -402,7 +402,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
   }
 
   AllocMetadata metadata = {};
-  unwindstack::AsmGetRegs(metadata.register_data);
+  GetAsmRegs(metadata.register_data);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
   // On ARM64, the prologue allocates the callee-saved register block first and
@@ -414,8 +414,8 @@ bool Client::RecordMalloc(uint32_t heap_id,
   // On other architectures (such as x86_64 and RISC-V), callee-saved registers
   // are pushed below the frame pointer (or calling conventions differ). We must
   // copy from the sampled stack pointer (SP) to include all saved registers.
-  const char* stackptr = reinterpret_cast<char*>(GetStackAddress(
-      metadata.register_data, unwindstack::Regs::CurrentArch()));
+  const char* stackptr = reinterpret_cast<char*>(
+      GetStackAddress(metadata.register_data, CurrentCpuArch()));
   if (!stackptr) {
     PERFETTO_ELOG("Failed to get stack address.");
     shmem_.SetErrorState(SharedRingBuffer::kInvalidStackBounds);
@@ -433,7 +433,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
   metadata.alloc_size = alloc_size;
   metadata.alloc_address = alloc_address;
   metadata.stack_pointer = reinterpret_cast<uint64_t>(stackptr);
-  metadata.arch = unwindstack::Regs::CurrentArch();
+  metadata.arch = CurrentCpuArch();
   metadata.sequence_number =
       1 + sequence_number_[heap_id].fetch_add(1, std::memory_order_acq_rel);
   metadata.heap_id = heap_id;

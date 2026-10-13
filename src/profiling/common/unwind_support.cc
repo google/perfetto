@@ -19,13 +19,95 @@
 #include <cinttypes>
 
 #include <procinfo/process_map.h>
+#include <unwindstack/MachineArm.h>
+#include <unwindstack/MachineArm64.h>
+#include <unwindstack/MachineRiscv64.h>
+#include <unwindstack/MachineX86.h>
+#include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
+#include <unwindstack/RegsArm.h>
+#include <unwindstack/RegsArm64.h>
+#include <unwindstack/RegsRiscv64.h>
+#include <unwindstack/RegsX86.h>
+#include <unwindstack/RegsX86_64.h>
 
 #include "perfetto/ext/base/file_utils.h"
 
 namespace perfetto {
 namespace profiling {
+
+static_assert(static_cast<uint8_t>(CpuArch::UNKNOWN) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_UNKNOWN) &&
+                  static_cast<uint8_t>(CpuArch::ARM) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_ARM) &&
+                  static_cast<uint8_t>(CpuArch::ARM64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_ARM64) &&
+                  static_cast<uint8_t>(CpuArch::X86) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_X86) &&
+                  static_cast<uint8_t>(CpuArch::X86_64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_X86_64) &&
+                  static_cast<uint8_t>(CpuArch::RISCV64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_RISCV64),
+              "CpuArch and unwindstack::ArchEnum must match");
+
+std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
+    const CpuRegisters& cpu_regs) {
+  switch (cpu_regs.arch) {
+    case CpuArch::ARM64: {
+      static_assert(static_cast<int>(ARM64_REG_MAX) ==
+                        static_cast<int>(unwindstack::ARM64_REG_LAST),
+                    "arm64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsArm64>();
+      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * ARM64_REG_MAX);
+      return regs;
+    }
+    case CpuArch::ARM: {
+      static_assert(static_cast<int>(ARM_REG_MAX) ==
+                        static_cast<int>(unwindstack::ARM_REG_LAST),
+                    "arm register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsArm>();
+      for (size_t i = 0; i < ARM_REG_MAX; ++i) {
+        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
+      }
+      return regs;
+    }
+    case CpuArch::X86_64: {
+      static_assert(static_cast<int>(X86_64_REG_MAX) ==
+                        static_cast<int>(unwindstack::X86_64_REG_LAST),
+                    "x86_64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsX86_64>();
+      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * X86_64_REG_MAX);
+      return regs;
+    }
+    case CpuArch::X86: {
+      static_assert(static_cast<int>(X86_REG_MAX) ==
+                        static_cast<int>(unwindstack::X86_REG_LAST),
+                    "x86 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsX86>();
+      for (size_t i = 0; i < X86_REG_MAX; ++i) {
+        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
+      }
+      return regs;
+    }
+    case CpuArch::RISCV64: {
+      static_assert(static_cast<int>(RISCV64_REG_MAX) ==
+                        static_cast<int>(unwindstack::RISCV64_REG_COUNT),
+                    "riscv64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsRiscv64>();
+      memcpy(regs->RawData(), cpu_regs.regs,
+             sizeof(uint64_t) * RISCV64_REG_MAX);
+      if ((*regs)[unwindstack::RISCV64_REG_VLENB] == 0) {
+        (*regs)[unwindstack::RISCV64_REG_VLENB] =
+            unwindstack::RegsRiscv64::GetVlenbFromLocal();
+      }
+      return regs;
+    }
+    case CpuArch::UNKNOWN:
+      return nullptr;
+  }
+  return nullptr;
+}
 
 StackOverlayMemory::StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
                                        uint64_t sp,
