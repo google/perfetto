@@ -47,19 +47,36 @@ export class TrackDimensionsSection implements TrackEventDetailsPanelSection {
     }
     // Resolve the dimensions of the track the selected event lives on. The
     // track comes from the event itself rather than from the UI track, because
-    // one UI track can multiplex several trace processor tracks. Well known
-    // dimensions have no display name in trace processor: their names are
-    // looked up from the corresponding tables.
+    // one UI track can multiplex several trace processor tracks. The values of
+    // well known dimensions are trace processor ids (ucpu, ugpu, upid, utid,
+    // machine id): show the numbers users know instead (CPU and GPU numbers,
+    // pids, tids, machine label indexes), with names from the corresponding
+    // tables as display names.
     const res = await this.trace.engine.query(`
       SELECT DISTINCT
         d.name,
-        d.int_value,
+        CASE
+          WHEN NOT d.is_well_known THEN d.int_value
+          WHEN d.name = 'cpu' THEN (SELECT cpu FROM cpu WHERE id = d.int_value)
+          WHEN d.name = 'gpu' THEN (SELECT gpu FROM gpu WHERE id = d.int_value)
+          WHEN d.name = 'process'
+            THEN (SELECT pid FROM process WHERE upid = d.int_value)
+          WHEN d.name = 'thread'
+            THEN (SELECT tid FROM thread WHERE utid = d.int_value)
+          WHEN d.name = 'machine'
+            THEN (SELECT label_index FROM machine WHERE id = d.int_value)
+        END AS int_value,
         d.string_value,
-        coalesce(d.display_name, CASE d.name
-          WHEN 'process' THEN (SELECT name FROM process WHERE upid = d.int_value)
-          WHEN 'thread' THEN (SELECT name FROM thread WHERE utid = d.int_value)
-          WHEN 'machine' THEN (SELECT name FROM machine WHERE id = d.int_value)
-        END) AS display_name,
+        CASE
+          WHEN NOT d.is_well_known THEN d.display_name
+          WHEN d.name = 'gpu' THEN (SELECT name FROM gpu WHERE id = d.int_value)
+          WHEN d.name = 'process'
+            THEN (SELECT name FROM process WHERE upid = d.int_value)
+          WHEN d.name = 'thread'
+            THEN (SELECT name FROM thread WHERE utid = d.int_value)
+          WHEN d.name = 'machine'
+            THEN (SELECT name FROM machine WHERE id = d.int_value)
+        END AS display_name,
         d.is_well_known
       FROM track_dimension AS d
       WHERE d.track_id = (
