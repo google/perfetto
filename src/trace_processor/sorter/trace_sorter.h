@@ -295,8 +295,9 @@ class TraceSorter {
   };
   std::vector<QueueHeapEntry> queue_heap_;
 
-  // Events pushed so far, to notice pushes made while extracting.
-  uint64_t push_count_ = 0;
+  // Whether events are being extracted: the heap of queues assumes none are
+  // pushed meanwhile.
+  bool extracting_ = false;
 
   // Whether we should ignore incremental extraction and just wait for
   // forced extractionn at the end of the trace.
@@ -391,8 +392,8 @@ class TraceSorter::Stream {
       sorter_->use_slow_sorting_ =
           sorter_->use_slow_sorting_ || data.phase == 'X';
     }
+    PERFETTO_DCHECK(!sorter_->extracting_);
     TraceTokenBuffer::Id id = sorter_->token_buffer_.Append(std::move(data));
-    sorter_->push_count_++;
     Queue& queue = sorter_->queues_[queue_idx_];
     queue.Append(ts, id, std::is_same_v<T, JsonEvent>,
                  sorter_->use_slow_sorting_);

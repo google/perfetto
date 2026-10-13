@@ -99,25 +99,34 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
   // `sort_end` are already in order, so sorting stably on the timestamp alone
   // also orders ties by allocation id.
   auto first = static_cast<size_t>(sort_begin - events_.begin());
-  std::vector<TimestampedEvent> events(events_.size() - first);
-  std::vector<TimestampedEvent> scratch(events.size());
-  // Calls `fn` on the parts of the queue holding them, which may wrap around.
-  auto for_each_part = [this, first, &events](auto fn) {
-    for (size_t at = 0; at < events.size();) {
+  size_t size = events_.size() - first;
+  std::vector<TimestampedEvent> scratch(size);
+  // The events are sorted in the queue's memory when contiguous there, as
+  // they are unless the queue has wrapped around, and in a copy otherwise.
+  size_t contiguous;
+  TimestampedEvent* begin = events_.contiguous_at(first, &contiguous);
+  std::vector<TimestampedEvent> copy;
+  // Calls `fn` on the parts of the queue holding the events.
+  auto for_each_part = [this, first, size](auto fn) {
+    for (size_t at = 0; at < size;) {
       size_t count;
       TimestampedEvent* part = events_.contiguous_at(first + at, &count);
       fn(part, at, count * sizeof(TimestampedEvent));
       at += count;
     }
   };
-  for_each_part([&events](TimestampedEvent* part, size_t at, size_t bytes) {
-    memcpy(events.data() + at, part, bytes);
-  });
+  if (contiguous < size) {
+    copy.resize(size);
+    begin = copy.data();
+    for_each_part([begin](TimestampedEvent* part, size_t at, size_t bytes) {
+      memcpy(begin + at, part, bytes);
+    });
+  }
   int64_t min_ts = sort_min_ts_;
   auto key_bits = static_cast<uint32_t>(
       64 - base::CountLeadZeros64(static_cast<uint64_t>(max_ts_ - min_ts)));
   TimestampedEvent* sorted = core::StableSortByKey(
-      events.data(), events.data() + events.size(), scratch.data(), key_bits,
+      begin, begin + size, scratch.data(), key_bits,
       [min_ts](const TimestampedEvent& e) {
         return static_cast<uint64_t>(e.ts - min_ts);
       },
@@ -125,7 +134,7 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
   if (use_slow_sorting) {
     // Slow sorting also orders events with the same timestamp by their type.
     TimestampedEvent::SlowOperatorLess less{buffer};
-    TimestampedEvent* end = sorted + events.size();
+    TimestampedEvent* end = sorted + size;
     for (TimestampedEvent* it = sorted; it != end;) {
       int64_t ts = it->ts;
       TimestampedEvent* run_end = std::find_if(
@@ -136,9 +145,13 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
       it = run_end;
     }
   }
-  for_each_part([sorted](TimestampedEvent* part, size_t at, size_t bytes) {
-    memcpy(part, sorted + at, bytes);
-  });
+  if (contiguous < size) {
+    for_each_part([sorted](TimestampedEvent* part, size_t at, size_t bytes) {
+      memcpy(part, sorted + at, bytes);
+    });
+  } else if (sorted != begin) {
+    memcpy(begin, sorted, size * sizeof(TimestampedEvent));
+  }
   sort_start_idx_ = 0;
   sort_min_ts_ = 0;
 
@@ -177,17 +190,14 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     return a.min_ts != b.min_ts ? a.min_ts > b.min_ts : a.queue > b.queue;
   };
   std::vector<QueueHeapEntry>& heap = queue_heap_;
-  auto rebuild_heap = [&] {
-    heap.clear();
-    for (uint32_t i = 0; i < queues_.size(); ++i) {
-      if (!queues_[i].events_.empty()) {
-        PERFETTO_DCHECK(queues_[i].max_ts_ <= append_max_ts_);
-        heap.push_back({queues_[i].min_ts_, i});
-      }
+  heap.clear();
+  for (uint32_t i = 0; i < queues_.size(); ++i) {
+    if (!queues_[i].events_.empty()) {
+      PERFETTO_DCHECK(queues_[i].max_ts_ <= append_max_ts_);
+      heap.push_back({queues_[i].min_ts_, i});
     }
-    std::make_heap(heap.begin(), heap.end(), later);
-  };
-  rebuild_heap();
+  }
+  std::make_heap(heap.begin(), heap.end(), later);
   while (!heap.empty()) {
     uint32_t min_queue_idx = heap[0].queue;
     // The earliest event of any other queue.
@@ -206,8 +216,8 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     // Extract events from the min-queue until hitting either: (1) the
     // earliest event of another queue or (2) the alloc id limit, whichever
     // comes first.
-    uint64_t pushes = push_count_;
     size_t num_extracted = 0;
+    extracting_ = true;
     for (auto& event : events) {
       if (event.alloc_id() >= limit_alloc_id) {
         break;
@@ -239,6 +249,7 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
 
       queue.sink->OnSortedEvent(this, event.ts, GetTokenBufferId(event));
     }  // for (event: events)
+    extracting_ = false;
 
     // The earliest event cannot be extracted without going past the limit.
     if (!num_extracted) {
@@ -262,12 +273,6 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       queue.min_ts_ = queue.events_.front().ts;
     }
 
-    // Parsing pushed events, which may have moved the earliest event of any
-    // queue: start over.
-    if (PERFETTO_UNLIKELY(push_count_ != pushes)) {
-      rebuild_heap();
-      continue;
-    }
     // The queue's earliest event only moved later, so it moves down from the
     // top; an empty queue is replaced there by the last.
     if (events.empty()) {
