@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 
 namespace perfetto {
@@ -201,8 +202,9 @@ class ProducerRingBufferArbiter {
   using AllocateSharedMemoryFn =
       base::StatusOr<std::shared_ptr<SharedMemory>> (*)(size_t size);
 
-  // Sizes and allocates a ring buffer with chunks of kMinChunkSize bytes, then
-  // creates its arbiter in kPending.
+  // Sizes and allocates a ring buffer from |config|, then creates its arbiter
+  // in kPending.
+  // - The chunk size and the drain occupancy threshold come from |config|.
   // - |task_runner| and |endpoint| must outlive the arbiter.
   // - |allocate_shared_memory| must return a mapping of the size it is given.
   // - Returns an error status if sizing or allocation fails.
@@ -211,6 +213,7 @@ class ProducerRingBufferArbiter {
   static base::StatusOr<std::unique_ptr<ProducerRingBufferArbiter>> Create(
       base::TaskRunner* task_runner,
       ProducerEndpoint* endpoint,
+      const DataSourceConfig& config,
       size_t shmem_size_hint_bytes,
       AllocateSharedMemoryFn allocate_shared_memory);
 
@@ -264,6 +267,10 @@ class ProducerRingBufferArbiter {
   // The view that writers borrow. Fixed for the life of this object.
   SharedRingBuffer* ring_buffer() { return &ring_buffer_; }
 
+  uint32_t drain_occupancy_threshold() const {
+    return drain_occupancy_threshold_;
+  }
+
   // Drain requests, from writers on their own thread:
 
   // Asks the service to read the ring buffer. See DrainUrgency.
@@ -286,9 +293,13 @@ class ProducerRingBufferArbiter {
 
   // Only Create() calls this.
   // |memory| must be non-null and satisfy NumChunksForRingBufferLayout().
+  // |drain_occupancy_threshold| is the number of outstanding positions at
+  // which a publication requests a drain, from 1 to the ring's chunk count.
   ProducerRingBufferArbiter(base::TaskRunner* task_runner,
                             ProducerEndpoint* endpoint,
-                            std::shared_ptr<SharedMemory> memory);
+                            std::shared_ptr<SharedMemory> memory,
+                            uint32_t chunk_size,
+                            uint32_t drain_occupancy_threshold);
 
   // Runs on the endpoint thread. CHECKs that the transition is valid.
   void SetReaderState(ReaderState);
@@ -321,6 +332,12 @@ class ProducerRingBufferArbiter {
   const std::shared_ptr<SharedMemory> memory_;
   // The view that writers borrow.
   SharedRingBuffer ring_buffer_;
+  // A publication asks for a drain when the ring buffer has at least this many
+  // outstanding positions.
+  // - The count covers the positions of all writers.
+  // - It includes reservations whose chunks are not published yet.
+  // - Fixed at construction and shared by all writers.
+  const uint32_t drain_occupancy_threshold_;
 
   // --- Shared with writer threads. ---
 

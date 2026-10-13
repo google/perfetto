@@ -75,11 +75,12 @@ SharedMemory* ProxyProducerEndpoint::shared_memory() const {
   }
   return backend_->shared_memory();
 }
-void ProxyProducerEndpoint::InitializeV2RingBuffer() {
+void ProxyProducerEndpoint::InitializeV2RingBuffer(
+    const DataSourceConfig& config) {
   if (!backend_) {
     return;
   }
-  backend_->InitializeV2RingBuffer();
+  backend_->InitializeV2RingBuffer(config);
 }
 void ProxyProducerEndpoint::AttachV2RingBuffer(
     const std::shared_ptr<SharedMemory>& memory,

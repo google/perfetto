@@ -571,7 +571,8 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
   producer_port_->CommitData(req, std::move(async_response));
 }
 
-void ProducerIPCClientImpl::InitializeV2RingBuffer() {
+void ProducerIPCClientImpl::InitializeV2RingBuffer(
+    const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // V2 IPC requires a sealed memfd.
   // TODO(sashwinbalaji): Decide how tracing v2 shares the ring buffer over IPC
@@ -583,7 +584,7 @@ void ProducerIPCClientImpl::InitializeV2RingBuffer() {
   }
 
   auto arbiter_or = tracing_v2::ProducerRingBufferArbiter::Create(
-      task_runner_, this, shared_memory_size_hint_bytes_,
+      task_runner_, this, config, shared_memory_size_hint_bytes_,
       [](size_t size) -> base::StatusOr<std::shared_ptr<SharedMemory>> {
         ASSIGN_OR_RETURN(auto memory, PosixSharedMemory::Create(size));
         return std::shared_ptr<SharedMemory>(std::move(memory));
@@ -598,11 +599,13 @@ void ProducerIPCClientImpl::InitializeV2RingBuffer() {
 
   auto* arbiter = v2_ring_buffer_arbiter_->get();
   AttachV2RingBuffer(
-      arbiter->memory(), tracing_v2::kMinChunkSize,
+      arbiter->memory(), arbiter->ring_buffer()->chunk_size(),
       [weak_arbiter = arbiter->GetWeakPtr()](bool reader_attached) {
         if (weak_arbiter)
           weak_arbiter->OnReaderAttachReply(reader_attached);
       });
+#else
+  base::ignore_result(config);
 #endif  // PERFETTO_MEMFD_ENABLED()
 }
 

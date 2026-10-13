@@ -28,6 +28,7 @@
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/tracing/core/in_process_shared_memory.h"
@@ -783,7 +784,8 @@ bool ProducerEndpointImpl::IsAndroidProcessFrozen() {
   return false;
 }
 
-void ProducerEndpointImpl::InitializeV2RingBuffer() {
+void ProducerEndpointImpl::InitializeV2RingBuffer(
+    const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (v2_ring_buffer_arbiter_.has_value() || !in_process_ ||
       !(protocol_abi_versions_ & kProtocolAbiV2)) {
@@ -791,7 +793,7 @@ void ProducerEndpointImpl::InitializeV2RingBuffer() {
   }
 
   auto arbiter_or = tracing_v2::ProducerRingBufferArbiter::Create(
-      weak_runner_.task_runner(), this, shmem_size_hint_bytes_,
+      weak_runner_.task_runner(), this, config, shmem_size_hint_bytes_,
       [](size_t size) -> base::StatusOr<std::shared_ptr<SharedMemory>> {
         return std::shared_ptr<SharedMemory>(
             InProcessSharedMemory::Create(size));
@@ -806,7 +808,7 @@ void ProducerEndpointImpl::InitializeV2RingBuffer() {
 
   auto* arbiter = v2_ring_buffer_arbiter_->get();
   AttachV2RingBuffer(
-      arbiter->memory(), tracing_v2::kMinChunkSize,
+      arbiter->memory(), arbiter->ring_buffer()->chunk_size(),
       [weak_arbiter = arbiter->GetWeakPtr()](bool reader_attached) {
         if (weak_arbiter)
           weak_arbiter->OnReaderAttachReply(reader_attached);
