@@ -110,6 +110,7 @@ export class HistoryStore {
   private lastRefreshSignal = -1;
   private debounceTimer?: number;
   private hasEverLoaded = false;
+  private loadSeq = 0;
 
   requestRefresh(refreshSignal: number): void {
     if (refreshSignal === this.lastRefreshSignal) return;
@@ -135,21 +136,31 @@ export class HistoryStore {
     this.load();
   }
 
+  remove(uuid: string): void {
+    this.history = this.history.filter((entry) => entry.uuid !== uuid);
+    m.redraw();
+  }
+
   private async load(): Promise<void> {
+    const seq = ++this.loadSeq;
     this.hasEverLoaded = true;
     this.isLoading = true;
     this.error = null;
     m.redraw();
     try {
       const list = await queryHistoryStorage.getAllHistory();
+      if (seq !== this.loadSeq) return;
       this.history = list.map((entry) =>
         queryStore.getOrCreate(entry.uuid, entry),
       );
     } catch (e) {
+      if (seq !== this.loadSeq) return;
       this.error = e instanceof Error ? e.message : String(e);
     } finally {
-      this.isLoading = false;
-      m.redraw();
+      if (seq === this.loadSeq) {
+        this.isLoading = false;
+        m.redraw();
+      }
     }
   }
 }

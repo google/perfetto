@@ -185,9 +185,7 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
             defaultOpen: this.allExpanded,
             summary: `${group.label} (${group.entries.length})`,
           },
-          group.entries.map((entry, index) =>
-            renderHistoryItem(entry, index, openQuery),
-          ),
+          group.entries.map((entry) => renderHistoryItem(entry, openQuery)),
         ),
       ),
     );

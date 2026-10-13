@@ -280,7 +280,6 @@
 }
 
 .pf-bt-status-bar--running {
-  .pf-bt-status-bar-stat--traces,
   .pf-bt-status-bar-stat-label,
   .pf-bt-status-bar-stat-value {
     display: none;
@@ -342,6 +341,66 @@
   background-color: var(--pf-color-accent);
   transition: width 0.3s ease-out;
   will-change: width;
+
+  &--indeterminate {
+    width: 40%;
+    animation: pf-bt-indeterminate-progress 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes pf-bt-indeterminate-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.pf-bt-subquery-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--pf-color-background-secondary);
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+  flex: 0 0 auto;
+}
+
+.pf-bt-subquery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: 4px;
+  padding: 1px 2px;
+
+  &--active {
+    border-color: var(--pf-color-primary);
+    background: var(--pf-color-background-raised);
+  }
+
+  &__num {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    padding: 0 4px 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.pf-bt-subquery-rename-input {
+  border: none;
+  border-bottom: 1px solid var(--pf-color-primary);
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--pf-font-size-s);
+  color: inherit;
+  padding: 1px 4px;
+  min-width: 72px;
+  max-width: 160px;
 }
 
 // ---------- Query history ----------
@@ -438,10 +497,11 @@
 
 .pf-query-history__item-buttons {
   position: absolute;
-  top: 4px;
+  top: 2px;
   right: 4px;
   float: none;
   z-index: 1;
+  align-items: center;
 }
 
 // Status-colored left bar, meta card only (clashes with the pre's border).
@@ -473,12 +533,12 @@
   border-left-color: var(--pf-color-text-muted);
 }
 
-// padding-right reserves space for the abs-positioned Open/Delete buttons.
+// padding-right reserves space for the abs-positioned DuckDB/Open/Delete buttons.
 .pf-bt-history-item-meta {
   position: relative;
   background: var(--pf-color-background-tertiary);
   padding: 6px 8px;
-  padding-right: 56px;
+  padding-right: 76px;
   // Top + right only; the border-left status rule owns the left edge
   // (shorthand would shrink it to 1px).
   border-top: 1px solid var(--pf-color-border-secondary);
@@ -517,7 +577,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
   width: 100%;
 
   > span {

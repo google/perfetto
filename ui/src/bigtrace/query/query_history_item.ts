@@ -33,7 +33,8 @@ import {
   formatCompactTime,
 } from './history_store';
 
-// Reopens an existing history entry.
+// Reopens an existing history entry (uuid set) or, with an empty uuid and
+// queryEngine 'duckdb', stages a DuckDB query over a table without running it.
 export type OpenQueryFn = (
   query: string,
   uuid: string,
@@ -41,6 +42,7 @@ export type OpenQueryFn = (
   forceNew?: boolean,
   limit?: number,
   startTime?: number,
+  queryEngine?: 'traces' | 'duckdb',
 ) => void;
 
 // SQL block clamped to ~4 lines with a fade-out mask; click to expand.
@@ -118,7 +120,6 @@ function makeFullSqlExpander(
 
 export function renderHistoryItem(
   entry: QueryExecution,
-  index: number,
   openQuery?: OpenQueryFn,
 ): m.Children {
   // One mixed list, so the kind comes from the entry itself.
@@ -140,7 +141,29 @@ export function renderHistoryItem(
 
   const openThis = () => {
     if (openQuery && uuid) {
-      openQuery(queryText, uuid, isMaterialized, false, entry.limit, startTime);
+      openQuery(
+        queryText,
+        uuid,
+        isMaterialized,
+        false,
+        entry.limit,
+        startTime,
+        entry.queryEngine,
+      );
+    }
+  };
+
+  const queryInDuckdb = () => {
+    if (openQuery && entry.tableName) {
+      openQuery(
+        `SELECT *\nFROM ${entry.tableName};\n`,
+        '',
+        true,
+        false,
+        undefined,
+        undefined,
+        'duckdb',
+      );
     }
   };
 
@@ -149,11 +172,23 @@ export function renderHistoryItem(
     {
       className: 'pf-query-history__item-buttons',
       orientation: 'horizontal',
+      spacing: 'none',
     },
     [
+      ...(Boolean(entry.tableName) && rows > 0
+        ? [
+            m(Button, {
+              onclick: queryInDuckdb,
+              icon: 'database',
+              compact: true,
+              title: `Query ${entry.tableName} in DuckDB`,
+            }),
+          ]
+        : []),
       m(Button, {
         onclick: openThis,
         icon: Icons.ChangeTab,
+        compact: true,
         title: 'Open',
       }),
 
@@ -189,10 +224,12 @@ export function renderHistoryItem(
             ],
           });
           if (!confirmed) return;
+          historyStore.remove(uuid);
           await queryHistoryStorage.deleteQuery(uuid);
           historyStore.refreshNow();
         },
         icon: Icons.Delete,
+        compact: true,
         // Red hover so destructive intent reads before click.
         intent: Intent.Danger,
         title: 'Delete query',
@@ -200,9 +237,12 @@ export function renderHistoryItem(
     ],
   );
 
+  const hasLocalDuckdbTable =
+    Boolean(entry.tableName) && rows > 0 && (link === undefined || link === '');
+
   return m(
     '.pf-query-history__item',
-    {key: `${uuid}-${index}`},
+    {key: uuid},
     m(
       '.pf-bt-history-item-meta',
       {
@@ -227,11 +267,18 @@ export function renderHistoryItem(
           m(
             'span.pf-bt-history-item-kind',
             {
-              title: isMaterialized
-                ? 'Results saved to a backend table — reopen to browse them.'
-                : 'Results were shown inline at run time and not saved.',
+              title:
+                entry.queryEngine === 'duckdb'
+                  ? 'Executed in DuckDB over materialized tables.'
+                  : isMaterialized
+                    ? 'Results saved to a backend table — reopen to browse or query in DuckDB.'
+                    : 'Results were shown inline at run time.',
             },
-            isMaterialized ? 'Persistent' : 'Ephemeral',
+            entry.queryEngine === 'duckdb'
+              ? 'DuckDB'
+              : isMaterialized
+                ? 'Persistent'
+                : 'Ephemeral',
           ),
           m(
             'span.pf-bt-history-item-date',
@@ -241,8 +288,8 @@ export function renderHistoryItem(
         ]),
       ],
     ),
-    // Materialized only: a banded strip between the header and the SQL pre.
-    isMaterialized &&
+    // Materialized or local DuckDB table: a banded strip between the header and the SQL pre.
+    (isMaterialized || Boolean(entry.tableName)) &&
       m(
         'div.pf-bt-history-item-details',
         {
@@ -253,15 +300,24 @@ export function renderHistoryItem(
           'a.pf-bt-history-item-table-link',
           {
             class:
-              rows === 0 || link === undefined || link === ''
+              rows === 0 ||
+              ((link === undefined || link === '') && !hasLocalDuckdbTable)
                 ? 'pf-bt-history-item-table-link--disabled'
                 : 'pf-bt-history-item-table-link--active',
             href: link || '#',
-            target: '_blank',
+            target: link ? '_blank' : undefined,
+            onclick: hasLocalDuckdbTable
+              ? (e: MouseEvent) => {
+                  e.preventDefault();
+                  queryInDuckdb();
+                }
+              : undefined,
             title:
               rows === 0
                 ? 'No table created for empty results'
-                : entry.tableName || 'View Table',
+                : hasLocalDuckdbTable
+                  ? `Click to query ${entry.tableName} in DuckDB`
+                  : entry.tableName || 'View Table',
           },
           entry.tableName || '—',
         ),

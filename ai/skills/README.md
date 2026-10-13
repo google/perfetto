@@ -117,3 +117,9 @@ writes the result to the `ai-agents` branch at each release. Users
 install from that branch; see
 [`docs/getting-started/using-ai.md`](../../docs/getting-started/using-ai.md).
 To try the local tree, `ai/evals/setup_assets.py` bundles it the same way.
+
+## Repo-local skills
+
+[`bigtrace/`](bigtrace/SKILL.md) brings up the Bigtrace UI over a directory
+or archive of traces. It drives `tools/bigtrace_server.py` and the UI dev
+server, so it needs a Perfetto checkout and is not bundled into the release.

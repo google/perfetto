@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonVariant} from '../../widgets/button';
+import {Button, ButtonGroup, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {TextInput} from '../../widgets/text_input';
+import {getActiveQueryTabsState} from '../pages/query_page';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {
   endpointStorage,
@@ -45,6 +46,8 @@ export class ConnectionButton implements m.ClassComponent {
 
   view(): m.Children {
     const endpoint = getBigtraceEndpoint();
+    const tabsState = getActiveQueryTabsState();
+    const isDuckdb = tabsState?.activeEngine === 'duckdb';
     // The endpoint ships with a default, so "set" doesn't mean "reachable" —
     // a backend that failed to answer counts as not connected, otherwise this
     // button claims a connection the app doesn't have.
@@ -59,19 +62,33 @@ export class ConnectionButton implements m.ClassComponent {
       this.autoOpened = true;
       this.open = true;
     }
+    const toggleOpen = () => {
+      this.open = !this.open;
+    };
+    const trigger = m(ButtonGroup, [
+      m(Button, {
+        icon: connected ? 'cloud_done' : 'cloud_off',
+        label: endpointLabel(endpoint),
+        variant: ButtonVariant.Outlined,
+        title: connected
+          ? endpoint
+          : `Not connected to ${endpoint === '' ? 'a backend' : endpoint}`,
+        onclick: toggleOpen,
+      }),
+      m(Button, {
+        icon: isDuckdb ? 'database' : 'code',
+        label: isDuckdb ? 'DuckDB SQL' : 'PerfettoSQL',
+        rightIcon: 'arrow_drop_down',
+        variant: ButtonVariant.Outlined,
+        intent: isDuckdb ? Intent.Warning : Intent.Primary,
+        title: 'Switch between PerfettoSQL and DuckDB SQL',
+        onclick: toggleOpen,
+      }),
+    ]);
     return m(
       Popup,
       {
-        trigger: m(Button, {
-          icon: connected ? 'cloud_done' : 'cloud_off',
-          label: endpointLabel(endpoint),
-          title: connected
-            ? endpoint
-            : `Not connected to ${endpoint === '' ? 'a backend' : endpoint}`,
-          onclick: () => {
-            this.open = !this.open;
-          },
-        }),
+        trigger,
         isOpen: this.open,
         onChange: (isOpen: boolean) => {
           this.open = isOpen;
@@ -87,7 +104,40 @@ export class ConnectionButton implements m.ClassComponent {
     const setting = endpointStorage.get('bigtraceEndpoint');
     if (setting === undefined) return null;
     const loadError = bigTraceSettingsStorage.execConfigLoadError;
+    const tabsState = getActiveQueryTabsState();
+    const isDuckdb = tabsState.activeEngine === 'duckdb';
     return m('.pf-bt-connection-panel', [
+      m('.pf-bt-connection-panel__title', 'Query engine'),
+      m(
+        '.pf-bt-connection-panel__desc',
+        isDuckdb
+          ? 'Query materialized result tables in DuckDB.'
+          : 'Run PerfettoSQL across traces in the corpus.',
+      ),
+      m(ButtonGroup, [
+        m(Button, {
+          label: 'PerfettoSQL',
+          icon: 'code',
+          variant: ButtonVariant.Outlined,
+          active: !isDuckdb,
+          intent: !isDuckdb ? Intent.Primary : Intent.None,
+          onclick: () => {
+            tabsState.setEngine('traces');
+            this.open = false;
+          },
+        }),
+        m(Button, {
+          label: 'DuckDB SQL',
+          icon: 'database',
+          variant: ButtonVariant.Outlined,
+          active: isDuckdb,
+          intent: isDuckdb ? Intent.Warning : Intent.None,
+          onclick: () => {
+            tabsState.setEngine('duckdb');
+            this.open = false;
+          },
+        }),
+      ]),
       m('.pf-bt-connection-panel__title', 'BigTrace backend'),
       m(
         '.pf-bt-connection-panel__desc',

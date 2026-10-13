@@ -253,7 +253,13 @@ export class BigtraceTraceListDataSource implements DataSource {
         this.columns = [...result.columns];
       }
     } catch (e) {
-      if (e instanceof QueryCancelledError) return;
+      if (
+        e instanceof QueryCancelledError ||
+        controller.signal.aborted ||
+        !this.scheduler.isCurrent(controller)
+      ) {
+        return;
+      }
       console.error('[bigtrace] trace_metadata failed:', e);
       this.error = e instanceof Error ? e.message : String(e);
       // A 400 while the trace source is unset/unreadable is the common case

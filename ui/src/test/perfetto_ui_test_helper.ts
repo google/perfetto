@@ -241,3 +241,32 @@ export class PerfettoTestHelper {
     await this.page.evaluate(() => self.app.raf.scheduleFullRedraw());
   }
 }
+
+export async function getFreePort(): Promise<number> {
+  const net = await import('net');
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, '127.0.0.1', () => {
+      const port = (srv.address() as {port: number}).port;
+      srv.close(() => resolve(port));
+    });
+    srv.on('error', reject);
+  });
+}
+
+export async function waitForServer(
+  url: string,
+  timeoutMs = 15000,
+): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return true;
+    } catch {
+      // Retry until server responds.
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return false;
+}

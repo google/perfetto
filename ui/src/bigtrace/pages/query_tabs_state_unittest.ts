@@ -15,12 +15,22 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
+  addSubQuery,
   applyModeDefaults,
   applyPresetSetup,
+  buildMultiQuerySpecs,
+  canRenameSubQuery,
+  canRenameTab,
   closeSettings,
+  getSubQueryTableName,
   isTraceSelectionSetting,
+  makeQueryResponse,
   parseTraceUuids,
+  removeSubQuery,
+  renameSubQuery,
+  selectSubQuery,
   setTraceUuidsActive,
+  syncActiveSubQueryToSlot,
   TRACE_UUIDS_SETTING_ID,
   traceUuidsActive,
   DEFAULT_TABLE_TTL_DAYS,
@@ -31,6 +41,7 @@ import {
   QueryTabsState,
   restoreTabConfig,
   snapshotTabConfig,
+  stageDuckdbQuery,
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
@@ -256,12 +267,16 @@ describe('per-mode row and trace limits', () => {
     tab.traceLimit = 0;
     tab.tableTtlDays = 45;
     (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
-    const restored = new QueryTabsState().tabs.find(
+    const restoredState = new QueryTabsState();
+    const restored = restoredState.tabs.find(
       (t) => t.editorText === 'select 1',
     )!;
     expect(restored.limit).toBe(0);
     expect(restored.traceLimit).toBe(0);
     expect(restored.tableTtlDays).toBe(45);
+    const cloned = restoredState.cloneTab(restored.id)!;
+    expect(cloned.limit).toBe(0);
+    expect(cloned.traceLimit).toBe(0);
   });
 });
 
@@ -284,7 +299,8 @@ describe('cloneTab', () => {
 
   function configuredTab(tabs: QueryTabsState) {
     const tab = tabs.addNewTab(undefined, '', undefined, undefined, true);
-    tab.title = 'Jank by device';
+    tab.title = 'jank_by_device';
+    tab.tableName = 'jank_by_device';
     tab.editorText = 'select * from slice';
     tab.configured = true;
     tab.queryUuid = 'uuid-1';
@@ -332,10 +348,12 @@ describe('cloneTab', () => {
     expect(clone.isLoading).toBe(false);
   });
 
-  test('a clone is a new tab, named like one', () => {
+  test('a clone is a new tab, named with a fresh default table name', () => {
     const tabs = new QueryTabsState();
     const src = configuredTab(tabs);
-    expect(tabs.cloneTab(src.id)?.title).toMatch(/^Query \d+$/);
+    const clone = tabs.cloneTab(src.id)!;
+    expect(clone.title).toMatch(/^tbl_[a-z0-9]+$/);
+    expect(clone.tableName).toBe(clone.title);
   });
 
   test('editing the clone leaves the original alone', () => {
@@ -368,7 +386,7 @@ describe('cloneTab', () => {
     expect(tabs.cloneTab(src.id)?.lastPresetId).toBe('local:sweep');
     (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
     const restored = new QueryTabsState().tabs.find(
-      (t) => t.title === 'Jank by device',
+      (t) => t.title === 'jank_by_device',
     )!;
     expect(restored.lastPresetId).toBe('local:sweep');
   });
@@ -811,5 +829,371 @@ describe('experiment filter', () => {
       isTreatment: true,
     });
     expect(tab.experimentFilter?.experimentName).toBeUndefined();
+  });
+});
+
+describe('stageDuckdbQuery (open a table in DuckDB from History)', () => {
+  const SQL = 'SELECT *\nFROM result_1\nLIMIT 1000;\n';
+
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  test('switches an empty active tab to DuckDB mode without running', () => {
+    const tabs = new QueryTabsState();
+    const active = tabs.getActiveTab()!;
+    const tab = stageDuckdbQuery(tabs, SQL, 1000);
+    expect(tab).toBe(active);
+    expect(tabs.tabs.length).toBe(1);
+    expect(tab.queryEngine).toBe('duckdb');
+    expect(tab.configured).toBe(true);
+    expect(tab.editorText).toBe(SQL);
+    expect(tab.limit).toBe(1000);
+    expect(tab.isLoading).toBe(false);
+    expect(tab.queryUuid).toBeUndefined();
+  });
+
+  test('never overwrites a tab that already holds SQL', () => {
+    const tabs = new QueryTabsState();
+    const active = tabs.getActiveTab()!;
+    active.editorText = 'SELECT * FROM slice';
+    const tab = stageDuckdbQuery(tabs, SQL);
+    expect(tab).not.toBe(active);
+    expect(active.editorText).toBe('SELECT * FROM slice');
+    expect(active.queryEngine).toBe('traces');
+    expect(tabs.activeTabId).toBe(tab.id);
+    expect(tab.queryEngine).toBe('duckdb');
+  });
+
+  test('leaves a running tab alone', () => {
+    const tabs = new QueryTabsState();
+    const active = tabs.getActiveTab()!;
+    active.isLoading = true;
+    const tab = stageDuckdbQuery(tabs, SQL);
+    expect(tab).not.toBe(active);
+    expect(active.queryEngine).toBe('traces');
+  });
+
+  test('repeated clicks reuse the staged tab', () => {
+    const tabs = new QueryTabsState();
+    tabs.getActiveTab()!.editorText = 'SELECT 1';
+    const first = stageDuckdbQuery(tabs, SQL);
+    const count = tabs.tabs.length;
+    tabs.activeTabId = tabs.tabs[0].id;
+    expect(stageDuckdbQuery(tabs, SQL)).toBe(first);
+    expect(tabs.tabs.length).toBe(count);
+  });
+
+  test('closes an open Settings session', () => {
+    const tabs = new QueryTabsState();
+    const active = tabs.getActiveTab()!;
+    openSettings(active);
+    stageDuckdbQuery(tabs, SQL);
+    expect(active.settingsSession).toBeUndefined();
+  });
+});
+
+describe('Tab title and table name unification', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  test('new tab initializes with a default UUID table name for both title and tableName', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    expect(tab.title).toMatch(/^tbl_[a-z0-9]+$/);
+    expect(tab.tableName).toBe(tab.title);
+    expect(canRenameTab(tab)).toBe(true);
+  });
+
+  test('renameTab before running a query sets both title and tableName and persists', () => {
+    const tabs1 = new QueryTabsState();
+    const tab = tabs1.getActiveTab()!;
+    tab.editorText = 'SELECT * FROM slice';
+    tabs1.renameTab(tab.id, '  slices  ');
+    expect(tab.title).toBe('slices');
+    expect(tab.tableName).toBe('slices');
+
+    (tabs1 as unknown as {saveToStorage: () => void}).saveToStorage();
+
+    const tabs2 = new QueryTabsState();
+    expect(tabs2.tabs).toHaveLength(1);
+    expect(tabs2.tabs[0].title).toBe('slices');
+    expect(tabs2.tabs[0].tableName).toBe('slices');
+  });
+
+  test('renameTab is blocked while loading or after a query has run', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tabs.renameTab(tab.id, 'initial_name');
+    expect(tab.title).toBe('initial_name');
+
+    // Blocked while loading
+    tab.isLoading = true;
+    expect(canRenameTab(tab)).toBe(false);
+    tabs.renameTab(tab.id, 'while_loading');
+    expect(tab.title).toBe('initial_name');
+    expect(tab.tableName).toBe('initial_name');
+
+    // Blocked once queryUuid is set
+    tab.isLoading = false;
+    tab.queryUuid = 'exec-uuid-1';
+    expect(canRenameTab(tab)).toBe(false);
+    tabs.renameTab(tab.id, 'after_uuid');
+    expect(tab.title).toBe('initial_name');
+    expect(tab.tableName).toBe('initial_name');
+
+    // Blocked once queryResult is set
+    tab.queryUuid = undefined;
+    tab.queryResult = makeQueryResponse('SELECT 1');
+    expect(canRenameTab(tab)).toBe(false);
+    tabs.renameTab(tab.id, 'after_result');
+    expect(tab.title).toBe('initial_name');
+    expect(tab.tableName).toBe('initial_name');
+  });
+});
+
+describe('Top-level engine mode (Traces vs Analysis)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  test('setEngine switches visible tabs and creates a tab if none exist in that mode', () => {
+    const tabs = new QueryTabsState();
+    const tracesTab = tabs.getActiveTab()!;
+    expect(tabs.activeEngine).toBe('traces');
+    expect(tabs.getVisibleTabs()).toEqual([tracesTab]);
+
+    // Switch to Analysis (duckdb): creates a new duckdb tab automatically
+    tabs.setEngine('duckdb');
+    expect(tabs.activeEngine).toBe('duckdb');
+    const analysisTab = tabs.getActiveTab()!;
+    expect(analysisTab.id).not.toBe(tracesTab.id);
+    expect(analysisTab.queryEngine).toBe('duckdb');
+    expect(analysisTab.configured).toBe(true);
+    expect(tabs.getVisibleTabs()).toEqual([analysisTab]);
+
+    // New tab in Analysis mode creates another duckdb tab
+    const analysisTab2 = tabs.addNewTab(
+      undefined,
+      'SELECT 1',
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    expect(analysisTab2.queryEngine).toBe('duckdb');
+    expect(tabs.getVisibleTabs()).toEqual([analysisTab, analysisTab2]);
+
+    // Switch back to Traces: restores the original tracesTab and shows only traces tabs
+    tabs.setEngine('traces');
+    expect(tabs.activeEngine).toBe('traces');
+    expect(tabs.getActiveTab()).toBe(tracesTab);
+    expect(tabs.getVisibleTabs()).toEqual([tracesTab]);
+
+    // Switch to Analysis again: restores the last active analysis tab (analysisTab2)
+    tabs.setEngine('duckdb');
+    expect(tabs.getActiveTab()).toBe(analysisTab2);
+  });
+
+  test('closeTab is scoped to the tab engine and never closes the last tab in that engine', () => {
+    const tabs = new QueryTabsState();
+    const tracesTab = tabs.getActiveTab()!;
+    tabs.setEngine('duckdb');
+    const analysisTab1 = tabs.getActiveTab()!;
+    const analysisTab2 = tabs.addNewTab(
+      undefined,
+      'SELECT 2',
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+
+    // Cannot close the only traces tab even though total tabs.length is 3
+    tabs.closeTab(tracesTab.id);
+    expect(tabs.tabs).toContain(tracesTab);
+
+    // Closing analysisTab2 activates analysisTab1 (not tracesTab)
+    tabs.closeTab(analysisTab2.id);
+    expect(tabs.getActiveTab()).toBe(analysisTab1);
+    expect(tabs.getVisibleTabs()).toEqual([analysisTab1]);
+
+    // Cannot close the last remaining analysis tab
+    tabs.closeTab(analysisTab1.id);
+    expect(tabs.getVisibleTabs()).toEqual([analysisTab1]);
+  });
+});
+
+describe('SubQuery operations and persistence', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  test('new tab and addSubQuery initialize with default UUID table names', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    expect(tab.tableName).toMatch(/^tbl_[a-z0-9]+$/);
+    tab.editorText = 'SELECT * FROM slices';
+    tab.tableName = 'slices';
+
+    addSubQuery(tab);
+    expect(tab.subQueries).toHaveLength(2);
+    expect(tab.subQueries[0].sql).toBe('SELECT * FROM slices');
+    expect(tab.subQueries[0].tableName).toBe('slices');
+    expect(tab.subQueries[1].sql).toBe('');
+    expect(tab.subQueries[1].tableName).toMatch(/^tbl_[a-z0-9]+$/);
+    expect(tab.activeSubQueryIndex).toBe(1);
+    expect(tab.editorText).toBe('');
+    expect(tab.tableName).toBe(tab.subQueries[1].tableName);
+  });
+
+  test('selectSubQuery switches active subquery and synchronizes in-flight edits', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tab.editorText = 'SELECT * FROM slices';
+    addSubQuery(tab);
+
+    // Edit query #2
+    tab.editorText = 'SELECT * FROM sched';
+    tab.tableName = 'sched';
+
+    // Switch back to query #1
+    selectSubQuery(tab, 0);
+    expect(tab.activeSubQueryIndex).toBe(0);
+    expect(tab.editorText).toBe('SELECT * FROM slices');
+    expect(tab.subQueries[1].sql).toBe('SELECT * FROM sched');
+    expect(tab.subQueries[1].tableName).toBe('sched');
+
+    // Switch to query #2 again
+    selectSubQuery(tab, 1);
+    expect(tab.activeSubQueryIndex).toBe(1);
+    expect(tab.editorText).toBe('SELECT * FROM sched');
+    expect(tab.tableName).toBe('sched');
+  });
+
+  test('removeSubQuery reverts to single query when only 1 remains', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tab.editorText = 'SELECT * FROM slices';
+    addSubQuery(tab);
+    tab.editorText = 'SELECT * FROM sched';
+    tab.tableName = 'sched';
+
+    // Remove query #1 (index 0)
+    removeSubQuery(tab, 0);
+    expect(tab.subQueries).toHaveLength(0);
+    expect(tab.activeSubQueryIndex).toBe(0);
+    expect(tab.editorText).toBe('SELECT * FROM sched');
+    expect(tab.tableName).toBe('sched');
+  });
+
+  test('removeSubQuery selects previous valid index when removing from 3 queries', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tab.editorText = 'Q1';
+    addSubQuery(tab);
+    tab.editorText = 'Q2';
+    addSubQuery(tab);
+    tab.editorText = 'Q3';
+    expect(tab.subQueries).toHaveLength(3);
+    expect(tab.activeSubQueryIndex).toBe(2);
+
+    // Remove active query (index 2)
+    removeSubQuery(tab, 2);
+    expect(tab.subQueries).toHaveLength(2);
+    expect(tab.activeSubQueryIndex).toBe(1);
+    expect(tab.editorText).toBe('Q2');
+  });
+
+  test('getSubQueryTableName derives names sensibly and respects overrides', () => {
+    expect(
+      getSubQueryTableName({sql: 'SELECT * FROM slices WHERE dur >= 0'}, 0),
+    ).toBe('slices');
+    expect(getSubQueryTableName({sql: 'SELECT * FROM sched'}, 1)).toBe('sched');
+    expect(
+      getSubQueryTableName({sql: 'SELECT 1', tableName: 'custom_tbl'}, 2),
+    ).toBe('custom_tbl');
+    expect(getSubQueryTableName({sql: 'SELECT 1'}, 3)).toBe('result_4');
+  });
+
+  test('buildMultiQuerySpecs derives unique table names', () => {
+    const slots = [
+      {id: '1', sql: 'SELECT * FROM slices', tableName: ''},
+      {id: '2', sql: 'SELECT * FROM sched', tableName: ''},
+      {id: '3', sql: 'SELECT * FROM slices', tableName: ''},
+    ];
+    const specs = buildMultiQuerySpecs(slots);
+    expect(specs).toEqual([
+      {slotId: '1', perfettoSql: 'SELECT * FROM slices', tableName: 'slices'},
+      {slotId: '2', perfettoSql: 'SELECT * FROM sched', tableName: 'sched'},
+      {slotId: '3', perfettoSql: 'SELECT * FROM slices', tableName: 'slices_2'},
+    ]);
+  });
+
+  test('subqueries persist across reload via localStorage', () => {
+    const tabs1 = new QueryTabsState();
+    const tab = tabs1.getActiveTab()!;
+    tab.editorText = 'SELECT * FROM slices';
+    tab.tableName = 'slices';
+    addSubQuery(tab);
+    tab.editorText = 'SELECT * FROM sched';
+    tab.tableName = 'sched';
+
+    // Force save to storage immediately
+    syncActiveSubQueryToSlot(tab);
+    (tabs1 as unknown as {saveToStorage: () => void}).saveToStorage();
+
+    // Reload state
+    const tabs2 = new QueryTabsState();
+    expect(tabs2.tabs).toHaveLength(1);
+    const restored = tabs2.tabs[0];
+    expect(restored.subQueries).toHaveLength(2);
+    expect(restored.subQueries[0].sql).toBe('SELECT * FROM slices');
+    expect(restored.subQueries[0].tableName).toBe('slices');
+    expect(restored.subQueries[1].sql).toBe('SELECT * FROM sched');
+    expect(restored.subQueries[1].tableName).toBe('sched');
+    expect(restored.activeSubQueryIndex).toBe(1);
+    expect(restored.editorText).toBe('SELECT * FROM sched');
+    expect(restored.tableName).toBe('sched');
+  });
+
+  test('renameSubQuery updates active and non-active slot tableName and blocks after run', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tab.editorText = 'SELECT * FROM slice';
+    tab.tableName = 'slice_tbl';
+    addSubQuery(tab);
+    tab.editorText = 'SELECT * FROM sched';
+
+    // Rename non-active slot 0
+    expect(canRenameSubQuery(tab, tab.subQueries[0])).toBe(true);
+    renameSubQuery(tab, 0, '  custom_slices  ');
+    expect(tab.subQueries[0].tableName).toBe('custom_slices');
+
+    // Rename active slot 1 -> updates both slot and tab.tableName
+    expect(canRenameSubQuery(tab, tab.subQueries[1])).toBe(true);
+    renameSubQuery(tab, 1, '  custom_sched  ');
+    expect(tab.subQueries[1].tableName).toBe('custom_sched');
+    expect(tab.tableName).toBe('custom_sched');
+
+    // Blocked while tab is loading
+    tab.isLoading = true;
+    expect(canRenameSubQuery(tab, tab.subQueries[0])).toBe(false);
+    renameSubQuery(tab, 0, 'ignored_loading');
+    expect(tab.subQueries[0].tableName).toBe('custom_slices');
+    tab.isLoading = false;
+
+    // Blocked once slot has queryUuid or queryResult
+    tab.subQueries[0].queryUuid = 'uuid-slot-0';
+    expect(canRenameSubQuery(tab, tab.subQueries[0])).toBe(false);
+    renameSubQuery(tab, 0, 'ignored_after_run');
+    expect(tab.subQueries[0].tableName).toBe('custom_slices');
+
+    // Clone with targetSubQueryIndex replaces the colliding slot's tableName
+    const cloned = tabs.cloneTab(tab.id, 'custom_slices_1', undefined, 0)!;
+    expect(cloned.subQueries).toHaveLength(2);
+    expect(cloned.subQueries[0].tableName).toBe('custom_slices_1');
+    expect(cloned.subQueries[1].tableName).toBe('custom_sched');
   });
 });

@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import contextlib
 import datetime
 from datetime import timezone
@@ -20,6 +21,7 @@ import os
 import socket
 import stat
 import tempfile
+import threading
 from typing import Optional, Tuple
 from urllib import request
 
@@ -30,6 +32,12 @@ from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
 # URL to download script to run trace_processor
 SHELL_URL = 'https://get.perfetto.dev/trace_processor'
+
+# Ports recently handed out by get_bind_addr(). The shell only binds its port
+# once the trace is loaded, so until then the OS may hand the same free port to
+# another instance, whose client would then talk to the wrong shell.
+_recent_ports = collections.deque(maxlen=4096)
+_recent_ports_lock = threading.Lock()
 
 
 class PlatformDelegate:
@@ -88,12 +96,14 @@ class PlatformDelegate:
     if port:
       return 'localhost', port
 
-    free_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    free_socket.bind(('', 0))
-    free_socket.listen(5)
-    port = free_socket.getsockname()[1]
-    free_socket.close()
-    return 'localhost', port
+    with _recent_ports_lock:
+      while True:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as free_socket:
+          free_socket.bind(('', 0))
+          port = free_socket.getsockname()[1]
+        if port not in _recent_ports:
+          _recent_ports.append(port)
+          return 'localhost', port
 
   def default_resolver_registry(self) -> ResolverRegistry:
     return ResolverRegistry(resolvers=[PathUriResolver])

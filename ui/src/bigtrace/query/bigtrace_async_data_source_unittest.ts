@@ -209,4 +209,43 @@ describe('BigtraceAsyncDataSource fetch scheduling', () => {
     expect(calls).toHaveLength(0);
     expect(ds.useRows(model(400, 100)).isPending).toBe(true);
   });
+
+  test('an aborted or superseded fetch rejecting with AbortError never surfaces an error', async () => {
+    let rejectFirst: ((err: unknown) => void) | undefined;
+    let callCount = 0;
+    const client = {
+      fetchResults: vi.fn(
+        (
+          _uuid: string,
+          _limit: number,
+          _offset: number,
+          _signal?: AbortSignal,
+        ): Promise<unknown> => {
+          callCount++;
+          if (callCount === 1) {
+            return new Promise((_resolve, reject) => {
+              rejectFirst = reject;
+            });
+          }
+          return Promise.resolve({
+            ...PAGE,
+            schema: [{name: 'a', type: 'STRING'}],
+          });
+        },
+      ),
+    } as unknown as BigtraceQueryClient;
+
+    const ds = new BigtraceAsyncDataSource('uid', client, () => 5000);
+    ds.useRows(model(0, 100));
+    expect(callCount).toBe(1);
+
+    // Trigger refresh() while the initial fetch is still in flight (superseding it).
+    const refreshPromise = ds.refresh();
+    rejectFirst?.(
+      new DOMException('signal is aborted without reason', 'AbortError'),
+    );
+    await refreshPromise;
+
+    expect(ds.getError()).toBeNull();
+  });
 });

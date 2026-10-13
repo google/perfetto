@@ -1,0 +1,8 @@
+file_path,device_name,os_version,build_id,test_name,experiment_id,control_id,is_treatment,tag
+api24_startup_cold.perfetto-trace,Pixel 6,Android 7.0,NRD90M.220624.014,app_startup_cold,101,102,true,cold
+api24_startup_hot.perfetto-trace,Pixel 6,Android 7.0,NRD90M.220624.014,app_startup_hot,101,102,false,hot
+api24_startup_warm.perfetto-trace,Pixel 6,Android 7.0,NRD90M.220624.014,app_startup_warm,101,102,true,warm
+api31_startup_cold.perfetto-trace,Pixel 7,Android 12,SP1A.210812.016,app_startup_cold,201,202,true,cold
+api31_startup_hot.perfetto-trace,Pixel 7,Android 12,SP1A.210812.016,app_startup_hot,201,202,false,hot
+api31_startup_warm.perfetto-trace,Pixel 7,Android 12,SP1A.210812.016,app_startup_warm,201,202,true,warm
+api34_startup_cold.perfetto-trace,Pixel 8,Android 14,UD1A.230803.022,app_startup_cold,301,302,true,cold

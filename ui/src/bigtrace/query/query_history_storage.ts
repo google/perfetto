@@ -35,6 +35,7 @@ export interface RawQueryExecution {
   readonly error?: string;
   readonly errorMessage?: string;
   readonly perfettoSql?: string;
+  readonly queryEngine?: 'traces' | 'duckdb';
   readonly limit?: number;
   readonly traceLimit?: number;
   readonly materialized?: boolean;
@@ -146,6 +147,7 @@ function toQueryExecution(raw: RawQueryExecution): QueryExecution {
     totalTraces: raw.totalTraces ?? 0,
     error: raw.error ?? raw.errorMessage,
     perfettoSql: raw.perfettoSql,
+    queryEngine: raw.queryEngine,
     limit: raw.limit,
     materialized: raw.materialized,
     tableName: raw.tableName,

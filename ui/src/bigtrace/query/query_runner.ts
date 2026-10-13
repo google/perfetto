@@ -34,8 +34,11 @@ import {
 } from './query_history_storage';
 import {queryStore, TERMINAL_STATUSES} from './query_store';
 import {
+  buildMultiQuerySpecs,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
+  hasQueryText,
+  loadSlotIntoTab,
   makeQueryResponse,
 } from '../pages/query_tabs_state';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
@@ -55,18 +58,36 @@ export class QueryRunner {
   constructor(private readonly cb: QueryRunnerCallbacks) {
     this.poller = new PollingController({
       redraw: () => this.redraw(),
-      onHistoryChanged: cb.onHistoryChanged,
+      onHistoryChanged: () => {
+        cb.onHistoryChanged();
+      },
+      markDirty: () => {
+        cb.markDirty?.();
+      },
     });
   }
 
   // Run `query` on `tab`. Aborts any in-flight query on the tab first.
   async run(tab: BigTraceEditorTab, query: string): Promise<void> {
-    if (!query) return;
+    const multiSubQueries =
+      tab.queryEngine !== 'duckdb' && tab.subQueries.length > 1
+        ? buildMultiQuerySpecs(tab.subQueries)
+        : undefined;
+    const actualQuery =
+      multiSubQueries && multiSubQueries.length > 0
+        ? multiSubQueries[0].perfettoSql
+        : query;
+    if (!hasQueryText(actualQuery)) return;
 
     tab.activeRequest?.abort();
+    this.poller.stop(tab);
+    tab.pollGeneration++;
 
     tab.isLoading = true;
+    tab.queryUuid = undefined;
+    tab.execution = undefined;
     tab.queryResult = undefined;
+    tab.dataSource = undefined;
     tab.lastProcessedRows = 0;
     tab.clientStartTime = Date.now();
     this.cb.markDirty?.();
@@ -76,7 +97,7 @@ export class QueryRunner {
     const endpoint = getBigtraceEndpoint();
 
     if (endpoint.trim() === '') {
-      tab.queryResult = makeQueryResponse(query, {
+      tab.queryResult = makeQueryResponse(actualQuery, {
         error:
           'Set the BigTrace endpoint from the connection button (top right) ' +
           'before running queries.',
@@ -89,14 +110,7 @@ export class QueryRunner {
 
     await bigTraceSettingsStorage.loadSettings();
 
-    // Global defaults overridden by per-tab values, minus per-tab-disabled
-    // settings. Same helper the trace grid uses, so /trace_metadata and
-    // /execute_* stay in sync.
     const settings = effectiveTabSettings(tab);
-
-    // Per-tab snapshot is the trace-selection source of truth: what the user
-    // staged here (seeded from globals at tab creation, then edited). Globals
-    // aren't re-read at run time.
     const traceFilters = tab.traceFilters;
     const traceOrderBy = tab.traceOrderBy;
 
@@ -106,8 +120,6 @@ export class QueryRunner {
     const cancelForward = forwardAbort(tab.lifecycle.signal, requestController);
     tab.activeRequest = requestController;
 
-    // null → use the schema's defaultVisible columns; an explicit list (incl.
-    // []) ships as-is; a schema-fetch failure attaches nothing.
     let traceMetadataColumns: readonly string[] =
       tab.traceMetadataColumns ?? [];
     if (tab.traceMetadataColumns === null) {
@@ -122,21 +134,35 @@ export class QueryRunner {
       }
     }
     const executeOptions: ExecuteOptions = {
+      engine: tab.queryEngine,
       traceFilters,
       traceMetadataColumns,
       traceOrderBy,
       traceLimit: tab.traceLimit,
       experimentFilter: toExperimentFilterSpec(tab.experimentFilter),
       tableTtlDays: tab.materialize ? tab.tableTtlDays : undefined,
+      tableName:
+        multiSubQueries && multiSubQueries.length > 0
+          ? multiSubQueries[0].tableName
+          : tab.tableName.trim() || tab.title.trim() || undefined,
+      queries:
+        multiSubQueries && multiSubQueries.length > 1
+          ? multiSubQueries
+          : undefined,
     };
 
+    const isDuckdb = tab.queryEngine === 'duckdb';
+    if (isDuckdb) {
+      tab.materialize = true;
+      tab.limit = 0;
+    }
     const wallStartMs = performance.now();
 
     try {
       if (tab.materialize) {
         await this.runAsync(
           tab,
-          query,
+          actualQuery,
           queryClient,
           settings,
           executeOptions,
@@ -146,7 +172,7 @@ export class QueryRunner {
       } else {
         await this.runSync(
           tab,
-          query,
+          actualQuery,
           queryClient,
           settings,
           executeOptions,
@@ -160,7 +186,7 @@ export class QueryRunner {
         this.redraw();
         return;
       }
-      tab.queryResult = makeQueryResponse(query, {
+      tab.queryResult = makeQueryResponse(actualQuery, {
         error: e instanceof Error ? e.message : String(e),
         durationMs: performance.now() - wallStartMs,
       });
@@ -190,12 +216,28 @@ export class QueryRunner {
       tab.execution.status = 'CANCELLED';
       tab.execution.endTime = Date.now();
     }
+    for (const slot of tab.subQueries) {
+      if (slot.execution && slot.execution.status === 'IN_PROGRESS') {
+        slot.execution.status = 'CANCELLED';
+        slot.execution.endTime = Date.now();
+      }
+    }
 
-    if (tab.materialize && queryUuid && tab.queryClient) {
-      try {
-        await tab.queryClient.cancelQuery(queryUuid);
-      } catch (e) {
-        console.error(`Failed to cancel query ${queryUuid} on backend:`, e);
+    if (tab.materialize && tab.queryClient) {
+      const uuidsToCancel =
+        tab.subQueries.length > 1
+          ? tab.subQueries
+              .map((s) => s.queryUuid)
+              .filter((u): u is string => Boolean(u))
+          : queryUuid
+            ? [queryUuid]
+            : [];
+      for (const uuid of uuidsToCancel) {
+        try {
+          await tab.queryClient.cancelQuery(uuid);
+        } catch (e) {
+          console.error(`Failed to cancel query ${uuid} on backend:`, e);
+        }
       }
     }
 
@@ -255,9 +297,12 @@ export class QueryRunner {
     if (details.schema !== undefined) {
       exec.schema = details.schema;
     }
-    if (details.tableName !== undefined) {
+    if (details.tableName !== undefined && details.tableName !== '') {
       exec.tableName = details.tableName;
+      tab.tableName = details.tableName;
+      tab.title = details.tableName;
     }
+    tab.queryEngine = details.queryEngine === 'duckdb' ? 'duckdb' : 'traces';
     exec.status = details.status ?? 'N/A';
     exec.processedRows = details.processedRows ?? 0;
     exec.processedTraces = details.processedTraces ?? 0;
@@ -343,6 +388,7 @@ export class QueryRunner {
         details.errorMessage ??
         'Query failed without a specific error message.';
     }
+
     this.redraw();
   }
 
@@ -376,39 +422,100 @@ export class QueryRunner {
     if (data.queryUuid === undefined || data.queryUuid === '') {
       throw new Error('Backend did not return a queryUuid for async execute');
     }
-    tab.queryUuid = data.queryUuid;
-    tab.execution = queryStore.getOrCreate(tab.queryUuid, {
-      perfettoSql: query,
-    });
 
-    try {
-      const details = await client.getQueryExecution(
-        tab.queryUuid,
-        tab.lifecycle.signal,
-      );
-      const serverStartMs = isoToEpochMs(details?.startTime);
-      queryStore.update(tab.queryUuid, {
-        ...(serverStartMs !== undefined ? {startTime: serverStartMs} : {}),
-        ...(details?.schema !== undefined ? {schema: details.schema} : {}),
-        ...(details?.tableName !== undefined
-          ? {tableName: details.tableName}
-          : {}),
+    if (
+      data.executions &&
+      data.executions.length > 1 &&
+      options.queries &&
+      options.queries.length > 0
+    ) {
+      for (
+        let i = 0;
+        i < data.executions.length && i < options.queries.length;
+        i++
+      ) {
+        const item = data.executions[i];
+        const spec = options.queries[i] as {
+          slotId?: string;
+          perfettoSql: string;
+          tableName?: string;
+        };
+        const slot = tab.subQueries.find((s) => s.id === spec.slotId);
+        if (!slot) continue;
+        slot.queryUuid = item.queryUuid;
+        if (item.tableName) slot.tableName = item.tableName;
+        slot.execution = queryStore.getOrCreate(item.queryUuid, {
+          perfettoSql: slot.sql,
+          tableName: item.tableName,
+          status: 'IN_PROGRESS',
+        });
+        slot.dataSource = new BigtraceAsyncDataSource(
+          item.queryUuid,
+          client,
+          () => slot.execution?.processedRows ?? 0,
+          tab.lifecycle.signal,
+          () => slot.execution?.schema,
+        );
+        slot.queryResult = makeQueryResponse(slot.sql, {
+          durationMs: performance.now() - wallStartMs,
+        });
+      }
+      loadSlotIntoTab(tab, tab.activeSubQueryIndex);
+      const uuids = data.executions.map((e) => e.queryUuid).filter(Boolean);
+      this.redraw();
+      this.poller.start(tab, uuids);
+    } else {
+      tab.queryUuid = data.queryUuid;
+      tab.execution = queryStore.getOrCreate(tab.queryUuid, {
+        perfettoSql: query,
+        status: 'IN_PROGRESS',
       });
-    } catch (e) {
-      console.error('Failed to fetch query details after executeAsync:', e);
+      tab.dataSource = new BigtraceAsyncDataSource(
+        tab.queryUuid,
+        client,
+        () => tab.execution?.processedRows ?? 0,
+        tab.lifecycle.signal,
+        () => tab.execution?.schema,
+      );
+      tab.queryResult = makeQueryResponse(query, {
+        durationMs: performance.now() - wallStartMs,
+      });
+      this.redraw();
+      this.poller.start(tab, [data.queryUuid]);
     }
 
-    this.poller.start(tab);
-    tab.dataSource = new BigtraceAsyncDataSource(
-      tab.queryUuid,
-      client,
-      () => tab.execution?.processedRows ?? 0,
-      tab.lifecycle.signal,
-      () => tab.execution?.schema,
-    );
-    tab.queryResult = makeQueryResponse(query, {
-      durationMs: performance.now() - wallStartMs,
-    });
+    if (tab.queryUuid) {
+      try {
+        const details = await client.getQueryExecution(
+          tab.queryUuid,
+          tab.lifecycle.signal,
+        );
+        const serverStartMs = isoToEpochMs(details?.startTime);
+        queryStore.update(tab.queryUuid, {
+          ...(serverStartMs !== undefined ? {startTime: serverStartMs} : {}),
+          ...(details?.schema !== undefined ? {schema: details.schema} : {}),
+          ...(details?.tableName !== undefined
+            ? {tableName: details.tableName}
+            : {}),
+          ...(details?.processedRows !== undefined
+            ? {processedRows: details.processedRows}
+            : {}),
+          ...(details?.processedTraces !== undefined
+            ? {processedTraces: details.processedTraces}
+            : {}),
+          ...(details?.totalTraces !== undefined
+            ? {totalTraces: details.totalTraces}
+            : {}),
+        });
+        if (details?.tableName !== undefined && details.tableName !== '') {
+          tab.tableName = details.tableName;
+          this.cb.markDirty?.();
+        }
+        this.redraw();
+      } catch (e) {
+        console.error('Failed to fetch query details after executeAsync:', e);
+      }
+    }
   }
 
   private async runSync(
@@ -430,21 +537,98 @@ export class QueryRunner {
     if (result.queryUuid === undefined || result.queryUuid === '') {
       throw new Error('Backend did not return a queryUuid for sync execute');
     }
-    tab.queryUuid = result.queryUuid;
-    tab.execution = queryStore.getOrCreate(tab.queryUuid, {
-      perfettoSql: query,
-    });
-    tab.queryResult = makeQueryResponse(query, {
-      rows: [...result.rows],
-      columns: [...result.columns],
-      schema: result.schema,
-      totalRowCount: result.rows.length,
-      durationMs: performance.now() - wallStartMs,
-      statementWithOutputCount: 1,
-    });
-    queryStore.update(tab.queryUuid, {
-      processedRows: result.rows.length,
-    });
+
+    if (
+      result.executions &&
+      result.executions.length > 1 &&
+      options.queries &&
+      options.queries.length > 0
+    ) {
+      for (
+        let i = 0;
+        i < result.executions.length && i < options.queries.length;
+        i++
+      ) {
+        const item = result.executions[i];
+        const spec = options.queries[i] as {
+          slotId?: string;
+          perfettoSql: string;
+          tableName?: string;
+        };
+        const slot = tab.subQueries.find((s) => s.id === spec.slotId);
+        if (!slot) continue;
+        slot.queryUuid = item.queryUuid;
+        if (item.tableName) slot.tableName = item.tableName;
+        if (item.queryUuid === result.queryUuid) {
+          slot.execution = queryStore.getOrCreate(item.queryUuid, {
+            perfettoSql: slot.sql,
+            tableName: item.tableName,
+          });
+          slot.queryResult = makeQueryResponse(slot.sql, {
+            rows: [...result.rows],
+            columns: [...result.columns],
+            schema: result.schema,
+            totalRowCount: result.rows.length,
+            durationMs: performance.now() - wallStartMs,
+            statementWithOutputCount: 1,
+          });
+          slot.dataSource = new InMemoryDataSource(slot.queryResult.rows);
+        } else {
+          try {
+            const page = await client.fetchResults(
+              item.queryUuid,
+              tab.limit,
+              0,
+              signal,
+            );
+            slot.execution = queryStore.getOrCreate(item.queryUuid, {
+              perfettoSql: slot.sql,
+              tableName: item.tableName,
+            });
+            slot.queryResult = makeQueryResponse(slot.sql, {
+              rows: [...page.rows],
+              columns: [...page.columns],
+              schema: page.schema,
+              totalRowCount: page.rows.length,
+              durationMs: performance.now() - wallStartMs,
+              statementWithOutputCount: 1,
+            });
+            slot.dataSource = new InMemoryDataSource(slot.queryResult.rows);
+          } catch (err) {
+            slot.queryResult = makeQueryResponse(slot.sql, {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            slot.dataSource = new InMemoryDataSource([]);
+          }
+        }
+      }
+      loadSlotIntoTab(tab, tab.activeSubQueryIndex);
+    } else {
+      tab.queryUuid = result.queryUuid;
+      const resolvedTable =
+        result.tableName || result.executions?.[0]?.tableName || undefined;
+      if (resolvedTable) {
+        tab.tableName = resolvedTable;
+        this.cb.markDirty?.();
+      }
+      tab.execution = queryStore.getOrCreate(tab.queryUuid, {
+        perfettoSql: query,
+        tableName: resolvedTable,
+      });
+      tab.queryResult = makeQueryResponse(query, {
+        rows: [...result.rows],
+        columns: [...result.columns],
+        schema: result.schema,
+        totalRowCount: result.rows.length,
+        durationMs: performance.now() - wallStartMs,
+        statementWithOutputCount: 1,
+      });
+      if (tab.queryUuid) {
+        queryStore.update(tab.queryUuid, {
+          processedRows: result.rows.length,
+        });
+      }
+    }
     tab.isLoading = false;
   }
 }

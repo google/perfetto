@@ -960,6 +960,36 @@ async function startViteDevServer() {
     next();
   });
 
+  // Bigtrace dev builds proxy /v1/* and /trace/* to the local Bigtrace server
+  // (tools/bigtrace_server.py), so a browser that can only reach this port
+  // (e.g. over SSH forwarding) still reaches the backend.
+  const bigtracePort = Number(process.env.BIGTRACE_SERVER_PORT || 5001);
+  server.middlewares.use((req, res, next) => {
+    const isApi = req.url.startsWith('/v1/') || req.url.startsWith('/trace/');
+    if (!cfg.bigtrace || !isApi) return next();
+    const proxyReq = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: bigtracePort,
+        path: req.url,
+        method: req.method,
+        headers: {...req.headers, host: `127.0.0.1:${bigtracePort}`},
+      },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+        proxyRes.pipe(res);
+      },
+    );
+    proxyReq.on('error', (err) => {
+      res.statusCode = 502;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(
+        JSON.stringify({detail: `Bigtrace backend unavailable: ${err.message}`}),
+      );
+    });
+    req.pipe(proxyReq);
+  });
+
   // Fall back to serving files from outDistRootDir / outDistDir for anything
   // Vite hasn't claimed (wasm modules, fonts under /assets/, manifest.json,
   // etc.). In prod, frontend.css lives inside the versioned dir, so the
@@ -968,10 +998,15 @@ async function startViteDevServer() {
   // browser asks for /assets/Roboto.woff2. Try outDistDir as a second root
   // so those font requests succeed.
   server.middlewares.use((req, res, next) => {
-    const url = req.url.split('?', 1)[0];
+    let url = req.url.split('?', 1)[0];
+    if (url === '/bigtrace' || url === '/bigtrace/') {
+      url = '/bigtrace.html';
+    }
+    url = url.replace('/assets/assets/', '/assets/');
     // Vite handles JS/TS/CSS modules and HMR endpoints itself.
     if (url === '/' || url === '/index.html') return next();
     const roots = [cfg.outDistRootDir, cfg.outDistDir];
+
     const tryRoot = (i) => {
       if (i >= roots.length) return next();
       const root = roots[i];

@@ -22,20 +22,32 @@ import {QueryRunner} from '../query/query_runner';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
-import {QueryTabsState} from './query_tabs_state';
+import {
+  canRenameTab,
+  QueryTabsState,
+  stageDuckdbQuery,
+} from './query_tabs_state';
 
 interface QueryPageAttrs {
   useBigtraceBackend?: boolean;
 }
 
-// Lets the global keyboard command reach the active QueryPage instance
+// Lets the global keyboard command and Topbar reach the active QueryPage instance
 // (same pattern as sidebarToggleFn in index.ts).
 export let queryRightSidebarToggleFn: (() => void) | undefined;
+let activeQueryTabsState: QueryTabsState | undefined;
+
+export function getActiveQueryTabsState(): QueryTabsState {
+  if (activeQueryTabsState === undefined) {
+    activeQueryTabsState = new QueryTabsState();
+  }
+  return activeQueryTabsState;
+}
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private useBigtraceBackend = false;
   private sidebarVisible = true;
-  private readonly tabsState = new QueryTabsState();
+  private readonly tabsState = getActiveQueryTabsState();
   private historyRefreshSignal = 0;
   private readonly runner = new QueryRunner({
     onHistoryChanged: () => {
@@ -46,6 +58,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   oninit({attrs}: m.Vnode<QueryPageAttrs>) {
     this.useBigtraceBackend = attrs.useBigtraceBackend || false;
+    activeQueryTabsState = this.tabsState;
     queryRightSidebarToggleFn = () => {
       this.sidebarVisible = !this.sidebarVisible;
       m.redraw();
@@ -56,12 +69,24 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   view() {
-    const editorTabs: TabsTab[] = this.tabsState.tabs.map((tab) => ({
+    activeQueryTabsState = this.tabsState;
+    const visibleTabs = this.tabsState.getVisibleTabs();
+    const editorTabs: TabsTab[] = visibleTabs.map((tab) => ({
       key: tab.id,
-      title: tab.title,
+      title: canRenameTab(tab)
+        ? tab.title
+        : m(
+            'span',
+            {title: 'Result table name cannot be changed after running'},
+            tab.title,
+          ),
       // Spinner on in-flight tabs so switching away doesn't hide the run.
-      leftIcon: tab.isLoading ? m(Spinner) : 'code',
-      closeButton: this.tabsState.tabs.length > 1,
+      leftIcon: tab.isLoading
+        ? m(Spinner)
+        : tab.queryEngine === 'duckdb'
+          ? 'database'
+          : 'code',
+      closeButton: visibleTabs.length > 1,
       content: m(EditorTabView, {
         tab,
         tabsState: this.tabsState,
@@ -81,9 +106,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       },
       onTabRename: (key, newTitle) => this.tabsState.renameTab(key, newTitle),
       onTabClose: async (key) => {
-        // closeTab is a no-op with one tab left; bail before the confirm
-        // so middle-click doesn't dead-end.
-        if (this.tabsState.tabs.length <= 1) return;
+        // closeTab is a no-op with one tab left in the current engine; bail
+        // before the confirm so middle-click doesn't dead-end.
+        if (this.tabsState.getVisibleTabs().length <= 1) return;
         // Confirm only for ephemeral queries — closing loses the results.
         // Persistent queries keep running and can be reopened from History.
         const tab = this.tabsState.tabs.find((t) => t.id === key);
@@ -141,7 +166,19 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         forceNew?: boolean,
         limit?: number,
         startTime?: number,
+        queryEngine?: 'traces' | 'duckdb',
       ) => {
+        if (!uuid) {
+          // A table opened in DuckDB: switch mode with the query staged, but
+          // don't run it (running would also add a History entry).
+          stageDuckdbQuery(this.tabsState, query, limit);
+          return;
+        }
+        const alreadyOpen =
+          !forceNew && this.tabsState.tabs.some((t) => t.queryUuid === uuid);
+        if (queryEngine) {
+          this.tabsState.activeEngine = queryEngine;
+        }
         const tab = this.tabsState.addNewTab(
           undefined,
           query,
@@ -150,8 +187,15 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           materialize,
           forceNew,
         );
+        if (queryEngine) {
+          tab.queryEngine = queryEngine;
+          this.tabsState.activeEngine = queryEngine;
+        }
         this.tabsState.activeTabId = tab.id;
         this.tabsState.markDirty();
+        if (alreadyOpen && tab.dataSource !== undefined) {
+          return;
+        }
         if (startTime !== undefined && tab.execution) {
           tab.execution.startTime = startTime;
         }

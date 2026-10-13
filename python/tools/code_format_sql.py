@@ -21,6 +21,7 @@ import sys
 from code_format_utils import CodeFormatterBase, run_code_formatters
 
 IGNORE_DIRS = [
+    'python/perfetto/bigtrace/duckdb_ext/sql/',
     'test/trace_processor/diff_tests/',
     'src/trace_processor/metrics/sql/',
     # The source of truth for the chrome stdlib is in chromium. Skip formatting

@@ -34,9 +34,10 @@ export function formatDurationS(ms: number): string {
 }
 
 export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
-  if (!tab.materialize || !tab.queryUuid) return false;
+  if (!tab.materialize || (!tab.queryUuid && !tab.isLoading)) return false;
 
   const isTerminal =
+    !tab.isLoading &&
     tab.execution?.status !== undefined &&
     TERMINAL_STATUSES.has(tab.execution.status);
   const processedRows = tab.execution?.processedRows ?? 0;
@@ -59,7 +60,8 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
     }
   }
 
-  const status = tab.execution?.status ?? 'UNKNOWN';
+  const status =
+    tab.execution?.status ?? (tab.isLoading ? 'IN_PROGRESS' : 'UNKNOWN');
   const processedTraces = tab.execution?.processedTraces ?? 0;
   const totalTraces = tab.execution?.totalTraces ?? 0;
   const durationStr = formatDurationS(durationMs);
@@ -98,38 +100,54 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
   ]
     .filter(Boolean)
     .join(' ');
+  const isDuckdb = tab.queryEngine === 'duckdb';
+  const duckdbPct = Math.max(0, Math.min(99, processedTraces));
   const rightGroupContent = m(
     '.pf-bt-status-bar-group',
-    m(
-      'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--traces',
-      m('span.pf-bt-status-bar-stat-label', 'Traces:'),
+    !isDuckdb &&
       m(
-        'span.pf-bt-status-bar-stat-value',
-        {
-          title:
-            `${processedTraces.toLocaleString()} of ` +
-            `${totalTraces.toLocaleString()}` +
-            (!isTerminal
-              ? ' — numerator lags the poll (≤3s); denominator is exact.'
-              : ''),
-        },
-        formatCompact(processedTraces),
+        'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--traces',
+        m('span.pf-bt-status-bar-stat-label', 'Traces:'),
+        m(
+          'span.pf-bt-status-bar-stat-value',
+          {
+            title:
+              `${processedTraces.toLocaleString()} of ` +
+              `${totalTraces.toLocaleString()}` +
+              (!isTerminal
+                ? ' — numerator lags the poll (≤3s); denominator is exact.'
+                : ''),
+          },
+          formatCompact(processedTraces),
+        ),
+        renderInlineProgressBar(processedTraces, totalTraces, !isTerminal),
       ),
-      renderInlineProgressBar(processedTraces, totalTraces, !isTerminal),
-    ),
-    m(
-      'span',
-      {className: rowsStatClasses},
-      m('span.pf-bt-status-bar-stat-label', 'Rows:'),
-      m(
-        'span.pf-bt-status-bar-stat-value',
-        {
-          title: `${processedRows.toLocaleString()} of result limit ${tab.limit.toLocaleString()}`,
-        },
-        formatCompact(processedRows),
-      ),
-      renderInlineProgressBar(processedRows, tab.limit, !isTerminal),
-    ),
+    isDuckdb && !isTerminal
+      ? m(
+          'span.pf-bt-status-bar-stat.pf-bt-status-bar-stat--rows',
+          m('span.pf-bt-status-bar-stat-label', 'Progress:'),
+          m(
+            'span.pf-bt-status-bar-stat-value',
+            {title: `DuckDB execution progress: ${duckdbPct}%`},
+            `${duckdbPct}%`,
+          ),
+          renderInlineProgressBar(duckdbPct, 100, true),
+        )
+      : m(
+          'span',
+          {className: rowsStatClasses},
+          m('span.pf-bt-status-bar-stat-label', 'Rows:'),
+          m(
+            'span.pf-bt-status-bar-stat-value',
+            {
+              title:
+                tab.limit > 0
+                  ? `${processedRows.toLocaleString()} of result limit ${tab.limit.toLocaleString()}`
+                  : `${processedRows.toLocaleString()} rows (no limit)`,
+            },
+            formatCompact(processedRows),
+          ),
+        ),
   );
 
   const rightGroup = !isTerminal
@@ -141,8 +159,12 @@ export function renderStatusBox(tab: BigTraceEditorTab): m.Children {
         },
         m(
           '.pf-bt-status-bar-progress-tooltip',
-          m('div', `Traces: ${formatCompact(processedTraces)}`),
-          m('div', `Rows: ${formatCompact(processedRows)}`),
+          isDuckdb
+            ? m('div', `Progress: ${duckdbPct}%`)
+            : [
+                m('div', `Traces: ${formatCompact(processedTraces)}`),
+                m('div', `Rows: ${formatCompact(processedRows)}`),
+              ],
         ),
       )
     : rightGroupContent;
@@ -165,7 +187,14 @@ function renderInlineProgressBar(
   live: boolean,
 ): m.Children {
   if (!live) return null;
-  if (total <= 0) return null;
+  if (total <= 0 || done <= 0) {
+    return m(
+      'span.pf-bt-inline-progress',
+      m(
+        'span.pf-bt-inline-progress-fill.pf-bt-inline-progress-fill--indeterminate',
+      ),
+    );
+  }
   const pct = Math.max(0, Math.min(100, (done / total) * 100));
   return m(
     'span.pf-bt-inline-progress',

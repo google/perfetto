@@ -67,7 +67,12 @@ export class AccordionSection implements m.ClassComponent<AccordionSectionAttrs>
           open: this.isOpen,
           ...(groupName != null ? {name: groupName} : {}),
           ontoggle: (e: Event) => {
-            this.isOpen = (e.target as HTMLDetailsElement).open;
+            const next = (e.target as HTMLDetailsElement).open;
+            if (next === this.isOpen) {
+              (e as Event & {redraw?: boolean}).redraw = false;
+              return;
+            }
+            this.isOpen = next;
           },
         },
         m(

@@ -134,4 +134,74 @@ describe('results panel after a persistent query completes', () => {
     const text = vnodeText(renderResultsPanel(tab, tabsState));
     expect(text).toContain('Results no longer available');
   });
+
+  test('renders at most one inline progress bar when running and on rerun', async () => {
+    function countSelector(node: unknown, cls: string): number {
+      if (node === null || node === undefined || typeof node !== 'object') {
+        return 0;
+      }
+      const vnode = node as Vnode;
+      let n = 0;
+      const tagStr = typeof vnode.tag === 'string' ? vnode.tag : '';
+      const clsAttr = String(
+        (vnode.attrs as {className?: string} | undefined)?.className ?? '',
+      );
+      if (
+        tagStr.split('.').includes(cls) ||
+        clsAttr.split(/\s+/).includes(cls)
+      ) {
+        n++;
+      }
+      for (const [k, v] of Object.entries(vnode)) {
+        if (k === 'dom' || k === 'events' || k === 'tag') continue;
+        if (Array.isArray(v)) {
+          for (const child of v) n += countSelector(child, cls);
+        } else if (v !== null && typeof v === 'object') {
+          n += countSelector(v, cls);
+        }
+      }
+      return n;
+    }
+
+    const tabsState = new QueryTabsState();
+    const tab = runningTab(tabsState, 'uuid-progress', fakeClient('tbl_prog'));
+    tab.limit = 10000;
+    // Before first poll returns (totalTraces === 0), only Traces has a bar.
+    expect(
+      countSelector(
+        renderResultsPanel(tab, tabsState),
+        'pf-bt-inline-progress',
+      ),
+    ).toBe(1);
+
+    await pollToCompletion(tab);
+    expect(
+      countSelector(
+        renderResultsPanel(tab, tabsState),
+        'pf-bt-inline-progress',
+      ),
+    ).toBe(0);
+
+    // Rerunning resets execution to undefined while loading: still strictly one bar.
+    tab.isLoading = true;
+    tab.execution = undefined;
+    expect(
+      countSelector(
+        renderResultsPanel(tab, tabsState),
+        'pf-bt-inline-progress',
+      ),
+    ).toBe(1);
+    expect(
+      countSelector(renderResultsPanel(tab, tabsState), 'pf-bt-status-bar'),
+    ).toBe(1);
+  });
+
+  test('new unexecuted tab renders empty state instead of running spinner', () => {
+    const tabsState = new QueryTabsState();
+    tabsState.setEngine('duckdb');
+    const tab = tabsState.getActiveTab()!;
+    const text = vnodeText(renderResultsPanel(tab, tabsState));
+    expect(text).toContain('<EmptyState>');
+    expect(text).not.toContain('<RunningQuerySpinner>');
+  });
 });

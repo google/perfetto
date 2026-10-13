@@ -80,6 +80,7 @@ export interface QueryExecution {
   totalTraces: number;
   error?: string;
   perfettoSql?: string;
+  queryEngine?: 'traces' | 'duckdb';
   limit?: number;
   materialized?: boolean;
   tableName?: string;
@@ -92,6 +93,10 @@ export interface QueryExecution {
 // unless incoming is terminal or higher.
 export class QueryStore {
   private queries = new Map<string, QueryExecution>();
+
+  get(uuid: string): QueryExecution | undefined {
+    return this.queries.get(uuid);
+  }
 
   getOrCreate(
     uuid: string,

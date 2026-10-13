@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import dataclasses as dc
+import threading
 from typing import Any, Dict, List, Optional, Union
 
 from perfetto.common.exceptions import PerfettoException
@@ -34,6 +35,20 @@ from perfetto.trace_uri_resolver.registry import ResolverRegistry
 PLATFORM_DELEGATE = PlatformDelegate
 
 TraceReference = registry.TraceReference
+
+# Building a ProtoFactory parses large descriptors in Python, so it is shared
+# by all instances using the same platform delegate. Factories are read-only.
+_proto_factories: Dict[type, ProtoFactory] = {}
+_proto_factories_lock = threading.Lock()
+
+
+def _get_proto_factory(platform_delegate: PlatformDelegate) -> ProtoFactory:
+  with _proto_factories_lock:
+    key = type(platform_delegate)
+    if key not in _proto_factories:
+      _proto_factories[key] = ProtoFactory(platform_delegate)
+    return _proto_factories[key]
+
 
 # Custom exception raised if any trace_processor functions return a
 # response with an error defined
@@ -112,6 +127,9 @@ class TraceProcessorConfig:
   # `remote` or `addr`.
   enable_sql_file_access: bool = False
 
+  # Optional event that cancels startup if set while loading.
+  cancel_event: Optional[threading.Event] = None
+
   def __init__(
       self,
       bin_path: Optional[str] = None,
@@ -125,6 +143,7 @@ class TraceProcessorConfig:
       add_sql_packages: Optional[List[Union[str, SqlPackage]]] = None,
       fetch_latest_trace_processor: bool = False,
       enable_sql_file_access: bool = False,
+      cancel_event: Optional[threading.Event] = None,
   ):
     self.bin_path = bin_path
     self.unique_port = unique_port
@@ -137,6 +156,7 @@ class TraceProcessorConfig:
     self.add_sql_packages = add_sql_packages
     self.fetch_latest_trace_processor = fetch_latest_trace_processor
     self.enable_sql_file_access = enable_sql_file_access
+    self.cancel_event = cancel_event
 
 
 class TraceProcessor:
@@ -201,7 +221,7 @@ class TraceProcessor:
 
     self.config = config
     self.platform_delegate = PLATFORM_DELEGATE()
-    self.protos = ProtoFactory(self.platform_delegate)
+    self.protos = _get_proto_factory(self.platform_delegate)
     self.resolver_registry = config.resolver_registry or \
       self.platform_delegate.default_resolver_registry()
     self._backend = self._create_backend(remote, addr)

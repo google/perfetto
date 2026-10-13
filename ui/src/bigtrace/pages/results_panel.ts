@@ -60,14 +60,21 @@ export function renderResultsPanel(
   const renderSpinner = () =>
     m(RunningQuerySpinner, {
       startMs: tab.clientStartTime ?? Date.now(),
-      showDuration: !tab.materialize,
+      showDuration: !tab.materialize || tab.queryEngine === 'duckdb',
     });
+
+  const isRunning =
+    tab.isLoading ||
+    (Boolean(tab.queryUuid) &&
+      tab.execution !== undefined &&
+      tab.execution.status !== undefined &&
+      !TERMINAL_STATUSES.has(tab.execution.status));
 
   if (!tab.dataSource || !tab.queryResult) {
     return m(
       '.pf-bt-results-panel',
       status,
-      tab.isLoading
+      isRunning
         ? renderSpinner()
         : m(EmptyState, {
             title: 'Run a query to see results',
@@ -119,7 +126,7 @@ export function renderResultsPanel(
     });
   } else if (hasRowsToShow) {
     tableContent = renderResultsGrid(tab, tabsState);
-  } else if (tab.isLoading) {
+  } else if (isRunning) {
     tableContent = renderSpinner();
   } else {
     tableContent = m(EmptyState, {

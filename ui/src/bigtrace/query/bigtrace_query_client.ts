@@ -19,10 +19,17 @@ import {type BigtraceColumnSchema, parseCellValue} from './column_types';
 import {coerceFiltersForWire} from './filter_encoding';
 import type {RawQueryExecution} from './query_history_storage';
 
+export interface BatchExecutionItem {
+  readonly queryUuid: string;
+  readonly tableName?: string;
+}
+
 // Tabular wire shape for QueryResponse (`/execute_*` and `:fetch_results`).
 // Values are always strings; JSON null or "NULL" denotes SQL NULL.
 interface QueryResponsePayload {
   queryUuid?: string;
+  tableName?: string;
+  executions?: BatchExecutionItem[];
   schema?: BigtraceColumnSchema[];
   rows?: Array<{values: Array<string | null>}>;
   // Filtered count for scrollbar sizing.
@@ -45,6 +52,8 @@ export interface QueryResultPage {
   readonly columns: ReadonlyArray<string>;
   readonly schema: ReadonlyArray<BigtraceColumnSchema>;
   readonly queryUuid?: string;
+  readonly tableName?: string;
+  readonly executions?: ReadonlyArray<BatchExecutionItem>;
   // Post-filter count from `:fetch_results`; undefined elsewhere.
   readonly totalFilteredRows?: number;
   // Every projectable column (result + metadata columns); `:fetch_results`-only.
@@ -105,6 +114,11 @@ export function toExperimentFilterSpec(
   };
 }
 
+export interface SubQuerySpec {
+  readonly perfettoSql: string;
+  readonly tableName?: string;
+}
+
 // The submit-time trace-selection snapshot shipped as top-level fields on
 // /execute_*. Each is omitted from the wire when empty / default, so a query
 // run with no trace selection sends just the base limit/perfetto_sql/settings.
@@ -127,6 +141,19 @@ export interface ExecuteOptions {
   // How many days that table lives for. Independent of the name: the table
   // exists either way.
   readonly tableTtlDays?: number;
+  // Execution engine: 'traces' (PerfettoSQL fan-out) or 'duckdb' (DuckDB over
+  // materialized history tables).
+  readonly engine?: 'traces' | 'duckdb';
+  // Optional batch of queries to run in a single pass per trace.
+  readonly queries?: ReadonlyArray<SubQuerySpec>;
+}
+
+export interface DuckdbTableDescriptor {
+  readonly name: string;
+  readonly rowCount: number;
+  readonly columns: ReadonlyArray<BigtraceColumnSchema>;
+  readonly queryUuid?: string;
+  readonly sql?: string;
 }
 
 // What `/check_table_exists` says about a name before it is used.
@@ -135,6 +162,8 @@ export interface TableNameCheck {
   // The name the backend would actually create, which may namespace or
   // normalise what was asked for.
   readonly resolvedTableName: string;
+  // A fresh non-colliding alternative (e.g. `<name>_1`).
+  readonly suggestedTableName?: string;
 }
 
 // One analysis preset from `GET /trace_presets`: display metadata plus a
@@ -376,6 +405,7 @@ export class BigtraceQueryClient {
     return {
       exists: result.exists === true,
       resolvedTableName: result.resolvedTableName ?? tableName,
+      suggestedTableName: result.suggestedTableName,
     };
   }
 
@@ -391,6 +421,22 @@ export class BigtraceQueryClient {
       },
     );
     return result.tracePresets ?? [];
+  }
+
+  async listDuckdbTables(
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<DuckdbTableDescriptor>> {
+    try {
+      const result = await this.requestJson<{
+        tables?: DuckdbTableDescriptor[];
+      }>('/duckdb/tables', {
+        method: 'GET',
+        signal,
+      });
+      return result.tables ?? [];
+    } catch {
+      return [];
+    }
   }
 
   // Deleting an execution takes its table with it: the results are the
@@ -516,6 +562,15 @@ export class BigtraceQueryClient {
     if (options?.tableTtlDays !== undefined && options.tableTtlDays > 0) {
       body.table_ttl_days = options.tableTtlDays;
     }
+    if (options?.engine !== undefined && options.engine !== 'traces') {
+      body.engine = options.engine;
+    }
+    if (options?.queries !== undefined && options.queries.length > 0) {
+      body.queries = options.queries.map((q) => ({
+        perfetto_sql: q.perfettoSql,
+        ...(q.tableName ? {table_name: q.tableName} : {}),
+      }));
+    }
     const result = await this.requestJson<QueryResponsePayload>(path, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -545,8 +600,8 @@ export class BigtraceQueryClient {
         ...init,
       });
     } catch (e) {
-      // AbortSignal → DOMException, surface as our typed error.
-      if (e instanceof DOMException && e.name === 'AbortError') {
+      // AbortSignal → DOMException/AbortError, surface as our typed error.
+      if (isAbortError(e) || init?.signal?.aborted) {
         throw new QueryCancelledError();
       }
       throw e;
@@ -586,8 +641,22 @@ export class BigtraceQueryClient {
 
   private async requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await this.request(path, init);
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch (e) {
+      if (isAbortError(e) || init?.signal?.aborted) {
+        throw new QueryCancelledError();
+      }
+      throw e;
+    }
   }
+}
+
+function isAbortError(e: unknown): boolean {
+  if (e instanceof QueryCancelledError) return true;
+  if (e instanceof DOMException && e.name === 'AbortError') return true;
+  if (e instanceof Error && e.name === 'AbortError') return true;
+  return false;
 }
 
 // Passes wire values through as-is: no numeric coercion (would corrupt 64-bit
@@ -614,6 +683,8 @@ export function parseQueryResponse(
       rows: [],
       columns: [],
       queryUuid: result.queryUuid,
+      tableName: result.tableName,
+      executions: result.executions,
       totalFilteredRows: result.totalFilteredRows,
       schema: [],
     };
@@ -631,6 +702,8 @@ export function parseQueryResponse(
     rows,
     columns,
     queryUuid: result.queryUuid,
+    tableName: result.tableName,
+    executions: result.executions,
     totalFilteredRows: result.totalFilteredRows,
     schema,
   };

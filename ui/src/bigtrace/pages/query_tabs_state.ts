@@ -17,6 +17,7 @@ import type {Filter} from '../../components/widgets/datagrid/model';
 import type {Row as DataGridRow} from '../../trace_processor/query_result';
 import {debounce} from '../../base/rate_limiters';
 import {shortUuid} from '../../base/uuid';
+import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import type {
   BigtraceQueryClient,
   ExperimentFilterSpec,
@@ -26,6 +27,37 @@ import {queryStore, type QueryExecution} from '../query/query_store';
 import type {BigtraceColumnSchema} from '../query/column_types';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
+
+const RESERVED_SQL_WORDS = new Set([
+  'select',
+  'where',
+  'group',
+  'order',
+  'limit',
+  'join',
+  'left',
+  'right',
+  'inner',
+  'outer',
+  'cross',
+  'natural',
+  'using',
+  'on',
+  'with',
+  'union',
+  'from',
+  'table',
+]);
+
+export function deriveTableNameFromSql(sql: string): string | undefined {
+  if (!sql) return undefined;
+  const match = sql.match(
+    /\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\.([a-zA-Z_][a-zA-Z0-9_]*))?\b/i,
+  );
+  if (!match) return undefined;
+  const name = (match[2] ?? match[1]).toLowerCase();
+  return RESERVED_SQL_WORDS.has(name) ? undefined : name;
+}
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
@@ -79,10 +111,16 @@ export function traceUuidsState(
 }
 
 export function traceUuidsActive(tab: BigTraceEditorTab): boolean {
+  const entry = tab.querySettings.find(
+    (s) => s.settingId === TRACE_UUIDS_SETTING_ID,
+  );
+  const inLauncher = !tab.configured || tab.settingsSession !== undefined;
+  const hasEntry =
+    entry !== undefined && (inLauncher || entry.values.length > 0);
   return traceUuidsState(
     traceUuidsDeclared(),
     tab.disabledSettings.includes(TRACE_UUIDS_SETTING_ID),
-    tab.querySettings.some((s) => s.settingId === TRACE_UUIDS_SETTING_ID),
+    hasEntry,
   );
 }
 
@@ -388,8 +426,250 @@ export function closeSettings(
   if (!keep && tab.settingsSession !== undefined) {
     restoreTabConfig(tab, tab.settingsSession.before);
   }
+  const uuidEntry = tab.querySettings.find(
+    (s) => s.settingId === TRACE_UUIDS_SETTING_ID,
+  );
+  if (uuidEntry !== undefined && uuidEntry.values.length === 0) {
+    setTraceUuidsActive(tab, false);
+  }
   tab.settingsSession = undefined;
   tab.configured = true;
+}
+
+// Puts `query` in a DuckDB-mode tab without running it. Reuses the active tab
+// when it is idle and empty, a tab already holding exactly `query`, or else
+// opens a new one, so the user's SQL is never overwritten.
+export function stageDuckdbQuery(
+  tabsState: QueryTabsState,
+  query: string,
+  limit?: number,
+): BigTraceEditorTab {
+  const active = tabsState.getActiveTab();
+  const reuseActive =
+    active !== undefined &&
+    !active.isLoading &&
+    !hasQueryText(active.editorText);
+  tabsState.activeEngine = 'duckdb';
+  const tab = reuseActive
+    ? active
+    : tabsState.addNewTab(undefined, query, limit);
+  tab.editorText = query;
+  if (limit !== undefined) tab.limit = limit;
+  tab.queryEngine = 'duckdb';
+  tab.settingsSession = undefined;
+  tab.configured = true;
+  tabsState.activeTabId = tab.id;
+  tabsState.markDirty();
+  return tab;
+}
+
+export function defaultTableName(): string {
+  const suffix = shortUuid()
+    .slice(1)
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, 6)
+    .toLowerCase();
+  return `tbl_${suffix || '1'}`;
+}
+
+export interface SubQuerySlot {
+  readonly id: string;
+  sql: string;
+  tableName: string;
+  queryUuid?: string;
+  queryResult?: QueryResponse;
+  dataSource?: DataSource;
+  execution?: QueryExecution;
+}
+
+export interface StoredSubQuerySlot {
+  readonly id: string;
+  readonly sql: string;
+  readonly tableName: string;
+  readonly queryUuid?: string;
+}
+
+export function loadSlotIntoTab(tab: BigTraceEditorTab, index: number): void {
+  if (index < 0 || index >= tab.subQueries.length) return;
+  tab.activeSubQueryIndex = index;
+  const slot = tab.subQueries[index];
+  tab.editorText = slot.sql;
+  tab.tableName = slot.tableName;
+  tab.queryUuid = slot.queryUuid;
+  tab.queryResult = slot.queryResult;
+  tab.dataSource = slot.dataSource;
+  tab.execution =
+    slot.execution ??
+    (slot.queryUuid
+      ? queryStore.getOrCreate(slot.queryUuid, {
+          materialized: tab.materialize,
+          queryEngine: tab.queryEngine,
+          perfettoSql: slot.sql,
+          tableName: slot.tableName,
+        })
+      : undefined);
+  if (slot.queryUuid && !slot.dataSource && tab.queryClient) {
+    slot.dataSource = new BigtraceAsyncDataSource(
+      slot.queryUuid,
+      tab.queryClient,
+      () => slot.execution?.processedRows ?? 0,
+      tab.lifecycle.signal,
+      () => slot.execution?.schema,
+    );
+    tab.dataSource = slot.dataSource;
+    if (!slot.queryResult) {
+      slot.queryResult = makeQueryResponse(slot.sql, {
+        totalRowCount: slot.execution?.processedRows ?? 0,
+      });
+      tab.queryResult = slot.queryResult;
+    }
+  }
+}
+
+export function syncActiveSubQueryToSlot(tab: BigTraceEditorTab): void {
+  if (tab.subQueries.length === 0) return;
+  const idx = Math.max(
+    0,
+    Math.min(tab.activeSubQueryIndex, tab.subQueries.length - 1),
+  );
+  const slot = tab.subQueries[idx];
+  slot.sql = tab.editorText;
+  slot.tableName = tab.tableName;
+  slot.queryUuid = tab.queryUuid;
+  slot.queryResult = tab.queryResult;
+  slot.dataSource = tab.dataSource;
+  slot.execution = tab.execution;
+}
+
+export function selectSubQuery(tab: BigTraceEditorTab, index: number): void {
+  if (index < 0 || index >= tab.subQueries.length) return;
+  syncActiveSubQueryToSlot(tab);
+  loadSlotIntoTab(tab, index);
+}
+
+export function addSubQuery(tab: BigTraceEditorTab): void {
+  if (tab.subQueries.length === 0) {
+    const firstTable = tab.tableName.trim() || defaultTableName();
+    tab.tableName = firstTable;
+    tab.subQueries.push({
+      id: shortUuid(),
+      sql: tab.editorText,
+      tableName: firstTable,
+      queryUuid: tab.queryUuid,
+      queryResult: tab.queryResult,
+      dataSource: tab.dataSource,
+      execution: tab.execution,
+    });
+    tab.activeSubQueryIndex = 0;
+  } else {
+    syncActiveSubQueryToSlot(tab);
+  }
+  tab.subQueries.push({
+    id: shortUuid(),
+    sql: '',
+    tableName: defaultTableName(),
+  });
+  loadSlotIntoTab(tab, tab.subQueries.length - 1);
+}
+
+export function removeSubQuery(tab: BigTraceEditorTab, index: number): void {
+  if (index < 0 || index >= tab.subQueries.length) return;
+  syncActiveSubQueryToSlot(tab);
+  tab.subQueries.splice(index, 1);
+  if (tab.subQueries.length <= 1) {
+    const remaining: SubQuerySlot | undefined = tab.subQueries[0];
+    tab.subQueries = [];
+    tab.activeSubQueryIndex = 0;
+    if (remaining !== undefined) {
+      tab.editorText = remaining.sql;
+      tab.tableName = remaining.tableName;
+      tab.queryUuid = remaining.queryUuid;
+      tab.queryResult = remaining.queryResult;
+      tab.dataSource = remaining.dataSource;
+      tab.execution = remaining.execution;
+    }
+    return;
+  }
+  const nextIdx = Math.min(tab.activeSubQueryIndex, tab.subQueries.length - 1);
+  loadSlotIntoTab(tab, nextIdx);
+}
+
+export function getSubQueryTableName(
+  slot: {
+    sql?: string;
+    editorText?: string;
+    tableName?: string;
+    execution?: QueryExecution;
+  },
+  index: number,
+): string {
+  const custom = slot.tableName?.trim();
+  if (custom) return custom;
+  if (slot.execution?.tableName) return slot.execution.tableName;
+  const sql = slot.sql ?? slot.editorText ?? '';
+  const derived = deriveTableNameFromSql(sql);
+  if (derived) return derived;
+  return `result_${index + 1}`;
+}
+
+export function buildMultiQuerySpecs(
+  subQueries: ReadonlyArray<SubQuerySlot>,
+): Array<{slotId: string; perfettoSql: string; tableName: string}> {
+  const active = subQueries.filter((q) => hasQueryText(q.sql));
+  const used = new Set<string>();
+  return active.map((q, idx) => {
+    const base =
+      q.tableName.trim() ||
+      deriveTableNameFromSql(q.sql) ||
+      `result_${idx + 1}`;
+    let name = base;
+    let count = 1;
+    while (used.has(name.toLowerCase())) {
+      name = `${base}_${++count}`;
+    }
+    used.add(name.toLowerCase());
+    return {
+      slotId: q.id,
+      perfettoSql: q.sql,
+      tableName: name,
+    };
+  });
+}
+
+// A tab's title / result table name can only be renamed before a query runs.
+export function canRenameTab(tab: BigTraceEditorTab): boolean {
+  return (
+    !tab.isLoading &&
+    tab.queryUuid === undefined &&
+    tab.queryResult === undefined
+  );
+}
+
+// A sub-query slot's result table name can only be renamed before it runs.
+export function canRenameSubQuery(
+  tab: BigTraceEditorTab,
+  slot: SubQuerySlot,
+): boolean {
+  return (
+    !tab.isLoading &&
+    slot.queryUuid === undefined &&
+    slot.queryResult === undefined
+  );
+}
+
+export function renameSubQuery(
+  tab: BigTraceEditorTab,
+  index: number,
+  newName: string,
+): void {
+  if (index < 0 || index >= tab.subQueries.length) return;
+  const slot = tab.subQueries[index];
+  const trimmed = newName.trim();
+  if (trimmed === '' || !canRenameSubQuery(tab, slot)) return;
+  slot.tableName = trimmed;
+  if (index === tab.activeSubQueryIndex) {
+    tab.tableName = trimmed;
+  }
 }
 
 // Mutated in-place by the runner; only QueryTabsState creates/destroys.
@@ -397,6 +677,10 @@ export interface BigTraceEditorTab {
   readonly id: string;
   title: string;
   editorText: string;
+  queryEngine: 'traces' | 'duckdb';
+  tableName: string;
+  subQueries: SubQuerySlot[];
+  activeSubQueryIndex: number;
   limit: number;
   // Cap on how many traces the run fans out to; a top-level request field
   // like `limit`, defaulted per mode and moved with it while untouched.
@@ -459,6 +743,10 @@ interface StoredTab {
   readonly id: string;
   readonly title: string;
   readonly editorText: string;
+  readonly queryEngine?: 'traces' | 'duckdb';
+  readonly tableName?: string;
+  readonly subQueries?: ReadonlyArray<StoredSubQuerySlot>;
+  readonly activeSubQueryIndex?: number;
   readonly limit: number;
   readonly traceLimit?: number;
   readonly tableTtlDays?: number;
@@ -482,14 +770,17 @@ interface StoredTab {
 interface StoredState {
   readonly tabs: ReadonlyArray<StoredTab>;
   readonly activeTabId?: string;
+  readonly activeEngine?: 'traces' | 'duckdb';
 }
 
 // Manages editor tabs + localStorage persistence across page reloads.
 export class QueryTabsState {
   tabs: BigTraceEditorTab[] = [];
   activeTabId = '';
+  activeEngine: 'traces' | 'duckdb' = 'traces';
+  private lastActiveTabByEngine: Partial<Record<'traces' | 'duckdb', string>> =
+    {};
 
-  private tabCounter = 0;
   private readonly debouncedSave = debounce(() => this.saveToStorage(), 1000);
 
   constructor() {
@@ -502,8 +793,45 @@ export class QueryTabsState {
     this.debouncedSave();
   }
 
+  saveNow(): void {
+    this.saveToStorage();
+  }
+
   getActiveTab(): BigTraceEditorTab | undefined {
     return this.tabs.find((t) => t.id === this.activeTabId);
+  }
+
+  getVisibleTabs(): BigTraceEditorTab[] {
+    return this.tabs.filter((t) => t.queryEngine === this.activeEngine);
+  }
+
+  setEngine(engine: 'traces' | 'duckdb'): void {
+    const current = this.getActiveTab();
+    if (this.activeEngine === engine && current?.queryEngine === engine) {
+      return;
+    }
+    if (current !== undefined) {
+      this.lastActiveTabByEngine[current.queryEngine] = current.id;
+    }
+    this.activeEngine = engine;
+    const visible = this.getVisibleTabs();
+    if (visible.length === 0) {
+      this.addNewTab(
+        undefined,
+        DEFAULT_SQL,
+        undefined,
+        undefined,
+        undefined,
+        true,
+      );
+      return;
+    }
+    const rememberedId = this.lastActiveTabByEngine[engine];
+    const remembered = visible.find((t) => t.id === rememberedId);
+    const target = remembered ?? visible[visible.length - 1];
+    this.activeTabId = target.id;
+    this.lastActiveTabByEngine[engine] = target.id;
+    this.markDirty();
   }
 
   // Create and activate. Without `forceNew`, reactivates an existing tab
@@ -518,25 +846,34 @@ export class QueryTabsState {
     stored?: Partial<StoredTab>,
     traceLimit?: number,
   ): BigTraceEditorTab {
+    const queryEngine: 'traces' | 'duckdb' =
+      stored?.queryEngine === 'duckdb' || stored?.queryEngine === 'traces'
+        ? stored.queryEngine
+        : this.activeEngine;
+
     if (!forceNew) {
       const existingTab = this.tabs.find((t) => {
         if (queryUuid && t.queryUuid === queryUuid) return true;
-        if (!queryUuid && initialQuery && t.editorText === initialQuery) {
+        if (
+          !queryUuid &&
+          initialQuery &&
+          t.editorText === initialQuery &&
+          t.queryEngine === queryEngine
+        ) {
           return true;
         }
         return false;
       });
 
       if (existingTab) {
+        this.activeEngine = existingTab.queryEngine;
         this.activeTabId = existingTab.id;
+        this.lastActiveTabByEngine[existingTab.queryEngine] = existingTab.id;
         this.markDirty();
         return existingTab;
       }
     }
 
-    // Restored tabs bring their own title (possibly one the user typed);
-    // everything else is "Query N".
-    const derivedTitle = title;
     // Seed the per-tab settings snapshot. Restored tabs use the persisted
     // one; history-reopen tabs start empty (the runner rehydrates from
     // /query_executions/{uuid}); fresh tabs start from the backend defaults.
@@ -581,10 +918,62 @@ export class QueryTabsState {
             .getAllSettings()
             .filter((s) => s.isDisabled())
             .map((s) => s.id);
+
+    const subQueries: SubQuerySlot[] = Array.isArray(stored?.subQueries)
+      ? stored.subQueries.map((s: StoredSubQuerySlot) => ({
+          id: typeof s.id === 'string' && s.id !== '' ? s.id : shortUuid(),
+          sql: typeof s.sql === 'string' ? s.sql : '',
+          tableName:
+            typeof s.tableName === 'string' && s.tableName.trim() !== ''
+              ? s.tableName
+              : defaultTableName(),
+          queryUuid: typeof s.queryUuid === 'string' ? s.queryUuid : undefined,
+        }))
+      : [];
+    const activeSubQueryIndex =
+      typeof stored?.activeSubQueryIndex === 'number' &&
+      stored.activeSubQueryIndex >= 0 &&
+      stored.activeSubQueryIndex < subQueries.length
+        ? stored.activeSubQueryIndex
+        : 0;
+
+    let initialEditorText = initialQuery ?? '';
+    let initialTableName =
+      (typeof stored?.tableName === 'string' && stored.tableName.trim() !== ''
+        ? stored.tableName.trim()
+        : undefined) ??
+      (typeof title === 'string' && title.trim() !== ''
+        ? title.trim()
+        : undefined) ??
+      defaultTableName();
+    let initialQueryUuid = queryUuid;
+    const activeSlot = subQueries[activeSubQueryIndex];
+    if (activeSlot !== undefined) {
+      initialEditorText = activeSlot.sql;
+      initialTableName = activeSlot.tableName;
+      if (activeSlot.queryUuid) {
+        initialQueryUuid = activeSlot.queryUuid;
+      }
+    }
+    for (const slot of subQueries) {
+      if (slot.queryUuid) {
+        slot.execution = queryStore.getOrCreate(slot.queryUuid, {
+          materialized: isPersistent,
+          queryEngine,
+          perfettoSql: slot.sql,
+          tableName: slot.tableName,
+        });
+      }
+    }
+
     const tab: BigTraceEditorTab = {
       id: shortUuid(),
-      title: derivedTitle || this.nextTabName(),
-      editorText: initialQuery ?? '',
+      title: initialTableName,
+      editorText: initialEditorText,
+      queryEngine,
+      tableName: initialTableName,
+      subQueries,
+      activeSubQueryIndex,
       // No caller-supplied caps: take the ones that fit the execution mode.
       limit: limit ?? modeDefaults(isPersistent).rowLimit,
       traceLimit:
@@ -618,18 +1007,28 @@ export class QueryTabsState {
       pollGeneration: 0,
       // Tabs predating the launcher have no flag; treat them as configured so
       // a reload never drops the user back into the picker.
-      configured: isFromStorage
-        ? (stored?.configured ?? true)
-        : isFromHistory
+      configured:
+        queryEngine === 'duckdb'
           ? true
-          : false,
+          : isFromStorage
+            ? (stored?.configured ?? true)
+            : isFromHistory
+              ? true
+              : false,
       lastPresetId: isFromStorage ? stored?.lastPresetId : undefined,
     };
-    tab.execution = queryStore.getOrCreate(queryUuid || tab.id, {
+    tab.execution = queryStore.getOrCreate(initialQueryUuid || tab.id, {
       materialized: tab.materialize,
+      queryEngine: tab.queryEngine,
     });
+    const restoredActiveSlot = subQueries[activeSubQueryIndex];
+    if (restoredActiveSlot !== undefined) {
+      restoredActiveSlot.execution = tab.execution;
+    }
     this.tabs.push(tab);
+    this.activeEngine = tab.queryEngine;
     this.activeTabId = tab.id;
+    this.lastActiveTabByEngine[tab.queryEngine] = tab.id;
     this.markDirty();
     return tab;
   }
@@ -637,17 +1036,44 @@ export class QueryTabsState {
   // Clone a tab: same query and configuration, no results and no queryUuid,
   // so running it creates its own execution instead of colliding with the
   // original's in History.
-  cloneTab(tabId: string): BigTraceEditorTab | undefined {
+  cloneTab(
+    tabId: string,
+    tableName?: string,
+    overrideQuery?: string,
+    targetSubQueryIndex?: number,
+  ): BigTraceEditorTab | undefined {
     const src = this.tabs.find((t) => t.id === tabId);
     if (src === undefined) return undefined;
+    const trimmedName = tableName?.trim() || undefined;
+    const targetIdx = targetSubQueryIndex ?? src.activeSubQueryIndex;
     const clone = this.addNewTab(
-      undefined, // "Query N", like any new tab
-      src.editorText,
+      src.subQueries.length > 1 ? src.title : trimmedName,
+      overrideQuery ?? src.editorText,
       src.limit,
       undefined,
       src.materialize,
       true, // forceNew
       {
+        tableName: trimmedName,
+        queryEngine: src.queryEngine,
+        subQueries: src.subQueries.map((s, i) => {
+          const isTarget = i === targetIdx;
+          const isCurrent = i === src.activeSubQueryIndex;
+          const tbl =
+            isTarget && trimmedName
+              ? trimmedName
+              : s.queryUuid === undefined && s.tableName.trim() !== ''
+                ? s.tableName.trim()
+                : defaultTableName();
+          const sql =
+            isCurrent && overrideQuery !== undefined ? overrideQuery : s.sql;
+          return {
+            id: shortUuid(),
+            sql,
+            tableName: tbl,
+          };
+        }),
+        activeSubQueryIndex: src.activeSubQueryIndex,
         querySettings: src.querySettings,
         disabledSettings: src.disabledSettings,
         traceFilters: src.traceFilters,
@@ -663,16 +1089,21 @@ export class QueryTabsState {
         traceLimit: src.traceLimit,
         tableTtlDays: src.tableTtlDays,
       },
+      src.traceLimit,
     );
-    this.markDirty();
+    this.saveToStorage();
     return clone;
   }
 
   closeTab(tabId: string): void {
-    if (this.tabs.length <= 1) return;
     const index = this.tabs.findIndex((t) => t.id === tabId);
     if (index === -1) return;
     const tabToClose = this.tabs[index];
+    const sameEngineTabs = this.tabs.filter(
+      (t) => t.queryEngine === tabToClose.queryEngine,
+    );
+    if (sameEngineTabs.length <= 1) return;
+    const engineIndex = sameEngineTabs.findIndex((t) => t.id === tabId);
     if (tabToClose.pollInterval !== undefined) {
       window.clearTimeout(tabToClose.pollInterval);
       tabToClose.pollInterval = undefined;
@@ -681,19 +1112,30 @@ export class QueryTabsState {
     tabToClose.activeRequest?.abort();
     tabToClose.lifecycle.abort();
     this.tabs.splice(index, 1);
-    if (this.activeTabId === tabId) {
-      const newIndex = Math.min(index, this.tabs.length - 1);
-      this.activeTabId = this.tabs[newIndex].id;
+    const remainingEngineTabs = sameEngineTabs.filter((t) => t.id !== tabId);
+    const nextTab =
+      remainingEngineTabs[
+        Math.min(engineIndex, remainingEngineTabs.length - 1)
+      ];
+    if (this.activeTabId === tabId && nextTab !== undefined) {
+      this.activeTabId = nextTab.id;
+    }
+    if (
+      this.lastActiveTabByEngine[tabToClose.queryEngine] === tabId &&
+      nextTab !== undefined
+    ) {
+      this.lastActiveTabByEngine[tabToClose.queryEngine] = nextTab.id;
     }
     this.markDirty();
   }
 
   renameTab(tabId: string, newTitle: string): void {
     const tab = this.tabs.find((t) => t.id === tabId);
-    if (tab) {
-      tab.title = newTitle;
-      this.markDirty();
-    }
+    const trimmed = newTitle.trim();
+    if (!tab || !trimmed || !canRenameTab(tab)) return;
+    tab.title = trimmed;
+    tab.tableName = trimmed;
+    this.markDirty();
   }
 
   reorderTab(draggedId: string, beforeId: string | undefined): void {
@@ -720,6 +1162,19 @@ export class QueryTabsState {
         id: t.id,
         title: t.title,
         editorText: t.editorText,
+        queryEngine: t.queryEngine,
+        tableName: t.tableName,
+        subQueries:
+          t.subQueries.length > 1
+            ? t.subQueries.map((s) => ({
+                id: s.id,
+                sql: s.sql,
+                tableName: s.tableName,
+                queryUuid: s.queryUuid,
+              }))
+            : undefined,
+        activeSubQueryIndex:
+          t.subQueries.length > 1 ? t.activeSubQueryIndex : undefined,
         limit: t.limit,
         traceLimit: t.traceLimit,
         tableTtlDays: t.tableTtlDays,
@@ -739,6 +1194,7 @@ export class QueryTabsState {
         lastPresetId: t.lastPresetId,
       })),
       activeTabId: this.activeTabId,
+      activeEngine: this.activeEngine,
     };
     try {
       localStorage.setItem(QUERY_TABS_STORAGE_KEY, JSON.stringify(state));
@@ -784,15 +1240,15 @@ export class QueryTabsState {
         }
       }
     }
-    return true;
-  }
-
-  private nextTabName(): string {
-    const existingNames = new Set(this.tabs.map((t) => t.title));
-    let count = ++this.tabCounter;
-    while (existingNames.has(`Query ${count}`)) {
-      count = ++this.tabCounter;
+    const activeTab = this.getActiveTab();
+    if (parsed.activeEngine === 'traces' || parsed.activeEngine === 'duckdb') {
+      this.activeEngine = parsed.activeEngine;
+    } else if (activeTab !== undefined) {
+      this.activeEngine = activeTab.queryEngine;
     }
-    return `Query ${count}`;
+    if (activeTab !== undefined) {
+      this.lastActiveTabByEngine[activeTab.queryEngine] = activeTab.id;
+    }
+    return true;
   }
 }

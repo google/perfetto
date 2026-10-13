@@ -247,7 +247,13 @@ export class BigtraceAsyncDataSource implements DataSource {
     } catch (e) {
       // Aborts are routine here — the tab closing, or a newer window
       // superseding this one — so they are not failures to show.
-      if (e instanceof QueryCancelledError) return;
+      if (
+        e instanceof QueryCancelledError ||
+        controller.signal.aborted ||
+        !this.scheduler.isCurrent(controller)
+      ) {
+        return;
+      }
       console.error('[bigtrace] fetch_results failed:', e);
       if (e instanceof BigtraceHttpError) {
         // Surface the backend's detail (not the wrapped message) and keep the

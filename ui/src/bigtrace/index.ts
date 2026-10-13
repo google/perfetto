@@ -56,6 +56,8 @@ function setupContentSecurityPolicy() {
     'object-src': [`'none'`],
     'connect-src': [
       `'self'`,
+      'http://127.0.0.1:*',
+      'http://localhost:*',
       'https://autopush-brush-googleapis.corp.google.com',
       'https://brush-googleapis.corp.google.com',
     ],
