@@ -28,20 +28,8 @@
 
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
-
-// We need <cmath> only for std::isnan here. But cmath is a quite heavy
-// header AND is not frequently used, so its include cost is generally
-// NOT amortized. OTOH this header is very frequently used.
-// The code below avoids pulling cmath in many translation units, reducing
-// compilation time. Under the hoods std::isnan uses __builtin_isnan if
-// available.
-#if PERFETTO_HAS_BUILTIN(__builtin_isnan)
-#define PERFETTO_IS_NAN(x) __builtin_isnan(x)
-#else
-#include <cmath>
-#define PERFETTO_IS_NAN(x) std::isnan(x)
-#endif
 
 // This file provides an implementation of the 64-bit MurmurHash2 algorithm,
 // also known as MurmurHash64A. This algorithm, created by Austin Appleby, is a
@@ -161,25 +149,6 @@ inline uint64_t MurmurHashBytes(const void* input, size_t len) {
   return h;
 }
 
-template <typename Float, typename Int>
-Int NormalizeFloatToInt(Float value) {
-  static_assert(std::is_floating_point_v<Float>);
-  static_assert(std::is_integral_v<Int>);
-
-  // Normalize floating point representations which can vary.
-  if (PERFETTO_UNLIKELY(value == 0.0)) {
-    // Turn negative zero into positive zero
-    value = 0.0;
-  } else if (PERFETTO_UNLIKELY(PERFETTO_IS_NAN(value))) {
-    // Turn arbtirary NaN representations to a consistent NaN repr.
-    value = std::numeric_limits<Float>::quiet_NaN();
-  }
-  Int res;
-  static_assert(sizeof(Float) == sizeof(Int));
-  memcpy(&res, &value, sizeof(Float));
-  return res;
-}
-
 // Computes a 64-bit hash for a single built-in value without any combination.
 // This is the core primitive used by both MurmurHashValue and
 // MurmurHashCombiner::CombineOne for built-in types.
@@ -195,11 +164,9 @@ auto MurmurHashBuiltinValue(const T& value) {
   } else if constexpr (std::is_integral_v<T>) {
     return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
   } else if constexpr (std::is_same_v<T, double>) {
-    return murmur_internal::MurmurHashMix(
-        murmur_internal::NormalizeFloatToInt<double, uint64_t>(value));
+    return murmur_internal::MurmurHashMix(base::CanonicalFloatBits(value));
   } else if constexpr (std::is_same_v<T, float>) {
-    return murmur_internal::MurmurHashMix(
-        murmur_internal::NormalizeFloatToInt<float, uint32_t>(value));
+    return murmur_internal::MurmurHashMix(base::CanonicalFloatBits(value));
   } else if constexpr (std::is_same_v<T, std::string> ||
                        std::is_same_v<T, std::string_view> ||
                        std::is_same_v<T, base::StringView>) {

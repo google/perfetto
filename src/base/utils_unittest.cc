@@ -232,6 +232,40 @@ TEST(UtilsTest, CheckedSub) {
   EXPECT_FALSE(CheckedSub(kMax, -1, &result));
 }
 
+TEST(UtilsTest, CanonicalFloatBits) {
+  auto from_bits = [](uint64_t bits) {
+    double value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+  };
+  auto bits_of = [](double value) {
+    uint64_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+  };
+  EXPECT_EQ(CanonicalFloatBits(-0.0), 0u);
+  EXPECT_EQ(CanonicalFloatBits(0.0), 0u);
+  EXPECT_EQ(CanonicalFloatBits(1.5), bits_of(1.5));
+  EXPECT_EQ(CanonicalFloatBits(-1.5), bits_of(-1.5));
+
+  constexpr double kInf = std::numeric_limits<double>::infinity();
+  EXPECT_EQ(CanonicalFloatBits(kInf), bits_of(kInf));
+  EXPECT_EQ(CanonicalFloatBits(-kInf), bits_of(-kInf));
+
+  uint64_t nan = CanonicalFloatBits(std::numeric_limits<double>::quiet_NaN());
+  EXPECT_EQ(CanonicalFloatBits(-std::numeric_limits<double>::quiet_NaN()), nan);
+  EXPECT_EQ(CanonicalFloatBits(std::numeric_limits<double>::signaling_NaN()),
+            nan);
+  EXPECT_EQ(CanonicalFloatBits(from_bits(0x7FF0000000000001)), nan);
+  EXPECT_EQ(CanonicalFloatBits(from_bits(0xFFF8000000000123)), nan);
+
+  EXPECT_EQ(CanonicalFloatBits(-0.0f), 0u);
+  EXPECT_EQ(CanonicalFloatBits(std::numeric_limits<float>::infinity()),
+            0x7F800000u);
+  EXPECT_EQ(CanonicalFloatBits(-std::numeric_limits<float>::quiet_NaN()),
+            CanonicalFloatBits(std::numeric_limits<float>::quiet_NaN()));
+}
+
 TEST(UtilsTest, AlignUp) {
   EXPECT_EQ(0u, AlignUp<4>(0));
   EXPECT_EQ(4u, AlignUp<4>(1));
