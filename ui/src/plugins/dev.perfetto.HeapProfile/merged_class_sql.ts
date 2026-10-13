@@ -14,7 +14,8 @@
 
 // Heap graph flamegraph query pieces for flagging potentially merged classes
 // (see heap_graph_class.potentially_merged). Pair with mergedClassNodeIcon()
-// and mergedClassNodeTooltipRenderer() from components/merged_class_warning.
+// and mergedClassNodeTooltipRenderer() from
+// components/merged_class_flamegraph_hooks.
 
 // Name of the flamegraph node property that holds the flag.
 export const MERGED_CLASS_PROPERTY = 'potentially_merged';

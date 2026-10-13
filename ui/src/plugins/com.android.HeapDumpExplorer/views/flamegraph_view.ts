@@ -41,7 +41,7 @@ import {showModal} from '../../../widgets/modal';
 import {
   mergedClassNodeIcon,
   mergedClassNodeTooltipRenderer,
-} from '../../../components/merged_class_warning';
+} from '../../../components/merged_class_flamegraph_hooks';
 import {
   MERGED_CLASS_FLAMEGRAPH_PROPERTY,
   MERGED_CLASS_PROPERTY,
