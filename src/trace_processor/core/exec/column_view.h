@@ -119,18 +119,34 @@ bool IsFlat(const ColumnView& column) {
   return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Tag>();
 }
 
+// The kind and storage type of a column view. These decide whether views from
+// different batches can be combined. Kept apart from the view so columns can
+// be compared after their batches are gone.
+struct ColumnShape {
+  static ColumnShape Of(const ColumnView& view) {
+    return {view.kind(), view.type()};
+  }
+
+  ColumnView::Kind kind;
+  StorageType type;
+};
+
 // Whether two batches' views of a column can be combined. An implicit Id and
 // a stored Uint32 hold the same values: gathering turns one into the other.
-inline bool SameLogicalType(const ColumnView& a, const ColumnView& b) {
-  auto is_uint32 = [](const ColumnView& view) {
-    return view.kind() != ColumnView::Kind::kVariant &&
-           (view.type().Is<Id>() || view.type().Is<Uint32>());
+inline bool SameLogicalType(const ColumnShape& a, const ColumnShape& b) {
+  auto is_uint32 = [](const ColumnShape& shape) {
+    return shape.kind != ColumnView::Kind::kVariant &&
+           (shape.type.Is<Id>() || shape.type.Is<Uint32>());
   };
   if (is_uint32(a) && is_uint32(b)) {
     return true;
   }
-  return a.kind() == b.kind() &&
-         (a.kind() == ColumnView::Kind::kVariant || a.type() == b.type());
+  return a.kind == b.kind &&
+         (a.kind == ColumnView::Kind::kVariant || a.type == b.type);
+}
+
+inline bool SameLogicalType(const ColumnView& a, const ColumnView& b) {
+  return SameLogicalType(ColumnShape::Of(a), ColumnShape::Of(b));
 }
 
 }  // namespace perfetto::trace_processor::core::exec

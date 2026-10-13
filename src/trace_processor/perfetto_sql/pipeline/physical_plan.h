@@ -87,6 +87,13 @@ base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&);
 // Lowering
 // -----------------------------------------------------------------------------
 
+// Returns the type that both `a` and `b` convert to without loss. Returns
+// nullopt if one is a string and the other a number.
+//
+// A column of unknown type is checked at runtime to hold the other side's
+// type. For integers the check uses Int64, so it accepts any integer.
+std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b);
+
 class PlanLowering;
 
 // Builds one pipeline. It is either the main pipeline or a side pipeline. A
