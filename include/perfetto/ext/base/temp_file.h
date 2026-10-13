@@ -20,6 +20,7 @@
 #include <string>
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/status_or.h"
 
 namespace perfetto {
 namespace base {
@@ -28,8 +29,13 @@ std::string GetSysTempDir();
 
 class TempFile {
  public:
-  static TempFile CreateUnlinked();
-  static TempFile Create();
+  enum class LinkMode { kLinked, kUnlinked };
+
+  // Creates a temporary file.
+  // If |mode| is kUnlinked, unlinks the file before returning, keeping fd()
+  // open and leaving path() empty.
+  // Returns an error status if creation or unlinking fails.
+  static StatusOr<TempFile> Create(LinkMode mode = LinkMode::kLinked);
 
   TempFile(TempFile&&) noexcept;
   TempFile& operator=(TempFile&&);
@@ -39,16 +45,18 @@ class TempFile {
   int fd() const { return *fd_; }
   int operator*() const { return *fd_; }
 
-  // Unlinks the file from the filesystem but keeps the fd() open.
-  // It is safe to call this multiple times.
-  void Unlink();
+  // Unlinks the file and clears path(), keeping fd() open.
+  // Returns true on success, or if the file is already unlinked.
+  // On failure, returns false and leaves path() unchanged.
+  bool Unlink();
 
-  // Releases the underlying file descriptor. Will unlink the file from the
-  // filesystem if it was created via CreateUnlinked().
+  // Unlinks the file if needed and transfers ownership of its descriptor to
+  // the caller.
+  // Aborts if unlinking fails.
   ScopedFile ReleaseFD();
 
  private:
-  TempFile();
+  TempFile(ScopedFile fd, std::string path);
   TempFile(const TempFile&) = delete;
   TempFile& operator=(const TempFile&) = delete;
 
