@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {describe, expect, test, vi} from 'vitest';
+import m from 'mithril';
 import protos from '../../protos';
 import {createQueryResult} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';
@@ -43,6 +44,24 @@ describe('TrackDimensionsSection', () => {
     expect(queries).toBe(1);
   });
 
+  test('an older dimension schema is checked only once', async () => {
+    const query = vi.fn((sql: string) => {
+      if (sql.includes('display_value')) {
+        return Promise.reject(new Error('no such column: display_value'));
+      }
+      return Promise.resolve({firstRow: () => ({has_custom: 1})});
+    });
+    const trace = {engine: {query}} as unknown as Trace;
+    const selection = {eventId: 1} as TrackEventSelection;
+
+    for (let i = 0; i < 2; ++i) {
+      const section = new TrackDimensionsSection(trace);
+      await expect(section.load(selection)).resolves.toBeUndefined();
+      expect(section.render()).toBeNull();
+    }
+    expect(query).toHaveBeenCalledOnce();
+  });
+
   test('a failing probe decoder does not break later loads', async () => {
     const firstRow = vi.fn(() => {
       throw new Error('missing has_custom column');
@@ -65,24 +84,12 @@ describe('TrackDimensionsSection', () => {
     const result = createQueryResult({query: 'dimensions'});
     result.appendResultBatch(
       protos.QueryResult.encode({
-        columnNames: [
-          'name',
-          'int_value',
-          'string_value',
-          'display_name',
-          'is_well_known',
-        ],
+        columnNames: ['name', 'display_value', 'display_name', 'is_well_known'],
         batch: [
           {
-            cells: [
-              T.CELL_STRING,
-              T.CELL_VARINT,
-              T.CELL_NULL,
-              T.CELL_NULL,
-              T.CELL_VARINT,
-            ],
-            stringCells: 'rank',
-            varintCells: [3, 0],
+            cells: [T.CELL_STRING, T.CELL_STRING, T.CELL_NULL, T.CELL_VARINT],
+            stringCells: ['rank', '3'].join('\0'),
+            varintCells: [0],
             isLastBatch: true,
           },
         ],
@@ -107,5 +114,81 @@ describe('TrackDimensionsSection', () => {
     ).resolves.toBeUndefined();
     expect(next.render()).not.toBeNull();
     expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  test('renders stdlib display values without losing large integers', async () => {
+    const T = protos.QueryResult.CellsBatch.CellType;
+    const result = createQueryResult({query: 'dimensions'});
+    result.appendResultBatch(
+      protos.QueryResult.encode({
+        columnNames: ['name', 'display_value', 'display_name', 'is_well_known'],
+        batch: [
+          {
+            cells: [
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_VARINT,
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_NULL,
+              T.CELL_VARINT,
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_VARINT,
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_VARINT,
+              T.CELL_STRING,
+              T.CELL_STRING,
+              T.CELL_NULL,
+              T.CELL_VARINT,
+            ],
+            stringCells: [
+              'process',
+              '100',
+              'proc',
+              'cpu',
+              '0',
+              'max',
+              '9223372036854775807',
+              'largest',
+              'stage',
+              'forward',
+              'forward pass',
+              'empty',
+              '',
+            ].join('\0'),
+            varintCells: [1, 1, 0, 0, 0],
+            isLastBatch: true,
+          },
+        ],
+      }).finish(),
+    );
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({firstRow: () => ({has_custom: 1})})
+      .mockResolvedValueOnce(result);
+    const trace = {engine: {query}} as unknown as Trace;
+    const section = new TrackDimensionsSection(trace);
+    await section.load({eventId: 1} as TrackEventSelection);
+
+    const root = document.createElement('div');
+    m.render(root, section.render());
+    expect(
+      Array.from(
+        root.querySelectorAll('.pf-tree-right'),
+        (node) => node.textContent,
+      ),
+    ).toEqual([
+      '100 (proc)',
+      '0',
+      '9223372036854775807 (largest)',
+      'forward (forward pass)',
+      '',
+    ]);
+    m.render(root, []);
   });
 });

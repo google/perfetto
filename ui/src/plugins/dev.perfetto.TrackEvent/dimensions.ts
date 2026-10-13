@@ -138,7 +138,7 @@ async function queryDimensions(
       d.display_name AS displayName
     FROM track_dimension AS d
     JOIN track AS t ON t.id = d.track_id
-    WHERE NOT d.is_well_known
+    WHERE d.is_well_known = 0
     ORDER BY d.track_id, d.name
   `);
   const it = res.iter({
