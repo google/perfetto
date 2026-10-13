@@ -18369,12 +18369,14 @@ class ObfuscatedClass(_message.Message):
         merged_classes: ObfuscatedClass.MergedClasses
         def __init__(self, name: _Optional[str] = ..., class_id: _Optional[int] = ..., merged_classes: _Optional[_Union[ObfuscatedClass.MergedClasses, _Mapping]] = ...) -> None: ...
     class MergedClasses(_message.Message):
-        __slots__ = ("class_id_field_name", "merged_classes")
+        __slots__ = ("class_id_field_name", "merged_classes", "unknown_merged_classes")
         CLASS_ID_FIELD_NAME_FIELD_NUMBER: _ClassVar[int]
         MERGED_CLASSES_FIELD_NUMBER: _ClassVar[int]
+        UNKNOWN_MERGED_CLASSES_FIELD_NUMBER: _ClassVar[int]
         class_id_field_name: str
         merged_classes: _containers.RepeatedCompositeFieldContainer[ObfuscatedClass.MergedClass]
-        def __init__(self, class_id_field_name: _Optional[str] = ..., merged_classes: _Optional[_Iterable[_Union[ObfuscatedClass.MergedClass, _Mapping]]] = ...) -> None: ...
+        unknown_merged_classes: bool
+        def __init__(self, class_id_field_name: _Optional[str] = ..., merged_classes: _Optional[_Iterable[_Union[ObfuscatedClass.MergedClass, _Mapping]]] = ..., unknown_merged_classes: bool = ...) -> None: ...
     OBFUSCATED_NAME_FIELD_NUMBER: _ClassVar[int]
     DEOBFUSCATED_NAME_FIELD_NUMBER: _ClassVar[int]
     OBFUSCATED_MEMBERS_FIELD_NUMBER: _ClassVar[int]
