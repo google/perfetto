@@ -246,8 +246,7 @@ async function batchBitmapBufferHashes(
   return result;
 }
 
-// Whether the trace has HPROF field values (heap_graph_primitive), needed by
-// the bitmap, string and array views.
+// Whether the trace has HPROF field values (heap_graph_primitive).
 export async function hasFieldValues(engine: Engine): Promise<boolean> {
   const res = await engine.query(`SELECT 1 FROM heap_graph_primitive LIMIT 1`);
   return res.iter({}).valid();
