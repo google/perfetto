@@ -113,24 +113,24 @@ std::unique_ptr<Tracefs> Tracefs::Create(const std::string& root) {
 Tracefs::Tracefs(const std::string& root) : root_(root) {}
 Tracefs::~Tracefs() = default;
 
-bool Tracefs::SetSyscallFilter(const std::set<size_t>& filter,
-                               const std::set<size_t>& excluded) {
+bool Tracefs::SetSyscallFilter(const std::set<size_t>& include,
+                               const std::set<size_t>& exclude) {
   std::string enter_filter = "0";
   std::string exit_filter = "0";
-  if (!filter.empty()) {
+  if (!include.empty()) {
     std::vector<std::string> parts;
-    for (size_t id : filter) {
+    for (size_t id : include) {
       base::StackString<16> m("id == %zu", id);
       parts.push_back(m.ToStdString());
     }
     enter_filter = base::Join(parts, " || ");
     exit_filter = enter_filter;
-  } else if (!excluded.empty()) {
+  } else if (!exclude.empty()) {
     // An excluded call is one the kernel enters from a trampoline of its
     // own and leaves with no number, so its exit is never named: leave
     // out its entries, and every exit without a number.
     std::vector<std::string> parts;
-    for (size_t id : excluded) {
+    for (size_t id : exclude) {
       base::StackString<16> m("id != %zu", id);
       parts.push_back(m.ToStdString());
     }
