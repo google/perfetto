@@ -191,7 +191,7 @@ export function StringsView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {

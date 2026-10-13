@@ -443,7 +443,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         })
         .catch(console.error);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.filterKey, vnode.attrs.clearNavParam);
     },
     onremove() {
