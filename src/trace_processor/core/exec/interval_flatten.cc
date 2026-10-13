@@ -39,11 +39,6 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
-bool IsInt64(const RowBatch& batch, uint32_t index) {
-  const ColumnView& column = batch.column(index);
-  return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Int64>();
-}
-
 constexpr auto kEndsLater = [](const auto& a, const auto& b) {
   return a.end > b.end;
 };
@@ -127,16 +122,8 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
   if (!s.status.ok()) {
     return OpResult::kError;
   }
-  bool typed = IsInt64(in, spec_.ts_column) && IsInt64(in, spec_.dur_column);
-  for (uint32_t i = 0; i < functions_.size(); ++i) {
-    typed = typed && (!functions_[i]->reads_input() ||
-                      IsInt64(in, spec_.aggregates[i].column));
-  }
-  if (!typed) {
-    s.status = base::ErrStatus(
-        "INTERVAL FLATTEN: ts, dur and aggregated columns must be Int64");
-    return OpResult::kError;
-  }
+  PERFETTO_DCHECK(IsFlat<Int64>(in.column(spec_.ts_column)));
+  PERFETTO_DCHECK(IsFlat<Int64>(in.column(spec_.dur_column)));
   FlatColumnReader<int64_t> ts(in, spec_.ts_column);
   FlatColumnReader<int64_t> dur(in, spec_.dur_column);
   // A full output batch can interrupt consumption of the same input. Keep its
@@ -177,11 +164,8 @@ OpResult IntervalFlatten::Execute(const RowBatch& in,
       s.input_ts = std::numeric_limits<int64_t>::min();
     }
     if (start != s.input_ts) {
-      if (start < s.input_ts) {
-        s.status = base::ErrStatus(
-            "INTERVAL FLATTEN: a group's rows must arrive in order of ts");
-        return OpResult::kError;
-      }
+      // The planner sorts each group by ts.
+      PERFETTO_DCHECK(start > s.input_ts);
       if (!Advance(s, start)) {
         return Yield(out, s, OpResult::kHaveMoreOutput, &in);
       }
