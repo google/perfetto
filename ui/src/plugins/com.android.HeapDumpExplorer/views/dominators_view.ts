@@ -26,10 +26,12 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
 import {dumpFilterSql, type HeapDump} from '../queries';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -154,11 +156,13 @@ export function DominatorsView({
     preamble: SQL_PREAMBLE,
   });
   const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
+  // The grid owns its filters; this mirrors them for the row count.
+  let filters: readonly Filter[] = [];
 
   return {
     onremove() {
       datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -166,7 +170,10 @@ export function DominatorsView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Dominators'),
+          title: rowCountHeading(
+            'Dominators',
+            counter.use({engine, query, preamble: SQL_PREAMBLE, filters}),
+          ),
           fillHeight: true,
         },
         m(DataGrid, {
@@ -187,7 +194,9 @@ export function DominatorsView({
             {id: 'root_type', field: 'root_type'},
           ],
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            filters = f;
+          },
         }),
       );
     },
