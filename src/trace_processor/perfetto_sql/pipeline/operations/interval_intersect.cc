@@ -173,35 +173,22 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   std::vector<ex::IntervalIntersectOperand> inputs;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
     const IntervalIntersect::Operand& operand = isect.operands_[i];
-    // A node may read any child, but an operand is read as a scan of its own,
-    // which is what lets it become a pipeline separate from this one.
-    const PlanNode& child = c->plan().nodes()[children[i]];
-    PERFETTO_DCHECK(child.Is<Scan>());
-    const auto& scan = child.Cast<Scan>();
-    // Roles are named by plan-wide ID, while the operator reads batch
-    // positions, so each is resolved against the operand's own column order.
-    auto position = [&](ColumnId column_id) {
-      uint32_t at = 0;
-      while (scan.columns()[at].id != column_id) {
-        ++at;
-      }
-      return at;
-    };
-    // An operand is read through a pipeline of its own, which widens its
-    // bounds to Int64 where they are not already.
-    std::vector<ex::Pipeline::Step> widen;
+    // Each operand is read from its own side pipeline, which converts ts and
+    // dur to Int64 if needed.
+    Lowering& side = c->AddSidePipeline();
+    side.LowerNode(children[i]);
+    side.Require(operand.ts, core::Int64{});
+    side.Require(operand.dur, core::Int64{});
     ex::IntervalIntersectOperand lowered;
-    lowered.ts_column = position(operand.ts);
-    lowered.dur_column = position(operand.dur);
+    lowered.ts_column = side.Position(operand.ts);
+    lowered.dur_column = side.Position(operand.dur);
     for (ColumnId key : operand.keys) {
-      lowered.key_columns.push_back(position(key));
+      lowered.key_columns.push_back(side.Position(key));
     }
     for (ColumnId id : operand.carried) {
-      lowered.retained_columns.push_back(position(id));
+      lowered.retained_columns.push_back(side.Position(id));
     }
-    c->Require({operand.ts, lowered.ts_column, &widen}, core::Int64{});
-    c->Require({operand.dur, lowered.dur_column, &widen}, core::Int64{});
-    lowered.source = c->AddOperand(scan.MakeSource(), std::move(widen));
+    lowered.source = side.FinishSide();
     inputs.push_back(std::move(lowered));
 
     for (ColumnId id : operand.carried) {

@@ -56,11 +56,12 @@ class PhysicalPlan {
 
  private:
   friend class Lowering;
+  friend class PlanLowering;
 
-  // Declared first so the input outlives the pipeline that reads it, as an
-  // intersection's operands outlive the intersection.
-  std::vector<std::unique_ptr<core::exec::Source>> operand_inputs_;
-  std::vector<std::unique_ptr<core::exec::Pipeline>> operand_pipelines_;
+  // Declared first so they are destroyed last: each input must outlive the
+  // pipelines that read it.
+  std::vector<std::unique_ptr<core::exec::Source>> side_inputs_;
+  std::vector<std::unique_ptr<core::exec::Pipeline>> side_pipelines_;
   std::unique_ptr<core::exec::Source> input_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
@@ -75,11 +76,14 @@ base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&);
 // Lowering
 // -----------------------------------------------------------------------------
 
-// Interface used by operation implementations to build an execution pipeline.
-// Owns the execution graph, column layout and guarantees established so far.
-// The logical plan is borrowed and must outlive this builder. Each operation
-// lowers its own children before adding execution operators; intersection
-// instead builds independent input pipelines and attaches them with AddOperand.
+class PlanLowering;
+
+// Builds one pipeline. It is either the main pipeline or a side pipeline. A
+// side pipeline is an extra input that an operator reads, such as an
+// intersection operand. Side pipelines can have side pipelines of their own.
+//
+// Each operation lowers its children first. Its main input goes into this
+// pipeline, and any other inputs go into side pipelines.
 // ColumnId names a logical value; Position returns its current batch slot.
 class Lowering {
  public:
@@ -97,16 +101,24 @@ class Lowering {
     std::vector<ColumnId> ascending;
   };
 
+  // A column and the pipeline it is in.
+  struct Side {
+    Lowering* pipeline;
+    ColumnId column;
+  };
+
+  explicit Lowering(PlanLowering* plan);
+  Lowering(const Lowering&) = delete;
+  Lowering& operator=(const Lowering&) = delete;
+  ~Lowering();
+
   // ---------------------------------------------------------------------------
   // Construction and traversal
   // ---------------------------------------------------------------------------
 
-  explicit Lowering(const LogicalPlan& plan);
   // Dispatches to the operation, which is responsible for lowering its inputs.
   void LowerNode(PlanNodeId);
-  // Returns the finished plan, or the error that stopped lowering. Call once,
-  // after lowering the root.
-  base::StatusOr<std::unique_ptr<PhysicalPlan>> Finish();
+
   // Records an error that stops lowering. Only the first error is kept.
   void Fail(base::Status);
 
@@ -114,46 +126,49 @@ class Lowering {
   // Execution graph
   // ---------------------------------------------------------------------------
 
+  // Takes ownership of the pipeline's input; it must not already be set.
+  void SetSource(std::unique_ptr<core::exec::Source> source);
+
   // Appends execution work. Layout and order metadata are updated separately.
   void AddOperator(core::exec::Pipeline::Step);
-  // Owns a separate input pipeline. The returned source lives with the result.
-  const core::exec::Source* AddOperand(
-      std::unique_ptr<core::exec::Source> source,
-      std::vector<core::exec::Pipeline::Step> steps);
+
+  // Creates a new side pipeline.
+  Lowering& AddSidePipeline();
+
+  // Finishes this side pipeline and returns the source an operator reads it
+  // from. Nothing can be added to the pipeline afterwards.
+  const core::exec::Source* FinishSide();
 
   // ---------------------------------------------------------------------------
-  // Row ordering and tree preparation
+  // Row order
   // ---------------------------------------------------------------------------
 
   // Groups rows by `keys`, ordered by `ascending` within each group, adding
   // only the Sort and GroupBy not already established.
   void PrepareGroups(const std::vector<ColumnId>& keys, ColumnId ascending);
+
   // Sorts rows by `keys`, the first deciding, unless they are known to be in
   // that order already. A key of unknown type must hold integers.
   void SortRows(const std::vector<SortKey>& keys);
+
   // Adds numbering and traversal operators as needed, reusing the current
   // tree until ResetLayout. Returned positions name physical temporaries.
   TreeColumns PrepareTree(ColumnId node, ColumnId parent, TreeDirection);
+
+  // Records that `column` ascends within each group after an emitted
+  // operator.
+  void AddAscendingColumn(ColumnId column);
+
+  // Replaces what is known of the order with what an emitted operator leaves.
+  void SetOrder(Order order);
 
   // ---------------------------------------------------------------------------
   // Column types
   // ---------------------------------------------------------------------------
 
-  // A column in one input's pipeline.
-  struct Side {
-    ColumnId column;
-
-    // The column's position in that pipeline's batches.
-    uint32_t position;
-
-    // The pipeline's steps, where conversions are added.
-    std::vector<core::exec::Pipeline::Step>* steps;
-  };
   // Converts every side to the type they all convert to without loss, and
   // returns it. Fails if some sides are strings and others numbers.
   PlanType Unify(const std::vector<Side>&);
-  // Like Require below, for a column in an input with its own pipeline.
-  void Require(const Side& side, core::StorageType type);
 
   // Converts `column` to `type`, failing lowering if it cannot be converted
   // without loss.
@@ -165,43 +180,46 @@ class Lowering {
 
   // Assigns the next batch slot to a logical value; does not emit an operator.
   void Define(ColumnId id);
+
   // Reserves a batch slot with no logical ID.
   uint32_t AllocateTemporaryColumn();
+
   // Restarts slot allocation and clears ordering/tree guarantees. The caller
   // must Define all surviving values in their new positions before using them.
   void ResetLayout();
 
-  // ---------------------------------------------------------------------------
-  // Setters and getters
-  // ---------------------------------------------------------------------------
-
-  // Takes ownership of the main input; it must not already be set.
-  void SetSource(std::unique_ptr<core::exec::Source> source);
-  // Records guarantees of emitted operators; these methods do not sort rows.
-  void AddAscendingColumn(ColumnId column);
-  void SetOrder(Order order);
-
-  const LogicalPlan& plan() const { return plan_; }
-  const Order& order() const { return order_; }
-  bool has_source() const;
   // Looks up a live logical value previously registered by Define.
   uint32_t Position(ColumnId id) const;
 
- private:
-  // The type of `column`, after any conversion.
-  PlanType TypeOf(ColumnId column) const;
-  // Converts `side` to `type`. The conversion must be lossless.
-  void Convert(const Side& side, const PlanType& type);
+  // ---------------------------------------------------------------------------
+  // Getters
+  // ---------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // Shared layout and ordering state
-  // ---------------------------------------------------------------------------
+  const LogicalPlan& plan() const;
+  const Order& order() const { return order_; }
+  bool has_source() const { return input_ != nullptr; }
+
+ private:
+  friend class PlanLowering;
+
+  // Converts `side` to `type`. The conversion must be lossless.
+  static void Convert(const Side& side, const PlanType& type);
+
+  // Builds the pipeline from the input and operators added so far.
+  std::unique_ptr<core::exec::Pipeline> Build();
 
   // Borrowed for the duration of lowering.
-  const LogicalPlan& plan_;
+  PlanLowering* plan_;
+
+  // ---------------------------------------------------------------------------
+  // Layout and order of this pipeline
+  // ---------------------------------------------------------------------------
 
   // Width of the current batch, including temporary columns without IDs.
   uint32_t column_count_ = 0;
+
+  // Only live logical columns have a meaningful physical position.
+  std::vector<uint32_t> positions_;
 
   // Valid while operations preserve the tree. Flattening clears both; sorting
   // for tree traversal replaces order_ but retains the numbered columns.
@@ -213,20 +231,58 @@ class Lowering {
   Order order_;
 
   // ---------------------------------------------------------------------------
-  // Owned execution graph and column mappings
+  // Execution graph of this pipeline
   // ---------------------------------------------------------------------------
 
-  // Sources must outlive the execution operators which read them.
-  std::unique_ptr<PhysicalPlan> out_;
+  // The pipeline's input.
+  std::unique_ptr<core::exec::Source> input_;
+
+  // The pipeline's operators, in the order they run.
   std::vector<core::exec::Pipeline::Step> operators_;
+};
 
-  // Only live logical columns have a meaningful physical position.
-  std::vector<uint32_t> positions_;
+// State shared by all pipelines while lowering a plan.
+class PlanLowering {
+ public:
+  explicit PlanLowering(const LogicalPlan& plan);
+  PlanLowering(const PlanLowering&) = delete;
+  PlanLowering& operator=(const PlanLowering&) = delete;
+  ~PlanLowering();
 
-  // For each logical column, the type it was converted to, if any.
+  // The pipeline whose output is the plan's output.
+  Lowering& main() { return *pipelines_.front(); }
+
+  // Records an error that stops lowering. Only the first error is kept.
+  void Fail(base::Status);
+
+  // Returns the finished plan, or the error that stopped lowering. Call once,
+  // after lowering the root into main().
+  base::StatusOr<std::unique_ptr<PhysicalPlan>> Finish();
+
+  const LogicalPlan& plan() const { return plan_; }
+
+ private:
+  friend class Lowering;
+
+  // The type of `column`, after any conversion.
+  PlanType TypeOf(ColumnId column) const;
+
+  // Borrowed for the duration of lowering.
+  const LogicalPlan& plan_;
+
+  // For each logical column, the type it was converted to, if any. Kept here
+  // because column ids are unique across pipelines.
   std::vector<std::optional<core::StorageType>> converted_;
 
+  // The first error recorded by Fail.
   base::Status status_;
+
+  // The plan being built. Its sources must outlive the operators that read
+  // them.
+  std::unique_ptr<PhysicalPlan> out_;
+
+  // The main pipeline first, then every side pipeline.
+  std::vector<std::unique_ptr<Lowering>> pipelines_;
 };
 
 }  // namespace perfetto::trace_processor::pipeline

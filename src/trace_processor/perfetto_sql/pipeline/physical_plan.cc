@@ -77,85 +77,42 @@ std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
 
 }  // namespace
 
-Lowering::Lowering(const LogicalPlan& plan)
+Lowering::Lowering(PlanLowering* plan)
     : plan_(plan),
-      out_(std::make_unique<PhysicalPlan>()),
-      positions_(plan.columns().size(), std::numeric_limits<uint32_t>::max()),
-      converted_(plan.columns().size()) {}
+      positions_(plan->plan().columns().size(),
+                 std::numeric_limits<uint32_t>::max()) {}
 
-uint32_t Lowering::Position(ColumnId id) const {
-  PERFETTO_DCHECK(positions_[id] != std::numeric_limits<uint32_t>::max());
-  return positions_[id];
+Lowering::~Lowering() = default;
+
+void Lowering::LowerNode(PlanNodeId id) {
+  const PlanNode& node = plan().nodes()[id];
+  node.operation().Lower(this, node);
 }
 
-void Lowering::AddAscendingColumn(ColumnId column) {
-  order_.ascending.push_back(column);
-}
-
-void Lowering::SetOrder(Order order) {
-  order_ = std::move(order);
-}
-
-uint32_t Lowering::AllocateTemporaryColumn() {
-  return column_count_++;
-}
-
-void Lowering::ResetLayout() {
-  column_count_ = 0;
-  order_ = Order();
-  tree_columns_.reset();
-  tree_direction_.reset();
-}
-
-Lowering::TreeColumns Lowering::PrepareTree(ColumnId node,
-                                            ColumnId parent,
-                                            TreeDirection direction) {
-  if (!tree_columns_) {
-    AddOperator(std::make_unique<ex::TreeNumberNodes>(Position(node),
-                                                      Position(parent)));
-    tree_columns_ = TreeColumns{column_count_++, column_count_++};
-  }
-  if (tree_direction_ == direction) {
-    return *tree_columns_;
-  }
-  order_ = Order();
-  if (direction == TreeDirection::kUp) {
-    AddOperator(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
-                                                     tree_columns_->parent));
-  } else {
-    AddOperator(std::make_unique<ex::TreeParentFirst>(tree_columns_->node,
-                                                      tree_columns_->parent));
-  }
-  tree_direction_ = direction;
-  return *tree_columns_;
-}
-
-void Lowering::Define(ColumnId id) {
-  positions_[id] = column_count_++;
-}
-
-bool Lowering::has_source() const {
-  return out_->input_ != nullptr;
+void Lowering::Fail(base::Status status) {
+  plan_->Fail(std::move(status));
 }
 
 void Lowering::SetSource(std::unique_ptr<core::exec::Source> source) {
-  PERFETTO_DCHECK(!out_->input_);
-  out_->input_ = std::move(source);
+  PERFETTO_DCHECK(!input_);
+  input_ = std::move(source);
 }
 
-const core::exec::Source* Lowering::AddOperand(
-    std::unique_ptr<core::exec::Source> source,
-    std::vector<ex::Pipeline::Step> steps) {
-  out_->operand_inputs_.push_back(std::move(source));
-  out_->operand_pipelines_.push_back(std::make_unique<core::exec::Pipeline>(
-      *out_->operand_inputs_.back(), std::move(steps),
-      core::exec::ExecutionOptions()));
-  return out_->operand_pipelines_.back().get();
+void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
+  operators_.push_back(std::move(operation));
 }
 
-void Lowering::LowerNode(PlanNodeId id) {
-  const PlanNode& node = plan_.nodes()[id];
-  node.operation().Lower(this, node);
+Lowering& Lowering::AddSidePipeline() {
+  plan_->pipelines_.push_back(std::make_unique<Lowering>(plan_));
+  return *plan_->pipelines_.back();
+}
+
+const core::exec::Source* Lowering::FinishSide() {
+  PhysicalPlan& out = *plan_->out_;
+  std::unique_ptr<ex::Pipeline> pipeline = Build();
+  out.side_inputs_.push_back(std::move(input_));
+  out.side_pipelines_.push_back(std::move(pipeline));
+  return out.side_pipelines_.back().get();
 }
 
 void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
@@ -212,7 +169,7 @@ void Lowering::SortRows(const std::vector<SortKey>& keys) {
   }
   ex::SortSpec sort;
   for (const SortKey& key : keys) {
-    if (!plan_.columns()[key.column].type.storage()) {
+    if (!plan().columns()[key.column].type.storage()) {
       Require(key.column, core::Int64{});
     }
     sort.keys.push_back({Position(key.column), key.descending});
@@ -226,35 +183,46 @@ void Lowering::SortRows(const std::vector<SortKey>& keys) {
   tree_direction_.reset();
 }
 
-void Lowering::AddOperator(core::exec::Pipeline::Step operation) {
-  operators_.push_back(std::move(operation));
-}
-
-void Lowering::Require(ColumnId column, core::StorageType type) {
-  Require({column, Position(column), &operators_}, type);
-}
-
-void Lowering::Require(const Side& side, core::StorageType type) {
-  std::optional<PlanType> common = CommonType(TypeOf(side.column), type);
-  if (!common || !common->storage() || !(*common->storage() == type)) {
-    const char* what = type.Is<core::String>()   ? "strings"
-                       : type.Is<core::Double>() ? "numbers"
-                                                 : "integers";
-    Fail(base::ErrStatus("column '%s' must hold %s",
-                         plan_.columns()[side.column].name.c_str(), what));
-    return;
+Lowering::TreeColumns Lowering::PrepareTree(ColumnId node,
+                                            ColumnId parent,
+                                            TreeDirection direction) {
+  if (!tree_columns_) {
+    AddOperator(std::make_unique<ex::TreeNumberNodes>(Position(node),
+                                                      Position(parent)));
+    tree_columns_ = TreeColumns{column_count_++, column_count_++};
   }
-  Convert(side, type);
+  if (tree_direction_ == direction) {
+    return *tree_columns_;
+  }
+  order_ = Order();
+  if (direction == TreeDirection::kUp) {
+    AddOperator(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
+                                                     tree_columns_->parent));
+  } else {
+    AddOperator(std::make_unique<ex::TreeParentFirst>(tree_columns_->node,
+                                                      tree_columns_->parent));
+  }
+  tree_direction_ = direction;
+  return *tree_columns_;
+}
+
+void Lowering::AddAscendingColumn(ColumnId column) {
+  order_.ascending.push_back(column);
+}
+
+void Lowering::SetOrder(Order order) {
+  order_ = std::move(order);
 }
 
 PlanType Lowering::Unify(const std::vector<Side>& sides) {
   PlanType common = PlanType::Null();
   for (const Side& side : sides) {
-    std::optional<PlanType> next = CommonType(common, TypeOf(side.column));
+    std::optional<PlanType> next =
+        CommonType(common, plan_->TypeOf(side.column));
     if (!next) {
       Fail(base::ErrStatus(
           "column '%s' holds strings in one input and numbers in another",
-          plan_.columns()[side.column].name.c_str()));
+          plan().columns()[side.column].name.c_str()));
       return common;
     }
     common = *next;
@@ -265,23 +233,56 @@ PlanType Lowering::Unify(const std::vector<Side>& sides) {
   return common;
 }
 
-PlanType Lowering::TypeOf(ColumnId column) const {
-  if (converted_[column]) {
-    return *converted_[column];
+void Lowering::Require(ColumnId column, core::StorageType type) {
+  std::optional<PlanType> common =
+      CommonType(plan_->TypeOf(column), PlanType(type));
+  if (!common || !common->storage() || !(*common->storage() == type)) {
+    const char* what = type.Is<core::String>()   ? "strings"
+                       : type.Is<core::Double>() ? "numbers"
+                                                 : "integers";
+    Fail(base::ErrStatus("column '%s' must hold %s",
+                         plan().columns()[column].name.c_str(), what));
+    return;
   }
-  return plan_.columns()[column].type;
+  Convert({this, column}, type);
+}
+
+void Lowering::Define(ColumnId id) {
+  positions_[id] = column_count_++;
+}
+
+uint32_t Lowering::AllocateTemporaryColumn() {
+  return column_count_++;
+}
+
+void Lowering::ResetLayout() {
+  column_count_ = 0;
+  order_ = Order();
+  tree_columns_.reset();
+  tree_direction_.reset();
+}
+
+uint32_t Lowering::Position(ColumnId id) const {
+  PERFETTO_DCHECK(positions_[id] != std::numeric_limits<uint32_t>::max());
+  return positions_[id];
+}
+
+const LogicalPlan& Lowering::plan() const {
+  return plan_->plan();
 }
 
 void Lowering::Convert(const Side& side, const PlanType& type) {
-  PlanType from = TypeOf(side.column);
+  PlanLowering& plan = *side.pipeline->plan_;
+  PlanType from = plan.TypeOf(side.column);
   if (!type.storage() ||
       (from.storage() && *from.storage() == *type.storage())) {
     return;
   }
-  converted_[side.column] = *type.storage();
+  plan.converted_[side.column] = *type.storage();
+  uint32_t position = side.pipeline->Position(side.column);
   if (from.is_null()) {
-    side.steps->push_back(
-        std::make_unique<ex::NullColumn>(side.position, *type.storage()));
+    side.pipeline->AddOperator(
+        std::make_unique<ex::NullColumn>(position, *type.storage()));
     return;
   }
   ex::AssertTypeTarget target = core::String{};
@@ -291,32 +292,54 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
     target = core::Double{};
   }
   PERFETTO_DCHECK(target.Is<core::String>() == type.Is<core::String>());
-  side.steps->push_back(std::make_unique<ex::AssertType>(
-      side.position, target, plan_.columns()[side.column].name));
+  side.pipeline->AddOperator(std::make_unique<ex::AssertType>(
+      position, target, plan.plan().columns()[side.column].name));
 }
 
-void Lowering::Fail(base::Status status) {
+std::unique_ptr<ex::Pipeline> Lowering::Build() {
+  return std::make_unique<ex::Pipeline>(*input_, std::move(operators_),
+                                        ex::ExecutionOptions());
+}
+
+PlanLowering::PlanLowering(const LogicalPlan& plan)
+    : plan_(plan),
+      converted_(plan.columns().size()),
+      out_(std::make_unique<PhysicalPlan>()) {
+  pipelines_.push_back(std::make_unique<Lowering>(this));
+}
+
+PlanLowering::~PlanLowering() = default;
+
+void PlanLowering::Fail(base::Status status) {
   if (status_.ok()) {
     status_ = std::move(status);
   }
 }
 
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lowering::Finish() {
+base::StatusOr<std::unique_ptr<PhysicalPlan>> PlanLowering::Finish() {
   RETURN_IF_ERROR(status_);
-  out_->pipeline_ = std::make_unique<ex::Pipeline>(
-      *out_->input_, std::move(operators_), ex::ExecutionOptions());
+  Lowering& lowering = main();
+  out_->pipeline_ = lowering.Build();
+  out_->input_ = std::move(lowering.input_);
   for (const NamedColumn& column : plan_.output()) {
-    out_->columns_.push_back({column.name, Position(column.id)});
+    out_->columns_.push_back({column.name, lowering.Position(column.id)});
   }
   return std::move(out_);
+}
+
+PlanType PlanLowering::TypeOf(ColumnId column) const {
+  if (converted_[column]) {
+    return *converted_[column];
+  }
+  return plan_.columns()[column].type;
 }
 
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
 base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan& plan) {
-  Lowering lowering(plan);
-  lowering.LowerNode(plan.root());
+  PlanLowering lowering(plan);
+  lowering.main().LowerNode(plan.root());
   return lowering.Finish();
 }
 
