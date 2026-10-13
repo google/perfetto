@@ -494,9 +494,23 @@ enum ProcStateControllerInconsistentBehavior {
       0x40;  // 1 << 6
   PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_PROPAGATED_DISCREPANCY =
       0x80;  // 1 << 7
+  PROC_STATE_CONTROLLER_INCONSISTENT_BEHAVIOR_SKIPPED_HIGH_PRIORITY_CONNECTION =
+      0x100;  // 1 << 8
 }
 // LINT.ThenChange(
 //     /services/core/java/com/android/server/am/psc/ProcStateController.java:InconsistentBehavior)
+
+// Represents the edge type in the process graph.
+// See com.android.server.am.psc.ProcessGraph.EdgeType for definition.
+// LINT.IfChange(ProcessGraphEdgeType)
+enum ProcessGraphEdgeType {
+  PROCESS_GRAPH_EDGE_TYPE_UNSPECIFIED = 0;
+  PROCESS_GRAPH_EDGE_TYPE_PROCESS = 1;
+  PROCESS_GRAPH_EDGE_TYPE_SERVICE_BINDING = 2;
+  PROCESS_GRAPH_EDGE_TYPE_PROVIDER_BINDING = 3;
+}
+// LINT.ThenChange(
+//     /services/core/java/com/android/server/am/psc/ProcessGraph.java:EdgeType)
 
 enum AppExitReasonCode {
   APP_EXIT_REASON_UNKNOWN = 0;
@@ -1174,6 +1188,21 @@ message AndroidProcStateUpdateEvent {
   optional int32 known_inconsistent_behavior = 8
       [(perfetto.protos.flags_enum) =
            ".com.android.internal.ProcStateControllerInconsistentBehavior"];
+
+  // The type of the winning edge.
+  // See com.android.server.am.psc.ProcessGraph.EdgeType for definition.
+  // Also see the ProcessGraphEdgeType enum proto.
+  optional ProcessGraphEdgeType winning_edge_type = 9;
+
+  // The computed procState of the winning edge's source. Only set when
+  // winning_edge_type is a binding edge, i.e.
+  // PROCESS_GRAPH_EDGE_TYPE_SERVICE_BINDING or
+  // PROCESS_GRAPH_EDGE_TYPE_PROVIDER_BINDING.
+  optional ProcessStateEnum winning_source_proc_state = 10;
+
+  // Binding flags on the connection (Context.BIND_*). Only valid when
+  // winning_edge_type is PROCESS_GRAPH_EDGE_TYPE_SERVICE_BINDING.
+  optional int64 winning_edge_binding_flags = 11;
 }
 
 message AndroidSelfBroadcastEvent {
