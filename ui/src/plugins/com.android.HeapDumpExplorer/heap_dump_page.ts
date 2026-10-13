@@ -259,7 +259,9 @@ function buildTabs(
     });
   }
 
-  return {tabs, actions};
+  // Lazy: a view only mounts (and runs its queries) once its tab is first
+  // opened, rather than every view loading when the page opens.
+  return {tabs: tabs.map((t) => ({...t, lazy: true})), actions};
 }
 
 function processLabel(d: queries.HeapDump): string {
