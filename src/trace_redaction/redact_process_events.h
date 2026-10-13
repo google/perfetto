@@ -28,6 +28,7 @@ namespace perfetto::trace_redaction {
 
 // Goes through a trace packet and filters:
 //
+//    - oom_score_adj_update
 //    - task_rename
 //    - task_newtask
 //    - sched_process_free
@@ -35,6 +36,7 @@ namespace perfetto::trace_redaction {
 //
 // Goes through a trace packet and modifies pid and comm:
 //
+//    - oom_score_adj_update
 //    - task_newtask
 //    - sched_process_free
 //    - task_rename
@@ -115,6 +117,14 @@ class RedactProcessEvents : public TransformPrimitive {
       const Context& context,
       uint64_t ts,
       protozero::ConstBytes event_bytes,
+      protos::pbzero::FtraceEvent* parent_message) const;
+
+  base::Status OnOomScoreAdjUpdate(
+      const Context& context,
+      uint64_t ts,
+      int32_t cpu,
+      protozero::ConstBytes bytes,
+      std::string* shared_comm,
       protos::pbzero::FtraceEvent* parent_message) const;
 
   std::unique_ptr<PidCommModifier> modifier_;

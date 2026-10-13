@@ -24,6 +24,7 @@
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/oom.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
@@ -139,6 +140,10 @@ base::Status RedactProcessEvents::OnFtraceEvent(
       case protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber:
         RETURN_IF_ERROR(
             OnSchedBlockedReason(context, ts.as_uint64(), bytes, message));
+        break;
+      case protos::pbzero::FtraceEvent::kOomScoreAdjUpdateFieldNumber:
+        RETURN_IF_ERROR(OnOomScoreAdjUpdate(
+            context, ts.as_uint64(), cpu, it.as_bytes(), shared_comm, message));
         break;
       default:
         proto_util::AppendField(it, message);
@@ -460,6 +465,58 @@ base::Status RedactProcessEvents::OnSchedBlockedReason(
   if (filter_->Includes(context, ts, blocking_reason.pid())) {
     proto_util::AppendField(blocked_reason_field, parent_message);
   }
+
+  return base::OkStatus();
+}
+
+base::Status RedactProcessEvents::OnOomScoreAdjUpdate(
+    const Context& context,
+    uint64_t ts,
+    int32_t cpu,
+    protozero::ConstBytes bytes,
+    std::string* shared_comm,
+    protos::pbzero::FtraceEvent* parent_message) const {
+  PERFETTO_DCHECK(shared_comm);
+  PERFETTO_DCHECK(parent_message);
+
+  protos::pbzero::OomScoreAdjUpdateFtraceEvent::Decoder decoder(bytes);
+
+  if (!decoder.has_comm()) {
+    return base::ErrStatus(
+        "RedactProcessEvents: missing OomScoreAdjUpdateFtraceEvent %d",
+        protos::pbzero::OomScoreAdjUpdateFtraceEvent::kCommFieldNumber);
+  }
+
+  if (!decoder.has_oom_score_adj()) {
+    return base::ErrStatus(
+        "RedactProcessEvents: missing OomScoreAdjUpdateFtraceEvent %d",
+        protos::pbzero::OomScoreAdjUpdateFtraceEvent::kOomScoreAdjFieldNumber);
+  }
+
+  if (!decoder.has_pid()) {
+    return base::ErrStatus(
+        "RedactProcessEvents: missing OomScoreAdjUpdateFtraceEvent %d",
+        protos::pbzero::OomScoreAdjUpdateFtraceEvent::kPidFieldNumber);
+  }
+
+  auto comm = decoder.comm();
+  auto oom_score_adj = decoder.oom_score_adj();
+  auto pid = decoder.pid();
+
+  PERFETTO_DCHECK(filter_);
+  if (!filter_->Includes(context, ts, pid)) {
+    return base::OkStatus();
+  }
+
+  shared_comm->assign(comm.data, comm.size);
+
+  PERFETTO_DCHECK(modifier_);
+  modifier_->Modify(context, ts, cpu, &pid, shared_comm);
+
+  auto* message = parent_message->set_oom_score_adj_update();
+  message->set_comm(*shared_comm);
+  message->set_oom_score_adj(oom_score_adj);
+  message->set_pid(pid);
 
   return base::OkStatus();
 }

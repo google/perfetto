@@ -21,6 +21,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/oom.gen.h"
 #include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
@@ -54,6 +55,22 @@ class RedactProcessEventsTest : public testing::Test {
   void SetUp() {
     redact_.emplace_modifier<DoNothing>();
     redact_.emplace_filter<AllowAll>();
+  }
+
+  static void CreateOomScoreAdjUpdate(uint64_t ts,
+                                      int32_t event_pid,
+                                      int32_t target_pid,
+                                      std::string_view comm,
+                                      int32_t oom_score_adj,
+                                      protos::gen::FtraceEventBundle* bundle) {
+    auto* event = bundle->add_event();
+    event->set_timestamp(ts);
+    event->set_pid(static_cast<uint32_t>(event_pid));
+
+    auto* oom = event->mutable_oom_score_adj_update();
+    oom->set_comm(std::string(comm));
+    oom->set_oom_score_adj(oom_score_adj);
+    oom->set_pid(target_pid);
   }
 
   RedactProcessEvents redact_;
@@ -961,6 +978,138 @@ TEST_F(RedactSchedBlockReasonTest, DropTaskOutsidePackage) {
   // kUidA.
   const auto& event = packet.ftrace_events().event().at(0);
   ASSERT_FALSE(event.has_sched_blocked_reason());
+}
+
+TEST_F(RedactProcessEventsTest, FilterOomScoreAdjUpdate) {
+  redact_.emplace_filter<ConnectedToPackage>();
+  redact_.emplace_modifier<DoNothing>();
+
+  Context context;
+  context.timeline = std::make_unique<ProcessThreadTimeline>();
+  context.timeline->Append(
+      ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+  context.timeline->Append(
+      ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+  context.timeline->Sort();
+  context.package_uid = kUidB;
+
+  protos::gen::TracePacket packet;
+  auto* events = packet.mutable_ftrace_events();
+  events->set_cpu(kCpu);
+
+  // Outer event_pid is kPidA (e.g. system_server), inner target_pid is kPidA
+  // (outside target package kUidB) -> should be stripped.
+  CreateOomScoreAdjUpdate(kTimeB, kPidA, kPidA, kCommA, 100, events);
+
+  // Outer event_pid is kPidA (e.g. system_server), inner target_pid is kPidB
+  // (inside target package kUidB) -> should be retained.
+  CreateOomScoreAdjUpdate(kTimeB, kPidA, kPidB, kCommB, -900, events);
+
+  auto packet_str = packet.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context, &packet_str));
+
+  protos::gen::TracePacket out_packet;
+  ASSERT_TRUE(out_packet.ParseFromString(packet_str));
+  ASSERT_TRUE(out_packet.has_ftrace_events());
+  ASSERT_EQ(out_packet.ftrace_events().event().size(), 2u);
+
+  ASSERT_FALSE(
+      out_packet.ftrace_events().event().at(0).has_oom_score_adj_update());
+
+  const auto& retained = out_packet.ftrace_events().event().at(1);
+  ASSERT_TRUE(retained.has_oom_score_adj_update());
+  EXPECT_EQ(retained.oom_score_adj_update().pid(), kPidB);
+  EXPECT_EQ(retained.oom_score_adj_update().comm(), kCommB);
+  EXPECT_EQ(retained.oom_score_adj_update().oom_score_adj(), -900);
+}
+
+TEST_F(RedactProcessEventsTest, ModifyOomScoreAdjUpdate) {
+  redact_.emplace_filter<AllowAll>();
+  redact_.emplace_modifier<ClearComms>();
+
+  Context context;
+  context.timeline = std::make_unique<ProcessThreadTimeline>();
+  context.timeline->Append(
+      ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+  context.timeline->Append(
+      ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+  context.timeline->Sort();
+  context.package_uid = kUidB;
+
+  protos::gen::TracePacket packet;
+  auto* events = packet.mutable_ftrace_events();
+  events->set_cpu(kCpu);
+
+  CreateOomScoreAdjUpdate(kTimeB, kPidA, kPidA, kCommA, 100, events);
+  CreateOomScoreAdjUpdate(kTimeB, kPidA, kPidB, kCommB, -900, events);
+
+  auto packet_str = packet.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context, &packet_str));
+
+  protos::gen::TracePacket out_packet;
+  ASSERT_TRUE(out_packet.ParseFromString(packet_str));
+  ASSERT_TRUE(out_packet.has_ftrace_events());
+  ASSERT_EQ(out_packet.ftrace_events().event().size(), 2u);
+
+  const auto& outside_pkg =
+      out_packet.ftrace_events().event().at(0).oom_score_adj_update();
+  EXPECT_EQ(outside_pkg.pid(), kPidA);
+  EXPECT_EQ(outside_pkg.oom_score_adj(), 100);
+  EXPECT_TRUE(outside_pkg.comm().empty());
+
+  const auto& inside_pkg =
+      out_packet.ftrace_events().event().at(1).oom_score_adj_update();
+  EXPECT_EQ(inside_pkg.pid(), kPidB);
+  EXPECT_EQ(inside_pkg.oom_score_adj(), -900);
+  EXPECT_EQ(inside_pkg.comm(), kCommB);
+}
+
+TEST_F(RedactProcessEventsTest, RejectInvalidOomScoreAdjUpdate) {
+  Context context;
+  context.timeline = std::make_unique<ProcessThreadTimeline>();
+  context.package_uid = kUidA;
+
+  // Missing comm.
+  {
+    protos::gen::TracePacket packet;
+    auto* event = packet.mutable_ftrace_events()->add_event();
+    event->set_timestamp(kTimeB);
+    event->set_pid(kPidA);
+    auto* oom = event->mutable_oom_score_adj_update();
+    oom->set_oom_score_adj(100);
+    oom->set_pid(kPidA);
+
+    auto packet_str = packet.SerializeAsString();
+    ASSERT_FALSE(redact_.Transform(context, &packet_str).ok());
+  }
+
+  // Missing oom_score_adj.
+  {
+    protos::gen::TracePacket packet;
+    auto* event = packet.mutable_ftrace_events()->add_event();
+    event->set_timestamp(kTimeB);
+    event->set_pid(kPidA);
+    auto* oom = event->mutable_oom_score_adj_update();
+    oom->set_comm(std::string(kCommA));
+    oom->set_pid(kPidA);
+
+    auto packet_str = packet.SerializeAsString();
+    ASSERT_FALSE(redact_.Transform(context, &packet_str).ok());
+  }
+
+  // Missing pid.
+  {
+    protos::gen::TracePacket packet;
+    auto* event = packet.mutable_ftrace_events()->add_event();
+    event->set_timestamp(kTimeB);
+    event->set_pid(kPidA);
+    auto* oom = event->mutable_oom_score_adj_update();
+    oom->set_comm(std::string(kCommA));
+    oom->set_oom_score_adj(100);
+
+    auto packet_str = packet.SerializeAsString();
+    ASSERT_FALSE(redact_.Transform(context, &packet_str).ok());
+  }
 }
 
 }  // namespace perfetto::trace_redaction
