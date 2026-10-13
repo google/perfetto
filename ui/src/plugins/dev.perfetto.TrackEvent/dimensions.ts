@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import type {TrackNode} from '../../public/workspace';
 import {
@@ -22,7 +21,7 @@ import {
   visibleDimensionNames,
 } from '../../public/dimensions';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
-import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
+import type ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 // The subtitle item id used for dimension labels. Distinct from the ids used by
 // other contributors (e.g. Chrome process labels) so the two compose instead of
@@ -39,62 +38,60 @@ interface TrackDimension {
 }
 
 /**
- * Surfaces track dimensions in the timeline.
+ * Labels track event nodes with the custom dimensions of their trace processor
+ * tracks, as subtitles following the shared collapse rule (see
+ * visibleDimensionNames). Custom dimensions are only declared by
+ * TrackDescriptors, so every track which has any is a track event track.
  *
- * Dimensions are a trace processor concept first: this plugin implements the
- * shared presentation half of it, i.e. the collapse rule (see
- * visibleDimensionNames) and the subtitle labels which come out of it. Well
- * known dimensions which already have specialized presentation (GPU hierarchy,
- * machine name suffixes) are skipped: see public/dimensions.ts.
+ * The dimensions of a process are the ones of its process track, so they
+ * label the process group itself rather than only the process track, which is
+ * one of its children (or not shown at all if it has no events).
+ *
+ * @param trace The trace.
+ * @param nodesByTrackId The workspace node of every track event track.
+ * @param processGroups The plugin owning the process groups.
  */
-export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.TrackDimensions';
-  static readonly dependencies = [ProcessThreadGroupsPlugin];
+export async function addDimensionLabels(
+  trace: Trace,
+  nodesByTrackId: ReadonlyMap<number, TrackNode>,
+  processGroups: ProcessThreadGroupsPlugin,
+): Promise<void> {
+  let trackDims: ReadonlyArray<TrackDimension>;
+  try {
+    trackDims = await queryDimensions(trace);
+  } catch {
+    // Older HTTP trace processors may not have `track_dimension`.
+    return;
+  }
+  const visible = visibleDimensionNames(trackDims.map((d) => d.dimension));
+  if (visible.size === 0) return;
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
-    // Wait for the trace to be ready: every plugin has had a chance to build
-    // its part of the workspace by then, which is what we annotate.
-    ctx.onTraceReady.addListener(async () => {
-      const trackDims = await queryDimensions(ctx);
-      const visible = visibleDimensionNames(trackDims.map((d) => d.dimension));
-      if (visible.size === 0) return;
+  const byNode = new Map<TrackNode, Dimension[]>();
+  const add = (node: TrackNode | undefined, dimension: Dimension) => {
+    if (node === undefined) return;
+    if (!visible.has(dimension.name)) return;
+    const dims = byNode.get(node);
+    if (dims === undefined) {
+      byNode.set(node, [dimension]);
+    } else if (!dims.some((d) => d.name === dimension.name)) {
+      dims.push(dimension);
+    }
+  };
+  for (const {trackId, processUpid, dimension} of trackDims) {
+    add(nodesByTrackId.get(trackId), dimension);
+    if (processUpid !== null) {
+      add(processGroups.getGroupForProcess(processUpid), dimension);
+    }
+  }
 
-      const byNode = new Map<TrackNode, Dimension[]>();
-      const add = (node: TrackNode | undefined, dimension: Dimension) => {
-        if (node === undefined) return;
-        if (!visible.has(dimension.name)) return;
-        const dims = byNode.get(node);
-        if (dims === undefined) {
-          byNode.set(node, [dimension]);
-        } else if (!dims.some((d) => d.name === dimension.name)) {
-          dims.push(dimension);
-        }
-      };
-
-      // Trace processor tracks are mapped back to workspace nodes through the
-      // tracks' `trackIds` tag. The dimensions of a process are the ones of its
-      // process track, so they also label the process group itself rather than
-      // only the process track, which is one of its children (or not shown at
-      // all if it has no events).
-      const nodesByTrackId = getNodesByTrackId(ctx);
-      const processGroups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);
-      for (const {trackId, processUpid, dimension} of trackDims) {
-        add(nodesByTrackId.get(trackId), dimension);
-        if (processUpid !== null) {
-          add(processGroups.getGroupForProcess(processUpid), dimension);
-        }
-      }
-
-      for (const [node, dims] of byNode) {
-        // A dimension is inherited by everything below the node which declared
-        // it, so repeating the same label on every descendant is just noise:
-        // only label a node when it says something its ancestors don't.
-        const newDims = dims
-          .filter((d) => !isShownByAncestor(node, d, byNode))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        node.setSubtitleItem(SUBTITLE_ITEM_ID, formatDimensionLabels(newDims));
-      }
-    });
+  for (const [node, dims] of byNode) {
+    // A dimension is inherited by everything below the node which declared it,
+    // so repeating the same label on every descendant is just noise: only
+    // label a node when it says something its ancestors don't.
+    const newDims = dims
+      .filter((d) => !isShownByAncestor(node, d, byNode))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    node.setSubtitleItem(SUBTITLE_ITEM_ID, formatDimensionLabels(newDims));
   }
 }
 
@@ -117,29 +114,17 @@ function isShownByAncestor(
   return false;
 }
 
-function getNodesByTrackId(ctx: Trace): Map<number, TrackNode> {
-  const result = new Map<number, TrackNode>();
-  for (const track of ctx.tracks.getAllTracks()) {
-    const node = ctx.defaultWorkspace.getTrackByUri(track.uri);
-    if (node === undefined) continue;
-    for (const trackId of track.tags?.trackIds ?? []) {
-      result.set(trackId, node);
-    }
-  }
-  return result;
-}
-
 // Note: this deliberately asks only for custom dimensions. Every well known
 // dimension is currently presented elsewhere in the UI (see the list in
 // public/dimensions.ts), and skipping them means traces without custom
 // dimensions - i.e. almost all of them today - do no work here at all. Drop
-// the filter when a well known dimension starts being labelled by this pass.
+// the filter when a well known dimension starts being labelled here.
 async function queryDimensions(
-  ctx: Trace,
+  trace: Trace,
 ): Promise<ReadonlyArray<TrackDimension>> {
   // The root track of a process descriptor is the only track event track with
   // a process which is the root of its scope.
-  const res = await ctx.engine.query(`
+  const res = await trace.engine.query(`
     SELECT
       d.track_id AS trackId,
       iif(

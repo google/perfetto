@@ -21,7 +21,8 @@
 // of code rather than one hand-rolled implementation each.
 //
 // The generic collapse pass which turns these labels into track subtitles lives
-// in the dev.perfetto.TrackDimensions plugin.
+// in the dev.perfetto.TrackEvent plugin, which creates every track with custom
+// dimensions.
 
 // A single effective dimension of a track, as returned by trace processor.
 export interface Dimension {
