@@ -215,7 +215,9 @@ class FtraceConfigMuxer {
   struct FtraceState {
     EventFilter ftrace_events;
     std::set<size_t> syscall_filter;  // syscall ids or kAllSyscallsId
-    bool funcgraph_on = false;        // current_tracer == "function_graph"
+    // With syscall_filter empty, the calls left out of it.
+    std::set<size_t> syscall_excluded;
+    bool funcgraph_on = false;  // current_tracer == "function_graph"
     // Any exclusive single-tenant feature active.
     bool exclusive_feature_active = false;
     size_t cpu_buffer_size_pages = 0;
@@ -289,6 +291,9 @@ class FtraceConfigMuxer {
   AtraceWrapper* atrace_wrapper_;
   ProtoTranslationTable* table_;
   SyscallTable syscalls_;
+  // The calls the kernel's own trampolines make, by this architecture's
+  // numbers: never traced unless asked for by name.
+  std::set<size_t> trampoline_syscalls_;
 
   FtraceState current_state_;
 
