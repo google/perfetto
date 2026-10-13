@@ -428,8 +428,6 @@ Advanced:
                                       Only valid with -q or --run-metrics and
                                       the file will only be written if the
                                       execution is successful.
- -W, --wide                           Prints interactive output with double
-                                      column width.
  --analyze-trace-proto-content        Enables trace proto content analysis in
                                       trace processor.
  --crop-track-events                  Ignores track event outside of the

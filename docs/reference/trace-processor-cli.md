@@ -137,7 +137,6 @@ Flags:
 - `-f, --query-file FILE`: read SQL from `FILE`; pass `-` to read from stdin.
 - `-i, --interactive`: drop into the interactive REPL after the queries
   finish.
-- `-W, --wide`: no-op, kept for compatibility.
 - `--perf-file FILE`: write trace-load and query timings to `FILE`.
 - `--format FMT`: print results as `csv` (default) or `markdown`. Turns off
   automatic [agent mode](#agent-mode).
@@ -234,8 +233,7 @@ which don't set any of the variables above find it.
 `trace_processor trace.pftrace` and
 `trace_processor interactive trace.pftrace` are equivalent. Results are
 printed as aligned tables, a page at a time: press Enter for the next page or
-`q` to stop. The only subcommand-specific flag is `-W, --wide`, which is a
-no-op kept for compatibility.
+`q` to stop.
 
 ### {#subcommand-server} `server`: HTTP, stdio, or unix RPC
 
