@@ -123,7 +123,7 @@ function buildMetric(
         ${valueColumn} as value,
         ${otherCol},
         CAST(path_hash_stable AS TEXT) AS path_hash_stable,
-        ${mergedClassColumnSql('t.name')}
+        ${mergedClassColumnSql('t.name', upid, ts)}
       from ${tree} t
       where graph_sample_ts = ${ts} and upid = ${upid}
     `,

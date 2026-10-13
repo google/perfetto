@@ -467,7 +467,7 @@ function flamegraphMetrics(
               self_size as value,
               self_count,
               path_hash_stable,
-              ${mergedClassColumnSql('t.name')}
+              ${mergedClassColumnSql('t.name', upid, ts)}
             from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
@@ -511,7 +511,7 @@ function flamegraphMetrics(
               self_size,
               self_count as value,
               path_hash_stable,
-              ${mergedClassColumnSql('t.name')}
+              ${mergedClassColumnSql('t.name', upid, ts)}
             from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
@@ -550,7 +550,7 @@ function flamegraphMetrics(
               self_size as value,
               self_count,
               path_hash_stable,
-              ${mergedClassColumnSql('t.name')}
+              ${mergedClassColumnSql('t.name', upid, ts)}
             from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
@@ -594,7 +594,7 @@ function flamegraphMetrics(
               self_size,
               self_count as value,
               path_hash_stable,
-              ${mergedClassColumnSql('t.name')}
+              ${mergedClassColumnSql('t.name', upid, ts)}
             from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,

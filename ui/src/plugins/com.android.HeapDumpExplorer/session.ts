@@ -79,10 +79,6 @@ export class HeapDumpExplorerSession {
   // with the dumps.
   hasFieldValues = false;
 
-  // Class names flagged as potentially merged by app optimization. Loaded
-  // with the dumps.
-  potentiallyMergedClasses: ReadonlySet<string> = new Set();
-
   // Set when the plugin auto-redirected to HDE on load; gates the
   // "default view changed" hint on the overview.
   autoNavigated = false;
@@ -117,9 +113,6 @@ export class HeapDumpExplorerSession {
   async loadDumps(): Promise<boolean> {
     this._dumps = await queries.loadDumpsList(this.engine);
     this.hasFieldValues = await queries.hasFieldValues(this.engine);
-    this.potentiallyMergedClasses = await queries.getPotentiallyMergedClasses(
-      this.engine,
-    );
     const ref = this.store.state.activeDump;
     const restored =
       ref !== undefined &&
