@@ -131,7 +131,7 @@ def emit_array(data, output_path, *, symbol, namespace, include_guard):
     return '\n'.join(f'    0x{word:016x}ULL,'
                      for (word,) in struct.iter_unpack(order + 'Q', padded))
 
-  with open(output_path, 'w') as f:
+  with open(output_path, 'w', newline='\n') as f:
     f.write(
         _HEADER_TEMPLATE.format(
             include_guard=include_guard,

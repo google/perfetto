@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_BUNDLE_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_BUNDLE_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -52,10 +51,6 @@ class SqlBundle {
   SqlBundle(const uint8_t* data, size_t size) : data_(data), size_(size) {
     PERFETTO_CHECK(size_ >= sizeof(uint32_t));
   }
-
-  template <size_t N>
-  explicit SqlBundle(const std::array<uint8_t, N>& blob)
-      : SqlBundle(blob.data(), blob.size()) {}
 
   class Iterator {
    public:
