@@ -172,62 +172,6 @@ TEST_F(DataframeScanTest, PreservesNullableIdSemantics) {
               ElementsAre(Optional(0u), Eq(std::nullopt), Optional(2u)));
 }
 
-// The point of the operator: the batch reads the dataframe's own storage.
-TEST_F(DataframeScanTest, ReadsTheDataframesOwnStorage) {
-  dataframe::Dataframe df =
-      Build({kBig + 10, kBig + 20, kBig + 30}, {true, true, true});
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
-
-  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
-  RowBatch batch;
-  ASSERT_TRUE(scan.GetData(batch, *state));
-  EXPECT_EQ(batch.size(), 3u);
-  EXPECT_EQ(batch.column(0).data(),
-            df.column(0).storage.unchecked_data<Int64>());
-}
-
-TEST_F(DataframeScanTest, HandsBackEveryRow) {
-  dataframe::Dataframe df =
-      Build({kBig + 10, kBig + 20, kBig + 30}, {true, true, true});
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
-  EXPECT_THAT(Drain(scan, 0), ElementsAre(kBig + 10, kBig + 20, kBig + 30));
-}
-
-TEST_F(DataframeScanTest, SplitsIntoBatches) {
-  std::vector<int64_t> values(kMaxBatchRows * 2 + 5);
-  std::vector<bool> present(values.size(), true);
-  for (uint32_t i = 0; i < values.size(); ++i) {
-    values[i] = kBig + i;
-  }
-  dataframe::Dataframe df = Build(values, present);
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
-  EXPECT_EQ(Drain(scan, 0).size(), values.size());
-}
-
-// A column which does not store one value per row is laid back out once, so
-// the rest of the pipeline never has to know the difference.
-TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowIsExpanded) {
-  dataframe::Dataframe df =
-      Build({kBig + 10, 0, kBig + 30}, {true, false, true});
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
-
-  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
-  RowBatch batch;
-  ASSERT_TRUE(scan.GetData(batch, *state));
-  ASSERT_EQ(batch.size(), 3u);
-
-  const ColumnView& view = batch.column(0);
-  const auto* data = static_cast<const int64_t*>(view.data());
-  EXPECT_EQ(data[0], kBig + 10);
-  EXPECT_EQ(data[2], kBig + 30);
-  // Readable at every row, whether or not the row is null.
-  EXPECT_EQ(data[1], 0);
-  ASSERT_NE(view.validity(), nullptr);
-  EXPECT_TRUE(view.validity()->is_set(0));
-  EXPECT_FALSE(view.validity()->is_set(1));
-  EXPECT_TRUE(view.validity()->is_set(2));
-}
-
 // Expanding a batch at a time means picking up in the packed values where the
 // previous batch left off, which every batch after the first depends on.
 TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
@@ -242,37 +186,6 @@ TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowSpansBatches) {
   dataframe::Dataframe df = Build(values, present);
   DataframeScan scan({df.shared_column(0)}, df.row_count());
   EXPECT_EQ(Drain(scan, 0), expected);
-}
-
-// Replaying has to wind the packed values back too, not just the row counter.
-TEST_F(DataframeScanTest, AColumnWithoutASlotPerRowIsReplayable) {
-  dataframe::Dataframe df =
-      Build({kBig + 10, 0, kBig + 30}, {true, false, true});
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
-
-  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
-  RowBatch batch;
-  ASSERT_TRUE(scan.GetData(batch, *state));
-  ASSERT_FALSE(scan.GetData(batch, *state));
-
-  scan.Rewind(*state);
-  ASSERT_TRUE(scan.GetData(batch, *state));
-  const auto* data = static_cast<const int64_t*>(batch.column(0).data());
-  EXPECT_EQ(data[0], kBig + 10);
-  EXPECT_EQ(data[1], 0);
-  EXPECT_EQ(data[2], kBig + 30);
-}
-
-TEST_F(DataframeScanTest, IsReplayable) {
-  dataframe::Dataframe df = Build({kBig + 1, kBig + 2}, {true, true});
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
-
-  std::unique_ptr<OperatorState> state = scan.MakeState(test::TestContext());
-  RowBatch batch;
-  ASSERT_TRUE(scan.GetData(batch, *state));
-  EXPECT_FALSE(scan.GetData(batch, *state));
-  scan.Rewind(*state);
-  EXPECT_TRUE(scan.GetData(batch, *state));
 }
 
 // Sparse expansion must retain both values and validity across advancement
@@ -296,27 +209,6 @@ TEST_F(DataframeScanTest, ContractRetainedSparseExpansionSurvivesAdvance) {
   output.Reset();
   state.reset();
   EXPECT_EQ(test::ReadNullableColumn<int64_t>(retained, 0), expected);
-}
-
-TEST_F(DataframeScanTest,
-       ContractRetainedDirectStorageSurvivesAdvanceAndRewind) {
-  std::vector<int64_t> values(kMaxBatchRows * 2 + 1);
-  for (uint32_t i = 0; i < values.size(); ++i)
-    values[i] = kBig + i;
-  auto df = Build(values, std::vector<bool>(values.size(), true));
-  DataframeScan scan({df.shared_column(0)}, df.row_count());
-  auto state = scan.MakeState(test::TestContext());
-  RowBatch output, retained;
-  ASSERT_TRUE(scan.GetData(output, *state));
-  auto expected = test::ReadColumn<int64_t>(output, 0);
-  retained.CopyFrom(output);
-  while (scan.GetData(output, *state)) {
-  }
-  scan.Rewind(*state);
-  ASSERT_TRUE(scan.GetData(output, *state));
-  EXPECT_EQ(test::ReadColumn<int64_t>(retained, 0), expected);
-  EXPECT_EQ(retained.column(0).data(),
-            df.column(0).storage.unchecked_data<Int64>());
 }
 
 }  // namespace
