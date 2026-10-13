@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <array>
 #include <memory>
+#include <new>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -138,6 +139,19 @@ class TraceBuffer_WriterStats {
                                            std::hash<ProducerAndWriterID>,
                                            base::QuadraticProbe,
                                            /*AppendOnly=*/true>;
+
+  TraceBuffer_WriterStats() = default;
+  TraceBuffer_WriterStats(const TraceBuffer_WriterStats& other) {
+    for (auto it = other.map_.GetIterator(); it; ++it)
+      map_.Insert(it.key(), it.value());
+  }
+  TraceBuffer_WriterStats& operator=(const TraceBuffer_WriterStats& other) {
+    if (this != &other) {
+      this->~TraceBuffer_WriterStats();
+      new (this) TraceBuffer_WriterStats(other);
+    }
+    return *this;
+  }
 
   void Insert(ProducerAndWriterID key, HistValue val) {
     map_.Insert(key, {}).first->Add(val);

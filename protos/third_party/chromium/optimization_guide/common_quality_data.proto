@@ -279,7 +279,7 @@ message ContentNode {
   ContentAttributes content_attributes = 2 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 30
+// Next ID: 31
 message ContentAttributes {
   oneof content_data {
     // Only set if attribute_type is CONTENT_ATTRIBUTE_TEXT.
@@ -314,6 +314,9 @@ message ContentAttributes {
 
     // Only set if attribute_type is CONTENT_ATTRIBUTE_TABLE_ROW.
     TableRowData table_row_data = 13;
+
+    // Only set if attribute_type is CONTENT_ATTRIBUTE_MATH.
+    MathData math_data = 30;
   }
 
   // A unique identifier for the DOM node which generated this ContentNode.
@@ -987,6 +990,23 @@ message TableRowData {
   TableRowType type = 1 [features = { field_presence: EXPLICIT }];
 }
 
+message MathData {
+  // The <math> subtree, re-serialized with only known MathML tags (unknown
+  // MathML tags become <mrow>; non-MathML tags are unwrapped) and the alttext,
+  // mathvariant, rowspan and columnspan attributes, minus annotations. `&`,
+  // `<`, `>` and `$` are XML-escaped. Unset if the markup would exceed 65536
+  // bytes or 128 levels of nesting.
+  //
+  // For backward compatibility, the node's descendants also carry the formula
+  // as rendered text.
+  string stripped_mathml = 1 [features = { field_presence: EXPLICIT }];
+
+  // Whether the formula is laid out as a block rather than inline (from
+  // computed style, so CSS `display: block math` without a `display="block"`
+  // attribute is also covered).
+  bool is_block = 2 [features = { field_presence: EXPLICIT }];
+}
+
 // Represents the interaction information for the page. This is for top-level
 // interactions, such as the mouse position and focused element, for which
 // there can only be one unique value.
@@ -1490,6 +1510,7 @@ message RuleMetadata {
   // according to this rule. May be empty if no resources are accessible.
   repeated AgentResource accessible_resources = 1;
 
+
   // How the agent may interact with the page.
   // The field is repeated to allow for multiple capabilities to be specified.
   // Empty list means no capabilities are allowed and the model is blocked
@@ -1509,13 +1530,77 @@ message RuleMetadata {
 
   // What capabilities the agent has permission for when visiting/actuating on
   // a location.
-  // Next ID: 2
+  // Next ID: 28
+
   enum ActuationCapability {
     CAPABILITY_UNKNOWN = 0;
 
     // The agent may navigate to and interact with the page. The agent may also
     // execute any tool.
     CAPABILITY_ALL = 1;
+
+    // Fine-grained tool capabilities corresponding to the Actions in
+    // actions_data.proto.
+    //
+    // Core primitive actions (CAPABILITY_CLICK through CAPABILITY_SCROLL_TO).
+    // These are the general-purpose actions an agent can typically be expected
+    // to use when actuating on a page. Callers that want to allow actuation
+    // without granting CAPABILITY_ALL may find this set a useful starting
+    // point.
+    CAPABILITY_CLICK = 2;
+
+    CAPABILITY_TYPE = 3;
+
+    CAPABILITY_SCROLL = 4;
+
+    CAPABILITY_MOVE_MOUSE = 5;
+
+    CAPABILITY_DRAG_AND_RELEASE = 6;
+
+    CAPABILITY_SELECT = 7;
+
+    CAPABILITY_NAVIGATE = 8;
+
+    CAPABILITY_BACK = 9;
+
+    CAPABILITY_FORWARD = 10;
+
+    CAPABILITY_WAIT = 11;
+
+    CAPABILITY_CREATE_TAB = 12;
+
+    CAPABILITY_CLOSE_TAB = 13;
+
+    CAPABILITY_ACTIVATE_TAB = 14;
+
+    CAPABILITY_CREATE_WINDOW = 15;
+
+    CAPABILITY_CLOSE_WINDOW = 16;
+
+    CAPABILITY_ACTIVATE_WINDOW = 17;
+
+    CAPABILITY_YIELD_TO_USER = 18;
+
+    CAPABILITY_ATTEMPT_LOGIN = 19;
+
+    CAPABILITY_SCROLL_TO = 20;
+
+    // Higher-level tools that are not part of the core primitive set. These are
+    // not required for basic actuation and may be omitted to restrict what the
+    // agent can do on a location.
+    CAPABILITY_SCRIPT_TOOL = 21;
+
+    CAPABILITY_MEDIA_CONTROL = 22;
+
+    CAPABILITY_ATTEMPT_FORM_FILLING = 23;
+
+    CAPABILITY_LOAD_AND_EXTRACT_CONTENT = 24;
+
+    CAPABILITY_ATTEMPT_OTP_FILLING = 25;
+
+    CAPABILITY_TRANSLATE_PAGE = 26;
+
+    CAPABILITY_CLICK_TO_UPLOAD = 27;
   }
 }
 
@@ -2402,7 +2487,7 @@ enum AnnotatedPageContentMode {
 // When adding new types, please also update AIPageContentAttributeType in
 // third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.
 // See crrev.com/c/6072788 for an example.
-// Next ID: 30
+// Next ID: 31
 enum ContentAttributeType {
   // Unknown is not a valid attribute type and should never be used by the
   // client. You can consider discarding ContentNodes with this attribute type.
@@ -2454,6 +2539,9 @@ enum ContentAttributeType {
   CONTENT_ATTRIBUTE_DIALOG_MODAL = 28;
 
   CONTENT_ATTRIBUTE_DIALOG_MODELESS = 29;
+
+  // MathML formulas.
+  CONTENT_ATTRIBUTE_MATH = 30;
 
   reserved 12, 13, 14, 15, 16, 17, 18, 19;
 }

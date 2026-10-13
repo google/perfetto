@@ -2687,6 +2687,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
     pkg->set_uid(1000);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(true);
+    pkg->set_profileable(true);
     pkg->set_version_code(42);
   }
   {
@@ -2695,6 +2696,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
     pkg->set_uid(1001);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(false);
+    pkg->set_profileable(false);
     pkg->set_version_code(43);
   }
   {
@@ -2724,6 +2726,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   EXPECT_EQ(package_list[0].uid(), 1000u);
   EXPECT_EQ(package_list[0].debuggable(), false);
   EXPECT_EQ(package_list[0].profileable_from_shell(), true);
+  EXPECT_EQ(package_list[0].profileable(), true);
   EXPECT_EQ(package_list[0].version_code(), 42);
 
   EXPECT_STREQ(storage_->GetString(package_list[1].package_name()).c_str(),
@@ -2731,6 +2734,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   EXPECT_EQ(package_list[1].uid(), 1001u);
   EXPECT_EQ(package_list[1].debuggable(), false);
   EXPECT_EQ(package_list[1].profileable_from_shell(), false);
+  EXPECT_EQ(package_list[1].profileable(), false);
   EXPECT_EQ(package_list[1].version_code(), 43);
 
   EXPECT_STREQ(storage_->GetString(package_list[2].package_name()).c_str(),
@@ -2750,6 +2754,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
     pkg->set_uid(1000);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(true);
+    pkg->set_profileable(true);
     pkg->set_version_code(42);
   }
   {
@@ -2758,6 +2763,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
     pkg->set_uid(1000);
     pkg->set_debuggable(false);
     pkg->set_profileable_from_shell(true);
+    pkg->set_profileable(true);
     pkg->set_version_code(42);
   }
 
@@ -2782,6 +2788,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   EXPECT_EQ(package_list[0].uid(), 1000u);
   EXPECT_EQ(package_list[0].debuggable(), false);
   EXPECT_EQ(package_list[0].profileable_from_shell(), true);
+  EXPECT_EQ(package_list[0].profileable(), true);
   EXPECT_EQ(package_list[0].version_code(), 42);
 }
 

@@ -595,7 +595,7 @@ export class QueryTabsState {
         traceLimit ??
         (isFromStorage &&
         typeof stored?.traceLimit === 'number' &&
-        stored.traceLimit > 0
+        stored.traceLimit >= 0
           ? stored.traceLimit
           : modeDefaults(isPersistent).traceLimit),
       tableTtlDays:
@@ -791,7 +791,7 @@ export class QueryTabsState {
       const tab = this.addNewTab(
         t.title,
         t.editorText,
-        typeof t.limit === 'number' && t.limit > 0 ? t.limit : undefined,
+        typeof t.limit === 'number' && t.limit >= 0 ? t.limit : undefined,
         t.queryUuid,
         t.materialize,
         true,

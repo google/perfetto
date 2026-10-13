@@ -1125,7 +1125,7 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
     };
     std::string current_pkg;
     std::optional<sql_modules::RegisteredPackage> rp;
-    for (const auto& f : SqlBundle(stdlib::kStdlib)) {
+    for (const auto& f : stdlib::GetStdlibBundle()) {
       std::string include_key = sql_modules::GetIncludeKey(f.path);
       std::string pkg = sql_modules::GetPackageName(include_key);
       if (pkg != current_pkg) {

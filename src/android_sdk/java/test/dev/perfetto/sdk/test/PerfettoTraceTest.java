@@ -1443,4 +1443,11 @@ public class PerfettoTraceTest {
       mTrackNames.add(desc.getStaticName());
     }
   }
+
+  @Test
+  public void testRegisterSystemBackendOnHost() {
+    // On host / default variant, system backend registration is unrestricted.
+    assertThat(PerfettoTrace.register(false)).isTrue();
+    assertThat(PerfettoTrace.getAttempedSystemRegistration()).isTrue();
+  }
 }

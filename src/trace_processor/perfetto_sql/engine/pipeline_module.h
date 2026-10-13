@@ -25,45 +25,67 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
+#include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/sqlite_connection.h"
 
 namespace perfetto::trace_processor {
 
-// One module per connection, with a TEMP virtual table for each pipeline's
-// schema. The execution plan is a typed pointer bound to that table's hidden
-// argument; SQLite owns it for the lifetime of the prepared statement.
+class PerfettoSqlConnection;
+
+// `__intrinsic_dataframe_agg('a,b', a, b)`: builds a dataframe of a relation,
+// as a PERFETTO TABLE is built, for a pipeline to read. Gives NULL for a
+// relation with no rows, as the aggregate then never sees its column names.
+struct DataframeAgg : sqlite::AggregateFunction<DataframeAgg> {
+  static constexpr const char* kName = pipeline::kDataframeAggFunction;
+  static constexpr int kArgCount = -1;
+  using UserData = StringPool;
+
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
+    std::optional<dataframe::RuntimeDataframeBuilder> builder;
+  };
+
+  static void Step(sqlite3_context*, int argc, sqlite3_value** argv);
+  static void Final(sqlite3_context*);
+};
+
+// `__intrinsic_dataframes(df, ...)`: gathers the dataframes a pipeline reads
+// into one list, so the table function takes them all as one argument. The
+// list only points at them: it is read while the arguments are still alive.
+struct DataframesFunction : sqlite::Function<DataframesFunction> {
+  static constexpr const char* kName = pipeline::kDataframesFunction;
+  static constexpr int kArgCount = -1;
+
+  static void Step(sqlite3_context*, int argc, sqlite3_value** argv);
+};
+
+// Runs a pipeline from its plan, serialized into the SQL which reads it:
+// `__intrinsic_pipeline(X'...')`. The plan is all a pipeline needs, so the SQL
+// can be stored, in a view say, and run later. Pipelines output into fixed
+// columns `c0`, `c1`, ..., which the SQL reading them renames.
+//
+// The relations a pipeline reads from SQL are passed as a list of dataframes
+// after the plan: `__intrinsic_pipeline(X'...', __intrinsic_dataframes((SELECT
+// __intrinsic_dataframe_agg(...) FROM ...), ...))`.
 struct PipelineModule : sqlite::Module<PipelineModule> {
-  static constexpr auto kType = kCreateOnly;
+  static constexpr auto kType = kEponymousOnly;
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
-  static constexpr char kName[] = "__intrinsic_pipeline";
-  static constexpr char kPlanPointerType[] = "perfetto_pipeline_plan";
 
   struct Context {
-    StringPool* pool;
-    uint64_t next_table = 0;
-    // Binding destructors cannot safely perform schema changes. Retire tables
-    // there and drop them once the pipeline's statement has been finalized.
-    // Tables which are locked or inside a transaction at that point are
-    // retried when the next pipeline is finalized or prepared.
-    std::vector<std::string> retired_tables;
-
-    base::Status Cleanup(sqlite3*);
-  };
-  struct Invocation {
-    Context* context;
-    std::string table;
-    std::unique_ptr<pipeline::PhysicalPlan> plan;
-    ~Invocation();
+    StringPool* pool = nullptr;
+    // Loads the plans this module runs.
+    PerfettoSqlConnection* connection = nullptr;
   };
   struct Vtab : sqlite::Module<PipelineModule>::Vtab {
-    Context* context;
-    uint32_t column_count;
+    Context* context = nullptr;
   };
   struct Cursor : sqlite::Module<PipelineModule>::Cursor {
     using ResultFn = void (*)(sqlite3_context*,
@@ -71,31 +93,19 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
                               const core::exec::ColumnView&,
                               uint32_t);
     struct ColumnReader {
-      const core::exec::ColumnView* view;
-      ResultFn result;
+      const core::exec::ColumnView* view = nullptr;
+      ResultFn result = nullptr;
     };
-    const pipeline::PhysicalPlan* plan = nullptr;
+    std::unique_ptr<pipeline::PhysicalPlan> plan;
     StringPool* pool = nullptr;
     std::unique_ptr<core::exec::RowCursor> rows;
+    // By declared column.
     std::vector<ColumnReader> columns;
+    // What readers of columns with no view are given.
+    core::exec::ColumnView no_view;
     bool eof = true;
-    int64_t rowid = 0;
-    // An output rowid lookup, applied after every tree fold.
-    std::optional<int64_t> target_rowid;
   };
 
-  static base::StatusOr<SqliteConnection::PreparedStatement> Prepare(
-      SqliteConnection*,
-      Context*,
-      std::unique_ptr<pipeline::PhysicalPlan>,
-      const SqlSource&);
-
-  static int Create(sqlite3*,
-                    void*,
-                    int,
-                    const char* const*,
-                    sqlite3_vtab**,
-                    char**);
   static int Connect(sqlite3*,
                      void*,
                      int,
@@ -103,7 +113,6 @@ struct PipelineModule : sqlite::Module<PipelineModule> {
                      sqlite3_vtab**,
                      char**);
   static int Disconnect(sqlite3_vtab*);
-  static int Destroy(sqlite3_vtab*);
 
   static int BestIndex(sqlite3_vtab*, sqlite3_index_info*);
 

@@ -631,6 +631,30 @@ TEST(BitVectorTest, SetBitsFromNothing) {
   EXPECT_EQ(dst.CountSetBits(), 0u);
 }
 
+TEST(BitVectorTest, FillBitsEveryAlignment) {
+  constexpr uint64_t kSize = 300;
+  for (bool value : {true, false}) {
+    for (uint64_t at : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+      for (uint64_t count :
+           {uint64_t{0}, uint64_t{1}, uint64_t{2}, uint64_t{63}, uint64_t{64},
+            uint64_t{65}, uint64_t{128}, kSize - at}) {
+        if (at + count > kSize) {
+          continue;
+        }
+        BitVector bv = BitVector::CreateWithSize(kSize, !value);
+        bv.FillBits(at, count, value);
+        for (uint64_t i = 0; i < kSize; ++i) {
+          bool inside = i >= at && i < at + count;
+          EXPECT_EQ(bv.is_set(i), inside ? value : !value)
+              << "value=" << value << " at=" << at << " count=" << count
+              << " bit=" << i;
+        }
+      }
+    }
+  }
+}
+
 TEST(BitVectorTest, CompactCrossWordBoundary) {
   // 128 bits: set bits at positions 63 and 64 (word boundary).
   // Keep only those two positions.

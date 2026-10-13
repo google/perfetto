@@ -82,7 +82,8 @@ void UpdatePackageList(TraceProcessorContext* context,
   if (!found) {
     context->storage->mutable_package_list_table()->Insert(
         {package_name_id, uid, /*debuggable*/ false,
-         /*profileable_from_shell*/ false, /*version_code*/ std::nullopt});
+         /*profileable_from_shell*/ false, /*profileable*/ false,
+         /*version_code*/ std::nullopt});
   }
 }
 

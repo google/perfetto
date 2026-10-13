@@ -116,6 +116,14 @@ std::optional<Uids> GetUids(const std::string& status) {
   return uids;
 }
 
+std::optional<uid_t> GetUidFromProcfs(pid_t pid) {
+  base::StackString<32> path("/proc/%d", static_cast<int>(pid));
+  struct stat statbuf{};
+  if (stat(path.c_str(), &statbuf) != 0)
+    return std::nullopt;
+  return statbuf.st_uid;
+}
+
 // Normalize cmdline in place. Stores new beginning of string in *cmdline_ptr.
 // Returns new size of string (from new beginning).
 // Modifies string in *cmdline_ptr.
@@ -259,19 +267,29 @@ bool MatchCmdlineGlobPatterns(const std::string& cmdline,
   return false;
 }
 
+bool PidMatchesCmdlinePatterns(pid_t pid,
+                               const std::vector<std::string>& patterns) {
+  if (patterns.empty())
+    return false;
+  std::string cmdline;
+  if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
+    return false;
+  // A readable but empty cmdline indicates that this is a kthread or a
+  // zombie, which are of no interest to the calling profilers.
+  if (cmdline.empty())
+    return false;
+  return glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns);
+}
+
 void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
                                 std::set<pid_t>* pids) {
-  ForEachPid([&patterns, pids](pid_t pid) {
-    if (pid == getpid())
+  if (patterns.empty())
+    return;
+  pid_t self_pid = getpid();
+  ForEachPid([&](pid_t pid) {
+    if (pid == self_pid)
       return;
-    std::string cmdline;
-    if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
-      return;
-    // A readable but empty cmdline indicates that this is a kthread or a
-    // zombie, which are of no interest to the calling profilers.
-    if (cmdline.empty())
-      return;
-    if (glob_aware::MatchCmdlineGlobPatterns(cmdline, patterns))
+    if (PidMatchesCmdlinePatterns(pid, patterns))
       pids->insert(pid);
   });
 }

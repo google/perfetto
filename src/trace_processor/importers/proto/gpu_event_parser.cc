@@ -152,6 +152,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       pid_id_(context_->storage->InternString("pid")),
       tid_id_(context_->storage->InternString("tid")),
       category_id_(context->storage->InternString("render_stage_category")),
+      stage_name_id_(context->storage->InternString("render_stage_name")),
       kernel_name_id_(context->storage->InternString("kernel_name")),
       kernel_demangled_name_id_(
           context->storage->InternString("kernel_demangled_name")),
@@ -863,10 +864,18 @@ void GpuEventParser::ParseGpuRenderStageEvent(
               inserter->AddArg(description_id_,
                                Variadic::String(context_->storage->InternString(
                                    decoder->description())));
+              // A named event's slice takes the event's name, so the stage
+              // (kernel, memory transfer, ...) survives only here.
+              inserter->AddArg(stage_name_id_,
+                               Variadic::String(context_->storage->InternString(
+                                   decoder->name())));
             }
           } else if (event.has_stage_id()) {
             size_t stage_id = static_cast<size_t>(event.stage_id());
             if (stage_id < gpu_render_stage_ids_.size()) {
+              inserter->AddArg(
+                  stage_name_id_,
+                  Variadic::String(gpu_render_stage_ids_[stage_id].first));
               auto description = gpu_render_stage_ids_[stage_id].second;
               if (description != kNullStringId) {
                 inserter->AddArg(description_id_,

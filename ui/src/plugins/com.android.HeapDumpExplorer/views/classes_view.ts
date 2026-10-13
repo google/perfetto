@@ -23,11 +23,13 @@ import {
   sizeRenderer,
   countRenderer,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
 import * as queries from '../queries';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
@@ -121,7 +123,6 @@ export function ClassesView({
   });
   let alive = true;
   const counter = new RowCounter();
-  counter.init(engine, query, PREAMBLE);
   let filters: Filter[] = [];
 
   async function applyNavFilter(
@@ -135,8 +136,6 @@ export function ClassesView({
     const names = await queries.getSubclassNames(engine, activeDump, root);
     if (!alive || names.length === 0) return;
     filters = [{field: 'cls', op: 'in' as const, value: names}];
-    counter.onFiltersChanged(filters);
-    m.redraw();
   }
 
   return {
@@ -159,6 +158,7 @@ export function ClassesView({
     onremove() {
       alive = false;
       datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -166,7 +166,10 @@ export function ClassesView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Classes'),
+          title: rowCountHeading(
+            'Classes',
+            counter.use({engine, query, preamble: PREAMBLE, filters}),
+          ),
           fillHeight: true,
         },
         m(DataGrid, {
@@ -186,7 +189,6 @@ export function ClassesView({
           showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

@@ -22,10 +22,33 @@
 #include <variant>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.h"
 
 namespace perfetto::trace_processor::pipeline {
 namespace {
+
+// An aggregate as the plan shows it, e.g. `SUM(#3)`.
+std::string AggregateString(const Aggregate& agg) {
+  switch (agg.function) {
+    case Aggregate::Function::kCountStar:
+      return "COUNT(*)";
+    case Aggregate::Function::kSum:
+      return "SUM(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kCount:
+      return "COUNT(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kMin:
+      return "MIN(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kMax:
+      return "MAX(#" + std::to_string(agg.column) + ")";
+  }
+  return "";
+}
 
 const char* TypeName(core::StorageType type) {
   switch (type.index()) {
@@ -48,90 +71,165 @@ const char* TypeName(core::StorageType type) {
 
 std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   std::string out = "#" + std::to_string(id);
-  if (plan.columns[id].type) {
+  if (plan.columns()[id].type) {
     out += ":";
-    out += TypeName(*plan.columns[id].type);
+    out += TypeName(*plan.columns()[id].type);
   }
   return out;
 }
 
-std::string NodeString(const LogicalPlan& plan, const PlanNode& node) {
-  struct Visitor {
-    const LogicalPlan& plan;
-    const std::vector<PlanNodeId>& children;
-    std::string operator()(const op::Scan& scan) const {
-      std::string out = "Scan(";
-      if (const auto* dataframe =
-              std::get_if<op::Scan::Dataframe>(&scan.source)) {
-        out += "table " + dataframe->name;
-      } else {
-        out += "sql " + std::get<SqlSource>(scan.source).sql();
-      }
-      out += ") [";
-      for (size_t i = 0; i < scan.columns.size(); ++i) {
-        if (i)
-          out += ", ";
-        out += ColumnString(plan, scan.columns[i].id) + " AS " +
-               scan.columns[i].name;
-      }
-      return out + "]";
-    }
-    std::string operator()(const op::TreeAccumulate& acc) const {
-      std::string out = "TreeAccumulate(";
-      out += acc.direction == op::TreeDirection::kUp ? "up" : "down";
-      out += ", node=#" + std::to_string(acc.node_column);
-      out += ", parent=#" + std::to_string(acc.parent_column);
-      for (const auto& agg : acc.aggregates) {
-        PERFETTO_DCHECK(agg.function == op::TreeAccumulate::Function::kSum);
-        out += ", SUM(#" + std::to_string(agg.column) + ") -> " +
-               ColumnString(plan, agg.output);
-      }
-      return out + ")";
-    }
-    std::string operator()(const op::IntervalIntersect& ii) const {
-      std::string out = "IntervalIntersect(ts=#" + std::to_string(ii.ts) +
-                        ", dur=#" + std::to_string(ii.dur) + ")";
-      for (uint32_t i = 0; i < ii.operands.size(); i++) {
-        const op::IntervalIntersect::Operand& operand = ii.operands[i];
-        out += "\n  operand(ts=#" + std::to_string(operand.ts) + ", dur=#" +
-               std::to_string(operand.dur);
-        for (ColumnId key : operand.keys) {
-          out += ", key=#" + std::to_string(key);
-        }
-        out +=
-            ")\n    " + (*this)(std::get<op::Scan>(plan.nodes[children[i]].op));
-      }
-      return out;
-    }
-  };
-  return std::visit(Visitor{plan, node.children}, node.op);
-}
-
-// Nodes deepest first, so a chain reads in execution order. An intersection
-// prints its operands inline, so they are not also listed on their own.
-std::string SubtreeString(const LogicalPlan& plan, PlanNodeId id) {
-  const PlanNode& node = plan.nodes[id];
-  std::string out;
-  if (!std::holds_alternative<op::IntervalIntersect>(node.op)) {
-    for (PlanNodeId child : node.children) {
-      out += SubtreeString(plan, child);
-    }
-  }
-  return out + NodeString(plan, node) + "\n";
-}
-
 }  // namespace
 
-std::string LogicalPlanToString(const LogicalPlan& plan) {
-  std::string out = SubtreeString(plan, plan.root);
-  out += "Output(";
-  for (size_t i = 0; i < plan.output.size(); ++i) {
-    if (i)
+// Kept in the test-only target: formatting must not add production binary size.
+class LogicalPlanFormatter {
+ public:
+  static std::string Format(const LogicalPlan&);
+
+ private:
+  static std::string ScanString(const LogicalPlan&, const Scan&);
+  static std::string TreeAccumulateString(const LogicalPlan&,
+                                          const TreeAccumulate&);
+  static std::string IntervalFlattenString(const LogicalPlan&,
+                                           const IntervalFlatten&);
+  static std::string IntervalIntersectString(const LogicalPlan&,
+                                             const PlanNode&);
+  static std::string OrderByString(const OrderBy&);
+  static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
+};
+
+std::string LogicalPlanFormatter::ScanString(const LogicalPlan& plan,
+                                             const Scan& scan) {
+  std::string out = "Scan(";
+  switch (scan.source_.index()) {
+    case base::variant_index<Scan::Source, Scan::Dataframe>():
+      out += "table " + base::unchecked_get<Scan::Dataframe>(scan.source_).name;
+      break;
+    case base::variant_index<Scan::Source, SqlSource>():
+      out += "sql " + base::unchecked_get<SqlSource>(scan.source_).sql();
+      break;
+    case base::variant_index<Scan::Source, Scan::DataframeArg>():
+      out += "argument " +
+             std::to_string(
+                 base::unchecked_get<Scan::DataframeArg>(scan.source_).index);
+      break;
+    default:
+      PERFETTO_FATAL("Unknown scan source");
+  }
+  out += ") [";
+  for (size_t i = 0; i < scan.columns_.size(); ++i) {
+    if (i) {
       out += ", ";
+    }
+    out += ColumnString(plan, scan.columns_[i].id) + " AS " +
+           scan.columns_[i].name;
+  }
+  return out + "]";
+}
+
+std::string LogicalPlanFormatter::TreeAccumulateString(
+    const LogicalPlan& plan,
+    const TreeAccumulate& acc) {
+  std::string out = "TreeAccumulate(";
+  out += acc.direction_ == TreeDirection::kUp ? "up" : "down";
+  out += ", node=#" + std::to_string(acc.node_column_);
+  out += ", parent=#" + std::to_string(acc.parent_column_);
+  for (const auto& agg : acc.aggregates_) {
     out +=
-        "#" + std::to_string(plan.output[i].id) + " AS " + plan.output[i].name;
+        ", " + AggregateString(agg) + " -> " + ColumnString(plan, agg.output);
+  }
+  return out + ")";
+}
+
+std::string LogicalPlanFormatter::IntervalFlattenString(
+    const LogicalPlan& plan,
+    const IntervalFlatten& flatten) {
+  std::string out = "IntervalFlatten(ts=#" + std::to_string(flatten.ts_) +
+                    ", dur=#" + std::to_string(flatten.dur_);
+  for (ColumnId key : flatten.keys_) {
+    out += ", key=#" + std::to_string(key);
+  }
+  for (const auto& agg : flatten.aggregates_) {
+    out +=
+        ", " + AggregateString(agg) + " -> " + ColumnString(plan, agg.output);
+  }
+  return out + ") -> " + ColumnString(plan, flatten.out_ts_) + ", " +
+         ColumnString(plan, flatten.out_dur_);
+}
+
+std::string LogicalPlanFormatter::IntervalIntersectString(
+    const LogicalPlan& plan,
+    const PlanNode& node) {
+  const auto& ii = node.Cast<IntervalIntersect>();
+  std::string out = "IntervalIntersect(ts=#" + std::to_string(ii.ts_) +
+                    ", dur=#" + std::to_string(ii.dur_) + ")";
+  for (uint32_t i = 0; i < ii.operands_.size(); i++) {
+    const IntervalIntersect::Operand& operand = ii.operands_[i];
+    out += "\n  operand(ts=#" + std::to_string(operand.ts) + ", dur=#" +
+           std::to_string(operand.dur);
+    for (ColumnId key : operand.keys) {
+      out += ", key=#" + std::to_string(key);
+    }
+    out += ", carries=[";
+    for (uint32_t c = 0; c < operand.carried.size(); c++) {
+      out += (c ? ", #" : "#") + std::to_string(operand.carried[c]);
+    }
+    out += "]";
+    out += ")\n    " +
+           ScanString(plan, plan.nodes()[node.children()[i]].Cast<Scan>());
+  }
+  return out;
+}
+
+std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
+  std::string out = "OrderBy(";
+  for (size_t i = 0; i < order.keys_.size(); ++i) {
+    out += (i ? ", #" : "#") + std::to_string(order.keys_[i].column) +
+           (order.keys_[i].descending ? " DESC" : "");
+  }
+  return out + ")";
+}
+
+// Prints sources first so a pipeline reads in the order it runs.
+// Intersection operands are printed inline.
+std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
+                                                PlanNodeId id) {
+  const PlanNode& node = plan.nodes()[id];
+  if (node.Is<Scan>()) {
+    return ScanString(plan, node.Cast<Scan>()) + "\n";
+  }
+  if (node.Is<TreeAccumulate>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           TreeAccumulateString(plan, node.Cast<TreeAccumulate>()) + "\n";
+  }
+  if (node.Is<IntervalIntersect>()) {
+    return IntervalIntersectString(plan, node) + "\n";
+  }
+  if (node.Is<IntervalFlatten>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           IntervalFlattenString(plan, node.Cast<IntervalFlatten>()) + "\n";
+  }
+  if (node.Is<OrderBy>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           OrderByString(node.Cast<OrderBy>()) + "\n";
+  }
+  PERFETTO_FATAL("Unknown plan operation");
+}
+
+std::string LogicalPlanFormatter::Format(const LogicalPlan& plan) {
+  std::string out = SubtreeString(plan, plan.root());
+  out += "Output(";
+  for (size_t i = 0; i < plan.output().size(); ++i) {
+    if (i) {
+      out += ", ";
+    }
+    out += "#" + std::to_string(plan.output()[i].id) + " AS " +
+           plan.output()[i].name;
   }
   return out + ")\n";
+}
+
+std::string LogicalPlanToString(const LogicalPlan& plan) {
+  return LogicalPlanFormatter::Format(plan);
 }
 
 }  // namespace perfetto::trace_processor::pipeline

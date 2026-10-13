@@ -25,7 +25,7 @@ message GpuCounterConfig {
   // Selects which counters to sample. Use either counter_ids or counter_names,
   // not both. Counter IDs and names correspond to the ones described in
   // GpuCounterSpec in the data source descriptor.
-
+  //
   // List of counter IDs to be sampled.
   repeated uint32 counter_ids = 2;
 

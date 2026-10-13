@@ -187,6 +187,18 @@ def _proto_boot_snap(name, seq, uuid, boot, at):
       (boot, seq, uuid, seq, at, uuid, name, seq, at + 100000000, uuid))
 
 
+# Like _proto_boot_snap but with no ClockSnapshot and no timestamp_clock_id:
+# the packets name no clock at all (e.g. traces written by external tools).
+def _proto_no_snap(name, seq, uuid, at):
+  return TextProto(
+      'packet { trusted_packet_sequence_id: %d track_descriptor { uuid: %d } }\n'
+      'packet { trusted_packet_sequence_id: %d timestamp: %d\n'
+      '  track_event { type: TYPE_SLICE_BEGIN track_uuid: %d name: "%s" } }\n'
+      'packet { trusted_packet_sequence_id: %d timestamp: %d\n'
+      '  track_event { type: TYPE_SLICE_END track_uuid: %d } }\n' %
+      (seq, uuid, seq, at, uuid, name, seq, at + 100000000, uuid))
+
+
 # A perfetto_manifest entry attributing |path| to machine |name|.
 def _machine_file(path, name):
   return {'path': path, 'machine': {'name': name}}
@@ -739,11 +751,9 @@ class TraceManifest(TestSuite):
         2
         '''))
 
-  # The named machine gets a positive 1-based label_index even though the
-  # manifest pre-allocates its row before the host row is created lazily, so the
-  # named machine has the lower machine id. Regression test: a formula keyed on
-  # the machine id assumed the host always took id 0 and produced 0 here, which
-  # made the UI treat the machine as the host and drop its track label.
+  # Machine ids follow manifest order, a file naming no machine included: the
+  # host listed first is 0. The named machine gets a positive 1-based
+  # label_index; the host's is 0, so the UI does not label its tracks.
   def test_machine_label_index(self):
     return DiffTestBlueprint(
         trace=Tar({
@@ -766,14 +776,49 @@ class TraceManifest(TestSuite):
                 _json_trace('vm_slice', pid=200),
         }),
         query='''
-          SELECT name, raw_id != 0 AS remote, label_index
+          SELECT id, name, raw_id != 0 AS remote, label_index
           FROM machine
-          ORDER BY label_index;
+          ORDER BY id;
         ''',
         out=Csv('''
-        "name","remote","label_index"
-        "[NULL]",0,0
-        "vm",1,1
+        "id","name","remote","label_index"
+        0,"[NULL]",0,0
+        1,"vm",1,1
+        '''))
+
+  # A guest listed before the host takes the lower id, as manifest order says.
+  def test_machine_ids_follow_manifest_order(self):
+    return DiffTestBlueprint(
+        trace=Tar({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [{
+                        'path': 'vm.json',
+                        'machine': {
+                            'name': 'vm'
+                        }
+                    }, {
+                        'path': 'host.json'
+                    }],
+                }),
+            'host.json':
+                _json_trace('host_slice', pid=100),
+            'vm.json':
+                _json_trace('vm_slice', pid=200),
+        }),
+        query='''
+          SELECT s.name, t.machine_id, m.raw_id != 0 AS remote
+          FROM slice s
+          JOIN thread_track t ON s.track_id = t.id
+          JOIN machine m ON t.machine_id = m.id
+          ORDER BY t.machine_id;
+        ''',
+        out=Csv('''
+        "name","machine_id","remote"
+        "vm_slice",0,1
+        "host_slice",1,0
         '''))
 
   # --- Machine override errors ---
@@ -1181,6 +1226,120 @@ class TraceManifest(TestSuite):
         "phone_slice",1100000000,"phone"
         "server_slice",1100000500,"server"
         '''))
+
+  # A pinned (no `clock`) proto file with no ClockSnapshot and no
+  # timestamp_clock_id must still have offset_ns applied: its events go through
+  # the file's private clock, which the manifest edge relates to the reference.
+  def test_sync_to_offset_pinned_proto_no_snapshot(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        _machine_file('phone.pb', 'phone'),
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'phone.pb',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'server.pb':
+                _proto_no_snap('server_slice', 2, 222, 1100000000),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "phone_slice",1100000000,"phone"
+        "server_slice",1100000500,"server"
+        '''))
+
+  # Same as above but naming the source clock: snapshot-less packets are in
+  # that clock, so the offset still applies.
+  def test_sync_to_offset_clock_proto_no_snapshot(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        _machine_file('phone.pb', 'phone'),
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'clock': 'BOOTTIME',
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'phone.pb',
+                                    'clock': 'BOOTTIME'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'server.pb':
+                _proto_no_snap('server_slice', 2, 222, 1100000000),
+        }),
+        query=_ALIGN_QUERY,
+        out=Csv('''
+        "name","ts","machine"
+        "phone_slice",1100000000,"phone"
+        "server_slice",1100000500,"server"
+        '''))
+
+  # offset_ns belongs in `clocks`; placing it inside sync_to must not be
+  # silently ignored.
+  def test_error_offset_ns_inside_sync_to(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        _machine_file('phone.pb', 'phone'),
+                        {
+                            'path': 'server.pb',
+                            'machine': {
+                                'name': 'server'
+                            },
+                            'clocks': {
+                                'sync_to': {
+                                    'file': 'phone.pb',
+                                    'clock': 'BOOTTIME',
+                                    'offset_ns': 500
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'phone.pb':
+                _proto_boot_snap('phone_slice', 1, 111, 1000000000, 1100000000),
+            'server.pb':
+                _proto_no_snap('server_slice', 2, 222, 1100000000),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_manifest: clocks: offset_ns belongs in the clocks block, '
+            'not inside sync_to.'))
 
   # sync_to.file naming an undeclared file is rejected.
   def test_error_sync_to_file_unknown(self):
@@ -1853,6 +2012,115 @@ class TraceManifest(TestSuite):
         "a_slice",2000000
         "b_slice",2000500
         '''))
+
+  # TRACE_FILE names the file's private per-file timeline explicitly, on both
+  # the source and the reference side; equivalent to omitting the clocks (see
+  # test_sync_to_clock_omitted_clockless_ref).
+  def test_trace_file_clock_explicit(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'files': [
+                        {
+                            'path': 'a.json'
+                        },
+                        {
+                            'path': 'b.json',
+                            'clocks': {
+                                'clock': 'TRACE_FILE',
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'a.json',
+                                    'clock': 'TRACE_FILE'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+            'b.json':
+                _json_trace('b_slice', pid=11),
+        }),
+        query='''
+          SELECT name, ts FROM slice
+          WHERE name IN ('a_slice', 'b_slice')
+          ORDER BY name;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "a_slice",2000000
+        "b_slice",2000500
+        '''))
+
+  # trace_time.clock TRACE_FILE makes the named file's private timeline trace
+  # time. b.json = a.json + 500, and b.json owns trace time, so b's slice keeps
+  # its identity ts and a's moves back by 500.
+  def test_trace_time_trace_file_clock(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version':
+                        1,
+                    'trace_time': {
+                        'clock': 'TRACE_FILE',
+                        'file': 'b.json'
+                    },
+                    'files': [
+                        {
+                            'path': 'a.json'
+                        },
+                        {
+                            'path': 'b.json',
+                            'clocks': {
+                                'offset_ns': 500,
+                                'sync_to': {
+                                    'file': 'a.json'
+                                }
+                            }
+                        },
+                    ],
+                }),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+            'b.json':
+                _json_trace('b_slice', pid=11),
+        }),
+        query='''
+          SELECT name, ts FROM slice
+          WHERE name IN ('a_slice', 'b_slice')
+          ORDER BY name;
+        ''',
+        out=Csv('''
+        "name","ts"
+        "a_slice",1999500
+        "b_slice",2000000
+        '''))
+
+  # A per-file clock needs to know which file.
+  def test_error_trace_time_trace_file_clock_no_file(self):
+    return DiffTestBlueprint(
+        trace=Zip({
+            'meta.json':
+                _meta({
+                    'version': 1,
+                    'trace_time': {
+                        'clock': 'TRACE_FILE'
+                    },
+                    'files': [{
+                        'path': 'a.json'
+                    }],
+                }),
+            'a.json':
+                _json_trace('a_slice', pid=10),
+        }),
+        query='SELECT 1;',
+        out=ExpectedError(
+            'perfetto_manifest: trace_time: clock TRACE_FILE requires file'))
 
   # A multi-machine source names which of its declared machines owns the related
   # clock: multi.pb's vm BOOTTIME = server.pb's BOOTTIME + 500. server owns trace

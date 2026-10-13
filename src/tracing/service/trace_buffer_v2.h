@@ -23,6 +23,7 @@
 #include <limits>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
@@ -37,7 +38,9 @@
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
+#include "perfetto/protozero/field.h"
 #include "src/tracing/service/histogram.h"
+#include "src/tracing/service/proto_group_rewriter.h"
 #include "src/tracing/service/trace_buffer.h"
 
 namespace perfetto {
@@ -57,8 +60,8 @@ namespace internal {
 // +---------------------------------------------------------------------------+
 // | TBChunk                                                                   |
 // +---------------------------------------------------------------------------+
-// TBChunk is the struct, stored in the trace buffer memory as a result of
-// calling CopyChunkUntrusted from a SMB chunk.
+// TBChunk stores fragments copied into the trace buffer, either from SMB chunks
+// by CopyChunkUntrusted() or from the newer SMB v2 by CopyChunkV2Untrusted().
 // TBChunk exists only in the TraceBuffer PagedMemory `data_`, never on the
 // stack or on the heap. It is followed by the fragments and alignment padding.
 // A TBChunk is very similar to a SMB chunk with the following caveats:
@@ -86,6 +89,7 @@ struct TBChunk {
   }
 
   // The ChunkID, as specified by the TraceWriter in the original SMB chunk.
+  // Unused for SMB v2 sequences, whose chunks are appended in order.
   ChunkID chunk_id = 0;
 
   // A combination of producer and writer ID. This forms the primary key to
@@ -111,9 +115,10 @@ struct TBChunk {
   // unconsumed fragment header (the varint with the size).
   uint16_t payload_avail = 0;
 
-  // These are == the SharedMemoryABI's chunk flags, with the addition of
-  // MSB flags added by TraceBufferV2 like kChunkIncomplete (0x80) which doesn't
-  // exist at the ABI level, but are synthesized here.
+  // SharedMemoryABI chunk flags, with additional bits set by TraceBufferV2:
+  // kChunkIncomplete (0x80) for scraped chunks and kChunkLossBefore (0x40) for
+  // a gap before an SMB v2 chunk. These additional bits never come from
+  // the producer.
   uint8_t flags = 0;
 
   // This is used for (D)CHECKS to verify the integrity of the chunk.
@@ -197,11 +202,38 @@ struct SequenceState {
   // copies it into previous_packet_dropped and resets it. Zero means no loss.
   uint32_t data_loss_reasons = 0;
 
-  // An ordered list of chunk offsets, sorted by their ChunkID. Each member
-  // corresponsds to the offset within buf_ for the chunk.
+  // An ordered list of chunk offsets, sorted by ChunkID for SMB sequences or
+  // by append order for SMB v2 sequences.
   // We store buffer offsets rather than pointers to make buffer cloning easier.
   // This is effectively a deque of TBChunk* (% a call to GetTBChunkAt(off)).
   base::CircularQueue<size_t> chunks;
+
+  // All chunks of a sequence use the same format: either the legacy SMB v1 or
+  // the newer proto-group based SMB v2. SMB v2 chunks are immutable, arrive in
+  // order and need rewriting at readback.
+  bool is_smb_v2 = false;
+
+  // A gap after the last appended SMB v2 chunk, not yet stamped on a
+  // chunk.
+  // - SMB sequences need no such state. A gap shows up as a non-successor
+  //   ChunkID, so the reader finds it at the right position by itself.
+  // - SMB v2 chunks have no ChunkID. The gap must be recorded when it
+  //   happens, at the position between two chunks.
+  // - data_loss_reasons cannot hold it. The reader reports that on the next
+  //   packet it reads, which can be an older packet buffered before the gap.
+  // The next append moves this flag to kChunkLossBefore on its chunk. The
+  // reader then reports the loss on the first packet after the gap.
+  //
+  // Example for one writer:
+  //
+  //   Step                      Buffer        pending_chunk_v2_data_loss
+  //   Append(A)                 [A]           false
+  //   RecordChunkV2DataLoss()   [A]           true
+  //   Append(C)                 [A] [C*]      false, moved to C as *
+  //
+  //   * = kChunkLossBefore. A read returns A with no loss, then C with
+  //   DATA_LOSS_READ_GAP.
+  bool pending_chunk_v2_data_loss = false;
 };
 
 // +---------------------------------------------------------------------------+
@@ -389,6 +421,10 @@ class ChunkSeqReader {
 // +---------------------------------------------------------------------------+
 // | TraceBufferV2                                                             |
 // +---------------------------------------------------------------------------+
+// TODO(b/559531402): Rename trace_buffer_v1 to trace_buffer_legacy
+// (TraceBufferLegacy), and trace_buffer_v2 to trace_buffer_impl
+// (TraceBufferImpl). The "v2" here is easy to confuse with tracing v2 (the
+// SMB v2 transport), which this buffer also stores.
 class TraceBufferV2 : public TraceBuffer {
  public:
   using TBChunk = internal::TBChunk;
@@ -465,6 +501,52 @@ class TraceBufferV2 : public TraceBuffer {
                              size_t patches_size,
                              bool other_patches_pending) override;
 
+  // Copies an ordered batch of SMB v2 fragments into one TBChunk. The
+  // caller owns the fragment array and payloads; both must remain unchanged
+  // until this call returns.
+  //
+  // The service supplies the producer identity. It assigns writer IDs from
+  // one ID space per producer, shared by SMB v1 and SMB v2 writers.
+  //
+  // Each fragment is a whole packet, with two exceptions:
+  // - |first_continues_from_prev|: the first fragment continues a packet
+  //   that started in this writer's previous batch.
+  // - |last_continues_on_next|: the last fragment continues in this writer's
+  //   next batch.
+  // The caller decodes these from its transport. A batch the transport marks
+  // as lossy must not be passed here. Call RecordChunkV2DataLoss() instead.
+  //
+  // Returns true if the whole batch was stored. Returns false if the batch
+  // was rejected:
+  // - The rejection of a nonempty batch records loss as RecordChunkV2DataLoss()
+  //   does. An empty batch changes nothing. Empty fragments can have a null
+  //   data pointer.
+  // - Invalid input increments abi_violations: a null payload, a batch larger
+  //   than one TBChunk or than the whole buffer, or a writer ID whose sequence
+  //   already holds SMB chunks. CopyChunkUntrusted() counts the same cases.
+  // - Other rejections increment chunks_discarded: a full kDiscard buffer or
+  //   a producer with a ProtoVM on this buffer.
+  bool CopyChunkV2Untrusted(const PacketSequenceProperties& sequence,
+                            const protozero::ConstBytes* fragments,
+                            size_t num_fragments,
+                            bool first_continues_from_prev,
+                            bool last_continues_on_next);
+
+  // Records a gap after the last appended SMB v2 batch of this writer.
+  // Packets already in the buffer remain readable. The next appended chunk
+  // carries the gap.
+  //
+  // Does nothing if the buffer holds no SMB v2 state for the writer:
+  // - A loss before the writer's first stored batch is not a sequence gap.
+  // - A caller that cannot identify the destination can call this on every
+  //   candidate buffer. Buffers the writer never used are not changed.
+  void RecordChunkV2DataLoss(ProducerID, WriterID);
+
+  // Increments abi_violations for a violation that the caller found outside
+  // this buffer. Example: the service stops reading a producer's ring buffer
+  // after a protocol error.
+  void RecordAbiViolation();
+
   void MaybeSetUpProtoVm(const std::string& data_source_name,
                          const std::string& program_bytes,
                          uint32_t memory_limit_kb,
@@ -481,12 +563,17 @@ class TraceBufferV2 : public TraceBuffer {
   void BeginRead() override;
 
   // Returns the next packet in the buffer, if any, and the producer/writer
-  // identity that wrote it (as passed in the CopyChunkUntrusted() call).
+  // identity supplied when the sequence was created.
   // Returns false if no packets can be read at this point.
   // If a packet was read successfully, |previous_packet_on_sequence_dropped|
   // signals whether any data loss has been detected on the sequence
   // (e.g. because its chunk was overridden due to the ring buffer wrapping or
   // due to an ABI violation), and to |false| otherwise.
+  //
+  // SMB v2 packets are reassembled and rewritten to length-delimited
+  // protobuf. Malformed packets and packets that length-delimited protobuf
+  // cannot encode are dropped, with loss reported on the next readable packet
+  // in the sequence.
   //
   // This function returns only complete packets. Specifically:
   // When there is at least one complete packet in the buffer, this function
@@ -513,9 +600,11 @@ class TraceBufferV2 : public TraceBuffer {
       uint32_t* previous_packet_on_sequence_dropped) override;
 
   // Creates a read-only clone of the trace buffer. The read iterators of the
-  // new buffer will be reset, as if no Read() had been called. Calls to
-  // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned
-  // TraceBuffer will CHECK().
+  // new buffer will be reset.
+  //
+  // Calls to CopyChunkUntrusted(), CopyChunkV2Untrusted(),
+  // TryPatchChunkContents() or RecordChunkV2DataLoss() on the returned clone
+  // will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const override;
 
   size_t size() const override { return size_; }
@@ -552,7 +641,22 @@ class TraceBufferV2 : public TraceBuffer {
 
   bool Initialize(size_t size);
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
+
+  // Prepares contiguous storage at wr_. The caller checks that size <= size_.
+  // May evict chunks and wrap. Does not prune sequences or change stats for
+  // rejected writes. Returns false if the write reaches the end of a kDiscard
+  // buffer. The caller then seals the buffer with DiscardWrite().
+  bool MakeSpaceToWrite(size_t size);
   void DeleteNextChunksFor(size_t bytes_to_clear);
+
+  // Makes a reassembled SMB v2 packet length-delimited protobuf. A packet
+  // without nested messages keeps its slices into the buffer, as an SMB
+  // packet does. Otherwise the packet gets one owned slice. Returns false,
+  // leaving the packet unchanged, for:
+  // - malformed input, counted in abi_violations.
+  // - a packet that length-delimited protobuf cannot encode, counted in
+  //   oversized_packets_dropped.
+  bool RewriteProtoGroupPacket(TracePacket*);
 
   void DcheckIsAlignedAndWithinBounds(size_t off) const {
     PERFETTO_DCHECK((off & (alignof(TBChunk) - 1)) == 0);
@@ -631,8 +735,8 @@ class TraceBufferV2 : public TraceBuffer {
   // This is used to sort SequenceState by least-recently cleared.
   uint64_t seq_age_ = 0;
 
-  // This buffer is a read-only snapshot obtained via Clone(). If this is true
-  // calls to CopyChunkUntrusted() and TryPatchChunkContents() will CHECK().
+  // This buffer is a read-only snapshot obtained via Clone(). If this is true,
+  // appending chunks, patching or recording loss will CHECK().
   bool read_only_ = false;
 
   // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
@@ -660,6 +764,9 @@ class TraceBufferV2 : public TraceBuffer {
   // that the memory is re-used across overwritten packets, thus involving
   // allocations only when the storage needs to be expanded.
   std::string protovm_patch_;
+
+  // Rewrites SMB v2 packets at readback.
+  tracing_v2::ProtoGroupRewriter rewriter_;
 };
 
 }  // namespace perfetto

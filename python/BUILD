@@ -145,11 +145,15 @@ perfetto_py_library(
     srcs = [
         "perfetto/trace_processor/__init__.py",
         "perfetto/trace_processor/api.py",
+        "perfetto/trace_processor/backend.py",
+        "perfetto/trace_processor/backend_factory.py",
         "perfetto/trace_processor/http.py",
         "perfetto/trace_processor/platform.py",
         "perfetto/trace_processor/process_tree.py",
         "perfetto/trace_processor/protos.py",
+        "perfetto/trace_processor/rpc.py",
         "perfetto/trace_processor/shell.py",
+        "perfetto/trace_processor/unix.py",
     ],
     visibility = [
         "//visibility:public",

@@ -15,8 +15,6 @@
 import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -26,12 +24,16 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
 });
 
-test('zoom in', async () => {
-  page.evaluate('document.body.style.zoom=2.0');
-  await pth.waitForIdleAndScreenshot('zoomed_in.png');
-});
+test('zoom', async () => {
+  test.setTimeout(2 * 60_000);
 
-test('zoom out', async () => {
-  page.evaluate('document.body.style.zoom=0.5');
-  await pth.waitForIdleAndScreenshot('zoomed_out.png');
+  await pth.step('zoom in', async () => {
+    page.evaluate('document.body.style.zoom=2.0');
+    await pth.waitForIdleAndScreenshot('zoomed_in.png');
+  });
+
+  await pth.step('zoom out', async () => {
+    page.evaluate('document.body.style.zoom=0.5');
+    await pth.waitForIdleAndScreenshot('zoomed_out.png');
+  });
 });

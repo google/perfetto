@@ -657,6 +657,20 @@ export default class implements PerfettoPlugin {
         'Jobs',
         new SourceDataset({
           src: `
+            WITH pending_reasons AS (
+              SELECT
+                slice_id,
+                GROUP_CONCAT(
+                  iif(
+                    pending_duration_ms IS NOT NULL,
+                    pending_reason || ' (' || pending_duration_ms || 'ms)',
+                    pending_reason
+                  ),
+                  ', ' ORDER BY reason_index
+                ) AS pending_reasons
+              FROM android_job_scheduler_pending_reasons_track_events
+              GROUP BY slice_id
+            )
             SELECT
               id,
               slice_id,
@@ -701,8 +715,10 @@ export default class implements PerfettoPlugin {
               is_periodic,
               has_flexibility_constraint,
               can_apply_transport_affinities,
-              is_rescheduled
+              is_rescheduled,
+              pending_reasons
             FROM android_job_scheduler_states_track_events
+            LEFT JOIN pending_reasons USING (slice_id)
           `,
           schema: {
             id: NUM,
@@ -749,6 +765,7 @@ export default class implements PerfettoPlugin {
             has_flexibility_constraint: NUM_NULL,
             can_apply_transport_affinities: NUM_NULL,
             is_rescheduled: NUM_NULL,
+            pending_reasons: STR_NULL,
           },
         }),
         groupName,

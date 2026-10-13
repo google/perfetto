@@ -1,0 +1,16 @@
+# Instructions each benchmark's timed loop runs in one iteration, as counted
+# by tools/bench_instructions on an x86-64 Linux release build. Lines are
+# "<benchmark> <instructions>"; "?" for a count not measured yet. Update with
+# `tools/bench_instructions --update <perfetto_benchmarks>`.
+BM_GroupByInt64/16                   ?
+BM_GroupByInt64/32768                ?
+BM_GroupByThreeKeys                  ?
+BM_IntervalFlatten/16/0              ?
+BM_IntervalFlatten/16/128            ?
+BM_IntervalIntersect                 ?
+BM_KeyEncoderInt64                   ?
+BM_KeyEncoderInt64Nulls              ?
+BM_PipelineOverheadOperators/1/64    ?
+BM_PipelineOverheadTransforms/4/64   ?
+BM_RowStore                          ?
+BM_SortInt64                         ?

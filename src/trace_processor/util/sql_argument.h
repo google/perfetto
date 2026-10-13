@@ -89,6 +89,10 @@ class ArgumentDefinition {
 // Names are valid if they only contain alphanumeric characters or underscores.
 bool IsValidName(base::StringView name);
 
+// Returns whether |name| is a valid column name: a valid name which starts
+// with a letter or an underscore.
+bool IsValidColumnName(base::StringView name);
+
 // Parses a string containing a type from SQL and converts it to a Type enum
 // value.
 // Returns std::nullopt if |type| did not correspond to any of the enum values.

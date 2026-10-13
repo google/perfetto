@@ -55,8 +55,8 @@ class PerfettoPipeline(TestSuite):
         PERFETTO PRAGMA pipelines = 1;
         CREATE PERFETTO TABLE piped AS
         FROM (SELECT id, parent_id, dur FROM slice)
-        |> TREE ACCUMULATE UP SUM(dur) AS subtree_dur
-        |> TREE ACCUMULATE DOWN SUM(dur) AS path_dur;
+        |> TREE ACCUMULATE UP SUM(dur) AS subtree_dur, COUNT(*) AS subtree_size
+        |> TREE ACCUMULATE DOWN SUM(dur) AS path_dur, COUNT(*) AS depth;
 
         CREATE PERFETTO TABLE closure AS
         WITH RECURSIVE descendants(root_id, id) AS (
@@ -75,16 +75,19 @@ class PerfettoPipeline(TestSuite):
           (SELECT count(*) FROM piped) AS rows,
           (
             SELECT count(*) FROM (
-              SELECT id, subtree_dur, path_dur FROM piped
+              SELECT id, subtree_dur, subtree_size, path_dur, depth FROM piped
               EXCEPT
               SELECT
-                up.id, up.subtree_dur, down.path_dur
+                up.id, up.subtree_dur, up.subtree_size, down.path_dur,
+                down.depth
               FROM (
-                SELECT ancestor AS id, sum(dur) AS subtree_dur
+                SELECT ancestor AS id, sum(dur) AS subtree_dur,
+                  count(*) AS subtree_size
                 FROM closure GROUP BY ancestor
               ) up
               JOIN (
-                SELECT c.descendant AS id, sum(s.dur) AS path_dur
+                SELECT c.descendant AS id, sum(s.dur) AS path_dur,
+                  count(*) AS depth
                 FROM closure c JOIN slice s ON s.id = c.ancestor
                 GROUP BY c.descendant
               ) down USING (id)
@@ -96,15 +99,217 @@ class PerfettoPipeline(TestSuite):
         74228,0
         """))
 
+  # Must match interval_self_intersect, which this is meant to replace.
+  def test_interval_flatten_matches_self_intersect(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT ts, dur FROM slice WHERE dur > 0)
+        |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS n;
+
+        CREATE PERFETTO TABLE macro AS
+        SELECT ts, dur, sum(NOT interval_ends_at_ts) AS n
+        FROM interval_self_intersect!(
+          (SELECT id, ts, dur FROM slice WHERE dur > 0)
+        )
+        GROUP BY group_id
+        HAVING n > 0;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (
+            SELECT count(*) FROM (
+              SELECT ts, dur, n FROM piped
+              EXCEPT SELECT ts, dur, n FROM macro
+            )
+          ) + (
+            SELECT count(*) FROM (
+              SELECT ts, dur, n FROM macro
+              EXCEPT SELECT ts, dur, n FROM piped
+            )
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        107295,0
+        """))
+
+  # Every aggregate over what's live in a segment, as the macro gives it.
+  def test_interval_flatten_aggregates_match_self_intersect(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT ts, dur, depth FROM slice WHERE dur > 0)
+        |> INTERVAL FLATTEN AGGREGATE
+          SUM(depth) AS total, MIN(depth) AS lo, MAX(depth) AS hi;
+
+        CREATE PERFETTO TABLE macro AS
+        SELECT
+          i.ts,
+          i.dur,
+          sum(IIF(i.interval_ends_at_ts, NULL, s.depth)) AS total,
+          min(IIF(i.interval_ends_at_ts, NULL, s.depth)) AS lo,
+          max(IIF(i.interval_ends_at_ts, NULL, s.depth)) AS hi
+        FROM interval_self_intersect!(
+          (SELECT id, ts, dur FROM slice WHERE dur > 0)
+        ) i
+        JOIN slice s ON s.id = i.id
+        GROUP BY i.group_id
+        HAVING sum(NOT i.interval_ends_at_ts) > 0;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (
+            SELECT count(*) FROM (
+              SELECT ts, dur, total, lo, hi FROM piped
+              EXCEPT SELECT ts, dur, total, lo, hi FROM macro
+            )
+          ) + (
+            SELECT count(*) FROM (
+              SELECT ts, dur, total, lo, hi FROM macro
+              EXCEPT SELECT ts, dur, total, lo, hi FROM piped
+            )
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        107295,0
+        """))
+
+  # Per key, sum(n * dur) over segments equals sum(dur) over rows.
+  def test_interval_flatten_keys_over_many_batches(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (
+          SELECT ts, dur, track_id, IIF(depth % 2 = 0, 'even', 'odd') AS parity
+          FROM slice
+          WHERE dur > 0
+        )
+        |> INTERVAL FLATTEN PER track_id, parity AGGREGATE COUNT(*) AS n;
+
+        CREATE PERFETTO TABLE expected AS
+        SELECT
+          track_id,
+          IIF(depth % 2 = 0, 'even', 'odd') AS parity,
+          sum(dur) AS covered
+        FROM slice
+        WHERE dur > 0
+        GROUP BY track_id, parity;
+
+        SELECT
+          (SELECT count(*) FROM expected) AS keys,
+          (
+            SELECT count(*) FROM expected e
+            FULL JOIN (
+              SELECT track_id, parity, sum(n * dur) AS covered
+              FROM piped
+              GROUP BY track_id, parity
+            ) p USING (track_id, parity)
+            WHERE e.covered IS NOT p.covered
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "keys","mismatches"
+        101,0
+        """))
+
+  # `ts` is already in order on `slice`, so the first sorts nothing.
+  def test_order_by_matches_sql(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE by_ts AS
+        FROM slice
+        |> ORDER BY ts
+        |> SELECT id;
+
+        CREATE PERFETTO TABLE by_many AS
+        FROM (SELECT id, dur, depth, parent_id FROM slice)
+        |> ORDER BY depth DESC, parent_id, dur DESC, id
+        |> SELECT id;
+
+        SELECT
+          (SELECT count(*) FROM by_many) AS rows,
+          (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, id FROM by_ts) AS p
+            JOIN (
+              SELECT row_number() OVER (ORDER BY ts, id) AS n, id FROM slice
+            ) AS s USING (n)
+            WHERE p.id != s.id
+          ) + (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, id FROM by_many) AS p
+            JOIN (
+              SELECT
+                row_number() OVER (
+                  ORDER BY depth DESC, parent_id, dur DESC, id
+                ) AS n,
+                id
+              FROM slice
+            ) AS s USING (n)
+            WHERE p.id != s.id
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        74228,0
+        """))
+
+  # thread_state only renames __intrinsic_thread_state's columns, reading
+  # ucpu twice, so it is read from the table without SQLite.
+  def test_a_renaming_view_reads_its_table(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE by_dur AS
+        FROM thread_state
+        |> ORDER BY dur, id
+        |> SELECT id, cpu, ucpu, state;
+
+        SELECT
+          (SELECT count(*) FROM by_dur) AS rows,
+          (
+            SELECT count(*)
+            FROM (SELECT row_number() OVER () AS n, * FROM by_dur) AS p
+            JOIN (
+              SELECT row_number() OVER (ORDER BY dur, id) AS n, *
+              FROM thread_state
+            ) AS s USING (n)
+            WHERE p.id != s.id OR p.cpu IS NOT s.cpu
+              OR p.ucpu IS NOT s.ucpu OR p.state != s.state
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        549904,0
+        """))
+
   def test_pipeline_errors_name_the_problem(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
         query="""
         PERFETTO PRAGMA pipelines = 1;
         FROM (SELECT 1 AS id, NULL AS parent_id)
-        |> TREE ACCUMULATE UP MAX(id) AS biggest;
+        |> TREE ACCUMULATE UP AVG(id) AS biggest;
         """,
-        out=ExpectedError('aggregate MAX is not supported yet'))
+        out=ExpectedError('aggregate AVG is not supported yet'))
 
   def test_a_pipeline_needs_the_pragma(self):
     return DiffTestBlueprint(
@@ -350,6 +555,18 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('ts or dur is below zero'))
 
+  def test_interval_intersection_refuses_an_overflowing_end(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 9223372036854775800 AS ts, 100 AS dur;
+        CREATE PERFETTO TABLE b AS SELECT 0 AS ts, 10 AS dur;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT ts, dur;
+        """,
+        out=ExpectedError('integer overflow'))
+
   def test_interval_intersection_needs_the_pragma(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
@@ -408,4 +625,87 @@ class PerfettoPipeline(TestSuite):
         out=Csv("""
         "rows","mismatches"
         45728,0
+        """))
+
+  # A SQL source asked for fewer columns still runs, whether it is read by a
+  # tree fold or an intersection.
+  def test_pruned_sql_sources_run(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE folded AS
+        FROM (
+          SELECT 0 AS id, NULL AS parent_id, 5 AS self, 'root' AS name
+          UNION ALL SELECT 1, 0, 7, 'a'
+        ) AS t
+        |> TREE ACCUMULATE UP SUM(self) AS total
+        |> SELECT id, total;
+
+        CREATE PERFETTO TABLE regions AS
+        INTERVAL INTERSECTION OF (
+          (SELECT 0 AS ts, 30 AS dur, 7 AS freq, 'x' AS unused) AS a,
+          (SELECT 10 AS ts, 100 AS dur, 1 AS state) AS b
+        )
+        |> SELECT ts, dur, a.freq;
+
+        SELECT
+          (SELECT group_concat(id || ':' || total) FROM (SELECT * FROM folded ORDER BY id))
+            AS folded,
+          (SELECT group_concat(ts || ':' || dur || ':' || freq) FROM regions)
+            AS regions;
+        """,
+        out=Csv("""
+        "folded","regions"
+        "0:12,1:7","10:20:7"
+        """))
+
+  # The select-like stages only change which columns the row has and what
+  # they are called; the values follow the columns they name.
+  def test_select_like_stages(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE tree AS
+        SELECT 0 AS id, NULL AS parent_id, 'root' AS name, 10 AS self
+        UNION ALL SELECT 1, 0, 'a', 20
+        UNION ALL SELECT 2, 0, 'b', 30;
+
+        CREATE PERFETTO TABLE shaped AS
+        FROM tree AS t
+        |> TREE ACCUMULATE UP SUM(self) AS total
+        |> DROP self
+        |> RENAME total AS subtree
+        |> EXTEND t.self AS own
+        |> SET name = t.name
+        |> AS s
+        |> SELECT s.* EXCEPT (parent_id) REPLACE (own AS id);
+
+        SELECT * FROM shaped ORDER BY name;
+        """,
+        out=Csv("""
+        "id","name","subtree","own"
+        20,"a",20,20
+        30,"b",30,30
+        10,"root",60,10
+        """))
+
+  # Stages naming bare columns see the region's ts and dur, not an operand's.
+  def test_select_like_stages_after_intersection(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> RENAME ts AS start
+        |> EXTEND x.ts AS x_start
+        |> SELECT start, dur, x_start, y.state;
+        """,
+        out=Csv("""
+        "start","dur","x_start","state"
+        10,20,0,1
         """))

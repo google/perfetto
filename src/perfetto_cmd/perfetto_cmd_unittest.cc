@@ -62,6 +62,31 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
     return cmd.trace_config_.get();
   }
 
+  static void MakeOutputReadOnly(PerfettoCmd* cmd) {
+    cmd->packet_writer_.reset();
+    cmd->trace_out_stream_ = base::OpenFstream(cmd->trace_out_path_, "rb");
+    ASSERT_TRUE(cmd->trace_out_stream_);
+    cmd->packet_writer_.emplace(cmd->trace_out_stream_.get());
+  }
+
+  static void ExpectTraceFinished(const PerfettoCmd& cmd) {
+    EXPECT_FALSE(cmd.packet_writer_.has_value());
+    EXPECT_FALSE(cmd.trace_out_stream_);
+    // Preserve the legacy success status, including after errors.
+    EXPECT_TRUE(cmd.tracing_succeeded_);
+  }
+
+  static void ExpectTraceInProgress(const PerfettoCmd& cmd) {
+    EXPECT_TRUE(cmd.packet_writer_.has_value());
+    EXPECT_TRUE(cmd.trace_out_stream_);
+    EXPECT_FALSE(cmd.tracing_succeeded_);
+  }
+
+  static void FinalizeTrace(PerfettoCmd* cmd) { cmd->FinalizeTraceAndExit(); }
+  static void CheckTraceDataTimeout(PerfettoCmd* cmd) {
+    cmd->CheckTraceDataTimeout();
+  }
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       const base::ScopedMmap& mmapped_trace) {
@@ -85,6 +110,84 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
 };
 
 namespace {
+
+TEST_F(PerfettoCmdlineUnitTest, WriteFailureIgnoresLaterTraceData) {
+  for (bool has_more : {true, false}) {
+    SCOPED_TRACE(has_more);
+    base::TempFile out_file = base::TempFile::Create();
+    PerfettoCmd cmd;
+    ASSERT_FALSE(ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(),
+                                     "--time", "1s"})
+                     .has_value());
+    cmd.OnTraceData(std::vector<TracePacket>(1), true);
+    ExpectTraceInProgress(cmd);
+    ASSERT_NO_FATAL_FAILURE(MakeOutputReadOnly(&cmd));
+
+    // A read-only stream makes fwrite fail without a disk-space dependency.
+    cmd.OnTraceData(std::vector<TracePacket>(1), has_more);
+    ExpectTraceFinished(cmd);
+
+    // The IPC handler can deliver more replies before the task runner exits.
+    cmd.OnTraceData(std::vector<TracePacket>(1), true);
+    cmd.OnTraceData({}, false);
+    FinalizeTrace(&cmd);
+    ExpectTraceFinished(cmd);
+
+    std::string trace;
+    ASSERT_TRUE(base::ReadFile(out_file.path(), &trace));
+    // An empty TracePacket still writes its tag and zero-length preamble.
+    EXPECT_EQ(trace, std::string("\x0a\x00", 2));
+  }
+}
+
+TEST_F(PerfettoCmdlineUnitTest, TraceDataTimeoutIgnoresLaterReplies) {
+  base::TempFile out_file = base::TempFile::Create();
+  PerfettoCmd cmd;
+  ASSERT_FALSE(
+      ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s"})
+          .has_value());
+
+  // Receiving data gives the readback another timeout interval to finish.
+  CheckTraceDataTimeout(&cmd);
+  cmd.OnTraceData(std::vector<TracePacket>(1), true);
+  CheckTraceDataTimeout(&cmd);
+  ExpectTraceInProgress(cmd);
+
+  // No more data arrives before the next timeout check.
+  CheckTraceDataTimeout(&cmd);
+  ExpectTraceFinished(cmd);
+
+  cmd.OnTraceData(std::vector<TracePacket>(1), false);
+  CheckTraceDataTimeout(&cmd);
+  FinalizeTrace(&cmd);
+  ExpectTraceFinished(cmd);
+
+  std::string trace;
+  ASSERT_TRUE(base::ReadFile(out_file.path(), &trace));
+  EXPECT_EQ(trace, std::string("\x0a\x00", 2));
+}
+
+TEST_F(PerfettoCmdlineUnitTest, FinalTraceDataIgnoresLaterReplies) {
+  base::TempFile out_file = base::TempFile::Create();
+  PerfettoCmd cmd;
+  ASSERT_FALSE(
+      ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s"})
+          .has_value());
+
+  cmd.OnTraceData(std::vector<TracePacket>(1), true);
+  ExpectTraceInProgress(cmd);
+  cmd.OnTraceData(std::vector<TracePacket>(1), false);
+  ExpectTraceFinished(cmd);
+
+  cmd.OnTraceData(std::vector<TracePacket>(1), false);
+  FinalizeTrace(&cmd);
+  ExpectTraceFinished(cmd);
+
+  std::string trace;
+  ASSERT_TRUE(base::ReadFile(out_file.path(), &trace));
+  // Only the two packets before finalization reach the output file.
+  EXPECT_EQ(trace, std::string("\x0a\x00\x0a\x00", 4));
+}
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeParsesAndStoresAttributes) {
   base::TempFile out_file = base::TempFile::Create();

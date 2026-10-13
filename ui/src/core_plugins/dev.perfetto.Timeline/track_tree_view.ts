@@ -340,6 +340,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
             virtualCanvasSize,
             renderedTracks,
             canvasRect,
+            rootNode,
             renderer,
           );
 
@@ -427,6 +428,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     size: Size2D,
     renderedTracks: ReadonlyArray<TrackView>,
     floatingCanvasRect: Rect2D,
+    rootNode: TrackNode,
     renderer: Renderer,
   ) {
     const timelineRect = new Rect2D({
@@ -484,7 +486,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.updateInteractions(timelineRect, timescale, size, renderedTracks);
 
     this.trace.tracks.overlays.forEach((overlay) => {
-      overlay.render(ctx, timescale, size, renderedTracks, colors);
+      overlay.render(ctx, timescale, size, renderedTracks, colors, rootNode);
     });
 
     const renderTime = performance.now() - start;

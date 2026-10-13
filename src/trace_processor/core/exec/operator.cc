@@ -21,5 +21,6 @@ namespace perfetto::trace_processor::core::exec {
 OperatorState::~OperatorState() = default;
 Operator::~Operator() = default;
 Source::~Source() = default;
+Transform::~Transform() = default;
 
 }  // namespace perfetto::trace_processor::core::exec

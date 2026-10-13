@@ -207,12 +207,29 @@ config("rtti_cflags") {
   }
 }
 
-# Used in buildtools dependencies for standalone builds.
-config("c++17") {
+declare_args() {
+  # The C++ language standard used to compile Perfetto. C++17 is the minimum
+  # required. Newer standards (e.g. "c++20") are supported and can be needed
+  # when linking against system libraries built with a newer standard (e.g.
+  # abseil/protobuf on distros whose compiler defaults to C++20).
+  perfetto_cxx_standard = "c++17"
+}
+
+assert(perfetto_cxx_standard == "c++17" || perfetto_cxx_standard == "c++20" ||
+           perfetto_cxx_standard == "c++23",
+       "perfetto_cxx_standard must be one of c++17, c++20 or c++23")
+
+# The C++ standard applied by default to all standalone targets.
+config("cxx_standard") {
   if (is_win) {
-    cflags_cc = [ "/std:c++17" ]
+    if (perfetto_cxx_standard == "c++23") {
+      # MSVC/clang-cl doesn't have a /std:c++23 flag yet.
+      cflags_cc = [ "/std:c++latest" ]
+    } else {
+      cflags_cc = [ "/std:$perfetto_cxx_standard" ]
+    }
   } else {
-    cflags_cc = [ "-std=c++17" ]
+    cflags_cc = [ "-std=$perfetto_cxx_standard" ]
   }
 }
 

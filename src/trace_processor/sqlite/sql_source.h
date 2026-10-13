@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -64,22 +65,43 @@ class SqlSource {
   static SqlSource FromMacroExpansion(std::string sql,
                                       const std::string& macro);
 
-  // Returns this SqlSource instance as a string which can be appended as a
-  // "traceback" frame to an error message. Callers should pass an |offset|
+  // Returns this SqlSource instance as a string which can be prepended as
+  // "traceback" frames to an error message. Callers should pass an |offset|
   // parameter which indicates the exact location of the error in the SQL
   // string. 0 and |sql().size()| are both valid offset positions and correspond
   // to the start and end of the source respectively.
   //
-  // Specifically, this string will include:
-  //  a) context about the source of the SQL
-  //  b) line and column number of the error
-  //  c) a snippet of the SQL and a caret (^) character pointing to the location
-  //     of the error.
+  // Each frame is laid out like a rustc diagnostic: the source of the SQL
+  // (e.g. "query", "module foo.bar") with the line and column of the error,
+  // followed by the offending line of SQL and a caret (^) pointing at the
+  // error. A frame is added for each rewrite (e.g. macro expansion) containing
+  // the error, outermost first:
+  //    --> query:1:8
+  //     |
+  //   1 | select t from slice
+  //     |        ^
+  //
+  // Prefer |AddTraceback| which also formats the error message.
   std::string AsTraceback(uint32_t offset) const;
 
   // Same as |AsTraceback| but for offsets which come from SQLite instead of
   // from trace processor tokenization or parsing.
   std::string AsTracebackForSqliteOffset(std::optional<uint32_t> offset) const;
+
+  // Returns an error status whose message is the traceback for |offset| (see
+  // |AsTraceback|) followed by "error: " and the message of |status|.
+  //
+  // If the message of |status| already starts with a traceback (i.e. the
+  // error was raised by nested SQL such as a module or a metric file), the
+  // frames are simply prepended to it. Errors therefore always read
+  // outermost (the SQL the user wrote) to innermost, ending with a single
+  // "error: " line.
+  base::Status AddTraceback(uint32_t offset, const base::Status& status) const;
+
+  // Same as |AddTraceback| but for offsets which come from SQLite instead of
+  // from trace processor tokenization or parsing.
+  base::Status AddTracebackForSqliteOffset(std::optional<uint32_t> offset,
+                                           const base::Status& status) const;
 
   // Creates a SqlSource instance with the SQL taken as a substring starting
   // at |offset| with |len| characters.
@@ -154,8 +176,12 @@ class SqlSource {
   //   rewrites: []
   // }
   struct Node {
+    // Describes where the SQL came from, e.g. "query" or "module foo.bar".
     std::string name;
-    bool include_traceback_header = false;
+    // Whether the traceback frame should also show the SQL with all rewrites
+    // applied. Only set for SQL which is executed directly (i.e. not for the
+    // SQL replacing part of another statement).
+    bool show_expanded_statement = false;
     uint32_t line = 1;
     uint32_t col = 1;
 
@@ -245,7 +271,9 @@ class SqlSource {
 
   SqlSource();
   explicit SqlSource(Node);
-  SqlSource(std::string sql, std::string name, bool include_traceback_header);
+  SqlSource(std::string sql, std::string name, bool show_expanded_statement);
+
+  uint32_t ClampSqliteOffset(std::optional<uint32_t> offset) const;
 
   static std::string ApplyRewrites(const std::string&,
                                    const std::vector<Rewrite>&);

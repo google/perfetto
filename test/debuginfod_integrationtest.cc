@@ -373,6 +373,15 @@ TEST_F(DebuginfodIntegrationTest, DisabledWarnsEvenWhenQuiet) {
   EXPECT_FALSE(base::FileExists(cache_));
 }
 
+TEST_F(DebuginfodIntegrationTest, IgnoredEnvironmentIsSilentUnlessSymbolizing) {
+  auto result = RunShell({"query", trace_, "SELECT 1"},
+                         {"DEBUGINFOD_URLS=" + server_->url() + "/ok",
+                          "LLVM_SYMBOLIZER_OPTS=--debuginfod"});
+  EXPECT_EQ(result.exit_code, 0) << result.err;
+  EXPECT_THAT(result.err, Not(HasSubstr("ignored")));
+  EXPECT_THAT(server_->requests(), IsEmpty());
+}
+
 TEST_F(DebuginfodIntegrationTest, CliOverridesEnvironmentAndLlvmOptions) {
   auto result = Bundle(
       {"--debuginfod", "--debuginfod-urls", server_->url() + "/redirect"},

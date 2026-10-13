@@ -430,9 +430,13 @@ message TracePacket {
     // A loss was detected (set on every loss). On its own (value 1) it means
     // dropped with no specific cause, e.g. TraceBufferV1 or a producer.
     DATA_LOSS_PRESENT = 1;
-    // A read started on a non-successor ChunkID (a gap in the stream).
+    // A read started on a non-successor ChunkID (a gap in the stream), or a
+    // proto-group sequence resumed after a recorded loss.
     DATA_LOSS_READ_GAP = 2;
-    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds).
+    // A chunk's fragments couldn't be tokenized (malformed / out-of-bounds),
+    // or a proto-group packet couldn't be rewritten. The buffer stats
+    // abi_violations and oversized_packets_dropped tell the two rewrite
+    // failures apart.
     DATA_LOSS_CHUNK_CORRUPTED = 4;
     // A continuation/end fragment with no preceding begin fragment.
     DATA_LOSS_ORPHAN_CONTINUATION = 8;

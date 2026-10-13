@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -35,7 +36,10 @@
 #include "src/trace_processor/core/exec/row_cursor.h"
 #include "src/trace_processor/core/exec/variant.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/perfetto_sql/pipeline/test_catalog.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_connection.h"
@@ -61,9 +65,7 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
     }
     return cell.AsInt64();
   }
-  const core::BitVector* validity = view.validity();
-  uint32_t row = cursor.row();
-  if (validity && !validity->is_set(view.selection().GetIndex(row))) {
+  if (!view.IsValid(cursor.batch_row())) {
     return std::nullopt;
   }
   core::StorageType type = view.type();
@@ -78,12 +80,11 @@ std::optional<int64_t> IntAt(const RowCursor& cursor, uint32_t column) {
 
 class PhysicalPlanTest : public ::testing::Test {
  protected:
+  using Rows = std::vector<std::pair<int64_t, std::optional<int64_t>>>;
+
   PhysicalPlanTest()
       : connection_(SqliteConnection::CreateConnectionToNewDatabase()),
-        catalog_(&pool_, connection_.get()) {
-    env_.connection = connection_.get();
-    env_.pool = &pool_;
-  }
+        catalog_(&pool_, connection_.get()) {}
 
   void Exec(const std::string& sql) {
     auto statement =
@@ -110,17 +111,34 @@ class PhysicalPlanTest : public ::testing::Test {
         {{3, 1, 40}, {1, 0, 20}, {2, 0, 30}, {0, std::nullopt, 10}});
   }
 
-  base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
+  base::StatusOr<LogicalPlan> Compile(const std::string& sql) {
     PerfettoSqlParser parser(macros_, catalog_,
                              /*pipelines_allowed=*/true);
     parser.Reset(SqlSource::FromExecuteQuery(sql));
     if (!parser.Next()) {
       return parser.status();
     }
-    const auto* pipeline =
-        std::get_if<PerfettoSqlParser::Pipeline>(&parser.statement());
-    PERFETTO_CHECK(pipeline);
-    return Lower(pipeline->plan, env_);
+    PERFETTO_CHECK(std::holds_alternative<PerfettoSqlParser::Pipeline>(
+        parser.statement()));
+    return std::move(
+        std::get<PerfettoSqlParser::Pipeline>(parser.TakeStatement()).plan);
+  }
+
+  base::StatusOr<std::unique_ptr<PhysicalPlan>> Plan(const std::string& sql) {
+    ASSIGN_OR_RETURN(LogicalPlan plan, Compile(sql));
+    return LowerReadingSql(std::move(plan));
+  }
+
+  // Lowers `plan` to read each of its SQL sources as a dataframe, built up
+  // front as SQLite builds it where the pipeline is written.
+  base::StatusOr<std::unique_ptr<PhysicalPlan>> LowerReadingSql(
+      LogicalPlan plan) {
+    ASSIGN_OR_RETURN(auto dataframes, TestCatalog::BuildSqlSources(
+                                          connection_.get(), &pool_, plan));
+    LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
+    RETURN_IF_ERROR(
+        BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
+    return Lower(moved);
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -132,7 +150,6 @@ class PhysicalPlanTest : public ::testing::Test {
   }
 
   // Runs `plan` and returns (id, value) pairs sorted by id.
-  using Rows = std::vector<std::pair<int64_t, std::optional<int64_t>>>;
   base::StatusOr<Rows> Run(const PhysicalPlan& plan, const std::string& value) {
     uint32_t id_column = 0;
     uint32_t value_column = 0;
@@ -158,7 +175,6 @@ class PhysicalPlanTest : public ::testing::Test {
   StringPool pool_;
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
-  LowerEnvironment env_;
   base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
@@ -179,6 +195,28 @@ TEST_F(PhysicalPlanTest, AccumulateUpSumsEachSubtree) {
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_THAT(Names(**plan), ElementsAre("id", "parent_id", "self", "total"));
   auto rows = Run(**plan, "total");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
+}
+
+// Optimizing a copy must not change the results of the original plan.
+TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
+  CreateDataframeTree();
+  auto original = Compile(
+      "FROM df |> TREE ACCUMULATE UP SUM(self) AS total |> SELECT id, total");
+  ASSERT_TRUE(original.ok()) << original.status().message();
+
+  LogicalPlan copy = *original;
+  copy.output().resize(1);
+  PruneColumns(copy);
+
+  // Copy assignment must also preserve independent operation payloads.
+  copy = *original;
+  copy.output().resize(1);
+  PruneColumns(copy);
+
+  auto rows = Run(*Lower(*original), "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
@@ -246,6 +284,37 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
                                  Pair(3, 110)));
 }
 
+// An intersection needs its operands' bounds and PER columns, but only passes
+// on the columns something after it reads: it neither buffers nor gathers
+// the rest.
+TEST_F(PhysicalPlanTest, IntersectionCarriesOnlyColumnsUsedAfterIt) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, cpu INTEGER, x INTEGER)");
+  Exec("INSERT INTO a VALUES (0, 10, 1, 7)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, cpu INTEGER, y INTEGER)");
+  Exec("INSERT INTO b VALUES (5, 10, 1, 8)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF (a AS p, b AS q) PER cpu "
+      "|> SELECT ts, dur, q.y");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  const core::exec::Source& source = (*plan)->source();
+  core::exec::Context context;
+  auto state = source.MakeState(context);
+  core::exec::RowBatch batch;
+  ASSERT_TRUE(source.GetData(batch, *state));
+  // The region's ts and dur, and q.y.
+  EXPECT_EQ(batch.column_count(), 3u);
+
+  RowCursor cursor(source);
+  ASSERT_TRUE(cursor.Open());
+  std::vector<std::optional<int64_t>> row;
+  for (const PhysicalPlan::Column& column : (*plan)->columns()) {
+    row.push_back(IntAt(cursor, column.index));
+  }
+  EXPECT_THAT(row, ElementsAre(5, 5, 8));
+  EXPECT_FALSE(cursor.Next());
+}
+
 TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
   CreateTree();
   PerfettoSqlParser parser(macros_, catalog_,
@@ -255,11 +324,11 @@ TEST_F(PhysicalPlanTest, OutputBindingsUseIdsRatherThanBatchPositions) {
       "|> TREE ACCUMULATE UP SUM(path) AS total"));
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
-  ColumnId total = logical.output.back().id;
-  ColumnId id = logical.output.front().id;
+  ColumnId total = logical.output().back().id;
+  ColumnId id = logical.output().front().id;
   // Project and alias the same value twice, independently of the source names.
-  logical.output = {{"total", total}, {"id", id}, {"again", total}};
-  auto plan = Lower(logical, env_);
+  logical.output() = {{"total", total}, {"id", id}, {"again", total}};
+  auto plan = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Names(*plan), ElementsAre("total", "id", "again"));
   EXPECT_NE(plan->columns()[0].index, total);
   EXPECT_EQ(plan->columns()[0].index, plan->columns()[2].index);
@@ -305,7 +374,7 @@ TEST_F(PhysicalPlanTest, LogicalPlanRetainsColumnsBeforeLowering) {
   LogicalPlan plan =
       std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
   catalog_.RemoveTable("df");
-  auto physical = Lower(plan, env_);
+  auto physical = Lower(plan);
   auto rows = Run(*physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
@@ -314,7 +383,7 @@ TEST_F(PhysicalPlanTest, LogicalPlanRetainsColumnsBeforeLowering) {
 
 TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
   CreateTree();
-  Exec("INSERT INTO tree VALUES (4, 0, 'many')");
+  Exec("UPDATE tree SET self = 'many'");
   auto plan = Plan("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   EXPECT_THAT(Run(**plan, "total").status().message(), HasSubstr("'self'"));
@@ -322,7 +391,7 @@ TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
 
 TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   CreateTree();
-  Exec("INSERT INTO tree VALUES (4, 0, 'many')");
+  Exec("UPDATE tree SET self = 'many'");
   PerfettoSqlParser parser(macros_, catalog_,
                            /*pipelines_allowed=*/true);
   parser.Reset(SqlSource::FromExecuteQuery(
@@ -330,9 +399,9 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   ASSERT_TRUE(parser.Next()) << parser.status().message();
   auto logical = std::get<PerfettoSqlParser::Pipeline>(parser.statement()).plan;
   // Neither the original input name nor its value is exposed in the result.
-  logical.output = {{"id", logical.output.front().id},
-                    {"renamed_total", logical.output.back().id}};
-  auto physical = Lower(logical, env_);
+  logical.output() = {{"id", logical.output().front().id},
+                      {"renamed_total", logical.output().back().id}};
+  auto physical = std::move(*LowerReadingSql(std::move(logical)));
   EXPECT_THAT(Run(*physical, "renamed_total").status().message(),
               HasSubstr("'self'"));
 }
@@ -354,6 +423,44 @@ TEST_F(PhysicalPlanTest, APlanCanRunMoreThanOnce) {
   auto second = Run(**plan, "total");
   ASSERT_TRUE(first.ok() && second.ok());
   EXPECT_EQ(*first, *second);
+}
+
+// A plan read back from its bytes runs, reading a table replaced by one of
+// the same shape as it is now.
+TEST_F(PhysicalPlanTest, APlanReadBackReadsTablesAsTheyAreNow) {
+  CreateDataframeTree();
+  auto plan = Compile("FROM df |> TREE ACCUMULATE UP SUM(self) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  std::string bytes = SerializePlan(*plan);
+  catalog_.RemoveTable("df");
+  catalog_.AddTable("df", {"id", "parent_id", "self"},
+                    {{1, 0, 2}, {0, std::nullopt, 1}});
+  auto read = DeserializePlan(bytes, catalog_);
+  ASSERT_TRUE(read.ok()) << read.status().message();
+  auto rows = Run(*Lower(*read), "total");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows, ElementsAre(Pair(0, 3), Pair(1, 2)));
+}
+
+// A relation which only picks and renames a dataframe's columns is read from
+// the dataframe, not through SQLite, and is read back so too.
+TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
+  CreateDataframeTree();
+  auto plan = Compile(
+      "FROM (SELECT id, parent_id, self AS own, self AS copy FROM df) "
+      "|> TREE ACCUMULATE UP SUM(own) AS total");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  auto moved = MoveSqlSourcesToDataframeArgs(std::move(*plan));
+  EXPECT_TRUE(moved.args.empty());
+  auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
+  ASSERT_TRUE(read.ok()) << read.status().message();
+  auto lowered = Lower(*read);
+  EXPECT_THAT(Names(*lowered),
+              ElementsAre("id", "parent_id", "own", "copy", "total"));
+  auto rows = Run(*lowered, "copy");
+  ASSERT_TRUE(rows.ok()) << rows.status().message();
+  EXPECT_THAT(*rows,
+              ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
 }
 
 }  // namespace
