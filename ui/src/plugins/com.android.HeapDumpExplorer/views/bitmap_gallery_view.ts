@@ -36,7 +36,7 @@ import {
 } from '../components';
 import type {PathEntry} from '../types';
 import * as queries from '../queries';
-import type {HeapDump} from '../queries';
+import type {HeapDump} from '../types';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -208,7 +208,7 @@ interface BitmapCardAttrs {
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
   readonly pathMode: PathMode;
-  readonly pathData?: PathEntry[] | null;
+  readonly pathData?: readonly PathEntry[] | null;
 }
 
 function BitmapCard(): m.Component<BitmapCardAttrs> {
@@ -347,7 +347,7 @@ interface BitmapGalleryViewAttrs {
 }
 
 export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
-  let rows: BitmapListRow[] | null = null;
+  let rows: readonly BitmapListRow[] | null = null;
   let alive = true;
   let pathMode: PathMode = 'none';
   const pathsFetched: Record<Exclude<PathMode, 'none'>, boolean> = {
@@ -356,7 +356,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
   };
   const pathMaps: Record<
     Exclude<PathMode, 'none'>,
-    Map<number, PathEntry[]>
+    Map<number, readonly PathEntry[]>
   > = {
     shortest: new Map(),
     dominator: new Map(),
@@ -365,7 +365,7 @@ export function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
 
   function fetchPaths(
     engine: Engine,
-    bitmaps: BitmapListRow[],
+    bitmaps: readonly BitmapListRow[],
     mode: Exclude<PathMode, 'none'>,
   ) {
     const ids = bitmaps.map((b) => b.row.id);
