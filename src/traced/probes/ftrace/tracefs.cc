@@ -113,19 +113,34 @@ std::unique_ptr<Tracefs> Tracefs::Create(const std::string& root) {
 Tracefs::Tracefs(const std::string& root) : root_(root) {}
 Tracefs::~Tracefs() = default;
 
-bool Tracefs::SetSyscallFilter(const std::set<size_t>& filter) {
-  std::vector<std::string> parts;
-  for (size_t id : filter) {
-    base::StackString<16> m("id == %zu", id);
-    parts.push_back(m.ToStdString());
+bool Tracefs::SetSyscallFilter(const std::set<size_t>& filter,
+                               const std::set<size_t>& excluded) {
+  std::string enter_filter = "0";
+  std::string exit_filter = "0";
+  if (!filter.empty()) {
+    std::vector<std::string> parts;
+    for (size_t id : filter) {
+      base::StackString<16> m("id == %zu", id);
+      parts.push_back(m.ToStdString());
+    }
+    enter_filter = base::Join(parts, " || ");
+    exit_filter = enter_filter;
+  } else if (!excluded.empty()) {
+    // An excluded call is one the kernel enters from a trampoline of its
+    // own and leaves with no number, so its exit is never named: leave
+    // out its entries, and every exit without a number.
+    std::vector<std::string> parts;
+    for (size_t id : excluded) {
+      base::StackString<16> m("id != %zu", id);
+      parts.push_back(m.ToStdString());
+    }
+    enter_filter = base::Join(parts, " && ");
+    exit_filter = "id != -1";
   }
 
-  std::string filter_str = "0";
-  if (!parts.empty()) {
-    filter_str = base::Join(parts, " || ");
-  }
-
-  for (const char* event : {"sys_enter", "sys_exit"}) {
+  for (const auto& [event, filter_str] :
+       {std::make_pair("sys_enter", enter_filter),
+        std::make_pair("sys_exit", exit_filter)}) {
     std::string path = root_ + "events/raw_syscalls/" + event + "/filter";
     if (!WriteToFile(path, filter_str)) {
       PERFETTO_ELOG("Failed to write file: %s", path.c_str());

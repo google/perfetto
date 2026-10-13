@@ -46,8 +46,11 @@ class Tracefs {
   explicit Tracefs(const std::string& root);
   virtual ~Tracefs();
 
-  // Set the filter for syscall events. If empty, clear the filter.
-  bool SetSyscallFilter(const std::set<size_t>& filter);
+  // Set the filter for syscall events: only the calls in |filter|, or
+  // with that empty, every call but those in |excluded|. Both empty
+  // clears the filter.
+  bool SetSyscallFilter(const std::set<size_t>& filter,
+                        const std::set<size_t>& excluded = {});
 
   // Enable the event under with the given |group| and |name|.
   bool EnableEvent(const std::string& group, const std::string& name);
