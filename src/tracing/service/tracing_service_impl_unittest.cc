@@ -50,6 +50,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
+#include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_arena.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
@@ -493,6 +494,428 @@ TEST_F(TracingServiceImplTest, V2OnlyProducerNeedsV2Destination) {
 
   consumer->DisableTracing();
   consumer->WaitForTracingDisabled();
+}
+
+// One TRACE_BUFFER_V2 buffer, and one |data_source| that permits v2.
+TraceConfig RingBufferConfig(const std::string& data_source) {
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(64);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* source = config.add_data_sources()->mutable_config();
+  source->set_name(data_source);
+  source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      100);
+  return config;
+}
+
+std::vector<std::string> TestPayloads(
+    const std::vector<protos::gen::TracePacket>& packets) {
+  std::vector<std::string> payloads;
+  for (const auto& packet : packets) {
+    if (packet.has_for_testing())
+      payloads.push_back(packet.for_testing().str());
+  }
+  return payloads;
+}
+
+// An in-process producer with v2 uses the same producer code as over IPC.
+// The service shares its mapping of the ring buffer.
+TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "ring_buffer",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV1 | kProtocolAbiV2);
+  auto* impl = static_cast<ProducerEndpointImpl*>(endpoint.get());
+  task_runner.RunUntilIdle();
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("perfetto.ring_buffer_arbiter");
+  endpoint->RegisterDataSource(descriptor);
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  DataSourceInstanceID instance = 0;
+  BufferID target_buffer = 0;
+  auto started = task_runner.CreateCheckpoint("instance_started");
+  EXPECT_CALL(producer, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig& setup) {
+        instance = id;
+        target_buffer = static_cast<BufferID>(setup.target_buffer());
+        EXPECT_TRUE(setup.supports_tracing_v2());
+        EXPECT_NE(setup.target_buffer(), 0u);
+      });
+  EXPECT_CALL(producer, StartDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig&) {
+        EXPECT_EQ(id, instance);
+        started();
+      });
+  consumer->EnableTracing(RingBufferConfig(descriptor.name()));
+  task_runner.RunUntilCheckpoint("instance_started");
+  // The config permits v2, but setup does not allocate the ring buffer.
+  EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
+  // Exercise the proxy used by producers, including its initialization call.
+  ProxyProducerEndpoint proxy;
+  proxy.set_backend(endpoint.get());
+  // The in-process service accepts the ring buffer inline.
+  proxy.InitializeV2RingBuffer();
+  EXPECT_GT(impl->ring_buffer_size_bytes(), 0u);
+
+  auto writer =
+      proxy.CreateTraceWriterV2(target_buffer, BufferExhaustedPolicy::kDrop);
+  const std::string payload(2000, 'r');
+  {
+    auto packet = writer->NewTracePacket();
+    // Only a ring buffer writer encodes nested messages as proto groups.
+    EXPECT_EQ(packet->encoding(), protozero::Message::Encoding::kProtoGroup);
+    packet->set_for_testing()->set_str(payload);
+  }
+  auto written = task_runner.CreateCheckpoint("instance_written");
+  writer->Flush(written);
+  task_runner.RunUntilCheckpoint("instance_written");
+  EXPECT_CALL(producer, Flush(_, _, _, _))
+      .WillOnce([&](FlushRequestID id, const DataSourceInstanceID* instances,
+                    size_t count, FlushFlags) {
+        ASSERT_EQ(count, 1u);
+        EXPECT_EQ(instances[0], instance);
+        writer->Flush();
+        endpoint->NotifyFlushComplete(id);
+      });
+  ASSERT_TRUE(consumer->Flush().WaitForReply());
+  EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre(payload));
+  writer.reset();
+  EXPECT_CALL(producer, StopDataSource(instance));
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+// Only InitializeV2RingBuffer() allocates the ring buffer.
+// The first call attaches it, and later sessions reuse it.
+TEST_F(TracingServiceImplTest, InProcessRingBufferIsExplicitAndReused) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "ring_buffer",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV1 | kProtocolAbiV2);
+  auto* impl = static_cast<ProducerEndpointImpl*>(endpoint.get());
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("explicit_ring_buffer");
+  endpoint->RegisterDataSource(descriptor);
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  for (uint32_t session = 0; session < 2; ++session) {
+    BufferID target = 0;
+    EXPECT_CALL(producer, SetupDataSource(_, _))
+        .WillOnce([&](DataSourceInstanceID, const DataSourceConfig& setup) {
+          target = static_cast<BufferID>(setup.target_buffer());
+        });
+    consumer->EnableTracing(RingBufferConfig(descriptor.name()));
+    task_runner.RunUntilIdle();
+    ASSERT_NE(target, 0u);
+    if (session == 0) {
+      EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
+      // Writer creation does not initialize the ring buffer.
+      EXPECT_EQ(
+          endpoint->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop)
+              ->writer_id(),
+          0u);
+      EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
+    }
+
+    endpoint->InitializeV2RingBuffer();
+    // A zero size hint gives 128 KiB of chunks, and the header comes on top.
+    EXPECT_EQ(impl->ring_buffer_size_bytes(),
+              sizeof(tracing_v2::RingBufferHeader) + 128 * 1024);
+
+    // The service attaches one ring buffer for each producer, so it would
+    // reject a second one, and its writers would discard their packets.
+    // A working writer shows that the endpoint kept the first ring buffer.
+    auto writer =
+        endpoint->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop);
+    EXPECT_NE(writer->writer_id(), 0u);
+    const std::string payload = "session " + std::to_string(session);
+    writer->NewTracePacket()->set_for_testing()->set_str(payload);
+    auto flushed = task_runner.CreateCheckpoint(payload + " flushed");
+    writer->Flush(flushed);
+    task_runner.RunUntilCheckpoint(payload + " flushed");
+    EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre(payload));
+
+    writer.reset();
+    consumer->DisableTracing();
+    consumer->WaitForTracingDisabled();
+    consumer->FreeBuffers();
+  }
+}
+
+// A size hint below two chunks cannot hold a ring buffer.
+// v2 writers discard their packets, and do not fall back to v1.
+TEST_F(TracingServiceImplTest, InProcessSizingFailureDisablesV2Writers) {
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "ring_buffer",
+      /*shared_memory_size_hint_bytes=*/tracing_v2::kMinChunkSize,
+      /*in_process=*/true, TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV1 | kProtocolAbiV2);
+  auto* impl = static_cast<ProducerEndpointImpl*>(endpoint.get());
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("small_ring_buffer");
+  endpoint->RegisterDataSource(descriptor);
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  BufferID target = 0;
+  EXPECT_CALL(producer, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID, const DataSourceConfig& setup) {
+        target = static_cast<BufferID>(setup.target_buffer());
+      });
+  consumer->EnableTracing(RingBufferConfig(descriptor.name()));
+  task_runner.RunUntilIdle();
+  ASSERT_NE(target, 0u);
+
+  endpoint->InitializeV2RingBuffer();
+  EXPECT_EQ(impl->ring_buffer_size_bytes(), 0u);
+  auto writer =
+      endpoint->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop);
+  EXPECT_EQ(writer->writer_id(), 0u);
+  writer->NewTracePacket()->set_for_testing()->set_str("discarded");
+
+  // An explicit v1 writer still works.
+  // Its packet shows that the read below can find packets.
+  auto legacy =
+      endpoint->CreateTraceWriter(target, BufferExhaustedPolicy::kDrop);
+  legacy->NewTracePacket()->set_for_testing()->set_str("legacy");
+  auto flushed = task_runner.CreateCheckpoint("legacy flushed");
+  legacy->Flush(flushed);
+  task_runner.RunUntilCheckpoint("legacy flushed");
+  EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre("legacy"));
+
+  writer.reset();
+  legacy.reset();
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+// The service endpoint allocates a ring buffer only for an in-process
+// producer with v2 in its common mask.
+// Over IPC, ProducerIPCClientImpl allocates it in the producer process.
+TEST_F(TracingServiceImplTest, RingBufferNeedsInProcessV2Connection) {
+  NiceMock<MockProducer> v1_producer(&task_runner);
+  auto v1_endpoint = svc->ConnectProducer(
+      &v1_producer, ClientIdentity(42, 1025), "v1_only",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV1);
+  NiceMock<MockProducer> ipc_producer(&task_runner);
+  auto ipc_endpoint = svc->ConnectProducer(
+      &ipc_producer, ClientIdentity(42, 1025), "ipc",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/false,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV1 | kProtocolAbiV2);
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("no_ring_buffer");
+  v1_endpoint->RegisterDataSource(descriptor);
+  ipc_endpoint->RegisterDataSource(descriptor);
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // Both instances write to the one buffer of the config.
+  BufferID target = 0;
+  size_t num_setups = 0;
+  auto on_setup = [&](DataSourceInstanceID, const DataSourceConfig& setup) {
+    target = static_cast<BufferID>(setup.target_buffer());
+    ++num_setups;
+  };
+  EXPECT_CALL(v1_producer, SetupDataSource(_, _)).WillOnce(on_setup);
+  EXPECT_CALL(ipc_producer, SetupDataSource(_, _)).WillOnce(on_setup);
+  consumer->EnableTracing(RingBufferConfig(descriptor.name()));
+  task_runner.RunUntilIdle();
+  ASSERT_EQ(num_setups, 2u);
+
+  for (TracingService::ProducerEndpoint* endpoint :
+       {v1_endpoint.get(), ipc_endpoint.get()}) {
+    endpoint->InitializeV2RingBuffer();
+    EXPECT_EQ(
+        static_cast<ProducerEndpointImpl*>(endpoint)->ring_buffer_size_bytes(),
+        0u);
+    EXPECT_EQ(
+        endpoint->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop)
+            ->writer_id(),
+        0u);
+  }
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+// A v2-only connection must reject explicit requests for v1 writers.
+TEST_F(TracingServiceImplTest, InProcessV2OnlyRejectsV1Writers) {
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  NiceMock<MockProducer> producer(&task_runner);
+  auto endpoint = svc->ConnectProducer(
+      &producer, ClientIdentity(42, 1025), "v2_only",
+      /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+      TracingService::ProducerSMBScrapingMode::kDefault,
+      /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+      /*sdk_version=*/{}, /*machine_name=*/{}, kProtocolAbiV2);
+
+  DataSourceDescriptor descriptor;
+  descriptor.set_name("selected");
+  endpoint->RegisterDataSource(descriptor);
+
+  DataSourceInstanceID selected = 0;
+  BufferID target = 0;
+  EXPECT_CALL(producer, SetupDataSource(_, _))
+      .WillOnce([&](DataSourceInstanceID id, const DataSourceConfig& setup) {
+        selected = id;
+        target = static_cast<BufferID>(setup.target_buffer());
+      });
+  EXPECT_CALL(producer, StartDataSource(_, _));
+  consumer->EnableTracing(RingBufferConfig(descriptor.name()));
+  task_runner.RunUntilIdle();
+  ASSERT_NE(selected, 0u);
+
+  auto legacy =
+      endpoint->CreateTraceWriter(target, BufferExhaustedPolicy::kDrop);
+  EXPECT_EQ(legacy->writer_id(), 0u);
+  legacy->NewTracePacket()->set_for_testing()->set_str("forbidden v1");
+
+  endpoint->InitializeV2RingBuffer();
+  auto writer =
+      endpoint->CreateTraceWriterV2(target, BufferExhaustedPolicy::kDrop);
+  EXPECT_NE(writer->writer_id(), 0u);
+  writer->NewTracePacket()->set_for_testing()->set_str("selected");
+  auto flushed = task_runner.CreateCheckpoint("selected_flushed");
+  writer->Flush(flushed);
+  task_runner.RunUntilCheckpoint("selected_flushed");
+  EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre("selected"));
+
+  writer.reset();
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+// Tracing v2 does not support a ProtoVM on the same buffer, so the service
+// rejects a config with both on one resolved target buffer.
+TEST_F(TracingServiceImplTest, RejectsProtoVmAndTracingV2OnOneBuffer) {
+  // Two buffers. The second one has a name.
+  auto make_config = [] {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* named = config.add_buffers();
+    named->set_size_kb(64);
+    named->set_name("named");
+    return config;
+  };
+  auto add_source = [](TraceConfig* config, const char* name) {
+    auto* source = config->add_data_sources()->mutable_config();
+    source->set_name(name);
+    return source;
+  };
+  auto add_protovm = [](DataSourceConfig* source) {
+    source->mutable_protovm_config()->set_memory_limit_kb(64);
+  };
+  auto add_v2 = [](DataSourceConfig* source, uint32_t probability) {
+    source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+        probability);
+  };
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  auto expect_result = [&](const TraceConfig& config, bool accepted) {
+    consumer->EnableTracing(config);
+    if (accepted) {
+      consumer->DisableTracing();
+      consumer->WaitForTracingDisabledWithError(IsEmpty());
+      consumer->FreeBuffers();
+    } else {
+      consumer->WaitForTracingDisabledWithError(HasSubstr("ProtoVM"));
+    }
+  };
+
+  // Different sources on buffer 0, in either order.
+  // Each source is complete before the next one, because adding a source can
+  // move the earlier ones.
+  for (bool protovm_first : {true, false}) {
+    TraceConfig config = make_config();
+    for (bool protovm : {protovm_first, !protovm_first}) {
+      auto* source = add_source(&config, protovm ? "protovm" : "v2");
+      if (protovm) {
+        add_protovm(source);
+      } else {
+        add_v2(source, 1);
+      }
+    }
+    expect_result(config, /*accepted=*/false);
+  }
+  {
+    // One source with both.
+    TraceConfig config = make_config();
+    auto* source = add_source(&config, "both");
+    add_protovm(source);
+    add_v2(source, 100);
+    expect_result(config, /*accepted=*/false);
+  }
+  {
+    // target_buffer_name and target_buffer resolve to the same buffer.
+    TraceConfig config = make_config();
+    auto* protovm = add_source(&config, "protovm");
+    protovm->set_target_buffer_name("named");
+    add_protovm(protovm);
+    auto* v2 = add_source(&config, "v2");
+    v2->set_target_buffer(1);
+    add_v2(v2, 1);
+    expect_result(config, /*accepted=*/false);
+  }
+  {
+    // Separate buffers are allowed.
+    TraceConfig config = make_config();
+    add_protovm(add_source(&config, "protovm"));
+    auto* v2 = add_source(&config, "v2");
+    v2->set_target_buffer_name("named");
+    add_v2(v2, 100);
+    expect_result(config, /*accepted=*/true);
+  }
+  {
+    // A zero probability does not use v2, so a ProtoVM is allowed.
+    TraceConfig config = make_config();
+    auto* source = add_source(&config, "both");
+    add_protovm(source);
+    add_v2(source, 0);
+    add_v2(add_source(&config, "v2_off"), 0);
+    expect_result(config, /*accepted=*/true);
+  }
+}
+
+// The service rejects experimental_tracing_v2 settings that the producer
+// cannot use, so that no producer latches a bad config.
+TEST_F(TracingServiceImplTest, RejectsInvalidTracingV2Settings) {
+  auto make_config = [](uint32_t probability) {
+    TraceConfig config;
+    config.add_buffers()->set_size_kb(64);
+    auto* source = config.add_data_sources()->mutable_config();
+    source->set_name("v2_source");
+    source->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+        probability);
+    return config;
+  };
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(make_config(/*probability=*/101));
+  consumer->WaitForTracingDisabledWithError(
+      HasSubstr("use_v2_probability_percent"));
+
+  consumer->EnableTracing(make_config(/*probability=*/100));
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabledWithError(IsEmpty());
 }
 
 // The consumer cannot set supports_tracing_v2. The service overwrites the

@@ -815,11 +815,23 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  // For each buffer: the name of a data source with a ProtoVM, and of one
+  // that can use tracing v2.
+  // Tracing v2 does not support ProtoVM on the same buffer yet.
+  std::vector<const std::string*> protovm_source(num_buffers);
+  std::vector<const std::string*> tracing_v2_source(num_buffers);
+
   // Check that the config specifies all buffers for its data sources. This
   // is also checked in SetupDataSource, but it is simpler to return a proper
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
+    const auto& tracing_v2_config = ds_config.experimental_tracing_v2();
+    if (tracing_v2_config.use_v2_probability_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.use_v2_probability_percent must be at most "
+          "100");
+    }
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
     size_t target_buffer = ds_config.target_buffer();
@@ -861,6 +873,19 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           "Data source \"%s\" specified an out of bounds target_buffer (%zu >= "
           "%zu)",
           ds_config.name().c_str(), target_buffer, num_buffers);
+    }
+
+    if (ds_config.has_protovm_config())
+      protovm_source[target_buffer] = &ds_config.name();
+    if (tracing_v2_config.use_v2_probability_percent() > 0)
+      tracing_v2_source[target_buffer] = &ds_config.name();
+    if (protovm_source[target_buffer] && tracing_v2_source[target_buffer]) {
+      return PERFETTO_SVC_ERR(
+          "Data source \"%s\" has a ProtoVM and data source \"%s\" has "
+          "experimental_tracing_v2 on the same buffer %zu. Tracing v2 does not "
+          "support ProtoVM",
+          protovm_source[target_buffer]->c_str(),
+          tracing_v2_source[target_buffer]->c_str(), target_buffer);
     }
   }
 
