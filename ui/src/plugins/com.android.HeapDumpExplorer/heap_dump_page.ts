@@ -21,7 +21,6 @@ import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
 import {formatDuration} from '../../components/time_utils';
 import type {NavState, NavView} from './nav_state';
-import type {OverviewData} from './types';
 import type * as queries from './queries';
 import {OverviewView} from './views/overview_view';
 import {DominatorsView} from './views/dominators_view';
@@ -83,7 +82,6 @@ function buildTabs(
   session: HeapDumpExplorerSession,
   activeDump: queries.HeapDump,
   state: NavState,
-  overview: OverviewData,
 ): {tabs: TabsTab[]; actions: Map<string, TabActions>} {
   const {engine, trace} = session;
   const navigateWithTabs = session.navigateWithTabs.bind(session);
@@ -97,8 +95,9 @@ function buildTabs(
       key: 'overview',
       title: 'Overview',
       content: m(OverviewView, {
-        overview,
+        engine,
         activeDump,
+        hasFieldValues: session.hasFieldValues,
         navigate: navigateWithTabs,
         showDefaultChangedHint: session.autoNavigated && !hideHint,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
@@ -163,7 +162,7 @@ function buildTabs(
         activeDump,
         navigate: navigateWithTabs,
         clearNavParam,
-        hasFieldValues: overview.hasFieldValues,
+        hasFieldValues: session.hasFieldValues,
         filterKey:
           state.view === 'bitmaps' ? state.params.filterKey : undefined,
       }),
@@ -177,7 +176,7 @@ function buildTabs(
         navigate: navigateWithTabs,
         clearNavParam,
         initialQuery: state.view === 'strings' ? state.params.q : undefined,
-        hasFieldValues: overview.hasFieldValues,
+        hasFieldValues: session.hasFieldValues,
       }),
     },
     {
@@ -190,7 +189,7 @@ function buildTabs(
         clearNavParam,
         initialArrayHash:
           state.view === 'arrays' ? state.params.arrayHash : undefined,
-        hasFieldValues: overview.hasFieldValues,
+        hasFieldValues: session.hasFieldValues,
       }),
     },
     {
@@ -247,7 +246,6 @@ function buildTabs(
       content: m(ObjectView, {
         engine,
         activeDump,
-        heaps: overview.heaps,
         navigate: navigateWithTabs,
         openFlamegraphPivotedAt: session.openFlamegraphPivotedAt.bind(session),
         params: {id: obj.objId},
@@ -302,9 +300,6 @@ function renderDumpSelector(session: HeapDumpExplorerSession): m.Children {
 }
 
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
-  oncreate({attrs}: m.VnodeDOM<HeapDumpPageAttrs>) {
-    attrs.session.loadOverview();
-  }
   view({attrs}: m.Vnode<HeapDumpPageAttrs>) {
     const {session, subpage} = attrs;
     session.syncFromSubpage(subpage);
@@ -312,8 +307,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     session.syncFlamegraphTabFromNav();
 
     const active = session.activeDump;
-    const overview = session.cachedOverview;
-    if (active === null || overview === null) {
+    if (active === null) {
       return m(
         '.pf-hde-page',
         renderDumpSelector(session),
@@ -324,7 +318,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     // Keyed so Mithril remounts views (and their SQLDataSources) on
     // dump switch.
     const tabsKey = `${active.upid}:${active.ts}`;
-    const {tabs, actions} = buildTabs(session, active, session.nav, overview);
+    const {tabs, actions} = buildTabs(session, active, session.nav);
 
     return m(
       '.pf-hde-page',
