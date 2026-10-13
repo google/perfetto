@@ -236,6 +236,31 @@ describe('BigtraceQueryClient trace-metadata wire', () => {
     ]);
     expect(schema.columns[0].defaultVisible).toBe(true);
   });
+
+  test('listTraceMetadataColumnValues POSTs column, search and coerced trace_filters', async () => {
+    const fetchMock = captureFetch({values: ['Google', 'Samsung']});
+    const client = new BigtraceQueryClient('http://example/');
+    const values = await client.listTraceMetadataColumnValues(
+      [traceDir],
+      'device_manufacturer',
+      {
+        search: 'goo',
+        traceFilters: [{field: 'trace_population', op: 'in', value: ['A']}],
+      },
+    );
+
+    expect(urlFrom(fetchMock)).toBe(
+      'http://example//trace_metadata_column_values',
+    );
+    const body = bodyFrom(fetchMock);
+    expect(body.column_name).toBe('device_manufacturer');
+    expect(body.search_pattern).toBe('goo');
+    expect(body.trace_filters).toEqual([
+      {field: 'trace_population', op: 'in', value: ['A']},
+    ]);
+    expect(body.limit).toBeUndefined();
+    expect(values).toEqual(['Google', 'Samsung']);
+  });
 });
 
 describe('BigtraceQueryClient execute trace-selection snapshot', () => {
