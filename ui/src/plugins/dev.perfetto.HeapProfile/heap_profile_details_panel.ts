@@ -67,6 +67,12 @@ import {
   type OomeDetails,
 } from './oome_callstack_common';
 
+// Flag potentially merged classes in heap graph flamegraphs.
+const MERGED_CLASS_NODE_ICON = mergedClassNodeIcon(MERGED_CLASS_PROPERTY);
+const MERGED_CLASS_NODE_TOOLTIP = mergedClassNodeTooltipRenderer(
+  MERGED_CLASS_PROPERTY,
+);
+
 const DOCS_NATIVE_HEAP_PROFILER =
   'https://perfetto.dev/docs/data-sources/native-heap-profiler';
 const DOCS_JAVA_HEAP_PROFILER =
@@ -305,6 +311,13 @@ export class HeapProfileFlamegraphDetailsPanel
             this.onStateChange(state);
           },
           extraDownloadItems: this.pprofDownloadItems(type, ts),
+          // Only heap graph metrics have the potentially_merged column.
+          ...(type === ProfileType.JAVA_HEAP_GRAPH
+            ? {
+                nodeIcon: MERGED_CLASS_NODE_ICON,
+                renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
+              }
+            : {}),
         }),
       ),
     );
@@ -482,10 +495,6 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
-          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
-          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
-            MERGED_CLASS_PROPERTY,
-          ),
         },
         {
           name: 'Object Count',
@@ -525,10 +534,6 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
-          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
-          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
-            MERGED_CLASS_PROPERTY,
-          ),
         },
         {
           name: 'Dominated Object Size',
@@ -573,10 +578,6 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
-          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
-          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
-            MERGED_CLASS_PROPERTY,
-          ),
         },
         {
           name: 'Dominated Object Count',
@@ -616,10 +617,6 @@ function flamegraphMetrics(
             onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
-          optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
-          optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
-            MERGED_CLASS_PROPERTY,
-          ),
         },
       ];
     case ProfileType.OOME_CALLSTACK:

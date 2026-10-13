@@ -79,6 +79,12 @@ const UNAGG_PROPS = [
   },
 ];
 
+// Flag potentially merged classes (see merged_class_sql.ts).
+const MERGED_CLASS_NODE_ICON = mergedClassNodeIcon(MERGED_CLASS_PROPERTY);
+const MERGED_CLASS_NODE_TOOLTIP = mergedClassNodeTooltipRenderer(
+  MERGED_CLASS_PROPERTY,
+);
+
 const SELF_COUNT_AGG_PROP = {
   name: 'self_count',
   displayName: 'Self Count',
@@ -125,10 +131,6 @@ function buildMetric(
     aggregatableProperties:
       valueColumn === 'self_size' ? [SELF_COUNT_AGG_PROP] : [],
     optionalNodeActions: [showObjectsAction],
-    optionalNodeIcon: mergedClassNodeIcon(MERGED_CLASS_PROPERTY),
-    optionalNodeTooltipRenderer: mergedClassNodeTooltipRenderer(
-      MERGED_CLASS_PROPERTY,
-    ),
   };
 }
 
@@ -251,6 +253,8 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
           fetcher,
           state,
           onStateChange: attrs.onStateChange,
+          nodeIcon: MERGED_CLASS_NODE_ICON,
+          renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
           extraDownloadItems: [
             {
               label: 'Pprof profile (.pb)',
