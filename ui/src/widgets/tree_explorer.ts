@@ -48,7 +48,8 @@ export interface TreeExplorerOptionalAction {
 export type ActionCategory = 'FOCUS' | 'FILTER' | 'DRILL' | 'COPY';
 
 // Picks the Material icon to draw before a node's name from the node's
-// properties, or returns undefined for no icon.
+// property values, or returns undefined for no icon. Called on every render,
+// so it can depend on the caller's current state.
 export type TreeExplorerNodeIconFn = (
   properties: ReadonlyMap<string, string>,
 ) => string | undefined;
@@ -84,8 +85,9 @@ export interface TreeExplorerNode {
   readonly parentCumulativeValue?: number;
   readonly properties: ReadonlyMap<string, TreeExplorerPropertyDefinition>;
   readonly marker?: string;
-  // Material icon drawn on the node before its name.
-  readonly icon?: string;
+  // Plain name -> value view of `properties`, built once when the tree is
+  // fetched so render-time callbacks can be called without allocating.
+  readonly propertyValues: ReadonlyMap<string, string>;
   readonly xStart: number;
   readonly xEnd: number;
 }
@@ -98,8 +100,6 @@ export interface TreeExplorerData {
   readonly maxDepth: number;
   readonly nodeActions: ReadonlyArray<TreeExplorerOptionalAction>;
   readonly rootActions: ReadonlyArray<TreeExplorerOptionalAction>;
-  // Optional custom renderer for a node's tooltip.
-  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 }
 
 const TREE_EXPLORER_FILTER_SCHEMA = z

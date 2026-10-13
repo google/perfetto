@@ -30,6 +30,8 @@ import {
   type TreeExplorerData,
   type TreeExplorerMetric,
   type TreeExplorerNode,
+  type TreeExplorerNodeIconFn,
+  type TreeExplorerNodeTooltipRenderer,
 } from '../widgets/tree_explorer';
 import {DataGrid} from './widgets/datagrid/datagrid';
 import {InMemoryDataSource} from './widgets/datagrid/in_memory_data_source';
@@ -52,6 +54,9 @@ const DEFAULT_TREE: IdBasedTree = {
 export interface TreeExplorerTreeViewAttrs {
   readonly data: TreeExplorerData;
   readonly unit: string;
+  // See TreeExplorerPanelAttrs.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 }
 
 // Expandable call tree: one row per node with self and cumulative values and
@@ -71,7 +76,6 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
       this.tree = undefined;
       this.nodesById = new Map(attrs.data.nodes.map((n) => [n.id, n]));
     }
-    const {data} = attrs;
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
     return m(DataGrid, {
@@ -84,12 +88,17 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
         name: {
           title: 'Name',
           columnType: 'text',
-          cellRenderer: (value: SqlValue, row: Row) =>
-            renderNodeName(
-              data,
-              this.nodesById.get(Number(row.id)),
+          cellRenderer: (value: SqlValue, row: Row) => {
+            const node = this.nodesById.get(Number(row.id));
+            return renderNodeName(
               String(value),
-            ),
+              node,
+              node !== undefined
+                ? attrs.nodeIcon?.(node.propertyValues)
+                : undefined,
+              attrs.renderNodeTooltip,
+            );
+          },
         },
         total: {
           title: 'Total',
@@ -280,21 +289,23 @@ export function computeFlatFunctions(
 export interface TreeExplorerFlatViewAttrs {
   readonly data: TreeExplorerData;
   readonly unit: string;
+  // See TreeExplorerPanelAttrs.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 }
 
 // Flat per-function table (pprof "Top"): Name, Self, Self %, Total, Total %.
 export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatViewAttrs> {
   private rows?: readonly Row[];
   private rowsData?: TreeExplorerData;
-  private iconNodesByName = new Map<string, TreeExplorerNode>();
+  private nodesByName = new Map<string, TreeExplorerNode[]>();
 
   view({attrs}: m.CVnode<TreeExplorerFlatViewAttrs>): m.Children {
     if (this.rows === undefined || this.rowsData !== attrs.data) {
       this.rowsData = attrs.data;
       this.rows = flatFunctionRows(attrs.data);
-      this.iconNodesByName = iconNodesByName(attrs.data);
+      this.nodesByName = nodesByName(attrs.data);
     }
-    const {data} = attrs;
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
     return m(DataGrid, {
@@ -305,12 +316,23 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
         name: {
           title: 'Name',
           columnType: 'text',
-          cellRenderer: (value: SqlValue) =>
-            renderNodeName(
-              data,
-              this.iconNodesByName.get(String(value)),
-              String(value),
-            ),
+          cellRenderer: (value: SqlValue) => {
+            const name = String(value);
+            // A row merges every node with this name: show the icon of the
+            // first node that has one.
+            for (const node of this.nodesByName.get(name) ?? []) {
+              const icon = attrs.nodeIcon?.(node.propertyValues);
+              if (icon !== undefined) {
+                return renderNodeName(
+                  name,
+                  node,
+                  icon,
+                  attrs.renderNodeTooltip,
+                );
+              }
+            }
+            return name;
+          },
         },
         self: {
           title: 'Self',
@@ -345,47 +367,42 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
   }
 }
 
-// Name cell for the table views: the node's icon (if any) followed by its
-// name. Hovering the icon shows the extra content from `renderNodeTooltip`,
-// called without default content since the tables have no node tooltip.
+// Name cell for the table views: `icon` (if any) followed by the name.
+// Hovering the icon shows the output of `renderNodeTooltip`, called without
+// default content since the tables have no node tooltip.
 function renderNodeName(
-  data: TreeExplorerData,
-  node: TreeExplorerNode | undefined,
   name: string,
+  node: TreeExplorerNode | undefined,
+  icon: string | undefined,
+  renderNodeTooltip: TreeExplorerNodeTooltipRenderer | undefined,
 ): m.Children {
-  if (node?.icon === undefined) {
+  if (node === undefined || icon === undefined) {
     return name;
   }
-  const icon = m(Icon, {
-    className: 'pf-tree-explorer__node-icon',
-    icon: node.icon,
-  });
-  const tooltip = data.renderNodeTooltip?.(
-    {
-      properties: new Map(
-        [...node.properties].map(([key, {value}]) => [key, value]),
-      ),
-      node,
-    },
+  const iconVnode = m(Icon, {className: 'pf-tree-explorer__node-icon', icon});
+  const tooltip = renderNodeTooltip?.(
+    {properties: node.propertyValues, node},
     null,
   );
   return m(
     'span.pf-tree-explorer__node-name',
-    tooltip === undefined ? icon : m(Tooltip, {trigger: icon}, tooltip),
+    tooltip === undefined
+      ? iconVnode
+      : m(Tooltip, {trigger: iconVnode}, tooltip),
     name,
   );
 }
 
-// The Functions view merges every node with the same name into one row, so
-// a row shows an icon if any node with that name has one.
-function iconNodesByName(
-  data: TreeExplorerData,
-): Map<string, TreeExplorerNode> {
-  const result = new Map<string, TreeExplorerNode>();
+// Groups nodes by name for the Functions view, which merges them per name.
+function nodesByName(data: TreeExplorerData): Map<string, TreeExplorerNode[]> {
+  const result = new Map<string, TreeExplorerNode[]>();
   for (const node of data.nodes) {
-    if (node.icon !== undefined && !result.has(node.name)) {
-      result.set(node.name, node);
+    let group = result.get(node.name);
+    if (group === undefined) {
+      group = [];
+      result.set(node.name, group);
     }
+    group.push(node);
   }
   return result;
 }

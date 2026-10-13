@@ -46,6 +46,8 @@ import {
   type TreeExplorerFilter,
   type TreeExplorerMetric,
   type TreeExplorerNode,
+  type TreeExplorerNodeIconFn,
+  type TreeExplorerNodeTooltipRenderer,
   type TreeExplorerOptionalAction,
   type TreeExplorerPropertyDefinition,
   type TreeExplorerState,
@@ -142,6 +144,14 @@ export interface FlamegraphAttrs {
   // Nodes whose name matches are drawn with a highlighted border. Owned by
   // the caller so the (separate) filter bar can drive it.
   readonly highlightRegex?: RegExp;
+
+  // Optional icon drawn before a node's name. Evaluated for every drawn node
+  // on every render, so it can depend on the caller's current state.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+
+  // Optional custom renderer for a node's tooltip. Receives the default
+  // tooltip content and returns what to show, e.g. to add content above it.
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 
   readonly onStateChange: (state: TreeExplorerState) => void;
 }
@@ -504,11 +514,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       ctx.fillStyle = bgColor.cssString;
       ctx.fillRect(x, y, width - 1, NODE_HEIGHT - 1);
 
+      const treeNode =
+        source.kind === 'NODE' ? nodes[source.queryIdx] : undefined;
       const labelStart =
-        source.kind === 'NODE'
+        treeNode !== undefined
           ? drawNodeDecorations(
               ctx,
-              nodes[source.queryIdx],
+              treeNode.marker,
+              this.attrs.nodeIcon?.(treeNode.propertyValues),
               x,
               y,
               width,
@@ -576,7 +589,6 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       unfilteredCumulativeValue,
       nodeActions,
       rootActions,
-      renderNodeTooltip,
     } = ensureExists(this.attrs.data);
     const {unit, nameColumnLabel} = ensureExists(this.selectedMetric);
     if (source.kind === 'ROOT') {
@@ -664,15 +676,14 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       }),
       this.renderNodeActionBar(source, name, nodes[queryIdx], nodeActions),
     ];
+    const {renderNodeTooltip} = this.attrs;
+    const node = nodes[queryIdx];
     return m(
       'div',
       renderNodeTooltip === undefined
         ? defaultContent
         : renderNodeTooltip(
-            {
-              properties: this.createReducedProperties(properties),
-              node: nodes[queryIdx],
-            },
+            {properties: node.propertyValues, node},
             defaultContent,
           ),
     );
@@ -1136,7 +1147,7 @@ export function buildFlamegraphExportString(
   }
 }
 
-// Draws a node's decorations (marker square, then icon) left to right from
+// Draws a node's decorations (marker square, then `icon`) left to right from
 // its left edge and returns the x offset, relative to the node's left edge,
 // at which the label should start. Each drawn decoration moves `cursor` past
 // itself so decorations never overlap. A square on its own sits in the
@@ -1144,7 +1155,8 @@ export function buildFlamegraphExportString(
 // label and pushes it right. Decorations that do not fit are not drawn.
 function drawNodeDecorations(
   ctx: CanvasRenderingContext2D,
-  node: TreeExplorerNode,
+  marker: string | undefined,
+  icon: string | undefined,
   x: number,
   y: number,
   width: number,
@@ -1152,7 +1164,7 @@ function drawNodeDecorations(
 ): number {
   ctx.fillStyle = color;
   let cursor = NODE_DECORATION_LEFT_MARGIN_PX;
-  if (node.marker !== undefined && width >= MARKER_SQUARE_MIN_NODE_WIDTH_PX) {
+  if (marker !== undefined && width >= MARKER_SQUARE_MIN_NODE_WIDTH_PX) {
     ctx.fillRect(
       x + cursor,
       y + 2,
@@ -1160,16 +1172,16 @@ function drawNodeDecorations(
       MARKER_SQUARE_SIZE_PX,
     );
     // Only reserve horizontal space if an icon follows on the same row.
-    if (node.icon !== undefined) {
+    if (icon !== undefined) {
       cursor += MARKER_SQUARE_SIZE_PX + NODE_DECORATION_GAP_PX;
     }
   }
   const labelStart = cursor + NODE_ICON_SIZE_PX + NODE_DECORATION_GAP_PX;
-  if (node.icon === undefined || width < labelStart) {
+  if (icon === undefined || width < labelStart) {
     return LABEL_PADDING_PX;
   }
   ctx.font = NODE_ICON_FONT_STYLE;
-  ctx.fillText(node.icon, x + cursor, y + (NODE_HEIGHT - 1) / 2);
+  ctx.fillText(icon, x + cursor, y + (NODE_HEIGHT - 1) / 2);
   // Restore the label font, which the caller relies on.
   ctx.font = LABEL_FONT_STYLE;
   return labelStart;
