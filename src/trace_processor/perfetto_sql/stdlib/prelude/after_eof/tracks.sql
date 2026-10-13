@@ -21,6 +21,10 @@
 
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
+INCLUDE PERFETTO MODULE prelude.after_eof.cpu_scheduling;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.gpu;
+
 -- Tracks are a fundamental concept in trace processor and represent a
 -- "timeline" for events of the same type and with the same context. See
 -- https://perfetto.dev/docs/analysis/trace-processor#tracks for a more
@@ -262,6 +266,101 @@ WHERE
     'graphics_frame_event'
   );
 
+CREATE PERFETTO TABLE _track_dimension_data(
+  track_id JOINID(track.id),
+  name STRING,
+  int_value LONG,
+  string_value STRING,
+  display_name STRING,
+  is_well_known BOOL,
+  display_value STRING
+)
+AS
+-- Custom dimensions come from imported declarations; well known values come
+-- from track columns and entity metadata.
+SELECT
+  track_id,
+  name,
+  int_value,
+  string_value,
+  display_name,
+  0 AS is_well_known,
+  coalesce(cast_string!(int_value), string_value) AS display_value
+FROM __intrinsic_track_dimension
+UNION ALL
+SELECT
+  t.id AS track_id,
+  'machine' AS name,
+  t.machine_id AS int_value,
+  NULL AS string_value,
+  m.name AS display_name,
+  1 AS is_well_known,
+  cast_string!(m.label_index) AS display_value
+FROM __intrinsic_track AS t
+LEFT JOIN machine AS m
+  ON m.id = t.machine_id
+UNION ALL
+SELECT
+  t.id AS track_id,
+  'process' AS name,
+  t.upid AS int_value,
+  NULL AS string_value,
+  p.name AS display_name,
+  1 AS is_well_known,
+  cast_string!(p.pid) AS display_value
+FROM __intrinsic_track AS t
+LEFT JOIN process AS p
+  ON p.upid = t.upid
+WHERE
+  t.upid IS NOT NULL
+UNION ALL
+SELECT
+  t.id AS track_id,
+  'thread' AS name,
+  t.utid AS int_value,
+  NULL AS string_value,
+  th.name AS display_name,
+  1 AS is_well_known,
+  cast_string!(th.tid) AS display_value
+FROM __intrinsic_track AS t
+LEFT JOIN thread AS th
+  ON th.utid = t.utid
+WHERE
+  t.utid IS NOT NULL
+UNION ALL
+-- Tracks only have the per machine CPU number: the machine aware id is the one
+-- of the CPU with that number on the machine of the track.
+SELECT
+  t.id AS track_id,
+  'cpu' AS name,
+  c.id AS int_value,
+  NULL AS string_value,
+  NULL AS display_name,
+  1 AS is_well_known,
+  cast_string!(c.cpu) AS display_value
+FROM __intrinsic_track AS t
+JOIN cpu AS c
+  ON c.machine_id = t.machine_id
+  AND c.cpu = extract_arg(t.dimension_arg_set_id, 'cpu')
+UNION ALL
+SELECT
+  t.id AS track_id,
+  'gpu' AS name,
+  extract_arg(t.dimension_arg_set_id, 'ugpu') AS int_value,
+  NULL AS string_value,
+  g.name AS display_name,
+  1 AS is_well_known,
+  cast_string!(g.gpu) AS display_value
+FROM __intrinsic_track AS t
+LEFT JOIN gpu AS g
+  ON g.id = extract_arg(t.dimension_arg_set_id, 'ugpu')
+WHERE
+  extract_arg(t.dimension_arg_set_id, 'ugpu') IS NOT NULL;
+
+CREATE PERFETTO INDEX _track_dimension_data_track_id ON _track_dimension_data(
+  track_id
+);
+
 -- The dimensions of every track.
 --
 -- A dimension is a named, typed key/value which is part of a track's identity.
@@ -288,72 +387,25 @@ CREATE PERFETTO VIEW track_dimension(
   -- The value, for string valued dimensions. Exactly one of `int_value` and
   -- `string_value` is non-null.
   string_value STRING,
-  -- Optional human readable label for this *value*. Presentation only: joins
-  -- should use the canonical value above. Always null for well known
-  -- dimensions: use the corresponding table (e.g. `process.name`) instead.
+  -- Optional human readable label for this *value*: producer-supplied for
+  -- custom dimensions, or the corresponding entity name for well known ones
+  -- (e.g. `process.name`). Presentation only, not part of the identity.
   display_name STRING,
   -- Whether this is a well known dimension, i.e. one which trace processor
   -- understands and whose value means the same thing across data sources.
-  is_well_known BOOL
+  is_well_known BOOL,
+  -- Human readable value: the producer's value for custom dimensions, or the
+  -- CPU/GPU number, pid/tid or machine label index for well known ones. Joins
+  -- and identity use `int_value` / `string_value`, not this presentation text.
+  display_value STRING
 )
 AS
--- Only the custom dimensions are stored: the well known ones are columns or
--- dimension args of the track, so they are added here rather than at import.
-SELECT track_id, name, int_value, string_value, display_name, 0 AS is_well_known
-FROM __intrinsic_track_dimension
-UNION ALL
 SELECT
-  id AS track_id,
-  'machine' AS name,
-  machine_id AS int_value,
-  NULL AS string_value,
-  NULL AS display_name,
-  1 AS is_well_known
-FROM __intrinsic_track
-UNION ALL
-SELECT
-  id AS track_id,
-  'process' AS name,
-  upid AS int_value,
-  NULL AS string_value,
-  NULL AS display_name,
-  1 AS is_well_known
-FROM __intrinsic_track
-WHERE
-  upid IS NOT NULL
-UNION ALL
-SELECT
-  id AS track_id,
-  'thread' AS name,
-  utid AS int_value,
-  NULL AS string_value,
-  NULL AS display_name,
-  1 AS is_well_known
-FROM __intrinsic_track
-WHERE
-  utid IS NOT NULL
-UNION ALL
--- Tracks only have the per machine CPU number: the machine aware id is the one
--- of the CPU with that number on the machine of the track.
-SELECT
-  t.id AS track_id,
-  'cpu' AS name,
-  c.id AS int_value,
-  NULL AS string_value,
-  NULL AS display_name,
-  1 AS is_well_known
-FROM __intrinsic_track AS t
-JOIN cpu AS c
-  ON c.machine_id = t.machine_id
-  AND c.cpu = extract_arg(t.dimension_arg_set_id, 'cpu')
-UNION ALL
-SELECT
-  id AS track_id,
-  'gpu' AS name,
-  extract_arg(dimension_arg_set_id, 'ugpu') AS int_value,
-  NULL AS string_value,
-  NULL AS display_name,
-  1 AS is_well_known
-FROM __intrinsic_track
-WHERE
-  extract_arg(dimension_arg_set_id, 'ugpu') IS NOT NULL;
+  track_id,
+  name,
+  int_value,
+  string_value,
+  display_name,
+  is_well_known,
+  display_value
+FROM _track_dimension_data;

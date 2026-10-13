@@ -2459,3 +2459,105 @@ class TrackEvent(TestSuite):
         "cpu_frequency","cpu=1@349028234,machine=349028234"
         "thread_execution","machine=0,thread"
         """))
+
+  def test_track_event_dimensions_display_values(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { timestamp: 0 gpu_counter_event {
+          gpu_id: 7
+          counter_descriptor { specs { counter_id: 1 name: "GPU Frequency" } }
+        } }
+        packet { timestamp: 100 machine_id: 349028234
+          generic_kernel_cpu_freq_event { cpu: 1 freq_hz: 2500000000 } }
+        packet { timestamp: 0 machine_id: 349028234
+          gpu_counter_event {
+            gpu_id: 0
+            counter_descriptor { specs { counter_id: 1 name: "GPU Frequency" } }
+          } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          incremental_state_cleared: true machine_id: 349028234
+          track_descriptor { uuid: 10 process { pid: 100 process_name: "proc" } } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 200 machine_id: 349028234
+          track_event { track_uuid: 10 type: TYPE_INSTANT name: "p" } }
+        packet { trusted_packet_sequence_id: 2 timestamp: 0
+          incremental_state_cleared: true machine_id: 349028234
+          track_descriptor { uuid: 11 thread { pid: 100 tid: 101 thread_name: "worker" } } }
+        packet { trusted_packet_sequence_id: 2 timestamp: 300 machine_id: 349028234
+          track_event { track_uuid: 11 type: TYPE_INSTANT name: "t" } }
+        packet { timestamp: 400 machine_id: 349028234
+          system_info { machine_name: "training-host" } }
+        packet { timestamp: 400 machine_id: 349028234
+          gpu_info { gpus { name: "training-gpu" } } }
+        """),
+        query="""
+        SELECT DISTINCT
+          d.name,
+          d.display_value,
+          d.display_name,
+          CASE d.name
+            WHEN 'cpu' THEN EXISTS(
+              SELECT 1 FROM cpu
+              WHERE id = d.int_value AND cast_string!(cpu) = d.display_value
+            )
+            WHEN 'gpu' THEN EXISTS(
+              SELECT 1 FROM gpu
+              WHERE id = d.int_value AND cast_string!(gpu) = d.display_value
+            )
+            WHEN 'process' THEN EXISTS(
+              SELECT 1 FROM process
+              WHERE upid = d.int_value AND cast_string!(pid) = d.display_value
+            )
+            WHEN 'thread' THEN EXISTS(
+              SELECT 1 FROM thread
+              WHERE utid = d.int_value AND cast_string!(tid) = d.display_value
+            )
+            WHEN 'machine' THEN EXISTS(
+              SELECT 1 FROM machine
+              WHERE id = d.int_value AND cast_string!(label_index) = d.display_value
+            )
+          END AS canonical_identity_valid
+        FROM track_dimension AS d
+        JOIN track AS t ON t.id = d.track_id
+        JOIN machine AS m ON m.id = t.machine_id
+        WHERE d.is_well_known AND m.raw_id = 349028234
+        ORDER BY d.name;
+        """,
+        out=Csv("""
+        "name","display_value","display_name","canonical_identity_valid"
+        "cpu","1","[NULL]",1
+        "gpu","0","training-gpu",1
+        "machine","1","training-host",1
+        "process","100","proc",1
+        "thread","101","worker",1
+        """))
+
+  def test_track_event_dimensions_custom_display_values(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet { trusted_packet_sequence_id: 1 timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            dimensions { name: "max" int_value: 9223372036854775807 display_name: "largest" }
+            dimensions { name: "min" int_value: -9223372036854775808 }
+            dimensions { name: "stage" string_value: "forward" display_name: "forward pass" }
+            dimensions { name: "empty" string_value: "" }
+            dimensions { name: "zero" int_value: 0 }
+          } }
+        packet { trusted_packet_sequence_id: 1 timestamp: 100
+          track_event { track_uuid: 1 type: TYPE_INSTANT name: "event" } }
+        """),
+        query="""
+        SELECT name, int_value, string_value, display_value, display_name
+        FROM track_dimension
+        WHERE NOT is_well_known
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","int_value","string_value","display_value","display_name"
+        "empty","[NULL]","","","[NULL]"
+        "max",9223372036854775807,"[NULL]","9223372036854775807","largest"
+        "min",-9223372036854775808,"[NULL]","-9223372036854775808","[NULL]"
+        "stage","[NULL]","forward","forward","forward pass"
+        "zero",0,"[NULL]","0","[NULL]"
+        """))
