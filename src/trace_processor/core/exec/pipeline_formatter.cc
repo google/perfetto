@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/number_groups.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
@@ -161,6 +162,11 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
     const auto& null = static_cast<const NullColumn&>(transform);
     return "NullColumn(" + Column(null.column_) + " as " +
            TypeName(null.type_) + ")";
+  }
+  if (transform.Is<NumberGroups>()) {
+    return "NumberGroups(" +
+           Columns(static_cast<const NumberGroups&>(transform).key_columns_) +
+           ")";
   }
   if (transform.Is<TreeNumberNodes>()) {
     const auto& number = static_cast<const TreeNumberNodes&>(transform);

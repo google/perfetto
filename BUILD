@@ -2619,6 +2619,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/interval_intersect.cc",
         "src/trace_processor/core/exec/interval_intersect.h",
         "src/trace_processor/core/exec/layout_column.h",
+        "src/trace_processor/core/exec/number_groups.cc",
+        "src/trace_processor/core/exec/number_groups.h",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/operator.h",
         "src/trace_processor/core/exec/pipeline.cc",

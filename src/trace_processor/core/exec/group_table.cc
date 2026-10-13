@@ -51,32 +51,33 @@ void Gather(const ColumnView& column,
 
 }  // namespace
 
-std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
-                                                 const Selection& selection,
-                                                 uint32_t k,
-                                                 uint32_t count) {
-  int64_t* keys = keys_[k].data();
-  Kind kind;
+std::optional<KeyKind> LoadKeyWords(const ColumnView& column,
+                                    const Selection& selection,
+                                    uint32_t count,
+                                    uint32_t bit,
+                                    int64_t* keys,
+                                    uint64_t* nulls) {
+  KeyKind kind;
   if (column.kind() == ColumnView::Kind::kSequence) {
-    kind = Kind::kInteger;
+    kind = KeyKind::kInteger;
     for (uint32_t row = 0; row < count; ++row) {
       keys[row] = column.Index(selection[row]);
     }
   } else if (column.kind() != ColumnView::Kind::kFlat) {
     return std::nullopt;
   } else if (column.type().Is<Uint32>()) {
-    kind = Kind::kInteger;
+    kind = KeyKind::kInteger;
     Gather<uint32_t>(column, selection, count, keys);
   } else if (column.type().Is<Int32>()) {
-    kind = Kind::kInteger;
+    kind = KeyKind::kInteger;
     Gather<int32_t>(column, selection, count, keys);
   } else if (column.type().Is<Int64>()) {
-    kind = Kind::kInteger;
+    kind = KeyKind::kInteger;
     Gather<int64_t>(column, selection, count, keys);
   } else if (column.type().Is<Double>()) {
     // A double is compared by its bits, made the same for equal values such
     // as 0.0 and -0.0.
-    kind = Kind::kDouble;
+    kind = KeyKind::kDouble;
     const auto* data = static_cast<const double*>(column.data());
     for (uint32_t row = 0; row < count; ++row) {
       keys[row] = static_cast<int64_t>(
@@ -85,7 +86,7 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
   } else if (column.type().Is<String>()) {
     // A string is compared by its interned id. A null string has the null id
     // and is not a null key.
-    kind = Kind::kString;
+    kind = KeyKind::kString;
     Gather<uint32_t>(column, selection, count, keys);
     if (const BitVector* validity = column.validity()) {
       for (uint32_t row = 0; row < count; ++row) {
@@ -101,7 +102,7 @@ std::optional<GroupTable::Kind> GroupTable::Load(const ColumnView& column,
     for (uint32_t row = 0; row < count; ++row) {
       bool valid = validity->is_set(column.Index(selection[row]));
       keys[row] = valid ? keys[row] : 0;
-      nulls_[row] |= uint64_t{!valid} << k;
+      nulls[row] |= uint64_t{!valid} << bit;
     }
   }
   return kind;
@@ -123,8 +124,9 @@ std::optional<uint32_t> GroupTable::FindOrCreate(
   for (uint32_t k = 0; k < columns.size(); ++k) {
     keys_[k].resize(count);
     may_be_null |= batch.column(columns[k]).validity() != nullptr;
-    std::optional<Kind> kind =
-        Load(batch.column(columns[k]), batch.selection(), k, count);
+    std::optional<KeyKind> kind =
+        LoadKeyWords(batch.column(columns[k]), batch.selection(), count, k,
+                     keys_[k].data(), nulls_.data());
     if (!kind || (!first && kinds_[k] != *kind)) {
       // Only keep the first batch's kinds if every column is a valid key.
       if (first) {
