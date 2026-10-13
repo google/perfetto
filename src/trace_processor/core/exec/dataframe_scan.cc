@@ -187,9 +187,7 @@ std::unique_ptr<OperatorState> DataframeScan::MakeState(
       state->expanded.push_back({i, std::move(expanders[i])});
     }
   }
-  if (!state->expanded.empty()) {
-    state->buffers.resize(columns_.size());
-  }
+  state->buffers.resize(columns_.size());
   return state;
 }
 

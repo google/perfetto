@@ -24,7 +24,6 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
@@ -100,8 +99,8 @@ class RowBatch {
 
   // The buffer `column` is onto, null if it borrows its storage.
   const ColumnBuffer& buffer(uint32_t column) const {
-    static const base::NoDestructor<ColumnBuffer> kBorrowed;
-    return column < buffer_count_ ? buffers_[column] : kBorrowed.ref();
+    PERFETTO_DCHECK(column < buffer_count_);
+    return buffers_[column];
   }
 
   // Points this batch at `other`'s columns and rows. Nothing is copied but
@@ -128,10 +127,7 @@ class RowBatch {
   void AddColumn(const ColumnView& view, ColumnBuffer buffer) {
     Own();
     own_columns_.push_back(view);
-    if (buffer) {
-      own_buffers_.resize(own_columns_.size());
-      own_buffers_.back() = std::move(buffer);
-    }
+    own_buffers_.push_back(std::move(buffer));
     Repoint();
   }
   // Adds `view`, onto storage which outlives the run, such as a dataframe's.
@@ -139,10 +135,10 @@ class RowBatch {
   void AddBorrowedColumn(const ColumnView& view) {
     AddColumn(view, ColumnBuffer());
   }
-  // Replaces every column with `views`, lent: each onto the buffer of the
-  // same index in `buffers`, or borrowing its storage past the end of it.
-  // Nothing is copied, so the caller keeps both as they are until it next
-  // fills the batch. Keeps the rows.
+  // Replaces all columns with `views`. `buffers[i]` is the buffer of
+  // `views[i]`, or null if it borrows its storage. Nothing is copied, so the
+  // caller must keep both alive and unchanged until the batch is next filled.
+  // The rows are unchanged.
   void SetColumns(const std::vector<ColumnView>& views,
                   const std::vector<ColumnBuffer>& buffers) {
     SetColumns(views.data(), static_cast<uint32_t>(views.size()),
@@ -152,12 +148,7 @@ class RowBatch {
   void SetColumn(uint32_t column, const ColumnView& view, ColumnBuffer buffer) {
     Own();
     own_columns_[column] = view;
-    if (buffer || column < own_buffers_.size()) {
-      if (column >= own_buffers_.size()) {
-        own_buffers_.resize(column + 1);
-      }
-      own_buffers_[column] = std::move(buffer);
-    }
+    own_buffers_[column] = std::move(buffer);
     Repoint();
   }
 
@@ -174,6 +165,7 @@ class RowBatch {
                   uint32_t view_count,
                   const ColumnBuffer* buffers,
                   uint32_t buffer_count) {
+    PERFETTO_DCHECK(buffer_count == view_count);
     // Buffers kept from before would only be released later.
     own_buffers_.clear();
     owned_ = false;
@@ -204,8 +196,7 @@ class RowBatch {
   // The columns, lent or the batch's own.
   const ColumnView* columns_ = nullptr;
   uint32_t column_count_ = 0;
-  // By column, up to the last column onto a buffer: null for those borrowing
-  // their storage.
+  // The buffer of each column, or null if the column borrows its storage.
   const ColumnBuffer* buffers_ = nullptr;
   uint32_t buffer_count_ = 0;
   bool owned_ = true;
