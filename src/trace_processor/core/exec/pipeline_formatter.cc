@@ -136,7 +136,8 @@ std::string PipelineFormatter::SourceString(const Source& source) {
       out += (i == 0 ? "" : "; ") + Column(operand.ts_column) + ", " +
              Column(operand.dur_column);
       if (!operand.key_columns.empty()) {
-        out += ", keys: " + Columns(operand.key_columns);
+        out += ", keys: " + Columns(operand.key_columns) +
+               ", groups: " + Column(operand.group_column);
       }
     }
     return out + ")";

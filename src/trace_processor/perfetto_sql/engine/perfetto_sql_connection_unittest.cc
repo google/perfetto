@@ -699,7 +699,8 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, testing::ElementsAre("5,5,NULL", "5,5,x"));
 
-  // Keys must be the same type in every operand.
+  // A key that holds strings in one operand and numbers in another is an
+  // error when the plan is lowered.
   EXPECT_THAT(Rows(R"(
     INTERVAL INTERSECTION OF (
       a AS a, (SELECT ts, dur, n AS name FROM b) AS b
@@ -707,7 +708,7 @@ TEST_F(PerfettoSqlConnectionPipelineTest, IntervalIntersectionPerAnyType) {
   )")
                   .status()
                   .message(),
-              testing::HasSubstr("the same in every operand"));
+              testing::HasSubstr("holds strings in one input and numbers"));
 }
 
 TEST_F(PerfettoSqlConnectionPipelineTest, IntervalFlatten) {
