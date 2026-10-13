@@ -145,8 +145,6 @@ class Transform {
   Transform() = default;
 };
 
-enum class BatchPreference : uint8_t { kLatency, kThroughput };
-
 enum class OpResult : uint8_t {
   // `out` holds all the output for this input. An empty `out` means the input
   // produced no rows.
@@ -167,19 +165,9 @@ enum class OpResult : uint8_t {
 // Finish().
 class Operator {
  public:
-  // Fixed when the operator is built.
-  struct Traits {
-    // A preference, never permission to change row order. Downstream finite
-    // demand overrides throughput batching. Blocking remains intrinsic to an
-    // op.
-    BatchPreference preference = BatchPreference::kLatency;
-  };
-
   virtual ~Operator();
   Operator(const Operator&) = delete;
   Operator& operator=(const Operator&) = delete;
-
-  const Traits& traits() const { return traits_; }
 
   virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
@@ -215,10 +203,6 @@ class Operator {
 
  protected:
   Operator() = default;
-  explicit Operator(Traits traits) : traits_(traits) {}
-
- private:
-  Traits traits_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

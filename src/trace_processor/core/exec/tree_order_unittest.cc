@@ -238,7 +238,7 @@ TEST(TreeChildFirstTest, PassesThroughReversesOrSortsTheRows) {
   };
   for (const Case& c : cases) {
     RowSource source(c.rows, 2);
-    Pipeline order(source, NumberAndOrder(Direction::kChildFirst), {});
+    Pipeline order(source, NumberAndOrder(Direction::kChildFirst));
     Output out = Drain(order);
     ASSERT_TRUE(out.status.ok()) << out.status.message();
     ExpectOrdered(out, Direction::kChildFirst, c.rows.size());
@@ -256,7 +256,7 @@ TEST(TreeParentFirstTest, RowsLetGoSpanBatches) {
   }
   rows.push_back({0, std::nullopt, 0});
   RowSource source(rows, 1000);
-  Pipeline order(source, NumberAndOrder(Direction::kParentFirst), {});
+  Pipeline order(source, NumberAndOrder(Direction::kParentFirst));
 
   Output out = Drain(order);
   ASSERT_TRUE(out.status.ok()) << out.status.message();
@@ -276,7 +276,7 @@ TEST(TreeOrderTest, AShuffledTreeComesOutInOrder) {
 
   for (Direction direction : kDirections) {
     RowSource source(rows, 256);
-    Pipeline order(source, NumberAndOrder(direction), {});
+    Pipeline order(source, NumberAndOrder(direction));
     Output out = Drain(order);
     ASSERT_TRUE(out.status.ok()) << out.status.message();
     ExpectOrdered(out, direction, rows.size());
@@ -299,7 +299,7 @@ TEST(TreeOrderTest, ABadTreeIsReported) {
   for (Direction direction : kDirections) {
     for (const Case& c : cases) {
       RowSource source(c.rows, 2);
-      Pipeline order(source, NumberAndOrder(direction), {});
+      Pipeline order(source, NumberAndOrder(direction));
       Output out = Drain(order);
       EXPECT_FALSE(out.status.ok());
       EXPECT_THAT(out.status.message(),
@@ -339,7 +339,7 @@ TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
   auto ops = Number();
   ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
   ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline pipeline(scan, std::move(ops), {});
+  Pipeline pipeline(scan, std::move(ops));
 
   Execution run(pipeline);
   std::vector<uint32_t> ids;

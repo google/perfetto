@@ -89,7 +89,7 @@ const Tree& GetTree() {
 }  // namespace
 
 IntervalFlatten::IntervalFlatten(IntervalFlattenSpec spec)
-    : Operator({BatchPreference::kThroughput}), spec_(std::move(spec)) {
+    : spec_(std::move(spec)) {
   subtract_ = true;
   for (const AggregateCall& call : spec_.aggregates) {
     functions_.push_back(MakeAggregateFunction(call.function));

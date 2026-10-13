@@ -95,7 +95,7 @@ TEST(SortTest, RewindAfterInvalidKeysAndCompletedSort) {
 
 TEST(SortTest, IdsSortAsTheirValues) {
   test::ArraySource source({5, 4, 3});
-  Pipeline sorted(source, SortBy({{0, true}}), {});
+  Pipeline sorted(source, SortBy({{0, true}}));
   base::Status status;
   EXPECT_THAT(Ids(sorted, &status), ElementsAre(2, 1, 0));
 }

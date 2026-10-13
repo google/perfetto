@@ -118,6 +118,7 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   // Groups are output in the order first seen, so if the input is sorted by
   // the keys, the output is too.
   std::vector<SortKey> sorted = c->QuerySortedBy(keys_);
+  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
 
   // The output has one row per group, with a new layout.

@@ -51,7 +51,7 @@ class Breaker : public Operator {
   base::Status status(const OperatorState& state) const final;
 
  protected:
-  Breaker() : Operator(Traits{BatchPreference::kThroughput}) {}
+  Breaker() = default;
 
   // Creates the state for the buffered data.
   virtual std::unique_ptr<State> CreateState() const = 0;
