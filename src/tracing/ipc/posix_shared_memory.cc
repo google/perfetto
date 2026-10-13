@@ -58,6 +58,7 @@ base::StatusOr<std::unique_ptr<PosixSharedMemory>> PosixSharedMemory::Create(
   if (!is_memfd) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     // In-tree builds only allow memfd, so the service can verify the seals.
+    // TODO: if this fails on Android we should fall back on ashmem.
     return base::ErrStatus("memfd_create() failed: %s", strerror(errno));
 #else
     ASSIGN_OR_RETURN(

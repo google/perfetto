@@ -50,7 +50,7 @@ StatusOr<std::string> GetTempFilePathWin() {
   int error = _mktemp_s(path.data(), path.size() + 1);
   if (error != 0)
     return ErrStatus("_mktemp_s() failed: %s", strerror(error));
-  return std::move(path);
+  return path;
 }
 #endif
 
@@ -107,7 +107,9 @@ StatusOr<TempFile> TempFile::Create(LinkMode mode) {
                      GetLastError());
   }
 
-  // On success, _open_osfhandle transfers handle ownership to the descriptor.
+  // According to MSDN, when using _open_osfhandle the caller must not call
+  // CloseHandle(). Ownership is moved to the file descriptor, which then needs
+  // to be closed with just with _close().
   ScopedFile fd(_open_osfhandle(reinterpret_cast<intptr_t>(h.get()), 0));
   if (!fd) {
     auto status = ErrStatus("_open_osfhandle() failed: %s", strerror(errno));

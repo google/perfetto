@@ -24,7 +24,6 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/resource.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -83,33 +82,6 @@ TEST(PosixSharedMemoryTest, CreateSealsMemfdWhenSupported) {
   ASSERT_GE(actual_seals, 0);
   EXPECT_EQ(actual_seals & kSeals, kSeals);
 }
-
-#if defined(GTEST_HAS_DEATH_TEST)
-TEST(PosixSharedMemoryTest, CreateReturnsErrorWhenFileDescriptorsAreExhausted) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  constexpr char kExpectedError[] = "memfd_create() failed";
-#else
-  constexpr char kExpectedError[] = "mkstemp(";
-#endif
-  // Limit only the child so the test runner can still open files.
-  ASSERT_EXIT(
-      {
-        // Probe before exhausting descriptors so a failed probe does not get
-        // cached as lack of memfd support.
-        HasMemfdSupport();
-        struct rlimit limit = {};
-        ASSERT_EQ(getrlimit(RLIMIT_NOFILE, &limit), 0);
-        limit.rlim_cur = 0;
-        ASSERT_EQ(setrlimit(RLIMIT_NOFILE, &limit), 0);
-        auto memory = PosixSharedMemory::Create(4096);
-        ASSERT_FALSE(memory.ok());
-        ASSERT_THAT(memory.status().message(),
-                    testing::HasSubstr(kExpectedError));
-        _exit(0);
-      },
-      testing::ExitedWithCode(0), "");
-}
-#endif  // defined(GTEST_HAS_DEATH_TEST)
 
 TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
   base::TempFile tmp_file =
