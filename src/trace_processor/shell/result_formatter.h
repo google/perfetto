@@ -17,9 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_SHELL_RESULT_FORMATTER_H_
 #define SRC_TRACE_PROCESSOR_SHELL_RESULT_FORMATTER_H_
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +35,8 @@ enum class ResultFormat {
   kCsv,
   // Compact markdown table without alignment padding.
   kMarkdown,
+  // Aligned plain-text table for terminals, printed a page at a time.
+  kTable,
 };
 
 struct ResultFormatOptions {
@@ -49,6 +53,9 @@ struct ResultFormatOptions {
   // Once a result set is over the limits above, at most this many further
   // rows are read before the statement is abandoned.
   uint64_t max_rows_past_limit = 0;
+
+  // kTable only: rows printed before asking whether to print more.
+  uint64_t page_rows = 0;
 };
 
 // Prints a single result set. Rows are passed to AddRow() while the statement
@@ -64,7 +71,15 @@ class ResultFormatter {
 
   // Prints the result set. Called exactly once, after the last row.
   virtual void Finish() = 0;
+
+  // When AddRow() first waited for the user, if it did. Time after that is
+  // not query execution.
+  virtual std::optional<std::chrono::steady_clock::time_point> FirstPromptTime()
+      const;
 };
+
+// The number of UTF-8 code points in |s|, used as its display width.
+size_t CountChars(std::string_view s);
 
 // Cuts |s| to at most |max_chars| UTF-8 code points (no limit if 0), never in
 // the middle of a character. Returns the number of code points dropped.
@@ -73,8 +88,24 @@ uint64_t CutToChars(std::string_view* s, uint64_t max_chars);
 // The marker appended to a cell from which CutToChars() dropped characters.
 std::string CutMarker(uint64_t dropped_chars);
 
+// Appends |s| to |out| with line breaks, tabs and every character in
+// |extra_escapes| escaped with a backslash.
+void AppendEscaped(std::string_view s,
+                   std::string_view extra_escapes,
+                   std::string* out);
+
+// Formats |value| for people to read: NULL as "NULL", doubles in their
+// shortest exact form, bytes as "<N bytes>" and strings cut to |max_chars|
+// (no limit if 0) and escaped by AppendEscaped().
+std::string FormatCellForDisplay(const SqlValue& value,
+                                 uint64_t max_chars,
+                                 std::string_view extra_escapes);
+
 // Markdown options with the limits used unless overridden by flags.
 ResultFormatOptions DefaultMarkdownOptions();
+
+// Table options for the interactive shell, paging every |page_rows| rows.
+ResultFormatOptions DefaultTableOptions(uint64_t page_rows);
 
 std::unique_ptr<ResultFormatter> CreateResultFormatter(
     const ResultFormatOptions& options,

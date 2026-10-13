@@ -5811,6 +5811,8 @@ perfetto_filegroup(
         "src/trace_processor/shell/sql_packages.h",
         "src/trace_processor/shell/summarize_subcommand.cc",
         "src/trace_processor/shell/summarize_subcommand.h",
+        "src/trace_processor/shell/table_result_formatter.cc",
+        "src/trace_processor/shell/table_result_formatter.h",
         "src/trace_processor/shell/util_subcommand.cc",
         "src/trace_processor/shell/util_subcommand.h",
     ],

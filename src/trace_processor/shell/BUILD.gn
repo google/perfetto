@@ -56,6 +56,8 @@ source_set("shell") {
     "sql_packages.h",
     "summarize_subcommand.cc",
     "summarize_subcommand.h",
+    "table_result_formatter.cc",
+    "table_result_formatter.h",
     "util_subcommand.cc",
     "util_subcommand.h",
   ]
@@ -126,6 +128,7 @@ source_set("unittests") {
     "markdown_result_formatter_unittest.cc",
     "shell_utils_unittest.cc",
     "subcommand_flags_unittest.cc",
+    "table_result_formatter_unittest.cc",
   ]
   deps = [
     ":shell",

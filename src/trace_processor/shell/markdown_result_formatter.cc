@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -36,66 +35,9 @@ namespace {
 // if --max-rows is small).
 constexpr size_t kMaxEdgeRows = 20;
 
-// The shortest representation which parses back to the same double. Always
-// contains a '.' or an exponent so that it reads as a floating point value.
-std::string FormatDouble(double d) {
-  char buf[32];
-  snprintf(buf, sizeof(buf), "%.15g", d);
-  if (strtod(buf, nullptr) != d) {
-    snprintf(buf, sizeof(buf), "%.17g", d);
-  }
-  std::string res(buf);
-  if (res.find_first_of(".eni") == std::string::npos) {
-    res += ".0";
-  }
-  return res;
-}
-
-void AppendEscaped(std::string_view s, std::string* out) {
-  for (char c : s) {
-    switch (c) {
-      case '|':
-        *out += "\\|";
-        break;
-      case '\n':
-        *out += "\\n";
-        break;
-      case '\r':
-        *out += "\\r";
-        break;
-      default:
-        *out += c;
-    }
-  }
-}
-
-void AppendString(std::string_view s, uint64_t max_chars, std::string* out) {
-  uint64_t dropped = CutToChars(&s, max_chars);
-  AppendEscaped(s, out);
-  if (dropped) {
-    *out += CutMarker(dropped);
-  }
-}
-
-void AppendCell(const SqlValue& value, uint64_t max_chars, std::string* out) {
-  switch (value.type) {
-    case SqlValue::Type::kNull:
-      *out += "NULL";
-      break;
-    case SqlValue::Type::kLong:
-      *out += std::to_string(value.long_value);
-      break;
-    case SqlValue::Type::kDouble:
-      *out += FormatDouble(value.double_value);
-      break;
-    case SqlValue::Type::kString:
-      AppendString(value.string_value, max_chars, out);
-      break;
-    case SqlValue::Type::kBytes:
-      *out += "<" + std::to_string(value.bytes_count) + " bytes>";
-      break;
-  }
-}
+// Escaped in cells and headers on top of AppendEscaped()'s defaults, as it
+// would end the cell.
+constexpr char kMarkdownEscapes[] = "|";
 
 }  // namespace
 
@@ -118,7 +60,8 @@ std::string MarkdownResultFormatter::FormatRow(const SqlValue* cells) const {
   std::string row = "|";
   for (size_t i = 0; i < column_names_.size(); ++i) {
     row += ' ';
-    AppendCell(cells[i], options_.max_cell_chars, &row);
+    row += FormatCellForDisplay(cells[i], options_.max_cell_chars,
+                                kMarkdownEscapes);
     row += " |";
   }
   return row;
@@ -175,7 +118,7 @@ void MarkdownResultFormatter::Finish() {
   std::string out = "|";
   for (const auto& name : column_names_) {
     out += ' ';
-    AppendEscaped(name, &out);
+    AppendEscaped(name, kMarkdownEscapes, &out);
     out += " |";
   }
   out += "\n|";
