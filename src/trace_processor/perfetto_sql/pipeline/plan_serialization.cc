@@ -182,7 +182,9 @@ std::string PlanWriter::Write() {
   while (
       !plan_.nodes()[id].operation().registration().encoding()->is_source()) {
     stages.push_back(&plan_.nodes()[id]);
-    PERFETTO_CHECK(plan_.nodes()[id].children().size() == 1);
+    // A stage's input is its first child. The stage writes any other children
+    // itself, like FILL GAPS writes its background.
+    PERFETTO_CHECK(!plan_.nodes()[id].children().empty());
     id = plan_.nodes()[id].children()[0];
   }
   const PlanNode& source = plan_.nodes()[id];

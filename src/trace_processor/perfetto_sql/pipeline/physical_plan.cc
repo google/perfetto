@@ -58,11 +58,8 @@ std::vector<SortKey> Without(const std::vector<SortKey>& keys,
   return kept;
 }
 
-// Returns the type that both `a` and `b` convert to without loss. Returns
-// nullopt if one is a string and the other a number.
-//
-// A column of unknown type is checked at runtime to hold the other side's
-// type. For integers the check uses Int64, so it accepts any integer.
+}  // namespace
+
 std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
   if (a.is_null()) {
     return b;
@@ -93,8 +90,6 @@ std::optional<PlanType> CommonType(const PlanType& a, const PlanType& b) {
   }
   return PlanType(core::Int64{});
 }
-
-}  // namespace
 
 Lowering::Lowering(PlanLowering* plan)
     : plan_(plan),
