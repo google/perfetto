@@ -52,7 +52,8 @@ template <typename T>
 void AddDataframe(std::vector<PluginDataframe>& out,
                   T* table,
                   std::vector<std::vector<std::string>> indexes = {}) {
-  out.push_back({&table->dataframe(), T::Name(), std::move(indexes)});
+  out.push_back({&table->dataframe(), T::Name(), std::move(indexes),
+                 T::ForeignKeyTables()});
 }
 
 void InsertIntoBuildFlagsTable(tables::BuildFlagsTable* table,

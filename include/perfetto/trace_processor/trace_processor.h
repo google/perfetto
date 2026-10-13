@@ -327,10 +327,21 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
     virtual std::optional<std::string> GetFilePath() const;
   };
 
+  struct ExportOptions {
+    // Optional inclusive start timestamp in nanoseconds to slice the exported
+    // trace to. Supported for kPerfetto and kArrowTar formats.
+    std::optional<int64_t> start_ts;
+    // Optional inclusive end timestamp in nanoseconds to slice the exported
+    // trace to. Supported for kPerfetto and kArrowTar formats.
+    std::optional<int64_t> end_ts;
+  };
+
   // EXPERIMENTAL: Exports the contents of Trace Processor without
   // materializing the complete output in memory. The exact contents exported
   // are defined by |format|.
-  virtual base::Status Export(ExportFormat format, ExportOutput* output) = 0;
+  virtual base::Status Export(ExportFormat format,
+                              ExportOutput* output,
+                              const ExportOptions& options = {}) = 0;
 
   // =================================================================
   // |  EXPERIMENTAL: Summarizer related functionality starts here   |

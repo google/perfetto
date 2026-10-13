@@ -20804,6 +20804,15 @@ filegroup {
         "src/trace_processor/plugins/trace_export/perfetto_export_manifest.cc",
         "src/trace_processor/plugins/trace_export/perfetto_export_reader.cc",
         "src/trace_processor/plugins/trace_export/trace_export.cc",
+        "src/trace_processor/plugins/trace_export/trace_slicer.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/trace_export:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_trace_export_unittests",
+    srcs: [
+        "src/trace_processor/plugins/trace_export/trace_slicer_unittest.cc",
     ],
 }
 
@@ -24724,6 +24733,7 @@ cc_test {
         ":perfetto_src_trace_processor_plugins_time_functions_time_functions",
         ":perfetto_src_trace_processor_plugins_to_ftrace_to_ftrace",
         ":perfetto_src_trace_processor_plugins_trace_export_trace_export",
+        ":perfetto_src_trace_processor_plugins_trace_export_unittests",
         ":perfetto_src_trace_processor_plugins_tree_functions_tree_functions",
         ":perfetto_src_trace_processor_plugins_type_builder_functions_type_builder_functions",
         ":perfetto_src_trace_processor_plugins_utils_functions_utils_functions",

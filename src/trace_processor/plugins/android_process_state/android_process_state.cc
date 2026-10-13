@@ -43,10 +43,12 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
     EnsureTables();
     out.push_back({&process_state_table_->dataframe(),
                    AndroidProcessStateTable::Name(),
-                   {}});
+                   {},
+                   AndroidProcessStateTable::ForeignKeyTables()});
     out.push_back({&freezer_state_table_->dataframe(),
                    AndroidFreezerStateTable::Name(),
-                   {}});
+                   {},
+                   AndroidFreezerStateTable::ForeignKeyTables()});
   }
 
   void RegisterProtoImporterModules(

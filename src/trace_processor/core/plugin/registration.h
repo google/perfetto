@@ -96,6 +96,11 @@ struct PluginDataframe {
   // Indexes to attach to `dataframe` once it has been finalized. Each
   // entry is the list of column names that form one index.
   std::vector<std::vector<std::string>> indexes;
+
+  // For each column in `dataframe`, the SQL name of the target table if the
+  // column is a foreign key (`CppTableId` / `CppSelfTableId`), or nullptr
+  // otherwise.
+  std::vector<const char*> foreign_key_tables = {};
 };
 
 namespace sqlite {

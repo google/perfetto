@@ -1092,7 +1092,12 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
     sql_name='__intrinsic_heap_graph_object',
     columns=[
         C('upid', CppUint32()),
-        C('graph_sample_ts', CppInt64(), cpp_access=CppAccess.READ),
+        C(
+            'graph_sample_ts',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'self_size',
             CppInt64(),

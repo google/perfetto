@@ -379,7 +379,8 @@ class AndroidFrameworkTrackEventPlugin
     EnsureTable();
     out.push_back({&table_->table().dataframe(),
                    AndroidTrackEventProcessTable::Name(),
-                   {}});
+                   {},
+                   AndroidTrackEventProcessTable::ForeignKeyTables()});
   }
 
   void RegisterProtoImporterModules(

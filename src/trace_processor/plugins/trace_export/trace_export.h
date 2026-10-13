@@ -41,7 +41,8 @@ void RegisterPlugin();
 base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
                          const StringPool& pool,
                          TraceProcessor::ExportFormat format,
-                         TraceProcessor::ExportOutput* output);
+                         TraceProcessor::ExportOutput* output,
+                         const TraceProcessor::ExportOptions& options = {});
 
 }  // namespace perfetto::trace_processor::trace_export
 

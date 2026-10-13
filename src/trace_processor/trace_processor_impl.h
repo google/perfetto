@@ -139,7 +139,9 @@ class TraceProcessorImpl : public TraceProcessor,
   // |    Export    |
   // ================
 
-  base::Status Export(ExportFormat format, ExportOutput* output) override;
+  base::Status Export(ExportFormat format,
+                      ExportOutput* output,
+                      const ExportOptions& options = {}) override;
 
   // ===================
   // |   Summarizer    |

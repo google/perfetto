@@ -256,10 +256,12 @@ ValidatePerfettoExportTables(
         live.begin(), live.end(),
         [&](const PluginDataframe& df) { return df.name == table.name; });
     if (dataframe == live.end()) {
-      return base::ErrStatus(
-          "perfetto_export: archive contains table '%s' which does not exist "
-          "in this version of trace processor",
+      PERFETTO_ELOG(
+          "perfetto_export: skipping table '%s' which does not exist in this "
+          "version of trace processor",
           table.name.c_str());
+      result.push_back({&entry, nullptr});
+      continue;
     }
     if (dataframe->dataframe->row_count() != 0) {
       return base::ErrStatus(

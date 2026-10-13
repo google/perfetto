@@ -229,6 +229,11 @@ class ColumnSerializer:
   def typespec_column_name_literal(self) -> str:
     return f'"{self.name}"'
 
+  def foreign_key_table_literal(self) -> str:
+    if not self.is_implicit_id and self.is_id_type is not None:
+      return f'"{self.is_id_type.sql_name}"'
+    return 'nullptr'
+
   def _get_storage_type_tag(self) -> str:
     if self.is_implicit_id:
       return 'dataframe::Id'
@@ -408,6 +413,8 @@ inline constexpr uint32_t k{self.table_name}ColumnCount = {col_count};
         ColumnSerializer.cursor_setter, delimiter='\n')
     insert_argvalue = self.foreach_col(
         ColumnSerializer.row_insert_arg_value, delimiter=', ')
+    fk_tables = self.foreach_col(
+        ColumnSerializer.foreign_key_table_literal, delimiter=', ')
     return f'''
 class {self.table_name} {{
  public:
@@ -657,6 +664,10 @@ class {self.table_name} {{
 
   static const char* Name() {{
     return "{self.table.sql_name}";
+  }}
+
+  static std::vector<const char*> ForeignKeyTables() {{
+    return {{{fk_tables}}};
   }}
 
   dataframe::Dataframe& dataframe() {{

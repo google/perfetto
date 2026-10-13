@@ -488,5 +488,49 @@ TEST(UtilSubcommandTest, TextToBinaryConvertsTextProto) {
   EXPECT_FALSE(out.empty());
 }
 
+// --- export argument validation ---
+
+TEST(ExportSubcommandTest, RejectsInvalidStartOrEndTs) {
+  {
+    ExportSubcommand exp;
+    GlobalOptions global;
+    SubcommandContext ctx;
+    ctx.global = &global;
+    ASSERT_TRUE(RunParse(&exp, &ctx,
+                         {"prog", "-o", "out.pf", "--start-ts", "abc",
+                          "perfetto", "trace.pb"})
+                    .ok());
+    base::Status s = exp.Run(ctx);
+    EXPECT_FALSE(s.ok());
+    EXPECT_THAT(s.message(), HasSubstr("--start-ts"));
+  }
+  {
+    ExportSubcommand exp;
+    GlobalOptions global;
+    SubcommandContext ctx;
+    ctx.global = &global;
+    ASSERT_TRUE(RunParse(&exp, &ctx,
+                         {"prog", "-o", "out.pf", "--start-ts", "200",
+                          "--end-ts", "100", "perfetto", "trace.pb"})
+                    .ok());
+    base::Status s = exp.Run(ctx);
+    EXPECT_FALSE(s.ok());
+    EXPECT_THAT(s.message(), HasSubstr("must be <="));
+  }
+  {
+    ExportSubcommand exp;
+    GlobalOptions global;
+    SubcommandContext ctx;
+    ctx.global = &global;
+    ASSERT_TRUE(RunParse(&exp, &ctx,
+                         {"prog", "-o", "out.db", "--start-ts", "100", "sqlite",
+                          "trace.pb"})
+                    .ok());
+    base::Status s = exp.Run(ctx);
+    EXPECT_FALSE(s.ok());
+    EXPECT_THAT(s.message(), HasSubstr("not supported for sqlite"));
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::shell

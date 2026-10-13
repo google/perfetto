@@ -1007,6 +1007,63 @@ TEST(TraceProcessorShellIntegrationTest, ExportSubcommandNoOutputFails) {
   EXPECT_NE(result.exit_code, 0);
 }
 
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandPerfettoSlicedE2E) {
+  const std::string systrace = R"(# tracer
+surfaceflinger-598   (  598) [004] .... 10852.771240: tracing_mark_write: B|598|before_slice
+surfaceflinger-598   (  598) [004] .... 10852.771241: tracing_mark_write: E|598
+surfaceflinger-598   (  598) [004] .... 10852.771241: tracing_mark_write: C|598|mem|100
+surfaceflinger-598   (  598) [004] .... 10852.771242: tracing_mark_write: B|598|outer_slice
+surfaceflinger-598   (  598) [004] .... 10852.771244: tracing_mark_write: B|598|inner_slice
+surfaceflinger-598   (  598) [004] .... 10852.771245: tracing_mark_write: E|598
+surfaceflinger-598   (  598) [004] .... 10852.771246: tracing_mark_write: E|598
+surfaceflinger-598   (  598) [004] .... 10852.771246: tracing_mark_write: C|598|mem|250
+surfaceflinger-598   (  598) [004] .... 10852.771247: tracing_mark_write: B|598|tail_slice
+surfaceflinger-598   (  598) [004] .... 10852.771250: tracing_mark_write: E|598
+surfaceflinger-598   (  598) [004] .... 10852.771251: tracing_mark_write: C|598|mem|999
+surfaceflinger-598   (  598) [004] .... 10852.771251: tracing_mark_write: B|598|after_slice
+surfaceflinger-598   (  598) [004] .... 10852.771252: tracing_mark_write: E|598
+)";
+  auto trace = WriteTempFile(systrace);
+  auto out_pf = base::TempFile::Create().ValueOrDie();
+
+  auto exp_res =
+      RunShell({"export", "perfetto", "-o", out_pf.path(), "--start-ts",
+                "10852771243000", "--end-ts", "10852771248000", trace.path()});
+  ASSERT_EQ(exp_res.exit_code, 0) << exp_res.out;
+
+  auto slice_q = RunShell(
+      {"query", out_pf.path(),
+       "SELECT id, name, ts, dur, depth, COALESCE(parent_id, -1) AS pid "
+       "FROM slice ORDER BY id"});
+  ASSERT_EQ(slice_q.exit_code, 0) << slice_q.out;
+  EXPECT_THAT(slice_q.out, Not(HasSubstr("before_slice")));
+  EXPECT_THAT(slice_q.out, Not(HasSubstr("after_slice")));
+  EXPECT_THAT(slice_q.out,
+              HasSubstr("0,\"outer_slice\",10852771243000,3000,0,-1"));
+  EXPECT_THAT(slice_q.out,
+              HasSubstr("1,\"inner_slice\",10852771244000,1000,1,0"));
+  EXPECT_THAT(slice_q.out,
+              HasSubstr("2,\"tail_slice\",10852771247000,1000,0,-1"));
+
+  auto counter_q = RunShell(
+      {"query", out_pf.path(),
+       "SELECT ts, CAST(value AS INT) AS val FROM counter ORDER BY ts"});
+  ASSERT_EQ(counter_q.exit_code, 0) << counter_q.out;
+  EXPECT_THAT(counter_q.out, HasSubstr("10852771243000,100"));
+  EXPECT_THAT(counter_q.out, HasSubstr("10852771246000,250"));
+  EXPECT_THAT(counter_q.out, Not(HasSubstr("999")));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandArrowTarSlicedE2E) {
+  auto trace = WriteSimpleSystrace();
+  auto out_tar = base::TempFile::Create().ValueOrDie();
+  auto exp_res =
+      RunShell({"export", "arrow_tar", "-o", out_tar.path(), "--start-ts",
+                "10852771243000", "--end-ts", "10852771244000", trace.path()});
+  ASSERT_EQ(exp_res.exit_code, 0) << exp_res.out;
+  EXPECT_TRUE(base::FileExists(out_tar.path()));
+}
+
 // ---------------------------------------------------------------------------
 // Subcommand: metrics
 // ---------------------------------------------------------------------------

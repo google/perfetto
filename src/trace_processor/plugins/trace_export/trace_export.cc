@@ -34,6 +34,7 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/plugins/trace_export/perfetto_export_manifest.h"
 #include "src/trace_processor/plugins/trace_export/perfetto_export_reader.h"
+#include "src/trace_processor/plugins/trace_export/trace_slicer.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/util/tar_writer.h"
 
@@ -121,7 +122,8 @@ void RegisterPlugin() {
 base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
                          const StringPool& pool,
                          TraceProcessor::ExportFormat format,
-                         TraceProcessor::ExportOutput* output) {
+                         TraceProcessor::ExportOutput* output,
+                         const TraceProcessor::ExportOptions& options) {
   if (!output) {
     return base::ErrStatus("Export output is null");
   }
@@ -130,12 +132,19 @@ base::Status WriteExport(const std::vector<PluginDataframe>& dataframes,
     return base::ErrStatus("SQLite export must use random-access output");
   }
 
+  std::optional<SlicedDataframes> sliced;
+  const std::vector<PluginDataframe>* active_dataframes = &dataframes;
+  if (options.start_ts.has_value() || options.end_ts.has_value()) {
+    ASSIGN_OR_RETURN(sliced, TraceSlicer::Slice(dataframes, options));
+    active_dataframes = &sliced->dataframes;
+  }
+
   util::TarWriter tar(std::make_unique<ExportTarWriterSink>(output));
   if (format == TraceProcessor::ExportFormat::kArrowTar ||
       format == TraceProcessor::ExportFormat::kPerfetto) {
     bool perfetto = format == TraceProcessor::ExportFormat::kPerfetto;
     std::vector<const PluginDataframe*> tables;
-    for (const PluginDataframe& table : dataframes) {
+    for (const PluginDataframe& table : *active_dataframes) {
       if (perfetto && (table.dataframe->row_count() == 0 ||
                        IsSkippedPerfettoTable(table.name))) {
         continue;

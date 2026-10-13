@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
@@ -24,6 +25,8 @@ source_set("trace_export") {
     "perfetto_export_reader.h",
     "trace_export.cc",
     "trace_export.h",
+    "trace_slicer.cc",
+    "trace_slicer.h",
   ]
   deps = [
     "../..:storage_minimal",
@@ -32,8 +35,10 @@ source_set("trace_export") {
     "../../../base",
     "../../../base:version",
     "../../containers",
+    "../../core/common",
     "../../core/dataframe",
     "../../core/plugin",
+    "../../core/util",
     "../../importers/common",
     "../../storage",
     "../../tables",
@@ -42,5 +47,20 @@ source_set("trace_export") {
     "../../util:tar_writer",
     "../../util:trace_blob_view_reader",
     "../../util:trace_type",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "trace_slicer_unittest.cc" ]
+  deps = [
+    ":trace_export",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/trace_processor",
+    "../../core/dataframe",
+    "../../core/plugin",
+    "../../storage",
+    "../../tables",
   ]
 }

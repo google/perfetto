@@ -203,9 +203,10 @@ base::Status PrintStats(TraceProcessor* tp) {
 
 base::Status ExportTrace(TraceProcessor* trace_processor,
                          TraceProcessor::ExportFormat format,
-                         const std::string& output_name) {
+                         const std::string& output_name,
+                         const TraceProcessor::ExportOptions& options) {
   FileExportOutput output(output_name);
-  return trace_processor->Export(format, &output);
+  return trace_processor->Export(format, &output, options);
 }
 
 }  // namespace perfetto::trace_processor

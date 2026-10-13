@@ -16,6 +16,7 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
@@ -31,7 +32,10 @@ LOG_TABLE = Table(
     class_name="LogTable",
     sql_name="__intrinsic_logs",
     columns=[
-        C("ts", CppInt64(), cpp_access=CppAccess.READ),
+        C("ts",
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C("utid",
           CppOptional(CppTableId(THREAD_TABLE)),
           cpp_access=CppAccess.READ),

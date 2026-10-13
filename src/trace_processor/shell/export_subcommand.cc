@@ -16,11 +16,15 @@
 
 #include "src/trace_processor/shell/export_subcommand.h"
 
+#include <cinttypes>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/subcommand.h"
@@ -36,7 +40,7 @@ const char* ExportSubcommand::description() const {
 }
 
 const char* ExportSubcommand::usage_args() const {
-  return "<format> -o FILE <trace_file>";
+  return "<format> -o FILE [--start-ts TS] [--end-ts TS] <trace_file>";
 }
 
 const char* ExportSubcommand::detailed_help() const {
@@ -51,6 +55,9 @@ Supported formats:
               the same version can load. A different version may also load the
               archive, but this is not guaranteed.
 
+Optional time slicing (--start-ts and/or --end-ts, in nanoseconds) is supported
+for 'perfetto' and 'arrow_tar' formats.
+
 The exact contents exported are defined by the selected format.
 
 The format is the first positional argument, and -o specifies the output
@@ -60,6 +67,14 @@ path.)";
 std::vector<FlagSpec> ExportSubcommand::GetFlags() {
   return {
       StringFlag("output", 'o', "FILE", "Output file path.", &output_path_),
+      StringFlag("start-ts", '\0', "TS",
+                 "Start timestamp in nanoseconds (inclusive) to slice the "
+                 "exported trace.",
+                 &start_ts_str_),
+      StringFlag("end-ts", '\0', "TS",
+                 "End timestamp in nanoseconds (inclusive) to slice the "
+                 "exported trace.",
+                 &end_ts_str_),
   };
 }
 
@@ -83,6 +98,40 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
     return base::ErrStatus("export: -o FILE is required");
   }
 
+  TraceProcessor::ExportOptions export_options;
+  if (!start_ts_str_.empty()) {
+    std::optional<int64_t> val = base::StringToInt64(start_ts_str_);
+    if (!val.has_value() || *val < 0) {
+      return base::ErrStatus(
+          "export: invalid --start-ts '%s' (expected non-negative integer "
+          "nanoseconds)",
+          start_ts_str_.c_str());
+    }
+    export_options.start_ts = *val;
+  }
+  if (!end_ts_str_.empty()) {
+    std::optional<int64_t> val = base::StringToInt64(end_ts_str_);
+    if (!val.has_value() || *val < 0) {
+      return base::ErrStatus(
+          "export: invalid --end-ts '%s' (expected non-negative integer "
+          "nanoseconds)",
+          end_ts_str_.c_str());
+    }
+    export_options.end_ts = *val;
+  }
+  if (export_options.start_ts.has_value() &&
+      export_options.end_ts.has_value() &&
+      *export_options.start_ts > *export_options.end_ts) {
+    return base::ErrStatus("export: --start-ts (%" PRId64
+                           ") must be <= --end-ts (%" PRId64 ")",
+                           *export_options.start_ts, *export_options.end_ts);
+  }
+  if (format == "sqlite" && (export_options.start_ts.has_value() ||
+                             export_options.end_ts.has_value())) {
+    return base::ErrStatus(
+        "export: --start-ts and --end-ts are not supported for sqlite format");
+  }
+
   // Trace file is the second positional argument.
   if (ctx.positional_args.size() < 2) {
     return base::ErrStatus("export: trace file is required");
@@ -104,7 +153,7 @@ base::Status ExportSubcommand::Run(const SubcommandContext& ctx) {
   } else {
     export_format = TraceProcessor::ExportFormat::kPerfetto;
   }
-  return ExportTrace(tp.get(), export_format, output_path_);
+  return ExportTrace(tp.get(), export_format, output_path_, export_options);
 }
 
 }  // namespace perfetto::trace_processor::shell

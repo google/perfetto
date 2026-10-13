@@ -76,8 +76,10 @@ class VideoFrameImporter : public Plugin<VideoFrameImporter> {
 
   void RegisterDataframes(std::vector<PluginDataframe>& out) override {
     EnsureTable();
-    out.push_back(
-        {&table_->dataframe(), tables::AndroidVideoFramesTable::Name(), {}});
+    out.push_back({&table_->dataframe(),
+                   tables::AndroidVideoFramesTable::Name(),
+                   {},
+                   tables::AndroidVideoFramesTable::ForeignKeyTables()});
   }
 
   void RegisterProtoImporterModules(

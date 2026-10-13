@@ -1289,9 +1289,10 @@ class StringExportOutput : public TraceProcessor::ExportOutput {
 };
 
 std::string ExportToString(TraceProcessor* tp,
-                           TraceProcessor::ExportFormat format) {
+                           TraceProcessor::ExportFormat format,
+                           const TraceProcessor::ExportOptions& options = {}) {
   StringExportOutput output;
-  EXPECT_OK(tp->Export(format, &output));
+  EXPECT_OK(tp->Export(format, &output, options));
   return std::move(output.bytes);
 }
 
@@ -1493,6 +1494,122 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportRowCountMismatchRejected) {
 
   auto reimport = TraceProcessor::CreateInstance(Config());
   EXPECT_THAT(ParsePerfettoExport(reimport.get(), tar), IsError());
+}
+
+TEST_F(TraceProcessorIntegrationTest, PerfettoExportSlicedRoundTrip) {
+  ASSERT_OK(LoadTrace("example_android_trace_30s.pb"));
+
+  int64_t trace_start =
+      QuerySingleInt(Processor(), "SELECT start_ts FROM trace_bounds");
+  int64_t trace_end =
+      QuerySingleInt(Processor(), "SELECT end_ts FROM trace_bounds");
+  ASSERT_LT(trace_start, trace_end);
+
+  int64_t span = trace_end - trace_start;
+  int64_t win_start = trace_start + span / 3;
+  int64_t win_end = trace_start + (span * 2) / 3;
+
+  int64_t total_slices =
+      QuerySingleInt(Processor(), "SELECT count() FROM slice");
+  int64_t total_sched =
+      QuerySingleInt(Processor(), "SELECT count() FROM sched");
+
+  // Compute expected intersecting slices and clamped duration sum in SQL.
+  std::string expected_slices_sql =
+      "SELECT count() FROM slice WHERE "
+      "(dur = 0 AND ts >= " +
+      std::to_string(win_start) + " AND ts <= " + std::to_string(win_end) +
+      ") OR (dur < 0 AND ts <= " + std::to_string(win_end) +
+      ") OR (dur > 0 AND ts < " + std::to_string(win_end) + " AND ts + dur > " +
+      std::to_string(win_start) + ")";
+  int64_t expected_slices = QuerySingleInt(Processor(), expected_slices_sql);
+  ASSERT_GT(expected_slices, 0);
+  ASSERT_LT(expected_slices, total_slices);
+
+  std::string expected_sched_sql =
+      "SELECT count() FROM sched WHERE "
+      "(dur = 0 AND ts >= " +
+      std::to_string(win_start) + " AND ts <= " + std::to_string(win_end) +
+      ") OR (dur < 0 AND ts <= " + std::to_string(win_end) +
+      ") OR (dur > 0 AND ts < " + std::to_string(win_end) + " AND ts + dur > " +
+      std::to_string(win_start) + ")";
+  int64_t expected_sched = QuerySingleInt(Processor(), expected_sched_sql);
+  ASSERT_GT(expected_sched, 0);
+  ASSERT_LT(expected_sched, total_sched);
+
+  std::string expected_ftrace_args_sql =
+      "SELECT count() FROM ftrace_event JOIN args USING (arg_set_id) WHERE "
+      "ts >= " +
+      std::to_string(win_start) + " AND ts <= " + std::to_string(win_end);
+  int64_t expected_ftrace_args =
+      QuerySingleInt(Processor(), expected_ftrace_args_sql);
+  ASSERT_GT(expected_ftrace_args, 0);
+
+  TraceProcessor::ExportOptions opts;
+  opts.start_ts = win_start;
+  opts.end_ts = win_end;
+  std::string tar = ExportToString(
+      Processor(), TraceProcessor::ExportFormat::kPerfetto, opts);
+
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(ParsePerfettoExport(reimport.get(), tar));
+
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM slice"),
+            expected_slices);
+  EXPECT_EQ(QuerySingleInt(reimport.get(), "SELECT count() FROM sched"),
+            expected_sched);
+  EXPECT_EQ(QuerySingleInt(reimport.get(),
+                           "SELECT count() FROM ftrace_event JOIN args USING "
+                           "(arg_set_id)"),
+            expected_ftrace_args);
+
+  // Every slice in the reimported trace must start >= win_start and end <=
+  // win_end (for closed slices).
+  EXPECT_EQ(
+      QuerySingleInt(reimport.get(), "SELECT count() FROM slice WHERE ts < " +
+                                         std::to_string(win_start) +
+                                         " OR (dur >= 0 AND ts + dur > " +
+                                         std::to_string(win_end) + ")"),
+      0);
+
+  // Every sched slice must also be clamped within [win_start, win_end].
+  EXPECT_EQ(
+      QuerySingleInt(reimport.get(), "SELECT count() FROM sched WHERE ts < " +
+                                         std::to_string(win_start) +
+                                         " OR (dur >= 0 AND ts + dur > " +
+                                         std::to_string(win_end) + ")"),
+      0);
+
+  // Every thread_state interval must be clamped within [win_start, win_end] and
+  // have no dangling waker_id self-references.
+  EXPECT_EQ(QuerySingleInt(reimport.get(),
+                           "SELECT count() FROM thread_state WHERE ts < " +
+                               std::to_string(win_start) +
+                               " OR (dur >= 0 AND ts + dur > " +
+                               std::to_string(win_end) + ")"),
+            0);
+  EXPECT_EQ(
+      QuerySingleInt(
+          reimport.get(),
+          "SELECT count() FROM thread_state s LEFT JOIN thread_state w ON "
+          "s.waker_id = w.id WHERE s.waker_id IS NOT NULL AND w.id IS NULL"),
+      0);
+
+  // Counter values should have been carried forward to win_start and none
+  // should fall outside [win_start, win_end].
+  EXPECT_EQ(
+      QuerySingleInt(reimport.get(), "SELECT count() FROM counter WHERE ts < " +
+                                         std::to_string(win_start) +
+                                         " OR ts > " + std::to_string(win_end)),
+      0);
+  EXPECT_GT(QuerySingleInt(reimport.get(), "SELECT count() FROM counter"), 0);
+
+  // Parent slice foreign keys must all resolve to valid slice rows (or NULL).
+  EXPECT_EQ(QuerySingleInt(
+                reimport.get(),
+                "SELECT count() FROM slice s LEFT JOIN slice p ON s.parent_id "
+                "= p.id WHERE s.parent_id IS NOT NULL AND p.id IS NULL"),
+            0);
 }
 
 TEST_F(TraceProcessorIntegrationTest, MultiLevelPackageInclude) {

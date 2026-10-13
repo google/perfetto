@@ -1225,11 +1225,17 @@ base::Status TraceProcessorImpl::CreateSummarizer(
 }
 
 base::Status TraceProcessorImpl::Export(ExportFormat format,
-                                        ExportOutput* output) {
+                                        ExportOutput* output,
+                                        const ExportOptions& options) {
   if (!output) {
     return base::ErrStatus("Export output is null");
   }
   if (format == ExportFormat::kSqlite) {
+    if (options.start_ts.has_value() || options.end_ts.has_value()) {
+      return base::ErrStatus(
+          "Time slicing (--start-ts / --end-ts) is not supported for sqlite "
+          "export");
+    }
     std::optional<std::string> path = output->GetFilePath();
     if (!path) {
       return base::ErrStatus("SQLite export requires a file path");
@@ -1245,8 +1251,9 @@ base::Status TraceProcessorImpl::Export(ExportFormat format,
     }
     return ExportSqliteDatabase(this, file_system, *path);
   }
-  return trace_export::WriteExport(
-      plugin_dataframes_, context()->storage->string_pool(), format, output);
+  return trace_export::WriteExport(plugin_dataframes_,
+                                   context()->storage->string_pool(), format,
+                                   output, options);
 }
 
 }  // namespace perfetto::trace_processor

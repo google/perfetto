@@ -489,6 +489,7 @@ perfetto_unittest_source_set("unittests") {
       "plugins/span_join_operator:unittests",
       "plugins/strace:unittests",
       "plugins/string_functions:unittests",
+      "plugins/trace_export:unittests",
       "plugins/video_frame_importer:unittests",
       "sqlite:unittests",
     ]

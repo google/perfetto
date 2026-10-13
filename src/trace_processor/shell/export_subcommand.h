@@ -36,6 +36,8 @@ class ExportSubcommand : public Subcommand {
 
  private:
   std::string output_path_;
+  std::string start_ts_str_;
+  std::string end_ts_str_;
 };
 
 }  // namespace perfetto::trace_processor::shell

@@ -46,7 +46,8 @@ base::Status PrintStats(TraceProcessor* tp);
 // Exports the contents of Trace Processor in |format| to |output_name|.
 base::Status ExportTrace(TraceProcessor* trace_processor,
                          TraceProcessor::ExportFormat format,
-                         const std::string& output_name);
+                         const std::string& output_name,
+                         const TraceProcessor::ExportOptions& options = {});
 
 }  // namespace perfetto::trace_processor
 

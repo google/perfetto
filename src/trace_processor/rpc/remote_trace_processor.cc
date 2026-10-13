@@ -264,7 +264,9 @@ class RemoteSummarizer : public Summarizer {
   std::string id_;
 };
 
-base::Status RemoteTraceProcessor::Export(ExportFormat, ExportOutput*) {
+base::Status RemoteTraceProcessor::Export(ExportFormat,
+                                          ExportOutput*,
+                                          const ExportOptions&) {
   return base::ErrStatus("Export is not supported over remote connections");
 }
 

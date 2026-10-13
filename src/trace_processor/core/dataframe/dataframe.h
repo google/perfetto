@@ -43,6 +43,10 @@ namespace perfetto::trace_processor::util {
 class TraceBlobViewReader;
 }  // namespace perfetto::trace_processor::util
 
+namespace perfetto::trace_processor::trace_export {
+class TraceSlicer;
+}  // namespace perfetto::trace_processor::trace_export
+
 namespace perfetto::trace_processor::core::dataframe {
 
 struct QueryPlanImpl;
@@ -441,6 +445,7 @@ class Dataframe {
   friend class QueryPlanBuilder;
   friend struct QueryPlanImpl;
   friend class ArrowSerializer;
+  friend class perfetto::trace_processor::trace_export::TraceSlicer;
   friend base::StatusOr<Dataframe> DeserializeFromArrow(
       const util::TraceBlobViewReader&,
       StringPool*,

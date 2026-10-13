@@ -5398,6 +5398,8 @@ perfetto_filegroup(
         "src/trace_processor/plugins/trace_export/perfetto_export_reader.h",
         "src/trace_processor/plugins/trace_export/trace_export.cc",
         "src/trace_processor/plugins/trace_export/trace_export.h",
+        "src/trace_processor/plugins/trace_export/trace_slicer.cc",
+        "src/trace_processor/plugins/trace_export/trace_slicer.h",
     ],
 )
 

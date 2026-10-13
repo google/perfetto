@@ -102,6 +102,10 @@ base::Status PerfettoExportTableReader::OnPushDataToSorter() {
                            path.c_str());
   }
   state_->seen[table_idx] = true;
+  if (!table->dataframe) {
+    buffer_ = util::TraceBlobViewReader();
+    return base::OkStatus();
+  }
 
   ASSIGN_OR_RETURN(auto dataframe,
                    core::dataframe::DeserializeFromArrow(
