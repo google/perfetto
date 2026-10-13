@@ -35,7 +35,10 @@ TEST(SyscallTableTest, Arm64) {
   EXPECT_STREQ(t.GetById(293), "sys_rseq");
   EXPECT_EQ(t.GetByName("sys_rseq"), 293u);
 
-  EXPECT_STREQ(t.GetById(457), nullptr);
+  EXPECT_STREQ(t.GetById(79), "sys_newfstatat");
+
+  EXPECT_STREQ(t.GetById(471), "sys_rseq_slice_yield");
+  EXPECT_STREQ(t.GetById(472), nullptr);
   EXPECT_STREQ(t.GetById(kMaxSyscalls), nullptr);
 
   EXPECT_EQ(t.GetByName("sys_non_existent"), std::nullopt);
@@ -55,7 +58,8 @@ TEST(SyscallTableTest, Arm32) {
   EXPECT_STREQ(t.GetById(399), "sys_io_pgetevents");
   EXPECT_EQ(t.GetByName("sys_io_pgetevents"), 399u);
 
-  EXPECT_STREQ(t.GetById(457), nullptr);
+  EXPECT_STREQ(t.GetById(471), "sys_rseq_slice_yield");
+  EXPECT_STREQ(t.GetById(472), nullptr);
   EXPECT_STREQ(t.GetById(kMaxSyscalls), nullptr);
 
   EXPECT_EQ(t.GetByName("sys_non_existent"), std::nullopt);
@@ -78,7 +82,10 @@ TEST(SyscallTableTest, X86_64) {
   EXPECT_STREQ(t.GetById(328), "sys_pwritev2");
   EXPECT_EQ(t.GetByName("sys_pwritev2"), 328u);
 
-  EXPECT_STREQ(t.GetById(335), "");
+  // The calls the kernel's trampolines make, then the gap before x32's.
+  EXPECT_STREQ(t.GetById(335), "sys_uretprobe");
+  EXPECT_STREQ(t.GetById(336), "sys_uprobe");
+  EXPECT_STREQ(t.GetById(337), "");
   EXPECT_STREQ(t.GetById(511), "");
 
   EXPECT_STREQ(t.GetById(548), nullptr);
@@ -100,7 +107,8 @@ TEST(SyscallTableTest, X86) {
   EXPECT_STREQ(t.GetById(386), "sys_rseq");
   EXPECT_EQ(t.GetByName("sys_rseq"), 386);
 
-  EXPECT_STREQ(t.GetById(457), nullptr);
+  EXPECT_STREQ(t.GetById(471), "sys_rseq_slice_yield");
+  EXPECT_STREQ(t.GetById(472), nullptr);
   EXPECT_STREQ(t.GetById(kMaxSyscalls), nullptr);
   EXPECT_EQ(t.GetByName("sys_non_existent"), std::nullopt);
 }
