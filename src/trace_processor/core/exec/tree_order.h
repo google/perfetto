@@ -47,10 +47,15 @@ namespace perfetto::trace_processor::core::exec {
 // column is added.
 class TreeChildFirst : public Breaker {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : Breaker::State {
     ~State() override;
     void Reset() override;
@@ -101,6 +106,9 @@ class TreeChildFirst : public Breaker {
 // numbers, which TreeNumberNodes produces. No column is added.
 class TreeParentFirst : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeParentFirst() override;
 
@@ -112,6 +120,8 @@ class TreeParentFirst : public Operator {
   base::Status status(const OperatorState& state) const override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : OperatorState {
     State() : OperatorState(ResetEachRun{}) {}
     ~State() override;

@@ -71,7 +71,7 @@ std::optional<uint32_t> OrderBy::Prune(std::vector<bool>* needed) {
 
 void OrderBy::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
-  c->SortRows(keys_);
+  c->RequireSorted(keys_);
 }
 
 const OperationRegistration& OrderBy::registration() const {

@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan_test_utils.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -209,9 +210,14 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
       "|> TREE ACCUMULATE DOWN SUM(path) AS path2 "
       "|> TREE ACCUMULATE UP SUM(path2) AS total");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  // Three source columns, two physical tree columns, then three results.
-  // Numbering is reused even when the fold direction changes.
-  EXPECT_EQ((*plan)->columns().back().index, 7u);
+  // The tree is numbered once. Both downward folds share one parent-first
+  // walk, and a new walk is added only when the direction changes.
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
+            "TreeAccumulateDown(#3, #4; SUM(#2)) | "
+            "TreeAccumulateDown(#3, #4; SUM(#5)) | TreeChildFirst(#3, #4) | "
+            "TreeAccumulateUp(#3, #4; SUM(#6))");
   auto rows = Run(**plan, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 210), Pair(1, 150), Pair(2, 50),

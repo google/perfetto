@@ -44,6 +44,9 @@ using test::Sequence;
 // once the whole input is in. A negative value is refused.
 class Reverse final : public Breaker {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit Reverse(uint32_t column = 1) : column_(column) {}
 
  private:

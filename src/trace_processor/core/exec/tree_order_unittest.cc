@@ -53,6 +53,9 @@ struct Row {
 // Emits the rows in batches, refilling a single batch each time.
 class RowSource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   RowSource(std::vector<Row> rows, uint32_t chunk_rows)
       : rows_(std::move(rows)), chunk_rows_(chunk_rows) {}
 
@@ -113,6 +116,9 @@ RowSource::State::~State() = default;
 
 class NumberedSource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   NumberedSource(std::vector<uint32_t> nodes,
                  std::vector<uint32_t> parents,
                  std::vector<int64_t> payloads)

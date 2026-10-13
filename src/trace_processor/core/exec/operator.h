@@ -97,6 +97,16 @@ class Source {
     return base::OkStatus();
   }
 
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
+  }
+
  protected:
   Source() = default;
 };
@@ -119,6 +129,16 @@ class Transform {
   // Why Process() returned false.
   virtual base::Status status(const OperatorState&) const {
     return base::OkStatus();
+  }
+
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
   }
 
  protected:
@@ -181,6 +201,16 @@ class Operator {
   // Why Execute() or Finish() returned kError.
   virtual base::Status status(const OperatorState&) const {
     return base::OkStatus();
+  }
+
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
   }
 
  protected:

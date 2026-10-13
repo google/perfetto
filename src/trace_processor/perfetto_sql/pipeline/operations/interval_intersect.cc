@@ -167,8 +167,8 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   PERFETTO_DCHECK(isect.operands_.size() == children.size());
   // The region's bounds come first, then each operand's carried columns in
   // turn.
-  c->Define(isect.ts_);
-  c->Define(isect.dur_);
+  c->DeclareColumn(isect.ts_);
+  c->DeclareColumn(isect.dur_);
 
   std::vector<ex::IntervalIntersectOperand> inputs;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
@@ -177,22 +177,22 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     // dur to Int64 if needed.
     Lowering& side = c->AddSidePipeline();
     side.LowerNode(children[i]);
-    side.Require(operand.ts, core::Int64{});
-    side.Require(operand.dur, core::Int64{});
+    side.RequireType(operand.ts, core::Int64{});
+    side.RequireType(operand.dur, core::Int64{});
     ex::IntervalIntersectOperand lowered;
-    lowered.ts_column = side.Position(operand.ts);
-    lowered.dur_column = side.Position(operand.dur);
+    lowered.ts_column = side.QueryPosition(operand.ts);
+    lowered.dur_column = side.QueryPosition(operand.dur);
     for (ColumnId key : operand.keys) {
-      lowered.key_columns.push_back(side.Position(key));
+      lowered.key_columns.push_back(side.QueryPosition(key));
     }
     for (ColumnId id : operand.carried) {
-      lowered.retained_columns.push_back(side.Position(id));
+      lowered.retained_columns.push_back(side.QueryPosition(id));
     }
     lowered.source = side.FinishSide();
     inputs.push_back(std::move(lowered));
 
     for (ColumnId id : operand.carried) {
-      c->Define(id);
+      c->DeclareColumn(id);
     }
   }
   c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));

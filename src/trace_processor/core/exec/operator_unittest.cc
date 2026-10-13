@@ -42,6 +42,9 @@ using ::testing::ElementsAre;
 // are scratch for one execution, so they live in the state, not the plan.
 class DropOddRows final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
@@ -83,6 +86,9 @@ std::vector<uint32_t> Drain(const Pipeline& pipeline) {
 // not fit in a single batch.
 class Twice final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }
@@ -141,6 +147,9 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 
   class TwoViewSource final : public Source {
    public:
+    // A local class cannot have static members. No test checks its type.
+    const void* type() const override { return nullptr; }
+
     TwoViewSource(const std::vector<int64_t>* payload,
                   const std::vector<int64_t>* computed)
         : payload_(payload), computed_(computed) {}
@@ -208,6 +217,9 @@ TEST(SinkTest, EofStaysEof) {
 // rows back. A negative `first` makes Finish() fail.
 class Trailer final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   Trailer(int64_t first, uint32_t count) : first_(first), count_(count) {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
@@ -293,6 +305,9 @@ TEST(FinishTest, OperatorsAreFinishedBottomUp) {
 // Keeps every second row in place, remembering the batch it was given.
 class DropOddRowsInPlace final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }

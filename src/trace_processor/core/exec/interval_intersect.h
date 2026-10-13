@@ -59,6 +59,9 @@ struct IntervalIntersectOperand {
 // duration has no bounds to meet anything over, so it covers nothing.
 class IntervalIntersect : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   // Every operand's source must outlive this. Two are the fewest which can
   // have a region in common.
   explicit IntervalIntersect(std::vector<IntervalIntersectOperand>);
@@ -70,6 +73,8 @@ class IntervalIntersect : public Source {
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   std::vector<IntervalIntersectOperand> operands_;
 };
 

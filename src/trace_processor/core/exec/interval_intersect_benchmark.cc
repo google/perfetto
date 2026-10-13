@@ -39,6 +39,9 @@ namespace {
 // ts, dur and one key, handed out as views of their storage.
 class Intervals final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit Intervals(uint32_t rows) {
     for (uint32_t i = 0; i < rows; ++i) {
       ts_.push_back(int64_t{i} * 10);

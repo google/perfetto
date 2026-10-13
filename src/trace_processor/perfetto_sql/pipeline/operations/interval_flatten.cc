@@ -114,16 +114,16 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   const auto& flatten = *this;
   c->LowerNode(node.children()[0]);
 
-  c->Require(flatten.ts_, core::Int64{});
-  c->Require(flatten.dur_, core::Int64{});
-  c->PrepareGroups(flatten.keys_, flatten.ts_);
+  c->RequireType(flatten.ts_, core::Int64{});
+  c->RequireType(flatten.dur_, core::Int64{});
+  c->RequireGrouped(flatten.keys_, flatten.ts_);
   ex::IntervalFlattenSpec spec;
-  spec.ts_column = c->Position(flatten.ts_);
-  spec.dur_column = c->Position(flatten.dur_);
+  spec.ts_column = c->QueryPosition(flatten.ts_);
+  spec.dur_column = c->QueryPosition(flatten.dur_);
   for (ColumnId key : flatten.keys_) {
-    spec.key_columns.push_back(c->Position(key));
+    spec.key_columns.push_back(c->QueryPosition(key));
   }
-  spec.group_column = c->order().group_column;
+  spec.group_column = c->QueryOrder().group_column;
   for (const Aggregate& agg : flatten.aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
@@ -131,15 +131,16 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
 
   // Its rows are the segments, laid out afresh.
   c->ResetLayout();
-  c->Define(flatten.out_ts_);
-  c->Define(flatten.out_dur_);
+  c->DeclareColumn(flatten.out_ts_);
+  c->DeclareColumn(flatten.out_dur_);
   for (ColumnId key : flatten.keys_) {
-    c->Define(key);
+    c->DeclareColumn(key);
   }
   for (const Aggregate& agg : flatten.aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
-  c->SetOrder({flatten.keys_, c->AllocateTemporaryColumn(), {flatten.out_ts_}});
+  c->DeclareOrder(
+      {flatten.keys_, c->DeclareTemporaryColumn(), {flatten.out_ts_}});
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

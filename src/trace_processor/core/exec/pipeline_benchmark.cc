@@ -38,6 +38,9 @@ namespace {
 // Hands out `batches` batches of one row each per run.
 class OneRowBatches final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit OneRowBatches(uint32_t batches) : batches_(batches) {}
 
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
@@ -67,6 +70,9 @@ class OneRowBatches final : public Source {
 
 class PassThroughOperator final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState&) const override {
@@ -77,6 +83,9 @@ class PassThroughOperator final : public Operator {
 
 class PassThroughTransform final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   bool Process(RowBatch&, OperatorState&) const override { return true; }
 };
 

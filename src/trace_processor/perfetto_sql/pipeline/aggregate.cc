@@ -50,8 +50,8 @@ core::exec::AggregateCall LowerAggregate(Lowering* c, const Aggregate& agg) {
     // Double totals. With dynamically typed input, a Double in a later batch
     // may require promoting earlier Int64 values. Picking one numeric type
     // for the whole column may then need a breaker that buffers the input.
-    c->Require(agg.column, core::Int64{});
-    call.column = c->Position(agg.column);
+    c->RequireType(agg.column, core::Int64{});
+    call.column = c->QueryPosition(agg.column);
   }
   return call;
 }

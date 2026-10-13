@@ -44,6 +44,9 @@ using AssertTypeTarget = base::TypeSet<Int64, Double, String>;
 // widen to a float only where the conversion is exact; nothing else converts.
 class AssertType final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   AssertType(uint32_t column, AssertTypeTarget type, std::string name);
   ~AssertType() override;
 
@@ -52,6 +55,8 @@ class AssertType final : public Transform {
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : OperatorState {
     explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
     ~State() override;
@@ -78,6 +83,9 @@ class AssertType final : public Transform {
 // combined with.
 class NullColumn final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   NullColumn(uint32_t column, StorageType type);
   ~NullColumn() override;
 
@@ -85,6 +93,8 @@ class NullColumn final : public Transform {
   bool Process(RowBatch& batch, OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : OperatorState {
     explicit State(Context& c) : context(&c) {}
     ~State() override;
