@@ -345,7 +345,7 @@ void Scan::Lower(Lowering* c, const PlanNode&) const {
   const auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
   for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
     if (!dataframe.columns[i]->sort_state.Is<core::Unsorted>()) {
-      c->DeclareAscendingColumn(scan.columns_[i].id);
+      c->DeclareSorted({{scan.columns_[i].id, false}});
     }
   }
 }

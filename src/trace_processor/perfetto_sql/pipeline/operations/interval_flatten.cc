@@ -116,14 +116,16 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
 
   c->RequireType(flatten.ts_, core::Int64{});
   c->RequireType(flatten.dur_, core::Int64{});
-  c->RequireGrouped(flatten.keys_, flatten.ts_);
+  c->RequireSortedWithinGroups(flatten.keys_, {{flatten.ts_, false}});
   ex::IntervalFlattenSpec spec;
   spec.ts_column = c->QueryPosition(flatten.ts_);
   spec.dur_column = c->QueryPosition(flatten.dur_);
   for (ColumnId key : flatten.keys_) {
     spec.key_columns.push_back(c->QueryPosition(key));
   }
-  spec.group_column = c->QueryOrder().group_column;
+  if (!flatten.keys_.empty()) {
+    spec.group_column = c->RequireGroupNumbers(flatten.keys_);
+  }
   for (const Aggregate& agg : flatten.aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
@@ -139,8 +141,11 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   for (const Aggregate& agg : flatten.aggregates_) {
     c->DeclareColumn(agg.output);
   }
-  c->DeclareOrder(
-      {flatten.keys_, c->DeclareTemporaryColumn(), {flatten.out_ts_}});
+  uint32_t groups = c->DeclareTemporaryColumn();
+  c->DeclareSortedWithinGroups(flatten.keys_, {{flatten.out_ts_, false}});
+  if (!flatten.keys_.empty()) {
+    c->DeclareGroupNumbers(flatten.keys_, groups);
+  }
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {
