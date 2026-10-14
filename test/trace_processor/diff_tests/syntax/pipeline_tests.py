@@ -369,6 +369,16 @@ class PerfettoPipeline(TestSuite):
         """,
         out=ExpectedError('aggregate AVG is not supported yet'))
 
+  def test_distinct_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS id)
+        |> DISTINCT;
+        """,
+        out=ExpectedError('DISTINCT is not supported yet'))
+
   def test_a_pipeline_needs_the_pragma(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),
