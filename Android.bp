@@ -1813,6 +1813,7 @@ filegroup {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -1896,6 +1897,7 @@ java_library {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -3658,6 +3660,7 @@ filegroup {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -3796,6 +3799,7 @@ filegroup {
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/concurrent_session_event.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
@@ -4902,6 +4906,7 @@ genrule {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -5494,6 +5499,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_linux_cpp",
     srcs: [
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
     ],
 }
@@ -5510,6 +5516,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_linux_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/config/linux/cgroup_config.gen.cc",
         "external/perfetto/protos/perfetto/config/linux/journald_config.gen.cc",
     ],
 }
@@ -5526,6 +5533,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_linux_cpp)",
     out: [
+        "external/perfetto/protos/perfetto/config/linux/cgroup_config.gen.h",
         "external/perfetto/protos/perfetto/config/linux/journald_config.gen.h",
     ],
     export_include_dirs: [
@@ -5538,6 +5546,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_linux_lite",
     srcs: [
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
     ],
 }
@@ -5553,6 +5562,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_linux_lite)",
     out: [
+        "external/perfetto/protos/perfetto/config/linux/cgroup_config.pb.cc",
         "external/perfetto/protos/perfetto/config/linux/journald_config.pb.cc",
     ],
 }
@@ -5568,6 +5578,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_linux_lite)",
     out: [
+        "external/perfetto/protos/perfetto/config/linux/cgroup_config.pb.h",
         "external/perfetto/protos/perfetto/config/linux/journald_config.pb.h",
     ],
     export_include_dirs: [
@@ -5580,6 +5591,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_perfetto_config_linux_zero",
     srcs: [
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
     ],
 }
@@ -5596,6 +5608,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_linux_zero)",
     out: [
+        "external/perfetto/protos/perfetto/config/linux/cgroup_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/linux/journald_config.pbzero.cc",
     ],
 }
@@ -5612,6 +5625,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_linux_zero)",
     out: [
+        "external/perfetto/protos/perfetto/config/linux/cgroup_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/linux/journald_config.pbzero.h",
     ],
     export_include_dirs: [
@@ -8538,6 +8552,7 @@ genrule {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -8676,6 +8691,7 @@ genrule {
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/concurrent_session_event.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
@@ -10723,6 +10739,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_linux_cpp",
     srcs: [
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
     ],
 }
 
@@ -10739,6 +10756,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_linux_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/linux/journald_event.gen.cc",
+        "external/perfetto/protos/perfetto/trace/linux/memcg_stats.gen.cc",
     ],
 }
 
@@ -10755,6 +10773,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_linux_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/linux/journald_event.gen.h",
+        "external/perfetto/protos/perfetto/trace/linux/memcg_stats.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -10767,6 +10786,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_linux_lite",
     srcs: [
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
     ],
 }
 
@@ -10782,6 +10802,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_linux_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/linux/journald_event.pb.cc",
+        "external/perfetto/protos/perfetto/trace/linux/memcg_stats.pb.cc",
     ],
 }
 
@@ -10797,6 +10818,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_linux_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/linux/journald_event.pb.h",
+        "external/perfetto/protos/perfetto/trace/linux/memcg_stats.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -10809,6 +10831,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_linux_zero",
     srcs: [
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
     ],
 }
 
@@ -10825,6 +10848,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_linux_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/linux/journald_event.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/linux/memcg_stats.pbzero.cc",
     ],
 }
 
@@ -10841,6 +10865,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_linux_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/linux/journald_event.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/linux/memcg_stats.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -11471,6 +11496,7 @@ filegroup {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -11609,6 +11635,7 @@ filegroup {
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/concurrent_session_event.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
@@ -13889,6 +13916,7 @@ genrule {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -14028,6 +14056,7 @@ genrule {
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/concurrent_session_event.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
@@ -23609,6 +23638,7 @@ java_library {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -23747,6 +23777,7 @@ java_library {
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/concurrent_session_event.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
@@ -24108,6 +24139,7 @@ python_library_host {
         "protos/perfetto/config/inode_file/inode_file_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/interceptors/console_config.proto",
+        "protos/perfetto/config/linux/cgroup_config.proto",
         "protos/perfetto/config/linux/journald_config.proto",
         "protos/perfetto/config/power/android_power_config.proto",
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
@@ -24246,6 +24278,7 @@ python_library_host {
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
         "protos/perfetto/trace/interned_data/interned_data.proto",
         "protos/perfetto/trace/linux/journald_event.proto",
+        "protos/perfetto/trace/linux/memcg_stats.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/perfetto/concurrent_session_event.proto",
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
