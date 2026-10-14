@@ -22711,6 +22711,22 @@ filegroup {
     ],
 }
 
+// GN: //src/traced/probes/cgroup:memcg_fields
+filegroup {
+    name: "perfetto_src_traced_probes_cgroup_memcg_fields",
+    srcs: [
+        "src/traced/probes/cgroup/memcg_fields.cc",
+    ],
+}
+
+// GN: //src/traced/probes/cgroup:unittests
+filegroup {
+    name: "perfetto_src_traced_probes_cgroup_unittests",
+    srcs: [
+        "src/traced/probes/cgroup/memcg_fields_unittest.cc",
+    ],
+}
+
 // GN: //src/traced/probes/common:common
 filegroup {
     name: "perfetto_src_traced_probes_common_common",
@@ -24916,6 +24932,8 @@ cc_test {
         ":perfetto_src_traced_probes_android_log_unittests",
         ":perfetto_src_traced_probes_android_system_property_android_system_property",
         ":perfetto_src_traced_probes_android_system_property_unittests",
+        ":perfetto_src_traced_probes_cgroup_memcg_fields",
+        ":perfetto_src_traced_probes_cgroup_unittests",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_common_test_support",
         ":perfetto_src_traced_probes_common_unittests",
