@@ -72,9 +72,12 @@ const char* TypeName(core::StorageType type) {
 
 std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   std::string out = "#" + std::to_string(id);
-  if (plan.columns()[id].type) {
+  const PlanType& type = plan.columns()[id].type;
+  if (type.is_null()) {
+    out += ":null";
+  } else if (type.storage()) {
     out += ":";
-    out += TypeName(*plan.columns()[id].type);
+    out += TypeName(*type.storage());
   }
   return out;
 }

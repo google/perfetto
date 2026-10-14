@@ -131,8 +131,7 @@ void Compiler::AddAlias(Alias alias) {
   scope_.aliases.push_back(std::move(alias));
 }
 
-ColumnId Compiler::AddColumn(std::string name,
-                             std::optional<core::StorageType> type) {
+ColumnId Compiler::AddColumn(std::string name, PlanType type) {
   return plan_.AddColumn(std::move(name), type);
 }
 
@@ -346,8 +345,8 @@ base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
   uint32_t arg_id = syntaqlite_list_child_id(args, 0);
   ASSIGN_OR_RETURN(aggregate.column, ResolveColumnExpr(arg_id));
   const auto& type = plan_.columns()[aggregate.column].type;
-  if (type && !(type->Is<core::Id>() || type->Is<core::Uint32>() ||
-                type->Is<core::Int32>() || type->Is<core::Int64>())) {
+  if (type.storage() && !(type.Is<core::Id>() || type.Is<core::Uint32>() ||
+                          type.Is<core::Int32>() || type.Is<core::Int64>())) {
     return Expected(arg_id, "an integer column");
   }
   return aggregate;

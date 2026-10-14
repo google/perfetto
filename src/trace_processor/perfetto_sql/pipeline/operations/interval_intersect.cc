@@ -199,8 +199,8 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     for (ColumnId id : operand.carried) {
       lowered.retained_columns.push_back(position(id));
     }
-    c->RequireInt64(operand.ts, lowered.ts_column, &widen);
-    c->RequireInt64(operand.dur, lowered.dur_column, &widen);
+    c->Require({operand.ts, lowered.ts_column, &widen}, core::Int64{});
+    c->Require({operand.dur, lowered.dur_column, &widen}, core::Int64{});
     lowered.source = c->AddOperand(scan.MakeSource(), std::move(widen));
     inputs.push_back(std::move(lowered));
 

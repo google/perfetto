@@ -73,6 +73,28 @@ class AssertType final : public Transform {
   std::string name_;
 };
 
+// Replaces an all-null column with an all-null column of `type`. The planner
+// uses this to give a column of Null type the type of the column it is
+// combined with.
+class NullColumn final : public Transform {
+ public:
+  NullColumn(uint32_t column, StorageType type);
+  ~NullColumn() override;
+
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  bool Process(RowBatch& batch, OperatorState&) const override;
+
+ private:
+  struct State : OperatorState {
+    explicit State(Context& c) : context(&c) {}
+    ~State() override;
+    Context* context;
+  };
+
+  uint32_t column_;
+  StorageType type_;
+};
+
 }  // namespace perfetto::trace_processor::core::exec
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_EXEC_ASSERT_TYPE_H_

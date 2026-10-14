@@ -52,7 +52,7 @@ base::Status OrderBy::BuildPlan(Compiler* c, uint32_t stage) {
         Node<SyntaqlitePerfettoPipeOrderTerm>(c->parser(), term_id);
     ASSIGN_OR_RETURN(ColumnId id, c->ResolveColumnExpr(term->expr));
     const auto& type = c->plan().columns()[id].type;
-    if (type && type->Is<core::String>()) {
+    if (type.Is<core::String>()) {
       return c->Unsupported(term->expr, "ordering by a string column");
     }
     order.keys_.push_back({id, term->sort_order == SYNTAQLITE_SORT_ORDER_DESC});

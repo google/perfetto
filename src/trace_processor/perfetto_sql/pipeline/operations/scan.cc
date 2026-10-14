@@ -39,7 +39,9 @@
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
@@ -54,6 +56,14 @@ namespace analysis = ::perfetto::perfetto_sql::analysis;
 using core::StorageType;
 
 namespace {
+
+bool HoldsNoValues(const dataframe::Column& column, uint32_t rows) {
+  if (rows == 0) {
+    return true;
+  }
+  const core::BitVector* present = column.null_storage.MaybeGetNullBitVector();
+  return present && !present->AnyBitSet();
+}
 
 std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
                                        std::string_view name) {
@@ -186,8 +196,11 @@ Scan Scan::BuildDataframeScan(Compiler* c,
   source.name = std::move(name);
   source.row_count = dataframe.row_count();
   for (const DataframeColumn& column : columns) {
-    Scan::AddScanColumn(c, &scan,
-                        {column.name, dataframe.column_type(column.index)});
+    Scan::AddScanColumn(
+        c, &scan, column.name,
+        HoldsNoValues(dataframe.column(column.index), dataframe.row_count())
+            ? PlanType::Null()
+            : PlanType(dataframe.column_type(column.index)));
     source.column_names.push_back(dataframe.column_names()[column.index]);
     source.columns.push_back(dataframe.shared_column(column.index));
   }
@@ -254,23 +267,27 @@ Scan Scan::BuildSqlScan(Compiler* c,
   // The relation as written, which the SQL building its dataframe reads.
   scan.source_ = c->SourceForNode(from);
   for (const analysis::ColumnLineage& column : lineage.columns()) {
-    std::optional<StorageType> type;
+    PlanType type = PlanType::Unknown();
     if (std::optional<analysis::ColumnType> traced = column.type()) {
-      type = sql_schema::ToStorageType(*traced);
+      StorageType storage = sql_schema::ToStorageType(*traced);
       // An Id only means something in the table it indexes: read through
       // SQL, it is a plain number.
-      if (type->Is<core::Id>()) {
-        type = StorageType{core::Uint32{}};
+      if (storage.Is<core::Id>()) {
+        storage = core::Uint32{};
       }
+      type = storage;
     }
-    Scan::AddScanColumn(c, &scan, {std::string(column.output_name), type});
+    Scan::AddScanColumn(c, &scan, std::string(column.output_name), type);
   }
   return scan;
 }
 
-void Scan::AddScanColumn(Compiler* c, Scan* scan, ColumnSchema column) {
-  ColumnId id = c->AddColumn(column.name, column.type);
-  scan->columns_.push_back({std::move(column.name), id});
+void Scan::AddScanColumn(Compiler* c,
+                         Scan* scan,
+                         std::string name,
+                         PlanType type) {
+  ColumnId id = c->AddColumn(name, type);
+  scan->columns_.push_back({std::move(name), id});
 }
 
 std::optional<uint32_t> Scan::Prune(std::vector<bool>* needed) {
@@ -444,9 +461,13 @@ base::Status Scan::ResolveDataframes(LogicalPlan* logical_plan,
   for (size_t j = 0; j < scan.columns_.size(); ++j) {
     std::optional<uint32_t> i =
         FindScanColumn(*dataframe, data->column_names[j]);
-    const std::optional<core::StorageType>& type =
-        plan.columns()[scan.columns_[j].id].type;
-    if (!i || !type || !(*type == dataframe->column_type(*i))) {
+    const PlanType& type = plan.columns()[scan.columns_[j].id].type;
+    bool same =
+        i &&
+        (type.is_null()
+             ? HoldsNoValues(dataframe->column(*i), dataframe->row_count())
+             : type.storage() && *type.storage() == dataframe->column_type(*i));
+    if (!same) {
       return base::ErrStatus(
           "Pipeline: table '%s' has changed since the pipeline was written",
           data->name.c_str());
@@ -496,7 +517,10 @@ base::Status Scan::BindDataframeArgs(
     }
     // The dataframe was built after the plan was written, so it decides
     // what each column holds.
-    plan.columns()[column.id].type = dataframe->column_type(*i);
+    plan.columns()[column.id].type =
+        HoldsNoValues(dataframe->column(*i), dataframe->row_count())
+            ? PlanType::Null()
+            : PlanType(dataframe->column_type(*i));
     data.column_names.push_back(column.name);
     data.columns.push_back(dataframe->shared_column(*i));
   }

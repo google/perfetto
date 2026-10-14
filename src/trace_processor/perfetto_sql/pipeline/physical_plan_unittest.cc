@@ -194,7 +194,9 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   copy.output().resize(1);
   PruneColumns(copy);
 
-  auto rows = Run(*Lower(*original), "total");
+  auto physical = Lower(*original);
+  ASSERT_TRUE(physical.ok()) << physical.status().message();
+  auto rows = Run(**physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
@@ -296,12 +298,11 @@ TEST_F(PhysicalPlanTest, APlanOutlivesTheTableItReads) {
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
 }
 
-TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
+TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailLowering) {
   CreateTree();
   Exec("UPDATE tree SET self = 'many'");
   auto plan = Plan("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_THAT(Run(**plan, "total").status().message(), HasSubstr("'self'"));
+  EXPECT_THAT(plan.status().message(), HasSubstr("'self'"));
 }
 
 TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
@@ -316,8 +317,7 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   // Neither the original input name nor its value is exposed in the result.
   logical.output() = {{"id", logical.output().front().id},
                       {"renamed_total", logical.output().back().id}};
-  auto physical = std::move(*LowerReadingSql(std::move(logical)));
-  EXPECT_THAT(Run(*physical, "renamed_total").status().message(),
+  EXPECT_THAT(LowerReadingSql(std::move(logical)).status().message(),
               HasSubstr("'self'"));
 }
 
@@ -343,9 +343,10 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
   auto lowered = Lower(*read);
-  EXPECT_THAT(Names(*lowered),
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  EXPECT_THAT(Names(**lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));
-  auto rows = Run(*lowered, "copy");
+  auto rows = Run(**lowered, "copy");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
