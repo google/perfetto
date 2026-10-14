@@ -111,14 +111,6 @@ class Lowering {
     uint32_t parent;
   };
 
-  // The known order of the rows: grouped by `grouped_by` (numbered in
-  // `group_column`), with `ascending` ascending within each group.
-  struct Order {
-    std::vector<ColumnId> grouped_by;
-    uint32_t group_column = 0;
-    std::vector<ColumnId> ascending;
-  };
-
   // A column and the pipeline it is in.
   struct Side {
     Lowering* pipeline;
@@ -169,17 +161,25 @@ class Lowering {
   // returns it. Fails if some sides are strings and others numbers.
   PlanType RequireCommonType(const std::vector<Side>&);
 
-  // Sorts rows by `keys` unless they are already sorted that way. A key of
-  // unknown type must hold integers.
+  // Sorts rows by `keys`. A key of unknown type must hold integers.
   void RequireSorted(const std::vector<SortKey>& keys);
 
-  // Groups rows by `keys`, ordered by `ascending` within each group, adding
-  // only the Sort and GroupBy not already established.
-  void RequireGrouped(const std::vector<ColumnId>& keys, ColumnId ascending);
+  // Groups rows by `keys`, so rows with equal keys are next to each other.
+  // Groups, and rows within a group, can be in any order. Without keys, all
+  // rows are one group.
+  void RequireGrouped(const std::vector<ColumnId>& keys);
 
-  // Orders rows as a tree walk in `direction`, numbering the nodes if needed.
-  // The numbering is reused until ResetLayout. Returns the positions of the
-  // node number columns.
+  // Groups rows by `keys` and sorts each group by `sorted_by`. Without keys,
+  // this sorts all rows.
+  void RequireSortedWithinGroups(const std::vector<ColumnId>& keys,
+                                 const std::vector<SortKey>& sorted_by);
+
+  // Groups rows by `keys` and returns the position of a column holding each
+  // row's group number.
+  uint32_t RequireGroupNumbers(const std::vector<ColumnId>& keys);
+
+  // Orders rows as a tree walk in `direction`, and returns the positions of
+  // the node number columns. The numbering is reused until ResetLayout.
   TreeColumns RequireTreeWalk(ColumnId node, ColumnId parent, TreeDirection);
 
   // ---------------------------------------------------------------------------
@@ -193,11 +193,20 @@ class Lowering {
   // returns its position.
   uint32_t DeclareTemporaryColumn();
 
-  // Records that `column` ascends within each group.
-  void DeclareAscendingColumn(ColumnId column);
+  // Records that rows are sorted by `keys`.
+  void DeclareSorted(const std::vector<SortKey>& keys);
 
-  // Replaces what is known of the order with `order`.
-  void DeclareOrder(Order order);
+  // Records that rows are grouped by `keys`.
+  void DeclareGrouped(const std::vector<ColumnId>& keys);
+
+  // Records that rows are grouped by `keys` and each group is sorted by
+  // `sorted_by`.
+  void DeclareSortedWithinGroups(const std::vector<ColumnId>& keys,
+                                 const std::vector<SortKey>& sorted_by);
+
+  // Records that the column at `position` holds group numbers for `keys`.
+  void DeclareGroupNumbers(const std::vector<ColumnId>& keys,
+                           uint32_t position);
 
   // Clears all declarations, for an operator that outputs new rows. Every
   // column still used must be declared again.
@@ -210,8 +219,9 @@ class Lowering {
   // The batch position of a column declared with DeclareColumn.
   uint32_t QueryPosition(ColumnId id) const;
 
-  // What is known about the order of the rows.
-  const Order& QueryOrder() const { return order_; }
+  // The longest prefix of the known sort order that uses only `columns`.
+  std::vector<SortKey> QuerySortedBy(
+      const std::vector<ColumnId>& columns) const;
 
   // ---------------------------------------------------------------------------
   // Accessors
@@ -222,6 +232,36 @@ class Lowering {
 
  private:
   friend class PlanLowering;
+
+  // A known layout of the rows.
+  struct Arrangement {
+    // The columns the rows are grouped by. Empty means one group.
+    std::vector<ColumnId> grouped_by;
+
+    // The keys each group is sorted by.
+    std::vector<SortKey> sorted_by;
+  };
+
+  // A column holding group numbers.
+  struct GroupNumbers {
+    // The columns the groups are formed by.
+    std::vector<ColumnId> keys;
+
+    // The position of the group number column.
+    uint32_t position;
+  };
+
+  // Whether rows are known to be grouped by `keys` and sorted by `sorted_by`
+  // within each group. Sorting by some keys first also groups by them. For
+  // example, rows sorted by (cpu, ts) are grouped by cpu and sorted by ts in
+  // each group.
+  bool IsArranged(const std::vector<ColumnId>& keys,
+                  const std::vector<SortKey>& sorted_by) const;
+
+  // Adds a GroupedSort that groups by `keys` and sorts each group by
+  // `sorted_by`. The GroupedSort also adds a group number column.
+  void GroupRows(const std::vector<ColumnId>& keys,
+                 const std::vector<SortKey>& sorted_by);
 
   // Converts `side` to `type`. The conversion must be lossless.
   static void Convert(const Side& side, const PlanType& type);
@@ -236,20 +276,29 @@ class Lowering {
   // Layout and order of this pipeline
   // ---------------------------------------------------------------------------
 
-  // Width of the current batch, including temporary columns without IDs.
+  // The number of columns in the current batch, including temporary
+  // columns.
   uint32_t column_count_ = 0;
 
-  // Only live logical columns have a meaningful physical position.
+  // The batch position of each logical column. Only valid for declared
+  // columns.
   std::vector<uint32_t> positions_;
 
-  // Valid while operations preserve the tree. Flattening clears both; sorting
-  // for tree traversal replaces order_ but retains the numbered columns.
-  std::optional<TreeColumns> tree_columns_;
-  std::optional<TreeDirection> tree_direction_;
+  // Every layout known to hold for the current rows. Replaced when a Sort,
+  // GroupedSort or tree walk is added.
+  std::vector<Arrangement> arrangements_;
 
-  // Describes the current rows, not the input plan. Operations which reorder
-  // or replace rows must update this to the guarantees their output provides.
-  Order order_;
+  // The tree walk order of the rows, if they are in one. Replaced at the same
+  // times as `arrangements_`.
+  std::optional<TreeDirection> tree_walk_;
+
+  // The tree node number columns, if the tree is numbered. They stay valid
+  // when rows are reordered, until ResetLayout.
+  std::optional<TreeColumns> tree_columns_;
+
+  // The group number columns. They stay valid when rows are reordered, until
+  // ResetLayout.
+  std::vector<GroupNumbers> group_numbers_;
 
   // ---------------------------------------------------------------------------
   // Execution graph of this pipeline

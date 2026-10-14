@@ -39,6 +39,22 @@ namespace perfetto::trace_processor::pipeline {
 namespace ex = core::exec;
 namespace {
 
+bool Contains(const std::vector<ColumnId>& columns, ColumnId column) {
+  return std::find(columns.begin(), columns.end(), column) != columns.end();
+}
+
+// Returns `keys` without the keys on columns in `drop`.
+std::vector<SortKey> Without(const std::vector<SortKey>& keys,
+                             const std::vector<ColumnId>& drop) {
+  std::vector<SortKey> kept;
+  for (const SortKey& key : keys) {
+    if (!Contains(drop, key.column)) {
+      kept.push_back(key);
+    }
+  }
+  return kept;
+}
+
 // Returns the type that both `a` and `b` convert to without loss. Returns
 // nullopt if one is a string and the other a number.
 //
@@ -149,10 +165,7 @@ PlanType Lowering::RequireCommonType(const std::vector<Side>& sides) {
 }
 
 void Lowering::RequireSorted(const std::vector<SortKey>& keys) {
-  PERFETTO_DCHECK(!keys.empty());
-  const auto& sorted = order_.ascending;
-  if (keys.size() == 1 && !keys[0].descending && order_.grouped_by.empty() &&
-      std::find(sorted.begin(), sorted.end(), keys[0].column) != sorted.end()) {
+  if (IsArranged({}, keys)) {
     return;
   }
   ex::SortSpec sort;
@@ -162,59 +175,46 @@ void Lowering::RequireSorted(const std::vector<SortKey>& keys) {
     }
     sort.keys.push_back({QueryPosition(key.column), key.descending});
   }
-  operators_.push_back(std::make_unique<ex::Sort>(std::move(sort)));
-  order_ = Order();
-  if (!keys[0].descending) {
-    order_.ascending.push_back(keys[0].column);
-  }
-  // The rows are no longer in tree order, but the node numbering is still
-  // valid.
-  tree_direction_.reset();
+  AddOperator(std::make_unique<ex::Sort>(std::move(sort)));
+  arrangements_ = {{{}, keys}};
+  tree_walk_.reset();
 }
 
-void Lowering::RequireGrouped(const std::vector<ColumnId>& keys,
-                              ColumnId ascending) {
-  auto has = [](const std::vector<ColumnId>& ids, ColumnId id) {
-    return std::find(ids.begin(), ids.end(), id) != ids.end();
-  };
-  bool grouped =
-      std::is_permutation(order_.grouped_by.begin(), order_.grouped_by.end(),
-                          keys.begin(), keys.end());
-  if (grouped && has(order_.ascending, ascending)) {
-    return;
+void Lowering::RequireGrouped(const std::vector<ColumnId>& keys) {
+  if (!IsArranged(keys, {})) {
+    GroupRows(keys, {});
   }
-  // Use a single breaker so rows are copied once. It groups by `keys`, if
-  // any, and sorts by `ascending` unless the rows are already sorted.
-  std::vector<ex::SortKey> sort_keys;
-  if (!order_.grouped_by.empty() || !has(order_.ascending, ascending)) {
-    sort_keys.push_back({QueryPosition(ascending), false});
-  }
+}
+
+void Lowering::RequireSortedWithinGroups(
+    const std::vector<ColumnId>& keys,
+    const std::vector<SortKey>& sorted_by) {
+  // Without keys, all rows are one group, so this is a plain sort.
   if (keys.empty()) {
-    if (sort_keys.empty()) {
-      return;
-    }
-    // The rows are reordered, so they no longer follow the tree.
-    tree_direction_.reset();
-    operators_.push_back(
-        std::make_unique<ex::Sort>(ex::SortSpec{std::move(sort_keys)}));
-    order_ = Order();
-    order_.ascending.push_back(ascending);
+    RequireSorted(sorted_by);
     return;
   }
-  ex::GroupedSortSpec spec;
-  for (ColumnId key : keys) {
-    spec.groups.push_back(QueryPosition(key));
+  if (IsArranged(keys, sorted_by)) {
+    return;
   }
-  spec.keys = std::move(sort_keys);
-  bool sorts = !spec.keys.empty();
-  tree_direction_.reset();
-  operators_.push_back(std::make_unique<ex::GroupedSort>(std::move(spec)));
-  // Grouping is stable, so without a sort, any known order is kept.
-  if (sorts) {
-    order_.ascending = {ascending};
+  // Grouping is stable, so if the rows are already sorted by `sorted_by`,
+  // grouping them is enough.
+  GroupRows(keys,
+            IsArranged({}, sorted_by) ? std::vector<SortKey>() : sorted_by);
+}
+
+uint32_t Lowering::RequireGroupNumbers(const std::vector<ColumnId>& keys) {
+  RequireGrouped(keys);
+  for (const GroupNumbers& numbers : group_numbers_) {
+    if (std::is_permutation(numbers.keys.begin(), numbers.keys.end(),
+                            keys.begin(), keys.end())) {
+      return numbers.position;
+    }
   }
-  order_.grouped_by = keys;
-  order_.group_column = column_count_++;
+  // The rows are grouped but have no group numbers. Grouping them again
+  // adds the numbers.
+  GroupRows(keys, {});
+  return group_numbers_.back().position;
 }
 
 Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
@@ -225,10 +225,9 @@ Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
                                                       QueryPosition(parent)));
     tree_columns_ = TreeColumns{column_count_++, column_count_++};
   }
-  if (tree_direction_ == direction) {
+  if (tree_walk_ == direction) {
     return *tree_columns_;
   }
-  order_ = Order();
   if (direction == TreeDirection::kUp) {
     AddOperator(std::make_unique<ex::TreeChildFirst>(tree_columns_->node,
                                                      tree_columns_->parent));
@@ -236,7 +235,8 @@ Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
     AddOperator(std::make_unique<ex::TreeParentFirst>(tree_columns_->node,
                                                       tree_columns_->parent));
   }
-  tree_direction_ = direction;
+  arrangements_.clear();
+  tree_walk_ = direction;
   return *tree_columns_;
 }
 
@@ -248,19 +248,31 @@ uint32_t Lowering::DeclareTemporaryColumn() {
   return column_count_++;
 }
 
-void Lowering::DeclareAscendingColumn(ColumnId column) {
-  order_.ascending.push_back(column);
+void Lowering::DeclareSorted(const std::vector<SortKey>& keys) {
+  arrangements_.push_back({{}, keys});
 }
 
-void Lowering::DeclareOrder(Order order) {
-  order_ = std::move(order);
+void Lowering::DeclareGrouped(const std::vector<ColumnId>& keys) {
+  arrangements_.push_back({keys, {}});
+}
+
+void Lowering::DeclareSortedWithinGroups(
+    const std::vector<ColumnId>& keys,
+    const std::vector<SortKey>& sorted_by) {
+  arrangements_.push_back({keys, sorted_by});
+}
+
+void Lowering::DeclareGroupNumbers(const std::vector<ColumnId>& keys,
+                                   uint32_t position) {
+  group_numbers_.push_back({keys, position});
 }
 
 void Lowering::ResetLayout() {
   column_count_ = 0;
-  order_ = Order();
+  arrangements_.clear();
+  tree_walk_.reset();
   tree_columns_.reset();
-  tree_direction_.reset();
+  group_numbers_.clear();
 }
 
 uint32_t Lowering::QueryPosition(ColumnId id) const {
@@ -268,8 +280,100 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
   return positions_[id];
 }
 
+std::vector<SortKey> Lowering::QuerySortedBy(
+    const std::vector<ColumnId>& columns) const {
+  std::vector<SortKey> longest;
+  for (const Arrangement& arrangement : arrangements_) {
+    if (!arrangement.grouped_by.empty()) {
+      continue;
+    }
+    std::vector<SortKey> keys;
+    for (const SortKey& key : arrangement.sorted_by) {
+      if (!Contains(columns, key.column)) {
+        break;
+      }
+      keys.push_back(key);
+    }
+    if (keys.size() > longest.size()) {
+      longest = std::move(keys);
+    }
+  }
+  return longest;
+}
+
 const LogicalPlan& Lowering::plan() const {
   return plan_->plan();
+}
+
+bool Lowering::IsArranged(const std::vector<ColumnId>& keys,
+                          const std::vector<SortKey>& sorted_by) const {
+  // Sort keys on group columns are constant within a group, so ignore them.
+  std::vector<SortKey> wanted = Without(sorted_by, keys);
+  if (keys.empty() && wanted.empty()) {
+    return true;
+  }
+  for (const Arrangement& arrangement : arrangements_) {
+    // An arrangement grouped by a subset of `keys` can still match if it is
+    // sorted by the remaining keys first.
+    if (!std::all_of(arrangement.grouped_by.begin(),
+                     arrangement.grouped_by.end(),
+                     [&](ColumnId column) { return Contains(keys, column); })) {
+      continue;
+    }
+    std::vector<SortKey> sorted =
+        Without(arrangement.sorted_by, arrangement.grouped_by);
+    std::vector<ColumnId> missing = arrangement.grouped_by;
+    size_t next = 0;
+    while (next < sorted.size() && Contains(keys, sorted[next].column)) {
+      missing.push_back(sorted[next++].column);
+    }
+    if (!std::is_permutation(missing.begin(), missing.end(), keys.begin(),
+                             keys.end())) {
+      continue;
+    }
+    std::vector<SortKey> rest(sorted.begin() + static_cast<ptrdiff_t>(next),
+                              sorted.end());
+    if (rest.size() >= wanted.size() &&
+        std::equal(wanted.begin(), wanted.end(), rest.begin(),
+                   [](const SortKey& a, const SortKey& b) {
+                     return a.column == b.column &&
+                            a.descending == b.descending;
+                   })) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void Lowering::GroupRows(const std::vector<ColumnId>& keys,
+                         const std::vector<SortKey>& sorted_by) {
+  ex::GroupedSortSpec spec;
+  for (ColumnId key : keys) {
+    spec.groups.push_back(QueryPosition(key));
+  }
+  for (const SortKey& key : sorted_by) {
+    if (!plan().columns()[key.column].type.storage()) {
+      RequireType(key.column, core::Int64{});
+    }
+    spec.keys.push_back({QueryPosition(key.column), key.descending});
+  }
+  AddOperator(std::make_unique<ex::GroupedSort>(std::move(spec)));
+  std::vector<Arrangement> kept;
+  if (sorted_by.empty()) {
+    // Grouping is stable, so an order known within groups of a subset of
+    // `keys` still holds within the new groups.
+    for (const Arrangement& arrangement : arrangements_) {
+      if (std::all_of(
+              arrangement.grouped_by.begin(), arrangement.grouped_by.end(),
+              [&](ColumnId column) { return Contains(keys, column); })) {
+        kept.push_back({keys, arrangement.sorted_by});
+      }
+    }
+  }
+  kept.push_back({keys, sorted_by});
+  arrangements_ = std::move(kept);
+  tree_walk_.reset();
+  group_numbers_.push_back({keys, column_count_++});
 }
 
 void Lowering::Convert(const Side& side, const PlanType& type) {

@@ -224,6 +224,42 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
                                  Pair(3, 110)));
 }
 
+// A requirement adds an operator only if the rows do not already meet it.
+TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
+  Exec("CREATE TABLE t(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO t VALUES (5, 10, 1), (0, 10, 0), (7, 1, 1), (2, 1, 0)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  // Rows sorted by (cpu, ts) are also sorted by cpu, but not by ts.
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY cpu"),
+            "main: DataframeScan | Sort(#2, #0)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY ts"),
+            "main: DataframeScan | Sort(#2, #0) | Sort(#0)");
+
+  // Grouping is stable, so rows sorted by ts only need grouping by cpu to be
+  // sorted by ts within each cpu. No second sort is needed.
+  EXPECT_EQ(plan("FROM t |> ORDER BY ts |> INTERVAL FLATTEN PER cpu "
+                 "AGGREGATE COUNT(*) AS n"),
+            "main: DataframeScan | Sort(#0) | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2) | "
+            "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
+
+  // Groups are output in the order first seen, so if the input is sorted by
+  // the key, the groups are too.
+  EXPECT_EQ(
+      plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
+           "cpu |> ORDER BY cpu"),
+      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #0; COUNT(*))");
+  EXPECT_EQ(
+      plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
+           "cpu |> ORDER BY cpu"),
+      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #1; COUNT(*)) | "
+      "Sort(#0)");
+}
+
 // An intersection needs its operands' bounds and PER columns, but only passes
 // on the columns something after it reads: it neither buffers nor gathers
 // the rest.
