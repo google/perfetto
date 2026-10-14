@@ -25,6 +25,7 @@
 #include <atomic>
 #include <optional>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/bits.h"
@@ -49,7 +50,7 @@ namespace perfetto::tracing_v2 {
 // - Each chunk starts with an atomic state word. It records ownership and the
 //   number of published fragments while the chunk belongs to a writer.
 //
-// The ABI assumes little-endian producer and service processes.
+// The ABI assumes producer and service processes with the same byte order.
 
 // Sharing over IPC
 // ----------------
@@ -102,6 +103,9 @@ constexpr size_t kDefaultChunkBudgetBytes = 128 * 1024;
 // Ring buffer header
 // ------------------
 //
+// The diagram shows a little-endian host. On big-endian hosts read_pos and
+// write_pos swap places within rw_positions.
+//
 //   byte offset
 //   0              4              8              12             16
 //   +--------------+--------------+--------------+--------------+
@@ -118,15 +122,14 @@ constexpr size_t kDefaultChunkBudgetBytes = 128 * 1024;
 //   +--------------+--------------+--------------+--------------+
 //   |<---------- three atomic<uint64_t> -------->|
 //
-// Writers check capacity by loading rw_positions once. In memory:
-// - The first four bytes hold read_pos.
-// - The next four bytes hold write_pos.
+// Writers check capacity by loading rw_positions once. Its low 32 bits hold
+// read_pos and its high 32 bits hold write_pos.
 // Keeping both in one atomic avoids combining counters read at different times.
 //
 // The reader is the only one that moves read_pos. It publishes a new value once
 // per drain pass and then wakes any writer parked on a full ring buffer.
-// read_pos is also the first four bytes of rw_positions, which is the address
-// the futex waits on.
+// The futex waits on the 32-bit half of rw_positions that holds read_pos, at
+// kReadPosByteOffset.
 //
 // num_writers_waiting lets the reader skip a futex wake when nobody is waiting
 // for space. It is only an optimization and never decides whether the ring
@@ -166,6 +169,9 @@ static_assert(offsetof(RingBufferHeader, num_writers_waiting) == 8 &&
                   offsetof(RingBufferHeader, reserved) == 40 &&
                   sizeof(RingBufferHeader) == 64,
               "RingBufferHeader does not match the shared-memory ABI");
+
+// Byte offset of read_pos, the low half of rw_positions, in memory.
+constexpr size_t kReadPosByteOffset = PERFETTO_IS_LITTLE_ENDIAN() ? 0 : 4;
 
 // Logical positions and chunk indexing
 // ------------------------------------
@@ -377,6 +383,7 @@ class ChunkIndex {
 // ----------------
 //
 // Each chunk starts with a 32-bit atomic state word (std::atomic<uint32_t>).
+// The diagrams below assume a little-endian host.
 //
 // There are five states:
 // 1. kFree
@@ -475,7 +482,7 @@ enum class ChunkState : uint32_t {
 };
 
 enum class ChunkFormat : uint32_t {
-  // Bytes 4..5 contain a little-endian target BufferID. Payload starts at 6.
+  // Bytes 4..5 contain the target BufferID. Payload starts at 6.
   kTargetBuffer = 0,
 
   // Reserved for a format carrying per-packet routing information.
