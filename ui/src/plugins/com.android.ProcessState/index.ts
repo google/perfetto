@@ -19,7 +19,6 @@ import {
   GRAY,
   makeColorScheme,
 } from '../../components/colorizer';
-import {CounterTrack} from '../../components/tracks/counter_track';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {SliceTrackDetailsPanel} from '../../components/tracks/slice_track_details_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
@@ -34,14 +33,16 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {sqliteString} from '../../base/string_utils';
 import {
+  ProcessExitsAggregator,
+  ProcessStartsAggregator,
   ProcessStateResidencyAggregator,
   ProcessStateTransitionsAggregator,
   processTrackUri,
   TAG_COUNT_TRACK,
   TAG_PROCESS_TRACK,
 } from './aggregators';
+import {ProcessStateCountTrack} from './state_count_track';
 
 const BASE_SCHEMA = {
   id: NUM,
@@ -105,6 +106,12 @@ export default class ProcessState implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new ProcessStateTransitionsAggregator(ctx)),
     );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new ProcessStartsAggregator(ctx)),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new ProcessExitsAggregator(ctx)),
+    );
 
     const group = new TrackNode({
       name: 'Process states',
@@ -150,15 +157,7 @@ export default class ProcessState implements PerfettoPlugin {
       const uri = `${ProcessState.id}#count.${state}`;
       ctx.tracks.registerTrack({
         uri,
-        renderer: CounterTrack.create({
-          trace: ctx,
-          uri,
-          sqlSource: `
-            SELECT ts, concurrency AS value
-            FROM _android_process_state_concurrency
-            WHERE state = ${sqliteString(state)}
-          `,
-        }),
+        renderer: new ProcessStateCountTrack(ctx, uri, state),
         tags: {type: TAG_COUNT_TRACK, state},
         description: `Number of processes concurrently in ${state}.`,
       });

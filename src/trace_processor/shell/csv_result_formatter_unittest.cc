@@ -17,12 +17,14 @@
 #include "src/trace_processor/shell/csv_result_formatter.h"
 
 #include <cstdint>
-#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/shell/result_formatter.h"
 #include "test/gtest_and_gmock.h"
@@ -40,26 +42,18 @@ struct Formatted {
   size_t rows_read = 0;
 };
 
-std::string ReadAll(FILE* file) {
-  std::string res;
-  fseek(file, 0, SEEK_SET);
-  char buf[4096];
-  for (size_t n; (n = fread(buf, 1, sizeof(buf), file)) > 0;) {
-    res.append(buf, n);
-  }
-  fclose(file);
-  return res;
-}
-
 Formatted Format(const ResultFormatOptions& options,
                  std::vector<std::string> columns,
                  const std::vector<Row>& rows) {
-  FILE* output = tmpfile();
-  FILE* notes = tmpfile();
-  PERFETTO_CHECK(output && notes);
+  base::TempFile output = base::TempFile::Create().ValueOrDie();
+  base::TempFile notes = base::TempFile::Create().ValueOrDie();
   Formatted res;
   {
-    CsvResultFormatter formatter(options, std::move(columns), output, notes);
+    base::ScopedFstream output_stream = base::OpenFstream(output.path(), "w");
+    base::ScopedFstream notes_stream = base::OpenFstream(notes.path(), "w");
+    PERFETTO_CHECK(output_stream && notes_stream);
+    CsvResultFormatter formatter(options, std::move(columns), *output_stream,
+                                 *notes_stream);
     for (const Row& row : rows) {
       ++res.rows_read;
       if (!formatter.AddRow(row.data())) {
@@ -68,8 +62,8 @@ Formatted Format(const ResultFormatOptions& options,
     }
     formatter.Finish();
   }
-  res.output = ReadAll(output);
-  res.notes = ReadAll(notes);
+  PERFETTO_CHECK(base::ReadFile(output.path(), &res.output));
+  PERFETTO_CHECK(base::ReadFile(notes.path(), &res.notes));
   return res;
 }
 
