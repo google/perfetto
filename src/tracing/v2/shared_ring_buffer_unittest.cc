@@ -17,6 +17,7 @@
 #include "src/tracing/v2/shared_ring_buffer.h"
 
 #include <stdint.h>
+#include <string.h>
 
 #include <atomic>
 #include <thread>
@@ -69,11 +70,9 @@ uint32_t CompleteWord(WriterID writer, uint32_t num_fragments) {
 // accessors, so that a test observing the ring buffer cannot be fooled by a bug
 // in them.
 uint32_t PeekStateWord(SharedRingBuffer* ring, ChunkIndex chunk_idx) {
-  const uint8_t* chunk = ring->chunk_at(chunk_idx);
-  return static_cast<uint32_t>(chunk[0]) |
-         (static_cast<uint32_t>(chunk[1]) << 8) |
-         (static_cast<uint32_t>(chunk[2]) << 16) |
-         (static_cast<uint32_t>(chunk[3]) << 24);
+  uint32_t state_word;
+  memcpy(&state_word, ring->chunk_at(chunk_idx), sizeof(state_word));
+  return state_word;
 }
 
 // Spins until |condition| holds. Bounded: returns false after a deadline no
