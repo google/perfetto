@@ -1174,6 +1174,10 @@ void TraceBufferV2::CopyChunkUntrusted(
     DeleteStaleEmptySequences();
 }
 
+bool TraceBufferV2::supports_tracing_v2() const {
+  return true;
+}
+
 bool TraceBufferV2::CopyChunkV2Untrusted(
     const PacketSequenceProperties& sequence,
     const protozero::ConstBytes* fragments,
@@ -1586,6 +1590,10 @@ std::unique_ptr<TraceBuffer> TraceBufferV2::CloneReadOnly() const {
   if (!buf->data_.IsValid())
     return nullptr;  // PagedMemory::Allocate() failed. We are out of memory.
   return buf;
+}
+
+TraceBufferProtoVms* TraceBufferV2::protovms() {
+  return &protovms_;
 }
 
 size_t TraceBufferV2::GetMemoryUsageBytes() const {

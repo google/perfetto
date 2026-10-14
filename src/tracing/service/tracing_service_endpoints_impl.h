@@ -131,9 +131,9 @@ class ProducerEndpointImpl
   void DrainV2RingBuffer() override;
 
   // tracing_v2::ServiceRingBufferDrainer::Delegate implementation.
-  TraceBufferV2* GetRingBufferDestination(BufferID) override;
-  void ForEachRingBufferDestination(
-      const std::function<void(TraceBufferV2&)>& callback) override;
+  TraceBuffer* GetV2RingBufferDestination(BufferID) override;
+  void ForEachV2RingBufferDestination(
+      const std::function<void(TraceBuffer&)>& callback) override;
   void OnRingBufferChunksDiscarded(uint64_t count) override;
 
   // Mapping size for the memory guardrail. Zero if no ring buffer is attached.

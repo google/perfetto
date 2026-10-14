@@ -299,11 +299,8 @@ class TracingServiceImpl : public TracingService {
                      bool success);
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
-  // Returns nullptr if there is no buffer with this ID, or if |type| is set
-  // and does not match the buffer type.
-  TraceBuffer* GetBufferByID(
-      BufferID,
-      std::optional<TraceBuffer::BufType> type = std::nullopt);
+  // Returns nullptr if there is no buffer with this ID.
+  TraceBuffer* GetBufferByID(BufferID);
   void FlushDataSourceInstances(
       TracingSession*,
       uint32_t timeout_ms,
