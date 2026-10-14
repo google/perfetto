@@ -17,11 +17,14 @@
 #include "src/trace_processor/shell/markdown_result_formatter.h"
 
 #include <cstdint>
-#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/shell/result_formatter.h"
 #include "test/gtest_and_gmock.h"
@@ -42,11 +45,12 @@ struct Formatted {
 Formatted Format(const ResultFormatOptions& options,
                  std::vector<std::string> columns,
                  const std::vector<Row>& rows) {
-  FILE* file = tmpfile();
-  PERFETTO_CHECK(file);
+  base::TempFile tmp = base::TempFile::Create().ValueOrDie();
   Formatted res;
   {
-    MarkdownResultFormatter formatter(options, std::move(columns), file);
+    base::ScopedFstream file = base::OpenFstream(tmp.path(), "w");
+    PERFETTO_CHECK(file);
+    MarkdownResultFormatter formatter(options, std::move(columns), *file);
     for (const Row& row : rows) {
       ++res.rows_read;
       if (!formatter.AddRow(row.data())) {
@@ -55,12 +59,7 @@ Formatted Format(const ResultFormatOptions& options,
     }
     formatter.Finish();
   }
-  fseek(file, 0, SEEK_SET);
-  char buf[4096];
-  for (size_t n; (n = fread(buf, 1, sizeof(buf), file)) > 0;) {
-    res.output.append(buf, n);
-  }
-  fclose(file);
+  PERFETTO_CHECK(base::ReadFile(tmp.path(), &res.output));
   return res;
 }
 
