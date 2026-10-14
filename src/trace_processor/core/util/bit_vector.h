@@ -26,6 +26,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/endian.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/bits.h"
 #include "perfetto/public/compiler.h"
@@ -85,9 +86,8 @@ struct BitVector {
 
   // Allocates a new BitVector of `size` bits from a packed bitmap of
   // ceil(size / 8) bytes holding bit i at byte i / 8, bit i % 8. This is the
-  // layout of the words below, so the bitmap is taken verbatim.
+  // little-endian layout of the words below.
   static BitVector CreateFromBitmap(const uint8_t* bitmap, uint64_t size) {
-    static_assert(PERFETTO_IS_LITTLE_ENDIAN());
     if (size == 0) {
       return {};
     }
@@ -97,6 +97,9 @@ struct BitVector {
     memcpy(words.data(), bitmap, bitmap_bytes);
     memset(reinterpret_cast<uint8_t*>(words.data()) + bitmap_bytes, 0,
            word_bytes - bitmap_bytes);
+    for (uint64_t& word : words) {
+      word = base::LEToHost(word);
+    }
     // Bits past `size` are unspecified in the source bitmap.
     if (size % 64u != 0u) {
       words.back() &= (1ull << (size % 64u)) - 1ull;
