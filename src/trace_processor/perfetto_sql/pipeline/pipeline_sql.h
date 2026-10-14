@@ -27,6 +27,10 @@
 
 namespace perfetto::trace_processor::pipeline {
 
+// -----------------------------------------------------------------------------
+// SQL integration
+// -----------------------------------------------------------------------------
+
 // The table function which runs a serialized plan. It outputs at most
 // kMaxPipelineColumns columns.
 inline constexpr char kPipelineFunction[] = "__intrinsic_pipeline";
@@ -53,6 +57,14 @@ PlanWithDataframeArgs MoveSqlSourcesToDataframeArgs(LogicalPlan plan);
 // serialized into the SQL, and each relation it reads from SQL is built into a
 // dataframe where that SQL runs, so it sees whatever is in scope there.
 base::StatusOr<std::string> SelectPipelineSql(const LogicalPlan& plan);
+
+// -----------------------------------------------------------------------------
+// SQL quoting
+// -----------------------------------------------------------------------------
+
+std::string QuoteIdentifier(const std::string& name);
+
+std::string QuoteString(const std::string& text);
 
 }  // namespace perfetto::trace_processor::pipeline
 

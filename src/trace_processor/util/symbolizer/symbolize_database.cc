@@ -41,6 +41,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/util/build_id.h"
+#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/symbolizer/breakpad_symbolizer.h"
 #include "src/trace_processor/util/symbolizer/local_symbolizer.h"
 #include "src/trace_processor/util/symbolizer/symbolizer.h"
@@ -52,6 +53,7 @@
 namespace perfetto::profiling {
 
 namespace {
+using trace_processor::ColdStableSortByKeyDescending;
 using trace_processor::Iterator;
 
 // Runtime mapping start/end addresses do not affect symbolization. Group by
@@ -462,11 +464,9 @@ std::vector<UnresolvedGroup> GroupUnresolved(const SymbolizerResult& result) {
   }
   // Largest first, so the short report names the mappings that matter most.
   for (auto& group : groups) {
-    std::stable_sort(
+    ColdStableSortByKeyDescending(
         group.mappings.begin(), group.mappings.end(),
-        [](const UnresolvedMapping& a, const UnresolvedMapping& b) {
-          return a.frame_count > b.frame_count;
-        });
+        [](const UnresolvedMapping& m) { return m.frame_count; });
   }
   return groups;
 }
@@ -796,7 +796,7 @@ void FormatUnresolvedSummary(bool colorize,
 }
 
 // One line of counts for the run, plus any server that could not be reached.
-// Warnings about missing tools are printed even when nothing was looked up.
+// Warnings are printed even when nothing was looked up.
 void FormatDebuginfod(bool colorize,
                       const DebuginfodStats& stats,
                       std::string* out) {
@@ -903,6 +903,7 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
     result.error_details =
         "no symbol paths were searched. Pass --symbol-paths PATH1,PATH2,... "
         "or enable automatic symbol path discovery.";
+    result.debuginfod.warnings = config.debuginfod.disabled_warning;
     CollectResults(mappings, &result);
     return result;
   }
@@ -942,6 +943,9 @@ SymbolizerResult SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                                 &result.symbols);
     }
   }
+  result.debuginfod.warnings += config.debuginfod.llvm_opts_warning;
+  if (unresolved)
+    result.debuginfod.warnings += config.debuginfod.disabled_warning;
   CollectResults(mappings, &result);
 
   if (result.llvm_symbolizer_unavailable &&

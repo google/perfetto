@@ -17,11 +17,7 @@ INCLUDE PERFETTO MODULE android.gpu.frequency;
 
 INCLUDE PERFETTO MODULE android.gpu.mali_power_state;
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.device_infos;
-
-INCLUDE PERFETTO MODULE wattson.utils;
 
 -- GPU power state which is analogous to CPU idle state
 CREATE PERFETTO TABLE _pvr_gpu_power_state(
@@ -107,28 +103,15 @@ WITH
   )
 SELECT * FROM nominal_power_states;
 
+-- GPU frequency and power state over the regions where both are defined.
+CREATE PERFETTO TABLE _gpu_freq_idle_raw AS
+INTERVAL INTERSECTION OF (
+  _gapless_gpu_freq AS freq,
+  _gapless_gpu_power_state AS idle
+)
+|> SELECT ts, dur, freq.freq, freq.prev_freq, freq.next_freq, idle.power_state;
+
 CREATE PERFETTO TABLE _gpu_freq_idle AS
-WITH
-  base AS (
-    SELECT
-      ii.ts,
-      ii.dur,
-      freq.freq,
-      freq.prev_freq,
-      freq.next_freq,
-      idle.power_state
-    FROM _interval_intersect!(
-    (
-      _ii_subquery!(_gapless_gpu_freq),
-      _ii_subquery!(_gapless_gpu_power_state)
-    ),
-    ()
-  ) AS ii
-    JOIN _gapless_gpu_freq AS freq
-      ON freq._auto_id = id_0
-    JOIN _gapless_gpu_power_state AS idle
-      ON idle._auto_id = id_1
-  )
 SELECT
   ts,
   dur,
@@ -146,4 +129,4 @@ SELECT
     freq
   ) AS freq,
   iif(power_state = 2 AND freq = 0, 1, power_state) AS power_state
-FROM base;
+FROM _gpu_freq_idle_raw;

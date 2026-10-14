@@ -16,6 +16,8 @@ import("../../../gn/perfetto.gni")
 
 source_set("shell") {
   sources = [
+    "agent_mode.cc",
+    "agent_mode.h",
     "bundle_subcommand.cc",
     "bundle_subcommand.h",
     "common_flags.cc",
@@ -24,12 +26,16 @@ source_set("shell") {
     "convert_helpers.h",
     "convert_subcommand.cc",
     "convert_subcommand.h",
+    "csv_result_formatter.cc",
+    "csv_result_formatter.h",
     "export_subcommand.cc",
     "export_subcommand.h",
     "interactive.cc",
     "interactive.h",
     "interactive_subcommand.cc",
     "interactive_subcommand.h",
+    "markdown_result_formatter.cc",
+    "markdown_result_formatter.h",
     "metatrace.cc",
     "metatrace.h",
     "metrics.cc",
@@ -40,6 +46,8 @@ source_set("shell") {
     "query.h",
     "query_subcommand.cc",
     "query_subcommand.h",
+    "result_formatter.cc",
+    "result_formatter.h",
     "server_subcommand.cc",
     "server_subcommand.h",
     "shell_utils.cc",
@@ -48,6 +56,8 @@ source_set("shell") {
     "sql_packages.h",
     "summarize_subcommand.cc",
     "summarize_subcommand.h",
+    "table_result_formatter.cc",
+    "table_result_formatter.h",
     "util_subcommand.cc",
     "util_subcommand.h",
   ]
@@ -73,6 +83,7 @@ source_set("shell") {
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
     "../util:json_value",
+    "../util:simple_json_serializer",
     "../util:stdlib",
     "../util:tar_writer",
     "../util/deobfuscation:deobfuscator",
@@ -110,10 +121,14 @@ source_set("subcommands") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "agent_mode_unittest.cc",
     "convert_helpers_unittest.cc",
+    "csv_result_formatter_unittest.cc",
     "find_subcommand_unittest.cc",
+    "markdown_result_formatter_unittest.cc",
     "shell_utils_unittest.cc",
     "subcommand_flags_unittest.cc",
+    "table_result_formatter_unittest.cc",
   ]
   deps = [
     ":shell",

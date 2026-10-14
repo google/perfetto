@@ -117,9 +117,8 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
   }
 
   if (interactive_) {
-    RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(), InteractiveOptions{20u, format, ctx.global->metric_extensions,
-                                     metrics, &pool, ctx.global->quiet}));
+    RETURN_IF_ERROR(
+        StartInteractiveShell(tp.get(), InteractiveOptions{ctx.global->quiet}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));

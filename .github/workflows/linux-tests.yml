@@ -172,3 +172,54 @@ jobs:
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+
+  # Counts the instructions of the benchmarks listed in
+  # test/benchmark_instructions.txt and fails if any moved beyond the
+  # threshold without the baseline being updated. Needs an optimized,
+  # unsanitized x86-64 build, which no config above is, so it builds only the
+  # benchmarks.
+  instructions:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    env:
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-instructions
+      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-instructions
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Restore cache
+        uses: ./.github/actions/cache-on-google-cloud-storage/restore
+        with:
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+
+      - name: Setup ccache
+        uses: ./.github/actions/setup-ccache
+
+      - uses: ./.github/actions/install-build-deps
+
+      - name: Run GN
+        shell: bash
+        run: tools/gn gen out/dist --args='is_debug=false cc_wrapper="ccache"' --check
+
+      - name: Build
+        shell: bash
+        run: tools/ninja -C out/dist perfetto_benchmarks
+
+      - name: Check instruction counts
+        shell: bash
+        # valgrind comes with the sandbox image; until an image with it is
+        # deployed, skip rather than fail.
+        run: |
+          if ! command -v valgrind >/dev/null; then
+            echo "::warning::valgrind is not installed: instruction counts not checked"
+            exit 0
+          fi
+          tools/bench_instructions out/dist/perfetto_benchmarks
+
+      - name: Update cache (if on main)
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/cache-on-google-cloud-storage/save
+        with:
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}

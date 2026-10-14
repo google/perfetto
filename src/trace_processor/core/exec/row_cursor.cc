@@ -21,22 +21,24 @@
 namespace perfetto::trace_processor::core::exec {
 
 RowCursor::RowCursor(const Source& source)
-    : source_(source), state_(source.MakeState()) {}
+    : source_(source), state_(source.MakeState(context_)) {}
 
 RowCursor::~RowCursor() = default;
 
 bool RowCursor::Pull() {
-  do {
-    batch_.Reset();
-    if (!source_.GetData(batch_, *state_)) {
+  for (;;) {
+    batch_ = source_.Next(scratch_, *state_);
+    if (!batch_) {
       index_ = 0;
       size_ = 0;
       return false;
     }
-  } while (batch_.size() == 0);
-  index_ = 0;
-  size_ = batch_.size();
-  return true;
+    if (batch_->size()) {
+      index_ = 0;
+      size_ = batch_->size();
+      return true;
+    }
+  }
 }
 
 }  // namespace perfetto::trace_processor::core::exec

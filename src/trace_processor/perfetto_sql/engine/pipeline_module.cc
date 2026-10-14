@@ -101,7 +101,7 @@ void ResultVariant(sqlite3_context* ctx,
                    StringPool* pool,
                    const ColumnView& view,
                    uint32_t row) {
-  Variant cell = view.Value<Variant>(row);
+  Variant cell = view.At<Variant>(row);
   switch (cell.type) {
     case Variant::Type::kNull:
       return sqlite::result::Null(ctx);
@@ -120,7 +120,7 @@ void ResultFlat(sqlite3_context* ctx,
                 StringPool* pool,
                 const ColumnView& view,
                 uint32_t row) {
-  uint32_t index = view.selection().GetIndex(row);
+  uint32_t index = view.Index(row);
   if constexpr (Nullable) {
     if (!view.validity()->is_set(index)) {
       return sqlite::result::Null(ctx);
@@ -140,7 +140,7 @@ void ResultSequence(sqlite3_context* ctx,
                     StringPool*,
                     const ColumnView& view,
                     uint32_t row) {
-  uint32_t index = view.selection().GetIndex(row);
+  uint32_t index = view.Index(row);
   if (view.validity() && !view.validity()->is_set(index)) {
     return sqlite::result::Null(ctx);
   }
@@ -420,7 +420,7 @@ int PipelineModule::Column(sqlite3_vtab_cursor* cursor,
                            int n) {
   Cursor* c = GetCursor(cursor);
   const auto& column = c->columns[static_cast<uint32_t>(n)];
-  column.result(ctx, c->pool, *column.view, c->rows->row());
+  column.result(ctx, c->pool, *column.view, c->rows->batch_row());
   return SQLITE_OK;
 }
 

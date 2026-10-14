@@ -24,9 +24,9 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/type_set.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/buffer_pool.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -42,29 +42,28 @@ using AssertTypeTarget = base::TypeSet<Int64, Double, String>;
 // flat column already of the requested type passes through unchanged; a flat
 // integer column of any other type is copied into a widened one. Integers
 // widen to a float only where the conversion is exact; nothing else converts.
-class AssertType : public Operator {
+class AssertType final : public Transform {
  public:
   AssertType(uint32_t column, AssertTypeTarget type, std::string name);
   ~AssertType() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
-  OpResult Execute(const RowBatch& in,
-                   RowBatch& out,
-                   OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  bool Process(RowBatch& batch, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
   struct State : OperatorState {
+    explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
     ~State() override;
-    // The converted column, holding values of the target type.
-    BufferPool<ColumnChunk> buffers;
+    void Reset() override;
+    // What the converted column is written in.
+    Context* context;
     base::Status status = base::OkStatus();
   };
 
   // The buffer in `chunk` holding values of the target type.
   const void* Data(const ColumnChunk& chunk) const;
-  bool Widen(const ColumnView&, uint32_t count, ColumnChunk&, State&) const;
+  bool Widen(const ColumnView&, const Selection&, ColumnChunk&, State&) const;
 
   uint32_t column_;
   AssertTypeTarget target_;

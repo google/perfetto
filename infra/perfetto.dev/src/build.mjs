@@ -773,15 +773,15 @@ async function buildGeneratedMarkdown(genDir) {
     searchUrl: "/docs/analysis/sql-tables",
   });
 
-  // -- PerfettoSQL standard library. Two python steps: the .sql files become
-  // JSON, the JSON becomes markdown. ui/build.mjs already calls the first one
-  // the same way -- with a plain recursive listing rather than the GN metadata
-  // walk that used to collect these paths.
+  // -- PerfettoSQL standard library. gen_stdlib_docs_md.py parses the .sql
+  // files itself; the inputs listed here are only for memoization.
   const stdlibDir = pjoin(ROOT_DIR, "src/trace_processor/perfetto_sql/stdlib");
   const sqlFiles = listFilesRecursive(stdlibDir, (f) => f.endsWith(".sql"));
-  const stdlibJson = pjoin(genDir, "stdlib_docs.json");
+  const sqlProcessingPys = listFilesRecursive(
+    pjoin(ROOT_DIR, "python/generators/sql_processing"),
+    (f) => f.endsWith(".py"),
+  );
   const stdlibMd = pjoin(genDir, "stdlib_docs.md");
-  const stdlibJsonPy = pjoin(ROOT_DIR, "tools/gen_stdlib_docs_json.py");
   const stdlibMdPy = pjoin(SRC_DIR, "gen_stdlib_docs_md.py");
   out.push({
     name: "stdlib-docs",
@@ -789,18 +789,12 @@ async function buildGeneratedMarkdown(genDir) {
       "gen:stdlib",
       [
         ...sqlFiles.map((f) => ({ file: f })),
-        { file: stdlibJsonPy },
+        ...sqlProcessingPys.map((f) => ({ file: f })),
+        { file: pjoin(ROOT_DIR, "python/perfetto/trace_data_checks.py") },
         { file: stdlibMdPy },
       ],
       () => {
-        exec("python3", [stdlibJsonPy, "--json-out", stdlibJson, ...sqlFiles]);
-        exec("python3", [
-          stdlibMdPy,
-          "--input",
-          stdlibJson,
-          "--output",
-          stdlibMd,
-        ]);
+        exec("python3", [stdlibMdPy, "--output", stdlibMd]);
         return fs.readFileSync(stdlibMd, "utf8");
       },
     ),

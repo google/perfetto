@@ -34,7 +34,7 @@ zooms in and out.
 
 ## Track Event Selections
 
-Selecting entities on the tace is the primary way to dig into events of a trace
+Selecting entities on the trace is the primary way to dig into events of a trace
 and reveal more data about those events.
 
 Select a track event by clicking on it. Details about the selected event will

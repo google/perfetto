@@ -79,8 +79,9 @@ pragma.
 
 ## What Goes in SQL vs. the Pipeline?
 
-Pipe syntax is being built incrementally. Today, pipelines support two trace
-operators, `INTERVAL INTERSECTION OF` and `TREE ACCUMULATE`, and six
+Pipe syntax is being built incrementally. Today, pipelines support three trace
+operations, `INTERVAL INTERSECTION OF`, `INTERVAL FLATTEN`, and
+`TREE ACCUMULATE`, and six
 column-reshaping stages: `SELECT`, `EXTEND`, `DROP`, `RENAME`, `SET`, and `AS`.
 
 When migrating a query today, split the work between SQL and the pipeline as
@@ -90,9 +91,11 @@ follows:
 | :--- | :--- |
 | Filtering rows, standard `JOIN`s, `GROUP BY`, window functions, and computed expressions | Inside the `FROM (SELECT ...)` source subquery, or in a standard SQL query over the resulting `PERFETTO TABLE`. |
 | Intersecting time intervals across two or more tables | `INTERVAL INTERSECTION OF (...) [PER ...]` at the start of a pipeline. |
+| Counting or summing concurrent activity within one set of intervals | `\|> INTERVAL FLATTEN [PER ...] AGGREGATE COUNT(*) AS active` stage; see the [worked example](/docs/analysis/perfetto-sql-pipe-getting-started.md#flattening-overlapping-intervals-interval-flatten). |
 | Summing values up or down a parent-child tree | `\|> TREE ACCUMULATE UP \| DOWN SUM(col) AS total` stage. |
 | Picking, dropping, renaming, or swapping columns | `\|> SELECT`, `\|> EXTEND`, `\|> DROP`, `\|> RENAME`, `\|> SET`, `\|> AS` stages. |
-| Sorting final output or limiting rows | In a `SELECT` with `ORDER BY` or `LIMIT` over the `PERFETTO TABLE` created by the pipeline. |
+| Sorting final output by numeric columns | `\|> ORDER BY col [DESC]` as the last stage. |
+| Sorting by strings or expressions, or limiting rows | In a `SELECT` with `ORDER BY` or `LIMIT` over the `PERFETTO TABLE` created by the pipeline. |
 
 > **Note:** A pipeline can be run as a top-level statement or as the body of
 > `CREATE [OR REPLACE] PERFETTO TABLE ... AS <pipeline>`. It cannot yet be used
@@ -256,7 +259,7 @@ FROM _heap_graph_class_tree
 4. **Preserve `ORDER BY id` on public tables if required.**
    `TREE ACCUMULATE UP` emits rows in child-first order, and `DOWN` emits rows
    in parent-first order. If a public stdlib table or test expects rows sorted
-   by `id`, query the resulting table with `SELECT ... ORDER BY id`.
+   by `id`, end the pipeline with `|> ORDER BY id`.
 
 ---
 

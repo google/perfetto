@@ -21,11 +21,7 @@ import {
   type VerticalBounds,
 } from '../../base/geom';
 import type {TimeScale} from '../../base/time_scale';
-import {
-  ALL_CATEGORIES,
-  type Flow,
-  getFlowCategories,
-} from './flow_types';
+import {ALL_CATEGORIES, type Flow, getFlowCategories} from './flow_types';
 import type {FlowManager} from './flow_manager';
 import type {TraceImpl} from '../../core/trace_impl';
 import type {TrackNode} from '../../public/workspace';

@@ -469,7 +469,7 @@ void BytecodeLowering::LowerEmpty() {
     bc.arg<B::dest_span_register>() = span_reg;
   }
   indices_reg_ = span_reg;
-  SetRows(logical::RowEstimate{0, 0});
+  SetRows(core::RowEstimate{0, 0});
 }
 
 void BytecodeLowering::LowerDistinct(const logical::Distinct& d) {
@@ -733,12 +733,12 @@ void BytecodeLowering::LowerOutput(const logical::Output& out) {
   plan_.params.output_register = storage_update_register;
 }
 
-i::ReadHandle<i::CastFilterValueResult> BytecodeLowering::EmitCastFilterValue(
-    uint32_t value_index,
-    const StorageType& type,
-    const NonNullOp& op) {
-  i::RwHandle<i::CastFilterValueResult> value_reg =
-      builder_.AllocateRegister<i::CastFilterValueResult>();
+i::ReadHandle<filter::CastFilterValueResult>
+BytecodeLowering::EmitCastFilterValue(uint32_t value_index,
+                                      const StorageType& type,
+                                      const NonNullOp& op) {
+  i::RwHandle<filter::CastFilterValueResult> value_reg =
+      builder_.AllocateRegister<filter::CastFilterValueResult>();
   {
     using B = i::CastFilterValueBase;
     auto& bc = AddOpcode<B>(i::Index<i::CastFilterValue>(type));
@@ -749,12 +749,12 @@ i::ReadHandle<i::CastFilterValueResult> BytecodeLowering::EmitCastFilterValue(
   return value_reg;
 }
 
-i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>>
+i::RwHandle<std::unique_ptr<filter::CastFilterValueListResult>>
 BytecodeLowering::EmitCastFilterValueList(uint32_t value_index,
                                           const StorageType& type) {
-  i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>> value =
-      builder_
-          .AllocateRegister<std::unique_ptr<i::CastFilterValueListResult>>();
+  i::RwHandle<std::unique_ptr<filter::CastFilterValueListResult>> value =
+      builder_.AllocateRegister<
+          std::unique_ptr<filter::CastFilterValueListResult>>();
   {
     using B = i::CastFilterValueListBase;
     auto& bc = AddOpcode<B>(i::Index<i::CastFilterValueList>(type));

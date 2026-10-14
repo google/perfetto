@@ -69,21 +69,18 @@ void MergeAllowlistedOptions(
     const std::vector<ProtoFile::Option>& upstream,
     std::vector<ProtoFile::Option>& out,
     const std::unordered_set<std::string>& allowlisted_options) {
-  if (allowlisted_options.empty() || upstream.empty())
+  if (allowlisted_options.empty())
     return;
 
-  for (const auto& upstream_opt : upstream) {
-    if (IsAllowlistedOption(upstream_opt.key, allowlisted_options)) {
-      auto it = std::find_if(out.begin(), out.end(),
-                             [&](const ProtoFile::Option& opt) {
-                               return opt.key == upstream_opt.key;
-                             });
-      if (it != out.end()) {
-        it->value = upstream_opt.value;
-      } else {
-        out.push_back(upstream_opt);
-      }
-    }
+  auto is_allowlisted = [&](const ProtoFile::Option& opt) {
+    return IsAllowlistedOption(opt.key, allowlisted_options);
+  };
+
+  out.erase(std::remove_if(out.begin(), out.end(), is_allowlisted), out.end());
+
+  for (const auto& opt : upstream) {
+    if (is_allowlisted(opt))
+      out.push_back(opt);
   }
 }
 
@@ -506,6 +503,7 @@ base::Status MergeRecursive(
       input_or_fake = *input_item;
     } else {
       input_or_fake.name = upstream_item.name;
+      input_or_fake.extensions_statements = upstream_item.extensions_statements;
     }
 
     auto allowlist = opt_allowlist.value_or(AllowlistType{});
@@ -529,6 +527,23 @@ base::Status Merge(const ProtoFile::Message& input,
   // Get the comments from the source of truth.
   out.leading_comments = upstream.leading_comments;
   out.trailing_comments = upstream.trailing_comments;
+
+  // Keep the input's `extensions` statements; take comments from upstream.
+  out.extensions_statements = input.extensions_statements;
+  for (auto& statement : out.extensions_statements) {
+    if (statement.ranges.empty())
+      continue;
+    int first_field_number = statement.ranges[0].start_number;
+    for (const auto& upstream_statement : upstream.extensions_statements) {
+      for (const auto& upstream_range : upstream_statement.ranges) {
+        // Also matches split ranges, e.g. `1001 to max` vs `1000 to max`.
+        if (upstream_range.ContainsFieldNumber(first_field_number)) {
+          statement.leading_comments = upstream_statement.leading_comments;
+          statement.trailing_comments = upstream_statement.trailing_comments;
+        }
+      }
+    }
+  }
 
   // Compute all the values present in the input but deleted in the
   // source of truth.
@@ -574,8 +589,21 @@ base::Status Merge(const ProtoFile::Message& input,
   // Finish by merging the list of fields.
   FieldParams field_params{allowlist.fields, upstream.reserved_numbers,
                            deleted_type_names};
-  return MergeFields(input.fields, upstream.fields, field_params, ctx,
-                     out.fields);
+  status =
+      MergeFields(input.fields, upstream.fields, field_params, ctx, out.fields);
+  if (!status.ok())
+    return status;
+
+  // New upstream fields may fall inside the input's ranges; cut them out.
+  for (auto& statement : out.extensions_statements) {
+    for (const auto& field : out.fields)
+      statement.RemoveFieldNumber(field.number);
+    for (const auto& oneof : out.oneofs) {
+      for (const auto& field : oneof.fields)
+        statement.RemoveFieldNumber(field.number);
+    }
+  }
+  return base::OkStatus();
 }
 
 void ConvertOptionsForEditions(ProtoFile::Field& field) {

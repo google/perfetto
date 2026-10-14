@@ -84,7 +84,6 @@ MACRO_ARG_TYPES = [
 
 NAME = r'[a-zA-Z_\d\{\}]+'
 ANY_WORDS = r'[^\s].*'
-ANY_NON_QUOTE = r'[^\']*.*'
 TYPE = r'[_a-zA-Z\(\)\.]+(?:\.\.\.)?'
 SQL = r'[\s\S]*?'
 WS = r'\s*'
@@ -149,11 +148,7 @@ CREATE_MACRO_PATTERN = update_pattern(
 INCLUDE_PATTERN = update_pattern(
     fr'^INCLUDE PERFETTO MODULE ([A-Za-z0-9_.*]*);$')
 
-NAME_AND_TYPE_PATTERN = update_pattern(fr' ({NAME})\s+({TYPE}) ')
-
 ARG_DEFINITION_PATTERN = update_pattern(ARG_PATTERN)
-
-FUNCTION_RETURN_PATTERN = update_pattern(fr'^ ({TYPE})\s+({ANY_WORDS})')
 
 ANY_PATTERN = r'(?:\s|.)*'
 

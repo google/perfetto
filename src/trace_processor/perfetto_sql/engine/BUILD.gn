@@ -56,7 +56,7 @@ source_set("engine") {
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
-    "../pipeline:logical",
+    "../pipeline",
     "../pipeline:plan",
     "../schema",
     "../tokenizer",

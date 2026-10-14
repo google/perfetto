@@ -254,13 +254,15 @@ describe('per-mode row and trace limits', () => {
       undefined,
       true,
     );
-    tab.traceLimit = 123;
+    tab.limit = 0;
+    tab.traceLimit = 0;
     tab.tableTtlDays = 45;
     (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
     const restored = new QueryTabsState().tabs.find(
       (t) => t.editorText === 'select 1',
     )!;
-    expect(restored.traceLimit).toBe(123);
+    expect(restored.limit).toBe(0);
+    expect(restored.traceLimit).toBe(0);
     expect(restored.tableTtlDays).toBe(45);
   });
 });
@@ -893,5 +895,44 @@ describe('date filter persistence', () => {
     const restored = new QueryTabsState().tabs[0].dateFilter;
     expect(restored).toBeUndefined();
     expect(() => describeDateFilter(restored, '2026-10-05')).not.toThrow();
+  });
+});
+
+describe('addSharedTraceListTab', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+    bigTraceSettingsStorage.register({
+      id: TRACE_UUIDS_SETTING_ID,
+      name: 'Trace UUIDs',
+      description: '',
+      type: 'string-array',
+      schema: z.array(z.string()) as never,
+      defaultValue: [] as string[],
+      category: 'TRACE_ADDRESS',
+      disabled: true,
+    });
+  });
+
+  test('opens a new configured tab in UUID mode', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.addSharedTraceListTab({
+      traceUuids: ['u1', 'u2'],
+      sourceUrl: 'https://example.com/traces',
+      title: 'Sample traces',
+      perfettoSql: 'SELECT 1',
+    });
+    expect(tabs.tabs).toHaveLength(2);
+    expect(tabs.activeTabId).toBe(tab.id);
+    expect(tab.configured).toBe(true);
+    expect(tab.title).toBe('Sample traces');
+    expect(tab.editorText).toBe(
+      '-- Sample traces\n-- Source: https://example.com/traces\n\nSELECT 1\n',
+    );
+    expect(traceUuidsActive(tab)).toBe(true);
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual(['u1', 'u2']);
   });
 });

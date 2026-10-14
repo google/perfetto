@@ -27,10 +27,12 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -92,8 +94,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
           ),
           str
             ? m(
-                'span',
-                {class: 'pf-hde-str-badge'},
+                'span.pf-hde-str-badge',
                 ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
               )
             : null,
@@ -173,7 +174,6 @@ export function AllObjectsView({
     preamble: SQL_PREAMBLE,
   });
   const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
 
   let filters: Filter[] = [];
 
@@ -183,7 +183,6 @@ export function AllObjectsView({
   ) {
     if (!cls) return;
     filters = [{field: 'cls', op: '=' as const, value: cls}];
-    counter.onFiltersChanged(filters);
     clearNavParam('cls');
   }
 
@@ -191,19 +190,26 @@ export function AllObjectsView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialClass, vnode.attrs.clearNavParam);
     },
     onremove() {
       datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
+      const count = counter.use({
+        engine,
+        query,
+        preamble: SQL_PREAMBLE,
+        filters,
+      });
 
       return m(
         DetailsShell,
         {
-          title: counter.heading('Objects'),
+          title: rowCountHeading('Objects', count),
           fillHeight: true,
         },
         m(DataGrid, {
@@ -227,7 +233,6 @@ export function AllObjectsView({
           showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

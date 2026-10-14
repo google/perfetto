@@ -38,6 +38,8 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/filter_kernels.h"
+#include "src/trace_processor/core/common/filter_value_cast.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/row_layout.h"
@@ -54,54 +56,6 @@
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
-namespace comparators {
-
-// Returns an appropriate comparator functor for the given integer/double type
-// and operation. Currently only supports equality comparison.
-template <typename T, typename Op>
-auto IntegerOrDoubleComparator() {
-  if constexpr (std::is_same_v<Op, Eq>) {
-    return std::equal_to<T>();
-  } else if constexpr (std::is_same_v<Op, Ne>) {
-    return std::not_equal_to<T>();
-  } else if constexpr (std::is_same_v<Op, Lt>) {
-    return std::less<T>();
-  } else if constexpr (std::is_same_v<Op, Le>) {
-    return std::less_equal<T>();
-  } else if constexpr (std::is_same_v<Op, Gt>) {
-    return std::greater<T>();
-  } else if constexpr (std::is_same_v<Op, Ge>) {
-    return std::greater_equal<T>();
-  } else {
-    static_assert(std::is_same_v<Op, Eq>, "Unsupported op");
-  }
-}
-
-template <typename T>
-struct StringComparator {
-  bool operator()(StringPool::Id lhs, NullTermStringView rhs) const {
-    if constexpr (std::is_same_v<T, Lt>) {
-      return pool_->Get(lhs) < rhs;
-    } else if constexpr (std::is_same_v<T, Le>) {
-      return pool_->Get(lhs) <= rhs;
-    } else if constexpr (std::is_same_v<T, Gt>) {
-      return pool_->Get(lhs) > rhs;
-    } else if constexpr (std::is_same_v<T, Ge>) {
-      return pool_->Get(lhs) >= rhs;
-    } else {
-      static_assert(std::is_same_v<T, Lt>, "Unsupported op");
-    }
-  }
-  const StringPool* pool_;
-};
-struct StringLessInvert {
-  bool operator()(NullTermStringView lhs, StringPool::Id rhs) const {
-    return lhs < pool_->Get(rhs);
-  }
-  const StringPool* pool_;
-};
-
-}  // namespace comparators
 
 namespace ops {
 
@@ -129,100 +83,16 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
 // Returns true if the result is valid, false otherwise.
 template <typename T>
 PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
-    const CastFilterValueResult::Validity& validity,
+    const filter::CastFilterValueResult::Validity& validity,
     T& update) {
   static_assert(std::is_same_v<T, Range> || std::is_same_v<T, Span<uint32_t>>);
-  if (PERFETTO_UNLIKELY(validity != CastFilterValueResult::kValid)) {
-    if (validity == CastFilterValueResult::kNoneMatch) {
+  if (PERFETTO_UNLIKELY(validity != filter::CastFilterValueResult::kValid)) {
+    if (validity == filter::CastFilterValueResult::kNoneMatch) {
       update.e = update.b;
     }
     return false;
   }
   return true;
-}
-
-// Filters an existing index buffer in-place, based on data comparisons
-// performed using a separate set of source indices.
-//
-// This function iterates synchronously through two sets of indices:
-// 1. Source Indices: Provided by [begin, end), pointed to by `it`. These
-//    indices are used *only* to look up data values (`data[*it]`).
-// 2. Destination/Update Indices: Starting at `o_start`, pointed to by
-//    `o_read` (for reading the original index) and `o_write` (for writing
-//    kept indices). This buffer is modified *in-place*.
-//
-// For each step `i`:
-//   - It retrieves the data value using the i-th source index:
-//   `data[begin[i]]`.
-//   - It compares this data value against the provided `value`.
-//   - It reads the i-th *original* index from the destination buffer:
-//   `o_read[i]`.
-//   - If the comparison is true, it copies the original index `o_read[i]`
-//     to the current write position `*o_write` and advances `o_write`.
-//
-// The result is that the destination buffer `[o_start, returned_pointer)`
-// contains the subset of its *original* indices for which the comparison
-// (using the corresponding source index for data lookup) was true.
-//
-// Use Case Example (SparseNull Filter):
-//   - `[begin, end)` holds translated storage indices (for correct data
-//     lookup).
-//   - `o_start` points to the buffer holding original table indices (that
-//     was have already been filtered by `NullFilter<IsNotNull>`).
-//   - This function further filters the original table indices in `o_start`
-//     based on data comparisons using the translated indices.
-//
-// Args:
-//   data: Pointer to the start of the column's data storage.
-//   begin: Pointer to the first index in the source span (for data lookup).
-//   end: Pointer one past the last index in the source span.
-//   o_start: Pointer to the destination/update buffer (filtered in-place).
-//   value: The value to compare data against.
-//   comparator: Functor implementing the comparison logic.
-//
-// Returns:
-//   A pointer one past the last index written to the destination buffer.
-template <typename Comparator, typename ValueType, typename DataType>
-[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* Filter(
-    const DataType* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const ValueType& value,
-    const Comparator& comparator) {
-  const uint32_t* o_read = output;
-  uint32_t* o_write = output;
-  for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-    // The choice of a branchy implemntation is intentional: this seems faster
-    // than trying to do something branchless, likely because the compiler is
-    // helping us with branch prediction.
-    if (comparator(data[*it], value)) {
-      *o_write++ = *o_read;
-    }
-  }
-  return o_write;
-}
-
-// Similar to Filter but operates directly on the identity values
-// (indices) rather than dereferencing through a data array.
-template <typename Comparator, typename ValueType>
-[[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* IdentityFilter(
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const ValueType& value,
-    Comparator comparator) {
-  const uint32_t* o_read = output;
-  uint32_t* o_write = output;
-  for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-    // The choice of a branchy implemntation is intentional: this seems faster
-    // than trying to do something branchless, likely because the compiler is
-    // helping us with branch prediction.
-    if (comparator(*it, value)) {
-      *o_write++ = *o_read;
-    }
-  }
-  return o_write;
 }
 
 inline PERFETTO_ALWAYS_INLINE void InitRange(InterpreterState& state,
@@ -349,269 +219,6 @@ inline PERFETTO_ALWAYS_INLINE void NullFilter(InterpreterState& state,
   update.e = nbv.bv->template PackLeft<kInvert>(update.b, update.e, update.b);
 }
 
-// Handles conversion of strings or nulls to integer or double types for
-// filtering operations.
-template <typename FilterValueFetcherImpl>
-inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastStringOrNullFilterValueToIntegerOrDouble(
-    typename FilterValueFetcherImpl::Type filter_value_type,
-    NonStringOp op) {
-  if (filter_value_type == FilterValueFetcherImpl::kString) {
-    if (op.index() == NonStringOp::GetTypeIndex<Eq>() ||
-        op.index() == NonStringOp::GetTypeIndex<Ge>() ||
-        op.index() == NonStringOp::GetTypeIndex<Gt>()) {
-      return CastFilterValueResult::kNoneMatch;
-    }
-    PERFETTO_DCHECK(op.index() == NonStringOp::GetTypeIndex<Ne>() ||
-                    op.index() == NonStringOp::GetTypeIndex<Le>() ||
-                    op.index() == NonStringOp::GetTypeIndex<Lt>());
-    return CastFilterValueResult::kAllMatch;
-  }
-
-  PERFETTO_DCHECK(filter_value_type == FilterValueFetcherImpl::kNull);
-
-  // Nulls always compare false to any value (including other nulls),
-  // regardless of the operator.
-  return CastFilterValueResult::kNoneMatch;
-}
-
-// Converts a double to an integer type using the specified function
-// (e.g., trunc, floor). Used as a helper for various casting operations.
-template <typename T, double (*fn)(double)>
-inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastDoubleToIntHelper(bool no_data, bool all_data, double d, T& out) {
-  if (no_data) {
-    return CastFilterValueResult::kNoneMatch;
-  }
-  if (all_data) {
-    return CastFilterValueResult::kAllMatch;
-  }
-  out = static_cast<T>(fn(d));
-  return CastFilterValueResult::kValid;
-}
-
-// Attempts to cast a filter value to an integer type, handling various
-// edge cases such as out-of-range values and non-integer inputs.
-template <typename T, typename FilterValueFetcherImpl>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastFilterValueToInteger(
-    FilterValueHandle handle,
-    typename FilterValueFetcherImpl::Type filter_value_type,
-    FilterValueFetcherImpl& fetcher,
-    NonStringOp op,
-    T& out) {
-  static_assert(std::is_integral_v<T>, "Unsupported type");
-
-  if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kInt64)) {
-    int64_t res = fetcher.GetInt64Value(handle.index);
-    bool is_small = res < std::numeric_limits<T>::min();
-    bool is_big = res > std::numeric_limits<T>::max();
-    if (PERFETTO_UNLIKELY(is_small || is_big)) {
-      switch (op.index()) {
-        case NonStringOp::GetTypeIndex<Lt>():
-        case NonStringOp::GetTypeIndex<Le>():
-          if (is_small) {
-            return CastFilterValueResult::kNoneMatch;
-          }
-          break;
-        case NonStringOp::GetTypeIndex<Gt>():
-        case NonStringOp::GetTypeIndex<Ge>():
-          if (is_big) {
-            return CastFilterValueResult::kNoneMatch;
-          }
-          break;
-        case NonStringOp::GetTypeIndex<Eq>():
-          return CastFilterValueResult::kNoneMatch;
-        case NonStringOp::GetTypeIndex<Ne>():
-          // Do nothing.
-          break;
-        default:
-          PERFETTO_FATAL("Invalid numeric filter op");
-      }
-      return CastFilterValueResult::kAllMatch;
-    }
-    out = static_cast<T>(res);
-    return CastFilterValueResult::kValid;
-  }
-  if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kDouble)) {
-    double d = fetcher.GetDoubleValue(handle.index);
-
-    // We use the constants directly instead of using numeric_limits for
-    // int64_t as the casts introduces rounding in the doubles as a double
-    // cannot exactly represent int64::max().
-    constexpr double kMin =
-        std::is_same_v<T, int64_t>
-            ? -9223372036854775808.0
-            : static_cast<double>(std::numeric_limits<T>::min());
-    constexpr double kMax =
-        std::is_same_v<T, int64_t>
-            ? 9223372036854775808.0
-            : static_cast<double>(std::numeric_limits<T>::max());
-
-    // NaNs always compare false to any value (including other NaNs),
-    // regardless of the operator.
-    if (PERFETTO_UNLIKELY(std::isnan(d))) {
-      return CastFilterValueResult::kNoneMatch;
-    }
-
-    // The greater than or equal is intentional to account for the fact
-    // that twos-complement integers are not symmetric around zero (i.e.
-    // -9223372036854775808 can be represented but 9223372036854775808
-    // cannot).
-    bool is_big = d >= kMax;
-    bool is_small = d < kMin;
-    if (PERFETTO_LIKELY(d == trunc(d) && !is_small && !is_big)) {
-      out = static_cast<T>(d);
-      return CastFilterValueResult::kValid;
-    }
-    switch (op.index()) {
-      case NonStringOp::GetTypeIndex<Lt>():
-        return CastDoubleToIntHelper<T, std::ceil>(is_small, is_big, d, out);
-      case NonStringOp::GetTypeIndex<Le>():
-        return CastDoubleToIntHelper<T, std::floor>(is_small, is_big, d, out);
-      case NonStringOp::GetTypeIndex<Gt>():
-        return CastDoubleToIntHelper<T, std::floor>(is_big, is_small, d, out);
-      case NonStringOp::GetTypeIndex<Ge>():
-        return CastDoubleToIntHelper<T, std::ceil>(is_big, is_small, d, out);
-      case NonStringOp::GetTypeIndex<Eq>():
-        return CastFilterValueResult::kNoneMatch;
-      case NonStringOp::GetTypeIndex<Ne>():
-        // Do nothing.
-        return CastFilterValueResult::kAllMatch;
-      default:
-        PERFETTO_FATAL("Invalid numeric filter op");
-    }
-  }
-  return CastStringOrNullFilterValueToIntegerOrDouble<FilterValueFetcherImpl>(
-      filter_value_type, op);
-}
-
-// Attempts to cast a filter value to a double, handling integer inputs
-// and various edge cases.
-template <typename FilterValueFetcherImpl>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastFilterValueToDouble(FilterValueHandle filter_value_handle,
-                        typename FilterValueFetcherImpl::Type filter_value_type,
-                        FilterValueFetcherImpl& fetcher,
-                        NonStringOp op,
-                        double& out) {
-  if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kDouble)) {
-    out = fetcher.GetDoubleValue(filter_value_handle.index);
-    return CastFilterValueResult::kValid;
-  }
-  if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kInt64)) {
-    int64_t i = fetcher.GetInt64Value(filter_value_handle.index);
-    auto iad = static_cast<double>(i);
-    auto iad_int = static_cast<int64_t>(iad);
-
-    // If the integer value can be converted to a double while preserving
-    // the exact integer value, then we can use the double value for
-    // comparison.
-    if (PERFETTO_LIKELY(i == iad_int)) {
-      out = iad;
-      return CastFilterValueResult::kValid;
-    }
-
-    // This can happen in cases where we round `i` up above
-    // numeric_limits::max(). In that case, still consider the double
-    // larger.
-    bool overflow_positive_to_negative = i > 0 && iad_int < 0;
-    bool iad_greater_than_i = iad_int > i || overflow_positive_to_negative;
-    bool iad_less_than_i = iad_int < i && !overflow_positive_to_negative;
-    switch (op.index()) {
-      case NonStringOp::GetTypeIndex<Lt>():
-        out =
-            iad_greater_than_i
-                ? iad
-                : std::nextafter(iad, std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Le>():
-        out =
-            iad_less_than_i
-                ? iad
-                : std::nextafter(iad, -std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Gt>():
-        out =
-            iad_less_than_i
-                ? iad
-                : std::nextafter(iad, -std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Ge>():
-        out =
-            iad_greater_than_i
-                ? iad
-                : std::nextafter(iad, std::numeric_limits<double>::infinity());
-        return CastFilterValueResult::kValid;
-      case NonStringOp::GetTypeIndex<Eq>():
-        return CastFilterValueResult::kNoneMatch;
-      case NonStringOp::GetTypeIndex<Ne>():
-        // Do nothing.
-        return CastFilterValueResult::kAllMatch;
-      default:
-        PERFETTO_FATAL("Invalid numeric filter op");
-    }
-  }
-  return CastStringOrNullFilterValueToIntegerOrDouble<FilterValueFetcherImpl>(
-      filter_value_type, op);
-}
-
-// Attempts to cast a filter value to a numeric type, dispatching to the
-// appropriate type-specific conversion function.
-template <typename T, typename FilterValueFetcherImpl>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastFilterValueToIntegerOrDouble(
-    FilterValueHandle handle,
-    typename FilterValueFetcherImpl::Type filter_value_type,
-    FilterValueFetcherImpl& fetcher,
-    NonStringOp op,
-    T& out) {
-  if constexpr (std::is_same_v<T, double>) {
-    return CastFilterValueToDouble(handle, filter_value_type, fetcher, op, out);
-  } else if constexpr (std::is_integral_v<T>) {
-    return CastFilterValueToInteger<T>(handle, filter_value_type, fetcher, op,
-                                       out);
-  } else {
-    static_assert(std::is_same_v<T, double>, "Unsupported type");
-  }
-}
-
-template <typename FilterValueFetcherImpl>
-inline PERFETTO_ALWAYS_INLINE CastFilterValueResult::Validity
-CastFilterValueToString(FilterValueHandle handle,
-                        typename FilterValueFetcherImpl::Type filter_value_type,
-                        FilterValueFetcherImpl& fetcher,
-                        const StringOp& op,
-                        const char*& out) {
-  if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kString)) {
-    out = fetcher.GetStringValue(handle.index);
-    return CastFilterValueResult::kValid;
-  }
-  if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kNull)) {
-    // Nulls always compare false to any value (including other nulls),
-    // regardless of the operator.
-    return CastFilterValueResult::kNoneMatch;
-  }
-  if (PERFETTO_LIKELY(filter_value_type == FilterValueFetcherImpl::kInt64 ||
-                      filter_value_type == FilterValueFetcherImpl::kDouble)) {
-    switch (op.index()) {
-      case Op::GetTypeIndex<Ge>():
-      case Op::GetTypeIndex<Gt>():
-      case Op::GetTypeIndex<Ne>():
-        return CastFilterValueResult::kAllMatch;
-      case Op::GetTypeIndex<Eq>():
-      case Op::GetTypeIndex<Le>():
-      case Op::GetTypeIndex<Lt>():
-      case Op::GetTypeIndex<Glob>():
-      case Op::GetTypeIndex<Regex>():
-        return CastFilterValueResult::kNoneMatch;
-      default:
-        PERFETTO_FATAL("Invalid string filter op");
-    }
-  }
-  PERFETTO_FATAL("Invalid filter spec value");
-}
-
 // Attempts to cast a filter value to the specified type and stores the
 // result. Currently only supports casting to Id type.
 template <typename T, typename FilterValueFetcherImpl>
@@ -625,33 +232,37 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
       fetcher.GetValueType(handle.index);
 
   using ValueType =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
-  CastFilterValueResult result;
+      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
+  filter::CastFilterValueResult result;
   if constexpr (std::is_same_v<T, Id>) {
     auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
     uint32_t result_value;
     result.validity =
-        CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
-            handle, filter_value_type, fetcher, op, result_value);
-    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
-      result.value = CastFilterValueResult::Id{result_value};
+        filter::CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
+            handle.index, filter_value_type, fetcher, op, result_value);
+    if (PERFETTO_LIKELY(result.validity ==
+                        filter::CastFilterValueResult::kValid)) {
+      result.value = filter::CastFilterValueResult::Id{result_value};
     }
   } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
     auto op = *f.arg<B::op>().TryDowncast<NonStringOp>();
     ValueType result_value;
     result.validity =
-        CastFilterValueToIntegerOrDouble<ValueType, FilterValueFetcherImpl>(
-            handle, filter_value_type, fetcher, op, result_value);
-    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+        filter::CastFilterValueToIntegerOrDouble<ValueType,
+                                                 FilterValueFetcherImpl>(
+            handle.index, filter_value_type, fetcher, op, result_value);
+    if (PERFETTO_LIKELY(result.validity ==
+                        filter::CastFilterValueResult::kValid)) {
       result.value = result_value;
     }
   } else if constexpr (std::is_same_v<T, String>) {
     static_assert(std::is_same_v<ValueType, const char*>);
     auto op = *f.arg<B::op>().TryDowncast<StringOp>();
     const char* result_value;
-    result.validity = CastFilterValueToString<FilterValueFetcherImpl>(
-        handle, filter_value_type, fetcher, op, result_value);
-    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+    result.validity = filter::CastFilterValueToString<FilterValueFetcherImpl>(
+        handle.index, filter_value_type, fetcher, op, result_value);
+    if (PERFETTO_LIKELY(result.validity ==
+                        filter::CastFilterValueResult::kValid)) {
       result.value = result_value;
     }
   } else {
@@ -676,77 +287,38 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
   }
   const auto& source =
       state.ReadFromRegister(nf.template arg<B::source_register>());
-  using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  using M =
+      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
   if constexpr (std::is_same_v<T, Id>) {
-    update.e = IdentityFilter(
+    update.e = filter::IdentityFilter(
         source.b, source.e, update.b, base::unchecked_get<M>(value.value).value,
-        comparators::IntegerOrDoubleComparator<uint32_t, Op>());
+        filter::comparators::IntegerOrDoubleComparator<uint32_t, Op>());
   } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
     const auto* data = state.ReadStorageFromRegister<T>(
         nf.template arg<B::storage_register>());
-    update.e = Filter(data, source.b, source.e, update.b,
-                      base::unchecked_get<M>(value.value),
-                      comparators::IntegerOrDoubleComparator<M, Op>());
+    update.e = filter::Filter(
+        data, source.b, source.e, update.b, base::unchecked_get<M>(value.value),
+        filter::comparators::IntegerOrDoubleComparator<M, Op>());
   } else {
     static_assert(std::is_same_v<T, Id>, "Unsupported type");
   }
 }
 
-inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterEq(
-    const InterpreterState& state,
-    const StringPool::Id* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const char* val) {
-  std::optional<StringPool::Id> id =
-      state.string_pool->GetId(base::StringView(val));
-  if (!id) {
-    return output;
-  }
-  static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::equal_to<>());
-}
-
-inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
-    const InterpreterState& state,
-    const StringPool::Id* data,
-    const uint32_t* begin,
-    const uint32_t* end,
-    uint32_t* output,
-    const char* val) {
-  std::optional<StringPool::Id> id =
-      state.string_pool->GetId(base::StringView(val));
-  if (!id) {
-    return output + (end - begin);
-  }
-  static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::not_equal_to<>());
-}
-
 template <typename Op>
 inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(
-    const InterpreterState& state,
+    const StringPool* string_pool,
     const StringPool::Id* data,
     const uint32_t* begin,
     const uint32_t* end,
     uint32_t* output,
     const char* val) {
-  if constexpr (std::is_same_v<Op, Eq>) {
-    return StringFilterEq(state, data, begin, end, output, val);
-  } else if constexpr (std::is_same_v<Op, Ne>) {
-    return StringFilterNe(state, data, begin, end, output, val);
-  } else if constexpr (std::is_same_v<Op, Glob>) {
-    return StringFilterGlobImpl(state.string_pool, data, val, begin, end,
-                                output);
+  if constexpr (std::is_same_v<Op, Glob>) {
+    return StringFilterGlobImpl(string_pool, data, val, begin, end, output);
   } else if constexpr (std::is_same_v<Op, Regex>) {
-    return StringFilterRegexImpl(state.string_pool, data, val, begin, end,
-                                 output);
+    return StringFilterRegexImpl(string_pool, data, val, begin, end, output);
   } else {
-    return Filter(data, begin, end, output, NullTermStringView(val),
-                  comparators::StringComparator<Op>{state.string_pool});
+    return filter::FilterStringCompare<Op>(string_pool, data, begin, end,
+                                           output, val);
   }
 }
 
@@ -763,13 +335,14 @@ inline PERFETTO_ALWAYS_INLINE void StringFilter(InterpreterState& state,
   const auto& source = state.ReadFromRegister(sf.arg<B::source_register>());
   const StringPool::Id* ptr =
       state.ReadStorageFromRegister<String>(sf.arg<B::storage_register>());
-  update.e = FilterStringOp<Op>(state, ptr, source.b, source.e, update.b, val);
+  update.e = FilterStringOp<Op>(state.string_pool, ptr, source.b, source.e,
+                                update.b, val);
 }
 
 template <typename DataType>
 inline auto GetLbComprarator(const InterpreterState& state) {
   if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-    return comparators::StringComparator<Lt>{state.string_pool};
+    return filter::comparators::StringComparator<Lt>{state.string_pool};
   } else {
     return std::less<>();
   }
@@ -778,7 +351,7 @@ inline auto GetLbComprarator(const InterpreterState& state) {
 template <typename DataType>
 inline auto GetUbComparator(const InterpreterState& state) {
   if constexpr (std::is_same_v<DataType, StringPool::Id>) {
-    return comparators::StringLessInvert{state.string_pool};
+    return filter::comparators::StringLessInvert{state.string_pool};
   } else {
     return std::less<>();
   }
@@ -858,7 +431,8 @@ inline PERFETTO_ALWAYS_INLINE void SortedFilter(
   if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
     return;
   }
-  using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  using M =
+      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
   M val = base::unchecked_get<M>(value.value);
   if constexpr (std::is_same_v<T, Id>) {
     uint32_t inner_val = val.value;
@@ -915,7 +489,8 @@ inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
       state.ReadStorageFromRegister<T>(leq.template arg<B::storage_register>());
 
   using Compare = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
-  using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  using M =
+      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
   const auto& value = base::unchecked_get<M>(res.value);
   Compare to_compare;
   if constexpr (std::is_same_v<T, String>) {
@@ -1016,7 +591,8 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
     state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
     return;
   }
-  using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  using M =
+      StorageType::VariantTypeAtIndex<T, filter::CastFilterValueResult::Value>;
   const auto& value = base::unchecked_get<M>(filter_value.value);
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
@@ -1045,79 +621,6 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
 //   7. FilterIn: the public bytecode entry point
 // ============================================================================
 
-namespace {
-
-// Below this threshold, the non-indexed FilterIn path does a linear scan
-// over the value list instead of a HashMap lookup (avoids hashing overhead).
-constexpr uint32_t kFilterInKeyScanThreshold = 16;
-
-// Above this threshold, the indexed FilterIn path switches from binary
-// search to copying the index and filtering in-place with the HashMap.
-//
-// Benchmarks (BM_FilterIn_IndexedBinarySearch / BM_FilterIn_IndexedLinearScan,
-// run with BENCHMARK_CONSTANT_SWEEPING=1) show the crossover is consistently
-// between k=50 and k=200 regardless of n, because the O(m·log(m)) sort of
-// matched results dominates the binary search path when k is large. A threshold
-// of 64 catches the crossover conservatively.
-constexpr uint32_t kFilterInIndexedBinarySearchThreshold = 64;
-
-// value_list is needed by both the key-scan and binary-search paths.
-constexpr uint32_t kFilterInValueListThreshold =
-    std::max(kFilterInKeyScanThreshold, kFilterInIndexedBinarySearchThreshold);
-
-}  // namespace
-
-// Extracts the raw uint32_t from an Id or Uint32 key.
-template <typename T>
-uint32_t FilterInKeyToUint32(const T& key) {
-  if constexpr (std::is_same_v<T, CastFilterValueResult::Id>) {
-    return key.value;
-  } else {
-    static_assert(std::is_same_v<T, uint32_t>);
-    return key;
-  }
-}
-
-// If values are dense Id/Uint32, builds a BitVector from the HashMap.
-template <typename T>
-void MaybeBuildBitVector(CastFilterValueListResult& result) {
-  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-    using HM = StorageType::VariantTypeAtIndex<
-        T, CastFilterValueListResult::ValueHashMap>;
-    auto& hm = base::unchecked_get<HM>(result.hash_map);
-    uint32_t max_val = 0;
-    for (auto it = hm.GetIterator(); it; ++it) {
-      max_val = std::max(max_val, FilterInKeyToUint32(it.key()));
-    }
-    if (max_val <= static_cast<uint32_t>(hm.size()) * 16) {
-      result.bit_vector.resize(max_val + 1);
-      result.bit_vector.ClearAllBits();
-      for (auto it = hm.GetIterator(); it; ++it) {
-        result.bit_vector.set(FilterInKeyToUint32(it.key()));
-      }
-    }
-  }
-}
-
-// Builds a value_list from the HashMap when the key count is small enough
-// for the linear scan or indexed binary search paths.
-template <typename T>
-void MaybeBuildValueList(CastFilterValueListResult& result) {
-  using HM =
-      StorageType::VariantTypeAtIndex<T,
-                                      CastFilterValueListResult::ValueHashMap>;
-  using VL =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
-  auto& hm = base::unchecked_get<HM>(result.hash_map);
-  if (hm.size() > kFilterInValueListThreshold) {
-    return;
-  }
-  auto& vl = base::unchecked_get<VL>(result.value_list);
-  for (auto it = hm.GetIterator(); it; ++it) {
-    vl.push_back(it.key());
-  }
-}
-
 // Casts raw filter values into typed lookup structures for IN-clause
 // filtering. Populates a HashMap (canonical), and optionally a BitVector
 // (for dense Id/Uint32) and a sorted ValueList (for small lists).
@@ -1130,173 +633,22 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
     FilterValueFetcherImpl& fetcher,
     const CastFilterValueListBase& c) {
   using B = CastFilterValueListBase;
-  using ValueType =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
-  using HM =
-      StorageType::VariantTypeAtIndex<T,
-                                      CastFilterValueListResult::ValueHashMap>;
   FilterValueHandle handle = c.arg<B::fval_handle>();
 
   // Reuse existing allocation if available, otherwise allocate fresh.
-  CastFilterValueListResult::Ptr* existing =
+  filter::CastFilterValueListResult::Ptr* existing =
       state.MaybeReadFromRegister(c.arg<B::write_register>());
-  CastFilterValueListResult::Ptr result;
+  filter::CastFilterValueListResult::Ptr result;
   if (existing && *existing) {
     result = std::move(*existing);
     result->Clear<T>();
   } else {
-    result = std::make_unique<CastFilterValueListResult>();
+    result = std::make_unique<filter::CastFilterValueListResult>();
     result->Init<T>();
   }
-  auto& hm = base::unchecked_get<HM>(result->hash_map);
-  bool all_match = false;
-  for (bool has_more = fetcher.IteratorInit(handle.index); has_more;
-       has_more = fetcher.IteratorNext(handle.index)) {
-    typename FilterValueFetcherImpl::Type filter_value_type =
-        fetcher.GetValueType(handle.index);
-    if constexpr (std::is_same_v<T, Id>) {
-      auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
-      uint32_t result_value;
-      auto validity =
-          CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
-              handle, filter_value_type, fetcher, op, result_value);
-      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
-        hm.Insert(CastFilterValueResult::Id{result_value}, true);
-      } else if (validity == CastFilterValueResult::kAllMatch) {
-        all_match = true;
-        break;
-      }
-    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
-      auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
-      ValueType result_value;
-      auto validity =
-          CastFilterValueToIntegerOrDouble<ValueType, FilterValueFetcherImpl>(
-              handle, filter_value_type, fetcher, op, result_value);
-      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
-        hm.Insert(result_value, true);
-      } else if (validity == CastFilterValueResult::kAllMatch) {
-        all_match = true;
-        break;
-      }
-    } else if constexpr (std::is_same_v<T, String>) {
-      auto op = *c.arg<B::op>().TryDowncast<StringOp>();
-      PERFETTO_CHECK(op.Is<Eq>());
-      const char* result_value;
-      auto validity = CastFilterValueToString<FilterValueFetcherImpl>(
-          handle, filter_value_type, fetcher, op, result_value);
-      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
-        auto id = state.string_pool->GetId(result_value);
-        if (id) {
-          hm.Insert(*id, true);
-        }
-      } else if (validity == CastFilterValueResult::kAllMatch) {
-        all_match = true;
-        break;
-      }
-    } else {
-      static_assert(std::is_same_v<T, Id>, "Unsupported type");
-    }
-  }
-  if (all_match) {
-    result->validity = CastFilterValueResult::Validity::kAllMatch;
-  } else if (hm.size() == 0) {
-    result->validity = CastFilterValueResult::Validity::kNoneMatch;
-  } else {
-    result->validity = CastFilterValueResult::Validity::kValid;
-    MaybeBuildBitVector<T>(*result);
-    MaybeBuildValueList<T>(*result);
-  }
+  filter::CastFilterValueList<T>(handle.index, fetcher, c.arg<B::op>(),
+                                 state.string_pool, *result);
   state.WriteToRegister(c.arg<B::write_register>(), std::move(result));
-}
-
-// BitVector membership filter for FilterIn. O(1) per row.
-// Only applicable to Id/Uint32 columns with dense value ranges.
-template <typename T, typename DataType>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInBitVector(
-    const DataType* data,
-    const uint32_t* source_begin,
-    const uint32_t* source_end,
-    uint32_t* dest,
-    const BitVector& bv) {
-  struct Cmp {
-    PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs,
-                                           const BitVector& b) const {
-      return lhs < b.size() && b.is_set(lhs);
-    }
-  };
-  if constexpr (std::is_same_v<T, Id>) {
-    base::ignore_result(data);
-    return IdentityFilter(source_begin, source_end, dest, bv, Cmp());
-  } else {
-    return Filter(data, source_begin, source_end, dest, bv, Cmp());
-  }
-}
-
-// Linear scan membership filter for FilterIn. Iterates over a small sorted
-// value list for each row. Avoids HashMap hashing overhead for small lists.
-template <typename T, typename DataType, typename VL>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInLinearScan(
-    const DataType* data,
-    const uint32_t* source_begin,
-    const uint32_t* source_end,
-    uint32_t* dest,
-    const VL& vl) {
-  using ValElem =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
-  if constexpr (std::is_same_v<T, Id>) {
-    struct Cmp {
-      PERFETTO_ALWAYS_INLINE bool operator()(
-          uint32_t lhs,
-          const FlexVector<ValElem>& k) const {
-        for (const auto& v : k) {
-          if (lhs == v.value)
-            return true;
-        }
-        return false;
-      }
-    };
-    return IdentityFilter(source_begin, source_end, dest, vl, Cmp());
-  } else {
-    using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
-    struct Cmp {
-      PERFETTO_ALWAYS_INLINE bool operator()(
-          D lhs,
-          const FlexVector<ValElem>& k) const {
-        for (const auto& v : k) {
-          if (std::equal_to<>()(lhs, v))
-            return true;
-        }
-        return false;
-      }
-    };
-    return Filter(data, source_begin, source_end, dest, vl, Cmp());
-  }
-}
-
-// HashMap membership filter for FilterIn. O(1) per row via hash lookup.
-template <typename T, typename DataType, typename HM>
-[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInHashMap(
-    const DataType* data,
-    const uint32_t* source_begin,
-    const uint32_t* source_end,
-    uint32_t* dest,
-    const HM& hm) {
-  if constexpr (std::is_same_v<T, Id>) {
-    struct Cmp {
-      PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs, const HM& h) const {
-        return h.Find(CastFilterValueResult::Id{lhs}) != nullptr;
-      }
-    };
-    return IdentityFilter(source_begin, source_end, dest, hm, Cmp());
-  } else {
-    using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
-    struct Cmp {
-      PERFETTO_ALWAYS_INLINE bool operator()(D lhs, const HM& h) const {
-        return h.Find(lhs) != nullptr;
-      }
-    };
-    return Filter(data, source_begin, source_end, dest, hm, Cmp());
-  }
 }
 
 // Attempts the indexed binary search path for FilterIn. Looks up the
@@ -1311,7 +663,7 @@ template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
     InterpreterState& state,
     const FilterInBase& bytecode,
-    const CastFilterValueListResult& cast_result,
+    const filter::CastFilterValueListResult& cast_result,
     Span<uint32_t>& dest) {
   using B = FilterInBase;
 
@@ -1325,11 +677,11 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
       return false;
     }
 
-    using VL =
-        StorageType::VariantTypeAtIndex<T,
-                                        CastFilterValueListResult::ValueList>;
+    using VL = StorageType::VariantTypeAtIndex<
+        T, filter::CastFilterValueListResult::ValueList>;
     const VL& vl = base::unchecked_get<VL>(cast_result.value_list);
-    if (vl.empty() || vl.size() > kFilterInIndexedBinarySearchThreshold) {
+    if (vl.empty() ||
+        vl.size() > filter::kFilterInIndexedBinarySearchThreshold) {
       return false;
     }
 
@@ -1364,36 +716,6 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
   }
 }
 
-// Scan path for FilterIn when no index is present. The source span and dest
-// span are walked in lockstep: source[i] is the storage index for dest[i].
-// Matching dest entries are compacted in-place.
-template <typename T, typename DataType>
-inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
-    const CastFilterValueListResult& cast_result,
-    const DataType* data,
-    const Span<uint32_t>& source,
-    Span<uint32_t>& dest) {
-  using HM =
-      StorageType::VariantTypeAtIndex<T,
-                                      CastFilterValueListResult::ValueHashMap>;
-  using VL =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
-  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-    if (cast_result.bit_vector.size() > 0) {
-      dest.e = FilterInBitVector<T>(data, source.b, source.e, dest.b,
-                                    cast_result.bit_vector);
-      return;
-    }
-  }
-  const auto& vl = base::unchecked_get<VL>(cast_result.value_list);
-  if (!vl.empty() && vl.size() <= kFilterInKeyScanThreshold) {
-    dest.e = FilterInLinearScan<T>(data, source.b, source.e, dest.b, vl);
-    return;
-  }
-  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
-  dest.e = FilterInHashMap<T>(data, source.b, source.e, dest.b, hm);
-}
-
 // Scan path for FilterIn when an index is present but the IN list is too
 // large for binary search. The index is ignored entirely: we iterate over
 // the source range [b, e), check each row against the hash map, and write
@@ -1402,12 +724,11 @@ template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
     InterpreterState& state,
     const FilterInBase& bytecode,
-    const CastFilterValueListResult& cast_result,
+    const filter::CastFilterValueListResult& cast_result,
     Span<uint32_t>& dest) {
   using B = FilterInBase;
-  using HM =
-      StorageType::VariantTypeAtIndex<T,
-                                      CastFilterValueListResult::ValueHashMap>;
+  using HM = StorageType::VariantTypeAtIndex<
+      T, filter::CastFilterValueListResult::ValueHashMap>;
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   // |data| is unused for Id columns (the storage index IS the value).
@@ -1425,7 +746,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
       continue;
     }
     if constexpr (std::is_same_v<T, Id>) {
-      if (hm.Find(CastFilterValueResult::Id{si}) != nullptr) {
+      if (hm.Find(filter::CastFilterValueResult::Id{si}) != nullptr) {
         *write++ = i;
       }
     } else {
@@ -1470,7 +791,7 @@ inline PERFETTO_ALWAYS_INLINE void FilterIn(InterpreterState& state,
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   const Span<uint32_t>& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
-  NonIndexedFilterInScan<T>(cast_result, data, source, dest);
+  filter::NonIndexedFilterInScan<T>(cast_result, data, source, dest);
 }
 
 // ============================================================================
@@ -1482,14 +803,15 @@ inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
     const Uint32SetIdSortedEq& bytecode) {
   using B = struct Uint32SetIdSortedEq;
 
-  const CastFilterValueResult& cast_result =
+  const filter::CastFilterValueResult& cast_result =
       state.ReadFromRegister(bytecode.arg<B::val_register>());
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
   if (!HandleInvalidCastFilterValueResult(cast_result.validity, update)) {
     return;
   }
   using ValueType =
-      StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+      StorageType::VariantTypeAtIndex<Uint32,
+                                      filter::CastFilterValueResult::Value>;
   auto val = base::unchecked_get<ValueType>(cast_result.value);
   const auto* storage = state.ReadStorageFromRegister<Uint32>(
       bytecode.arg<B::storage_register>());
@@ -1511,14 +833,15 @@ inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
     const SpecializedStorageSmallValueEq& bytecode) {
   using B = struct SpecializedStorageSmallValueEq;
 
-  const CastFilterValueResult& cast_result =
+  const filter::CastFilterValueResult& cast_result =
       state.ReadFromRegister(bytecode.arg<B::val_register>());
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
   if (!HandleInvalidCastFilterValueResult(cast_result.validity, update)) {
     return;
   }
   using ValueType =
-      StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+      StorageType::VariantTypeAtIndex<Uint32,
+                                      filter::CastFilterValueResult::Value>;
   auto val = base::unchecked_get<ValueType>(cast_result.value);
   const BitVector* bv =
       state.ReadFromRegister(bytecode.arg<B::small_value_bv_register>());

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_store.h"
 
 #include <benchmark/benchmark.h>
@@ -25,7 +26,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/span.h"
 
 // Retaining borrowed batches of two Int64 columns and reading them back in
@@ -48,11 +49,14 @@ void Run(benchmark::State& state, uint32_t rows) {
   for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
     uint32_t count = std::min(kMaxBatchRows, rows - at);
     RowBatch& batch = batches.emplace_back();
-    batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, a.data()));
-    batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, b.data()));
-    batch.Compose(RowSelection::Range(at), count);
-    batch.SetCardinality(count);
+    batch.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, a.data(), nullptr, at));
+    batch.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, b.data(), nullptr, at));
+    batch.SetRowCount(count);
   }
+  // Before every batch, which hold its buffers.
+  Context context;
   RowStore store;
   RowBatch out;
   for (auto _ : state) {
@@ -62,7 +66,7 @@ void Run(benchmark::State& state, uint32_t rows) {
     for (uint32_t at = 0; at < rows; at += kMaxBatchRows) {
       const uint32_t* begin = order.data() + at;
       uint32_t count = std::min(kMaxBatchRows, rows - at);
-      store.View(&out, Span<const uint32_t>(begin, begin + count));
+      store.View(&out, Span<const uint32_t>(begin, begin + count), context);
       benchmark::DoNotOptimize(out.size());
     }
     store.Clear();
