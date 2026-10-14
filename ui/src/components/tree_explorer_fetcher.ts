@@ -33,6 +33,7 @@ import {
 import type {
   TreeExplorerData,
   TreeExplorerOptionalAction,
+  TreeExplorerMarker,
   TreeExplorerOptionalMarker,
   TreeExplorerPropertyDefinition,
   TreeExplorerState,
@@ -412,14 +413,15 @@ async function computeTree(
     }
 
     // Evaluate marker
-    let marker: string | undefined;
+    let marker: TreeExplorerMarker | undefined;
     if (
       optionalMarker &&
       optionalMarker.isVisible(
         new Map([...properties].map(([k, v]) => [k, v.value])),
       )
     ) {
-      marker = optionalMarker.name;
+      const {name, icon, description, tone} = optionalMarker;
+      marker = {name, icon, description, tone};
     }
 
     nodes.push({
