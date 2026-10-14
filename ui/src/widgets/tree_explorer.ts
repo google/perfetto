@@ -20,6 +20,7 @@ import type m from 'mithril';
 import {z} from 'zod';
 import {assertUnreachable} from '../base/assert';
 import {parseUserFilterRegex} from './flamegraph_regex';
+import {TREE_EXPLORER_MERGE_SELECTION_SCHEMA} from './tree_explorer_merge';
 
 // Context passed to a TreeExplorerOptionalAction's execute callback.
 //
@@ -129,6 +130,8 @@ export const TREE_EXPLORER_STATE_SCHEMA = z
     displayMode: z.enum(['flamegraph', 'tree', 'flat']).default('flamegraph'),
     filters: z.array(TREE_EXPLORER_FILTER_SCHEMA),
     view: TREE_EXPLORER_VIEW_SCHEMA,
+    // Read through getTreeExplorerMergeSelection() (tree_explorer_merge.ts).
+    merge: TREE_EXPLORER_MERGE_SELECTION_SCHEMA.optional(),
   })
   .readonly();
 
@@ -275,10 +278,7 @@ export function updateTreeExplorerState(
     return state;
   }
   return {
-    filters: state.filters,
-    view: state.view,
-    addedMetricIds: state.addedMetricIds,
-    displayMode: state.displayMode,
+    ...state,
     selectedMetricId: metricId(metrics[0]),
   };
 }

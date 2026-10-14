@@ -1290,6 +1290,13 @@ format is for:
 
   ![](/docs/images/pprof-in-ui.png)
 
+  To analyze several `pprof` files together, e.g. profiles of several
+  replicas of a server, open them as a [trace archive](#trace-archives). The
+  Aggregate Profiles page shows them merged into one flamegraph, which sums
+  the samples of each metric over the profiles that have it. Turn off
+  **Merge** to show one profile at a time: pick it from the list, or step
+  through the profiles with the arrow buttons or the ← and → keys.
+
 **How to Generate:** The most relevant generation path for Perfetto users
 involves collecting CPU profiles from Go programs or converting `perf.data` files.
 
