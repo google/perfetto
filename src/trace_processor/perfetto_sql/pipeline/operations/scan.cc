@@ -338,14 +338,14 @@ void Scan::Lower(Lowering* c, const PlanNode&) const {
 
   PERFETTO_DCHECK(!c->has_source());
   for (const NamedColumn& column : scan.columns_) {
-    c->Define(column.id);
+    c->DeclareColumn(column.id);
   }
   c->SetSource(scan.MakeSource());
   // A dataframe is read in order, so a column it keeps sorted ascends.
   const auto& dataframe = base::unchecked_get<Scan::Dataframe>(scan.source_);
   for (uint32_t i = 0; i < scan.columns_.size(); ++i) {
     if (!dataframe.columns[i]->sort_state.Is<core::Unsorted>()) {
-      c->AddAscendingColumn(scan.columns_[i].id);
+      c->DeclareAscendingColumn(scan.columns_[i].id);
     }
   }
 }

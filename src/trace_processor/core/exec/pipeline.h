@@ -52,6 +52,9 @@ struct ExecutionOptions {
 // valid. The source and operators must outlive their execution states.
 class Pipeline final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   using Step =
       std::variant<std::unique_ptr<Transform>, std::unique_ptr<Operator>>;
 
@@ -65,7 +68,15 @@ class Pipeline final : public Source {
   void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
 
+  // The pipeline's input.
+  const Source& input() const { return source_; }
+
+  // The operators and transforms, in the order they run.
+  const std::vector<Step>& steps() const { return steps_; }
+
  private:
+  friend class PipelineFormatter;
+
   struct Segment {
     // The step starting the segment, or -1 for the source.
     int32_t start = -1;

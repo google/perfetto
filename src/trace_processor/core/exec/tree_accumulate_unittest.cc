@@ -49,6 +49,9 @@ AggregateCall Sum(uint32_t column) {
 // Emits id, parent id and a value, in whatever order the rows were given.
 class RowSource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   // `order` is the order the rows are emitted in, which is not the order they
   // are numbered in.
   RowSource(std::vector<int64_t> parents,

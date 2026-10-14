@@ -217,6 +217,9 @@ TEST(ExecutorContractTest, FragmentedGatherPreservesRowSpacesAndMixedValidity) {
 // Pipeline/RowCursor asks for and can fail after delivering a prefix.
 class ContractSource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   ContractSource(std::vector<std::vector<int64_t>> chunks, bool fail = false)
       : chunks_(std::move(chunks)), fail_(fail) {}
   struct State : OperatorState {
@@ -257,6 +260,9 @@ class ContractSource final : public Source {
 
 class ContractFilter final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   struct State : OperatorState {
     std::vector<uint32_t> selected;
   };
@@ -282,6 +288,9 @@ class ContractFilter final : public Operator {
 
 class FinishProbe final : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState&) const override {

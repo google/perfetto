@@ -54,6 +54,16 @@ class PhysicalPlan {
   const core::exec::Source& source() const { return *pipeline_; }
   const std::vector<Column>& columns() const { return columns_; }
 
+  // The main pipeline. Its output is the plan's output.
+  const core::exec::Pipeline& pipeline() const { return *pipeline_; }
+
+  // The side pipelines, in the order they were built. A side pipeline is
+  // built before any pipeline that reads it.
+  const std::vector<std::unique_ptr<core::exec::Pipeline>>& side_pipelines()
+      const {
+    return side_pipelines_;
+  }
+
  private:
   friend class Lowering;
   friend class PlanLowering;
@@ -84,7 +94,15 @@ class PlanLowering;
 //
 // Each operation lowers its children first. Its main input goes into this
 // pipeline, and any other inputs go into side pipelines.
-// ColumnId names a logical value; Position returns its current batch slot.
+//
+// Operations use three kinds of method:
+//  - Require...: makes the rows or columns meet a condition. Adds operators
+//    only if needed.
+//  - Declare...: records what an added operator produces. Adds no operators.
+//  - Query...: returns what is currently known. Changes nothing.
+//
+// A ColumnId identifies a logical column. QueryPosition returns its position
+// in the current batch.
 class Lowering {
  public:
   // Numbered tree columns are physical temporaries, with no logical IDs.
@@ -113,10 +131,10 @@ class Lowering {
   ~Lowering();
 
   // ---------------------------------------------------------------------------
-  // Construction and traversal
+  // Construction
   // ---------------------------------------------------------------------------
 
-  // Dispatches to the operation, which is responsible for lowering its inputs.
+  // Lowers a plan node. The node's operation lowers its own inputs.
   void LowerNode(PlanNodeId);
 
   // Records an error that stops lowering. Only the first error is kept.
@@ -126,10 +144,10 @@ class Lowering {
   // Execution graph
   // ---------------------------------------------------------------------------
 
-  // Takes ownership of the pipeline's input; it must not already be set.
+  // Sets the pipeline's input. It must not already be set.
   void SetSource(std::unique_ptr<core::exec::Source> source);
 
-  // Appends execution work. Layout and order metadata are updated separately.
+  // Adds an operator. Its output must be declared with the Declare methods.
   void AddOperator(core::exec::Pipeline::Step);
 
   // Creates a new side pipeline.
@@ -140,63 +158,66 @@ class Lowering {
   const core::exec::Source* FinishSide();
 
   // ---------------------------------------------------------------------------
-  // Row order
+  // Requirements: add operators only if needed
   // ---------------------------------------------------------------------------
 
-  // Groups rows by `keys`, ordered by `ascending` within each group, adding
-  // only the Sort and GroupBy not already established.
-  void PrepareGroups(const std::vector<ColumnId>& keys, ColumnId ascending);
-
-  // Sorts rows by `keys`, the first deciding, unless they are known to be in
-  // that order already. A key of unknown type must hold integers.
-  void SortRows(const std::vector<SortKey>& keys);
-
-  // Adds numbering and traversal operators as needed, reusing the current
-  // tree until ResetLayout. Returned positions name physical temporaries.
-  TreeColumns PrepareTree(ColumnId node, ColumnId parent, TreeDirection);
-
-  // Records that `column` ascends within each group after an emitted
-  // operator.
-  void AddAscendingColumn(ColumnId column);
-
-  // Replaces what is known of the order with what an emitted operator leaves.
-  void SetOrder(Order order);
-
-  // ---------------------------------------------------------------------------
-  // Column types
-  // ---------------------------------------------------------------------------
+  // Converts `column` to `type`. Fails lowering if the conversion would lose
+  // information.
+  void RequireType(ColumnId column, core::StorageType type);
 
   // Converts every side to the type they all convert to without loss, and
   // returns it. Fails if some sides are strings and others numbers.
-  PlanType Unify(const std::vector<Side>&);
+  PlanType RequireCommonType(const std::vector<Side>&);
 
-  // Converts `column` to `type`, failing lowering if it cannot be converted
-  // without loss.
-  void Require(ColumnId column, core::StorageType type);
+  // Sorts rows by `keys` unless they are already sorted that way. A key of
+  // unknown type must hold integers.
+  void RequireSorted(const std::vector<SortKey>& keys);
+
+  // Groups rows by `keys`, ordered by `ascending` within each group, adding
+  // only the Sort and GroupBy not already established.
+  void RequireGrouped(const std::vector<ColumnId>& keys, ColumnId ascending);
+
+  // Orders rows as a tree walk in `direction`, numbering the nodes if needed.
+  // The numbering is reused until ResetLayout. Returns the positions of the
+  // node number columns.
+  TreeColumns RequireTreeWalk(ColumnId node, ColumnId parent, TreeDirection);
 
   // ---------------------------------------------------------------------------
-  // Batch column layout
+  // Declarations: record what an added operator produces
   // ---------------------------------------------------------------------------
 
-  // Assigns the next batch slot to a logical value; does not emit an operator.
-  void Define(ColumnId id);
+  // Assigns the next batch column to a logical column.
+  void DeclareColumn(ColumnId id);
 
-  // Reserves a batch slot with no logical ID.
-  uint32_t AllocateTemporaryColumn();
+  // Reserves the next batch column for a value with no logical column, and
+  // returns its position.
+  uint32_t DeclareTemporaryColumn();
 
-  // Restarts slot allocation and clears ordering/tree guarantees. The caller
-  // must Define all surviving values in their new positions before using them.
+  // Records that `column` ascends within each group.
+  void DeclareAscendingColumn(ColumnId column);
+
+  // Replaces what is known of the order with `order`.
+  void DeclareOrder(Order order);
+
+  // Clears all declarations, for an operator that outputs new rows. Every
+  // column still used must be declared again.
   void ResetLayout();
 
-  // Looks up a live logical value previously registered by Define.
-  uint32_t Position(ColumnId id) const;
+  // ---------------------------------------------------------------------------
+  // Queries: return what is known, change nothing
+  // ---------------------------------------------------------------------------
+
+  // The batch position of a column declared with DeclareColumn.
+  uint32_t QueryPosition(ColumnId id) const;
+
+  // What is known about the order of the rows.
+  const Order& QueryOrder() const { return order_; }
 
   // ---------------------------------------------------------------------------
-  // Getters
+  // Accessors
   // ---------------------------------------------------------------------------
 
   const LogicalPlan& plan() const;
-  const Order& order() const { return order_; }
   bool has_source() const { return input_ != nullptr; }
 
  private:
