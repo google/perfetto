@@ -263,6 +263,7 @@ export function renderDataGrid(app: App): m.Children {
       initialOpts: {
         showExportButton: false,
         structuredQueryCompatMode: false,
+        enableQuickFilter: true,
         disablePivotControls: false,
         disableColumnControls: false,
         disableFilterControls: false,
