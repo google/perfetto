@@ -73,6 +73,15 @@ everything from the root of a Perfetto checkout. Details:
      |> SELECT m.file_name, janky |> ORDER BY janky DESC"
    ```
 
+   DuckDB SQL also supports interval, tree and graph operators partitioned by
+   `_trace_uuid` (see `python/perfetto/bigtrace/duckdb_ext/docs/*.md`):
+   - `INTERVAL INTERSECTION OF (slices AS s, sched AS c) PER _trace_uuid, utid`
+   - `INTERVAL FLATTEN`, `MERGE`, `SPLIT`, `SUBTRACT`, `FILL GAPS`, `JOIN`
+   - `TREE ACCUMULATE UP|DOWN SUM(dur) AS total PER _trace_uuid`, `KEEP IF`,
+     `PRUNE`, `CONTRACT`, `FLATTEN RECURSION`
+   - `GRAPH DOMINATOR TREE NODES obj EDGES refs FROM roots PER _trace_uuid`,
+     `GRAPH BFS`, `GRAPH DFS`
+
 ## UI, for humans
 
 Open `https://ui.perfetto.dev/bigtrace.html?server=http://127.0.0.1:5001`

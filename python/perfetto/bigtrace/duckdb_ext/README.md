@@ -15,6 +15,10 @@ for the local Bigtrace server (`../server.py`); see
 - `pf_compile_pipe(sql)` (`src/pipe.cc`): compiles PerfettoSQL `|>` chain
   syntax (and duration literals such as `16ms`) into plain DuckDB SQL; SQL
   without `|>` is returned unchanged.
+- Interval (`src/intervals.cc`, `sql/intervals.sql`), tree (`src/trees.cc`,
+  `sql/trees.sql`) and graph (`src/graphs.cc`, `sql/graphs.sql`) operators,
+  exposed as `|>` stages/sources and `pf_*` table macros (`src/sql_gen.cc`);
+  see `docs/*.md`.
 
 The server builds it on first use into
 `~/.cache/perfetto/bigtrace/duckdb_ext/<hash of the sources>/`. By hand:

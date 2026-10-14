@@ -32,10 +32,35 @@ for h in duckdb.h duckdb_extension.h; do
   [ -f "$INC/$h" ] || mv "$INC/$h.$$" "$INC/$h"
 done
 TMP="$OUT.$$.tmp"
-trap 'rm -f "$TMP"' EXIT
-"${CXX:-g++}" -O3 -std=c++17 -fPIC -fvisibility=hidden -pthread -Wall -Wextra \
-  -Werror -isystem "$INC" -shared -static-libstdc++ -static-libgcc \
-  src/*.cc -o "$TMP"
+GEN="$(mktemp -d)"
+trap 'rm -rf "$TMP" "$GEN"' EXIT
+# The SQL macros of sql/*.sql (statements separated by a "-- @@" line) are
+# compiled in as kSqlMacros.
+"${PYTHON:-python3}" - "$GEN/sql_macros.h" sql/*.sql <<'PY'
+import sys
+stmts = []
+for path in sys.argv[2:]:
+  with open(path) as f:
+    for stmt in f.read().split("\n-- @@\n"):
+      code = [l for l in stmt.splitlines() if l.strip() and
+              not l.strip().startswith("--")]
+      if code:
+        stmts.append(stmt.strip())
+with open(sys.argv[1], "w") as out:
+  out.write("static const char* const kSqlMacros[] = {\n")
+  for stmt in stmts:
+    out.write(f'R"PFSQL({stmt})PFSQL",\n')
+  out.write("};\n")
+PY
+pids=()
+for src in src/*.cc; do
+  "${CXX:-g++}" -O3 -std=c++17 -fPIC -fvisibility=hidden -pthread -Wall -Wextra \
+    -Wno-missing-field-initializers -Werror -Isrc -I"$GEN" -isystem "$INC" \
+    -c "$src" -o "$GEN/$(basename "$src" .cc).o" &
+  pids+=($!)
+done
+for pid in "${pids[@]}"; do wait "$pid"; done
+"${CXX:-g++}" -shared -static-libstdc++ -static-libgcc -pthread "$GEN"/*.o -o "$TMP"
 # DuckDB wants a 512-byte metadata footer behind a custom section header, as
 # duckdb/extension-ci-tools' append_extension_metadata.py writes it.
 field() { printf '%s' "$1"; head -c $((32 - ${#1})) /dev/zero; }

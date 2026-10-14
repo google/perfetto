@@ -63,9 +63,10 @@ class HttpError(Exception):
     self.status = status
 
 
-def load_extension(db):
-  """Builds the extension of the current sources, once, and loads it."""
-  srcs = sorted(glob.glob(f"{EXT_DIR}/src/*")) + [f"{EXT_DIR}/build.sh"]
+def build_extension():
+  """Builds the extension of the current sources, once, and returns its path."""
+  srcs = sorted(glob.glob(f"{EXT_DIR}/src/*") +
+                glob.glob(f"{EXT_DIR}/sql/*")) + [f"{EXT_DIR}/build.sh"]
   h = hashlib.sha1()
   for s in srcs:
     with open(s, "rb") as f:
@@ -79,6 +80,12 @@ def load_extension(db):
                            text=True)
     if build.returncode:
       raise SystemExit(f"Building the DuckDB extension failed:\n{build.stderr}")
+  return path
+
+
+def load_extension(db):
+  """Builds the extension of the current sources, once, and loads it."""
+  path = build_extension()
   db.execute(f"LOAD '{path}'")
   return ctypes.CDLL(path)  # The library DuckDB loaded: they share streams.
 

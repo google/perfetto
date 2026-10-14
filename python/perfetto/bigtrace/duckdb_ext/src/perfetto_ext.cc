@@ -29,8 +29,7 @@
 // (the INSERT commits, so partial results become visible); pf_take_stop()
 // tells which.
 
-#define DUCKDB_EXTENSION_NAME perfetto
-#include "duckdb_extension.h"  // no-include-violation-check
+#include "extension.h"  // no-include-violation-check
 
 #include <poll.h>
 #include <unistd.h>
@@ -50,7 +49,7 @@
 #include <utility>
 #include <vector>
 
-DUCKDB_EXTENSION_EXTERN
+#include "sql_macros.h"  // no-include-violation-check
 
 #define PF_EXPORT extern "C" __attribute__((visibility("default")))
 
@@ -973,8 +972,6 @@ PF_EXPORT void pf_free(int32_t handle) {
   s->Cancel();
 }
 
-bool RegisterPipeFunctions(duckdb_connection conn);
-
 DUCKDB_EXTENSION_ENTRYPOINT(duckdb_connection conn,
                             duckdb_extension_info info,
                             struct duckdb_extension_access* access) {
@@ -990,11 +987,25 @@ DUCKDB_EXTENSION_ENTRYPOINT(duckdb_connection conn,
   duckdb_table_function_set_init(tf, ScanInitFn);
   duckdb_table_function_set_function(tf, ScanFn);
   bool ok = duckdb_register_table_function(conn, tf) == DuckDBSuccess &&
-            RegisterPipeFunctions(conn);
+            RegisterPipeFunctions(conn) && RegisterIntervalFunctions(conn) &&
+            RegisterTreeFunctions(conn) && RegisterGraphFunctions(conn) &&
+            RegisterSqlGenFunctions(conn);
   duckdb_destroy_table_function(&tf);
   for (duckdb_logical_type* t : {&integer, &bigint, &varchar, &list})
     duckdb_destroy_logical_type(t);
-  if (!ok)
+  if (!ok) {
     access->set_error(info, "perfetto: cannot register extension functions");
-  return ok;
+    return false;
+  }
+  for (const char* sql : kSqlMacros) {
+    duckdb_result res;
+    ok = duckdb_query(conn, sql, &res) == DuckDBSuccess;
+    std::string error = ok ? "" : duckdb_result_error(&res);
+    duckdb_destroy_result(&res);
+    if (!ok) {
+      access->set_error(info, ("perfetto: macro failed: " + error).c_str());
+      return false;
+    }
+  }
+  return true;
 }

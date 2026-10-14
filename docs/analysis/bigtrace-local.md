@@ -79,6 +79,14 @@ FROM slices AS s
 |> ORDER BY slow_slices DESC
 ```
 
+It also provides native interval, tree and graph operators partitioned per
+trace (`PER _trace_uuid, ...`; see `python/perfetto/bigtrace/duckdb_ext/docs/`):
+
+```sql
+INTERVAL INTERSECTION OF (slices AS s, sched AS c) PER _trace_uuid, utid
+|> AGGREGATE sum(dur) AS cpu_ns GROUP BY _trace_uuid, s.name
+```
+
 ### In the UI
 
 Open `https://ui.perfetto.dev/bigtrace.html?server=http://127.0.0.1:5001`

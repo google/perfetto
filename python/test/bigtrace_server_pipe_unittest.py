@@ -248,7 +248,8 @@ class PipeCompilerTest(unittest.TestCase):
     self.assertCompileError(
         "FROM t |> FILTER dur > 0",
         "unknown |> stage 'FILTER dur > 0': expected WHERE, SELECT, EXTEND, "
-        "SET, DROP, RENAME, AGGREGATE, JOIN, ORDER BY, LIMIT, AS or FORK AS")
+        "SET, DROP, RENAME, AGGREGATE, JOIN, ORDER BY, LIMIT, AS, FORK AS, "
+        "INTERVAL ... or TREE ...")
     self.assertCompileError("FROM t |> |> SELECT 1", "empty |> stage")
     self.assertCompileError("FROM t |> SELECT id |>", "empty |> stage")
     self.assertCompileError("FROM t |> WHERE", "WHERE needs an argument")
