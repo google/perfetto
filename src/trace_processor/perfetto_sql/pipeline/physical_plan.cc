@@ -279,7 +279,8 @@ void Lowering::Convert(const Side& side, const PlanType& type) {
     return;
   }
   converted_[side.column] = *type.storage();
-  if (from.is_null()) {
+  // TypeOf forgets a Null column once it has been converted.
+  if (plan_.columns()[side.column].type.is_null()) {
     side.steps->push_back(
         std::make_unique<ex::NullColumn>(side.position, *type.storage()));
     return;

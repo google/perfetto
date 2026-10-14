@@ -62,7 +62,7 @@ bool HoldsNoValues(const dataframe::Column& column, uint32_t rows) {
     return true;
   }
   const core::BitVector* present = column.null_storage.MaybeGetNullBitVector();
-  return present && present->CountSetBits() == 0;
+  return present && !present->AnyBitSet();
 }
 
 std::optional<uint32_t> FindScanColumn(const dataframe::Dataframe& dataframe,
