@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/distinct.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
@@ -155,6 +156,10 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
                          : assert.target_.Is<Double>() ? "Double"
                                                        : "String";
     return "AssertType(" + Column(assert.column_) + " to " + target + ")";
+  }
+  if (transform.Is<Distinct>()) {
+    return "Distinct(" +
+           Columns(static_cast<const Distinct&>(transform).columns_) + ")";
   }
   if (transform.Is<NullColumn>()) {
     const auto& null = static_cast<const NullColumn&>(transform);

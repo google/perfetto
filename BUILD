@@ -2606,6 +2606,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/context.h",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/dataframe_scan.h",
+        "src/trace_processor/core/exec/distinct.cc",
+        "src/trace_processor/core/exec/distinct.h",
         "src/trace_processor/core/exec/group_table.cc",
         "src/trace_processor/core/exec/group_table.h",
         "src/trace_processor/core/exec/grouped_sort.cc",
