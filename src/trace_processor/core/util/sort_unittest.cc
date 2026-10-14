@@ -59,7 +59,7 @@ TEST(RadixSort, LargeRandomTest) {
   std::minstd_rand0 rnd(0);
   for (uint32_t i = 0; i < 10000; ++i) {
     data.push_back(static_cast<uint64_t>(rnd()));
-    bswap_data.push_back(base::HostToBE64(data.back()));
+    bswap_data.push_back(base::HostToBE(data.back()));
   }
 
   std::vector<uint64_t> scratch(data.size());
@@ -71,7 +71,7 @@ TEST(RadixSort, LargeRandomTest) {
 
   std::vector<uint64_t> sorted_data(result, result + data.size());
   for (auto& item : sorted_data) {
-    item = base::BE64ToHost(item);
+    item = base::BEToHost(item);
   }
   std::vector<uint64_t> std_sorted = data;
   std::sort(std_sorted.begin(), std_sorted.end());
