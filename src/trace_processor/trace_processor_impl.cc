@@ -232,24 +232,23 @@ base::Status RegisterAllProtoBuilderFunctions(
   return base::OkStatus();
 }
 
-void BuildBoundsTable(PerfettoSqlConnection* engine,
-                      std::pair<int64_t, int64_t> bounds) {
-  auto del = engine->Execute(
-      SqlSource::FromTraceProcessorImplementation("DELETE FROM _trace_bounds"));
-  if (!del.ok()) {
-    PERFETTO_ELOG("Error deleting from bounds table: %s",
-                  del.status().c_message());
-    return;
+struct TraceStartFunction : public sqlite::Function<TraceStartFunction> {
+  static constexpr char kName[] = "__intrinsic_trace_start";
+  static constexpr int kArgCount = 0;
+  using UserData = TraceProcessorImpl;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value**) {
+    sqlite::result::Long(ctx, GetUserData(ctx)->GetTraceBounds().first);
   }
-  base::StackString<1024> sql("INSERT INTO _trace_bounds VALUES(%" PRId64
-                              ", %" PRId64 ")",
-                              bounds.first, bounds.second);
-  auto ins = engine->Execute(
-      SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
-  if (!ins.ok()) {
-    PERFETTO_ELOG("Error inserting bounds table: %s", ins.status().c_message());
+};
+
+struct TraceEndFunction : public sqlite::Function<TraceEndFunction> {
+  static constexpr char kName[] = "__intrinsic_trace_end";
+  static constexpr int kArgCount = 0;
+  using UserData = TraceProcessorImpl;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value**) {
+    sqlite::result::Long(ctx, GetUserData(ctx)->GetTraceBounds().second);
   }
-}
+};
 
 // Module bodies are string_views into |package|; the caller must keep
 // |package| alive for the lifetime of the result.
@@ -522,9 +521,6 @@ TraceProcessorImpl::TraceProcessorImpl(
     PERFETTO_CHECK(status.ok());
   }
 
-  // Compute initial trace bounds before any tables are finalized.
-  cached_trace_bounds_ = AggregatePluginTimestampBounds(plugins_);
-
   engine_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
@@ -535,7 +531,6 @@ TraceProcessorImpl::TraceProcessorImpl(
       &proto_fn_name_to_path_,
       this,
       notify_eof_called_,
-      cached_trace_bounds_,
       plugins_,
       plugin_dataframes_,
   });
@@ -571,7 +566,6 @@ base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
 
 void TraceProcessorImpl::Flush() {
   TraceProcessorStorageImpl::Flush();
-  CacheBoundsAndBuildTable();
 }
 
 base::Status TraceProcessorImpl::NotifyEndOfFile() {
@@ -603,7 +597,6 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   HeapGraphTracker::Get(context())->FinalizeAllProfiles();
   TraceProcessorStorageImpl::OnEventsFullyExtracted();
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
-  CacheBoundsAndBuildTable();
 
   // Run trace-config diagnostics before the parser context is destroyed (rules
   // may read metadata/clocks off the context). Rules are per-(trace, machine),
@@ -632,10 +625,22 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
         col_idxs.push_back(
             static_cast<uint32_t>(std::distance(col_names.begin(), it)));
       }
-      auto idx_or = df.dataframe->BuildIndex(col_idxs.data(),
-                                             col_idxs.data() + col_idxs.size());
-      PERFETTO_CHECK(idx_or.ok());
-      *df.dataframe = df.dataframe->AddIndex(std::move(*idx_or));
+      if (df.dataframe->row_count() == 0) {
+        *df.dataframe = df.dataframe->AddIndex(core::dataframe::Index(
+            std::move(col_idxs), std::make_shared<std::vector<uint32_t>>()));
+        continue;
+      }
+      // Sorting large tables is expensive and many indexes are never used by
+      // a query, so defer building them until first use.
+      auto* dataframe = df.dataframe;
+      auto cols = col_idxs;
+      *df.dataframe = df.dataframe->AddIndex(
+          core::dataframe::Index(std::move(col_idxs), [dataframe, cols]() {
+            auto idx_or =
+                dataframe->BuildIndex(cols.data(), cols.data() + cols.size());
+            PERFETTO_CHECK(idx_or.ok());
+            return idx_or->permutation_vector();
+          }));
     }
   }
 
@@ -646,14 +651,13 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   return base::OkStatus();
 }
 
-void TraceProcessorImpl::CacheBoundsAndBuildTable() {
+std::pair<int64_t, int64_t> TraceProcessorImpl::GetTraceBounds() {
   uint64_t mutations = AggregatePluginBoundsMutationCount(plugins_);
-  if (mutations == bounds_tables_mutations_) {
-    return;
+  if (mutations != bounds_tables_mutations_) {
+    bounds_tables_mutations_ = mutations;
+    cached_trace_bounds_ = AggregatePluginTimestampBounds(plugins_);
   }
-  bounds_tables_mutations_ = mutations;
-  cached_trace_bounds_ = AggregatePluginTimestampBounds(plugins_);
-  BuildBoundsTable(engine_.get(), cached_trace_bounds_);
+  return cached_trace_bounds_;
 }
 
 // =================================================================
@@ -901,7 +905,6 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
   // Reset the connection (and the database it owns) to its initial state.
-  // Pass cached bounds to avoid recomputing them.
   engine_ = InitPerfettoSqlConnection({
       context(),
       context()->storage.get(),
@@ -912,7 +915,6 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
       &proto_fn_name_to_path_,
       this,
       notify_eof_called_,
-      cached_trace_bounds_,
       plugins_,
       plugin_dataframes_,
   });
@@ -1058,7 +1060,6 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
   auto* proto_fn_name_to_path = args.proto_fn_name_to_path;
   auto* trace_processor = args.trace_processor;
   bool notify_eof_called = args.notify_eof_called;
-  auto cached_trace_bounds = args.cached_trace_bounds;
   const auto& plugins = args.plugins;
   const auto& plugin_dataframes = args.plugin_dataframes;
 
@@ -1089,6 +1090,10 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
   //   dynamically per-connection from the live descriptor pool.
   // - Virtual table modules whose context is the live connection itself
   //   (span_join variants, mipmap operators) can only be wired here.
+  init.functions.push_back(
+      MakeFunctionRegistration<TraceStartFunction>(trace_processor));
+  init.functions.push_back(
+      MakeFunctionRegistration<TraceEndFunction>(trace_processor));
   init.functions.push_back(
       MakeFunctionRegistration<metrics::NullIfEmpty>(nullptr));
   init.functions.push_back(
@@ -1177,7 +1182,6 @@ TraceProcessorImpl::InitPerfettoSqlConnection(
       }
     }
   }
-  BuildBoundsTable(connection.get(), cached_trace_bounds);
   return connection;
 }
 

@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,6 +29,8 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
@@ -36,6 +39,8 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/util/flatbuffer_reader.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
@@ -218,10 +223,22 @@ template <typename T>
 void CopyDenseValues(const std::vector<TraceBlobView>& pieces,
                      uint32_t rows,
                      FlexVector<T>* output) {
-  output->resize(rows);
   if (!rows) {
+    output->resize(0);
     return;
   }
+  // Arrow aligns every buffer, so when the values are contiguous in memory
+  // (e.g. a memory-mapped file) alias them instead of copying: pages are then
+  // only faulted in when a query actually reads the column.
+  if (pieces.size() == 1 &&
+      reinterpret_cast<uintptr_t>(pieces[0].data()) % alignof(T) == 0) {
+    auto slab = Slab<T>::FromShared(
+        reinterpret_cast<const T*>(pieces[0].data()), rows,
+        std::make_shared<RefPtr<TraceBlob>>(pieces[0].blob()));
+    *output = FlexVector<T>::CreateFromSlab(std::move(slab), rows);
+    return;
+  }
+  output->resize(rows);
   auto* out = reinterpret_cast<uint8_t*>(output->data());
   for (const TraceBlobView& piece : pieces) {
     memcpy(out, piece.data(), piece.size());
@@ -252,7 +269,8 @@ base::Status ReadNumericBuffer(BodyReader* reader,
                                const BitVector& validity,
                                Storage* storage) {
   uint64_t size = static_cast<uint64_t>(rows) * NumericSize(storage->type());
-  if (!sparse) {
+  // A sparse column without nulls has the same layout as a dense one.
+  if (!sparse || stored_rows == rows) {
     ASSIGN_OR_RETURN(std::vector<TraceBlobView> pieces,
                      reader->ReadExactPieces(size));
     VisitNumericStorage(

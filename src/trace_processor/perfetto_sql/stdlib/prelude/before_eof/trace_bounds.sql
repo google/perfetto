@@ -15,8 +15,8 @@
 
 -- The values are being filled by Trace Processor when parsing the trace.
 -- Exposed with `trace_bounds`.
-CREATE TABLE _trace_bounds AS
-SELECT 0 AS start_ts, 0 AS end_ts;
+CREATE PERFETTO VIEW _trace_bounds(start_ts TIMESTAMP, end_ts TIMESTAMP) AS
+SELECT __intrinsic_trace_start() AS start_ts, __intrinsic_trace_end() AS end_ts;
 
 -- Fetch start of the trace.
 CREATE PERFETTO FUNCTION trace_start()

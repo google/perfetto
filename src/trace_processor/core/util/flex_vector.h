@@ -109,11 +109,17 @@ class FlexVector {
     return v;
   }
 
+  // Wraps an existing Slab (such as a shared zero-copy Slab) without copying.
+  static FlexVector<T> CreateFromSlab(Slab<T> slab, uint64_t size) {
+    PERFETTO_DCHECK(size <= slab.size());
+    return FlexVector(std::move(slab), size);
+  }
+
   // Adds `value` to the end of the vector.
   PERFETTO_ALWAYS_INLINE void push_back(T value) {
-    PERFETTO_DCHECK(capacity() % kCapacityMultiple == 0);
+    PERFETTO_DCHECK(slab_.is_shared() || capacity() % kCapacityMultiple == 0);
     PERFETTO_DCHECK(size_ <= capacity());
-    if (PERFETTO_UNLIKELY(size_ == capacity())) {
+    if (PERFETTO_UNLIKELY(size_ == capacity() || slab_.is_shared())) {
       IncreaseCapacity();
     }
     slab_[size_++] = value;
@@ -121,9 +127,9 @@ class FlexVector {
 
   // Adds `count` elements of `value` to the end of the vector.
   PERFETTO_ALWAYS_INLINE void push_back_multiple(T value, uint64_t count) {
-    PERFETTO_DCHECK(capacity() % kCapacityMultiple == 0);
+    PERFETTO_DCHECK(slab_.is_shared() || capacity() % kCapacityMultiple == 0);
     PERFETTO_DCHECK(size_ <= capacity());
-    while (PERFETTO_UNLIKELY(size_ + count > capacity())) {
+    while (PERFETTO_UNLIKELY(size_ + count > capacity() || slab_.is_shared())) {
       IncreaseCapacity();
     }
     uint64_t end = size_ + count;
@@ -158,7 +164,7 @@ class FlexVector {
   // `kGrowthFactor`, so interleaving reserve calls with push_backs cannot
   // degrade to quadratic copying.
   void reserve(uint64_t new_capacity) {
-    if (new_capacity <= capacity()) {
+    if (new_capacity <= capacity() && !slab_.is_shared()) {
       return;
     }
     uint64_t target = std::max(
@@ -181,6 +187,9 @@ class FlexVector {
   // Shrinks the memory allocated by the vector to be as small as possible while
   // still maintaining the invariants of the class.
   void shrink_to_fit() {
+    if (slab_.is_shared()) {
+      return;
+    }
     if (base::AlignUp(size_, kCapacityMultiple) == capacity()) {
       return;
     }
@@ -236,6 +245,9 @@ class FlexVector {
   // Constructor used by Alloc.
   explicit FlexVector(uint64_t capacity, uint64_t size)
       : slab_(Slab<T>::Alloc(capacity)), size_(size) {}
+
+  explicit FlexVector(Slab<T> slab, uint64_t size)
+      : slab_(std::move(slab)), size_(size) {}
 
   PERFETTO_NO_INLINE void IncreaseCapacity() {
     uint64_t new_capacity = std::max<uint64_t>(

@@ -19,7 +19,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
@@ -55,8 +57,25 @@ class Slab {
   Slab() = default;
 
   // Move operations are supported.
-  constexpr Slab(Slab&&) = default;
-  constexpr Slab& operator=(Slab&&) = default;
+  Slab(Slab&& other) noexcept
+      : owned_(std::move(other.owned_)),
+        backing_(std::move(other.backing_)),
+        ptr_(other.ptr_),
+        size_(other.size_) {
+    other.ptr_ = nullptr;
+    other.size_ = 0;
+  }
+  Slab& operator=(Slab&& other) noexcept {
+    if (this != &other) {
+      owned_ = std::move(other.owned_);
+      backing_ = std::move(other.backing_);
+      ptr_ = other.ptr_;
+      size_ = other.size_;
+      other.ptr_ = nullptr;
+      other.size_ = 0;
+    }
+    return *this;
+  }
 
   // Copy operations are deleted to avoid accidental copies.
   Slab(const Slab&) = delete;
@@ -81,6 +100,18 @@ class Slab {
     return Slab(static_cast<T*>(base::AlignedAlloc(alignment, bytes)), size);
   }
 
+  // Creates a slab backed by shared read-only memory (e.g., an mmap-backed
+  // TraceBlob) without copying.
+  static Slab<T> FromShared(const T* data,
+                            uint64_t size,
+                            std::shared_ptr<const void> backing) {
+    static_assert(std::is_trivially_copyable_v<T>);
+    PERFETTO_DCHECK(reinterpret_cast<uintptr_t>(data) % alignof(T) == 0);
+    return Slab(const_cast<T*>(data), size, std::move(backing));
+  }
+
+  bool is_shared() const { return backing_ != nullptr; }
+
   // Shrinks the logical size without changing the underlying allocation.
   void Truncate(uint64_t size) {
     PERFETTO_CHECK(size <= size_);
@@ -91,12 +122,20 @@ class Slab {
   Slab<uint8_t> TakeAsBytes() && {
     static_assert(std::is_trivially_copyable_v<T>);
     uint64_t bytes = size_ * sizeof(T);
-    return Slab<uint8_t>(reinterpret_cast<uint8_t*>(data_.release()), bytes);
+    if (backing_) {
+      auto* ptr = reinterpret_cast<uint8_t*>(ptr_);
+      ptr_ = nullptr;
+      size_ = 0;
+      return Slab<uint8_t>(ptr, bytes, std::move(backing_));
+    }
+    ptr_ = nullptr;
+    size_ = 0;
+    return Slab<uint8_t>(reinterpret_cast<uint8_t*>(owned_.release()), bytes);
   }
 
   // Returns a pointer to the underlying data.
-  PERFETTO_ALWAYS_INLINE const T* data() const { return data_.get(); }
-  PERFETTO_ALWAYS_INLINE T* data() { return data_.get(); }
+  PERFETTO_ALWAYS_INLINE const T* data() const { return ptr_; }
+  PERFETTO_ALWAYS_INLINE T* data() { return ptr_; }
 
   // Returns the number of elements in the slab.
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
@@ -110,23 +149,31 @@ class Slab {
   PERFETTO_ALWAYS_INLINE operator Span<const T>() const { return span(); }
 
   // Returns iterators for range-based for loops.
-  PERFETTO_ALWAYS_INLINE T* begin() const { return data_.get(); }
-  PERFETTO_ALWAYS_INLINE T* end() const { return data_.get() + size_; }
+  PERFETTO_ALWAYS_INLINE T* begin() const { return ptr_; }
+  PERFETTO_ALWAYS_INLINE T* end() const { return ptr_ + size_; }
 
   // Provides indexed access to elements.
-  PERFETTO_ALWAYS_INLINE T& operator[](uint64_t i) const {
-    return data_.get()[i];
-  }
+  PERFETTO_ALWAYS_INLINE T& operator[](uint64_t i) const { return ptr_[i]; }
 
  private:
   template <typename U>
   friend class Slab;
 
   // Constructor used by Alloc.
-  Slab(T* data, uint64_t size) : data_(data), size_(size) {}
+  Slab(T* data, uint64_t size) : owned_(data), ptr_(data), size_(size) {}
 
-  // Aligned unique pointer that holds the allocated memory.
-  base::AlignedUniquePtr<T> data_;
+  // Constructor used by FromShared.
+  Slab(T* data, uint64_t size, std::shared_ptr<const void> backing)
+      : backing_(std::move(backing)), ptr_(data), size_(size) {}
+
+  // Aligned unique pointer that holds the allocated memory when owned.
+  base::AlignedUniquePtr<T> owned_;
+
+  // Shared backing object keeping external memory alive when non-owned.
+  std::shared_ptr<const void> backing_;
+
+  // Pointer to the underlying elements.
+  T* ptr_ = nullptr;
 
   // Number of elements in the slab.
   uint64_t size_ = 0;

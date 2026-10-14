@@ -3,7 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -11,6 +13,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
 #include "src/trace_processor/core/common/null_types.h"
@@ -25,10 +28,20 @@ namespace perfetto::trace_processor::core::dataframe {
 // Represents an index to speed up operations on the dataframe.
 struct Index {
  public:
+  using Builder = std::function<std::shared_ptr<std::vector<uint32_t>>()>;
+
   Index(std::vector<uint32_t> _columns,
         std::shared_ptr<std::vector<uint32_t>> _permutation_vector)
-      : columns_(std::move(_columns)),
-        permutation_vector_(std::move(_permutation_vector)) {}
+      : columns_(std::move(_columns)), state_(std::make_shared<State>()) {
+    state_->permutation_vector = std::move(_permutation_vector);
+  }
+
+  // Creates an index whose permutation vector is only computed by `builder`
+  // the first time it is needed. Copies of the index share the result.
+  Index(std::vector<uint32_t> _columns, Builder builder)
+      : columns_(std::move(_columns)), state_(std::make_shared<State>()) {
+    state_->builder = std::move(builder);
+  }
 
   // Returns a copy of this index.
   Index Copy() const { return *this; }
@@ -37,14 +50,25 @@ struct Index {
   const std::vector<uint32_t>& columns() const { return columns_; }
 
   // Returns the permutation vector which would to order the `columns` in the
-  // dataframe.
+  // dataframe. Thread-safe: a lazy index is built exactly once.
   const std::shared_ptr<std::vector<uint32_t>>& permutation_vector() const {
-    return permutation_vector_;
+    if (PERFETTO_UNLIKELY(state_->builder)) {
+      std::call_once(state_->once, [this] {
+        state_->permutation_vector = state_->builder();
+      });
+    }
+    return state_->permutation_vector;
   }
 
  private:
+  struct State {
+    std::shared_ptr<std::vector<uint32_t>> permutation_vector;
+    // Only set for lazy indexes; never reset so the check above is race-free.
+    Builder builder;
+    std::once_flag once;
+  };
   std::vector<uint32_t> columns_;
-  std::shared_ptr<std::vector<uint32_t>> permutation_vector_;
+  std::shared_ptr<State> state_;
 };
 
 // Tag type for Id column data pointers. Id columns don't have backing storage
