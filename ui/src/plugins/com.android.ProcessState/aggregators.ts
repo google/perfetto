@@ -398,16 +398,8 @@ export class ProcessStartsAggregator implements Aggregator {
         {id: 'hosting_type', field: 'hosting_type'},
         {id: 'hosting_name', field: 'hosting_name'},
         {id: 'trigger_type', field: 'trigger_type'},
-        {
-          id: 'bind_application_delay',
-          field: 'bind_application_delay',
-          aggregate: 'AVG',
-        },
-        {
-          id: 'process_start_delay',
-          field: 'process_start_delay',
-          aggregate: 'AVG',
-        },
+        {id: 'bind_application_delay', field: 'bind_application_delay'},
+        {id: 'process_start_delay', field: 'process_start_delay'},
       ],
     };
   }
@@ -476,7 +468,7 @@ export class ProcessExitsAggregator implements Aggregator {
         {id: 'process_name', field: 'process_name'},
         {id: 'pid', field: 'pid'},
         {id: 'prev_state', field: 'prev_state'},
-        {id: 'prev_dur', field: 'prev_dur', aggregate: 'AVG'},
+        {id: 'prev_dur', field: 'prev_dur'},
         {id: 'exit_reason', field: 'exit_reason'},
         {id: 'exit_subreason', field: 'exit_subreason'},
       ],
