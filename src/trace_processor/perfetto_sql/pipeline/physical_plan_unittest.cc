@@ -260,6 +260,30 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
       "Sort(#0)");
 }
 
+// Each operand is grouped by its PER keys and sorted by ts within each group,
+// unless it already is.
+TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO a VALUES (5, 10, 1), (0, 10, 0)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO b VALUES (7, 10, 0), (2, 10, 1)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF (a AS p, b AS q) PER cpu "
+      "|> SELECT ts, dur, p.cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  // ts and dur are converted to Int64. So is cpu, because it has a different
+  // integer type in each dataframe.
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "GroupedSort(#2; #0)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "GroupedSort(#2; #0)\n"
+            "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
+            "keys: #2, groups: #3)");
+}
+
 // An intersection needs its operands' bounds and PER columns, but only passes
 // on the columns something after it reads: it neither buffers nor gathers
 // the rest.

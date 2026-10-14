@@ -37,6 +37,9 @@ struct IntervalIntersectOperand {
   uint32_t dur_column = 0;
   // Compared pairwise across the operands, in this order.
   std::vector<uint32_t> key_columns;
+  // The column holding each row's group number. Only used if there are keys.
+  // A group's rows arrive together, sorted by ts.
+  uint32_t group_column = 0;
   // The columns kept for output, in this order. Any others are read only to
   // find the regions and are never buffered.
   std::vector<uint32_t> retained_columns;

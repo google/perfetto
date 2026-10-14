@@ -170,16 +170,41 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   c->DeclareColumn(isect.ts_);
   c->DeclareColumn(isect.dur_);
 
-  std::vector<ex::IntervalIntersectOperand> inputs;
+  // Each operand is read from its own side pipeline, which converts ts and
+  // dur to Int64 if needed.
+  std::vector<Lowering*> sides;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
     const IntervalIntersect::Operand& operand = isect.operands_[i];
-    // Each operand is read from its own side pipeline, which converts ts and
-    // dur to Int64 if needed.
     Lowering& side = c->AddSidePipeline();
     side.LowerNode(children[i]);
     side.RequireType(operand.ts, core::Int64{});
     side.RequireType(operand.dur, core::Int64{});
+    sides.push_back(&side);
+  }
+
+  // Keys are compared across operands, so each key must have the same type
+  // in all of them.
+  size_t key_count =
+      isect.operands_.empty() ? 0 : isect.operands_[0].keys.size();
+  for (size_t k = 0; k < key_count; ++k) {
+    std::vector<Lowering::Side> same;
+    for (uint32_t i = 0; i < isect.operands_.size(); i++) {
+      same.push_back({sides[i], isect.operands_[i].keys[k]});
+    }
+    c->RequireCommonType(same);
+  }
+
+  std::vector<ex::IntervalIntersectOperand> inputs;
+  for (uint32_t i = 0; i < isect.operands_.size(); i++) {
+    const IntervalIntersect::Operand& operand = isect.operands_[i];
+    Lowering& side = *sides[i];
     ex::IntervalIntersectOperand lowered;
+    // The operator reads each key's intervals sorted by start.
+    std::vector<SortKey> by_start = {{operand.ts, false}};
+    side.RequireSortedWithinGroups(operand.keys, by_start);
+    if (!operand.keys.empty()) {
+      lowered.group_column = side.RequireGroupNumbers(operand.keys);
+    }
     lowered.ts_column = side.QueryPosition(operand.ts);
     lowered.dur_column = side.QueryPosition(operand.dur);
     for (ColumnId key : operand.keys) {
@@ -194,6 +219,23 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     for (ColumnId id : operand.carried) {
       c->DeclareColumn(id);
     }
+  }
+
+  // The output is grouped by the keys. This can only be declared if every
+  // key is carried to the output by some operand.
+  std::vector<ColumnId> carried_keys;
+  for (size_t k = 0; k < key_count; ++k) {
+    for (const IntervalIntersect::Operand& operand : isect.operands_) {
+      const auto& carried = operand.carried;
+      if (std::find(carried.begin(), carried.end(), operand.keys[k]) !=
+          carried.end()) {
+        carried_keys.push_back(operand.keys[k]);
+        break;
+      }
+    }
+  }
+  if (key_count > 0 && carried_keys.size() == key_count) {
+    c->DeclareGrouped(carried_keys);
   }
   c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));
 }
