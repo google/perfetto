@@ -46,13 +46,13 @@ class PERFETTO_EXPORT_COMPONENT Uuid {
   int64_t msb() const {
     uint64_t result;
     memcpy(&result, data_.data() + 8, 8);
-    return static_cast<int64_t>(LE64ToHost(result));
+    return static_cast<int64_t>(LEToHost(result));
   }
 
   int64_t lsb() const {
     uint64_t result;
     memcpy(&result, data_.data(), 8);
-    return static_cast<int64_t>(LE64ToHost(result));
+    return static_cast<int64_t>(LEToHost(result));
   }
 
   void set_lsb_msb(int64_t lsb, int64_t msb) {
@@ -60,11 +60,11 @@ class PERFETTO_EXPORT_COMPONENT Uuid {
     set_msb(msb);
   }
   void set_msb(int64_t msb) {
-    uint64_t le = HostToLE64(static_cast<uint64_t>(msb));
+    uint64_t le = HostToLE(static_cast<uint64_t>(msb));
     memcpy(data_.data() + 8, &le, 8);
   }
   void set_lsb(int64_t lsb) {
-    uint64_t le = HostToLE64(static_cast<uint64_t>(lsb));
+    uint64_t le = HostToLE(static_cast<uint64_t>(lsb));
     memcpy(data_.data(), &le, 8);
   }
 
