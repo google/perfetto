@@ -19,6 +19,7 @@ import {EChartView} from './echart_view';
 import {
   buildAxisOption,
   buildGridOption,
+  buildTooltipContent,
   buildTooltipOption,
 } from './chart_option_builder';
 
@@ -183,14 +184,14 @@ function buildBoxplotOption(
       formatter: (params: {name?: string; value?: number[]}) => {
         const v = params.value;
         if (v === undefined) return '';
-        return [
-          `<b>${params.name ?? ''}</b>`,
+        return buildTooltipContent([
+          {text: params.name ?? '', bold: true},
           `Max: ${fmtVal(v[5] ?? v[4])}`,
           `Q3: ${fmtVal(v[4] ?? v[3])}`,
           `Median: ${fmtVal(v[3] ?? v[2])}`,
           `Q1: ${fmtVal(v[2] ?? v[1])}`,
           `Min: ${fmtVal(v[1] ?? v[0])}`,
-        ].join('<br>');
+        ]);
       },
     }),
     series: [

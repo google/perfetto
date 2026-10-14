@@ -20,7 +20,7 @@ import {
   type EChartEventHandler,
   type EChartClickParams,
 } from './echart_view';
-import {buildTooltipOption} from './chart_option_builder';
+import {buildTooltipContent, buildTooltipOption} from './chart_option_builder';
 
 /**
  * A node in the treemap hierarchy.
@@ -134,7 +134,11 @@ function buildTreemapOption(
         const name = params.name ?? '';
         const value = params.value ?? 0;
         const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
-        return [name, `Value: ${formatValue(value)}`, `${pct}%`].join('<br>');
+        return buildTooltipContent([
+          name,
+          `Value: ${formatValue(value)}`,
+          `${pct}%`,
+        ]);
       },
     }),
     series: [

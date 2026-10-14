@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {
+  buildTooltipContent,
   collectYAxisLabels,
   formatLabel,
   generateNiceTicks,
@@ -160,5 +161,33 @@ describe('collectYAxisLabels', () => {
   test('returns empty when series has no data arrays', () => {
     const opt = {yAxis: {type: 'value'}, series: [{type: 'bar'}]};
     expect(collectYAxisLabels(opt)).toEqual([]);
+  });
+});
+
+describe('buildTooltipContent', () => {
+  test('renders one row per line', () => {
+    const el = buildTooltipContent(['a', 'b', 'c']);
+    expect(el.children.length).toBe(3);
+    expect(el.textContent).toBe('abc');
+  });
+
+  test('treats HTML in text as literal text', () => {
+    const payload = '<img src=x onerror=alert(1)><iframe srcdoc="x"></iframe>';
+    const el = buildTooltipContent([payload, {text: payload, bold: true}]);
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.querySelector('iframe')).toBeNull();
+    expect(el.textContent).toBe(payload + payload);
+  });
+
+  test('renders bold text', () => {
+    const el = buildTooltipContent([{text: 'name', bold: true}]);
+    expect(el.querySelector('b')?.textContent).toBe('name');
+  });
+
+  test('renders a colored marker', () => {
+    const el = buildTooltipContent([{text: 'series', markerColor: 'red'}]);
+    const marker = el.querySelector('span');
+    expect(marker?.style.backgroundColor).toBe('red');
+    expect(el.textContent).toBe('series');
   });
 });

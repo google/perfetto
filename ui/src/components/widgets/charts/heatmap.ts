@@ -20,6 +20,7 @@ import {
   buildAxisOption,
   buildBrushOption,
   buildGridOption,
+  buildTooltipContent,
   buildTooltipOption,
   SELECTION_COLOR,
 } from './chart_option_builder';
@@ -174,7 +175,10 @@ function buildHeatmapOption(
         if (v === undefined) return '';
         const xLabel = data.xLabels[v[0]] ?? '';
         const yLabel = data.yLabels[v[1]] ?? '';
-        return [`${xLabel} / ${yLabel}`, `Value: ${fmtVal(v[2])}`].join('<br>');
+        return buildTooltipContent([
+          `${xLabel} / ${yLabel}`,
+          `Value: ${fmtVal(v[2])}`,
+        ]);
       },
     }),
     visualMap: {

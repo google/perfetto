@@ -17,7 +17,11 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import type {HistogramBucket, HistogramData} from './histogram_loader';
 import {EChartView, type EChartEventHandler} from './echart_view';
-import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
+import {
+  buildChartOption,
+  buildTooltipContent,
+  SELECTION_COLOR,
+} from './chart_option_builder';
 import type {ChartThemeColors} from './chart_theme';
 
 const PALETTE_INDEX_KEY = '__pfPaletteIdx';
@@ -222,7 +226,11 @@ function buildOption(
             totalWithNull > 0
               ? ((nullCount / totalWithNull) * 100).toFixed(1)
               : '0';
-          return [`NULL`, `Count: ${fmtY(nullCount)}`, `${pct}%`].join('<br>');
+          return buildTooltipContent([
+            `NULL`,
+            `Count: ${fmtY(nullCount)}`,
+            `${pct}%`,
+          ]);
         }
 
         // Regular bucket
@@ -231,11 +239,11 @@ function buildOption(
           totalWithNull > 0
             ? ((bucket.count / totalWithNull) * 100).toFixed(1)
             : '0';
-        return [
+        return buildTooltipContent([
           `Range: ${formatXValue(bucket.start)} - ${formatXValue(bucket.end)}`,
           `Count: ${fmtY(bucket.count)}`,
           `${pct}%`,
-        ].join('<br>');
+        ]);
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,

@@ -145,6 +145,54 @@ export function buildTooltipOption(
 }
 
 /**
+ * A single line of tooltip content. A plain string renders as a regular line.
+ */
+export type TooltipLine =
+  | string
+  | {
+      readonly text: string;
+      readonly bold?: boolean;
+      /** Draws a colored dot before the text, like ECharts' series marker. */
+      readonly markerColor?: string;
+    };
+
+/**
+ * Builds tooltip content as a DOM element, to be returned from an ECharts
+ * tooltip `formatter`.
+ *
+ * ECharts injects string return values from `formatter` as raw HTML, so
+ * interpolating chart data (e.g. slice names from a trace) into a string
+ * allows script injection. Tooltip formatters must use this helper instead of
+ * returning strings: all text is assigned via `textContent` and is never
+ * parsed as HTML.
+ */
+export function buildTooltipContent(
+  lines: ReadonlyArray<TooltipLine>,
+): HTMLElement {
+  const container = document.createElement('div');
+  for (const line of lines) {
+    const {text, bold, markerColor} =
+      typeof line === 'string' ? {text: line} : line;
+    const row = document.createElement('div');
+    if (markerColor !== undefined) {
+      const marker = document.createElement('span');
+      marker.style.display = 'inline-block';
+      marker.style.marginRight = '4px';
+      marker.style.borderRadius = '10px';
+      marker.style.width = '10px';
+      marker.style.height = '10px';
+      marker.style.backgroundColor = markerColor;
+      row.appendChild(marker);
+    }
+    const textEl = document.createElement(bold === true ? 'b' : 'span');
+    textEl.textContent = text;
+    row.appendChild(textEl);
+    container.appendChild(row);
+  }
+  return container;
+}
+
+/**
  * Build a brush configuration.
  * Theme colors are applied by EChartView.
  */

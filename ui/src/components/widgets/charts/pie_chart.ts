@@ -20,7 +20,11 @@ import {
   type EChartEventHandler,
   type EChartClickParams,
 } from './echart_view';
-import {buildLegendOption, buildTooltipOption} from './chart_option_builder';
+import {
+  buildLegendOption,
+  buildTooltipContent,
+  buildTooltipOption,
+} from './chart_option_builder';
 import type {LegendPosition} from './common';
 
 /**
@@ -152,7 +156,11 @@ function buildPieOption(
         const name = params.name ?? '';
         const value = params.value ?? 0;
         const pct = params.percent?.toFixed(1) ?? '0';
-        return [name, `Value: ${formatValue(value)}`, `${pct}%`].join('<br>');
+        return buildTooltipContent([
+          name,
+          `Value: ${formatValue(value)}`,
+          `${pct}%`,
+        ]);
       },
     }),
     legend: showLegend ? buildLegendOption(legendPosition) : {show: false},

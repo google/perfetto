@@ -21,7 +21,7 @@ import {
   type EChartEventHandler,
   type EChartClickParams,
 } from './echart_view';
-import {buildTooltipOption} from './chart_option_builder';
+import {buildTooltipContent, buildTooltipOption} from './chart_option_builder';
 
 export interface SankeyNode {
   readonly name: string;
@@ -101,16 +101,16 @@ function buildSankeyOption(
           const total = outflow.get(d.source ?? '') ?? 0;
           const pct =
             total > 0 ? (((d.value ?? 0) / total) * 100).toFixed(1) : '0';
-          return [
+          return buildTooltipContent([
             `${d.source} → ${d.target}`,
             `${formatValue(d.value ?? 0)}`,
             `${pct}% of ${d.source}`,
-          ].join('<br>');
+          ]);
         }
         // Node tooltip.
         const name = params.name ?? '';
         const value = params.value ?? 0;
-        return `${name}<br>${formatValue(value)}`;
+        return buildTooltipContent([name, formatValue(value)]);
       },
     }),
     series: [
