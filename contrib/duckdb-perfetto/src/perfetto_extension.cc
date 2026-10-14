@@ -70,6 +70,7 @@
 #include "duckdb/transaction/transaction_manager.hpp"
 
 #include "contrib/duckdb-perfetto/src/block_rewriter.h"
+#include "contrib/duckdb-perfetto/src/chain_rewriter.h"
 #include "contrib/duckdb-perfetto/src/trace_session.h"
 
 namespace duckdb {
@@ -80,7 +81,9 @@ using ::perfetto::duckdb_ext::BlockRewriter;
 using ::perfetto::duckdb_ext::ColumnInfo;
 using ::perfetto::duckdb_ext::ColumnType;
 using ::perfetto::duckdb_ext::Cursor;
+using ::perfetto::duckdb_ext::FindFinalSelect;
 using ::perfetto::duckdb_ext::OuterToken;
+using ::perfetto::duckdb_ext::RewriteQuery;
 using ::perfetto::duckdb_ext::RewriteResult;
 using ::perfetto::duckdb_ext::RowSink;
 using ::perfetto::duckdb_ext::Trace;
@@ -125,13 +128,16 @@ std::string JoinAnd(const std::vector<std::string>& preds) {
 // Writes TP cells into a DuckDB output chunk.
 class VectorSink : public RowSink {
  public:
-  // |out_col[i]| is the output vector for TP column i; |types[i]| its type.
+  // |out_col[i]| is the output vector for TP column i (INVALID_INDEX if it
+  // is not needed); |types[i]| its type.
   VectorSink(DataChunk& output,
              const std::vector<idx_t>& out_col,
              const std::vector<ColumnType>& types)
       : output_(output), out_col_(out_col), types_(types) {}
 
   PStatus Write(size_t row, uint32_t col, const SqlValue& v) override {
+    if (out_col_[col] == DConstants::INVALID_INDEX)
+      return PStatus();
     Vector& vec = output_.data[out_col_[col]];
     if (v.is_null()) {
       FlatVector::SetNull(vec, row, true);
@@ -570,12 +576,15 @@ struct ScanGlobalState : public GlobalTableFunctionState {
   std::vector<ColumnType> types;
 };
 
-// Translates a DuckDB filter on a perfetto table into a PerfettoSQL predicate.
-// Only simple column-vs-constant forms are translated; everything else stays
-// in DuckDB, so this never changes query semantics.
-std::optional<std::string> TranslateFilter(const LogicalGet& get,
-                                           const ScanBindData& bind,
-                                           const Expression& expr) {
+// Translates a DuckDB filter on a perfetto table or query into a PerfettoSQL
+// predicate. |columns| are the TP columns, starting at column |first| of
+// |get|. Only simple column-vs-constant forms are translated; everything else
+// stays in DuckDB, so this never changes query semantics.
+std::optional<std::string> TranslateFilter(
+    const LogicalGet& get,
+    const std::vector<ColumnInfo>& columns,
+    column_t first,
+    const Expression& expr) {
   auto column = [&](const Expression& e)
       -> std::optional<std::pair<std::string, ColumnType>> {
     if (e.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF)
@@ -587,10 +596,10 @@ std::optional<std::string> TranslateFilter(const LogicalGet& get,
     if (ref.binding.column_index >= ids.size())
       return std::nullopt;
     column_t col = ids[ref.binding.column_index].GetPrimaryIndex();
-    if (col >= bind.columns.size())
+    if (col < first || col - first >= columns.size())
       return std::nullopt;
-    return std::make_pair(QuoteIdent(bind.columns[col].name),
-                          bind.columns[col].type);
+    const ColumnInfo& info = columns[col - first];
+    return std::make_pair(QuoteIdent(info.name), info.type);
   };
   auto literal = [](const Expression& e,
                     ColumnType type) -> std::optional<std::string> {
@@ -690,19 +699,28 @@ std::optional<std::string> TranslateFilter(const LogicalGet& get,
   }
 }
 
-void ScanPushdownComplexFilter(ClientContext&,
-                               LogicalGet& get,
-                               FunctionData* bind_data,
-                               vector<unique_ptr<Expression>>& filters) {
-  auto& bind = bind_data->Cast<ScanBindData>();
+// Moves the |filters| which TranslateFilter() can translate to |where|.
+void PushDownFilters(const LogicalGet& get,
+                     const std::vector<ColumnInfo>& columns,
+                     column_t first,
+                     vector<unique_ptr<Expression>>& filters,
+                     std::vector<std::string>* where) {
   for (idx_t i = 0; i < filters.size();) {
-    if (auto sql = TranslateFilter(get, bind, *filters[i])) {
-      bind.where.push_back(*sql);
+    if (auto sql = TranslateFilter(get, columns, first, *filters[i])) {
+      where->push_back(*sql);
       filters.erase_at(i);
     } else {
       ++i;
     }
   }
+}
+
+void ScanPushdownComplexFilter(ClientContext&,
+                               LogicalGet& get,
+                               FunctionData* bind_data,
+                               vector<unique_ptr<Expression>>& filters) {
+  auto& bind = bind_data->Cast<ScanBindData>();
+  PushDownFilters(get, bind.columns, 0, filters, &bind.where);
 }
 
 unique_ptr<GlobalTableFunctionState> ScanInitGlobal(
@@ -777,9 +795,16 @@ struct Source {
 struct QueryBindData : public TableFunctionData {
   std::vector<Source> sources;
   std::string sql;
-  bool trace_column = false;
-  std::vector<ColumnType> types;
-  std::vector<idx_t> out_col;  // TP column -> output column.
+  // |sql| as statements before its final SELECT, and that SELECT, which
+  // filters and projections are pushed into by wrapping it. Empty if the
+  // last statement is not a SELECT (e.g. a pipeline), which disables
+  // pushdown.
+  std::string prefix;
+  std::string final_select;
+  bool trace_column = false;        // If set, output column 0 is the trace.
+  std::vector<ColumnInfo> columns;  // TP's result columns.
+  // PerfettoSQL predicates pushed down from DuckDB, ANDed together.
+  std::vector<std::string> where;
 
   // Cursor for sources[0] opened at bind time to discover the schema; handed
   // to the first scanning thread so the query is not executed twice.
@@ -790,9 +815,11 @@ struct QueryBindData : public TableFunctionData {
     auto res = make_uniq<QueryBindData>();
     res->sources = sources;
     res->sql = sql;
+    res->prefix = prefix;
+    res->final_select = final_select;
     res->trace_column = trace_column;
-    res->types = types;
-    res->out_col = out_col;
+    res->columns = columns;
+    res->where = where;
     return std::move(res);
   }
   bool Equals(const FunctionData& other) const override {
@@ -840,6 +867,10 @@ unique_ptr<FunctionData> QueryBind(ClientContext& context,
     raw.push_back(src.ToString());
   }
   bind->sql = input.inputs[1].ToString();
+  if (auto split = FindFinalSelect(bind->sql)) {
+    bind->prefix = std::move(split->prefix);
+    bind->final_select = std::move(split->select);
+  }
 
   bool multi = raw.size() > 1;
   for (const std::string& r : raw) {
@@ -859,7 +890,6 @@ unique_ptr<FunctionData> QueryBind(ClientContext& context,
   auto types = bind->first->InferTypes(kTypeInferenceRows);
   if (!types.ok())
     throw InvalidInputException("perfetto: %s", types.status().message());
-  bind->types = std::move(*types);
 
   if (bind->trace_column) {
     names.push_back("trace");
@@ -867,17 +897,38 @@ unique_ptr<FunctionData> QueryBind(ClientContext& context,
   }
   const auto& cols = bind->first->column_names();
   for (size_t i = 0; i < cols.size(); ++i) {
-    bind->out_col.push_back(names.size());
+    bind->columns.push_back({cols[i], (*types)[i]});
     names.push_back(cols[i]);
-    return_types.push_back(ToLogicalType(bind->types[i]));
+    return_types.push_back(ToLogicalType((*types)[i]));
   }
   return std::move(bind);
+}
+
+void QueryPushdownComplexFilter(ClientContext&,
+                                LogicalGet& get,
+                                FunctionData* bind_data,
+                                vector<unique_ptr<Expression>>& filters) {
+  auto& bind = bind_data->Cast<QueryBindData>();
+  if (bind.final_select.empty())
+    return;
+  PushDownFilters(get, bind.columns, bind.trace_column ? 1 : 0, filters,
+                  &bind.where);
 }
 
 struct QueryGlobalState : public GlobalTableFunctionState {
   std::atomic<size_t> next_source{0};
   idx_t max_threads = 1;
   idx_t MaxThreads() const override { return max_threads; }
+
+  // What each scan runs: the query as-is, or (with pushdown) its final
+  // SELECT wrapped in a projection and filter. |final_sql| is that wrapped
+  // SELECT alone, for the trace whose |prefix| already ran at bind time.
+  bool as_is = true;
+  std::string sql;
+  std::string final_sql;
+  std::vector<ColumnType> types;  // Of the columns |sql| returns.
+  std::vector<idx_t> out_col;     // Their output columns.
+  idx_t trace_out = DConstants::INVALID_INDEX;
 };
 
 struct QueryLocalState : public LocalTableFunctionState {
@@ -887,8 +938,57 @@ struct QueryLocalState : public LocalTableFunctionState {
 unique_ptr<GlobalTableFunctionState> QueryInitGlobal(
     ClientContext&,
     TableFunctionInitInput& input) {
+  auto& bind = input.bind_data->Cast<QueryBindData>();
   auto state = make_uniq<QueryGlobalState>();
-  state->max_threads = input.bind_data->Cast<QueryBindData>().sources.size();
+  state->max_threads = bind.sources.size();
+  const column_t first = bind.trace_column ? 1 : 0;
+
+  // The TP columns DuckDB needs, in output order.
+  std::string select;
+  bool all = input.column_ids.size() == first + bind.columns.size();
+  for (idx_t i = 0; i < input.column_ids.size(); ++i) {
+    column_t id = input.column_ids[i];
+    all &= id == i;
+    if (bind.trace_column && id == 0) {
+      state->trace_out = i;
+    } else if (id >= first && id - first < bind.columns.size()) {
+      select += (select.empty() ? "" : ", ") +
+                QuoteIdent(bind.columns[id - first].name);
+      state->types.push_back(bind.columns[id - first].type);
+      state->out_col.push_back(i);
+    } else {
+      // Row-id / virtual column (e.g. for COUNT(*)).
+      select += select.empty() ? "NULL" : ", NULL";
+      state->types.push_back(ColumnType::kInt64);
+      state->out_col.push_back(i);
+    }
+  }
+
+  if ((all && bind.where.empty()) || bind.final_select.empty()) {
+    // Run the query as-is, dropping the columns DuckDB does not need.
+    state->sql = bind.sql;
+    state->types.clear();
+    state->out_col.assign(bind.columns.size(), DConstants::INVALID_INDEX);
+    for (const ColumnInfo& c : bind.columns)
+      state->types.push_back(c.type);
+    for (idx_t i = 0; i < input.column_ids.size(); ++i) {
+      column_t id = input.column_ids[i];
+      if (id >= first && id - first < bind.columns.size())
+        state->out_col[id - first] = i;
+    }
+    return std::move(state);
+  }
+  if (select.empty()) {
+    select = "NULL";
+    state->types.push_back(ColumnType::kInt64);
+    state->out_col.push_back(DConstants::INVALID_INDEX);
+  }
+  state->as_is = false;
+  state->final_sql =
+      "SELECT " + select + " FROM (\n" + bind.final_select + "\n)";
+  if (!bind.where.empty())
+    state->final_sql += " WHERE " + JoinAnd(bind.where);
+  state->sql = bind.prefix + state->final_sql;
   return std::move(state);
 }
 
@@ -911,29 +1011,37 @@ void QueryFunction(ClientContext&,
         output.SetCardinality(0);
         return;
       }
+      const Source& s = bind.sources[idx];
+      std::unique_ptr<Cursor> first;
       if (idx == 0) {
         std::lock_guard<std::mutex> lock(bind.mu);
-        local.cursor = std::move(bind.first);
+        first = std::move(bind.first);
       }
-      if (!local.cursor) {
-        // A later source, or a re-execution of a prepared statement.
-        const Source& s = bind.sources[idx];
+      if (first && global.as_is) {
+        local.cursor = std::move(first);
+      } else if (first && s.attached) {
+        // The statements before the final SELECT already ran at bind time.
+        first.reset();
+        local.cursor = OpenCursorOrThrow(s.attached, global.final_sql);
+      } else {
+        // A later source, a re-execution of a prepared statement, or a
+        // pushdown into a trace loaded from a path.
+        first.reset();
         local.cursor = OpenCursorOrThrow(
-            s.attached ? s.attached : LoadTraceOrThrow(s.label), bind.sql);
+            s.attached ? s.attached : LoadTraceOrThrow(s.label), global.sql);
       }
     }
-    VectorSink sink(output, bind.out_col, bind.types);
+    VectorSink sink(output, global.out_col, global.types);
     auto n = local.cursor->Read(STANDARD_VECTOR_SIZE, &sink);
     if (!n.ok()) {
       throw InvalidInputException("perfetto: %s: %s", local.cursor->label(),
                                   n.status().message());
     }
-    if (bind.trace_column) {
-      auto* labels = FlatVector::GetData<string_t>(output.data[0]);
-      for (size_t r = 0; r < *n; ++r) {
-        labels[r] =
-            StringVector::AddString(output.data[0], local.cursor->label());
-      }
+    if (global.trace_out != DConstants::INVALID_INDEX) {
+      Vector& vec = output.data[global.trace_out];
+      auto* labels = FlatVector::GetData<string_t>(vec);
+      for (size_t r = 0; r < *n; ++r)
+        labels[r] = StringVector::AddString(vec, local.cursor->label());
     }
     if (local.cursor->done())
       local.cursor.reset();
@@ -944,8 +1052,17 @@ void QueryFunction(ClientContext&,
   }
 }
 
+InsertionOrderPreservingMap<string> QueryToString(
+    TableFunctionToStringInput& input) {
+  InsertionOrderPreservingMap<string> result;
+  auto& bind = input.bind_data->Cast<QueryBindData>();
+  if (!bind.where.empty())
+    result["PerfettoSQL Filters"] = JoinAnd(bind.where);
+  return result;
+}
+
 // ---------------------------------------------------------------------------
-// Parser: PERFETTO(t) ( <PerfettoSQL> )
+// Parser: PERFETTO(t) ( <PerfettoSQL> ) and |> pipelines
 // ---------------------------------------------------------------------------
 
 // The outer query is DuckDB SQL, so it is tokenized by DuckDB itself.
@@ -990,7 +1107,7 @@ class PerfettoParserExtension : public ParserExtension {
                                        const string& query,
                                        ParserOptions& options) {
     auto& rewriter = static_cast<PerfettoParserInfo*>(info)->rewriter;
-    RewriteResult r = rewriter.Rewrite(query, TokenizeDuckDbSql);
+    RewriteResult r = RewriteQuery(&rewriter, query, TokenizeDuckDbSql);
     if (r.status == RewriteResult::kNoBlocks)
       return ParserOverrideResult();
     if (r.status == RewriteResult::kError) {
@@ -998,8 +1115,8 @@ class PerfettoParserExtension : public ParserExtension {
       return ParserOverrideResult(e);
     }
     try {
-      // The rewritten query contains no blocks, so this recursive parse falls
-      // straight through to DuckDB's own parser.
+      // The rewritten query contains no blocks or pipelines, so this
+      // recursive parse falls straight through to DuckDB's own parser.
       Parser parser(options);
       parser.ParseQuery(r.query);
       return ParserOverrideResult(std::move(parser.statements));
@@ -1028,6 +1145,9 @@ void LoadInternal(ExtensionLoader& loader) {
                       {LogicalType::ANY, LogicalType::VARCHAR}, QueryFunction,
                       QueryBind, QueryInitGlobal, QueryInitLocal);
   query.named_parameters["trace_column"] = LogicalType::BOOLEAN;
+  query.projection_pushdown = true;
+  query.pushdown_complex_filter = QueryPushdownComplexFilter;
+  query.to_string = QueryToString;
   loader.RegisterFunction(query);
 }
 

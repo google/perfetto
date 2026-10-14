@@ -16,41 +16,15 @@
 
 #include "contrib/duckdb-perfetto/src/block_rewriter.h"
 
-#include <cctype>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "contrib/duckdb-perfetto/src/test_tokenizer.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::duckdb_ext {
 namespace {
-
-// The extension tokenizes the outer query with DuckDB's own tokenizer, which
-// tests can't link against. For queries without DuckDB-only lexical forms,
-// syntaqlite's tokenizer produces the same tokens.
-std::vector<OuterToken> TestTokenize(const std::string& s) {
-  std::vector<OuterToken> toks;
-  SyntaqliteTokenizer* tok = syntaqlite_tokenizer_create_perfetto(nullptr);
-  syntaqlite_tokenizer_reset(tok, s.data(),
-                             static_cast<SyntaqliteLength>(s.size()));
-  SyntaqliteToken t;
-  while (syntaqlite_tokenizer_next(tok, &t)) {
-    if (t.type == SYNTAQLITE_TK_SPACE || t.type == SYNTAQLITE_TK_COMMENT)
-      continue;
-    OuterToken::Kind kind = OuterToken::Kind::kOperator;
-    char c = t.text[0];
-    if (t.type == SYNTAQLITE_TK_STRING ||
-        isdigit(static_cast<unsigned char>(c)))
-      kind = OuterToken::Kind::kLiteral;
-    else if (isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '"')
-      kind = OuterToken::Kind::kWord;
-    toks.push_back({static_cast<size_t>(t.text - s.data()), kind});
-  }
-  syntaqlite_tokenizer_destroy(tok);
-  return toks;
-}
 
 RewriteResult RewriteForTest(const std::string& q) {
   static BlockRewriter* rewriter = new BlockRewriter();

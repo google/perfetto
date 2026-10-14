@@ -170,6 +170,9 @@ and streams the rows into DuckDB vectors. `source` can be:
 Result types come from the declared types for tables. For arbitrary queries
 they are inferred from the first 2048 rows (see Limitations).
 
+Filters and projections on a `perfetto_query` result are pushed into the
+query's final `SELECT` (see [Pushdown](#pushdown)).
+
 ### Build
 
 * **Toolchain.** The extension builds with the standard Perfetto GN
@@ -190,10 +193,252 @@ they are inferred from the first 2048 rows (see Limitations).
 ```sh
 contrib/duckdb-perfetto/build.sh                       # extension + unit tests
 out/duckdb_ext/perfetto_duckdb_unittests               # rewriter tests
+contrib/duckdb-perfetto/e2e_test.py                    # end-to-end tests
 duckdb -unsigned -c "LOAD '$PWD/out/duckdb_ext/perfetto.duckdb_extension'; ..."
 ```
 
 `build.sh` pins DuckDB `v1.5.6`. On macOS, `LOAD` needs an absolute path.
+`e2e_test.py` needs `pip install duckdb==1.5.6`. On Linux, Python loads
+DuckDB with `RTLD_LOCAL`, hiding its symbols from extensions: call
+`sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_NOW)` before `import duckdb`.
+
+## Chain syntax
+
+`|>` chains stages onto a query, one step at a time, in the style of
+PerfettoSQL's pipe syntax (RFC-0040; reference:
+[perfetto-sql-pipe-syntax.md](../../docs/analysis/perfetto-sql-pipe-syntax.md)).
+It works both inside a PERFETTO block, where it is TP's own pipe syntax, and
+after one, where it is DuckDB:
+
+```sql
+FROM PERFETTO(t) (SELECT name, dur, depth FROM slice)
+|> WHERE depth = 0
+|> AGGREGATE count(*) AS n, sum(dur) / 1e6 AS total_ms GROUP BY name
+|> ORDER BY total_ms DESC
+|> LIMIT 3;
+```
+
+```text
+name                     | n  | total_ms
+-------------------------+----+------------
+animator                 | 18 | 3550.805108
+startActivityAndWait     | 1  | 1110.688706
+mdss_mdp_overlay_kickoff | 76 | 895.068466
+```
+
+### The boundary stays explicit
+
+Everything inside the block's parentheses is PerfettoSQL and runs in TP.
+Every stage after the closing parenthesis is DuckDB SQL and runs in DuckDB.
+The extension never moves a stage from one side to the other.
+
+This is the same rule as for blocks themselves, for the same reason: the same
+text means different things in the two engines. `7 / 2` is `3` in TP and
+`3.5` in DuckDB; ascending `ORDER BY` puts NULLs first in TP and last in
+DuckDB; collation and `LIKE` case sensitivity differ. With an explicit
+boundary, which engine's rules apply to a stage depends only on which side of
+the parenthesis it is on.
+
+The stages available on each side today:
+
+| Stage | Inside a block (TP) | After a block (DuckDB) |
+| ----- | ------------------- | ---------------------- |
+| `WHERE` | not supported yet | yes |
+| `SELECT`, `EXTEND` | columns only: `col [AS name]`, `*`, `* EXCEPT (...) REPLACE (...)` | any DuckDB select items |
+| `SET col = ...` | another column | any expression |
+| `DROP`, `RENAME`, `AS` | yes | yes |
+| `ORDER BY` | numeric columns only | any expressions |
+| `AGGREGATE ... [GROUP BY ...]` | not implemented yet (see below) | any aggregates |
+| `JOIN`, `LIMIT` | no | yes |
+| `INTERVAL FLATTEN`, `INTERVAL INTERSECTION OF`, `TREE ACCUMULATE` | yes | no |
+
+Inside a block, TP's pipe syntax is experimental and must first be enabled
+with `PERFETTO PRAGMA pipelines = 1;`.
+
+### Grammar
+
+```
+pipeline := FROM source [AS alias] ( |> stage )+
+source   := table | table_function(...) | ( query ) | PERFETTO(t) ( ... )
+stage    := WHERE expr
+          | SELECT item, ...
+          | EXTEND item, ...
+          | SET col = expr, ...
+          | DROP col, ...
+          | RENAME col AS new_name, ...
+          | AGGREGATE expr [AS name], ... [GROUP BY expr [AS name], ...]
+          | [INNER | LEFT | RIGHT | FULL | CROSS] [OUTER] JOIN table_ref
+              [ON expr | USING (col, ...)]
+          | ORDER BY expr [ASC | DESC], ...
+          | LIMIT n [OFFSET m]
+          | AS alias
+```
+
+* A pipeline starts a query: at the start of a statement, inside
+  parentheses, after `AS` (CTE bodies, `CREATE TABLE ... AS`) or after
+  `EXPLAIN`. A PERFETTO block on its own also starts one, without `FROM`.
+* Stage keywords and their meaning follow PerfettoSQL's pipe syntax, so a
+  stage both sides support can be copied between them. Stage bodies are
+  DuckDB SQL.
+* Each stage becomes a DuckDB subquery over the previous one, so
+  `FROM x AS s |> WHERE p |> SELECT a` runs as
+  `SELECT a FROM (SELECT * FROM x AS s WHERE p) AS s`.
+* `AGGREGATE` outputs the `GROUP BY` columns first, then the aggregates.
+* The pipeline's alias, from the source or the last `|> AS`, names the
+  current row in every later stage.
+* Queries without `|>` are passed to DuckDB untouched.
+* [`chain_rewriter.cc`](src/chain_rewriter.cc) does this in the same
+  `parser_override` pass as blocks: blocks are rewritten first, then
+  pipelines, with DuckDB's tokenizer reading the outer query.
+
+### Examples
+
+These run against `test/data/api24_startup_cold.perfetto-trace` attached as
+`t`. [`e2e_test.py`](e2e_test.py) runs every example in this section and
+checks its output.
+
+**DuckDB stages after a block**, here joined with a DuckDB table:
+
+```sql
+CREATE TABLE budgets AS
+  SELECT 'androidx.benchmark.integration.macrobenchmark.target' AS package,
+         200 AS budget_ms;
+
+FROM PERFETTO(t) (
+  INCLUDE PERFETTO MODULE android.startup.startups;
+  SELECT package, dur FROM android_startups
+)
+|> JOIN budgets USING (package)
+|> EXTEND dur / 1e6 AS dur_ms
+|> SELECT package, dur_ms, budget_ms, dur_ms > budget_ms AS over_budget;
+```
+
+```text
+package                                              | dur_ms   | budget_ms | over_budget
+-----------------------------------------------------+----------+-----------+------------
+androidx.benchmark.integration.macrobenchmark.target | 269.9465 | 200       | True
+```
+
+**TP's pipe syntax inside a block.** Here `TREE ACCUMULATE UP` sums `dur`
+over each slice's subtree:
+
+```sql
+FROM PERFETTO(t) (
+  PERFETTO PRAGMA pipelines = 1;
+  FROM slice
+  |> TREE ACCUMULATE UP SUM(dur) AS subtree_dur
+  |> ORDER BY subtree_dur DESC
+  |> SELECT name, depth, dur, subtree_dur
+)
+LIMIT 3;
+```
+
+```text
+name                 | depth | dur        | subtree_dur
+---------------------+-------+------------+------------
+startActivityAndWait | 0     | 1110688706 | 2128502663
+executeCommand       | 1     | 1012039477 | 1012866300
+drawing              | 0     | 685631770  | 685631770
+```
+
+**Both.** TP's `INTERVAL FLATTEN` cuts the timeline into segments at every
+start and end of a thread's run on a CPU, and counts the threads running in
+each segment. DuckDB then adds up the time spent at each level of CPU
+concurrency:
+
+```sql
+FROM PERFETTO(t) (
+  PERFETTO PRAGMA pipelines = 1;
+  FROM (SELECT ts, dur FROM sched WHERE utid != 0 AND dur > 0)
+  |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS running
+)
+|> AGGREGATE sum(dur) / 1e6 AS ms GROUP BY running
+|> ORDER BY running;
+```
+
+```text
+running | ms
+--------+-----------
+1       | 847.876726
+2       | 417.002077
+3       | 265.234189
+4       | 126.81776
+5       | 69.315007
+6       | 22.398534
+```
+
+Errors point into the original query:
+
+```sql
+FROM PERFETTO(t) (SELECT * FROM slice) |> TREE ACCUMULATE UP SUM(dur) AS s;
+```
+
+```text
+Parser Error: INTERVAL and TREE stages are only available inside PERFETTO blocks
+
+LINE 1: FROM PERFETTO(t) (SELECT * FROM slice) |> TREE ACCUMULATE UP SUM(dur) AS s;
+                                                  ^
+```
+
+### Pushdown
+
+A `WHERE` and the projection right after a block, or after `t.<table>`, reach
+TP through the same filter pushdown as `t.<table>` scans: column-vs-constant
+comparisons, `IS [NOT] NULL` and `IN (...)` are translated into PerfettoSQL;
+everything else stays in DuckDB. Only predicates which mean the same in both
+engines are translated, so this changes where the work happens, never the
+result. `EXPLAIN` shows what was pushed:
+
+```sql
+EXPLAIN
+FROM PERFETTO(t) (SELECT name, dur, depth FROM slice)
+|> WHERE depth = 0
+|> SELECT name;
+```
+
+```text
+┌───────────────────────────┐
+│       PERFETTO_QUERY      │
+│    ────────────────────   │
+│    PerfettoSQL Filters:   │
+│        "depth" = 0        │
+│                           │
+│     Projections: name     │
+│                           │
+│           ~1 row          │
+└───────────────────────────┘
+```
+
+To push into a block, the extension wraps the block's final statement:
+`SELECT <columns> FROM (<final statement>) WHERE <predicates>`. On an
+attached trace, the statements before it are not run again. This needs the
+final statement to be a `SELECT`. A TP pipeline can't be wrapped, as
+PerfettoSQL doesn't accept one as a subquery, so after a block ending in a
+pipeline nothing is pushed and DuckDB filters the rows itself.
+
+### Limitations of chains
+
+* **Pushdown re-runs the final statement.** A block runs at bind time so that
+  DuckDB knows its result types (see "Block side effects" under
+  [Limitations](#limitations)). When something is pushed, the wrapped final
+  `SELECT` runs again. That costs little for a streaming query, but a final
+  statement which sorts or aggregates does its work twice.
+* **Aliases across stages.** Only the pipeline's alias survives from one
+  stage to the next. The table aliases of a `JOIN` stage are visible in that
+  stage only. After an `ON` join, later stages see a column name both sides
+  share twice, the second copy renamed by DuckDB (`name`, `name_1`).
+* **DuckDB errors in stage bodies** (e.g. an unknown column) quote the
+  rewritten query, not the original. Errors in the pipe structure itself
+  (unknown stage, misplaced `|>`) point into the original query.
+* **Placement.** `SELECT ... FROM t |> ...`, and pipelines after `DESCRIBE`,
+  `UNION` or `INSERT INTO`, are not supported: start the pipeline with
+  `FROM`, inside parentheses if needed.
+* **DuckDB vs PerfettoSQL items.** Stage bodies are DuckDB SQL: TP's
+  `* EXCEPT (...)` is `* EXCLUDE (...)` in DuckDB.
+* **TP's `|> AGGREGATE`** is accepted by TP's parser but not implemented by its
+  pipeline engine yet, and currently aborts the process (`Unknown pipeline
+  stage`). Aggregate after the block, in DuckDB, instead.
+* **No duration literals**, as TP's grammar has none.
 
 ## Results (M-series Mac, 8 cores, release build, DuckDB 1.5.6 CLI and Python)
 

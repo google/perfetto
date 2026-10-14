@@ -20,7 +20,9 @@
 #include <cstddef>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 struct SyntaqliteParser;
@@ -40,15 +42,27 @@ struct OuterToken {
 using OuterTokenizer =
     std::function<std::vector<OuterToken>(const std::string&)>;
 
+// Whether |t|, a token of |s|, is the unquoted keyword |kw|, ignoring case.
+bool IsKeyword(const std::string& s, const OuterToken& t, std::string_view kw);
+
+// Whether |t|, a token of |s|, is an operator starting with |c|.
+bool IsOperator(const std::string& s, const OuterToken& t, char c);
+
 struct RewriteResult {
   enum Status {
     kNoBlocks,  // Nothing to do: let DuckDB parse the query as-is.
     kRewritten,
     kError,
   };
+  // A part of the original query replaced in the rewritten one.
+  struct Replacement {
+    size_t begin, end;          // In the original query.
+    size_t new_begin, new_end;  // In the rewritten query.
+  };
   Status status = kNoBlocks;
-  std::string query;  // Valid iff kRewritten.
-  std::string error;  // Valid iff kError.
+  std::string query;                      // Valid iff kRewritten.
+  std::vector<Replacement> replacements;  // Valid iff kRewritten.
+  std::string error;                      // Valid iff kError.
   size_t error_offset = 0;
 };
 
@@ -89,6 +103,15 @@ class BlockRewriter {
   std::mutex mu_;
   std::vector<SyntaqliteParser*> parsers_;
 };
+
+// The last statement of the PerfettoSQL |sql|, if it is a SELECT: everything
+// before it, and the statement itself without a trailing ';'. A SELECT can be
+// wrapped in a subquery to push filters and projections into it.
+struct FinalSelect {
+  std::string prefix;
+  std::string select;
+};
+std::optional<FinalSelect> FindFinalSelect(const std::string& sql);
 
 }  // namespace perfetto::duckdb_ext
 

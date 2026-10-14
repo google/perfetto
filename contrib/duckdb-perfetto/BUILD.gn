@@ -54,15 +54,27 @@ config("duckdb_cxx") {
   cflags_cc = [
     "-fexceptions",
     "-frtti",
+
+    # Linux builds use hermetic clang with -Weverything, which DuckDB's API
+    # idioms (constructor parameters named after inherited members, partial
+    # switches over its large enums, header-only virtual classes) trip.
+    "-Wno-float-equal",
+    "-Wno-missing-prototypes",
+    "-Wno-shadow-field",
+    "-Wno-switch-enum",
+    "-Wno-weak-vtables",
   ]
 }
 
-# The PERFETTO(...) ( ... ) block rewriter. Uses syntaqlite (TraceProcessor's
-# SQL front end) for the PerfettoSQL inside blocks; no DuckDB dependency.
+# The PERFETTO(...) ( ... ) block and |> pipeline rewriters. Uses syntaqlite
+# (TraceProcessor's SQL front end) for the PerfettoSQL inside blocks; no DuckDB
+# dependency.
 source_set("block_rewriter") {
   sources = [
     "src/block_rewriter.cc",
     "src/block_rewriter.h",
+    "src/chain_rewriter.cc",
+    "src/chain_rewriter.h",
   ]
   deps = [
     "../../gn:default_deps",
@@ -127,7 +139,11 @@ shared_library("perfetto_duckdb") {
 
 executable("perfetto_duckdb_unittests") {
   testonly = true
-  sources = [ "src/block_rewriter_unittest.cc" ]
+  sources = [
+    "src/block_rewriter_unittest.cc",
+    "src/chain_rewriter_unittest.cc",
+    "src/test_tokenizer.h",
+  ]
   deps = [
     ":block_rewriter",
     "../../gn:default_deps",

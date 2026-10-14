@@ -41,6 +41,11 @@ fi
 if [ ! -f "$OUT/args.gn" ]; then
   mkdir -p "$OUT"
   echo 'is_debug = false' > "$OUT/args.gn"
+  if [ "$(uname -s)" = Linux ]; then
+    # DuckDB's Linux binaries (CLI and Python wheel) use libstdc++, and the
+    # extension shares C++ types with them.
+    echo 'use_custom_libcxx = false' >> "$OUT/args.gn"
+  fi
 fi
 tools/gn gen --check "$OUT" --root=. --dotfile=contrib/duckdb-perfetto/.gn
 tools/ninja -C "$OUT" perfetto_duckdb perfetto_duckdb_unittests

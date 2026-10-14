@@ -27,20 +27,9 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 
 namespace perfetto::duckdb_ext {
-namespace {
 
-using Kind = OuterToken::Kind;
-
-// What the outer query expects at a given point, as far as blocks care.
-enum class Context {
-  kQuery,     // Statement start, or after '(', ';' or AS.
-  kTableRef,  // After FROM, JOIN or ','.
-  kOther,     // Anywhere else, where `perfetto(x)` may be a function call.
-};
-
-// Whether |t| is the unquoted keyword |kw|, ignoring case.
 bool IsKeyword(const std::string& s, const OuterToken& t, std::string_view kw) {
-  if (t.kind != Kind::kWord ||
+  if (t.kind != OuterToken::Kind::kWord ||
       !base::CaseInsensitiveEqual(
           std::string_view(s).substr(t.start, kw.size()), kw)) {
     return false;
@@ -51,8 +40,17 @@ bool IsKeyword(const std::string& s, const OuterToken& t, std::string_view kw) {
 }
 
 bool IsOperator(const std::string& s, const OuterToken& t, char c) {
-  return t.kind == Kind::kOperator && s[t.start] == c;
+  return t.kind == OuterToken::Kind::kOperator && s[t.start] == c;
 }
+
+namespace {
+
+// What the outer query expects at a given point, as far as blocks care.
+enum class Context {
+  kQuery,     // Statement start, or after '(', ';' or AS.
+  kTableRef,  // After FROM, JOIN or ','.
+  kOther,     // Anywhere else, where `perfetto(x)` may be a function call.
+};
 
 Context ContextAfter(const std::string& s, const OuterToken& t) {
   if (IsKeyword(s, t, "from") || IsKeyword(s, t, "join") ||
@@ -256,10 +254,13 @@ RewriteResult BlockRewriter::Rewrite(const std::string& s,
       return res;
     }
     out.append(s, pos, block->start - pos);
+    size_t new_begin = out.size();
     if (ctx != Context::kTableRef)
       out += "FROM ";
     out += "perfetto_query(" + QuoteLiteral(block->alias) + ", " +
            QuoteLiteral(body) + ")";
+    res.replacements.push_back(
+        {block->start, *body_end + 1, new_begin, out.size()});
     res.status = RewriteResult::kRewritten;
     // Resume tokenizing the outer query from just after the block.
     pos = *body_end + 1;
@@ -269,6 +270,43 @@ RewriteResult BlockRewriter::Rewrite(const std::string& s,
     out.append(s, pos, std::string::npos);
     res.query = std::move(out);
   }
+  return res;
+}
+
+std::optional<FinalSelect> FindFinalSelect(const std::string& sql) {
+  SyntaqliteParser* p = syntaqlite_parser_create_perfetto(nullptr);
+  syntaqlite_parser_set_macro_fallback(p, 1);
+  syntaqlite_parser_reset(p, sql.data(),
+                          static_cast<SyntaqliteLength>(sql.size()));
+  std::optional<FinalSelect> res;
+  for (;;) {
+    int32_t r = syntaqlite_parser_next(p);
+    if (r != SYNTAQLITE_PARSE_OK) {
+      if (r == SYNTAQLITE_PARSE_ERROR)
+        res.reset();
+      break;
+    }
+    res.reset();
+    const auto* root = static_cast<const SyntaqliteNode*>(
+        syntaqlite_parser_node(p, syntaqlite_result_root(p)));
+    if (root && root->tag == SYNTAQLITE_NODE_WITH_CLAUSE) {
+      root = static_cast<const SyntaqliteNode*>(
+          syntaqlite_parser_node(p, root->with_clause.select));
+    }
+    if (!root || (root->tag != SYNTAQLITE_NODE_SELECT_STMT &&
+                  root->tag != SYNTAQLITE_NODE_COMPOUND_SELECT)) {
+      continue;
+    }
+    SyntaqliteDocOffset offset = 0;
+    SyntaqliteLength len = 0;
+    syntaqlite_parser_text(p, &offset, &len);
+    std::string stmt = sql.substr(offset, len);
+    while (!stmt.empty() && (stmt.back() == ';' ||
+                             isspace(static_cast<unsigned char>(stmt.back()))))
+      stmt.pop_back();
+    res = FinalSelect{sql.substr(0, offset), std::move(stmt)};
+  }
+  syntaqlite_parser_destroy(p);
   return res;
 }
 
