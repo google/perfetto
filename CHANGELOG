@@ -41,6 +41,8 @@ Unreleased:
      shell commands, and deprecated `.width` and `-W/--wide`, which no longer
      do anything. Using any of them prints what to do instead: for `.dump`,
      use `trace_processor export sqlite`.
+   * Added `std.gpu.vulkan_debug_names` with the history of Vulkan debug
+     object names.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.
