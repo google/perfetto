@@ -14,27 +14,32 @@
 -- limitations under the License.
 INCLUDE PERFETTO MODULE android.cujs.slices;
 
-
 DROP VIEW IF EXISTS android_jank_cuj_slice;
+
 CREATE PERFETTO VIEW android_jank_cuj_slice AS
 SELECT * FROM _android_jank_cuj_slice;
 
-DROP TABLE IF EXISTS android_jank_cuj_main_thread_slice;
-CREATE PERFETTO TABLE android_jank_cuj_main_thread_slice AS
+DROP VIEW IF EXISTS android_jank_cuj_main_thread_slice;
+
+CREATE PERFETTO VIEW android_jank_cuj_main_thread_slice AS
 SELECT * FROM _android_jank_cuj_main_thread_slice;
 
-DROP TABLE IF EXISTS android_jank_cuj_render_thread_slice;
-CREATE PERFETTO TABLE android_jank_cuj_render_thread_slice AS
+DROP VIEW IF EXISTS android_jank_cuj_render_thread_slice;
+
+CREATE PERFETTO VIEW android_jank_cuj_render_thread_slice AS
 SELECT * FROM _android_jank_cuj_render_thread_slice;
 
 DROP VIEW IF EXISTS android_jank_cuj_sf_slice;
+
 CREATE PERFETTO VIEW android_jank_cuj_sf_slice AS
 SELECT * FROM _android_jank_cuj_sf_slice;
 
-DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread_slice;
-CREATE PERFETTO TABLE android_jank_cuj_sf_main_thread_slice AS
+DROP VIEW IF EXISTS android_jank_cuj_sf_main_thread_slice;
+
+CREATE PERFETTO VIEW android_jank_cuj_sf_main_thread_slice AS
 SELECT * FROM _android_jank_cuj_sf_main_thread_slice;
 
-DROP TABLE IF EXISTS android_jank_cuj_sf_render_engine_slice;
-CREATE PERFETTO TABLE android_jank_cuj_sf_render_engine_slice AS
+DROP VIEW IF EXISTS android_jank_cuj_sf_render_engine_slice;
+
+CREATE PERFETTO VIEW android_jank_cuj_sf_render_engine_slice AS
 SELECT * FROM _android_jank_cuj_sf_render_engine_slice;
