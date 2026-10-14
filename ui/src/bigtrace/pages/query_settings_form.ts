@@ -59,6 +59,8 @@ import {
   type TracesSchemaResponse,
 } from '../query/bigtrace_query_client';
 import {ExperimentFilterControl} from './experiment_filter_control';
+import {dateFilterToFilters, splitDateFilters} from '../query/date_filter';
+import {todayIso} from '../base/iso_date';
 import {BigtraceTraceListDataSource} from '../query/bigtrace_trace_list_data_source';
 import {formatCompact} from '../query/query_store';
 import {effectiveQueryColumns} from '../settings/trace_selection_state';
@@ -202,6 +204,12 @@ export interface QuerySettingsFormAttrs {
   // preset gallery here). Anything it does to the tab's selection or order
   // shows up on the next render: the grid state is re-read each view.
   readonly header?: m.Children;
+  // Reports the trace-metadata columns as they resolve (undefined while
+  // loading, after an error or with no endpoint), so the launcher can render
+  // its corpus filter bar off the same single schema fetch.
+  readonly onTraceSchema?: (
+    columns: ReadonlyArray<TraceColumnDescriptor> | undefined,
+  ) => void;
 }
 
 // AIP-132 single-field order_by helpers. The DataGrid supports only one active
@@ -261,8 +269,10 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   // while the user's own typing survives re-renders).
   private uuidDraft: string | undefined;
   private uuidDraftBase: string | undefined;
+  private onTraceSchema: QuerySettingsFormAttrs['onTraceSchema'];
   oninit({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     this.bindings = attrs.bindings;
+    this.onTraceSchema = attrs.onTraceSchema;
     this.syncFromBindings();
     bigTraceSettingsStorage.loadSettings();
   }
@@ -378,6 +388,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
     if (endpoint === '') {
       this.schemaState = undefined;
       this.schemaKey = undefined;
+      this.onTraceSchema?.(undefined);
       return;
     }
     // Key on endpoint + only the TRACE_ADDRESS (source) settings: the schema
@@ -396,6 +407,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
     this.schemaKey = key;
     this.schemaState = 'loading';
     this.schemaFetching = true;
+    this.onTraceSchema?.(undefined);
     const client = new BigtraceQueryClient(endpoint);
     client
       .listTraceMetadataSchema(this.effectiveSettings())
@@ -408,6 +420,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
           return;
         }
         this.schemaState = resp;
+        this.onTraceSchema?.(resp.columns);
         m.redraw();
       })
       .catch((e: unknown) => {
@@ -420,6 +433,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
           kind: 'error',
           message: e instanceof Error ? e.message : String(e),
         };
+        this.onTraceSchema?.(undefined);
         m.redraw();
       });
   }
@@ -502,6 +516,10 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
       schema!.columns,
     );
     const datagridSchema = columnSchema(schema!.columns);
+    const dateFilters = dateFilterToFilters(
+      this.bindings.getDateFilter(),
+      todayIso(),
+    );
 
     return m(
       Card,
@@ -553,10 +571,14 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
             // Controlled-mode filter: source of truth is the binding (per-tab
             // snapshot) or `traceFiltersState` (global on /settings). Persisted
             // immediately so a Run picks it up without a separate "apply".
-            filters: this.traceFilterss,
+            // The date range is shown as its resolved pair; removing either
+            // half in the grid drops the range (any date).
+            filters: [...dateFilters, ...this.traceFilterss],
             onFiltersChanged: (filters: readonly Filter[]) => {
-              this.traceFilterss = filters;
-              this.writeTraceFilters(filters);
+              const {rest, intact} = splitDateFilters(filters, dateFilters);
+              if (!intact) this.bindings.setDateFilter(null);
+              this.traceFilterss = rest;
+              this.writeTraceFilters(rest);
             },
             emptyStateMessage:
               'No traces match your filter (or Trace Directory is empty).',
@@ -590,7 +612,8 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
     // Report the count to the embedded caller so a closed-drawer summary can
     // show it without re-fetching. No-op on /settings (no onTraceMatchCount).
     this.bindings?.onTraceMatchCount?.(n);
-    const hasFilter = this.traceFilterss.length > 0;
+    const hasFilter =
+      this.traceFilterss.length > 0 || this.bindings.getDateFilter() != null;
     // Compact count (1.2K) like the history sidebar's row counts; the exact
     // number lives in the hover title.
     const text =
@@ -703,6 +726,7 @@ export class QuerySettingsForm implements m.ClassComponent<QuerySettingsFormAttr
   view({attrs}: m.Vnode<QuerySettingsFormAttrs>) {
     // Refresh bindings each render so callers can swap them without remounting.
     this.bindings = attrs.bindings;
+    this.onTraceSchema = attrs.onTraceSchema;
     this.syncFromBindings();
 
     const sections =

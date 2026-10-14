@@ -26,6 +26,7 @@ import {queryStore, type QueryExecution} from '../query/query_store';
 import type {BigtraceColumnSchema} from '../query/column_types';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
+import type {DateFilterState} from '../query/date_filter';
 import {
   formatSharedTraceListSql,
   type SharedTraceList,
@@ -322,6 +323,7 @@ export interface TabConfigSnapshot {
   readonly traceMetadataColumns: ReadonlyArray<string> | null;
   readonly traceOrderBy: string;
   readonly experimentFilter: ExperimentFilterState | undefined;
+  readonly dateFilter: DateFilterState | null | undefined;
   readonly limit: number;
   readonly traceLimit: number;
   readonly tableTtlDays: number;
@@ -333,6 +335,43 @@ export function copyExperimentFilter(
   filter: ExperimentFilterState | undefined,
 ): ExperimentFilterState | undefined {
   return filter === undefined ? undefined : {...filter};
+}
+
+const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isIsoDayOrAbsent(v: unknown): v is string | undefined {
+  return v === undefined || (typeof v === 'string' && ISO_DAY_RE.test(v));
+}
+
+// Shape-checks a date filter read back from storage. localStorage is not
+// trusted: an entry from another build or a hand edit must not reach the
+// date math (which would throw inside the chip's view()). Anything that is
+// not a well-formed range comes back as undefined, i.e. "not yet
+// defaulted", so the launcher re-applies the default; an explicit null
+// ("any date") is kept.
+export function coerceDateFilter(
+  value: unknown,
+): DateFilterState | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== 'object') return undefined;
+  const o = value as Record<string, unknown>;
+  if (
+    o.kind === 'last' &&
+    typeof o.days === 'number' &&
+    Number.isInteger(o.days) &&
+    o.days > 0
+  ) {
+    return {kind: 'last', days: o.days};
+  }
+  if (
+    o.kind === 'fixed' &&
+    isIsoDayOrAbsent(o.from) &&
+    isIsoDayOrAbsent(o.to) &&
+    (o.from !== undefined || o.to !== undefined)
+  ) {
+    return {kind: 'fixed', from: o.from, to: o.to};
+  }
+  return undefined;
 }
 
 // Deep enough that neither side can reach the other's arrays.
@@ -351,6 +390,7 @@ export function snapshotTabConfig(tab: BigTraceEditorTab): TabConfigSnapshot {
       tab.traceMetadataColumns === null ? null : [...tab.traceMetadataColumns],
     traceOrderBy: tab.traceOrderBy,
     experimentFilter: copyExperimentFilter(tab.experimentFilter),
+    dateFilter: tab.dateFilter,
     limit: tab.limit,
     traceLimit: tab.traceLimit,
     tableTtlDays: tab.tableTtlDays,
@@ -369,6 +409,7 @@ export function restoreTabConfig(
     snap.traceMetadataColumns === null ? null : [...snap.traceMetadataColumns];
   tab.traceOrderBy = snap.traceOrderBy;
   tab.experimentFilter = copyExperimentFilter(snap.experimentFilter);
+  tab.dateFilter = snap.dateFilter;
   tab.limit = snap.limit;
   tab.traceLimit = snap.traceLimit;
   tab.tableTtlDays = snap.tableTtlDays;
@@ -421,6 +462,11 @@ export interface BigTraceEditorTab {
   // Which experiment/control pair and arm the query runs over; undefined =
   // no experiment filtering.
   experimentFilter?: ExperimentFilterState;
+  // Upload-date range, resolved into grid filters at request time. Not part
+  // of a preset's setup, so applying one leaves it alone. undefined = not yet
+  // defaulted (the launcher does that once the schema has the column);
+  // null = any date. Immutable value: snapshots share it.
+  dateFilter?: DateFilterState | null;
   // Per-tab shown columns (display pref, persisted); null = show all.
   resultColumns: readonly string[] | null;
   // Per-tab disabled setting IDs, independent of global /settings. Seeded from
@@ -477,6 +523,7 @@ interface StoredTab {
   readonly traceMetadataColumns?: ReadonlyArray<string> | null;
   readonly traceOrderBy?: string;
   readonly experimentFilter?: ExperimentFilterState;
+  readonly dateFilter?: DateFilterState | null;
   readonly resultColumns?: ReadonlyArray<string> | null;
   readonly disabledSettings?: ReadonlyArray<string>;
   readonly configured?: boolean;
@@ -572,6 +619,14 @@ export class QueryTabsState {
     const experimentFilter = isFromStorage
       ? copyExperimentFilter(stored?.experimentFilter)
       : undefined;
+    // A history-reopen tab gets its range from the run's filters (runner),
+    // or none if the run had no date pair. Stored values are shape-checked:
+    // a malformed one re-defaults rather than throwing in the chip.
+    const dateFilter = isFromStorage
+      ? coerceDateFilter(stored?.dateFilter)
+      : isFromHistory
+        ? null
+        : undefined;
     const resultColumns: readonly string[] | null = isFromStorage
       ? (stored?.resultColumns ?? null)
       : null;
@@ -612,6 +667,7 @@ export class QueryTabsState {
       traceMetadataColumns,
       traceOrderBy,
       experimentFilter,
+      dateFilter,
       resultColumns,
       disabledSettings,
       lifecycle: new AbortController(),
@@ -661,6 +717,7 @@ export class QueryTabsState {
             : [...src.traceMetadataColumns],
         traceOrderBy: src.traceOrderBy,
         experimentFilter: copyExperimentFilter(src.experimentFilter),
+        dateFilter: src.dateFilter,
         resultColumns: src.resultColumns,
         configured: true,
         lastPresetId: src.lastPresetId,
@@ -760,6 +817,7 @@ export class QueryTabsState {
         traceMetadataColumns: t.traceMetadataColumns,
         traceOrderBy: t.traceOrderBy,
         experimentFilter: t.experimentFilter,
+        dateFilter: t.dateFilter,
         resultColumns: t.resultColumns,
         disabledSettings: t.disabledSettings,
         configured: t.configured,

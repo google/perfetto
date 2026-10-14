@@ -171,6 +171,11 @@ function buildTabBindings(
       tab.experimentFilter = filter;
       tabsState.markDirty();
     },
+    getDateFilter: () => tab.dateFilter,
+    setDateFilter: (filter) => {
+      tab.dateFilter = filter;
+      tabsState.markDirty();
+    },
     getTraceLimit: () => tab.traceLimit,
     setTraceLimit: (limit) => {
       if (limit >= 0) {
