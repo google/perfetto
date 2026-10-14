@@ -112,6 +112,13 @@ class ColumnView {
   const BitVector* validity_ = nullptr;
 };
 
+// Whether `column` is a flat column of type `Tag`, which is what
+// FlatColumnReader reads.
+template <typename Tag>
+bool IsFlat(const ColumnView& column) {
+  return column.kind() == ColumnView::Kind::kFlat && column.type().Is<Tag>();
+}
+
 // Whether two batches' views of a column can be combined. An implicit Id and
 // a stored Uint32 hold the same values: gathering turns one into the other.
 inline bool SameLogicalType(const ColumnView& a, const ColumnView& b) {

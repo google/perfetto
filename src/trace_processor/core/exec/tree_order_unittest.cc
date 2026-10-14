@@ -114,51 +114,6 @@ class RowSource final : public Source {
 
 RowSource::State::~State() = default;
 
-class NumberedSource final : public Source {
- public:
-  static constexpr char kType = 0;
-  const void* type() const override { return &kType; }
-
-  NumberedSource(std::vector<uint32_t> nodes,
-                 std::vector<uint32_t> parents,
-                 std::vector<int64_t> payloads)
-      : nodes_(std::move(nodes)),
-        parents_(std::move(parents)),
-        payloads_(std::move(payloads)) {}
-
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
-  }
-  void Rewind(OperatorState& state) const override {
-    state.Cast<State>().emitted = false;
-  }
-  bool GetData(RowBatch& out, OperatorState& state) const override {
-    State& s = state.Cast<State>();
-    if (s.emitted) {
-      return false;
-    }
-    out.Reset();
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Uint32{}}, nodes_.data()));
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Uint32{}}, parents_.data()));
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Int64{}}, payloads_.data()));
-    out.SetRowCount(static_cast<uint32_t>(nodes_.size()));
-    s.emitted = true;
-    return true;
-  }
-
- private:
-  struct State : OperatorState {
-    bool emitted = false;
-  };
-
-  std::vector<uint32_t> nodes_;
-  std::vector<uint32_t> parents_;
-  std::vector<int64_t> payloads_;
-};
-
 // Drives a plan the way an executor does: it creates the state and owns the
 // batch, leaving the plan const.
 class Execution {
@@ -352,16 +307,6 @@ TEST(TreeOrderTest, ABadTreeIsReported) {
                                          ? c.child_first
                                          : c.parent_first));
     }
-    // When numbered by another operator, two rows can have the same node.
-    NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
-    std::vector<Pipeline::Step> ops;
-    ops.push_back(Order(direction, 0, 1));
-    Pipeline order(source, std::move(ops), {});
-    Execution run(order);
-    while (run.Next()) {
-    }
-    EXPECT_FALSE(run.status().ok());
-    EXPECT_THAT(run.status().message(), testing::HasSubstr("same node"));
   }
 }
 

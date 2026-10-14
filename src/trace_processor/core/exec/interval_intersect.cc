@@ -127,22 +127,6 @@ struct Groups {
   }
 };
 
-base::Status ValidateOperand(const RowBatch& batch,
-                             const IntervalIntersectOperand& operand,
-                             uint32_t which) {
-  auto is_int64 = [&](uint32_t index) {
-    const ColumnView& column = batch.column(index);
-    return column.kind() == ColumnView::Kind::kFlat &&
-           column.type().Is<Int64>();
-  };
-  bool ok = is_int64(operand.ts_column) && is_int64(operand.dur_column);
-  return ok ? base::OkStatus()
-            : base::ErrStatus(
-                  "INTERVAL INTERSECTION: operand %u's ts and dur columns "
-                  "must be Int64",
-                  which + 1);
-}
-
 class IntersectState : public OperatorState {
  public:
   ~IntersectState() override;
@@ -212,7 +196,8 @@ base::Status Collect(const IntervalIntersectOperand& operand,
   RowBatch& batch = scratch.batch;
   RowBatch& retained = scratch.retained;
   while (operand.source->GetData(batch, state)) {
-    RETURN_IF_ERROR(ValidateOperand(batch, operand, which));
+    PERFETTO_DCHECK(IsFlat<Int64>(batch.column(operand.ts_column)));
+    PERFETTO_DCHECK(IsFlat<Int64>(batch.column(operand.dur_column)));
     FlatColumnReader<int64_t> ts(batch, operand.ts_column);
     FlatColumnReader<int64_t> dur(batch, operand.dur_column);
     // A group's rows arrive together, so only the first row of each group is

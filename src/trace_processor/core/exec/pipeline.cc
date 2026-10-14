@@ -350,12 +350,7 @@ PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::Read(uint32_t segment,
       }
       return next;
     }
-    base::Status appended = c.buffered.Append(*next, *s.context);
-    if (!appended.ok()) {
-      Fail(s, std::move(appended));
-      c.buffered.Clear();
-      return nullptr;
-    }
+    c.buffered.Append(*next, *s.context);
     if (c.buffered.size() >= options_.target_batch_rows) {
       c.buffered.Take(c.combined);
       return &c.combined;
