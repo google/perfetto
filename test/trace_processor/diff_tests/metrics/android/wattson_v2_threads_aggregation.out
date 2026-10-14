@@ -413,7 +413,7 @@ dimension {
 double_value: 0.17882778431000002
 }
 dimension {
-double_value: 0.0170068494
+double_value: 0.017006849399999996
 }
 dimension {
 double_value: 0.19583463371
@@ -1463,7 +1463,7 @@ dimension {
 double_value: 0.02255213848
 }
 dimension {
-double_value: 0.015327149049999999
+double_value: 0.01532714905
 }
 dimension {
 double_value: 0.03787928753
@@ -1813,10 +1813,10 @@ dimension {
 double_value: 0.00106164879
 }
 dimension {
-double_value: 0.0044826770900000005
+double_value: 0.00448267709
 }
 dimension {
-double_value: 0.005544325880000001
+double_value: 0.005544325879999999
 }
 }
 row {
@@ -2198,7 +2198,7 @@ dimension {
 double_value: 4.00988458432
 }
 dimension {
-double_value: 0.2022871334
+double_value: 0.20228713339999999
 }
 dimension {
 double_value: 4.2121717177199995
@@ -4543,7 +4543,7 @@ dimension {
 double_value: 1.86700723798
 }
 dimension {
-double_value: 0.09342077158
+double_value: 0.09342077157999999
 }
 dimension {
 double_value: 1.96042800956
@@ -10528,7 +10528,7 @@ dimension {
 double_value: 0.870945535
 }
 dimension {
-double_value: 0.23732889279000002
+double_value: 0.23732889279
 }
 dimension {
 double_value: 1.10827442779
@@ -12103,10 +12103,10 @@ dimension {
 double_value: 0.01118118125
 }
 dimension {
-double_value: 0.16085896578999997
+double_value: 0.16085896579
 }
 dimension {
-double_value: 0.17204014703999998
+double_value: 0.17204014704
 }
 }
 row {
@@ -12917,7 +12917,7 @@ dimension {
 double_value: 0.8276732428
 }
 dimension {
-double_value: 0.17924907812
+double_value: 0.17924907812000002
 }
 dimension {
 double_value: 1.00692232092
@@ -16383,7 +16383,7 @@ dimension {
 double_value: 0.870945535
 }
 dimension {
-double_value: 0.23732889279000002
+double_value: 0.23732889279
 }
 dimension {
 double_value: 1.10827442779
@@ -17958,10 +17958,10 @@ dimension {
 double_value: 0.01118118125
 }
 dimension {
-double_value: 0.16085896578999997
+double_value: 0.16085896579
 }
 dimension {
-double_value: 0.17204014703999998
+double_value: 0.17204014704
 }
 }
 row {
@@ -18772,7 +18772,7 @@ dimension {
 double_value: 0.8276732428
 }
 dimension {
-double_value: 0.17924907812
+double_value: 0.17924907812000002
 }
 dimension {
 double_value: 1.00692232092
@@ -21678,7 +21678,7 @@ dimension {
 double_value: 1.13541827543
 }
 dimension {
-double_value: 0.27929353492000003
+double_value: 0.27929353492
 }
 dimension {
 double_value: 1.41471181035

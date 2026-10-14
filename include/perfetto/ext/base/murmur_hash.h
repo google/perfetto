@@ -28,20 +28,8 @@
 
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
-
-// We need <cmath> only for std::isnan here. But cmath is a quite heavy
-// header AND is not frequently used, so its include cost is generally
-// NOT amortized. OTOH this header is very frequently used.
-// The code below avoids pulling cmath in many translation units, reducing
-// compilation time. Under the hoods std::isnan uses __builtin_isnan if
-// available.
-#if PERFETTO_HAS_BUILTIN(__builtin_isnan)
-#define PERFETTO_IS_NAN(x) __builtin_isnan(x)
-#else
-#include <cmath>
-#define PERFETTO_IS_NAN(x) std::isnan(x)
-#endif
 
 // This file provides an implementation of the 64-bit MurmurHash2 algorithm,
 // also known as MurmurHash64A. This algorithm, created by Austin Appleby, is a
@@ -161,25 +149,6 @@ inline uint64_t MurmurHashBytes(const void* input, size_t len) {
   return h;
 }
 
-template <typename Float, typename Int>
-Int NormalizeFloatToInt(Float value) {
-  static_assert(std::is_floating_point_v<Float>);
-  static_assert(std::is_integral_v<Int>);
-
-  // Normalize floating point representations which can vary.
-  if (PERFETTO_UNLIKELY(value == 0.0)) {
-    // Turn negative zero into positive zero
-    value = 0.0;
-  } else if (PERFETTO_UNLIKELY(PERFETTO_IS_NAN(value))) {
-    // Turn arbtirary NaN representations to a consistent NaN repr.
-    value = std::numeric_limits<Float>::quiet_NaN();
-  }
-  Int res;
-  static_assert(sizeof(Float) == sizeof(Int));
-  memcpy(&res, &value, sizeof(Float));
-  return res;
-}
-
 // Computes a 64-bit hash for a single built-in value without any combination.
 // This is the core primitive used by both MurmurHashValue and
 // MurmurHashCombiner::CombineOne for built-in types.
@@ -195,11 +164,9 @@ auto MurmurHashBuiltinValue(const T& value) {
   } else if constexpr (std::is_integral_v<T>) {
     return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
   } else if constexpr (std::is_same_v<T, double>) {
-    return murmur_internal::MurmurHashMix(
-        murmur_internal::NormalizeFloatToInt<double, uint64_t>(value));
+    return murmur_internal::MurmurHashMix(base::CanonicalFloatBits(value));
   } else if constexpr (std::is_same_v<T, float>) {
-    return murmur_internal::MurmurHashMix(
-        murmur_internal::NormalizeFloatToInt<float, uint32_t>(value));
+    return murmur_internal::MurmurHashMix(base::CanonicalFloatBits(value));
   } else if constexpr (std::is_same_v<T, std::string> ||
                        std::is_same_v<T, std::string_view> ||
                        std::is_same_v<T, base::StringView>) {
@@ -223,13 +190,6 @@ constexpr bool HasMurmurHashBuiltinValue() {
                         uint64_t>;
 }
 
-// Helper to check if two types are integeral and U is convertible to T.
-template <typename T, typename U>
-constexpr bool IsConvertibleIntegral() {
-  return std::is_integral_v<T> && std::is_integral_v<U> &&
-         std::is_convertible_v<U, T>;
-}
-
 // Helper to check if a type is string-like (i.e. string, c-string or string
 // views).
 template <typename T>
@@ -239,13 +199,24 @@ constexpr bool IsStringLike() {
          std::is_same_v<T, base::StringView> || std::is_same_v<T, const char*>;
 }
 
-// Helper to check if heterogeneous lookup is allowed between T and U.
-// Only allows it for convertible integral types and string-like types.
+// Helper to check if heterogeneous lookup is allowed between T and U: only
+// between string-like types. Other types (e.g. integers) are converted to T by
+// the caller instead, as converting them is cheap, and hashing them as is
+// could differ (e.g. a negative int hashed for a uint32_t key).
 template <typename T, typename U>
 constexpr bool AllowsHeterogeneousLookup() {
-  return IsConvertibleIntegral<T, U>() ||
-         (IsStringLike<T>() && IsStringLike<U>());
+  return IsStringLike<T>() && IsStringLike<U>();
 }
+
+// MurmurHash<T> is transparent (i.e. supports heterogeneous lookups) only for
+// string-like T.
+template <typename T, bool = IsStringLike<T>()>
+struct MurmurHashTransparency {};
+
+template <typename T>
+struct MurmurHashTransparency<T, true> {
+  using is_transparent = void;
+};
 
 // Helper to detect pointers in Combine(...).
 // Hashing pointers directly is prohibited as it often indicates a misuse
@@ -358,13 +329,10 @@ uint64_t MurmurHashValue(const T& value) {
 // std::hash<T> drop-in class which uses MurmurHashValue as the primitive.
 // All specializations consistently delegate to MurmurHashValue.
 template <typename T>
-struct MurmurHash {
-  using is_transparent = void;
-
+struct MurmurHash : murmur_internal::MurmurHashTransparency<T> {
   uint64_t operator()(const T& value) const { return MurmurHashValue(value); }
 
-  // Heterogeneous lookup support. Only allowed for types where it makes sense
-  // (e.g. string-like types and convertible integral types).
+  // Heterogeneous lookup support, between string-like types only.
   template <typename U>
   auto operator()(const U& value) const -> std::enable_if_t<
       murmur_internal::AllowsHeterogeneousLookup<T, std::decay_t<const U>>(),

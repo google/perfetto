@@ -58,7 +58,7 @@ This is the default when no subcommand is specified.)";
 
 std::vector<FlagSpec> InteractiveSubcommand::GetFlags() {
   return {
-      BoolFlag("wide", 'W', "Double column width for output.", &wide_),
+      RetiredWideFlag(),
   };
 }
 
@@ -75,13 +75,8 @@ base::Status InteractiveSubcommand::Run(const SubcommandContext& ctx) {
   signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
 #endif
 
-  RETURN_IF_ERROR(StartInteractiveShell(
-      tp.get(), InteractiveOptions{wide_ ? 40u : 20u,
-                                   MetricV1OutputFormat::kNone,
-                                   {},
-                                   {},
-                                   nullptr,
-                                   ctx.global->quiet}));
+  RETURN_IF_ERROR(
+      StartInteractiveShell(tp.get(), InteractiveOptions{ctx.global->quiet}));
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
   return base::OkStatus();

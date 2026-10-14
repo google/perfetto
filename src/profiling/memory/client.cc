@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cinttypes>
+#include <cstdint>
 #include <new>
 
 #include "perfetto/base/build_config.h"
@@ -41,9 +42,8 @@
 #include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/wire_protocol.h"
-#include "src/profiling/unwind/asm_get_regs.h"
 #include "src/profiling/unwind/cpu_registers.h"
-#include "src/profiling/unwind/unwind_types.h"
+#include "src/profiling/unwind/get_asm_regs.h"
 
 namespace perfetto {
 namespace profiling {
@@ -345,8 +345,40 @@ bool Client::IsPostFork() {
   return false;
 }
 
+ssize_t Client::GetStackRegisterIndex(CpuArch arch) {
+  ssize_t reg_sp, reg_size;
+  switch (arch) {
+    case CpuArch::X86:
+      reg_sp = X86_REG_ESP;
+      reg_size = sizeof(uint32_t);
+      break;
+    case CpuArch::X86_64:
+      reg_sp = X86_64_REG_RSP;
+      reg_size = sizeof(uint64_t);
+      break;
+    case CpuArch::ARM:
+      reg_sp = ARM_REG_SP;
+      reg_size = sizeof(uint32_t);
+      break;
+    case CpuArch::ARM64:
+      reg_sp = ARM64_REG_SP;
+      reg_size = sizeof(uint64_t);
+      break;
+    case CpuArch::RISCV64:
+      reg_sp = RISCV64_REG_SP;
+      reg_size = sizeof(uint64_t);
+      break;
+    case CpuArch::UNKNOWN:
+      return -1;
+  }
+  return reg_sp * reg_size;
+}
+
 uintptr_t Client::GetStackAddress(char* reg_data, CpuArch arch) {
-  return static_cast<uintptr_t>(CpuRegisters::FromUserRegs(arch, reg_data).sp);
+  ssize_t reg = GetStackRegisterIndex(arch);
+  if (reg < 0)
+    return reinterpret_cast<uintptr_t>(nullptr);
+  return *reinterpret_cast<uintptr_t*>(&reg_data[reg]);
 }
 
 // The stack grows towards numerically smaller addresses, so the stack layout
@@ -370,7 +402,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
   }
 
   AllocMetadata metadata = {};
-  AsmGetRegs(metadata.register_data);
+  GetAsmRegs(metadata.register_data);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
   // On ARM64, the prologue allocates the callee-saved register block first and

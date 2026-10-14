@@ -59,7 +59,7 @@ class Pipeline final : public Source {
   Pipeline(Source&&, std::vector<Step>, ExecutionOptions) = delete;
   ~Pipeline() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   RowBatch* Next(RowBatch& scratch, OperatorState& state) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
@@ -116,6 +116,7 @@ class Pipeline final : public Source {
 
     // What Next() reads on its fast path, together.
     uint8_t flags = 0;
+    Context* context = nullptr;
     const Source* source = nullptr;
     OperatorState* source_state = nullptr;
     // The last segment's transforms, whichever segment that is.

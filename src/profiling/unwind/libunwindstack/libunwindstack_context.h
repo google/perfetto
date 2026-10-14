@@ -24,14 +24,22 @@
 #include <unwindstack/Unwinder.h>
 #include <cstdint>
 
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/unwind_context.h"
 #include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
 
+inline unwindstack::ArchEnum ToLibUnwindstackArch(CpuArch arch) {
+  return static_cast<unwindstack::ArchEnum>(arch);
+}
+
+std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
+    const CpuRegisters& cpu_regs);
+
+// Read /proc/[pid]/maps from an open file descriptor.
 class FDMaps : public unwindstack::Maps {
  public:
   explicit FDMaps(base::ScopedFile fd);
@@ -104,8 +112,6 @@ struct UnwindingMetadata {
   FDMaps fd_maps;
   // The API of libunwindstack expects shared_ptr for Memory.
   std::shared_ptr<unwindstack::Memory> fd_mem;
-  uint64_t reparses = 0;
-  base::TimeMillis last_maps_reparse_time{0};
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   std::unique_ptr<unwindstack::JitDebug> jit_debug;
   std::unique_ptr<unwindstack::DexFiles> dex_files;
@@ -117,9 +123,6 @@ class LibunwindstackContext : public UnwindContext {
   LibunwindstackContext(base::ScopedFile maps_fd, base::ScopedFile mem_fd);
   ~LibunwindstackContext() override;
 
-  // TODO: could these be done on the main unwinder?
-  // but that is abstract....
-  uint64_t reparses() const override { return metadata_.reparses; }
   void ReparseMaps() override;
   void ResetMaps() override;
 

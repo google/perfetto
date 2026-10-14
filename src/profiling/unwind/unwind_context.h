@@ -17,8 +17,11 @@
 #ifndef SRC_PROFILING_UNWIND_UNWIND_CONTEXT_H_
 #define SRC_PROFILING_UNWIND_UNWIND_CONTEXT_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -34,15 +37,14 @@ struct UnwindInputSample {
   const uint8_t* stack_data = nullptr;
   size_t stack_size = 0;
   bool stack_maxed = false;
-  pid_t pid = 0;
-  pid_t tid = 0;
 };
 
 struct UnwindOptions {
   size_t max_frames = kUnwindingMaxFrames;
+  // if true will resovle function names online.
+  // if set to false will do offline symbolization. which may help to reduce
+  // unwinding time.
   bool resolve_names = true;
-  int max_attempts = 1;
-  UnwindMode unwind_mode = UnwindMode::kUnwindStack;
   std::vector<std::string> skip_initial_maps;
 };
 
@@ -51,13 +53,8 @@ class UnwindContext {
   static std::unique_ptr<UnwindContext> Create(base::ScopedFile maps_fd,
                                                base::ScopedFile mem_fd);
 
-  // for process-wide ELF cache reset
-  // (e.g. unwindstack::Elf::SetCachingEnabled(false/true)
-  static void ResetAndEnableGlobalCache();
-
   virtual ~UnwindContext();
 
-  virtual uint64_t reparses() const { return 0; }
   virtual void ReparseMaps() = 0;
   virtual void ResetMaps() = 0;
 
@@ -65,9 +62,7 @@ class UnwindContext {
                                      bool resolve_names = true) = 0;
   // Backend-specific DWARF unwinding for this process
   virtual UnwindResult Unwind(const UnwindInputSample& /* sample */,
-                              const UnwindOptions& /*options*/ = {}) {
-    return {};
-  }
+                              const UnwindOptions& /*options*/ = {}) = 0;
 };
 
 }  // namespace profiling

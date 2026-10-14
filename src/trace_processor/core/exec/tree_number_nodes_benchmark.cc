@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 
 #include <benchmark/benchmark.h>
@@ -68,11 +69,13 @@ std::optional<uint32_t> ParentOf(uint32_t row) {
 
 void RunTreeNumberNodes(benchmark::State& state,
                         const dataframe::Dataframe& df) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
   DataframeScan scan({df.shared_column(0), df.shared_column(1)},
                      df.row_count());
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState();
+  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   TreeNumberNodes op(0, 1);
-  std::unique_ptr<OperatorState> op_state = op.MakeState();
+  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
   RowBatch in;
   RowBatch out;
   for (auto _ : state) {
@@ -103,12 +106,14 @@ dataframe::Dataframe BuildIdColumn(uint32_t rows, StringPool* pool) {
 
 // The cost of the scan alone, to compare the operator against.
 void BM_TreeNumberNodesScanOnly(benchmark::State& state) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
   StringPool pool;
   dataframe::Dataframe df =
       BuildIdColumn(static_cast<uint32_t>(state.range(0)), &pool);
   DataframeScan scan({df.shared_column(0), df.shared_column(1)},
                      df.row_count());
-  std::unique_ptr<OperatorState> scan_state = scan.MakeState();
+  std::unique_ptr<OperatorState> scan_state = scan.MakeState(context);
   RowBatch in;
   for (auto _ : state) {
     scan.Rewind(*scan_state);

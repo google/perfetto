@@ -17,7 +17,7 @@
 #ifndef SRC_PROFILING_PERF_COMMON_TYPES_H_
 #define SRC_PROFILING_PERF_COMMON_TYPES_H_
 
-#include <memory>
+#include <optional>
 #include <vector>
 
 #include "src/profiling/unwind/cpu_registers.h"
@@ -51,7 +51,7 @@ struct ParsedSample {
   ParsedSample& operator=(ParsedSample&&) noexcept = default;
 
   CommonSampleData common;
-  std::unique_ptr<CpuRegisters> regs;
+  std::optional<CpuRegisters> regs;
   std::vector<char> stack;
   bool stack_maxed = false;
   std::vector<uint64_t> kernel_ips;

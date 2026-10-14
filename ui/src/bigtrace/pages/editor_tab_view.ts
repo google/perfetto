@@ -171,9 +171,14 @@ function buildTabBindings(
       tab.experimentFilter = filter;
       tabsState.markDirty();
     },
+    getDateFilter: () => tab.dateFilter,
+    setDateFilter: (filter) => {
+      tab.dateFilter = filter;
+      tabsState.markDirty();
+    },
     getTraceLimit: () => tab.traceLimit,
     setTraceLimit: (limit) => {
-      if (limit > 0) {
+      if (limit >= 0) {
         tab.traceLimit = limit;
         tabsState.markDirty();
       }
@@ -304,7 +309,7 @@ function renderRunControls(
       disabled: tab.isLoading,
       onInput: (value: string) => {
         const newLimit = parseInt(value, 10);
-        if (!isNaN(newLimit) && newLimit > 0) {
+        if (!isNaN(newLimit) && newLimit >= 0) {
           tab.limit = newLimit;
           tabsState.markDirty();
         }

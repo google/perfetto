@@ -80,7 +80,7 @@ std::string ShellPath() {
 
 // Writes kSimpleSystrace to a temp file and returns the TempFile object.
 base::TempFile WriteSimpleSystrace() {
-  auto f = base::TempFile::Create();
+  auto f = base::TempFile::Create().ValueOrDie();
   base::WriteAll(f.fd(), kSimpleSystrace.data(),
                  static_cast<size_t>(kSimpleSystrace.size()));
   return f;
@@ -88,7 +88,7 @@ base::TempFile WriteSimpleSystrace() {
 
 // Writes arbitrary content to a temp file and returns the TempFile object.
 base::TempFile WriteTempFile(const std::string& content) {
-  auto f = base::TempFile::Create();
+  auto f = base::TempFile::Create().ValueOrDie();
   base::WriteAll(f.fd(), content.data(), content.size());
   return f;
 }
@@ -98,6 +98,29 @@ struct SubprocessResult {
   std::string out;
 };
 
+// Agent mode (see src/trace_processor/shell/agent_mode.cc) changes the output
+// of `query` when the shell is run by a coding agent. Unset the variables
+// which turn it on, so that tests see the same output whoever runs them: the
+// shell inherits this process's environment.
+void UnsetAgentEnvVars() {
+  static constexpr const char* kAgentEnvVars[] = {
+      "AI_AGENT",
+      "AGENT",
+      "CLAUDECODE",
+      "CODEX_CI",
+      "CODEX_SANDBOX",
+      "CODEX_THREAD_ID",
+      "CURSOR_AGENT",
+      "GEMINI_CLI",
+      "COPILOT_AGENT",
+      "COPILOT_CLI",
+      "COPILOT_AGENT_SESSION_ID",
+  };
+  for (const char* var : kAgentEnvVars) {
+    base::UnsetEnv(var);
+  }
+}
+
 // Runs trace_processor_shell with the given args. stdout and stderr are both
 // captured into `out`.
 SubprocessResult RunShell(std::initializer_list<std::string> extra_args) {
@@ -106,6 +129,7 @@ SubprocessResult RunShell(std::initializer_list<std::string> extra_args) {
   for (const auto& a : extra_args) {
     p.args.exec_cmd.push_back(a);
   }
+  UnsetAgentEnvVars();
   p.args.stdin_mode = base::Subprocess::InputMode::kDevNull;
   p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
   p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
@@ -259,7 +283,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAnalyzeProtoContent) {
 
 TEST(TraceProcessorShellIntegrationTest, ClassicExport) {
   auto trace = WriteSimpleSystrace();
-  auto out_db = base::TempFile::Create();
+  auto out_db = base::TempFile::Create().ValueOrDie();
   auto result = RunShell({"-e", out_db.path(), trace.path()});
   EXPECT_EQ(result.exit_code, 0);
   EXPECT_TRUE(base::FileExists(out_db.path()));
@@ -529,7 +553,7 @@ TEST(TraceProcessorShellIntegrationTest, RemoteQueryRoundTrip) {
 
   // -m against a remote session enables metatracing server-side and collects
   // the resulting trace client-side.
-  base::TempFile mt = base::TempFile::Create();
+  base::TempFile mt = base::TempFile::Create().ValueOrDie();
   auto r4 = RunShell({"query", "--remote", sock, "-m", mt.path(),
                       "SELECT count(*) FROM slice"});
   EXPECT_EQ(r4.exit_code, 0) << r4.out;
@@ -700,7 +724,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicExportQueryDisallowed) {
   // -e + -q should be disallowed with a clear error message.
   auto trace = WriteSimpleSystrace();
   auto query = WriteTempFile("SELECT 1;");
-  auto out_db = base::TempFile::Create();
+  auto out_db = base::TempFile::Create().ValueOrDie();
   auto result =
       RunShell({"-e", out_db.path(), "-q", query.path(), trace.path()});
   EXPECT_NE(result.exit_code, 0);
@@ -710,7 +734,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicExportQueryDisallowed) {
 TEST(TraceProcessorShellIntegrationTest, ClassicPerfFile) {
   // --perf-file FILE -Q "SQL" -> query --perf-file FILE trace "SQL"
   auto trace = WriteSimpleSystrace();
-  auto perf = base::TempFile::Create();
+  auto perf = base::TempFile::Create().ValueOrDie();
   auto result = RunShell(
       {"--perf-file", perf.path(), "-Q", "SELECT 200 + 61", trace.path()});
   EXPECT_EQ(result.exit_code, 0);
@@ -833,6 +857,17 @@ TEST(TraceProcessorShellIntegrationTest, QueryZeroRowResultPrintsHeader) {
   EXPECT_THAT(result.out, HasSubstr("empty_but_visible"));
 }
 
+TEST(TraceProcessorShellIntegrationTest, QueryAgentMode) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell(
+      {"query", "--agent", trace.path(), "SELECT 1 AS a; SELECT nope"});
+  EXPECT_EQ(result.exit_code, 1) << result.out;
+  // Results printed before the error come first.
+  EXPECT_THAT(result.out,
+              HasSubstr("| a |\n|---|\n| 1 |\n"
+                        R"({"error":"no such column: nope","statement":2,)"));
+}
+
 TEST(TraceProcessorShellIntegrationTest, QueryNoTraceError) {
   auto result = RunShell({"query"});
   EXPECT_NE(result.exit_code, 0);
@@ -953,7 +988,7 @@ TEST(TraceProcessorShellIntegrationTest, SummarizeSubcommandNoTraceFails) {
 
 TEST(TraceProcessorShellIntegrationTest, ExportSubcommandSqlite) {
   auto trace = WriteSimpleSystrace();
-  auto out_db = base::TempFile::Create();
+  auto out_db = base::TempFile::Create().ValueOrDie();
   auto result =
       RunShell({"export", "sqlite", "-o", out_db.path(), trace.path()});
   EXPECT_EQ(result.exit_code, 0);
@@ -1012,7 +1047,7 @@ TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
 // This test requires llvm-symbolize on the PATH
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithDebugOnlyLibraries) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   const std::string& out_path = out_file.path();
 
   auto symbolize = [&](const std::string& in_file,
@@ -1333,7 +1368,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
   auto mapping = WriteTempFile(
       "com.example.Foo -> a.a:\n"
       "    void bar() -> b\n");
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
@@ -1369,7 +1404,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleWithProguardMap) {
 TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
   auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
   auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
@@ -1386,7 +1421,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleRepeatedProguardMap) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, BundleMissingProguardMapFails) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   const std::string& out_path = out_file.path();
 
   auto result = RunShell({"bundle", "--no-auto-symbol-paths", "--proguard-map",
@@ -1407,7 +1442,7 @@ TEST(TraceProcessorShellIntegrationTest, BundleHelpShowsProguardMap) {
 // the packet for the explicit package still appears in the bundle.
 TEST(TraceProcessorShellIntegrationTest, BundleNoAutoProguardMaps) {
   auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   const std::string& out_path = out_file.path();
 
   auto result =

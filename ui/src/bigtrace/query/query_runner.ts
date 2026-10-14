@@ -39,6 +39,8 @@ import {
   makeQueryResponse,
 } from '../pages/query_tabs_state';
 import type {BigTraceEditorTab} from '../pages/query_tabs_state';
+import {dateFilterToFilters, extractDateFilter} from './date_filter';
+import {todayIso} from '../base/iso_date';
 import {PollingController} from './polling_controller';
 
 interface QueryRunnerCallbacks {
@@ -97,7 +99,10 @@ export class QueryRunner {
     // Per-tab snapshot is the trace-selection source of truth: what the user
     // staged here (seeded from globals at tab creation, then edited). Globals
     // aren't re-read at run time.
-    const traceFilters = tab.traceFilters;
+    const traceFilters = [
+      ...dateFilterToFilters(tab.dateFilter, todayIso()),
+      ...tab.traceFilters,
+    ];
     const traceOrderBy = tab.traceOrderBy;
 
     const queryClient = new BigtraceQueryClient(endpoint);
@@ -263,7 +268,7 @@ export class QueryRunner {
     exec.processedTraces = details.processedTraces ?? 0;
     exec.totalTraces = details.totalTraces ?? 0;
     if (details.limit !== undefined) tab.limit = details.limit;
-    if (typeof details.traceLimit === 'number' && details.traceLimit > 0) {
+    if (typeof details.traceLimit === 'number' && details.traceLimit >= 0) {
       tab.traceLimit = details.traceLimit;
     }
     // Restore the submit-time snapshot so the settings bar reflects what this
@@ -285,7 +290,11 @@ export class QueryRunner {
       );
     }
     if (Array.isArray(details.traceFilters)) {
-      tab.traceFilters = details.traceFilters;
+      // The run's absolute date pair becomes the tab's fixed range, so it is
+      // shown on the chip and not doubled up with a default.
+      const {rest, dateFilter} = extractDateFilter(details.traceFilters);
+      tab.traceFilters = rest;
+      if (dateFilter !== undefined) tab.dateFilter = dateFilter;
     }
     if (Array.isArray(details.traceMetadataColumns)) {
       tab.traceMetadataColumns = details.traceMetadataColumns;

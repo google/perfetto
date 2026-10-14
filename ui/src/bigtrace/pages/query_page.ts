@@ -23,6 +23,7 @@ import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {showModal} from '../../widgets/modal';
 import {EditorTabView} from './editor_tab_view';
 import {QueryTabsState} from './query_tabs_state';
+import {handleSharedTraceListPostMessage} from './shared_trace_list';
 
 interface QueryPageAttrs {
   useBigtraceBackend?: boolean;
@@ -37,6 +38,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private sidebarVisible = true;
   private readonly tabsState = new QueryTabsState();
   private historyRefreshSignal = 0;
+  private messageListener?: (e: MessageEvent) => void;
   private readonly runner = new QueryRunner({
     onHistoryChanged: () => {
       this.historyRefreshSignal++;
@@ -50,8 +52,26 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       this.sidebarVisible = !this.sidebarVisible;
       m.redraw();
     };
-    if (this.useBigtraceBackend) {
-      bigTraceSettingsStorage.loadSettings();
+    const settingsReady = this.useBigtraceBackend
+      ? bigTraceSettingsStorage.loadSettings()
+      : Promise.resolve();
+    this.messageListener = (e: MessageEvent) => {
+      const shared = handleSharedTraceListPostMessage(e);
+      if (shared === undefined) return;
+      // UUID mode needs the backend's exec config to have declared trace_uuids.
+      settingsReady.then(() => {
+        this.tabsState.addSharedTraceListTab(shared);
+        // Not a Mithril event handler, so no autoredraw.
+        m.redraw();
+      });
+    };
+    window.addEventListener('message', this.messageListener);
+  }
+
+  onremove() {
+    if (this.messageListener !== undefined) {
+      window.removeEventListener('message', this.messageListener);
+      this.messageListener = undefined;
     }
   }
 

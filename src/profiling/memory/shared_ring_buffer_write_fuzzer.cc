@@ -52,7 +52,9 @@ int FuzzRingBufferWrite(const uint8_t* data, size_t size) {
   if (size <= sizeof(FuzzingInputHeader))
     return 0;
 
-  auto fd = base::TempFile::CreateUnlinked().ReleaseFD();
+  auto fd = base::TempFile::Create(base::TempFile::LinkMode::kUnlinked)
+                .ValueOrDie()
+                .ReleaseFD();
   PERFETTO_CHECK(fd);
 
   // Prefill shared buffer with fuzzer input, then attempt to write.

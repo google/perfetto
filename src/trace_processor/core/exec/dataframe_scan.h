@@ -23,6 +23,7 @@
 
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 
@@ -51,7 +52,7 @@ class DataframeScan : public Source {
                 uint32_t row_count);
   ~DataframeScan() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context& context) const override;
   bool GetData(RowBatch& out, OperatorState& state) const override;
   void Rewind(OperatorState& state) const override;
 
@@ -62,9 +63,18 @@ class DataframeScan : public Source {
  private:
   struct State : OperatorState {
     ~State() override;
-    std::vector<ColumnView> columns;
-    // One per column, null unless the column has to be expanded.
-    std::vector<std::unique_ptr<Expander>> expanders;
+    // What batches are pointed at: by column, the view of the rows last
+    // filled, and the buffer it is onto, for an expanded column.
+    std::vector<ColumnView> lent;
+    std::vector<ColumnBuffer> buffers;
+    // The columns which have to be expanded.
+    struct Expanded {
+      uint32_t column;
+      std::unique_ptr<Expander> expander;
+    };
+    std::vector<Expanded> expanded;
+    // What expanded columns are filled in.
+    Context* context = nullptr;
     uint32_t emitted = 0;
   };
 

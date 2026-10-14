@@ -21,10 +21,23 @@
 #include <unistd.h>
 
 #include <cinttypes>
+#include <cstring>
 #include <memory>
+
+#include "perfetto/base/logging.h"
 #include "src/profiling/unwind/cpu_registers.h"
-#include "src/profiling/unwind/perf_regs.h"
-#include "src/profiling/unwind/unwind_types.h"
+
+// kernel uapi headers
+#include <uapi/asm-arm/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
+#include <uapi/asm-x86/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
+#define perf_event_arm_regs perf_event_arm64_regs
+#include <uapi/asm-arm64/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
+#undef perf_event_arm_regs
+#include <uapi/asm-riscv/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
 
 namespace perfetto {
 namespace profiling {
@@ -51,28 +64,29 @@ const char* ReadValue(T* value_out, const char* ptr) {
 // TODO(rsavitski): cleanly detect 32 bit traced_perf builds being side-loaded
 // onto a system with 64 bit userspace processes.
 uint64_t PerfUserRegsMask(CpuArch arch) {
-  switch (static_cast<uint8_t>(arch)) {  // cast to please -Wswitch-enum
-    case CpuArch::kArm64:
+  switch (arch) {
+    case CpuArch::ARM64:
       return (1ULL << PERF_REG_ARM64_MAX) - 1;
-    case CpuArch::kArm:
+    case CpuArch::ARM:
       return (1ULL << PERF_REG_ARM_MAX) - 1;
     // perf on x86_64 doesn't allow sampling ds/es/fs/gs registers. See
     // arch/x86/kernel/perf_regs.c in the kernel.
-    case CpuArch::kX86_64:
+    case CpuArch::X86_64:
       return (((1ULL << PERF_REG_X86_64_MAX) - 1) & ~(1ULL << PERF_REG_X86_DS) &
               ~(1ULL << PERF_REG_X86_ES) & ~(1ULL << PERF_REG_X86_FS) &
               ~(1ULL << PERF_REG_X86_GS));
     // Note: excluding these segment registers might not be necessary on x86,
     // but they won't be used anyway (so follow x64).
-    case CpuArch::kX86:
+    case CpuArch::X86:
       return ((1ULL << PERF_REG_X86_32_MAX) - 1) & ~(1ULL << PERF_REG_X86_DS) &
              ~(1ULL << PERF_REG_X86_ES) & ~(1ULL << PERF_REG_X86_FS) &
              ~(1ULL << PERF_REG_X86_GS);
-    case CpuArch::kRiscv64:
+    case CpuArch::RISCV64:
       return (1ULL << PERF_REG_RISCV_MAX) - 1;
-    default:
-      PERFETTO_FATAL("Unsupported architecture");
+    case CpuArch::UNKNOWN:
+      break;
   }
+  PERFETTO_FATAL("Unsupported architecture");
 }
 
 // Adjusts the given architecture enum based on the ABI (as recorded in the perf
@@ -80,11 +94,11 @@ uint64_t PerfUserRegsMask(CpuArch arch) {
 // this only converts from 64 bit to 32 bit architectures.
 // TODO(rsavitski): on riscv64, are 32 bit userspace processes possible?
 CpuArch ArchForAbi(CpuArch arch, uint64_t abi) {
-  if (arch == CpuArch::kArm64 && abi == PERF_SAMPLE_REGS_ABI_32) {
-    return CpuArch::kArm;
+  if (arch == CpuArch::ARM64 && abi == PERF_SAMPLE_REGS_ABI_32) {
+    return CpuArch::ARM;
   }
-  if (arch == CpuArch::kX86_64 && abi == PERF_SAMPLE_REGS_ABI_32) {
-    return CpuArch::kX86;
+  if (arch == CpuArch::X86_64 && abi == PERF_SAMPLE_REGS_ABI_32) {
+    return CpuArch::X86;
   }
   return arch;
 }
@@ -98,6 +112,99 @@ struct RawRegisterData {
   uint64_t regs[kMaxSize] = {};
 };
 
+// Converts the kernel uapi |RawRegisterData| array to |CpuRegisters| (which
+// uses DWARF register ordering).
+CpuRegisters PerfRegsToCpuRegs(const RawRegisterData& raw_regs, CpuArch arch) {
+  if (arch == CpuArch::ARM64) {
+    static_assert(
+        static_cast<int>(ARM64_REG_X0) == static_cast<int>(PERF_REG_ARM64_X0) &&
+            static_cast<int>(ARM64_REG_X0) == 0,
+        "register layout mismatch");
+    static_assert(
+        static_cast<int>(ARM64_REG_PC) == static_cast<int>(PERF_REG_ARM64_PC),
+        "register layout mismatch");
+    CpuRegisters cpu_regs(CpuArch::ARM64);
+    memcpy(cpu_regs.regs, raw_regs.regs,
+           sizeof(uint64_t) * (PERF_REG_ARM64_PC + 1));
+    return cpu_regs;
+  }
+
+  if (arch == CpuArch::ARM) {
+    static_assert(
+        static_cast<int>(ARM_REG_R0) == static_cast<int>(PERF_REG_ARM_R0) &&
+            static_cast<int>(ARM_REG_R0) == 0,
+        "register layout mismatch");
+    static_assert(
+        static_cast<int>(ARM_REG_MAX) == static_cast<int>(PERF_REG_ARM_MAX),
+        "register layout mismatch");
+    CpuRegisters cpu_regs(CpuArch::ARM);
+    for (size_t i = 0; i < ARM_REG_MAX; i++) {
+      cpu_regs.regs[i] = static_cast<uint32_t>(raw_regs.regs[i]);
+    }
+    return cpu_regs;
+  }
+
+  if (arch == CpuArch::X86_64) {
+    CpuRegisters cpu_regs(CpuArch::X86_64);
+    cpu_regs.regs[X86_64_REG_RAX] = raw_regs.regs[PERF_REG_X86_AX];
+    cpu_regs.regs[X86_64_REG_RBX] = raw_regs.regs[PERF_REG_X86_BX];
+    cpu_regs.regs[X86_64_REG_RCX] = raw_regs.regs[PERF_REG_X86_CX];
+    cpu_regs.regs[X86_64_REG_RDX] = raw_regs.regs[PERF_REG_X86_DX];
+    cpu_regs.regs[X86_64_REG_R8] = raw_regs.regs[PERF_REG_X86_R8];
+    cpu_regs.regs[X86_64_REG_R9] = raw_regs.regs[PERF_REG_X86_R9];
+    cpu_regs.regs[X86_64_REG_R10] = raw_regs.regs[PERF_REG_X86_R10];
+    cpu_regs.regs[X86_64_REG_R11] = raw_regs.regs[PERF_REG_X86_R11];
+    cpu_regs.regs[X86_64_REG_R12] = raw_regs.regs[PERF_REG_X86_R12];
+    cpu_regs.regs[X86_64_REG_R13] = raw_regs.regs[PERF_REG_X86_R13];
+    cpu_regs.regs[X86_64_REG_R14] = raw_regs.regs[PERF_REG_X86_R14];
+    cpu_regs.regs[X86_64_REG_R15] = raw_regs.regs[PERF_REG_X86_R15];
+    cpu_regs.regs[X86_64_REG_RDI] = raw_regs.regs[PERF_REG_X86_DI];
+    cpu_regs.regs[X86_64_REG_RSI] = raw_regs.regs[PERF_REG_X86_SI];
+    cpu_regs.regs[X86_64_REG_RBP] = raw_regs.regs[PERF_REG_X86_BP];
+    cpu_regs.regs[X86_64_REG_RSP] = raw_regs.regs[PERF_REG_X86_SP];
+    cpu_regs.regs[X86_64_REG_RIP] = raw_regs.regs[PERF_REG_X86_IP];
+    return cpu_regs;
+  }
+
+  if (arch == CpuArch::X86) {
+    CpuRegisters cpu_regs(CpuArch::X86);
+    cpu_regs.regs[X86_REG_EAX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_AX]);
+    cpu_regs.regs[X86_REG_EBX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BX]);
+    cpu_regs.regs[X86_REG_ECX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_CX]);
+    cpu_regs.regs[X86_REG_EDX] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DX]);
+    cpu_regs.regs[X86_REG_EBP] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_BP]);
+    cpu_regs.regs[X86_REG_EDI] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_DI]);
+    cpu_regs.regs[X86_REG_ESI] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SI]);
+    cpu_regs.regs[X86_REG_ESP] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_SP]);
+    cpu_regs.regs[X86_REG_EIP] =
+        static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_IP]);
+    return cpu_regs;
+  }
+
+  if (arch == CpuArch::RISCV64) {
+    static_assert(static_cast<int>(RISCV64_REG_PC) ==
+                          static_cast<int>(PERF_REG_RISCV_PC) &&
+                      static_cast<int>(RISCV64_REG_PC) == 0,
+                  "register layout mismatch");
+    static_assert(static_cast<int>(RISCV64_REG_VLENB) ==
+                      static_cast<int>(PERF_REG_RISCV_MAX),
+                  "register layout mismatch");
+    CpuRegisters cpu_regs(CpuArch::RISCV64);
+    memcpy(cpu_regs.regs, raw_regs.regs, sizeof(uint64_t) * PERF_REG_RISCV_MAX);
+    return cpu_regs;
+  }
+
+  PERFETTO_FATAL("Unsupported architecture");
+}
+
 }  // namespace
 
 uint64_t PerfUserRegsMaskForArch(CpuArch arch) {
@@ -106,7 +213,7 @@ uint64_t PerfUserRegsMaskForArch(CpuArch arch) {
 
 // Assumes that the sampling was configured with
 // |PerfUserRegsMaskForArch(CurrentCpuArch())|.
-std::unique_ptr<CpuRegisters> ReadPerfUserRegsData(const char** data) {
+std::optional<CpuRegisters> ReadPerfUserRegsData(const char** data) {
   CpuArch requested_arch = CurrentCpuArch();
 
   // Layout, assuming a sparse bitmask requesting r1 and r15:
@@ -120,7 +227,7 @@ std::unique_ptr<CpuRegisters> ReadPerfUserRegsData(const char** data) {
   // which doesn't have userspace registers.
   if (sampled_abi == PERF_SAMPLE_REGS_ABI_NONE) {
     *data = parse_pos;  // adjust caller's parsing position
-    return nullptr;
+    return std::nullopt;
   }
 
   // Unpack the densely-packed register values into |RawRegisterData|, which has
@@ -143,7 +250,7 @@ std::unique_ptr<CpuRegisters> ReadPerfUserRegsData(const char** data) {
   // arm32 register bank. See "Fundamentals of ARMv8-A" (ARM DOC
   // 100878_0100_en), page 28.
   // x86-64 doesn't need any such fixups.
-  if (requested_arch == CpuArch::kArm64 &&
+  if (requested_arch == CpuArch::ARM64 &&
       sampled_abi == PERF_SAMPLE_REGS_ABI_32) {
     raw_regs.regs[PERF_REG_ARM_PC] = raw_regs.regs[PERF_REG_ARM64_PC];
   }
@@ -151,8 +258,7 @@ std::unique_ptr<CpuRegisters> ReadPerfUserRegsData(const char** data) {
   *data = parse_pos;  // adjust caller's parsing position
 
   CpuArch sampled_arch = ArchForAbi(requested_arch, sampled_abi);
-  return std::make_unique<CpuRegisters>(CpuRegisters::FromKernelRegs(
-      sampled_arch, raw_regs.regs, RawRegisterData::kMaxSize));
+  return PerfRegsToCpuRegs(raw_regs, sampled_arch);
 }
 
 }  // namespace profiling

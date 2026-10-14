@@ -36,8 +36,6 @@ class ShellTransitionsTracker {
   // committed when Flush() clears the transition.
   ArgsInserter& AddArgsTo(int32_t transition_id);
 
-  void SetTimestamp(int32_t transition_id, int64_t timestamp_ns);
-  void SetTimestampIfEmpty(int32_t transition_id, int64_t timestamp_ns);
   void SetTransitionType(int32_t transition_id, int32_t transition_type);
   void SetSendTime(int32_t transition_id, int64_t timestamp_ns);
   void SetDispatchTime(int32_t transition_id, int64_t timestamp_ns);
@@ -64,7 +62,7 @@ class ShellTransitionsTracker {
   std::optional<tables::WindowManagerShellTransitionsTable::RowReference>
   GetRowReference(int32_t transition_id);
 
-  void SetStatusesAndDurations();
+  void SetDerivedFields();
 
   TraceProcessorContext* context_;
   std::unordered_map<int32_t, TransitionInfo> transitions_infos_;

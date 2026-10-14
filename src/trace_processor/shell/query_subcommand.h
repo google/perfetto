@@ -17,10 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_SHELL_QUERY_SUBCOMMAND_H_
 #define SRC_TRACE_PROCESSOR_SHELL_QUERY_SUBCOMMAND_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/shell/agent_mode.h"
+#include "src/trace_processor/shell/result_formatter.h"
 #include "src/trace_processor/shell/subcommand.h"
 
 namespace perfetto::trace_processor::shell {
@@ -35,15 +39,30 @@ class QuerySubcommand : public Subcommand {
   base::Status Run(const SubcommandContext& ctx) override;
 
  private:
+  // Resolves the output format from agent mode, --format and the --max-*
+  // flags.
+  base::StatusOr<ResultFormatOptions> ResolveFormat(
+      const AgentMode& agent_mode);
+
+  // Run() minus agent-mode error reporting.
+  base::Status ExecuteAndPrint(const SubcommandContext& ctx,
+                               const AgentMode& agent_mode);
+
   base::Status RunStructuredQuery(const SubcommandContext& ctx,
-                                  const std::string& trace_file);
+                                  const std::string& trace_file,
+                                  const ResultFormatOptions& format);
 
   std::string query_file_;
   std::string structured_query_id_;
   std::vector<std::string> structured_query_specs_;
   bool interactive_ = false;
-  bool wide_ = false;
   std::string perf_file_;
+  std::string format_;
+  bool agent_ = false;
+  bool no_agent_ = false;
+  std::string max_rows_;
+  std::string max_bytes_;
+  std::string max_cell_width_;
 };
 
 }  // namespace perfetto::trace_processor::shell

@@ -15,16 +15,11 @@
 import("../../../gn/perfetto.gni")
 
 source_set("unwind_core") {
-  public_deps = [
-    "../../../gn:bionic_kernel_uapi_headers",
-    "../../base",
-  ]
+  public_deps = [ "../../base" ]
   deps = [ "../../../gn:default_deps" ]
   sources = [
-    "asm_get_regs.h",
-    "cpu_registers.cc",
     "cpu_registers.h",
-    "perf_regs.h",
+    "get_asm_regs.h",
     "unwind_context.cc",
     "unwind_context.h",
     "unwind_types.h",

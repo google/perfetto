@@ -63,8 +63,7 @@ TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
 
 TEST(PosixSharedMemoryTest, DestructorClosesFD) {
   std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::Create(base::GetSysPageSize());
-  ASSERT_NE(shm.get(), nullptr);
+      PosixSharedMemory::Create(base::GetSysPageSize()).ValueOrDie();
   int fd = shm->fd();
   ASSERT_GE(fd, 0);
   ASSERT_EQ(static_cast<off_t>(base::GetSysPageSize()), lseek(fd, 0, SEEK_END));
@@ -73,8 +72,20 @@ TEST(PosixSharedMemoryTest, DestructorClosesFD) {
   ASSERT_TRUE(IsFileDescriptorClosed(fd));
 }
 
+TEST(PosixSharedMemoryTest, CreateSealsMemfdWhenSupported) {
+  if (!HasMemfdSupport())
+    GTEST_SKIP() << "memfd is not supported";
+
+  auto memory = PosixSharedMemory::Create(4096).ValueOrDie();
+  constexpr int kSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
+  const int actual_seals = fcntl(memory->fd(), F_GET_SEALS);
+  ASSERT_GE(actual_seals, 0);
+  EXPECT_EQ(actual_seals & kSeals, kSeals);
+}
+
 TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
-  base::TempFile tmp_file = base::TempFile::CreateUnlinked();
+  base::TempFile tmp_file =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, static_cast<off_t>(base::GetSysPageSize())));
   ASSERT_EQ(7, base::WriteAll(fd_num, "foobar", 7));
@@ -97,7 +108,8 @@ TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
-  base::TempFile tmp_file = base::TempFile::CreateUnlinked();
+  base::TempFile tmp_file =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   const int fd_num = tmp_file.fd();
   ASSERT_EQ(0, ftruncate(fd_num, static_cast<off_t>(base::GetSysPageSize())));
 
@@ -116,7 +128,8 @@ TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
 TEST(PosixSharedMemoryTest, AttachToFdRejectsNullAndEmpty) {
   EXPECT_FALSE(PosixSharedMemory::AttachToFd(
       base::ScopedFile(), /*require_seals_if_supported=*/false, 4096));
-  auto empty = base::TempFile::CreateUnlinked();
+  auto empty =
+      base::TempFile::Create(base::TempFile::LinkMode::kUnlinked).ValueOrDie();
   int fd = empty.fd();
   EXPECT_FALSE(PosixSharedMemory::AttachToFd(
       empty.ReleaseFD(), /*require_seals_if_supported=*/false, 4096));
@@ -124,7 +137,7 @@ TEST(PosixSharedMemoryTest, AttachToFdRejectsNullAndEmpty) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFdRejectsReadOnly) {
-  auto file = base::TempFile::Create();
+  auto file = base::TempFile::Create().ValueOrDie();
   ASSERT_EQ(ftruncate(file.fd(), 4096), 0);
   auto read_only = base::OpenFile(file.path(), O_RDONLY);
   ASSERT_TRUE(read_only);
@@ -135,7 +148,7 @@ TEST(PosixSharedMemoryTest, AttachToFdRejectsReadOnly) {
 }
 
 TEST(PosixSharedMemoryTest, AttachToFdEnforcesMaxSize) {
-  auto memory = PosixSharedMemory::Create(4096);
+  auto memory = PosixSharedMemory::Create(4096).ValueOrDie();
   for (size_t max_size : {size_t{0}, size_t{4095}}) {
     auto fd = base::DupFile(memory->fd());
     ASSERT_TRUE(fd);
@@ -158,7 +171,7 @@ TEST(PosixSharedMemoryTest, CreateAndMap) {
   // system page size (crbug.com/1116576).
   const size_t kLessThanAPage = 2048;
   std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::Create(kLessThanAPage);
+      PosixSharedMemory::Create(kLessThanAPage).ValueOrDie();
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(shm_start, nullptr);

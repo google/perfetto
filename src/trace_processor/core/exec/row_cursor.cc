@@ -21,7 +21,7 @@
 namespace perfetto::trace_processor::core::exec {
 
 RowCursor::RowCursor(const Source& source)
-    : source_(source), state_(source.MakeState()) {}
+    : source_(source), state_(source.MakeState(context_)) {}
 
 RowCursor::~RowCursor() = default;
 

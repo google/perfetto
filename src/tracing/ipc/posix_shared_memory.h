@@ -30,8 +30,8 @@
 
 #include <memory>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 
 namespace perfetto {
@@ -45,8 +45,13 @@ class PosixSharedMemory : public SharedMemory {
     std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) override;
   };
 
-  // Creates a new SHM region. Crashes if the memory cannot be allocated.
-  static std::unique_ptr<PosixSharedMemory> Create(size_t size);
+  // Creates and maps a shared memory region of |size| bytes.
+  // Uses a memfd with seals that prevent resizing and adding further seals.
+  // In-tree Android builds require a sealed memfd.
+  // Other builds fall back to an unlinked temporary file if memfd creation
+  // fails.
+  // Returns an error status on failure.
+  static base::StatusOr<std::unique_ptr<PosixSharedMemory>> Create(size_t size);
 
   // Mmaps an existing SHM region for shared read/write access.
   // - Takes ownership of the descriptor, also on failure.
@@ -71,8 +76,10 @@ class PosixSharedMemory : public SharedMemory {
   size_t size() const override { return size_; }
 
  private:
-  // Returns nullptr if mmap() fails.
-  static std::unique_ptr<PosixSharedMemory> MapFD(base::ScopedFile, size_t);
+  // Returns an error status if mmap() fails.
+  static base::StatusOr<std::unique_ptr<PosixSharedMemory>> MapFD(
+      base::ScopedFile,
+      size_t);
 
   PosixSharedMemory(void* start, size_t size, base::ScopedFile);
   PosixSharedMemory(const PosixSharedMemory&) = delete;
