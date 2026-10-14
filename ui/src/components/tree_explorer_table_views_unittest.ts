@@ -31,6 +31,7 @@ function makeData(nodes: ReadonlyArray<TestNode>): TreeExplorerData {
   const fullNodes: TreeExplorerNode[] = nodes.map((n) => ({
     ...n,
     properties: new Map(),
+    propertyValues: new Map(),
     xStart: 0,
     xEnd: 0,
   }));

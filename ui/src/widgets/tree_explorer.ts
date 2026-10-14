@@ -47,6 +47,22 @@ export interface TreeExplorerOptionalAction {
 // inspects elsewhere; COPY exports.
 export type ActionCategory = 'FOCUS' | 'FILTER' | 'DRILL' | 'COPY';
 
+// Picks the Material icon to draw before a node's name from the node's
+// property values, or returns undefined for no icon. Called on every render,
+// so it can depend on the caller's current state.
+export type TreeExplorerNodeIconFn = (
+  properties: ReadonlyMap<string, string>,
+) => string | undefined;
+
+// Renders a node's tooltip. Receives the default tooltip content and returns
+// what to show instead, e.g. the default content with extra content added.
+// The Call Tree and Functions tables have no node tooltip; they call this with
+// null default content and show the result when hovering the node's icon.
+export type TreeExplorerNodeTooltipRenderer = (
+  ctx: TreeExplorerActionContext,
+  defaultContent: m.Children,
+) => m.Children;
+
 export interface TreeExplorerOptionalMarker {
   readonly name: string;
   isVisible: (properties: ReadonlyMap<string, string>) => boolean;
@@ -69,6 +85,9 @@ export interface TreeExplorerNode {
   readonly parentCumulativeValue?: number;
   readonly properties: ReadonlyMap<string, TreeExplorerPropertyDefinition>;
   readonly marker?: string;
+  // Plain name -> value view of `properties`, built once when the tree is
+  // fetched so render-time callbacks can be called without allocating.
+  readonly propertyValues: ReadonlyMap<string, string>;
   readonly xStart: number;
   readonly xEnd: number;
 }

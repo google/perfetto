@@ -41,3 +41,14 @@
     }
   }
 }
+
+.pf-tree-explorer__node-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-tree-explorer__node-icon {
+  font-size: 16px;
+  cursor: help;
+}
