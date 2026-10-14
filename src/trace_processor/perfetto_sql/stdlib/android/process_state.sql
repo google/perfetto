@@ -136,7 +136,7 @@ WITH
       c.prev_state,
       c.ts
       - lag(c.ts) OVER (PARTITION BY c.upid ORDER BY c.ts, c.is_initial DESC) AS prev_state_duration,
-      c.cur_reason AS reason
+      c.cur_reason AS state_change_reason
     FROM raw_changes AS c
     WHERE
       c.prev_state IS NULL
@@ -158,7 +158,7 @@ SELECT
   c.prev_state,
   c.prev_state_duration,
   coalesce(r.rank, 1000) AS state_rank,
-  c.reason,
+  c.state_change_reason,
   iif(c.state = 'NONEXISTENT', fw.hosting_type, NULL) AS hosting_type,
   iif(c.state = 'NONEXISTENT', trim(fw.hosting_name, '{}'), NULL) AS hosting_name,
   iif(c.state = 'NONEXISTENT', fw.trigger_type, NULL) AS trigger_type,
