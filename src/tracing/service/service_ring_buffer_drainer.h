@@ -28,6 +28,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
 
@@ -111,6 +112,12 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   // Mapping size for the service's memory guardrail.
   size_t size_bytes() const { return memory_->size(); }
 
+  // Sets the ring buffer fields of |stats|.
+  // These are the layout and the counters of the reader, of this class and of
+  // the producer's writers.
+  // The caller sets the producer's identity.
+  void FillStats(TraceStats::TracingV2ProducerStats* stats) const;
+
  private:
   friend class test::ServiceRingBufferDrainerTestPeer;
 
@@ -137,6 +144,18 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   SharedRingBufferReader reader_;
 
   bool retry_scheduled_ = false;
+
+  // Chunks that the reader delivered but no trace buffer stored.
+  // See TraceStats.TracingV2ProducerStats for each case.
+  uint64_t invalid_writer_chunks_ = 0;
+  uint64_t invalid_destination_chunks_ = 0;
+  uint64_t trace_buffer_rejected_chunks_ = 0;
+
+  // Calls to Drain() that ran the reader, and their total and longest time on
+  // the monotonic clock.
+  uint64_t drain_passes_ = 0;
+  uint64_t drain_time_ns_ = 0;
+  uint64_t drain_max_time_ns_ = 0;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 

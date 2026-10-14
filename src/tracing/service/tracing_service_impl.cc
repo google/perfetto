@@ -4225,6 +4225,9 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
     *trace_stats.add_buffer_stats() = buf->stats();
   }  // for (buf in session).
 
+  *trace_stats.mutable_tracing_v2_producer_stats() =
+      GetTracingV2ProducerStats(*tracing_session);
+
   if (!tracing_session->config.builtin_data_sources()
            .disable_chunk_usage_histograms()) {
     // Emit chunk usage stats broken down by sequence ID (i.e. by trace-writer).
@@ -4241,7 +4244,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
       if (!buf)
         continue;
       for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
-        const auto& hist = it.value();
+        const auto& hist = it.value().chunk_payload_histogram;
         ProducerID p;
         WriterID w;
         GetProducerAndWriterID(it.key(), &p, &w);
@@ -4258,6 +4261,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
         wri_stats->set_sequence_id(
             tracing_session->GetPacketSequenceID(kDefaultMachineID, p, w));
         wri_stats->set_buffer(buf_idx);
+        wri_stats->set_protocol_abi_versions(it.value().protocol_abi_versions);
         for (size_t i = 0; i < hist.num_buckets(); ++i) {
           wri_stats->add_chunk_payload_histogram_counts(hist.GetBucketCount(i));
           wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
@@ -4267,6 +4271,23 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   }  // if (!disable_chunk_usage_histograms)
 
   return trace_stats;
+}
+
+std::vector<TraceStats::TracingV2ProducerStats>
+TracingServiceImpl::GetTracingV2ProducerStats(const TracingSession& session) {
+  // A cloned session has no data source instances.
+  // It keeps the copy that FinishCloneSession() took from its source session.
+  if (session.state == TracingSession::CLONED_READ_ONLY)
+    return session.tracing_v2_producer_stats_at_clone;
+
+  std::vector<TraceStats::TracingV2ProducerStats> producer_stats;
+  for (const auto& [producer_id, producer] : producers_) {
+    if (session.data_source_instances.count(producer_id) == 0)
+      continue;
+    if (auto stats = producer->GetTracingV2Stats())
+      producer_stats.emplace_back(std::move(*stats));
+  }
+  return producer_stats;
 }
 
 void TracingServiceImpl::EmitUuid(TracingSession* tracing_session,
@@ -5132,6 +5153,8 @@ base::Status TracingServiceImpl::FinishCloneSession(
   cloned_session->flushes_requested = src->flushes_requested;
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
+  cloned_session->tracing_v2_producer_stats_at_clone =
+      GetTracingV2ProducerStats(*src);
   if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(
