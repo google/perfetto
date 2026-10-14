@@ -586,8 +586,90 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
       });
   ASSERT_TRUE(consumer->Flush().WaitForReply());
   EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre(payload));
+
+  // TraceStats shows the ring buffer and that the writer used it.
+  consumer->GetTraceStats();
+  const TraceStats stats = consumer->WaitForTraceStats(/*success=*/true);
+  ASSERT_EQ(stats.tracing_v2_producer_stats().size(), 1u);
+  const auto& producer_stats = stats.tracing_v2_producer_stats()[0];
+  EXPECT_EQ(producer_stats.pid(), 1025);
+  EXPECT_EQ(producer_stats.producer_name(), "ring_buffer");
+  EXPECT_EQ(producer_stats.chunk_size_bytes() * producer_stats.num_chunks() +
+                sizeof(tracing_v2::RingBufferHeader),
+            impl->ring_buffer_size_bytes());
+  EXPECT_GT(producer_stats.chunks_read(), 0u);
+  EXPECT_GT(producer_stats.bytes_read(), payload.size());
+  EXPECT_GT(producer_stats.drain_passes(), 0u);
+  ASSERT_EQ(stats.writer_stats().size(), 1u);
+  EXPECT_EQ(stats.writer_stats()[0].protocol_abi_versions(), kProtocolAbiV2);
+
   writer.reset();
   EXPECT_CALL(producer, StopDataSource(instance));
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+// Only a session with a data source of the producer lists its stats. A clone
+// keeps the stats from the time of the clone.
+TEST_F(TracingServiceImplTest, TracingV2ProducerStatsFollowSession) {
+  NiceMock<MockProducer> producer(&task_runner);
+  NiceMock<MockProducer> other_producer(&task_runner);
+  // Each producer has a data source named after it and a ring buffer of four
+  // chunks.
+  auto connect = [&](MockProducer* mock, const std::string& name) {
+    auto endpoint = svc->ConnectProducer(
+        mock, ClientIdentity(42, 1025), name,
+        /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+        TracingService::ProducerSMBScrapingMode::kDefault,
+        /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+        /*sdk_version=*/"1.2.3", /*machine_name=*/{},
+        kProtocolAbiV1 | kProtocolAbiV2);
+    DataSourceDescriptor descriptor;
+    descriptor.set_name(name);
+    endpoint->RegisterDataSource(descriptor);
+    endpoint->AttachV2RingBuffer(
+        std::make_shared<InProcessSharedMemory>(
+            sizeof(tracing_v2::RingBufferHeader) + 4 * 256),
+        /*chunk_size_bytes=*/256, [](bool accepted) { EXPECT_TRUE(accepted); });
+    return endpoint;
+  };
+  auto endpoint = connect(&producer, "in_session");
+  auto other_endpoint = connect(&other_producer, "not_in_session");
+
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(RingBufferConfig("in_session"));
+  task_runner.RunUntilIdle();
+
+  consumer->GetTraceStats();
+  TraceStats stats = consumer->WaitForTraceStats(/*success=*/true);
+  ASSERT_EQ(stats.tracing_v2_producer_stats().size(), 1u);
+  EXPECT_EQ(stats.tracing_v2_producer_stats()[0].producer_name(), "in_session");
+  EXPECT_EQ(stats.tracing_v2_producer_stats()[0].num_chunks(), 4u);
+
+  // The clone flushes the session's producers first.
+  auto clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+  EXPECT_CALL(producer, Flush(_, _, _, _))
+      .WillOnce([&](FlushRequestID id, const DataSourceInstanceID*, size_t,
+                    FlushFlags) { endpoint->NotifyFlushComplete(id); });
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce([&](const Consumer::OnSessionClonedArgs& args) {
+        EXPECT_TRUE(args.success);
+        clone_done();
+      });
+  clone_consumer->CloneSession(GetLastTracingSessionId(consumer.get()));
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  // The cloned session has no data source instances. It still has the entry.
+  clone_consumer->GetTraceStats();
+  stats = clone_consumer->WaitForTraceStats(/*success=*/true);
+  ASSERT_EQ(stats.tracing_v2_producer_stats().size(), 1u);
+  EXPECT_EQ(stats.tracing_v2_producer_stats()[0].producer_name(), "in_session");
+  // The service drained on the attach and on the clone's flush.
+  EXPECT_GE(stats.tracing_v2_producer_stats()[0].drain_passes(), 2u);
+
   consumer->DisableTracing();
   consumer->WaitForTracingDisabled();
 }
@@ -6043,6 +6125,8 @@ TEST_F(TracingServiceImplTest, TraceWriterStats) {
                 packet.trace_stats().chunk_payload_histogram_def()[i]),
             wri.chunk_payload_histogram_counts()[i]);
       }
+      // Both writers use the SMB.
+      EXPECT_EQ(wri.protocol_abi_versions(), kProtocolAbiV1);
 
       switch (wri.sequence_id()) {
         case 1:  // Ignore service-generated packets.

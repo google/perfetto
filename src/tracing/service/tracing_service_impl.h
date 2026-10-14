@@ -268,6 +268,11 @@ class TracingServiceImpl : public TracingService {
   void EmitSyncMarker(std::vector<TracePacket>*);
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
+  // Returns the tracing v2 stats of the connected producers that have a data
+  // source instance in the session.
+  // For a cloned session, returns the copy taken when it was cloned.
+  std::vector<TraceStats::TracingV2ProducerStats> GetTracingV2ProducerStats(
+      const TracingSession&);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
   // The only way to change a session's state. Broadcasts the change into the
   // other opted-in sessions' concurrent_session_events.

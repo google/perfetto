@@ -855,6 +855,20 @@ void ProducerEndpointImpl::DrainV2RingBuffer() {
     v2_ring_buffer_drainer_->Drain();
 }
 
+std::optional<TraceStats::TracingV2ProducerStats>
+ProducerEndpointImpl::GetTracingV2Stats() const {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!v2_ring_buffer_drainer_)
+    return std::nullopt;
+
+  TraceStats::TracingV2ProducerStats stats;
+  stats.set_producer_id(id_);
+  stats.set_pid(static_cast<int32_t>(pid()));
+  stats.set_producer_name(name_);
+  v2_ring_buffer_drainer_->FillStats(&stats);
+  return stats;
+}
+
 TraceBuffer* ProducerEndpointImpl::GetV2RingBufferDestination(BufferID id) {
   if (!is_allowed_target_buffer(id))
     return nullptr;

@@ -145,13 +145,17 @@ class SharedRingBufferReader {
   bool has_protocol_error() const { return has_protocol_error_; }
   uint32_t read_pos() const { return read_pos_; }
 
-  // For diagnostics only. The protocol never reads these counters.
-  // TODO(sashwinbalaji): Wire these counters into service statistics.
+  // For diagnostics only. No writer or reader decision depends on them.
+  // The service reports them in TraceStats.TracingV2ProducerStats.
   struct Stats {
     uint64_t positions_skipped = 0;
     // Successful BeingWritten -> RewriteRequested transitions.
     uint64_t rewrite_requests = 0;
     uint64_t chunks_read = 0;
+    // Total fragment bytes of the chunks in |chunks_read|.
+    uint64_t bytes_read = 0;
+    // Chunks discarded because they carry kFlagDataLoss.
+    uint64_t data_loss_chunks = 0;
     uint64_t malformed_chunks = 0;
     uint64_t unsupported_format_chunks = 0;
   };
