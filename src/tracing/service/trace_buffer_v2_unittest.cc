@@ -4914,7 +4914,7 @@ TEST_F(TraceBufferV2Test, Compaction_RetainsPagesForNextWriteCycle) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   GTEST_SKIP() << "Only Linux and Android release pages deterministically";
-#endif
+#else
   const size_t page_size = base::GetSysPageSize();
   constexpr size_t kChunkSize = 4 * 1024;
   constexpr size_t kNumPages = 16;
@@ -4950,6 +4950,7 @@ TEST_F(TraceBufferV2Test, Compaction_RetainsPagesForNextWriteCycle) {
           << "page " << page;
     }
   }
+#endif
 }
 
 // Smaller write cycles must leave the entire unused tail zero.
