@@ -23,6 +23,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/shell/result_formatter.h"
 #include "test/gtest_and_gmock.h"
@@ -47,19 +49,21 @@ std::string ReadAll(FILE* file) {
   for (size_t n; (n = fread(buf, 1, sizeof(buf), file)) > 0;) {
     res.append(buf, n);
   }
-  fclose(file);
   return res;
 }
 
 Formatted Format(const ResultFormatOptions& options,
                  std::vector<std::string> columns,
                  const std::vector<Row>& rows) {
-  FILE* output = tmpfile();
-  FILE* notes = tmpfile();
+  base::TempFile output_file = base::TempFile::Create().ValueOrDie();
+  base::TempFile notes_file = base::TempFile::Create().ValueOrDie();
+  base::ScopedFstream output = base::OpenFstream(output_file.path(), "w+");
+  base::ScopedFstream notes = base::OpenFstream(notes_file.path(), "w+");
   PERFETTO_CHECK(output && notes);
   Formatted res;
   {
-    CsvResultFormatter formatter(options, std::move(columns), output, notes);
+    CsvResultFormatter formatter(options, std::move(columns), output.get(),
+                                 notes.get());
     for (const Row& row : rows) {
       ++res.rows_read;
       if (!formatter.AddRow(row.data())) {
@@ -68,8 +72,8 @@ Formatted Format(const ResultFormatOptions& options,
     }
     formatter.Finish();
   }
-  res.output = ReadAll(output);
-  res.notes = ReadAll(notes);
+  res.output = ReadAll(output.get());
+  res.notes = ReadAll(notes.get());
   return res;
 }
 

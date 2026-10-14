@@ -23,6 +23,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/shell/result_formatter.h"
 #include "test/gtest_and_gmock.h"
@@ -42,12 +44,13 @@ Formatted Format(uint64_t page_rows,
                  size_t pages,
                  std::vector<std::string> columns,
                  const std::vector<Row>& rows) {
-  FILE* file = tmpfile();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
+  base::ScopedFstream file = base::OpenFstream(temp_file.path(), "w+");
   PERFETTO_CHECK(file);
   Formatted res;
   {
     TableResultFormatter formatter(
-        DefaultTableOptions(page_rows), std::move(columns), file,
+        DefaultTableOptions(page_rows), std::move(columns), file.get(),
         [&res, pages] { return ++res.prompts <= pages; });
     for (const Row& row : rows) {
       if (!formatter.AddRow(row.data())) {
@@ -56,12 +59,11 @@ Formatted Format(uint64_t page_rows,
     }
     formatter.Finish();
   }
-  fseek(file, 0, SEEK_SET);
+  fseek(file.get(), 0, SEEK_SET);
   char buf[4096];
-  for (size_t n; (n = fread(buf, 1, sizeof(buf), file)) > 0;) {
+  for (size_t n; (n = fread(buf, 1, sizeof(buf), file.get())) > 0;) {
     res.output.append(buf, n);
   }
-  fclose(file);
   return res;
 }
 
