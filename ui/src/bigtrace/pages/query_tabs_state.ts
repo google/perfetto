@@ -26,6 +26,10 @@ import {queryStore, type QueryExecution} from '../query/query_store';
 import type {BigtraceColumnSchema} from '../query/column_types';
 import type {SettingCategory, SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
+import {
+  formatSharedTraceListSql,
+  type SharedTraceList,
+} from './shared_trace_list';
 
 const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 const DEFAULT_SQL = '';
@@ -666,6 +670,29 @@ export class QueryTabsState {
     );
     this.markDirty();
     return clone;
+  }
+
+  // A new tab in UUID mode over the posted list; the backend's exec config
+  // must already have declared trace_uuids (setTraceUuidsActive is a no-op
+  // otherwise).
+  addSharedTraceListTab(shared: SharedTraceList): BigTraceEditorTab {
+    const tab = this.addNewTab(
+      shared.title || undefined,
+      formatSharedTraceListSql(shared),
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    tab.configured = true;
+    setTraceUuidsActive(tab, true);
+    tab.querySettings = tab.querySettings.map((s) =>
+      s.settingId === TRACE_UUIDS_SETTING_ID
+        ? {...s, values: [...shared.traceUuids]}
+        : s,
+    );
+    this.markDirty();
+    return tab;
   }
 
   closeTab(tabId: string): void {
