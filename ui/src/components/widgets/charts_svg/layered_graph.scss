@@ -1,0 +1,143 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Self-contained styles for the LayeredGraph SVG chart widget (so it can be
+// reused without pulling in any host plugin's CSS).
+.pf-lgraph-graph {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  .pf-lgraph-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    padding: 3px 10px;
+    color: var(--pf-color-text-muted, #888);
+    .pf-lgraph-grow {
+      flex: 1;
+    }
+    .pf-lgraph-fit {
+      font-size: 11px;
+      padding: 1px 8px;
+      cursor: pointer;
+      border: 1px solid var(--pf-color-border, #ccc);
+      background: transparent;
+      border-radius: 4px;
+    }
+  }
+  .pf-lgraph-svg {
+    flex: 1;
+    min-height: 0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    &:active {
+      cursor: grabbing;
+    }
+    // Faint tint so the graph reads as a distinct, pannable surface.
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-background) 94%,
+      var(--pf-color-border-secondary) 6%
+    );
+  }
+  .pf-lgraph-edge {
+    cursor: pointer;
+  }
+  .pf-lgraph-node {
+    cursor: pointer;
+  }
+  // Node ring is theme-aware: a background-coloured halo at rest, the text
+  // colour on hover/selection (contrasts in both light and dark mode).
+  .pf-lgraph-node circle {
+    stroke: var(--pf-color-background);
+    stroke-width: 0.6;
+  }
+  .pf-lgraph-node:hover circle {
+    stroke: var(--pf-color-text);
+    stroke-width: 1.5;
+  }
+  .pf-lgraph-node--sel circle {
+    stroke: var(--pf-color-text);
+    stroke-width: 2;
+  }
+  // Diff mode: added/changed get a coloured ring; removed are dashed, muted
+  // ghosts. Declared after the base/hover/sel rules so they win on equal
+  // specificity.
+  .pf-lgraph-node.pf-lgraph-diff-added circle {
+    stroke: #43a047;
+    stroke-width: 2.5;
+  }
+  .pf-lgraph-node.pf-lgraph-diff-changed circle {
+    stroke: #fb8c00;
+    stroke-width: 2.5;
+  }
+  .pf-lgraph-node.pf-lgraph-diff-removed {
+    opacity: 0.45;
+  }
+  .pf-lgraph-node.pf-lgraph-diff-removed circle {
+    stroke: #e53935;
+    stroke-dasharray: 3 2;
+  }
+  text {
+    fill: var(--pf-color-text, #222);
+  }
+  .pf-lgraph-col {
+    fill: var(--pf-color-text-muted, #666);
+  }
+  .pf-lgraph-nlabel {
+    fill: var(--pf-color-text, #222);
+    stroke: var(--pf-color-background, #fff);
+    stroke-width: 2.6px;
+    paint-order: stroke;
+    stroke-linejoin: round;
+    font-family: var(--pf-font-monospace, monospace);
+  }
+}
+
+// hover tooltip (rendered into the Perfetto CursorTooltip portal).
+.pf-lgraph-tip {
+  max-width: 300px;
+  overflow-wrap: anywhere;
+  .pf-lgraph-tip-name {
+    font-size: 12px;
+    font-family: var(--pf-font-monospace, monospace);
+  }
+  .pf-lgraph-tip-sub {
+    font-size: 11px;
+    margin-top: 2px;
+    color: var(--pf-color-text-muted, #888);
+  }
+}
+
+// Legend diff swatches (caller passes the text; these colour it).
+.pf-lgraph-diff-leg {
+  font-size: 11px;
+  margin-left: 10px;
+}
+.pf-lgraph-diff-added {
+  color: #2e7d32;
+}
+.pf-lgraph-diff-changed {
+  color: #ef6c00;
+}
+.pf-lgraph-diff-removed {
+  color: #c62828;
+}

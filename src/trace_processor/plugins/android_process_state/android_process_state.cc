@@ -33,7 +33,21 @@ namespace perfetto::trace_processor::android_process_state {
 namespace {
 
 using tables::AndroidFreezerStateTable;
+using tables::AndroidProcessStateProcessTable;
+using tables::AndroidProcessStateProviderBindingTable;
+using tables::AndroidProcessStateProviderTable;
+using tables::AndroidProcessStateServiceBindingTable;
+using tables::AndroidProcessStateServiceTable;
+using tables::AndroidProcessStateSnapshotTable;
 using tables::AndroidProcessStateTable;
+using tables::AndroidProcessStateTriggerEventTable;
+using ProcessTable = tables::AndroidProcessStateProcessTable;
+using ProviderBindingTable = tables::AndroidProcessStateProviderBindingTable;
+using ProviderTable = tables::AndroidProcessStateProviderTable;
+using ServiceBindingTable = tables::AndroidProcessStateServiceBindingTable;
+using ServiceTable = tables::AndroidProcessStateServiceTable;
+using SnapshotTable = tables::AndroidProcessStateSnapshotTable;
+using TriggerEventTable = tables::AndroidProcessStateTriggerEventTable;
 
 class AndroidProcessState : public Plugin<AndroidProcessState> {
  public:
@@ -47,6 +61,18 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
     out.push_back({&freezer_state_table_->dataframe(),
                    AndroidFreezerStateTable::Name(),
                    {}});
+    out.push_back({&snapshot_table_->dataframe(), SnapshotTable::Name(), {}});
+    out.push_back({&process_table_->dataframe(), ProcessTable::Name(), {}});
+    out.push_back({&service_table_->dataframe(), ServiceTable::Name(), {}});
+    out.push_back({&service_binding_table_->dataframe(),
+                   ServiceBindingTable::Name(),
+                   {}});
+    out.push_back({&provider_table_->dataframe(), ProviderTable::Name(), {}});
+    out.push_back({&provider_binding_table_->dataframe(),
+                   ProviderBindingTable::Name(),
+                   {}});
+    out.push_back(
+        {&trigger_event_table_->dataframe(), TriggerEventTable::Name(), {}});
   }
 
   void RegisterProtoImporterModules(
@@ -69,13 +95,33 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
 
  private:
   void EnsureTables() {
+    auto* pool = trace_context_->storage->mutable_string_pool();
     if (!process_state_table_) {
-      process_state_table_ = std::make_unique<AndroidProcessStateTable>(
-          trace_context_->storage->mutable_string_pool());
+      process_state_table_ = std::make_unique<AndroidProcessStateTable>(pool);
     }
     if (!freezer_state_table_) {
-      freezer_state_table_ = std::make_unique<AndroidFreezerStateTable>(
-          trace_context_->storage->mutable_string_pool());
+      freezer_state_table_ = std::make_unique<AndroidFreezerStateTable>(pool);
+    }
+    if (!snapshot_table_) {
+      snapshot_table_ = std::make_unique<SnapshotTable>(pool);
+    }
+    if (!process_table_) {
+      process_table_ = std::make_unique<ProcessTable>(pool);
+    }
+    if (!service_table_) {
+      service_table_ = std::make_unique<ServiceTable>(pool);
+    }
+    if (!service_binding_table_) {
+      service_binding_table_ = std::make_unique<ServiceBindingTable>(pool);
+    }
+    if (!provider_table_) {
+      provider_table_ = std::make_unique<ProviderTable>(pool);
+    }
+    if (!provider_binding_table_) {
+      provider_binding_table_ = std::make_unique<ProviderBindingTable>(pool);
+    }
+    if (!trigger_event_table_) {
+      trigger_event_table_ = std::make_unique<TriggerEventTable>(pool);
     }
   }
 
@@ -83,13 +129,23 @@ class AndroidProcessState : public Plugin<AndroidProcessState> {
     EnsureTables();
     if (!tracker_) {
       tracker_ = std::make_unique<AndroidProcessStateTracker>(
-          ctx, process_state_table_.get(), freezer_state_table_.get());
+          ctx, process_state_table_.get(), freezer_state_table_.get(),
+          snapshot_table_.get(), process_table_.get(), service_table_.get(),
+          service_binding_table_.get(), provider_table_.get(),
+          provider_binding_table_.get(), trigger_event_table_.get());
     }
     return tracker_.get();
   }
 
   std::unique_ptr<AndroidProcessStateTable> process_state_table_;
   std::unique_ptr<AndroidFreezerStateTable> freezer_state_table_;
+  std::unique_ptr<SnapshotTable> snapshot_table_;
+  std::unique_ptr<ProcessTable> process_table_;
+  std::unique_ptr<ServiceTable> service_table_;
+  std::unique_ptr<ServiceBindingTable> service_binding_table_;
+  std::unique_ptr<ProviderTable> provider_table_;
+  std::unique_ptr<ProviderBindingTable> provider_binding_table_;
+  std::unique_ptr<TriggerEventTable> trigger_event_table_;
   std::unique_ptr<AndroidProcessStateTracker> tracker_;
 };
 

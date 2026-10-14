@@ -90,7 +90,11 @@ WITH
       s.is_initial,
       s.upid,
       replace(s.proc_state, 'PROCESS_STATE_', '') AS cur_state,
-      s.reason AS cur_reason
+      s.oom_score AS cur_oom_score,
+      s.capability_flags AS cur_capability_flags,
+      s.reason AS cur_reason,
+      s.seq_id AS seq_id,
+      s.utid
     FROM __intrinsic_android_process_state AS s
     JOIN process_lifetimes AS p USING (upid)
     UNION ALL
@@ -101,7 +105,11 @@ WITH
       0 AS is_initial,
       p.upid,
       'EXITED' AS cur_state,
-      NULL AS cur_reason
+      NULL AS cur_oom_score,
+      NULL AS cur_capability_flags,
+      NULL AS cur_reason,
+      NULL AS seq_id,
+      NULL AS utid
     FROM process_lifetimes AS p
     WHERE
       p.death_ts IS NOT NULL
@@ -117,7 +125,16 @@ WITH
           e.upid
         ORDER BY e.ts, e.is_initial DESC
       ) AS prev_state,
-      e.cur_reason
+      e.cur_oom_score,
+      lag(e.cur_oom_score) OVER (
+        PARTITION BY
+          e.upid
+        ORDER BY e.ts, e.is_initial DESC
+      ) AS prev_oom_score,
+      e.cur_capability_flags,
+      e.cur_reason,
+      e.seq_id,
+      e.utid
     FROM all_events AS e
   ),
   state_changes AS (
@@ -136,22 +153,16 @@ WITH
       c.prev_state,
       c.ts
       - lag(c.ts) OVER (PARTITION BY c.upid ORDER BY c.ts, c.is_initial DESC) AS prev_state_duration,
-      c.cur_reason AS reason
+      c.cur_oom_score AS oom_score,
+      c.prev_oom_score,
+      c.cur_capability_flags AS capability_flags,
+      c.cur_reason AS reason,
+      c.seq_id,
+      c.utid
     FROM raw_changes AS c
     WHERE
       c.prev_state IS NULL
       OR c.prev_state != c.cur_state
-  ),
-  died AS (
-    SELECT
-      extract_arg(arg_set_id, 'process_died_event.upid') AS upid,
-      extract_arg(arg_set_id, 'process_died_event.reason') AS exit_reason,
-      extract_arg(arg_set_id, 'process_died_event.sub_reason') AS exit_subreason
-    FROM slice
-    WHERE
-      name = 'process_died'
-    GROUP BY
-      upid
   )
 SELECT
   row_number() OVER (ORDER BY c.ts, c.upid) AS id,
@@ -169,21 +180,25 @@ SELECT
   c.prev_state,
   c.prev_state_duration,
   coalesce(r.rank, 1000) AS state_rank,
+  c.oom_score,
+  c.prev_oom_score,
+  c.capability_flags,
   c.reason,
+  c.seq_id,
+  c.utid,
   iif(c.state = 'NONEXISTENT', fw.hosting_type, NULL) AS hosting_type,
   iif(c.state = 'NONEXISTENT', trim(fw.hosting_name, '{}'), NULL) AS hosting_name,
   iif(c.state = 'NONEXISTENT', fw.trigger_type, NULL) AS trigger_type,
   iif(c.state = 'NONEXISTENT', fw.bind_application_delay_ms, NULL) AS bind_application_delay_ms,
   iif(c.state = 'NONEXISTENT', fw.process_start_delay_ms, NULL) AS process_start_delay_ms,
-  iif(c.state = 'EXITED', d.exit_reason, NULL) AS exit_reason,
-  iif(c.state = 'EXITED', d.exit_subreason, NULL) AS exit_subreason
+  iif(c.state = 'EXITED', fw.exit_reason, NULL) AS exit_reason,
+  iif(c.state = 'EXITED', fw.exit_sub_reason, NULL) AS exit_subreason
 FROM state_changes AS c
 JOIN process AS p USING (upid)
 LEFT JOIN android_process_metadata AS m USING (upid)
 LEFT JOIN _android_process_state_rank AS r
   ON r.state = c.state
-LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
-LEFT JOIN died AS d USING (upid);
+LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid);
 
 -- Number of processes concurrently in each framework process state over time.
 CREATE PERFETTO TABLE _android_process_state_concurrency AS

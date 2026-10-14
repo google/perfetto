@@ -107,9 +107,8 @@ message VideoFrameError {
   optional Reason reason = 2;
 }
 
-// Snapshot of all running process states written at trace start, clone or
-// stop. See AndroidProcessStateChangedEvent in
-// frameworks_base_track_event.proto
+// Snapshot of all running process states written at trace start, clone flush,
+// or stop.
 message AndroidProcessStateSnapshot {
   // A single process state entry.
   message Record {
@@ -131,22 +130,107 @@ message AndroidProcessStateSnapshot {
     optional int64 start_time_ms = 8;
     // Kernel process group (android.os.Process.THREAD_GROUP_*).
     optional ProcessGroup process_group = 9;
+    // Whether the process is persistent.
+    optional bool persistent = 10;
+    // Whether the process currently has top UI.
+    optional bool has_top_ui = 11;
+    // Whether the process currently has overlay UI.
+    optional bool has_overlay_ui = 12;
+    // Whether the process is running a remote animation.
+    optional bool running_remote_animation = 13;
   }
   repeated Record record = 1;
 
   // Reason why the process state snapshot was emitted.
   enum DumpReason {
     DUMP_REASON_UNKNOWN = 0;
+    // Emitted at trace start when dump_process_metadata is enabled. Records
+    // only static process metadata (pid, uid, process_name, start_seq_id,
+    // start_time_ms) and omits runtime state fields.
     DUMP_REASON_START = 1;
+    // Emitted at trace stop.
     DUMP_REASON_END = 2;
+    // Emitted on trace clone flush (e.g. AOT trigger clone).
     DUMP_REASON_CLONE = 3;
   }
   optional DumpReason dump_reason = 2;
+
+  // A running service in ActivityManagerService.
+  message Service {
+    optional int32 service_id = 1;
+    optional int32 owning_pid = 2;
+    optional int32 uid = 3;
+    optional string component_name = 4;
+    optional bool is_foreground = 5;
+    optional int32 foreground_service_type = 6;
+    optional bool start_requested = 7;
+    optional bool created_from_fg = 8;
+    optional string process_name = 9;
+  }
+  repeated Service service = 3;
+
+  // An active ConnectionRecord binding a client process to a ServiceRecord.
+  message ServiceBinding {
+    optional int32 bind_id = 1;
+    optional int32 service_id = 2;
+    optional int32 intent_bind_id = 3;
+    optional int32 client_pid = 4;
+    optional int32 client_uid = 5;
+    optional int32 bind_flags_32 = 6;
+    optional int32 bind_flags_32_to_64 = 7;
+    optional string intent_action = 8;
+    optional string component_name = 9;
+    optional int32 host_pid = 10;
+    optional int32 host_uid = 11;
+  }
+  repeated ServiceBinding service_binding = 4;
+
+  // A published ContentProviderRecord in ActivityManagerService.
+  message Provider {
+    optional int32 provider_id = 1;
+    optional int32 owning_pid = 2;
+    optional int32 uid = 3;
+    optional string authority = 4;
+    optional string component_name = 5;
+    optional string process_name = 6;
+  }
+  repeated Provider provider = 5;
+
+  // An active ContentProviderConnection binding a client process to a
+  // ContentProviderRecord.
+  message ProviderBinding {
+    optional int32 bind_id = 1;
+    optional int32 provider_id = 2;
+    optional int32 client_pid = 3;
+    optional int32 client_uid = 4;
+    optional bool is_stable = 5;
+    optional int32 stable_count = 6;
+    optional int32 unstable_count = 7;
+    optional string authority = 8;
+    optional string component_name = 9;
+    optional int32 host_pid = 10;
+    optional int32 host_uid = 11;
+  }
+  repeated ProviderBinding provider_binding = 6;
+
+  // An active ActivityRecord hosted by a process.
+  message Activity {
+    optional int32 pid = 1;
+    optional int32 uid = 2;
+    optional string component_name = 3;
+    optional int32 task_id = 4;
+    optional string state = 5;
+    optional bool visible = 6;
+  }
+  repeated Activity activity = 7;
+
+  // Current OOM Adjuster sequence ID at the time of the snapshot.
+  optional int64 seq_id = 8;
 }
 
-// Snapshot of frozen process states written at trace stop.
+// Snapshot of process freezer states written at trace clone flush or stop.
 message AndroidFreezerStateSnapshot {
-  // A single freezer state entry for a frozen process.
+  // A single freezer state entry for a process.
   message Record {
     // Package UID of the process being frozen or unfrozen.
     optional int32 uid = 1;
@@ -167,7 +251,9 @@ message FrameworksBaseTracePacket {
     optional AppWakelockBundle app_wakelock_bundle = 116;
     optional VideoFrame video_frame = 1000;
     optional VideoFrameError video_frame_error = 1001;
+    // Snapshot of process states written at trace start, clone flush, or stop.
     optional AndroidProcessStateSnapshot android_process_state = 1002;
+    // Snapshot of freezer states written at trace clone flush or stop.
     optional AndroidFreezerStateSnapshot android_freezer_state = 1003;
   }
 }

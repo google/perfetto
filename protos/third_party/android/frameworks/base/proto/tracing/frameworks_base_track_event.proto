@@ -15,8 +15,7 @@
  */
 
 // frameworks/base TrackEvent extensions. Source of truth lives at
-// frameworks/base/proto/tracing/ in the Android tree. See
-// https://github.com/google/perfetto/discussions/4783
+// frameworks/base/proto/tracing/ in the Android tree.
 
 syntax = "proto2";
 
@@ -439,9 +438,7 @@ enum CapabilityUpdateFlag {
 // Bitmask representing various process state flags.
 // See com.android.server.am.psc.ProcStateController.Tracer.TraceFlags for
 // definition. It is used at the flags field of the AndroidProcStateUpdateEvent
-// message.
-//
-// LINT.IfChange(ProcStateControllerTraceFlags)
+// message. LINT.IfChange(ProcStateControllerTraceFlags)
 enum ProcStateControllerTraceFlags {
   PROC_STATE_CONTROLLER_TRACE_FLAG_NONE = 0;
   PROC_STATE_CONTROLLER_TRACE_FLAG_IS_RUNNING = 0x1;                 // 1 << 0
@@ -680,6 +677,7 @@ enum OomChangeReasonEnum {
   OOM_ADJ_REASON_RECONFIGURATION = 24;
   OOM_ADJ_REASON_SERVICE_BINDER_CALL = 25;
   OOM_ADJ_REASON_BATCH_UPDATE_REQUEST = 26;
+  OOM_ADJ_REASON_PREWARMING = 27;
 }
 
 enum ServiceRestartReason {
@@ -836,6 +834,15 @@ message AndroidBroadcastEvent {
 
   // Whether this is the first launch of the app since install
   optional uint32 first_launch = 18;
+
+  // OOM Adjuster sequence ID correlated with this broadcast event.
+  optional int64 seq_id = 19;
+
+  // Component/class name of the broadcast receiver.
+  optional string receiver_component_name = 20;
+
+  // Process name of the broadcast receiver.
+  optional string receiver_process_name = 21;
 }
 
 message AndroidFreezerEvent {
@@ -853,6 +860,9 @@ message AndroidFreezerEvent {
 
   // Unfreeze reason.
   optional UnfreezeReason unfreeze_reason = 5;
+
+  // OOM Adjuster sequence ID correlated with this freezer event.
+  optional int64 seq_id = 6;
 }
 
 message AndroidProcessStartEvent {
@@ -894,6 +904,9 @@ message AndroidProcessStartEvent {
 
   // The defining uid. See HostingRecord#getDefiningUid.
   optional int32 defining_uid = 13;
+
+  // OOM Adjuster sequence ID correlated with this process start/bound event.
+  optional int64 seq_id = 14;
 }
 
 // This can be delayed for up to 15s in some cases. It should typically
@@ -931,6 +944,9 @@ message AndroidProcessDiedEvent {
 
   // The defining uid. See HostingRecord#getDefiningUid.
   optional int32 defining_uid = 11;
+
+  // OOM Adjuster sequence ID correlated with this process death event.
+  optional int64 seq_id = 12;
 }
 
 // This is expected to come earlier than AndroidProcessDiedEvent.
@@ -947,6 +963,9 @@ message AndroidBinderDiedEvent {
 
   // start sequence id which is assigned to a process during start update
   optional int64 start_seq_id = 4;
+
+  // OOM Adjuster sequence ID correlated with this binder death event.
+  optional int64 seq_id = 5;
 }
 
 message AndroidProcessStateChangedEvent {
@@ -1006,6 +1025,35 @@ message AndroidProcessStateChangedEvent {
   optional ProcessGroup prev_process_group = 15;
 }
 
+// Emitted on the proc_state track before a dying process's record is cleaned
+// up, recording its last set runtime state so ring-buffer traces can recover
+// the state of processes that die before the end-of-trace snapshot.
+message AndroidProcessStateDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
+
+  // Previous proc state before the process died.
+  optional ProcessStateEnum prev_proc_state = 3;
+
+  // Previous oom score before the process died.
+  optional int32 prev_oom_score = 4;
+
+  // Previous capability flags before the process died.
+  optional int32 prev_capability_flags = 5
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.ProcessCapabilityEnum"];
+
+  // Previous kernel process group (android.os.Process.THREAD_GROUP_*) before
+  // the process died.
+  optional ProcessGroup prev_process_group = 6;
+
+  // OOM Adjuster sequence ID correlated with this process death event.
+  optional int64 seq_id = 7;
+}
+
 message AndroidProcessGroupChangedEvent {
   // Uid of the package of the process changing group (if available).
   optional int32 uid = 1;
@@ -1026,7 +1074,7 @@ message AndroidServiceStateChangedEvent {
   optional string component_name = 3;
   // Intent action used to bind/start the service.
   optional string intent_action = 4;
-  // Identifier for the binding.
+  // Identifier for the binding (ConnectionRecord).
   optional int32 bind_id = 5;
   // Type of foreground service.
   optional int32 foreground_service_type = 6
@@ -1046,6 +1094,16 @@ message AndroidServiceStateChangedEvent {
   optional int32 bind_flags_32_to_64 = 11
       [(perfetto.protos.flags_enum) =
            ".com.android.internal.ServiceBindFlagLongBits"];
+  // Monotonic identifier of the ServiceRecord instance.
+  optional int32 service_id = 12;
+  // Monotonic identifier of the IntentBindRecord instance.
+  optional int32 intent_bind_id = 13;
+  // Start ID from StartItem.
+  optional int32 start_id = 14;
+  // Foreground notification ID.
+  optional int32 foreground_id = 15;
+  // OOM Adjuster sequence ID correlated with this service event.
+  optional int64 seq_id = 16;
 }
 
 message AndroidProviderStateChangedEvent {
@@ -1061,6 +1119,14 @@ message AndroidProviderStateChangedEvent {
   optional int32 caller_pid = 5 [(perfetto.protos.is_pid) = true];
   // Whether the connection is stable.
   optional int32 is_stable = 6;
+  // Monotonic identifier of the ContentProviderConnection instance.
+  optional int32 bind_id = 7;
+  // Monotonic identifier of the ContentProviderRecord instance.
+  optional int32 provider_id = 8;
+  // Component name of the content provider.
+  optional string component_name = 9;
+  // OOM Adjuster sequence ID correlated with this provider event.
+  optional int64 seq_id = 10;
 }
 
 message AndroidCapabilitySummaryEvent {
@@ -1207,11 +1273,98 @@ message AndroidSelfBroadcastEvent {
   // Unique cookie for this broadcast, used to correlate server and client
   // traces.
   optional int64 trace_cookie = 10;
+
+  // OOM Adjuster sequence ID correlated with this self-broadcast event.
+  optional int64 seq_id = 11;
+}
+
+// Emitted at the start of an OOM Adjuster pass (fullUpdateLSP or
+// partialUpdateLSP) when mAdjSeq is incremented.
+message AndroidOomAdjusterPassEvent {
+  // Sequence ID (mAdjSeq) assigned to this OOM Adjuster pass.
+  optional int64 seq_id = 1;
+
+  // Reason for the OOM adjustment pass.
+  optional OomChangeReasonEnum reason = 2;
+
+  // Whether this pass is a full update (true) or partial update (false).
+  optional bool is_full_update = 3;
+
+  // PID of the current top process at the start of the pass.
+  optional int32 top_pid = 4 [(perfetto.protos.is_pid) = true];
+
+  // Process state of the top process at the start of the pass.
+  optional ProcessStateEnum top_proc_state = 5;
+
+  // Target PIDs initially enqueued in mPendingProcessSet for a partial update.
+  repeated int32 target_pid = 6;
+}
+
+// Emitted when an ActivityRecord transitions state or when activity state is
+// committed into ProcessStateController.
+message AndroidActivityStateChangedEvent {
+  // UID of the process hosting the activity.
+  optional int32 uid = 1;
+
+  // PID of the process hosting the activity.
+  optional int32 pid = 2 [(perfetto.protos.is_pid) = true];
+
+  // Component name of the activity.
+  optional string component_name = 3;
+
+  // Previous activity state name (e.g., PAUSED, STOPPED).
+  optional string prev_state = 4;
+
+  // Current activity state name (e.g., RESUMED, PAUSING).
+  optional string cur_state = 5;
+
+  // Reason for the activity state transition.
+  optional string reason = 6;
+
+  // Task ID containing the activity.
+  optional int32 task_id = 7;
+
+  // OOM Adjuster sequence ID correlated with this activity state change.
+  optional int64 seq_id = 8;
+}
+
+// Emitted when ProcessStateController state is mutated prior to an OOM Adjuster
+// pass.
+message AndroidProcessStateTriggerEvent {
+  // OOM Adjuster sequence ID (mAdjSeq + 1) that this mutation feeds into.
+  optional int64 seq_id = 1;
+
+  // Name of the trigger / mutation (e.g., "setTopProcess", "setHasTopUi").
+  optional string trigger_name = 2;
+
+  // Target process PID (if applicable).
+  optional int32 pid = 3 [(perfetto.protos.is_pid) = true];
+
+  // Target process/package UID (if applicable).
+  optional int32 uid = 4;
+
+  // Caller/source process PID (if applicable).
+  optional int32 caller_pid = 5 [(perfetto.protos.is_pid) = true];
+
+  // Caller/source UID (if applicable).
+  optional int32 caller_uid = 6;
+
+  // Process/component name associated with the trigger (if applicable).
+  optional string process_name = 7;
+
+  // Boolean value set by the mutation (if applicable).
+  optional bool bool_value = 8;
+
+  // Integer/bitmask value set by the mutation (if applicable).
+  optional int64 int_value = 9;
+
+  // Additional human-readable detail (if applicable).
+  optional string detail = 10;
 }
 
 message FrameworksBaseTrackEvent {
   // Usable range: [2004, 2006], [2008, 2099]
-  // Next id: 2023
+  // Next id: 2027
   extend perfetto.protos.TrackEvent {
     optional AndroidMessageQueue message_queue = 2004;
     optional AndroidBitmap bitmap = 2005;
@@ -1233,5 +1386,10 @@ message FrameworksBaseTrackEvent {
     optional AndroidProcStateUpdateEvent proc_state_update_event = 2020;
     optional AndroidSelfBroadcastEvent self_broadcast_event = 2021;
     optional AndroidProcessGroupChangedEvent process_group_changed_event = 2022;
+    optional AndroidProcessStateDiedEvent process_state_died_event = 2023;
+    optional AndroidOomAdjusterPassEvent oom_adjuster_pass_event = 2024;
+    optional AndroidActivityStateChangedEvent activity_state_changed_event =
+        2025;
+    optional AndroidProcessStateTriggerEvent process_state_trigger_event = 2026;
   }
 }

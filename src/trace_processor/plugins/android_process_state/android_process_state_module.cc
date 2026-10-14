@@ -66,13 +66,36 @@ void AndroidProcessStateModule::OnEventsFullyExtracted() {
 
 AndroidProcessStateExtensionParser::AndroidProcessStateExtensionParser(
     TrackEventExtensionParserContext* context,
-    TraceProcessorContext*,
+    TraceProcessorContext* trace_context,
     AndroidProcessStateTracker* tracker)
-    : TrackEventExtensionParser(context), tracker_(tracker) {
+    : TrackEventExtensionParser(context),
+      trace_context_(trace_context),
+      tracker_(tracker) {
   RegisterTrackEventExtension(
       fb::FrameworksBaseTrackEvent::kProcessStateChangedEventFieldNumber);
   RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kProcessStateDiedEventFieldNumber);
+  RegisterTrackEventExtension(
       fb::FrameworksBaseTrackEvent::kFreezerEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kOomAdjusterPassEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kServiceStateChangedEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kFgServiceStateChangedEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kProviderStateChangedEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kBroadcastEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kSelfBroadcastEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kActivityStateChangedEventFieldNumber);
+  RegisterTrackEventExtension(
+      fb::FrameworksBaseTrackEvent::kProcessStateTriggerEventFieldNumber);
+  // AndroidProcessDiedEvent, AndroidBinderDiedEvent and
+  // AndroidProcessStartEvent are owned by the android_framework_track_event
+  // plugin (a field can only have one parser).
 }
 
 AndroidProcessStateExtensionParser::~AndroidProcessStateExtensionParser() =
@@ -86,21 +109,76 @@ AndroidProcessStateExtensionParser::OnTrackEventField(
     return Result::kIgnored;
   }
   int64_t ts = event.ts;
+  base::StringView slice_name;
+  std::optional<StringId> opt_name =
+      trace_context_->storage->slice_table()[event.slice_id()].name();
+  if (opt_name) {
+    slice_name = trace_context_->storage->GetString(*opt_name);
+  }
   switch (field.id()) {
     case fb::FrameworksBaseTrackEvent::kProcessStateChangedEventFieldNumber:
       tracker_->ParseProcessStateChange(
-          ts,
+          ts, event.has_utid() ? std::make_optional(event.utid) : std::nullopt,
           field
               .Cast<fb::FrameworksBaseTrackEvent::kProcessStateChangedEvent>());
-      break;
+      return Result::kHandled;
+    case fb::FrameworksBaseTrackEvent::kProcessStateDiedEventFieldNumber:
+      tracker_->ParseProcessStateDied(
+          ts,
+          field.Cast<fb::FrameworksBaseTrackEvent::kProcessStateDiedEvent>());
+      return Result::kHandled;
     case fb::FrameworksBaseTrackEvent::kFreezerEventFieldNumber:
       tracker_->ParseFreezerEvent(
           ts, field.Cast<fb::FrameworksBaseTrackEvent::kFreezerEvent>());
-      break;
+      return Result::kHandled;
+    case fb::FrameworksBaseTrackEvent::kOomAdjusterPassEventFieldNumber:
+      tracker_->ParseOomAdjusterPass(
+          ts,
+          field.Cast<fb::FrameworksBaseTrackEvent::kOomAdjusterPassEvent>());
+      return Result::kIgnored;
+    case fb::FrameworksBaseTrackEvent::kServiceStateChangedEventFieldNumber:
+      tracker_->ParseServiceStateChange(
+          ts, slice_name,
+          field
+              .Cast<fb::FrameworksBaseTrackEvent::kServiceStateChangedEvent>());
+      return Result::kIgnored;
+    case fb::FrameworksBaseTrackEvent::kFgServiceStateChangedEventFieldNumber:
+      tracker_->ParseFgServiceStateChange(
+          ts, slice_name,
+          field.Cast<
+              fb::FrameworksBaseTrackEvent::kFgServiceStateChangedEvent>());
+      return Result::kIgnored;
+    case fb::FrameworksBaseTrackEvent::kProviderStateChangedEventFieldNumber:
+      tracker_->ParseProviderStateChange(
+          ts, slice_name,
+          field.Cast<
+              fb::FrameworksBaseTrackEvent::kProviderStateChangedEvent>());
+      return Result::kIgnored;
+    case fb::FrameworksBaseTrackEvent::kBroadcastEventFieldNumber:
+      tracker_->ParseBroadcastEvent(
+          ts, slice_name,
+          field.Cast<fb::FrameworksBaseTrackEvent::kBroadcastEvent>());
+      return Result::kIgnored;
+    case fb::FrameworksBaseTrackEvent::kSelfBroadcastEventFieldNumber:
+      tracker_->ParseSelfBroadcastEvent(
+          ts, slice_name,
+          field.Cast<fb::FrameworksBaseTrackEvent::kSelfBroadcastEvent>());
+      return Result::kIgnored;
+    case fb::FrameworksBaseTrackEvent::kActivityStateChangedEventFieldNumber:
+      tracker_->ParseActivityStateChange(
+          ts, field.Cast<
+                  fb::FrameworksBaseTrackEvent::kActivityStateChangedEvent>());
+      return Result::kIgnored;
+    case fb::FrameworksBaseTrackEvent::kProcessStateTriggerEventFieldNumber:
+      tracker_->ParseProcessStateTrigger(
+          ts,
+          field
+              .Cast<fb::FrameworksBaseTrackEvent::kProcessStateTriggerEvent>());
+      return Result::kIgnored;
     default:
       break;
   }
-  return Result::kHandled;
+  return Result::kIgnored;
 }
 
 }  // namespace perfetto::trace_processor::android_process_state
