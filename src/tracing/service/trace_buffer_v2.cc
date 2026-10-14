@@ -21,14 +21,12 @@
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/protovm/vm.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -1206,11 +1204,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
     return reject_abi_violation();
 
   // ProtoVM expects length-delimited protobuf on the overwrite path.
-  const bool producer_has_protovm =
-      std::any_of(protovms_.begin(), protovms_.end(), [&](const Vm& vm) {
-        return vm.producers.count(sequence.producer_id_trusted) != 0;
-      });
-  if (producer_has_protovm) {
+  if (protovms_.HasProducer(sequence.producer_id_trusted)) {
     stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
     return reject();
   }
@@ -1427,8 +1421,8 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
         break;
       }
       if (maybe_packet) {
-        MaybeProcessOverwrittenPacketWithProtoVm(*maybe_packet,
-                                                 csr.seq()->producer_id);
+        protovms_.MaybeProcessOverwrittenPacket(*maybe_packet,
+                                                csr.seq()->producer_id);
       }
       has_cleared_unconsumed_fragments = true;
     }
@@ -1595,11 +1589,7 @@ std::unique_ptr<TraceBuffer> TraceBufferV2::CloneReadOnly() const {
 }
 
 size_t TraceBufferV2::GetMemoryUsageBytes() const {
-  size_t total_bytes = size();
-  for (const Vm& vm : protovms_) {
-    total_bytes += vm.instance->GetMemoryUsageBytes();
-  }
-  return total_bytes;
+  return size() + protovms_.GetMemoryUsageBytes();
 }
 
 TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
@@ -1630,25 +1620,7 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   sequences_ = src.sequences_;
   writer_stats_ = src.writer_stats_;
 
-  for (const auto& vm : src.protovms_) {
-    auto vm_cloned = vm.CloneReadOnly();
-    if (!vm_cloned.instance) {
-      PERFETTO_ELOG("Failed to clone ProtoVMs");
-      protovms_.clear();
-      break;
-    }
-    protovms_.push_back(std::move(vm_cloned));
-  }
-}
-
-TraceBufferV2::Vm TraceBufferV2::Vm::CloneReadOnly() const {
-  Vm cloned_vm;
-  cloned_vm.data_source_name = data_source_name;
-  cloned_vm.program_hash = program_hash;
-  cloned_vm.memory_limit_kb = memory_limit_kb;
-  cloned_vm.producers = producers;
-  cloned_vm.instance = instance->CloneReadOnly();
-  return cloned_vm;
+  protovms_.CloneReadOnlyFrom(src.protovms_);
 }
 
 void TraceBufferV2::DumpForTesting() {
@@ -1681,79 +1653,6 @@ void TraceBufferV2::DumpForTesting() {
     break;
   }
   PERFETTO_DLOG("------------------------------------------------------------");
-}
-
-TraceBufferV2::Vm::Vm() = default;
-TraceBufferV2::Vm::~Vm() = default;
-TraceBufferV2::Vm::Vm(Vm&&) noexcept = default;
-
-void TraceBufferV2::MaybeSetUpProtoVm(const std::string& data_source_name,
-                                      const std::string& program_bytes,
-                                      uint32_t memory_limit_kb,
-                                      ProducerID producer_id) {
-  Vm* vm = nullptr;
-  // Re-use existing ProtoVM instance, if any.
-  uint64_t program_hash = base::MurmurHashValue(program_bytes);
-  auto vm_it =
-      std::find_if(protovms_.begin(), protovms_.end(), [&](const Vm& vm) {
-        return vm.data_source_name == data_source_name &&
-               vm.program_hash == program_hash;
-      });
-  if (vm_it != protovms_.end()) {
-    vm = &(*vm_it);
-  } else {
-    // Otherwise instantiate new ProtoVM
-    Vm new_vm;
-    new_vm.data_source_name = data_source_name;
-    new_vm.program_hash = program_hash;
-    new_vm.memory_limit_kb = memory_limit_kb;
-
-    protozero::ConstBytes program_bytes_view{
-        reinterpret_cast<const uint8_t*>(program_bytes.data()),
-        program_bytes.size()};
-
-    new_vm.instance = std::make_unique<protovm::Vm>(
-        program_bytes_view, new_vm.memory_limit_kb * 1024);
-    if (!new_vm.instance) {
-      PERFETTO_ELOG("Failed to allocate ProtoVM");
-      return;
-    }
-
-    protovms_.push_back(std::move(new_vm));
-    vm = &protovms_.back();
-  }
-  // Update ProtoVM's producer IDs
-  vm->producers.insert(producer_id);
-}
-
-void TraceBufferV2::MaybeProcessOverwrittenPacketWithProtoVm(
-    const TracePacket& packet,
-    ProducerID producer) {
-  protovm_patch_.clear();
-
-  for (auto& vm : protovms_) {
-    if (vm.producers.find(producer) == vm.producers.end()) {
-      continue;
-    }
-    // TODO(keanmariotti): add an optimized path for the case
-    // "packet.slices().size() == 1" (zero copy)
-    if (protovm_patch_.empty()) {
-      packet.GetRawBytes(&protovm_patch_);
-    }
-    protozero::ConstBytes bytes{
-        reinterpret_cast<const uint8_t*>(protovm_patch_.data()),
-        protovm_patch_.size()};
-    auto status = vm.instance->ApplyPatch(bytes);
-    if (status.IsOk()) {
-      break;
-    }
-    if (status.IsAbort()) {
-      // TODO(keanmariotti): consider doing something more here. Ideally
-      // triggering a field upload containing the stacktrace.
-      PERFETTO_ELOG("ProtoVM abort while applying patch. Stacktrace:\n%s",
-                    base::Join(status.stacktrace(), "\n").c_str());
-    }
-  }
 }
 
 }  // namespace perfetto

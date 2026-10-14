@@ -7120,6 +7120,8 @@ perfetto_filegroup(
         "src/tracing/service/service_ring_buffer_drainer.cc",
         "src/tracing/service/service_ring_buffer_drainer.h",
         "src/tracing/service/trace_buffer.h",
+        "src/tracing/service/trace_buffer_protovms.cc",
+        "src/tracing/service/trace_buffer_protovms.h",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v1.h",
         "src/tracing/service/trace_buffer_v2.cc",

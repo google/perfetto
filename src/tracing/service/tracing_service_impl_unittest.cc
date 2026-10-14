@@ -68,6 +68,7 @@
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
 #include "src/tracing/test/mock_producer.h"
+#include "src/tracing/test/protovm_test_program.h"
 #include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -9656,55 +9657,6 @@ void ExpectProtoVmPackets(
                      HasSubstr(p)))));
   }
   EXPECT_THAT(actual_packets, IsSupersetOf(patch_matchers));
-}
-
-perfetto::protos::gen::VmProgram CreateProtoVmProgram(
-    uint32_t program_version = 1) {
-  auto add_copy_field_instructions =
-      [](protos::gen::TestEvent::ProtoVmPatch::FieldNumbers src,
-         protos::gen::TestEvent::ProtoVmIncrementalState::FieldNumbers dst,
-         protos::gen::VmProgram* program) {
-        // select src element
-        auto* instr_src_select = program->add_instructions();
-        auto* src_select = instr_src_select->mutable_select();
-
-        src_select->add_relative_path()->set_field_id(
-            protos::gen::TracePacket::kForTestingFieldNumber);
-
-        src_select->add_relative_path()->set_field_id(
-            protos::gen::TestEvent::kProtovmPatchFieldNumber);
-
-        src_select->add_relative_path()->set_field_id(src);
-
-        // select dst element
-        auto* instr_dst_select = instr_src_select->add_nested_instructions();
-        auto* dst_select = instr_dst_select->mutable_select();
-        dst_select->set_cursor(protos::gen::VmCursorEnum::VM_CURSOR_DST);
-        dst_select->set_create_if_not_exist(true);
-
-        dst_select->add_relative_path()->set_field_id(
-            protos::gen::TracePacket::kForTestingFieldNumber);
-        dst_select->add_relative_path()->set_field_id(
-            protos::gen::TestEvent::kProtovmIncrementalStateFieldNumber);
-        dst_select->add_relative_path()->set_field_id(dst);
-
-        // set dst = src
-        auto* instr_set = instr_dst_select->add_nested_instructions();
-        instr_set->mutable_set();
-      };
-
-  perfetto::protos::gen::VmProgram program;
-  program.set_version(program_version);
-  add_copy_field_instructions(
-      protos::gen::TestEvent::ProtoVmPatch::kStringToMergeFieldNumber,
-      protos::gen::TestEvent::ProtoVmIncrementalState::kStringMergedFieldNumber,
-      &program);
-  add_copy_field_instructions(
-      protos::gen::TestEvent::ProtoVmPatch::kIntToMergeFieldNumber,
-      protos::gen::TestEvent::ProtoVmIncrementalState::kIntMergedFieldNumber,
-      &program);
-
-  return program;
 }
 
 TEST_F(TracingServiceImplTest, ProtoVmNoAppliedPatch) {
