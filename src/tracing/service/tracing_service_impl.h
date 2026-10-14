@@ -364,6 +364,12 @@ class TracingServiceImpl : public TracingService {
   // been an error), false otherwise.
   bool WriteIntoFile(TracingSession* tracing_session,
                      std::vector<TracePacket> packets);
+
+  // Attempts to compact each buffer in `*tracing_session`.
+  // Call only after the ReadBuffers() packets are no longer in use, because
+  // compaction can move the data their slices reference.
+  void MaybeCompactBuffers(TracingSession* tracing_session);
+
   void OnStartTriggersTimeout(TracingSessionID tsid);
   void MaybeLogUploadEvent(const TraceConfig&,
                            const base::Uuid&,

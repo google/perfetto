@@ -2602,6 +2602,26 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
             return;
           ReadBuffersIntoConsumer(tsid, weak_consumer.get());
         });
+  } else {
+    // Compact only once ReadBuffers() has nothing more to read
+    // (has_more == false).
+    // By then the read has consumed as much data as it can, so compaction has
+    // the fewest chunks to memmove.
+    // If we compacted after every batch, we would move the unread chunks again
+    // each time and end up with the same layout.
+    //
+    // The packets passed to OnTraceData() point into the buffer, so compaction
+    // has to wait until it returns.
+    // But we can't compact inline after it, because the consumer's
+    // OnTraceData() can call FreeBuffers() or destroy the service.
+    // So we post a task.
+    // The task looks up the session again in case FreeBuffers() removed it,
+    // and weak_runner_ drops the task if the service is destroyed.
+    weak_runner_.PostTask([this, tsid] {
+      TracingSession* tracing_session = GetTracingSession(tsid);
+      if (tracing_session)
+        MaybeCompactBuffers(tracing_session);
+    });
   }
 
   // Keep this as tail call, just in case the consumer re-enters.
@@ -2660,6 +2680,8 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
             DisableTracing(tsid);
           return;
         }
+
+        MaybeCompactBuffers(tracing_session);
 
         if (tracing_session->fflush_post_write) {
           // Ensure all data was written to the file.
@@ -3120,6 +3142,18 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
   PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
                 (total_wr_size + 1023) / 1024, stop_writing_into_file);
   return stop_writing_into_file;
+}
+
+void TracingServiceImpl::MaybeCompactBuffers(TracingSession* tracing_session) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!tracing_session->config.experimental_trace_buffer_v2_compaction())
+    return;
+
+  for (BufferID buf_id : tracing_session->buffers_index) {
+    auto tbuf_iter = buffers_.find(buf_id);
+    if (tbuf_iter != buffers_.end())
+      tbuf_iter->second->MaybeCompact();
+  }
 }
 
 void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
