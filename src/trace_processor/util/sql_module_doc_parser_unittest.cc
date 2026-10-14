@@ -28,6 +28,30 @@ ParsedModule Parse(std::string_view sql) {
   return ParseStdlibModule(sql.data(), static_cast<uint32_t>(sql.size()));
 }
 
+TEST(SqlModuleDocParserTest, Includes) {
+  auto m = Parse(R"(
+-- INCLUDE PERFETTO MODULE ignored.comment;
+INCLUDE PERFETTO MODULE slices.with_context;
+CREATE PERFETTO TABLE t AS
+SELECT 'INCLUDE PERFETTO MODULE ignored.string;' AS value;
+INCLUDE PERFETTO MODULE dev.perfetto.test.common;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  EXPECT_THAT(m.includes, testing::ElementsAre("slices.with_context",
+                                               "dev.perfetto.test.common"));
+  ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_EQ(m.table_views[0].name, "t");
+}
+
+TEST(SqlModuleDocParserTest, WildcardIncludes) {
+  auto m = Parse(R"(
+INCLUDE PERFETTO MODULE android.*;
+INCLUDE PERFETTO MODULE *;
+)");
+  ASSERT_TRUE(m.errors.empty());
+  EXPECT_THAT(m.includes, testing::ElementsAre("android.*", "*"));
+}
+
 TEST(SqlModuleDocParserTest, Table) {
   auto m = Parse(R"(
 -- A sample table.
@@ -40,6 +64,7 @@ CREATE PERFETTO TABLE my_table(
 )");
   ASSERT_TRUE(m.errors.empty());
   ASSERT_EQ(m.table_views.size(), 1u);
+  EXPECT_TRUE(m.includes.empty());
   const auto& tv = m.table_views[0];
   EXPECT_EQ(tv.name, "my_table");
   EXPECT_EQ(tv.type, "TABLE");
@@ -263,6 +288,7 @@ CREATE PERFETTO FUNCTION f(x LONG) RETURNS LONG AS SELECT $x;
 TEST(SqlModuleDocParserTest, EmptyInput) {
   auto m = Parse("");
   EXPECT_TRUE(m.errors.empty());
+  EXPECT_TRUE(m.includes.empty());
   EXPECT_TRUE(m.table_views.empty());
   EXPECT_TRUE(m.functions.empty());
   EXPECT_TRUE(m.macros.empty());

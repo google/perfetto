@@ -61,6 +61,16 @@ std::string SerializeEntries(const std::vector<Entry>& entries) {
   });
 }
 
+std::string SerializeIncludes(const std::vector<std::string>& includes) {
+  return json::SerializeJson([&](json::JsonValueSerializer&& writer) {
+    std::move(writer).WriteArray([&](json::JsonArraySerializer& array) {
+      for (const auto& include : includes) {
+        array.AppendString(include);
+      }
+    });
+  });
+}
+
 template <typename Entry>
 void AppendSummaryEntries(const char* heading,
                           const std::vector<Entry>& entries,
@@ -235,6 +245,9 @@ class StdlibDocsObjects : public StaticTableFunction {
               base::StringView(SerializeEntries(args)));
           row.cols = string_pool_->InternString(
               base::StringView(SerializeEntries(columns)));
+          row.includes = string_pool_->InternString(base::StringView(
+              object_type == "MODULE" ? SerializeIncludes(parsed->includes)
+                                      : "[]"));
           table_.Insert(row);
         };
 

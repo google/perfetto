@@ -74,6 +74,8 @@ struct Macro {
 
 // Parsed documentation for a single stdlib SQL module file.
 struct ParsedModule {
+  // Direct module dependencies, with wildcards left unexpanded
+  std::vector<std::string> includes;
   std::vector<TableOrView> table_views;
   std::vector<Function> functions;
   std::vector<Macro> macros;

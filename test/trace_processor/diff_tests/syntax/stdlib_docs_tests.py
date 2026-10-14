@@ -41,6 +41,54 @@ class StdlibDocs(TestSuite):
         "slices.with_context","slices"
         """))
 
+  def test_stdlib_objects_includes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT o.module, i.value AS included_module
+        FROM __intrinsic_stdlib_objects AS o, json_each(o.includes) AS i
+        WHERE o.object_type = 'MODULE'
+          AND o.module IN ('slices.flat_slices', 'slices.with_context')
+        ORDER BY o.module, i.key;
+        """,
+        out=Csv("""
+        "module","included_module"
+        "slices.flat_slices","slices.with_context"
+        "slices.flat_slices","intervals.overlap"
+        "slices.with_context","std.thread.with_context"
+        """))
+
+  def test_stdlib_objects_no_includes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT includes
+        FROM __intrinsic_stdlib_objects
+        WHERE object_type = 'MODULE' AND module = 'time.conversion';
+        """,
+        out=Csv("""
+        "includes"
+        "[]"
+        """))
+
+  def test_stdlib_objects_non_module_includes(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        SELECT DISTINCT object_type, includes
+        FROM __intrinsic_stdlib_objects
+        WHERE object_type != 'MODULE'
+        ORDER BY object_type;
+        """,
+        out=Csv("""
+        "object_type","includes"
+        "FUNCTION","[]"
+        "MACRO","[]"
+        "TABLE","[]"
+        "TABLE_FUNCTION","[]"
+        "VIEW","[]"
+        """))
+
   def test_stdlib_objects_all_kinds(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),

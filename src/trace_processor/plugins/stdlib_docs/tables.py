@@ -37,6 +37,7 @@ STDLIB_DOCS_OBJECTS_TABLE = Table(
         C("return_description", CppString()),
         C("args", CppString()),
         C("cols", CppString()),
+        C("includes", CppString()),
     ],
 )
 

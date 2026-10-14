@@ -271,6 +271,12 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
     };
 
     switch (static_cast<int>(node->tag)) {
+      case SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT:
+        result.includes.emplace_back(
+            ::perfetto::perfetto_sql::SyntaqliteSpanText(
+                p, node->include_perfetto_module_stmt.module_name));
+        break;
+
       case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT: {
         const auto& n = node->create_perfetto_table_stmt;
         TableOrView tv;
