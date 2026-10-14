@@ -205,6 +205,21 @@ inline double BEDoubleToHost(double x) {
 }
 #endif
 
+inline bool HostToLE(bool x) {
+  return x;
+}
+inline uint8_t HostToLE(uint8_t x) {
+  return x;
+}
+inline int8_t HostToLE(int8_t x) {
+  return x;
+}
+inline uint16_t HostToLE(uint16_t x) {
+  return HostToLE16(x);
+}
+inline int16_t HostToLE(int16_t x) {
+  return static_cast<int16_t>(HostToLE16(static_cast<uint16_t>(x)));
+}
 inline uint32_t HostToLE(uint32_t x) {
   return HostToLE32(x);
 }
@@ -224,6 +239,21 @@ inline double HostToLE(double x) {
   return HostToLEDouble(x);
 }
 
+inline bool LEToHost(bool x) {
+  return x;
+}
+inline uint8_t LEToHost(uint8_t x) {
+  return x;
+}
+inline int8_t LEToHost(int8_t x) {
+  return x;
+}
+inline uint16_t LEToHost(uint16_t x) {
+  return LE16ToHost(x);
+}
+inline int16_t LEToHost(int16_t x) {
+  return static_cast<int16_t>(LE16ToHost(static_cast<uint16_t>(x)));
+}
 inline uint32_t LEToHost(uint32_t x) {
   return LE32ToHost(x);
 }
