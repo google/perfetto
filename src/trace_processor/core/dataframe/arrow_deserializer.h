@@ -38,6 +38,13 @@ base::StatusOr<Dataframe> DeserializeFromArrow(const util::TraceBlobViewReader&,
                                                StringPool*,
                                                const DataframeSpec&);
 
+// Validates the outer Arrow file framing and record-batch row count, then
+// configures |dataframe| to materialize individual columns on demand.
+base::Status DeserializeFromArrowLazily(util::TraceBlobViewReader,
+                                        StringPool*,
+                                        uint32_t expected_row_count,
+                                        Dataframe*);
+
 }  // namespace core::dataframe
 }  // namespace perfetto::trace_processor
 

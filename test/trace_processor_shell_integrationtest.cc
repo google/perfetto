@@ -995,6 +995,26 @@ TEST(TraceProcessorShellIntegrationTest, ExportSubcommandSqlite) {
   EXPECT_TRUE(base::FileExists(out_db.path()));
 }
 
+TEST(TraceProcessorShellIntegrationTest, ExportPerfettoMmapFlags) {
+  auto trace = WriteSimpleSystrace();
+  auto out_pftrace = base::TempFile::Create().ValueOrDie();
+  auto export_res =
+      RunShell({"export", "perfetto", "-o", out_pftrace.path(), trace.path()});
+  ASSERT_EQ(export_res.exit_code, 0) << export_res.out;
+
+  auto mmap_res =
+      RunShell({"--mmap-export", "query", out_pftrace.path(),
+                "SELECT ts, dur, name FROM slice ORDER BY ts"});
+  ASSERT_EQ(mmap_res.exit_code, 0) << mmap_res.out;
+  EXPECT_THAT(mmap_res.out, HasSubstr("10852771242000,3000,\"some event\""));
+
+  auto eager_res =
+      RunShell({"--no-mmap-export", "query", out_pftrace.path(),
+                "SELECT ts, dur, name FROM slice ORDER BY ts"});
+  ASSERT_EQ(eager_res.exit_code, 0) << eager_res.out;
+  EXPECT_THAT(eager_res.out, HasSubstr("10852771242000,3000,\"some event\""));
+}
+
 TEST(TraceProcessorShellIntegrationTest, ExportSubcommandNoFormatFails) {
   auto trace = WriteSimpleSystrace();
   auto result = RunShell({"export", trace.path()});

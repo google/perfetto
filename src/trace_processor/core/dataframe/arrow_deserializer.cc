@@ -55,8 +55,12 @@ class BodyReader {
  public:
   BodyReader(const util::TraceBlobViewReader& data,
              size_t body_offset,
-             util::FlatBufferScalarVec<ArrowBuffer> buffers)
-      : data_(data), body_offset_(body_offset), buffers_(buffers) {}
+             util::FlatBufferScalarVec<ArrowBuffer> buffers,
+             uint32_t start_buffer = 0)
+      : data_(data),
+        body_offset_(body_offset),
+        buffers_(buffers),
+        next_buffer_(start_buffer) {}
 
   base::StatusOr<TraceBlobView> ReadExact(uint64_t expected_size) {
     return Read(expected_size, true);
@@ -180,6 +184,14 @@ base::Status ReadDictionaryIndices(BodyReader* reader,
                                    const BitVector& validity,
                                    const Dictionary& dictionary,
                                    Storage* storage) {
+  if (sparse && stored_rows == 0) {
+    ASSIGN_OR_RETURN(
+        std::vector<TraceBlobView> pieces,
+        reader->ReadExactPieces(static_cast<uint64_t>(rows) *
+                                sizeof(DictionaryIndex)));
+    base::ignore_result(pieces);
+    return base::OkStatus();
+  }
   ASSIGN_OR_RETURN(
       TraceBlobView indices,
       reader->ReadExact(static_cast<uint64_t>(rows) * sizeof(DictionaryIndex)));
@@ -217,11 +229,21 @@ void VisitNumericStorage(Storage* storage, Fn fn) {
 template <typename T>
 void CopyDenseValues(const std::vector<TraceBlobView>& pieces,
                      uint32_t rows,
+                     bool zero_copy,
                      FlexVector<T>* output) {
-  output->resize(rows);
   if (!rows) {
+    output->resize(0);
     return;
   }
+  if (zero_copy && pieces.size() == 1 &&
+      reinterpret_cast<uintptr_t>(pieces[0].data()) % alignof(T) == 0) {
+    auto slab = Slab<T>::FromShared(
+        reinterpret_cast<const T*>(pieces[0].data()), rows,
+        std::make_shared<RefPtr<TraceBlob>>(pieces[0].blob()));
+    *output = FlexVector<T>::CreateFromSlab(std::move(slab), rows);
+    return;
+  }
+  output->resize(rows);
   auto* out = reinterpret_cast<uint8_t*>(output->data());
   for (const TraceBlobView& piece : pieces) {
     memcpy(out, piece.data(), piece.size());
@@ -249,14 +271,22 @@ base::Status ReadNumericBuffer(BodyReader* reader,
                                uint32_t rows,
                                uint32_t stored_rows,
                                bool sparse,
+                               bool zero_copy,
                                const BitVector& validity,
                                Storage* storage) {
   uint64_t size = static_cast<uint64_t>(rows) * NumericSize(storage->type());
-  if (!sparse) {
+  if (!sparse || stored_rows == rows) {
     ASSIGN_OR_RETURN(std::vector<TraceBlobView> pieces,
                      reader->ReadExactPieces(size));
-    VisitNumericStorage(
-        storage, [&](auto* output) { CopyDenseValues(pieces, rows, output); });
+    VisitNumericStorage(storage, [&](auto* output) {
+      CopyDenseValues(pieces, rows, zero_copy, output);
+    });
+    return base::OkStatus();
+  }
+  if (stored_rows == 0) {
+    ASSIGN_OR_RETURN(std::vector<TraceBlobView> pieces,
+                     reader->ReadExactPieces(size));
+    base::ignore_result(pieces);
     return base::OkStatus();
   }
   ASSIGN_OR_RETURN(TraceBlobView values, reader->ReadExact(size));
@@ -478,41 +508,81 @@ base::StatusOr<RecordBatchMetadata> ReadRecordBatch(
                              nodes, buffers};
 }
 
+base::StatusOr<uint32_t> ReadSingleDictionaryRowCount(
+    const util::TraceBlobViewReader& data,
+    const Block& block,
+    uint32_t dictionary_index) {
+  size_t base = data.start_offset();
+  ASSIGN_OR_RETURN(
+      Message message,
+      ReadMessage(data, block, base + static_cast<size_t>(block.offset),
+                  kHeaderDictionaryBatch));
+  auto batch = message.message.Table(message_field::kHeader);
+  if (!batch ||
+      batch.Scalar<int64_t>(dictionary_batch_field::kId, kMissingSignedValue) !=
+          dictionary_index ||
+      batch.Scalar<bool>(dictionary_batch_field::kIsDelta)) {
+    return InvalidFile();
+  }
+  auto record_batch = batch.Table(dictionary_batch_field::kData);
+  if (!record_batch) {
+    return InvalidFile();
+  }
+  ASSIGN_OR_RETURN(
+      RecordBatchMetadata values,
+      ReadRecordBatch(std::move(message), record_batch, block.body_length,
+                      std::nullopt, 1, kUtf8BufferCount));
+  return values.rows;
+}
+
+base::StatusOr<Dictionary> ReadSingleDictionary(
+    const util::TraceBlobViewReader& data,
+    const Block& block,
+    uint32_t dictionary_index,
+    StringPool* pool) {
+  size_t base = data.start_offset();
+  ASSIGN_OR_RETURN(
+      Message message,
+      ReadMessage(data, block, base + static_cast<size_t>(block.offset),
+                  kHeaderDictionaryBatch));
+  auto batch = message.message.Table(message_field::kHeader);
+  if (!batch ||
+      batch.Scalar<int64_t>(dictionary_batch_field::kId, kMissingSignedValue) !=
+          dictionary_index ||
+      batch.Scalar<bool>(dictionary_batch_field::kIsDelta)) {
+    return InvalidFile();
+  }
+  auto record_batch = batch.Table(dictionary_batch_field::kData);
+  if (!record_batch) {
+    return InvalidFile();
+  }
+  ASSIGN_OR_RETURN(
+      RecordBatchMetadata values,
+      ReadRecordBatch(std::move(message), record_batch, block.body_length,
+                      std::nullopt, 1, kUtf8BufferCount));
+  BodyReader reader(data, values.body_offset, values.buffers);
+  return ReadDictionaryValues(&reader, values.rows, pool);
+}
+
 base::StatusOr<std::vector<Dictionary>> ReadDictionaries(
     const util::TraceBlobViewReader& data,
     const LocatedBatches& located,
     StringPool* pool) {
-  size_t base = data.start_offset();
   std::vector<Dictionary> dictionaries;
   dictionaries.reserve(located.dictionaries.size());
   for (uint32_t i = 0; i < located.dictionaries.size(); ++i) {
-    const Block& block = located.dictionaries[i];
-    ASSIGN_OR_RETURN(
-        Message message,
-        ReadMessage(data, block, base + static_cast<size_t>(block.offset),
-                    kHeaderDictionaryBatch));
-    auto batch = message.message.Table(message_field::kHeader);
-    if (!batch ||
-        batch.Scalar<int64_t>(dictionary_batch_field::kId,
-                              kMissingSignedValue) != i ||
-        batch.Scalar<bool>(dictionary_batch_field::kIsDelta)) {
-      return InvalidFile();
-    }
-    auto record_batch = batch.Table(dictionary_batch_field::kData);
-    if (!record_batch) {
-      return InvalidFile();
-    }
-    ASSIGN_OR_RETURN(
-        RecordBatchMetadata values,
-        ReadRecordBatch(std::move(message), record_batch, block.body_length,
-                        std::nullopt, 1, kUtf8BufferCount));
-    BodyReader reader(data, values.body_offset, values.buffers);
     ASSIGN_OR_RETURN(Dictionary dictionary,
-                     ReadDictionaryValues(&reader, values.rows, pool));
+                     ReadSingleDictionary(data, located.dictionaries[i], i,
+                                          pool));
     dictionaries.push_back(std::move(dictionary));
   }
   return std::move(dictionaries);
 }
+
+struct LazyColumnMapping {
+  uint32_t serialized_column = 0;
+  uint32_t dictionary_index = 0;
+};
 
 }  // namespace
 
@@ -587,12 +657,18 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
         sparse ? batch.rows - static_cast<uint32_t>(node.null_count)
                : batch.rows;
     if (column.storage.type().Is<core::String>()) {
-      RETURN_IF_ERROR(ReadDictionaryIndices(
-          &reader, batch.rows, stored_rows, nullable, sparse, validity,
-          dictionaries[dictionary_index++], &column.storage));
+      const Dictionary& dict = dictionaries[dictionary_index++];
+      if (column.duplicate_state.Is<HasDuplicates>()) {
+        column.estimated_distinct =
+            std::max<uint32_t>(static_cast<uint32_t>(dict.size()), 1u);
+      }
+      RETURN_IF_ERROR(ReadDictionaryIndices(&reader, batch.rows, stored_rows,
+                                            nullable, sparse, validity, dict,
+                                            &column.storage));
     } else {
       RETURN_IF_ERROR(ReadNumericBuffer(&reader, batch.rows, stored_rows,
-                                        sparse, validity, &column.storage));
+                                        sparse, /*zero_copy=*/false, validity,
+                                        &column.storage));
     }
     InstallValidity(nullability, std::move(validity), &column.null_storage);
   }
@@ -600,6 +676,131 @@ base::StatusOr<Dataframe> DeserializeFromArrow(
   ++dataframe.non_column_mutations_;
   dataframe.Finalize();
   return dataframe;
+}
+
+base::Status DeserializeFromArrowLazily(util::TraceBlobViewReader data,
+                                        StringPool* pool,
+                                        uint32_t expected_row_count,
+                                        Dataframe* dataframe) {
+  if (dataframe->column_count() > 64) {
+    ASSIGN_OR_RETURN(Dataframe loaded,
+                     DeserializeFromArrow(data, pool, dataframe->CreateSpec()));
+    if (loaded.row_count() != expected_row_count) {
+      return InvalidFile();
+    }
+    *dataframe = std::move(loaded);
+    return base::OkStatus();
+  }
+
+  uint32_t expected_nodes = 0;
+  uint32_t expected_buffers = 0;
+  uint32_t expected_dictionaries = 0;
+  uint64_t lazy_cols_bitmap = 0;
+  std::vector<LazyColumnMapping> mappings(dataframe->column_count());
+  for (uint32_t i = 0; i < dataframe->column_count(); ++i) {
+    const auto& column = *dataframe->columns_[i];
+    if (column.storage.type().Is<core::Id>()) {
+      continue;
+    }
+    lazy_cols_bitmap |= (1ull << i);
+    mappings[i].serialized_column = expected_nodes++;
+    expected_buffers += kFixedWidthBufferCount;
+    if (column.storage.type().Is<core::String>()) {
+      mappings[i].dictionary_index = expected_dictionaries++;
+    }
+  }
+
+  ASSIGN_OR_RETURN(LocatedBatches located, LocateBatches(data));
+  if (located.dictionaries.size() != expected_dictionaries) {
+    return InvalidFile();
+  }
+  ASSIGN_OR_RETURN(Message message,
+                   ReadMessage(data, located.block, located.message_offset,
+                               kHeaderRecordBatch));
+  auto record_batch = message.message.Table(message_field::kHeader);
+  if (!record_batch) {
+    return InvalidFile();
+  }
+  ASSIGN_OR_RETURN(RecordBatchMetadata batch,
+                   ReadRecordBatch(std::move(message), record_batch,
+                                   located.block.body_length,
+                                   expected_row_count, expected_nodes,
+                                   expected_buffers));
+
+  for (uint32_t i = 0; i < dataframe->column_count(); ++i) {
+    auto& column = *dataframe->columns_[i];
+    if (column.storage.type().Is<core::Id>()) {
+      column.storage.unchecked_get<Id>().size = batch.rows;
+    } else if (column.storage.type().Is<core::String>()) {
+      uint32_t dict_idx = mappings[i].dictionary_index;
+      ASSIGN_OR_RETURN(
+          uint32_t dict_rows,
+          ReadSingleDictionaryRowCount(data, located.dictionaries[dict_idx],
+                                       dict_idx));
+      if (column.duplicate_state.Is<HasDuplicates>()) {
+        column.estimated_distinct = std::max<uint32_t>(dict_rows, 1u);
+      }
+    }
+  }
+
+  if (batch.rows == 0 || lazy_cols_bitmap == 0) {
+    dataframe->SetLazyColumnLoader(batch.rows, 0, {});
+    return base::OkStatus();
+  }
+
+  struct SharedArrowState {
+    util::TraceBlobViewReader data;
+    LocatedBatches located;
+    RecordBatchMetadata batch;
+    std::vector<LazyColumnMapping> mappings;
+    StringPool* pool;
+  };
+  auto state = std::make_shared<SharedArrowState>(SharedArrowState{
+      std::move(data), std::move(located), std::move(batch),
+      std::move(mappings), pool});
+
+  dataframe->SetLazyColumnLoader(
+      expected_row_count, lazy_cols_bitmap,
+      [state](uint32_t col_idx, Column* column) -> base::Status {
+        const LazyColumnMapping& mapping = state->mappings[col_idx];
+        FieldNode node = state->batch.nodes[mapping.serialized_column];
+        Nullability nullability = column->null_storage.nullability();
+        bool nullable = IsNullable(nullability);
+        bool sparse = IsSparse(nullability);
+        BodyReader reader(state->data, state->batch.body_offset,
+                          state->batch.buffers,
+                          mapping.serialized_column * kFixedWidthBufferCount);
+        ASSIGN_OR_RETURN(BitVector validity,
+                         ReadValidityBuffer(&reader, state->batch.rows,
+                                            node.null_count, nullable));
+        uint32_t stored_rows =
+            sparse ? state->batch.rows - static_cast<uint32_t>(node.null_count)
+                   : state->batch.rows;
+        if (column->storage.type().Is<core::String>()) {
+          ASSIGN_OR_RETURN(
+              Dictionary dict,
+              ReadSingleDictionary(
+                  state->data,
+                  state->located.dictionaries[mapping.dictionary_index],
+                  mapping.dictionary_index, state->pool));
+          if (column->duplicate_state.Is<HasDuplicates>()) {
+            column->estimated_distinct =
+                std::max<uint32_t>(static_cast<uint32_t>(dict.size()), 1u);
+          }
+          RETURN_IF_ERROR(ReadDictionaryIndices(
+              &reader, state->batch.rows, stored_rows, nullable, sparse,
+              validity, dict, &column->storage));
+        } else {
+          RETURN_IF_ERROR(ReadNumericBuffer(&reader, state->batch.rows,
+                                            stored_rows, sparse,
+                                            /*zero_copy=*/true, validity,
+                                            &column->storage));
+        }
+        InstallValidity(nullability, std::move(validity),
+                        &column->null_storage);
+        return base::OkStatus();
+      });
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe

@@ -645,7 +645,8 @@ void BytecodeLowering::LowerOutput(const logical::Output& out) {
   base::SmallVector<ColAndOffset, 24> null_cols;
   plan_.params.output_per_row = 1;
   for (uint32_t i = 0; i < columns_.size(); ++i) {
-    plan_.col_to_output_offset.emplace_back();
+    plan_.col_to_output_offset.emplace_back(
+        std::numeric_limits<uint32_t>::max());
   }
 
   // Process each column that will be used in the output

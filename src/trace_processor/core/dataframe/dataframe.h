@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -185,6 +186,9 @@ class Dataframe {
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(const QueryPlan& plan,
                      Cursor<FilterValueFetcherImpl>& c) const {
+    if (PERFETTO_UNLIKELY(is_lazy())) {
+      MaterializePlanColumnsSlow(plan.plan_);
+    }
     c.Initialize(plan.plan_, static_cast<uint32_t>(column_ptrs_.size()),
                  column_ptrs_.data(), indexes_.data(), string_pool_);
   }
@@ -283,18 +287,56 @@ class Dataframe {
   // Returns whether the dataframe has been finalized.
   bool finalized() const { return finalized_; }
 
+  using ColumnLoader = std::function<base::Status(uint32_t col, Column* target)>;
+
+  // Configures this dataframe to materialize columns in `lazy_cols_bitmap`
+  // on demand using `loader`. Marks the dataframe as finalized with
+  // `row_count` rows.
+  void SetLazyColumnLoader(uint32_t row_count,
+                           uint64_t lazy_cols_bitmap,
+                           ColumnLoader loader);
+
+  // Returns whether any column in the dataframe is still awaiting lazy
+  // materialization.
+  bool is_lazy() const { return lazy_cols_bitmap_ != 0; }
+
+  // Returns whether `column` is still awaiting lazy materialization.
+  bool is_column_lazy(uint32_t column) const {
+    return column < 64 && (lazy_cols_bitmap_ & (1ull << column)) != 0;
+  }
+
+  // Ensures `column` is materialized if it was lazily loaded.
+  PERFETTO_ALWAYS_INLINE void EnsureColumnMaterialized(uint32_t column) const {
+    if (PERFETTO_UNLIKELY(is_column_lazy(column))) {
+      MaterializeColumnSlow(column);
+    }
+  }
+
+  // Ensures all columns in the dataframe are materialized.
+  void EnsureAllColumnsMaterialized() const {
+    if (PERFETTO_UNLIKELY(is_lazy())) {
+      for (uint32_t i = 0; i < column_ptrs_.size(); ++i) {
+        EnsureColumnMaterialized(i);
+      }
+    }
+  }
+
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
 
   // Returns `column`'s values and which rows hold one, for reading them
   // without going through a cursor.
-  const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
+  const Column& column(uint32_t column) const {
+    EnsureColumnMaterialized(column);
+    return *column_ptrs_[column];
+  }
 
   // Returns `column` with shared ownership, for readers that must outlive
   // the dataframe. Only valid on a finalized dataframe as columns are
   // immutable after that.
   std::shared_ptr<const Column> shared_column(uint32_t column) const {
     PERFETTO_DCHECK(finalized_);
+    EnsureColumnMaterialized(column);
     return columns_[column];
   }
   // Returns the type of the values in `column`.
@@ -336,6 +378,7 @@ class Dataframe {
                   "CellCallbackImpl must be a subclass of CellCallback");
     PERFETTO_DCHECK(row < row_count_);
     PERFETTO_DCHECK(col < column_ptrs_.size());
+    EnsureColumnMaterialized(col);
 
     const Column& column = *column_ptrs_[col];
     const Storage::DataPointer data_ptr = column.storage.data();
@@ -418,6 +461,7 @@ class Dataframe {
   // be used in new code. Use `SetCellUnchecked` instead.
   template <typename T, typename N, typename M>
   void SetCellUncheckedLegacy(uint32_t col, uint32_t row, M value) {
+    EnsureColumnMaterialized(col);
     SetCellUncheckedInternal<T, N, M>(row, *column_ptrs_[col], value);
   }
 
@@ -445,6 +489,10 @@ class Dataframe {
       const util::TraceBlobViewReader&,
       StringPool*,
       const DataframeSpec&);
+  friend base::Status DeserializeFromArrowLazily(util::TraceBlobViewReader,
+                                                 StringPool*,
+                                                 uint32_t,
+                                                 Dataframe*);
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
@@ -458,6 +506,12 @@ class Dataframe {
 
   // Finalize, estimating distinct counts only if `estimate_distinct`.
   void FinalizeColumns(bool estimate_distinct);
+
+  PERFETTO_NO_INLINE void MaterializeColumnSlow(uint32_t column) const;
+  PERFETTO_NO_INLINE void MaterializePlanColumnsSlow(
+      const QueryPlanImpl& plan) const;
+  void PrepareFilterColumnsForPlanning(
+      const std::vector<FilterSpec>& filter_specs) const;
 
   template <typename D, typename... Args, size_t... Is>
   PERFETTO_ALWAYS_INLINE void InsertUncheckedInternal(
@@ -564,6 +618,7 @@ class Dataframe {
     using ColumnSpec = std::tuple_element_t<column, typename D::columns>;
     using type = typename ColumnSpec::type;
     using null_storage_type = typename ColumnSpec::null_storage_type;
+    EnsureColumnMaterialized(static_cast<uint32_t>(column));
     return GetCellUncheckedInternal<type, null_storage_type>(
         row, *column_ptrs_[column]);
   }
@@ -579,6 +634,7 @@ class Dataframe {
 
     // Changing the value of an Id column is not supported.
     static_assert(!std::is_same_v<type, Id>, "Cannot call set on Id column");
+    EnsureColumnMaterialized(static_cast<uint32_t>(column));
     SetCellUncheckedInternal<type, null_storage_type, mutate_type>(
         row, *column_ptrs_[column], value);
   }
@@ -761,6 +817,12 @@ class Dataframe {
 
   // Whether the dataframe is "finalized". See `Finalize()`.
   bool finalized_ = false;
+
+  // Bitmap of columns that have not yet been materialized (1 = lazy).
+  mutable uint64_t lazy_cols_bitmap_ = 0;
+
+  // Callback to materialize individual columns on demand.
+  mutable std::shared_ptr<ColumnLoader> column_loader_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

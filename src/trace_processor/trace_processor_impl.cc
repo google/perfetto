@@ -632,10 +632,25 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
         col_idxs.push_back(
             static_cast<uint32_t>(std::distance(col_names.begin(), it)));
       }
-      auto idx_or = df.dataframe->BuildIndex(col_idxs.data(),
-                                             col_idxs.data() + col_idxs.size());
-      PERFETTO_CHECK(idx_or.ok());
-      *df.dataframe = df.dataframe->AddIndex(std::move(*idx_or));
+      if (df.dataframe->row_count() == 0) {
+        *df.dataframe = df.dataframe->AddIndex(core::dataframe::Index(
+            std::move(col_idxs), std::make_shared<std::vector<uint32_t>>()));
+      } else if (df.dataframe->is_lazy()) {
+        auto* dataframe = df.dataframe;
+        auto cols = col_idxs;
+        *df.dataframe = df.dataframe->AddIndex(core::dataframe::Index(
+            std::move(col_idxs), [dataframe, cols]() {
+              auto idx_or = dataframe->BuildIndex(cols.data(),
+                                                  cols.data() + cols.size());
+              PERFETTO_CHECK(idx_or.ok());
+              return idx_or->permutation_vector();
+            }));
+      } else {
+        auto idx_or = df.dataframe->BuildIndex(
+            col_idxs.data(), col_idxs.data() + col_idxs.size());
+        PERFETTO_CHECK(idx_or.ok());
+        *df.dataframe = df.dataframe->AddIndex(std::move(*idx_or));
+      }
     }
   }
 

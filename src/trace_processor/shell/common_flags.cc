@@ -169,6 +169,15 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
       "Allows SQL functions to access files visible to the shell process. Do "
       "not enable this for untrusted SQL.",
       &opts->allow_sql_file_access));
+  flags.push_back(BoolFlag(
+      "mmap-export", '\0',
+      "Lazily loads and zero-copy mmaps Arrow tables from Perfetto exports "
+      "(default: enabled).",
+      &opts->mmap_export));
+  flags.push_back(BoolFlag(
+      "no-mmap-export", '\0',
+      "Disables lazy loading of Arrow tables from Perfetto exports.",
+      &opts->no_mmap_export));
   flags.push_back(
       BoolFlag("dev", '\0', "Enables local development features.", &opts->dev));
   flags.push_back({/*long_name=*/"dev-flag", /*short_name=*/'\0',
@@ -343,6 +352,7 @@ base::StatusOr<Config> BuildConfig(
     TraceProcessorShell_PlatformInterface* platform) {
   Config config = platform->DefaultConfig();
   config.enable_sql_file_access = opts.allow_sql_file_access;
+  config.lazy_load_export = opts.mmap_export && !opts.no_mmap_export;
   if (config.enable_sql_file_access && !platform->GetFileSystem()) {
     return base::ErrStatus(
         "--allow-sql-file-access is not supported by this shell platform");

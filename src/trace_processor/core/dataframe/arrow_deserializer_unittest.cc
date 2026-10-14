@@ -706,5 +706,56 @@ TEST(ArrowDeserializerTest, RejectsGarbageInput) {
   EXPECT_THAT(Deserialize(bytes, &pool, dst.CreateSpec()), IsError());
 }
 
+TEST(ArrowDeserializerTest, DeserializeLazilyMaterializesPerColumn) {
+  StringPool pool;
+  auto a = pool.InternString(base::StringView("lazy_str_a"));
+  auto bb = pool.InternString(base::StringView("lazy_str_bb"));
+  auto src = Dataframe::CreateFromTypedSpec(kMultiColumn, &pool);
+  src.InsertUnchecked(kMultiColumn, std::monostate{}, int64_t{100}, a,
+                      std::optional<double>{0.5});
+  src.InsertUnchecked(kMultiColumn, std::monostate{}, int64_t{200}, bb,
+                      std::optional<double>{});
+  std::vector<uint8_t> bytes = Serialize(src, pool);
+
+  util::TraceBlobViewReader reader;
+  reader.PushBack(
+      TraceBlobView(TraceBlob::CopyFrom(bytes.data(), bytes.size())));
+
+  StringPool dst_pool;
+  auto dst = Dataframe::CreateFromTypedSpec(kMultiColumn, &dst_pool);
+  ASSERT_OK(DeserializeFromArrowLazily(std::move(reader), &dst_pool, 2u, &dst));
+  EXPECT_EQ(dst.row_count(), 2u);
+  EXPECT_TRUE(dst.finalized());
+  EXPECT_TRUE(dst.is_lazy());
+  EXPECT_FALSE(dst.is_column_lazy(0));
+  EXPECT_TRUE(dst.is_column_lazy(1));
+  EXPECT_TRUE(dst.is_column_lazy(2));
+  EXPECT_TRUE(dst.is_column_lazy(3));
+  EXPECT_FALSE(dst_pool.GetId("lazy_str_a").has_value());
+
+  // Reading column 1 (ts) should materialize only column 1 and leave column 2
+  // (name) and column 3 (value) unmaterialized.
+  EXPECT_EQ((dst.GetCellUnchecked<1>(kMultiColumn, 0)), 100);
+  EXPECT_EQ((dst.GetCellUnchecked<1>(kMultiColumn, 1)), 200);
+  EXPECT_FALSE(dst.is_column_lazy(1));
+  EXPECT_TRUE(dst.is_column_lazy(2));
+  EXPECT_TRUE(dst.is_column_lazy(3));
+  EXPECT_FALSE(dst_pool.GetId("lazy_str_a").has_value());
+
+  // Reading column 2 (name) materializes strings into dst_pool on demand.
+  EXPECT_EQ(
+      dst_pool.Get(dst.GetCellUnchecked<2>(kMultiColumn, 1)).ToStdString(),
+      "lazy_str_bb");
+  EXPECT_FALSE(dst.is_column_lazy(2));
+  EXPECT_TRUE(dst.is_column_lazy(3));
+  EXPECT_TRUE(dst_pool.GetId("lazy_str_a").has_value());
+
+  // Reading column 3 (value) finishes materializing the dataframe.
+  EXPECT_EQ((dst.GetCellUnchecked<3>(kMultiColumn, 0)),
+            std::optional<double>{0.5});
+  EXPECT_FALSE((dst.GetCellUnchecked<3>(kMultiColumn, 1)).has_value());
+  EXPECT_FALSE(dst.is_lazy());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::core::dataframe

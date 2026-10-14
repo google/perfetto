@@ -220,6 +220,11 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // TraceProcessor platform. Disabled by default. Do not enable this when
   // executing untrusted SQL.
   bool enable_sql_file_access = false;
+
+  // When set to true, Arrow tables inside a Perfetto export archive are
+  // deserialized lazily on a per-column basis and zero-copy mapped onto the
+  // underlying trace buffers when contiguous and aligned.
+  bool lazy_load_export = true;
 };
 
 // Represents a dynamically typed value returned by SQL.

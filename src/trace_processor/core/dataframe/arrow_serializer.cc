@@ -630,6 +630,7 @@ base::StatusOr<size_t> ArrowSerializer::Prepare(const Dataframe& dataframe,
   if (dataframe.string_pool_ != &pool) {
     return base::ErrStatus("String pool does not belong to dataframe");
   }
+  dataframe.EnsureAllColumnsMaterialized();
 
   BodyPlan plan;
   RETURN_IF_ERROR(PlanBody(dataframe, pool, &plan));

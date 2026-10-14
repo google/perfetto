@@ -111,6 +111,7 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
+  PrepareFilterColumnsForPlanning(filter_specs);
   ASSIGN_OR_RETURN(
       LogicalPlan logical,
       LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
@@ -124,9 +125,75 @@ base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogicalForTesting(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
+  PrepareFilterColumnsForPlanning(filter_specs);
   return LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
                               distinct_specs, sort_specs, limit_spec,
                               cols_used);
+}
+
+void Dataframe::SetLazyColumnLoader(uint32_t row_count,
+                                    uint64_t lazy_cols_bitmap,
+                                    ColumnLoader loader) {
+  PERFETTO_DCHECK(column_ptrs_.size() <= 64);
+  row_count_ = row_count;
+  finalized_ = true;
+  lazy_cols_bitmap_ = lazy_cols_bitmap;
+  if (lazy_cols_bitmap != 0) {
+    uint64_t loaded_bitmap = 0;
+    column_loader_ = std::make_shared<ColumnLoader>(
+        [loader = std::move(loader), loaded_bitmap](
+            uint32_t col, Column* target) mutable -> base::Status {
+          if ((loaded_bitmap & (1ull << col)) != 0) {
+            return base::OkStatus();
+          }
+          loaded_bitmap |= (1ull << col);
+          return loader(col, target);
+        });
+  } else {
+    column_loader_.reset();
+  }
+  ++non_column_mutations_;
+}
+
+void Dataframe::MaterializeColumnSlow(uint32_t column) const {
+  if (!is_column_lazy(column)) {
+    return;
+  }
+  lazy_cols_bitmap_ &= ~(1ull << column);
+  PERFETTO_CHECK(column_loader_);
+  base::Status status = (*column_loader_)(column, column_ptrs_[column]);
+  PERFETTO_CHECK(status.ok());
+  if (lazy_cols_bitmap_ == 0) {
+    column_loader_.reset();
+  }
+}
+
+void Dataframe::MaterializePlanColumnsSlow(const QueryPlanImpl& plan) const {
+  for (const auto& init : plan.register_inits) {
+    if (!init.kind.Is<RegisterInit::IndexVector>()) {
+      EnsureColumnMaterialized(init.source_index);
+    }
+  }
+  for (uint32_t i = 0; i < plan.col_to_output_offset.size(); ++i) {
+    if (plan.col_to_output_offset[i] != std::numeric_limits<uint32_t>::max()) {
+      EnsureColumnMaterialized(i);
+    }
+  }
+}
+
+void Dataframe::PrepareFilterColumnsForPlanning(
+    const std::vector<FilterSpec>& filter_specs) const {
+  base::FlatHashMap<int64_t, uint32_t> distinct_counts;
+  for (const auto& fs : filter_specs) {
+    if (fs.op.Is<Eq>() || fs.op.Is<In>()) {
+      Column& col = *column_ptrs_[fs.col];
+      if (col.duplicate_state.Is<HasDuplicates>() &&
+          col.estimated_distinct == 0 && row_count_ > 0) {
+        EnsureColumnMaterialized(fs.col);
+        col.estimated_distinct = EstimateDistinct(distinct_counts, col);
+      }
+    }
+  }
 }
 
 void Dataframe::Clear() {
@@ -173,6 +240,8 @@ void Dataframe::Clear() {
     }
   }
   row_count_ = 0;
+  lazy_cols_bitmap_ = 0;
+  column_loader_.reset();
   ++non_column_mutations_;
 }
 

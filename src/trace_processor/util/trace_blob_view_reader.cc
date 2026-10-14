@@ -37,6 +37,18 @@ void TraceBlobViewReader::PushBack(TraceBlobView data) {
     return;
   }
   const size_t size = data.size();
+  if (!data_.empty()) {
+    Entry& back = data_.back();
+    if (back.data.blob().get() == data.blob().get() &&
+        back.data.data() + back.data.size() == data.data()) {
+      size_t offset =
+          static_cast<size_t>(back.data.data() - back.data.blob()->data());
+      back.data = TraceBlobView(back.data.blob(), offset,
+                                back.data.size() + size);
+      end_offset_ += size;
+      return;
+    }
+  }
   data_.emplace_back(Entry{end_offset_, std::move(data)});
   end_offset_ += size;
 }

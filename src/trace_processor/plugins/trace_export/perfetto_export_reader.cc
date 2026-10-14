@@ -103,13 +103,20 @@ base::Status PerfettoExportTableReader::OnPushDataToSorter() {
   }
   state_->seen[table_idx] = true;
 
+  const TraceManifestState::PerfettoExportTable& schema =
+      *table->entry->exported_table_schema;
+  if (context_->config.lazy_load_export) {
+    RETURN_IF_ERROR(core::dataframe::DeserializeFromArrowLazily(
+        std::move(buffer_), context_->storage->mutable_string_pool(),
+        schema.row_count, table->dataframe));
+    buffer_ = util::TraceBlobViewReader();
+    return base::OkStatus();
+  }
+
   ASSIGN_OR_RETURN(auto dataframe,
                    core::dataframe::DeserializeFromArrow(
                        buffer_, context_->storage->mutable_string_pool(),
                        table->dataframe->CreateSpec()));
-
-  const TraceManifestState::PerfettoExportTable& schema =
-      *table->entry->exported_table_schema;
   if (dataframe.row_count() != schema.row_count) {
     return base::ErrStatus(
         "perfetto_export: table '%s' has %u rows but the manifest declares "

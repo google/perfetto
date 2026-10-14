@@ -112,6 +112,7 @@ struct CommandLineOptions {
 
   bool force_full_sort = false;
   bool no_ftrace_raw = false;
+  bool mmap_export = true;
 
   std::string query_file_path;
   std::string query_string;
@@ -502,6 +503,8 @@ enum LongOption {
 
   OPT_FORCE_FULL_SORT,
   OPT_NO_FTRACE_RAW,
+  OPT_MMAP_EXPORT,
+  OPT_NO_MMAP_EXPORT,
 
   OPT_ADD_SQL_PACKAGE,
   OPT_OVERRIDE_SQL_PACKAGE,
@@ -551,6 +554,8 @@ const option kLongOptions[] = {
 
     {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
     {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
+    {"mmap-export", no_argument, nullptr, OPT_MMAP_EXPORT},
+    {"no-mmap-export", no_argument, nullptr, OPT_NO_MMAP_EXPORT},
 
     {"query-file", required_argument, nullptr, 'q'},
     {"query-string", required_argument, nullptr, 'Q'},
@@ -692,6 +697,16 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_NO_FTRACE_RAW) {
       command_line_options.no_ftrace_raw = true;
+      continue;
+    }
+
+    if (option == OPT_MMAP_EXPORT) {
+      command_line_options.mmap_export = true;
+      continue;
+    }
+
+    if (option == OPT_NO_MMAP_EXPORT) {
+      command_line_options.mmap_export = false;
       continue;
     }
 
@@ -1069,6 +1084,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       args.emplace_back("--full-sort");
     if (options.no_ftrace_raw)
       args.emplace_back("--no-ftrace-raw");
+    if (!options.mmap_export)
+      args.emplace_back("--no-mmap-export");
     if (options.analyze_trace_proto_content)
       args.emplace_back("--analyze-trace-proto-content");
     if (options.crop_track_events)

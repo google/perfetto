@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -11,6 +12,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
 #include "src/trace_processor/core/common/null_types.h"
@@ -25,10 +27,16 @@ namespace perfetto::trace_processor::core::dataframe {
 // Represents an index to speed up operations on the dataframe.
 struct Index {
  public:
+  using Builder = std::function<std::shared_ptr<std::vector<uint32_t>>()>;
+
   Index(std::vector<uint32_t> _columns,
         std::shared_ptr<std::vector<uint32_t>> _permutation_vector)
       : columns_(std::move(_columns)),
         permutation_vector_(std::move(_permutation_vector)) {}
+
+  Index(std::vector<uint32_t> _columns, Builder builder)
+      : columns_(std::move(_columns)),
+        builder_(std::make_shared<Builder>(std::move(builder))) {}
 
   // Returns a copy of this index.
   Index Copy() const { return *this; }
@@ -39,12 +47,17 @@ struct Index {
   // Returns the permutation vector which would to order the `columns` in the
   // dataframe.
   const std::shared_ptr<std::vector<uint32_t>>& permutation_vector() const {
+    if (PERFETTO_UNLIKELY(!permutation_vector_ && builder_ && *builder_)) {
+      permutation_vector_ = (*builder_)();
+      builder_.reset();
+    }
     return permutation_vector_;
   }
 
  private:
   std::vector<uint32_t> columns_;
-  std::shared_ptr<std::vector<uint32_t>> permutation_vector_;
+  mutable std::shared_ptr<std::vector<uint32_t>> permutation_vector_;
+  mutable std::shared_ptr<Builder> builder_;
 };
 
 // Tag type for Id column data pointers. Id columns don't have backing storage

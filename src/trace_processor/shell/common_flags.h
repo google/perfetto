@@ -59,6 +59,8 @@ struct GlobalOptions {
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
   bool allow_sql_file_access = false;
+  bool mmap_export = true;
+  bool no_mmap_export = false;
 
   bool dev = false;
   std::vector<std::string> dev_flags;

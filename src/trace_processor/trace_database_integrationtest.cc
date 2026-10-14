@@ -1444,6 +1444,21 @@ TEST_F(TraceProcessorIntegrationTest, PerfettoExportRoundTrip) {
                 "SELECT name FROM thread WHERE name IS NOT NULL ORDER BY name "
                 "LIMIT 1"),
             first_thread_name);
+
+  // Also verify eager mode (lazy_load_export = false) and re-exporting a
+  // lazily loaded instance produce identical results.
+  std::string reexported_tar =
+      ExportToString(reimport.get(), TraceProcessor::ExportFormat::kPerfetto);
+  Config eager_config;
+  eager_config.lazy_load_export = false;
+  auto eager_reimport = TraceProcessor::CreateInstance(eager_config);
+  ASSERT_OK(ParsePerfettoExport(eager_reimport.get(), reexported_tar));
+  EXPECT_EQ(QuerySingleInt(eager_reimport.get(), "SELECT count() FROM thread"),
+            thread_count);
+  EXPECT_EQ(QuerySingleInt(eager_reimport.get(), "SELECT count() FROM slice"),
+            slice_count);
+  EXPECT_EQ(QuerySingleInt(eager_reimport.get(), "SELECT sum(dur) FROM slice"),
+            slice_dur_sum);
 }
 
 TEST_F(TraceProcessorIntegrationTest, PerfettoExportSchemaMismatchRejected) {
