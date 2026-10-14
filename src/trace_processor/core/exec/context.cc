@@ -16,15 +16,21 @@
 
 #include "src/trace_processor/core/exec/context.h"
 
+#include <cstring>
 #include <memory>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/exec/selection.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::exec {
 
 Context::Context() = default;
 
 Context::~Context() {
+  nulls_ = ColumnBuffer();
 #if PERFETTO_DCHECK_IS_ON()
   for (const auto& block : blocks_) {
     PERFETTO_DCHECK(block->references == 0);
@@ -37,6 +43,17 @@ ColumnBuffer::Block* Context::NewBlock() {
   ColumnBuffer::Block* block = blocks_.back().get();
   block->context = this;
   return block;
+}
+
+const ColumnBuffer& Context::NullBuffer() {
+  if (PERFETTO_UNLIKELY(!nulls_)) {
+    nulls_ = TakeBuffer();
+    ColumnChunk& chunk = nulls_.chunk();
+    memset(chunk.Values<uint8_t>(), 0,
+           kMaxBatchRows * ColumnChunk::kMaxValueSize);
+    chunk.validity = BitVector::CreateWithSize(kMaxBatchRows, false);
+  }
+  return nulls_;
 }
 
 }  // namespace perfetto::trace_processor::core::exec

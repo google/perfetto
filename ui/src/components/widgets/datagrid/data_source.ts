@@ -41,10 +41,11 @@ export interface DataSource {
 
   /**
    * Fetch distinct values for a column (for filter dropdowns).
-   * Pass undefined to skip fetching.
+   * Pass undefined to skip fetching. `search` is the picker's search text.
    */
   useDistinctValues(
     column: string | undefined,
+    search?: string,
   ): AsyncMemoResult<readonly SqlValue[]>;
 
   /**

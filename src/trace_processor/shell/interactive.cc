@@ -37,6 +37,7 @@
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
 #include <sys/ioctl.h>
+#include <termios.h>
 #include <unistd.h>
 #endif
 

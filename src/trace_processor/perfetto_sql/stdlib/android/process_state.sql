@@ -188,6 +188,7 @@ LEFT JOIN died AS d USING (upid);
 -- Number of processes concurrently in each framework process state over time.
 CREATE PERFETTO TABLE _android_process_state_concurrency AS
 SELECT
+  row_number() OVER (ORDER BY c.group_name, c.ts) AS id,
   c.ts,
   coalesce(
     lead(c.ts) OVER (PARTITION BY c.group_name ORDER BY c.ts) - c.ts,

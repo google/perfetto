@@ -16,6 +16,9 @@
 
 #include "perfetto/ext/base/status_or.h"
 
+#include <memory>
+#include <utility>
+
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -27,6 +30,7 @@ TEST(StatusOrTest, IntOk) {
   ASSERT_TRUE(int_or.status().ok());
   ASSERT_EQ(int_or.value(), 1);
   ASSERT_EQ(*int_or, 1);
+  ASSERT_EQ(std::move(int_or).ValueOrDie(), 1);
 }
 
 TEST(StatusOrTest, VecOk) {
@@ -48,6 +52,18 @@ TEST(StatusOrTest, ErrStatus) {
   base::StatusOr<std::vector<int>> err(base::ErrStatus("Bad error"));
   ASSERT_FALSE(err.ok());
   ASSERT_FALSE(err.status().ok());
+}
+
+TEST(StatusOrTest, ValueOrDieMovesValue) {
+  auto value = base::StatusOr<std::unique_ptr<int>>(std::make_unique<int>(42))
+                   .ValueOrDie();
+  ASSERT_TRUE(value);
+  EXPECT_EQ(*value, 42);
+}
+
+TEST(StatusOrTest, ValueOrDieAbortsOnError) {
+  base::StatusOr<int> result(base::ErrStatus("Cannot create value"));
+  ASSERT_DEATH_IF_SUPPORTED(std::move(result).ValueOrDie(), "");
 }
 
 }  // namespace base

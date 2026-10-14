@@ -184,6 +184,64 @@ class PerfettoPipeline(TestSuite):
         107295,0
         """))
 
+  # Keys come out as the types they went in as, nulls included.
+  def test_aggregate_keys_keep_their_types(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1.5 AS d, 'a' AS s, 7 AS i
+        UNION ALL SELECT 1.5, NULL, NULL
+        UNION ALL SELECT -2.25, 'a', 7
+        UNION ALL SELECT 1.5, 'a', 7;
+
+        FROM t
+        |> AGGREGATE COUNT(*) AS n GROUP BY d, s, i;
+        """,
+        out=Csv("""
+        "d","s","i","n"
+        1.500000,"a",7,2
+        1.500000,"[NULL]","[NULL]",1
+        -2.250000,"a",7,1
+        """))
+
+  # AGGREGATE ... GROUP BY gives what SQLite's GROUP BY does.
+  def test_aggregate_matches_group_by(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM (SELECT track_id, name, depth, dur FROM slice)
+        |> AGGREGATE COUNT(*) AS n, SUM(dur) AS total, MIN(depth) AS lo,
+             MAX(dur) AS hi
+           GROUP BY track_id, name;
+
+        CREATE PERFETTO TABLE grouped AS
+        SELECT track_id, name, count(*) AS n, sum(dur) AS total,
+          min(depth) AS lo, max(dur) AS hi
+        FROM slice
+        GROUP BY track_id, name;
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (
+            SELECT count(*) FROM (
+              SELECT * FROM piped EXCEPT SELECT * FROM grouped
+            )
+          ) + (
+            SELECT count(*) FROM (
+              SELECT * FROM grouped EXCEPT SELECT * FROM piped
+            )
+          ) AS mismatches;
+        """,
+        out=Csv("""
+        "rows","mismatches"
+        583,0
+        """))
+
   # Per key, sum(n * dur) over segments equals sum(dur) over rows.
   def test_interval_flatten_keys_over_many_batches(self):
     return DiffTestBlueprint(
@@ -450,6 +508,30 @@ class PerfettoPipeline(TestSuite):
         "ts","dur","cpu","name"
         10,10,1,"one"
         10,10,"[NULL]","two"
+        """))
+
+  # -0.0 and 0.0 are the same key, as they are under GROUP BY.
+  def test_interval_intersection_per_a_negative_zero_key(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS
+        SELECT 0 AS ts, 10 AS dur, 0.0 AS k, 'pos' AS name
+        UNION ALL SELECT 0, 10, -0.0, 'neg';
+
+        CREATE PERFETTO TABLE b AS SELECT 0 AS ts, 10 AS dur, 0.0 AS k;
+
+        CREATE PERFETTO TABLE met AS
+        INTERVAL INTERSECTION OF (a AS x, b AS y) PER k
+        |> SELECT ts, dur, x.name;
+
+        SELECT ts, dur, name FROM met ORDER BY name;
+        """,
+        out=Csv("""
+        "ts","dur","name"
+        0,10,"neg"
+        0,10,"pos"
         """))
 
   # A row with no duration has no bounds, so it covers nothing; the last row
