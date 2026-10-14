@@ -591,6 +591,10 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           data: attrs.dataSource,
           disablePivotControls: true,
           structuredQueryCompatMode: true,
+          // Filters here become steps in the query graph (see onFilterAdd
+          // below). The quick filter would filter rows directly and bypass
+          // the graph, so turn it off.
+          enableQuickFilter: false,
           canAddColumns: false,
           canRemoveColumns: false,
           onColumnsChanged: (columns) => {

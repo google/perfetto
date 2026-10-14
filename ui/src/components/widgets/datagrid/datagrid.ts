@@ -37,6 +37,7 @@ import {
 import {Icon} from '../../../widgets/icon';
 import {LinearProgress} from '../../../widgets/linear_progress';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
+import {TextInput} from '../../../widgets/text_input';
 import {
   AggregateMenu,
   ColumnMenu,
@@ -84,8 +85,16 @@ import {
   type GroupPath,
   type IdBasedTree,
   type Pivot,
+  type QuickFilter,
   type SortDirection,
 } from './model';
+import {valueMatchesQuickFilter} from './quick_filter_utils';
+
+// How long to wait after the last keystroke in the quick filter box before
+// applying the filter.
+const QUICK_FILTER_DEBOUNCE_MS = 250;
+
+const QUICK_FILTER_MATCH_CLASS = 'pf-data-grid__cell--quick-filter-match';
 
 // Compare two SqlValues for equality, handling nulls, undefined, and different types.
 function sqlValuesEqual(a: SqlValue, b: SqlValue): boolean {
@@ -300,6 +309,36 @@ export interface DataGridAttrs {
   readonly disableFilterControls?: boolean;
 
   /**
+   * When true, shows a "Filter rows" text box in the toolbar. Typing in it
+   * hides every row where no visible column contains the text, and highlights
+   * the matching cells. It matches raw values, not formatted ones.
+   *
+   * The box is only shown for flat tables (including pivot drill-downs): it is
+   * always hidden in pivot mode and ID-based tree mode. Defaults to false.
+   */
+  readonly enableQuickFilter?: boolean;
+
+  /**
+   * The quick filter text - can operate in controlled or uncontrolled mode.
+   *
+   * In controlled mode: Provide this prop along with onQuickFilterChanged callback.
+   * In uncontrolled mode: Omit this prop to let the grid manage the quick
+   * filter text internally.
+   */
+  readonly quickFilter?: string;
+
+  /**
+   * Initial quick filter text to apply on first load.
+   * This is ignored in controlled mode (i.e. when `quickFilter` is provided).
+   */
+  readonly initialQuickFilter?: string;
+
+  /**
+   * Called when the quick filter text changes (after the user stops typing).
+   */
+  readonly onQuickFilterChanged?: (text: string) => void;
+
+  /**
    * Defines how data should be pivoted - can operate in controlled or
    * uncontrolled mode.
    *
@@ -446,6 +485,8 @@ interface FlatGridBuildContext {
   readonly showColumnControls: boolean;
   readonly showPivotControls: boolean;
   readonly showFilterControls: boolean;
+  // The active quick filter text, used to highlight matching cells.
+  readonly quickFilterText: string;
 }
 
 /**
@@ -469,6 +510,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private filters: readonly Filter[] = [];
   private pivot?: Pivot;
   private tree?: IdBasedTree;
+
+  // The applied quick filter text, and the text currently in the box. They
+  // differ while the user is typing, until the debounce timer fires.
+  private quickFilter = '';
+  private quickFilterInput = '';
+  private quickFilterDebounceTimer?: ReturnType<typeof setTimeout>;
 
   // Track pagination state from virtual scrolling
   private paginationOffset: number = 0;
@@ -498,6 +545,15 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (attrs.initialTree) {
       this.tree = attrs.initialTree;
     }
+
+    if (attrs.initialQuickFilter !== undefined) {
+      this.quickFilter = attrs.initialQuickFilter;
+      this.quickFilterInput = attrs.initialQuickFilter;
+    }
+  }
+
+  onremove() {
+    clearTimeout(this.quickFilterDebounceTimer);
   }
 
   view({attrs}: m.Vnode<DataGridAttrs>) {
@@ -509,6 +565,8 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       filters,
       pivot,
       tree,
+      quickFilter,
+      enableQuickFilter = false,
       schema,
       structuredQueryCompatMode = false,
       toolbarItemsLeft,
@@ -522,6 +580,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     if (filters) this.filters = filters;
     if (pivot) this.pivot = pivot;
     if (tree) this.tree = tree;
+    if (quickFilter !== undefined) {
+      this.quickFilter = quickFilter;
+      // Don't overwrite what the user is typing before it's been applied.
+      if (this.quickFilterDebounceTimer === undefined) {
+        this.quickFilterInput = quickFilter;
+      }
+    }
 
     // Determine if we're in tree mode (has id-based tree config)
     const isTreeMode = this.tree !== undefined;
@@ -551,9 +616,17 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       this.pivot.groupBy.length > 0 &&
       this.pivot.drillDown === undefined;
 
+    // The quick filter is only offered for flat tables:
+    // - In tree mode, removing non-matching rows would also hide their
+    //   matching descendants.
+    // - In pivot mode, most cells show a sampled value or a total rather than
+    //   a row's value, so "rows containing the text" has no clear meaning.
+    const showQuickFilter = enableQuickFilter && !isTreeMode && !isPivotMode;
+    const quickFilterText = showQuickFilter ? this.quickFilter : '';
+
     // Build the model for data source queries
     const datasource = getOrCreateDataSource(data);
-    const model = this.buildDataSourceModel();
+    const model = this.buildDataSourceModel(quickFilterText);
 
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
@@ -634,6 +707,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         showColumnControls,
         showPivotControls,
         showFilterControls,
+        quickFilterText,
       };
 
       gridColumns = this.buildFlatColumns(flatContext);
@@ -656,6 +730,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ],
         rightItems: [
           toolbarItemsRight,
+          showQuickFilter && this.renderQuickFilterBox(attrs),
           showExportButton &&
             m(ExportButton, {
               onExportData: (format) =>
@@ -720,12 +795,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             EmptyState,
             {
               title:
-                this.filters.length > 0
+                this.filters.length > 0 || quickFilterText !== ''
                   ? 'No results match your filters'
                   : (emptyStateMessage ?? 'No data available'),
               fillHeight: true,
             },
-            this.filters.length > 0 &&
+            (this.filters.length > 0 || quickFilterText !== '') &&
               m(Button, {
                 variant: ButtonVariant.Filled,
                 icon: Icons.FilterOff,
@@ -741,7 +816,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds a DataSourceModel from the current state.
    * The model shape depends on whether we're in pivot, tree, or flat mode.
    */
-  private buildDataSourceModel(): DataSourceModel {
+  private buildDataSourceModel(quickFilterText: string): DataSourceModel {
     // Extract sort from columns (flat mode only)
     const sortedColumn = this.columns.find((c) => c.sort);
     const sort = sortedColumn
@@ -767,6 +842,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         mode: 'flat',
         sort,
         filters: [...(this.filters ?? []), ...drillDownFilters],
+        quickFilter: buildQuickFilter(
+          quickFilterText,
+          this.columns.map((col) => col.field),
+        ),
         columns: this.columns
           .map((col) => ({
             field: col.field,
@@ -829,6 +908,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         ...baseModel,
         mode: 'flat',
         sort,
+        quickFilter: buildQuickFilter(
+          quickFilterText,
+          this.columns.map((col) => col.field),
+        ),
         columns: this.columns
           .map((col) => ({
             field: col.field,
@@ -869,6 +952,41 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
   private clearFilters(attrs: DataGridAttrs): void {
     this.filters = [];
     attrs.onFiltersChanged?.([]);
+    if (this.quickFilter !== '' || this.quickFilterInput !== '') {
+      this.setQuickFilter('', attrs);
+    }
+  }
+
+  private renderQuickFilterBox(attrs: DataGridAttrs): m.Children {
+    return m(TextInput, {
+      className: 'pf-data-grid__quick-filter',
+      leftIcon: Icons.Search,
+      placeholder: 'Filter rows\u2026',
+      title:
+        'Shows rows where any visible column contains this text. ' +
+        'Matches raw values.',
+      value: this.quickFilterInput,
+      onInput: (text: string) => this.onQuickFilterInput(text, attrs),
+    });
+  }
+
+  // Updates the box immediately, but only applies the filter once the user has
+  // stopped typing for QUICK_FILTER_DEBOUNCE_MS.
+  private onQuickFilterInput(text: string, attrs: DataGridAttrs): void {
+    this.quickFilterInput = text;
+    clearTimeout(this.quickFilterDebounceTimer);
+    this.quickFilterDebounceTimer = setTimeout(() => {
+      this.setQuickFilter(text, attrs);
+      m.redraw();
+    }, QUICK_FILTER_DEBOUNCE_MS);
+  }
+
+  private setQuickFilter(text: string, attrs: DataGridAttrs): void {
+    clearTimeout(this.quickFilterDebounceTimer);
+    this.quickFilterDebounceTimer = undefined;
+    this.quickFilter = text;
+    this.quickFilterInput = text;
+    attrs.onQuickFilterChanged?.(text);
   }
 
   private removeFilter(index: number, attrs: DataGridAttrs): void {
@@ -1648,7 +1766,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
    * Builds grid rows for flat (non-pivot) mode.
    */
   private buildFlatRows(ctx: FlatGridBuildContext): m.Children[][] {
-    const {attrs, rowsResult, columnInfoCache, tree, showFilterControls} = ctx;
+    const {
+      attrs,
+      rowsResult,
+      columnInfoCache,
+      tree,
+      showFilterControls,
+      quickFilterText,
+    } = ctx;
 
     if (rowsResult.rows === undefined) return [];
 
@@ -1714,6 +1839,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           return m(
             GridCell,
             {
+              className: classNames(
+                valueMatchesQuickFilter(value, quickFilterText) &&
+                  QUICK_FILTER_MATCH_CLASS,
+              ),
               actionButtons: colInfo?.actions?.(value, row),
               align: isRich ? (rendered.align ?? 'left') : getAligment(value),
               nullish: isRich
@@ -2470,4 +2599,15 @@ function getAggregateAlias(agg: AggregateColumn): string {
  */
 function getColumnAlias(col: Column): string {
   return col.id;
+}
+
+/**
+ * Builds the data source quick filter for the given text and fields, or
+ * undefined if there's no filter text.
+ */
+function buildQuickFilter(
+  text: string,
+  fields: readonly string[],
+): QuickFilter | undefined {
+  return text === '' ? undefined : {text, fields};
 }

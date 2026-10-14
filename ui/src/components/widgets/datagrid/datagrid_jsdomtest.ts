@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {afterEach, beforeEach, describe, expect, test} from 'vitest';
+import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {prettyDOM, queryAllByRole} from '@testing-library/dom';
-import {DataGrid, type DataGridAttrs} from './datagrid';
+import {DataGrid, type DataGridApi, type DataGridAttrs} from './datagrid';
 import {InMemoryDataSource} from './in_memory_data_source';
 import type {ColumnSchema} from './datagrid_schema';
 import type {Column, Filter} from './model';
@@ -286,5 +286,156 @@ describe('DataGrid column menu', () => {
     });
     const items = getColumnMenuItems(rerender);
     expect(items, dumpDom()).not.toContain('Group by this column');
+  });
+});
+
+describe('DataGrid quick filter', () => {
+  const QUICK_FILTER_DATA = [
+    {name: 'apple', value: 10},
+    {name: 'banana', value: 20},
+    {name: 'cherry', value: 31},
+  ];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Renders a grid over QUICK_FILTER_DATA with the quick filter enabled,
+  // capturing the latest DataGrid API.
+  function renderQuickFilterGrid(attrs: Partial<DataGridAttrs>) {
+    let api: DataGridApi | undefined;
+    const rerender = renderDataGrid({
+      data: new InMemoryDataSource(QUICK_FILTER_DATA),
+      onReady: (a) => (api = a),
+      enableQuickFilter: true,
+      ...attrs,
+    });
+    return {rerender, getApi: () => api!};
+  }
+
+  // The quick filter sent to the data source (only flat models have one).
+  function getModelQuickFilter(api: DataGridApi) {
+    const model = api.getModel();
+    return model.mode === 'flat' ? model.quickFilter : undefined;
+  }
+
+  function getQuickFilterBox(): HTMLInputElement | null {
+    return container.querySelector<HTMLInputElement>(
+      'input[placeholder="Filter rows\u2026"]',
+    );
+  }
+
+  function typeInQuickFilterBox(text: string) {
+    const input = getQuickFilterBox();
+    expect(input, dumpDom()).toBeTruthy();
+    input!.value = text;
+    input!.dispatchEvent(new window.Event('input', {bubbles: true}));
+  }
+
+  test('quick filter box is shown when enabled', () => {
+    renderQuickFilterGrid({});
+    expect(getQuickFilterBox(), dumpDom()).toBeTruthy();
+  });
+
+  test('typing filters rows after the debounce', () => {
+    const onQuickFilterChanged = vi.fn();
+    const {rerender, getApi} = renderQuickFilterGrid({onQuickFilterChanged});
+    expect(getApi().getRowCount()).toBe(3);
+
+    typeInQuickFilterBox('AN');
+    rerender();
+    // Not applied until the user stops typing.
+    expect(getApi().getRowCount()).toBe(3);
+    expect(onQuickFilterChanged).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(250);
+    rerender();
+    // Only 'banana' contains 'an' (case-insensitive).
+    expect(getApi().getRowCount()).toBe(1);
+    expect(getModelQuickFilter(getApi())).toEqual({
+      text: 'AN',
+      fields: ['name', 'value'],
+    });
+    expect(onQuickFilterChanged).toHaveBeenCalledWith('AN');
+  });
+
+  test('matches numbers by their raw value', () => {
+    const {getApi} = renderQuickFilterGrid({initialQuickFilter: '1'});
+    // 10 and 31.
+    expect(getApi().getRowCount()).toBe(2);
+  });
+
+  test('no matches shows the empty state, and "Clear filters" clears it', () => {
+    const onQuickFilterChanged = vi.fn();
+    const {rerender, getApi} = renderQuickFilterGrid({
+      initialQuickFilter: 'zzz',
+      onQuickFilterChanged,
+    });
+    expect(getApi().getRowCount()).toBe(0);
+    expect(container.textContent, dumpDom()).toContain(
+      'No results match your filters',
+    );
+
+    // The empty state isn't exposed to the accessibility tree under jsdom, so
+    // find the button by its label instead of by role.
+    const clear = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Clear filters'),
+    );
+    expect(clear, dumpDom()).toBeTruthy();
+    clear!.dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
+    rerender();
+    expect(getApi().getRowCount()).toBe(3);
+    expect(getQuickFilterBox()?.value).toBe('');
+    expect(onQuickFilterChanged).toHaveBeenCalledWith('');
+  });
+
+  test('quick filter box is hidden in pivot mode', () => {
+    const {getApi} = renderQuickFilterGrid({
+      initialQuickFilter: 'x',
+      initialPivot: {
+        groupBy: [{id: 'g', field: 'name'}],
+        aggregates: [{id: 'c', function: 'COUNT'}],
+      },
+    });
+    expect(getQuickFilterBox(), dumpDom()).toBeNull();
+    expect(getApi().getModel().mode).toBe('pivot');
+  });
+
+  test('quick filter box is shown when drilling down into a pivot group', () => {
+    const {getApi} = renderQuickFilterGrid({
+      initialColumns: COLUMNS,
+      initialQuickFilter: 'an',
+      initialPivot: {
+        groupBy: [{id: 'g', field: 'name'}],
+        aggregates: [{id: 'c', function: 'COUNT'}],
+        drillDown: [{field: 'name', value: 'banana'}],
+      },
+    });
+    expect(getQuickFilterBox(), dumpDom()).toBeTruthy();
+    expect(getModelQuickFilter(getApi())).toEqual({
+      text: 'an',
+      fields: ['name', 'value'],
+    });
+    expect(getApi().getRowCount()).toBe(1);
+  });
+
+  test('quick filter is off by default: no box, and its text is ignored', () => {
+    const {getApi} = renderQuickFilterGrid({
+      enableQuickFilter: undefined,
+      initialQuickFilter: 'zzz',
+    });
+    expect(getQuickFilterBox(), dumpDom()).toBeNull();
+    expect(getApi().getRowCount()).toBe(3);
+  });
+
+  test('quick filter box is hidden in tree mode', () => {
+    renderQuickFilterGrid({
+      initialTree: {idField: 'value', parentIdField: 'value'},
+    });
+    expect(getQuickFilterBox(), dumpDom()).toBeNull();
   });
 });
