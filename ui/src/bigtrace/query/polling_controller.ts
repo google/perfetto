@@ -17,9 +17,13 @@ import {QueryNotFoundError} from './bigtrace_query_client';
 import {isoToEpochMs, type RawQueryExecution} from './query_history_storage';
 import {queryStore, TERMINAL_STATUSES} from './query_store';
 import {makeQueryResponse} from '../pages/query_tabs_state';
-import type {BigTraceEditorTab} from '../pages/query_tabs_state';
+import type {BigTraceEditorTab, TabQuery} from '../pages/query_tabs_state';
+import {serverHasFeature} from '../settings/server_capabilities';
 
+// The local server (the one with 'duckdb') is cheap to ask, so it's polled
+// faster than remote backends.
 const POLL_INTERVAL_MS = 3000;
+const LOCAL_POLL_INTERVAL_MS = 500;
 const POLL_RETRY_MS = 1000;
 
 export interface PollingCallbacks {
@@ -31,36 +35,40 @@ export interface PollingCallbacks {
 export class PollingController {
   constructor(private readonly cb: PollingCallbacks) {}
 
-  // Begin polling `:status` for the given tab's queryUuid.
-  start(tab: BigTraceEditorTab): void {
-    if (!tab.queryUuid) return;
+  // Begin polling `:status` for `uuids` (by default the tab's queryUuid)
+  // until all of them are terminal.
+  start(tab: BigTraceEditorTab, uuids = tab.queryUuid ? [tab.queryUuid] : []) {
+    if (uuids.length === 0) return;
 
     const generation = ++tab.pollGeneration;
 
     const poll = async () => {
       if (tab.pollGeneration !== generation) return;
-      if (!tab.queryUuid || !tab.isLoading) return;
+      if (!tab.isLoading) return;
 
       try {
-        const status = await tab.queryClient?.getStatus(
-          tab.queryUuid,
-          tab.lifecycle.signal,
+        const statuses = await Promise.all(
+          uuids.map((uuid) =>
+            tab.queryClient?.getStatus(uuid, tab.lifecycle.signal),
+          ),
         );
         if (tab.pollGeneration !== generation || !tab.isLoading) return;
 
-        if (status !== undefined && status !== null) {
-          this.applyStatus(tab, status);
-        }
+        uuids.forEach((uuid, i) => this.applyStatus(uuid, statuses[i]));
 
-        const isTerminal =
-          status !== undefined &&
-          status.status !== undefined &&
-          TERMINAL_STATUSES.has(status.status);
+        const isTerminal = statuses.every(
+          (s) => s?.status !== undefined && TERMINAL_STATUSES.has(s.status),
+        );
         if (isTerminal) {
-          await this.finalize(tab, status!);
+          this.finalize(tab, uuids, statuses);
         } else if (tab.pollInterval !== undefined) {
           tab.isLoading = true;
-          tab.pollInterval = window.setTimeout(poll, POLL_INTERVAL_MS);
+          tab.pollInterval = window.setTimeout(
+            poll,
+            serverHasFeature('duckdb')
+              ? LOCAL_POLL_INTERVAL_MS
+              : POLL_INTERVAL_MS,
+          );
         }
         this.cb.redraw();
       } catch (e) {
@@ -110,43 +118,52 @@ export class PollingController {
   // through, so doing it every 3s would fight the query it is reporting on.
   // The status bar's refresh button (lit while processedRows is ahead of
   // lastProcessedRows) is how a partial result gets asked for.
-  private applyStatus(tab: BigTraceEditorTab, status: RawQueryExecution): void {
-    if (!tab.queryUuid) return;
-    queryStore.update(tab.queryUuid, {
+  private applyStatus(uuid: string, status?: RawQueryExecution): void {
+    if (status === undefined) return;
+    queryStore.update(uuid, {
       processedRows: status.processedRows ?? 0,
       processedTraces: status.processedTraces ?? 0,
       totalTraces: status.totalTraces ?? 0,
       status: status.status ?? 'N/A',
     });
-    this.cb.redraw();
   }
 
-  private async finalize(
+  private finalize(
     tab: BigTraceEditorTab,
-    status: RawQueryExecution,
-  ): Promise<void> {
+    uuids: ReadonlyArray<string>,
+    statuses: ReadonlyArray<RawQueryExecution | undefined>,
+  ): void {
     tab.pollInterval = undefined;
-
-    if (
-      tab.execution !== undefined &&
-      tab.execution.endTime === undefined &&
-      tab.queryUuid
-    ) {
-      queryStore.update(tab.queryUuid, {endTime: Date.now()});
-    }
 
     if (tab.isLoading) {
       this.cb.onHistoryChanged();
     }
     tab.isLoading = false;
 
-    const isFailed = status.status === 'FAILED';
-    const isSuccess = status.status === 'SUCCESS';
+    for (const q of tab.queries) {
+      const i = q.queryUuid === undefined ? -1 : uuids.indexOf(q.queryUuid);
+      if (i >= 0) this.finalizeQuery(tab, q, uuids[i], statuses[i]?.status);
+    }
+    tab.lastProcessedRows = tab.execution?.processedRows ?? 0;
+  }
+
+  private finalizeQuery(
+    tab: BigTraceEditorTab,
+    q: TabQuery,
+    uuid: string,
+    status?: string,
+  ): void {
+    if (q.execution !== undefined && q.execution.endTime === undefined) {
+      queryStore.update(uuid, {endTime: Date.now()});
+    }
+
+    const isFailed = status === 'FAILED';
+    const isSuccess = status === 'SUCCESS';
 
     if (isFailed) {
-      const startMs = tab.execution?.startTime;
-      const endMs = tab.execution?.endTime;
-      tab.queryResult = makeQueryResponse(tab.editorText, {
+      const startMs = q.execution?.startTime;
+      const endMs = q.execution?.endTime;
+      q.queryResult = makeQueryResponse(q.sql, {
         error: 'Fetching error details...',
         durationMs:
           startMs !== undefined && endMs !== undefined ? endMs - startMs : 0,
@@ -156,34 +173,31 @@ export class PollingController {
 
     // Fetch full execution details for timing + error message.
     void tab.queryClient
-      ?.getQueryExecution(tab.queryUuid!, tab.lifecycle.signal)
+      ?.getQueryExecution(uuid, tab.lifecycle.signal)
       .then((details: RawQueryExecution) => {
         const endMs = isoToEpochMs(details.endTime);
-        if (tab.queryUuid) {
-          queryStore.update(tab.queryUuid, {
-            ...(endMs !== undefined ? {endTime: endMs} : {}),
-            ...(details.schema !== undefined ? {schema: details.schema} : {}),
-            ...(details.tableName !== undefined
-              ? {tableName: details.tableName}
-              : {}),
-          });
-        }
-        if (isFailed && tab.queryResult !== undefined) {
-          tab.queryResult.error = details.errorMessage || 'Query failed';
+        queryStore.update(uuid, {
+          ...(endMs !== undefined ? {endTime: endMs} : {}),
+          ...(details.schema !== undefined ? {schema: details.schema} : {}),
+          ...(details.tableName !== undefined
+            ? {tableName: details.tableName}
+            : {}),
+        });
+        if (isFailed && q.queryResult !== undefined) {
+          q.queryResult.error = details.errorMessage || 'Query failed';
         }
         this.cb.redraw();
       })
       .catch((e: unknown) => {
         console.error('Failed to fetch query execution details:', e);
-        if (isFailed && tab.queryResult !== undefined) {
-          tab.queryResult.error = `Failed to fetch error details: ${e instanceof Error ? e.message : String(e)}`;
+        if (isFailed && q.queryResult !== undefined) {
+          q.queryResult.error = `Failed to fetch error details: ${e instanceof Error ? e.message : String(e)}`;
           this.cb.redraw();
         }
       });
 
-    if (isSuccess && tab.dataSource instanceof BigtraceAsyncDataSource) {
-      tab.dataSource.refresh();
-      tab.lastProcessedRows = tab.execution?.processedRows ?? 0;
+    if (isSuccess && q.dataSource instanceof BigtraceAsyncDataSource) {
+      q.dataSource.refresh();
     }
   }
 }

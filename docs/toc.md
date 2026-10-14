@@ -126,6 +126,7 @@
       - [C++ Library](analysis/trace-processor.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
       - [Python Library](analysis/trace-processor-python.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
       - [Batch Trace Processor](analysis/batch-trace-processor.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
+      - [Local Bigtrace](analysis/bigtrace-local.md) {.tag-android .tag-linux .tag-perf}
 
     - [Merging traces from the command line](analysis/merging-traces.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
     - [Trace Summarization](analysis/trace-summary.md) {.tag-android .tag-linux .tag-cpp-rust .tag-chrome .tag-perf}
@@ -211,6 +212,7 @@
 
       - [Architecture](design-docs/trace-processor-architecture.md) {.tag-contrib}
       - [Batch Trace Processor](design-docs/batch-trace-processor.md) {.tag-contrib}
+      - [Local Bigtrace](design-docs/bigtrace-local.md) {.tag-contrib}
 
     - [UI](#)
 

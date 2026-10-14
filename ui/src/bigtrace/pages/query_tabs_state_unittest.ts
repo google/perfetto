@@ -15,7 +15,11 @@
 import {beforeEach, describe, expect, test} from 'vitest';
 import {z} from 'zod';
 import {
+  addQuery,
   applyModeDefaults,
+  canRenameQuery,
+  openEngineTab,
+  removeQuery,
   applyPresetSetup,
   closeSettings,
   isTraceSelectionSetting,
@@ -332,10 +336,11 @@ describe('cloneTab', () => {
     expect(clone.isLoading).toBe(false);
   });
 
-  test('a clone is a new tab, named like one', () => {
+  test('a clone is a new tab, with a fresh table name', () => {
     const tabs = new QueryTabsState();
     const src = configuredTab(tabs);
-    expect(tabs.cloneTab(src.id)?.title).toMatch(/^Query \d+$/);
+    expect(tabs.cloneTab(src.id)?.title).toMatch(/^tbl_[a-z0-9]+$/);
+    expect(tabs.cloneTab(src.id, 'renamed')?.title).toBe('renamed');
   });
 
   test('editing the clone leaves the original alone', () => {
@@ -811,5 +816,88 @@ describe('experiment filter', () => {
       isTreatment: true,
     });
     expect(tab.experimentFilter?.experimentName).toBeUndefined();
+  });
+});
+
+describe('multi-query tabs', () => {
+  beforeEach(() => localStorage.clear());
+
+  test('the editor and results follow the active query', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tab.editorText = 'SELECT 1';
+    addQuery(tab);
+    expect(tab.queries).toHaveLength(2);
+    expect(tab.editorText).toBe('');
+    tab.editorText = 'SELECT 2';
+    tab.queryUuid = 'u2';
+
+    tab.activeQueryIndex = 0;
+    expect(tab.editorText).toBe('SELECT 1');
+    expect(tab.queryUuid).toBeUndefined();
+    expect(tab.queries[1]).toMatchObject({sql: 'SELECT 2', queryUuid: 'u2'});
+
+    removeQuery(tab, 0);
+    expect(tab.queries).toHaveLength(1);
+    expect(tab.editorText).toBe('SELECT 2');
+    expect(tab.title).toBe(tab.queries[0].tableName);
+  });
+
+  test('queries survive a reload', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tab.editorText = 'SELECT 1';
+    addQuery(tab);
+    tab.editorText = 'SELECT 2';
+    tab.queries[1].tableName = 'second';
+    (tabs as unknown as {saveToStorage(): void}).saveToStorage();
+
+    const restored = new QueryTabsState().getActiveTab()!;
+    expect(restored.queries.map((q) => [q.sql, q.tableName])).toEqual([
+      ['SELECT 1', tab.title],
+      ['SELECT 2', 'second'],
+    ]);
+    expect(restored.activeQueryIndex).toBe(1);
+  });
+
+  test('a persistent result table cannot be renamed after its run', () => {
+    const tab = new QueryTabsState().getActiveTab()!;
+    expect(canRenameQuery(tab, tab.queries[0])).toBe(true);
+    tab.queryUuid = 'u1';
+    expect(canRenameQuery(tab, tab.queries[0])).toBe(false);
+    tab.materialize = false;
+    expect(canRenameQuery(tab, tab.queries[0])).toBe(true);
+  });
+});
+
+describe('openEngineTab', () => {
+  beforeEach(() => localStorage.clear());
+
+  test('switches a blank tab in place, ephemeral and configured', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    openEngineTab(tabs, 'duckdb');
+    expect(tabs.tabs).toEqual([tab]);
+    expect(tab).toMatchObject({
+      queryEngine: 'duckdb',
+      materialize: false,
+      configured: true,
+    });
+  });
+
+  test('opens a new tab rather than touching one with SQL', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.getActiveTab()!;
+    tab.editorText = 'SELECT 1';
+    openEngineTab(tabs, 'duckdb', 'SELECT * FROM t');
+    expect(tab.queryEngine).toBe('traces');
+    const staged = tabs.getActiveTab()!;
+    expect(staged).not.toBe(tab);
+    expect(staged).toMatchObject({
+      queryEngine: 'duckdb',
+      editorText: 'SELECT * FROM t',
+    });
+    // New tabs take the active tab's engine.
+    expect(tabs.addNewTab().queryEngine).toBe('duckdb');
   });
 });

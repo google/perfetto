@@ -1,0 +1,5 @@
+*.so
+*.tmp
+*.duckdb_extension
+__pycache__/
+third_party/

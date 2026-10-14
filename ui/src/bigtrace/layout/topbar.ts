@@ -21,6 +21,22 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
 import {toggleHelp} from '../help_modal';
 import {ConnectionButton} from './connection_button';
+import {getQueryTabsState, openEngineTab} from '../pages/query_tabs_state';
+import {serverHasFeature} from '../settings/server_capabilities';
+
+// The active tab's query engine. Shown only for backends that offer DuckDB,
+// or while a DuckDB tab is active, so there is a way back.
+function renderEngineToggle(): m.Children {
+  const tabsState = getQueryTabsState();
+  const isDuckdb = tabsState.getActiveTab()?.queryEngine === 'duckdb';
+  if (!isDuckdb && !serverHasFeature('duckdb')) return null;
+  return m(Button, {
+    icon: isDuckdb ? 'database' : 'code',
+    label: isDuckdb ? 'DuckDB SQL' : 'PerfettoSQL',
+    title: 'Switch between PerfettoSQL and DuckDB SQL',
+    onclick: () => openEngineTab(tabsState, isDuckdb ? 'traces' : 'duckdb'),
+  });
+}
 
 // The app's only chrome: brand, command omnibox, and the backend connection.
 export class Topbar implements m.ClassComponent {
@@ -31,6 +47,7 @@ export class Topbar implements m.ClassComponent {
         'BigTrace',
       ]),
       m('.pf-topbar__right', [
+        renderEngineToggle(),
         m(ConnectionButton),
         // Two rare actions, so one door rather than two: the topbar stays
         // the connection and nothing else, and help has somewhere to be

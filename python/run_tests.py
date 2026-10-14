@@ -58,6 +58,15 @@ def main():
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
   suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
   suite.addTests(loader.loadTestsFromModule(unix_unittest))
+  try:
+    from test import bigtrace_server_unittest
+    suite.addTests(loader.loadTestsFromModule(bigtrace_server_unittest))
+  except ModuleNotFoundError as e:  # The local Bigtrace server's optional deps.
+    if e.name not in ("duckdb", "pyarrow"):
+      raise
+    print(
+        f"Skipping bigtrace_server_unittest: pip3 install {e.name}",
+        file=sys.stderr)
   if os.path.exists(os.environ["WORKER_PATH"]):
     suite.addTests(loader.loadTestsFromModule(bigtrace_api_integrationtest))
 

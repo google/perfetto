@@ -140,6 +140,14 @@ describe('BigtraceQueryClient trace-metadata wire', () => {
     category: 'TRACE_ADDRESS',
   };
 
+  test('getStatus treats null fields as absent', async () => {
+    captureFetch({queryUuid: 'q', status: 'IN_PROGRESS', endTime: null});
+    const client = new BigtraceQueryClient('http://example/');
+    const status = await client.getStatus('q');
+    expect(status).toEqual({queryUuid: 'q', status: 'IN_PROGRESS'});
+    expect('endTime' in status).toBe(false);
+  });
+
   test('listTraceMetadata POSTs /trace_metadata with mapped settings + paging', async () => {
     const fetchMock = captureFetch({columnNames: ['file_name'], rows: []});
     const client = new BigtraceQueryClient('http://example/');
@@ -521,6 +529,13 @@ describe('parseQueryResponse', () => {
     expect(page.columns).toEqual([]);
     expect(page.rows).toEqual([]);
     expect(page.schema).toEqual([]);
+  });
+
+  test('treats null table names as absent', () => {
+    const page = parseQueryResponse(
+      JSON.parse('{"executions":[{"queryUuid":"a","tableName":null}]}'),
+    );
+    expect(page.executions).toEqual([{queryUuid: 'a'}]);
   });
 });
 

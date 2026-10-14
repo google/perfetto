@@ -34,11 +34,13 @@ import {
 } from './query_history_storage';
 import {queryStore, TERMINAL_STATUSES} from './query_store';
 import {
+  asyncDataSource,
   disabledSettingsFromSnapshot,
   effectiveTabSettings,
+  hasQueryText,
   makeQueryResponse,
 } from '../pages/query_tabs_state';
-import type {BigTraceEditorTab} from '../pages/query_tabs_state';
+import type {BigTraceEditorTab, TabQuery} from '../pages/query_tabs_state';
 import {PollingController} from './polling_controller';
 
 interface QueryRunnerCallbacks {
@@ -61,7 +63,15 @@ export class QueryRunner {
 
   // Run `query` on `tab`. Aborts any in-flight query on the tab first.
   async run(tab: BigTraceEditorTab, query: string): Promise<void> {
+    // A tab with several queries runs those with SQL together, each into its
+    // own table; that always runs async.
+    const multi =
+      tab.queries.length > 1
+        ? tab.queries.filter((q) => hasQueryText(q.sql))
+        : undefined;
+    if (multi !== undefined) query = multi[0]?.sql ?? '';
     if (!query) return;
+    const isAsync = tab.materialize || multi !== undefined;
 
     tab.activeRequest?.abort();
 
@@ -121,7 +131,18 @@ export class QueryRunner {
         traceMetadataColumns = [];
       }
     }
+    // DuckDB queries have no row cap.
+    if (tab.queryEngine === 'duckdb') tab.limit = 0;
     const executeOptions: ExecuteOptions = {
+      engine: tab.queryEngine,
+      materialized: tab.materialize,
+      tableName: isAsync
+        ? (multi?.[0] ?? tab.queries[tab.activeQueryIndex]).tableName
+        : undefined,
+      queries: multi?.map((q) => ({
+        perfettoSql: q.sql,
+        tableName: q.tableName,
+      })),
       traceFilters,
       traceMetadataColumns,
       traceOrderBy,
@@ -133,7 +154,7 @@ export class QueryRunner {
     const wallStartMs = performance.now();
 
     try {
-      if (tab.materialize) {
+      if (isAsync) {
         await this.runAsync(
           tab,
           query,
@@ -142,6 +163,7 @@ export class QueryRunner {
           executeOptions,
           requestController.signal,
           wallStartMs,
+          multi,
         );
       } else {
         await this.runSync(
@@ -170,7 +192,7 @@ export class QueryRunner {
       tab.activeRequest = undefined;
     }
 
-    if (tab.queryResult !== undefined && !tab.materialize) {
+    if (tab.queryResult !== undefined && !isAsync) {
       tab.dataSource = new InMemoryDataSource(tab.queryResult.rows);
       tab.isLoading = false;
       this.cb.onHistoryChanged();
@@ -182,22 +204,22 @@ export class QueryRunner {
   async cancel(tab: BigTraceEditorTab): Promise<void> {
     this.redraw();
 
-    const queryUuid = tab.queryUuid;
     tab.activeRequest?.abort();
     this.poller.stop(tab);
 
-    if (tab.execution && tab.execution.status === 'IN_PROGRESS') {
-      tab.execution.status = 'CANCELLED';
-      tab.execution.endTime = Date.now();
-    }
-
-    if (tab.materialize && queryUuid && tab.queryClient) {
-      try {
-        await tab.queryClient.cancelQuery(queryUuid);
-      } catch (e) {
-        console.error(`Failed to cancel query ${queryUuid} on backend:`, e);
-      }
-    }
+    const client = tab.queryClient;
+    await Promise.all(
+      tab.queries.map(async ({queryUuid, execution}) => {
+        if (!queryUuid || execution?.status !== 'IN_PROGRESS') return;
+        execution.status = 'CANCELLED';
+        execution.endTime = Date.now();
+        try {
+          await client?.cancelQuery(queryUuid);
+        } catch (e) {
+          console.error(`Failed to cancel query ${queryUuid} on backend:`, e);
+        }
+      }),
+    );
 
     tab.activeRequest = undefined;
     tab.isLoading = false;
@@ -258,6 +280,7 @@ export class QueryRunner {
     if (details.tableName !== undefined) {
       exec.tableName = details.tableName;
     }
+    if (details.tableName) tab.title = details.tableName;
     exec.status = details.status ?? 'N/A';
     exec.processedRows = details.processedRows ?? 0;
     exec.processedTraces = details.processedTraces ?? 0;
@@ -365,6 +388,7 @@ export class QueryRunner {
     options: ExecuteOptions,
     signal: AbortSignal,
     wallStartMs: number,
+    multi?: TabQuery[],
   ): Promise<void> {
     const data = await client.executeAsync(
       query,
@@ -376,10 +400,27 @@ export class QueryRunner {
     if (data.queryUuid === undefined || data.queryUuid === '') {
       throw new Error('Backend did not return a queryUuid for async execute');
     }
-    tab.queryUuid = data.queryUuid;
-    tab.execution = queryStore.getOrCreate(tab.queryUuid, {
-      perfettoSql: query,
+    // One execution per query run, in order.
+    const executions = data.executions ?? [{queryUuid: data.queryUuid}];
+    (multi ?? [tab.queries[tab.activeQueryIndex]]).forEach((q, i) => {
+      const {queryUuid, tableName} = executions[i];
+      const sql = multi ? q.sql : query;
+      q.queryUuid = queryUuid;
+      if (tableName) q.tableName = tableName;
+      q.execution = queryStore.getOrCreate(queryUuid, {
+        perfettoSql: sql,
+        status: 'IN_PROGRESS',
+      });
+      q.dataSource = asyncDataSource(tab, q, queryUuid, client);
+      q.queryResult = makeQueryResponse(sql, {
+        durationMs: performance.now() - wallStartMs,
+      });
     });
+    this.poller.start(
+      tab,
+      executions.map((e) => e.queryUuid),
+    );
+    if (tab.queryUuid === undefined) return;
 
     try {
       const details = await client.getQueryExecution(
@@ -397,18 +438,6 @@ export class QueryRunner {
     } catch (e) {
       console.error('Failed to fetch query details after executeAsync:', e);
     }
-
-    this.poller.start(tab);
-    tab.dataSource = new BigtraceAsyncDataSource(
-      tab.queryUuid,
-      client,
-      () => tab.execution?.processedRows ?? 0,
-      tab.lifecycle.signal,
-      () => tab.execution?.schema,
-    );
-    tab.queryResult = makeQueryResponse(query, {
-      durationMs: performance.now() - wallStartMs,
-    });
   }
 
   private async runSync(

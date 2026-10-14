@@ -32,6 +32,8 @@ import {
   formatCompactDate,
   formatCompactTime,
 } from './history_store';
+import {getQueryTabsState, openEngineTab} from '../pages/query_tabs_state';
+import {serverHasFeature} from '../settings/server_capabilities';
 
 // Reopens an existing history entry.
 export type OpenQueryFn = (
@@ -41,6 +43,7 @@ export type OpenQueryFn = (
   forceNew?: boolean,
   limit?: number,
   startTime?: number,
+  queryEngine?: 'traces' | 'duckdb',
 ) => void;
 
 // SQL block clamped to ~4 lines with a fade-out mask; click to expand.
@@ -140,7 +143,15 @@ export function renderHistoryItem(
 
   const openThis = () => {
     if (openQuery && uuid) {
-      openQuery(queryText, uuid, isMaterialized, false, entry.limit, startTime);
+      openQuery(
+        queryText,
+        uuid,
+        isMaterialized,
+        false,
+        entry.limit,
+        startTime,
+        entry.queryEngine,
+      );
     }
   };
 
@@ -149,11 +160,27 @@ export function renderHistoryItem(
     {
       className: 'pf-query-history__item-buttons',
       orientation: 'horizontal',
+      spacing: 'none',
     },
     [
+      serverHasFeature('duckdb') &&
+        Boolean(entry.tableName) &&
+        rows > 0 &&
+        m(Button, {
+          onclick: () =>
+            openEngineTab(
+              getQueryTabsState(),
+              'duckdb',
+              `SELECT *\nFROM ${entry.tableName};\n`,
+            ),
+          icon: 'database',
+          compact: true,
+          title: `Query ${entry.tableName} in DuckDB`,
+        }),
       m(Button, {
         onclick: openThis,
         icon: Icons.ChangeTab,
+        compact: true,
         title: 'Open',
       }),
 
@@ -193,6 +220,7 @@ export function renderHistoryItem(
           historyStore.refreshNow();
         },
         icon: Icons.Delete,
+        compact: true,
         // Red hover so destructive intent reads before click.
         intent: Intent.Danger,
         title: 'Delete query',
@@ -231,7 +259,11 @@ export function renderHistoryItem(
                 ? 'Results saved to a backend table — reopen to browse them.'
                 : 'Results were shown inline at run time and not saved.',
             },
-            isMaterialized ? 'Persistent' : 'Ephemeral',
+            entry.queryEngine === 'duckdb'
+              ? 'DuckDB'
+              : isMaterialized
+                ? 'Persistent'
+                : 'Ephemeral',
           ),
           m(
             'span.pf-bt-history-item-date',

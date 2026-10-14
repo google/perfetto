@@ -473,12 +473,12 @@
   border-left-color: var(--pf-color-text-muted);
 }
 
-// padding-right reserves space for the abs-positioned Open/Delete buttons.
+// padding-right reserves space for the abs-positioned buttons.
 .pf-bt-history-item-meta {
   position: relative;
   background: var(--pf-color-background-tertiary);
   padding: 6px 8px;
-  padding-right: 56px;
+  padding-right: 76px;
   // Top + right only; the border-left status rule owns the left edge
   // (shorthand would shrink it to 1px).
   border-top: 1px solid var(--pf-color-border-secondary);
