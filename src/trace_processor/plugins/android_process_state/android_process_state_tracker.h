@@ -21,6 +21,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <string_view>
 
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/plugins/android_process_state/tables_py.h"
@@ -37,6 +38,12 @@ StringId InternEnum(TraceProcessorContext* context,
                     DescriptorPool::CachedDescriptor& cache,
                     const char* enum_name,
                     int32_t value);
+
+std::optional<ArgSetId> InternFlagsArgs(TraceProcessorContext* context,
+                                        DescriptorPool::CachedDescriptor& cache,
+                                        const char* enum_name,
+                                        std::string_view key_prefix,
+                                        int64_t mask);
 
 // Tracks process states and freezer states from incremental track events and
 // trace-stop dump snapshots, and synthesizes per-process initial-state rows
@@ -102,6 +109,9 @@ class AndroidProcessStateTracker {
   // the AndroidFreezerState table.
   void EmitInitialFreezerRow(const FreezerStateValues& v);
 
+  // Interns capability_flags args and returns the ArgSetId (or nullopt if 0).
+  std::optional<ArgSetId> InternCapabilityFlagsArgs(int32_t mask);
+
   TraceProcessorContext* const context_;
   tables::AndroidProcessStateTable* const process_state_table_;
   tables::AndroidFreezerStateTable* const freezer_state_table_;
@@ -110,6 +120,7 @@ class AndroidProcessStateTracker {
   DescriptorPool::CachedDescriptor process_group_cache_;
   DescriptorPool::CachedDescriptor reason_cache_;
   DescriptorPool::CachedDescriptor unfreeze_reason_cache_;
+  DescriptorPool::CachedDescriptor capability_flags_cache_;
 
   // Map of upid -> earliest observed delta transition during the trace.
   std::map<UniquePid, EarliestDelta> earliest_prev_;

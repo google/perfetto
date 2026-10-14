@@ -282,6 +282,10 @@ class DescriptorPool {
   int64_t FlagSetToViews(uint32_t enum_descriptor_idx,
                          int64_t mask,
                          std::vector<std::string_view>* out) const;
+  int64_t FlagSetToViews(CachedDescriptor& cache,
+                         std::string_view enum_name,
+                         int64_t mask,
+                         std::vector<std::string_view>* out) const;
 
  private:
   base::Status AddNestedProtoDescriptors(
