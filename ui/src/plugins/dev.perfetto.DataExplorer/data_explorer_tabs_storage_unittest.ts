@@ -75,7 +75,7 @@ describe('parseDataExplorerPersistedState', () => {
   describe('invalid state falls back to empty state', () => {
     test('rejects non-string tab title', () => {
       const result = parseDataExplorerPersistedState({
-        version: 1,
+        version: 2,
         tabs: [
           {
             id: 'tab-1',
