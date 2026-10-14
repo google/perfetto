@@ -76,6 +76,54 @@ uint32_t EstimateDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
 
 }  // namespace
 
+uint32_t Column::GetOrComputeEstimatedDistinct() const {
+  uint32_t val = estimated_distinct.value.load(std::memory_order_relaxed);
+  if (PERFETTO_LIKELY(val != kEstimatedDistinctUncomputed)) {
+    return val;
+  }
+  base::FlatHashMap<int64_t, uint32_t> counts;
+  val = EstimateDistinct(counts, *this);
+  estimated_distinct.value.store(val, std::memory_order_relaxed);
+  return val;
+}
+
+void Dataframe::EnsureColumnsMaterializedSlow(uint64_t cols_mask) const {
+  auto loader = lazy_loader_;
+  if (!loader) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(loader->mutex);
+  uint64_t current = loader->materialized_mask.load(std::memory_order_relaxed);
+  uint64_t missing = cols_mask & ~current;
+  if (missing == 0) {
+    return;
+  }
+  if (loader->fn) {
+    loader->fn(const_cast<Dataframe*>(this), missing);
+  }
+  uint64_t updated =
+      loader->materialized_mask.load(std::memory_order_relaxed) | missing;
+  loader->materialized_mask.store(updated, std::memory_order_release);
+  if (updated == ~0ULL) {
+    loader->fn = nullptr;
+  }
+}
+
+void Dataframe::EnsureIndexBuiltSlow(uint32_t idx) const {
+  PERFETTO_DCHECK(idx < indexes_.size());
+  const auto& lazy = indexes_[idx].lazy_state();
+  if (!lazy) {
+    return;
+  }
+  std::call_once(lazy->once, [this, idx, &lazy]() {
+    const auto& cols = indexes_[idx].columns();
+    auto built = BuildIndex(cols.data(), cols.data() + cols.size());
+    PERFETTO_CHECK(built.ok());
+    lazy->permutation_vector = built->permutation_vector();
+    lazy->built.store(true, std::memory_order_release);
+  });
+}
+
 Dataframe::Dataframe(StringPool* string_pool,
                      uint32_t column_count,
                      const char* const* column_names,
@@ -111,9 +159,17 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
+  uint32_t rows = row_count();
+  uint64_t plan_cols = 0;
+  for (const auto& fs : filter_specs) {
+    if (fs.op.Is<Eq>() || fs.op.Is<In>()) {
+      plan_cols |= ColBit(fs.col);
+    }
+  }
+  EnsureColumnsMaterialized(plan_cols);
   ASSIGN_OR_RETURN(
       LogicalPlan logical,
-      LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
+      LogicalPlanner::Plan(rows, columns_, indexes_, filter_specs,
                            distinct_specs, sort_specs, limit_spec, cols_used));
   return QueryPlan(BytecodeLowering::Lower(logical, columns_, indexes_));
 }
@@ -124,7 +180,15 @@ base::StatusOr<LogicalPlan> Dataframe::PlanQueryLogicalForTesting(
     const std::vector<SortSpec>& sort_specs,
     const LimitSpec& limit_spec,
     uint64_t cols_used) const {
-  return LogicalPlanner::Plan(row_count_, columns_, indexes_, filter_specs,
+  uint32_t rows = row_count();
+  uint64_t plan_cols = 0;
+  for (const auto& fs : filter_specs) {
+    if (fs.op.Is<Eq>() || fs.op.Is<In>()) {
+      plan_cols |= ColBit(fs.col);
+    }
+  }
+  EnsureColumnsMaterialized(plan_cols);
+  return LogicalPlanner::Plan(rows, columns_, indexes_, filter_specs,
                               distinct_specs, sort_specs, limit_spec,
                               cols_used);
 }
@@ -178,6 +242,11 @@ void Dataframe::Clear() {
 
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                                             const uint32_t* columns_end) const {
+  uint64_t cols_mask = 0;
+  for (const uint32_t* p = columns_start; p != columns_end; ++p) {
+    cols_mask |= ColBit(*p);
+  }
+  EnsureColumnsMaterialized(cols_mask);
   std::vector<uint32_t> cols(columns_start, columns_end);
   std::vector<SortSpec> sorts;
   sorts.reserve(cols.size());
@@ -230,9 +299,6 @@ void Dataframe::FinalizeColumns(bool estimate_distinct) {
     return;
   }
   finalized_ = true;
-  // Reused across columns; Clear() keeps its capacity so it allocates at most
-  // once for the whole dataframe.
-  base::FlatHashMap<int64_t, uint32_t> distinct_counts;
   for (const auto& c : columns_) {
     switch (c->storage.type().index()) {
       case StorageType::GetTypeIndex<Uint32>():
@@ -281,8 +347,8 @@ void Dataframe::FinalizeColumns(bool estimate_distinct) {
       default:
         PERFETTO_FATAL("Invalid nullability type");
     }
-    if (estimate_distinct) {
-      c->estimated_distinct = EstimateDistinct(distinct_counts, *c);
+    if (estimate_distinct && c->duplicate_state.Is<HasDuplicates>()) {
+      c->estimated_distinct = Column::kEstimatedDistinctUncomputed;
     }
   }
   // Bump the mutation counter so that any cursors with cached pointers
@@ -292,6 +358,7 @@ void Dataframe::FinalizeColumns(bool estimate_distinct) {
 }
 
 dataframe::Dataframe Dataframe::CopyFinalized() const {
+  EnsureMaterialized();
   PERFETTO_CHECK(finalized_);
   return *this;
 }

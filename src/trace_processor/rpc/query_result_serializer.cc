@@ -126,6 +126,7 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
 
   uint32_t cell_idx = 0;
   bool batch_full = false;
+  sqlite3_stmt* stmt = iter_->sqlite_stmt();
 
   for (;; ++cell_idx, ++col_) {
     // This branch is hit before starting each row. Note that iter_->Next() must
@@ -138,6 +139,7 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
       // iterator via Next() otherwise the statement will have no effect.
       if (!iter_->Next())
         break;  // EOF or error.
+      stmt = iter_->sqlite_stmt();
 
       PERFETTO_DCHECK(num_cols_ > 0);
       // We need to guarantee that a batch contains whole rows. Before moving to
@@ -150,44 +152,47 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
       }
     }
 
-    auto value = iter_->Get(col_);
+    auto column = static_cast<int>(col_);
     uint8_t cell_type = BatchProto::CELL_INVALID;
-    switch (value.type) {
-      case SqlValue::Type::kNull: {
+    switch (sqlite3_column_type(stmt, column)) {
+      case SQLITE_NULL: {
         cell_type = BatchProto::CELL_NULL;
         break;
       }
-      case SqlValue::Type::kLong: {
+      case SQLITE_INTEGER: {
         cell_type = BatchProto::CELL_VARINT;
-        varints.Append(value.long_value);
+        varints.Append(sqlite3_column_int64(stmt, column));
         approx_batch_size += 4;  // Just a guess, doesn't need to be accurate.
         break;
       }
-      case SqlValue::Type::kDouble: {
+      case SQLITE_FLOAT: {
         cell_type = BatchProto::CELL_FLOAT64;
         approx_batch_size += sizeof(double);
-        doubles.Append(value.double_value);
+        doubles.Append(sqlite3_column_double(stmt, column));
         break;
       }
-      case SqlValue::Type::kString: {
+      case SQLITE_TEXT: {
         // Append the string to the one |string_cells| proto field, just use
         // \0 to separate each string. We are deliberately NOT emitting one
         // proto repeated field for each string. Doing so significantly slows
         // down parsing on the JS side (go/postmessage-benchmark).
         cell_type = BatchProto::CELL_STRING;
+        const char* str_begin =
+            reinterpret_cast<const char*>(sqlite3_column_text(stmt, column));
         uint32_t len_with_nul =
-            static_cast<uint32_t>(strlen(value.string_value)) + 1;
-        const char* str_begin = value.string_value;
+            static_cast<uint32_t>(sqlite3_column_bytes(stmt, column)) + 1;
         strings->AppendRawProtoBytes(str_begin, len_with_nul);
         approx_batch_size += len_with_nul + 4;  // 4 is a guess on the preamble.
         break;
       }
-      case SqlValue::Type::kBytes: {
+      case SQLITE_BLOB: {
         // Each blob is stored as its own repeated proto field, unlike strings.
         // Blobs don't incur in text-decoding overhead (and are also rare).
         cell_type = BatchProto::CELL_BLOB;
-        auto* src = static_cast<const uint8_t*>(value.bytes_value);
-        uint32_t len = static_cast<uint32_t>(value.bytes_count);
+        const auto* src =
+            static_cast<const uint8_t*>(sqlite3_column_blob(stmt, column));
+        uint32_t len =
+            static_cast<uint32_t>(sqlite3_column_bytes(stmt, column));
         uint8_t preamble[16];
         uint8_t* preamble_end = &preamble[0];
         *(preamble_end++) = MakeLenDelimTag(BatchProto::kBlobCellsFieldNumber);

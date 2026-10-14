@@ -286,9 +286,9 @@ CREATE PERFETTO TABLE actual_frame_timeline_slice(
   -- Display frame token (vsync id).
   display_frame_token LONG,
   -- Surface frame token (vsync id), null if this is a display frame.
-  upid JOINID(process.id),
-  -- Unique process id of the app that generates the surface frame.
   surface_frame_token LONG,
+  -- Unique process id of the app that generates the surface frame.
+  upid JOINID(process.id),
   -- Layer name if this is a surface frame.
   layer_name STRING,
   -- Frame's present type (eg. on time / early / late).

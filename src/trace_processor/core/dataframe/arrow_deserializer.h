@@ -34,9 +34,20 @@ namespace core::dataframe {
 //
 // This deliberately validates only the supported layout; use a full Arrow
 // implementation when diagnostics for arbitrary Arrow files are required.
-base::StatusOr<Dataframe> DeserializeFromArrow(const util::TraceBlobViewReader&,
-                                               StringPool*,
-                                               const DataframeSpec&);
+base::StatusOr<Dataframe> DeserializeFromArrow(
+    const util::TraceBlobViewReader&,
+    StringPool*,
+    const DataframeSpec&,
+    const std::vector<bool>& present_columns = {});
+
+// Validates the outer Arrow file framing, dictionary headers, and record batch
+// metadata up front (setting row_count), and defers decoding the dictionaries
+// and column buffers until the returned Dataframe is first accessed.
+base::StatusOr<Dataframe> DeserializeFromArrowLazy(
+    util::TraceBlobViewReader,
+    StringPool*,
+    const DataframeSpec&,
+    std::vector<bool> present_columns = {});
 
 }  // namespace core::dataframe
 }  // namespace perfetto::trace_processor

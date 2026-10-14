@@ -17,9 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_H_
 #define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_H_
 
+#include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -174,6 +178,11 @@ class Dataframe {
       uint64_t cols_used_bitmap) const;
 
   // Prepares a cursor for executing the query plan. The template parameter
+  static constexpr uint64_t ColBit(uint32_t col) {
+    return 1ULL << std::min(col, 63u);
+  }
+
+  // Prepares a cursor for executing the query plan. The template parameter
   // `FilterValueFetcherImpl` is a subclass of `ValueFetcher` that defines the
   // logic for fetching filter values for each filter specs specified when
   // calling `PlanQuery`.
@@ -185,8 +194,85 @@ class Dataframe {
   template <typename FilterValueFetcherImpl>
   void PrepareCursor(const QueryPlan& plan,
                      Cursor<FilterValueFetcherImpl>& c) const {
+    uint64_t exec_cols = plan.plan_.params.cols_used_bitmap;
+    for (const auto& init : plan.plan_.register_inits) {
+      if (init.kind.Is<RegisterInit::IndexVector>()) {
+        for (uint32_t col : indexes_[init.source_index].columns()) {
+          exec_cols |= ColBit(col);
+        }
+      } else {
+        exec_cols |= ColBit(init.source_index);
+      }
+    }
+    EnsureColumnsMaterialized(exec_cols);
+    for (const auto& init : plan.plan_.register_inits) {
+      if (init.kind.Is<RegisterInit::IndexVector>()) {
+        EnsureIndexBuilt(init.source_index);
+      }
+    }
     c.Initialize(plan.plan_, static_cast<uint32_t>(column_ptrs_.size()),
                  column_ptrs_.data(), indexes_.data(), string_pool_);
+  }
+
+  // Ensures any lazily-loaded column storage in `cols_mask` is materialized.
+  PERFETTO_ALWAYS_INLINE void EnsureColumnsMaterialized(
+      uint64_t cols_mask) const {
+    if (PERFETTO_UNLIKELY(lazy_loader_ && (lazy_loader_->materialized_mask.load(
+                                               std::memory_order_acquire) &
+                                           cols_mask) != cols_mask)) {
+      EnsureColumnsMaterializedSlow(cols_mask);
+    }
+  }
+
+  PERFETTO_ALWAYS_INLINE void EnsureColumnMaterialized(uint32_t col) const {
+    EnsureColumnsMaterialized(ColBit(col));
+  }
+
+  // Ensures any lazily-loaded column storage is materialized.
+  PERFETTO_ALWAYS_INLINE void EnsureMaterialized() const {
+    EnsureColumnsMaterialized(~0ULL);
+  }
+
+  // Ensures the index at `idx` has built its permutation vector.
+  PERFETTO_ALWAYS_INLINE void EnsureIndexBuilt(uint32_t idx) const {
+    const auto& lazy = indexes_[idx].lazy_state();
+    if (PERFETTO_UNLIKELY(lazy &&
+                          !lazy->built.load(std::memory_order_acquire))) {
+      EnsureIndexBuiltSlow(idx);
+    }
+  }
+
+  // Attaches a per-column lazy materialization callback to this dataframe.
+  void SetLazyLoader(std::function<void(Dataframe*, uint64_t)> fn,
+                     uint64_t initial_mask = 0,
+                     bool row_count_known = true) {
+    lazy_loader_ = std::make_shared<LazyLoader>(std::move(fn), initial_mask,
+                                                row_count_known);
+  }
+
+  // Attaches a full-table lazy materialization callback to this dataframe.
+  void SetLazyLoader(std::function<void(Dataframe*)> fn,
+                     bool row_count_known = true) {
+    SetLazyLoader(
+        [f = std::move(fn)](Dataframe* df, uint64_t) {
+          f(df);
+          df->lazy_loader_->materialized_mask.store(~0ULL,
+                                                    std::memory_order_release);
+        },
+        0, row_count_known);
+  }
+
+  // Replaces this dataframe's columns and row count with `other`'s while
+  // preserving any indexes and Column pointer addresses attached to this
+  // dataframe.
+  void ReplaceColumnsFromMaterialized(Dataframe&& other) {
+    PERFETTO_DCHECK(columns_.size() == other.columns_.size());
+    for (size_t i = 0; i < columns_.size(); ++i) {
+      *columns_[i] = std::move(*other.columns_[i]);
+    }
+    row_count_ = other.row_count_;
+    finalized_ = other.finalized_;
+    ++non_column_mutations_;
   }
 
   // Given a typed spec, a column index and a row index, returns the value
@@ -200,6 +286,7 @@ class Dataframe {
   // constructed using the public Dataframe constructor and not in other ways.
   template <size_t column, typename D>
   PERFETTO_ALWAYS_INLINE auto GetCellUnchecked(const D&, uint32_t row) const {
+    EnsureColumnMaterialized(static_cast<uint32_t>(column));
     return GetCellUncheckedInternal<column, D>(row);
   }
 
@@ -288,12 +375,16 @@ class Dataframe {
 
   // Returns `column`'s values and which rows hold one, for reading them
   // without going through a cursor.
-  const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
+  const Column& column(uint32_t column) const {
+    EnsureColumnMaterialized(column);
+    return *column_ptrs_[column];
+  }
 
   // Returns `column` with shared ownership, for readers that must outlive
   // the dataframe. Only valid on a finalized dataframe as columns are
   // immutable after that.
   std::shared_ptr<const Column> shared_column(uint32_t column) const {
+    EnsureColumnMaterialized(column);
     PERFETTO_DCHECK(finalized_);
     return columns_[column];
   }
@@ -303,7 +394,21 @@ class Dataframe {
   }
 
   // Returns the number of rows in the dataframe.
-  uint32_t row_count() const { return row_count_; }
+  uint32_t row_count() const {
+    if (PERFETTO_UNLIKELY(lazy_loader_ && !lazy_loader_->row_count_known &&
+                          lazy_loader_->materialized_mask.load(
+                              std::memory_order_acquire) != ~0ULL)) {
+      EnsureColumnsMaterializedSlow(~0ULL);
+    }
+    return row_count_;
+  }
+
+  // Returns whether this dataframe has not yet been fully materialized from its
+  // lazy loader.
+  bool is_lazy_unmaterialized() const {
+    return lazy_loader_ && lazy_loader_->materialized_mask.load(
+                               std::memory_order_acquire) != ~0ULL;
+  }
 
   // Returns the number of columns in the dataframe.
   uint32_t column_count() const {
@@ -334,6 +439,7 @@ class Dataframe {
   void GetCell(uint32_t row, uint32_t col, CellCallbackImpl& callback) const {
     static_assert(std::is_base_of_v<CellCallback, CellCallbackImpl>,
                   "CellCallbackImpl must be a subclass of CellCallback");
+    EnsureColumnMaterialized(col);
     PERFETTO_DCHECK(row < row_count_);
     PERFETTO_DCHECK(col < column_ptrs_.size());
 
@@ -444,7 +550,29 @@ class Dataframe {
   friend base::StatusOr<Dataframe> DeserializeFromArrow(
       const util::TraceBlobViewReader&,
       StringPool*,
-      const DataframeSpec&);
+      const DataframeSpec&,
+      const std::vector<bool>&);
+  friend base::StatusOr<Dataframe> DeserializeFromArrowLazy(
+      util::TraceBlobViewReader,
+      StringPool*,
+      const DataframeSpec&,
+      std::vector<bool>);
+
+  struct LazyLoader {
+    std::atomic<uint64_t> materialized_mask{0};
+    std::mutex mutex;
+    std::function<void(Dataframe*, uint64_t)> fn;
+    bool row_count_known = true;
+    LazyLoader(std::function<void(Dataframe*, uint64_t)> f,
+               uint64_t init_mask,
+               bool known)
+        : materialized_mask(init_mask),
+          fn(std::move(f)),
+          row_count_known(known) {}
+  };
+
+  void EnsureColumnsMaterializedSlow(uint64_t cols_mask) const;
+  void EnsureIndexBuiltSlow(uint32_t idx) const;
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
@@ -761,6 +889,9 @@ class Dataframe {
 
   // Whether the dataframe is "finalized". See `Finalize()`.
   bool finalized_ = false;
+
+  // Optional lazy loader for deferred table deserialization / materialization.
+  std::shared_ptr<LazyLoader> lazy_loader_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

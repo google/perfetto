@@ -239,21 +239,25 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     const auto& s = *trace_context_->storage;
     int64_t start_ns = std::numeric_limits<int64_t>::max();
     int64_t end_ns = 0;
-    for (auto it = s.ftrace_event_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts(), end_ns);
+    if (const auto& ft = s.ftrace_event_table(); ft.row_count() > 0) {
+      start_ns = std::min(ft[0].ts(), start_ns);
+      end_ns = std::max(ft[ft.row_count() - 1].ts(), end_ns);
     }
-    for (auto it = s.sched_slice_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+    if (const auto& ss = s.sched_slice_table(); ss.row_count() > 0) {
+      start_ns = std::min(ss[0].ts(), start_ns);
+      for (auto it = ss.IterateRows(); it; ++it) {
+        end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+      }
     }
-    for (auto it = s.counter_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts(), end_ns);
+    if (const auto& ct = s.counter_table(); ct.row_count() > 0) {
+      start_ns = std::min(ct[0].ts(), start_ns);
+      end_ns = std::max(ct[ct.row_count() - 1].ts(), end_ns);
     }
-    for (auto it = s.slice_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+    if (const auto& sl = s.slice_table(); sl.row_count() > 0) {
+      start_ns = std::min(sl[0].ts(), start_ns);
+      for (auto it = sl.IterateRows(); it; ++it) {
+        end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+      }
     }
     for (auto it = s.heap_profile_allocation_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
@@ -263,9 +267,11 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }
-    for (auto it = s.thread_state_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+    if (const auto& ts = s.thread_state_table(); ts.row_count() > 0) {
+      start_ns = std::min(ts[0].ts(), start_ns);
+      for (auto it = ts.IterateRows(); it; ++it) {
+        end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+      }
     }
     for (auto it = s.log_table().IterateRows(); it; ++it) {
       start_ns = std::min(it.ts(), start_ns);
@@ -279,9 +285,11 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
       start_ns = std::min(it.ts(), start_ns);
       end_ns = std::max(it.ts(), end_ns);
     }
-    for (auto it = s.state_table().IterateRows(); it; ++it) {
-      start_ns = std::min(it.ts(), start_ns);
-      end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+    if (const auto& st = s.state_table(); st.row_count() > 0) {
+      start_ns = std::min(st[0].ts(), start_ns);
+      for (auto it = st.IterateRows(); it; ++it) {
+        end_ns = std::max(it.ts() + std::max<int64_t>(it.dur(), 0), end_ns);
+      }
     }
     // profiler_sample.ts is sorted: the first row holds the min, the last the
     // max.

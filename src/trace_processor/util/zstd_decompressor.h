@@ -36,6 +36,8 @@ class ZstdDecompressor : public Decompressor {
   Result ExtractOutput(uint8_t* out, size_t out_capacity) final;
   void Reset() final;
   size_t AvailIn() const final;
+  std::optional<size_t> GetFrameContentSize(const uint8_t* data,
+                                            size_t size) const final;
 
  private:
   struct Deleter {

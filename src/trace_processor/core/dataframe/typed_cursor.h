@@ -175,6 +175,7 @@ class TypedCursor {
   // column.
   template <size_t C, typename D>
   PERFETTO_ALWAYS_INLINE auto GetCellUnchecked(const D&) const {
+    dataframe_->EnsureColumnMaterialized(static_cast<uint32_t>(C));
     return dataframe_->GetCellUncheckedInternal<C, D>(cursor_.RowIndex());
   }
 

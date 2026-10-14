@@ -480,8 +480,23 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
                            trace_file.c_str(), load_status.c_message());
   }
 
+  profiling::SymbolizerConfig sym_config;
+  sym_config.debuginfod = debuginfod;
+  const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
+  std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
+  if (mode && std::string_view(mode) == "find") {
+    sym_config.find_symbol_paths = std::move(paths);
+  } else {
+    sym_config.index_symbol_paths = std::move(paths);
+  }
+  auto maybe_map = profiling::GetPerfettoProguardMapPath();
+  const bool need_symbolization = !sym_config.index_symbol_paths.empty() ||
+                                  !sym_config.find_symbol_paths.empty() ||
+                                  !debuginfod.urls.empty();
+  const bool need_deobfuscation = !maybe_map.empty();
+
   bool is_proto_trace = false;
-  {
+  if (need_symbolization || need_deobfuscation) {
     auto it = tp->ExecuteQuery(
         "SELECT str_value FROM metadata WHERE name = 'trace_type'");
     while (it.Next()) {
@@ -493,17 +508,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     }
   }
 
-  profiling::SymbolizerConfig sym_config;
-  sym_config.debuginfod = debuginfod;
-  const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
-  std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
-  if (mode && std::string_view(mode) == "find") {
-    sym_config.find_symbol_paths = std::move(paths);
-  } else {
-    sym_config.index_symbol_paths = std::move(paths);
-  }
-  if (!sym_config.index_symbol_paths.empty() ||
-      !sym_config.find_symbol_paths.empty() || !debuginfod.urls.empty()) {
+  if (need_symbolization) {
     if (is_proto_trace) {
       tp->Flush();
       auto sym_result = profiling::SymbolizeDatabaseAndLog(
@@ -523,8 +528,7 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     }
   }
 
-  auto maybe_map = profiling::GetPerfettoProguardMapPath();
-  if (!maybe_map.empty()) {
+  if (need_deobfuscation) {
     if (is_proto_trace) {
       tp->Flush();
       auto deob_status = profiling::ReadProguardMapsToDeobfuscationPackets(

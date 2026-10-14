@@ -122,6 +122,13 @@ class Decompressor {
 
   // The amount of input bytes left unprocessed.
   virtual size_t AvailIn() const = 0;
+
+  // Returns the uncompressed frame content size if known from the frame header
+  // at [data, data + size), or std::nullopt if unknown or unsupported.
+  virtual std::optional<size_t> GetFrameContentSize(const uint8_t* /*data*/,
+                                                    size_t /*size*/) const {
+    return std::nullopt;
+  }
 };
 
 // Creates a decompressor for `type`, or nullptr if `type` is kNone or the build

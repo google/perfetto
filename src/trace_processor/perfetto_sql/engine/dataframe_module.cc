@@ -469,6 +469,7 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
         });
     auto* v = GetVtab(cur->pVtab);
     auto* s = sqlite::ModuleStateManager<DataframeModule>::GetState(v->state);
+    s->dataframe->EnsureColumnMaterialized(v->id_col_idx);
     s->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
     c->id_col_idx = v->id_col_idx;

@@ -644,6 +644,7 @@ void BytecodeLowering::LowerOutput(const logical::Output& out) {
 
   base::SmallVector<ColAndOffset, 24> null_cols;
   plan_.params.output_per_row = 1;
+  plan_.params.cols_used_bitmap = out.cols_used;
   for (uint32_t i = 0; i < columns_.size(); ++i) {
     plan_.col_to_output_offset.emplace_back();
   }

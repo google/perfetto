@@ -1,9 +1,12 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_TYPES_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <mutex>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -25,6 +28,16 @@ namespace perfetto::trace_processor::core::dataframe {
 // Represents an index to speed up operations on the dataframe.
 struct Index {
  public:
+  struct LazyState {
+    std::atomic<bool> built{false};
+    std::once_flag once;
+    std::shared_ptr<std::vector<uint32_t>> permutation_vector;
+  };
+
+  explicit Index(std::vector<uint32_t> _columns)
+      : columns_(std::move(_columns)),
+        lazy_state_(std::make_shared<LazyState>()) {}
+
   Index(std::vector<uint32_t> _columns,
         std::shared_ptr<std::vector<uint32_t>> _permutation_vector)
       : columns_(std::move(_columns)),
@@ -39,12 +52,15 @@ struct Index {
   // Returns the permutation vector which would to order the `columns` in the
   // dataframe.
   const std::shared_ptr<std::vector<uint32_t>>& permutation_vector() const {
-    return permutation_vector_;
+    return lazy_state_ ? lazy_state_->permutation_vector : permutation_vector_;
   }
+
+  const std::shared_ptr<LazyState>& lazy_state() const { return lazy_state_; }
 
  private:
   std::vector<uint32_t> columns_;
   std::shared_ptr<std::vector<uint32_t>> permutation_vector_;
+  std::shared_ptr<LazyState> lazy_state_;
 };
 
 // Tag type for Id column data pointers. Id columns don't have backing storage
@@ -328,6 +344,27 @@ struct SpecializedStorage {
 
 // Represents a complete column in the dataframe.
 struct Column {
+  static constexpr uint32_t kEstimatedDistinctUncomputed =
+      std::numeric_limits<uint32_t>::max();
+
+  struct AtomicEstimatedDistinct {
+    std::atomic<uint32_t> value{0};
+    AtomicEstimatedDistinct() = default;
+    AtomicEstimatedDistinct(uint32_t v) : value(v) {}
+    AtomicEstimatedDistinct(const AtomicEstimatedDistinct& o)
+        : value(o.value.load(std::memory_order_relaxed)) {}
+    AtomicEstimatedDistinct& operator=(const AtomicEstimatedDistinct& o) {
+      value.store(o.value.load(std::memory_order_relaxed),
+                  std::memory_order_relaxed);
+      return *this;
+    }
+    operator uint32_t() const { return value.load(std::memory_order_relaxed); }
+    AtomicEstimatedDistinct& operator=(uint32_t v) {
+      value.store(v, std::memory_order_relaxed);
+      return *this;
+    }
+  };
+
   Storage storage;
   NullStorage null_storage;
   SortState sort_state;
@@ -335,11 +372,13 @@ struct Column {
   SpecializedStorage specialized_storage = SpecializedStorage{};
   uint32_t mutations = 0;
 
-  // Estimated number of distinct values in the column, computed at
-  // finalization. Drives equality-filter selectivity in the cost model
-  // (result rows ~= row_count / estimated_distinct). 0 means unknown, in
+  // Estimated number of distinct values in the column, computed lazily on
+  // demand after finalization. Drives equality-filter selectivity in the cost
+  // model (result rows ~= row_count / estimated_distinct). 0 means unknown, in
   // which case the planner falls back to a data-blind heuristic.
-  uint32_t estimated_distinct = 0;
+  mutable AtomicEstimatedDistinct estimated_distinct{0};
+
+  uint32_t GetOrComputeEstimatedDistinct() const;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

@@ -489,6 +489,42 @@ TEST(ArrowDeserializerTest, RoundTripMultiColumn) {
   EXPECT_FALSE((dst.GetCellUnchecked<3>(kMultiColumn, 1)).has_value());
 }
 
+TEST(ArrowDeserializerTest, LazyPerColumnMaterialization) {
+  StringPool pool;
+  auto a = pool.InternString(base::StringView("a"));
+  auto bb = pool.InternString(base::StringView("bb"));
+  auto src = Dataframe::CreateFromTypedSpec(kMultiColumn, &pool);
+  src.InsertUnchecked(kMultiColumn, std::monostate{}, int64_t{100}, a,
+                      std::optional<double>{0.5});
+  src.InsertUnchecked(kMultiColumn, std::monostate{}, int64_t{200}, bb,
+                      std::optional<double>{});
+  std::vector<uint8_t> bytes = Serialize(src, pool);
+
+  StringPool dst_pool;
+  util::TraceBlobViewReader reader;
+  reader.PushBack(
+      TraceBlobView(TraceBlob::CopyFrom(bytes.data(), bytes.size())));
+  auto dst_or =
+      DeserializeFromArrowLazy(std::move(reader), &dst_pool, src.CreateSpec());
+  ASSERT_OK(dst_or);
+  Dataframe dst = std::move(*dst_or);
+
+  EXPECT_EQ(dst.row_count(), 2u);
+  EXPECT_TRUE(dst.is_lazy_unmaterialized());
+
+  // Reading column 0 (Id) and column 1 (Int64) leaves columns 2 and 3 lazy.
+  EXPECT_EQ((dst.GetCellUnchecked<0>(kMultiColumn, 1)), 1u);
+  EXPECT_EQ((dst.GetCellUnchecked<1>(kMultiColumn, 1)), 200);
+  EXPECT_TRUE(dst.is_lazy_unmaterialized());
+
+  // Reading the remaining columns materializes the rest of the dataframe.
+  EXPECT_EQ(
+      dst_pool.Get(dst.GetCellUnchecked<2>(kMultiColumn, 1)).ToStdString(),
+      "bb");
+  EXPECT_FALSE((dst.GetCellUnchecked<3>(kMultiColumn, 1)).has_value());
+  EXPECT_FALSE(dst.is_lazy_unmaterialized());
+}
+
 TEST(ArrowDeserializerTest, RoundTripEmptyDataframe) {
   StringPool pool;
   auto src = Dataframe::CreateFromTypedSpec(kMultiColumn, &pool);

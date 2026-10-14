@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+#define ZSTD_STATIC_LINKING_ONLY
 #include <zstd.h>
 #else
 struct ZSTD_DCtx_s {};
@@ -36,6 +37,7 @@ namespace perfetto::trace_processor::util {
 ZstdDecompressor::ZstdDecompressor() : dstream_(ZSTD_createDStream()) {
   PERFETTO_CHECK(dstream_);
   PERFETTO_CHECK(!ZSTD_isError(ZSTD_initDStream(dstream_.get())));
+  ZSTD_DCtx_setParameter(dstream_.get(), ZSTD_d_forceIgnoreChecksum, 1);
 }
 
 void ZstdDecompressor::Reset() {
@@ -91,6 +93,15 @@ size_t ZstdDecompressor::AvailIn() const {
   return in_size_ - in_pos_;
 }
 
+std::optional<size_t> ZstdDecompressor::GetFrameContentSize(const uint8_t* data,
+                                                            size_t size) const {
+  unsigned long long fcs = ZSTD_getFrameContentSize(data, size);
+  if (fcs == ZSTD_CONTENTSIZE_UNKNOWN || fcs == ZSTD_CONTENTSIZE_ERROR) {
+    return std::nullopt;
+  }
+  return static_cast<size_t>(fcs);
+}
+
 void ZstdDecompressor::Deleter::operator()(ZSTD_DCtx_s* stream) const {
   ZSTD_freeDStream(stream);
 }
@@ -105,6 +116,10 @@ ZstdDecompressor::Result ZstdDecompressor::ExtractOutput(uint8_t*, size_t) {
 }
 size_t ZstdDecompressor::AvailIn() const {
   return 0;
+}
+std::optional<size_t> ZstdDecompressor::GetFrameContentSize(const uint8_t*,
+                                                            size_t) const {
+  return std::nullopt;
 }
 void ZstdDecompressor::Deleter::operator()(ZSTD_DCtx_s*) const {}
 

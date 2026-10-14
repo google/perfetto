@@ -97,20 +97,33 @@ base::Status DecompressingTraceReader::ParseUnowned(const uint8_t* data,
   }
 
   // Our default uncompressed buffer size is 32MB as it allows for good
-  // throughput.
+  // throughput. When the codec header declares a larger frame content size
+  // (up to 1GB), allocate a single buffer for the whole frame so downstream
+  // readers (such as TarTraceReader) receive contiguous ZeroCopy slices
+  // without multi-slice reassembly copies.
   constexpr size_t kUncompressedBufferSize = 32ul * 1024 * 1024;
+  constexpr size_t kMaxSingleFrameBufferSize = 1024ul * 1024 * 1024;
+  std::optional<size_t> frame_size;
+  if (!buffer_ && output_state_ == kStreamBoundary) {
+    frame_size = decompressor_->GetFrameContentSize(start, len);
+  }
   decompressor_->Feed(start, len);
 
   using ResultCode = util::Decompressor::ResultCode;
   for (;;) {
     if (!buffer_) {
-      buffer_.reset(new uint8_t[kUncompressedBufferSize]);
+      buffer_capacity_ = kUncompressedBufferSize;
+      if (frame_size && *frame_size > kUncompressedBufferSize &&
+          *frame_size <= kMaxSingleFrameBufferSize) {
+        buffer_capacity_ = *frame_size;
+      }
+      frame_size = std::nullopt;
+      buffer_.reset(new uint8_t[buffer_capacity_]);
       bytes_written_ = 0;
     }
 
-    auto result =
-        decompressor_->ExtractOutput(buffer_.get() + bytes_written_,
-                                     kUncompressedBufferSize - bytes_written_);
+    auto result = decompressor_->ExtractOutput(
+        buffer_.get() + bytes_written_, buffer_capacity_ - bytes_written_);
     if (result.ret == ResultCode::kError)
       return base::ErrStatus(
           "Failed to decompress trace chunk (ERR:tp-corrupt)");
@@ -122,8 +135,7 @@ base::Status DecompressingTraceReader::ParseUnowned(const uint8_t* data,
     bytes_written_ += result.bytes_written;
     output_state_ = kMidStream;
 
-    if (bytes_written_ == kUncompressedBufferSize ||
-        result.ret == ResultCode::kEof) {
+    if (bytes_written_ == buffer_capacity_ || result.ret == ResultCode::kEof) {
       TraceBlob blob =
           TraceBlob::TakeOwnership(std::move(buffer_), bytes_written_);
       RETURN_IF_ERROR(inner_->Parse(TraceBlobView(std::move(blob))));

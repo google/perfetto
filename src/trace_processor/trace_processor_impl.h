@@ -147,6 +147,8 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
+  std::pair<int64_t, int64_t> GetOrComputeTraceBounds();
+
  private:
   // Needed for iterators to be able to access the context.
   friend class SqliteIteratorImpl;
@@ -159,8 +161,6 @@ class TraceProcessorImpl : public TraceProcessor,
 
   bool IsRootMetricField(const std::string& metric_name);
 
-  void CacheBoundsAndBuildTable();
-
   struct InitPerfettoSqlConnectionArgs {
     TraceProcessorContext* context;
     TraceStorage* storage;
@@ -169,9 +169,8 @@ class TraceProcessorImpl : public TraceProcessor,
     std::vector<metrics::SqlMetricFile>& sql_metrics;
     const DescriptorPool* metrics_descriptor_pool;
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path;
-    TraceProcessor* trace_processor;
+    TraceProcessorImpl* trace_processor;
     bool notify_eof_called;
-    std::pair<int64_t, int64_t> cached_trace_bounds;
     std::vector<std::unique_ptr<PluginBase>>& plugins;
     const std::vector<PluginDataframe>& plugin_dataframes;
   };
@@ -223,8 +222,9 @@ class TraceProcessorImpl : public TraceProcessor,
   std::pair<int64_t, int64_t> cached_trace_bounds_ = {0, 0};
 
   // Tracks the sum of mutations across all tables used by
-  // CacheBoundsAndBuildTable to avoid recomputing bounds when unchanged.
+  // GetOrComputeTraceBounds to avoid recomputing bounds when unchanged.
   uint64_t bounds_tables_mutations_ = 0;
+  bool bounds_dirty_ = true;
 
   // Auto-incrementing counter for generating unique summarizer ids.
   uint32_t next_summarizer_id_ = 0;

@@ -41,6 +41,7 @@ std::string SerializePerfettoExportManifest(
 struct ResolvedPerfettoExportTable {
   const TraceManifestState::FileEntry* entry = nullptr;
   core::dataframe::Dataframe* dataframe = nullptr;
+  std::vector<bool> present_columns;
 };
 
 // Validates all table entries against the static dataframes registered in this

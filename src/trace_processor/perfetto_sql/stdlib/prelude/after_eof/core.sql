@@ -38,4 +38,4 @@ CREATE PERFETTO VIEW trace_bounds(
   end_ts TIMESTAMP
 )
 AS
-SELECT start_ts, end_ts FROM _trace_bounds;
+SELECT __intrinsic_trace_start() AS start_ts, __intrinsic_trace_end() AS end_ts;

@@ -369,6 +369,8 @@ class PerfettoSqlConnection {
   // Find dataframe registered with this connection with provided name.
   const dataframe::Dataframe* GetDataframeOrNull(std::string_view name) const;
 
+  void SetInAfterEofPrelude(bool v) { in_after_eof_prelude_ = v; }
+
   // Registers a function with the prototype |prototype| implemented by
   // executing the SQL statement |sql|.
   //
@@ -579,6 +581,9 @@ class PerfettoSqlConnection {
   // If true, this connection will perform additional consistency checks when
   // e.g. creating tables and views.
   const bool enable_extra_checks_;
+  // Set while importing `prelude.after_eof.*` so that static standard library
+  // tables and views can defer execution until first queried.
+  bool in_after_eof_prelude_ = false;
   // Set by `PERFETTO PRAGMA pipelines = 1`; the standard library does not
   // need it.
   bool pipelines_enabled_ = false;

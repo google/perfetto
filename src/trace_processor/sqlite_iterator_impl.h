@@ -141,6 +141,10 @@ class SqliteIteratorImpl final : public IteratorImpl {
 
   SqliteIteratorImpl* AsSqlite() override { return this; }
 
+  sqlite3_stmt* sqlite_stmt() const {
+    return result_.ok() ? result_->stmt.sqlite_stmt() : nullptr;
+  }
+
  private:
   // Dummy function to pass to ScopedResource.
   static int DummyClose(TraceProcessorImpl*) { return 0; }

@@ -103,61 +103,100 @@ bool IsNullableString(std::string_view s) {
   return s != "non_null";
 }
 
-base::Status ValidateTableSchema(
+base::Status ValidateColumnSpec(
+    const char* table_name,
+    const TraceManifestState::PerfettoExportTableColumn& col,
+    const ColumnSpec& cs) {
+  if (col.type != StorageTypeToString(cs.type)) {
+    return base::ErrStatus(
+        "perfetto_export: schema mismatch for table '%s', column '%s': "
+        "type is '%s' in the archive but '%s' in this version of trace "
+        "processor",
+        table_name, col.name.c_str(), col.type.c_str(),
+        StorageTypeToString(cs.type));
+  }
+  if (IsNullableString(col.nullability) !=
+      IsNullableString(NullabilityToString(cs.nullability))) {
+    return base::ErrStatus(
+        "perfetto_export: schema mismatch for table '%s', column '%s': "
+        "nullability is '%s' in the archive but '%s' in this version of "
+        "trace processor",
+        table_name, col.name.c_str(), col.nullability.c_str(),
+        NullabilityToString(cs.nullability));
+  }
+  if (col.sort != SortStateToString(cs.sort_state)) {
+    return base::ErrStatus(
+        "perfetto_export: schema mismatch for table '%s', column '%s': "
+        "sort state is '%s' in the archive but '%s' in this version of "
+        "trace processor",
+        table_name, col.name.c_str(), col.sort.c_str(),
+        SortStateToString(cs.sort_state));
+  }
+  if (col.duplicates != DuplicateStateToString(cs.duplicate_state)) {
+    return base::ErrStatus(
+        "perfetto_export: schema mismatch for table '%s', column '%s': "
+        "duplicate state is '%s' in the archive but '%s' in this version "
+        "of trace processor",
+        table_name, col.name.c_str(), col.duplicates.c_str(),
+        DuplicateStateToString(cs.duplicate_state));
+  }
+  return base::OkStatus();
+}
+
+base::StatusOr<std::vector<bool>> ValidateTableSchema(
     const TraceManifestState::PerfettoExportTable& table,
     const core::dataframe::Dataframe& df) {
   const char* name = table.name.c_str();
   DataframeSpec spec = df.CreateSpec();
-  if (table.columns.size() != spec.column_names.size()) {
+  if (table.columns.size() > spec.column_names.size()) {
     return base::ErrStatus(
         "perfetto_export: schema mismatch for table '%s': archive has %zu "
         "columns but this version of trace processor has %zu",
         name, table.columns.size(), spec.column_names.size());
   }
+  if (table.columns.size() == spec.column_names.size()) {
+    for (uint32_t i = 0; i < spec.column_names.size(); i++) {
+      const TraceManifestState::PerfettoExportTableColumn& col =
+          table.columns[i];
+      if (col.name != spec.column_names[i]) {
+        return base::ErrStatus(
+            "perfetto_export: schema mismatch for table '%s': column %u is "
+            "'%s' in the archive but '%s' in this version of trace processor",
+            name, i, col.name.c_str(), spec.column_names[i].c_str());
+      }
+      RETURN_IF_ERROR(ValidateColumnSpec(name, col, spec.column_specs[i]));
+    }
+    return std::vector<bool>();
+  }
+
+  // Additive schema evolution: allow loading an archive written before new
+  // unsorted data columns were added to the live table.
+  std::vector<bool> present(spec.column_names.size(), false);
+  size_t archive_idx = 0;
   for (uint32_t i = 0; i < spec.column_names.size(); i++) {
-    const TraceManifestState::PerfettoExportTableColumn& col = table.columns[i];
-    if (col.name != spec.column_names[i]) {
-      return base::ErrStatus(
-          "perfetto_export: schema mismatch for table '%s': column %u is '%s' "
-          "in the archive but '%s' in this version of trace processor",
-          name, i, col.name.c_str(), spec.column_names[i].c_str());
-    }
-    const ColumnSpec& cs = spec.column_specs[i];
-    if (col.type != StorageTypeToString(cs.type)) {
-      return base::ErrStatus(
-          "perfetto_export: schema mismatch for table '%s', column '%s': "
-          "type is '%s' in the archive but '%s' in this version of trace "
-          "processor",
-          name, col.name.c_str(), col.type.c_str(),
-          StorageTypeToString(cs.type));
-    }
-    if (IsNullableString(col.nullability) !=
-        IsNullableString(NullabilityToString(cs.nullability))) {
-      return base::ErrStatus(
-          "perfetto_export: schema mismatch for table '%s', column '%s': "
-          "nullability is '%s' in the archive but '%s' in this version of "
-          "trace processor",
-          name, col.name.c_str(), col.nullability.c_str(),
-          NullabilityToString(cs.nullability));
-    }
-    if (col.sort != SortStateToString(cs.sort_state)) {
-      return base::ErrStatus(
-          "perfetto_export: schema mismatch for table '%s', column '%s': "
-          "sort state is '%s' in the archive but '%s' in this version of "
-          "trace processor",
-          name, col.name.c_str(), col.sort.c_str(),
-          SortStateToString(cs.sort_state));
-    }
-    if (col.duplicates != DuplicateStateToString(cs.duplicate_state)) {
-      return base::ErrStatus(
-          "perfetto_export: schema mismatch for table '%s', column '%s': "
-          "duplicate state is '%s' in the archive but '%s' in this version "
-          "of trace processor",
-          name, col.name.c_str(), col.duplicates.c_str(),
-          DuplicateStateToString(cs.duplicate_state));
+    if (archive_idx < table.columns.size() &&
+        table.columns[archive_idx].name == spec.column_names[i]) {
+      RETURN_IF_ERROR(ValidateColumnSpec(name, table.columns[archive_idx],
+                                         spec.column_specs[i]));
+      present[i] = true;
+      ++archive_idx;
+    } else {
+      const ColumnSpec& cs = spec.column_specs[i];
+      if (cs.type.Is<core::Id>() || !cs.sort_state.Is<core::Unsorted>()) {
+        return base::ErrStatus(
+            "perfetto_export: schema mismatch for table '%s': archive has %zu "
+            "columns but this version of trace processor has %zu",
+            name, table.columns.size(), spec.column_names.size());
+      }
     }
   }
-  return base::OkStatus();
+  if (archive_idx != table.columns.size()) {
+    return base::ErrStatus(
+        "perfetto_export: schema mismatch for table '%s': archive has %zu "
+        "columns but this version of trace processor has %zu",
+        name, table.columns.size(), spec.column_names.size());
+  }
+  return present;
 }
 
 void WriteColumns(json::JsonArraySerializer& columns,
@@ -267,8 +306,10 @@ ValidatePerfettoExportTables(
           "loaded into a fresh trace processor instance",
           table.name.c_str());
     }
-    RETURN_IF_ERROR(ValidateTableSchema(table, *dataframe->dataframe));
-    result.push_back({&entry, dataframe->dataframe});
+    ASSIGN_OR_RETURN(std::vector<bool> present_columns,
+                     ValidateTableSchema(table, *dataframe->dataframe));
+    result.push_back(
+        {&entry, dataframe->dataframe, std::move(present_columns)});
   }
   return std::move(result);
 }

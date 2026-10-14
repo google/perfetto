@@ -342,9 +342,11 @@ void Planner::AddFilter(FilterSpec& spec, logical::FilterStrategy strategy) {
   f.estimated_rows_after_null_prune = rows_.rows().estimated;
 
   if (spec.op.Is<In>()) {
-    rows_.ApplyInFilter(col.duplicate_state, col.estimated_distinct);
+    rows_.ApplyInFilter(col.duplicate_state,
+                        col.GetOrComputeEstimatedDistinct());
   } else if (spec.op.Is<Eq>()) {
-    rows_.ApplyEqualityFilter(col.duplicate_state, col.estimated_distinct);
+    rows_.ApplyEqualityFilter(col.duplicate_state,
+                              col.GetOrComputeEstimatedDistinct());
   } else {
     rows_.ApplyNonEqualityFilter();
   }
@@ -377,9 +379,11 @@ void Planner::AddIndexFilter(std::vector<FilterSpec>& specs,
     p.rows_in = rows_.rows();
     p.value_index = ReserveFilterValueSlot(fs);
     if (fs.op.Is<In>()) {
-      rows_.ApplyInFilter(col.duplicate_state, col.estimated_distinct);
+      rows_.ApplyInFilter(col.duplicate_state,
+                          col.GetOrComputeEstimatedDistinct());
     } else {
-      rows_.ApplyEqualityFilter(col.duplicate_state, col.estimated_distinct);
+      rows_.ApplyEqualityFilter(col.duplicate_state,
+                                col.GetOrComputeEstimatedDistinct());
     }
     p.rows_out = rows_.rows();
     idx.predicates.emplace_back(std::move(p));

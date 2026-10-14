@@ -103,10 +103,11 @@ base::Status PerfettoExportTableReader::OnPushDataToSorter() {
   }
   state_->seen[table_idx] = true;
 
-  ASSIGN_OR_RETURN(auto dataframe,
-                   core::dataframe::DeserializeFromArrow(
-                       buffer_, context_->storage->mutable_string_pool(),
-                       table->dataframe->CreateSpec()));
+  ASSIGN_OR_RETURN(
+      auto dataframe,
+      core::dataframe::DeserializeFromArrowLazy(
+          std::move(buffer_), context_->storage->mutable_string_pool(),
+          table->dataframe->CreateSpec(), table->present_columns));
 
   const TraceManifestState::PerfettoExportTable& schema =
       *table->entry->exported_table_schema;

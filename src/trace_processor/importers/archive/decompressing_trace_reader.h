@@ -54,6 +54,7 @@ class DecompressingTraceReader : public ChunkedTraceReader {
   std::unique_ptr<ChunkedTraceReader> inner_;
 
   std::unique_ptr<uint8_t[]> buffer_;
+  size_t buffer_capacity_ = 0;
   size_t bytes_written_ = 0;
 
   bool first_chunk_parsed_ = false;

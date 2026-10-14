@@ -101,10 +101,13 @@ struct QueryPlanImpl {
 
     // Number of output indices per row.
     uint32_t output_per_row = 0;
+
+    // Bitmap of columns that may be read from the cursor.
+    uint64_t cols_used_bitmap = ~0ULL;
   };
   static_assert(std::is_trivially_copyable_v<ExecutionParams>);
   static_assert(std::is_trivially_destructible_v<ExecutionParams>);
-  static_assert(sizeof(ExecutionParams) == 32);
+  static_assert(sizeof(ExecutionParams) == 40);
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.

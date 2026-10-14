@@ -478,6 +478,7 @@ base::Status ArrowSerializer::PlanDictionary(uint32_t rows,
 base::Status ArrowSerializer::PlanBody(const Dataframe& dataframe,
                                        const StringPool& pool,
                                        BodyPlan* plan) {
+  dataframe.EnsureMaterialized();
   plan->rows = dataframe.row_count();
   uint64_t body_cursor = 0;
   for (uint32_t i = 0; i < dataframe.column_count(); ++i) {
