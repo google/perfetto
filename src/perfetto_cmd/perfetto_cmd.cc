@@ -137,19 +137,6 @@ PerfettoCmd::~PerfettoCmd() {
       task_runner_.RemoveFileDescriptorWatch(ctrl_c_evt_.fd());
     }
   }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  if (!persistent_file_path_.empty()) {
-    // Should be safe to unconditionally unlink here.
-    // If another persistent session is running with the same
-    // unique_session_name, `persistent_file_path_` should be empty.
-    PERFETTO_CHECK(unlink(persistent_file_path_.c_str()) == 0 ||
-                   errno == ENOENT);
-    persistent_file_path_.clear();
-  }
-  packet_writer_.reset();
-  trace_out_stream_.reset();
-#endif
 }
 
 void PerfettoCmd::PrintUsage(const char* argv0) {
@@ -920,13 +907,6 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
         "TraceConfig's write_into_file must be true when using --detach");
     return 1;
   }
-  if (open_out_file) {
-    if (!OpenOutputFile(no_clobber))
-      return 1;
-    if (!trace_config_->write_into_file())
-      packet_writer_.emplace(trace_out_stream_.get());
-  }
-
   bool will_trace_indefinitely =
       trace_config_->duration_ms() == 0 &&
       trace_config_->trigger_config().trigger_timeout_ms() == 0;
@@ -940,6 +920,15 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     PERFETTO_ELOG(
         "Can't trace indefinitely when reporting to Android framework.");
     return 1;
+  }
+
+  // Open output file after all cases that could cause an early exit
+  // to avoid leaving an unused persistent file behind.
+  if (open_out_file) {
+    if (!OpenOutputFile(no_clobber))
+      return 1;
+    if (!trace_config_->write_into_file())
+      packet_writer_.emplace(trace_out_stream_.get());
   }
 
   if (background_) {
@@ -1114,6 +1103,13 @@ int PerfettoCmd::ConnectToServiceAndRun() {
       ConsumerIPCClient::Connect(GetConsumerSocket(), this, &task_runner_);
   SetupCtrlCSignalHandler();
   task_runner_.Run();
+  if (!persistent_file_path_.empty()) {
+    // Should be safe to unconditionally unlink here.
+    // If another persistent session is running with the same
+    // unique_session_name, `persistent_file_path_` should be empty.
+    base::Unlink(persistent_file_path_.c_str());
+    persistent_file_path_.clear();
+  }
 
   return tracing_succeeded_ ? 0 : 1;
 }
