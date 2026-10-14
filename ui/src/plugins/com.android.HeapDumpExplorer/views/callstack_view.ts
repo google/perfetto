@@ -31,11 +31,12 @@ import {
 } from '../../dev.perfetto.HeapProfile/oome_callstack_common';
 import type {OomeData} from '../types';
 import * as queries from '../queries';
+import type {HeapDump} from '../types';
 import {AsyncMemo} from '../../../base/async_memo';
 
 interface CallstackViewAttrs {
   readonly trace: Trace;
-  readonly dump: queries.HeapDump;
+  readonly dump: HeapDump;
   readonly state: TreeExplorerState | undefined;
   readonly onStateChange: (state: TreeExplorerState) => void;
 }

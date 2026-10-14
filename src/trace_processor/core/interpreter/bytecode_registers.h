@@ -23,9 +23,9 @@
 #include <variant>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/string_ranks.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
@@ -94,8 +94,7 @@ struct WriteHandle : HandleBase {
 // Empty placeholder type for register values.
 struct Empty {};
 
-using StringIdToRankMap =
-    std::unique_ptr<base::FlatHashMap<StringPool::Id, uint32_t>>;
+using StringIdToRankMap = std::unique_ptr<StringRanks>;
 
 // Pointer to storage data along with its type.
 struct StoragePtr {
@@ -116,19 +115,20 @@ struct NullBitvector {
 };
 
 // Values that can be stored in a register.
-using RegValue = std::variant<Empty,
-                              Range,
-                              Slab<uint32_t>,
-                              Span<uint32_t>,
-                              CastFilterValueResult,
-                              std::unique_ptr<CastFilterValueListResult>,
-                              Slab<uint8_t>,
-                              StringIdToRankMap,
-                              StoragePtr,
-                              const BitVector*,
-                              Span<const uint32_t>,
-                              BitVector,
-                              NullBitvector>;
+using RegValue =
+    std::variant<Empty,
+                 Range,
+                 Slab<uint32_t>,
+                 Span<uint32_t>,
+                 filter::CastFilterValueResult,
+                 std::unique_ptr<filter::CastFilterValueListResult>,
+                 Slab<uint8_t>,
+                 StringIdToRankMap,
+                 StoragePtr,
+                 const BitVector*,
+                 Span<const uint32_t>,
+                 BitVector,
+                 NullBitvector>;
 
 }  // namespace perfetto::trace_processor::core::interpreter
 

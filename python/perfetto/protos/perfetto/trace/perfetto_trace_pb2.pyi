@@ -4086,14 +4086,16 @@ class GpuCounterConfig(_message.Message):
     def __init__(self, counter_period_ns: _Optional[int] = ..., counter_ids: _Optional[_Iterable[int]] = ..., counter_names: _Optional[_Iterable[str]] = ..., instrumented_sampling: bool = ..., instrumented_sampling_config: _Optional[_Union[GpuCounterConfig.InstrumentedSamplingConfig, _Mapping]] = ..., fix_gpu_clock: bool = ...) -> None: ...
 
 class GpuRenderStagesConfig(_message.Message):
-    __slots__ = ("full_loadstore", "low_overhead", "trace_metrics")
+    __slots__ = ("full_loadstore", "low_overhead", "trace_metrics", "drawcall_stages")
     FULL_LOADSTORE_FIELD_NUMBER: _ClassVar[int]
     LOW_OVERHEAD_FIELD_NUMBER: _ClassVar[int]
     TRACE_METRICS_FIELD_NUMBER: _ClassVar[int]
+    DRAWCALL_STAGES_FIELD_NUMBER: _ClassVar[int]
     full_loadstore: bool
     low_overhead: bool
     trace_metrics: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, full_loadstore: bool = ..., low_overhead: bool = ..., trace_metrics: _Optional[_Iterable[str]] = ...) -> None: ...
+    drawcall_stages: bool
+    def __init__(self, full_loadstore: bool = ..., low_overhead: bool = ..., trace_metrics: _Optional[_Iterable[str]] = ..., drawcall_stages: bool = ...) -> None: ...
 
 class VulkanMemoryConfig(_message.Message):
     __slots__ = ("track_driver_memory_usage", "track_device_memory_usage")
@@ -4300,19 +4302,32 @@ class HeapprofdConfig(_message.Message):
     def __init__(self, sampling_interval_bytes: _Optional[int] = ..., adaptive_sampling_shmem_threshold: _Optional[int] = ..., adaptive_sampling_max_sampling_interval_bytes: _Optional[int] = ..., process_cmdline: _Optional[_Iterable[str]] = ..., pid: _Optional[_Iterable[int]] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., heaps: _Optional[_Iterable[str]] = ..., exclude_heaps: _Optional[_Iterable[str]] = ..., stream_allocations: bool = ..., heap_sampling_intervals: _Optional[_Iterable[int]] = ..., all_heaps: bool = ..., all: bool = ..., min_anonymous_memory_kb: _Optional[int] = ..., max_heapprofd_memory_kb: _Optional[int] = ..., max_heapprofd_cpu_secs: _Optional[int] = ..., skip_symbol_prefix: _Optional[_Iterable[str]] = ..., continuous_dump_config: _Optional[_Union[HeapprofdConfig.ContinuousDumpConfig, _Mapping]] = ..., shmem_size_bytes: _Optional[int] = ..., block_client: bool = ..., block_client_timeout_us: _Optional[int] = ..., no_startup: bool = ..., no_running: bool = ..., dump_at_max: bool = ..., disable_fork_teardown: bool = ..., disable_vfork_detection: bool = ...) -> None: ...
 
 class ProcessSmapsConfig(_message.Message):
-    __slots__ = ("smaps_config", "scope", "read_period_ms")
+    __slots__ = ("smaps_config", "scope", "read_period_ms", "max_processes_per_period")
     class Scope(_message.Message):
-        __slots__ = ("target_cmdline",)
+        __slots__ = ("target_cmdline", "target_uid")
+        class UidRange(_message.Message):
+            __slots__ = ("min_uid", "max_uid", "android_match_across_profiles")
+            MIN_UID_FIELD_NUMBER: _ClassVar[int]
+            MAX_UID_FIELD_NUMBER: _ClassVar[int]
+            ANDROID_MATCH_ACROSS_PROFILES_FIELD_NUMBER: _ClassVar[int]
+            min_uid: int
+            max_uid: int
+            android_match_across_profiles: bool
+            def __init__(self, min_uid: _Optional[int] = ..., max_uid: _Optional[int] = ..., android_match_across_profiles: bool = ...) -> None: ...
         TARGET_CMDLINE_FIELD_NUMBER: _ClassVar[int]
+        TARGET_UID_FIELD_NUMBER: _ClassVar[int]
         target_cmdline: _containers.RepeatedScalarFieldContainer[str]
-        def __init__(self, target_cmdline: _Optional[_Iterable[str]] = ...) -> None: ...
+        target_uid: _containers.RepeatedCompositeFieldContainer[ProcessSmapsConfig.Scope.UidRange]
+        def __init__(self, target_cmdline: _Optional[_Iterable[str]] = ..., target_uid: _Optional[_Iterable[_Union[ProcessSmapsConfig.Scope.UidRange, _Mapping]]] = ...) -> None: ...
     SMAPS_CONFIG_FIELD_NUMBER: _ClassVar[int]
     SCOPE_FIELD_NUMBER: _ClassVar[int]
     READ_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
+    MAX_PROCESSES_PER_PERIOD_FIELD_NUMBER: _ClassVar[int]
     smaps_config: SmapsConfig
     scope: ProcessSmapsConfig.Scope
     read_period_ms: int
-    def __init__(self, smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., scope: _Optional[_Union[ProcessSmapsConfig.Scope, _Mapping]] = ..., read_period_ms: _Optional[int] = ...) -> None: ...
+    max_processes_per_period: int
+    def __init__(self, smaps_config: _Optional[_Union[SmapsConfig, _Mapping]] = ..., scope: _Optional[_Union[ProcessSmapsConfig.Scope, _Mapping]] = ..., read_period_ms: _Optional[int] = ..., max_processes_per_period: _Optional[int] = ...) -> None: ...
 
 class SmapsConfig(_message.Message):
     __slots__ = ("vma_fields", "unaggregated", "name_redaction_rules")
@@ -4786,7 +4801,7 @@ class TrackEventConfig(_message.Message):
     def __init__(self, disabled_categories: _Optional[_Iterable[str]] = ..., enabled_categories: _Optional[_Iterable[str]] = ..., disabled_tags: _Optional[_Iterable[str]] = ..., enabled_tags: _Optional[_Iterable[str]] = ..., disable_incremental_timestamps: bool = ..., timestamp_unit_multiplier: _Optional[int] = ..., filter_debug_annotations: bool = ..., enable_thread_time_sampling: bool = ..., thread_time_subsampling_ns: _Optional[int] = ..., filter_dynamic_event_names: bool = ...) -> None: ...
 
 class DataSourceConfig(_message.Message):
-    __slots__ = ("name", "target_buffer", "target_buffer_name", "trace_duration_ms", "prefer_suspend_clock_for_duration", "stop_timeout_ms", "enable_extra_guardrails", "session_initiator", "tracing_session_id", "buffer_exhausted_policy", "priority_boost", "protovm_config", "ftrace_config", "inode_file_config", "process_stats_config", "sys_stats_config", "heapprofd_config", "java_hprof_config", "android_power_config", "android_log_config", "gpu_counter_config", "android_game_intervention_list_config", "packages_list_config", "perf_event_config", "vulkan_memory_config", "track_event_config", "android_polled_state_config", "android_system_property_config", "statsd_tracing_config", "system_info_config", "frozen_ftrace_config", "chrome_config", "v8_config", "interceptor_config", "network_packet_trace_config", "surfaceflinger_layers_config", "surfaceflinger_transactions_config", "android_sdk_sysprop_guard_config", "etw_config", "protolog_config", "android_input_event_config", "pixel_modem_config", "windowmanager_config", "chromium_system_metrics", "kernel_wakelocks_config", "gpu_renderstages_config", "chromium_histogram_samples", "app_wakelocks_config", "cpu_per_uid_config", "user_list_config", "inputmethod_config", "android_aflags_config", "journald_config", "display_video_config", "chromium_stack_sampling_profiler", "chromium_sampling_heap_profiler", "android_process_state_config", "process_smaps_config", "qnx_config", "legacy_config", "for_testing")
+    __slots__ = ("name", "target_buffer", "target_buffer_name", "trace_duration_ms", "prefer_suspend_clock_for_duration", "stop_timeout_ms", "enable_extra_guardrails", "session_initiator", "tracing_session_id", "buffer_exhausted_policy", "priority_boost", "protovm_config", "supports_tracing_v2", "experimental_tracing_v2", "ftrace_config", "inode_file_config", "process_stats_config", "sys_stats_config", "heapprofd_config", "java_hprof_config", "android_power_config", "android_log_config", "gpu_counter_config", "android_game_intervention_list_config", "packages_list_config", "perf_event_config", "vulkan_memory_config", "track_event_config", "android_polled_state_config", "android_system_property_config", "statsd_tracing_config", "system_info_config", "frozen_ftrace_config", "chrome_config", "v8_config", "interceptor_config", "network_packet_trace_config", "surfaceflinger_layers_config", "surfaceflinger_transactions_config", "android_sdk_sysprop_guard_config", "etw_config", "protolog_config", "android_input_event_config", "pixel_modem_config", "windowmanager_config", "chromium_system_metrics", "kernel_wakelocks_config", "gpu_renderstages_config", "chromium_histogram_samples", "app_wakelocks_config", "cpu_per_uid_config", "user_list_config", "inputmethod_config", "android_aflags_config", "journald_config", "display_video_config", "chromium_stack_sampling_profiler", "chromium_sampling_heap_profiler", "android_process_state_config", "process_smaps_config", "qnx_config", "legacy_config", "for_testing")
     class SessionInitiator(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         SESSION_INITIATOR_UNSPECIFIED: _ClassVar[DataSourceConfig.SessionInitiator]
@@ -4803,6 +4818,22 @@ class DataSourceConfig(_message.Message):
     BUFFER_EXHAUSTED_DROP: DataSourceConfig.BufferExhaustedPolicy
     BUFFER_EXHAUSTED_STALL_THEN_ABORT: DataSourceConfig.BufferExhaustedPolicy
     BUFFER_EXHAUSTED_STALL_THEN_DROP: DataSourceConfig.BufferExhaustedPolicy
+    class ExperimentalTracingV2Config(_message.Message):
+        __slots__ = ("use_v2_probability_percent", "chunk_size_options", "drain_occupancy_percent")
+        class ChunkSizeOption(_message.Message):
+            __slots__ = ("size_bytes", "weight")
+            SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+            WEIGHT_FIELD_NUMBER: _ClassVar[int]
+            size_bytes: int
+            weight: int
+            def __init__(self, size_bytes: _Optional[int] = ..., weight: _Optional[int] = ...) -> None: ...
+        USE_V2_PROBABILITY_PERCENT_FIELD_NUMBER: _ClassVar[int]
+        CHUNK_SIZE_OPTIONS_FIELD_NUMBER: _ClassVar[int]
+        DRAIN_OCCUPANCY_PERCENT_FIELD_NUMBER: _ClassVar[int]
+        use_v2_probability_percent: int
+        chunk_size_options: _containers.RepeatedCompositeFieldContainer[DataSourceConfig.ExperimentalTracingV2Config.ChunkSizeOption]
+        drain_occupancy_percent: int
+        def __init__(self, use_v2_probability_percent: _Optional[int] = ..., chunk_size_options: _Optional[_Iterable[_Union[DataSourceConfig.ExperimentalTracingV2Config.ChunkSizeOption, _Mapping]]] = ..., drain_occupancy_percent: _Optional[int] = ...) -> None: ...
     NAME_FIELD_NUMBER: _ClassVar[int]
     TARGET_BUFFER_FIELD_NUMBER: _ClassVar[int]
     TARGET_BUFFER_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -4815,6 +4846,8 @@ class DataSourceConfig(_message.Message):
     BUFFER_EXHAUSTED_POLICY_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_BOOST_FIELD_NUMBER: _ClassVar[int]
     PROTOVM_CONFIG_FIELD_NUMBER: _ClassVar[int]
+    SUPPORTS_TRACING_V2_FIELD_NUMBER: _ClassVar[int]
+    EXPERIMENTAL_TRACING_V2_FIELD_NUMBER: _ClassVar[int]
     FTRACE_CONFIG_FIELD_NUMBER: _ClassVar[int]
     INODE_FILE_CONFIG_FIELD_NUMBER: _ClassVar[int]
     PROCESS_STATS_CONFIG_FIELD_NUMBER: _ClassVar[int]
@@ -4876,6 +4909,8 @@ class DataSourceConfig(_message.Message):
     buffer_exhausted_policy: DataSourceConfig.BufferExhaustedPolicy
     priority_boost: PriorityBoostConfig
     protovm_config: ProtoVmConfig
+    supports_tracing_v2: bool
+    experimental_tracing_v2: DataSourceConfig.ExperimentalTracingV2Config
     ftrace_config: FtraceConfig
     inode_file_config: InodeFileConfig
     process_stats_config: ProcessStatsConfig
@@ -4925,7 +4960,7 @@ class DataSourceConfig(_message.Message):
     qnx_config: QnxConfig
     legacy_config: str
     for_testing: TestConfig
-    def __init__(self, name: _Optional[str] = ..., target_buffer: _Optional[int] = ..., target_buffer_name: _Optional[str] = ..., trace_duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., stop_timeout_ms: _Optional[int] = ..., enable_extra_guardrails: bool = ..., session_initiator: _Optional[_Union[DataSourceConfig.SessionInitiator, str]] = ..., tracing_session_id: _Optional[int] = ..., buffer_exhausted_policy: _Optional[_Union[DataSourceConfig.BufferExhaustedPolicy, str]] = ..., priority_boost: _Optional[_Union[PriorityBoostConfig, _Mapping]] = ..., protovm_config: _Optional[_Union[ProtoVmConfig, _Mapping]] = ..., ftrace_config: _Optional[_Union[FtraceConfig, _Mapping]] = ..., inode_file_config: _Optional[_Union[InodeFileConfig, _Mapping]] = ..., process_stats_config: _Optional[_Union[ProcessStatsConfig, _Mapping]] = ..., sys_stats_config: _Optional[_Union[SysStatsConfig, _Mapping]] = ..., heapprofd_config: _Optional[_Union[HeapprofdConfig, _Mapping]] = ..., java_hprof_config: _Optional[_Union[JavaHprofConfig, _Mapping]] = ..., android_power_config: _Optional[_Union[AndroidPowerConfig, _Mapping]] = ..., android_log_config: _Optional[_Union[AndroidLogConfig, _Mapping]] = ..., gpu_counter_config: _Optional[_Union[GpuCounterConfig, _Mapping]] = ..., android_game_intervention_list_config: _Optional[_Union[AndroidGameInterventionListConfig, _Mapping]] = ..., packages_list_config: _Optional[_Union[PackagesListConfig, _Mapping]] = ..., perf_event_config: _Optional[_Union[PerfEventConfig, _Mapping]] = ..., vulkan_memory_config: _Optional[_Union[VulkanMemoryConfig, _Mapping]] = ..., track_event_config: _Optional[_Union[TrackEventConfig, _Mapping]] = ..., android_polled_state_config: _Optional[_Union[AndroidPolledStateConfig, _Mapping]] = ..., android_system_property_config: _Optional[_Union[AndroidSystemPropertyConfig, _Mapping]] = ..., statsd_tracing_config: _Optional[_Union[StatsdTracingConfig, _Mapping]] = ..., system_info_config: _Optional[_Union[SystemInfoConfig, _Mapping]] = ..., frozen_ftrace_config: _Optional[_Union[FrozenFtraceConfig, _Mapping]] = ..., chrome_config: _Optional[_Union[ChromeConfig, _Mapping]] = ..., v8_config: _Optional[_Union[V8Config, _Mapping]] = ..., interceptor_config: _Optional[_Union[InterceptorConfig, _Mapping]] = ..., network_packet_trace_config: _Optional[_Union[NetworkPacketTraceConfig, _Mapping]] = ..., surfaceflinger_layers_config: _Optional[_Union[SurfaceFlingerLayersConfig, _Mapping]] = ..., surfaceflinger_transactions_config: _Optional[_Union[SurfaceFlingerTransactionsConfig, _Mapping]] = ..., android_sdk_sysprop_guard_config: _Optional[_Union[AndroidSdkSyspropGuardConfig, _Mapping]] = ..., etw_config: _Optional[_Union[EtwConfig, _Mapping]] = ..., protolog_config: _Optional[_Union[ProtoLogConfig, _Mapping]] = ..., android_input_event_config: _Optional[_Union[AndroidInputEventConfig, _Mapping]] = ..., pixel_modem_config: _Optional[_Union[PixelModemConfig, _Mapping]] = ..., windowmanager_config: _Optional[_Union[WindowManagerConfig, _Mapping]] = ..., chromium_system_metrics: _Optional[_Union[ChromiumSystemMetricsConfig, _Mapping]] = ..., kernel_wakelocks_config: _Optional[_Union[KernelWakelocksConfig, _Mapping]] = ..., gpu_renderstages_config: _Optional[_Union[GpuRenderStagesConfig, _Mapping]] = ..., chromium_histogram_samples: _Optional[_Union[ChromiumHistogramSamplesConfig, _Mapping]] = ..., app_wakelocks_config: _Optional[_Union[AppWakelocksConfig, _Mapping]] = ..., cpu_per_uid_config: _Optional[_Union[CpuPerUidConfig, _Mapping]] = ..., user_list_config: _Optional[_Union[AndroidUserListConfig, _Mapping]] = ..., inputmethod_config: _Optional[_Union[InputMethodConfig, _Mapping]] = ..., android_aflags_config: _Optional[_Union[AndroidAflagsConfig, _Mapping]] = ..., journald_config: _Optional[_Union[SystemdJournaldConfig, _Mapping]] = ..., display_video_config: _Optional[_Union[DisplayVideoConfig, _Mapping]] = ..., chromium_stack_sampling_profiler: _Optional[_Union[ChromiumStackSamplingProfilerConfig, _Mapping]] = ..., chromium_sampling_heap_profiler: _Optional[_Union[ChromiumSamplingHeapProfilerConfig, _Mapping]] = ..., android_process_state_config: _Optional[_Union[AndroidProcessStateConfig, _Mapping]] = ..., process_smaps_config: _Optional[_Union[ProcessSmapsConfig, _Mapping]] = ..., qnx_config: _Optional[_Union[QnxConfig, _Mapping]] = ..., legacy_config: _Optional[str] = ..., for_testing: _Optional[_Union[TestConfig, _Mapping]] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., target_buffer: _Optional[int] = ..., target_buffer_name: _Optional[str] = ..., trace_duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., stop_timeout_ms: _Optional[int] = ..., enable_extra_guardrails: bool = ..., session_initiator: _Optional[_Union[DataSourceConfig.SessionInitiator, str]] = ..., tracing_session_id: _Optional[int] = ..., buffer_exhausted_policy: _Optional[_Union[DataSourceConfig.BufferExhaustedPolicy, str]] = ..., priority_boost: _Optional[_Union[PriorityBoostConfig, _Mapping]] = ..., protovm_config: _Optional[_Union[ProtoVmConfig, _Mapping]] = ..., supports_tracing_v2: bool = ..., experimental_tracing_v2: _Optional[_Union[DataSourceConfig.ExperimentalTracingV2Config, _Mapping]] = ..., ftrace_config: _Optional[_Union[FtraceConfig, _Mapping]] = ..., inode_file_config: _Optional[_Union[InodeFileConfig, _Mapping]] = ..., process_stats_config: _Optional[_Union[ProcessStatsConfig, _Mapping]] = ..., sys_stats_config: _Optional[_Union[SysStatsConfig, _Mapping]] = ..., heapprofd_config: _Optional[_Union[HeapprofdConfig, _Mapping]] = ..., java_hprof_config: _Optional[_Union[JavaHprofConfig, _Mapping]] = ..., android_power_config: _Optional[_Union[AndroidPowerConfig, _Mapping]] = ..., android_log_config: _Optional[_Union[AndroidLogConfig, _Mapping]] = ..., gpu_counter_config: _Optional[_Union[GpuCounterConfig, _Mapping]] = ..., android_game_intervention_list_config: _Optional[_Union[AndroidGameInterventionListConfig, _Mapping]] = ..., packages_list_config: _Optional[_Union[PackagesListConfig, _Mapping]] = ..., perf_event_config: _Optional[_Union[PerfEventConfig, _Mapping]] = ..., vulkan_memory_config: _Optional[_Union[VulkanMemoryConfig, _Mapping]] = ..., track_event_config: _Optional[_Union[TrackEventConfig, _Mapping]] = ..., android_polled_state_config: _Optional[_Union[AndroidPolledStateConfig, _Mapping]] = ..., android_system_property_config: _Optional[_Union[AndroidSystemPropertyConfig, _Mapping]] = ..., statsd_tracing_config: _Optional[_Union[StatsdTracingConfig, _Mapping]] = ..., system_info_config: _Optional[_Union[SystemInfoConfig, _Mapping]] = ..., frozen_ftrace_config: _Optional[_Union[FrozenFtraceConfig, _Mapping]] = ..., chrome_config: _Optional[_Union[ChromeConfig, _Mapping]] = ..., v8_config: _Optional[_Union[V8Config, _Mapping]] = ..., interceptor_config: _Optional[_Union[InterceptorConfig, _Mapping]] = ..., network_packet_trace_config: _Optional[_Union[NetworkPacketTraceConfig, _Mapping]] = ..., surfaceflinger_layers_config: _Optional[_Union[SurfaceFlingerLayersConfig, _Mapping]] = ..., surfaceflinger_transactions_config: _Optional[_Union[SurfaceFlingerTransactionsConfig, _Mapping]] = ..., android_sdk_sysprop_guard_config: _Optional[_Union[AndroidSdkSyspropGuardConfig, _Mapping]] = ..., etw_config: _Optional[_Union[EtwConfig, _Mapping]] = ..., protolog_config: _Optional[_Union[ProtoLogConfig, _Mapping]] = ..., android_input_event_config: _Optional[_Union[AndroidInputEventConfig, _Mapping]] = ..., pixel_modem_config: _Optional[_Union[PixelModemConfig, _Mapping]] = ..., windowmanager_config: _Optional[_Union[WindowManagerConfig, _Mapping]] = ..., chromium_system_metrics: _Optional[_Union[ChromiumSystemMetricsConfig, _Mapping]] = ..., kernel_wakelocks_config: _Optional[_Union[KernelWakelocksConfig, _Mapping]] = ..., gpu_renderstages_config: _Optional[_Union[GpuRenderStagesConfig, _Mapping]] = ..., chromium_histogram_samples: _Optional[_Union[ChromiumHistogramSamplesConfig, _Mapping]] = ..., app_wakelocks_config: _Optional[_Union[AppWakelocksConfig, _Mapping]] = ..., cpu_per_uid_config: _Optional[_Union[CpuPerUidConfig, _Mapping]] = ..., user_list_config: _Optional[_Union[AndroidUserListConfig, _Mapping]] = ..., inputmethod_config: _Optional[_Union[InputMethodConfig, _Mapping]] = ..., android_aflags_config: _Optional[_Union[AndroidAflagsConfig, _Mapping]] = ..., journald_config: _Optional[_Union[SystemdJournaldConfig, _Mapping]] = ..., display_video_config: _Optional[_Union[DisplayVideoConfig, _Mapping]] = ..., chromium_stack_sampling_profiler: _Optional[_Union[ChromiumStackSamplingProfilerConfig, _Mapping]] = ..., chromium_sampling_heap_profiler: _Optional[_Union[ChromiumSamplingHeapProfilerConfig, _Mapping]] = ..., android_process_state_config: _Optional[_Union[AndroidProcessStateConfig, _Mapping]] = ..., process_smaps_config: _Optional[_Union[ProcessSmapsConfig, _Mapping]] = ..., qnx_config: _Optional[_Union[QnxConfig, _Mapping]] = ..., legacy_config: _Optional[str] = ..., for_testing: _Optional[_Union[TestConfig, _Mapping]] = ...) -> None: ...
 
 class TraceConfig(_message.Message):
     __slots__ = ("buffers", "data_sources", "builtin_data_sources", "duration_ms", "prefer_suspend_clock_for_duration", "enable_extra_guardrails", "lockdown_mode", "producers", "statsd_metadata", "write_into_file", "output_path", "file_write_period_ms", "max_file_size_bytes", "guardrail_overrides", "deferred_start", "flush_period_ms", "flush_timeout_ms", "data_source_stop_timeout_ms", "notify_traceur", "bugreport_score", "bugreport_filename", "trigger_config", "activate_triggers", "incremental_state_config", "allow_user_build_tracing", "unique_session_name", "compression_type", "compression", "incident_report_config", "statsd_logging", "trace_uuid_msb", "trace_uuid_lsb", "trace_filter", "android_report_config", "cmd_trace_start_delay", "session_semaphores", "priority_boost", "exclusive_prio", "write_flush_mode", "fflush_post_write", "trace_all_machines", "trace_attributes", "persist_trace_across_reboots")
@@ -5347,7 +5382,7 @@ class TraceStats(_message.Message):
     FINAL_FLUSH_SUCCEEDED: TraceStats.FinalFlushOutcome
     FINAL_FLUSH_FAILED: TraceStats.FinalFlushOutcome
     class BufferStats(_message.Message):
-        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_relocated", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss")
+        __slots__ = ("buffer_size", "bytes_written", "bytes_overwritten", "bytes_read", "padding_bytes_written", "padding_bytes_cleared", "chunks_written", "chunks_rewritten", "chunks_relocated", "chunks_overwritten", "chunks_discarded", "chunks_read", "chunks_committed_out_of_order", "write_wrap_count", "patches_succeeded", "patches_failed", "readaheads_succeeded", "readaheads_failed", "abi_violations", "trace_writer_packet_loss", "oversized_packets_dropped")
         BUFFER_SIZE_FIELD_NUMBER: _ClassVar[int]
         BYTES_WRITTEN_FIELD_NUMBER: _ClassVar[int]
         BYTES_OVERWRITTEN_FIELD_NUMBER: _ClassVar[int]
@@ -5368,6 +5403,7 @@ class TraceStats(_message.Message):
         READAHEADS_FAILED_FIELD_NUMBER: _ClassVar[int]
         ABI_VIOLATIONS_FIELD_NUMBER: _ClassVar[int]
         TRACE_WRITER_PACKET_LOSS_FIELD_NUMBER: _ClassVar[int]
+        OVERSIZED_PACKETS_DROPPED_FIELD_NUMBER: _ClassVar[int]
         buffer_size: int
         bytes_written: int
         bytes_overwritten: int
@@ -5388,7 +5424,8 @@ class TraceStats(_message.Message):
         readaheads_failed: int
         abi_violations: int
         trace_writer_packet_loss: int
-        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_relocated: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ...) -> None: ...
+        oversized_packets_dropped: int
+        def __init__(self, buffer_size: _Optional[int] = ..., bytes_written: _Optional[int] = ..., bytes_overwritten: _Optional[int] = ..., bytes_read: _Optional[int] = ..., padding_bytes_written: _Optional[int] = ..., padding_bytes_cleared: _Optional[int] = ..., chunks_written: _Optional[int] = ..., chunks_rewritten: _Optional[int] = ..., chunks_relocated: _Optional[int] = ..., chunks_overwritten: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., chunks_read: _Optional[int] = ..., chunks_committed_out_of_order: _Optional[int] = ..., write_wrap_count: _Optional[int] = ..., patches_succeeded: _Optional[int] = ..., patches_failed: _Optional[int] = ..., readaheads_succeeded: _Optional[int] = ..., readaheads_failed: _Optional[int] = ..., abi_violations: _Optional[int] = ..., trace_writer_packet_loss: _Optional[int] = ..., oversized_packets_dropped: _Optional[int] = ...) -> None: ...
     class WriterStats(_message.Message):
         __slots__ = ("sequence_id", "buffer", "chunk_payload_histogram_counts", "chunk_payload_histogram_sum")
         SEQUENCE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -5711,18 +5748,20 @@ class KernelWakelockData(_message.Message):
 class PackagesList(_message.Message):
     __slots__ = ("packages", "parse_error", "read_error")
     class PackageInfo(_message.Message):
-        __slots__ = ("name", "uid", "debuggable", "profileable_from_shell", "version_code")
+        __slots__ = ("name", "uid", "debuggable", "profileable_from_shell", "version_code", "profileable")
         NAME_FIELD_NUMBER: _ClassVar[int]
         UID_FIELD_NUMBER: _ClassVar[int]
         DEBUGGABLE_FIELD_NUMBER: _ClassVar[int]
         PROFILEABLE_FROM_SHELL_FIELD_NUMBER: _ClassVar[int]
         VERSION_CODE_FIELD_NUMBER: _ClassVar[int]
+        PROFILEABLE_FIELD_NUMBER: _ClassVar[int]
         name: str
         uid: int
         debuggable: bool
         profileable_from_shell: bool
         version_code: int
-        def __init__(self, name: _Optional[str] = ..., uid: _Optional[int] = ..., debuggable: bool = ..., profileable_from_shell: bool = ..., version_code: _Optional[int] = ...) -> None: ...
+        profileable: bool
+        def __init__(self, name: _Optional[str] = ..., uid: _Optional[int] = ..., debuggable: bool = ..., profileable_from_shell: bool = ..., version_code: _Optional[int] = ..., profileable: bool = ...) -> None: ...
     PACKAGES_FIELD_NUMBER: _ClassVar[int]
     PARSE_ERROR_FIELD_NUMBER: _ClassVar[int]
     READ_ERROR_FIELD_NUMBER: _ClassVar[int]
@@ -18348,12 +18387,14 @@ class ObfuscatedClass(_message.Message):
         merged_classes: ObfuscatedClass.MergedClasses
         def __init__(self, name: _Optional[str] = ..., class_id: _Optional[int] = ..., merged_classes: _Optional[_Union[ObfuscatedClass.MergedClasses, _Mapping]] = ...) -> None: ...
     class MergedClasses(_message.Message):
-        __slots__ = ("class_id_field_name", "merged_classes")
+        __slots__ = ("class_id_field_name", "merged_classes", "unknown_merged_classes")
         CLASS_ID_FIELD_NAME_FIELD_NUMBER: _ClassVar[int]
         MERGED_CLASSES_FIELD_NUMBER: _ClassVar[int]
+        UNKNOWN_MERGED_CLASSES_FIELD_NUMBER: _ClassVar[int]
         class_id_field_name: str
         merged_classes: _containers.RepeatedCompositeFieldContainer[ObfuscatedClass.MergedClass]
-        def __init__(self, class_id_field_name: _Optional[str] = ..., merged_classes: _Optional[_Iterable[_Union[ObfuscatedClass.MergedClass, _Mapping]]] = ...) -> None: ...
+        unknown_merged_classes: bool
+        def __init__(self, class_id_field_name: _Optional[str] = ..., merged_classes: _Optional[_Iterable[_Union[ObfuscatedClass.MergedClass, _Mapping]]] = ..., unknown_merged_classes: bool = ...) -> None: ...
     OBFUSCATED_NAME_FIELD_NUMBER: _ClassVar[int]
     DEOBFUSCATED_NAME_FIELD_NUMBER: _ClassVar[int]
     OBFUSCATED_MEMBERS_FIELD_NUMBER: _ClassVar[int]

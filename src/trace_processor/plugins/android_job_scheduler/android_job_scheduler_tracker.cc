@@ -204,6 +204,31 @@ TrackEventExtensionParser::Result AndroidJobSchedulerTracker::OnTrackEventField(
         (flags & ProtoJob::JOB_STATE_FLAG_CAN_APPLY_TRANSPORT_AFFINITIES) ? 1u
                                                                           : 0u);
   }
+
+  const bool is_pending_exit_state =
+      job.has_state() && (job.state() == ProtoJob::JOB_STATE_STARTED ||
+                          job.state() == ProtoJob::JOB_STATE_CANCELLED);
+
+  if (is_pending_exit_state) {
+    auto* pending_table =
+        trace_context_->storage
+            ->mutable_android_job_scheduler_pending_reasons_track_event_table();
+    auto r_it = job.pending_reasons();
+    auto d_it = job.pending_durations_ms();
+    for (uint32_t idx = 0; r_it; ++r_it, ++idx) {
+      std::optional<int64_t> dur_ms;
+      if (d_it) {
+        dur_ms = d_it->as_int64();
+        ++d_it;
+      }
+      StringId reason_id = InternEnum(
+          pending_reason_cache_,
+          ".com.android.internal.AndroidJobSchedulerJob.PendingJobReason",
+          r_it->as_int32(), ProtoJob::PENDING_JOB_REASON_UNDEFINED);
+      pending_table->Insert({slice_id, idx, reason_id, dur_ms});
+    }
+  }
+
   // Return kIgnored so that the core parser still populates the generic args
   // table for this extension. This is required to keep legacy queries
   // working, as they extract arguments from the args table.

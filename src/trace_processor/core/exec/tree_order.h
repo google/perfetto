@@ -53,6 +53,7 @@ class TreeChildFirst : public Breaker {
  private:
   struct State : Breaker::State {
     ~State() override;
+    void Reset() override;
 
     // By node number.
     BitVector has_row;
@@ -77,7 +78,6 @@ class TreeChildFirst : public Breaker {
   bool Consume(const RowBatch& in, Breaker::State& state) const override;
   bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
-  void Reset(Breaker::State& state) const override;
 
   bool Sort(State&) const;
 
@@ -104,21 +104,21 @@ class TreeParentFirst : public Operator {
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeParentFirst() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
   OpResult Finish(RowBatch& out, OperatorState& state) const override;
-  void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
 
  private:
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
 
     // What is known about each node number.
     struct Nodes {
-      uint32_t count = 0;
       BitVector has_row;
       // The node's row is out, or is on its way out in `letting_go`.
       BitVector out;
@@ -155,6 +155,9 @@ class TreeParentFirst : public Operator {
     FlexVector<uint32_t> passing;
     FlexVector<uint32_t> holding;
     RowBatch held_batch;
+
+    // What rows let go are gathered into.
+    Context* context = nullptr;
 
     base::Status status = base::OkStatus();
   };

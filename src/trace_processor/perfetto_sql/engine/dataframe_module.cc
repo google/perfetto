@@ -124,7 +124,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
 
 uint32_t FindIdColumnIndex(const std::vector<std::string>& names) {
   for (uint32_t i = 0; i < names.size(); ++i) {
-    if (names[i] == "id" || names[i] == "_auto_id") {
+    if (names[i] == "id" || names[i] == dataframe::kAutoIdColumnName) {
       return i;
     }
   }
@@ -137,7 +137,7 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
                    ToSqliteCreateTableType(spec.column_specs[i].type);
-    if (spec.column_names[i] == "_auto_id") {
+    if (dataframe::IsHiddenColumn(spec.column_names[i])) {
       create_stmt += " HIDDEN";
     }
     create_stmt += ", ";

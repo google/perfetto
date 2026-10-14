@@ -32,21 +32,25 @@ namespace perfetto::trace_processor::core::exec {
 struct IntervalIntersectOperand {
   // Read in full before any region is found.
   const Source* source = nullptr;
-  // All must be flat Int64 columns of `source`'s batches.
+  // Flat Int64 columns of `source`'s batches.
   uint32_t ts_column = 0;
   uint32_t dur_column = 0;
   // Compared pairwise across the operands, in this order.
   std::vector<uint32_t> key_columns;
+  // The columns kept for output, in this order. Any others are read only to
+  // find the regions and are never buffered.
+  std::vector<uint32_t> retained_columns;
 };
 
 // Emits a row over each region every operand covers.
 //
 // An interval is [ts, ts + dur) and a region is the part two or more of them
 // have in common, so the rows out are the regions rather than the rows in.
-// Each carries the region's own bounds followed by the columns of the operand
-// row it came from, one set per operand. `PER` columns confine the regions to
-// rows which agree on them, where two rows holding no value there agree on it
-// as they would under `GROUP BY`; a key no other operand has covers nothing.
+// Each carries the region's own bounds followed by the retained columns of the
+// operand row it came from, one set per operand. `PER` columns confine the
+// regions to rows which agree on them, where two rows holding no value there
+// agree on it as they would under `GROUP BY`; a key no other operand has covers
+// nothing.
 //
 // A duration below zero is refused rather than read as a span, and so is a
 // timestamp below zero, which is what the intrinsic this replaces does. A row
@@ -60,7 +64,7 @@ class IntervalIntersect : public Source {
   explicit IntervalIntersect(std::vector<IntervalIntersectOperand>);
   ~IntervalIntersect() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;

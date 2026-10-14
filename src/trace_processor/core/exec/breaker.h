@@ -31,24 +31,27 @@ namespace perfetto::trace_processor::core::exec {
 class Breaker : public Operator {
  public:
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
 
     base::Status status = base::OkStatus();
     bool filled = false;
+    // What the columns served are filled in.
+    Context* context = nullptr;
   };
 
   ~Breaker() override;
 
-  std::unique_ptr<OperatorState> MakeState() const final;
+  std::unique_ptr<OperatorState> MakeState(Context&) const final;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const final;
   OpResult Finish(RowBatch& out, OperatorState& state) const final;
-  void Rewind(OperatorState& state) const final;
   base::Status status(const OperatorState& state) const final;
 
  protected:
-  Breaker() = default;
+  Breaker() : Operator(Traits{BatchPreference::kThroughput}) {}
 
   // Creates the state for the buffered data.
   virtual std::unique_ptr<State> CreateState() const = 0;
@@ -59,8 +62,6 @@ class Breaker : public Operator {
   // The source half: fills `out` from what was consumed, or returns false
   // when nothing is left or on failure.
   virtual bool Serve(RowBatch& out, State& state) const = 0;
-  // Drops everything consumed so the input can be read again.
-  virtual void Reset(State& state) const = 0;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

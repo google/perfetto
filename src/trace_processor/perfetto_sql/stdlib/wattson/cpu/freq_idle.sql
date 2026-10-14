@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.cpu.freq;
 
 INCLUDE PERFETTO MODULE wattson.cpu.hotplug;
@@ -42,73 +40,16 @@ SELECT start_ts AS ts, trace_end() - start_ts AS dur, cpu
 FROM window_start
 CROSS JOIN _dev_cpu_policy_map;
 
--- Start matching CPUs with 1D curves based on combination of freq and idle.
--- Passing freq and idle directly as id into _interval_intersect! eliminates
--- rowid table joins inside _idle_freq_materialized, and carrying state_id
--- through _stats_cpu0..7 eliminates 10 table joins in _w_cpu_slices.
-CREATE PERFETTO TABLE _idle_freq_materialized AS
-WITH
-  params AS MATERIALIZED (
-    SELECT
-      (SELECT ts FROM _valid_window LIMIT 1) AS start_ts,
-      (SELECT _encode_idle!(idle) FROM _deepest_idle) AS deepest_id,
-      EXISTS (SELECT 1 FROM _cpu_hotplug_offline WHERE is_different_cpu) AS has_hotplug
-  )
--- Fast path: zero-join 2-way intersect when no CPU hotplug offline events exist
+-- Inputs for _idle_freq_intersect that are fixed for the whole trace.
+CREATE PERFETTO TABLE _idle_freq_params AS
 SELECT
-  max(ii.ts, p.start_ts) AS ts,
-  ii.ts + ii.dur - max(ii.ts, p.start_ts) AS dur,
-  ii.cpu,
-  _pack_cpu_state!(
-    ii.cpu,
-    ii.id_0,
-    iif(ii.id_1 = p.deepest_id, _deepest_idle_id!(), ii.id_1)
-  ) AS state_id
-FROM params AS p
-CROSS JOIN _interval_intersect!(
-  (
-    (SELECT coalesce(freq, 0) AS id, ts, dur, cpu FROM _adjusted_cpu_freq),
-    (SELECT coalesce(_encode_idle!(idle), _null_idle_id!()) AS id, ts, dur, cpu FROM _adjusted_deep_idle)
-  ),
-  (cpu)
-) AS ii
-WHERE
-  NOT p.has_hotplug
-  AND ii.ts + ii.dur > p.start_ts
-UNION ALL
--- Zero-join 3-way intersect when CPU hotplug offline events exist
-SELECT
-  max(ii.ts, p.start_ts) AS ts,
-  ii.ts + ii.dur - max(ii.ts, p.start_ts) AS dur,
-  ii.cpu,
-  _pack_cpu_state!(
-    ii.cpu,
-    ii.id_0,
-    CASE
-      WHEN ii.id_2 THEN _offline_idle_id!()
-      WHEN ii.id_1 = p.deepest_id THEN _deepest_idle_id!()
-      ELSE ii.id_1
-    END
-  ) AS state_id
-FROM params AS p
-CROSS JOIN _interval_intersect!(
-  (
-    (SELECT coalesce(freq, 0) AS id, ts, dur, cpu FROM _adjusted_cpu_freq),
-    (SELECT coalesce(_encode_idle!(idle), _null_idle_id!()) AS id, ts, dur, cpu FROM _adjusted_deep_idle),
-    (SELECT offline AS id, ts, dur, cpu FROM _gapless_hotplug_slices)
-  ),
-  (cpu)
-) AS ii
-WHERE
-  p.has_hotplug
-  AND ii.ts + ii.dur > p.start_ts
-UNION ALL
--- Fallback dummy slice for CPUs 0..7 not present on this device
-SELECT
-  trace_start() AS ts,
-  trace_dur() AS dur,
-  missing.cpu,
-  _pack_cpu_state!(missing.cpu, 0, _offline_idle_id!()) AS state_id
+  (SELECT ts FROM _valid_window LIMIT 1) AS start_ts,
+  (SELECT _encode_idle!(idle) FROM _deepest_idle) AS deepest_id,
+  EXISTS (SELECT 1 FROM _cpu_hotplug_offline WHERE is_different_cpu) AS has_hotplug;
+
+-- CPUs 0..7 not present on this device.
+CREATE PERFETTO TABLE _idle_freq_missing_cpus AS
+SELECT missing.cpu
 FROM (
   SELECT 0 AS cpu
   UNION ALL
@@ -128,3 +69,73 @@ FROM (
 ) AS missing
 WHERE
   NOT EXISTS (SELECT 1 FROM _dev_cpu_policy_map AS m WHERE m.cpu = missing.cpu);
+
+-- Per CPU intersection of frequency, idle and hotplug state.
+--
+-- Frequency is cut to start at the valid window, which cuts the result too.
+-- Without hotplug offline events, each CPU gets one online slice that spans
+-- the trace, so the hotplug operand adds no boundaries. Each missing CPU gets
+-- one offline slice that spans the trace.
+CREATE PERFETTO TABLE _idle_freq_intersect AS
+INTERVAL INTERSECTION OF (
+  (
+    SELECT
+      max(f.ts, p.start_ts) AS ts,
+      f.ts + f.dur - max(f.ts, p.start_ts) AS dur,
+      f.cpu,
+      coalesce(f.freq, 0) AS freq
+    FROM _adjusted_cpu_freq AS f, _idle_freq_params AS p
+    WHERE
+      f.ts + f.dur > p.start_ts
+    UNION ALL
+    SELECT trace_start() AS ts, trace_dur() AS dur, cpu, 0 AS freq
+    FROM _idle_freq_missing_cpus
+  ) AS f,
+  (
+    SELECT
+      i.ts,
+      i.dur,
+      i.cpu,
+      iif(
+        coalesce(_encode_idle!(i.idle), _null_idle_id!()) = p.deepest_id,
+        _deepest_idle_id!(),
+        coalesce(_encode_idle!(i.idle), _null_idle_id!())
+      ) AS idle_id
+    FROM _adjusted_deep_idle AS i, _idle_freq_params AS p
+    WHERE
+      NOT (i.cpu IN (SELECT cpu FROM _idle_freq_missing_cpus))
+    UNION ALL
+    SELECT
+      trace_start() AS ts,
+      trace_dur() AS dur,
+      cpu,
+      _offline_idle_id!() AS idle_id
+    FROM _idle_freq_missing_cpus
+  ) AS i,
+  (
+    SELECT h.ts, h.dur, h.cpu, h.offline
+    FROM _gapless_hotplug_slices AS h, _idle_freq_params AS p
+    WHERE
+      p.has_hotplug
+      AND NOT (h.cpu IN (SELECT cpu FROM _idle_freq_missing_cpus))
+    UNION ALL
+    SELECT trace_start() AS ts, trace_dur() AS dur, m.cpu, FALSE AS offline
+    FROM _dev_cpu_policy_map AS m, _idle_freq_params AS p
+    WHERE
+      NOT p.has_hotplug
+    UNION ALL
+    SELECT trace_start() AS ts, trace_dur() AS dur, cpu, FALSE AS offline
+    FROM _idle_freq_missing_cpus
+  ) AS h
+) PER cpu
+|> SELECT ts, dur, cpu, f.freq, i.idle_id, h.offline;
+
+-- Start matching CPUs with 1D curves based on combination of freq and idle.
+-- Carrying state_id through _w_cpu_slices eliminates 10 table joins.
+CREATE PERFETTO VIEW _idle_freq_materialized AS
+SELECT
+  ts,
+  dur,
+  cpu,
+  _pack_cpu_state!(cpu, freq, iif(offline, _offline_idle_id!(), idle_id)) AS state_id
+FROM _idle_freq_intersect;

@@ -232,6 +232,12 @@ PACKAGE_LIST_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
+            'profileable',
+            CppInt32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
             'version_code',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ,
@@ -261,7 +267,9 @@ PACKAGE_LIST_TABLE = Table(
             'debuggable':
                 '''bool whether this app is debuggable.''',
             'profileable_from_shell':
-                '''bool whether this app is profileable.''',
+                '''bool whether this app is profileable from the shell.''',
+            'profileable':
+                '''bool whether this app is profileable by the platform.''',
             'version_code':
                 '''versionCode from the APK.'''
         },
@@ -1048,6 +1056,12 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'potentially_merged',
+            CppBool(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -1066,7 +1080,10 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             'classloader_id':
                 '''''',
             'kind':
-                ''''''
+                '''''',
+            'potentially_merged':
+                '''True if other classes may have been merged into this class
+                by optimization (e.g. R8 class merging).''',
         }))
 
 HEAP_GRAPH_OBJECT_TABLE = Table(

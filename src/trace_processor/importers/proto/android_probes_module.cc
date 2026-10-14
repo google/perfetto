@@ -322,7 +322,7 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
     context_->storage->mutable_package_list_table()->Insert(
         {context_->storage->InternString(pkg.name()),
          static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
-         pkg.profileable_from_shell(),
+         pkg.profileable_from_shell(), pkg.profileable(),
          pkg.has_version_code() ? std::make_optional(pkg.version_code())
                                 : std::nullopt});
     tracker_->InsertedPackage(std::move(pkg_name));

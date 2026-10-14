@@ -255,7 +255,7 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonRejectsIntegerFileDescriptor) {
 }
 
 TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
   const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
@@ -274,9 +274,31 @@ TEST(TraceProcessorCustomConfigTest, ExportJsonUsesConfiguredFileSystem) {
   EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
 }
 
+TEST(TraceProcessorCustomConfigTest, ExportJsonAfterParsingTrace) {
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
+  const std::string& path = file.path();
+  ASSERT_EQ(path.find('\''), std::string::npos);
+
+  auto file_system = io::CreateLocalFileSystem();
+  FileSystemPlatform platform(file_system);
+  Config config;
+  config.enable_sql_file_access = true;
+  auto processor = TraceProcessor::CreateInstance(config, &platform);
+  ASSERT_OK(processor->Parse(
+      TraceBlobView(TraceBlob::CopyFrom(R"({"traceEvents":[]})", 18))));
+  ASSERT_OK(processor->NotifyEndOfFile());
+  auto it = processor->ExecuteQuery("SELECT EXPORT_JSON('" + path + "')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_OK(it.Status());
+
+  std::string contents;
+  ASSERT_TRUE(base::ReadFile(path, &contents));
+  EXPECT_THAT(contents, HasSubstr("\"traceEvents\""));
+}
+
 TEST(TraceProcessorCustomConfigTest,
      RpcImplicitResetPreservesSqlFileAccessGrant) {
-  base::TempFile first_file = base::TempFile::Create();
+  base::TempFile first_file = base::TempFile::Create().ValueOrDie();
   auto file_system = io::CreateLocalFileSystem();
   FileSystemPlatform platform(file_system);
   Config config;
@@ -296,7 +318,7 @@ TEST(TraceProcessorCustomConfigTest,
   ASSERT_OK(rpc.NotifyEndOfFile());
   ASSERT_OK(rpc.Parse(TraceBlobView()));
 
-  base::TempFile second_file = base::TempFile::Create();
+  base::TempFile second_file = base::TempFile::Create().ValueOrDie();
   write_file(second_file.path());
 }
 
@@ -339,7 +361,7 @@ TEST(TraceProcessorCustomConfigTest,
 
 TEST(TraceProcessorCustomConfigTest,
      IntrinsicFileWriteUsesConfiguredFileSystem) {
-  base::TempFile file = base::TempFile::Create();
+  base::TempFile file = base::TempFile::Create().ValueOrDie();
   const std::string& path = file.path();
   ASSERT_EQ(path.find('\''), std::string::npos);
 
@@ -1085,12 +1107,11 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageExecuteQuery) {
   ASSERT_FALSE(it.Next());
   ASSERT_FALSE(it.Status().ok());
 
-  ASSERT_THAT(it.Status().message(),
-              testing::Eq(R"(Traceback (most recent call last):
-  File "stdin" line 1 col 8
-    select t from slice
-           ^
-no such column: t)"));
+  ASSERT_THAT(it.Status().message(), testing::Eq(R"( --> query:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)"));
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
@@ -1103,14 +1124,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    select RUN_METRIC('foo/bar.sql')
-    ^
-  Metric file "foo/bar.sql" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | select RUN_METRIC('foo/bar.sql')
+  | ^
+ --> metric foo/bar.sql:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
@@ -1126,14 +1148,15 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
   ASSERT_FALSE(it.Status().ok());
 
   ASSERT_EQ(it.Status().message(),
-            R"(Traceback (most recent call last):
-  File "stdin" line 1 col 1
-    include perfetto module foo.bar
-    ^
-  Module include "foo.bar" line 1 col 8
-    select t from slice
-           ^
-no such column: t)");
+            R"( --> query:1:1
+  |
+1 | include perfetto module foo.bar
+  | ^
+ --> module foo.bar:1:8
+  |
+1 | select t from slice
+  |        ^
+error: no such column: t)");
 }
 
 TEST_F(TraceProcessorIntegrationTest, FunctionRegistrationError) {

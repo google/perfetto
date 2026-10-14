@@ -25,6 +25,7 @@ import type {NavState} from './nav_state';
 import {Tooltip} from '../../widgets/tooltip';
 import {Icon} from '../../widgets/icon';
 import {Anchor} from '../../widgets/anchor';
+import {AsyncMemo} from '../../base/async_memo';
 
 export type NavFn = (
   view: NavState['view'],
@@ -46,7 +47,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
     view(vnode) {
       const {row, navigate} = vnode.attrs;
       if (!row || row.id === 0) {
-        return m('span', {class: 'pf-hde-badge-referent'}, 'ROOT');
+        return m('span.pf-hde-badge-referent', 'ROOT');
       }
       const full = 'className' in row ? (row as InstanceRow) : null;
       return m(
@@ -54,13 +55,9 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         full &&
           full.reachabilityName !== 'unreachable' &&
           full.reachabilityName !== 'strong'
-          ? m(
-              'span',
-              {class: 'pf-hde-badge-reachability'},
-              full.reachabilityName,
-            )
+          ? m('span.pf-hde-badge-reachability', full.reachabilityName)
           : null,
-        full?.isRoot ? m('span', {class: 'pf-hde-badge-root'}, 'root') : null,
+        full?.isRoot ? m('span.pf-hde-badge-root', 'root') : null,
         m(
           Anchor,
           {
@@ -70,11 +67,8 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
         ),
         row.str != null
           ? m(
-              'span',
-              {
-                class: 'pf-hde-badge-string',
-                title: row.str.length > 80 ? row.str : undefined,
-              },
+              'span.pf-hde-badge-string',
+              {title: row.str.length > 80 ? row.str : undefined},
               '"' +
                 (row.str.length > 80
                   ? row.str.slice(0, 80) + '\u2026'
@@ -84,8 +78,7 @@ export function InstanceLink(): m.Component<InstanceLinkAttrs> {
           : null,
         full?.referent
           ? m(
-              'span',
-              {class: 'pf-hde-badge-referent'},
+              'span.pf-hde-badge-referent',
               ' for ',
               m(InstanceLink, {
                 row: full.referent,
@@ -113,11 +106,9 @@ export function Section(): m.Component<SectionAttrs> {
     },
     view(vnode) {
       return m(
-        'div',
-        {class: 'pf-hde-section'},
+        '.pf-hde-section',
         m(
-          'div',
-          {class: 'pf-hde-section__header'},
+          '.pf-hde-section__header',
           m(
             'button',
             {
@@ -127,7 +118,7 @@ export function Section(): m.Component<SectionAttrs> {
               },
               'aria-expanded': open,
             },
-            m('span', {class: 'pf-hde-section__title'}, vnode.attrs.title),
+            m('span.pf-hde-section__title', vnode.attrs.title),
             m(
               'svg',
               {
@@ -144,16 +135,13 @@ export function Section(): m.Component<SectionAttrs> {
           ),
           vnode.attrs.actions !== undefined
             ? m(
-                'div',
-                {
-                  class: 'pf-hde-section__actions',
-                  onclick: (e: Event) => e.stopPropagation(),
-                },
+                '.pf-hde-section__actions',
+                {onclick: (e: Event) => e.stopPropagation()},
                 vnode.attrs.actions,
               )
             : null,
         ),
-        open ? m('div', {class: 'pf-hde-section__body'}, vnode.children) : null,
+        open ? m('.pf-hde-section__body', vnode.children) : null,
       );
     },
   };
@@ -162,7 +150,7 @@ export function Section(): m.Component<SectionAttrs> {
 /** Renders a size value as a right-aligned formatted byte string. */
 export function sizeRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m('span', {class: 'pf-hde-mono'}, fmtSize(Number(value ?? 0))),
+    content: m('span.pf-hde-mono', fmtSize(Number(value ?? 0))),
     align: 'right',
   };
 }
@@ -170,11 +158,7 @@ export function sizeRenderer(value: SqlValue): CellRenderResult {
 /** Renders a numeric count value as a right-aligned locale string. */
 export function countRenderer(value: SqlValue): CellRenderResult {
   return {
-    content: m(
-      'span',
-      {class: 'pf-hde-mono'},
-      Number(value ?? 0).toLocaleString(),
-    ),
+    content: m('span.pf-hde-mono', Number(value ?? 0).toLocaleString()),
     align: 'right',
   };
 }
@@ -247,8 +231,7 @@ export const COL_INFO = {
 // Label + info icon for DataGrid column titles.
 export function colHeader(label: string, info: m.Children): m.Children {
   return m(
-    'span',
-    {class: 'pf-hde-col-header'},
+    'span.pf-hde-col-header',
     label,
     m(
       Tooltip,
@@ -263,78 +246,82 @@ export const SQL_PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;\n' +
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree';
 
+export interface RowCountArgs {
+  readonly engine: Engine;
+  // The (unfiltered) query backing the grid.
+  readonly query: string;
+  readonly preamble?: string;
+  // The grid's current filters.
+  readonly filters: readonly Filter[];
+}
+
+export interface RowCount {
+  // Undefined until loaded (or if the count failed).
+  readonly total?: number;
+  // Undefined when there are no filters, or until loaded.
+  readonly filtered?: number;
+}
+
 /**
- * Tracks total and filtered row counts for a SQL-backed DataGrid view.
- *  Call `init()` in oninit, pass `onFiltersChanged` to DataGrid, and read
- *  `heading()` for the formatted title.
+ * Total and filtered row counts for a SQL-backed DataGrid view.
+ * Call `use()` every render with the current query and filters, and pass the
+ * result to `rowCountHeading()`. Call `dispose()` in onremove.
  */
 export class RowCounter {
-  total: number | null = null;
-  filtered: number | null = null;
+  private readonly totalMemo = new AsyncMemo<number | undefined>();
+  private readonly filteredMemo = new AsyncMemo<number | undefined>();
 
-  private engine: Engine | null = null;
-  private baseQuery = '';
-  private preamble = '';
-  private currentFilters: readonly Filter[] = [];
+  use({engine, query, preamble, filters}: RowCountArgs): RowCount {
+    const prefix = preamble ? `${preamble};\n` : '';
+    const total = this.totalMemo.use({
+      key: {prefix, query},
+      compute: () =>
+        countRows(engine, `${prefix}SELECT COUNT(*) AS cnt FROM (${query})`),
+    }).data;
 
-  init(engine: Engine, query: string, preamble = '') {
-    this.engine = engine;
-    this.baseQuery = query;
-    this.preamble = preamble;
-    this.runCount();
+    if (filters.length === 0) return {total};
+
+    const where = filters.map((f) => filterToSql(f, f.field)).join(' AND ');
+    const filtered = this.filteredMemo.use({
+      key: {prefix, query, where},
+      // Keep showing the previous filtered count while the filters change.
+      retainOn: ['where'],
+      compute: () =>
+        countRows(
+          engine,
+          `${prefix}SELECT COUNT(*) AS cnt FROM (${query}) WHERE ${where}`,
+        ),
+    }).data;
+    return {total, filtered};
   }
 
-  /** Format a heading like "Objects (1,234)" or "Objects (42 / 1,234)". */
-  heading(label: string): string {
-    if (this.total === null) return label;
-    if (
-      this.filtered !== null &&
-      this.currentFilters.length > 0 &&
-      this.filtered !== this.total
-    ) {
-      return `${label} (${this.filtered.toLocaleString()} / ${this.total.toLocaleString()})`;
-    }
-    return `${label} (${this.total.toLocaleString()})`;
+  dispose(): void {
+    this.totalMemo.dispose();
+    this.filteredMemo.dispose();
   }
+}
 
-  /** Pass this as the DataGrid `onFiltersChanged` callback. */
-  readonly onFiltersChanged = (filters: readonly Filter[]) => {
-    this.currentFilters = filters;
-    this.runFilteredCount();
-  };
-
-  private runCount() {
-    if (!this.engine) return;
-    const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(`${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery})`)
-      .then((r) => {
-        this.total = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
+async function countRows(
+  engine: Engine,
+  sql: string,
+): Promise<number | undefined> {
+  try {
+    const r = await engine.query(sql);
+    return r.firstRow({cnt: NUM}).cnt;
+  } catch (e) {
+    console.error(e);
+    return undefined;
   }
+}
 
-  private runFilteredCount() {
-    if (!this.engine || this.currentFilters.length === 0) {
-      this.filtered = null;
-      m.redraw();
-      return;
-    }
-    const where = this.currentFilters
-      .map((f) => filterToSql(f, f.field))
-      .join(' AND ');
-    const prefix = this.preamble ? `${this.preamble};\n` : '';
-    this.engine
-      .query(
-        `${prefix}SELECT COUNT(*) AS cnt FROM (${this.baseQuery}) WHERE ${where}`,
-      )
-      .then((r) => {
-        this.filtered = r.firstRow({cnt: NUM}).cnt;
-        m.redraw();
-      })
-      .catch(console.error);
+/** Format a heading like "Objects (1,234)" or "Objects (42 / 1,234)". */
+export function rowCountHeading(label: string, count: RowCount): string {
+  const {total, filtered} = count;
+  if (total === undefined) return label;
+  if (filtered !== undefined && filtered !== total) {
+    return `${label} (${filtered.toLocaleString()} / ${total.toLocaleString()})`;
   }
+  return `${label} (${total.toLocaleString()})`;
 }
 
 interface PrimOrRefCellAttrs {
@@ -351,7 +338,7 @@ export function PrimOrRefCell(): m.Component<PrimOrRefCellAttrs> {
           navigate,
         });
       }
-      return m('span', {class: 'pf-hde-mono'}, v.v);
+      return m('span.pf-hde-mono', v.v);
     },
   };
 }
@@ -412,10 +399,12 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
 }
 
 /** Renders a single dominator-tree path as an indented arrow chain. */
-export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
+export function renderPath(
+  path: readonly PathEntry[],
+  navigate: NavFn,
+): m.Children {
   return m(
-    'div',
-    {class: 'pf-hde-view-stack--tight'},
+    '.pf-hde-view-stack--tight',
     path.map((pe, i) =>
       m(
         'div',
@@ -425,9 +414,9 @@ export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
           style: {'--pf-hde-depth': String(i)},
         },
         [
-          m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '\u2192'),
+          m('span.pf-hde-path-arrow', i === 0 ? '' : '\u2192'),
           m(InstanceLink, {row: pe.row, navigate}),
-          pe.field ? m('span', {class: 'pf-hde-path-field'}, pe.field) : null,
+          pe.field ? m('span.pf-hde-path-field', pe.field) : null,
         ],
       ),
     ),

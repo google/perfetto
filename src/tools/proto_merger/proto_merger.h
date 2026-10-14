@@ -33,8 +33,9 @@ namespace proto_merger {
 // Some notes about the merging algorithm:
 // * Comments for all values are always taken from |upstream|.
 // * If an enum is allowed, then so are all it's values.
-// * Options for fields and enums are taken from |input| unless explicitly
-//   allowlisted via |allowlisted_options| to be merged from |upstream|.
+// * Non-allowlisted options for fields and enums are taken from |input|, while
+//   options in |allowlisted_options| are synced from |upstream| (including
+//   additions, updates, and removals).
 // * Changing the type of an existing field is not supported (even if its
 //   just a move); this needs to be handled manually.
 base::Status MergeProtoFiles(

@@ -32,14 +32,6 @@ perfetto_py_library("trace_processor_table_generator") {
   ]
 }
 
-perfetto_py_library("trace_processor_stdlib_docs") {
-  sources = [
-    "generators/sql_processing/docs_extractor.py",
-    "generators/sql_processing/docs_parse.py",
-    "generators/sql_processing/utils.py",
-  ]
-}
-
 perfetto_py_library("trace_processor_diff_tests") {
   sources = [
     "generators/diff_tests/runner.py",
@@ -68,11 +60,15 @@ perfetto_py_library("trace_processor_py_no_resolvers") {
   sources = [
     "perfetto/trace_processor/__init__.py",
     "perfetto/trace_processor/api.py",
+    "perfetto/trace_processor/backend.py",
+    "perfetto/trace_processor/backend_factory.py",
     "perfetto/trace_processor/http.py",
     "perfetto/trace_processor/platform.py",
     "perfetto/trace_processor/process_tree.py",
     "perfetto/trace_processor/protos.py",
+    "perfetto/trace_processor/rpc.py",
     "perfetto/trace_processor/shell.py",
+    "perfetto/trace_processor/unix.py",
   ]
   data = [
     "perfetto/trace_processor/trace_processor.descriptor",

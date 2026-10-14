@@ -116,6 +116,7 @@
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include "src/tracing/service/zlib_compressor.h"
 #endif
@@ -244,7 +245,7 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
     shm_size = TracingServiceImpl::kDefaultShmSize;
 
   page_size = std::min<size_t>(page_size, kMaxPageSize);
-  shm_size = std::min<size_t>(shm_size, TracingServiceImpl::kMaxShmSize);
+  shm_size = std::min<size_t>(shm_size, TracingService::kMaxShmSize);
 
   // The tracing page size has to be multiple of 4K. On some systems (e.g. Mac
   // on Arm64) the system page size can be larger (e.g., 16K). That doesn't
@@ -389,8 +390,17 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     size_t shared_memory_page_size_hint_bytes,
                                     std::unique_ptr<SharedMemory> shm,
                                     const std::string& sdk_version,
-                                    const std::string& machine_name) {
+                                    const std::string& machine_name,
+                                    uint32_t protocol_abi_versions) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  if (!protocol_abi_versions) {
+    PERFETTO_ELOG(
+        "Failed to negotiate a valid tracing protocol version with the tracing "
+        "service: producer=\"%s\"",
+        producer_name.c_str());
+    return nullptr;
+  }
 
   auto uid = client_identity.uid();
   if (lockdown_mode_ && uid != base::GetCurrentUserId()) {
@@ -421,7 +431,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, client_identity, this, weak_runner_.task_runner(), producer,
       producer_name, machine_name, sdk_version, in_process,
-      smb_scraping_enabled));
+      smb_scraping_enabled, protocol_abi_versions));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
 
@@ -806,11 +816,35 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  // For each buffer: the name of a data source with a ProtoVM, and of one
+  // that can use tracing v2.
+  // Tracing v2 does not support ProtoVM on the same buffer yet.
+  std::vector<const std::string*> protovm_source(num_buffers);
+  std::vector<const std::string*> tracing_v2_source(num_buffers);
+
   // Check that the config specifies all buffers for its data sources. This
   // is also checked in SetupDataSource, but it is simpler to return a proper
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
+    const auto& tracing_v2_config = ds_config.experimental_tracing_v2();
+    if (tracing_v2_config.use_v2_probability_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.use_v2_probability_percent must be at most "
+          "100");
+    }
+    if (tracing_v2_config.drain_occupancy_percent() < -1 ||
+        tracing_v2_config.drain_occupancy_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.drain_occupancy_percent must be -1 to 100");
+    }
+    for (const auto& option : tracing_v2_config.chunk_size_options()) {
+      if (!tracing_v2::IsValidChunkSize(option.size_bytes())) {
+        return PERFETTO_SVC_ERR(
+            "experimental_tracing_v2.chunk_size_options: invalid size %u",
+            option.size_bytes());
+      }
+    }
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
     size_t target_buffer = ds_config.target_buffer();
@@ -852,6 +886,19 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           "Data source \"%s\" specified an out of bounds target_buffer (%zu >= "
           "%zu)",
           ds_config.name().c_str(), target_buffer, num_buffers);
+    }
+
+    if (ds_config.has_protovm_config())
+      protovm_source[target_buffer] = &ds_config.name();
+    if (tracing_v2_config.use_v2_probability_percent() > 0)
+      tracing_v2_source[target_buffer] = &ds_config.name();
+    if (protovm_source[target_buffer] && tracing_v2_source[target_buffer]) {
+      return PERFETTO_SVC_ERR(
+          "Data source \"%s\" has a ProtoVM and data source \"%s\" has "
+          "experimental_tracing_v2 on the same buffer %zu. Tracing v2 does not "
+          "support ProtoVM",
+          protovm_source[target_buffer]->c_str(),
+          tracing_v2_source[target_buffer]->c_str(), target_buffer);
     }
   }
 
@@ -2324,13 +2371,6 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
 void TracingServiceImpl::ScrapeSharedMemoryBuffers(
     TracingSession* tracing_session,
     ProducerEndpointImpl* producer) {
-  if (!producer->smb_scraping_enabled_ || producer->IsShmemEmulated())
-    return;
-
-  // Can't copy chunks if we don't know about any trace writers.
-  if (producer->writers_.empty())
-    return;
-
   // Performance optimization: On flush or session disconnect, this method is
   // called for each producer. If the producer doesn't participate in the
   // session, there's no need to scrape its chunks right now. We can tell if a
@@ -2343,6 +2383,16 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
                     return producer->allowed_target_buffers_.count(buffer_id);
                   });
   if (!producer_in_session)
+    return;
+
+  // Drain v2 data even when v1 SMB scraping is disabled.
+  producer->DrainV2RingBuffer();
+
+  if (!producer->smb_scraping_enabled_ || producer->IsShmemEmulated())
+    return;
+
+  // Can't copy chunks if we don't know about any trace writers.
+  if (producer->writers_.empty())
     return;
 
   PERFETTO_DLOG("Scraping SMB for producer %" PRIu16, producer->id_);
@@ -3466,6 +3516,21 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
     return nullptr;
   }
 
+  const BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
+  PERFETTO_DCHECK(global_id);
+
+  const bool supports_tracing_v2 =
+      (producer->protocol_abi_versions_ & kProtocolAbiV2) &&
+      GetBufferByID(global_id, TraceBuffer::BufType::kV2);
+  if (!(producer->protocol_abi_versions_ & kProtocolAbiV1) &&
+      !supports_tracing_v2) {
+    PERFETTO_ELOG(
+        "Cannot set up data source \"%s\" on producer \"%s\": "
+        "target_buffer %u supports no common protocol version",
+        ds_cfg.name().c_str(), producer->name_.c_str(), relative_buffer_id);
+    return nullptr;
+  }
+
   // Create a copy of the DataSourceConfig specified in the trace config. This
   // will be passed to the producer after translating the |target_buffer| id.
   // The |target_buffer| parameter passed by the consumer in the trace config is
@@ -3494,6 +3559,14 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   }
 
   DataSourceConfig& ds_config = ds_instance->config;
+  // When v2 is unavailable, keep an absent field unset so startup configs
+  // still match in older SDKs.
+  //
+  // If the consumer supplied a value, overwrite it with the service's decision
+  // about whether this data source can use v2.
+  if (supports_tracing_v2 || ds_config.has_supports_tracing_v2())
+    ds_config.set_supports_tracing_v2(supports_tracing_v2);
+
   ds_config.set_trace_duration_ms(tracing_session->config.duration_ms());
 
   // Rationale for `if (prefer) set_prefer(true)`, rather than `set(prefer)`:
@@ -3518,8 +3591,6 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
         DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
   }
   ds_config.set_tracing_session_id(tracing_session->id);
-  BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
-  PERFETTO_DCHECK(global_id);
   ds_config.set_target_buffer(global_id);
 
   MaybeSetUpProtoVm(ds_config, data_source, global_id);
@@ -3766,9 +3837,18 @@ ProducerID TracingServiceImpl::GetNextProducerID() {
   return last_producer_id_;
 }
 
-TraceBuffer* TracingServiceImpl::GetBufferByID(BufferID buffer_id) {
+void TracingServiceImpl::OnRingBufferChunksDiscarded(uint64_t count) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  chunks_discarded_ += count;
+}
+
+TraceBuffer* TracingServiceImpl::GetBufferByID(
+    BufferID buffer_id,
+    std::optional<TraceBuffer::BufType> type) {
   auto buf_iter = buffers_.find(buffer_id);
   if (buf_iter == buffers_.end())
+    return nullptr;
+  if (type && buf_iter->second->buf_type() != *type)
     return nullptr;
   return buf_iter->second.get();
 }
@@ -3805,6 +3885,7 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   for (const auto& id_to_producer : producers_) {
     if (id_to_producer.second->shared_memory())
       total_buffer_bytes += id_to_producer.second->shared_memory()->size();
+    total_buffer_bytes += id_to_producer.second->ring_buffer_size_bytes();
   }
 
   // Sum up all the trace buffers.
@@ -4224,6 +4305,8 @@ void TracingServiceImpl::EmitTraceProvenance(
     TraceBuffer* buf = GetBufferByID(buf_id);
     if (!buf)
       continue;
+    // TODO(b/568173038): derive sequences from the buffer's own sequence
+    // tracking instead of writer_stats() once TraceBufferV1 is gone.
     for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
       ProducerID producer_id;
       WriterID writer_id;

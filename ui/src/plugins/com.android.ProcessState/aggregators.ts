@@ -23,7 +23,10 @@ import {titleWithHelp} from '../../components/distribution_panel';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {renderCell} from '../../components/widgets/datagrid/datagrid';
-import type {ColumnDef} from '../../components/widgets/datagrid/datagrid_schema';
+import type {
+  CellRenderer,
+  ColumnDef,
+} from '../../components/widgets/datagrid/datagrid_schema';
 import {Icons} from '../../base/semantic_icons';
 import {Duration, Time} from '../../base/time';
 import type {AreaSelection} from '../../public/selection';
@@ -116,6 +119,17 @@ function scopedTransitions(scope: Scope, area: AreaSelection): string {
 }
 
 // Durations follow the user's time format and precision settings.
+export function durationCellRenderer(trace: Trace): CellRenderer {
+  return (value) => {
+    // Averaging aggregates come back as floats.
+    const dur = typeof value === 'number' ? BigInt(Math.round(value)) : value;
+    if (typeof dur !== 'bigint') {
+      return renderCell(value);
+    }
+    return m(DurationWidget, {trace, dur: Duration.fromRaw(dur)});
+  };
+}
+
 function durationColumn(
   trace: Trace,
   title: string,
@@ -125,14 +139,7 @@ function durationColumn(
     title: helpText !== undefined ? titleWithHelp(title, helpText) : title,
     titleString: helpText !== undefined ? title : undefined,
     columnType: 'quantitative',
-    cellRenderer: (value) => {
-      // Averaging aggregates come back as floats.
-      const dur = typeof value === 'number' ? BigInt(Math.round(value)) : value;
-      if (typeof dur !== 'bigint') {
-        return renderCell(value);
-      }
-      return m(DurationWidget, {trace, dur: Duration.fromRaw(dur)});
-    },
+    cellRenderer: durationCellRenderer(trace),
   };
 }
 
@@ -275,7 +282,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
               prev_state,
               prev_state_duration AS prev_dur,
               state AS cur_state,
-              CASE WHEN dur >= 0 THEN dur END AS cur_dur,
+              iif(dur < 0, trace_end() - ts, dur) AS cur_dur,
               reason
             FROM scoped
             WHERE state != 'NONEXISTENT' AND state != 'EXITED'

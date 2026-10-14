@@ -57,6 +57,8 @@
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/pipeline_sql.h"
+#include "src/trace_processor/perfetto_sql/pipeline/plan_serialization.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -133,8 +135,7 @@ base::Status AddTracebackIfNeeded(base::Status status,
   }
   // Since the error is with the statement as a whole, just pass zero so the
   // traceback points to the start of the statement.
-  std::string traceback = source.AsTraceback(0);
-  status = base::ErrStatus("%s%s", traceback.c_str(), status.c_message());
+  status = source.AddTraceback(0, status);
   status.SetPayload("perfetto.dev/has_traceback", "true");
   return status;
 }
@@ -233,12 +234,13 @@ base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
     if (col_name.empty()) {
       return base::ErrStatus("%s: column %u: name must not be empty", tag, i);
     }
-    if (!std::isalpha(col_name.front()) && col_name.front() != '_') {
-      return base::ErrStatus(
-          "%s: Column %u: name '%s' has to start with a letter or underscore.",
-          tag, i, col_name.c_str());
-    }
-    if (!sql_argument::IsValidName(base::StringView(col_name))) {
+    if (!sql_argument::IsValidColumnName(base::StringView(col_name))) {
+      if (!std::isalpha(col_name.front()) && col_name.front() != '_') {
+        return base::ErrStatus(
+            "%s: Column %u: name '%s' has to start with a letter or "
+            "underscore.",
+            tag, i, col_name.c_str());
+      }
       return base::ErrStatus(
           "%s: Column %u: name '%s' has to contain only alphanumeric "
           "characters and underscores.",
@@ -358,9 +360,15 @@ PerfettoSqlConnection::PerfettoSqlConnection(
   {
     auto ctx = std::make_unique<PipelineModule::Context>();
     ctx->pool = pool_;
-    pipeline_context_ = ctx.get();
-    RegisterVirtualTableModule<PipelineModule>(PipelineModule::kName,
+    ctx->connection = this;
+    RegisterVirtualTableModule<PipelineModule>(pipeline::kPipelineFunction,
                                                std::move(ctx));
+    base::Status status = RegisterAggregateFunction<DataframeAgg>(pool_);
+    PERFETTO_CHECK(status.ok());
+    // Not deterministic: each call makes a new list.
+    status = RegisterFunction<DataframesFunction>(
+        nullptr, RegisterFunctionArgs(nullptr, /*deterministic=*/false));
+    PERFETTO_CHECK(status.ok());
   }
   database_->InitializeSharedSchema(connection_.get());
 
@@ -611,9 +619,7 @@ PerfettoSqlConnection::ExecuteStatements(SqlSource sql_source,
       PERFETTO_DCHECK(frame.aux);
       frame.aux->include_claim.ReleasePoisoned(result.status().message());
       PERFETTO_DCHECK(frame.aux->traceback_sql);
-      std::string traceback = frame.aux->traceback_sql->AsTraceback(0);
-      result = base::ErrStatus("%s%s", traceback.c_str(),
-                               result.status().c_message());
+      result = frame.aux->traceback_sql->AddTraceback(0, result.status());
     }
     execution_stack_.pop_back();
   }
@@ -639,21 +645,20 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
 
       PERFETTO_DCHECK(wc_aux.wildcard_traceback_sql);
       if (IsKeyOnIncludeStack(key)) {
-        std::string traceback = wc_aux.wildcard_traceback_sql->AsTraceback(0);
-        return base::ErrStatus(
-            "%sINCLUDE: cycle detected — module '%s' is already mid-import "
-            "in this execution.",
-            traceback.c_str(), key.c_str());
+        return wc_aux.wildcard_traceback_sql->AddTraceback(
+            0, base::ErrStatus("INCLUDE: cycle detected — module '%s' is "
+                               "already mid-import in this execution.",
+                               key.c_str()));
       }
       auto res = database_->TryClaimInclude(key);
       if (res.already_included) {
         continue;
       }
       if (res.poisoned) {
-        std::string traceback = wc_aux.wildcard_traceback_sql->AsTraceback(0);
-        return base::ErrStatus(
-            "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
-            traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+        return wc_aux.wildcard_traceback_sql->AddTraceback(
+            0, base::ErrStatus(
+                   "INCLUDE: module '%s' poisoned by earlier failure: %s",
+                   key.c_str(), res.poison_reason.c_str()));
       }
 
       // Copy traceback before PushIncludeFrame, which may invalidate frame ref.
@@ -700,9 +705,8 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
             std::holds_alternative<PerfettoSqlParser::SqliteSql>(stmt))) {
       source_to_prepare = parser->TakeStatementSql();
     } else if (std::holds_alternative<PerfettoSqlParser::Pipeline>(stmt)) {
-      auto pipeline =
-          std::get<PerfettoSqlParser::Pipeline>(parser->TakeStatement());
-      pipeline_plan = std::move(pipeline.plan);
+      pipeline_plan = std::move(
+          std::get<PerfettoSqlParser::Pipeline>(parser->TakeStatement()).plan);
       source_to_prepare = parser->TakeStatementSql();
     } else {
       is_dummy = true;
@@ -713,8 +717,8 @@ PerfettoSqlConnection::ProcessFrame(size_t frame_idx) {
     {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "QUERY_PREPARE");
       if (pipeline_plan) {
-        ASSIGN_OR_RETURN(next_stmt, PreparePipeline(std::move(*pipeline_plan),
-                                                    *source_to_prepare));
+        ASSIGN_OR_RETURN(next_stmt,
+                         PreparePipeline(*pipeline_plan, *source_to_prepare));
       } else {
         auto stmt_result =
             connection_->PrepareStatement(std::move(*source_to_prepare));
@@ -978,9 +982,9 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-  auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
+  const auto* logical = std::get_if<pipeline::LogicalPlan>(&create_table.body);
   base::StatusOr<SqliteConnection::PreparedStatement> stmt_or =
-      logical ? PreparePipeline(std::move(*logical), statement_sql)
+      logical ? PreparePipeline(*logical, statement_sql)
               : connection_->PrepareStatement(
                     std::move(std::get<SqlSource>(create_table.body)));
   ASSIGN_OR_RETURN(auto stmt, std::move(stmt_or));
@@ -1048,14 +1052,28 @@ base::Status PerfettoSqlConnection::ExecuteCreateTable(
 }
 
 base::StatusOr<SqliteConnection::PreparedStatement>
-PerfettoSqlConnection::PreparePipeline(pipeline::LogicalPlan logical,
+PerfettoSqlConnection::PreparePipeline(const pipeline::LogicalPlan& plan,
                                        const SqlSource& source) {
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_PLAN");
-  pipeline::LowerEnvironment env;
-  env.connection = connection_.get();
-  env.pool = pool_;
-  return PipelineModule::Prepare(connection_.get(), pipeline_context_,
-                                 pipeline::Lower(logical, env), source);
+  auto sql = pipeline::SelectPipelineSql(plan);
+  if (!sql.ok()) {
+    return source.AddTraceback(0, sql.status());
+  }
+  SqliteConnection::PreparedStatement stmt =
+      connection_->PrepareStatement(source.RewriteAllIgnoreExisting(
+          SqlSource::FromTraceProcessorImplementation(std::move(*sql))));
+  RETURN_IF_ERROR(stmt.status());
+  return std::move(stmt);
+}
+
+base::StatusOr<std::unique_ptr<pipeline::PhysicalPlan>>
+PerfettoSqlConnection::LoadPipeline(
+    std::string_view serialized,
+    const std::vector<const dataframe::Dataframe*>& args) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "PIPELINE_LOAD");
+  ASSIGN_OR_RETURN(pipeline::LogicalPlan plan,
+                   pipeline::DeserializePlan(serialized, *catalog_));
+  RETURN_IF_ERROR(pipeline::BindDataframeArgs(plan, args, pool_));
+  return pipeline::Lower(plan);
 }
 
 base::Status PerfettoSqlConnection::ExecuteCreateView(
@@ -1308,21 +1326,20 @@ base::Status PerfettoSqlConnection::IncludeModuleImpl(
     std::string_view sql,
     const PerfettoSqlParser& parser) {
   if (IsKeyOnIncludeStack(key)) {
-    std::string traceback = parser.statement_sql().AsTraceback(0);
-    return base::ErrStatus(
-        "%sINCLUDE: cycle detected — module '%s' is already mid-import in "
-        "this execution.",
-        traceback.c_str(), key.c_str());
+    return parser.statement_sql().AddTraceback(
+        0, base::ErrStatus("INCLUDE: cycle detected — module '%s' is already "
+                           "mid-import in this execution.",
+                           key.c_str()));
   }
   auto res = database_->TryClaimInclude(key);
   if (res.already_included) {
     return base::OkStatus();
   }
   if (res.poisoned) {
-    std::string traceback = parser.statement_sql().AsTraceback(0);
-    return base::ErrStatus(
-        "%sINCLUDE: module '%s' poisoned by earlier failure: %s",
-        traceback.c_str(), key.c_str(), res.poison_reason.c_str());
+    return parser.statement_sql().AddTraceback(
+        0,
+        base::ErrStatus("INCLUDE: module '%s' poisoned by earlier failure: %s",
+                        key.c_str(), res.poison_reason.c_str()));
   }
   PushIncludeFrame(key, sql, parser.statement_sql(), std::move(res.claim),
                    builtin);
@@ -1591,21 +1608,22 @@ base::Status PerfettoSqlConnection::ExecuteCreateMacro(
   for (const auto& [name, type] : create_macro.args) {
     if (!IsTokenAllowedInMacro(type.sql())) {
       // TODO(lalitm): add a link to create macro documentation.
-      return base::ErrStatus(
-          "%sMacro '%s' argument '%s' is unknown type '%s'. Allowed types: "
-          "%s",
-          type.AsTraceback(0).c_str(), create_macro.name.sql().c_str(),
-          name.sql().c_str(), type.sql().c_str(),
-          GetTokenNamesAllowedInMacro().c_str());
+      return type.AddTraceback(
+          0, base::ErrStatus(
+                 "Macro '%s' argument '%s' is unknown type '%s'. Allowed "
+                 "types: %s",
+                 create_macro.name.sql().c_str(), name.sql().c_str(),
+                 type.sql().c_str(), GetTokenNamesAllowedInMacro().c_str()));
     }
   }
   if (!IsTokenAllowedInMacro(create_macro.returns.sql())) {
     // TODO(lalitm): add a link to create macro documentation.
-    return base::ErrStatus(
-        "%sMacro %s return type %s is unknown. Allowed types: %s",
-        create_macro.returns.AsTraceback(0).c_str(),
-        create_macro.name.sql().c_str(), create_macro.returns.sql().c_str(),
-        GetTokenNamesAllowedInMacro().c_str());
+    return create_macro.returns.AddTraceback(
+        0, base::ErrStatus("Macro %s return type %s is unknown. Allowed "
+                           "types: %s",
+                           create_macro.name.sql().c_str(),
+                           create_macro.returns.sql().c_str(),
+                           GetTokenNamesAllowedInMacro().c_str()));
   }
 
   std::vector<std::string> args;
@@ -1622,8 +1640,8 @@ base::Status PerfettoSqlConnection::ExecuteCreateMacro(
   if (auto* it = database_->macros().Find(create_macro.name.sql()); it) {
     if (!create_macro.replace) {
       // TODO(lalitm): add a link to create macro documentation.
-      return base::ErrStatus("%sMacro already exists",
-                             create_macro.name.AsTraceback(0).c_str());
+      return create_macro.name.AddTraceback(
+          0, base::ErrStatus("Macro already exists"));
     }
     *it = std::move(macro);
     return base::OkStatus();

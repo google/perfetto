@@ -231,6 +231,11 @@ export class CpuSliceSelectionAggregator implements Aggregator {
         field: 'fraction_of_total',
         function: 'SUM' as const,
       },
+      {
+        id: 'fraction_of_selection_sum',
+        field: 'fraction_of_selection',
+        function: 'SUM' as const,
+      },
       {id: 'dur_avg', field: 'dur', function: 'AVG' as const},
     ];
 
@@ -243,6 +248,8 @@ export class CpuSliceSelectionAggregator implements Aggregator {
       {id: 'ts', field: 'ts'},
       {id: 'dur', field: 'dur'},
       {id: 'ucpu', field: 'ucpu'},
+      {id: 'fraction_of_total', field: 'fraction_of_total'},
+      {id: 'fraction_of_selection', field: 'fraction_of_selection'},
     ];
 
     return [

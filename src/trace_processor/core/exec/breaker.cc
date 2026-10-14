@@ -27,8 +27,10 @@ namespace perfetto::trace_processor::core::exec {
 Breaker::~Breaker() = default;
 Breaker::State::~State() = default;
 
-std::unique_ptr<OperatorState> Breaker::MakeState() const {
-  return CreateState();
+std::unique_ptr<OperatorState> Breaker::MakeState(Context& context) const {
+  std::unique_ptr<State> state = CreateState();
+  state->context = &context;
+  return state;
 }
 
 OpResult Breaker::Execute(const RowBatch& in,
@@ -58,11 +60,9 @@ OpResult Breaker::Finish(RowBatch& out, OperatorState& state) const {
   return s.status.ok() ? OpResult::kNeedMoreInput : OpResult::kError;
 }
 
-void Breaker::Rewind(OperatorState& state) const {
-  State& s = state.Cast<State>();
-  Reset(s);
-  s.status = base::OkStatus();
-  s.filled = false;
+void Breaker::State::Reset() {
+  status = base::OkStatus();
+  filled = false;
 }
 
 base::Status Breaker::status(const OperatorState& state) const {

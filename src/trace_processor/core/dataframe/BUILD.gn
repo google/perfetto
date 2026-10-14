@@ -46,6 +46,7 @@ source_set("dataframe") {
     "../../../base",
     "../../../base/regex",
     "../../containers",
+    "../../util:cold_sort",
     "../../util:flatbuffer_reader",
     "../../util:flatbuffer_writer",
     "../../util:glob",

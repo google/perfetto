@@ -43,6 +43,20 @@ package perfetto.protos;
 // It will always be easy to go from this proto to PerfettoSQL: trace processor
 // exposes APIs for this. It's also easy to bring SQL directly into the proto
 // world through use of the `Sql` source (see below).
+//
+// Evaluation order of operations:
+// The fields below are evaluated in a specific order following SQL semantics.
+// The logical evaluation order is:
+//   1. FROM (source) - determine the source data
+//   2. WHERE (filters) - filter rows from the source
+//   3. GROUP BY (group_by) - group rows and compute aggregations
+//   4. SELECT (select_columns) - select and transform columns
+//   5. ORDER BY (order_by) - sort the result set
+//   6. LIMIT/OFFSET (limit, offset) - restrict the number of rows returned
+//
+// This follows the standard SQL evaluation order as defined in the SQL
+// standard (ISO/IEC 9075). For more details, see:
+// https://www.sqlite.org/lang_select.html
 message PerfettoSqlStructuredQuery {
   // A table or view acting as the source of the query, possibly living in a
   // PerfettoSQL module.
@@ -653,20 +667,6 @@ message PerfettoSqlStructuredQuery {
     // ExperimentalFilterIn documentation for more information.
     ExperimentalFilterIn experimental_filter_in = 108;
   }
-
-  // Evaluation order of operations:
-  // The fields below are evaluated in a specific order following SQL semantics.
-  // The logical evaluation order is:
-  //   1. FROM (source) - determine the source data
-  //   2. WHERE (filters) - filter rows from the source
-  //   3. GROUP BY (group_by) - group rows and compute aggregations
-  //   4. SELECT (select_columns) - select and transform columns
-  //   5. ORDER BY (order_by) - sort the result set
-  //   6. LIMIT/OFFSET (limit, offset) - restrict the number of rows returned
-  //
-  // This follows the standard SQL evaluation order as defined in the SQL
-  // standard (ISO/IEC 9075). For more details, see:
-  // https://www.sqlite.org/lang_select.html
 
   // Represents a single filter on a column.
   message Filter {

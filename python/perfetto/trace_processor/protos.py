@@ -74,3 +74,7 @@ class ProtoFactory:
         'perfetto.protos.DisableAndReadMetatraceResult')
     self.CellsBatch = create_message_factory(
         'perfetto.protos.QueryResult.CellsBatch')
+    self.TraceProcessorRpcStream = create_message_factory(
+        'perfetto.protos.TraceProcessorRpcStream')
+    self.TraceProcessorRpc = create_message_factory(
+        'perfetto.protos.TraceProcessorRpc')

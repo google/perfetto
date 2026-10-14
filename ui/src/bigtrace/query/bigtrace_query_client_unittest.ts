@@ -236,6 +236,31 @@ describe('BigtraceQueryClient trace-metadata wire', () => {
     ]);
     expect(schema.columns[0].defaultVisible).toBe(true);
   });
+
+  test('listTraceMetadataColumnValues POSTs column, search and coerced trace_filters', async () => {
+    const fetchMock = captureFetch({values: ['Google', 'Samsung']});
+    const client = new BigtraceQueryClient('http://example/');
+    const values = await client.listTraceMetadataColumnValues(
+      [traceDir],
+      'device_manufacturer',
+      {
+        search: 'goo',
+        traceFilters: [{field: 'trace_population', op: 'in', value: ['A']}],
+      },
+    );
+
+    expect(urlFrom(fetchMock)).toBe(
+      'http://example//trace_metadata_column_values',
+    );
+    const body = bodyFrom(fetchMock);
+    expect(body.column_name).toBe('device_manufacturer');
+    expect(body.search_pattern).toBe('goo');
+    expect(body.trace_filters).toEqual([
+      {field: 'trace_population', op: 'in', value: ['A']},
+    ]);
+    expect(body.limit).toBeUndefined();
+    expect(values).toEqual(['Google', 'Samsung']);
+  });
 });
 
 describe('BigtraceQueryClient execute trace-selection snapshot', () => {
@@ -773,5 +798,20 @@ describe('BigtraceQueryClient result tables', () => {
     const {url, method} = callOf(fetchMock);
     expect(url).toBe('http://example/query_executions/uid-1?drop_table=true');
     expect(method).toBe('DELETE');
+  });
+
+  test('fetchColumnValues asks one column of the result table', async () => {
+    const fetchMock = captureFetch({values: ['a', 'b']});
+    const client = new BigtraceQueryClient('http://example');
+    const values = await client.fetchColumnValues(
+      'uid-1',
+      'process_name',
+      'sys',
+    );
+    const {url, method, body} = callOf(fetchMock);
+    expect(url).toBe('http://example/query_executions/uid-1:column_values');
+    expect(method).toBe('POST');
+    expect(body).toEqual({column_name: 'process_name', search_pattern: 'sys'});
+    expect(values).toEqual(['a', 'b']);
   });
 });

@@ -298,6 +298,22 @@ export class BigtraceQueryClient {
     };
   }
 
+  async fetchColumnValues(
+    uuid: string,
+    column: string,
+    search?: string,
+  ): Promise<ReadonlyArray<string>> {
+    const result = await this.requestJson<{values?: string[]}>(
+      `/query_executions/${uuid}:column_values`,
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({column_name: column, search_pattern: search}),
+      },
+    );
+    return result.values ?? [];
+  }
+
   async cancelQuery(uuid: string, signal?: AbortSignal): Promise<void> {
     await this.request(`/query_executions/${uuid}:cancel`, {
       method: 'POST',
@@ -472,6 +488,53 @@ export class BigtraceQueryClient {
       }),
       signal,
     });
+  }
+
+  // Distinct values of one `/trace_metadata` column over the current trace
+  // source, narrowed by `traceFilters` (so a picker can show only the values
+  // that exist under the other filters) and by a substring `search`. The
+  // backend caps the list (100 by default), ranked by match position when
+  // searching, else alphabetically.
+  async listTraceMetadataColumnValues(
+    settings: ReadonlyArray<SettingFilter>,
+    column: string,
+    options?: {
+      readonly search?: string;
+      readonly traceFilters?: ReadonlyArray<Filter>;
+      readonly experimentFilter?: ExperimentFilterSpec;
+      readonly limit?: number;
+    },
+    signal?: AbortSignal,
+  ): Promise<ReadonlyArray<string>> {
+    const body: Record<string, unknown> = {
+      settings: this.settingsToWire(settings),
+      column_name: column,
+    };
+    if (options?.search !== undefined && options.search !== '') {
+      body.search_pattern = options.search;
+    }
+    if (
+      options?.traceFilters !== undefined &&
+      options.traceFilters.length > 0
+    ) {
+      body.trace_filters = coerceFiltersForWire(options.traceFilters);
+    }
+    if (options?.experimentFilter !== undefined) {
+      body.experiment_filter = experimentFilterToWire(options.experimentFilter);
+    }
+    if (options?.limit !== undefined && options.limit > 0) {
+      body.limit = options.limit;
+    }
+    const result = await this.requestJson<{values?: string[]}>(
+      '/trace_metadata_column_values',
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+        signal,
+      },
+    );
+    return result.values ?? [];
   }
 
   // ----- Internals -----

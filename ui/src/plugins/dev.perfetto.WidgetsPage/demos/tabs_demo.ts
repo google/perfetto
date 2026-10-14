@@ -106,6 +106,7 @@ export function renderTabs(): m.Children {
             tabs,
             activeTabKey,
             variant: opts.variant,
+            hideTabBar: opts.hideTabBar,
             reorderable: opts.reorderable,
             onTabChange: (key) => {
               activeTabKey = key;
@@ -177,6 +178,7 @@ export function renderTabs(): m.Children {
         menuItems: true,
         rightButton: false,
         lazy: false,
+        hideTabBar: false,
         variant: new EnumOption('card', ['card', 'underline'] as const),
       },
     }),

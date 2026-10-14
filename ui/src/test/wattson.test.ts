@@ -16,8 +16,6 @@ import {test, type Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 import {ensureExists} from '../base/assert';
 
-test.describe.configure({mode: 'serial'});
-
 let pth: PerfettoTestHelper;
 let page: Page;
 
@@ -39,34 +37,41 @@ test.beforeAll(async ({browser}, _testInfo) => {
   await pth.openTraceFile('wattson_dsu_pmu.pb');
 });
 
-test('wattson aggregations', async () => {
-  const wattsonGrp = pth.locateTrack('Wattson');
-  await wattsonGrp.scrollIntoViewIfNeeded();
-  await pth.toggleTrackGroup(wattsonGrp);
-  const cpuEstimate = pth.locateTrack('Wattson/Cpu0 estimate', wattsonGrp);
-  const coords = ensureExists(await cpuEstimate.boundingBox());
-  await page.keyboard.press('Escape');
-  await page.mouse.move(600, coords.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(1000, coords.y + 80);
-  await page.mouse.up();
-  await pth.waitForIdleAndScreenshot('wattson-estimate-aggr.png', SCREEN_CLIP);
-  await page.keyboard.press('Escape');
-});
+test('wattson', async () => {
+  test.setTimeout(2 * 60_000);
 
-test('sched aggregations', async () => {
-  await page.keyboard.press('Escape');
-  await page.mouse.move(600, 250);
-  await page.mouse.down();
-  await page.mouse.move(800, 350);
-  await page.mouse.up();
-  await pth.waitForPerfettoIdle();
+  await pth.step('wattson aggregations', async () => {
+    const wattsonGrp = pth.locateTrack('Wattson');
+    await wattsonGrp.scrollIntoViewIfNeeded();
+    await pth.toggleTrackGroup(wattsonGrp);
+    const cpuEstimate = pth.locateTrack('Wattson/Cpu0 estimate', wattsonGrp);
+    const coords = ensureExists(await cpuEstimate.boundingBox());
+    await page.keyboard.press('Escape');
+    await page.mouse.move(600, coords.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(1000, coords.y + 80);
+    await page.mouse.up();
+    await pth.waitForIdleAndScreenshot(
+      'wattson-estimate-aggr.png',
+      SCREEN_CLIP,
+    );
+    await page.keyboard.press('Escape');
+  });
 
-  await page.click('button[label="Wattson by thread"]');
-  await pth.waitForIdleAndScreenshot('sched-aggr-thread.png', SCREEN_CLIP);
+  await pth.step('sched aggregations', async () => {
+    await page.keyboard.press('Escape');
+    await page.mouse.move(600, 250);
+    await page.mouse.down();
+    await page.mouse.move(800, 350);
+    await page.mouse.up();
+    await pth.waitForPerfettoIdle();
 
-  await page.click('button[label="Wattson by process"]');
-  await pth.waitForIdleAndScreenshot('sched-aggr-process.png', SCREEN_CLIP);
+    await page.click('button[label="Wattson by thread"]');
+    await pth.waitForIdleAndScreenshot('sched-aggr-thread.png', SCREEN_CLIP);
 
-  await page.keyboard.press('Escape');
+    await page.click('button[label="Wattson by process"]');
+    await pth.waitForIdleAndScreenshot('sched-aggr-process.png', SCREEN_CLIP);
+
+    await page.keyboard.press('Escape');
+  });
 });

@@ -27,298 +27,129 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
+#include "src/trace_processor/perfetto_sql/pipeline/column_pruning.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
-#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operation_registry.h"
 
 namespace perfetto::trace_processor::pipeline {
-namespace {
 
 std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
+  // syntaqlite has no text for an empty span, such as the name `""`.
+  if (span.length == 0) {
+    return "";
+  }
   uint32_t len;
   const char* text = syntaqlite_parser_span_expanded_text(p, &span, &len);
   PERFETTO_CHECK(text != nullptr);
-  return {text, len};
+  std::string name(text, len);
+  char quote = syntaqlite_span_quote_char(span);
+  if (quote == 0 || quote == '[') {
+    return name;
+  }
+  return base::ReplaceAll(name, std::string(2, quote), std::string(1, quote));
 }
 
-template <typename T>
-const T* Node(SyntaqliteParser* p, uint32_t id) {
-  return static_cast<const T*>(syntaqlite_parser_node(p, id));
+bool IsSpanPresent(SyntaqliteTextSpan span) {
+  return span.length != 0 || syntaqlite_span_is_quoted(span);
 }
 
-class Compiler {
- public:
-  Compiler(SyntaqliteParser* p, const NodeSourceFn& source, const Catalog& c)
-      : p_(p), source_(source), catalog_(c) {}
+base::StatusOr<ColumnId> Compiler::Resolve(const std::string& name,
+                                           uint32_t at) const {
+  return Resolve("", name, at);
+}
 
-  base::Status CompileSource(uint32_t from);
-  base::Status CompileIntersection(uint32_t node);
-  base::Status CompileProjection(uint32_t stage);
-  base::Status CompileStage(uint32_t stage);
-  LogicalPlan Finish();
+Compiler::Compiler(SyntaqliteParser* p,
+                   const NodeSourceFn& source,
+                   const Catalog& c)
+    : p_(p), source_(source), catalog_(c) {}
 
- private:
-  // The finalized dataframe a source names, if it can be read without SQLite.
-  const dataframe::Dataframe* FindDirectDataframe(
-      const SyntaqlitePerfettoPipeSource&) const;
-  // The name a source's columns can be qualified with, if it has one.
-  std::optional<std::string> SourceQualifier(
-      const SyntaqlitePerfettoPipeSource&) const;
-  op::Scan CompileDataframeSource(const dataframe::Dataframe&,
-                                  std::string name);
-  base::StatusOr<op::Scan> CompileSqlSource(uint32_t from);
-  void AddScanColumn(op::Scan&, ColumnSchema);
-  base::Status CompileTreeAccumulate(uint32_t stage);
-  base::StatusOr<ColumnId> CompileSum(uint32_t agg_id, uint32_t expr);
-  base::StatusOr<ColumnId> Resolve(const std::string& name, uint32_t at) const {
-    return Resolve("", name, at);
-  }
-  base::StatusOr<ColumnId> Resolve(const std::string& qualifier,
-                                   const std::string& name,
-                                   uint32_t at) const;
+base::Status Compiler::Unsupported(uint32_t at, std::string_view what) const {
+  return Err(at, Error::kUnsupported, what);
+}
 
-  // Every error is one of a few shapes filled in with a short noun, so a new
-  // check costs one call and one short literal.
-  enum class Error { kExpected, kUnsupported, kNoSuchColumn, kAmbiguousColumn };
-  base::Status Err(uint32_t at,
-                   Error,
-                   std::string_view what,
-                   const std::string& detail = "") const;
-  base::Status Expected(uint32_t at, std::string_view what) const {
-    return Err(at, Error::kExpected, what);
-  }
-  base::Status Unsupported(uint32_t at, std::string_view what) const {
-    return Err(at, Error::kUnsupported, what);
-  }
-  // A column in scope, and the operator and AST node which put it there.
-  struct Binding {
-    ColumnId id;
-    const char* op;
-    uint32_t node;
-    // Only found by a qualified name. An operand's columns are bound this
-    // way, so a bare `ts` or `dur` always means the row being carried.
-    bool qualified_only;
-  };
-  void Bind(NamedColumn column, uint32_t node, bool qualified_only = false) {
-    names_[base::ToLower(column.name)].push_back(
-        {column.id, op_, node, qualified_only});
-    plan_.output.push_back(std::move(column));
-  }
-  std::string Origin(const Binding&, const std::string& name) const;
-  std::string Traceback(uint32_t node) const {
-    return source_(node).AsTraceback(0);
-  }
+base::Status Compiler::Expected(uint32_t at, std::string_view what) const {
+  return Err(at, Error::kExpected, what);
+}
 
-  SyntaqliteParser* p_;
-  const NodeSourceFn& source_;
-  const Catalog& catalog_;
-  LogicalPlan plan_;
-  // The operator being compiled, which prefixes every error.
-  const char* op_ = "FROM";
-  base::FlatHashMap<std::string, std::vector<Binding>> names_;
-  // The name columns bound by a node can be qualified with, as in
-  // `name.column`.
-  base::FlatHashMap<uint32_t, std::string> qualifiers_;
-  // Scratch while an intersection's operands are compiled.
-  std::vector<bool> qualified_only_;
-};
+void Compiler::Append(NamedColumn column, uint32_t node, bool qualified_only) {
+  scope_.row.push_back(
+      {std::move(column), scope_.operation, node, qualified_only});
+}
 
-// The column of `scan` named `name`, or nothing when it has none.
-std::optional<ColumnId> FindScanColumn(const op::Scan& scan,
-                                       const std::string& name) {
-  for (const NamedColumn& column : scan.columns) {
-    if (base::CaseInsensitiveEqual(column.name, name)) {
-      return column.id;
+SqlSource Compiler::SourceForNode(uint32_t node) const {
+  return source_(node);
+}
+
+void Compiler::SetOperation(const char* operation) {
+  scope_.operation = operation;
+}
+
+void Compiler::ReplaceRow(std::vector<RowColumn> row) {
+  scope_.row = std::move(row);
+}
+
+void Compiler::ExtendRow(std::vector<RowColumn> columns) {
+  scope_.row.insert(scope_.row.end(), columns.begin(), columns.end());
+}
+
+void Compiler::DropColumn(const std::string& name) {
+  scope_.row.erase(std::remove_if(scope_.row.begin(), scope_.row.end(),
+                                  [&](const RowColumn& column) {
+                                    return !column.qualified_only &&
+                                           base::CaseInsensitiveEqual(
+                                               column.column.name, name);
+                                  }),
+                   scope_.row.end());
+  RemoveAlias(name);
+}
+
+void Compiler::RenameColumn(size_t at, std::string name, uint32_t node) {
+  RowColumn& column = scope_.row[at];
+  column.column.name = std::move(name);
+  column.operation = scope_.operation;
+  column.node = node;
+}
+
+void Compiler::SetColumnValue(size_t at, ColumnId value, uint32_t node) {
+  RowColumn& column = scope_.row[at];
+  column.column.id = value;
+  column.operation = scope_.operation;
+  column.node = node;
+  RemoveAlias(column.column.name);
+}
+
+void Compiler::ClearAliases() {
+  scope_.aliases.clear();
+}
+
+void Compiler::AddAlias(Alias alias) {
+  scope_.aliases.push_back(std::move(alias));
+}
+
+ColumnId Compiler::AddColumn(std::string name,
+                             std::optional<core::StorageType> type) {
+  return plan_.AddColumn(std::move(name), type);
+}
+
+base::Status Compiler::BuildOperation(uint32_t stage) {
+  uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
+  const auto* registration = FindOperationBySyntax(tag);
+  if (!registration) {
+    switch (tag) {
+      case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
+        return Unsupported(stage, "INTERVAL FILL GAPS");
+      case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
+        return Unsupported(stage, "WHERE");
+      default:
+        PERFETTO_FATAL("Unknown pipeline stage");
     }
   }
-  return std::nullopt;
-}
-
-base::Status Compiler::CompileIntersection(uint32_t node) {
-  op_ = "INTERVAL INTERSECTION";
-  const auto* n = Node<SyntaqlitePerfettoIntervalIntersection>(p_, node);
-  const auto* list = Node<SyntaqlitePerfettoPipeSourceList>(p_, n->operands);
-  uint32_t count = syntaqlite_list_count(list);
-  if (count < 2) {
-    return Expected(node, "at least two relations to intersect");
-  }
-  const SyntaqlitePerfettoPerColumnList* per =
-      syntaqlite_node_is_present(n->per)
-          ? Node<SyntaqlitePerfettoPerColumnList>(p_, n->per)
-          : nullptr;
-  uint32_t key_count = per ? syntaqlite_list_count(per) : 0;
-
-  op::IntervalIntersect isect;
-  // The region's bounds are the operator's own, so they are named before an
-  // operand can bind anything.
-  isect.ts = plan_.AddColumn("ts", core::Int64{});
-  isect.dur = plan_.AddColumn("dur", core::Int64{});
-
-  std::vector<std::pair<NamedColumn, uint32_t>> bindings;
-  std::vector<PlanNodeId> children;
-  for (uint32_t i = 0; i < count; i++) {
-    uint32_t source_id = syntaqlite_list_child_id(list, i);
-    const auto* source = Node<SyntaqlitePerfettoPipeSource>(p_, source_id);
-    std::optional<std::string> alias = SourceQualifier(*source);
-    if (!alias) {
-      return Expected(source_id,
-                      "an alias for the relation, as in `(...) AS x`");
-    }
-    op::Scan scan;
-    if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*source)) {
-      scan =
-          CompileDataframeSource(*dataframe, SpanText(p_, source->table_name));
-    } else {
-      ASSIGN_OR_RETURN(scan, CompileSqlSource(source_id));
-    }
-    std::optional<ColumnId> ts = FindScanColumn(scan, "ts");
-    std::optional<ColumnId> dur = FindScanColumn(scan, "dur");
-    if (!ts || !dur) {
-      return Expected(source_id,
-                      *alias + " to have a " + (ts ? "dur" : "ts") + " column");
-    }
-    op::IntervalIntersect::Operand operand;
-    operand.ts = *ts;
-    operand.dur = *dur;
-    for (uint32_t k = 0; k < key_count; k++) {
-      uint32_t col_id = syntaqlite_list_child_id(per, k);
-      const auto* col = Node<SyntaqlitePerfettoPerColumn>(p_, col_id);
-      std::string name = SpanText(p_, col->name);
-      std::optional<ColumnId> key = FindScanColumn(scan, name);
-      if (!key) {
-        return Expected(col_id, *alias + " to have a " + name + " column");
-      }
-      operand.keys.push_back(*key);
-    }
-    qualifiers_[source_id] = *alias;
-    // A PER column holds the same value in every operand, so the first
-    // operand's is the one a bare name finds; the rest answer to their alias.
-    for (const NamedColumn& column : scan.columns) {
-      bool is_key = std::find(operand.keys.begin(), operand.keys.end(),
-                              column.id) != operand.keys.end();
-      bindings.push_back({column, source_id});
-      qualified_only_.push_back(!(is_key && i == 0));
-    }
-    children.push_back(plan_.AddNode(std::move(scan)));
-    isect.operands.push_back(std::move(operand));
-  }
-  Bind({"ts", isect.ts}, node);
-  Bind({"dur", isect.dur}, node);
-  for (uint32_t i = 0; i < bindings.size(); i++) {
-    Bind(bindings[i].first, bindings[i].second, qualified_only_[i]);
-  }
-  qualified_only_.clear();
-  plan_.AddNode(std::move(isect), std::move(children));
-  return base::OkStatus();
-}
-
-base::Status Compiler::CompileSource(uint32_t from) {
-  const auto* n = Node<SyntaqlitePerfettoPipeSource>(p_, from);
-  op::Scan scan;
-  if (const dataframe::Dataframe* dataframe = FindDirectDataframe(*n)) {
-    scan = CompileDataframeSource(*dataframe, SpanText(p_, n->table_name));
-  } else {
-    ASSIGN_OR_RETURN(scan, CompileSqlSource(from));
-  }
-  if (std::optional<std::string> qualifier = SourceQualifier(*n)) {
-    qualifiers_[from] = std::move(*qualifier);
-  }
-  for (const NamedColumn& column : scan.columns) {
-    Bind(column, from);
-  }
-  plan_.AddNode(std::move(scan));
-  return base::OkStatus();
-}
-
-const dataframe::Dataframe* Compiler::FindDirectDataframe(
-    const SyntaqlitePerfettoPipeSource& n) const {
-  // Only an unqualified table name is read directly; anything else goes to
-  // SQLite. An alias only renames the qualifier, so it does not matter here.
-  bool table_name =
-      !syntaqlite_node_is_present(n.select) && n.schema.length == 0;
-  if (!table_name) {
-    return nullptr;
-  }
-  const dataframe::Dataframe* dataframe =
-      catalog_.FindDataframe(SpanText(p_, n.table_name));
-  // Columns can only be shared out of a dataframe which has stopped changing.
-  return dataframe && dataframe->finalized() ? dataframe : nullptr;
-}
-
-std::optional<std::string> Compiler::SourceQualifier(
-    const SyntaqlitePerfettoPipeSource& n) const {
-  // As in SQLite, an alias replaces the table name.
-  if (syntaqlite_node_is_present(n.alias)) {
-    const auto* alias = Node<SyntaqliteName>(p_, n.alias);
-    return SpanText(p_, alias->ident_name.source);
-  }
-  if (!syntaqlite_node_is_present(n.select)) {
-    return SpanText(p_, n.table_name);
-  }
-  return std::nullopt;
-}
-
-op::Scan Compiler::CompileDataframeSource(const dataframe::Dataframe& dataframe,
-                                          std::string name) {
-  op::Scan scan;
-  op::Scan::Dataframe source;
-  source.name = std::move(name);
-  source.row_count = dataframe.row_count();
-  const std::vector<std::string>& names = dataframe.column_names();
-  for (uint32_t i = 0; i < names.size(); ++i) {
-    // TODO(lalitm): Share SQL column visibility metadata with DataframeModule
-    // instead of recognizing hidden columns by name here.
-    // Hidden from SELECT * in SQLite, so hidden here too.
-    if (names[i] == "_auto_id") {
-      continue;
-    }
-    AddScanColumn(scan, {names[i], dataframe.column_type(i)});
-    source.columns.push_back(dataframe.shared_column(i));
-  }
-  scan.source = std::move(source);
-  return scan;
-}
-
-base::StatusOr<op::Scan> Compiler::CompileSqlSource(uint32_t from) {
-  SqlSource sql = source_(from);
-  sql =
-      sql.RewriteAllIgnoreExisting(SqlSource::FromTraceProcessorImplementation(
-          "SELECT * FROM " + sql.sql()));
-  auto described = catalog_.DescribeQuery(sql);
-  if (!described.ok()) {
-    return base::ErrStatus("%s%s", Traceback(from).c_str(),
-                           described.status().c_message());
-  }
-  op::Scan scan;
-  scan.source = std::move(sql);
-  for (ColumnSchema& column : *described) {
-    AddScanColumn(scan, std::move(column));
-  }
-  return scan;
-}
-
-void Compiler::AddScanColumn(op::Scan& scan, ColumnSchema column) {
-  ColumnId id = plan_.AddColumn(column.name, column.type);
-  scan.columns.push_back({std::move(column.name), id});
-}
-
-base::Status Compiler::CompileStage(uint32_t stage) {
-  const auto* node = Node<SyntaqliteNode>(p_, stage);
-  switch (static_cast<int>(node->tag)) {
-    case SYNTAQLITE_NODE_PERFETTO_TREE_ACCUMULATE:
-      return CompileTreeAccumulate(stage);
-    case SYNTAQLITE_NODE_PERFETTO_PIPE_SELECT:
-      return CompileProjection(stage);
-    default:
-      PERFETTO_FATAL("Unknown pipeline stage");
-  }
+  return registration->BuildPlan(this, stage);
 }
 
 base::Status Compiler::Err(uint32_t at,
@@ -334,72 +165,153 @@ base::Status Compiler::Err(uint32_t at,
       {"", " is not supported yet"},
       {"no such column: '", "'"},
       {"column '", "' is ambiguous"},
+      {"no such table alias: '", "'"},
   };
   const Shape& shape = kShapes[static_cast<size_t>(error)];
-  return base::ErrStatus("%s%s: %s%.*s%s%s", Traceback(at).c_str(), op_,
-                         shape.prefix, static_cast<int>(what.size()),
-                         what.data(), shape.suffix, detail.c_str());
+  return source_(at).AddTraceback(
+      0, base::ErrStatus("%s: %s%.*s%s%s", scope_.operation, shape.prefix,
+                         static_cast<int>(what.size()), what.data(),
+                         shape.suffix, detail.c_str()));
 }
 
-std::string Compiler::Origin(const Binding& binding,
-                             const std::string& name) const {
+std::string Compiler::Origin(const RowColumn& column) const {
   // A qualified name is something the user can write to pick this candidate.
-  if (const std::string* qualifier = qualifiers_.Find(binding.node)) {
-    return "`" + *qualifier + "." + name + "`";
+  const std::string& name = column.column.name;
+  for (const Alias& alias : scope_.aliases) {
+    for (const RowColumn& aliased : alias.columns) {
+      if (aliased.column.id == column.column.id &&
+          base::CaseInsensitiveEqual(aliased.column.name, name)) {
+        return "`" + alias.name + "." + name + "`";
+      }
+    }
   }
   constexpr size_t kMaxLen = 48;
-  std::string text = source_(binding.node).sql();
+  std::string text = source_(column.node).sql();
   size_t len = std::min(text.find('\n'), kMaxLen);
   if (len < text.size()) {
     text = text.substr(0, len) + "...";
   }
-  return "`" + std::string(binding.op) + " " + text + "`";
+  return "`" + std::string(column.operation) + " " + text + "`";
+}
+
+std::string Compiler::AmbiguousCandidates(
+    const std::vector<const RowColumn*>& matches) const {
+  std::string candidates;
+  for (const RowColumn* match : matches) {
+    candidates += (candidates.empty() ? ": it could be " : " or ");
+    candidates += Origin(*match);
+  }
+  return candidates;
+}
+
+const Compiler::Alias* Compiler::FindAlias(const std::string& name) const {
+  for (const Alias& alias : scope_.aliases) {
+    if (base::CaseInsensitiveEqual(alias.name, name)) {
+      return &alias;
+    }
+  }
+  return nullptr;
+}
+
+void Compiler::RemoveAlias(const std::string& name) {
+  scope_.aliases.erase(
+      std::remove_if(scope_.aliases.begin(), scope_.aliases.end(),
+                     [&](const Alias& alias) {
+                       return base::CaseInsensitiveEqual(alias.name, name);
+                     }),
+      scope_.aliases.end());
+}
+
+base::Status Compiler::NoSuchColumn(const std::string& name,
+                                    uint32_t at) const {
+  if (FindAlias(name)) {
+    return Expected(at, "a column, but '" + name + "' is a table alias");
+  }
+  return Err(at, Error::kNoSuchColumn, name);
+}
+
+base::StatusOr<size_t> Compiler::FindInRow(const std::string& name,
+                                           uint32_t at) const {
+  std::vector<const RowColumn*> matches;
+  size_t found = 0;
+  for (size_t i = 0; i < scope_.row.size(); ++i) {
+    if (!scope_.row[i].qualified_only &&
+        base::CaseInsensitiveEqual(scope_.row[i].column.name, name)) {
+      matches.push_back(&scope_.row[i]);
+      found = i;
+    }
+  }
+  if (matches.empty()) {
+    return NoSuchColumn(name, at);
+  }
+  if (matches.size() > 1) {
+    return Err(at, Error::kAmbiguousColumn, name, AmbiguousCandidates(matches));
+  }
+  return found;
+}
+
+base::Status Compiler::CheckListedOnce(std::vector<std::string>& seen,
+                                       const std::string& name,
+                                       uint32_t at) const {
+  for (const std::string& other : seen) {
+    if (base::CaseInsensitiveEqual(other, name)) {
+      return Expected(at, "'" + name + "' to be listed only once");
+    }
+  }
+  seen.push_back(name);
+  return base::OkStatus();
 }
 
 base::StatusOr<ColumnId> Compiler::Resolve(const std::string& qualifier,
                                            const std::string& name,
                                            uint32_t at) const {
-  std::vector<Binding> matches;
-  if (const auto* bindings = names_.Find(base::ToLower(name))) {
-    for (const Binding& binding : *bindings) {
-      const std::string* bound = qualifiers_.Find(binding.node);
-      if (qualifier.empty()
-              ? !binding.qualified_only
-              : bound && base::CaseInsensitiveEqual(*bound, qualifier)) {
-        matches.push_back(binding);
-      }
+  if (qualifier.empty()) {
+    ASSIGN_OR_RETURN(size_t i, FindInRow(name, at));
+    return scope_.row[i].column.id;
+  }
+  std::string full_name = qualifier + "." + name;
+  const Alias* alias = FindAlias(qualifier);
+  if (!alias) {
+    return Err(at, Error::kNoSuchColumn, full_name);
+  }
+  std::vector<const RowColumn*> matches;
+  for (const RowColumn& column : alias->columns) {
+    if (base::CaseInsensitiveEqual(column.column.name, name)) {
+      matches.push_back(&column);
     }
   }
-  if (matches.size() == 1) {
-    return matches.front().id;
-  }
-  std::string full_name = qualifier.empty() ? name : qualifier + "." + name;
   if (matches.empty()) {
     return Err(at, Error::kNoSuchColumn, full_name);
   }
-  std::string candidates;
-  for (const Binding& binding : matches) {
-    candidates += (candidates.empty() ? ": it could be " : " or ");
-    candidates += Origin(binding, name);
+  if (matches.size() > 1) {
+    return Err(at, Error::kAmbiguousColumn, full_name,
+               AmbiguousCandidates(matches));
   }
-  return Err(at, Error::kAmbiguousColumn, full_name, candidates);
+  return matches.front()->column.id;
 }
 
-// Returns the column summed by `SUM(column)`, the only aggregate supported so
-// far.
-base::StatusOr<ColumnId> Compiler::CompileSum(uint32_t agg_id, uint32_t expr) {
+base::StatusOr<ColumnId> Compiler::ResolveColumnExpr(uint32_t expr) const {
+  const auto* node = Node<SyntaqliteNode>(p_, expr);
+  if (node->tag != SYNTAQLITE_NODE_COLUMN_REF) {
+    return Unsupported(expr, "an expression other than a column");
+  }
+  const SyntaqliteColumnRef& ref = node->column_ref;
+  if (IsSpanPresent(ref.schema)) {
+    return Unsupported(expr, "a schema-qualified column");
+  }
+  std::string table = IsSpanPresent(ref.table) ? SpanText(p_, ref.table) : "";
+  return Resolve(table, SpanText(p_, ref.column), expr);
+}
+
+// Resolves an aggregate call like `SUM(column)` to one of the executor's
+// shared functions and the column it reads. Its output is left to the stage.
+base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
   const auto* node = Node<SyntaqliteNode>(p_, expr);
   if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
     return Expected(expr, "an aggregate like SUM(column)");
   }
   const SyntaqliteFunctionCall& call = node->function_call;
   std::string function = base::ToUpper(SpanText(p_, call.func_name));
-  if (function != "SUM") {
-    return Unsupported(expr, "aggregate " + function);
-  }
-  if (call.flags.bits.star) {
-    return Expected(expr, "a column name, not *");
-  }
   if (call.flags.bits.distinct) {
     return Unsupported(expr, "DISTINCT");
   }
@@ -409,121 +321,73 @@ base::StatusOr<ColumnId> Compiler::CompileSum(uint32_t agg_id, uint32_t expr) {
   if (syntaqlite_node_is_present(call.over_clause)) {
     return Unsupported(call.over_clause, "OVER");
   }
+  Aggregate aggregate;
+  if (function == "COUNT" && call.flags.bits.star) {
+    aggregate.function = Aggregate::Function::kCountStar;
+    return aggregate;
+  }
+  if (function == "SUM") {
+    aggregate.function = Aggregate::Function::kSum;
+  } else if (function == "MIN") {
+    aggregate.function = Aggregate::Function::kMin;
+  } else if (function == "MAX") {
+    aggregate.function = Aggregate::Function::kMax;
+  } else {
+    return Unsupported(expr, "aggregate " + function);
+  }
+  if (call.flags.bits.star) {
+    return Expected(expr, "a column name, not *");
+  }
   const auto* args = Node<SyntaqliteExprList>(p_, call.args);
   if (!syntaqlite_node_is_present(call.args) ||
       syntaqlite_list_count(args) != 1) {
     return Expected(expr, "exactly one argument");
   }
   uint32_t arg_id = syntaqlite_list_child_id(args, 0);
-  const auto* arg = Node<SyntaqliteNode>(p_, arg_id);
-  if (arg->tag != SYNTAQLITE_NODE_COLUMN_REF) {
-    return Expected(arg_id, "a column name");
-  }
-  const SyntaqliteColumnRef& ref = arg->column_ref;
-  if (ref.schema.length != 0) {
-    return Unsupported(arg_id, "a schema-qualified column");
-  }
-  std::string table = ref.table.length ? SpanText(p_, ref.table) : "";
-  ASSIGN_OR_RETURN(ColumnId value,
-                   Resolve(table, SpanText(p_, ref.column), agg_id));
-  const auto& type = plan_.columns[value].type;
+  ASSIGN_OR_RETURN(aggregate.column, ResolveColumnExpr(arg_id));
+  const auto& type = plan_.columns()[aggregate.column].type;
   if (type && !(type->Is<core::Id>() || type->Is<core::Uint32>() ||
                 type->Is<core::Int32>() || type->Is<core::Int64>())) {
     return Expected(arg_id, "an integer column");
   }
-  return value;
+  return aggregate;
 }
 
-base::Status Compiler::CompileTreeAccumulate(uint32_t stage) {
-  op_ = "TREE ACCUMULATE";
-  const auto* n = Node<SyntaqlitePerfettoTreeAccumulate>(p_, stage);
-
-  op::TreeAccumulate acc;
-  acc.direction = n->direction == SYNTAQLITE_PERFETTO_TREE_DIRECTION_DOWN
-                      ? op::TreeDirection::kDown
-                      : op::TreeDirection::kUp;
-  ASSIGN_OR_RETURN(acc.node_column, Resolve("id", stage));
-  ASSIGN_OR_RETURN(acc.parent_column, Resolve("parent_id", stage));
-
-  std::vector<std::pair<NamedColumn, uint32_t>> output;
-  const auto* list =
-      Node<SyntaqlitePerfettoTreeAggregateList>(p_, n->aggregates);
-  uint32_t count = syntaqlite_list_count(list);
+base::Status Compiler::CompilePipeline(uint32_t pipeline) {
+  const auto& n = Node<SyntaqliteNode>(p_, pipeline)->perfetto_pipeline;
+  if (syntaqlite_node_is_present(n.intersection)) {
+    RETURN_IF_ERROR(BuildOperation(n.intersection));
+  } else {
+    RETURN_IF_ERROR(BuildOperation(n.from));
+  }
+  if (!syntaqlite_node_is_present(n.stages)) {
+    return base::OkStatus();
+  }
+  const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p_, n.stages);
+  uint32_t count = syntaqlite_list_count(stages);
   for (uint32_t i = 0; i < count; i++) {
-    uint32_t agg_id = syntaqlite_list_child_id(list, i);
-    const auto* agg = Node<SyntaqlitePerfettoTreeAggregate>(p_, agg_id);
-    ASSIGN_OR_RETURN(ColumnId value, CompileSum(agg_id, agg->expr));
-    std::string name = SpanText(p_, agg->name);
-    ColumnId id = plan_.AddColumn(name, core::Int64{});
-    acc.aggregates.push_back({op::TreeAccumulate::Function::kSum, value, id});
-    output.push_back({NamedColumn{std::move(name), id}, agg_id});
-  }
-  // All expressions see the input scope. Publish this stage's bindings only
-  // after resolving every aggregate; duplicate names are ambiguous on lookup.
-  for (auto& [column, node] : output) {
-    Bind(std::move(column), node);
-  }
-  plan_.AddNode(std::move(acc), {plan_.root});
-  return base::OkStatus();
-}
-
-// Nothing runs: the rows are untouched and only which of their columns are
-// visible, and under what name, changes.
-base::Status Compiler::CompileProjection(uint32_t stage) {
-  op_ = "SELECT";
-  const auto* n = Node<SyntaqlitePerfettoPipeSelect>(p_, stage);
-  const auto* list = Node<SyntaqlitePerfettoPipeColumnList>(p_, n->columns);
-  uint32_t count = syntaqlite_list_count(list);
-
-  std::vector<std::pair<NamedColumn, uint32_t>> output;
-  for (uint32_t i = 0; i < count; i++) {
-    uint32_t item_id = syntaqlite_list_child_id(list, i);
-    const auto* item = Node<SyntaqlitePerfettoPipeColumn>(p_, item_id);
-    std::string qualifier =
-        item->qualifier.length ? SpanText(p_, item->qualifier) : "";
-    std::string name = SpanText(p_, item->name);
-    ASSIGN_OR_RETURN(ColumnId id, Resolve(qualifier, name, item_id));
-    if (item->alias.length) {
-      name = SpanText(p_, item->alias);
-    }
-    output.push_back({NamedColumn{std::move(name), id}, item_id});
-  }
-  // As in SQL, what a projection leaves carries no qualifier: the nodes
-  // binding these columns have none.
-  names_.Clear();
-  plan_.output.clear();
-  for (auto& [column, node] : output) {
-    Bind(std::move(column), node);
+    RETURN_IF_ERROR(BuildOperation(syntaqlite_list_child_id(stages, i)));
   }
   return base::OkStatus();
 }
 
 LogicalPlan Compiler::Finish() {
+  plan_.output().clear();
+  for (const RowColumn& column : scope_.row) {
+    plan_.output().push_back(column.column);
+  }
   return std::move(plan_);
 }
-
-}  // namespace
 
 base::StatusOr<LogicalPlan> Compile(SyntaqliteParser* p,
                                     uint32_t pipeline,
                                     const NodeSourceFn& source,
                                     const Catalog& catalog) {
-  const auto& n = Node<SyntaqliteNode>(p, pipeline)->perfetto_pipeline;
   Compiler compiler(p, source, catalog);
-  if (syntaqlite_node_is_present(n.intersection)) {
-    RETURN_IF_ERROR(compiler.CompileIntersection(n.intersection));
-  } else {
-    RETURN_IF_ERROR(compiler.CompileSource(n.from));
-  }
-  if (syntaqlite_node_is_present(n.stages)) {
-    const auto* stages = Node<SyntaqlitePerfettoPipeStageList>(p, n.stages);
-    uint32_t count = syntaqlite_list_count(stages);
-    for (uint32_t i = 0; i < count; i++) {
-      RETURN_IF_ERROR(
-          compiler.CompileStage(syntaqlite_list_child_id(stages, i)));
-    }
-  }
-  return compiler.Finish();
+  RETURN_IF_ERROR(compiler.CompilePipeline(pipeline));
+  LogicalPlan plan = compiler.Finish();
+  PruneColumns(plan);
+  return plan;
 }
 
 }  // namespace perfetto::trace_processor::pipeline

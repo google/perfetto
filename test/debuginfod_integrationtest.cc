@@ -278,7 +278,7 @@ class DebuginfodIntegrationTest : public testing::Test {
     p.args.exec_cmd.insert(p.args.exec_cmd.end(), args.begin(), args.end());
     p.args.env = Environment(extra_env);
     p.args.stdin_mode = base::Subprocess::InputMode::kDevNull;
-    base::TempFile stdout_file = base::TempFile::Create();
+    base::TempFile stdout_file = base::TempFile::Create().ValueOrDie();
     p.args.stdout_mode = base::Subprocess::OutputMode::kFd;
     p.args.out_fd.reset(dup(stdout_file.fd()));
     p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
@@ -371,6 +371,15 @@ TEST_F(DebuginfodIntegrationTest, DisabledWarnsEvenWhenQuiet) {
   EXPECT_THAT(result.err, HasSubstr("--debuginfod"));
   EXPECT_THAT(server_->requests(), IsEmpty());
   EXPECT_FALSE(base::FileExists(cache_));
+}
+
+TEST_F(DebuginfodIntegrationTest, IgnoredEnvironmentIsSilentUnlessSymbolizing) {
+  auto result = RunShell({"query", trace_, "SELECT 1"},
+                         {"DEBUGINFOD_URLS=" + server_->url() + "/ok",
+                          "LLVM_SYMBOLIZER_OPTS=--debuginfod"});
+  EXPECT_EQ(result.exit_code, 0) << result.err;
+  EXPECT_THAT(result.err, Not(HasSubstr("ignored")));
+  EXPECT_THAT(server_->requests(), IsEmpty());
 }
 
 TEST_F(DebuginfodIntegrationTest, CliOverridesEnvironmentAndLlvmOptions) {

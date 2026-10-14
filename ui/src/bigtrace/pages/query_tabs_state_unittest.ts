@@ -18,6 +18,7 @@ import {
   applyModeDefaults,
   applyPresetSetup,
   closeSettings,
+  coerceDateFilter,
   isTraceSelectionSetting,
   parseTraceUuids,
   setTraceUuidsActive,
@@ -34,6 +35,7 @@ import {
   type BigTraceEditorTab,
 } from './query_tabs_state';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
+import {describeDateFilter} from '../query/date_filter';
 
 function reg(
   id: string,
@@ -252,13 +254,15 @@ describe('per-mode row and trace limits', () => {
       undefined,
       true,
     );
-    tab.traceLimit = 123;
+    tab.limit = 0;
+    tab.traceLimit = 0;
     tab.tableTtlDays = 45;
     (tabs as unknown as {saveToStorage: () => void}).saveToStorage();
     const restored = new QueryTabsState().tabs.find(
       (t) => t.editorText === 'select 1',
     )!;
-    expect(restored.traceLimit).toBe(123);
+    expect(restored.limit).toBe(0);
+    expect(restored.traceLimit).toBe(0);
     expect(restored.tableTtlDays).toBe(45);
   });
 });
@@ -809,5 +813,126 @@ describe('experiment filter', () => {
       isTreatment: true,
     });
     expect(tab.experimentFilter?.experimentName).toBeUndefined();
+  });
+});
+
+describe('date filter persistence', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+  });
+
+  function storeTab(dateFilter: unknown): void {
+    localStorage.setItem(
+      'bigtraceQueryTabs',
+      JSON.stringify({
+        tabs: [
+          {
+            id: 'a',
+            title: 'Query 1',
+            editorText: 'select 1',
+            limit: 1000,
+            materialize: true,
+            configured: true,
+            dateFilter,
+          },
+        ],
+        activeTabId: 'a',
+      }),
+    );
+  }
+
+  test('coerceDateFilter keeps well-formed values and null', () => {
+    expect(coerceDateFilter({kind: 'last', days: 7})).toEqual({
+      kind: 'last',
+      days: 7,
+    });
+    expect(
+      coerceDateFilter({kind: 'fixed', from: '2026-09-20', to: '2026-09-25'}),
+    ).toEqual({kind: 'fixed', from: '2026-09-20', to: '2026-09-25'});
+    expect(coerceDateFilter({kind: 'fixed', to: '2026-09-25'})).toEqual({
+      kind: 'fixed',
+      from: undefined,
+      to: '2026-09-25',
+    });
+    expect(coerceDateFilter(null)).toBeNull();
+  });
+
+  test('coerceDateFilter re-defaults anything malformed', () => {
+    for (const bad of [
+      undefined,
+      'last',
+      42,
+      {},
+      {kind: 'last'},
+      {kind: 'last', days: 0},
+      {kind: 'last', days: -3},
+      {kind: 'last', days: 1.5},
+      {kind: 'last', days: '7'},
+      {kind: 'fixed'},
+      {kind: 'fixed', from: 123},
+      {kind: 'fixed', from: 'yesterday'},
+      {kind: 'fixed', from: '2026-09-20', to: 7},
+      {kind: 'weird', days: 7},
+    ]) {
+      expect(coerceDateFilter(bad)).toBeUndefined();
+    }
+  });
+
+  test('a stored range round-trips; a corrupt one re-defaults', () => {
+    storeTab({kind: 'fixed', from: '2026-09-20', to: '2026-09-25'});
+    expect(new QueryTabsState().tabs[0].dateFilter).toEqual({
+      kind: 'fixed',
+      from: '2026-09-20',
+      to: '2026-09-25',
+    });
+
+    storeTab(null);
+    expect(new QueryTabsState().tabs[0].dateFilter).toBeNull();
+
+    // A hand-edited or foreign-build entry must not reach the date math.
+    storeTab({kind: 'fixed', from: 123});
+    const restored = new QueryTabsState().tabs[0].dateFilter;
+    expect(restored).toBeUndefined();
+    expect(() => describeDateFilter(restored, '2026-10-05')).not.toThrow();
+  });
+});
+
+describe('addSharedTraceListTab', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    bigTraceSettingsStorage.clear();
+    bigTraceSettingsStorage.register({
+      id: TRACE_UUIDS_SETTING_ID,
+      name: 'Trace UUIDs',
+      description: '',
+      type: 'string-array',
+      schema: z.array(z.string()) as never,
+      defaultValue: [] as string[],
+      category: 'TRACE_ADDRESS',
+      disabled: true,
+    });
+  });
+
+  test('opens a new configured tab in UUID mode', () => {
+    const tabs = new QueryTabsState();
+    const tab = tabs.addSharedTraceListTab({
+      traceUuids: ['u1', 'u2'],
+      sourceUrl: 'https://example.com/traces',
+      title: 'Sample traces',
+      perfettoSql: 'SELECT 1',
+    });
+    expect(tabs.tabs).toHaveLength(2);
+    expect(tabs.activeTabId).toBe(tab.id);
+    expect(tab.configured).toBe(true);
+    expect(tab.title).toBe('Sample traces');
+    expect(tab.editorText).toBe(
+      '-- Sample traces\n-- Source: https://example.com/traces\n\nSELECT 1\n',
+    );
+    expect(traceUuidsActive(tab)).toBe(true);
+    expect(
+      tab.querySettings.find((s) => s.settingId === TRACE_UUIDS_SETTING_ID)
+        ?.values,
+    ).toEqual(['u1', 'u2']);
   });
 });

@@ -25,6 +25,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/common/row_layout.h"
 #include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
 #include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/query_plan.h"
@@ -112,12 +113,12 @@ class BytecodeLowering {
 
   // === Filter values ===
 
-  interpreter::ReadHandle<interpreter::CastFilterValueResult>
-  EmitCastFilterValue(uint32_t value_index,
-                      const StorageType& type,
-                      const NonNullOp& op);
+  interpreter::ReadHandle<filter::CastFilterValueResult> EmitCastFilterValue(
+      uint32_t value_index,
+      const StorageType& type,
+      const NonNullOp& op);
 
-  interpreter::RwHandle<std::unique_ptr<interpreter::CastFilterValueListResult>>
+  interpreter::RwHandle<std::unique_ptr<filter::CastFilterValueListResult>>
   EmitCastFilterValueList(uint32_t value_index, const StorageType& type);
 
   // === Row counts ===
@@ -126,7 +127,7 @@ class BytecodeLowering {
   // the plan has at that point. The numbers themselves are decided by the
   // planner and carried on the operation; lowering only tracks them.
 
-  void SetRows(const logical::RowEstimate& rows) {
+  void SetRows(const core::RowEstimate& rows) {
     plan_.params.max_row_count = rows.max;
     plan_.params.estimated_row_count = rows.estimated;
   }
@@ -209,11 +210,11 @@ class BytecodeLowering {
 
   void MaybeReleaseScratchSpanRegister();
 
-  uint16_t CalculateRowLayoutStride(
+  RowLayout MakeRowLayout(
       const std::vector<RowLayoutParams>& row_layout_params);
 
   interpreter::RwHandle<Slab<uint8_t>> CopyToRowLayout(
-      uint16_t row_stride,
+      const RowLayout& layout,
       interpreter::RwHandle<Span<uint32_t>> indices,
       interpreter::ReadHandle<interpreter::StringIdToRankMap> rank_map,
       const std::vector<RowLayoutParams>& row_layout_params);

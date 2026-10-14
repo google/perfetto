@@ -17,11 +17,18 @@ import("../../../../gn/test.gni")
 source_set("common") {
   sources = [
     "duplicate_types.h",
+    "filter_kernels.h",
+    "filter_value_cast.h",
     "null_types.h",
     "op_types.h",
+    "row_estimate.cc",
+    "row_estimate.h",
+    "row_layout.h",
     "schema.h",
     "sort_types.h",
     "storage_types.h",
+    "string_ranks.cc",
+    "string_ranks.h",
     "value_fetcher.h",
   ]
   deps = [
@@ -29,5 +36,20 @@ source_set("common") {
     "../../../base",
     "../../containers",
     "../util",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "row_layout_unittest.cc",
+    "string_ranks_unittest.cc",
+  ]
+  deps = [
+    ":common",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../base",
+    "../../containers",
   ]
 }
