@@ -29,6 +29,7 @@ import {
   rowCountHeading,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
 import {dumpFilterSql} from '../queries';
 import type {HeapDump} from '../types';
@@ -40,6 +41,7 @@ interface DominatorsViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 function buildQuery(activeDump: HeapDump): string {
@@ -66,7 +68,10 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -139,6 +144,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     root_type: {
       title: 'Root Type',
@@ -166,7 +172,7 @@ export function DominatorsView({
       counter.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, potentiallyMergedClasses} = vnode.attrs;
 
       return m(
         DetailsShell,
@@ -178,7 +184,7 @@ export function DominatorsView({
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(navigate, potentiallyMergedClasses),
           data: datasource,
           fillHeight: true,
           initialColumns: [
