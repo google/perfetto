@@ -28,8 +28,11 @@
 #include <vector>
 
 #include "perfetto/ext/base/bits.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 namespace perfetto::trace_processor::core {
+
+using KeyedIndex = cold_sort_internal::KeyedIndex;
 namespace internal {
 
 // Splits a key of `key_bits` bits into digits of at most 16 bits, all the
@@ -181,6 +184,18 @@ T* StableSortByKey(T* begin,
   });
   return begin;
 }
+
+// Stably sorts [begin, end) by key, ties by index, where only the low
+// `key_bits` bits of the keys may differ. Radix sorts when that is estimated to
+// be cheaper, as for large inputs, and otherwise uses the comparison sort cold
+// sorts share, so callers of either add no sorting code of their own.
+//
+// @param scratch_begin A buffer of at least `end - begin` elements.
+// @return Whichever of `begin` and `scratch_begin` holds the sorted elements.
+KeyedIndex* StableSortKeyedIndices(KeyedIndex* begin,
+                                   KeyedIndex* end,
+                                   KeyedIndex* scratch_begin,
+                                   uint32_t key_bits);
 
 // Sorts a collection of elements using a Most Significant Digit (MSD) radix
 // sort. This implementation is particularly well-suited for sorting elements

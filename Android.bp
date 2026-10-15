@@ -18088,6 +18088,7 @@ filegroup {
     srcs: [
         "src/trace_processor/core/util/ops.cc",
         "src/trace_processor/core/util/row_layout_sort.cc",
+        "src/trace_processor/core/util/sort.cc",
     ],
 }
 
