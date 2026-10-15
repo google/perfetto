@@ -265,19 +265,19 @@ void LibunwindContext::ParseMaps() {
 
   procinfo::ReadMapFileContent(
       content.data(), [&](const procinfo::MapInfo& info) {
-    UnwoundMapping map;
-    map.map_start = info.start;
-    map.map_end = info.end;
-    map.map_offset = info.pgoff;
-    map.map_start_offset = info.pgoff;
-    map.map_name = info.name;
+        UnwoundMapping map;
+        map.map_start = info.start;
+        map.map_end = info.end;
+        map.map_offset = info.pgoff;
+        map.map_start_offset = info.pgoff;
+        map.map_name = info.name;
 
-    if ((info.flags & PROT_EXEC) && !maps_.empty() &&
-        maps_.back().map_name == info.name) {
-      map.map_start_offset = maps_.back().map_start_offset;
-    }
-    maps_.push_back(std::move(map));
-  });
+        if ((info.flags & PROT_EXEC) && !maps_.empty() &&
+            maps_.back().map_name == info.name) {
+          map.map_start_offset = maps_.back().map_start_offset;
+        }
+        maps_.push_back(std::move(map));
+      });
 }
 
 // Mirroring `Maps::Find` from `libunwindstack/Maps.cpp` (and `maps__find` in
