@@ -27,8 +27,8 @@ import {
   buildGridOption,
   buildBrushOption,
   buildLegendOption,
-  buildTooltipContent,
   buildTooltipOption,
+  renderTooltip,
   SELECTION_COLOR,
 } from './chart_option_builder';
 
@@ -264,9 +264,9 @@ function buildBarOption(
         ? undefined
         : (params: Array<{name?: string; value?: number}>) => {
             const p = Array.isArray(params) ? params[0] : params;
-            return buildTooltipContent([
-              p.name ?? '',
-              `${measureLabel}: ${fmtMeasure(p.value ?? 0)}`,
+            return renderTooltip([
+              m('div', p.name ?? ''),
+              m('div', `${measureLabel}: ${fmtMeasure(p.value ?? 0)}`),
             ]);
           },
     }),

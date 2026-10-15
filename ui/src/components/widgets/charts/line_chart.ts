@@ -21,7 +21,8 @@ import {
   buildChartOption,
   buildLegendOption,
   buildSelectionMarkArea,
-  buildTooltipContent,
+  renderTooltip,
+  tooltipMarker,
 } from './chart_option_builder';
 
 /**
@@ -318,11 +319,16 @@ function buildLineOption(
         if (!Array.isArray(params) || params.length === 0) return '';
         const xVal = params[0].data?.[0];
         const header = xVal !== undefined ? `X: ${fmtX(xVal)}` : '';
-        const lines = params.map((p) => ({
-          text: `${p.seriesName ?? ''}: ${fmtY(p.data?.[1] ?? 0)}`,
-          markerColor: p.color,
-        }));
-        return buildTooltipContent([header, ...lines]);
+        return renderTooltip([
+          m('div', header),
+          params.map((p) =>
+            m(
+              'div',
+              tooltipMarker(p.color),
+              `${p.seriesName ?? ''}: ${fmtY(p.data?.[1] ?? 0)}`,
+            ),
+          ),
+        ]);
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,

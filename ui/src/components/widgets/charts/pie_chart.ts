@@ -22,8 +22,8 @@ import {
 } from './echart_view';
 import {
   buildLegendOption,
-  buildTooltipContent,
   buildTooltipOption,
+  renderTooltip,
 } from './chart_option_builder';
 import type {LegendPosition} from './common';
 
@@ -156,10 +156,10 @@ function buildPieOption(
         const name = params.name ?? '';
         const value = params.value ?? 0;
         const pct = params.percent?.toFixed(1) ?? '0';
-        return buildTooltipContent([
-          name,
-          `Value: ${formatValue(value)}`,
-          `${pct}%`,
+        return renderTooltip([
+          m('div', name),
+          m('div', `Value: ${formatValue(value)}`),
+          m('div', `${pct}%`),
         ]);
       },
     }),
