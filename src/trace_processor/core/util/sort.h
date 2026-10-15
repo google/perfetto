@@ -157,34 +157,6 @@ inline bool RadixSortIsCheaper(size_t size, uint32_t key_bits) {
 
 }  // namespace internal
 
-// Stably sorts [begin, end) by `key(element)`, a uint64_t, of which only the
-// low `key_bits` bits may differ between elements. Uses RadixSort() when that
-// is estimated to be cheaper, as for large inputs, and otherwise std::sort(),
-// breaking ties on `position(element)`, the element's position in the input.
-//
-// @param scratch_begin A buffer of at least `end - begin` elements.
-// @return Whichever of `begin` and `scratch_begin` holds the sorted elements.
-template <typename T, typename Key, typename Position>
-T* StableSortByKey(T* begin,
-                   T* end,
-                   T* scratch_begin,
-                   uint32_t key_bits,
-                   Key key,
-                   Position position) {
-  auto size = static_cast<size_t>(end - begin);
-  if (internal::RadixSortIsCheaper(size, key_bits)) {
-    std::unique_ptr<uint32_t[]> counts(
-        new uint32_t[RadixSortCountsSize(key_bits, size)]);
-    return RadixSort(begin, end, scratch_begin, counts.get(), key_bits, key);
-  }
-  std::sort(begin, end, [&key, &position](const T& a, const T& b) {
-    uint64_t key_a = key(a);
-    uint64_t key_b = key(b);
-    return key_a != key_b ? key_a < key_b : position(a) < position(b);
-  });
-  return begin;
-}
-
 // Stably sorts [begin, end) by key, ties by index, where only the low
 // `key_bits` bits of the keys may differ. Radix sorts when that is estimated to
 // be cheaper, as for large inputs, and otherwise uses the comparison sort cold
