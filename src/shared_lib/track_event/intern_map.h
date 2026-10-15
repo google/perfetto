@@ -17,7 +17,12 @@
 #ifndef SRC_SHARED_LIB_TRACK_EVENT_INTERN_MAP_H_
 #define SRC_SHARED_LIB_TRACK_EVENT_INTERN_MAP_H_
 
+#include <array>
+#include <cstdint>
+#include <cstring>
+
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/public/fnv1a.h"
 
 namespace perfetto {
@@ -39,6 +44,7 @@ class InternMap {
   void Clear() {
     map_.Clear();
     last_iid_by_type_.Clear();
+    string_cache_.fill(StringCacheEntry());
   }
 
   // Given a value (identified by the memory buffer starting at `value`,
@@ -56,7 +62,52 @@ class InternMap {
                                const void* value,
                                size_t value_size);
 
+  // Same as FindOrAssign(type, str, strlen(str)), for a NUL-terminated `str`.
+  //
+  // Track events intern their name and their debug annotation names on every
+  // event, and most events reuse the same few strings. A small cache keyed by
+  // the string pointer answers those without hashing the string.
+  // A hit also compares the content, so a buffer reused for a different
+  // string misses.
+  FindOrAssignRes FindOrAssignString(int32_t type, const char* str) {
+    StringCacheEntry* set = StringCacheSet(type, str);
+    for (size_t way = 0; way < kStringCacheWays; way++) {
+      if (set[way].Matches(type, str))
+        return {set[way].iid, false};
+    }
+    return FindOrAssignStringSlow(set, type, str);
+  }
+
  private:
+  // One string in the cache of FindOrAssignString().
+  struct StringCacheEntry {
+    bool Matches(int32_t t, const char* s) const {
+      return ptr == s && type == t && strcmp(s, str) == 0;
+    }
+
+    const char* ptr = nullptr;
+    Iid iid = 0;
+    int32_t type = 0;
+    // A copy of the content. Only strings shorter than this are cached.
+    char str[28] = {};
+  };
+
+  // The cache is 2-way set associative: each set holds the last two strings
+  // whose pointer maps to it.
+  static constexpr size_t kStringCacheSets = 32;
+  static constexpr size_t kStringCacheWays = 2;
+
+  StringCacheEntry* StringCacheSet(int32_t type, const char* str) {
+    const uint64_t key =
+        reinterpret_cast<uintptr_t>(str) ^ static_cast<uint32_t>(type);
+    const size_t set = base::MurmurHashValue(key) % kStringCacheSets;
+    return &string_cache_[set * kStringCacheWays];
+  }
+
+  FindOrAssignRes FindOrAssignStringSlow(StringCacheEntry* set,
+                                         int32_t type,
+                                         const char* str);
+
   // Stores a value of a specific type. If the value is small, it is stored
   // inline, otherwise it is stored in an external buffer. The Key can own the
   // external buffer (when the key is stored in the map) or not (when the key is
@@ -160,6 +211,8 @@ class InternMap {
 
   base::FlatHashMap<Key, uint64_t, Key::Hash> map_;
   base::FlatHashMap<int32_t, uint64_t> last_iid_by_type_;
+  std::array<StringCacheEntry, kStringCacheSets * kStringCacheWays>
+      string_cache_;
 };
 
 }  // namespace perfetto

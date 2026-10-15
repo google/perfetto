@@ -62,10 +62,8 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
         auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstrInterned*>(*p);
         PERFETTO_DCHECK(field->interned_type_id != 0);
         if (field->interned_type_id) {
-          const char* str = field->str;
-          size_t len = strlen(field->str);
-          auto res = incr->iids.FindOrAssign(
-              static_cast<int32_t>(field->interned_type_id), str, len);
+          auto res = incr->iids.FindOrAssignString(
+              static_cast<int32_t>(field->interned_type_id), field->str);
           if (res.newly_assigned) {
             auto* ser = incr->serialized_interned_data
                             ->BeginNestedMessage<protozero::Message>(
@@ -135,10 +133,7 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
   if (!dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
       type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
     uint64_t iid = cat->cat_iid;
-    auto res = incr->iids.FindOrAssign(
-        protos::pbzero::InternedData::kEventCategoriesFieldNumber, &iid,
-        sizeof(iid));
-    if (res.newly_assigned) {
+    if (PERFETTO_UNLIKELY(incr->MarkCategorySeen(iid))) {
       auto* ser = incr->serialized_interned_data->add_event_categories();
       ser->set_iid(iid);
       ser->set_name(cat->desc->name);
@@ -149,11 +144,9 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
   if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
     if (name) {
       if (use_interning) {
-        const void* str = name;
-        size_t len = strlen(name);
-        auto res = incr->iids.FindOrAssign(
-            protos::pbzero::InternedData::kEventNamesFieldNumber, str, len);
-        if (res.newly_assigned) {
+        auto res = incr->iids.FindOrAssignString(
+            protos::pbzero::InternedData::kEventNamesFieldNumber, name);
+        if (PERFETTO_UNLIKELY(res.newly_assigned)) {
           auto* ser = incr->serialized_interned_data->add_event_names();
           ser->set_iid(res.iid);
           ser->set_name(name);
@@ -240,12 +233,10 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
       }
 
       if (arg_name != nullptr) {
-        const void* str = arg_name;
-        size_t len = strlen(arg_name);
-        auto res = incr->iids.FindOrAssign(
-            protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber, str,
-            len);
-        if (res.newly_assigned) {
+        auto res = incr->iids.FindOrAssignString(
+            protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
+            arg_name);
+        if (PERFETTO_UNLIKELY(res.newly_assigned)) {
           auto* ser =
               incr->serialized_interned_data->add_debug_annotation_names();
           ser->set_iid(res.iid);

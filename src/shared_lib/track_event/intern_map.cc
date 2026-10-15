@@ -35,4 +35,23 @@ InternMap::FindOrAssignRes InternMap::FindOrAssign(int32_t type,
   return {iid, true};
 }
 
+InternMap::FindOrAssignRes InternMap::FindOrAssignStringSlow(
+    StringCacheEntry* set,
+    int32_t type,
+    const char* str) {
+  const size_t len = strlen(str);
+  FindOrAssignRes res = FindOrAssign(type, str, len);
+  if (len < sizeof(set[0].str)) {
+    // The new string takes the first way, and the previous first way moves to
+    // the second one, so the set keeps the two most recent misses.
+    static_assert(kStringCacheWays == 2, "Update the replacement below");
+    set[1] = set[0];
+    set[0].ptr = str;
+    set[0].iid = res.iid;
+    set[0].type = type;
+    memcpy(set[0].str, str, len + 1);
+  }
+  return res;
+}
+
 }  // namespace perfetto

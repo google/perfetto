@@ -20,6 +20,7 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -56,10 +57,24 @@ struct TrackEventIncrementalState {
   uint64_t thread_track_uuid = 0;
   bool was_cleared = true;
   base::FlatSet<uint64_t> seen_track_uuids;
-  // Map from serialized representation of a dynamic category to its enabled
-  // state.
+  // Indexed by `cat_iid`. True once the interned data of this sequence has the
+  // registered category.
+  std::vector<bool> seen_category_iids;
+  // Enabled state of the dynamic categories, keyed by name and tags. See
+  // TrackEvent::IsDynamicCategoryEnabled().
   base::FlatHashMap<std::string, bool> dynamic_categories;
   InternMap iids;
+
+  // Returns true the first time the registered category `cat_iid` is seen on
+  // this sequence, when its interned data must be written.
+  bool MarkCategorySeen(uint64_t cat_iid) {
+    if (PERFETTO_UNLIKELY(cat_iid >= seen_category_iids.size()))
+      seen_category_iids.resize(static_cast<size_t>(cat_iid) + 1);
+    if (seen_category_iids[cat_iid])
+      return false;
+    seen_category_iids[cat_iid] = true;
+    return true;
+  }
 
   // Clears the incremental state without destroying and recreating this object.
   // This allows reusing allocated memory in hash maps and other data structures
@@ -69,6 +84,7 @@ struct TrackEventIncrementalState {
     serialized_interned_data.Reset();
     last_timestamp_ns = 0;
     seen_track_uuids.clear();
+    seen_category_iids.assign(seen_category_iids.size(), false);
     dynamic_categories.Clear();
     iids.Clear();
   }
