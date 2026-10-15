@@ -13,14 +13,23 @@
 // limitations under the License.
 
 import {SourceDataset} from '../../trace_processor/dataset';
-import {LONG, LONG_NULL, NUM} from '../../trace_processor/query_result';
+import {
+  createQueryResult,
+  LONG,
+  LONG_NULL,
+  NUM,
+  type QueryResult,
+} from '../../trace_processor/query_result';
 import {generateRenderQuery, SliceTrack} from './slice_track';
 import {vi} from 'vitest';
+import protos from '../../protos';
+import {okResult} from '../../base/result';
 import {Time} from '../../base/time';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {TimeScale} from '../../base/time_scale';
 import type {Trace} from '../../public/trace';
+import type {TrackRenderContext, TrackRenderer} from '../../public/track';
 import {GRAY} from '../colorizer';
 
 describe('generateRenderQuery', () => {
@@ -167,5 +176,187 @@ describe('SliceTrack compressed row interactions', () => {
     track.onMouseClick({x: 50, y: 30, timescale});
     expect(selectTrackEvent).toHaveBeenCalledWith('test', 1);
     expect(track.getHeight()).toBe(42);
+  });
+});
+
+describe('SliceTrack with a dynamic dataset', () => {
+  const CellType = protos.QueryResult.CellsBatch.CellType;
+
+  // Builds a query result with the given integer rows.
+  function queryResult(
+    columnNames: readonly string[],
+    rows: ReadonlyArray<readonly number[]> = [],
+  ): QueryResult {
+    const batch = protos.QueryResult.CellsBatch.create({
+      cells: rows.flatMap((row) => row.map(() => CellType.CELL_VARINT)),
+      varintCells: rows.flat(),
+      isLastBatch: true,
+    });
+    const result = createQueryResult({query: ''});
+    result.appendResultBatch(
+      protos.QueryResult.encode(
+        protos.QueryResult.create({
+          columnNames: [...columnNames],
+          batch: [batch],
+        }),
+      ).finish(),
+    );
+    return result;
+  }
+
+  // Records all queries and answers the ones issued by SliceTrack: every
+  // source holds one slice at depth 0.
+  class FakeEngine {
+    readonly log: string[] = [];
+
+    async query(sql: string): Promise<QueryResult> {
+      this.log.push(sql);
+      const schemaColumns = ['id', 'ts', 'dur', 'depth'];
+      if (sql.includes('AS rowCount')) {
+        return queryResult(['rowCount'], [[1]]);
+      }
+      if (sql.includes('as __start')) {
+        return queryResult(
+          [
+            ...['__start', '__end', '__id', '__count', '__depth'],
+            ...['__incomplete', ...schemaColumns],
+          ],
+          [[0, 100, 1, 1, 0, 0, 1, 0, 100, 0]],
+        );
+      }
+      if (sql.includes('as __ts')) {
+        return queryResult([
+          '__id',
+          '__ts',
+          '__count',
+          '__depth',
+          ...schemaColumns,
+        ]);
+      }
+      return queryResult([]);
+    }
+
+    async tryQuery(sql: string) {
+      return okResult(await this.query(sql));
+    }
+
+    createdTables(): string[] {
+      return this.log
+        .filter((q) => q.startsWith('CREATE'))
+        .map((q) => q.split(' ')[3]);
+    }
+
+    droppedTables(): string[] {
+      return this.log
+        .filter((q) => q.startsWith('DROP TABLE'))
+        .map((q) => q.split(' ')[4]);
+    }
+  }
+
+  function setup() {
+    const engine = new FakeEngine();
+    const trace = {
+      engine,
+      taskTracker: {track: <T>(p: Promise<T>) => p},
+      raf: {scheduleFullRedraw: vi.fn()},
+      selection: {selection: {kind: 'empty'}},
+      timeline: {},
+    } as unknown as Trace;
+    const drawSlices = vi.fn();
+    const visibleWindow = new HighPrecisionTimeSpan(
+      new HighPrecisionTime(Time.ZERO),
+      100,
+    );
+
+    // A canvas context whose methods are no-ops.
+    const ctx = new Proxy(
+      {},
+      {
+        get: (_, prop) =>
+          prop === 'measureText' ? () => ({width: 0}) : () => {},
+        set: () => true,
+      },
+    );
+
+    const renderCtx = {
+      visibleWindow,
+      size: {width: 100, height: 40},
+      resolution: 1n,
+      ctx,
+      timescale: new TimeScale(visibleWindow, {left: 0, right: 100}),
+      colors: {},
+      renderer: {drawSlices, drawMarkers: vi.fn()},
+    } as unknown as TrackRenderContext;
+
+    return {engine, trace, drawSlices, renderCtx};
+  }
+
+  // Renders the track a few times, letting its async tasks run in between.
+  async function renderUntilSettled(
+    track: TrackRenderer,
+    renderCtx: TrackRenderContext,
+  ) {
+    for (let i = 0; i < 10; i++) {
+      track.render(renderCtx);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  test('keeps drawing while the tables are rebuilt', async () => {
+    const {engine, trace, drawSlices, renderCtx} = setup();
+    let src = 'slices_a';
+    const track = SliceTrack.create({
+      trace,
+      uri: 'test',
+      dataset: () =>
+        new SourceDataset({
+          src,
+          schema: {id: NUM, ts: LONG, dur: LONG, depth: NUM},
+        }),
+    });
+    const drawnSlices = () => drawSlices.mock.lastCall?.[0].count;
+
+    await renderUntilSettled(track, renderCtx);
+    const oldTables = engine.createdTables();
+    expect(oldTables).toHaveLength(3);
+    expect(drawnSlices()).toBe(1);
+
+    // The previous slices are drawn until the new ones are loaded.
+    src = 'slices_b';
+    drawSlices.mockClear();
+    track.render(renderCtx);
+    expect(drawnSlices()).toBe(1);
+
+    // The old tables are dropped and slices are loaded from the new ones.
+    await renderUntilSettled(track, renderCtx);
+    const newTables = engine.createdTables().slice(3);
+    expect(newTables).toHaveLength(3);
+    expect(engine.droppedTables()).toEqual(oldTables);
+    const sliceQueries = engine.log.filter((q) => q.includes('as __start'));
+    expect(sliceQueries.at(-1)).toContain(newTables[0]);
+    expect(drawnSlices()).toBe(1);
+  });
+
+  test('draws a dataset that changes on every frame', async () => {
+    const {engine, trace, drawSlices, renderCtx} = setup();
+    let generation = 0;
+    const track = SliceTrack.create({
+      trace,
+      uri: 'test',
+      dataset: () =>
+        new SourceDataset({
+          src: `slices_${generation++}`,
+          schema: {id: NUM, ts: LONG, dur: LONG, depth: NUM},
+        }),
+    });
+
+    // Each dataset is drawn once loaded, then the latest one is loaded.
+    await renderUntilSettled(track, renderCtx);
+    expect(drawSlices).toHaveBeenLastCalledWith(
+      expect.objectContaining({count: 1}),
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(engine.createdTables().length).toBeGreaterThan(3);
   });
 });

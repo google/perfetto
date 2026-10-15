@@ -15,6 +15,7 @@
 import type {Analytics} from './analytics';
 import type {CommandManager} from './commands';
 import type {FeatureFlagManager} from './feature_flag';
+import type {HeaderManager} from './header';
 import type {OmniboxManager} from './omnibox';
 import type {PageManager} from './page';
 import type {PluginManager} from './plugin';
@@ -82,6 +83,15 @@ export interface App {
    */
   readonly sidePanel: SidePanelManager;
 
+  /**
+   * Manage the header - full-width rows above the topbar. Items registered via
+   * a Trace are removed when the trace closes.
+   *
+   * @experimental - This is a new API and may change or be removed in the
+   * future. Use with caution and be prepared for breaking changes.
+   */
+  readonly header: HeaderManager;
+
   // True if the current user is an 'internal' user. E.g. a Googler on
   // ui.perfetto.dev. Plugins might use this to determine whether to show
   // certain internal links or expose certain experimental features by default.
@@ -104,6 +114,20 @@ export interface App {
     buffer: ArrayBuffer;
     title: string;
     fileName: string;
+
+    // Extra arguments for plugins, passed to their onTraceLoad(), keyed by
+    // plugin id. E.g. {'com.example.Foo': {key1: 'value1'}}.
+    pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+
+    // Whether the UI may share the trace externally (e.g. as a permalink) or
+    // download it to disk. Both default to true.
+    shareable?: boolean;
+    downloadable?: boolean;
+
+    // Whether the trace may be stored in the browser cache so that reloading
+    // the page reopens it. Defaults to true. Set it to false for traces that
+    // the opener regenerates on reload (e.g. live streams).
+    cacheable?: boolean;
   }): Promise<Trace>;
   closeCurrentTrace(): void;
 }

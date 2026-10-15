@@ -14,6 +14,7 @@
 
 import {DisposableStack} from '../base/disposable_stack';
 import {createStore, type Migrate, type Store} from '../base/store';
+import type {time} from '../base/time';
 import {TimelineImpl} from './timeline';
 import type {Command} from '../public/commands';
 import type {Trace} from '../public/trace';
@@ -56,7 +57,13 @@ import type {TraceStream} from '../public/stream';
 import type {OmniboxModeDescriptor} from '../public/omnibox';
 import type {SidePanelManagerImpl} from './side_panel_manager';
 import type {SidePanelTabDescriptor} from '../public/side_panel';
+import type {HeaderManagerImpl} from './header_manager';
+import type {HeaderItem} from '../public/header';
 import type {Route} from '../public/app';
+
+// While extendTraceEnd() grows a trace, the minimap reloads at most this often,
+// as each reload queries the whole trace.
+const MINIMAP_RELOAD_INTERVAL_MS = 5_000;
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -88,10 +95,17 @@ export class TraceImpl implements Trace, Disposable {
   // Do we need this?
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
 
+  // Set while a minimap reload is pending or running, see extendTraceEnd().
+  private minimapReloadTimer?: ReturnType<typeof setTimeout>;
+
+  // Set once a minimap reload failed, so later failures are only logged.
+  private minimapReloadFailed = false;
+
   constructor(app: AppImpl, engine: EngineBase, traceInfo: TraceInfoImpl) {
     this.app = app;
     this.engine = engine;
     this.trash.use(engine);
+    this.trash.defer(() => clearTimeout(this.minimapReloadTimer));
     this.traceInfo = traceInfo;
 
     this.timeline = new TimelineImpl(
@@ -189,6 +203,14 @@ export class TraceImpl implements Trace, Disposable {
         return disposable;
       },
     });
+
+    this.headerProxy = createProxy(app.header, {
+      registerItem: (item: HeaderItem) => {
+        const disposable = app.header.registerItem(item);
+        this.trash.use(disposable);
+        return disposable;
+      },
+    });
   }
 
   // This method wires up changes to selection to side effects on search and
@@ -214,12 +236,47 @@ export class TraceImpl implements Trace, Disposable {
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly sidePanelProxy: SidePanelManagerImpl;
+  private readonly headerProxy: HeaderManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
   private readonly omniboxProxy: OmniboxManagerImpl;
 
   scrollTo(where: ScrollToArgs): void {
     this.scrollHelper.scrollTo(where);
+  }
+
+  extendTraceEnd(end: time): void {
+    if (end <= this.traceInfo.end) return;
+    this.traceInfo.end = end;
+    this.scheduleMinimapReload();
+    this.raf.scheduleFullRedraw();
+  }
+
+  // Reloads the minimap for the grown bounds, at most every
+  // MINIMAP_RELOAD_INTERVAL_MS. Scheduled reloads don't overlap each other but
+  // may overlap the initial load. A failure doesn't stop later reloads. Only
+  // the first failure reaches the global error handler; later ones are logged.
+  private scheduleMinimapReload() {
+    if (this.minimapReloadTimer !== undefined || this.trash.disposed) return;
+    this.minimapReloadTimer = setTimeout(async () => {
+      const end = this.traceInfo.end;
+      try {
+        await this.minimap.load(this.traceInfo.start, end);
+      } catch (e) {
+        if (this.minimapReloadFailed) {
+          console.error('Minimap reload failed:', e);
+          return;
+        }
+        this.minimapReloadFailed = true;
+        throw e;
+      } finally {
+        this.minimapReloadTimer = undefined;
+      }
+      this.raf.scheduleCanvasRedraw();
+
+      // The bounds grew during the load.
+      if (this.traceInfo.end > end) this.scheduleMinimapReload();
+    }, MINIMAP_RELOAD_INTERVAL_MS);
   }
 
   async getTraceFile(): Promise<Blob> {
@@ -277,6 +334,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get sidePanel(): SidePanelManagerImpl {
     return this.sidePanelProxy;
+  }
+
+  get header(): HeaderManagerImpl {
+    return this.headerProxy;
   }
 
   get pages(): PageManager {
