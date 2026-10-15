@@ -175,3 +175,20 @@ describe('TraceImpl.extendTraceEnd', () => {
     expect(consoleError).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('TraceImpl.header', () => {
+  test('removes the items of a closed trace', () => {
+    const trace = createFakeTraceImpl();
+    const appHeader = trace.app.header;
+    const render = () =>
+      Array.from(appHeader.items.values(), (item) => item.render());
+
+    trace.header.registerItem({render: () => 'trace'});
+    const appItem = appHeader.registerItem({render: () => 'app'});
+    onTestFinished(() => appItem[Symbol.dispose]());
+    expect(render()).toEqual(['trace', 'app']);
+
+    trace[Symbol.dispose]();
+    expect(render()).toEqual(['app']);
+  });
+});

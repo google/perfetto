@@ -203,7 +203,11 @@ li.pf-sidebar__item {
   position: fixed;
   z-index: 5;
   left: calc(var(--sidebar-width) - 44px);
-  top: 6px;
+  // Static position (top: auto) at the top of the sidebar header (align-self),
+  // even when a header row pushes the sidebar down (.pf-ui-main__header).
+  top: auto;
+  align-self: flex-start;
+  margin-top: 6px;
   visibility: visible; // So stays visible when the sidebar is hidden.
   transition: left var(--anim-easing) var(--sidebar-timing);
 
