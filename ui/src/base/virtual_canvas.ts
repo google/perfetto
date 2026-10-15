@@ -212,6 +212,19 @@ export class VirtualCanvas implements Disposable {
     this._canvasRect = emptyRect;
     this._viewportRect = emptyRect;
     this._viewportLimits = emptyRect;
+
+    let dprQuery = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+    const onDprChange = () => {
+      // Re-arm the query so subsequent changes in pixel density also fire
+      dprQuery.removeEventListener('change', onDprChange);
+      dprQuery = matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+      dprQuery.addEventListener('change', onDprChange);
+      updateCanvas();
+    };
+    dprQuery.addEventListener('change', onDprChange);
+    this._trash.defer(() =>
+      dprQuery.removeEventListener('change', onDprChange),
+    );
   }
 
   /**
