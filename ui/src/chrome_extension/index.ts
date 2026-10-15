@@ -37,6 +37,10 @@ function onUIMessage(
   port: chrome.runtime.Port,
   controller: ChromeTracingController,
 ) {
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+  if (!message || typeof message !== 'object') {
+    return;
+  }
   if (message.method === 'ExtensionVersion') {
     port.postMessage({version: chrome.runtime.getManifest().version});
     return;

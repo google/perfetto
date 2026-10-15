@@ -27,14 +27,21 @@ export class DevToolsSocket implements LikeSocket {
   // worker. Keeping the bound handlers in fields lets dispose() unregister
   // them; an anonymous inline listener could never be removed.
   private readonly onEvent = (
-    _source: chrome.debugger.Debuggee,
+    source: chrome.debugger.Debuggee,
     method: string,
     params?: object,
   ): void => {
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (this.messageCallback) {
-      const msg: JsonRpc2.Notification = {method, params};
-      this.messageCallback(JSON.stringify(msg));
+    if (
+      this.target !== undefined &&
+      source.targetId === this.target.targetId &&
+      source.tabId === this.target.tabId &&
+      source.extensionId === this.target.extensionId
+    ) {
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      if (this.messageCallback) {
+        const msg: JsonRpc2.Notification = {method, params};
+        this.messageCallback(JSON.stringify(msg));
+      }
     }
   };
 
@@ -121,8 +128,14 @@ export class DevToolsSocket implements LikeSocket {
   onDetach(source: chrome.debugger.Debuggee, _reason: string) {
     // onDetach delivers a freshly deserialized Debuggee object, so reference
     // equality against the object passed to attach() never matches and the
-    // close callback (state reset) would silently never run. Compare ids.
-    if (this.target !== undefined && source.targetId === this.target.targetId) {
+    // close callback (state reset) would silently never run. Compare all
+    // identifying fields (targetId, tabId, extensionId).
+    if (
+      this.target !== undefined &&
+      source.targetId === this.target.targetId &&
+      source.tabId === this.target.tabId &&
+      source.extensionId === this.target.extensionId
+    ) {
       this.target = undefined;
       this.closeCallback();
     }
