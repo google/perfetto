@@ -30,6 +30,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/perfetto_sql/pipeline/aggregate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/catalog.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -157,9 +158,12 @@ class Compiler {
                                const std::string& name,
                                uint32_t at) const;
 
-  // Aggregate argument checks and column resolution.
-  bool IsCountStar(uint32_t expr) const;
-  base::StatusOr<ColumnId> ResolveSum(uint32_t agg_id, uint32_t expr);
+  // Resolves an aggregate call, e.g. `SUM(column)`, to the shared function
+  // and the column it reads.
+  base::StatusOr<Aggregate> ResolveAggregate(uint32_t expr);
+  // Resolves an expression which must be a column reference; any other
+  // expression is unsupported.
+  base::StatusOr<ColumnId> ResolveColumnExpr(uint32_t expr) const;
   base::StatusOr<ColumnId> Resolve(const std::string& name, uint32_t at) const;
   base::StatusOr<ColumnId> Resolve(const std::string& qualifier,
                                    const std::string& name,
@@ -236,7 +240,6 @@ class Compiler {
 
   // How a user could write a reference to `column`, to tell candidates apart.
   std::string Origin(const RowColumn& column) const;
-  std::string Traceback(uint32_t node) const;
 
   // ---------------------------------------------------------------------------
   // Shared compiler state

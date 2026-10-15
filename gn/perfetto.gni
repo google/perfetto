@@ -190,6 +190,10 @@ declare_args() {
       (perfetto_build_standalone && is_clang &&
        (is_linux || (is_android && android_api_level >= 29)))
 
+  # Unwinder backend used by heapprofd and traced_perf:
+  # "libunwindstack" (default).
+  perfetto_unwinder_backend = "libunwindstack"
+
   # The Trace Processor: offline analytical engine to process traces and compute
   # metrics using a SQL engine.
   if (!defined(enable_perfetto_trace_processor)) {

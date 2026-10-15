@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <tuple>
 #include <vector>
@@ -26,7 +27,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "test/gtest_and_gmock.h"
@@ -78,12 +79,13 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
   spec.dur_column = 1;
   spec.key_columns = {2};
   spec.group_column = 4;
-  spec.aggregates = {{IntervalFlattenSpec::Function::kCount, 0},
-                     {IntervalFlattenSpec::Function::kSum, 3}};
+  spec.aggregates = {{AggregateCall::Function::kCountStar, 0},
+                     {AggregateCall::Function::kSum, 3}};
   IntervalFlatten op(spec);
-  auto state = op.MakeState();
-  // Refill the same borrowed buffers for each input batch. Retained group keys
-  // must survive this, and Reset must discard a previous execution's state.
+  auto state = op.MakeState(test::TestContext());
+  // Refill the same vectors for each input batch, published in a buffer each,
+  // as a source refilling its storage would. Retained group keys must survive
+  // this, and Reset must discard a previous execution's state.
   for (uint32_t chunk : {1u, 17u, kMaxBatchRows}) {
     SCOPED_TRACE(chunk);
     state->Reset();
@@ -92,23 +94,15 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
     auto key_valid = BitVector::CreateWithSize(chunk);
     auto weight_valid = BitVector::CreateWithSize(chunk);
     RowBatch in, out;
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ts.data()));
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur.data()));
-    in.AddColumn(
-        ColumnView::Reference(StorageType{Int64{}}, key.data(), &key_valid));
-    in.AddColumn(ColumnView::Reference(StorageType{Int64{}}, weight.data(),
-                                       &weight_valid));
-    in.AddColumn(ColumnView::Reference(StorageType{Uint32{}}, groups.data()));
     std::vector<Output> actual;
     auto collect = [&] {
       ASSERT_LE(out.size(), kMaxBatchRows);
       auto keys = test::ReadNullableColumn<int64_t>(out, 2);
       auto sums = test::ReadNullableColumn<int64_t>(out, 4);
       for (uint32_t row = 0; row < out.size(); ++row) {
-        actual.emplace_back(out.column(0).Value<int64_t>(row),
-                            out.column(1).Value<int64_t>(row), keys[row],
-                            out.column(3).Value<int64_t>(row), sums[row],
-                            out.column(5).Value<uint32_t>(row));
+        actual.emplace_back(
+            out.Value<int64_t>(0, row), out.Value<int64_t>(1, row), keys[row],
+            out.Value<int64_t>(3, row), sums[row], out.Value<uint32_t>(5, row));
       }
     };
     for (uint32_t at = 0; at < input.size(); at += chunk) {
@@ -124,7 +118,14 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
         key_valid.change(row, value.group == 0);
         weight_valid.change(row, value.present);
       }
-      in.SetCardinality(count);
+      in.Reset();
+      Context& context = test::TestContext();
+      test::AddCopy(context, ts, nullptr, &in);
+      test::AddCopy(context, dur, nullptr, &in);
+      test::AddCopy(context, key, &key_valid, &in);
+      test::AddCopy(context, weight, &weight_valid, &in);
+      test::AddCopy(context, groups, nullptr, &in);
+      in.SetRowCount(count);
       OpResult result;
       uint32_t calls = 0;
       do {
@@ -148,6 +149,115 @@ TEST(IntervalFlattenTest, StreamsAcrossInputAndOutputBoundaries) {
     EXPECT_EQ(actual, expected);
     EXPECT_EQ(op.Finish(out, *state), OpResult::kNeedMoreInput);
     EXPECT_EQ(out.size(), 0u);
+  }
+}
+
+TEST(IntervalFlattenTest, RunningTotalsMatchTheTree) {
+  // COUNT(*) and SUM alone are computed as running totals; adding MIN, which
+  // can't subtract, computes them with the tree. Overlapping intervals of
+  // many lengths, over many input and output batches.
+  constexpr uint32_t kRows = 3 * kMaxBatchRows;
+  std::vector<int64_t> ts, dur, value;
+  for (uint32_t i = 0; i < kRows; ++i) {
+    uint32_t hash = i * 2654435761u;
+    ts.push_back(int64_t{i} * 3);
+    dur.push_back(hash % 7 == 0 ? 0 : (hash >> 20) % 400);
+    value.push_back(static_cast<int64_t>(hash >> 8) - (1 << 23));
+  }
+  auto run = [&](std::vector<AggregateCall> aggregates) {
+    IntervalFlattenSpec spec;
+    spec.ts_column = 0;
+    spec.dur_column = 1;
+    spec.aggregates = std::move(aggregates);
+    IntervalFlatten op(spec);
+    auto state = op.MakeState(test::TestContext());
+    std::vector<std::tuple<int64_t, int64_t, int64_t, int64_t>> rows;
+    RowBatch in, out;
+    auto collect = [&] {
+      for (uint32_t row = 0; row < out.size(); ++row) {
+        rows.emplace_back(
+            out.Value<int64_t>(0, row), out.Value<int64_t>(1, row),
+            out.Value<int64_t>(2, row), out.Value<int64_t>(3, row));
+      }
+    };
+    for (uint32_t at = 0; at < kRows; at += kMaxBatchRows) {
+      in.Reset();
+      for (const std::vector<int64_t>* column : {&ts, &dur, &value}) {
+        in.AddBorrowedColumn(ColumnView::Reference(
+            StorageType{Int64{}}, column->data(), nullptr, at));
+      }
+      in.SetRowCount(kMaxBatchRows);
+      OpResult result;
+      do {
+        result = op.Execute(in, out, *state);
+        EXPECT_NE(result, OpResult::kError);
+        collect();
+      } while (result == OpResult::kHaveMoreOutput);
+    }
+    OpResult result;
+    do {
+      result = op.Finish(out, *state);
+      EXPECT_NE(result, OpResult::kError);
+      collect();
+    } while (result == OpResult::kHaveMoreOutput);
+    return rows;
+  };
+  AggregateCall count{AggregateCall::Function::kCountStar, 0};
+  AggregateCall sum{AggregateCall::Function::kSum, 2};
+  AggregateCall min{AggregateCall::Function::kMin, 2};
+  auto totals = run({count, sum});
+  auto tree = run({count, sum, min});
+  EXPECT_GT(totals.size(), 2 * kMaxBatchRows);
+  EXPECT_EQ(totals, tree);
+}
+
+TEST(IntervalFlattenTest, ResumingAnInputDoesNotAddItsRowsAgain) {
+  // Pairs of rows: one of the largest value, then an overlapping null. Each
+  // pair makes three segments, so the output fills mid-input and the input is
+  // resumed. No total ever exceeds the largest value.
+  constexpr uint32_t kPairs = kMaxBatchRows / 2;
+  constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
+  std::vector<int64_t> ts, dur, weight;
+  auto weight_valid = BitVector::CreateWithSize(2 * kPairs);
+  for (uint32_t i = 0; i < kPairs; ++i) {
+    ts.insert(ts.end(), {10 * int64_t{i}, 10 * int64_t{i} + 1});
+    dur.insert(dur.end(), {2, 2});
+    weight.insert(weight.end(), {kMax, 0});
+    weight_valid.set(2 * i);
+  }
+  RowBatch in, out;
+  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, ts.data()));
+  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}}, dur.data()));
+  in.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}},
+                                             weight.data(), &weight_valid));
+  in.SetRowCount(2 * kPairs);
+  IntervalFlattenSpec spec;
+  spec.ts_column = 0;
+  spec.dur_column = 1;
+  spec.aggregates = {{AggregateCall::Function::kSum, 2}};
+  IntervalFlatten op(spec);
+  auto state = op.MakeState(test::TestContext());
+  std::vector<std::optional<int64_t>> sums;
+  auto collect = [&] {
+    for (std::optional<int64_t> sum : test::ReadNullableColumn<int64_t>(out, 2))
+      sums.push_back(sum);
+  };
+  OpResult result;
+  do {
+    result = op.Execute(in, out, *state);
+    ASSERT_NE(result, OpResult::kError) << op.status(*state).message();
+    collect();
+  } while (result == OpResult::kHaveMoreOutput);
+  do {
+    result = op.Finish(out, *state);
+    ASSERT_NE(result, OpResult::kError) << op.status(*state).message();
+    collect();
+  } while (result == OpResult::kHaveMoreOutput);
+  ASSERT_EQ(sums.size(), 3 * kPairs);
+  for (uint32_t i = 0; i < kPairs; ++i) {
+    EXPECT_EQ(sums[3 * i], kMax);
+    EXPECT_EQ(sums[3 * i + 1], kMax);
+    EXPECT_EQ(sums[3 * i + 2], std::nullopt);
   }
 }
 

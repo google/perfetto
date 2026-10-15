@@ -279,6 +279,25 @@ When a pipeline chains multiple `TREE ACCUMULATE` stages:
 
 ---
 
+## `ORDER BY`
+
+Implementation: `/src/trace_processor/core/exec/sort.cc`
+
+`ORDER BY` is a blocking stage: `Sort` reads every row before emitting any. It
+encodes each row's keys into one fixed-width, byte-comparable record, sorts
+row indices by those records, and serves the buffered rows through a
+row-selection index rather than copying them into sorted order.
+
+The planner tracks the order rows are known to be in. A single ascending key
+which a dataframe scan already keeps sorted, such as `ts` on `slice`, needs no
+`Sort` at all. After a sort, the planner forgets any tree order, so a later
+`TREE ACCUMULATE` rearranges rows again while reusing its node numbering.
+
+Keys of a known type are sorted as they are. A key read from SQLite has no
+promised type, so it is first checked to hold integers.
+
+---
+
 ## `SELECT`, `EXTEND`, `DROP`, `RENAME`, `SET`, and `AS`
 
 Implementation: `/src/trace_processor/perfetto_sql/pipeline/compiler.cc`

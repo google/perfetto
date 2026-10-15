@@ -335,16 +335,20 @@ bool FtraceConfigMuxer::SetSyscallEventFilter(
   }
 
   std::set<size_t> filter_set = syscall_filter.GetEnabledEvents();
+  std::set<size_t> excluded;
   if (syscall_filter.IsEventEnabled(kAllSyscallsId)) {
     filter_set.clear();
+    excluded = trampoline_syscalls_;
   }
 
-  if (current_state_.syscall_filter != filter_set) {
-    if (!tracefs_->SetSyscallFilter(filter_set)) {
+  if (current_state_.syscall_filter != filter_set ||
+      current_state_.syscall_excluded != excluded) {
+    if (!tracefs_->SetSyscallFilter(filter_set, excluded)) {
       return false;
     }
 
     current_state_.syscall_filter = filter_set;
+    current_state_.syscall_excluded = excluded;
   }
 
   return true;
@@ -388,7 +392,17 @@ FtraceConfigMuxer::FtraceConfigMuxer(
       current_state_(),
       predefined_events_(std::move(predefined_events)),
       vendor_events_(std::move(vendor_events)),
-      secondary_instance_(secondary_instance) {}
+      secondary_instance_(secondary_instance) {
+  // x86_64 enters a uprobe or uretprobe through a system call of its own
+  // and leaves it with the call number cleared, so the exit tracepoint
+  // never names it: an entry alone, once per probe hit, is all a trace
+  // would get.
+  for (const char* name : {"sys_uprobe", "sys_uretprobe"}) {
+    if (std::optional<size_t> id = syscalls_.GetByName(name)) {
+      trampoline_syscalls_.insert(*id);
+    }
+  }
+}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
 bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,

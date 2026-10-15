@@ -24,17 +24,25 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdio>
 #include <functional>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/unwind/asm_get_regs.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/get_asm_regs.h"
 #include "src/profiling/unwind/unwind_context.h"
 #include "src/profiling/unwind/unwind_types.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
+#include <unwindstack/Unwinder.h>
+#endif
 
 namespace perfetto {
 namespace profiling {
@@ -162,10 +170,13 @@ PERFETTO_NO_INLINE void CopyStackMemory(uint8_t* dst,
 
 SampleSnapshot CaptureCurrentStack() {
   SampleSnapshot sample;
-  uint64_t reg_data[CpuRegisters::kMaxRegs] = {};
-  AsmGetRegs(reg_data);
-  sample.regs = CpuRegisters::FromUserRegs(CurrentCpuArch(), reg_data);
-  sample.sp = sample.regs.sp;
+  alignas(8) uintptr_t reg_data[CpuRegisters::kMaxRegs] = {};
+  GetAsmRegs(reg_data);
+  sample.regs = CpuRegisters(CurrentCpuArch());
+  for (size_t i = 0; i < CpuRegisters::kMaxRegs; ++i) {
+    sample.regs[i] = reg_data[i];
+  }
+  sample.sp = sample.regs.sp();
 
   uintptr_t sp = static_cast<uintptr_t>(sample.sp);
   uintptr_t stack_top = 0;
@@ -297,7 +308,10 @@ void BM_Unwind_Dwarf_ColdStart(benchmark::State& state, int depth) {
   for (auto _ : state) {
     state.PauseTiming();
     fixture.unwind_context()->ReparseMaps();
-    UnwindContext::ResetAndEnableGlobalCache();
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
+    unwindstack::Elf::SetCachingEnabled(false);
+    unwindstack::Elf::SetCachingEnabled(true);
+#endif
     state.ResumeTiming();
 
     UnwindResult result = fixture.unwind_context()->Unwind(sample, options);

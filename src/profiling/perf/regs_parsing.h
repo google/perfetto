@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
@@ -31,12 +32,11 @@ namespace profiling {
 // configuring perf events.
 uint64_t PerfUserRegsMaskForArch(CpuArch arch);
 
-// Converts the raw sampled register bytes to CpuRegisters representation
-// (correct arch-dependent subclass). Advances |data| pointer to past the
-// register data. The unique_ptr can be empty, if there were no userspace
-// registers to sample (i.e. we've sampled a kernel thread).
-// TODO(rsavitski): come up with a better signature
-std::unique_ptr<CpuRegisters> ReadPerfUserRegsData(const char** data);
+// Converts the raw sampled register bytes to CpuRegisters representation.
+// Advances |data| pointer to past the register data. The optional can be
+// empty if there were no userspace registers to sample (i.e. we've sampled a
+// kernel thread).
+std::optional<CpuRegisters> ReadPerfUserRegsData(const char** data);
 
 }  // namespace profiling
 }  // namespace perfetto

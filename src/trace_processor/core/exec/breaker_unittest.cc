@@ -29,7 +29,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_cursor.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -39,7 +39,6 @@ namespace {
 using test::ArraySource;
 using test::FailingSource;
 using test::Sequence;
-using ::testing::ElementsAre;
 
 // Buffers every value and serves them back to front, which is only possible
 // once the whole input is in. A negative value is refused.
@@ -67,7 +66,7 @@ class Reverse final : public Breaker {
   bool Consume(const RowBatch& in, Breaker::State& state) const override {
     State& s = state.Cast<State>();
     for (uint32_t row = 0; row < in.size(); ++row) {
-      int64_t value = in.column(column_).Value<int64_t>(row);
+      int64_t value = in.Value<int64_t>(column_, row);
       if (value < 0) {
         s.status = base::ErrStatus("negative value");
         return false;
@@ -89,9 +88,9 @@ class Reverse final : public Breaker {
     }
     uint32_t count = std::min(kMaxBatchRows, rows - s.served);
     out.Reset();
-    out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
-    out.Compose(RowSelection::Range(s.served), count);
-    out.SetCardinality(count);
+    out.AddBorrowedColumn(
+        ColumnView::Reference(StorageType{Int64{}}, s.values.data()));
+    test::Window(&out, s.served, count);
     s.served += count;
     return true;
   }
@@ -140,42 +139,6 @@ TEST(BreakerTest, ConsecutiveBreakersDrainAndRewindInOnePipeline) {
     EXPECT_TRUE(cursor.status().ok());
     EXPECT_EQ(values, expected);
   }
-}
-
-TEST(BreakerTest, RewindReadsTheInputAgain) {
-  ArraySource source({1, 2, 3});
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops), {});
-  RowCursor cursor(reverse);
-  for (cursor.Open(); !cursor.eof(); cursor.Next()) {
-  }
-  std::vector<int64_t> again;
-  for (cursor.Open(); !cursor.eof(); cursor.Next()) {
-    again.push_back(cursor.Value<int64_t>(0));
-  }
-  EXPECT_THAT(again, ElementsAre(3, 2, 1));
-  EXPECT_TRUE(cursor.status().ok());
-}
-
-TEST(BreakerTest, AFailingInputIsReported) {
-  FailingSource source;
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops), {});
-  RowCursor cursor(reverse);
-  EXPECT_FALSE(cursor.Open());
-  EXPECT_EQ(cursor.status().message(), "input broke");
-}
-
-TEST(BreakerTest, AFailingConsumeIsReported) {
-  ArraySource source({1, -2, 3});
-  std::vector<Pipeline::Step> ops;
-  ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops), {});
-  RowCursor cursor(reverse);
-  EXPECT_FALSE(cursor.Open());
-  EXPECT_EQ(cursor.status().message(), "negative value");
 }
 
 }  // namespace

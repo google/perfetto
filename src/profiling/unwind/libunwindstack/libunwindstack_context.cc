@@ -17,31 +17,37 @@
 #include "src/profiling/unwind/libunwindstack/libunwindstack_context.h"
 
 #include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include <procinfo/process_map.h>
+#include <unistd.h>
 #include <unwindstack/Arch.h>
 #include <unwindstack/Elf.h>
+#include <unwindstack/Error.h>
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/MachineX86.h>
 #include <unwindstack/MachineX86_64.h>
+#include <unwindstack/Maps.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
 #include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
-#include <unwindstack/UserArm.h>
-#include <unwindstack/UserArm64.h>
-#include <unwindstack/UserRiscv64.h>
-#include <unwindstack/UserX86.h>
-#include <unwindstack/UserX86_64.h>
+#include <unwindstack/SharedString.h>
+#include <unwindstack/Unwinder.h>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/unwind/perf_regs.h"
 #include "src/profiling/unwind/unwind_context.h"
 #include "src/profiling/unwind/unwind_types.h"
 
@@ -91,7 +97,7 @@ bool FDMaps::Parse() {
   unwindstack::SharedString name("");
   std::shared_ptr<unwindstack::MapInfo> prev_map;
   return android::procinfo::ReadMapFileContent(
-      &content[0], [&](const android::procinfo::MapInfo& mapinfo) {
+      content.data(), [&](const android::procinfo::MapInfo& mapinfo) {
         // Mark a device map in /dev/ and not in /dev/ashmem/ specially.
         auto flags = mapinfo.flags;
         if (strncmp(mapinfo.name.c_str(), "/dev/", 5) == 0 &&
@@ -121,7 +127,6 @@ UnwindingMetadata::UnwindingMetadata(base::ScopedFile maps_fd,
 }
 
 void UnwindingMetadata::ReparseMaps() {
-  reparses++;
   fd_maps.Reset();
   fd_maps.Parse();
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -171,20 +176,26 @@ std::unique_ptr<UnwindContext> UnwindContext::Create(base::ScopedFile maps_fd,
   return std::make_unique<LibunwindstackContext>(std::move(maps_fd),
                                                  std::move(mem_fd));
 }
-// Libunwindstack uses an unsynchronized variable for setting/checking whether
-// the cache is enabled. Therefore unwinding and cache toggling should stay on
-// the same thread, but we might be moving unwinding across threads if we're
-// recreating |Unwinder| instances (during a reconnect to traced). Therefore,
-// use our own static lock to synchronize the cache toggling.
-// TODO(rsavitski): consider fixing this in libunwindstack itself.
-void UnwindContext::ResetAndEnableGlobalCache() {
-  unwindstack::Elf::SetCachingEnabled(false);  // free any existing state
-  unwindstack::Elf::SetCachingEnabled(true);   // reallocate a fresh cache
-}
 
 namespace {
-inline MapInfo FromLibunwindStackMapInfo(unwindstack::MapInfo* map_info) {
-  MapInfo mi;
+
+static_assert(static_cast<uint8_t>(CpuArch::UNKNOWN) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_UNKNOWN) &&
+                  static_cast<uint8_t>(CpuArch::ARM) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_ARM) &&
+                  static_cast<uint8_t>(CpuArch::ARM64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_ARM64) &&
+                  static_cast<uint8_t>(CpuArch::X86) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_X86) &&
+                  static_cast<uint8_t>(CpuArch::X86_64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_X86_64) &&
+                  static_cast<uint8_t>(CpuArch::RISCV64) ==
+                      static_cast<uint8_t>(unwindstack::ARCH_RISCV64),
+              "CpuArch and unwindstack::ArchEnum must match");
+
+inline UnwoundMapping FromLibunwindStackMapInfo(
+    unwindstack::MapInfo* map_info) {
+  UnwoundMapping mi;
   mi.map_name = map_info->GetFullName();
   mi.map_start = map_info->start();
   mi.map_end = map_info->end();
@@ -198,114 +209,101 @@ inline MapInfo FromLibunwindStackMapInfo(unwindstack::MapInfo* map_info) {
   return mi;
 }
 
-// First converts the |RawRegisterData| array to libunwindstack's "user"
-// register structs (which match the ptrace/coredump format, also available at
-// <sys/user.h>), then constructs the relevant unwindstack::Regs subclass out
-// of the latter.
-std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
-    const CpuRegisters& raw_regs) {
-  if (raw_regs.arch == CpuArch::kArm64) {
-    static_assert(static_cast<int>(unwindstack::ARM64_REG_R0) ==
-                          static_cast<int>(PERF_REG_ARM64_X0) &&
-                      static_cast<int>(unwindstack::ARM64_REG_R0) == 0,
-                  "register layout mismatch");
-    static_assert(static_cast<int>(unwindstack::ARM64_REG_PC) ==
-                      static_cast<int>(PERF_REG_ARM64_PC),
-                  "register layout mismatch");
-    // Both the perf_event register order and the "user" format are derived from
-    // "struct pt_regs", so we can directly memcpy all of the registers.
-    unwindstack::arm64_user_regs arm64_user_regs = {};
-    std::memcpy(&arm64_user_regs.regs[0], &raw_regs.raw_data[0],
-                sizeof(uint64_t) * (PERF_REG_ARM64_PC + 1));
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsArm64::Read(&arm64_user_regs));
+inline UnwindErrorCode FromLibunwindStackErrorCode(unwindstack::ErrorCode e) {
+  switch (e) {
+    case unwindstack::ERROR_NONE:
+      return UnwindErrorCode::kNone;
+    case unwindstack::ERROR_MEMORY_INVALID:
+      return UnwindErrorCode::kMemoryInvalid;
+    case unwindstack::ERROR_UNWIND_INFO:
+      return UnwindErrorCode::kInvalidUnwindInfo;
+    case unwindstack::ERROR_UNSUPPORTED:
+      return UnwindErrorCode::kUnsupported;
+    case unwindstack::ERROR_INVALID_MAP:
+      return UnwindErrorCode::kInvalidMap;
+    case unwindstack::ERROR_MAX_FRAMES_EXCEEDED:
+      return UnwindErrorCode::kMaxFramesExceeded;
+    case unwindstack::ERROR_REPEATED_FRAME:
+      return UnwindErrorCode::kRepeatedFrame;
+    case unwindstack::ERROR_INVALID_ELF:
+      return UnwindErrorCode::kInvalidElf;
+    case unwindstack::ERROR_SYSTEM_CALL:
+      return UnwindErrorCode::kSystemCall;
+    case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
+      return UnwindErrorCode::kThreadDoesNotExist;
+    case unwindstack::ERROR_THREAD_TIMEOUT:
+      return UnwindErrorCode::kThreadTimeout;
+    case unwindstack::ERROR_BAD_ARCH:
+      return UnwindErrorCode::kBadArch;
+    case unwindstack::ERROR_MAPS_PARSE:
+      return UnwindErrorCode::kMapParseError;
+    case unwindstack::ERROR_INVALID_PARAMETER:
+      return UnwindErrorCode::kInvalidParam;
+    case unwindstack::ERROR_PTRACE_CALL:
+      return UnwindErrorCode::kPtraceCall;
   }
-
-  if (raw_regs.arch == CpuArch::kArm) {
-    static_assert(static_cast<int>(unwindstack::ARM_REG_R0) ==
-                          static_cast<int>(PERF_REG_ARM_R0) &&
-                      static_cast<int>(unwindstack::ARM_REG_R0) == 0,
-                  "register layout mismatch");
-    static_assert(static_cast<int>(unwindstack::ARM_REG_LAST) ==
-                      static_cast<int>(PERF_REG_ARM_MAX),
-                  "register layout mismatch");
-    // As with arm64, the layouts match, but we need to downcast to u32.
-    unwindstack::arm_user_regs arm_user_regs = {};
-    for (size_t i = 0; i < unwindstack::ARM_REG_LAST; i++) {
-      arm_user_regs.regs[i] = static_cast<uint32_t>(raw_regs.raw_data[i]);
-    }
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsArm::Read(&arm_user_regs));
-  }
-
-  if (raw_regs.arch == CpuArch::kX86_64) {
-    // We've sampled more registers than what libunwindstack will use. Don't
-    // copy over cs/ss/flags.
-    unwindstack::x86_64_user_regs x86_64_user_regs = {};
-    x86_64_user_regs.rax = raw_regs.raw_data[PERF_REG_X86_AX];
-    x86_64_user_regs.rbx = raw_regs.raw_data[PERF_REG_X86_BX];
-    x86_64_user_regs.rcx = raw_regs.raw_data[PERF_REG_X86_CX];
-    x86_64_user_regs.rdx = raw_regs.raw_data[PERF_REG_X86_DX];
-    x86_64_user_regs.r8 = raw_regs.raw_data[PERF_REG_X86_R8];
-    x86_64_user_regs.r9 = raw_regs.raw_data[PERF_REG_X86_R9];
-    x86_64_user_regs.r10 = raw_regs.raw_data[PERF_REG_X86_R10];
-    x86_64_user_regs.r11 = raw_regs.raw_data[PERF_REG_X86_R11];
-    x86_64_user_regs.r12 = raw_regs.raw_data[PERF_REG_X86_R12];
-    x86_64_user_regs.r13 = raw_regs.raw_data[PERF_REG_X86_R13];
-    x86_64_user_regs.r14 = raw_regs.raw_data[PERF_REG_X86_R14];
-    x86_64_user_regs.r15 = raw_regs.raw_data[PERF_REG_X86_R15];
-    x86_64_user_regs.rdi = raw_regs.raw_data[PERF_REG_X86_DI];
-    x86_64_user_regs.rsi = raw_regs.raw_data[PERF_REG_X86_SI];
-    x86_64_user_regs.rbp = raw_regs.raw_data[PERF_REG_X86_BP];
-    x86_64_user_regs.rsp = raw_regs.raw_data[PERF_REG_X86_SP];
-    x86_64_user_regs.rip = raw_regs.raw_data[PERF_REG_X86_IP];
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsX86_64::Read(&x86_64_user_regs));
-  }
-
-  if (raw_regs.arch == CpuArch::kX86) {
-    // We've sampled more registers than what libunwindstack will use. Don't
-    // copy over cs/ss/flags.
-    unwindstack::x86_user_regs x86_user_regs = {};
-    x86_user_regs.eax =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_AX]);
-    x86_user_regs.ebx =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_BX]);
-    x86_user_regs.ecx =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_CX]);
-    x86_user_regs.edx =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_DX]);
-    x86_user_regs.ebp =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_BP]);
-    x86_user_regs.edi =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_DI]);
-    x86_user_regs.esi =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_SI]);
-    x86_user_regs.esp =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_SP]);
-    x86_user_regs.eip =
-        static_cast<uint32_t>(raw_regs.raw_data[PERF_REG_X86_IP]);
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsX86::Read(&x86_user_regs));
-  }
-
-  if (raw_regs.arch == CpuArch::kRiscv64) {
-    static_assert(static_cast<int>(unwindstack::RISCV64_REG_PC) ==
-                          static_cast<int>(PERF_REG_RISCV_PC) &&
-                      static_cast<int>(unwindstack::RISCV64_REG_PC) == 0,
-                  "register layout mismatch");
-    static_assert(static_cast<int>(unwindstack::RISCV64_REG_REAL_COUNT) ==
-                      static_cast<int>(PERF_REG_RISCV_MAX),
-                  "register layout mismatch");
-    // Register layout matches, pass the raw data to the Read call.
-    return std::unique_ptr<unwindstack::Regs>(
-        unwindstack::RegsRiscv64::Read(&raw_regs.raw_data[0]));
-  }
-
-  return nullptr;
+  return UnwindErrorCode::kUnknownError;
 }
 
 }  // namespace
+
+std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
+    const CpuRegisters& cpu_regs) {
+  switch (cpu_regs.arch) {
+    case CpuArch::ARM64: {
+      static_assert(static_cast<int>(ARM64_REG_MAX) ==
+                        static_cast<int>(unwindstack::ARM64_REG_LAST),
+                    "arm64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsArm64>();
+      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * ARM64_REG_MAX);
+      return regs;
+    }
+    case CpuArch::ARM: {
+      static_assert(static_cast<int>(ARM_REG_MAX) ==
+                        static_cast<int>(unwindstack::ARM_REG_LAST),
+                    "arm register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsArm>();
+      for (size_t i = 0; i < ARM_REG_MAX; ++i) {
+        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
+      }
+      return regs;
+    }
+    case CpuArch::X86_64: {
+      static_assert(static_cast<int>(X86_64_REG_MAX) ==
+                        static_cast<int>(unwindstack::X86_64_REG_LAST),
+                    "x86_64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsX86_64>();
+      memcpy(regs->RawData(), cpu_regs.regs, sizeof(uint64_t) * X86_64_REG_MAX);
+      return regs;
+    }
+    case CpuArch::X86: {
+      static_assert(static_cast<int>(X86_REG_MAX) ==
+                        static_cast<int>(unwindstack::X86_REG_LAST),
+                    "x86 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsX86>();
+      for (size_t i = 0; i < X86_REG_MAX; ++i) {
+        (*regs)[i] = static_cast<uint32_t>(cpu_regs.regs[i]);
+      }
+      return regs;
+    }
+    case CpuArch::RISCV64: {
+      static_assert(static_cast<int>(RISCV64_REG_MAX) ==
+                        static_cast<int>(unwindstack::RISCV64_REG_COUNT),
+                    "riscv64 register layout mismatch");
+      auto regs = std::make_unique<unwindstack::RegsRiscv64>();
+      memcpy(regs->RawData(), cpu_regs.regs,
+             sizeof(uint64_t) * RISCV64_REG_MAX);
+      if ((*regs)[unwindstack::RISCV64_REG_VLENB] == 0) {
+        (*regs)[unwindstack::RISCV64_REG_VLENB] =
+            unwindstack::RegsRiscv64::GetVlenbFromLocal();
+      }
+      return regs;
+    }
+    case CpuArch::UNKNOWN:
+      return nullptr;
+  }
+  return nullptr;
+}
 
 FrameData LibunwindstackContext::BuildFrameFromPc(uint64_t pc,
                                                   bool resolve_names) {
@@ -352,10 +350,10 @@ UnwindResult LibunwindstackContext::Unwind(const UnwindInputSample& sample,
   std::unique_ptr<unwindstack::Regs> regs(ToLibUnwindstackRegs(*sample.regs));
   if (regs == nullptr) {
     PERFETTO_DLOG("Unable to construct unwindstack::Regs");
-    return {UnwindErrorCode::kInvalidParam, UnwindWarning::kNone, {}};
+    return {UnwindErrorCode::kInvalidParam, {}};
   }
   std::shared_ptr<unwindstack::Memory> mems =
-      std::make_shared<StackOverlayMemory>(metadata_.fd_mem, sample.regs->sp,
+      std::make_shared<StackOverlayMemory>(metadata_.fd_mem, sample.regs->sp(),
                                            sample.stack_data,
                                            sample.stack_size);
 
@@ -366,36 +364,13 @@ UnwindResult LibunwindstackContext::Unwind(const UnwindInputSample& sample,
   unwinder.SetJitDebug(metadata_.GetJitDebug(regs->Arch()));
   unwinder.SetDexFiles(metadata_.GetDexFiles(regs->Arch()));
 #endif
-  // Suppress incorrect "variable may be uninitialized" error for if condition
-  // after this loop. error_code = LastErrorCode gets run at least once.
-  unwindstack::ErrorCode error_code = unwindstack::ERROR_NONE;
-  for (int attempt = 0; attempt < options.max_attempts; ++attempt) {
-    if (attempt > 0) {
-      constexpr base::TimeMillis kMapsReparseInterval{500};
-      if (metadata_.last_maps_reparse_time + kMapsReparseInterval >
-          base::GetWallTimeMs()) {
-        PERFETTO_DLOG("Skipping reparse due to rate limit.");
-        break;
-      }
-      PERFETTO_DLOG("Reparsing maps");
-      metadata_.ReparseMaps();
-      metadata_.last_maps_reparse_time = base::GetWallTimeMs();
-      // Regs got invalidated by libuwindstack's speculative jump.
-      // Reset.
-      regs = ToLibUnwindstackRegs(*sample.regs);
-      unwinder.SetRegs(regs.get());
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-      unwinder.SetJitDebug(metadata_.GetJitDebug(regs->Arch()));
-      unwinder.SetDexFiles(metadata_.GetDexFiles(regs->Arch()));
-#endif
-    }
-    unwinder.Unwind(&options.skip_initial_maps,
-                    /*map_suffixes_to_ignore=*/nullptr);
-    error_code = unwinder.LastErrorCode();
-    if (error_code != unwindstack::ERROR_INVALID_MAP &&
-        (unwinder.warnings() & unwindstack::WARNING_DEX_PC_NOT_IN_MAP) == 0) {
-      break;
-    }
+  unwinder.Unwind(&options.skip_initial_maps,
+                  /*map_suffixes_to_ignore=*/nullptr);
+  UnwindErrorCode error_code =
+      FromLibunwindStackErrorCode(unwinder.LastErrorCode());
+  if (error_code == UnwindErrorCode::kNone &&
+      (unwinder.warnings() & unwindstack::WARNING_DEX_PC_NOT_IN_MAP) != 0) {
+    error_code = UnwindErrorCode::kDexPcNotInMap;
   }
 
   std::vector<unwindstack::FrameData> raw_frames = unwinder.ConsumeFrames();
@@ -406,7 +381,7 @@ UnwindResult LibunwindstackContext::Unwind(const UnwindInputSample& sample,
     frame.pc = raw_frame.pc;
     frame.rel_pc = raw_frame.rel_pc;
     frame.sp = raw_frame.sp;
-    frame.function_name = std::move(raw_frame.function_name);
+    frame.function_name = std::string(raw_frame.function_name);
     frame.function_offset = raw_frame.function_offset;
     if (raw_frame.map_info != nullptr) {
       frame.map_info = FromLibunwindStackMapInfo(raw_frame.map_info.get());
@@ -414,8 +389,7 @@ UnwindResult LibunwindstackContext::Unwind(const UnwindInputSample& sample,
     frames.emplace_back(std::move(frame));
   }
 
-  return {static_cast<UnwindErrorCode>(error_code), unwinder.warnings(),
-          std::move(frames)};
+  return {error_code, std::move(frames)};
 }
 
 }  // namespace profiling

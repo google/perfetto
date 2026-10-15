@@ -16,8 +16,6 @@
 
 #include "src/profiling/unwind/unwind_context.h"
 
-#include "src/profiling/unwind/unwind_types.h"
-
 namespace perfetto {
 namespace profiling {
 

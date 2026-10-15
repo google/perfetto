@@ -17,6 +17,7 @@
 #define SRC_PROFILING_PERF_FRAME_POINTER_UNWINDER_H_
 
 #include <stdint.h>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -31,7 +32,7 @@ class FramePointerUnwinder {
  public:
   FramePointerUnwinder(size_t max_frames,
                        UnwindContext* context,
-                       CpuRegisters* regs,
+                       const CpuRegisters* regs,
                        const uint8_t* stack_data,
                        size_t stack_size)
       : max_frames_(max_frames),
@@ -40,7 +41,7 @@ class FramePointerUnwinder {
         stack_data_(stack_data),
         stack_size_(stack_size),
         arch_(regs->arch) {
-    stack_end_ = regs->sp + stack_size;
+    stack_end_ = regs->sp() + stack_size;
   }
 
   FramePointerUnwinder(const FramePointerUnwinder&) = delete;
@@ -52,8 +53,7 @@ class FramePointerUnwinder {
   // set to an empty string and the function offset being set to zero.
   void SetResolveNames(bool resolve) { resolve_names_ = resolve; }
 
-  UnwindErrorCode LastErrorCode() const { return last_error_.code; }
-  uint64_t warnings() const { return warnings_; }
+  UnwindErrorCode LastErrorCode() const { return last_error_; }
 
   std::vector<FrameData> ConsumeFrames() {
     std::vector<FrameData> frames = std::move(frames_);
@@ -62,29 +62,23 @@ class FramePointerUnwinder {
   }
 
   bool IsArchSupported() const {
-    return arch_ == CpuArch::kArm64 || arch_ == CpuArch::kX86_64;
+    return arch_ == CpuArch::ARM64 || arch_ == CpuArch::X86_64;
   }
 
-  // TODO: or this can go to the unwinding backend.
-  void ClearErrors() {
-    warnings_ = UnwindWarning::kNone;
-    last_error_.code = UnwindErrorCode::kNone;
-    last_error_.address = 0;
-  }
+  void ClearErrors() { last_error_ = UnwindErrorCode::kNone; }
 
  protected:
   const size_t max_frames_;
   UnwindContext* context_;
-  CpuRegisters* regs_;
+  const CpuRegisters* regs_;
   std::vector<FrameData> frames_;
   const uint8_t* stack_data_;
   const size_t stack_size_;
-  CpuArch arch_ = CpuArch::kUnknown;
+  CpuArch arch_ = CpuArch::UNKNOWN;
   bool resolve_names_ = false;
   uint64_t stack_end_;
 
-  UnwindErrorData last_error_;
-  uint64_t warnings_ = 0;
+  UnwindErrorCode last_error_ = UnwindErrorCode::kNone;
 
  private:
   void TryUnwind();

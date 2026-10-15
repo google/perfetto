@@ -21,6 +21,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
@@ -39,6 +40,7 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
+constexpr base::TimeMillis kMapsReparseInterval{500};
 constexpr uint32_t kRetryDelayMs = 100;
 
 constexpr size_t kMaxFrames = 500;
@@ -60,13 +62,45 @@ static std::vector<std::string> kSkipMaps{"heapprofd_client.so",
 
 }  // namespace
 
+std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
+                                                  const void* raw_data) {
+  CpuRegisters ret(arch);
+  switch (arch) {
+    case CpuArch::ARM: {
+      const auto* src = static_cast<const uint32_t*>(raw_data);
+      for (size_t i = 0; i < ARM_REG_MAX; ++i)
+        ret.regs[i] = src[i];
+      return ret;
+    }
+    case CpuArch::X86: {
+      const auto* src = static_cast<const uint32_t*>(raw_data);
+      for (size_t i = 0; i < X86_REG_MAX; ++i)
+        ret.regs[i] = src[i];
+      return ret;
+    }
+    case CpuArch::ARM64:
+      memcpy(ret.regs, raw_data, ARM64_REG_MAX * sizeof(uint64_t));
+      return ret;
+    case CpuArch::X86_64:
+      memcpy(ret.regs, raw_data, X86_64_REG_MAX * sizeof(uint64_t));
+      return ret;
+    case CpuArch::RISCV64:
+      memcpy(ret.regs, raw_data, RISCV64_REG_MAX * sizeof(uint64_t));
+      return ret;
+    case CpuArch::UNKNOWN:
+      break;
+  }
+  return std::nullopt;
+}
+
 bool DoUnwind(WireMessage* msg,
               UnwindContext* unwind_context,
-              AllocRecord* out) {
+              AllocRecord* out,
+              base::TimeMillis* last_maps_reparse_time) {
   AllocMetadata* alloc_metadata = msg->alloc_header;
-  CpuRegisters regs = CpuRegisters::FromUserRegs(alloc_metadata->arch,
-                                                 alloc_metadata->register_data);
-  if (regs.arch == CpuArch::kUnknown) {
+  std::optional<CpuRegisters> regs = CreateRegsFromRawData(
+      alloc_metadata->arch, alloc_metadata->register_data);
+  if (!regs) {
     PERFETTO_DLOG("Unable to construct CpuRegisters");
     FrameData frame_data{};
     frame_data.function_name = "ERROR READING REGISTERS";
@@ -80,25 +114,43 @@ bool DoUnwind(WireMessage* msg,
   }
 
   // Overriding sp intentionally since where payload may be truncated up to fp
-  regs.sp = alloc_metadata->stack_pointer;
+  regs->set_sp(alloc_metadata->stack_pointer);
 
   UnwindInputSample sample;
-  sample.regs = &regs;
+  sample.regs = &(*regs);
   sample.stack_data = reinterpret_cast<const uint8_t*>(msg->payload);
   sample.stack_size = msg->payload_size;
 
   UnwindOptions options;
   options.max_frames = kMaxFrames;
   options.resolve_names = true;
-  options.max_attempts = 2;
   options.skip_initial_maps = kSkipMaps;
 
-  uint64_t reparses_before = unwind_context->reparses();
-  UnwindResult result = unwind_context->Unwind(sample, options);
-  if (reparses_before < unwind_context->reparses())
-    out->reparsed_map = true;
-  out->frames.swap(result.frames);
+  // Suppress incorrect "variable may be uninitialized" error for if condition
+  // after this loop. result = Unwind gets run at least once.
+  UnwindResult result;
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    if (attempt > 0) {
+      if (last_maps_reparse_time &&
+          *last_maps_reparse_time + kMapsReparseInterval >
+              base::GetWallTimeMs()) {
+        PERFETTO_DLOG("Skipping reparse due to rate limit.");
+        break;
+      }
+      PERFETTO_DLOG("Reparsing maps");
+      unwind_context->ReparseMaps();
+      if (last_maps_reparse_time)
+        *last_maps_reparse_time = base::GetWallTimeMs();
+      out->reparsed_map = true;
+    }
+    result = unwind_context->Unwind(sample, options);
+    if (result.error_code != UnwindErrorCode::kInvalidMap &&
+        result.error_code != UnwindErrorCode::kDexPcNotInMap) {
+      break;
+    }
+  }
 
+  out->frames.swap(result.frames);
   out->build_ids.resize(out->frames.size());
   for (size_t i = 0; i < out->frames.size(); ++i) {
     out->build_ids[i] = out->frames[i].map_info.has_value()
@@ -211,7 +263,7 @@ UnwindingWorker::ReadAndUnwindBatchResult UnwindingWorker::ReadAndUnwindBatch(
 
   size_t i;
   for (i = 0; i < kUnwindBatchSize; ++i) {
-    uint64_t reparses_before = client_data->unwind_context->reparses();
+    uint64_t reparses_before = client_data->reparses;
     buf = shmem.BeginRead();
     if (!buf)
       break;
@@ -220,7 +272,7 @@ UnwindingWorker::ReadAndUnwindBatchResult UnwindingWorker::ReadAndUnwindBatch(
     res.bytes_read += shmem.EndRead(std::move(buf));
     // Reparsing takes time, so process the rest in a new batch to avoid timing
     // out.
-    if (reparses_before < client_data->unwind_context->reparses()) {
+    if (reparses_before < client_data->reparses) {
       res.status = ReadAndUnwindBatchResult::Status::kHasMore;
       return res;
     }
@@ -334,8 +386,12 @@ void UnwindingWorker::HandleBuffer(UnwindingWorker* self,
     rec->pid = peer_pid;
     rec->data_source_instance_id = data_source_instance_id;
     auto start_time_us = base::GetWallTimeNs() / 1000;
-    if (!client_data->stream_allocations)
-      DoUnwind(&msg, unwind_context, rec.get());
+    if (!client_data->stream_allocations) {
+      DoUnwind(&msg, unwind_context, rec.get(),
+               &client_data->last_maps_reparse_time);
+      if (rec->reparsed_map)
+        client_data->reparses++;
+    }
     rec->unwinding_time_us = static_cast<uint64_t>(
         ((base::GetWallTimeNs() / 1000) - start_time_us).count());
     delegate->PostAllocRecord(self, std::move(rec));

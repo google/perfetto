@@ -25,7 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/core/exec/assert_type.h"
-#include "src/trace_processor/core/exec/group_by.h"
+#include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -125,23 +125,61 @@ void Lowering::PrepareGroups(const std::vector<ColumnId>& keys,
   if (grouped && has(order_.ascending, ascending)) {
     return;
   }
-  // GroupBy is stable, so sorting first orders every group.
+  // Use a single breaker so rows are copied once. It groups by `keys`, if
+  // any, and sorts by `ascending` unless the rows are already sorted.
+  std::vector<ex::SortKey> sort_keys;
   if (!order_.grouped_by.empty() || !has(order_.ascending, ascending)) {
-    ex::SortSpec sort;
-    sort.keys.push_back({Position(ascending), false});
-    operators_.push_back(std::make_unique<ex::Sort>(std::move(sort)));
+    sort_keys.push_back({Position(ascending), false});
+  }
+  if (keys.empty()) {
+    if (sort_keys.empty()) {
+      return;
+    }
+    // The rows are reordered, so they no longer follow the tree.
+    tree_direction_.reset();
+    operators_.push_back(
+        std::make_unique<ex::Sort>(ex::SortSpec{std::move(sort_keys)}));
     order_ = Order();
     order_.ascending.push_back(ascending);
+    return;
   }
-  if (!keys.empty()) {
-    std::vector<uint32_t> positions;
-    for (ColumnId key : keys) {
-      positions.push_back(Position(key));
+  ex::GroupedSortSpec spec;
+  for (ColumnId key : keys) {
+    spec.groups.push_back(Position(key));
+  }
+  spec.keys = std::move(sort_keys);
+  bool sorts = !spec.keys.empty();
+  tree_direction_.reset();
+  operators_.push_back(std::make_unique<ex::GroupedSort>(std::move(spec)));
+  // Grouping is stable, so without a sort, any known order is kept.
+  if (sorts) {
+    order_.ascending = {ascending};
+  }
+  order_.grouped_by = keys;
+  order_.group_column = column_count_++;
+}
+
+void Lowering::SortRows(const std::vector<SortKey>& keys) {
+  PERFETTO_DCHECK(!keys.empty());
+  const auto& sorted = order_.ascending;
+  if (keys.size() == 1 && !keys[0].descending && order_.grouped_by.empty() &&
+      std::find(sorted.begin(), sorted.end(), keys[0].column) != sorted.end()) {
+    return;
+  }
+  ex::SortSpec sort;
+  for (const SortKey& key : keys) {
+    if (!plan_.columns()[key.column].type) {
+      RequireInt64(key.column);
     }
-    operators_.push_back(std::make_unique<ex::GroupBy>(std::move(positions)));
-    order_.grouped_by = keys;
-    order_.group_column = column_count_++;
+    sort.keys.push_back({Position(key.column), key.descending});
   }
+  operators_.push_back(std::make_unique<ex::Sort>(std::move(sort)));
+  order_ = Order();
+  if (!keys[0].descending) {
+    order_.ascending.push_back(keys[0].column);
+  }
+  // The rows no longer follow the tree, though their numbering still holds.
+  tree_direction_.reset();
 }
 
 void Lowering::AddOperator(core::exec::Pipeline::Step operation) {

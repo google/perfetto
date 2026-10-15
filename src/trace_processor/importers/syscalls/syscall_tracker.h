@@ -58,7 +58,11 @@ class SyscallTracker : public Destructible {
 
     // sys_rt_sigreturn does not return so should be inserted as an instant
     // event. See https://github.com/google/perfetto/issues/733 for details.
-    if (name == sys_rt_sigreturn_string_id_) {
+    // Neither do x86_64's uprobe and uretprobe, which the kernel's
+    // trampolines enter and leave with the call number cleared, so their
+    // exits never name them.
+    if (name == sys_rt_sigreturn_string_id_ || name == sys_uprobe_string_id_ ||
+        name == sys_uretprobe_string_id_) {
       context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name, 0,
                                       args_callback);
     } else {
@@ -132,6 +136,8 @@ class SyscallTracker : public Destructible {
   std::array<StringId, kMaxSyscalls> arch_syscall_to_string_id_{};
   StringId sys_write_string_id_ = std::numeric_limits<StringId>::max();
   StringId sys_rt_sigreturn_string_id_ = std::numeric_limits<StringId>::max();
+  StringId sys_uprobe_string_id_ = std::numeric_limits<StringId>::max();
+  StringId sys_uretprobe_string_id_ = std::numeric_limits<StringId>::max();
   // UniqueTids currently in a sys_write syscall.
   // This is a BitVector, but we use a vector for simplicity.
   std::vector<uint8_t> in_sys_write_;

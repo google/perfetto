@@ -149,8 +149,9 @@ class SystemUICujs(TestSuite):
         """))
 
   def test_android_cuj_blocking_calls_latency_cuj_main_thread(self):
-    # Blocking calls on the main thread and on the RenderThread count for
-    # latency CUJs. Blocking calls on other threads do not count.
+    # Blocking calls on the main thread and on every RenderThread count for
+    # latency CUJs; calls on other threads do not. Main-thread calls must appear
+    # once even when the process has several RenderThreads.
     return DiffTestBlueprint(
         trace=Path('latency_cuj_blocking_calls_trace.py'),
         query="""
@@ -165,4 +166,5 @@ class SystemUICujs(TestSuite):
         "measure",12000000,2000000,"ACTION_EXPAND_PANEL","latency",1000
         "layout",15000000,3000000,"ACTION_EXPAND_PANEL","latency",1000
         "CreateGraphicsPipeline",19000000,1000000,"ACTION_EXPAND_PANEL","latency",1500
+        "flush layers",20000000,500000,"ACTION_EXPAND_PANEL","latency",1501
         """))
