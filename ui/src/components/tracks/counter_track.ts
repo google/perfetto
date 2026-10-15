@@ -672,8 +672,8 @@ export class CounterTrack implements TrackRenderer {
 
     // A sqlSource can change faster than its table builds, e.g. with live
     // data. Keep loading the current one until done, then move to the latest,
-    // so that the track renders a few updates late rather than never. After an
-    // error, the latest is tried.
+    // so that the track renders a few updates late rather than never. A failed
+    // build throws on the next render, as for a static sqlSource.
     const sqlSource = this.loadingSqlSource ?? this.sqlSource;
     this.loadingSqlSource = undefined;
     const tableResult = this.tableSlot.use({
@@ -726,7 +726,7 @@ export class CounterTrack implements TrackRenderer {
       retainOn: ['start', 'end', 'resolution', 'tableName'],
     });
 
-    if (table === undefined || dataResult.isPending) {
+    if (tableResult.isPending || dataResult.isPending) {
       this.loadingSqlSource = sqlSource;
     }
 
