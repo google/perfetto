@@ -345,6 +345,7 @@ void SortByKey(It begin, It end, Key key) {
     return;
   }
   KeyedIndices keys;
+  keys.reserve(size);
   for (uint32_t i = 0; i < size; ++i) {
     keys.emplace_back(KeyedIndex{ToOrderedKey(key(begin[i])), i, 0});
   }
