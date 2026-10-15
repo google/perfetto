@@ -38,7 +38,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../protos/perfetto/trace/power:cpp",
       "../protos/perfetto/trace/profiling:cpp",
       "../protos/perfetto/trace/sys_stats:cpp",
-      "../src/base:base",
+      "../src/base",
       "../src/base:test_support",
       "../src/perfetto_cmd:bugreport_path",
       "../src/protozero/filtering:bytecode_generator",
@@ -77,9 +77,17 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
     if (enable_perfetto_trace_processor &&
         enable_perfetto_trace_processor_sqlite &&
         !perfetto_build_with_android && !is_android) {
-      sources += [ "trace_processor_shell_integrationtest.cc" ]
+      sources += [
+        "debuginfod_integrationtest.cc",
+        "trace_processor_shell_integrationtest.cc",
+      ]
       data_deps += [ "../src/trace_processor:trace_processor_shell" ]
-      deps += [ "../protos/perfetto/trace_processor:cpp" ]
+      deps += [
+        "../protos/perfetto/trace/interned_data:cpp",
+        "../protos/perfetto/trace/track_event:cpp",
+        "../protos/perfetto/trace_processor:cpp",
+        "../src/base/http",
+      ]
     }
   }
 
@@ -168,6 +176,7 @@ if (enable_perfetto_integration_tests) {
     deps = [ "../gn:default_deps" ]
     sources = [ "integrationtest_initializer.h" ]
   }
+
   source_set("integrationtest_main") {
     testonly = true
     deps = [

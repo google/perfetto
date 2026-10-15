@@ -27,10 +27,12 @@ import {
   countRenderer,
   shortClassName,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -112,9 +114,16 @@ interface ArraysViewAttrs {
   readonly hasFieldValues?: boolean;
 }
 
-export function ArraysView(): m.Component<ArraysViewAttrs> {
-  let dataSource: SQLDataSource | null = null;
+export function ArraysView({
+  attrs: {engine, activeDump},
+}: m.Vnode<ArraysViewAttrs>): m.Component<ArraysViewAttrs> {
+  const query = buildQuery(activeDump);
+  const datasource = new SQLDataSource({
+    engine,
+    tableOrSubquery: query,
+  });
   const counter = new RowCounter();
+
   let filters: Filter[] = [];
 
   function applyNavFilter(
@@ -123,23 +132,19 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
   ) {
     if (!ah) return;
     filters = [{field: 'array_hash', op: '=' as const, value: ah}];
-    counter.onFiltersChanged(filters);
     clearNavParam('arrayHash');
   }
 
   return {
     oninit(vnode) {
-      const {engine, activeDump} = vnode.attrs;
-      const query = buildQuery(activeDump);
-      dataSource = new SQLDataSource({
-        engine,
-        tableOrSubquery: query,
-      });
-      counter.init(engine, query);
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
+    },
+    onremove() {
+      datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -155,17 +160,18 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
         );
       }
 
-      if (!dataSource) return null;
-
       return m(
         DetailsShell,
         {
-          title: counter.heading('Arrays'),
+          title: rowCountHeading(
+            'Arrays',
+            counter.use({engine, query, filters}),
+          ),
           fillHeight: true,
         },
         m(DataGrid, {
           schema: makeUiSchema(navigate),
-          data: dataSource,
+          data: datasource,
           fillHeight: true,
           initialColumns: [
             {id: 'id', field: 'id'},
@@ -179,7 +185,6 @@ export function ArraysView(): m.Component<ArraysViewAttrs> {
           showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

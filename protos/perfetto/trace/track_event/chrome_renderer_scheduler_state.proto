@@ -18,8 +18,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Describes the state of the RendererScheduler for a given Renderer Process.
-
 // RAIL Mode is an indication of the kind of work that a Renderer is currently
 // performing which is in turn used to prioritise work accordingly.
 // A fuller description of these modes can be found https://web.dev/rail/
@@ -31,6 +29,7 @@ enum ChromeRAILMode {
   RAIL_MODE_LOAD = 4;
 }
 
+// Describes the state of the RendererScheduler for a given Renderer Process.
 message ChromeRendererSchedulerState {
   optional ChromeRAILMode rail_mode = 1;
 

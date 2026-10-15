@@ -27,6 +27,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/convert_helpers.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/traceconv/trace_to_firefox.h"
@@ -192,7 +193,7 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
       }
       RETURN_IF_ERROR(trace_to_text::TraceToProfile(
           input, pid, timestamps, !no_annotations_, output_dir_, profile_type,
-          verbose_));
+          verbose_, ctx.global && ctx.global->quiet, ctx.global->debuginfod));
     } else {  // firefox
       RETURN_IF_ERROR(trace_to_text::TraceToFirefoxProfile(input, output));
     }

@@ -24,10 +24,10 @@ perfetto_component("deobfuscator") {
   deps = [
     "..:simple_json_parser",
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
-    "../../../../src/protozero:protozero",
+    "../../../../src/protozero",
   ]
 }
 

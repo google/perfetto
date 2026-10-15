@@ -16,13 +16,17 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_database.h"
 
+#include <sqlite3.h>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_connection.h"
 #include "src/trace_processor/sqlite/sqlite_database.h"
 #include "src/trace_processor/util/sql_modules.h"
 
@@ -32,6 +36,23 @@ PerfettoSqlDatabase::PerfettoSqlDatabase(StringPool* pool)
     : pool_(pool), sqlite_database_(std::make_shared<SqliteDatabase>()) {}
 
 PerfettoSqlDatabase::~PerfettoSqlDatabase() = default;
+
+void PerfettoSqlDatabase::InitializeSharedSchema(SqliteConnection* connection) {
+  std::lock_guard<std::mutex> lock(shared_schema_mu_);
+  if (shared_schema_initialized_) {
+    return;
+  }
+  // `perfetto_tables` contains the names of all of the registered tables.
+  char* errmsg_raw = nullptr;
+  int err = sqlite3_exec(connection->db(),
+                         "CREATE TABLE perfetto_tables(name STRING);", nullptr,
+                         nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    PERFETTO_FATAL("Failed to initialize perfetto_tables: %s", errmsg_raw);
+  }
+  shared_schema_initialized_ = true;
+}
 
 base::Status PerfettoSqlDatabase::RegisterPackage(
     const std::string& name,

@@ -27,12 +27,14 @@ CREATE PERFETTO TABLE _android_kernel_wakelocks_base AS
 WITH
   kernel_wakelock_counter AS (
     SELECT *
-    FROM counter_leading_intervals!((
+    FROM counter_leading_intervals!(
+      (
         SELECT id, ts, track_id, value
         FROM counter
         WHERE
           track_id IN (SELECT id FROM _kernel_wakelock_track)
-      ))
+      )
+    )
   )
 SELECT
   ts,

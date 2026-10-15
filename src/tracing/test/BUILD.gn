@@ -41,6 +41,8 @@ perfetto_unittest_source_set("test_support") {
     "aligned_buffer_test.h",
     "fake_packet.cc",
     "fake_packet.h",
+    "protovm_test_program.cc",
+    "protovm_test_program.h",
     "test_shared_memory.cc",
     "test_shared_memory.h",
     "traced_value_test_support.cc",
@@ -69,12 +71,17 @@ if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
       "..:client_api_without_backends",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
+      "../../../include/perfetto/ext/ipc",
+      "../../../protos/perfetto/ipc:cpp",
       "../../base",
       "../../base:test_support",
+      "../ipc:common",
       "../ipc/consumer",
       "../ipc/producer",
       "../ipc/service",
       "../service",
+      "../v2",
+      "../v2:test_support",
     ]
     sources = [ "tracing_integration_test.cc" ]
 

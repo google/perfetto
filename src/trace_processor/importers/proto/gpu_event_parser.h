@@ -123,8 +123,8 @@ class GpuEventParser {
       uint32_t id,
       const protos::pbzero::GpuRenderStageEvent::Specifications::Description::
           Decoder&);
-  std::optional<std::string> FindDebugName(int32_t vk_object_type,
-                                           uint64_t vk_handle) const;
+  void ParseVkDebugUtilsObjectName(int64_t, ConstBytes);
+  StringId FindDebugName(int32_t vk_object_type, uint64_t vk_handle) const;
   StringId ParseRenderSubpasses(
       const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
 
@@ -171,6 +171,7 @@ class GpuEventParser {
     StringId description;
   };
   const StringId category_id_;
+  const StringId stage_name_id_;
   const StringId kernel_name_id_;
   const StringId kernel_demangled_name_id_;
   const StringId arch_id_;
@@ -223,7 +224,7 @@ class GpuEventParser {
   // For Vulkan events.
   // For VulkanApiEvent.VkDebugUtilsObjectName.
   // Map of vk handle -> vk object name.
-  using DebugMarkerMap = std::unordered_map<uint64_t, std::string>;
+  using DebugMarkerMap = std::unordered_map<uint64_t, StringId>;
 
   // Map of VkObjectType -> DebugMarkerMap.
   std::unordered_map<int32_t, DebugMarkerMap> debug_marker_names_;

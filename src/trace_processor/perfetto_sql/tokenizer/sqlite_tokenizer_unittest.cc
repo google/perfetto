@@ -72,9 +72,11 @@ TEST_F(SqliteTokenizerTest, PastEndErrorToken) {
   auto end_token = tokenizer_.Next();
   ASSERT_EQ(end_token, (Token{"", sql_token::kIllegal}));
   ASSERT_EQ(tokenizer_.AsTraceback(end_token),
-            "  Trace Processor Internal line 1 col 2\n"
-            "    S\n"
-            "     ^\n");
+            R"( --> trace processor internal:1:2
+  |
+1 | S
+  |  ^
+)");
 }
 
 }  // namespace

@@ -461,6 +461,24 @@ bool TraceBufferV1::TryPatchChunkContents(ProducerID producer_id,
   return true;
 }
 
+bool TraceBufferV1::supports_tracing_v2() const {
+  return false;
+}
+
+bool TraceBufferV1::CopyChunkV2Untrusted(const PacketSequenceProperties&,
+                                         const protozero::ConstBytes*,
+                                         size_t,
+                                         bool,
+                                         bool) {
+  return false;
+}
+
+void TraceBufferV1::RecordChunkV2DataLoss(ProducerID, WriterID) {}
+
+void TraceBufferV1::RecordAbiViolation() {
+  stats_.set_abi_violations(stats_.abi_violations() + 1);
+}
+
 void TraceBufferV1::BeginRead() {
   read_iter_ = GetReadIterForSequence(index_.begin());
 #if PERFETTO_DCHECK_IS_ON()
@@ -724,6 +742,8 @@ bool TraceBufferV1::ReadNextTracePacket(
   }  // for(;;MoveNext()) [iterate over chunks].
 }
 
+void TraceBufferV1::MaybeCompact() {}
+
 TraceBufferV1::ReadAheadResult TraceBufferV1::ReadAhead(TracePacket* packet) {
   static_assert(static_cast<ChunkID>(kMaxChunkID + 1) == 0,
                 "relying on kMaxChunkID to wrap naturally");
@@ -908,6 +928,10 @@ std::unique_ptr<TraceBuffer> TraceBufferV1::CloneReadOnly() const {
   if (!buf->data_.IsValid())
     return nullptr;  // PagedMemory::Allocate() failed. We are out of memory.
   return buf;
+}
+
+TraceBufferProtoVms* TraceBufferV1::protovms() {
+  return nullptr;
 }
 
 TraceBufferV1::TraceBufferV1(CloneCtor, const TraceBufferV1& src)

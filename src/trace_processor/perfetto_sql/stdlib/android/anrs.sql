@@ -229,11 +229,13 @@ WITH
         ' ',
         0
       ) AS process_name,
-      cast_int!(STR_SPLIT(
+      cast_int!(
+        STR_SPLIT(
           SUBSTR(STR_SPLIT(process_counter_track.name, '#', 0), 9),
           ' ',
           1
-        )) AS pid,
+        )
+      ) AS pid,
       str_split(process_counter_track.name, '#', 1) AS error_id,
       counter.ts
     FROM process_counter_track

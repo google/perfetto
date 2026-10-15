@@ -31,6 +31,24 @@ TEST(BitVectorTest, DefaultConstructor) {
   EXPECT_EQ(bits.size(), 0u);
 }
 
+TEST(BitVectorTest, AppendWordsTrimAndReuse) {
+  BitVector bits;
+  for (uint64_t word : {uint64_t{0}, ~uint64_t{0}, uint64_t{1} << 63}) {
+    bits.clear();
+    bits.AppendWord(word);
+    bits.AppendWord(~word);
+    ASSERT_EQ(bits.size(), 128u);
+    for (uint32_t i = 0; i < 128; ++i)
+      EXPECT_EQ(bits.is_set(i),
+                static_cast<bool>(((i < 64 ? word : ~word) >> (i % 64)) & 1));
+    bits.resize(65);
+    bits.push_back(true);
+    EXPECT_EQ(bits.size(), 66u);
+    EXPECT_EQ(bits.is_set(64), !(word & 1));
+    EXPECT_TRUE(bits.is_set(65));
+  }
+}
+
 TEST(BitVectorTest, CreateWithSize) {
   {
     auto bits = BitVector::CreateWithSize(31);
@@ -134,6 +152,16 @@ TEST(BitVectorTest, SetClearAndIsSet) {
 }
 
 // Test the change method
+TEST(BitVectorTest, AnyBitSet) {
+  EXPECT_FALSE(BitVector().AnyBitSet());
+  auto bits = BitVector::CreateWithSize(200);
+  EXPECT_FALSE(bits.AnyBitSet());
+  bits.set(150);
+  EXPECT_TRUE(bits.AnyBitSet());
+  bits.clear(150);
+  EXPECT_FALSE(bits.AnyBitSet());
+}
+
 TEST(BitVectorTest, ChangeMethod) {
   BitVector bits;
 
@@ -611,6 +639,30 @@ TEST(BitVectorTest, SetBitsFromNothing) {
   BitVector dst = BitVector::CreateWithSize(64);
   dst.SetBitsFrom(0, src, 0, 0);
   EXPECT_EQ(dst.CountSetBits(), 0u);
+}
+
+TEST(BitVectorTest, FillBitsEveryAlignment) {
+  constexpr uint64_t kSize = 300;
+  for (bool value : {true, false}) {
+    for (uint64_t at : {uint64_t{0}, uint64_t{1}, uint64_t{63}, uint64_t{64},
+                        uint64_t{65}, uint64_t{130}}) {
+      for (uint64_t count :
+           {uint64_t{0}, uint64_t{1}, uint64_t{2}, uint64_t{63}, uint64_t{64},
+            uint64_t{65}, uint64_t{128}, kSize - at}) {
+        if (at + count > kSize) {
+          continue;
+        }
+        BitVector bv = BitVector::CreateWithSize(kSize, !value);
+        bv.FillBits(at, count, value);
+        for (uint64_t i = 0; i < kSize; ++i) {
+          bool inside = i >= at && i < at + count;
+          EXPECT_EQ(bv.is_set(i), inside ? value : !value)
+              << "value=" << value << " at=" << at << " count=" << count
+              << " bit=" << i;
+        }
+      }
+    }
+  }
 }
 
 TEST(BitVectorTest, CompactCrossWordBoundary) {

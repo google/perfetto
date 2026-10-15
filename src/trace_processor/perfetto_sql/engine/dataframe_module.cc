@@ -124,7 +124,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
 
 uint32_t FindIdColumnIndex(const std::vector<std::string>& names) {
   for (uint32_t i = 0; i < names.size(); ++i) {
-    if (names[i] == "id" || names[i] == "_auto_id") {
+    if (names[i] == "id" || names[i] == dataframe::kAutoIdColumnName) {
       return i;
     }
   }
@@ -137,7 +137,7 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
                    ToSqliteCreateTableType(spec.column_specs[i].type);
-    if (spec.column_names[i] == "_auto_id") {
+    if (dataframe::IsHiddenColumn(spec.column_names[i])) {
       create_stmt += " HIDDEN";
     }
     create_stmt += ", ";
@@ -299,7 +299,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           cols_used_it >>= 1;
         }
         // SQLite's DISTINCT handling for virtual tables changed between 3.50.3
-        // (previously bundled) and 3.53.2 (current). Newer SQLite trusts
+        // and 3.53. Newer SQLite trusts
         // orderByConsumed and, for a plain DISTINCT, performs only an
         // adjacent-row dedup (WHERE_DISTINCT_ORDERED) assuming we grouped equal
         // rows; deduping over colUsed alone does not do that, so we must sort

@@ -17,26 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_SHELL_INTERACTIVE_H_
 #define SRC_TRACE_PROCESSOR_SHELL_INTERACTIVE_H_
 
-#include <cstdint>
-#include <vector>
-
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/shell/metrics.h"
-
-namespace google::protobuf {
-class DescriptorPool;
-}  // namespace google::protobuf
+#include "src/trace_processor/shell/subcommand.h"
 
 namespace perfetto::trace_processor {
 
 struct InteractiveOptions {
-  uint32_t column_width;
-  MetricV1OutputFormat metric_v1_format;
-  std::vector<MetricExtension> extensions;
-  std::vector<MetricNameAndPath> metrics;
-  const google::protobuf::DescriptorPool* pool;
+  bool quiet = false;
 };
+
+// -W/--wide: retired, as columns are now sized to their contents. Accepted
+// but not listed in --help.
+shell::FlagSpec RetiredWideFlag();
 
 base::Status StartInteractiveShell(TraceProcessor* trace_processor,
                                    const InteractiveOptions& options);

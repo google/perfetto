@@ -30,7 +30,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
-#include "src/trace_processor/perfetto_sql/exec/type_mapping.h"
+#include "src/trace_processor/perfetto_sql/schema/type_mapping.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
@@ -38,7 +38,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 namespace analysis = ::perfetto::perfetto_sql::analysis;
-using exec::ToStorageType;
+using sql_schema::ToStorageType;
 
 struct ParserDeleter {
   void operator()(SyntaqliteParser* parser) const {
@@ -141,25 +141,17 @@ TEST_F(ConnectionCatalogTest, RequiresEveryOriginToHaveTheSameType) {
   EXPECT_FALSE((*different)[0].has_value());
 }
 
-TEST_F(ConnectionCatalogTest, ResolvesTableNamesCaseInsensitively) {
-  Exec("CREATE PERFETTO TABLE t AS SELECT 1 AS id");
-
-  auto types = Types("SELECT id FROM T");
-  ASSERT_TRUE(types.ok()) << types.status().c_message();
-  ASSERT_EQ(types->size(), 1u);
-  ASSERT_TRUE((*types)[0].has_value());
-  EXPECT_TRUE((*types)[0]->Is<core::Uint32>());
-}
-
-TEST_F(ConnectionCatalogTest, ResolvesViewNamesCaseInsensitively) {
+TEST_F(ConnectionCatalogTest, ResolvesNamesCaseInsensitively) {
   Exec("CREATE PERFETTO TABLE t AS SELECT 1 AS id");
   Exec("CREATE VIEW v AS SELECT id FROM t");
 
-  auto types = Types("SELECT id FROM V");
-  ASSERT_TRUE(types.ok()) << types.status().c_message();
-  ASSERT_EQ(types->size(), 1u);
-  ASSERT_TRUE((*types)[0].has_value());
-  EXPECT_TRUE((*types)[0]->Is<core::Uint32>());
+  for (const char* sql : {"SELECT id FROM T", "SELECT id FROM V"}) {
+    auto types = Types(sql);
+    ASSERT_TRUE(types.ok()) << types.status().c_message();
+    ASSERT_EQ(types->size(), 1u);
+    ASSERT_TRUE((*types)[0].has_value());
+    EXPECT_TRUE((*types)[0]->Is<core::Uint32>()) << sql;
+  }
 }
 
 }  // namespace

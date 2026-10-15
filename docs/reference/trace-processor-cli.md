@@ -31,6 +31,8 @@ and behave the same across all subcommands:
 
 - **Help and version:** `-h, --help`, `-v, --version`.
 - **Progress:** `--no-progress` disables live progress output.
+- **Quiet:** `--quiet` also suppresses routine status messages and summaries.
+  Command results, warnings, and errors are still printed.
 - **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
   `--analyze-trace-proto-content`, `--crop-track-events`.
 - **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
@@ -55,6 +57,40 @@ Color can be overridden with the [FORCE_COLOR](https://force-color.org/) and
 [NO_COLOR](https://no-color.org/) environment variables. A nonempty
 `FORCE_COLOR` forces color on and takes precedence over a nonempty `NO_COLOR`,
 which forces it off.
+
+`--quiet` disables progress and drops routine status messages, timings, and
+successful summaries. Command results such as SQL rows and converted traces,
+warnings, and errors are unaffected.
+
+## Debuginfod {#debuginfod}
+
+With `--debuginfod`, native symbolization downloads debug files by build ID
+from [debuginfod](https://sourceware.org/elfutils/Debuginfod.html) servers, so
+local binaries are not required. It applies wherever native symbolization
+runs: trace loading, `bundle`, `util symbolize`, and `convert profile`. It
+needs `curl` and `llvm-symbolizer` on `PATH`. Remote sessions use the server's
+configuration, so pass `--debuginfod` when starting the server.
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--debuginfod` | Enable cache lookup and downloads. | Disabled |
+| `--debuginfod-urls URLS` | Whitespace-separated HTTP(S) server roots. | `DEBUGINFOD_URLS` |
+| `--debuginfod-cache-path PATH` | Directory for downloaded files. | `DEBUGINFOD_CACHE_PATH`, else `$XDG_CACHE_HOME/debuginfod_client`, `~/.cache/debuginfod_client`, or `%LOCALAPPDATA%\debuginfod_client` |
+| `--debuginfod-connect-timeout SECONDS` | Connection timeout per request. | `5` |
+| `--debuginfod-stall-timeout SECONDS` | Abort a transfer that stays below one byte per second for this long. | `10` |
+
+Setting URLs alone does not enable downloads; a configured `DEBUGINFOD_URLS`
+without `--debuginfod` produces a warning when symbolization leaves frames
+unresolved. Local symbol paths and Breakpad
+files are searched first and only build IDs that are still unresolved are
+fetched, from the cache and then from each server in order. Downloaded files
+are checked against the requested build ID and published to the cache
+atomically. There is no automatic eviction. `DEBUGINFOD_URLS` and
+`LLVM_SYMBOLIZER_OPTS` are removed from the `llvm-symbolizer` environment so
+it cannot download on its own. The summary counts downloads, cache hits,
+build IDs no server had, and failed lookups, and names servers that could not
+be reached; `--verbose` lists every server tried for each mapping with the
+reason it did not help.
 
 ## {#subcommands} Commands
 
@@ -87,9 +123,10 @@ trace_processor query -f queries.sql trace.pftrace
 cat queries.sql | trace_processor query trace.pftrace
 ```
 
-Each statement's result set is printed as CSV, and consecutive result sets
-are separated by a single blank line. The separator is unambiguous because
-every string value is quoted.
+Each statement's result set is printed to stdout, and consecutive result sets
+are separated by a single blank line. `--format` picks between
+[CSV](#query-csv), the default, and [markdown](#query-markdown).
+[Agent mode](#agent-mode) switches the default to markdown.
 
 Flags:
 
@@ -100,20 +137,103 @@ Flags:
 - `-f, --query-file FILE`: read SQL from `FILE`; pass `-` to read from stdin.
 - `-i, --interactive`: drop into the interactive REPL after the queries
   finish.
-- `-W, --wide`: use double-width columns when printing results.
 - `--perf-file FILE`: write trace-load and query timings to `FILE`.
+- `--format FMT`: print results as `csv` (default) or `markdown`. Turns off
+  automatic [agent mode](#agent-mode).
+- `--agent`, `--no-agent`: force [agent mode](#agent-mode) on or off.
+- `--max-rows N`, `--max-bytes N`, `--max-cell-width N`: limits on the rows,
+  bytes and characters per cell printed for each result set; `0` means no
+  limit. Their defaults and effect depend on the format, see below.
 - `--structured-query-id ID` plus `--summary-spec FILE` _(advanced)_: run a
   single structured query by ID from one or more
   [TraceSummarySpec](/docs/analysis/trace-summary.md) files, instead of the SQL sources
   above.
+
+#### {#query-csv} CSV output
+
+CSV is the default format, meant for scripts. Every string value is quoted,
+so the blank line between result sets is unambiguous.
+
+CSV has no limits by default. If any `--max-*` flag is passed:
+
+- Results over the row or byte limit are cut to their first rows.
+- Cells over `--max-cell-width` characters are cut with a `…(+N chars)`
+  marker.
+- A note giving the row count is printed to stderr, so stdout stays valid
+  CSV.
+
+#### {#query-markdown} Markdown output
+
+`--format markdown` prints each result set as a compact markdown table,
+without alignment padding. NULL values print as `NULL`; `|` and line breaks
+are escaped.
+
+Markdown is meant to be read, so it is capped by default:
+
+| Flag | Default | Effect |
+| --- | --- | --- |
+| `--max-rows` | 1000 | Larger results show only their first and last rows. |
+| `--max-bytes` | 10000 | Same, for bytes of output. |
+| `--max-cell-width` | 500 | Longer cells are cut with a `…(+N chars)` marker. |
+
+A capped result shows at most 20 rows at each end, around a
+`| … N rows omitted … |` row. Once a result is 100,000 rows past the cap, the
+rest of it is not read. Pass `--max-rows 0 --max-bytes 0` to print every row.
+
+A footer gives the row count for results which were capped, are empty or have
+10 or more rows. For example: `(first 20 and last 20 of 5000 rows. ...)`. When
+reading stopped early, the count is a lower bound.
+
+#### {#agent-mode} Agent mode
+
+Agent mode tunes `query` output for coding agents, which read output through
+a pipe, can't scroll or ask for omitted data and pay for every token.
+
+It turns on automatically when all of these hold:
+
+- A coding-agent environment variable is set (see below).
+- stdout is not a terminal.
+- No `--format` was given: an explicit format is a deliberate choice, e.g. by
+  a script parsing the output.
+
+A one-line notice on stderr says when it turned on. `--agent` and
+`--no-agent` force it on or off.
+
+The environment variables checked are the same as DuckDB's:
+
+| Variable | Set by |
+| --- | --- |
+| `AI_AGENT`, `AGENT` | Generic markers, e.g. Claude Code, Goose, Amp |
+| `CLAUDECODE` | Claude Code |
+| `CODEX_CI`, `CODEX_SANDBOX`, `CODEX_THREAD_ID` | Codex |
+| `CURSOR_AGENT` | Cursor |
+| `GEMINI_CLI` | Gemini CLI |
+| `COPILOT_AGENT`, `COPILOT_CLI`, `COPILOT_AGENT_SESSION_ID` | GitHub Copilot |
+
+In agent mode:
+
+- Results default to markdown, with its
+  [default limits](#query-markdown). Explicit `--format` and `--max-*` flags
+  take precedence.
+- Errors are printed to stderr as a single line of JSON. Only `error` is
+  always present; see the example below.
+
+```json
+{"error":"no such column: foo","statement":2,"location":"query:1:8","traceback":"...","hint":"..."}
+```
+
+When a query fails with stdout redirected and agent mode was neither detected
+nor declined, a one-line hint on stderr points at `--agent`. This lets agents
+which don't set any of the variables above find it.
 
 ### {#subcommand-interactive} `interactive`: REPL
 
 `interactive` opens the same interactive PerfettoSQL prompt described in the
 [shell guide](/docs/analysis/trace-processor.md#shell). It is the default subcommand, so
 `trace_processor trace.pftrace` and
-`trace_processor interactive trace.pftrace` are equivalent. The only
-subcommand-specific flag is `-W, --wide`.
+`trace_processor interactive trace.pftrace` are equivalent. Results are
+printed as aligned tables, a page at a time: press Enter for the next page or
+`q` to stop.
 
 ### {#subcommand-server} `server`: HTTP, stdio, or unix RPC
 
@@ -343,6 +463,18 @@ The order above describes how paths are collected, not a guaranteed preference
 between duplicate copies of the same build ID during recursive indexing. Prefer
 directories containing the matching unstripped or debug binaries rather than
 mixing stripped and unstripped copies. Use `--verbose` to inspect lookup details.
+
+#### Symbolization results
+
+The summary reports how many frame records were resolved and how many remain
+unresolved. Unresolved frames are grouped by cause, with the affected mappings
+named under each group: binaries that were not found, binaries found without a
+symbol for the address, kernel frames without vmlinux, mappings without a build
+ID, and anonymous or JIT memory. Each cause gets one hint. A frame counts as
+resolved only when a symbol source returns a usable function name. The first
+source to resolve an address wins; later sources are only asked about addresses
+that are still unresolved. `--verbose` lists every mapping with its build ID,
+the symbol file used, and each path searched with the reason it was rejected.
 
 #### Output replacement and cleanup
 

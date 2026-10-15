@@ -39,6 +39,23 @@ class Deobfuscation(TestSuite):
         "hye.a","com.google.classthree.foo"
         """))
 
+  # A mapping without a package name applies to frames in every package.
+  def test_profile_deobfuscation_no_package(self):
+    return DiffTestBlueprint(
+        trace=Path('profile_deobfuscate_no_package.textproto'),
+        query="""
+        SELECT name, deobfuscated_name
+        FROM stack_profile_frame
+        ORDER BY 1, 2
+        """,
+        out=Csv("""
+        "name","deobfuscated_name"
+        "hwe.a","com.google.classtwo.foo"
+        "hwe.a","com.google.classtwo.foo"
+        "hye.a","com.google.classone.foo"
+        "hye.a","com.google.classone.foo"
+        """))
+
   def test_perf_data_symbols_deobfuscation(self):
     return DiffTestBlueprint(
         trace=DataPath('perf-data-deobfuscated.zip'),

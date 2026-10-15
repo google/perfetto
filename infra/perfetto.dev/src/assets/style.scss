@@ -642,6 +642,9 @@ h3 {
   --toc-min-width: 180px;
   --toc-max-width: 320px;
 
+  // The blog main content is narrower. Make the TOC narrow to keep proportions.
+  --toc-max-width-blog: 260px;
+
 }
 
 // Shells that hold a .md-content drop out of grid on mobile so the document can go
@@ -1489,12 +1492,12 @@ h3 {
 // ---- Post -------------------------------------------------------------------
 .blog-post {
   // Wider than the docs measure, because there is no nav column.
-  --max-doc-width: 860px;
+  --max-doc-width: 960px;
 
   grid-template-columns:
     1fr
     minmax(auto, var(--max-doc-width))
-    minmax(var(--toc-min-width), var(--toc-max-width))
+    minmax(var(--toc-min-width), var(--toc-max-width-blog))
     1fr;
   grid-template-rows: 1fr max-content;
   grid-template-areas:

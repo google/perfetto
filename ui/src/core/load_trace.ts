@@ -238,6 +238,10 @@ async function loadTraceIntoEngine(
     await engine.restoreInitialTables();
   }
 
+  // Set once the connection is in its final state: restoreInitialTables
+  // rebuilds it, which resets the flag.
+  await engine.query('PERFETTO PRAGMA pipelines = 1;');
+
   for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }
@@ -604,6 +608,9 @@ async function getTraceInfo(
       traceUrl = traceSource.url ?? '';
       const arrayBufferSizeMB = Math.ceil(traceSource.buffer.byteLength / 1e6);
       traceTitle += ` (${arrayBufferSizeMB} MB)`;
+      break;
+    case 'STREAM':
+      traceTitle = traceSource.title ?? '';
       break;
     case 'HTTP_RPC':
       traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;

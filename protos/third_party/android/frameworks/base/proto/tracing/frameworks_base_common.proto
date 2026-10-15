@@ -21,6 +21,7 @@ syntax = "proto2";
 
 package com.android.internal;
 
+// LINT.IfChange(UnfreezeReasonEnum)
 enum UnfreezeReason {
   UFR_NONE = 0;
   UFR_ACTIVITY = 1;
@@ -56,3 +57,23 @@ enum UnfreezeReason {
   UFR_OOM_ADJ_REASON_SERVICE_BINDER_CALL = 32;
   UFR_OOM_ADJ_REASON_BATCH_UPDATE_REQUEST = 33;
 }
+// LINT.ThenChange(/services/core/java/com/android/server/am/CachedAppOptimizer.java:UnfreezeReasonCode)
+
+// LINT.IfChange(ProcessGroupEnum)
+enum ProcessGroup {
+  PROCESS_GROUP_UNKNOWN = 0;
+  PROCESS_GROUP_DEFAULT = 1;
+  PROCESS_GROUP_BACKGROUND = 2;
+  PROCESS_GROUP_FOREGROUND = 3;
+  PROCESS_GROUP_SYSTEM = 4;
+  PROCESS_GROUP_AUDIO_APP = 5;
+  PROCESS_GROUP_AUDIO_SYS = 6;
+  PROCESS_GROUP_TOP_APP = 7;
+  PROCESS_GROUP_RT_APP = 8;
+  PROCESS_GROUP_RESTRICTED = 9;
+  PROCESS_GROUP_FOREGROUND_WINDOW = 10;
+}
+// LINT.ThenChange(
+//     /core/java/android/os/Process.java:ThreadGroupDefinitions,
+//     /core/java/android/os/Process.java:ProcessGroupToProto
+// )

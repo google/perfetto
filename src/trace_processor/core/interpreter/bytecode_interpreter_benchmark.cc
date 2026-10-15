@@ -55,7 +55,7 @@ void BM_BytecodeInterpreter_LinearFilterEqUint32(benchmark::State& state) {
 
   // Setup interpreter
   // Register layout:
-  // R0: CastFilterValueResult (filter value)
+  // R0: filter::CastFilterValueResult (filter value)
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
@@ -105,7 +105,7 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
 
   // Setup interpreter
   // Register layout:
-  // R0: CastFilterValueResult (filter value)
+  // R0: filter::CastFilterValueResult (filter value)
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
@@ -150,7 +150,7 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
                         HasDuplicates{}};
 
   // Register layout:
-  // R0: CastFilterValueListResult (filter value list)
+  // R0: filter::CastFilterValueListResult (filter value list)
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
@@ -193,7 +193,7 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
                         HasDuplicates{}};
 
   // Register layout:
-  // R0: CastFilterValueListResult
+  // R0: filter::CastFilterValueListResult
   // R1: Range (source range)
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage)
@@ -299,7 +299,7 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
   auto setup = IndexedFilterInSetup::Create(n);
 
   // Register layout:
-  // R0: CastFilterValueListResult
+  // R0: filter::CastFilterValueListResult
   // R1: Slab<uint32_t> (backing for dest)
   // R2: Span<uint32_t> (dest span)
   // R3: StoragePtr
@@ -345,7 +345,7 @@ void BM_FilterIn_IndexedLinearScan(benchmark::State& state) {
   auto setup = IndexedFilterInSetup::Create(n);
 
   // Register layout:
-  // R0: CastFilterValueListResult
+  // R0: filter::CastFilterValueListResult
   // R1: Slab<uint32_t> (backing for span)
   // R2: Span<uint32_t> (source and dest, in-place filtering)
   // R3: StoragePtr

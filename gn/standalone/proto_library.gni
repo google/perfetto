@@ -245,6 +245,9 @@ template("proto_library") {
     if (defined(invoker.link_deps)) {
       deps += invoker.link_deps
     }
+    if (defined(invoker.link_public_deps)) {
+      deps += invoker.link_public_deps
+    }
   }  # action(action_name)
 
   # The source_set that builds the generated .pb.cc files.
@@ -290,8 +293,12 @@ template("proto_library") {
         configs += [ ":$config_name" ]
       }
 
+      public_deps = []
       if (generate_cc) {
-        public_deps = [ "//gn:protobuf_lite" ]
+        public_deps += [ "//gn:protobuf_lite" ]
+      }
+      if (defined(invoker.link_public_deps)) {
+        public_deps += invoker.link_public_deps
       }
 
       deps = [ ":$action_name" ]

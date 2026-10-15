@@ -19,7 +19,10 @@ INCLUDE PERFETTO MODULE intervals.overlap;
 
 CREATE PERFETTO TABLE _gpu_busy AS
 SELECT ts, dur, ts + dur AS te
-FROM interval_merge_overlapping!((SELECT ts, dur FROM gpu_slice WHERE dur > 0), 0);
+FROM interval_merge_overlapping!(
+  (SELECT ts, dur FROM gpu_slice WHERE dur > 0),
+  0
+);
 
 SELECT ts - trace_start() AS gap_start_rel_ns, next_ts - ts AS gap_dur_ns
 FROM (SELECT te AS ts, LEAD(ts) OVER (ORDER BY ts) AS next_ts FROM _gpu_busy)

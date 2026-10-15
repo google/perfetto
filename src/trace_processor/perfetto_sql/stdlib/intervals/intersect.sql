@@ -72,6 +72,13 @@ AS (
   FROM (SELECT * FROM $tab ORDER BY $ts_col) input
 );
 
+-- Intersects intervals within matching partitions across the input tables.
+-- Positive durations describe half-open intervals [ts, ts + dur): the start
+-- is included and the end is excluded, so intervals touching only at an end
+-- do not intersect. A zero duration is a point (an instant), which intersects
+-- an interval covering its timestamp or another point at the same timestamp.
+-- Any intersection involving a point has duration zero. Negative durations
+-- are rejected; callers must filter them out before intersecting.
 CREATE PERFETTO MACRO _interval_intersect(
   tabs _TableNameList,
   agg_columns ColumnNameList

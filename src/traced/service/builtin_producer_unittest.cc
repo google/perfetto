@@ -27,6 +27,7 @@ namespace {
 
 constexpr char kHeapprofdDataSourceName[] = "android.heapprofd";
 constexpr char kTracedPerfDataSourceName[] = "linux.perf";
+constexpr char kTracedPerfSmapsDataSourceName[] = "linux.smaps";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
 
@@ -83,6 +84,25 @@ TEST(BuiltinProducerTest, LazyHeapprofdSimple) {
 TEST(BuiltinProducerTest, LazyTracedPerfSimple) {
   DataSourceConfig cfg;
   cfg.set_name(kTracedPerfDataSourceName);
+  base::TestTaskRunner task_runner;
+  auto done = task_runner.CreateCheckpoint("done");
+  StrictMock<MockBuiltinProducer> p(&task_runner);
+  testing::InSequence s;
+  EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, "1"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(kLazyTracedPerfPropertyName, ""))
+      .WillOnce(InvokeWithoutArgs([&done]() {
+        done();
+        return true;
+      }));
+  p.SetupDataSource(1, cfg);
+  p.StopDataSource(1);
+  task_runner.RunUntilCheckpoint("done");
+}
+
+TEST(BuiltinProducerTest, LazyTracedPerfSmaps) {
+  DataSourceConfig cfg;
+  cfg.set_name(kTracedPerfSmapsDataSourceName);
   base::TestTaskRunner task_runner;
   auto done = task_runner.CreateCheckpoint("done");
   StrictMock<MockBuiltinProducer> p(&task_runner);

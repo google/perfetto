@@ -21,6 +21,7 @@ import m from 'mithril';
 import {AsyncMemo} from '../../../../../base/async_memo';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
+import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {LONG, NUM, STR} from '../../../../../trace_processor/query_result';
 import {Panel} from '../../../components/panel';
 import {Callout} from '../../../components/callout';
@@ -43,7 +44,7 @@ import {
   shortClassName,
   topTable,
 } from '../section_widgets';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
@@ -530,11 +531,13 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
       baseTotal: number,
     ): m.Children => {
       const frac = total > 0 ? value / total : 0;
-      if (!comparing) return m(ShareBar, {frac});
+      if (!comparing) return m(ProgressBar, {pct: frac * 100});
       const baseFrac =
         baseValue !== undefined && baseTotal > 0 ? baseValue / baseTotal : 0;
-      return withDelta(m(ShareBar, {frac}), (frac - baseFrac) * 100, (n) =>
-        n === 0 ? '±0 pts' : `${n > 0 ? '+' : ''}${n.toFixed(1)} pts`,
+      return withDelta(
+        m(ProgressBar, {pct: frac * 100}),
+        (frac - baseFrac) * 100,
+        (n) => (n === 0 ? '±0 pts' : `${n > 0 ? '+' : ''}${n.toFixed(1)} pts`),
       );
     };
     const unreachableHeap = cur.totalHeapSize - cur.reachableHeapSize;
@@ -597,7 +600,11 @@ export class JavaSection implements m.ClassComponent<JavaSectionAttrs> {
           ? b.dominatedSizeBytes + b.dominatedNativeSizeBytes
           : undefined;
       return [
-        classNameCell(c.typeName, data.retainerOf.get(c.typeName)),
+        classNameCell(c.typeName, data.retainerOf.get(c.typeName), () =>
+          trace.plugins
+            .getPlugin(HeapDumpExplorerPlugin)
+            .updateHeadDump(upid, cur.ts),
+        ),
         withDelta(
           c.reachableObjCount.toLocaleString(),
           b !== undefined

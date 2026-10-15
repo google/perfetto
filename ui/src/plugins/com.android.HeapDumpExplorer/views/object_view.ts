@@ -25,7 +25,13 @@ import type {
   ColumnSchema,
   CellRenderResult,
 } from '../../../components/widgets/datagrid/datagrid_schema';
-import type {InstanceRow, InstanceDetail, HeapInfo, PrimOrRef} from '../types';
+import type {
+  ArrayElem,
+  Field,
+  InstanceRow,
+  InstanceDetail,
+  HeapDump,
+} from '../types';
 import {fmtSize, fmtHex} from '../format';
 import {downloadBlob} from '../download';
 import {
@@ -39,11 +45,13 @@ import {
   BitmapImage,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
+import {ClassNameWithWarning} from '../../../components/merged_class_warning';
 import * as queries from '../queries';
-import type {HeapDump} from '../queries';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {AsyncMemo} from '../../../base/async_memo';
 
 export interface ObjectParams {
   readonly id: number;
@@ -60,10 +68,10 @@ export type OpenFlamegraphPivotedAt = (
 interface ObjectViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
-  readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
   readonly openFlamegraphPivotedAt: OpenFlamegraphPivotedAt;
   readonly params: ObjectParams;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 const JAVA_PRIM_SIZE: Record<string, number> = {
@@ -100,9 +108,7 @@ function instanceRowToRow(r: InstanceRow): Row {
   };
 }
 
-type FieldRow = {name: string; typeName: string; value: PrimOrRef};
-
-function fieldRowToRow(f: FieldRow): Row {
+function fieldRowToRow(f: Field): Row {
   const v = f.value;
   if (v.kind === 'ref') {
     return {
@@ -138,9 +144,7 @@ function fieldRowToRow(f: FieldRow): Row {
   };
 }
 
-type ArrayElemRow = {idx: number; value: PrimOrRef};
-
-function arrayElemToRow(e: ArrayElemRow, elemTypeName: string): Row {
+function arrayElemToRow(e: ArrayElem, elemTypeName: string): Row {
   const v = e.value;
   if (v.kind === 'ref') {
     return {
@@ -177,12 +181,12 @@ function arrayElemToRow(e: ArrayElemRow, elemTypeName: string): Row {
 function nullableSizeRenderer(value: SqlValue): CellRenderResult {
   if (value === null) {
     return {
-      content: m('span', {class: 'pf-hde-mono pf-hde-opacity-60'}, '\u2026'),
+      content: m('span.pf-hde-mono.pf-hde-opacity-60', '\u2026'),
       align: 'right',
     };
   }
   return {
-    content: m('span', {class: 'pf-hde-mono'}, fmtSize(Number(value ?? 0))),
+    content: m('span.pf-hde-mono', fmtSize(Number(value ?? 0))),
     align: 'right',
   };
 }
@@ -225,27 +229,22 @@ const SIZE_SCHEMA: ColumnSchema = {
     cellRenderer: (value: SqlValue): CellRenderResult => {
       if (value === null) {
         return {
-          content: m(
-            'span',
-            {class: 'pf-hde-mono pf-hde-opacity-60'},
-            '\u2026',
-          ),
+          content: m('span.pf-hde-mono.pf-hde-opacity-60', '\u2026'),
           align: 'right',
         };
       }
       return {
-        content: m(
-          'span',
-          {class: 'pf-hde-mono'},
-          Number(value).toLocaleString(),
-        ),
+        content: m('span.pf-hde-mono', Number(value).toLocaleString()),
         align: 'right',
       };
     },
   },
 };
 
-function makeInstanceSchema(navigate: NavFn): ColumnSchema {
+function makeInstanceSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -266,8 +265,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
           ),
           str
             ? m(
-                'span',
-                {class: 'pf-hde-str-badge'},
+                'span.pf-hde-str-badge',
                 ` "${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`,
               )
             : null,
@@ -329,6 +327,7 @@ function makeInstanceSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     str: {
       title: 'String Value',
@@ -378,7 +377,7 @@ function makeFieldSchema(navigate: NavFn): ColumnSchema {
             navigate,
           });
         }
-        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
+        return m('span.pf-hde-mono', String(value ?? ''));
       },
     },
     shallow: {
@@ -444,7 +443,7 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
       title: 'Index',
       columnType: 'quantitative',
       cellRenderer: (value: SqlValue): CellRenderResult => ({
-        content: m('span', {class: 'pf-hde-mono'}, String(value ?? 0)),
+        content: m('span.pf-hde-mono', String(value ?? 0)),
         align: 'right',
       }),
     },
@@ -463,7 +462,7 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
             navigate,
           });
         }
-        return m('span', {class: 'pf-hde-mono'}, String(value ?? ''));
+        return m('span.pf-hde-mono', String(value ?? ''));
       },
     },
     shallow: {
@@ -524,72 +523,56 @@ function makeArraySchema(navigate: NavFn, elemTypeName: string): ColumnSchema {
 }
 
 export function ObjectView(): m.Component<ObjectViewAttrs> {
-  let detail: InstanceDetail | null | 'loading' = 'loading';
-  let prevId: number | undefined;
-  let alive = true;
-  let fetchSeq = 0;
+  const dataMemo = new AsyncMemo<InstanceDetail | undefined>();
 
-  function fetchData(attrs: ObjectViewAttrs) {
-    detail = 'loading';
-    prevId = attrs.params.id;
-    const seq = ++fetchSeq;
-    queries
-      .getInstance(attrs.engine, attrs.activeDump, attrs.params.id)
-      .then((d) => {
-        if (!alive || seq !== fetchSeq) return;
-        detail = d;
-        m.redraw();
-        if (d) {
-          // Enrich all sections with reachable sizes asynchronously.
-          const enrichTasks: Promise<void>[] = [
-            queries.enrichWithReachable(attrs.engine, [d.row]),
-            queries.enrichWithReachable(attrs.engine, d.reverseRefs),
-            queries.enrichWithReachable(attrs.engine, d.dominated),
-          ];
-          if (d.isClassObj) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.staticFields),
-            );
-          }
-          if (d.isClassInstance && d.instanceFields.length > 0) {
-            enrichTasks.push(
-              queries.enrichFieldsWithReachable(attrs.engine, d.instanceFields),
-            );
-          }
-          if (d.isArrayInstance) {
-            enrichTasks.push(
-              queries.enrichArrayElemsWithReachable(attrs.engine, d.arrayElems),
-            );
-          }
-          Promise.all(enrichTasks).then(() => {
-            if (alive && seq === fetchSeq) m.redraw();
-          });
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        if (!alive || seq !== fetchSeq) return;
-        detail = null;
-        m.redraw();
-      });
+  async function enrichDetail(engine: Engine, d: InstanceDetail) {
+    // Enrich all sections with reachable sizes asynchronously.
+    const enrichTasks: Promise<void>[] = [
+      queries.enrichWithReachable(engine, [d.row]),
+      queries.enrichWithReachable(engine, d.reverseRefs),
+      queries.enrichWithReachable(engine, d.dominated),
+    ];
+    if (d.isClassObj) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.staticFields),
+      );
+    }
+    if (d.isClassInstance && d.instanceFields.length > 0) {
+      enrichTasks.push(
+        queries.enrichFieldsWithReachable(engine, d.instanceFields),
+      );
+    }
+    if (d.isArrayInstance) {
+      enrichTasks.push(
+        queries.enrichArrayElemsWithReachable(engine, d.arrayElems),
+      );
+    }
+
+    await Promise.all(enrichTasks);
   }
 
   return {
-    oninit(vnode) {
-      fetchData(vnode.attrs);
-    },
-    onupdate(vnode) {
-      if (vnode.attrs.params.id !== prevId) {
-        fetchData(vnode.attrs);
-      }
-    },
     onremove() {
-      alive = false;
+      dataMemo.dispose();
     },
     view(vnode) {
-      const {navigate, params} = vnode.attrs;
+      const {navigate, params, potentiallyMergedClasses} = vnode.attrs;
 
-      if (detail === 'loading') {
+      const {isPending, data: detail} = dataMemo.use({
+        key: params.id,
+        compute: async () => {
+          const detail = await queries.getInstance(
+            vnode.attrs.engine,
+            vnode.attrs.activeDump,
+            params.id,
+          );
+          // TODO: Show intermediate state using multiple asynmemos
+          if (detail) await enrichDetail(vnode.attrs.engine, detail);
+          return detail;
+        },
+      });
+
+      if (isPending) {
         return m(
           DetailsShell,
           {
@@ -597,9 +580,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             fillHeight: true,
             className: 'pf-hde-tab--padded',
           },
-          m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+          m('.pf-hde-loading', m(Spinner, {easing: true})),
         );
       }
+
       if (!detail) {
         return m(
           DetailsShell,
@@ -608,11 +592,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             fillHeight: true,
             className: 'pf-hde-tab--padded',
           },
-          m(
-            'div',
-            {class: 'pf-hde-error-text'},
-            'No object with id ' + fmtHex(params.id),
-          ),
+          m('.pf-hde-error-text', 'No object with id ' + fmtHex(params.id)),
         );
       }
 
@@ -646,10 +626,8 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
           fillHeight: true,
           className: 'pf-hde-tab--padded',
         },
-        m('div', {class: 'pf-hde-view-scroll pf-hde-view-stack'}, [
-          m('div', {class: 'pf-hde-action-row'}, [
-            m(InstanceLink, {row, navigate}),
-          ]),
+        m('.pf-hde-view-scroll.pf-hde-view-stack', [
+          m('.pf-hde-action-row', [m(InstanceLink, {row, navigate})]),
 
           detail.bitmap
             ? m(Section, {title: 'Bitmap Image'}, [
@@ -659,7 +637,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                   format: detail.bitmap.format,
                   data: detail.bitmap.data,
                 }),
-                m('div', {class: 'pf-hde-bitmap-meta pf-hde-mt-1'}, [
+                m('.pf-hde-bitmap-meta.pf-hde-mt-1', [
                   m(
                     'span',
                     detail.bitmap.width +
@@ -674,13 +652,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                     {
                       class: 'pf-hde-download-link',
                       onclick: () => {
-                        if (
-                          detail === null ||
-                          detail === 'loading' ||
-                          detail.bitmap === null
-                        ) {
-                          return;
-                        }
+                        if (detail.bitmap === null) return;
                         const ext = detail.bitmap.format;
                         downloadBlob(
                           `bitmap-${fmtHex(row.id)}.${ext}`,
@@ -702,26 +674,15 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.shortestPath
               ? m(
-                  'div',
-                  {class: 'pf-hde-view-stack--tight'},
+                  '.pf-hde-view-stack--tight',
                   detail.shortestPath.map((pe, i) =>
                     m(
-                      'div',
-                      {
-                        key: i,
-                        class: 'pf-hde-path-entry',
-                        style: {'--pf-hde-depth': String(i)},
-                      },
+                      '.pf-hde-path-entry',
+                      {key: i, style: {'--pf-hde-depth': String(i)}},
                       [
-                        m(
-                          'span',
-                          {class: 'pf-hde-path-arrow'},
-                          i === 0 ? '' : '\u2192',
-                        ),
+                        m('span.pf-hde-path-arrow', i === 0 ? '' : '\u2192'),
                         m(InstanceLink, {row: pe.row, navigate}),
-                        pe.field
-                          ? m('span', {class: 'pf-hde-path-field'}, pe.field)
-                          : null,
+                        pe.field ? m('span.pf-hde-path-field', pe.field) : null,
                       ],
                     ),
                   ),
@@ -737,8 +698,7 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.dominatorPath
               ? m(
-                  'div',
-                  {class: 'pf-hde-view-stack--tight'},
+                  '.pf-hde-view-stack--tight',
                   detail.dominatorPath.map((pe, i) =>
                     m(
                       'div',
@@ -748,15 +708,9 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
                         style: {'--pf-hde-depth': String(i)},
                       },
                       [
-                        m(
-                          'span',
-                          {class: 'pf-hde-path-arrow'},
-                          i === 0 ? '' : '\u2192',
-                        ),
+                        m('span.pf-hde-path-arrow', i === 0 ? '' : '\u2192'),
                         m(InstanceLink, {row: pe.row, navigate}),
-                        pe.field
-                          ? m('span', {class: 'pf-hde-path-field'}, pe.field)
-                          : null,
+                        pe.field ? m('span.pf-hde-path-field', pe.field) : null,
                       ],
                     ),
                   ),
@@ -765,26 +719,27 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
           ),
 
           m(Section, {title: 'Object Info'}, [
-            m('div', {class: 'pf-hde-info-grid'}, [
-              m('span', {class: 'pf-hde-info-grid__label'}, 'Class:'),
+            m('.pf-hde-info-grid', [
+              m('span.pf-hde-info-grid__label', 'Class:'),
               m(
                 'span',
                 detail.classObjRow
-                  ? m(InstanceLink, {
-                      row: detail.classObjRow,
-                      navigate,
+                  ? m(ClassNameWithWarning, {
+                      name: m(InstanceLink, {
+                        row: detail.classObjRow,
+                        navigate,
+                      }),
+                      potentiallyMerged: potentiallyMergedClasses.has(
+                        row.className,
+                      ),
                     })
                   : '???',
               ),
-              m('span', {class: 'pf-hde-info-grid__label'}, 'Heap:'),
+              m('span.pf-hde-info-grid__label', 'Heap:'),
               m('span', row.heap),
               ...(row.isRoot
                 ? [
-                    m(
-                      'span',
-                      {class: 'pf-hde-info-grid__label'},
-                      'Root Types:',
-                    ),
+                    m('span.pf-hde-info-grid__label', 'Root Types:'),
                     m('span', row.rootTypeNames?.join(', ')),
                   ]
                 : []),
@@ -836,17 +791,9 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
 
           detail.isClassObj
             ? m(Section, {title: 'Class Info'}, [
-                m('div', {class: 'pf-hde-info-grid pf-hde-mb-3'}, [
-                  m(
-                    'span',
-                    {class: 'pf-hde-info-grid__label'},
-                    'Instance Size:',
-                  ),
-                  m(
-                    'span',
-                    {class: 'pf-hde-mono'},
-                    String(detail.instanceSize),
-                  ),
+                m('.pf-hde-info-grid.pf-hde-mb-3', [
+                  m('span.pf-hde-info-grid__label', 'Instance Size:'),
+                  m('span.pf-hde-mono', String(detail.instanceSize)),
                 ]),
               ])
             : null,
@@ -855,7 +802,11 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             ? m(
                 Section,
                 {title: 'Class Hierarchy'},
-                renderClassHierarchy(detail.classHierarchy, navigate),
+                renderClassHierarchy(
+                  detail.classHierarchy,
+                  navigate,
+                  potentiallyMergedClasses,
+                ),
               )
             : null,
 
@@ -916,7 +867,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.reverseRefs.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(
+                    navigate,
+                    potentiallyMergedClasses,
+                  ),
                   data: detail.reverseRefs.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -952,7 +906,10 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             detail.dominated.length > 0
               ? m(DataGrid, {
-                  schema: makeInstanceSchema(navigate),
+                  schema: makeInstanceSchema(
+                    navigate,
+                    potentiallyMergedClasses,
+                  ),
                   data: detail.dominated.map(instanceRowToRow),
                   initialColumns: [
                     {id: 'id', field: 'id'},
@@ -982,9 +939,12 @@ export function ObjectView(): m.Component<ObjectViewAttrs> {
   };
 }
 
-function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
+function renderFieldsGrid(
+  fields: readonly Field[],
+  navigate: NavFn,
+): m.Children {
   if (fields.length === 0) {
-    return m('div', {class: 'pf-hde-info-grid__label'}, 'No fields');
+    return m('.pf-hde-info-grid__label', 'No fields');
   }
   return m(DataGrid, {
     schema: makeFieldSchema(navigate),
@@ -1009,7 +969,7 @@ function renderFieldsGrid(fields: FieldRow[], navigate: NavFn): m.Children {
 }
 
 function renderArrayGrid(
-  elems: ArrayElemRow[],
+  elems: readonly ArrayElem[],
   elemTypeName: string,
   navigate: NavFn,
   onDownloadBytes?: () => void,
@@ -1027,7 +987,7 @@ function renderArrayGrid(
 
   return m('div', [
     onDownloadBytes || elems.length > 0
-      ? m('div', {class: 'pf-hde-action-row pf-hde-mb-2'}, [
+      ? m('.pf-hde-action-row.pf-hde-mb-2', [
           onDownloadBytes
             ? m(
                 Anchor,
@@ -1116,13 +1076,13 @@ function classFilterLink(className: string, navigate: NavFn): m.Child {
 }
 
 function renderClassHierarchy(
-  hierarchy: string[],
+  hierarchy: readonly string[],
   navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
 ): m.Children {
   const topDown = hierarchy.slice().reverse();
   return m(
-    'div',
-    {class: 'pf-hde-view-stack--tight'},
+    '.pf-hde-view-stack--tight',
     topDown.map((className, i) =>
       m(
         'div',
@@ -1132,8 +1092,11 @@ function renderClassHierarchy(
           style: {'--pf-hde-depth': String(i)},
         },
         [
-          m('span', {class: 'pf-hde-path-arrow'}, i === 0 ? '' : '→'),
-          classFilterLink(className, navigate),
+          m('span.pf-hde-path-arrow', i === 0 ? '' : '→'),
+          m(ClassNameWithWarning, {
+            name: classFilterLink(className, navigate),
+            potentiallyMerged: potentiallyMergedClasses.has(className),
+          }),
         ],
       ),
     ),

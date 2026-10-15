@@ -171,10 +171,22 @@ function buildTabBindings(
       tab.experimentFilter = filter;
       tabsState.markDirty();
     },
+    getDateFilter: () => tab.dateFilter,
+    setDateFilter: (filter) => {
+      tab.dateFilter = filter;
+      tabsState.markDirty();
+    },
     getTraceLimit: () => tab.traceLimit,
     setTraceLimit: (limit) => {
-      if (limit > 0) {
+      if (limit >= 0) {
         tab.traceLimit = limit;
+        tabsState.markDirty();
+      }
+    },
+    getTableTtlDays: () => tab.tableTtlDays,
+    setTableTtlDays: (days) => {
+      if (days > 0) {
+        tab.tableTtlDays = days;
         tabsState.markDirty();
       }
     },
@@ -297,7 +309,7 @@ function renderRunControls(
       disabled: tab.isLoading,
       onInput: (value: string) => {
         const newLimit = parseInt(value, 10);
-        if (!isNaN(newLimit) && newLimit > 0) {
+        if (!isNaN(newLimit) && newLimit >= 0) {
           tab.limit = newLimit;
           tabsState.markDirty();
         }
@@ -339,6 +351,7 @@ function attachAsyncDataSource(
     queryClient,
     () => tab.execution?.processedRows ?? 0,
     tab.lifecycle.signal,
+    () => tab.execution?.schema,
   );
   tab.isLoading = true;
   runner.startPolling(tab);

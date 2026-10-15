@@ -1280,6 +1280,7 @@ class Profiling(TestSuite):
             packages {
               name: "com.example.sampleapp"
               uid: 10362
+              profileable: true
               version_code: 1
             }
           }
@@ -1322,12 +1323,12 @@ class Profiling(TestSuite):
         }
         """),
         query="""
-        SELECT package_name, uid, debuggable, profileable_from_shell, version_code
+        SELECT package_name, uid, debuggable, profileable_from_shell, profileable, version_code
         FROM package_list
         ORDER BY package_name;
         """,
         out=Csv("""
-        "package_name","uid","debuggable","profileable_from_shell","version_code"
-        "com.example.fallback",10363,0,0,"[NULL]"
-        "com.example.sampleapp",10362,0,0,1
+        "package_name","uid","debuggable","profileable_from_shell","profileable","version_code"
+        "com.example.fallback",10363,0,0,0,"[NULL]"
+        "com.example.sampleapp",10362,0,0,1,1
         """))

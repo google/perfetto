@@ -352,6 +352,15 @@ export function resetTemplateCache() {
   templateCache.clear();
 }
 
+// The link preview image of a blog page: its cover, which is always a PNG
+// (explicit or generated). The index has no cover of its own and borrows the
+// newest post's.
+function ogImageUrl(post, siteUrl) {
+  if (post === undefined) return undefined;
+  const p = post.isIndex ? post.posts[0] : post;
+  return p === undefined ? undefined : `${siteUrl}/${p.cover.sitePath}`;
+}
+
 const FALLBACK_TITLE =
   "Perfetto - System profiling, app tracing and trace analysis";
 
@@ -361,6 +370,7 @@ const FALLBACK_TITLE =
 //   templatePath EJS template, or null to emit the bare markdown HTML (_nav).
 //   sitePath     output path relative to the site root, e.g. "docs/faq".
 //   nav          the rendered _nav.html fragment, or undefined.
+//   siteUrl      origin for absolute URLs, e.g. "https://perfetto.dev".
 export function renderPage({
   markdown,
   mdFile,
@@ -368,6 +378,7 @@ export function renderPage({
   sitePath,
   nav,
   post,
+  siteUrl = "https://perfetto.dev",
 }) {
   const ctx = newContext(mdFile, post === undefined ? undefined : post.slug);
   const markdownHtml = markdown === null ? "" : renderMarkdown(markdown, ctx);
@@ -390,18 +401,11 @@ export function renderPage({
     markdown: markdownHtml,
     title: title ? `${title}${suffix}` : FALLBACK_TITLE,
     fileName: "/" + sitePath,
+    siteUrl,
     post,
     description: post === undefined ? undefined : post.summary,
     ogType: post !== undefined && !post.isIndex ? "article" : undefined,
-    // The index has no cover of its own; fall back to the newest post's.
-    ogImage:
-      post === undefined
-        ? undefined
-        : post.cover !== undefined
-          ? `https://perfetto.dev/${post.cover.sitePath}`
-          : post.posts.length > 0
-            ? `https://perfetto.dev/${post.posts[0].cover.sitePath}`
-            : undefined,
+    ogImage: ogImageUrl(post, siteUrl),
   };
   if (nav !== undefined) {
     templateData["nav"] = nav;

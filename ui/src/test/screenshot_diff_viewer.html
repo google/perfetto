@@ -1,0 +1,394 @@
+<!doctype html>
+<!--
+Copyright (C) 2026 The Android Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<!--
+Single-page viewer for all failing screenshot comparisons of a Playwright run.
+screenshot_diff_reporter.ts copies this file and replaces the placeholder in
+the #diff-data script tag with a JSON object of the form:
+  {
+    ciJobId?: string,
+    reportUrl?: string,  // Native Playwright HTML report.
+    failures: [{
+      testTitle: string,
+      screenshotName: string,
+      reportUrl?: string,  // This test's attempt in the native report.
+      images: {expected?: string, actual?: string, diff?: string},
+    }],
+  }
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Screenshot diffs</title>
+    <style>
+      :root {
+        --fg: #1f2328;
+        --fg-muted: #59636e;
+        --border: #d0d7de;
+        --bg-subtle: #f6f8fa;
+        --accent: #0969da;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: var(--fg);
+        font:
+          14px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          'Noto Sans',
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      main {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 16px 24px 48px;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin: 8px 0;
+      }
+      .muted {
+        color: var(--fg-muted);
+      }
+      .cmd-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0 16px;
+        padding: 8px 12px;
+        background: var(--bg-subtle);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+      .cmd-box code {
+        font:
+          12px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      button {
+        font: inherit;
+        color: var(--fg);
+        background: #fff;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2px 10px;
+      }
+      button:hover {
+        background: var(--bg-subtle);
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 10px 0;
+        margin-bottom: 8px;
+        background: #fff;
+        border-bottom: 1px solid var(--border);
+      }
+      .spacer {
+        flex: 1;
+      }
+      details.card {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        margin: 16px 0;
+      }
+      details.card > summary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        padding: 8px 12px;
+        background: var(--bg-subtle);
+        border-radius: 6px;
+        list-style: none;
+        user-select: none;
+      }
+      details.card[open] > summary {
+        border-bottom: 1px solid var(--border);
+        border-radius: 6px 6px 0 0;
+      }
+      details.card > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.card > summary::before {
+        content: '›';
+        display: inline-block;
+        width: 12px;
+        font-weight: 600;
+        transition: transform 0.1s;
+      }
+      details.card[open] > summary::before {
+        transform: rotate(90deg);
+      }
+      .card-title {
+        font-weight: 600;
+      }
+      .card-body {
+        padding: 12px 16px 16px;
+      }
+      .side-by-side img {
+        max-width: 100%;
+        vertical-align: top;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+      }
+      .side-by-side {
+        display: flex;
+        gap: 16px;
+        width: 100%;
+      }
+      .side-by-side > figure {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        text-align: center;
+      }
+      .side-by-side a {
+        cursor: zoom-in;
+      }
+      .not-applicable {
+        padding: 24px;
+        color: var(--fg-muted);
+        background: var(--bg-subtle);
+        border: 1px dashed var(--border);
+        border-radius: 6px;
+      }
+      figcaption {
+        color: var(--fg-muted);
+        margin-bottom: 4px;
+      }
+      .files {
+        margin-top: 12px;
+        display: flex;
+        gap: 16px;
+      }
+      .empty {
+        padding: 48px;
+        text-align: center;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="root"></main>
+    <script id="diff-data" type="application/json">
+      "__SCREENSHOT_DIFF_DATA__"
+    </script>
+    <script>
+      'use strict';
+
+      // UI names for the image roles. The data keeps Playwright's names.
+      const ROLE_LABELS = {expected: 'Before', actual: 'After', diff: 'Diff'};
+
+      // Creates an element. `attrs` may contain 'class', 'text', event handlers
+      // ('onclick', ...) and any other attribute. Children can be nodes or strings.
+      function el(tag, attrs = {}, ...children) {
+        const e = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+          if (v === undefined) continue;
+          if (k === 'class') e.className = v;
+          else if (k === 'text') e.textContent = v;
+          else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+          else e.setAttribute(k, v);
+        }
+        for (const c of children) {
+          if (c !== undefined) e.append(c);
+        }
+        return e;
+      }
+
+      function img(src) {
+        return el('img', {src, alt: src});
+      }
+
+      // One column per role: Before | After | Diff. Clicking an image opens it
+      // full size in a new tab. Missing images (e.g. no baseline) get a
+      // placeholder so the columns keep their positions.
+      function renderSideBySide(images) {
+        const figures = ['expected', 'actual', 'diff'].map((role) => {
+          const src = images[role];
+          return el(
+            'figure',
+            {},
+            el('figcaption', {text: ROLE_LABELS[role]}),
+            src === undefined
+              ? el('div', {class: 'not-applicable', text: 'Not applicable'})
+              : el('a', {href: src, target: '_blank'}, img(src)),
+          );
+        });
+        return el('div', {class: 'side-by-side'}, ...figures);
+      }
+
+      // Builds one accordion card and returns its <details> node.
+      function renderCard(f) {
+        const columns = renderSideBySide(f.images);
+
+        const files = el('div', {class: 'files'});
+        const dims = el('span');
+        const actualImg = columns.querySelector(
+          `img[src="${CSS.escape(f.images.actual)}"]`,
+        );
+        actualImg.addEventListener('load', () => {
+          dims.textContent = `${actualImg.naturalWidth} x ${actualImg.naturalHeight}`;
+        });
+        files.append(dims);
+        for (const role of ['expected', 'actual', 'diff']) {
+          const src = f.images[role];
+          if (src !== undefined) {
+            files.append(
+              el('a', {
+                href: src,
+                target: '_blank',
+                text: `${ROLE_LABELS[role].toLowerCase()}.png`,
+              }),
+            );
+          }
+        }
+
+        const summary = el(
+          'summary',
+          {},
+          el('span', {class: 'card-title', text: f.testTitle}),
+          el('span', {class: 'muted', text: '›'}),
+          el('span', {text: f.screenshotName}),
+          f.images.expected === undefined
+            ? el('span', {class: 'muted', text: '(no baseline)'})
+            : undefined,
+          el('span', {class: 'spacer'}),
+          f.reportUrl === undefined
+            ? undefined
+            : el('a', {
+                href: f.reportUrl,
+                target: '_blank',
+                text: 'Open in Playwright report ↗',
+                // Don't toggle the accordion when following the link.
+                onclick: (e) => e.stopPropagation(),
+              }),
+        );
+
+        return el(
+          'details',
+          {class: 'card', open: ''},
+          summary,
+          el('div', {class: 'card-body'}, columns, files),
+        );
+      }
+
+      function renderCopyableCommand(cmd) {
+        const button = el('button', {text: 'Copy'});
+        button.addEventListener('click', async () => {
+          await navigator.clipboard.writeText(cmd);
+          button.textContent = 'Copied!';
+        });
+        return el(
+          'div',
+          {class: 'cmd-box'},
+          el('span', {
+            text: 'Accept these changes from your Perfetto checkout:',
+          }),
+          el('code', {text: cmd}),
+          button,
+        );
+      }
+
+      function main() {
+        const root = document.getElementById('root');
+        const data = JSON.parse(
+          document.getElementById('diff-data').textContent,
+        );
+        if (typeof data !== 'object') {
+          root.append(el('div', {class: 'empty', text: 'No data.'}));
+          return;
+        }
+        const failures = data.failures;
+        const n = failures.length;
+
+        root.append(
+          el(
+            'header',
+            {},
+            el('h1', {text: 'Screenshot diffs'}),
+            el('span', {
+              class: 'muted',
+              text: `${n} failing screenshot${n === 1 ? '' : 's'}`,
+            }),
+            el('span', {class: 'spacer'}),
+            data.reportUrl === undefined
+              ? undefined
+              : el('a', {
+                  href: data.reportUrl,
+                  text: 'Full Playwright report ↗',
+                }),
+          ),
+        );
+
+        if (data.ciJobId !== undefined) {
+          root.append(
+            renderCopyableCommand(
+              `tools/download_changed_screenshots.py ${data.ciJobId}`,
+            ),
+          );
+        }
+
+        const cards = failures.map(renderCard);
+        const setOpen = (open) => {
+          for (const c of cards) c.open = open;
+        };
+
+        root.append(
+          el(
+            'div',
+            {class: 'toolbar'},
+            el('span', {class: 'spacer'}),
+            el('button', {text: 'Expand all', onclick: () => setOpen(true)}),
+            el('button', {text: 'Collapse all', onclick: () => setOpen(false)}),
+          ),
+        );
+        for (const c of cards) root.append(c);
+      }
+
+      main();
+    </script>
+  </body>
+</html>

@@ -60,3 +60,30 @@
   flex: 1;
   overflow: hidden;
 }
+
+.pf-inline {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  align-items: baseline;
+
+  &.pf-spacing-small {
+    gap: 2px;
+  }
+
+  &.pf-spacing-medium {
+    gap: 4px;
+  }
+
+  &.pf-spacing-large {
+    gap: 16px;
+  }
+
+  &--wrap {
+    flex-wrap: wrap;
+  }
+
+  &--inline {
+    display: inline-flex;
+  }
+}

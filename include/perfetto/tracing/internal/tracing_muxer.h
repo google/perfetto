@@ -47,6 +47,11 @@ struct DataSourceParams {
   bool buffer_exhausted_policy_configurable = false;
   bool supports_multiple_instances = true;
   bool requires_callbacks_under_lock = true;
+  // Advertises that the data source supports tracing v2.
+  // This does NOT mean v2 will be used which is decided after the negotiation
+  // with the service, which might not support v2 or might decide not to use it.
+  // See DataSourceState.use_tracing_v2 for the active state.
+  bool supports_tracing_v2 = false;
 };
 
 struct DataSourceStaticState;

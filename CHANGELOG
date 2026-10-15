@@ -3,11 +3,46 @@ Unreleased:
    * Changed compression logic to always emit clock snapshot, trace config and
    trace UUID uncompressed for metadata inspection by on-device tools.
   Trace Processor:
+   * SQL errors are now laid out like rustc diagnostics: a
+     `--> source:line:col` location naming where the SQL came from (query,
+     module, macro or metric), a line-number gutter and a caret, with the
+     message on a final `error:` line.
+   * `trace_processor query` can now print results as compact markdown tables
+     with `--format markdown`. Markdown output is capped at 1000 rows, 10000
+     bytes and 500 characters per cell by default. `--max-rows`, `--max-bytes`
+     and `--max-cell-width` change the limits, and also apply to CSV output
+     when passed explicitly.
+   * Added agent mode to `trace_processor query`. When it is run by a coding
+     agent (detected from environment variables such as `CLAUDECODE` or
+     `AI_AGENT`) with stdout not a terminal, results default to markdown and
+     errors are printed as a single line of JSON. `--agent` and `--no-agent`
+     force it on or off. See
+     https://perfetto.dev/docs/reference/trace-processor-cli#agent-mode.
    * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
      all_data_source_started_ns, ...) to trace time when primary_trace_clock
      is not BOOTTIME. They were previously stored unconverted, which could
      also cause ftrace events to be dropped when preserve_ftrace_buffer is
      disabled.
+   * Changed `graph_reachable_dfs` and `graph_reachable_bfs` to return the
+     start nodes when the graph has no edges, consistent with how start nodes
+     not in the graph are handled when it does have edges. Previously an empty
+     table was returned. See
+     https://perfetto.dev/docs/analysis/perfetto-sql-backcompat.
+   * The Python `TraceProcessor` can now connect to a warm
+     `trace_processor server unix` session via the new `remote` parameter,
+     e.g. `TraceProcessor(remote='my-session')`. Only `query()` is supported
+     over Unix sockets for now. `remote` also accepts HTTP addresses, and
+     `addr` is deprecated in its favour.
+   * The interactive shell now prints results as aligned tables with columns
+     sized to their contents, and prints the result of every statement in the
+     input rather than only the last. Ctrl-D at the paging prompt now ends the
+     current result instead of exiting the shell.
+   * Removed the `.dump`, `.load-metrics-sql` and `.run-metrics` interactive
+     shell commands, and deprecated `.width` and `-W/--wide`, which no longer
+     do anything. Using any of them prints what to do instead: for `.dump`,
+     use `trace_processor export sqlite`.
+   * Added `std.gpu.vulkan_debug_names` with the history of Vulkan debug
+     object names.
   UI:
     * Double-clicking a timeline slice now selects and zooms into it.
     * ART heap dumps can now be exported as pprof from the flamegraph.
@@ -27,8 +62,17 @@ Unreleased:
     * Fix issue where horizontal two-finger scrolling to pan the timeline would
       also trigger browser navigation gestures in Chrome under ChromeOS, Linux
       and Windows.
+    * Add option to record smaps snapshots alongside ART heap dumps in the
+      record page.
+    * Added "Expand all" and "Collapse all" to the track menu to expand or
+      collapse a track group and all of its descendants.
+    * Shift+click on a track group header expands or collapses it and all of
+      its descendants.
   SDK:
     *
+  Misc:
+    * Added the `perfetto_cxx_standard` GN arg (default "c++17") to allow
+      standalone builds to use a newer C++ standard (e.g. "c++20").
 
 v58.3 - 2026-08-27:
   Misc:

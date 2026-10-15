@@ -32,7 +32,7 @@ FROM counter_delta AS c, perf_counter_track AS t
 ON c.track_id = t.id,
 perf_sample AS s
 ON c.ts = s.ts AND t.perf_session_id = s.perf_session_id AND t.cpu = s.cpu,
-thread USING (utid),
+thread ON s.utid = thread.utid,
 process USING (upid),
 stack_profile_callsite AS spc ON (s.callsite_id = spc.id),
 stack_profile_frame AS spf ON (spc.frame_id = spf.id),

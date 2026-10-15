@@ -32,7 +32,7 @@ source_set("experimental_flamegraph") {
     "../../core/plugin",
     "../../core/tree",
     "../../perfetto_sql/engine",
-    "../../plugins/flamegraph:flamegraph",
+    "../../plugins/flamegraph",
     "../../sqlite",
     "../../storage",
     "../../tables",

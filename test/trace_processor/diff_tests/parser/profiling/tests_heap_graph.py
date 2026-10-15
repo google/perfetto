@@ -386,6 +386,24 @@ class ProfilingHeapGraph(TestSuite):
           5,2,10,256,"[NULL]",0,"java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>","[NULL]"
         '''))
 
+  # A mapping without a package name applies to classes in every location.
+  def test_heap_graph_deobfuscate_no_package(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_deobfuscate_no_package.textproto'),
+        query="""
+        SELECT name, deobfuscated_name
+        FROM heap_graph_class
+        ORDER BY 1, 2;
+        """,
+        out=Csv('''
+          "name","deobfuscated_name"
+          "FactoryProducerDelegateImplActor","[NULL]"
+          "a","DeobfuscatedA"
+          "a","DeobfuscatedA"
+          "a[]","DeobfuscatedA[]"
+          "java.lang.Class<a[]>","java.lang.Class<DeobfuscatedA[]>"
+        '''))
+
   def test_heap_graph_object_4(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_legacy.textproto'),
@@ -788,4 +806,105 @@ class ProfilingHeapGraph(TestSuite):
         out=Csv("""
         "ts","heap_size"
         10,100000
+        """))
+
+  def test_heap_graph_potentially_merged(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+            pid: 2
+            location_names {
+              iid: 1
+              str: "/data/app/~~ASDFG==/invalid.test.android-SDASD/test.apk"
+            }
+            types {
+              id: 1
+              class_name: "java.lang.Object"
+              location_id: 1
+            }
+            types {
+              id: 2
+              class_name: "a"
+              location_id: 1
+            }
+            types {
+              id: 3
+              class_name: "b"
+              location_id: 1
+            }
+            types {
+              id: 4
+              class_name: "b[]"
+              location_id: 1
+            }
+            types {
+              id: 5
+              class_name: "java.lang.Class<b>"
+              location_id: 1
+            }
+            types {
+              id: 6
+              class_name: "c"
+              location_id: 1
+            }
+            objects {
+              id: 1
+              type_id: 1
+              self_size: 64
+            }
+            continued: false
+            index: 0
+          }
+        }
+        packet {
+          deobfuscation_mapping {
+            obfuscated_classes {
+              obfuscated_name: "a"
+              deobfuscated_name: "DeobfuscatedA"
+            }
+            obfuscated_classes {
+              obfuscated_name: "b"
+              deobfuscated_name: "DeobfuscatedB"
+              merged_classes {
+                unknown_merged_classes: true
+              }
+            }
+            obfuscated_classes {
+              obfuscated_name: "c"
+              deobfuscated_name: "DeobfuscatedC"
+              merged_classes {
+                merged_classes {
+                  name: "MergedIntoC"
+                }
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT name, deobfuscated_name, potentially_merged
+        FROM heap_graph_class
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name","deobfuscated_name","potentially_merged"
+        "a","DeobfuscatedA",0
+        "b","DeobfuscatedB",1
+        "b[]","DeobfuscatedB[]",1
+        "c","DeobfuscatedC",1
+        "java.lang.Class<b>","java.lang.Class<DeobfuscatedB>",1
+        "java.lang.Object","[NULL]",0
         """))

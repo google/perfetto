@@ -228,6 +228,11 @@ class Context {
   // the uid to the timeline.
   std::optional<uint64_t> package_uid;
 
+  // The timestamp when tracing started, collected from TracingServiceEvent.
+  // This is used to avoid merging events across the start of tracing, which
+  // can result in events being dropped during parsing.
+  std::optional<uint64_t> tracing_started_ts;
+
   // Trace packets contain a "one of" entry called "data". This field can be
   // thought of as the message. A track packet with have other fields along
   // side "data" (e.g. "timestamp"). These fields can be thought of as metadata.

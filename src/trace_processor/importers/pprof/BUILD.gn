@@ -25,7 +25,7 @@ source_set("pprof") {
     "../../sorter",
     "../../storage",
     "../../tables:tables_python",
-    "../../types:types",
+    "../../types",
     "../../util:build_id",
     "../../util:trace_type",
   ]

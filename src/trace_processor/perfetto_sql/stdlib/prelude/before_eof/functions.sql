@@ -179,4 +179,3 @@ RETURNS DOUBLE
 DELEGATES TO __intrinsic_sqrt;
 
 -- sqlformat file on
-

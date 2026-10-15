@@ -23,9 +23,9 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <utility>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
@@ -37,6 +37,13 @@ namespace perfetto::trace_processor {
 class TraceProcessorContext;
 
 namespace perf_importer {
+
+enum class CounterScope {
+  kGlobal,
+  kCpu,
+  kThread,
+  kThreadAndCpu,
+};
 
 // Wrapper around a `perf_event_attr` object that add some helper methods.
 class PerfEventAttr : public RefCounted {
@@ -98,13 +105,20 @@ class PerfEventAttr : public RefCounted {
     event_name_ = std::move(event_name);
   }
 
+  std::optional<CounterScope> counter_scope() const { return counter_scope_; }
+  void set_counter_scope(CounterScope scope) { counter_scope_ = scope; }
+
   size_t sample_id_size() const { return sample_id_size_; }
 
-  PerfCounter& GetOrCreateCounter(std::optional<uint32_t> cpu);
+  PerfCounter& GetOrCreateCounter(std::optional<uint32_t> cpu, UniqueTid utid);
 
   ClockTracker::ClockId clock_id() const { return clock_id_; }
 
  private:
+  PerfCounter& GetOrCreateCpuCounter(std::optional<uint32_t> cpu);
+  PerfCounter& GetOrCreateThreadCounter(UniqueTid utid);
+  PerfCounter& GetOrCreateThreadCpuCounter(UniqueTid utid, uint32_t cpu);
+
   bool is_timebase() const {
     // This is what simpleperf uses for events that are not supposed to sample
     // TODO(b/334978369): Determine if there is a better way to figure this out.
@@ -113,6 +127,8 @@ class PerfEventAttr : public RefCounted {
 
   PerfCounter CreateGlobalCounter() const;
   PerfCounter CreateCpuCounter(uint32_t cpu) const;
+  PerfCounter CreateThreadCounter(UniqueTid utid) const;
+  PerfCounter CreateThreadCpuCounter(UniqueTid utid, uint32_t cpu) const;
 
   TraceProcessorContext* const context_;
   const ClockTracker::ClockId clock_id_;
@@ -123,13 +139,22 @@ class PerfEventAttr : public RefCounted {
   std::optional<size_t> id_offset_from_start_;
   std::optional<size_t> id_offset_from_end_;
   size_t sample_id_size_;
+  std::optional<CounterScope> counter_scope_;
 
-  // Counter not bound to a specific CPU. Might actually be an aggregate from
-  // multiple per-cpu counters in cases such as thread-scoped profiling.
-  std::unique_ptr<PerfCounter> global_counter_;
+  // Counter not bound to a specific CPU or thread. Might actually be an
+  // aggregate from multiple per-cpu counters in cases such as thread-scoped
+  // profiling.
+  std::optional<PerfCounter> global_counter_;
 
-  // Keyed by cpu index. Per-cpu counters.
-  std::unordered_map<uint32_t, PerfCounter> counters_;
+  // Keyed by cpu index. Per-cpu counters (pid == -1, cpu >= 0).
+  base::FlatHashMap<uint32_t, std::optional<PerfCounter>> cpu_counters_;
+
+  // Keyed by utid. Per-thread counters (pid >= 0, cpu == -1).
+  base::FlatHashMap<UniqueTid, std::optional<PerfCounter>> thread_counters_;
+
+  // Keyed by (utid, cpu). Per-(thread, cpu) counters (pid >= 0, cpu >= 0).
+  base::FlatHashMap<std::pair<UniqueTid, uint32_t>, std::optional<PerfCounter>>
+      thread_cpu_counters_;
 
   std::string event_name_;
 };

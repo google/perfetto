@@ -14,6 +14,7 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_connection.h"
 
+#include <cstdint>
 #include <memory>
 
 #include <benchmark/benchmark.h>
@@ -72,6 +73,31 @@ void BM_Connection_Execute_PerfettoSqlExtension(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_Connection_Execute_PerfettoSqlExtension);
+
+// Measures the per-cell SQLite adapter over flat numeric, nullable and string
+// columns. The large scan amortizes per-statement table creation and planning.
+void BM_Connection_Pipeline_Scan(benchmark::State& state) {
+  StringPool pool;
+  auto conn = PerfettoSqlConnection::CreateConnectionToNewDatabase(
+      &pool, /*enable_extra_checks=*/false);
+  auto setup = conn->Execute(SqlSource::FromExecuteQuery(R"(
+    PERFETTO PRAGMA pipelines = 1;
+    CREATE PERFETTO TABLE scan_values AS
+    WITH RECURSIVE numbers(n) AS (
+      SELECT 0 UNION ALL SELECT n + 1 FROM numbers WHERE n < 32767
+    )
+    SELECT n AS id, n - 32768 AS negative, n + 10000000000 AS large,
+           n + 0.5 AS real_value, CASE WHEN n % 2 = 0 THEN n END AS nullable,
+           'text' AS text_value FROM numbers
+  )"));
+  PERFETTO_CHECK(setup.ok());
+  for (auto _ : state) {
+    auto res = conn->Execute(SqlSource::FromExecuteQuery("FROM scan_values"));
+    PERFETTO_CHECK(res.ok());
+  }
+  state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * 32768 * 6);
+}
+BENCHMARK(BM_Connection_Pipeline_Scan);
 
 }  // namespace
 }  // namespace perfetto::trace_processor

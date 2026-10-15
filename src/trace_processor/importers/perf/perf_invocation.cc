@@ -193,6 +193,22 @@ RefPtr<PerfEventAttr> PerfInvocation::FindAttrForEventId(uint64_t id) const {
   return RefPtr<PerfEventAttr>(it->get());
 }
 
+void PerfInvocation::SetEventIdBinding(uint64_t id, int64_t cpu, int64_t tid) {
+  auto* it = attrs_by_id_.Find(id);
+  if (!it) {
+    return;
+  }
+  if (tid >= 0 && cpu >= 0) {
+    (*it)->set_counter_scope(CounterScope::kThreadAndCpu);
+  } else if (tid >= 0) {
+    (*it)->set_counter_scope(CounterScope::kThread);
+  } else if (cpu >= 0) {
+    (*it)->set_counter_scope(CounterScope::kCpu);
+  } else {
+    (*it)->set_counter_scope(CounterScope::kGlobal);
+  }
+}
+
 void PerfInvocation::SetEventName(uint64_t event_id, std::string name) {
   auto* it = attrs_by_id_.Find(event_id);
   if (!it) {
@@ -235,6 +251,35 @@ void PerfInvocation::SetCmdline(const std::vector<std::string>& args) {
     (*context_->storage->mutable_profiler_session_table())[session_id]
         .set_cmdline(context_->storage->InternString(
             base::StringView(base::Join(args, " "))));
+  }
+}
+
+void PerfInvocation::SetSimpleperfCounterScope(
+    const base::FlatHashMap<std::string, std::string>& entries) {
+  // perf_event_attr does not store the target pid/cpu passed to
+  // perf_event_open. While Linux perf emits PERF_RECORD_ID_INDEX to map each
+  // event ID to its (tid, cpu), simpleperf omits PERF_RECORD_ID_INDEX and
+  // instead records whether collection was system-wide or target-scoped in
+  // FEATURE_SIMPLEPERF_META_INFO.
+  if (const auto* app = entries.Find("app_package_name");
+      app && !app->empty()) {
+    SetCounterScope(CounterScope::kThreadAndCpu);
+  }
+  if (const auto* sys = entries.Find("system_wide_collection")) {
+    if (*sys == "true") {
+      SetCounterScope(CounterScope::kCpu);
+    } else if (*sys == "false") {
+      SetCounterScope(CounterScope::kThreadAndCpu);
+    }
+  }
+}
+
+void PerfInvocation::SetCounterScope(CounterScope scope) {
+  if (first_attr_) {
+    first_attr_->set_counter_scope(scope);
+  }
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    it.value()->set_counter_scope(scope);
   }
 }
 

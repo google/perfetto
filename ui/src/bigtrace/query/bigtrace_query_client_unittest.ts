@@ -236,6 +236,31 @@ describe('BigtraceQueryClient trace-metadata wire', () => {
     ]);
     expect(schema.columns[0].defaultVisible).toBe(true);
   });
+
+  test('listTraceMetadataColumnValues POSTs column, search and coerced trace_filters', async () => {
+    const fetchMock = captureFetch({values: ['Google', 'Samsung']});
+    const client = new BigtraceQueryClient('http://example/');
+    const values = await client.listTraceMetadataColumnValues(
+      [traceDir],
+      'device_manufacturer',
+      {
+        search: 'goo',
+        traceFilters: [{field: 'trace_population', op: 'in', value: ['A']}],
+      },
+    );
+
+    expect(urlFrom(fetchMock)).toBe(
+      'http://example//trace_metadata_column_values',
+    );
+    const body = bodyFrom(fetchMock);
+    expect(body.column_name).toBe('device_manufacturer');
+    expect(body.search_pattern).toBe('goo');
+    expect(body.trace_filters).toEqual([
+      {field: 'trace_population', op: 'in', value: ['A']},
+    ]);
+    expect(body.limit).toBeUndefined();
+    expect(values).toEqual(['Google', 'Samsung']);
+  });
 });
 
 describe('BigtraceQueryClient execute trace-selection snapshot', () => {
@@ -396,7 +421,10 @@ describe('BigtraceQueryClient.fetchResults', () => {
 
   test('exposes availableColumnNames from the response (the column-picker union)', async () => {
     const fetchMock = captureFetch({
-      columnNames: ['name', 'dur'],
+      schema: [
+        {name: 'name', type: 'STRING'},
+        {name: 'dur', type: 'STRING'},
+      ],
       rows: [{values: ['slice', '10']}],
       availableColumnNames: ['name', 'dur', 'device_name', 'android_id'],
     });
@@ -458,14 +486,66 @@ describe('BigtraceQueryClient error responses', () => {
 });
 
 describe('parseQueryResponse', () => {
-  test('passes values through: JSON null is SQL NULL, the string "NULL" stays text', () => {
+  test('normalizes JSON null and "NULL" string to null for all columns', () => {
     const page = parseQueryResponse({
-      columnNames: ['name', 'note'],
+      schema: [
+        {name: 'name', type: 'STRING'},
+        {name: 'note', type: 'STRING'},
+      ],
       rows: [{values: ['NULL', null]}, {values: ['x', 'y']}],
     });
     expect(page.columns).toEqual(['name', 'note']);
-    expect(page.rows[0]).toEqual({name: 'NULL', note: null});
+    expect(page.rows[0]).toEqual({name: null, note: null});
     expect(page.rows[1]).toEqual({name: 'x', note: 'y'});
+  });
+
+  test('parses rows according to schema when schema is present', () => {
+    const page = parseQueryResponse({
+      schema: [
+        {name: 'id', type: 'INT64'},
+        {name: 'score', type: 'FLOAT64'},
+        {name: 'data', type: 'BYTES'},
+        {name: 'name', type: 'STRING'},
+      ],
+      rows: [
+        {values: ['123', '3.14', 'aGVsbG8=', 'alice']},
+        {values: ['NULL', 'NULL', 'NULL', 'NULL']},
+      ],
+    });
+    expect(page.columns).toEqual(['id', 'score', 'data', 'name']);
+    expect(page.rows[0].id).toBe(123n);
+    expect(page.rows[0].score).toBe(3.14);
+    expect(page.rows[0].data).toBeInstanceOf(Uint8Array);
+    expect(Array.from(page.rows[0].data as Uint8Array)).toEqual([
+      104, 101, 108, 108, 111,
+    ]);
+    expect(page.rows[0].name).toBe('alice');
+
+    expect(page.rows[1].id).toBeNull();
+    expect(page.rows[1].score).toBeNull();
+    expect(page.rows[1].data).toBeNull();
+    expect(page.rows[1].name).toBeNull();
+  });
+
+  test('derives columns from schema', () => {
+    const page = parseQueryResponse({
+      schema: [
+        {name: 'id', type: 'INT64'},
+        {name: 'name', type: 'STRING'},
+      ],
+      rows: [{values: ['123', 'alice']}],
+    });
+    expect(page.columns).toEqual(['id', 'name']);
+    expect(page.rows[0]).toEqual({id: 123n, name: 'alice'});
+  });
+
+  test('returns empty when schema is missing or empty', () => {
+    const page = parseQueryResponse({
+      rows: [{values: ['123', 'alice']}],
+    });
+    expect(page.columns).toEqual([]);
+    expect(page.rows).toEqual([]);
+    expect(page.schema).toEqual([]);
   });
 });
 
@@ -718,5 +798,20 @@ describe('BigtraceQueryClient result tables', () => {
     const {url, method} = callOf(fetchMock);
     expect(url).toBe('http://example/query_executions/uid-1?drop_table=true');
     expect(method).toBe('DELETE');
+  });
+
+  test('fetchColumnValues asks one column of the result table', async () => {
+    const fetchMock = captureFetch({values: ['a', 'b']});
+    const client = new BigtraceQueryClient('http://example');
+    const values = await client.fetchColumnValues(
+      'uid-1',
+      'process_name',
+      'sys',
+    );
+    const {url, method, body} = callOf(fetchMock);
+    expect(url).toBe('http://example/query_executions/uid-1:column_values');
+    expect(method).toBe('POST');
+    expect(body).toEqual({column_name: 'process_name', search_pattern: 'sys'});
+    expect(values).toEqual(['a', 'b']);
   });
 });

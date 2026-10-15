@@ -649,43 +649,6 @@ bool SkipJsonValue(const char*& it, const char* end) {
   return false;
 }
 
-std::optional<FoundBinary> IsCorrectFile(
-    const std::string& symbol_file,
-    std::optional<std::string_view> build_id,
-    BinaryPathError* error) {
-  if (!base::FileExists(symbol_file)) {
-    *error = BinaryPathError::kFileNotFound;
-    return std::nullopt;
-  }
-  *error = BinaryPathError::kParseError;
-  // Openfile opens the file with an exclusive lock on windows.
-  std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
-  if (!file_size.has_value()) {
-    return std::nullopt;
-  }
-
-  static_assert(sizeof(size_t) <= sizeof(uint64_t));
-  size_t size = static_cast<size_t>(
-      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
-
-  if (size == 0) {
-    return std::nullopt;
-  }
-
-  std::optional<BinaryInfo> binary_info =
-      GetBinaryInfo(symbol_file.c_str(), size);
-  if (!binary_info)
-    return std::nullopt;
-  if (!binary_info->load_info)
-    return std::nullopt;
-  if (build_id && binary_info->build_id != *build_id) {
-    *error = BinaryPathError::kBuildIdMismatch;
-    return std::nullopt;
-  }
-  *error = BinaryPathError::kOk;
-  return FoundBinary{symbol_file, *binary_info->load_info, binary_info->type};
-}
-
 // Try a path and record the attempt.
 // Returns true if the binary was found.
 bool TryPath(const std::string& path,
@@ -693,17 +656,17 @@ bool TryPath(const std::string& path,
              std::optional<FoundBinary>& out_binary,
              std::vector<BinaryPathAttempt>& attempts) {
   if (!base::FileExists(path)) {
-    attempts.push_back({path, BinaryPathError::kFileNotFound});
+    attempts.push_back({path, BinaryPathError::kFileNotFound, {}});
     return false;
   }
   BinaryPathError error;
-  std::optional<FoundBinary> found = IsCorrectFile(path, build_id, &error);
+  std::optional<FoundBinary> found = FindBinaryFile(path, build_id, &error);
   if (found) {
     out_binary = std::move(found);
-    attempts.push_back({path, BinaryPathError::kOk});
+    attempts.push_back({path, BinaryPathError::kOk, {}});
     return true;
   }
-  attempts.push_back({path, error});
+  attempts.push_back({path, error, {}});
   return false;
 }
 
@@ -794,17 +757,17 @@ std::optional<FoundBinary> FindKernelBinary(
       [&](base::StackString<512> path_ss) -> std::optional<FoundBinary> {
     std::string path = path_ss.ToStdString();
     if (!base::FileExists(path)) {
-      attempts.push_back({path, BinaryPathError::kFileNotFound});
+      attempts.push_back({path, BinaryPathError::kFileNotFound, {}});
       return std::nullopt;
     }
     BinaryPathError error;
     std::optional<FoundBinary> found =
-        IsCorrectFile(path, std::nullopt, &error);
+        FindBinaryFile(path, std::nullopt, &error);
     if (found) {
-      attempts.push_back({path, BinaryPathError::kOk});
+      attempts.push_back({path, BinaryPathError::kOk, {}});
       return found;
     }
-    attempts.push_back({path, error});
+    attempts.push_back({path, error, {}});
     return std::nullopt;
   };
 
@@ -896,6 +859,42 @@ bool ParseLlvmSymbolizerJsonLine(const std::string& line,
       });
 }
 
+std::optional<FoundBinary> FindBinaryFile(
+    const std::string& path,
+    std::optional<std::string_view> build_id,
+    BinaryPathError* error) {
+  if (!base::FileExists(path)) {
+    *error = BinaryPathError::kFileNotFound;
+    return std::nullopt;
+  }
+  *error = BinaryPathError::kParseError;
+  // Openfile opens the file with an exclusive lock on windows.
+  std::optional<uint64_t> file_size = base::GetFileSize(path);
+  if (!file_size.has_value()) {
+    return std::nullopt;
+  }
+
+  static_assert(sizeof(size_t) <= sizeof(uint64_t));
+  size_t size = static_cast<size_t>(
+      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
+
+  if (size == 0) {
+    return std::nullopt;
+  }
+
+  std::optional<BinaryInfo> binary_info = GetBinaryInfo(path.c_str(), size);
+  if (!binary_info)
+    return std::nullopt;
+  if (!binary_info->load_info)
+    return std::nullopt;
+  if (build_id && binary_info->build_id != *build_id) {
+    *error = BinaryPathError::kBuildIdMismatch;
+    return std::nullopt;
+  }
+  *error = BinaryPathError::kOk;
+  return FoundBinary{path, *binary_info->load_info, binary_info->type};
+}
+
 BinaryFinder::~BinaryFinder() = default;
 
 LocalBinaryIndexer::LocalBinaryIndexer(
@@ -911,17 +910,17 @@ BinaryLookupResult LocalBinaryIndexer::FindBinary(const std::string& abspath,
   auto it = buildid_to_file_.find(build_id);
   if (it != buildid_to_file_.end()) {
     // Success - record the successful path lookup.
-    return {it->second, {{it->second.file_name, BinaryPathError::kOk}}};
+    return {it->second, {{it->second.file_name, BinaryPathError::kOk, {}}}};
   }
   // Build ID not in index - report what was searched.
   std::vector<BinaryPathAttempt> attempts;
   // If the mapping path was explicitly in symbol_files, report it.
   if (symbol_files_.count(abspath)) {
-    attempts.push_back({abspath, BinaryPathError::kFileNotFound});
+    attempts.push_back({abspath, BinaryPathError::kFileNotFound, {}});
   }
   // Report all indexed directories.
   for (const std::string& dir : indexed_directories_) {
-    attempts.push_back({dir, BinaryPathError::kBuildIdNotInIndex});
+    attempts.push_back({dir, BinaryPathError::kBuildIdNotInIndex, {}});
   }
   return {{}, std::move(attempts)};
 }
@@ -960,13 +959,31 @@ BinaryLookupResult LocalBinaryFinder::FindBinary(const std::string& abspath,
 
 LocalBinaryFinder::~LocalBinaryFinder() = default;
 
+bool CanRunLlvmSymbolizer() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::vector<std::string> args = {"--version"};
+#else
+  std::vector<std::string> args = {"llvm-symbolizer", "--version"};
+#endif
+  // Use the same filtered child environment as the actual symbolizer.
+  Subprocess process(kDefaultSymbolizer, std::move(args),
+                     {"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"});
+  std::string version(256, '\0');
+  int64_t size = process.Read(version.data(), version.size());
+  return size > 0 && version.find("LLVM") != std::string::npos;
+}
+
 LLVMSymbolizerProcess::LLVMSymbolizerProcess(const std::string& symbolizer_path)
     :
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      subprocess_(symbolizer_path, {"--output-style=JSON"}) {
+      subprocess_(symbolizer_path,
+                  {"--output-style=JSON"},
+                  {"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"}) {
 }
 #else
-      subprocess_(symbolizer_path, {"llvm-symbolizer", "--output-style=JSON"}) {
+      subprocess_(symbolizer_path,
+                  {"llvm-symbolizer", "--output-style=JSON"},
+                  {"DEBUGINFOD_URLS", "LLVM_SYMBOLIZER_OPTS"}) {
 }
 #endif
 
@@ -1021,6 +1038,12 @@ SymbolPathError ToSymbolPathError(BinaryPathError error) {
       return SymbolPathError::kParseError;
     case BinaryPathError::kBuildIdNotInIndex:
       return SymbolPathError::kBuildIdNotInIndex;
+    case BinaryPathError::kNotOnServer:
+      return SymbolPathError::kNotOnServer;
+    case BinaryPathError::kServerUnreachable:
+      return SymbolPathError::kServerUnreachable;
+    case BinaryPathError::kDownloadFailed:
+      return SymbolPathError::kDownloadFailed;
   }
   PERFETTO_FATAL("Unknown BinaryPathError");
 }
@@ -1030,7 +1053,8 @@ std::vector<SymbolPathAttempt> ToSymbolPathAttempts(
   std::vector<SymbolPathAttempt> result;
   result.reserve(attempts.size());
   for (const auto& attempt : attempts) {
-    result.push_back({attempt.path, ToSymbolPathError(attempt.error)});
+    result.push_back(
+        {attempt.path, ToSymbolPathError(attempt.error), attempt.detail});
   }
   return result;
 }
@@ -1099,10 +1123,9 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   bool is_kernel = base::StartsWith(mapping.name, "[kernel.kallsyms]");
   std::optional<FoundBinary> binary;
   std::vector<BinaryPathAttempt> binary_attempts;
-  if (is_kernel) {
-    if (env.os_release) {
+  if (is_kernel && use_kernel_paths_) {
+    if (env.os_release)
       binary = FindKernelBinary(*env.os_release, binary_attempts);
-    }
   } else {
     BinaryLookupResult lookup =
         finder_->FindBinary(mapping.name, mapping.build_id);
@@ -1129,6 +1152,7 @@ SymbolizeResult LocalSymbolizer::Symbolize(
   }
 
   SymbolizeResult result;
+  result.attempts = std::move(attempts);
   result.frames.reserve(addresses.size());
   for (uint64_t address : addresses) {
     result.frames.emplace_back(llvm_symbolizer_.Symbolize(
@@ -1138,11 +1162,16 @@ SymbolizeResult LocalSymbolizer::Symbolize(
 }
 
 LocalSymbolizer::LocalSymbolizer(const std::string& symbolizer_path,
-                                 std::unique_ptr<BinaryFinder> finder)
-    : llvm_symbolizer_(symbolizer_path), finder_(std::move(finder)) {}
+                                 std::unique_ptr<BinaryFinder> finder,
+                                 bool use_kernel_paths)
+    : llvm_symbolizer_(symbolizer_path),
+      finder_(std::move(finder)),
+      use_kernel_paths_(use_kernel_paths) {}
 
-LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder)
-    : LocalSymbolizer(kDefaultSymbolizer, std::move(finder)) {}
+LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder,
+                                 bool use_kernel_paths)
+    : LocalSymbolizer(kDefaultSymbolizer, std::move(finder), use_kernel_paths) {
+}
 
 LocalSymbolizer::~LocalSymbolizer() = default;
 
@@ -1175,7 +1204,8 @@ std::unique_ptr<Symbolizer> MaybeLocalSymbolizer(
     } else {
       PERFETTO_FATAL("Invalid symbolizer mode [find | index]: %s", mode);
     }
-    symbolizer = std::make_unique<LocalSymbolizer>(std::move(finder));
+    symbolizer = std::make_unique<LocalSymbolizer>(std::move(finder),
+                                                   /*use_kernel_paths=*/true);
 #else
     base::ignore_result(mode);
     PERFETTO_FATAL("This build does not support local symbolization.");

@@ -13,12 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Icons} from '../../base/semantic_icons';
+import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {Checkbox} from '../../widgets/checkbox';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
 import type {QueryExecution} from './query_store';
-import {filterHistory, historyStore} from './history_store';
+import {filterHistory, groupHistoryByDay, historyStore} from './history_store';
 import {renderHistoryItem, type OpenQueryFn} from './query_history_item';
 
 interface QueryHistoryComponentAttrs {
@@ -51,6 +53,9 @@ const KINDS: ReadonlyArray<{
 ];
 
 export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryComponentAttrs> {
+  private allExpanded = true;
+  private openGen = 0;
+
   oninit(vnode: m.CVnode<QueryHistoryComponentAttrs>) {
     historyStore.requestRefresh(vnode.attrs.refreshSignal ?? 0);
   }
@@ -93,11 +98,22 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
             });
           }),
         ),
-        m(Button, {
-          icon: 'refresh',
-          title: 'Refresh history',
-          onclick: () => historyStore.refreshNow(),
-        }),
+        m(
+          '.pf-bt-history-actions',
+          m(Button, {
+            icon: this.allExpanded ? Icons.UnfoldLess : Icons.UnfoldMore,
+            title: this.allExpanded ? 'Collapse all' : 'Expand all',
+            onclick: () => {
+              this.allExpanded = !this.allExpanded;
+              this.openGen++;
+            },
+          }),
+          m(Button, {
+            icon: 'refresh',
+            title: 'Refresh history',
+            onclick: () => historyStore.refreshNow(),
+          }),
+        ),
       ),
       m('.pf-bt-history-list', this.renderBody(shown, openQuery)),
     );
@@ -158,8 +174,22 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
       );
     }
 
-    return queries.map((entry, index) =>
-      renderHistoryItem(entry, index, openQuery),
+    return m(
+      Accordion,
+      {multi: true},
+      groupHistoryByDay(queries).map((group) =>
+        m(
+          AccordionSection,
+          {
+            key: `${group.dayKey}-${this.openGen}`,
+            defaultOpen: this.allExpanded,
+            summary: `${group.label} (${group.entries.length})`,
+          },
+          group.entries.map((entry, index) =>
+            renderHistoryItem(entry, index, openQuery),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -15,8 +15,6 @@
 
 INCLUDE PERFETTO MODULE graphs.hierarchy;
 
-INCLUDE PERFETTO MODULE graphs.scan;
-
 INCLUDE PERFETTO MODULE v8.jit;
 
 CREATE PERFETTO TABLE _callstack_spf_summary AS
@@ -114,9 +112,8 @@ ORDER BY
 -- _callstacks_for_callsites and _callstacks_for_stack_profile_samples macros.
 CREATE PERFETTO INDEX _callstack_spc_index ON _callstack_spc_forest(callsite_id);
 
--- This index is necessary to optimize the leaf-finding query in
--- _callstacks_self_to_cumulative. Without this index, the anti-join on
--- parent_id can be very slow on large traces.
+-- Indexes the forest by parent_id, for queries which go from a node to its
+-- children.
 CREATE PERFETTO INDEX _callstack_spc_parent_index ON _callstack_spc_forest(
   parent_id
 );
@@ -205,36 +202,4 @@ AS (
   FROM _callstacks_for_stack_profile_samples!(metrics) AS c
   LEFT JOIN metrics AS m
     USING (callsite_id)
-);
-
-CREATE PERFETTO MACRO _callstacks_self_to_cumulative(callstacks TableOrSubquery)
-RETURNS TableOrSubquery
-AS (
-  SELECT
-    a.*
-  FROM _graph_aggregating_scan!(
-    (
-      SELECT id AS source_node_id, parent_id AS dest_node_id
-      FROM $callstacks
-      WHERE parent_id IS NOT NULL
-    ),
-  (
-    SELECT id, self_count AS cumulative_count
-    FROM $callstacks
-    WHERE id NOT IN (SELECT parent_id FROM $callstacks WHERE parent_id IS NOT NULL)
-  ),
-    (cumulative_count),
-    (
-      WITH agg AS (
-        SELECT t.id, SUM(t.cumulative_count) AS child_count
-        FROM $table t
-        GROUP BY t.id
-      )
-      SELECT
-        a.id,
-        a.child_count + r.self_count as cumulative_count
-      FROM agg a
-      JOIN $callstacks r USING (id)
-    )
-  ) AS a
 );

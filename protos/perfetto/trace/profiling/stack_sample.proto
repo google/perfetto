@@ -121,6 +121,11 @@ message StackSample {
     // counter track per instance within each stream: SCOPE_GLOBAL yields one
     // track per sampling stream and SCOPE_CPU one track per
     // (sampling stream, cpu).
+    //
+    // If your profiler needs a scope that is not listed here, please file
+    // a bug at https://github.com/google/perfetto/issues explaining what
+    // you are trying to record and which scope you would like added.
+    // Append-only: never renumber or repurpose an existing value.
     enum Scope {
       // Treated as SCOPE_GLOBAL.
       SCOPE_UNSPECIFIED = 0;
@@ -133,11 +138,6 @@ message StackSample {
       // instance of the cpu in its ExecutionContext; samples without a cpu
       // cannot be attributed and their weights for this counter are dropped.
       SCOPE_CPU = 2;
-
-      // If your profiler needs a scope that is not listed here, please file
-      // a bug at https://github.com/google/perfetto/issues explaining what
-      // you are trying to record and which scope you would like added.
-      // Append-only: never renumber or repurpose an existing value.
     }
 
     // Interning key, used when this descriptor is emitted via

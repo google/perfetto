@@ -31,7 +31,8 @@ CREATE PERFETTO TABLE _raw_heap_graph_dominator_tree AS
 SELECT
   node_id AS id,
   iif(dominator_node_id = _heap_graph_super_root_fn(), NULL, dominator_node_id) AS idom_id
-FROM graph_dominator_tree!((
+FROM graph_dominator_tree!(
+  (
     SELECT ref.owner_id AS source_node_id, ref.owned_id AS dest_node_id
     FROM heap_graph_reference AS ref
     JOIN heap_graph_object AS source_node ON ref.owner_id = source_node.id
@@ -46,7 +47,9 @@ FROM graph_dominator_tree!((
     FROM heap_graph_object
     WHERE
       root_type IS NOT NULL
-  ), (SELECT _heap_graph_super_root_fn()))
+  ),
+  (SELECT _heap_graph_super_root_fn())
+)
 -- Excluding the imaginary root.
 WHERE
   dominator_node_id IS NOT NULL

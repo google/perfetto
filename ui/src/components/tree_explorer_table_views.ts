@@ -30,6 +30,8 @@ import {
   type TreeExplorerData,
   type TreeExplorerMetric,
   type TreeExplorerNode,
+  type TreeExplorerNodeIconFn,
+  type TreeExplorerNodeTooltipRenderer,
 } from '../widgets/tree_explorer';
 import {DataGrid} from './widgets/datagrid/datagrid';
 import {InMemoryDataSource} from './widgets/datagrid/in_memory_data_source';
@@ -39,6 +41,8 @@ import type {
 } from './widgets/datagrid/data_source';
 import type {IdBasedTree} from './widgets/datagrid/model';
 import type {Row, SqlValue} from '../trace_processor/query_result';
+import {Icon} from '../widgets/icon';
+import {Tooltip} from '../widgets/tooltip';
 
 const DEFAULT_TREE: IdBasedTree = {
   idField: 'id',
@@ -50,6 +54,9 @@ const DEFAULT_TREE: IdBasedTree = {
 export interface TreeExplorerTreeViewAttrs {
   readonly data: TreeExplorerData;
   readonly unit: string;
+  // See TreeExplorerPanelAttrs.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 }
 
 // Expandable call tree: one row per node with self and cumulative values and
@@ -60,12 +67,14 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
   private source?: TreeExplorerTreeDataSource;
   private sourceData?: TreeExplorerData;
   private tree?: IdBasedTree;
+  private nodesById = new Map<number, TreeExplorerNode>();
 
   view({attrs}: m.CVnode<TreeExplorerTreeViewAttrs>): m.Children {
     if (this.source === undefined || this.sourceData !== attrs.data) {
       this.sourceData = attrs.data;
       this.source = new TreeExplorerTreeDataSource(attrs.data);
       this.tree = undefined;
+      this.nodesById = new Map(attrs.data.nodes.map((n) => [n.id, n]));
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
@@ -76,7 +85,21 @@ export class TreeExplorerTreeView implements m.ClassComponent<TreeExplorerTreeVi
       // row-level grid filters have no meaning on a tree walk.
       disableFilterControls: true,
       schema: {
-        name: {title: 'Name', columnType: 'text'},
+        name: {
+          title: 'Name',
+          columnType: 'text',
+          cellRenderer: (value: SqlValue, row: Row) => {
+            const node = this.nodesById.get(Number(row.id));
+            return renderNodeName(
+              String(value),
+              node,
+              node !== undefined
+                ? attrs.nodeIcon?.(node.propertyValues)
+                : undefined,
+              attrs.renderNodeTooltip,
+            );
+          },
+        },
         total: {
           title: 'Total',
           columnType: 'quantitative',
@@ -266,17 +289,22 @@ export function computeFlatFunctions(
 export interface TreeExplorerFlatViewAttrs {
   readonly data: TreeExplorerData;
   readonly unit: string;
+  // See TreeExplorerPanelAttrs.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 }
 
 // Flat per-function table (pprof "Top"): Name, Self, Self %, Total, Total %.
 export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatViewAttrs> {
   private rows?: readonly Row[];
   private rowsData?: TreeExplorerData;
+  private nodesByName = new Map<string, TreeExplorerNode[]>();
 
   view({attrs}: m.CVnode<TreeExplorerFlatViewAttrs>): m.Children {
     if (this.rows === undefined || this.rowsData !== attrs.data) {
       this.rowsData = attrs.data;
       this.rows = flatFunctionRows(attrs.data);
+      this.nodesByName = nodesByName(attrs.data);
     }
     const fmtValue = (value: SqlValue) =>
       typeof value === 'number' ? displaySize(value, attrs.unit) : '';
@@ -285,7 +313,27 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
       fillHeight: true,
       disableFilterControls: true,
       schema: {
-        name: {title: 'Name', columnType: 'text'},
+        name: {
+          title: 'Name',
+          columnType: 'text',
+          cellRenderer: (value: SqlValue) => {
+            const name = String(value);
+            // A row merges every node with this name: show the icon of the
+            // first node that has one.
+            for (const node of this.nodesByName.get(name) ?? []) {
+              const icon = attrs.nodeIcon?.(node.propertyValues);
+              if (icon !== undefined) {
+                return renderNodeName(
+                  name,
+                  node,
+                  icon,
+                  attrs.renderNodeTooltip,
+                );
+              }
+            }
+            return name;
+          },
+        },
         self: {
           title: 'Self',
           columnType: 'quantitative',
@@ -317,6 +365,46 @@ export class TreeExplorerFlatView implements m.ClassComponent<TreeExplorerFlatVi
       ],
     });
   }
+}
+
+// Name cell for the table views: `icon` (if any) followed by the name.
+// Hovering the icon shows the output of `renderNodeTooltip`, called without
+// default content since the tables have no node tooltip.
+function renderNodeName(
+  name: string,
+  node: TreeExplorerNode | undefined,
+  icon: string | undefined,
+  renderNodeTooltip: TreeExplorerNodeTooltipRenderer | undefined,
+): m.Children {
+  if (node === undefined || icon === undefined) {
+    return name;
+  }
+  const iconVnode = m(Icon, {className: 'pf-tree-explorer__node-icon', icon});
+  const tooltip = renderNodeTooltip?.(
+    {properties: node.propertyValues, node},
+    null,
+  );
+  return m(
+    'span.pf-tree-explorer__node-name',
+    tooltip === undefined
+      ? iconVnode
+      : m(Tooltip, {trigger: iconVnode}, tooltip),
+    name,
+  );
+}
+
+// Groups nodes by name for the Functions view, which merges them per name.
+function nodesByName(data: TreeExplorerData): Map<string, TreeExplorerNode[]> {
+  const result = new Map<string, TreeExplorerNode[]>();
+  for (const node of data.nodes) {
+    let group = result.get(node.name);
+    if (group === undefined) {
+      group = [];
+      result.set(node.name, group);
+    }
+    group.push(node);
+  }
+  return result;
 }
 
 function flatFunctionRows(data: TreeExplorerData): readonly Row[] {

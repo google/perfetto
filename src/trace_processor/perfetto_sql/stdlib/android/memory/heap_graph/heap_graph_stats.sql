@@ -118,8 +118,18 @@ SELECT
   reachable_heap_size,
   reachable_native_alloc_registry_size,
   reachable_obj_count,
-  _closest_value!(base_stats.upid, graph_sample_ts, android_oom_adj_intervals, score) AS oom_score_adj,
-  _closest_value!(base_stats.upid, graph_sample_ts, memory_rss_and_swap_per_process, anon_rss_and_swap) AS anon_rss_and_swap_size,
+  _closest_value!(
+    base_stats.upid,
+    graph_sample_ts,
+    android_oom_adj_intervals,
+    score
+  ) AS oom_score_adj,
+  _closest_value!(
+    base_stats.upid,
+    graph_sample_ts,
+    memory_rss_and_swap_per_process,
+    anon_rss_and_swap
+  ) AS anon_rss_and_swap_size,
   _closest_value!(base_stats.upid, graph_sample_ts, _dmabuf_spans, dmabuf_rss) AS dmabuf_rss_size,
   heap_graph.heap_size AS art_bytes_allocated,
   (heap_graph.dump_reason = 'OOME'

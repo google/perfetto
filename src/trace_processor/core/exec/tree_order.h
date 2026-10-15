@@ -47,18 +47,18 @@ namespace perfetto::trace_processor::core::exec {
 // column is added.
 class TreeChildFirst : public Breaker {
  public:
-  TreeChildFirst(const Source& input,
-                 uint32_t node_column,
-                 uint32_t parent_column);
-  TreeChildFirst(Source&&, uint32_t, uint32_t) = delete;
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
+  TreeChildFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeChildFirst() override;
 
-  bool Consume(const RowBatch& in, Breaker::State& state) const override;
-  bool Finish(Breaker::State& state) const override;
-
  private:
+  friend class PipelineFormatter;
+
   struct State : Breaker::State {
     ~State() override;
+    void Reset() override;
 
     // By node number.
     BitVector has_row;
@@ -80,8 +80,9 @@ class TreeChildFirst : public Breaker {
   };
 
   std::unique_ptr<Breaker::State> CreateState() const override;
+  bool Consume(const RowBatch& in, Breaker::State& state) const override;
+  bool Finalize(Breaker::State& state) const override;
   bool Serve(RowBatch& out, Breaker::State& state) const override;
-  void Reset(Breaker::State& state) const override;
 
   bool Sort(State&) const;
 
@@ -94,35 +95,40 @@ class TreeChildFirst : public Breaker {
 //
 // Not a breaker: a row can go out as soon as its parent has. Rows whose
 // parent is already out stream straight through as views of their batch.
-// Only a row arriving before its parent is held: copied aside and let go the
+// Only a row arriving before its parent is held: retained and let go the
 // moment the parent arrives, together with whatever is held under it. So the
 // cost is proportional to how far out of order the input is, nothing for
 // ordered input and everything for reversed input, and the planner never
-// needs to know which. Rows once held stay copied until the next rewind.
+// needs to know which. Rows once held stay retained until the next rewind.
 //
 // The order is parent first and nothing more: not a pre-order, so a fold
 // down keeps a value per node rather than a path. The input columns are node
 // numbers, which TreeNumberNodes produces. No column is added.
 class TreeParentFirst : public Operator {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   TreeParentFirst(uint32_t node_column, uint32_t parent_column);
   ~TreeParentFirst() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const override;
   OpResult Finish(RowBatch& out, OperatorState& state) const override;
-  void Rewind(OperatorState& state) const override;
   base::Status status(const OperatorState& state) const override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : OperatorState {
+    State() : OperatorState(ResetEachRun{}) {}
     ~State() override;
+    void Reset() override;
 
     // What is known about each node number.
     struct Nodes {
-      uint32_t count = 0;
       BitVector has_row;
       // The node's row is out, or is on its way out in `letting_go`.
       BitVector out;
@@ -159,6 +165,9 @@ class TreeParentFirst : public Operator {
     FlexVector<uint32_t> passing;
     FlexVector<uint32_t> holding;
     RowBatch held_batch;
+
+    // What rows let go are gathered into.
+    Context* context = nullptr;
 
     base::Status status = base::OkStatus();
   };

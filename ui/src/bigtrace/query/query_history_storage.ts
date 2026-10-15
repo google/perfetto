@@ -18,6 +18,7 @@ import {
   type ExperimentFilterSpec,
 } from './bigtrace_query_client';
 import type {QueryExecution} from './query_store';
+import type {BigtraceColumnSchema} from './column_types';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {SettingFilter} from '../settings/settings_types';
 
@@ -39,6 +40,7 @@ export interface RawQueryExecution {
   readonly materialized?: boolean;
   readonly tableName?: string;
   readonly tableLink?: string;
+  readonly schema?: ReadonlyArray<BigtraceColumnSchema>;
   // Submit-time snapshot — what the query ran with. Echoed on the full GET
   // /query_executions/{uuid}; omitted from :status and the list response.
   // `settings` uses the camelCase wire shape (`settingId`); convert with
@@ -148,6 +150,7 @@ function toQueryExecution(raw: RawQueryExecution): QueryExecution {
     materialized: raw.materialized,
     tableName: raw.tableName,
     tableLink: raw.tableLink,
+    schema: raw.schema,
   };
 }
 
