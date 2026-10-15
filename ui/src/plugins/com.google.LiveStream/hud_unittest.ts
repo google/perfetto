@@ -455,7 +455,7 @@ test('opens the typed target on Enter once a refresh drops the highlighted one',
 });
 
 test('closes the menus on Escape and on clicks outside them', () => {
-  const listening = hudState.listen();
+  hudState.listen();
   const {draw} = hud();
   click('.pf-live-stream-hud__target-trigger');
   draw();
@@ -479,7 +479,8 @@ test('closes the menus on Escape and on clicks outside them', () => {
   expect(hotkeys).toHaveBeenCalledTimes(1);
   document.removeEventListener('keydown', hotkeys);
 
-  listening[Symbol.dispose]();
+  // Disposing the state removes the listeners.
+  hudState[Symbol.dispose]();
   hudState.isMoreMenuOpen = true;
   press('Escape', document.body);
   expect(hudState.isMoreMenuOpen).toBe(true);

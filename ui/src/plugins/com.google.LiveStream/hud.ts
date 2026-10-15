@@ -98,6 +98,8 @@ export class LiveHudState implements Disposable {
   private displayedStatus?: LiveStatus;
   private pendingStatus?: LiveStatus;
   private statusTimer?: ReturnType<typeof setTimeout>;
+  // Removes the listeners of listen().
+  private readonly listeners = new DisposableStack();
 
   constructor(private readonly redraw: () => void) {}
 
@@ -141,7 +143,7 @@ export class LiveHudState implements Disposable {
   }
 
   /** Closes the menus on clicks outside them and on Escape, until disposed. */
-  listen(): Disposable {
+  listen(): void {
     const onMouseDown = (e: MouseEvent) => {
       if (!this.isTargetMenuOpen && !this.isMoreMenuOpen) return;
       const target = e.target instanceof Element ? e.target : undefined;
@@ -164,12 +166,10 @@ export class LiveHudState implements Disposable {
     };
     window.addEventListener('mousedown', onMouseDown);
     window.addEventListener('keydown', onKeyDown, true);
-    const trash = new DisposableStack();
-    trash.defer(() => {
+    this.listeners.defer(() => {
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('keydown', onKeyDown, true);
     });
-    return trash;
   }
 
   /** Closes the menus. Returns whether one was open. */
@@ -182,6 +182,7 @@ export class LiveHudState implements Disposable {
 
   [Symbol.dispose](): void {
     this.clearPendingStatus();
+    this.listeners[Symbol.dispose]();
   }
 
   private show(status: LiveStatus) {
