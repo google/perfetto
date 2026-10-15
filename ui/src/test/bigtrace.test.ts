@@ -253,6 +253,21 @@ test.describe('Bigtrace', () => {
     await setSql(`SELECT sum(cnt) AS total FROM ${JOINED_TABLE}`);
     await runButton().click();
     await expect(summary()).toContainText(/Returned 1 rows/);
+
+    // |> chain syntax and duration literals compile and run in DuckDB mode.
+    await setSql(
+      `FROM ${SLICES_TABLE} |> WHERE dur >= 0ns ` +
+        `|> AGGREGATE count(*) AS slice_count GROUP BY _trace_uuid ` +
+        `|> ORDER BY slice_count DESC`,
+    );
+    await runButton().click();
+    await expect(summary()).toContainText(/Returned \d+ rows/);
+
+    await setSql(`FROM ${SLICES_TABLE} |> FILTER dur > 0`);
+    await runButton().click();
+    await expect(view().locator('.pf-bt-error-content')).toContainText(
+      "pipe syntax error: unknown |> stage 'FILTER dur > 0'",
+    );
   });
 
   test('history entries open, stage DuckDB queries, and delete', async () => {

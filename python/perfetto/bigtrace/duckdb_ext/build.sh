@@ -35,7 +35,7 @@ TMP="$OUT.$$.tmp"
 trap 'rm -f "$TMP"' EXIT
 "${CXX:-g++}" -O3 -std=c++17 -fPIC -fvisibility=hidden -pthread -Wall -Wextra \
   -Werror -isystem "$INC" -shared -static-libstdc++ -static-libgcc \
-  src/perfetto_ext.cc -o "$TMP"
+  src/*.cc -o "$TMP"
 # DuckDB wants a 512-byte metadata footer behind a custom section header, as
 # duckdb/extension-ci-tools' append_extension_metadata.py writes it.
 field() { printf '%s' "$1"; head -c $((32 - ${#1})) /dev/zero; }

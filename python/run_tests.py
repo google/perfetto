@@ -59,8 +59,9 @@ def main():
   suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
   suite.addTests(loader.loadTestsFromModule(unix_unittest))
   try:
-    from test import bigtrace_server_unittest
+    from test import bigtrace_server_pipe_unittest, bigtrace_server_unittest
     suite.addTests(loader.loadTestsFromModule(bigtrace_server_unittest))
+    suite.addTests(loader.loadTestsFromModule(bigtrace_server_pipe_unittest))
   except ModuleNotFoundError as e:  # The local Bigtrace server's optional deps.
     if e.name not in ("duckdb", "pyarrow"):
       raise

@@ -59,7 +59,19 @@ everything from the root of a Perfetto checkout. Details:
    ```
 
    `CREATE TABLE x AS ...` keeps intermediate results; `latest` is the last
-   result table.
+   result table. DuckDB SQL also accepts PerfettoSQL's `|>` chain syntax
+   (`WHERE`, `SELECT`, `EXTEND`, `SET`, `DROP`, `RENAME`,
+   `AGGREGATE ... GROUP BY`, `JOIN`, `ORDER BY`, `LIMIT`, `AS`, `FORK AS`) and
+   duration literals (`16ms`, `1.5s`):
+
+   ```bash
+   tools/bigtrace_server.py sql "
+     FROM slices AS s
+     |> WHERE s.dur > 16ms
+     |> AGGREGATE count(*) AS janky GROUP BY s._trace_uuid
+     |> JOIN trace_metadata AS m USING (_trace_uuid)
+     |> SELECT m.file_name, janky |> ORDER BY janky DESC"
+   ```
 
 ## UI, for humans
 

@@ -64,6 +64,21 @@ tools/bigtrace_server.py sql "FROM duckdb_tables()"
 Aggregate in SQL rather than printing whole tables. Run
 `tools/bigtrace_server.py <command> --help` for every option.
 
+DuckDB SQL mode also accepts PerfettoSQL's
+[pipe (`|>`) syntax](/docs/analysis/perfetto-sql-pipe-syntax.md) (`WHERE`,
+`SELECT` with `* EXCEPT` / `* REPLACE`, `EXTEND`, `SET`, `DROP`, `RENAME`,
+`AGGREGATE ... GROUP BY`, `JOIN`, `ORDER BY`, `LIMIT`, `AS`, `FORK AS`) and
+duration literals (`16ms`, `1.5s`), compiled to plain SQL by `pf_compile_pipe`:
+
+```sql
+FROM slices AS s
+|> WHERE s.dur > 16ms
+|> AGGREGATE count(*) AS slow_slices GROUP BY s._trace_uuid
+|> JOIN trace_metadata AS m USING (_trace_uuid)
+|> SELECT m.file_name, slow_slices
+|> ORDER BY slow_slices DESC
+```
+
 ### In the UI
 
 Open `https://ui.perfetto.dev/bigtrace.html?server=http://127.0.0.1:5001`

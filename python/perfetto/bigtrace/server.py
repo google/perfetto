@@ -579,7 +579,9 @@ class Bigtrace:
     with self.lock:
       ex["_cursor"] = cur = self.db.cursor()
     try:
-      rel = cur.sql(ex["perfettoSql"])  # None for statements without rows.
+      sql = cur.execute("SELECT pf_compile_pipe(?)",
+                        [ex["perfettoSql"]]).fetchone()[0]
+      rel = cur.sql(sql)  # None for statements without rows.
       limit = ex["limit"]
       if rel is not None and ex["tableName"]:
         (rel.limit(limit) if limit else rel).create_view("_bigtrace_query")

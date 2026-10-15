@@ -12,6 +12,9 @@ for the local Bigtrace server (`../server.py`); see
   stream on DuckDB threads as columns of `types` (`BIGINT`, `DOUBLE`,
   `VARCHAR`) plus `_trace_uuid`. It stops early when cells need a wider type,
   or after `ms`, so the server can widen the table or commit.
+- `pf_compile_pipe(sql)` (`src/pipe.cc`): compiles PerfettoSQL `|>` chain
+  syntax (and duration literals such as `16ms`) into plain DuckDB SQL; SQL
+  without `|>` is returned unchanged.
 
 The server builds it on first use into
 `~/.cache/perfetto/bigtrace/duckdb_ext/<hash of the sources>/`. By hand:

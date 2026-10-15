@@ -973,6 +973,8 @@ PF_EXPORT void pf_free(int32_t handle) {
   s->Cancel();
 }
 
+bool RegisterPipeFunctions(duckdb_connection conn);
+
 DUCKDB_EXTENSION_ENTRYPOINT(duckdb_connection conn,
                             duckdb_extension_info info,
                             struct duckdb_extension_access* access) {
@@ -987,11 +989,12 @@ DUCKDB_EXTENSION_ENTRYPOINT(duckdb_connection conn,
   duckdb_table_function_set_bind(tf, ScanBindFn);
   duckdb_table_function_set_init(tf, ScanInitFn);
   duckdb_table_function_set_function(tf, ScanFn);
-  bool ok = duckdb_register_table_function(conn, tf) == DuckDBSuccess;
+  bool ok = duckdb_register_table_function(conn, tf) == DuckDBSuccess &&
+            RegisterPipeFunctions(conn);
   duckdb_destroy_table_function(&tf);
   for (duckdb_logical_type* t : {&integer, &bigint, &varchar, &list})
     duckdb_destroy_logical_type(t);
   if (!ok)
-    access->set_error(info, "perfetto: cannot register pf_scan");
+    access->set_error(info, "perfetto: cannot register extension functions");
   return ok;
 }
