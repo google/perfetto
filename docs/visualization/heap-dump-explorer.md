@@ -484,6 +484,9 @@ Use this tab when you have a suspect class, or want a top-down view
 of which classes own the most memory. Clicking a class name opens
 Objects filtered to that class.
 
+A warning icon after a class name means the class may include other
+classes merged by R8; see [Merged classes](#merged-classes).
+
 ## Objects
 
 The Objects tab lists reachable instances. Opening it from Classes or
@@ -676,6 +679,29 @@ node object-by-object:
 
 Multiple flamegraph selections can be open at once, each as its own
 tab — useful for comparing two call stacks side by side.
+
+## Merged classes
+
+During optimization, R8 can merge several source classes into one (for
+example, merging a class into its only subclass, or combining similar
+sibling classes). In a heap dump, all instances of those classes appear
+under the target class's name, so its count, shallow size, and retained
+size represent the combined total.
+
+When the trace includes the app's R8 `mapping.txt` (see
+[Symbolization and deobfuscation](/docs/learning-more/symbolization.md#merged-classes)),
+the explorer and heap graph flamegraphs mark classes that may include
+merged classes with a warning icon. Hover over the icon (or the
+flamegraph node) for details.
+
+![Classes tab with a warning icon after `com.example.sampleapp.MainActivityJava`; its tooltip reads "Possibly merged class".](../images/heap_docs/19-merged-class-classes.png)
+
+Treat a flagged class's numbers as an upper bound for the class shown:
+part of the memory may belong to classes that were merged into it. To
+see which classes were merged, look up the class in `mapping.txt` under
+its `com.android.tools.r8.mergedClasses` comment (available in R8
+mapping format 2.3 and later; with older mapping files, every renamed
+class is flagged).
 
 ## Case studies
 
