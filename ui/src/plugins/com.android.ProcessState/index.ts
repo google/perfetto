@@ -57,7 +57,7 @@ const BASE_SCHEMA = {
   version_code: NUM_NULL,
   debuggable: NUM_NULL,
   state: STR,
-  reason: STR_NULL,
+  state_change_reason: STR_NULL,
 } as const;
 
 const NONEXISTENT_SCHEMA = {

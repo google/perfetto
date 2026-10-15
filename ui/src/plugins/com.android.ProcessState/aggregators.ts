@@ -283,7 +283,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
               prev_state_duration AS prev_dur,
               state AS cur_state,
               iif(dur < 0, trace_end() - ts, dur) AS cur_dur,
-              reason
+              state_change_reason
             FROM scoped
             WHERE state != 'NONEXISTENT' AND state != 'EXITED'
           `,
@@ -312,7 +312,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
           'Time in current state',
           'Total elapsed duration of the current state interval, unclipped by the selection window.',
         ),
-        reason: {title: 'State change reason', columnType: 'text'},
+        state_change_reason: {title: 'State change reason', columnType: 'text'},
       },
       initialColumns: [
         {id: 'ts', field: 'ts', sort: 'ASC'},
@@ -323,7 +323,7 @@ export class ProcessStateTransitionsAggregator implements Aggregator {
         {id: 'prev_dur', field: 'prev_dur'},
         {id: 'cur_state', field: 'cur_state'},
         {id: 'cur_dur', field: 'cur_dur'},
-        {id: 'reason', field: 'reason'},
+        {id: 'state_change_reason', field: 'state_change_reason'},
       ],
     };
   }

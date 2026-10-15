@@ -30,6 +30,7 @@ import {
   rowCountHeading,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
 import {dumpFilterSql} from '../queries';
 import type {HeapDump} from '../types';
@@ -42,6 +43,7 @@ interface AllObjectsViewAttrs {
   readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly initialClass?: string;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 function buildQuery(activeDump: HeapDump): string {
@@ -73,7 +75,10 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -156,6 +161,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     str: {
       title: 'String Value',
@@ -198,7 +204,7 @@ export function AllObjectsView({
       counter.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, potentiallyMergedClasses} = vnode.attrs;
       const count = counter.use({
         engine,
         query,
@@ -213,7 +219,7 @@ export function AllObjectsView({
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(navigate, potentiallyMergedClasses),
           data: datasource,
           fillHeight: true,
           initialColumns: [
