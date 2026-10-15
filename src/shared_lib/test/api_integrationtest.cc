@@ -2254,6 +2254,49 @@ TEST_P(SharedLibTrackEventEncodingTest, TrackEventLlInstant) {
   EXPECT_TRUE(found);
 }
 
+TEST_P(SharedLibTrackEventEncodingTest, TrackEventHlLongFields) {
+  auto tracing_session = StartSession();
+
+  // A 200 byte string makes the debug annotation and the TrackEvent longer
+  // than 127 bytes, so their lengths take two bytes.
+  const std::string medium(200, 'm');
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("medium"),
+              PERFETTO_TE_ARG_STRING("arg", medium.c_str()));
+  // A 1000 byte string does not fit in the stack buffer of the encoder.
+  const std::string large(1000, 'l');
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("large"),
+              PERFETTO_TE_ARG_STRING("arg", large.c_str()));
+  // Proto fields come after the other fields of the event.
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("proto"),
+              PERFETTO_TE_ARG_STRING("arg", "small"),
+              PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_VARINT(
+                  perfetto_protos_TrackEvent_correlation_id_field_number, 42)));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  auto string_arg = [](const std::string& value) {
+    return AllFieldsWithId(
+        perfetto_protos_TrackEvent_debug_annotations_field_number,
+        ElementsAre(MsgField(Contains(
+            PbField(perfetto_protos_DebugAnnotation_string_value_field_number,
+                    StringField(value))))));
+  };
+  auto has_event = [](auto event_matcher) {
+    return Contains(PbField(
+        perfetto_protos_Trace_packet_field_number,
+        AllFieldsWithId(perfetto_protos_TracePacket_track_event_field_number,
+                        ElementsAre(event_matcher))));
+  };
+  EXPECT_THAT(FieldView(data), has_event(string_arg(medium)));
+  EXPECT_THAT(FieldView(data), has_event(string_arg(large)));
+  EXPECT_THAT(FieldView(data),
+              has_event(AllOf(
+                  string_arg("small"),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_correlation_id_field_number,
+                      ElementsAre(VarIntField(42))))));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     Encoding,
     SharedLibTrackEventEncodingTest,

@@ -16,6 +16,13 @@
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
 
+#include <string.h>
+
+#include <memory>
+#include <optional>
+
+#include "perfetto/base/endian.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
 #include "src/shared_lib/track_event/serialization.h"
@@ -117,175 +124,398 @@ void AppendHlProtoFields(TrackEventIncrementalState* incr,
   }
 }
 
-void WriteTrackEvent(TrackEventIncrementalState* incr,
-                     protos::pbzero::TrackEvent* event,
-                     PerfettoTeCategoryImpl* cat,
-                     protos::pbzero::TrackEvent::Type type,
-                     const char* name,
-                     const PerfettoTeHlExtra* const* extra_data,
-                     std::optional<uint64_t> track_uuid,
-                     const PerfettoTeCategoryDescriptor* dynamic_cat,
-                     bool use_interning) {
-  if (type != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
-    event->set_type(type);
+enum class TrackKind : uint8_t {
+  kDefault,
+  kRegistered,
+  kNamed,
+  kProto,
+  kNested,
+};
+
+// One PERFETTO_TE event: the arguments of PerfettoTeHlEmitImpl() and what
+// ParseEvent() extracts from its extras. It is the same for every data source
+// instance, so it is computed once per event.
+struct HlEvent {
+  PerfettoTeCategoryImpl* cat = nullptr;
+  protos::pbzero::TrackEvent::Type type =
+      protos::pbzero::TrackEvent::TYPE_UNSPECIFIED;
+  const char* name = nullptr;
+  const PerfettoTeHlExtra* const* extras = nullptr;
+  TraceTimestamp ts{};
+
+  TrackKind track_kind = TrackKind::kDefault;
+  // Depends on `track_kind`: PerfettoTeRegisteredTrackImpl,
+  // PerfettoTeHlExtraNamedTrack, PerfettoTeHlExtraProtoTrack or
+  // PerfettoTeHlExtraNestedTracks.
+  const void* track = nullptr;
+  const PerfettoTeCategoryDescriptor* dynamic_cat = nullptr;
+  bool no_intern = false;
+  bool flush = false;
+  bool has_proto_fields = false;
+  // Upper bound of the bytes that EncodeTrackEventFields() writes.
+  size_t fields_size_bound = 0;
+};
+
+// Upper bounds used by ParseEvent() to compute `fields_size_bound`.
+// The tags of the TrackEvent and DebugAnnotation fields take up to two bytes.
+constexpr size_t kMaxVarIntFieldSize = 2 + 10;
+// A string field without its content: tag and length.
+constexpr size_t kMaxStringFieldOverhead = 2 + 5;
+// A debug annotation with a varint value: tag, one byte of length, the value
+// field and the name iid field. Counters, flows and correlation ids are
+// smaller.
+constexpr size_t kMaxExtraSize = 1 + 1 + 2 * kMaxVarIntFieldSize;
+// A string can make a one byte length grow to five bytes.
+constexpr size_t kMaxLengthGrowth = 4;
+
+// Parses the extras of the event and reads the clock, unless the event has a
+// custom timestamp.
+HlEvent ParseEvent(PerfettoTeCategoryImpl* cat,
+                   int32_t type,
+                   const char* name,
+                   const PerfettoTeHlExtra* const* extras) {
+  HlEvent ev;
+  ev.cat = cat;
+  ev.type = EventType(type);
+  ev.name = name;
+  ev.extras = extras;
+
+  // Type, category iid, name iid and track uuid.
+  size_t bound = 4 * kMaxVarIntFieldSize;
+  const PerfettoTeHlExtraTimestamp* custom_timestamp = nullptr;
+  for (const auto* it = extras; *it != nullptr; it++) {
+    const struct PerfettoTeHlExtra& extra = **it;
+    switch (extra.type) {
+      case PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK:
+        ev.track_kind = TrackKind::kRegistered;
+        ev.track =
+            reinterpret_cast<const struct PerfettoTeHlExtraRegisteredTrack&>(
+                extra)
+                .track;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK:
+        ev.track_kind = TrackKind::kNamed;
+        ev.track = &extra;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK:
+        ev.track_kind = TrackKind::kProto;
+        ev.track = &extra;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS:
+        ev.track_kind = TrackKind::kNested;
+        ev.track = &extra;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP:
+        custom_timestamp =
+            &reinterpret_cast<const struct PerfettoTeHlExtraTimestamp&>(extra);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_DYNAMIC_CATEGORY:
+        ev.dynamic_cat =
+            reinterpret_cast<const struct PerfettoTeHlExtraDynamicCategory&>(
+                extra)
+                .desc;
+        bound += kMaxStringFieldOverhead + strlen(ev.dynamic_cat->name);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN:
+        ev.no_intern = true;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_FLUSH:
+        ev.flush = true;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS:
+        ev.has_proto_fields = true;
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING:
+        bound +=
+            kMaxExtraSize + kMaxLengthGrowth +
+            strlen(
+                reinterpret_cast<const struct PerfettoTeHlExtraDebugArgString&>(
+                    extra)
+                    .value);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR:
+        bound +=
+            kMaxStringFieldOverhead +
+            strlen(reinterpret_cast<
+                       const struct PerfettoTeHlExtraCorrelationIdStr&>(extra)
+                       .str);
+        break;
+      default:
+        bound += kMaxExtraSize;
+        break;
+    }
+  }
+  if (ev.no_intern && name)
+    bound += kMaxStringFieldOverhead + strlen(name);
+  ev.fields_size_bound = bound;
+
+  if (custom_timestamp) {
+    ev.ts.clock_id = custom_timestamp->timestamp.clock_id;
+    ev.ts.value = custom_timestamp->timestamp.value;
+  } else {
+    ev.ts = TrackEventInternal::GetTraceTime();
+  }
+  return ev;
+}
+
+// Raw protobuf encoding into a buffer that the caller sized.
+
+using protozero::proto_utils::MakeTagFixed;
+using protozero::proto_utils::MakeTagLengthDelimited;
+using protozero::proto_utils::MakeTagVarInt;
+using protozero::proto_utils::WriteVarInt;
+
+uint8_t* WriteVarIntField(uint32_t field_id, uint64_t value, uint8_t* buf) {
+  buf = WriteVarInt(MakeTagVarInt(field_id), buf);
+  return WriteVarInt(value, buf);
+}
+
+uint8_t* WriteFixed64Field(uint32_t field_id, uint64_t value, uint8_t* buf) {
+  buf = WriteVarInt(MakeTagFixed<uint64_t>(field_id), buf);
+  value = base::HostToLE64(value);
+  memcpy(buf, &value, sizeof(value));
+  return buf + sizeof(value);
+}
+
+uint8_t* WriteDoubleField(uint32_t field_id, double value, uint8_t* buf) {
+  uint64_t bits;
+  memcpy(&bits, &value, sizeof(bits));
+  return WriteFixed64Field(field_id, bits, buf);
+}
+
+uint8_t* WriteStringField(uint32_t field_id, const char* str, uint8_t* buf) {
+  const size_t len = strlen(str);
+  buf = WriteVarInt(MakeTagLengthDelimited(field_id), buf);
+  buf = WriteVarInt(len, buf);
+  memcpy(buf, str, len);
+  return buf + len;
+}
+
+// A nested message is written in place, so its length is only known at the
+// end:
+//   uint8_t* payload = BeginNestedField(field_id, buf);
+//   uint8_t* end = ... write the payload at `payload` ...;
+//   end = EndNestedField(payload, end);
+// The length gets one byte. If the payload is 128 bytes or more,
+// EndNestedField() moves it to make room for a longer length.
+uint8_t* BeginNestedField(uint32_t field_id, uint8_t* buf) {
+  return WriteVarInt(MakeTagLengthDelimited(field_id), buf) + 1;
+}
+
+uint8_t* EndNestedField(uint8_t* payload, uint8_t* end) {
+  const size_t size = static_cast<size_t>(end - payload);
+  if (PERFETTO_LIKELY(size < 128)) {
+    payload[-1] = static_cast<uint8_t>(size);
+    return end;
+  }
+  uint8_t length[10];
+  const size_t length_size =
+      static_cast<size_t>(WriteVarInt(size, length) - length);
+  memmove(payload + length_size - 1, payload, size);
+  memcpy(payload - 1, length, length_size);
+  return end + length_size - 1;
+}
+
+// Encodes the DebugAnnotation of a PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_*
+// extra: the value, then the interned name.
+uint8_t* EncodeDebugAnnotation(const struct PerfettoTeHlExtra& extra,
+                               TrackEventIncrementalState* incr,
+                               uint8_t* buf) {
+  using protos::pbzero::DebugAnnotation;
+  uint8_t* payload = BeginNestedField(
+      protos::pbzero::TrackEvent::kDebugAnnotationsFieldNumber, buf);
+  uint8_t* end = payload;
+  const char* name = nullptr;
+  switch (extra.type) {
+    case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL: {
+      const auto& arg =
+          reinterpret_cast<const struct PerfettoTeHlExtraDebugArgBool&>(extra);
+      end = WriteVarIntField(DebugAnnotation::kBoolValueFieldNumber,
+                             arg.value ? 1 : 0, end);
+      name = arg.name;
+      break;
+    }
+    case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64: {
+      const auto& arg =
+          reinterpret_cast<const struct PerfettoTeHlExtraDebugArgUint64&>(
+              extra);
+      end = WriteVarIntField(DebugAnnotation::kUintValueFieldNumber, arg.value,
+                             end);
+      name = arg.name;
+      break;
+    }
+    case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64: {
+      const auto& arg =
+          reinterpret_cast<const struct PerfettoTeHlExtraDebugArgInt64&>(extra);
+      // A negative int64 takes 10 bytes, like protozero writes it.
+      end = WriteVarIntField(DebugAnnotation::kIntValueFieldNumber,
+                             static_cast<uint64_t>(arg.value), end);
+      name = arg.name;
+      break;
+    }
+    case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE: {
+      const auto& arg =
+          reinterpret_cast<const struct PerfettoTeHlExtraDebugArgDouble&>(
+              extra);
+      end = WriteDoubleField(DebugAnnotation::kDoubleValueFieldNumber,
+                             arg.value, end);
+      name = arg.name;
+      break;
+    }
+    case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING: {
+      const auto& arg =
+          reinterpret_cast<const struct PerfettoTeHlExtraDebugArgString&>(
+              extra);
+      end = WriteStringField(DebugAnnotation::kStringValueFieldNumber,
+                             arg.value, end);
+      name = arg.name;
+      break;
+    }
+    case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER: {
+      const auto& arg =
+          reinterpret_cast<const struct PerfettoTeHlExtraDebugArgPointer&>(
+              extra);
+      end = WriteVarIntField(DebugAnnotation::kPointerValueFieldNumber,
+                             arg.value, end);
+      name = arg.name;
+      break;
+    }
   }
 
-  if (!dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
-      type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
-    uint64_t iid = cat->cat_iid;
+  if (name) {
+    auto res = incr->iids.FindOrAssignString(
+        protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber, name);
+    if (PERFETTO_UNLIKELY(res.newly_assigned)) {
+      auto* ser = incr->serialized_interned_data->add_debug_annotation_names();
+      ser->set_iid(res.iid);
+      ser->set_name(name);
+    }
+    end = WriteVarIntField(DebugAnnotation::kNameIidFieldNumber, res.iid, end);
+  }
+  return EndNestedField(payload, end);
+}
+
+// Encodes every field of the TrackEvent of `ev` except its proto fields
+// (PERFETTO_TE_PROTO_FIELDS), into `buf`. `buf` must have room for
+// `ev.fields_size_bound` bytes. New interned data goes into
+// `incr->serialized_interned_data`. Returns the end of the encoded bytes.
+uint8_t* EncodeTrackEventFields(const HlEvent& ev,
+                                std::optional<uint64_t> track_uuid,
+                                TrackEventIncrementalState* incr,
+                                uint8_t* buf) {
+  using protos::pbzero::TrackEvent;
+  const uint8_t* const start = buf;
+  if (ev.type != TrackEvent::TYPE_UNSPECIFIED) {
+    buf = WriteVarIntField(TrackEvent::kTypeFieldNumber,
+                           static_cast<uint64_t>(ev.type), buf);
+  }
+
+  const bool has_category = ev.type != TrackEvent::TYPE_SLICE_END &&
+                            ev.type != TrackEvent::TYPE_COUNTER;
+  if (has_category && !ev.dynamic_cat) {
+    const uint64_t iid = ev.cat->cat_iid;
     if (PERFETTO_UNLIKELY(incr->MarkCategorySeen(iid))) {
       auto* ser = incr->serialized_interned_data->add_event_categories();
       ser->set_iid(iid);
-      ser->set_name(cat->desc->name);
+      ser->set_name(ev.cat->desc->name);
     }
-    event->add_category_iids(iid);
+    buf = WriteVarIntField(TrackEvent::kCategoryIidsFieldNumber, iid, buf);
   }
 
-  if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
-    if (name) {
-      if (use_interning) {
-        auto res = incr->iids.FindOrAssignString(
-            protos::pbzero::InternedData::kEventNamesFieldNumber, name);
-        if (PERFETTO_UNLIKELY(res.newly_assigned)) {
-          auto* ser = incr->serialized_interned_data->add_event_names();
-          ser->set_iid(res.iid);
-          ser->set_name(name);
-        }
-        event->set_name_iid(res.iid);
-      } else {
-        event->set_name(name);
+  if (ev.type != TrackEvent::TYPE_SLICE_END && ev.name) {
+    if (ev.no_intern) {
+      buf = WriteStringField(TrackEvent::kNameFieldNumber, ev.name, buf);
+    } else {
+      auto res = incr->iids.FindOrAssignString(
+          protos::pbzero::InternedData::kEventNamesFieldNumber, ev.name);
+      if (PERFETTO_UNLIKELY(res.newly_assigned)) {
+        auto* ser = incr->serialized_interned_data->add_event_names();
+        ser->set_iid(res.iid);
+        ser->set_name(ev.name);
       }
+      buf = WriteVarIntField(TrackEvent::kNameIidFieldNumber, res.iid, buf);
     }
   }
 
-  if (dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
-      type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
-    event->add_categories(dynamic_cat->name);
+  if (has_category && ev.dynamic_cat) {
+    buf = WriteStringField(TrackEvent::kCategoriesFieldNumber,
+                           ev.dynamic_cat->name, buf);
   }
 
   if (track_uuid) {
-    event->set_track_uuid(*track_uuid);
+    buf = WriteVarIntField(TrackEvent::kTrackUuidFieldNumber, *track_uuid, buf);
   }
 
-  // Only counter events carry a counter value.
-  if (type == protos::pbzero::TrackEvent::TYPE_COUNTER) {
-    for (const auto* it = extra_data; *it != nullptr; it++) {
-      const struct PerfettoTeHlExtra& extra = **it;
-      if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64) {
-        event->set_counter_value(
-            reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(extra)
-                .value);
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE) {
-        event->set_double_counter_value(
-            reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(
-                extra)
-                .value);
-      }
-    }
-  }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
+  // The fields of the extras, in the order of the extras. The other extras
+  // (tracks, timestamp, dynamic category, flags and proto fields) are handled
+  // elsewhere.
+  for (const auto* it = ev.extras; *it != nullptr; it++) {
     const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64 ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64 ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING ||
-        extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER) {
-      auto* dbg = event->add_debug_annotations();
-      const char* arg_name = nullptr;
-      if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgBool&>(
-                extra);
-        dbg->set_bool_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgUint64&>(
-                extra);
-        dbg->set_uint_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgInt64&>(
-                extra);
-        dbg->set_int_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgDouble&>(
-                extra);
-        dbg->set_double_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgString&>(
-                extra);
-        dbg->set_string_value(arg.value);
-        arg_name = arg.name;
-      } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER) {
-        const auto& arg =
-            reinterpret_cast<const struct PerfettoTeHlExtraDebugArgPointer&>(
-                extra);
-        dbg->set_pointer_value(arg.value);
-        arg_name = arg.name;
-      }
-
-      if (arg_name != nullptr) {
-        auto res = incr->iids.FindOrAssignString(
-            protos::pbzero::InternedData::kDebugAnnotationNamesFieldNumber,
-            arg_name);
-        if (PERFETTO_UNLIKELY(res.newly_assigned)) {
-          auto* ser =
-              incr->serialized_interned_data->add_debug_annotation_names();
-          ser->set_iid(res.iid);
-          ser->set_name(arg_name);
+    switch (extra.type) {
+      case PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64:
+        // Only counter events carry a counter value.
+        if (ev.type == TrackEvent::TYPE_COUNTER) {
+          buf = WriteVarIntField(
+              TrackEvent::kCounterValueFieldNumber,
+              static_cast<uint64_t>(
+                  reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(
+                      extra)
+                      .value),
+              buf);
         }
-        dbg->set_name_iid(res.iid);
-      }
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE:
+        if (ev.type == TrackEvent::TYPE_COUNTER) {
+          buf = WriteDoubleField(
+              TrackEvent::kDoubleCounterValueFieldNumber,
+              reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(
+                  extra)
+                  .value,
+              buf);
+        }
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_BOOL:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_UINT64:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_INT64:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_DOUBLE:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_STRING:
+      case PERFETTO_TE_HL_EXTRA_TYPE_DEBUG_ARG_POINTER:
+        buf = EncodeDebugAnnotation(extra, incr, buf);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_FLOW:
+        buf = WriteFixed64Field(
+            TrackEvent::kFlowIdsFieldNumber,
+            reinterpret_cast<const struct PerfettoTeHlExtraFlow&>(extra).id,
+            buf);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW:
+        buf = WriteFixed64Field(
+            TrackEvent::kTerminatingFlowIdsFieldNumber,
+            reinterpret_cast<const struct PerfettoTeHlExtraFlow&>(extra).id,
+            buf);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID:
+        buf = WriteVarIntField(
+            TrackEvent::kCorrelationIdFieldNumber,
+            reinterpret_cast<const struct PerfettoTeHlExtraCorrelationId&>(
+                extra)
+                .id,
+            buf);
+        break;
+      case PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR:
+        buf = WriteStringField(
+            TrackEvent::kCorrelationIdStrFieldNumber,
+            reinterpret_cast<const struct PerfettoTeHlExtraCorrelationIdStr&>(
+                extra)
+                .str,
+            buf);
+        break;
+      default:
+        break;
     }
   }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_FLOW) {
-      event->add_flow_ids(
-          reinterpret_cast<const struct PerfettoTeHlExtraFlow&>(extra).id);
-    }
-  }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW) {
-      event->add_terminating_flow_ids(
-          reinterpret_cast<const struct PerfettoTeHlExtraFlow&>(extra).id);
-    }
-  }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID) {
-      event->set_correlation_id(
-          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationId&>(extra)
-              .id);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR) {
-      event->set_correlation_id_str(
-          reinterpret_cast<const struct PerfettoTeHlExtraCorrelationIdStr&>(
-              extra)
-              .str);
-    }
-  }
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS) {
-      const auto* fields =
-          reinterpret_cast<const struct PerfettoTeHlExtraProtoFields&>(extra)
-              .fields;
-      AppendHlProtoFields(incr, event, fields);
-    }
-  }
+  PERFETTO_DCHECK(static_cast<size_t>(buf - start) <= ev.fields_size_bound);
+  return buf;
 }
 
 // Emits (once per sequence) the track descriptor for the named track described
@@ -399,81 +629,170 @@ void AdvanceToFirstEnabledDynamicCategory(
   }
 }
 
-void InstanceOp(internal::DataSourceType* ds,
-                internal::DataSourceType::InstancesIterator* ii,
-                internal::DataSourceThreadLocalState* tls_state,
-                struct PerfettoTeCategoryImpl* cat,
-                protos::pbzero::TrackEvent::Type type,
-                const char* name,
-                struct PerfettoTeHlExtra* const* extra_data) {
-  if (!ii->instance) {
-    return;
+// Emits the track descriptors of a nested track hierarchy, if not emitted yet,
+// and returns the uuid of the innermost track.
+uint64_t EmitNestedTracks(const PerfettoTeHlExtraNestedTracks& nested,
+                          TrackEventIncrementalState* incr_state,
+                          perfetto::TraceWriterBase* trace_writer) {
+  uint64_t uuid = 0;
+  for (PerfettoTeHlNestedTrack* const* tp = nested.tracks; *tp != nullptr;
+       tp++) {
+    auto track_type =
+        static_cast<enum PerfettoTeHlNestedTrackType>((*tp)->type);
+
+    switch (track_type) {
+      case PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED: {
+        auto* named_track =
+            reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
+        uuid = EmitNamedTrack(uuid, *named_track, incr_state, trace_writer);
+      } break;
+      case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {
+        uuid = perfetto_te_process_track_uuid;
+      } break;
+      case PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD: {
+        uuid = incr_state->thread_track_uuid;
+      } break;
+      case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROTO: {
+        auto* proto_track =
+            reinterpret_cast<PerfettoTeHlNestedTrackProto*>(*tp);
+        uuid = EmitProtoTrackWithParentUuid(proto_track->id ^ uuid, uuid,
+                                            proto_track->fields, incr_state,
+                                            trace_writer);
+      } break;
+      case PERFETTO_TE_HL_NESTED_TRACK_TYPE_REGISTERED: {
+        auto* registered_track =
+            reinterpret_cast<PerfettoTeHlNestedTrackRegistered*>(*tp);
+        uuid = EmitRegisteredTrack(registered_track->track, incr_state,
+                                   trace_writer);
+      } break;
+    }
+  }
+  return uuid;
+}
+
+// Emits the track descriptors of the track of `ev`, if not emitted yet, and
+// returns its uuid. Returns nullopt for the default track of the sequence.
+std::optional<uint64_t> EmitTrack(const HlEvent& ev,
+                                  TrackEventIncrementalState* incr_state,
+                                  perfetto::TraceWriterBase* trace_writer) {
+  switch (ev.track_kind) {
+    case TrackKind::kDefault:
+      return std::nullopt;
+    case TrackKind::kRegistered:
+      return EmitRegisteredTrack(
+          static_cast<const PerfettoTeRegisteredTrackImpl*>(ev.track),
+          incr_state, trace_writer);
+    case TrackKind::kNamed: {
+      auto* named_track =
+          static_cast<const PerfettoTeHlExtraNamedTrack*>(ev.track);
+      PerfettoTeHlNestedTrackNamed named{};
+      named.name = named_track->name;
+      named.id = named_track->id;
+      named.is_name_static = named_track->is_name_static;
+      return EmitNamedTrack(named_track->parent_uuid, named, incr_state,
+                            trace_writer);
+    }
+    case TrackKind::kProto: {
+      auto* proto_track =
+          static_cast<const PerfettoTeHlExtraProtoTrack*>(ev.track);
+      return EmitProtoTrack(proto_track->uuid, proto_track->fields, incr_state,
+                            trace_writer);
+    }
+    case TrackKind::kNested:
+      return EmitNestedTracks(
+          *static_cast<const PerfettoTeHlExtraNestedTracks*>(ev.track),
+          incr_state, trace_writer);
+  }
+  return std::nullopt;
+}
+
+// Appends the interned data collected while writing the event.
+void AppendInternedData(protos::pbzero::TracePacket* packet,
+                        TrackEventIncrementalState* incr_state) {
+  auto ranges = incr_state->serialized_interned_data.GetRanges();
+  packet->AppendScatteredBytes(
+      protos::pbzero::TracePacket::kInternedDataFieldNumber, ranges.data(),
+      ranges.size());
+  incr_state->serialized_interned_data.Reset();
+}
+
+// The fields of most events fit in this many bytes on the stack.
+constexpr size_t kMaxStackFieldsSize = 512;
+
+// Writes the whole packet of an event with one AppendRawProtoBytes(): the
+// packet prologue, then the TrackEvent as a length-delimited field.
+// Only for events without proto fields whose fields fit in
+// kMaxStackFieldsSize.
+void WriteEventPacketDirect(const HlEvent& ev,
+                            std::optional<uint64_t> track_uuid,
+                            perfetto::TraceWriterBase* trace_writer,
+                            TrackEventIncrementalState* incr_state,
+                            const TrackEventTlsState& tls_state) {
+  // The TrackEvent tag takes one byte, and its length up to two.
+  static_assert(kMaxStackFieldsSize < 16384, "length must fit in two bytes");
+  PERFETTO_DCHECK(!ev.has_proto_fields &&
+                  ev.fields_size_bound <= kMaxStackFieldsSize);
+  uint8_t buf[kMaxPacketPrologueSize + 3 + kMaxStackFieldsSize];
+  uint8_t* end = EncodePacketPrologue(
+      buf, incr_state, tls_state, ev.ts,
+      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+  uint8_t* fields = BeginNestedField(
+      protos::pbzero::TracePacket::kTrackEventFieldNumber, end);
+  end = EndNestedField(
+      fields, EncodeTrackEventFields(ev, track_uuid, incr_state, fields));
+
+  auto packet = trace_writer->NewTracePacket();
+  packet->AppendRawProtoBytes(buf, static_cast<size_t>(end - buf));
+  if (PERFETTO_UNLIKELY(!incr_state->serialized_interned_data.empty()))
+    AppendInternedData(packet.get(), incr_state);
+}
+
+// Writes the packet of an event through protozero. Events with proto fields
+// take this path, because AppendHlProtoFields() uses protozero, and so do
+// events whose fields do not fit on the stack.
+void WriteEventPacketWithProtozero(const HlEvent& ev,
+                                   std::optional<uint64_t> track_uuid,
+                                   perfetto::TraceWriterBase* trace_writer,
+                                   TrackEventIncrementalState* incr_state,
+                                   const TrackEventTlsState& tls_state) {
+  auto packet = NewTracePacketInternal(
+      trace_writer, incr_state, tls_state, ev.ts,
+      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+  auto* track_event = packet->set_track_event();
+  {
+    uint8_t stack_buf[kMaxStackFieldsSize];
+    std::unique_ptr<uint8_t[]> heap_buf;
+    uint8_t* buf = stack_buf;
+    if (ev.fields_size_bound > sizeof(stack_buf)) {
+      heap_buf.reset(new uint8_t[ev.fields_size_bound]);
+      buf = heap_buf.get();
+    }
+    uint8_t* end = EncodeTrackEventFields(ev, track_uuid, incr_state, buf);
+    track_event->AppendRawProtoBytes(buf, static_cast<size_t>(end - buf));
   }
 
-  std::variant<std::monostate, const PerfettoTeRegisteredTrackImpl*,
-               const PerfettoTeHlExtraNamedTrack*,
-               const PerfettoTeHlExtraProtoTrack*,
-               const PerfettoTeHlExtraNestedTracks*>
-      track;
-  std::optional<uint64_t> track_uuid;
-
-  const struct PerfettoTeHlExtraTimestamp* custom_timestamp = nullptr;
-  const struct PerfettoTeCategoryDescriptor* dynamic_cat = nullptr;
-  std::optional<int64_t> int_counter;
-  std::optional<double> double_counter;
-  bool use_interning = true;
-  bool flush = false;
-
-  for (const auto* it = extra_data; *it != nullptr; it++) {
-    const struct PerfettoTeHlExtra& extra = **it;
-    if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK) {
-      const auto& cast =
-          reinterpret_cast<const struct PerfettoTeHlExtraRegisteredTrack&>(
-              extra);
-      track = cast.track;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK) {
-      track =
-          &reinterpret_cast<const struct PerfettoTeHlExtraNamedTrack&>(extra);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK) {
-      track =
-          &reinterpret_cast<const struct PerfettoTeHlExtraProtoTrack&>(extra);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS) {
-      auto* nested =
-          &reinterpret_cast<const struct PerfettoTeHlExtraNestedTracks&>(extra);
-      track = nested;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP) {
-      custom_timestamp =
-          &reinterpret_cast<const struct PerfettoTeHlExtraTimestamp&>(extra);
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_DYNAMIC_CATEGORY) {
-      dynamic_cat =
-          reinterpret_cast<const struct PerfettoTeHlExtraDynamicCategory&>(
-              extra)
-              .desc;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_INT64) {
-      int_counter =
-          reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(extra)
-              .value;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE) {
-      double_counter =
-          reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(extra)
-              .value;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN) {
-      use_interning = false;
-    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_FLUSH) {
-      flush = true;
+  if (ev.has_proto_fields) {
+    for (const auto* it = ev.extras; *it != nullptr; it++) {
+      if ((*it)->type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS) {
+        AppendHlProtoFields(
+            incr_state, track_event,
+            reinterpret_cast<const struct PerfettoTeHlExtraProtoFields&>(**it)
+                .fields);
+      }
     }
   }
 
-  TraceTimestamp ts;
-  if (custom_timestamp) {
-    ts.clock_id = custom_timestamp->timestamp.clock_id;
-    ts.value = custom_timestamp->timestamp.value;
-  } else {
-    ts = TrackEventInternal::GetTraceTime();
-  }
+  if (!incr_state->serialized_interned_data.empty())
+    AppendInternedData(packet.get(), incr_state);
+}
 
-  if (PERFETTO_UNLIKELY(dynamic_cat)) {
-    AdvanceToFirstEnabledDynamicCategory(ii, tls_state, cat, *dynamic_cat);
+void InstanceOp(internal::DataSourceType* ds,
+                internal::DataSourceType::InstancesIterator* ii,
+                internal::DataSourceThreadLocalState* tls_state,
+                const HlEvent& ev) {
+  if (PERFETTO_UNLIKELY(ev.dynamic_cat)) {
+    AdvanceToFirstEnabledDynamicCategory(ii, tls_state, ev.cat,
+                                         *ev.dynamic_cat);
     if (!ii->instance) {
       return;
     }
@@ -487,87 +806,20 @@ void InstanceOp(internal::DataSourceType* ds,
   auto* incr_state = static_cast<TrackEventIncrementalState*>(
       ds->GetIncrementalState(ii->instance, ii->i));
   ResetIncrementalStateIfRequired(trace_writer, incr_state, track_event_tls,
-                                  ts);
+                                  ev.ts);
 
-  if (std::holds_alternative<const PerfettoTeRegisteredTrackImpl*>(track)) {
-    auto* registered_track =
-        std::get<const PerfettoTeRegisteredTrackImpl*>(track);
-    track_uuid =
-        EmitRegisteredTrack(registered_track, incr_state, trace_writer);
-  } else if (std::holds_alternative<const PerfettoTeHlExtraNamedTrack*>(
-                 track)) {
-    auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
-    PerfettoTeHlNestedTrackNamed named{};
-    named.name = named_track->name;
-    named.id = named_track->id;
-    named.is_name_static = named_track->is_name_static;
-    track_uuid = EmitNamedTrack(named_track->parent_uuid, named, incr_state,
-                                trace_writer);
-  } else if (std::holds_alternative<const PerfettoTeHlExtraProtoTrack*>(
-                 track)) {
-    auto* proto_track = std::get<const PerfettoTeHlExtraProtoTrack*>(track);
-    track_uuid = EmitProtoTrack(proto_track->uuid, proto_track->fields,
-                                incr_state, trace_writer);
-  } else if (std::holds_alternative<const PerfettoTeHlExtraNestedTracks*>(
-                 track)) {
-    auto* nested = std::get<const PerfettoTeHlExtraNestedTracks*>(track);
+  std::optional<uint64_t> track_uuid = EmitTrack(ev, incr_state, trace_writer);
 
-    uint64_t uuid = 0;
-
-    for (PerfettoTeHlNestedTrack* const* tp = nested->tracks; *tp != nullptr;
-         tp++) {
-      auto track_type =
-          static_cast<enum PerfettoTeHlNestedTrackType>((*tp)->type);
-
-      switch (track_type) {
-        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED: {
-          auto* named_track =
-              reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
-          uuid = EmitNamedTrack(uuid, *named_track, incr_state, trace_writer);
-        } break;
-        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {
-          uuid = perfetto_te_process_track_uuid;
-        } break;
-        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD: {
-          uuid = incr_state->thread_track_uuid;
-        } break;
-        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROTO: {
-          auto* proto_track =
-              reinterpret_cast<PerfettoTeHlNestedTrackProto*>(*tp);
-          uuid = EmitProtoTrackWithParentUuid(proto_track->id ^ uuid, uuid,
-                                              proto_track->fields, incr_state,
-                                              trace_writer);
-        } break;
-        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_REGISTERED: {
-          auto* registered_track =
-              reinterpret_cast<PerfettoTeHlNestedTrackRegistered*>(*tp);
-          uuid = EmitRegisteredTrack(registered_track->track, incr_state,
-                                     trace_writer);
-        } break;
-      }
-    }
-    track_uuid = uuid;
+  if (PERFETTO_LIKELY(!ev.has_proto_fields &&
+                      ev.fields_size_bound <= kMaxStackFieldsSize)) {
+    WriteEventPacketDirect(ev, track_uuid, trace_writer, incr_state,
+                           track_event_tls);
+  } else {
+    WriteEventPacketWithProtozero(ev, track_uuid, trace_writer, incr_state,
+                                  track_event_tls);
   }
 
-  {
-    auto packet = NewTracePacketInternal(
-        trace_writer, incr_state, track_event_tls, ts,
-        protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
-    auto* track_event = packet->set_track_event();
-    WriteTrackEvent(incr_state, track_event, cat, type, name, extra_data,
-                    track_uuid, dynamic_cat, use_interning);
-    track_event->Finalize();
-
-    if (!incr_state->serialized_interned_data.empty()) {
-      auto ranges = incr_state->serialized_interned_data.GetRanges();
-      packet->AppendScatteredBytes(
-          protos::pbzero::TracePacket::kInternedDataFieldNumber, ranges.data(),
-          ranges.size());
-      incr_state->serialized_interned_data.Reset();
-    }
-  }
-
-  if (PERFETTO_UNLIKELY(flush)) {
+  if (PERFETTO_UNLIKELY(ev.flush)) {
     trace_writer->Flush();
   }
 }
@@ -595,15 +847,17 @@ void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
     return;
   }
 
+  // The event is the same for every data source instance, so it is parsed and
+  // timestamped once. Every instance gets the same timestamp.
+  const HlEvent ev = ParseEvent(cat, type, name, extra_data);
+
   for (perfetto::internal::DataSourceType::InstancesIterator ii =
            ds->BeginIteration<perfetto::shlib::TracePointTraits>(
                cached_instances, tls_state, {cat});
        ii.instance;
        ds->NextIteration</*Traits=*/perfetto::shlib::TracePointTraits>(
            &ii, tls_state, {cat})) {
-    perfetto::shlib::InstanceOp(ds, &ii, tls_state, cat,
-                                perfetto::shlib::EventType(type), name,
-                                extra_data);
+    perfetto::shlib::InstanceOp(ds, &ii, tls_state, ev);
   }
   ds->TraceEpilogue(tls_state);
 }
