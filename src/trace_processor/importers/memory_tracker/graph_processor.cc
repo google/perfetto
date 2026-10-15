@@ -18,7 +18,7 @@
 
 #include <list>
 
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -682,11 +682,10 @@ void GraphProcessor::CalculateNodeOwnershipCoefficient(Node* node) {
   // Sort the owners in decreasing order of ownership priority and
   // increasing order of not-owning sub-size (in case of equal priority).
   std::vector<Edge*> owners = *node->owned_by_edges();
-  ColdSortByKey(owners.begin(), owners.end(), [](Edge* edge) {
-    return edge->source()->not_owning_sub_size();
-  });
-  ColdStableSortByKeyDescending(owners.begin(), owners.end(),
-                                [](Edge* edge) { return edge->priority(); });
+  SortByKey(owners.begin(), owners.end(),
+            [](Edge* edge) { return edge->source()->not_owning_sub_size(); });
+  StableSortByKeyDescending(owners.begin(), owners.end(),
+                            [](Edge* edge) { return edge->priority(); });
 
   // Loop over the list of owners and distribute the owned node's not-owned
   // sub-size among them according to their ownership priority and

@@ -23,7 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/core/util/sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::core {
 namespace {
@@ -56,8 +56,8 @@ void StringRanks::Rank(const StringPool& pool) {
     };
   }
   auto* sorted =
-      core::MsdRadixSort(ids_to_sort.get(), ids_to_sort.get() + ranks_.size(),
-                         scratch.get(), StringSortKey{});
+      MsdRadixSort(ids_to_sort.get(), ids_to_sort.get() + ranks_.size(),
+                   scratch.get(), StringSortKey{});
   for (uint32_t rank = 0; rank < ranks_.size(); ++rank) {
     uint32_t* it = ranks_.Find(sorted[rank].id);
     PERFETTO_DCHECK(it);
