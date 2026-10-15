@@ -820,16 +820,176 @@ TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupStringAndBytes) {
                                   0xca, 0x1f, 4, 0x11, 0, 0xbe, 0xef}));
 }
 
-TEST_F(SharedLibProtozeroSerializationTest, ProtoGroupIncrementalPackedAborts) {
-  protozero_test_protos_PackedRepeatedFields root;
-  PerfettoPbMsgInitWithEncoding(&root.msg, &writer,
-                                PERFETTO_PB_MSG_ENCODING_PROTO_GROUP);
-  PerfettoPbPackedMsgInt32 payload;
-  // abort() prints no message, so the matcher is empty.
-  EXPECT_DEATH_IF_SUPPORTED(
-      protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
-                                                                   &payload),
-      "");
+// --- C incremental PACKED tests ---
+
+// Both encodings write an incremental PACKED field the same way.
+constexpr PerfettoPbMsgEncoding kAllEncodings[] = {
+    PERFETTO_PB_MSG_ENCODING_LENGTH_DELIMITED,
+    PERFETTO_PB_MSG_ENCODING_PROTO_GROUP};
+
+// The PerfettoPbPackedMsg holds the values until the end call.
+TEST_F(SharedLibProtozeroSerializationTest, IncrementalPackedIsBuffered) {
+  for (PerfettoPbMsgEncoding encoding : kAllEncodings) {
+    SCOPED_TRACE(encoding);
+    const size_t written = GetData().size();
+    protozero_test_protos_PackedRepeatedFields root;
+    PerfettoPbMsgInitWithEncoding(&root.msg, &writer, encoding);
+    PerfettoPbPackedMsgInt32 payload;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
+                                                                 &payload);
+    PerfettoPbPackedMsgInt32Append(&payload, 1);
+    PerfettoPbPackedMsgInt32Append(&payload, 2);
+    PerfettoPbPackedMsgInt32Append(&payload, 300);
+    EXPECT_EQ(written, GetData().size());
+
+    protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &payload);
+    EXPECT_EQ(6u, PerfettoPbMsgFinalize(&root.msg));
+  }
+  // For each encoding: field 1, length 4, then the varints 1, 2 and 300.
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0x0a, 4, 1, 2, 0xac, 0x02, 0x0a, 4,
+                                             1, 2, 0xac, 0x02}));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, IncrementalPackedEmpty) {
+  for (PerfettoPbMsgEncoding encoding : kAllEncodings) {
+    SCOPED_TRACE(encoding);
+    protozero_test_protos_PackedRepeatedFields root;
+    PerfettoPbMsgInitWithEncoding(&root.msg, &writer, encoding);
+    PerfettoPbPackedMsgInt32 payload;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
+                                                                 &payload);
+    protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &payload);
+    EXPECT_EQ(2u, PerfettoPbMsgFinalize(&root.msg));
+  }
+  EXPECT_EQ(GetData(), (std::vector<uint8_t>{0x0a, 0, 0x0a, 0}));
+}
+
+// Varints stay inline while 10 bytes are free for the next one. Then the next
+// value moves them to a heap block. The block then doubles several times, and
+// the end call moves the output to a new 4096-byte chunk.
+TEST_F(SharedLibProtozeroSerializationTest, IncrementalPackedGrowsOnHeap) {
+  // Each value of 300 is a 2-byte varint. After 28 values, 8 bytes are free.
+  // A varint reserves 10, so the 29th value grows the buffer.
+  constexpr size_t kInlineValues = (PERFETTO_I_PB_PACKED_INLINE_SIZE - 8) / 2;
+  constexpr size_t kValues = 3000;
+  std::vector<uint8_t> expected;
+  for (PerfettoPbMsgEncoding encoding : kAllEncodings) {
+    SCOPED_TRACE(encoding);
+    protozero_test_protos_PackedRepeatedFields root;
+    PerfettoPbMsgInitWithEncoding(&root.msg, &writer, encoding);
+    PerfettoPbPackedMsgInt32 payload;
+    auto on_heap = [&payload] {
+      return payload.buf.begin != payload.buf.inline_buf;
+    };
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
+                                                                 &payload);
+    for (size_t i = 0; i < kInlineValues; i++)
+      PerfettoPbPackedMsgInt32Append(&payload, 300);
+    EXPECT_FALSE(on_heap());
+    PerfettoPbPackedMsgInt32Append(&payload, 300);
+    EXPECT_TRUE(on_heap());
+    for (size_t i = kInlineValues + 1; i < kValues; i++)
+      PerfettoPbPackedMsgInt32Append(&payload, 300);
+    protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &payload);
+
+    // Reuse the same PerfettoPbPackedMsg. The next value starts inline again.
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
+                                                                 &payload);
+    EXPECT_FALSE(on_heap());
+    PerfettoPbPackedMsgInt32Append(&payload, 7);
+    protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &payload);
+    EXPECT_EQ(3u + 2 * kValues + 3u, PerfettoPbMsgFinalize(&root.msg));
+
+    // Field 1, then the length 6000 as a varint.
+    expected.insert(expected.end(), {0x0a, 0xf0, 0x2e});
+    for (size_t i = 0; i < kValues; i++)
+      expected.insert(expected.end(), {0xac, 0x02});
+    // Field 1, length 1, then the varint 7.
+    expected.insert(expected.end(), {0x0a, 1, 7});
+  }
+  EXPECT_EQ(GetData(), expected);
+}
+
+// A packed field goes to the output at its end call. Two packed fields of one
+// message can be open at the same time.
+TEST_F(SharedLibProtozeroSerializationTest, IncrementalPackedInterleaved) {
+  for (PerfettoPbMsgEncoding encoding : kAllEncodings) {
+    SCOPED_TRACE(encoding);
+    protozero_test_protos_PackedRepeatedFields root;
+    PerfettoPbMsgInitWithEncoding(&root.msg, &writer, encoding);
+    PerfettoPbPackedMsgInt32 ints;
+    PerfettoPbPackedMsgFixed32 fixed;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root, &ints);
+    PerfettoPbPackedMsgInt32Append(&ints, 1);
+    protozero_test_protos_PackedRepeatedFields_begin_field_fixed32(&root,
+                                                                   &fixed);
+    PerfettoPbPackedMsgFixed32Append(&fixed, 2);
+    PerfettoPbPackedMsgInt32Append(&ints, 3);
+    protozero_test_protos_PackedRepeatedFields_end_field_fixed32(&root, &fixed);
+    protozero_test_protos_PackedRepeatedFields_end_field_int32(&root, &ints);
+    EXPECT_EQ(10u, PerfettoPbMsgFinalize(&root.msg));
+  }
+  // For each encoding: field 2 with the fixed32 2, then field 1 with the
+  // varints 1 and 3.
+  EXPECT_EQ(GetData(),
+            (std::vector<uint8_t>{0x12, 4, 2, 0, 0, 0, 0x0a, 2, 1, 3,
+                                  0x12, 4, 2, 0, 0, 0, 0x0a, 2, 1, 3}));
+}
+
+// A fixed-width value reserves only its width. Eight fixed64 values fill the
+// inline buffer exactly, and the ninth moves them to a heap block.
+TEST_F(SharedLibProtozeroSerializationTest,
+       IncrementalPackedFixedFillsInlineBuffer) {
+  constexpr size_t kInlineValues =
+      PERFETTO_I_PB_PACKED_INLINE_SIZE / sizeof(uint64_t);
+  std::vector<uint8_t> expected;
+  for (PerfettoPbMsgEncoding encoding : kAllEncodings) {
+    SCOPED_TRACE(encoding);
+    protozero_test_protos_PackedRepeatedFields root;
+    PerfettoPbMsgInitWithEncoding(&root.msg, &writer, encoding);
+    PerfettoPbPackedMsgFixed64 payload;
+    auto on_heap = [&payload] {
+      return payload.buf.begin != payload.buf.inline_buf;
+    };
+    protozero_test_protos_PackedRepeatedFields_begin_field_fixed64(&root,
+                                                                   &payload);
+    for (size_t i = 0; i < kInlineValues; i++)
+      PerfettoPbPackedMsgFixed64Append(&payload, i);
+    EXPECT_FALSE(on_heap());
+    PerfettoPbPackedMsgFixed64Append(&payload, kInlineValues);
+    EXPECT_TRUE(on_heap());
+    protozero_test_protos_PackedRepeatedFields_end_field_fixed64(&root,
+                                                                 &payload);
+    EXPECT_EQ(2u + 8 * (kInlineValues + 1), PerfettoPbMsgFinalize(&root.msg));
+
+    // Field 9, length 72, then the fixed64 values 0 to 8.
+    expected.insert(expected.end(), {0x4a, 72});
+    for (size_t i = 0; i <= kInlineValues; i++) {
+      expected.push_back(static_cast<uint8_t>(i));
+      expected.insert(expected.end(), size_t{7}, uint8_t{0});
+    }
+  }
+  EXPECT_EQ(GetData(), expected);
+}
+
+// PerfettoPbPackedBufferReset() abandons a field. It writes nothing and
+// releases the heap block.
+TEST_F(SharedLibProtozeroSerializationTest, IncrementalPackedResetAbandons) {
+  for (PerfettoPbMsgEncoding encoding : kAllEncodings) {
+    SCOPED_TRACE(encoding);
+    protozero_test_protos_PackedRepeatedFields root;
+    PerfettoPbMsgInitWithEncoding(&root.msg, &writer, encoding);
+    PerfettoPbPackedMsgInt32 payload;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&root,
+                                                                 &payload);
+    for (int i = 0; i < 100; i++)
+      PerfettoPbPackedMsgInt32Append(&payload, 300);
+    EXPECT_TRUE(payload.buf.begin != payload.buf.inline_buf);
+    PerfettoPbPackedBufferReset(&payload.buf);
+    EXPECT_TRUE(payload.buf.begin == payload.buf.inline_buf);
+    EXPECT_EQ(0u, PerfettoPbMsgFinalize(&root.msg));
+  }
+  EXPECT_TRUE(GetData().empty());
 }
 
 class SharedLibDataSourceTest : public testing::Test {
@@ -1035,6 +1195,72 @@ TEST_F(SharedLibDataSourceTest, Serialization) {
                     MsgField(ElementsAre(PbField(
                         perfetto_protos_TestEvent_TestPayload_str_field_number,
                         StringField("ABCDEFGH")))))));
+  }
+  EXPECT_TRUE(found_for_testing);
+}
+
+// A packed field larger than one SMB chunk, inside two length-delimited
+// messages. The end call moves the writer to new chunks while the length
+// fields of for_testing and payload are still in the first chunk. Those
+// lengths reach the trace through patches.
+TEST_F(SharedLibDataSourceTest, IncrementalPackedAcrossChunks) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
+  // Each value of 300 is a 2-byte varint, so the value is 20000 bytes.
+  constexpr size_t kValues = 10000;
+
+  PERFETTO_DS_TRACE(data_source_1, ctx) {
+    struct PerfettoDsRootTracePacket trace_packet;
+    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
+    {
+      struct perfetto_protos_TestEvent for_testing;
+      perfetto_protos_TracePacket_begin_for_testing(&trace_packet.msg,
+                                                    &for_testing);
+      {
+        struct perfetto_protos_TestEvent_TestPayload payload;
+        perfetto_protos_TestEvent_begin_payload(&for_testing, &payload);
+        // Parsers accept packed encoding for any repeated scalar field.
+        struct PerfettoPbPackedMsgInt32 ints;
+        PerfettoPbPackedBufferInit(&ints.buf);
+        for (size_t i = 0; i < kValues; i++)
+          PerfettoPbPackedMsgInt32Append(&ints, 300);
+        PerfettoPbMsgAppendPackedField(
+            &payload.msg,
+            perfetto_protos_TestEvent_TestPayload_repeated_ints_field_number,
+            &ints.buf);
+        PerfettoPbPackedBufferReset(&ints.buf);
+        perfetto_protos_TestEvent_end_payload(&for_testing, &payload);
+      }
+      perfetto_protos_TracePacket_end_for_testing(&trace_packet.msg,
+                                                  &for_testing);
+    }
+    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
+  }
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  std::string expected_ints;
+  for (size_t i = 0; i < kValues; i++)
+    expected_ints += "\xac\x02";
+  bool found_for_testing = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView for_testing(
+        trace_field, perfetto_protos_TracePacket_for_testing_field_number);
+    ASSERT_TRUE(for_testing.ok());
+    if (for_testing.size() == 0) {
+      continue;
+    }
+    found_for_testing = true;
+    ASSERT_EQ(for_testing.size(), 1u);
+    ASSERT_THAT(
+        FieldView(for_testing.front()),
+        ElementsAre(PbField(
+            perfetto_protos_TestEvent_payload_field_number,
+            MsgField(ElementsAre(PbField(
+                perfetto_protos_TestEvent_TestPayload_repeated_ints_field_number,
+                StringField(expected_ints)))))));
   }
   EXPECT_TRUE(found_for_testing);
 }

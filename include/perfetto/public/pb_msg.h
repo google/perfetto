@@ -20,7 +20,6 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "perfetto/public/abi/stream_writer_abi.h"
@@ -46,8 +45,7 @@ enum PerfettoPbMsgEncoding {
   //   byte, instead of a fixed-size length field.
   // - Use it only inside the SMB, for the tracing v2 protocol. The final trace
   //   output stays canonical protobuf.
-  // - Scalars, complete string/bytes/packed values and nested messages work.
-  //   Incremental PACKED fields abort before they write a tag.
+  // - Scalars, string/bytes values, packed fields and nested messages work.
   // See PERFETTO_PB_PROTO_GROUP_END_BYTE in pb_utils.h for the wire format.
   PERFETTO_PB_MSG_ENCODING_PROTO_GROUP = 1,
 };
@@ -262,8 +260,7 @@ static inline void PerfettoPbMsgAppendCStrField(struct PerfettoPbMsg* msg,
 
 // Begins a nested message field. Use it only for fields of message type. For
 // STRING fields, supply the complete value to PerfettoPbMsgAppendCStrField()
-// or PerfettoPbMsgAppendType2Field(). For incremental PACKED fields, use
-// PerfettoPbMsgBeginLengthDelimitedField().
+// or PerfettoPbMsgAppendType2Field().
 //
 // Call PerfettoPbMsgEndNested() before the next write to |parent|:
 // - Unlike protozero::Message in C++, the PerfettoPbMsgAppend*() functions and
@@ -296,26 +293,6 @@ static inline void PerfettoPbMsgBeginNested(struct PerfettoPbMsg* parent,
   }
   nested->parent = parent;
   parent->nested = nested;
-}
-
-// Begins an incremental PACKED field. Both encodings require a length
-// before the payload:
-// - Length-delimited mode reserves the length field for finalization.
-// - Proto group mode aborts before it writes the tag.
-//
-// In proto group mode, PerfettoPbMsgAppendBytes() can release a fragment before
-// the total length is known. The reader can copy it immediately. Append-only
-// writes cannot update the length in those published bytes.
-static inline void PerfettoPbMsgBeginLengthDelimitedField(
-    struct PerfettoPbMsg* parent,
-    struct PerfettoPbMsg* nested,
-    int32_t field_id) {
-  if (PERFETTO_UNLIKELY(parent->encoding ==
-                        PERFETTO_PB_MSG_ENCODING_PROTO_GROUP)) {
-    abort();
-  }
-
-  PerfettoPbMsgBeginNested(parent, nested, field_id);
 }
 
 static inline size_t PerfettoPbMsgFinalize(struct PerfettoPbMsg* msg);
