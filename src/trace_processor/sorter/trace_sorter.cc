@@ -24,10 +24,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/heap.h"
-#include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
@@ -95,62 +93,11 @@ void TraceSorter::Queue::Sort(TraceTokenBuffer& buffer, bool use_slow_sorting) {
   }
   auto sort_begin = std::lower_bound(events_.begin(), sort_end, sort_min_ts_,
                                      &TimestampedEvent::Compare);
-  // Allocation ids grow in the order events are pushed, and those before
-  // `sort_end` are already in order, so sorting stably on the timestamp alone
-  // also orders ties by allocation id.
-  auto first = static_cast<size_t>(sort_begin - events_.begin());
-  size_t size = events_.size() - first;
-  std::vector<TimestampedEvent> scratch(size);
-  // The events are sorted in the queue's memory when contiguous there, as
-  // they are unless the queue has wrapped around, and in a copy otherwise.
-  size_t contiguous;
-  TimestampedEvent* begin = events_.contiguous_at(first, &contiguous);
-  std::vector<TimestampedEvent> copy;
-  // Calls `fn` on the parts of the queue holding the events.
-  auto for_each_part = [this, first, size](auto fn) {
-    for (size_t at = 0; at < size;) {
-      size_t count;
-      TimestampedEvent* part = events_.contiguous_at(first + at, &count);
-      fn(part, at, count * sizeof(TimestampedEvent));
-      at += count;
-    }
-  };
-  if (contiguous < size) {
-    copy.resize(size);
-    begin = copy.data();
-    for_each_part([begin](TimestampedEvent* part, size_t at, size_t bytes) {
-      memcpy(begin + at, part, bytes);
-    });
-  }
-  int64_t min_ts = sort_min_ts_;
-  auto key_bits = static_cast<uint32_t>(
-      64 - base::CountLeadZeros64(static_cast<uint64_t>(max_ts_ - min_ts)));
-  TimestampedEvent* sorted = core::StableSortByKey(
-      begin, begin + size, scratch.data(), key_bits,
-      [min_ts](const TimestampedEvent& e) {
-        return static_cast<uint64_t>(e.ts - min_ts);
-      },
-      [](const TimestampedEvent& e) { return e.alloc_id(); });
   if (use_slow_sorting) {
-    // Slow sorting also orders events with the same timestamp by their type.
-    TimestampedEvent::SlowOperatorLess less{buffer};
-    TimestampedEvent* end = sorted + size;
-    for (TimestampedEvent* it = sorted; it != end;) {
-      int64_t ts = it->ts;
-      TimestampedEvent* run_end = std::find_if(
-          it, end, [ts](const TimestampedEvent& e) { return e.ts != ts; });
-      if (run_end - it > 1) {
-        std::sort(it, run_end, less);
-      }
-      it = run_end;
-    }
-  }
-  if (contiguous < size) {
-    for_each_part([sorted](TimestampedEvent* part, size_t at, size_t bytes) {
-      memcpy(part, sorted + at, bytes);
-    });
-  } else if (sorted != begin) {
-    memcpy(begin, sorted, size * sizeof(TimestampedEvent));
+    std::sort(sort_begin, events_.end(),
+              TimestampedEvent::SlowOperatorLess{buffer});
+  } else {
+    std::sort(sort_begin, events_.end());
   }
   sort_start_idx_ = 0;
   sort_min_ts_ = 0;
