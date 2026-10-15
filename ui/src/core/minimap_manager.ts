@@ -24,6 +24,9 @@ import type {
 export class MinimapManagerImpl implements MinimapManager {
   private readonly contentProviders: MinimapContentProvider[] = [];
   private rows?: MinimapRow[];
+  // The latest load. Loads run one at a time, in order: providers may reuse
+  // tables, e.g. Sched's, and an older load must not overwrite newer rows.
+  private lastLoad: Promise<void> = Promise.resolve();
 
   getLoad() {
     return this.rows;
@@ -40,7 +43,16 @@ export class MinimapManagerImpl implements MinimapManager {
     return this.contentProviders[0];
   }
 
-  async load(start: time, end: time) {
+  load(start: time, end: time): Promise<void> {
+    // After the previous load, whether it failed or not.
+    const load = Promise.allSettled([this.lastLoad]).then(() =>
+      this.loadNow(start, end),
+    );
+    this.lastLoad = load;
+    return load;
+  }
+
+  private async loadNow(start: time, end: time) {
     const provider = this.getContentProvider();
     if (!provider) {
       return;

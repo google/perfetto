@@ -151,6 +151,31 @@ describe('TraceImpl.extendTraceEnd', () => {
     expect(loadedEnds).toEqual([Time.fromSeconds(11), Time.fromSeconds(12)]);
   });
 
+  test('reloads the minimap if the end grew during a failed reload', async () => {
+    vi.useFakeTimers();
+    const unhandled = catchUnhandledRejections();
+    const trace = createFakeTraceImpl();
+    const loadedEnds: time[] = [];
+    trace.minimap.registerContentProvider({
+      priority: 1,
+      getData: async (span) => {
+        loadedEnds.push(span.end.toTime());
+        if (loadedEnds.length > 1) return [];
+
+        // The first load fails after the end grew.
+        trace.extendTraceEnd(Time.fromSeconds(12));
+        throw new Error('Minimap failed');
+      },
+    });
+
+    trace.extendTraceEnd(Time.fromSeconds(11));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(unhandled).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(loadedEnds).toEqual([Time.fromSeconds(11), Time.fromSeconds(12)]);
+  });
+
   test('reports only the first failed minimap reload', async () => {
     vi.useFakeTimers();
     const unhandled = catchUnhandledRejections();
