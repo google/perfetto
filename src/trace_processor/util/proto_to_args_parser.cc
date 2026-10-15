@@ -17,7 +17,6 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include <algorithm>
-#include <charconv>
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
@@ -63,11 +62,8 @@ void AppendProtoType(std::string& target, const std::string& value) {
 
 // Appends "[index]" in place: this runs for every element of every array.
 void AppendArrayIndex(std::string& target, size_t index) {
-  char buf[24];
-  buf[0] = '[';
-  char* end = std::to_chars(buf + 1, buf + sizeof(buf) - 1, index).ptr;
-  *end++ = ']';
-  target.append(buf, static_cast<size_t>(end - buf));
+  base::StackString<24> part("[%zu]", index);
+  target.append(part.c_str(), part.len());
 }
 
 // True if ParseSimpleField emits |field| from the interned key ids alone,
