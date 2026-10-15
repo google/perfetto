@@ -243,7 +243,9 @@ describe('constant series', () => {
       yRangeRounding: 'strict',
     });
     await renderUntilSettled(track, renderCtx);
-    return drawStepArea.mock.calls.at(-1)?.[1];
+    const transform = drawStepArea.mock.calls.at(-1)?.[1];
+    expect(transform).toBeDefined();
+    return transform;
   }
 
   test('all zero values get a finite y scale', async () => {
