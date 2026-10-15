@@ -31,8 +31,8 @@
 
 // SortRowLayout sorts on the bytes which differ between rows, the first 8 of
 // them packed into one integer per row so that sorting does not read the rows
-// again. As in DuckDB, rows which agree on those 8 bytes are then sorted on the
-// whole row.
+// again. Rows which agree on those 8 bytes are then sorted on the next 8, and
+// so on, with the same sort.
 
 namespace perfetto::trace_processor::core::ops {
 namespace {
@@ -53,9 +53,9 @@ struct Rows {
   uint32_t count;
 };
 
-// Each row is sorted as its first 8 varying bytes packed into a key, in
-// significance order, with its position as the index and its row index as the
-// value. Ties break on position, so the sort is stable.
+// Each row is sorted as its varying bytes packed into a key, in significance
+// order, with its position as the index and its row index as the value. Ties
+// break on position, so the sort is stable.
 
 // Buffers one sort works in.
 struct Scratch {
@@ -179,24 +179,16 @@ void FindVaryingBytes(const Rows& rows, Scratch& scratch) {
   }
 }
 
-KeyedIndex* PackKeys(const Rows& rows,
-                     uint32_t key_bytes,
-                     const uint32_t* indices,
-                     Scratch& scratch) {
-  KeyedIndex* tokens = Resize(scratch.tokens, rows.count);
-  const uint32_t* varying = scratch.varying.data();
-  for (uint32_t r = 0; r < rows.count; ++r) {
-    const uint8_t* row = rows[r];
-    uint64_t key = 0;
-    // Constant bytes cannot decide the order. Pack the remaining bytes from
-    // most to least significant so the integer key preserves their ordering.
-    // This constructs a numeric value, so no endian conversion is needed.
-    for (uint32_t b = 0; b < key_bytes; ++b) {
-      key = (key << 8) | row[varying[b]];
-    }
-    tokens[r] = {key, r, indices[r]};
+// Packs the bytes of `row` at `varying[0, key_bytes)`, most significant
+// first, into an integer which orders as they do.
+uint64_t PackKey(const uint8_t* row,
+                 const uint32_t* varying,
+                 uint32_t key_bytes) {
+  uint64_t key = 0;
+  for (uint32_t b = 0; b < key_bytes; ++b) {
+    key = (key << 8) | row[varying[b]];
   }
-  return tokens;
+  return key;
 }
 
 // Merges pairs of runs, earlier run first so ties keep their order, until one
@@ -232,19 +224,58 @@ KeyedIndex* MergeRuns(KeyedIndex* tokens,
   return source;
 }
 
-// Sorts each run of tokens with equal keys on their whole rows.
-void SortTiesOnWholeRows(KeyedIndex* tokens, const Rows& rows) {
-  auto by_row = [&rows](const KeyedIndex& a, const KeyedIndex& b) {
-    int cmp = CompareRows(rows[a.index], rows[b.index], rows.stride);
-    return cmp != 0 ? cmp < 0 : a.index < b.index;
-  };
-  for (uint32_t i = 0; i < rows.count;) {
+// Below this size, a group of tied tokens is sorted in place.
+constexpr uint32_t kInsertionSortTies = 16;
+
+// Sorts tokens by key, then position.
+void InsertionSort(KeyedIndex* tokens, uint32_t count) {
+  for (uint32_t i = 1; i < count; ++i) {
+    KeyedIndex t = tokens[i];
+    uint32_t j = i;
+    for (; j > 0 &&
+           (tokens[j - 1].key > t.key ||
+            (tokens[j - 1].key == t.key && tokens[j - 1].index > t.index));
+         --j) {
+      tokens[j] = tokens[j - 1];
+    }
+    tokens[j] = t;
+  }
+}
+
+// Sorts each run of tokens with equal keys on the varying bytes from `from`
+// on, 8 at a time, with the same sort as the first 8.
+void SortTies(KeyedIndex* tokens,
+              uint32_t count,
+              const Rows& rows,
+              const std::vector<uint32_t>& varying,
+              uint32_t from,
+              KeyedIndex* spare) {
+  auto key_bytes = static_cast<uint32_t>(
+      std::min<size_t>(varying.size() - from, kMaxKeyBytes));
+  for (uint32_t i = 0; i < count;) {
     uint32_t j = i + 1;
-    while (j < rows.count && tokens[j].key == tokens[i].key) {
+    while (j < count && tokens[j].key == tokens[i].key) {
       ++j;
     }
     if (j - i > 1) {
-      std::sort(tokens + i, tokens + j, by_row);
+      KeyedIndex* tied = tokens + i;
+      uint32_t size = j - i;
+      for (uint32_t t = 0; t < size; ++t) {
+        tied[t].key =
+            PackKey(rows[tied[t].index], varying.data() + from, key_bytes);
+      }
+      if (size < kInsertionSortTies) {
+        InsertionSort(tied, size);
+      } else {
+        KeyedIndex* sorted =
+            StableSortKeyedIndices(tied, tied + size, spare + i, key_bytes * 8);
+        if (sorted != tied) {
+          memcpy(tied, sorted, size * sizeof(KeyedIndex));
+        }
+      }
+      if (varying.size() > from + kMaxKeyBytes) {
+        SortTies(tied, size, rows, varying, from + kMaxKeyBytes, spare + i);
+      }
     }
     i = j;
   }
@@ -281,7 +312,11 @@ void SortRowLayout(Span<const uint8_t> row_layout,
   FindVaryingBytes(rows, scratch);
   auto key_bytes = static_cast<uint32_t>(
       std::min<size_t>(scratch.varying.size(), kMaxKeyBytes));
-  KeyedIndex* tokens = PackKeys(rows, key_bytes, indices->b, scratch);
+  KeyedIndex* tokens = Resize(scratch.tokens, count);
+  for (uint32_t r = 0; r < count; ++r) {
+    tokens[r] = {PackKey(rows[r], scratch.varying.data(), key_bytes), r,
+                 indices->b[r]};
+  }
   KeyedIndex* sorted = tokens;
   // 3. Merge existing runs or sort the tokens, preserving input order for ties.
   if (!order.runs.empty()) {
@@ -291,9 +326,12 @@ void SortRowLayout(Span<const uint8_t> row_layout,
         tokens, tokens + count, Resize(scratch.spare, count), key_bytes * 8);
   }
   // 4. If the key omitted varying bytes, equal keys may still represent
-  // different rows. Compare full rows within each tied group to finish sorting.
+  // different rows. Sort each tied group on the bytes after the first 8.
   if (scratch.varying.size() > kMaxKeyBytes) {
-    SortTiesOnWholeRows(sorted, rows);
+    // Whichever buffer the sort did not leave its result in is free.
+    KeyedIndex* free_buffer =
+        sorted == tokens ? Resize(scratch.spare, count) : tokens;
+    SortTies(sorted, count, rows, scratch.varying, kMaxKeyBytes, free_buffer);
   }
   for (uint32_t r = 0; r < count; ++r) {
     indices->b[r] = sorted[r].value;
