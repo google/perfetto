@@ -30,11 +30,26 @@ NewTracePacketInternal(perfetto::TraceWriterBase* trace_writer,
                        perfetto::TraceTimestamp timestamp,
                        uint32_t seq_flags);
 
-void ResetIncrementalStateIfRequired(
+// Starts a new incremental state sequence on `trace_writer`.
+// It emits the packet defaults, the clock snapshot and the thread and process
+// track descriptors.
+// Only call it when `incr_state->was_cleared` is true.
+void ResetIncrementalState(
     perfetto::TraceWriterBase* trace_writer,
     perfetto::shlib::TrackEventIncrementalState* incr_state,
     const perfetto::shlib::TrackEventTlsState& tls_state,
     const perfetto::TraceTimestamp& timestamp);
+
+// Every event calls this, so the check is inline and only the reset is out of
+// line.
+inline void ResetIncrementalStateIfRequired(
+    perfetto::TraceWriterBase* trace_writer,
+    perfetto::shlib::TrackEventIncrementalState* incr_state,
+    const perfetto::shlib::TrackEventTlsState& tls_state,
+    const perfetto::TraceTimestamp& timestamp) {
+  if (PERFETTO_UNLIKELY(incr_state->was_cleared))
+    ResetIncrementalState(trace_writer, incr_state, tls_state, timestamp);
+}
 
 }  // namespace perfetto::shlib
 

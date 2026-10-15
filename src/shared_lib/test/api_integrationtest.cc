@@ -2433,6 +2433,73 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
                           ElementsAre(VarIntField(kExpectedUuid))))))))));
 }
 
+TEST_F(SharedLibTrackEventTest, TrackEventHlCounterValueOnlyOnCounters) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  // Counter values on an event that is not a counter are ignored.
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"), PERFETTO_TE_INT_COUNTER(42),
+              PERFETTO_TE_DOUBLE_COUNTER(4.5));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllOf(
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_type_field_number,
+                      ElementsAre(VarIntField(
+                          perfetto_protos_TrackEvent_TYPE_INSTANT))),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_counter_value_field_number,
+                      ElementsAre()),
+                  AllFieldsWithId(
+                      perfetto_protos_TrackEvent_double_counter_value_field_number,
+                      ElementsAre())))))));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrackThread) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
+              PERFETTO_TE_NESTED_TRACKS(PERFETTO_TE_NESTED_TRACK_THREAD()));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  // The event goes on the track of this thread, which is the one described by
+  // the thread track descriptor of the sequence.
+  const uint64_t kThreadTrackUuid = PerfettoTeThreadTrackUuid();
+  EXPECT_THAT(
+      FieldView(data),
+      AllOf(Contains(PbField(
+                perfetto_protos_Trace_packet_field_number,
+                AllFieldsWithId(
+                    perfetto_protos_TracePacket_track_descriptor_field_number,
+                    ElementsAre(AllOf(
+                        AllFieldsWithId(
+                            perfetto_protos_TrackDescriptor_uuid_field_number,
+                            ElementsAre(VarIntField(kThreadTrackUuid))),
+                        AllFieldsWithId(
+                            perfetto_protos_TrackDescriptor_thread_field_number,
+                            ElementsAre(MsgField(_)))))))),
+            Contains(PbField(
+                perfetto_protos_Trace_packet_field_number,
+                AllFieldsWithId(
+                    perfetto_protos_TracePacket_track_event_field_number,
+                    ElementsAre(AllFieldsWithId(
+                        perfetto_protos_TrackEvent_track_uuid_field_number,
+                        ElementsAre(VarIntField(kThreadTrackUuid)))))))));
+}
+
 TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredState) {
   TracingSession tracing_session = TracingSession::Builder()
                                        .set_data_source_name("track_event")
