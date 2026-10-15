@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/number_groups.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -51,6 +52,15 @@ std::string Columns(const std::vector<uint32_t>& positions) {
   std::string out;
   for (uint32_t position : positions) {
     out += (out.empty() ? "" : ", ") + Column(position);
+  }
+  return out;
+}
+
+std::string Lanes(const IntervalLaneSpec& lanes) {
+  std::string out = Column(lanes.ts_column) + ", " + Column(lanes.dur_column);
+  if (!lanes.key_columns.empty()) {
+    out += ", keys: " + Columns(lanes.key_columns) +
+           ", groups: " + Column(lanes.group_column);
   }
   return out;
 }
@@ -134,13 +144,7 @@ std::string PipelineFormatter::SourceString(const Source& source) {
     const auto& isect = static_cast<const IntervalIntersect&>(source);
     std::string out = "IntervalIntersect(";
     for (size_t i = 0; i < isect.operands_.size(); ++i) {
-      const IntervalIntersectOperand& operand = isect.operands_[i];
-      out += (i == 0 ? "" : "; ") + Column(operand.ts_column) + ", " +
-             Column(operand.dur_column);
-      if (!operand.key_columns.empty()) {
-        out += ", keys: " + Columns(operand.key_columns) +
-               ", groups: " + Column(operand.group_column);
-      }
+      out += (i == 0 ? "" : "; ") + Lanes(isect.operands_[i].lanes);
     }
     return out + ")";
   }
@@ -211,12 +215,7 @@ std::string PipelineFormatter::OperatorString(const Operator& op) {
   if (op.Is<IntervalFlatten>()) {
     const IntervalFlattenSpec& spec =
         static_cast<const IntervalFlatten&>(op).spec_;
-    std::string out = "IntervalFlatten(" + Column(spec.ts_column) + ", " +
-                      Column(spec.dur_column);
-    if (!spec.key_columns.empty()) {
-      out += ", keys: " + Columns(spec.key_columns) +
-             ", groups: " + Column(spec.group_column);
-    }
+    std::string out = "IntervalFlatten(" + Lanes(spec.lanes);
     if (!spec.aggregates.empty()) {
       out += "; " + Aggregates(spec.aggregates);
     }
