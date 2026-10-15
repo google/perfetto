@@ -117,7 +117,7 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
   for (int i = 0; i < 3; ++i) {
     ops.push_back(std::make_unique<DropOddRows>());
   }
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   // Keeping every second row three times leaves every eighth. The third
   // operator narrows a selection the batch already composed, in place.
@@ -127,7 +127,7 @@ TEST(OperatorTest, NarrowingAComposedViewKeepsIt) {
 // Reads every row of every batch, and reads them all again when reopened.
 TEST(SinkTest, ReadsEveryRowOfEveryBatch) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
-  Pipeline pipeline(source, {}, {});
+  Pipeline pipeline(source, {});
 
   for (int run = 0; run < 2; ++run) {
     std::vector<uint32_t> rows = Drain(pipeline);
@@ -201,7 +201,7 @@ TEST(SinkTest, ReadsColumnsWhichDoNotShareARowView) {
 // must still report eof.
 TEST(SinkTest, EofStaysEof) {
   ArraySource source({1, 2});
-  Pipeline pipeline(source, {}, {});
+  Pipeline pipeline(source, {});
   RowCursor cursor(pipeline);
   EXPECT_TRUE(cursor.eof());
   cursor.Open();
@@ -273,7 +273,7 @@ TEST(OperatorTest, FanOutNestsInnermostFirst) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Twice>());
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 0, 1, 0, 1));
 }
@@ -285,7 +285,7 @@ TEST(FinishTest, RowsLetGoPassThroughTheOperatorsAbove) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(99, 1));
   ops.push_back(std::make_unique<Twice>());
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 1, 0, 1, 99, 99));
 }
@@ -297,7 +297,7 @@ TEST(FinishTest, OperatorsAreFinishedBottomUp) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Trailer>(7, 1));
   ops.push_back(std::make_unique<Trailer>(8, 1));
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
 
   EXPECT_THAT(Drain(pipeline), ElementsAre(0, 7, 8));
 }
@@ -341,7 +341,7 @@ TEST(OperatorTest, TransformChangesTheBatchHandedOut) {
   const DropOddRowsInPlace* transform = drop.get();
   std::vector<Pipeline::Step> steps;
   steps.push_back(std::move(drop));
-  Pipeline pipeline(source, std::move(steps), {});
+  Pipeline pipeline(source, std::move(steps));
 
   auto state = pipeline.MakeState(test::TestContext());
   RowBatch scratch;

@@ -211,12 +211,15 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
       "|> TREE ACCUMULATE UP SUM(path2) AS total");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   // The tree is numbered once. Both downward folds share one parent-first
-  // walk, and a new walk is added only when the direction changes.
+  // walk. A new walk is added only when the direction changes. The
+  // parent-first walk can output small batches, so they are combined before
+  // the child-first walk.
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "main: DataframeScan | TreeNumberNodes(#0, #1) | "
             "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
             "TreeAccumulateDown(#3, #4; SUM(#2)) | "
-            "TreeAccumulateDown(#3, #4; SUM(#5)) | TreeChildFirst(#3, #4) | "
+            "TreeAccumulateDown(#3, #4; SUM(#5)) | CombineBatches | "
+            "TreeChildFirst(#3, #4) | "
             "TreeAccumulateUp(#3, #4; SUM(#6))");
   auto rows = Run(**plan, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
@@ -266,6 +269,24 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
            "cpu |> ORDER BY cpu"),
       "main: DataframeScan | Sort(#0) | HashAggregate(keys: #1; COUNT(*)) | "
       "Sort(#0)");
+}
+
+// Small batches are combined only after a step that may output them, and only
+// before an operator that works best on full batches.
+TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
+  Exec("CREATE TABLE t(ts INTEGER, dur INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (5, 10, 2), (0, 10, 1)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n"), "main: DataframeScan | Sort(#2)");
+  EXPECT_EQ(plan("FROM t |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS c "
+                 "|> ORDER BY c"),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | Sort(#0) | "
+            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
 }
 
 // Each operand is grouped by its PER keys and sorted by ts within each group,

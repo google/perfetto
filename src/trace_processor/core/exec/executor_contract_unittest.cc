@@ -24,6 +24,7 @@
 
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/row_batch.h"
@@ -324,7 +325,7 @@ TEST_P(ExecutorBoundaryContractTest, FilteringIsIndependentOfBatchBoundaries) {
   ContractSource source(std::move(chunks));
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<ContractFilter>());
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
   RowCursor cursor(pipeline);
   for (uint32_t run = 0; run < 2; ++run) {
     std::vector<int64_t> actual;
@@ -341,7 +342,7 @@ INSTANTIATE_TEST_SUITE_P(BatchSizes,
 
 TEST(ExecutorContractTest, EmptySourceBatchesAreNotEofWithoutOperators) {
   ContractSource source({{}, {11}, {}, {22}, {}});
-  Pipeline pipeline(source, {}, {});
+  Pipeline pipeline(source, {});
   RowCursor cursor(pipeline);
   std::vector<int64_t> actual;
   for (bool more = cursor.Open(); more && !cursor.eof(); more = cursor.Next())
@@ -356,7 +357,7 @@ TEST(ExecutorContractTest, FirstSurvivorDoesNotTriggerLookahead) {
   auto* observed = filter.get();
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::move(filter));
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
   {
     RowCursor cursor(pipeline);
     ASSERT_TRUE(cursor.Open());
@@ -375,7 +376,7 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   auto* observed = probe.get();
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::move(probe));
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
   RowCursor cursor(pipeline);
   ASSERT_TRUE(cursor.Open());
   EXPECT_EQ(cursor.Value<int64_t>(0), 11);
@@ -387,57 +388,15 @@ TEST(ExecutorContractTest, SourceFailureDoesNotFinalizeBufferedOperators) {
   EXPECT_EQ(source.pulls, pulls);
 }
 
-TEST(ExecutorContractTest, ThroughputCombinesButFiniteDemandNeverLooksAhead) {
-  for (uint32_t limit : {0u, 1u, UINT32_MAX}) {
-    ContractSource source({{}, {1}, {2}, {3}, {4}, {5}});
-    ExecutionOptions options;
-    options.preference = BatchPreference::kThroughput;
-    options.target_batch_rows = 4;
-    options.small_batch_rows = 1;
-    if (limit != UINT32_MAX)
-      options.limit = limit;
-    Pipeline pipeline(source, {}, options);
-    auto state = pipeline.MakeState(test::TestContext());
-    RowBatch out;
-    if (!limit) {
-      EXPECT_FALSE(pipeline.GetData(out, *state));
-      EXPECT_EQ(source.pulls, 0u);
-    } else if (limit == 1) {
-      ASSERT_TRUE(pipeline.GetData(out, *state));
-      EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1));
-      EXPECT_EQ(source.pulls, 2u);
-      EXPECT_FALSE(pipeline.GetData(out, *state));
-      EXPECT_EQ(source.pulls, 2u);
-    } else {
-      ASSERT_TRUE(pipeline.GetData(out, *state));
-      EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2, 3, 4));
-      ASSERT_TRUE(pipeline.GetData(out, *state));
-      EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(5));
-      EXPECT_FALSE(pipeline.GetData(out, *state));
-    }
-    EXPECT_TRUE(pipeline.status(*state).ok());
-  }
-}
-
-TEST(ExecutorContractTest, CancellationDropsPendingRowsAndRewindStartsFresh) {
-  ContractSource source({{1}, {}, {}, {2}});
-  bool cancel = true;
-  ExecutionOptions options;
-  options.preference = BatchPreference::kThroughput;
-  options.target_batch_rows = 4;
-  options.small_batch_rows = 1;
-  options.cancelled = [&] { return cancel && source.pulls >= 2; };
-  Pipeline pipeline(source, {}, options);
+TEST(ExecutorContractTest, CombineBatchesKeepsOrder) {
+  ContractSource source({{}, {1}, {2}, {3}, {4}, {5}});
+  std::vector<Pipeline::Step> ops;
+  ops.push_back(std::make_unique<CombineBatches>());
+  Pipeline pipeline(source, std::move(ops));
   auto state = pipeline.MakeState(test::TestContext());
   RowBatch out;
-  EXPECT_FALSE(pipeline.GetData(out, *state));
-  EXPECT_EQ(out.size(), 0u);
-  EXPECT_FALSE(pipeline.status(*state).ok());
-  EXPECT_EQ(source.pulls, 2u);
-  cancel = false;
-  pipeline.Rewind(*state);
   ASSERT_TRUE(pipeline.GetData(out, *state));
-  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2));
+  EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(1, 2, 3, 4, 5));
   EXPECT_FALSE(pipeline.GetData(out, *state));
   EXPECT_TRUE(pipeline.status(*state).ok());
 }
