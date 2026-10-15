@@ -227,3 +227,34 @@ test('empty sources render without errors', async () => {
 
   expect(() => track.render(renderCtx)).not.toThrow();
 });
+
+describe('constant series', () => {
+  async function lastTransform(
+    limits: [number, number],
+    yDisplay: 'zero' | 'minmax',
+  ) {
+    const {engine, trace, drawStepArea, renderCtx} = setup();
+    engine.limitsRows = [limits];
+    const track = CounterTrack.create({
+      trace,
+      uri: 'test',
+      sqlSource: 'SELECT ts, value FROM a',
+      yDisplay,
+      yRangeRounding: 'strict',
+    });
+    await renderUntilSettled(track, renderCtx);
+    return drawStepArea.mock.calls.at(-1)?.[1];
+  }
+
+  test('all zero values get a finite y scale', async () => {
+    const transform = await lastTransform([0, 0], 'zero');
+    expect(Number.isFinite(transform.scaleY)).toBe(true);
+    expect(Number.isFinite(transform.offsetY)).toBe(true);
+  });
+
+  test('constant non-zero values get a finite y scale', async () => {
+    const transform = await lastTransform([5, 5], 'minmax');
+    expect(Number.isFinite(transform.scaleY)).toBe(true);
+    expect(Number.isFinite(transform.offsetY)).toBe(true);
+  });
+});
