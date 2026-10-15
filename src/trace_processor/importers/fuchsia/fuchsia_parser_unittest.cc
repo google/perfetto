@@ -190,8 +190,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     primary_sync_ = std::make_unique<ClockSynchronizer>(
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-    context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, primary_sync_.get(), /*is_primary=*/true);
+    context_.clock_tracker =
+        std::make_unique<ClockTracker>(&context_, primary_sync_.get());
     clock_ = context_.clock_tracker.get();
     // ForwardingTraceParser normally sets the file's default clock; the
     // tokenizer converts its events through it

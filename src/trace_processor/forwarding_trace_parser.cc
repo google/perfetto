@@ -143,8 +143,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
 
   if (!desc->forks_context) {
     // perfetto_manifest files produce no events: like containers they must
-    // not fork a per-trace context, as that would make this file the
-    // "primary" trace for its machine and demote the real traces.
+    // not fork a per-trace context, which would give a file without a
+    // timeline of its own a clock tracker and per-trace state.
     PERFETTO_DCHECK(!input_context_->trace_state);
     trace_context_ = input_context_;
   } else {

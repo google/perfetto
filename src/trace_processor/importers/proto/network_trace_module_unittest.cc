@@ -89,8 +89,8 @@ class NetworkTraceModuleTest : public testing::Test {
     primary_sync_ = std::make_unique<ClockSynchronizer>(
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-    context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, primary_sync_.get(), /*is_primary=*/true);
+    context_.clock_tracker =
+        std::make_unique<ClockTracker>(&context_, primary_sync_.get());
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.global_args_tracker =

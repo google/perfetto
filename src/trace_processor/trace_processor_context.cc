@@ -70,10 +70,9 @@ namespace {
 template <typename T>
 using Ptr = TraceProcessorContextPtr<T>;
 
-void InitPerTraceAndMachineState(TraceProcessorContext* context,
-                                 bool is_primary_trace_for_machine) {
-  context->clock_tracker = Ptr<ClockTracker>::MakeRoot(
-      context, context->clock_sync.get(), is_primary_trace_for_machine);
+void InitPerTraceAndMachineState(TraceProcessorContext* context) {
+  context->clock_tracker =
+      Ptr<ClockTracker>::MakeRoot(context, context->clock_sync.get());
   context->track_tracker = Ptr<TrackTracker>::MakeRoot(context);
   context->track_compressor = Ptr<TrackCompressor>::MakeRoot(context);
   context->slice_tracker = Ptr<SliceTracker>::MakeRoot(context);
@@ -287,7 +286,7 @@ TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
     }
 
     // Initialize per-trace & per-machine state.
-    InitPerTraceAndMachineState(context.get(), machine_inserted);
+    InitPerTraceAndMachineState(context.get());
 
     *it = std::move(context);
   }

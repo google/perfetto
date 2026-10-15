@@ -86,8 +86,8 @@ class AndroidLogReaderTest : public ::testing::Test {
     primary_sync_ = std::make_unique<ClockSynchronizer>(
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-    context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, primary_sync_.get(), /*is_primary=*/true);
+    context_.clock_tracker =
+        std::make_unique<ClockTracker>(&context_, primary_sync_.get());
     context_.clock_tracker->SetGlobalClock(
         ClockId::Machine(protos::pbzero::ClockSnapshot::Clock::REALTIME));
     context_.sorter = std::make_unique<TraceSorter>(

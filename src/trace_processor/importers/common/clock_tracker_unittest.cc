@@ -65,8 +65,7 @@ class ClockTrackerTest : public ::testing::Test {
     primary_sync_ = std::make_unique<ClockSynchronizer>(
         context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-    ct_ = std::make_unique<ClockTracker>(&context_, primary_sync_.get(),
-                                         /*is_primary=*/true);
+    ct_ = std::make_unique<ClockTracker>(&context_, primary_sync_.get());
   }
   std::optional<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                  int64_t src_timestamp,
@@ -78,8 +77,17 @@ class ClockTrackerTest : public ::testing::Test {
   std::unique_ptr<ClockTracker> MakeRemoteTracker(uint32_t raw_machine_id) {
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, raw_machine_id);
-    return std::make_unique<ClockTracker>(&context_, primary_sync_.get(),
-                                          /*is_primary=*/true);
+    return std::make_unique<ClockTracker>(&context_, primary_sync_.get());
+  }
+
+  // Builds a ClockTracker for another trace file (|trace_id|; ct_ is file 0)
+  // on the current machine, sharing the global graph. A merge gives every
+  // file its own id like this.
+  std::unique_ptr<ClockTracker> MakeTrackerForFile(uint32_t trace_id) {
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(trace_id)});
+    return std::make_unique<ClockTracker>(&context_, primary_sync_.get());
   }
 
   TraceProcessorContext context_;
@@ -131,40 +139,37 @@ TEST_F(ClockTrackerTest, ClockDomainConversions) {
 }
 
 // Merging independent traces from a remote machine deduplicates them onto one
-// machine: the first is the primary, the rest are non-primary. A non-primary
-// trace isolates its builtin clocks onto its own file tag so its snapshots
+// machine: the first to add a snapshot owns the machine-canonical clocks, any
+// other isolates its builtin clocks onto its own file tag so its snapshots
 // cannot corrupt the others' conversions. But a remote machine's only route to
 // trace time is the cross-machine REALTIME rendezvous (its BOOTTIME belongs to
-// a different machine), so a remote non-primary trace's REALTIME must stay on
+// a different machine), so an isolated remote trace's REALTIME must stay on
 // the machine-canonical tag to join that rendezvous. Otherwise every one of its
 // events is dropped (clock_sync_failure_no_path).
-TEST_F(ClockTrackerTest, RemoteNonPrimaryFileResolvesThroughSharedRealtime) {
+TEST_F(ClockTrackerTest, RemoteIsolatedFileResolvesThroughSharedRealtime) {
   // Host machine (trace time == its BOOTTIME): relate REALTIME to BOOTTIME so
   // the cross-machine REALTIME rendezvous can reach trace time.
   ct_->AddSnapshot({{REALTIME, 1000}, {BOOTTIME, 1000}});
 
-  // Remote machine, primary trace: its own REALTIME<->BOOTTIME plus the
-  // deferred BOOTTIME->trace-time sync the remote reader registers. This builds
-  // the REALTIME(remote)<->REALTIME(host) rendezvous.
-  auto remote_primary = MakeRemoteTracker(/*raw_machine_id=*/1);
-  remote_primary->AddSnapshot({{REALTIME, 2000}, {BOOTTIME, 200000}});
-  remote_primary->AddDeferredClockSync(BOOTTIME);
-  ASSERT_TRUE(remote_primary->ToTraceTime(BOOTTIME, 200000).has_value());
+  // Remote machine, first trace: its own REALTIME<->BOOTTIME plus the deferred
+  // BOOTTIME->trace-time sync the remote reader registers. This builds the
+  // REALTIME(remote)<->REALTIME(host) rendezvous.
+  auto remote_owner = MakeRemoteTracker(/*raw_machine_id=*/1);
+  remote_owner->AddSnapshot({{REALTIME, 2000}, {BOOTTIME, 200000}});
+  remote_owner->AddDeferredClockSync(BOOTTIME);
+  ASSERT_TRUE(remote_owner->ToTraceTime(BOOTTIME, 200000).has_value());
 
-  // Remote machine, non-primary trace: a distinct file id but the SAME machine
-  // as remote_primary (reuse its machine_tracker; a real merge dedups files
-  // with the same raw machine id onto one machine row). Only its own
+  // Remote machine, second trace: a distinct file id but the SAME machine as
+  // remote_owner (reuse its machine_tracker; a real merge dedups files with the
+  // same raw machine id onto one machine row). Only its own
   // REALTIME<->BOOTTIME. Its REALTIME must join the shared machine-canonical
   // REALTIME to reach trace time via the rendezvous.
-  context_.trace_state =
-      TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
-          TraceProcessorContext::TraceState{TraceId(9)});
-  ClockTracker remote_np(&context_, primary_sync_.get(), /*is_primary=*/false);
-  remote_np.AddSnapshot({{REALTIME, 3000}, {BOOTTIME, 300000}});
+  auto remote_isolated = MakeTrackerForFile(9);
+  remote_isolated->AddSnapshot({{REALTIME, 3000}, {BOOTTIME, 300000}});
 
-  // A BOOTTIME event on the non-primary trace reaches trace time only because
-  // its REALTIME is the shared machine-canonical node feeding the rendezvous.
-  EXPECT_TRUE(remote_np.ToTraceTime(BOOTTIME, 300000).has_value());
+  // A BOOTTIME event on the isolated trace reaches trace time only because its
+  // REALTIME is the shared machine-canonical node feeding the rendezvous.
+  EXPECT_TRUE(remote_isolated->ToTraceTime(BOOTTIME, 300000).has_value());
 }
 
 // When a clock moves backwards conversions *from* that clock are forbidden
@@ -581,65 +586,52 @@ TEST_F(ClockTrackerTest, ThreeHopConversion) {
   EXPECT_EQ(ct_->cache_hits_for_testing(), hits + 2);
 }
 
-// Tests for multi-trace clock isolation (shared_sync fallback).
-TEST_F(ClockTrackerTest, NonPrimaryUsesSharedSnapshots) {
-  // Set up a shared ClockSynchronizer (simulating the per-machine shared sync).
-  ClockSynchronizer shared_sync(
-      context_.trace_time_state.get(),
-      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-  // Add snapshots to the shared sync (primary trace's snapshots).
-  shared_sync.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-  shared_sync.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+// Tests for multi-file clock isolation on one machine: the first file to add
+// a snapshot owns the machine-canonical clocks, files without snapshots of
+// their own resolve through them, and any other file that brings snapshots is
+// isolated onto its own file tag.
+TEST_F(ClockTrackerTest, SnapshotlessFileResolvesThroughOwner) {
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+  ct_->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  // Create a non-primary ClockTracker that falls back to shared_sync.
-  auto non_primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
-                                                    /*is_primary=*/false);
-
-  // Non-primary should be able to convert using the shared snapshots.
-  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
-  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 20), 10020);
-  EXPECT_EQ(*non_primary->ToTraceTime(MONOTONIC, 1000), 100000);
+  auto other = MakeTrackerForFile(9);
+  EXPECT_EQ(*other->ToTraceTime(REALTIME, 10), 10010);
+  EXPECT_EQ(*other->ToTraceTime(REALTIME, 20), 10020);
+  EXPECT_EQ(*other->ToTraceTime(MONOTONIC, 1000), 100000);
 }
 
-TEST_F(ClockTrackerTest, NonPrimarySwitchesToOwnOnAddSnapshot) {
-  ClockSynchronizer shared_sync(
-      context_.trace_time_state.get(),
-      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-  shared_sync.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
+TEST_F(ClockTrackerTest, SecondFileWithOwnSnapshotIsIsolated) {
+  ct_->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
 
-  auto non_primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
-                                                    /*is_primary=*/false);
-
-  // Before own snapshot: uses shared snapshots.
-  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
-
-  // Add own snapshot with different offset.
-  non_primary->AddSnapshot({{REALTIME, 100}, {BOOTTIME, 200100}});
-
-  // After own snapshot: uses own sync, not shared.
-  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 100), 200100);
-  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 110), 200110);
+  // A second file brings its own REALTIME<->BOOTTIME with a different offset:
+  // it is used for that file only and leaves the owner's clocks alone. The
+  // deferred BOOTTIME sync is what every proto reader registers; it is what
+  // bridges the isolated BOOTTIME back to trace time.
+  auto other = MakeTrackerForFile(9);
+  other->AddDeferredClockSync(BOOTTIME);
+  other->AddSnapshot({{REALTIME, 100}, {BOOTTIME, 200100}});
+  EXPECT_EQ(*other->ToTraceTime(REALTIME, 100), 200100);
+  EXPECT_EQ(*other->ToTraceTime(REALTIME, 110), 200110);
+  EXPECT_EQ(*ct_->ToTraceTime(REALTIME, 100), 10100);
 }
 
-TEST_F(ClockTrackerTest, PrimaryTraceAlwaysUsesSharedSync) {
-  ClockSynchronizer shared_sync(
-      context_.trace_time_state.get(),
-      std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+// Ownership goes to the first file to add a snapshot, not to the first file
+// read: a snapshot-less file read first (e.g. an SDK in-process trace archived
+// ahead of the system trace, b/421473521) resolves through the snapshots of a
+// file read after it, exactly as if the order were swapped.
+TEST_F(ClockTrackerTest, SnapshotlessFirstFileResolvesThroughLaterFile) {
+  // ct_ (file 0) is read first and has no snapshots: MONOTONIC is unknown.
+  EXPECT_FALSE(ct_->ToTraceTime(MONOTONIC, 1000, std::nullopt,
+                                /*suppress_errors=*/true)
+                   .has_value());
 
-  // Create primary trace ClockTracker pointing to shared_sync.
-  auto primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
-                                                /*is_primary=*/true);
+  auto other = MakeTrackerForFile(9);
+  other->AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  // Primary adds snapshots — they should go to shared_sync.
-  primary->AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
-
-  // Primary converts using shared_sync.
-  EXPECT_EQ(*primary->ToTraceTime(REALTIME, 10), 10010);
-
-  // A non-primary trace should also see the primary's snapshots.
-  auto non_primary = std::make_unique<ClockTracker>(&context_, &shared_sync,
-                                                    /*is_primary=*/false);
-  EXPECT_EQ(*non_primary->ToTraceTime(REALTIME, 10), 10010);
+  // The retry (what the proto reader does at end of input) now succeeds, and
+  // both files agree on the conversion.
+  EXPECT_EQ(*ct_->ToTraceTime(MONOTONIC, 1000), 100000);
+  EXPECT_EQ(*other->ToTraceTime(MONOTONIC, 2000), 101000);
 }
 
 // --- TraceTimeSetup state machine tests ---
