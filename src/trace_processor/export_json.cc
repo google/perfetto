@@ -54,8 +54,8 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
-#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/json_value.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::json {
 
@@ -213,7 +213,7 @@ class JsonExporter {
       // is emitted before its parent's end event, even if both end events have
       // the same timestamp. To accomplish this, we perform a stable sort in
       // descending order and later iterate via reverse iterators.
-      ColdStableSortByKeyDescending(
+      StableSortByKeyDescending(
           async_end_events_.begin(), async_end_events_.end(),
           [](const Dom& event) { return event["ts"].AsInt64(); });
 

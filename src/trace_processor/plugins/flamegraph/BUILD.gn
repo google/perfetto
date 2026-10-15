@@ -33,6 +33,7 @@ source_set("flamegraph") {
     "../../core/common",
     "../../core/tree",
     "../../core/util",
+    "../../util:sort",
   ]
 }
 

@@ -15,7 +15,7 @@
  */
 
 #include "src/trace_processor/util/trace_type.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -82,7 +82,7 @@ TraceImporterId TraceImporterRegistry::Guess(const uint8_t* data,
   for (auto it = importers_.GetIterator(); it; ++it) {
     entries.push_back({it.key(), it.value().get()});
   }
-  ColdSortByKey(entries.begin(), entries.end(), [](const Entry& e) {
+  SortByKey(entries.begin(), entries.end(), [](const Entry& e) {
     return e.importer->descriptor().detection_priority;
   });
   for (const Entry& e : entries) {

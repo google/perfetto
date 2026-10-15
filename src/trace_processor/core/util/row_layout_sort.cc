@@ -26,8 +26,8 @@
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/ops.h"
-#include "src/trace_processor/core/util/sort.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/util/sort.h"
 
 // SortRowLayout sorts on the bytes which differ between rows, the first 8 of
 // them packed into one integer per row so that sorting does not read the rows

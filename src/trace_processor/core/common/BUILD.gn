@@ -35,6 +35,7 @@ source_set("common") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../../util:sort",
     "../util",
   ]
 }

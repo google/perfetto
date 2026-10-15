@@ -24,8 +24,6 @@ source_set("util") {
     "range.h",
     "row_layout_sort.cc",
     "slab.h",
-    "sort.cc",
-    "sort.h",
     "span.h",
   ]
   deps = [
@@ -33,7 +31,7 @@ source_set("util") {
     "../../../../include/perfetto/ext/base",
     "../../../base",
     "../../containers",
-    "../../util:cold_sort",
+    "../../util:sort",
   ]
 }
 
@@ -45,7 +43,6 @@ perfetto_unittest_source_set("unittests") {
     "heap_unittest.cc",
     "ops_unittest.cc",
     "slab_unittest.cc",
-    "sort_unittest.cc",
     "span_unittest.cc",
   ]
   deps = [
@@ -67,9 +64,6 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:default_deps",
       "../../../base",
     ]
-    sources = [
-      "sort_benchmark.cc",
-      "sort_row_layout_benchmark.cc",
-    ]
+    sources = [ "sort_row_layout_benchmark.cc" ]
   }
 }
