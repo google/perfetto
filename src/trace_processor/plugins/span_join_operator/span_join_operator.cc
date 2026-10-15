@@ -638,7 +638,7 @@ std::string SpanJoinOperatorModule::TableDefinition::CreateSqlQuery(
   sql += " ORDER BY ";
   sql += IsPartitioned() ? base::Join({"`" + partition_col() + "`", "ts"}, ", ")
                          : "ts";
-  sql += ";";
+  sql += ';';
   return sql;
 }
 

@@ -240,7 +240,7 @@ void WriteGfpFlag(uint64_t value,
     value &= ~mask;
 
     result += str;
-    result += "|";
+    result += '|';
   }
 
   // Add any leftover flags.
