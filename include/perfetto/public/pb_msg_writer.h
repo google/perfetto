@@ -14,51 +14,51 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_PUBLIC_STREAM_WRITER_H_
-#define INCLUDE_PERFETTO_PUBLIC_STREAM_WRITER_H_
+#ifndef INCLUDE_PERFETTO_PUBLIC_PB_MSG_WRITER_H_
+#define INCLUDE_PERFETTO_PUBLIC_PB_MSG_WRITER_H_
 
 #include <assert.h>
 #include <string.h>
 
-#include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/abi/pb_msg_writer_abi.h"
 #include "perfetto/public/compiler.h"
 
 // Returns the number of bytes available for writing in the current chunk.
-static inline size_t PerfettoStreamWriterAvailableBytes(
-    const struct PerfettoStreamWriter* w) {
+static inline size_t PerfettoPbMsgWriterAvailableBytes(
+    const struct PerfettoPbMsgWriter* w) {
   return PERFETTO_STATIC_CAST(size_t, w->end - w->write_ptr);
 }
 
 // Writes `size` bytes from `src` to the writer.
 //
-// WARNING: PerfettoStreamWriterAvailableBytes(`w`) must be >= `size`.
-static inline void PerfettoStreamWriterAppendBytesUnsafe(
-    struct PerfettoStreamWriter* w,
+// WARNING: PerfettoPbMsgWriterAvailableBytes(`w`) must be >= `size`.
+static inline void PerfettoPbMsgWriterAppendBytesUnsafe(
+    struct PerfettoPbMsgWriter* w,
     const uint8_t* src,
     size_t size) {
-  assert(size <= PerfettoStreamWriterAvailableBytes(w));
+  assert(size <= PerfettoPbMsgWriterAvailableBytes(w));
   memcpy(w->write_ptr, src, size);
   w->write_ptr += size;
 }
 
 // Writes `size` bytes from `src` to the writer.
-static inline void PerfettoStreamWriterAppendBytes(
-    struct PerfettoStreamWriter* w,
+static inline void PerfettoPbMsgWriterAppendBytes(
+    struct PerfettoPbMsgWriter* w,
     const uint8_t* src,
     size_t size) {
-  if (PERFETTO_LIKELY(size <= PerfettoStreamWriterAvailableBytes(w))) {
-    PerfettoStreamWriterAppendBytesUnsafe(w, src, size);
+  if (PERFETTO_LIKELY(size <= PerfettoPbMsgWriterAvailableBytes(w))) {
+    PerfettoPbMsgWriterAppendBytesUnsafe(w, src, size);
   } else {
-    PerfettoStreamWriterAppendBytesSlowpath(w, src, size);
+    PerfettoPbMsgWriterAppendBytesSlowpath(w, src, size);
   }
 }
 
 // Writes the single byte `value` to the writer.
-static inline void PerfettoStreamWriterAppendByte(
-    struct PerfettoStreamWriter* w,
+static inline void PerfettoPbMsgWriterAppendByte(
+    struct PerfettoPbMsgWriter* w,
     uint8_t value) {
-  if (PERFETTO_UNLIKELY(PerfettoStreamWriterAvailableBytes(w) < 1)) {
-    PerfettoStreamWriterNewChunk(w);
+  if (PERFETTO_UNLIKELY(PerfettoPbMsgWriterAvailableBytes(w) < 1)) {
+    PerfettoPbMsgWriterNewChunk(w);
   }
   *w->write_ptr++ = value;
 }
@@ -67,12 +67,12 @@ static inline void PerfettoStreamWriterAppendByte(
 // returned area is considered already written by the writer (it will not be
 // used again).
 //
-// WARNING: PerfettoStreamWriterAvailableBytes(`w`) must be >= `size`.
-static inline uint8_t* PerfettoStreamWriterReserveBytesUnsafe(
-    struct PerfettoStreamWriter* w,
+// WARNING: PerfettoPbMsgWriterAvailableBytes(`w`) must be >= `size`.
+static inline uint8_t* PerfettoPbMsgWriterReserveBytesUnsafe(
+    struct PerfettoPbMsgWriter* w,
     size_t size) {
   uint8_t* ret = w->write_ptr;
-  assert(size <= PerfettoStreamWriterAvailableBytes(w));
+  assert(size <= PerfettoPbMsgWriterAvailableBytes(w));
   w->write_ptr += size;
   return ret;
 }
@@ -83,21 +83,21 @@ static inline uint8_t* PerfettoStreamWriterReserveBytesUnsafe(
 //
 // WARNING: `size` should be smaller than the chunk size returned by the
 // `delegate`.
-static inline uint8_t* PerfettoStreamWriterReserveBytes(
-    struct PerfettoStreamWriter* w,
+static inline uint8_t* PerfettoPbMsgWriterReserveBytes(
+    struct PerfettoPbMsgWriter* w,
     size_t size) {
-  if (PERFETTO_LIKELY(size <= PerfettoStreamWriterAvailableBytes(w))) {
-    return PerfettoStreamWriterReserveBytesUnsafe(w, size);
+  if (PERFETTO_LIKELY(size <= PerfettoPbMsgWriterAvailableBytes(w))) {
+    return PerfettoPbMsgWriterReserveBytesUnsafe(w, size);
   }
-  PerfettoStreamWriterReserveBytesSlowpath(w, size);
+  PerfettoPbMsgWriterReserveBytesSlowpath(w, size);
   return w->write_ptr - size;
 }
 
-// Returns the number of bytes written to the stream writer from the start.
-static inline size_t PerfettoStreamWriterGetWrittenSize(
-    const struct PerfettoStreamWriter* w) {
+// Returns the number of bytes written to the writer from the start.
+static inline size_t PerfettoPbMsgWriterGetWrittenSize(
+    const struct PerfettoPbMsgWriter* w) {
   return w->written_previously +
          PERFETTO_STATIC_CAST(size_t, w->write_ptr - w->begin);
 }
 
-#endif  // INCLUDE_PERFETTO_PUBLIC_STREAM_WRITER_H_
+#endif  // INCLUDE_PERFETTO_PUBLIC_PB_MSG_WRITER_H_

@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {
   collectYAxisLabels,
   formatLabel,
   generateNiceTicks,
+  renderTooltip,
+  tooltipMarker,
 } from './chart_option_builder';
 
 describe('formatLabel', () => {
@@ -160,5 +163,30 @@ describe('collectYAxisLabels', () => {
   test('returns empty when series has no data arrays', () => {
     const opt = {yAxis: {type: 'value'}, series: [{type: 'bar'}]};
     expect(collectYAxisLabels(opt)).toEqual([]);
+  });
+});
+
+describe('renderTooltip', () => {
+  test('renders mithril content into an element', () => {
+    const el = renderTooltip([m('div', m('b', 'name')), m('div', 'value')]);
+    expect(el.children.length).toBe(2);
+    expect(el.querySelector('b')?.textContent).toBe('name');
+    expect(el.textContent).toBe('namevalue');
+  });
+
+  test('treats HTML in text as literal text', () => {
+    const payload = '<img src=x onerror=alert(1)><iframe srcdoc="x"></iframe>';
+    const el = renderTooltip([m('div', payload), m('div', m('b', payload))]);
+    expect(el.querySelector('img')).toBeNull();
+    expect(el.querySelector('iframe')).toBeNull();
+    expect(el.textContent).toBe(payload + payload);
+  });
+});
+
+describe('tooltipMarker', () => {
+  test('renders a dot with the given color', () => {
+    const el = renderTooltip(m('div', tooltipMarker('red'), 'series'));
+    expect(el.querySelector('span')?.style.backgroundColor).toBe('red');
+    expect(el.textContent).toBe('series');
   });
 });

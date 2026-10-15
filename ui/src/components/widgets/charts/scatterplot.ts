@@ -21,6 +21,8 @@ import {
   buildChartOption,
   buildLegendOption,
   buildSelectionMarkArea,
+  renderTooltip,
+  tooltipMarker,
 } from './chart_option_builder';
 
 /**
@@ -318,16 +320,15 @@ function buildScatterOption(
         const value = params.value;
         if (value === undefined) return '';
         const [x, y, size, label] = value;
-        const lines = [
-          `${params.marker ?? ''} ${params.seriesName ?? ''}`,
-          `X: ${fmtX(x)}`,
-          `Y: ${fmtY(y)}`,
-        ];
-        if (size !== undefined && size !== null) {
-          lines.push(`Size: ${formatNumber(size)}`);
-        }
-        if (label !== undefined) lines.push(label);
-        return lines.join('<br>');
+        return renderTooltip([
+          m('div', tooltipMarker(params.color), params.seriesName ?? ''),
+          m('div', `X: ${fmtX(x)}`),
+          m('div', `Y: ${fmtY(y)}`),
+          size !== undefined &&
+            size !== null &&
+            m('div', `Size: ${formatNumber(size)}`),
+          label !== undefined && m('div', label),
+        ]);
       },
     },
     brush: attrs.onBrush

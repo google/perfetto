@@ -238,6 +238,10 @@ async function loadTraceIntoEngine(
     await engine.restoreInitialTables();
   }
 
+  // Set once the connection is in its final state: restoreInitialTables
+  // rebuilds it, which resets the flag.
+  await engine.query('PERFETTO PRAGMA pipelines = 1;');
+
   for (const p of await app.sqlPackages()) {
     await engine.registerSqlPackages(p);
   }

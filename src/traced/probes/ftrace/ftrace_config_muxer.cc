@@ -1071,7 +1071,7 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
     std::string arg;
     for (const auto& app : apps) {
       arg += app;
-      arg += ",";
+      arg += ',';
     }
     arg.resize(arg.size() - 1);
     args.push_back(arg);
