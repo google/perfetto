@@ -94,6 +94,25 @@ TEST_F(SyscallTrackerTest, ReportSysreturn) {
   EXPECT_EQ(SliceName(0), "sys_rt_sigreturn");
 }
 
+TEST_F(SyscallTrackerTest, ReportTrampolineSyscalls) {
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
+  syscall_tracker->SetArchitecture(Architecture::kX86_64);
+  syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 335 /*sys_uretprobe*/);
+  syscall_tracker->Enter(110 /*ts*/, 42 /*utid*/, 336 /*sys_uprobe*/);
+
+  // The kernel leaves both with the call number cleared, so no exit ever
+  // names them: each is an instant from its Enter alone, and neither nests
+  // the other.
+  ASSERT_EQ(slices().row_count(), 2u);
+  EXPECT_EQ(slices()[0].ts(), 100);
+  EXPECT_EQ(slices()[0].dur(), 0);
+  EXPECT_EQ(SliceName(0), "sys_uretprobe");
+  EXPECT_EQ(slices()[1].ts(), 110);
+  EXPECT_EQ(slices()[1].dur(), 0);
+  EXPECT_EQ(slices()[1].depth(), 0u);
+  EXPECT_EQ(SliceName(1), "sys_uprobe");
+}
+
 TEST_F(SyscallTrackerTest, Arm64) {
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(Architecture::kArm64);

@@ -29,6 +29,8 @@ source_set("pipeline") {
 
 source_set("plan") {
   sources = [
+    "aggregate.cc",
+    "aggregate.h",
     "catalog.cc",
     "catalog.h",
     "column_pruning.cc",

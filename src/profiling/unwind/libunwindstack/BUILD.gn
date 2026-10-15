@@ -21,7 +21,6 @@ source_set("libunwindstack") {
     "../../../../gn:libunwindstack",
   ]
   deps = [
-    "../../../../gn:bionic_kernel_uapi_headers",
     "../../../../gn:default_deps",
     "../../../base",
   ]

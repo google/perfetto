@@ -17,28 +17,29 @@
 #include "src/trace_processor/shell/interactive.h"
 
 #include <cerrno>
-#include <cinttypes>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/query.h"
-#include "src/trace_processor/shell/shell_utils.h"
+#include "src/trace_processor/shell/result_formatter.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <unistd.h>
+#endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE)
 #include <linenoise.h>
@@ -148,68 +149,67 @@ ScopedLine GetLine(const char* prompt) {
 
 #endif  // PERFETTO_TP_LINENOISE
 
-void PrintQueryResultInteractively(Iterator* it,
-                                   base::TimeNanos t_start,
-                                   uint32_t column_width,
-                                   bool quiet) {
-  base::TimeNanos t_end = base::GetWallTimeNs();
-  for (uint32_t rows = 0; it->Next(); rows++) {
-    if (rows % 32 == 0) {
-      if (rows == 0) {
-        t_end = base::GetWallTimeNs();
-      } else {
-        fprintf(stderr, "...\nType 'q' to stop, Enter for more records: ");
-        fflush(stderr);
-        char input[32];
-        if (!fgets(input, sizeof(input) - 1, stdin))
-          exit(0);
-        if (input[0] == 'q')
-          break;
-      }
-      for (uint32_t i = 0; i < it->ColumnCount(); i++)
-        printf("%-*.*s ", column_width, column_width,
-               it->GetColumnName(i).c_str());
-      printf("\n");
-
-      std::string divider(column_width, '-');
-      for (uint32_t i = 0; i < it->ColumnCount(); i++) {
-        printf("%-*s ", column_width, divider.c_str());
-      }
-      printf("\n");
-    }
-
-    for (uint32_t c = 0; c < it->ColumnCount(); c++) {
-      auto value = it->Get(c);
-      switch (value.type) {
-        case SqlValue::Type::kNull:
-          printf("%-*s", column_width, "[NULL]");
-          break;
-        case SqlValue::Type::kDouble:
-          printf("%*f", column_width, value.double_value);
-          break;
-        case SqlValue::Type::kLong:
-          printf("%*" PRIi64, column_width, value.long_value);
-          break;
-        case SqlValue::Type::kString:
-          printf("%-*.*s", column_width, column_width, value.string_value);
-          break;
-        case SqlValue::Type::kBytes:
-          printf("%-*s", column_width, "<raw bytes>");
-          break;
-      }
-      printf(" ");
-    }
-    printf("\n");
+// Rows per page: the terminal's height less room for the header and the
+// prompt, or 32 if it isn't known.
+uint64_t PageRows() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+  struct winsize size{};
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0 && size.ws_row > 8) {
+    return size.ws_row - 4u;
   }
+#endif
+  return 32;
+}
 
-  base::Status status = it->Status();
+void RunAndPrint(TraceProcessor* trace_processor,
+                 const std::string& sql,
+                 bool quiet) {
+  base::Status status = RunQueriesAndPrintResult(
+      trace_processor, sql, DefaultTableOptions(PageRows()), stdout, quiet,
+      nullptr);
   if (!status.ok()) {
     fprintf(stderr, "%s\n", status.c_message());
   }
-  if (!quiet) {
-    printf("\nQuery executed in %.3f ms\n\n",
-           static_cast<double>((t_end - t_start).count()) / 1E6);
+}
+
+// Commands which no longer work. They are left out of .help but still
+// recognized, so that anyone using them is told what to do instead.
+struct RetiredCommand {
+  const char* name;
+  const char* note;
+};
+constexpr RetiredCommand kRetiredCommands[] = {
+    {"dump",
+     "was removed: use `trace_processor export sqlite -o FILE TRACE_FILE` "
+     "instead"},
+    {"load-metrics-sql",
+     "was removed with the deprecated v1 metrics workflow: see "
+     "https://perfetto.dev/docs/analysis/metrics"},
+    {"run-metrics",
+     "was removed with the deprecated v1 metrics workflow: see "
+     "https://perfetto.dev/docs/analysis/metrics"},
+    {"width",
+     "is deprecated and does nothing: columns are now sized to their "
+     "contents"},
+};
+
+void PrintRetiredNote(const char* what, const char* note) {
+  PERFETTO_ELOG(
+      "%s %s. If this affects you, please file a bug at "
+      "https://github.com/google/perfetto/issues",
+      what, note);
+}
+
+// Prints the note for |command| if it is retired. Returns whether it was.
+bool MaybePrintRetiredCommand(const char* command) {
+  for (const auto& retired : kRetiredCommands) {
+    if (strcmp(command, retired.name) == 0) {
+      PrintRetiredNote(("." + std::string(retired.name)).c_str(), retired.note);
+      return true;
+    }
   }
+  return false;
 }
 
 void PrintShellUsage() {
@@ -217,25 +217,25 @@ void PrintShellUsage() {
 Available commands:
 .quit, .q         Exit the shell.
 .help             This text.
-.dump FILE        Export the trace as a sqlite database.
 .read FILE        Executes the queries in the FILE.
 .reset            Destroys all tables/view created by the user.
-.load-metrics-sql Reloads SQL from extension and custom metric paths
-                  specified in command line args.
-.run-metrics      Runs metrics specified in command line args
-                  and prints the result.
-.width WIDTH      Changes the column width of interactive query
-                  output.
 )");
 }
 
 }  // namespace
 
+shell::FlagSpec RetiredWideFlag() {
+  return {"wide", 'W', false, nullptr, nullptr, [](const char*) {
+            PrintRetiredNote("-W/--wide",
+                             "is deprecated and does nothing: columns are now "
+                             "sized to their contents");
+          }};
+}
+
 base::Status StartInteractiveShell(TraceProcessor* trace_processor,
                                    const InteractiveOptions& options) {
   SetupLineEditor();
 
-  uint32_t column_width = options.column_width;
   for (;;) {
     ScopedLine line = GetLine("> ");
     if (!line)
@@ -252,52 +252,27 @@ base::Status StartInteractiveShell(TraceProcessor* trace_processor,
       if (strcmp(command, "quit") == 0 || strcmp(command, "q") == 0) {
         break;
       }
+      if (MaybePrintRetiredCommand(command)) {
+        continue;
+      }
       if (strcmp(command, "help") == 0) {
         PrintShellUsage();
-      } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
-        if (!ExportTraceToDatabase(trace_processor, arg).ok())
-          PERFETTO_ELOG("Database export failed");
       } else if (strcmp(command, "reset") == 0) {
         trace_processor->RestoreInitialTables();
       } else if (strcmp(command, "read") == 0 && strlen(arg)) {
-        base::Status status =
-            RunQueriesFromFile(trace_processor, arg, true, options.quiet);
-        if (!status.ok()) {
-          PERFETTO_ELOG("%s", status.c_message());
-        }
-      } else if (strcmp(command, "width") == 0 && strlen(arg)) {
-        std::optional<uint32_t> width = base::CStringToUInt32(arg);
-        if (!width) {
-          PERFETTO_ELOG("Invalid column width specified");
+        std::string sql;
+        if (!base::ReadFile(arg, &sql)) {
+          PERFETTO_ELOG("Unable to read file %s", arg);
           continue;
         }
-        column_width = *width;
-      } else if (strcmp(command, "load-metrics-sql") == 0) {
-        base::Status status = LoadMetricsAndExtensionsSql(
-            trace_processor, options.metrics, options.extensions);
-        if (!status.ok()) {
-          PERFETTO_ELOG("%s", status.c_message());
-        }
-      } else if (strcmp(command, "run-metrics") == 0) {
-        if (options.metrics.empty()) {
-          PERFETTO_ELOG("No metrics specified on command line");
-          continue;
-        }
-
-        base::Status status = RunMetrics(trace_processor, options.metrics,
-                                         options.metric_v1_format);
-        if (!status.ok()) {
-          fprintf(stderr, "%s\n", status.c_message());
-        }
+        RunAndPrint(trace_processor, sql, options.quiet);
       } else {
         PrintShellUsage();
       }
       continue;
     }
 
-    base::TimeNanos t_start = base::GetWallTimeNs();
-    auto it = trace_processor->ExecuteQuery(line.get());
-    PrintQueryResultInteractively(&it, t_start, column_width, options.quiet);
+    RunAndPrint(trace_processor, line.get(), options.quiet);
   }
   return base::OkStatus();
 }

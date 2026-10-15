@@ -31,6 +31,7 @@ source_set("parser") {
     "../../../perfetto_sql:intrinsic_macro_expansion",
     "../../../perfetto_sql/syntaqlite",
     "../../sqlite",
+    "../../util:cold_sort",
     "../../util:sql_argument",
     "../pipeline",
     "../pipeline:plan",

@@ -17,8 +17,15 @@
 #include "src/profiling/perf/unwinding.h"
 
 #include <cinttypes>
+#include <cstdint>
 #include <mutex>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
+#include <unwindstack/Unwinder.h>
+#endif
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/thread_utils.h"
@@ -395,8 +402,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
             reinterpret_cast<const uint8_t*>(sample.stack.data()),
             sample.stack.size());
         unwinder.Unwind();
-        return {unwinder.LastErrorCode(), unwinder.warnings(),
-                unwinder.ConsumeFrames()};
+        return {unwinder.LastErrorCode(), unwinder.ConsumeFrames()};
       }
       case UnwindMode::kUnwindStack: {
         UnwindInputSample input_sample;
@@ -405,8 +411,6 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
             reinterpret_cast<const uint8_t*>(sample.stack.data());
         input_sample.stack_size = sample.stack.size();
         input_sample.stack_maxed = sample.stack_maxed;
-        input_sample.pid = sample.common.pid;
-        input_sample.tid = sample.common.tid;
 
         UnwindOptions options;
         options.max_frames = kUnwindingMaxFrames;
@@ -424,7 +428,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   UnwindResult unwind = attempt_unwind();
 
   bool should_retry = unwind.error_code == UnwindErrorCode::kInvalidMap ||
-                      unwind.warnings & UnwindWarning::kDexPcNotInMap;
+                      unwind.error_code == UnwindErrorCode::kDexPcNotInMap;
 
   // ERROR_INVALID_MAP means that unwinding reached a point in memory without a
   // corresponding mapping. This is possible if the parsed /proc/pid/maps is
@@ -476,8 +480,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
 std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
     const ParsedSample& sample) {
-  static base::NoDestructor<MapInfo> kernel_map_info([] {
-    MapInfo mi{};
+  static base::NoDestructor<UnwoundMapping> kernel_map_info([] {
+    UnwoundMapping mi{};
     mi.map_name = "kernel";
     return mi;
   }());
@@ -646,6 +650,7 @@ void Unwinder::ClearCachedStatePeriodic(DataSourceInstanceID ds_id,
 }
 
 void Unwinder::ResetAndEnableUnwinderCache() {
+#if PERFETTO_BUILDFLAG(PERFETTO_UNWINDER_LIBUNWINDSTACK)
   PERFETTO_DLOG("Resetting unwindstack cache");
   // Libunwindstack uses an unsynchronized variable for setting/checking whether
   // the cache is enabled. Therefore unwinding and cache toggling should stay on
@@ -655,7 +660,10 @@ void Unwinder::ResetAndEnableUnwinderCache() {
   // TODO(rsavitski): consider fixing this in libunwindstack itself.
   static std::mutex* lock = new std::mutex{};
   std::lock_guard<std::mutex> guard{*lock};
-  UnwindContext::ResetAndEnableGlobalCache();
+
+  unwindstack::Elf::SetCachingEnabled(false);  // free any existing state
+  unwindstack::Elf::SetCachingEnabled(true);   // reallocate a fresh cache
+#endif
 }
 
 }  // namespace profiling

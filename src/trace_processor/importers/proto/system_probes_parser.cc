@@ -60,6 +60,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
@@ -1189,8 +1190,9 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   uint32_t cluster_id = 0;
 
   if (valid_capacities) {
-    std::sort(cpu_infos.begin(), cpu_infos.end(),
-              [](auto a, auto b) { return a.capacity < b.capacity; });
+    ColdSortByKey(cpu_infos.begin(), cpu_infos.end(), [](const CpuInfo& info) {
+      return info.capacity ? uint64_t{*info.capacity} + 1 : 0;
+    });
     uint32_t previous_capacity = *cpu_infos[0].capacity;
     for (CpuInfo& cpu_info : cpu_infos) {
       uint32_t capacity = *cpu_info.capacity;
@@ -1210,8 +1212,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
           {info.cpu, *std::max_element(info.frequencies.begin(),
                                        info.frequencies.end())});
     }
-    std::sort(cpu_max_freqs.begin(), cpu_max_freqs.end(),
-              [](auto a, auto b) { return a.max_frequency < b.max_frequency; });
+    ColdSortByKey(cpu_max_freqs.begin(), cpu_max_freqs.end(),
+                  [](const CpuMaxFrequency& f) { return f.max_frequency; });
 
     uint32_t previous_max_freq = cpu_max_freqs[0].max_frequency;
     for (CpuMaxFrequency& cpu_max_freq : cpu_max_freqs) {

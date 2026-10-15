@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.cpu.arm_dsu;
 
 INCLUDE PERFETTO MODULE wattson.cpu.freq;
@@ -31,58 +29,65 @@ INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Per-interval CPU data, and the last generic table before going to device
 -- specific table calcs.
---
--- Because each CPU stream passes `state_id` as its `id`, `_wattson_dsu_frequency`
--- passes `dsu_freq` as its `id`, and `_gapless_suspend_slices` passes
--- `suspended` as its `id`, `interval_intersect` directly outputs those values
--- in `base.id_0..10`. This eliminates 10 out of 11 table joins across 434K
--- intervals.
+CREATE PERFETTO TABLE _w_cpu_slices_raw AS
+INTERVAL INTERSECTION OF (
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 0) AS c0,
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 1) AS c1,
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 2) AS c2,
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 3) AS c3,
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 4) AS c4,
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 5) AS c5,
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 6) AS c6,
+  (SELECT state_id, ts, dur FROM _idle_freq_materialized WHERE cpu = 7) AS c7,
+  _wattson_dsu_frequency AS dsu,
+  _arm_l3_rates AS l3,
+  _gapless_suspend_slices AS suspend
+)
+|> SELECT
+  ts,
+  dur,
+  l3.l3_hit_rate,
+  l3.l3_miss_rate,
+  suspend.suspended,
+  dsu.dsu_freq,
+  c0.state_id AS state_id_0,
+  c1.state_id AS state_id_1,
+  c2.state_id AS state_id_2,
+  c3.state_id AS state_id_3,
+  c4.state_id AS state_id_4,
+  c5.state_id AS state_id_5,
+  c6.state_id AS state_id_6,
+  c7.state_id AS state_id_7;
+
 CREATE PERFETTO TABLE _w_cpu_slices AS
 SELECT
-  base.ts,
-  base.dur,
-  cast_int!(l3.l3_hit_rate * base.dur) AS l3_hit_count,
-  cast_int!(l3.l3_miss_rate * base.dur) AS l3_miss_count,
-  base.id_10 AS suspended,
-  base.id_8 AS dsu_freq,
+  ts,
+  dur,
+  cast_int!(l3_hit_rate * dur) AS l3_hit_count,
+  cast_int!(l3_miss_rate * dur) AS l3_miss_count,
+  suspended,
+  dsu_freq,
   hash(
-    base.id_0,
-    base.id_1,
-    base.id_2,
-    base.id_3,
-    base.id_4,
-    base.id_5,
-    base.id_6,
-    base.id_7,
-    base.id_8,
-    base.id_10
+    state_id_0,
+    state_id_1,
+    state_id_2,
+    state_id_3,
+    state_id_4,
+    state_id_5,
+    state_id_6,
+    state_id_7,
+    dsu_freq,
+    suspended
   ) AS config_hash,
-  base.id_0 AS state_id_0,
-  base.id_1 AS state_id_1,
-  base.id_2 AS state_id_2,
-  base.id_3 AS state_id_3,
-  base.id_4 AS state_id_4,
-  base.id_5 AS state_id_5,
-  base.id_6 AS state_id_6,
-  base.id_7 AS state_id_7
-FROM _interval_intersect!(
-  (
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 0),
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 1),
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 2),
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 3),
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 4),
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 5),
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 6),
-    (SELECT state_id AS id, ts, dur FROM _idle_freq_materialized WHERE cpu = 7),
-    (SELECT dsu_freq AS id, ts, dur FROM _wattson_dsu_frequency),
-    _ii_subquery!(_arm_l3_rates),
-    (SELECT suspended AS id, ts, dur FROM _gapless_suspend_slices)
-  ),
-  ()
-) AS base
-JOIN _arm_l3_rates AS l3
-  ON l3._auto_id = base.id_9;
+  state_id_0,
+  state_id_1,
+  state_id_2,
+  state_id_3,
+  state_id_4,
+  state_id_5,
+  state_id_6,
+  state_id_7
+FROM _w_cpu_slices_raw;
 
 -- Tiny (~400 row) L1/L2-cached lookup table decoding state_id into
 -- (freq, idle, curve_value, static) built directly from _adjusted_cpu_freq.

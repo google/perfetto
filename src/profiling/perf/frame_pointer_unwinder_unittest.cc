@@ -17,6 +17,7 @@
 #include "src/profiling/perf/frame_pointer_unwinder.h"
 
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <cstdint>
 #include <cstring>
@@ -26,7 +27,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
-#include "src/profiling/unwind/perf_regs.h"
 #include "src/profiling/unwind/unwind_context.h"
 #include "src/profiling/unwind/unwind_types.h"
 #include "test/gtest_and_gmock.h"
@@ -57,7 +57,7 @@ class MockUnwindContext : public UnwindContext {
     for (const auto& m : maps_) {
       if (pc >= m.start && pc < m.end) {
         frame.rel_pc = pc - m.start;
-        MapInfo mi;
+        UnwoundMapping mi;
         mi.map_name = m.name;
         mi.map_start = m.start;
         mi.map_end = m.end;
@@ -66,6 +66,10 @@ class MockUnwindContext : public UnwindContext {
       }
     }
     return frame;
+  }
+
+  UnwindResult Unwind(const UnwindInputSample&, const UnwindOptions&) override {
+    return {};
   }
 
  private:
@@ -95,17 +99,16 @@ class FramePointerUnwinderTest : public ::testing::Test {
 };
 
 TEST_F(FramePointerUnwinderTest, UnwindUnsupportedArch) {
-  CpuRegisters regs_x86;
-  regs_x86.arch = CpuArch::kX86;
-  regs_x86.sp = kStackBase;
+  CpuRegisters regs_x86(CpuArch::X86);
+  regs_x86.set_sp(kStackBase);
   FramePointerUnwinder unwinder_x86(kMaxFrames, context_.get(), &regs_x86,
                                     stack_.data(), stack_.size());
+
   unwinder_x86.Unwind();
   EXPECT_EQ(unwinder_x86.LastErrorCode(), UnwindErrorCode::kUnsupported);
 
-  CpuRegisters regs_arm;
-  regs_arm.arch = CpuArch::kArm;
-  regs_arm.sp = kStackBase;
+  CpuRegisters regs_arm(CpuArch::ARM);
+  regs_arm.set_sp(kStackBase);
   FramePointerUnwinder unwinder_arm(kMaxFrames, context_.get(), &regs_arm,
                                     stack_.data(), stack_.size());
   unwinder_arm.Unwind();
@@ -114,11 +117,10 @@ TEST_F(FramePointerUnwinderTest, UnwindUnsupportedArch) {
 
 TEST_F(FramePointerUnwinderTest, UnwindInvalidMaps) {
   // Set up a valid stack frame
-  CpuRegisters regs;
-  regs.arch = CpuArch::kX86_64;
-  regs.pc = 0x1000;
-  regs.sp = kStackBase;
-  regs.raw_data[PERF_REG_X86_BP] = 0x2000;
+  CpuRegisters regs(CpuArch::X86_64);
+  regs.set_pc(0x1000);
+  regs.set_sp(kStackBase);
+  regs[X86_64_REG_RBP] = 0x2000;
   SetStackData64(0x2000, 0x3000);
   SetStackData64(0x2008, 0x2000);
 
@@ -137,11 +139,10 @@ TEST_F(FramePointerUnwinderTest, UnwindValidStack) {
   context_->AddMap(0x1000, 0x12000, "libmock.so");
 
   {
-    CpuRegisters regs_x86_64;
-    regs_x86_64.arch = CpuArch::kX86_64;
-    regs_x86_64.pc = 0x1900;
-    regs_x86_64.sp = kStackBase;
-    regs_x86_64.raw_data[PERF_REG_X86_BP] = 0x2000;
+    CpuRegisters regs_x86_64(CpuArch::X86_64);
+    regs_x86_64.set_pc(0x1900);
+    regs_x86_64.set_sp(0x1800);
+    regs_x86_64[X86_64_REG_RBP] = 0x2000;
 
     FramePointerUnwinder unwinder(kMaxFrames, context_.get(), &regs_x86_64,
                                   stack_.data(), stack_.size());
@@ -154,11 +155,10 @@ TEST_F(FramePointerUnwinderTest, UnwindValidStack) {
   }
 
   {
-    CpuRegisters regs_arm64;
-    regs_arm64.arch = CpuArch::kArm64;
-    regs_arm64.pc = 0x1900;
-    regs_arm64.sp = kStackBase;
-    regs_arm64.raw_data[PERF_REG_ARM64_X29] = 0x2000;
+    CpuRegisters regs_arm64(CpuArch::ARM64);
+    regs_arm64.set_pc(0x1900);
+    regs_arm64.set_sp(0x1800);
+    regs_arm64[ARM64_REG_X29] = 0x2000;
 
     FramePointerUnwinder unwinder(kMaxFrames, context_.get(), &regs_arm64,
                                   stack_.data(), stack_.size());
@@ -194,11 +194,10 @@ TEST_F(FramePointerUnwinderTest, UnwindWithRealLibunwindstackContext) {
   SetStackData64(0x2000 + sizeof(uint64_t), target_pc);
   SetStackData64(0x2200, 0);
 
-  CpuRegisters regs;
-  regs.arch = CpuArch::kX86_64;
-  regs.pc = target_pc;
-  regs.sp = kStackBase;
-  regs.raw_data[PERF_REG_X86_BP] = 0x2000;
+  CpuRegisters regs(CpuArch::X86_64);
+  regs.set_pc(target_pc);
+  regs.set_sp(kStackBase);
+  regs[X86_64_REG_RBP] = 0x2000;
 
   FramePointerUnwinder unwinder(kMaxFrames, real_ctx.get(), &regs,
                                 stack_.data(), stack_.size());

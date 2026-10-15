@@ -24,7 +24,6 @@
 
 #include <libunwind.h>
 
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/libunwind/elf_helper.h"
@@ -39,7 +38,6 @@ class LibunwindContext : public UnwindContext {
   LibunwindContext(base::ScopedFile maps_fd, base::ScopedFile mem_fd);
   ~LibunwindContext() override;
 
-  uint64_t reparses() const override { return reparses_count_; }
   void ReparseMaps() override;
   void ResetMaps() override;
 
@@ -98,15 +96,13 @@ class LibunwindContext : public UnwindContext {
   };
 
   void ParseMaps();
-  MapInfo* FindMap(uint64_t pc);
+  UnwoundMapping* FindMap(uint64_t pc);
   MappedFile* GetOrMapDso(const std::string& path);
 
   base::ScopedFile maps_fd_;
   base::ScopedFile mem_fd_;
 
-  uint64_t reparses_count_ = 0;
-  base::TimeMillis last_maps_reparse_time_{0};
-  std::vector<MapInfo> maps_;
+  std::vector<UnwoundMapping> maps_;
   // Cache of mmap'd ELF binaries (DSOs) keyed by file path, used by
   // `AccessDsoMem` to serve `.text`/`.eh_frame` memory reads without
   // `pread64(mem_fd)` syscalls, by `FindProcInfo` for `.eh_frame_hdr` table

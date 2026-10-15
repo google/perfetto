@@ -68,10 +68,6 @@ Compiler::Compiler(SyntaqliteParser* p,
                    const Catalog& c)
     : p_(p), source_(source), catalog_(c) {}
 
-std::string Compiler::Traceback(uint32_t node) const {
-  return source_(node).AsTraceback(0);
-}
-
 base::Status Compiler::Unsupported(uint32_t at, std::string_view what) const {
   return Err(at, Error::kUnsupported, what);
 }
@@ -147,6 +143,8 @@ base::Status Compiler::BuildOperation(uint32_t stage) {
     switch (tag) {
       case SYNTAQLITE_NODE_PERFETTO_INTERVAL_FILL_GAPS:
         return Unsupported(stage, "INTERVAL FILL GAPS");
+      case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
+        return Unsupported(stage, "WHERE");
       default:
         PERFETTO_FATAL("Unknown pipeline stage");
     }
@@ -170,9 +168,10 @@ base::Status Compiler::Err(uint32_t at,
       {"no such table alias: '", "'"},
   };
   const Shape& shape = kShapes[static_cast<size_t>(error)];
-  return base::ErrStatus(
-      "%s%s: %s%.*s%s%s", Traceback(at).c_str(), scope_.operation, shape.prefix,
-      static_cast<int>(what.size()), what.data(), shape.suffix, detail.c_str());
+  return source_(at).AddTraceback(
+      0, base::ErrStatus("%s: %s%.*s%s%s", scope_.operation, shape.prefix,
+                         static_cast<int>(what.size()), what.data(),
+                         shape.suffix, detail.c_str()));
 }
 
 std::string Compiler::Origin(const RowColumn& column) const {
@@ -291,21 +290,28 @@ base::StatusOr<ColumnId> Compiler::Resolve(const std::string& qualifier,
   return matches.front()->column.id;
 }
 
-// Returns the column summed by `SUM(column)`, the only aggregate supported so
-// far.
-base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t agg_id, uint32_t expr) {
+base::StatusOr<ColumnId> Compiler::ResolveColumnExpr(uint32_t expr) const {
+  const auto* node = Node<SyntaqliteNode>(p_, expr);
+  if (node->tag != SYNTAQLITE_NODE_COLUMN_REF) {
+    return Unsupported(expr, "an expression other than a column");
+  }
+  const SyntaqliteColumnRef& ref = node->column_ref;
+  if (IsSpanPresent(ref.schema)) {
+    return Unsupported(expr, "a schema-qualified column");
+  }
+  std::string table = IsSpanPresent(ref.table) ? SpanText(p_, ref.table) : "";
+  return Resolve(table, SpanText(p_, ref.column), expr);
+}
+
+// Resolves an aggregate call like `SUM(column)` to one of the executor's
+// shared functions and the column it reads. Its output is left to the stage.
+base::StatusOr<Aggregate> Compiler::ResolveAggregate(uint32_t expr) {
   const auto* node = Node<SyntaqliteNode>(p_, expr);
   if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
     return Expected(expr, "an aggregate like SUM(column)");
   }
   const SyntaqliteFunctionCall& call = node->function_call;
   std::string function = base::ToUpper(SpanText(p_, call.func_name));
-  if (function != "SUM") {
-    return Unsupported(expr, "aggregate " + function);
-  }
-  if (call.flags.bits.star) {
-    return Expected(expr, "a column name, not *");
-  }
   if (call.flags.bits.distinct) {
     return Unsupported(expr, "DISTINCT");
   }
@@ -315,41 +321,36 @@ base::StatusOr<ColumnId> Compiler::ResolveSum(uint32_t agg_id, uint32_t expr) {
   if (syntaqlite_node_is_present(call.over_clause)) {
     return Unsupported(call.over_clause, "OVER");
   }
+  Aggregate aggregate;
+  if (function == "COUNT" && call.flags.bits.star) {
+    aggregate.function = Aggregate::Function::kCountStar;
+    return aggregate;
+  }
+  if (function == "SUM") {
+    aggregate.function = Aggregate::Function::kSum;
+  } else if (function == "MIN") {
+    aggregate.function = Aggregate::Function::kMin;
+  } else if (function == "MAX") {
+    aggregate.function = Aggregate::Function::kMax;
+  } else {
+    return Unsupported(expr, "aggregate " + function);
+  }
+  if (call.flags.bits.star) {
+    return Expected(expr, "a column name, not *");
+  }
   const auto* args = Node<SyntaqliteExprList>(p_, call.args);
   if (!syntaqlite_node_is_present(call.args) ||
       syntaqlite_list_count(args) != 1) {
     return Expected(expr, "exactly one argument");
   }
   uint32_t arg_id = syntaqlite_list_child_id(args, 0);
-  const auto* arg = Node<SyntaqliteNode>(p_, arg_id);
-  if (arg->tag != SYNTAQLITE_NODE_COLUMN_REF) {
-    return Expected(arg_id, "a column name");
-  }
-  const SyntaqliteColumnRef& ref = arg->column_ref;
-  if (IsSpanPresent(ref.schema)) {
-    return Unsupported(arg_id, "a schema-qualified column");
-  }
-  std::string table = IsSpanPresent(ref.table) ? SpanText(p_, ref.table) : "";
-  ASSIGN_OR_RETURN(ColumnId value,
-                   Resolve(table, SpanText(p_, ref.column), agg_id));
-  const auto& type = plan_.columns()[value].type;
+  ASSIGN_OR_RETURN(aggregate.column, ResolveColumnExpr(arg_id));
+  const auto& type = plan_.columns()[aggregate.column].type;
   if (type && !(type->Is<core::Id>() || type->Is<core::Uint32>() ||
                 type->Is<core::Int32>() || type->Is<core::Int64>())) {
     return Expected(arg_id, "an integer column");
   }
-  return value;
-}
-
-bool Compiler::IsCountStar(uint32_t expr) const {
-  const auto* node = Node<SyntaqliteNode>(p_, expr);
-  if (node->tag != SYNTAQLITE_NODE_FUNCTION_CALL) {
-    return false;
-  }
-  const SyntaqliteFunctionCall& call = node->function_call;
-  return call.flags.bits.star && !call.flags.bits.distinct &&
-         !syntaqlite_node_is_present(call.filter_clause) &&
-         !syntaqlite_node_is_present(call.over_clause) &&
-         base::CaseInsensitiveEqual(SpanText(p_, call.func_name), "COUNT");
+  return aggregate;
 }
 
 base::Status Compiler::CompilePipeline(uint32_t pipeline) {

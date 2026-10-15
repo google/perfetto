@@ -26,12 +26,11 @@
 #include <cstring>
 #include <memory>
 
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/libunwind/elf_helper.h"
 #include "src/profiling/unwind/libunwind/process_map.h"
-#include "src/profiling/unwind/perf_regs.h"
 #include "src/profiling/unwind/unwind_context.h"
 #include "src/profiling/unwind/unwind_types.h"
 
@@ -108,7 +107,7 @@ int AccessMem(unw_addr_space_t /*as*/,
   const auto* s = state->sample;
   // 1. Read from captured stack snapshot if within [sp, sp + stack_size)
   if (s->stack_data && s->stack_size > 0 && s->regs) {
-    uint64_t sp = s->regs->sp;
+    uint64_t sp = s->regs->sp();
     if (addr >= sp && addr + sizeof(unw_word_t) <= sp + s->stack_size) {
       memcpy(valp, s->stack_data + (addr - sp), sizeof(unw_word_t));
       return 0;
@@ -139,55 +138,55 @@ int AccessReg(unw_addr_space_t /*as*/,
   // TODO(safayat): Add 32-bit x86 (__i386__ / UNW_X86_*) support if needed.
   switch (regnum) {
     case UNW_X86_64_RAX:
-      *valp = r.raw_data[PERF_REG_X86_AX];
+      *valp = r[X86_64_REG_RAX];
       return 0;
     case UNW_X86_64_RDX:
-      *valp = r.raw_data[PERF_REG_X86_DX];
+      *valp = r[X86_64_REG_RDX];
       return 0;
     case UNW_X86_64_RCX:
-      *valp = r.raw_data[PERF_REG_X86_CX];
+      *valp = r[X86_64_REG_RCX];
       return 0;
     case UNW_X86_64_RBX:
-      *valp = r.raw_data[PERF_REG_X86_BX];
+      *valp = r[X86_64_REG_RBX];
       return 0;
     case UNW_X86_64_RSI:
-      *valp = r.raw_data[PERF_REG_X86_SI];
+      *valp = r[X86_64_REG_RSI];
       return 0;
     case UNW_X86_64_RDI:
-      *valp = r.raw_data[PERF_REG_X86_DI];
+      *valp = r[X86_64_REG_RDI];
       return 0;
     case UNW_X86_64_RBP:
-      *valp = r.raw_data[PERF_REG_X86_BP];
+      *valp = r[X86_64_REG_RBP];
       return 0;
     case UNW_X86_64_RSP:
-      *valp = r.sp;
+      *valp = r[X86_64_REG_RSP];
       return 0;
     case UNW_X86_64_R8:
-      *valp = r.raw_data[PERF_REG_X86_R8];
+      *valp = r[X86_64_REG_R8];
       return 0;
     case UNW_X86_64_R9:
-      *valp = r.raw_data[PERF_REG_X86_R9];
+      *valp = r[X86_64_REG_R9];
       return 0;
     case UNW_X86_64_R10:
-      *valp = r.raw_data[PERF_REG_X86_R10];
+      *valp = r[X86_64_REG_R10];
       return 0;
     case UNW_X86_64_R11:
-      *valp = r.raw_data[PERF_REG_X86_R11];
+      *valp = r[X86_64_REG_R11];
       return 0;
     case UNW_X86_64_R12:
-      *valp = r.raw_data[PERF_REG_X86_R12];
+      *valp = r[X86_64_REG_R12];
       return 0;
     case UNW_X86_64_R13:
-      *valp = r.raw_data[PERF_REG_X86_R13];
+      *valp = r[X86_64_REG_R13];
       return 0;
     case UNW_X86_64_R14:
-      *valp = r.raw_data[PERF_REG_X86_R14];
+      *valp = r[X86_64_REG_R14];
       return 0;
     case UNW_X86_64_R15:
-      *valp = r.raw_data[PERF_REG_X86_R15];
+      *valp = r[X86_64_REG_R15];
       return 0;
     case UNW_X86_64_RIP:
-      *valp = r.pc;
+      *valp = r[X86_64_REG_RIP];
       return 0;
     default:
       return -UNW_EBADREG;
@@ -230,8 +229,6 @@ LibunwindContext::~LibunwindContext() {
 }
 
 void LibunwindContext::ReparseMaps() {
-  // TODO(safayat): consider moving to common base class
-  reparses_count_++;
   ResetMaps();
   ParseMaps();
 }
@@ -266,8 +263,9 @@ void LibunwindContext::ParseMaps() {
   if (!base::ReadFileDescriptor(*maps_fd_, &content))
     return;
 
-  procinfo::ReadMapFileContent(&content[0], [&](const procinfo::MapInfo& info) {
-    MapInfo map;
+  procinfo::ReadMapFileContent(
+      content.data(), [&](const procinfo::MapInfo& info) {
+    UnwoundMapping map;
     map.map_start = info.start;
     map.map_end = info.end;
     map.map_offset = info.pgoff;
@@ -282,14 +280,12 @@ void LibunwindContext::ParseMaps() {
   });
 }
 
-void UnwindContext::ResetAndEnableGlobalCache() {}
-
 // Mirroring `Maps::Find` from `libunwindstack/Maps.cpp` (and `maps__find` in
 // Linux `perf`).
-MapInfo* LibunwindContext::FindMap(uint64_t pc) {
+UnwoundMapping* LibunwindContext::FindMap(uint64_t pc) {
   auto it = std::upper_bound(
       maps_.begin(), maps_.end(), pc,
-      [](uint64_t val, const MapInfo& m) { return val < m.map_start; });
+      [](uint64_t val, const UnwoundMapping& m) { return val < m.map_start; });
   if (it != maps_.begin()) {
     --it;
     if (pc >= it->map_start && pc < it->map_end) {
@@ -333,7 +329,7 @@ int LibunwindContext::FindProcInfo(unw_addr_space_t as,
                                    unw_proc_info_t* pi,
                                    int need_unwind_info,
                                    void* arg) {
-  MapInfo* map = FindMap(ip);
+  UnwoundMapping* map = FindMap(ip);
   if (!map)
     return -UNW_ENOINFO;
 
@@ -384,7 +380,7 @@ int LibunwindContext::FindProcInfo(unw_addr_space_t as,
 // `AccessMem`. Serving non-stack reads directly from a cached `mmap` of the
 // backing ELF binary eliminates `pread64(mem_fd)` syscalls.
 bool LibunwindContext::AccessDsoMem(uint64_t addr, unw_word_t* valp) {
-  const MapInfo* map = FindMap(addr);
+  const UnwoundMapping* map = FindMap(addr);
   if (!map)
     return false;
 
@@ -406,7 +402,7 @@ FrameData LibunwindContext::BuildFrameFromPc(uint64_t pc, bool resolve_names) {
   frame.pc = pc;
   frame.rel_pc = pc;
 
-  MapInfo* map_info = FindMap(pc);
+  UnwoundMapping* map_info = FindMap(pc);
   if (map_info == nullptr) {
     return frame;
   }
@@ -448,100 +444,82 @@ FrameData LibunwindContext::BuildFrameFromPc(uint64_t pc, bool resolve_names) {
 UnwindResult LibunwindContext::Unwind(const UnwindInputSample& sample,
                                       const UnwindOptions& options) {
   UnwindResult result;
-  if (!sample.regs || sample.regs->arch != CpuArch::kX86_64 || !addr_space_) {
+  if (!sample.regs || sample.regs->arch != CpuArch::X86_64 || !addr_space_) {
     result.error_code = UnwindErrorCode::kBadArch;
     return result;
   }
 
-  for (int attempt = 0; attempt < options.max_attempts; ++attempt) {
-    if (attempt > 0) {
-      constexpr base::TimeMillis kMapsReparseInterval{500};
-      if (last_maps_reparse_time_ + kMapsReparseInterval >
-          base::GetWallTimeMs()) {
-        break;
-      }
-      ReparseMaps();
-      last_maps_reparse_time_ = base::GetWallTimeMs();
+  CursorState state{this, &sample, *mem_fd_};
+  unw_cursor_t cursor;
+  if (unw_init_remote(&cursor, addr_space_, &state) < 0) {
+    result.error_code = UnwindErrorCode::kInvalidUnwindInfo;
+    return result;
+  }
+
+  bool skipping_initial_maps = !options.skip_initial_maps.empty();
+  bool is_first_frame = true;
+  bool prev_was_signal_frame = false;
+  unw_word_t prev_ip = 0;
+  unw_word_t prev_sp = 0;
+
+  while (result.frames.size() < options.max_frames) {
+    unw_word_t ip = 0;
+    unw_word_t sp = 0;
+
+    if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0 || ip == 0)
+      break;
+    unw_get_reg(&cursor, UNW_REG_SP, &sp);
+
+    if (!is_first_frame && ip == prev_ip && sp == prev_sp) {
+      result.error_code = UnwindErrorCode::kRepeatedFrame;
+      break;
     }
+    prev_ip = ip;
+    prev_sp = sp;
 
-    result.frames.clear();
-    result.error_code = UnwindErrorCode::kNone;
+    // Subtract 1 from caller return addresses (non-first, non-signal frames)
+    // so the PC points inside the `call` instruction rather than the
+    // following instruction (matching `libunwindstack` and Linux `perf`).
+    const uint64_t frame_pc =
+        (!is_first_frame && !prev_was_signal_frame && ip > 0) ? ip - 1 : ip;
 
-    CursorState state{this, &sample, *mem_fd_};
-    unw_cursor_t cursor;
-    if (unw_init_remote(&cursor, addr_space_, &state) < 0) {
-      result.error_code = UnwindErrorCode::kInvalidUnwindInfo;
-      return result;
-    }
-
-    bool skipping_initial_maps = !options.skip_initial_maps.empty();
-    bool is_first_frame = true;
-    bool prev_was_signal_frame = false;
-    unw_word_t prev_ip = 0;
-    unw_word_t prev_sp = 0;
-
-    while (result.frames.size() < options.max_frames) {
-      unw_word_t ip = 0;
-      unw_word_t sp = 0;
-
-      if (unw_get_reg(&cursor, UNW_REG_IP, &ip) < 0 || ip == 0)
-        break;
-      unw_get_reg(&cursor, UNW_REG_SP, &sp);
-
-      if (!is_first_frame && ip == prev_ip && sp == prev_sp) {
-        result.error_code = UnwindErrorCode::kRepeatedFrame;
-        break;
-      }
-      prev_ip = ip;
-      prev_sp = sp;
-
-      // Subtract 1 from caller return addresses (non-first, non-signal frames)
-      // so the PC points inside the `call` instruction rather than the
-      // following instruction (matching `libunwindstack` and Linux `perf`).
-      const uint64_t frame_pc =
-          (!is_first_frame && !prev_was_signal_frame && ip > 0) ? ip - 1 : ip;
-
-      FrameData frame = BuildFrameFromPc(frame_pc, options.resolve_names);
-      frame.sp = sp;
-      if (!frame.map_info) {
-        result.error_code = UnwindErrorCode::kInvalidMap;
-        if (!skipping_initial_maps) {
-          result.frames.push_back(std::move(frame));
-        }
-        break;
-      }
-
-      bool ignore_frame = false;
-      if (skipping_initial_maps) {
-        std::string basename = base::Basename(frame.map_info->map_name);
-        ignore_frame = std::find(options.skip_initial_maps.begin(),
-                                 options.skip_initial_maps.end(),
-                                 basename) != options.skip_initial_maps.end();
-        if (!ignore_frame) {
-          skipping_initial_maps = false;
-        }
-      }
-      if (!ignore_frame) {
+    FrameData frame = BuildFrameFromPc(frame_pc, options.resolve_names);
+    frame.sp = sp;
+    if (!frame.map_info) {
+      result.error_code = UnwindErrorCode::kInvalidMap;
+      if (!skipping_initial_maps) {
         result.frames.push_back(std::move(frame));
       }
-
-      prev_was_signal_frame = unw_is_signal_frame(&cursor) > 0;
-      is_first_frame = false;
-
-      int step = unw_step(&cursor);
-      if (step <= 0) {
-        break;
-      }
-      if (result.frames.size() >= options.max_frames) {
-        result.error_code = UnwindErrorCode::kMaxFramesExceeded;
-        break;
-      }
+      break;
     }
 
-    if (result.error_code != UnwindErrorCode::kInvalidMap) {
+    bool ignore_frame = false;
+    if (skipping_initial_maps) {
+      std::string basename = base::Basename(frame.map_info->map_name);
+      ignore_frame = std::find(options.skip_initial_maps.begin(),
+                               options.skip_initial_maps.end(),
+                               basename) != options.skip_initial_maps.end();
+      if (!ignore_frame) {
+        skipping_initial_maps = false;
+      }
+    }
+    if (!ignore_frame) {
+      result.frames.push_back(std::move(frame));
+    }
+
+    prev_was_signal_frame = unw_is_signal_frame(&cursor) > 0;
+    is_first_frame = false;
+
+    int step = unw_step(&cursor);
+    if (step <= 0) {
+      break;
+    }
+    if (result.frames.size() >= options.max_frames) {
+      result.error_code = UnwindErrorCode::kMaxFramesExceeded;
       break;
     }
   }
+
   return result;
 }
 

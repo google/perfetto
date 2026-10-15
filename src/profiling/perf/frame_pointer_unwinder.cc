@@ -18,9 +18,10 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstring>
+#include <utility>
 
 #include "perfetto/base/logging.h"
-#include "src/profiling/unwind/perf_regs.h"
+#include "src/profiling/unwind/cpu_registers.h"
 #include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
@@ -28,14 +29,14 @@ namespace profiling {
 
 void FramePointerUnwinder::Unwind() {
   if (!IsArchSupported()) {
-    PERFETTO_ELOG("Unsupported architecture: %s", ToString(arch_).c_str());
-    last_error_.code = UnwindErrorCode::kUnsupported;
+    PERFETTO_ELOG("Unsupported architecture: %d", static_cast<int>(arch_));
+    last_error_ = UnwindErrorCode::kUnsupported;
     return;
   }
 
   if (context_ == nullptr) {
     PERFETTO_ELOG("No unwind context provided");
-    last_error_.code = UnwindErrorCode::kInvalidMap;
+    last_error_ = UnwindErrorCode::kInvalidParam;
     return;
   }
 
@@ -49,23 +50,23 @@ void FramePointerUnwinder::Unwind() {
 void FramePointerUnwinder::TryUnwind() {
   uint64_t fp = 0;
   switch (arch_) {
-    case CpuArch::kArm64:
-      fp = regs_->raw_data[PERF_REG_ARM64_X29];
+    case CpuArch::ARM64:
+      fp = regs_->regs[ARM64_REG_FP];
       break;
-    case CpuArch::kX86_64:
-      fp = regs_->raw_data[PERF_REG_X86_BP];
+    case CpuArch::X86_64:
+      fp = regs_->regs[X86_64_REG_RBP];
       break;
-    case CpuArch::kRiscv64:
-      fp = regs_->raw_data[PERF_REG_RISCV_S0];
+    case CpuArch::RISCV64:
+      fp = regs_->regs[RISCV64_REG_FP];
       break;
-    case CpuArch::kUnknown:
-    case CpuArch::kArm:
-    case CpuArch::kX86:
+    case CpuArch::UNKNOWN:
+    case CpuArch::ARM:
+    case CpuArch::X86:
         // not supported
         ;
   }
-  uint64_t sp = regs_->sp;
-  uint64_t pc = regs_->pc;
+  uint64_t sp = regs_->sp();
+  uint64_t pc = regs_->pc();
 
   for (size_t i = 0; i < max_frames_; i++) {
     if (!IsFrameValid(fp, sp))
@@ -73,13 +74,12 @@ void FramePointerUnwinder::TryUnwind() {
 
     FrameData frame = context_->BuildFrameFromPc(pc, resolve_names_);
     if (!frame.map_info) {
-      last_error_.code = UnwindErrorCode::kInvalidMap;
+      last_error_ = UnwindErrorCode::kInvalidMap;
       return;
     }
 
     frame.sp = sp;
     frames_.push_back(std::move(frame));
-    // move to the next frame
     fp = DecodeFrame(fp, &pc, &sp);
   }
 }
@@ -91,7 +91,7 @@ uint64_t FramePointerUnwinder::DecodeFrame(uint64_t fp,
   if (__builtin_add_overflow(fp, sizeof(uint64_t) * 2, next_sp))
     return 0;
 
-  size_t offset = static_cast<size_t>(fp - regs_->sp);
+  size_t offset = static_cast<size_t>(fp - regs_->sp());
   uint64_t next_fp = 0;
 
   std::memcpy(&next_fp, stack_data_ + offset, sizeof(uint64_t));
@@ -104,18 +104,18 @@ uint64_t FramePointerUnwinder::DecodeFrame(uint64_t fp,
 bool FramePointerUnwinder::IsFrameValid(uint64_t fp, uint64_t sp) {
   uint64_t align_mask = 0;
   switch (arch_) {
-    case CpuArch::kArm64:
+    case CpuArch::ARM64:
       align_mask = 0x1;
       break;
-    case CpuArch::kX86_64:
+    case CpuArch::X86_64:
       align_mask = 0xf;
       break;
-    case CpuArch::kRiscv64:
+    case CpuArch::RISCV64:
       align_mask = 0x7;
       break;
-    case CpuArch::kUnknown:
-    case CpuArch::kArm:
-    case CpuArch::kX86:
+    case CpuArch::UNKNOWN:
+    case CpuArch::ARM:
+    case CpuArch::X86:
         // not supported
         ;
   }

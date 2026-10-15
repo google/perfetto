@@ -18,60 +18,12 @@
 #define SRC_PROFILING_UNWIND_UNWIND_TYPES_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/string_view.h"
-
 namespace perfetto {
 namespace profiling {
-
-// TODO(safayat): support 32-bit riscv and other architectures.
-enum CpuArch : uint8_t {
-  kUnknown = 0,
-  kArm,
-  kArm64,
-  kX86,
-  kX86_64,
-  kRiscv64,
-};
-
-inline constexpr CpuArch CurrentCpuArch() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_ARM64)
-  return CpuArch::kArm64;
-#elif PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
-  return CpuArch::kX86_64;
-#elif PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV)
-  return CpuArch::kRiscv64;
-#elif defined(__arm__)
-  return CpuArch::kArm;
-#elif defined(__i386__)
-  return CpuArch::kX86;
-#else
-  return CpuArch::kUnknown;
-#endif
-}
-
-inline std::string ToString(CpuArch arch) {
-  switch (arch) {
-    case CpuArch::kUnknown:
-      return "kUnknown";
-    case CpuArch::kArm:
-      return "kArm";
-    case CpuArch::kArm64:
-      return "kArm64";
-    case CpuArch::kX86:
-      return "kX86";
-    case CpuArch::kX86_64:
-      return "kX86_64";
-    case CpuArch::kRiscv64:
-      return "kRiscv64";
-  }
-  return "UNKNOWN";
-}
 
 enum class UnwindMode { kUnwindStack, kFramePointer, kKernelFramePointer };
 
@@ -81,25 +33,33 @@ enum class SymbolStatus : uint8_t {
   kFailure = 2,
 };
 
-// Metadata for single memory mappings in proc/<pid>/maps
-//
-// Example `/proc/<pid>/maps` line:
-//    [map_start]-[map_end]  [perm] [offset] [dev] [inode]  [map_name]
-//   7f7c18042000-7f7c1806a000 r--p 00000000 fd:01 37890545 <binary_file>
-//   7f7c1806a000-7f7c181d3000 r-xp 00028000 fd:01 37890545 <binary_file>
-struct MapInfo {
-  // ELF GNU build-id for offline symbolization
-  std::string build_id;
+// Represents the additional ELF information associated with a PC.
+struct UnwoundMapping {
+  // `map_name`, `map_start`, `map_end`, `map_offset`: populated directly from
+  // the /proc/<pid>/maps entry covering the frame's PC.
+  // Example `/proc/<pid>/maps` line:
+  //    [map_start]-[map_end]  [perm] [offset] [dev] [inode]  [map_name]
+  //   7f7c18042000-7f7c1806a000 r--p 00000000 fd:01 37890545 <binary_file>
+  //   7f7c1806a000-7f7c181d3000 r-xp 00028000 fd:01 37890545 <binary_file>
   std::string map_name;
   uint64_t map_start = 0;
   uint64_t map_end = 0;
-  // r-xp segment offset
   uint64_t map_offset = 0;
-  // first r--p segment start offset
+
+  // For split ELFs mapped across an initial
+  // read-only (r--p) mapping (containing the ELF header) followed by an
+  // executable (r-xp) mapping, the file offset of the initial mapping (0 if the
+  // mapping starts at the beginning of the ELF).
   uint64_t map_start_offset = 0;
-  // ELF load bias (`p_vaddr - p_offset` of the executable `PT_LOAD` segment),
-  // needed to convert `rel_pc` to the ELF symbol table's virtual address.
+
+  // populated by parsing the underlying ELF binary
+  // (p_vaddr - p_offset) of the executable PT_LOAD segment.
+  // Needed to convert `rel_pc` to the ELF symbol table's virtual address.
   uint64_t map_load_bias = 0;
+
+  // raw .note.gnu.build-id bytes;
+  // 0 / empty if the mapping is not a readable ELF or lacks a build ID).
+  std::string build_id;
 };
 
 struct FrameData {
@@ -112,12 +72,14 @@ struct FrameData {
   uint64_t function_offset = 0;
   SymbolStatus symbol_status = SymbolStatus::kNotAttempted;
 
-  // Future improvement: cache these to avoid per-frame allocation.
-  std::optional<MapInfo> map_info;
+  // TODO(safayat): cache these to avoid per-frame allocation.
+  std::optional<UnwoundMapping> map_info;
 };
 
 enum class UnwindErrorCode : uint8_t {
   kNone = 0,
+  // Represents libunwindstack Warning::kDexPcNotInMap
+  kDexPcNotInMap,
   kMemoryInvalid,
   kInvalidUnwindInfo,
   kUnsupported,
@@ -135,23 +97,12 @@ enum class UnwindErrorCode : uint8_t {
   kUnknownError,
 };
 
-struct UnwindErrorData {
-  UnwindErrorCode code;
-  uint64_t address;  // Only valid when code is ERROR_MEMORY_INVALID.
-                     // Indicates the failing address.
-};
-
-// A bit map of warnings, multiple warnings can be set at the same time.
-enum UnwindWarning : uint64_t {
-  kNone = 0,
-  kDexPcNotInMap = 0x1,  // A dex pc was found, but it doesn't exist
-                         // in any valid map.
-};
-
 inline std::string ToString(UnwindErrorCode error) {
   switch (error) {
     case UnwindErrorCode::kNone:
       return "NONE";
+    case UnwindErrorCode::kDexPcNotInMap:
+      return "DEX_PC_NOT_IN_MAP";
     case UnwindErrorCode::kMemoryInvalid:
       return "MEMORY_INVALID";
     case UnwindErrorCode::kInvalidUnwindInfo:
@@ -188,14 +139,14 @@ inline std::string ToString(UnwindErrorCode error) {
 
 struct UnwindResult {
   UnwindErrorCode error_code = UnwindErrorCode::kNone;
-  uint64_t warnings = 0;
+  // callstack frames are ordered from the leaf to root.
   std::vector<FrameData> frames;
 
   bool success() const { return error_code == UnwindErrorCode::kNone; }
 
   UnwindResult() = default;
-  UnwindResult(UnwindErrorCode e, uint64_t w, std::vector<FrameData> f)
-      : error_code(e), warnings(w), frames(std::move(f)) {}
+  UnwindResult(UnwindErrorCode e, std::vector<FrameData> f)
+      : error_code(e), frames(std::move(f)) {}
 
   UnwindResult(const UnwindResult&) = delete;
   UnwindResult& operator=(const UnwindResult&) = delete;

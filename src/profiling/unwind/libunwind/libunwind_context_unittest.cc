@@ -27,8 +27,8 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/unwind/asm_get_regs.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/get_asm_regs.h"
 #include "src/profiling/unwind/libunwind/process_map.h"
 #include "src/profiling/unwind/unwind_types.h"
 #include "test/gtest_and_gmock.h"
@@ -56,13 +56,16 @@ CopyStackBytesForTest(uint8_t* dst, const uint8_t* src, size_t n) {
 __attribute__((noinline)) void CaptureUnwindSampleLeaf(
     CapturedStackSample* out,
     const uint8_t* outer_frame_addr) {
-  char reg_data[64 * sizeof(uint64_t)] = {};
-  AsmGetRegs(reg_data);
-  out->regs = CpuRegisters::FromUserRegs(CurrentCpuArch(), reg_data);
+  alignas(8) uintptr_t reg_data[CpuRegisters::kMaxRegs] = {};
+  GetAsmRegs(reg_data);
+  out->regs = CpuRegisters(CurrentCpuArch());
+  for (size_t i = 0; i < CpuRegisters::kMaxRegs; ++i) {
+    out->regs[i] = reg_data[i];
+  }
 
   const auto* sp_ptr =
       reinterpret_cast<const uint8_t*>(__builtin_frame_address(0));
-  out->regs.sp = reinterpret_cast<uint64_t>(sp_ptr);
+  out->regs.set_sp(reinterpret_cast<uint64_t>(sp_ptr));
 
   const size_t copy_bytes =
       outer_frame_addr > sp_ptr
@@ -184,14 +187,15 @@ TEST(LibunwindContextTest, UnwindMultiFrameAndOptions) {
   UnwindResult skipped_res = ctx.Unwind(sample, options);
   EXPECT_LT(skipped_res.frames.size(), res.frames.size());
 
-  // Verify ResetMaps() clears maps and Unwind(max_attempts = 2) reparses them.
+  // Verify ResetMaps() clears maps and ReparseMaps() restores them.
   options.skip_initial_maps.clear();
-  options.max_attempts = 2;
   ctx.ResetMaps();
-  EXPECT_EQ(ctx.reparses(), 0u);
+  UnwindResult cleared_res = ctx.Unwind(sample, options);
+  EXPECT_EQ(cleared_res.error_code, UnwindErrorCode::kInvalidMap);
+
+  ctx.ReparseMaps();
   UnwindResult reparsed_res = ctx.Unwind(sample, options);
   EXPECT_EQ(reparsed_res.error_code, UnwindErrorCode::kNone);
-  EXPECT_EQ(ctx.reparses(), 1u);
 }
 
 TEST(LibunwindContextTest, UnwindInvalidPcReturnsInvalidMap) {
@@ -202,10 +206,9 @@ TEST(LibunwindContextTest, UnwindInvalidPcReturnsInvalidMap) {
 
   LibunwindContext ctx(std::move(proc_maps), std::move(proc_mem));
 
-  CpuRegisters bad_regs;
-  bad_regs.arch = CurrentCpuArch();
-  bad_regs.pc = 0x100u;  // Unmapped address.
-  bad_regs.sp = 0x100u;
+  CpuRegisters bad_regs(CurrentCpuArch());
+  bad_regs.set_pc(0x100u);  // Unmapped address.
+  bad_regs.set_sp(0x100u);
 
   uint8_t dummy_stack[64] = {};
   UnwindInputSample sample;
@@ -215,7 +218,6 @@ TEST(LibunwindContextTest, UnwindInvalidPcReturnsInvalidMap) {
 
   UnwindOptions options;
   options.max_frames = 16;
-  options.max_attempts = 1;
 
   UnwindResult res = ctx.Unwind(sample, options);
   EXPECT_EQ(res.error_code, UnwindErrorCode::kInvalidMap);

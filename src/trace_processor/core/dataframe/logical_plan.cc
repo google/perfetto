@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -204,13 +205,9 @@ class Planner {
 
 base::Status Planner::Filter(std::vector<FilterSpec>& specs) {
   // Sort filters by efficiency (most selective/cheapest first)
-  std::stable_sort(specs.begin(), specs.end(),
-                   [this](const FilterSpec& a, const FilterSpec& b) {
-                     const auto& a_col = GetColumn(a.col);
-                     const auto& b_col = GetColumn(b.col);
-                     return FilterPreference(a, a_col) <
-                            FilterPreference(b, b_col);
-                   });
+  ColdStableSortByKey(specs.begin(), specs.end(), [this](const FilterSpec& fs) {
+    return FilterPreference(fs, GetColumn(fs.col));
+  });
 
   std::vector<uint8_t> specs_handled(specs.size(), false);
 

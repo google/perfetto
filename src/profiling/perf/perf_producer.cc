@@ -358,6 +358,7 @@ protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
       return Profiling::UNWIND_ERROR_INVALID_PARAMETER;
     case UnwindErrorCode::kPtraceCall:
       return Profiling::UNWIND_ERROR_PTRACE_CALL;
+    case UnwindErrorCode::kDexPcNotInMap:
     case UnwindErrorCode::kUnknownError:
       return Profiling::UNWIND_ERROR_UNKNOWN;
   }

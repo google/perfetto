@@ -20,7 +20,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "src/profiling/unwind/asm_get_regs.h"
+#include "src/profiling/unwind/get_asm_regs.h"
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -37,17 +37,44 @@ namespace {
 void __attribute__((noinline)) AssertFunctionOffset() {
   constexpr auto kMaxFunctionSize = 1000u;
   // Need to zero-initialize to make MSAN happy. MSAN does not see the writes
-  // from AsmGetRegs (as it is in assembly) and complains otherwise.
+  // from GetAsmRegs (as it is in assembly) and complains otherwise.
   char reg_data[kMaxRegisterDataSize] = {};
-  AsmGetRegs(reg_data);
-  CpuRegisters regs = CpuRegisters::FromUserRegs(CurrentCpuArch(), reg_data);
-  ASSERT_GT(regs.pc, reinterpret_cast<uint64_t>(&AssertFunctionOffset));
-  ASSERT_LT(regs.pc - reinterpret_cast<uint64_t>(&AssertFunctionOffset),
+  GetAsmRegs(reg_data);
+  auto regs = CreateRegsFromRawData(CurrentCpuArch(), reg_data);
+  ASSERT_TRUE(regs.has_value());
+  ASSERT_GT(regs->pc(), reinterpret_cast<uint64_t>(&AssertFunctionOffset));
+  ASSERT_LT(regs->pc() - reinterpret_cast<uint64_t>(&AssertFunctionOffset),
             kMaxFunctionSize);
+
+  StackRange stack_range = GetThreadStackRange();
+  ASSERT_GE(regs->sp(), reinterpret_cast<uint64_t>(stack_range.begin));
+  ASSERT_LT(regs->sp(), reinterpret_cast<uint64_t>(stack_range.end));
 }
 
 TEST(UnwindingTest, TestFunctionOffset) {
   AssertFunctionOffset();
+}
+
+TEST(UnwindingTest, CreateRegsFromRawData) {
+  char raw_data[kMaxRegisterDataSize] = {};
+  EXPECT_FALSE(CreateRegsFromRawData(CpuArch::UNKNOWN, raw_data).has_value());
+
+  auto* raw32 = reinterpret_cast<uint32_t*>(raw_data);
+  raw32[ARM_REG_SP] = 0x1000;
+  raw32[ARM_REG_PC] = 0x2000;
+  auto arm_regs = CreateRegsFromRawData(CpuArch::ARM, raw_data);
+  ASSERT_TRUE(arm_regs.has_value());
+  EXPECT_EQ(arm_regs->sp(), 0x1000u);
+  EXPECT_EQ(arm_regs->pc(), 0x2000u);
+
+  memset(raw_data, 0, sizeof(raw_data));
+  auto* raw64 = reinterpret_cast<uint64_t*>(raw_data);
+  raw64[X86_64_REG_RSP] = 0x123400000000ULL;
+  raw64[X86_64_REG_RIP] = 0x567800000000ULL;
+  auto x64_regs = CreateRegsFromRawData(CpuArch::X86_64, raw_data);
+  ASSERT_TRUE(x64_regs.has_value());
+  EXPECT_EQ(x64_regs->sp(), 0x123400000000ULL);
+  EXPECT_EQ(x64_regs->pc(), 0x567800000000ULL);
 }
 
 // This is needed because ASAN thinks copying the whole stack is a buffer
@@ -74,9 +101,9 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   const char* stackend = GetThreadStackRange().end;
   const char* stackptr = reinterpret_cast<char*>(__builtin_frame_address(0));
   // Need to zero-initialize to make MSAN happy. MSAN does not see the writes
-  // from AsmGetRegs (as it is in assembly) and complains otherwise.
+  // from GetAsmRegs (as it is in assembly) and complains otherwise.
   memset(metadata->register_data, 0, sizeof(metadata->register_data));
-  AsmGetRegs(metadata->register_data);
+  GetAsmRegs(metadata->register_data);
 
   if (stackend < stackptr) {
     PERFETTO_FATAL("Stacktop >= stackend.");

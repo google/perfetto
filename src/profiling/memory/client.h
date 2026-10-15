@@ -32,7 +32,7 @@
 #include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
-#include "src/profiling/unwind/unwind_types.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
@@ -117,6 +117,7 @@ class Client {
   bool IsConnected();
 
  private:
+  ssize_t GetStackRegisterIndex(CpuArch arch);
   uintptr_t GetStackAddress(char* reg_data, CpuArch arch);
   const char* GetStackEnd(const char* stacktop);
   bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;

@@ -18,10 +18,14 @@ import type {SqlValue, Row} from '../../../trace_processor/query_result';
 import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import type {OverviewData} from '../types';
+import type {Engine} from '../../../trace_processor/engine';
+import {AsyncMemo} from '../../../base/async_memo';
+import {Spinner} from '../../../widgets/spinner';
+import * as queries from '../queries';
 import {fmtSize} from '../format';
 import type {NavState} from '../nav_state';
 import {type NavFn, sizeRenderer} from '../components';
-import type {HeapDump} from '../queries';
+import type {HeapDump} from '../types';
 import {Callout} from '../../../widgets/callout';
 import {Button} from '../../../widgets/button';
 import {
@@ -198,14 +202,14 @@ function renderDuplicateSection(
   data: Row[],
   columns: Array<{id: string; field: string}>,
 ): m.Children {
-  return m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
+  return m('.pf-hde-card.pf-hde-mt-4', [
     m('h3', {class: 'pf-hde-sub-heading'}, title),
     m('p', {class: 'pf-hde-desc'}, [
       groupCount +
         ' group' +
         (groupCount > 1 ? 's' : '') +
         ' detected, wasting ',
-      m('span', {class: 'pf-hde-mono pf-hde-semibold'}, fmtSize(totalWasted)),
+      m('span.pf-hde-mono.pf-hde-semibold', fmtSize(totalWasted)),
       '. ',
       m(
         Anchor,
@@ -215,7 +219,7 @@ function renderDuplicateSection(
         linkLabel,
       ),
     ]),
-    m('div', {class: 'pf-hde-dup-grid-container'}, [
+    m('.pf-hde-dup-grid-container', [
       m(DataGrid, {
         schema,
         data,
@@ -227,24 +231,39 @@ function renderDuplicateSection(
 }
 
 interface OverviewViewAttrs {
-  readonly overview: OverviewData;
+  readonly engine: Engine;
   readonly activeDump: HeapDump;
+  readonly hasFieldValues: boolean;
   readonly navigate: NavFn;
   readonly showDefaultChangedHint: boolean;
   readonly onBackToTimeline: () => void;
   readonly onDismissDefaultChangedHint: () => void;
 }
 export function OverviewView(): m.Component<OverviewViewAttrs> {
+  // Loaded here rather than up front, so it's only computed if the overview is
+  // actually opened.
+  const overviewMemo = new AsyncMemo<OverviewData>();
   return {
+    onremove() {
+      overviewMemo.dispose();
+    },
     view(vnode) {
       const {
-        overview,
+        engine,
         activeDump,
+        hasFieldValues,
         navigate,
         showDefaultChangedHint,
         onBackToTimeline,
         onDismissDefaultChangedHint,
       } = vnode.attrs;
+      const {data: overview} = overviewMemo.use({
+        key: {upid: activeDump.upid, ts: activeDump.ts},
+        compute: () => queries.getOverview(engine, activeDump, hasFieldValues),
+      });
+      if (overview === undefined) {
+        return m('.pf-hde-loading', m(Spinner, {easing: true}));
+      }
       const showHint = showDefaultChangedHint;
       const heapIndices: number[] = [];
       for (let i = 0; i < overview.heaps.length; i++) {
@@ -274,7 +293,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
 
       const processLabel =
         (activeDump.processName ?? '<unknown>') +
-        (activeDump.pid ? ` (pid ${activeDump.pid})` : '');
+        (activeDump.pid !== null ? ` (pid ${activeDump.pid})` : '');
       const infoRow = (property: string, value: string): GridRow => [
         m(GridCell, property),
         m(GridCell, value),
@@ -313,7 +332,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               )
             : null,
 
-          m('div', {class: 'pf-hde-card pf-hde-mb-4'}, [
+          m('.pf-hde-card.pf-hde-mb-4', [
             m('h3', {class: 'pf-hde-sub-heading'}, 'General Information'),
             m(Grid, {
               columns: [
@@ -351,7 +370,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
               ]),
             }),
           ]),
-          m('div', {class: 'pf-hde-card'}, [
+          m('.pf-hde-card', [
             m('h3', {class: 'pf-hde-sub-heading'}, 'Bytes Retained by Heap'),
             m(DataGrid, {
               schema: HEAP_SCHEMA,
@@ -365,7 +384,7 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
             }),
           ]),
           overview.oome !== undefined
-            ? m('div', {class: 'pf-hde-card pf-hde-mt-4'}, [
+            ? m('.pf-hde-card.pf-hde-mt-4', [
                 m('h3', {class: 'pf-hde-sub-heading'}, OOME_DETAILS_TITLE),
                 renderOomeDetailsGrid(overview.oome),
               ])
@@ -397,10 +416,9 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   {id: 'wasted_bytes', field: 'wasted_bytes'},
                 ],
               )
-            : overview.hasFieldValues
+            : hasFieldValues
               ? m(
-                  'div',
-                  {class: 'pf-hde-card pf-hde-mt-4 pf-hde-mb-4'},
+                  '.pf-hde-card.pf-hde-mt-4.pf-hde-mb-4',
                   m(
                     'p',
                     {class: 'pf-hde-muted'},
@@ -433,10 +451,9 @@ export function OverviewView(): m.Component<OverviewViewAttrs> {
                   {id: 'wasted_bytes', field: 'wasted_bytes'},
                 ],
               )
-            : overview.hasFieldValues
+            : hasFieldValues
               ? m(
-                  'div',
-                  {class: 'pf-hde-card pf-hde-mb-4'},
+                  '.pf-hde-card.pf-hde-mb-4',
                   m(
                     'p',
                     {class: 'pf-hde-muted'},
