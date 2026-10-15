@@ -32,6 +32,7 @@
 #include "src/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/scan.h"
@@ -170,15 +171,11 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   c->DeclareColumn(isect.ts_);
   c->DeclareColumn(isect.dur_);
 
-  // Each operand is read from its own side pipeline, which converts ts and
-  // dur to Int64 if needed.
+  // Each operand is read from its own side pipeline.
   std::vector<Lowering*> sides;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
-    const IntervalIntersect::Operand& operand = isect.operands_[i];
     Lowering& side = c->AddSidePipeline();
     side.LowerNode(children[i]);
-    side.RequireType(operand.ts, core::Int64{});
-    side.RequireType(operand.dur, core::Int64{});
     sides.push_back(&side);
   }
 
@@ -194,22 +191,13 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
     c->RequireCommonType(same);
   }
 
-  std::vector<ex::IntervalIntersectOperand> inputs;
+  std::vector<ex::CollectedInputSpec> inputs;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
     const IntervalIntersect::Operand& operand = isect.operands_[i];
     Lowering& side = *sides[i];
-    ex::IntervalIntersectOperand lowered;
-    // The operator reads each key's intervals sorted by start.
-    std::vector<SortKey> by_start = {{operand.ts, false}};
-    side.RequireSortedWithinGroups(operand.keys, by_start);
-    if (!operand.keys.empty()) {
-      lowered.group_column = side.RequireGroupNumbers(operand.keys);
-    }
-    lowered.ts_column = side.QueryPosition(operand.ts);
-    lowered.dur_column = side.QueryPosition(operand.dur);
-    for (ColumnId key : operand.keys) {
-      lowered.key_columns.push_back(side.QueryPosition(key));
-    }
+    ex::CollectedInputSpec lowered;
+    lowered.lanes =
+        side.RequireIntervalLanes(operand.ts, operand.dur, operand.keys);
     for (ColumnId id : operand.carried) {
       lowered.retained_columns.push_back(side.QueryPosition(id));
     }

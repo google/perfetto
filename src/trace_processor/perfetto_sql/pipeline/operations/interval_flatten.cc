@@ -114,18 +114,9 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   const auto& flatten = *this;
   c->LowerNode(node.children()[0]);
 
-  c->RequireType(flatten.ts_, core::Int64{});
-  c->RequireType(flatten.dur_, core::Int64{});
-  c->RequireSortedWithinGroups(flatten.keys_, {{flatten.ts_, false}});
   ex::IntervalFlattenSpec spec;
-  spec.ts_column = c->QueryPosition(flatten.ts_);
-  spec.dur_column = c->QueryPosition(flatten.dur_);
-  for (ColumnId key : flatten.keys_) {
-    spec.key_columns.push_back(c->QueryPosition(key));
-  }
-  if (!flatten.keys_.empty()) {
-    spec.group_column = c->RequireGroupNumbers(flatten.keys_);
-  }
+  spec.lanes =
+      c->RequireIntervalLanes(flatten.ts_, flatten.dur_, flatten.keys_);
   for (const Aggregate& agg : flatten.aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }

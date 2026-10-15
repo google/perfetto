@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -37,6 +38,7 @@
 #include "src/trace_processor/core/exec/column_view.h"
 #include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/group_table.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/row_store.h"
@@ -81,98 +83,17 @@ struct Regions {
   }
 };
 
-// The intervals of one key in one operand.
-struct Group {
-  Span<const Interval> intervals;
-  // Whether no two intervals overlap. If so, they can be searched without
-  // building a tree.
-  bool nonoverlapping;
-};
-
-// The intervals of one operand. They arrive grouped by key and sorted by
-// start within each group, so they are kept in that order in one vector and
-// each group is a range of it. Kept across runs to reuse memory.
-struct Groups {
-  struct Range {
-    uint32_t begin;
-    uint32_t end;
-    bool nonoverlapping;
-  };
-  std::vector<Interval> intervals;
-  std::vector<Range> ranges;
-  // The shared group number of each range.
-  std::vector<uint32_t> seen;
-  // Each range's shared group number and index, sorted by number. Unlike an
-  // array indexed by number, it grows with this operand's groups only.
-  std::vector<std::pair<uint32_t, uint32_t>> by_number;
-  // The operand's group number of the last row read.
-  std::optional<uint32_t> last_group;
-
-  // The shared group number of that row's key.
-  uint32_t last_number = 0;
-
-  void Add(uint32_t number, const Interval& interval) {
-    if (seen.empty() || seen.back() != number) {
-      auto at = static_cast<uint32_t>(intervals.size());
-      ranges.push_back({at, at, true});
-      seen.push_back(number);
-    }
-    Range& range = ranges.back();
-    // Intervals arrive sorted by start, so comparing with the previous one
-    // is enough to detect overlap.
-    if (range.end > range.begin && IsOverlapping(intervals.back(), interval)) {
-      range.nonoverlapping = false;
-    }
-    intervals.push_back(interval);
-    range.end++;
-  }
-  // Called once every interval is added, before Find().
-  void Index() {
-    by_number.clear();
-    for (uint32_t i = 0; i < seen.size(); ++i) {
-      by_number.emplace_back(seen[i], i);
-    }
-    if (!std::is_sorted(by_number.begin(), by_number.end())) {
-      std::sort(by_number.begin(), by_number.end());
-    }
-    // Find() returns one range per number, so each group must arrive whole.
-    PERFETTO_DCHECK(std::adjacent_find(by_number.begin(), by_number.end(),
-                                       [](const auto& a, const auto& b) {
-                                         return a.first == b.first;
-                                       }) == by_number.end());
-  }
-  std::optional<Group> Find(uint32_t number) const {
-    auto it = std::lower_bound(by_number.begin(), by_number.end(), number,
-                               [](const std::pair<uint32_t, uint32_t>& p,
-                                  uint32_t n) { return p.first < n; });
-    if (it == by_number.end() || it->first != number) {
-      return std::nullopt;
-    }
-    const Range& range = ranges[it->second];
-    const Interval* data = intervals.data();
-    return Group{{data + range.begin, data + range.end}, range.nonoverlapping};
-  }
-  void Clear() {
-    intervals.clear();
-    ranges.clear();
-    seen.clear();
-    by_number.clear();
-    last_group.reset();
-  }
-};
-
 class IntersectState : public OperatorState {
  public:
   ~IntersectState() override;
 
   std::vector<std::unique_ptr<OperatorState>> operand_states;
-  std::vector<std::unique_ptr<RowStore>> stores;
   // Shared by all operands, so a key has the same number in each of them.
   // This only works if their key types match.
   GroupTable group_table;
-  // Per operand, its rows by key. A key with no entry in some operand covers
-  // nothing, so only keys every operand has produce regions.
-  std::vector<Groups> groups;
+  // Per operand, its intervals by lane. A key with no lane in some operand
+  // covers nothing, so only keys every operand has produce regions.
+  std::vector<std::unique_ptr<CollectedLanes>> lanes;
 
   bool computed = false;
   Regions regions;
@@ -197,124 +118,24 @@ class IntersectState : public OperatorState {
     std::vector<Interval> overlaps;
     // Per operand, the row indices a gather reads.
     std::vector<std::vector<uint32_t>> gather_rows;
-    // The current batch of an operand.
-    RowBatch batch;
-
-    // The part of the current batch that is kept.
-    RowBatch retained;
-
-    // The first row of each group in the current batch.
-    RowBatch firsts;
-    std::vector<uint32_t> first_rows;
-
-    // Per operand, its group of the key being narrowed.
-    std::vector<Group> key_groups;
-    // The shared group number of each row of the current batch.
-    std::vector<uint32_t> row_groups;
-
-    // The shared group number of each first row.
-    std::vector<uint32_t> first_numbers;
+    // Per operand, its lane of the key being narrowed.
+    std::vector<CollectedLanes::Lane> key_lanes;
   } scratch;
 };
 
 IntersectState::~IntersectState() = default;
 
-// Reads every row of `operand` into `store` and groups them by key.
-base::Status Collect(const IntervalIntersectOperand& operand,
-                     uint32_t which,
-                     OperatorState& state,
-                     RowStore& store,
-                     GroupTable& group_table,
-                     Groups& groups,
-                     IntersectState::Scratch& scratch) {
-  RowBatch& batch = scratch.batch;
-  RowBatch& retained = scratch.retained;
-  // A key no earlier operand has can produce no region, so is skipped.
-  uint32_t known = which == 0 || operand.key_columns.empty()
-                       ? std::numeric_limits<uint32_t>::max()
-                       : group_table.size();
-  while (operand.source->GetData(batch, state)) {
-    PERFETTO_DCHECK(IsFlat<Int64>(batch.column(operand.ts_column)));
-    PERFETTO_DCHECK(IsFlat<Int64>(batch.column(operand.dur_column)));
-    FlatColumnReader<int64_t> ts(batch, operand.ts_column);
-    FlatColumnReader<int64_t> dur(batch, operand.dur_column);
-    // A group's rows arrive together, so only the first row of each group is
-    // looked up in the shared group table.
-    scratch.row_groups.assign(batch.size(), 0);
-    if (!operand.key_columns.empty()) {
-      scratch.first_rows.clear();
-      std::optional<uint32_t> last = groups.last_group;
-      for (uint32_t row = 0; row < batch.size(); ++row) {
-        uint32_t group = batch.Value<uint32_t>(operand.group_column, row);
-        if (group != last) {
-          scratch.first_rows.push_back(row);
-          last = group;
-        }
-      }
-      scratch.firsts.CopyFrom(batch);
-      const uint32_t* firsts = scratch.first_rows.data();
-      scratch.firsts.mutable_selection().Keep(
-          {firsts, firsts + scratch.first_rows.size()});
-      std::vector<uint32_t>& numbers = scratch.first_numbers;
-      numbers.resize(scratch.first_rows.size());
-      if (std::optional<uint32_t> bad = group_table.FindOrCreate(
-              scratch.firsts, operand.key_columns, numbers.data())) {
-        return base::ErrStatus(
-            "INTERVAL INTERSECTION: operand %u's PER column %u must hold one "
-            "type, the same in every operand",
-            which + 1, *bad + 1);
-      }
-      size_t next = 0;
-      for (uint32_t row = 0; row < batch.size(); ++row) {
-        if (next < scratch.first_rows.size() &&
-            scratch.first_rows[next] == row) {
-          groups.last_number = numbers[next++];
-        }
-        scratch.row_groups[row] = groups.last_number;
-      }
-      groups.last_group = last;
-    }
-    for (uint32_t row = 0; row < batch.size(); ++row) {
-      int64_t start;
-      int64_t length;
-      if (!ts.Read(row, &start) || !dur.Read(row, &length)) {
-        continue;
-      }
-      if (start < 0 || length < 0) {
-        return base::ErrStatus(
-            "INTERVAL INTERSECTION: operand %u has a row whose ts or dur is "
-            "below zero",
-            which + 1);
-      }
-      int64_t end;
-      if (!base::CheckedAdd(start, length, &end)) {
-        return base::ErrStatus("INTERVAL INTERSECTION: integer overflow");
-      }
-      if (scratch.row_groups[row] >= known) {
-        continue;
-      }
-      groups.Add(scratch.row_groups[row],
-                 Interval{static_cast<Ts>(start), static_cast<Ts>(end),
-                          store.size() + row});
-    }
-    retained.Project(batch, operand.retained_columns);
-    RETURN_IF_ERROR(store.Append(retained));
-  }
-  RETURN_IF_ERROR(operand.source->status(state));
-
-  return base::OkStatus();
-}
-
 // Narrows the regions of one key. If every operand is non-overlapping, runs a
 // fast k-pointer sweep. Otherwise, narrows through operands pairwise, smallest
 // first so the running set starts as small as it can.
-void NarrowKey(const std::vector<Group>& groups,
+void NarrowKey(const std::vector<CollectedLanes::Lane>& groups,
                IntersectState::Scratch& scratch,
                Regions& out) {
-  if (std::all_of(groups.begin(), groups.end(),
-                  [](const Group& g) { return g.nonoverlapping; })) {
+  if (std::all_of(
+          groups.begin(), groups.end(),
+          [](const CollectedLanes::Lane& g) { return g.nonoverlapping; })) {
     base::SmallVector<const Span<const Interval>*, 16> tables;
-    for (const Group& group : groups) {
+    for (const CollectedLanes::Lane& group : groups) {
       tables.emplace_back(&group.intervals);
     }
     IntervalIntersector::IntersectNonOverlapping(
@@ -343,7 +164,7 @@ void NarrowKey(const std::vector<Group>& groups,
 
   for (uint32_t i = 1; i < count && running.size() > 0; ++i) {
     uint32_t which = order[i];
-    const Group& group = groups[which];
+    const CollectedLanes::Lane& group = groups[which];
     IntervalIntersector intersector(
         group.intervals.data(), group.intervals.size(),
         IntervalIntersector::DecideMode(group.nonoverlapping, running.size()));
@@ -365,8 +186,7 @@ void NarrowKey(const std::vector<Group>& groups,
 
 }  // namespace
 
-IntervalIntersect::IntervalIntersect(
-    std::vector<IntervalIntersectOperand> operands)
+IntervalIntersect::IntervalIntersect(std::vector<CollectedInputSpec> operands)
     : operands_(std::move(operands)) {
   PERFETTO_CHECK(operands_.size() >= 2);
 }
@@ -379,12 +199,13 @@ std::unique_ptr<OperatorState> IntervalIntersect::MakeState(
   state->context = &context;
   auto count = static_cast<uint32_t>(operands_.size());
   for (uint32_t i = 0; i < count; ++i) {
-    state->stores.push_back(std::make_unique<RowStore>());
+    state->lanes.push_back(std::make_unique<CollectedLanes>(
+        operands_[i].lanes,
+        IntervalInputName{"INTERVAL INTERSECTION", "operand", i + 1}));
   }
-  state->groups.resize(count);
   state->gathered.resize(count);
   state->scratch.gather_rows.resize(count);
-  for (const IntervalIntersectOperand& operand : operands_) {
+  for (const CollectedInputSpec& operand : operands_) {
     state->operand_states.push_back(operand.source->MakeState(context));
   }
   return state;
@@ -398,8 +219,7 @@ void IntervalIntersect::Rewind(OperatorState& state) const {
   IntersectState& s = state.Cast<IntersectState>();
   for (uint32_t i = 0; i < operands_.size(); ++i) {
     operands_[i].source->Rewind(*s.operand_states[i]);
-    s.stores[i]->Clear();
-    s.groups[i].Clear();
+    s.lanes[i]->Clear();
   }
   s.group_table.Clear();
   s.computed = false;
@@ -416,34 +236,38 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     s.scratch.running.operands = count;
     s.scratch.narrowed.operands = count;
     for (uint32_t i = 0; i < count; ++i) {
-      s.status = Collect(operands_[i], i, *s.operand_states[i], *s.stores[i],
-                         s.group_table, s.groups[i], s.scratch);
+      // A key no earlier operand has can produce no region, so is skipped.
+      uint32_t limit = i == 0 || operands_[i].lanes.key_columns.empty()
+                           ? std::numeric_limits<uint32_t>::max()
+                           : s.group_table.size();
+      s.status = s.lanes[i]->Collect(operands_[i], *s.operand_states[i],
+                                     &s.group_table, limit);
       if (!s.status.ok()) {
         return false;
       }
-      s.groups[i].Index();
     }
     // A region needs every operand, so only the keys of the operand with the
     // fewest of them can start one.
     uint32_t fewest = 0;
     for (uint32_t i = 1; i < count; ++i) {
-      if (s.groups[i].seen.size() < s.groups[fewest].seen.size()) {
+      if (s.lanes[i]->size() < s.lanes[fewest]->size()) {
         fewest = i;
       }
     }
-    std::vector<Group>& groups = s.scratch.key_groups;
-    groups.resize(count);
-    for (uint32_t number : s.groups[fewest].seen) {
+    std::vector<CollectedLanes::Lane>& lanes = s.scratch.key_lanes;
+    lanes.resize(count);
+    for (uint32_t l = 0; l < s.lanes[fewest]->size(); ++l) {
+      uint32_t number = s.lanes[fewest]->lane(l).number;
       bool everywhere = true;
       for (uint32_t i = 0; i < count && everywhere; ++i) {
-        std::optional<Group> group = s.groups[i].Find(number);
-        everywhere = group.has_value();
+        std::optional<uint32_t> found = s.lanes[i]->Find(number);
+        everywhere = found.has_value();
         if (everywhere) {
-          groups[i] = *group;
+          lanes[i] = s.lanes[i]->lane(*found);
         }
       }
       if (everywhere) {
-        NarrowKey(groups, s.scratch, s.regions);
+        NarrowKey(lanes, s.scratch, s.regions);
       }
     }
     s.computed = true;
@@ -456,17 +280,16 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     return false;
   }
 
-  ColumnBuffer ts_buffer = s.context->TakeBuffer();
-  ColumnBuffer dur_buffer = s.context->TakeBuffer();
-  int64_t* ts = ts_buffer.chunk().Values<int64_t>();
-  int64_t* dur = dur_buffer.chunk().Values<int64_t>();
+  BoundsColumns bounds;
+  bounds.Take(*s.context);
   for (uint32_t i = 0; i < count; ++i) {
     s.scratch.gather_rows[i].resize(serving);
   }
   for (uint32_t row = 0; row < serving; ++row) {
     uint32_t at = s.served + row;
-    ts[row] = static_cast<int64_t>(s.regions.starts[at]);
-    dur[row] = static_cast<int64_t>(s.regions.ends[at] - s.regions.starts[at]);
+    bounds.ts[row] = static_cast<int64_t>(s.regions.starts[at]);
+    bounds.dur[row] =
+        static_cast<int64_t>(s.regions.ends[at] - s.regions.starts[at]);
     const uint32_t* from = s.regions.RowsOf(at);
     for (uint32_t i = 0; i < count; ++i) {
       s.scratch.gather_rows[i][row] = from[i];
@@ -475,13 +298,10 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
   s.served += serving;
 
   out.Reset();
-  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, ts),
-                std::move(ts_buffer));
-  out.AddColumn(ColumnView::Reference(StorageType{Int64{}}, dur),
-                std::move(dur_buffer));
+  bounds.AddTo(&out);
   for (uint32_t i = 0; i < count; ++i) {
     const uint32_t* rows = s.scratch.gather_rows[i].data();
-    s.stores[i]->View(&s.gathered[i], {rows, rows + serving}, *s.context);
+    s.lanes[i]->rows().View(&s.gathered[i], {rows, rows + serving}, *s.context);
     for (uint32_t c = 0; c < s.gathered[i].column_count(); ++c) {
       out.AddColumn(s.gathered[i].column(c), s.gathered[i].buffer(c));
     }
