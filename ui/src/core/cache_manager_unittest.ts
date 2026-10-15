@@ -19,10 +19,10 @@ import type {TraceArrayBufferSource} from './trace_source';
 class FakeCache {
   private readonly entries = new Map<string, Response>();
 
-  async put(key: string, value: Response) {
+  async put(key: Request | string, value: Response) {
     // Buffer the body so that the entry can be read more than once.
     const body = await value.arrayBuffer();
-    this.entries.set(key, new Response(body, {headers: value.headers}));
+    this.entries.set(pathOf(key), new Response(body, {headers: value.headers}));
   }
 
   async match(key: Request | string) {

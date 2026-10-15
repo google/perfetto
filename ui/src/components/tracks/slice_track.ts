@@ -829,9 +829,15 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     });
 
     // 2. Load the slices into a data frame based on the visible window and
-    // resolution, which could change every frame.
+    // resolution, which could change every frame. Only move the bounds once
+    // the tables exist: slices are drawn as Float32 offsets from
+    // bounds.start, so bounds picked from a frame seen while the tables
+    // build, e.g. mid-animation, would make sub-pixel positions depend on
+    // timing.
     const visibleSpan = visibleWindow.toTimeSpan();
-    const bounds = this.bufferedBounds.update(visibleSpan, resolution);
+    const bounds = tables
+      ? this.bufferedBounds.update(visibleSpan, resolution)
+      : this.bufferedBounds.bounds;
 
     const {data: dataFrame, isPending} = this.dataFrameSlot.use({
       // sqlSource is constant for most tracks with a static dataset, but

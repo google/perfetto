@@ -359,4 +359,46 @@ describe('SliceTrack with a dynamic dataset', () => {
     );
     expect(engine.createdTables().length).toBeGreaterThan(3);
   });
+
+  test('loads the window seen once the tables are built', async () => {
+    const {engine, trace, renderCtx} = setup();
+    let src = 'slices_a';
+    const track = SliceTrack.create({
+      trace,
+      uri: 'test',
+      dataset: () =>
+        new SourceDataset({
+          src,
+          schema: {id: NUM, ts: LONG, dur: LONG, depth: NUM},
+        }),
+    });
+
+    // Returns renderCtx with the 100ns visible window moved to `start`.
+    const scrolledTo = (start: bigint): TrackRenderContext => {
+      const visibleWindow = new HighPrecisionTimeSpan(
+        new HighPrecisionTime(Time.fromRaw(start)),
+        100,
+      );
+      const timescale = new TimeScale(visibleWindow, {left: 0, right: 100});
+      return {...renderCtx, visibleWindow, timescale};
+    };
+
+    // The start of each slice load, e.g. '900' for '... - 900 as __start'.
+    const loadStarts = () =>
+      engine.log
+        .filter((q) => q.includes('as __start'))
+        .map((q) => /- (-?\d+) as __start/.exec(q)?.[1]);
+
+    // Frames drawn while the tables build, e.g. during an animation, don't
+    // pick the bounds: the window at load time does, padded by its duration.
+    track.render(scrolledTo(1050n));
+    await renderUntilSettled(track, scrolledTo(1000n));
+    expect(loadStarts()).toEqual(['900']);
+
+    // Same when the tables are rebuilt for a new dataset.
+    src = 'slices_b';
+    track.render(scrolledTo(2050n));
+    await renderUntilSettled(track, scrolledTo(2000n));
+    expect(loadStarts()).toEqual(['900', '1900']);
+  });
 });
