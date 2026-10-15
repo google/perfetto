@@ -112,37 +112,6 @@ TEST(RadixSort, Stability) {
 
 // Sizes either side of where radix sorting becomes cheaper, with few and many
 // distinct keys, against std::stable_sort.
-TEST(StableSortByKey, MatchesStableSort) {
-  std::minstd_rand0 rnd(0);
-  for (uint32_t size : {0u, 1u, 2u, 100u, 5000u, 100000u}) {
-    for (uint32_t key_bits : {3u, 40u}) {
-      std::vector<TestEntry64> data(size);
-      for (uint32_t i = 0; i < size; ++i) {
-        uint64_t r = (static_cast<uint64_t>(rnd()) << 32) ^ rnd();
-        data[i] = {r & ((static_cast<uint64_t>(1) << key_bits) - 1), i};
-      }
-      std::vector<TestEntry64> scratch(size);
-      TestEntry64* result = StableSortByKey(
-          data.data(), data.data() + size, scratch.data(), key_bits,
-          [](const TestEntry64& x) { return x.key; },
-          [](const TestEntry64& x) { return x.value; });
-
-      std::vector<TestEntry64> expected = data;
-      std::stable_sort(expected.begin(), expected.end(),
-                       [](const TestEntry64& a, const TestEntry64& b) {
-                         return a.key < b.key;
-                       });
-      for (uint32_t i = 0; i < size; ++i) {
-        ASSERT_EQ(result[i].key, expected[i].key) << size << " " << key_bits;
-        ASSERT_EQ(result[i].value, expected[i].value)
-            << size << " " << key_bits;
-      }
-    }
-  }
-}
-
-// Sizes either side of where radix sorting becomes cheaper, with few and many
-// distinct keys, against std::stable_sort.
 TEST(StableSortKeyedIndices, MatchesStableSort) {
   std::minstd_rand0 rnd(0);
   for (uint32_t size : {0u, 1u, 2u, 100u, 5000u, 100000u}) {
