@@ -241,6 +241,50 @@ MSAN_SYMBOLIZER_PATH="$(pwd)/buildtools/linux64/clang/bin/llvm-symbolizer" \
 out/linux_msan/perfetto_unittests --gtest_brief=1 --gtest_filter="<TestSuiteName.*>"
 ```
 
+## Writing Documentation
+
+The docs in docs/ are published at https://perfetto.dev/docs. The sidebar is
+defined by docs/toc.md.
+
+- **Never move or rename existing doc files.** File paths are the public URLs
+  and are linked from blogs, bugs and elsewhere. Reorganize the sidebar by
+  editing docs/toc.md instead: a page's position in the sidebar is independent
+  of where the file lives.
+- **Follow the [Diátaxis](https://diataxis.fr/) framework.** Every page should
+  be exactly one of the four types, and file into the matching part of the
+  sidebar:
+  - *Tutorials* (learning-oriented lessons with a guaranteed outcome):
+    "Tutorials".
+  - *How-to guides* (goal-oriented recipes for someone who knows what they
+    want): "Cookbooks".
+  - *Explanation* (understanding-oriented background): "Concepts" and the
+    "Overview" pages.
+  - *Reference* (dry, complete descriptions of formats, APIs, tables, CLIs):
+    "Reference", "Data Sources" and similar.
+  Don't mix types on one page: e.g. a how-to guide should link to the
+  reference for details rather than repeating it.
+- **Every page appears in docs/toc.md exactly once.** Sidebar labels can be
+  changed freely; avoid giving two nearby entries the same label.
+- **Prefer extending an existing page over adding a new one.** Add a new page
+  only when the content has a distinct audience or task. Link to existing pages
+  rather than duplicating their content.
+- **Tag every sidebar entry.** Tags (e.g. `{.tag-android .tag-performance}`)
+  drive the "Perfetto for:" audience switcher at the top of the sidebar, which
+  hides entries not relevant to the selected audience. Only add a tag if that
+  audience would *usually* need the page, not merely if it *could* apply: an
+  audience that sees everything sees nothing. The tags are:
+  - `tag-android`: Android app and platform developers. This is the primary
+    audience and the default selection.
+  - `tag-linux`: Linux kernel and system developers.
+  - `tag-cpp-rust`: developers instrumenting C/C++/Rust apps with the SDKs.
+  - `tag-chrome`: Chromium developers.
+  - `tag-performance`: general performance engineers who are not tied to one
+    of the platforms above, e.g. people profiling with pprof, Linux perf or
+    samply, or bringing traces and profiles from other tools.
+  - `tag-contrib`: contributors to Perfetto itself.
+- Pages in the "Overview" section are left untagged so every audience sees
+  them.
+
 ## Creating Pull Requests
 
 **Note:** This is the default PR workflow. If the user has their own way of

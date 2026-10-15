@@ -38,6 +38,7 @@ graph TD
     B --> E["<a href='#c-cpp-developers'>C/C++ Developer (non-Android)</a>"];
     B --> E2["<a href='#rust-developers'>Rust Developer</a>"];
     B --> F["<a href='#chromium-developers'>Chromium Developer</a>"];
+    B --> P["<a href='#cpu-profiles'>I have a CPU profile (pprof, perf, simpleperf...)</a>"];
     B --> G["<a href='#trace-like-data'>I have trace-like data</a>"];
     B --> H["<a href='#not-listed'>None of the above</a>"];
 ```
@@ -222,7 +223,7 @@ section below.
   - **Tutorial**:
     [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/cpu-profiling.md)
   - **Tutorial**:
-    [Visualizing simpleperf files](/docs/getting-started/other-formats.md#firefox-json-format)
+    [Viewing simpleperf profiles](/docs/getting-started/viewing-cpu-profiles.md#simpleperf)
 
 ### {#android-diagnosing-memory-issues} Diagnosing Memory Issues
 
@@ -326,7 +327,7 @@ Here's how Perfetto can assist Linux kernel development and debugging:
   - **Tutorial**:
     [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/cpu-profiling.md)
   - **Guide**:
-    [Visualizing perf files](/docs/getting-started/other-formats.md#firefox-json-format)
+    [Viewing Linux perf profiles](/docs/getting-started/viewing-cpu-profiles.md#linux-perf)
 
 ## {#c-cpp-developers} C/C++ Developer (non-Android)
 
@@ -404,6 +405,23 @@ straightforward way to get started using the Perfetto UI:
 For a general introduction to practical trace analysis in Chrome,
 [this Perf-Planet blog post](https://calendar.perfplanet.com/2023/digging-chrome-traces-introduction-example/)
 is also a helpful resource.
+
+## {#cpu-profiles} Anyone with a CPU profile to explore
+
+Perfetto is also a CPU profile viewer. If you already profile with **pprof**
+(e.g. from Go), **Linux perf** or Android **simpleperf**, you can open
+those profiles directly in the Perfetto UI, without installing anything, and
+explore them with flamegraphs and call trees. Where the profile has
+timestamps, you can also see the samples on a timeline, and in all cases you
+can query them with SQL.
+
+- **Guide**:
+  [Viewing CPU Profiles](/docs/getting-started/viewing-cpu-profiles.md)
+  (Commands to produce a profile with each tool and open it in Perfetto)
+- **Tutorial**:
+  [Recording CPU profiles with Perfetto](/docs/getting-started/cpu-profiling.md)
+  (If you want to record profiles on Android or Linux with Perfetto's own
+  tooling, alongside other system data)
 
 ## {#trace-like-data} Anyone with "trace-like" data to analyse/visualize
 

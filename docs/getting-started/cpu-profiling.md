@@ -420,9 +420,10 @@ you can see the summary tree of all the callstacks captured in the trace.
 
 The perfetto profiling implementation is built for continuous (streaming)
 collection, and is therefore less optimised for short, high-frequency profiling.
-If all you need are aggregated flamegraphs, consider `simpleperf` on Android and
-`perf` on Linux. These tools are more mature and have a simpler user interface
-for this use case.
+If all you need is a short CPU profile, consider recording with `simpleperf` on
+Android or `perf` on Linux instead. These recorders have a simpler command line
+for this use case, and you can still open their profiles in the Perfetto UI: see
+[Viewing CPU Profiles](/docs/getting-started/viewing-cpu-profiles.md).
 
 ## Next steps
 
