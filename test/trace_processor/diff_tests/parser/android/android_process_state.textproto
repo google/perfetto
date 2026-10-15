@@ -239,7 +239,7 @@ packet {
       frozen_dur_ms: 600
       unfreeze_reason: UFR_PING
     }
-    # PID 700: Dump-only freezer record with omitted unfreeze_reason (testing 0/UFR_NONE fallback).
+    # PID 700: Dump-only freezer record with omitted unfreeze_reason (frozen in dump).
     record {
       pid: 700
       uid: 10007
