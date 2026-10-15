@@ -16,6 +16,9 @@
 
 #include "src/shared_lib/track_event/ds.h"
 
+#include <string>
+#include <utility>
+
 #include "src/shared_lib/track_event/category_utils.h"
 
 namespace perfetto::shlib {
@@ -44,17 +47,20 @@ bool TrackEvent::IsDynamicCategoryEnabled(
     perfetto::shlib::TrackEventIncrementalState* incr_state,
     const struct PerfettoTeCategoryDescriptor& desc) {
   constexpr size_t kMaxCacheSize = 20;
-  perfetto::internal::DataSourceType* ds =
-      perfetto::shlib::TrackEvent::GetType();
+  // Only the name and tags affect whether a category is enabled.
+  std::string key = desc.name;
+  for (size_t i = 0; i < desc.num_tags; i++) {
+    // Names and tags are C strings, so '\0' unambiguously separates them.
+    key.push_back('\0');
+    key.append(desc.tags[i]);
+  }
   auto& cache = incr_state->dynamic_categories;
-  protozero::HeapBuffered<perfetto::protos::pbzero::TrackEventDescriptor> ted;
-  perfetto::shlib::SerializeCategory(desc, ted.get());
-  std::string serialized = ted.SerializeAsString();
-  auto* cached = cache.Find(serialized);
-  if (cached) {
+  if (const bool* cached = cache.Find(key)) {
     return *cached;
   }
 
+  perfetto::internal::DataSourceType* ds =
+      perfetto::shlib::TrackEvent::GetType();
   auto* internal_state = ds->static_state()->TryGet(inst_idx);
   if (!internal_state)
     return false;
@@ -64,7 +70,7 @@ bool TrackEvent::IsDynamicCategoryEnabled(
 
   bool res = IsSingleCategoryEnabled(desc, sds->GetConfig());
   if (cache.size() < kMaxCacheSize) {
-    cache[serialized] = res;
+    cache.Insert(std::move(key), res);
   }
   return res;
 }

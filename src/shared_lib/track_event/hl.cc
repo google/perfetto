@@ -135,10 +135,8 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
   if (!dynamic_cat && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
       type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
     uint64_t iid = cat->cat_iid;
-    auto res = incr->iids.FindOrAssign(
-        protos::pbzero::InternedData::kEventCategoriesFieldNumber, &iid,
-        sizeof(iid));
-    if (res.newly_assigned) {
+    const bool newly_seen = incr->MarkCategorySeen(iid);
+    if (newly_seen) {
       auto* ser = incr->serialized_interned_data->add_event_categories();
       ser->set_iid(iid);
       ser->set_name(cat->desc->name);

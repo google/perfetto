@@ -53,6 +53,7 @@ if (enable_perfetto_integration_tests) {
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/public",
       "../../base",
+      "../../tracing/test:api_test_support",
       "protos",
     ]
     sources = [ "api_integrationtest.cc" ]
