@@ -25,9 +25,9 @@
 #include <atomic>
 #include <optional>
 
+#include "perfetto/base/bits.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/bits.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"

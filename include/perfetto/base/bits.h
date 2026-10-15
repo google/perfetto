@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_BITS_H_
-#define INCLUDE_PERFETTO_EXT_BASE_BITS_H_
+#ifndef INCLUDE_PERFETTO_BASE_BITS_H_
+#define INCLUDE_PERFETTO_BASE_BITS_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -97,4 +97,4 @@ constexpr bool AllBitsSet(T v) {
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_BITS_H_
+#endif  // INCLUDE_PERFETTO_BASE_BITS_H_

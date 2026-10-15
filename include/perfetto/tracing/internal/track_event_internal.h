@@ -20,6 +20,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/public/compiler.h"
@@ -337,9 +338,19 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   }
 
   // Get the current time in nanoseconds in the trace clock timebase.
-  static uint64_t GetTimeNs();
+  static inline uint64_t GetTimeNs() {
+    const protos::pbzero::BuiltinClock clock = GetClockId();
+    if (PERFETTO_LIKELY(clock == protos::pbzero::BUILTIN_CLOCK_BOOTTIME))
+      return static_cast<uint64_t>(base::GetBootTimeNs().count());
+    if (clock == protos::pbzero::BUILTIN_CLOCK_MONOTONIC)
+      return static_cast<uint64_t>(base::GetWallTimeNs().count());
+    PERFETTO_DCHECK(clock == protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+    return static_cast<uint64_t>(base::GetWallTimeRawNs().count());
+  }
 
-  static TraceTimestamp GetTraceTime();
+  static inline TraceTimestamp GetTraceTime() {
+    return {TrackEventIncrementalState::kClockIdIncremental, GetTimeNs()};
+  }
 
   static inline protos::pbzero::BuiltinClock GetClockId() { return clock_; }
   static inline void SetClockId(protos::pbzero::BuiltinClock clock) {
