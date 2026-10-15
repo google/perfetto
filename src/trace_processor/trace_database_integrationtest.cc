@@ -1258,6 +1258,94 @@ TEST_F(TraceProcessorIntegrationTest, StdlibDocsObjectsDottedPackage) {
   ASSERT_OK(result.Status());
 }
 
+TEST_F(TraceProcessorIntegrationTest, StdlibDocsObjectsWildcardIncludes) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  SqlPackage pkg;
+  pkg.name = "foo.bar";
+  pkg.modules.push_back({"foo.bar.main", R"(
+    INCLUDE PERFETTO MODULE foo.bar.last;
+    INCLUDE PERFETTO MODULE foo.bar.group.*;
+    INCLUDE PERFETTO MODULE foo.bar.first;
+  )"});
+  pkg.modules.push_back(
+      {"foo.bar.group.z", "INCLUDE PERFETTO MODULE foo.bar.transitive;"});
+  pkg.modules.push_back({"foo.bar.group.a", "SELECT 1"});
+  pkg.modules.push_back({"foo.bar.group_other", "SELECT 1"});
+  pkg.modules.push_back({"foo.bar.first", "SELECT 1"});
+  pkg.modules.push_back({"foo.bar.transitive", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+
+  auto result = Query(
+      "SELECT includes FROM __intrinsic_stdlib_objects "
+      "WHERE module = 'foo.bar.main' AND object_type = 'MODULE'");
+  ASSERT_TRUE(result.Next());
+  // Explicit includes retain their order even when a module is not registered
+  EXPECT_STREQ(result.Get(0).string_value,
+               R"(["foo.bar.last","foo.bar.group.a",)"
+               R"("foo.bar.group.z","foo.bar.first"])");
+  EXPECT_FALSE(result.Next());
+  ASSERT_OK(result.Status());
+}
+
+TEST_F(TraceProcessorIntegrationTest, StdlibDocsObjectsAllIncludes) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  SqlPackage pkg;
+  pkg.name = "foo.bar";
+  pkg.modules.push_back({"foo.bar.all", "INCLUDE PERFETTO MODULE *;"});
+  pkg.modules.push_back({"foo.bar.leaf", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+  SqlPackage other;
+  other.name = "other";
+  other.modules.push_back({"other.leaf", "SELECT 1"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(other));
+
+  auto result = Query(
+      "SELECT i.value FROM __intrinsic_stdlib_objects AS o, "
+      "json_each(o.includes) AS i "
+      "WHERE o.module = 'foo.bar.all' AND o.object_type = 'MODULE' "
+      "ORDER BY i.key");
+  std::vector<std::string> includes;
+  while (result.Next()) {
+    includes.emplace_back(result.Get(0).string_value);
+  }
+  ASSERT_OK(result.Status());
+
+  auto modules = Query(
+      "SELECT module FROM __intrinsic_stdlib_objects "
+      "WHERE object_type = 'MODULE' ORDER BY module");
+  std::vector<std::string> expected;
+  while (modules.Next()) {
+    expected.emplace_back(modules.Get(0).string_value);
+  }
+  ASSERT_OK(modules.Status());
+  EXPECT_EQ(includes, expected);
+}
+
+TEST_F(TraceProcessorIntegrationTest,
+       StdlibDocsObjectsUnmatchedWildcardIncludes) {
+  ASSERT_OK(NotifyEndOfFile());
+
+  SqlPackage pkg;
+  pkg.name = "foo.bar";
+  pkg.modules.push_back(
+      {"foo.bar.empty", "INCLUDE PERFETTO MODULE foo.bar.missing.*;"});
+  pkg.modules.push_back(
+      {"foo.bar.unknown_package", "INCLUDE PERFETTO MODULE foo.*;"});
+  ASSERT_OK(Processor()->RegisterSqlPackage(pkg));
+
+  auto result = Query(
+      "SELECT includes FROM __intrinsic_stdlib_objects "
+      "WHERE package = 'foo.bar' AND object_type = 'MODULE'");
+  ASSERT_TRUE(result.Next());
+  EXPECT_STREQ(result.Get(0).string_value, "[]");
+  ASSERT_TRUE(result.Next());
+  EXPECT_STREQ(result.Get(0).string_value, "[]");
+  EXPECT_FALSE(result.Next());
+  ASSERT_OK(result.Status());
+}
+
 TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {
   ASSERT_OK(NotifyEndOfFile());
 

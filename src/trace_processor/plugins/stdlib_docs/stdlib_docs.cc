@@ -28,6 +28,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -61,11 +62,30 @@ std::string SerializeEntries(const std::vector<Entry>& entries) {
   });
 }
 
-std::string SerializeIncludes(const std::vector<std::string>& includes) {
+std::string SerializeIncludes(
+    const std::vector<std::string>& includes,
+    const std::vector<std::pair<std::string, std::string>>& modules) {
   return json::SerializeJson([&](json::JsonValueSerializer&& writer) {
     std::move(writer).WriteArray([&](json::JsonArraySerializer& array) {
       for (const auto& include : includes) {
-        array.AppendString(include);
+        if (!base::EndsWith(include, "*")) {
+          array.AppendString(include);
+          continue;
+        }
+        std::string prefix = include.substr(0, include.size() - 1);
+        std::vector<std::string> matches;
+        for (const auto& [package, module] : modules) {
+          // Match within the owning package, as INCLUDE does at execution time
+          if ((include == "*" ||
+               sql_modules::IsPackagePrefixOf(package, include)) &&
+              base::StartsWith(module, prefix)) {
+            matches.push_back(module);
+          }
+        }
+        std::sort(matches.begin(), matches.end());
+        for (const auto& module : matches) {
+          array.AppendString(module);
+        }
       }
     });
   });
@@ -205,7 +225,8 @@ class StdlibDocsObjects : public StaticTableFunction {
       table_.Clear();
       const std::vector<stdlib_doc::Arg> no_args;
       const std::vector<stdlib_doc::Column> no_columns;
-      for (const auto& package_and_module : engine_->GetModules()) {
+      const auto modules = engine_->GetModules();
+      for (const auto& package_and_module : modules) {
         const std::string& package = package_and_module.first;
         const std::string& module = package_and_module.second;
         auto parsed = ParseModule(engine_->FindPackage(package), module);
@@ -245,9 +266,12 @@ class StdlibDocsObjects : public StaticTableFunction {
               base::StringView(SerializeEntries(args)));
           row.cols = string_pool_->InternString(
               base::StringView(SerializeEntries(columns)));
-          row.includes = string_pool_->InternString(base::StringView(
-              object_type == "MODULE" ? SerializeIncludes(parsed->includes)
-                                      : "[]"));
+          if (object_type == "MODULE") {
+            row.includes = string_pool_->InternString(
+                base::StringView(SerializeIncludes(parsed->includes, modules)));
+          } else {
+            row.includes = string_pool_->InternString(base::StringView("[]"));
+          }
           table_.Insert(row);
         };
 
