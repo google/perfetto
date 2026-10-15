@@ -104,8 +104,8 @@ TableSource::State::~State() = default;
 IntervalIntersectOperand Operand(const TableSource& source) {
   IntervalIntersectOperand operand;
   operand.source = &source;
-  operand.ts_column = 0;
-  operand.dur_column = 1;
+  operand.lanes.ts_column = 0;
+  operand.lanes.dur_column = 1;
   for (uint32_t c = 0; c < source.columns(); ++c) {
     operand.retained_columns.push_back(c);
   }

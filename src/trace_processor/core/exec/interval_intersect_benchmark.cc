@@ -84,9 +84,9 @@ class Intervals final : public Source {
 IntervalIntersectOperand Operand(const Intervals& source) {
   IntervalIntersectOperand operand;
   operand.source = &source;
-  operand.ts_column = 0;
-  operand.dur_column = 1;
-  operand.key_columns = {2};
+  operand.lanes.ts_column = 0;
+  operand.lanes.dur_column = 1;
+  operand.lanes.key_columns = {2};
   operand.retained_columns = {2};
   return operand;
 }

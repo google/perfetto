@@ -313,11 +313,11 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
   // integer type in each dataframe. b's rows are sorted by cpu, so they are
   // already grouped. They only get group numbers and a sort by number and ts.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "GroupedSort(#2; #0)\n"
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "NumberGroups(#2) | Sort(#3, #0)\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");
