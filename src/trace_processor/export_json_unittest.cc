@@ -139,7 +139,7 @@ class ExportJsonTest : public ::testing::Test {
 };
 
 TEST_F(ExportJsonTest, EmptyStorage) {
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -171,7 +171,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
        std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -216,7 +216,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
        std::nullopt, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -248,7 +248,7 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
   row.name = context_.storage->InternString(base::StringView(kName));
   context_.storage->mutable_thread_table()->Insert(row);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -277,7 +277,7 @@ TEST_F(ExportJsonTest, SystemEventsIgnored) {
   context_.storage->mutable_slice_table()->Insert(
       {0, 0, track, cat_id, name_id, 0});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -352,7 +352,7 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
       context_.storage->InternString(base::StringView(kDynamicKey));
   context_.metadata_tracker->SetDynamicMetadata(dynamic_key_id, had_failures);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -411,7 +411,7 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   context_.stats_tracker->SetIndexedStats(stats::ftrace_cpu_bytes_begin, 0,
                                           kFtraceBegin);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
   EXPECT_TRUE(status.ok());
@@ -452,7 +452,10 @@ TEST_F(ExportJsonTest, StorageWithStatsFromGzipWrappedProto) {
       MachineId(kDefaultMachineId), inner_id, stats::traced_producers_connected,
       kProducers);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  context_.storage->mutable_trace_file_table()->Finalize();
+  context_.storage->mutable_stats_table()->Finalize();
+
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
   EXPECT_TRUE(status.ok()) << status.message();
@@ -478,7 +481,9 @@ TEST_F(ExportJsonTest, StorageWithStatsFromMultipleNonContainerTracesFails) {
        context_.storage->InternString("proto"),
        /*processing_order=*/std::nullopt, /*is_container=*/0});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  context_.storage->mutable_trace_file_table()->Finalize();
+
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
   EXPECT_FALSE(status.ok());
@@ -508,7 +513,7 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
         .AddArg(name2_id, Variadic::Integer(kValue2));
   }
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(storage, output);
   EXPECT_TRUE(status.ok());
@@ -547,7 +552,7 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -582,7 +587,7 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
 
   storage->mutable_flow_table()->Insert({id1, id2, 0});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(storage, output);
 
@@ -646,7 +651,7 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -693,7 +698,7 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -740,7 +745,7 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -788,7 +793,7 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -829,7 +834,7 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -881,7 +886,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, 0, track3, cat_id, name_id, 0});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -926,7 +931,7 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp, 0, track, cat_id, name_id, 0});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -1002,7 +1007,7 @@ TEST_F(ExportJsonTest, DuplicatePidAndTid) {
   context_.storage->mutable_slice_table()->Insert(
       {50000, 1000, track2b, cat_id, name2b_id, 0});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -1114,7 +1119,7 @@ TEST_F(ExportJsonTest, AsyncEvents) {
       context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
   slice[2].set_arg_set_id(args3);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -1277,7 +1282,7 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   ArgSetId arg_id3 = context_.global_args_tracker->AddArgSet(args3, 0, 2);
   slice[2].set_arg_set_id(arg_id3);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -1383,7 +1388,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
       id_and_row.id, kThreadTimestamp, kThreadDuration, 0, 0);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -1446,7 +1451,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
       slice_id_and_row.id, kThreadTimestamp, kThreadDuration, 0, 0);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -1503,7 +1508,7 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -1588,7 +1593,7 @@ TEST_F(ExportJsonTest, RawEvent) {
     add_arg(kArgName, Variadic::Integer(kArgValue));
   }
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(storage, output);
 
@@ -1645,7 +1650,7 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
     inserter.AddArg(data_id, Variadic::String(json_data2_id));
   }
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(storage, output);
 
@@ -1888,7 +1893,7 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
        /*pss_dirty_kb=*/0,
        /*swap_pss_kb=*/0});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 
@@ -2020,7 +2025,7 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
   context_.storage->mutable_memory_snapshot_edge_table()->Insert(
       {node1_id, node2_id, kImportance});
 
-  base::TempFile temp_file = base::TempFile::Create();
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
   base::Status status = ExportJson(context_.storage.get(), output);
 

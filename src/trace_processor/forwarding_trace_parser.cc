@@ -232,9 +232,23 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // clock of its own, so flag it: the file is now single-clock / single-machine
   // and any ClockSnapshot or remote machine id on it is rejected. It still
   // converts through the default clock set up below, like any clockless format.
-  if (manifest_entry && manifest_entry->clock_override &&
-      !manifest_entry->clock_override->source_clock) {
-    trace_context_->trace_state->has_clock_override = true;
+  //
+  // The override's edge is attached to a specific source clock (the manifest's
+  // `clock`, or for a pinned file its private TraceFile clock), so that clock
+  // must also be the file's default: otherwise events which don't name a clock
+  // (e.g. proto packets without timestamp_clock_id or ClockSnapshots) never
+  // reach the edge and the offset is silently ignored. Proto may still replace
+  // this later via primary_trace_clock.
+  bool force_default_clock = false;
+  if (manifest_entry && manifest_entry->clock_override) {
+    const auto& co = *manifest_entry->clock_override;
+    if (co.source_clock) {
+      trace_clock = ClockId::Machine(*co.source_clock);
+    } else {
+      trace_context_->trace_state->has_clock_override = true;
+      trace_clock = ClockId::TraceFile(trace_context_->trace_id().value);
+    }
+    force_default_clock = true;
   }
 
   // Set up the format's source clock. Proto manages its own default clock
@@ -242,7 +256,7 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   // (sets_default_clock=false); every other format converts its events through
   // the default clock via ClockTracker::ConvertDefaultClockToTraceTime.
   if (trace_clock) {
-    if (desc->sets_default_clock) {
+    if (desc->sets_default_clock || force_default_clock) {
       clock_tracker->SetTraceDefaultClock(*trace_clock);
     }
     if (desc->claims_global_clock) {

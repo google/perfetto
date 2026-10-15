@@ -24,6 +24,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/variant.h"
@@ -46,20 +47,24 @@ inline constexpr uint32_t kNoNode = std::numeric_limits<uint32_t>::max();
 //
 // A table scanned in row order with every parent an earlier row is the common
 // case: the ids are the numbers, so nothing is looked up or checked.
-class TreeNumberNodes : public Operator {
+class TreeNumberNodes final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   TreeNumberNodes(uint32_t id_column, uint32_t parent_column);
   ~TreeNumberNodes() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
-  OpResult Execute(const RowBatch&, RowBatch&, OperatorState&) const override;
-  void Rewind(OperatorState&) const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
+  bool Process(RowBatch&, OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
   // Whether every id seen so far was already its own node number.
   bool IsDenseForTesting(const OperatorState&) const;
 
  private:
+  friend class PipelineFormatter;
+
   struct Key {
     int64_t value;
     bool is_string;
@@ -72,8 +77,15 @@ class TreeNumberNodes : public Operator {
       return H::Combine(std::move(h), key.value, key.is_string);
     }
   };
+  // Where the two columns appended to the batch are written.
+  struct Numbers {
+    uint32_t* nodes;
+    uint32_t* parent_nodes;
+  };
   struct State : OperatorState {
+    explicit State(Context& c) : OperatorState(ResetEachRun{}), context(&c) {}
     ~State() override;
+    void Reset() override;
     // While the ids arriving are 0, 1, 2, ... they are already node numbers,
     // so the map stays empty.
     bool dense = true;
@@ -84,16 +96,15 @@ class TreeNumberNodes : public Operator {
     // The batch's ids and parent ids, whatever type they arrived as.
     FlexVector<Variant> ids;
     FlexVector<Variant> parents;
-    // The two columns appended to the batch.
-    FlexVector<uint32_t> nodes;
-    FlexVector<uint32_t> parent_nodes;
+    // What the numbers are written in.
+    Context* context;
     base::Status status = base::OkStatus();
   };
 
   // Numbers a batch of a table scanned in row order whose parents all point
   // back, or returns false having changed nothing.
-  bool NumberInOrder(const RowBatch&, uint32_t count, State&) const;
-  bool NumberByKey(const RowBatch&, uint32_t count, State&) const;
+  bool NumberInOrder(const RowBatch&, uint32_t count, Numbers&, State&) const;
+  bool NumberByKey(const RowBatch&, uint32_t count, Numbers&, State&) const;
   uint32_t Number(State&, const Variant& id) const;
 
   uint32_t id_column_;

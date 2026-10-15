@@ -15,7 +15,7 @@
 source_set("test_support") {
   testonly = true
 
-  public_deps = [ "../tracing:tracing" ]
+  public_deps = [ "../tracing" ]
 
   sources = [ "traced_value_test_support.h" ]
 }

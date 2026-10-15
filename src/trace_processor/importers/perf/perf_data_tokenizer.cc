@@ -68,6 +68,7 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -320,6 +321,9 @@ base::Status PerfDataTokenizer::ProcessRecord(Record record) {
     case PERF_RECORD_AUXTRACE_INFO:
       return ProcessAuxtraceInfoRecord(std::move(record));
 
+    case PERF_RECORD_ID_INDEX:
+      return ProcessIdIndexRecord(std::move(record));
+
     case PERF_RECORD_AUX:
       return ProcessAuxRecord(std::move(record));
 
@@ -434,17 +438,19 @@ PerfDataTokenizer::ParseFeatureSections() {
     PERFETTO_CHECK(reader.Read(feature_sections_.back().second));
   }
 
-  std::sort(feature_sections_.begin(), feature_sections_.end(),
-            [](const std::pair<uint8_t, PerfFile::Section>& lhs,
-               const std::pair<uint8_t, PerfFile::Section>& rhs) {
-              if (lhs.second.offset == rhs.second.offset) {
-                // Some sections have 0 length and thus there can be offset
-                // collisions. To make sure we parse sections by increasing
-                // offset parse empty sections first.
-                return lhs.second.size > rhs.second.size;
-              }
-              return lhs.second.offset > rhs.second.offset;
-            });
+  // Sorts by offset, then size, both descending: a stable sort by size, then
+  // by offset. Some sections have 0 length and thus there can be offset
+  // collisions. To make sure we parse sections by increasing offset parse
+  // empty sections first.
+  ColdSortByKeyDescending(feature_sections_.begin(), feature_sections_.end(),
+                          [](const std::pair<uint8_t, PerfFile::Section>& s) {
+                            return s.second.size;
+                          });
+  ColdStableSortByKeyDescending(
+      feature_sections_.begin(), feature_sections_.end(),
+      [](const std::pair<uint8_t, PerfFile::Section>& s) {
+        return s.second.offset;
+      });
 
   buffer_.PopFrontUntil(feature_headers_section_.end());
   parsing_state_ = feature_sections_.empty() ? ParsingState::kDone
@@ -521,6 +527,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       perf_invocation_->SetIsSimpleperf();
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(feature::SimpleperfMetaInfo::Parse(data, meta_info));
+      perf_invocation_->SetSimpleperfCounterScope(meta_info.entries);
       for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
         perf_invocation_->SetEventName(it.key().type, it.key().config,
                                        it.value());
@@ -543,6 +550,28 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           stats::perf_features_skipped, feature_id);
   }
 
+  return base::OkStatus();
+}
+
+base::Status PerfDataTokenizer::ProcessIdIndexRecord(Record record) {
+  struct IdIndexEntry {
+    uint64_t id;
+    uint64_t idx;
+    int64_t cpu;
+    int64_t tid;
+  };
+  Reader reader(std::move(record.payload));
+  uint64_t nr = 0;
+  if (!reader.Read(nr)) {
+    return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX");
+  }
+  for (uint64_t i = 0; i < nr; ++i) {
+    IdIndexEntry entry;
+    if (!reader.Read(entry)) {
+      return base::ErrStatus("Failed to parse PERF_RECORD_ID_INDEX entry");
+    }
+    perf_invocation_->SetEventIdBinding(entry.id, entry.cpu, entry.tid);
+  }
   return base::OkStatus();
 }
 

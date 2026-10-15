@@ -34,7 +34,7 @@ source_set("android_process_state") {
   public_deps = [ ":tables" ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/ext/base",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/third_party/android/frameworks/base/proto/tracing:frameworks_base_common_zero",

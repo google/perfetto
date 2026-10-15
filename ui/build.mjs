@@ -249,6 +249,11 @@ Env-var overrides:
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
+  parser.add_argument('--experimental-mithril-hmr', {
+    action: 'store_true',
+    help: 'Hot-swap edited Mithril component modules (remounting the tree) ' +
+          'instead of reloading the page. Only applies to the Vite dev server.',
+  });
 
   // Load ~/.config/perfetto/ui-dev-server.env defaults, then map any
   // PERFETTO_UI_* env vars to synthetic argv entries prepended before the
@@ -334,6 +339,7 @@ Env-var overrides:
   cfg.useHmr = cfg.watch && cfg.startHttpServer && !!!args.bundle;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
+  cfg.experimentalMithrilHmr = !!args.experimental_mithril_hmr;
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
@@ -619,23 +625,8 @@ function compileProtos() {
 }
 
 function generateStdlibDocs() {
-  const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_docs_json.py');
-  const stdlibDir = pjoin(ROOT_DIR, 'src/trace_processor/perfetto_sql/stdlib');
-
-  const stdlibFiles = listFilesRecursive(stdlibDir).filter(
-    (filePath) => path.extname(filePath) === '.sql',
-  );
-
-  addTask(exec, [
-    cmd,
-    [
-      '--json-out',
-      pjoin(cfg.outDistDir, 'stdlib_docs.json'),
-      '--metadata-only',
-      '--minify',
-      ...stdlibFiles,
-    ],
-  ]);
+  const cmd = pjoin(ROOT_DIR, 'tools/gen_stdlib_metadata_json.py');
+  addTask(exec, [cmd, ['--out', pjoin(cfg.outDistDir, 'stdlib_docs.json')]]);
 }
 
 function updateSymlinks() {
@@ -871,6 +862,9 @@ async function startViteDevServer() {
   if (cfg.noSourceMaps) process.env.NO_SOURCE_MAPS = 'true';
   if (cfg.noTreeshake) process.env.NO_TREESHAKE = 'true';
   if (cfg.minifyJs) process.env.MINIFY_JS = cfg.minifyJs;
+  if (cfg.experimentalMithrilHmr) {
+    process.env.EXPERIMENTAL_MITHRIL_HMR = 'true';
+  }
 
   const {createServer} = await import('vite');
   const port = cfg.httpServerListenPort ?? DEFAULT_PORT;
@@ -1378,18 +1372,6 @@ function walk(dir, callback, skipRegex) {
       callback(childPath);
     }
   }
-}
-
-// Recursively build a list of files in a given directory and return a list of
-// file paths, similar to `find -type f`.
-function listFilesRecursive(dir) {
-  const fileList = [];
-
-  walk(dir, (filePath) => {
-    fileList.push(filePath);
-  });
-
-  return fileList;
 }
 
 function ensureDir(dirPath, clean) {

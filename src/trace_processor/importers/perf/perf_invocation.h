@@ -65,6 +65,7 @@ class PerfInvocation : public RefCounted {
   };
 
   RefPtr<PerfEventAttr> FindAttrForEventId(uint64_t id) const;
+  void SetEventIdBinding(uint64_t id, int64_t cpu, int64_t tid);
 
   base::StatusOr<RefPtr<PerfEventAttr>> FindAttrForRecord(
       const perf_event_header& header,
@@ -86,10 +87,13 @@ class PerfInvocation : public RefCounted {
   bool needs_pc_adjustment() const { return !is_simpleperf_; }
 
   void SetIsSimpleperf() { is_simpleperf_ = true; }
+  void SetSimpleperfCounterScope(
+      const base::FlatHashMap<std::string, std::string>& entries);
 
   bool HasPerfClock() const;
 
  private:
+  void SetCounterScope(CounterScope scope);
   struct BuildIdMapKey {
     int32_t pid;
     std::string filename;

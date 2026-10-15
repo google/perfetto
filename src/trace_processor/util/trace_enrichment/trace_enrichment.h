@@ -19,6 +19,7 @@
 
 #include <string>
 #include <vector>
+#include "src/trace_processor/util/symbolizer/debuginfod.h"
 
 namespace perfetto::trace_processor {
 class TraceProcessor;
@@ -30,6 +31,7 @@ namespace perfetto::trace_processor::util {
 // Users should provide explicit paths or set environment variables.
 // If auto-discovery is enabled, well-known locations are also searched.
 struct EnrichmentConfig {
+  profiling::DebuginfodConfig debuginfod;
   // Explicit paths to search for native symbols (highest priority).
   // These paths are also searched for breakpad symbol files.
   std::vector<std::string> symbol_paths;
@@ -70,7 +72,7 @@ struct EnrichmentConfig {
 // Error codes for enrichment operations.
 // Only kExplicitMapsFailed is a hard failure: it means an explicitly-provided
 // ProGuard/R8 map could not be read. All other outcomes still produce a
-// bundle; `details` explains what could not be enriched and how to fix it.
+// bundle; `warnings` explains what could not be enriched and how to fix it.
 enum class EnrichmentError {
   kOk,
   kExplicitMapsFailed,
@@ -80,8 +82,11 @@ enum class EnrichmentError {
 struct EnrichmentResult {
   EnrichmentError error = EnrichmentError::kOk;
 
-  // Human-readable details about the operation.
+  // Routine human-readable summaries (suppressed in quiet mode).
   std::string details;
+
+  // Actionable warnings and resource errors, also printed in quiet mode.
+  std::string warnings;
 
   // Serialized TracePacket protos containing native symbol data.
   // Ready to be appended to the trace or included in a bundle.

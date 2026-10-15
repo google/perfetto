@@ -121,9 +121,11 @@ def patch_pnpm_lock(version, integrity):
   subs = [
       (r'(syntaqlite:\n\s*specifier: \^)[0-9][0-9.]*(\n\s*version: )[0-9][0-9.]*',
        r'\g<1>%s\g<2>%s' % (version, version), 'importer entry'),
-      (r'(/syntaqlite@)[0-9][0-9.]*(:\n\s*resolution: \{integrity: )'
+      (r'(\n  syntaqlite@)[0-9][0-9.]*(:\n\s*resolution: \{integrity: )'
        r'sha512-[A-Za-z0-9+/=]+', r'\g<1>%s\g<2>%s' % (version, integrity),
        'resolution entry'),
+      (r'(\n  syntaqlite@)[0-9][0-9.]*(: \{\})', r'\g<1>%s\g<2>' % version,
+       'snapshot entry'),
   ]
   patch(PNPM_LOCK, subs)
 

@@ -20,8 +20,9 @@
 namespace perfetto::trace_processor::android_framework_track_event {
 
 // Records the frameworks/base AndroidProcessStartEvent / AndroidBinderDiedEvent
-// TrackEvent extensions into __intrinsic_android_track_event_process. Called
-// from trace_processor_impl.cc.
+// TrackEvent extensions and trace-start AndroidProcessStateSnapshot dumps into
+// the process table and __intrinsic_android_track_event_process. Called from
+// trace_processor_impl.cc.
 void RegisterPlugin();
 
 }  // namespace perfetto::trace_processor::android_framework_track_event

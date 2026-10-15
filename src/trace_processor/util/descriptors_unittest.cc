@@ -927,5 +927,123 @@ TEST(DescriptorsTest, EnumToScalarExtensionReDeclarationAllowed) {
   EXPECT_TRUE(status.ok()) << status.message();
 }
 
+// A trace's descriptor can annotate a field TP already knows (e.g. adding
+// is_pid to an out-of-tree proto); the annotation must apply after merging.
+TEST(DescriptorsTest, MergedFieldTakesIncomingOptions) {
+  constexpr uint32_t kIsPidOption = 73922;
+
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* options_file = fds1->add_file();
+  options_file->set_name("google/protobuf/descriptor.proto");
+  options_file->set_package("google.protobuf");
+  options_file->add_message_type()->set_name("FieldOptions");
+
+  auto* is_pid_file = fds1->add_file();
+  is_pid_file->set_name("field_options.proto");
+  is_pid_file->set_package("perfetto.protos");
+  auto* is_pid = is_pid_file->add_extension();
+  is_pid->set_name("is_pid");
+  is_pid->set_number(kIsPidOption);
+  is_pid->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  is_pid->set_type(FieldDescriptorProto::TYPE_BOOL);
+  is_pid->set_extendee(".google.protobuf.FieldOptions");
+
+  auto* base_file = fds1->add_file();
+  base_file->set_name("base.proto");
+  base_file->set_package("test");
+  auto* base_msg = base_file->add_message_type();
+  base_msg->set_name("Event");
+  auto* base_field = base_msg->add_field();
+  base_field->set_name("pid");
+  base_field->set_number(1);
+  base_field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  base_field->set_type(FieldDescriptorProto::TYPE_INT32);
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  auto event_idx = pool.FindDescriptorIdx(".test.Event");
+  ASSERT_TRUE(event_idx.has_value());
+  EXPECT_FALSE(pool.descriptors()[*event_idx].FindFieldByTag(1)->is_pid());
+
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* ext_file = fds2->add_file();
+  ext_file->set_name("ext.proto");
+  ext_file->set_package("test");
+  auto* ext_msg = ext_file->add_message_type();
+  ext_msg->set_name("Event");
+  auto* ext_field = ext_msg->add_field();
+  ext_field->set_name("pid");
+  ext_field->set_number(1);
+  ext_field->set_label(FieldDescriptorProto::LABEL_OPTIONAL);
+  ext_field->set_type(FieldDescriptorProto::TYPE_INT32);
+  ext_field->set_options()->AppendVarInt(kIsPidOption, 1);
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_TRUE(pool.descriptors()[*event_idx].FindFieldByTag(1)->is_pid());
+}
+
+// Android's /etc/tracing_descriptors.gz re-declares InternedData with its
+// pre-migration field types (e.g. .perfetto.protos.NetworkPacketContext) but
+// doesn't define them. TP's own definition of the field must be kept rather
+// than failing the whole trace.
+TEST(DescriptorsTest, MergedFieldWithUnresolvableTypeKeepsExisting) {
+  protozero::HeapBuffered<FileDescriptorSet> fds1;
+  auto* interned_file = fds1->add_file();
+  interned_file->set_name("interned_data.proto");
+  interned_file->set_package("perfetto.protos");
+  interned_file->add_message_type()->set_name("InternedData");
+
+  auto* oot_file = fds1->add_file();
+  oot_file->set_name("network_trace.proto");
+  oot_file->set_package("android.net");
+  oot_file->add_message_type()->set_name("NetworkPacketContext");
+  auto* oot_ext = oot_file->add_extension();
+  oot_ext->set_name("packet_context");
+  oot_ext->set_number(30);
+  oot_ext->set_label(FieldDescriptorProto::LABEL_REPEATED);
+  oot_ext->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  oot_ext->set_type_name(".android.net.NetworkPacketContext");
+  oot_ext->set_extendee(".perfetto.protos.InternedData");
+
+  DescriptorPool pool;
+  std::vector<uint8_t> fds1_bytes = fds1.SerializeAsArray();
+  ASSERT_TRUE(
+      pool.AddFromFileDescriptorSet(fds1_bytes.data(), fds1_bytes.size()).ok());
+
+  protozero::HeapBuffered<FileDescriptorSet> fds2;
+  auto* trace_file = fds2->add_file();
+  trace_file->set_name(
+      "protos/perfetto/trace/interned_data/interned_data.proto");
+  trace_file->set_package("perfetto.protos");
+  auto* trace_msg = trace_file->add_message_type();
+  trace_msg->set_name("InternedData");
+  auto* trace_field = trace_msg->add_field();
+  trace_field->set_name("packet_context");
+  trace_field->set_number(30);
+  trace_field->set_label(FieldDescriptorProto::LABEL_REPEATED);
+  trace_field->set_type(FieldDescriptorProto::TYPE_MESSAGE);
+  trace_field->set_type_name(".perfetto.protos.NetworkPacketContext");
+
+  std::vector<uint8_t> fds2_bytes = fds2.SerializeAsArray();
+  auto status = pool.AddFromFileDescriptorSet(
+      fds2_bytes.data(), fds2_bytes.size(), /*skip_prefixes=*/{},
+      /*merge_existing_messages=*/true);
+  ASSERT_TRUE(status.ok()) << status.message();
+
+  auto interned_idx = pool.FindDescriptorIdx(".perfetto.protos.InternedData");
+  ASSERT_TRUE(interned_idx.has_value());
+  const auto* field = pool.descriptors()[*interned_idx].FindFieldByTag(30);
+  ASSERT_NE(field, nullptr);
+  EXPECT_EQ(field->resolved_type_name(), ".android.net.NetworkPacketContext");
+  EXPECT_TRUE(field->is_extension());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

@@ -21,6 +21,7 @@ import {AsyncMemo} from '../../../../../base/async_memo';
 import {Icons} from '../../../../../base/semantic_icons';
 import {Time, type time} from '../../../../../base/time';
 import type {Trace} from '../../../../../public/trace';
+import HeapDumpExplorerPlugin from '../../../../com.android.HeapDumpExplorer';
 import {
   LONG,
   NUM,
@@ -48,7 +49,7 @@ import {
   shortClassName,
   topTable,
 } from '../section_widgets';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {Stack} from '../../../../../widgets/stack';
 import {BillboardStrip} from '../../../components/billboard';
 
@@ -405,7 +406,7 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
           // Share of all bitmap bytes, with the change in share (percentage
           // points, this snapshot's total vs the baseline's) below in diff mode.
           deltaCell(
-            m(ShareBar, {frac: shareFrac}),
+            m(ProgressBar, {pct: shareFrac * 100}),
             comparing ? (shareFrac - baseShareFrac) * 100 : undefined,
             comparing,
             (n) =>
@@ -427,6 +428,10 @@ export class BitmapsSection implements m.ClassComponent<BitmapsSectionAttrs> {
           Anchor,
           {
             href: heapDumpBitmapsHref(),
+            onclick: () =>
+              trace.plugins
+                .getPlugin(HeapDumpExplorerPlugin)
+                .updateHeadDump(upid, cur.ts),
             icon: Icons.UpdateSelection,
           },
           'Open in Heap Dump Explorer',

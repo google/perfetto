@@ -472,6 +472,35 @@ com.example.ClassE -> e:
       mapping.find("e")->second.merged_classes().merged_classes.empty());
 }
 
+TEST(ProguardParserTest,
+     MappingVersionPre2_3MarksObfuscatedClassesUnknownMerged) {
+  ProguardParser p;
+  const char input[] = R"(# compiler: R8
+# {"id":"com.android.tools.r8.mapping","version":"2.2"}
+com.example.KeptClass -> com.example.KeptClass:
+com.example.ObfuscatedClass -> a.b:
+)";
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_EQ(mapping.size(), 2u);
+  EXPECT_FALSE(mapping.at("com.example.KeptClass")
+                   .merged_classes()
+                   .unknown_merged_classes);
+  EXPECT_TRUE(mapping.at("a.b").merged_classes().unknown_merged_classes);
+}
+
+TEST(ProguardParserTest, MappingVersion2_3DoesNotMarkUnmergedClasses) {
+  ProguardParser p;
+  const char input[] = R"(# compiler: R8
+# {"id":"com.android.tools.r8.mapping","version":"2.3"}
+com.example.ObfuscatedClass -> a.b:
+)";
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_EQ(mapping.size(), 1u);
+  EXPECT_FALSE(mapping.at("a.b").merged_classes().unknown_merged_classes);
+}
+
 // =============================================================================
 // R8 Retrace Compatibility Tests
 //

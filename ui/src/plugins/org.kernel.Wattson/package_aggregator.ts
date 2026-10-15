@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {exists} from '../../base/utils';
 import {
   type Aggregation,
   type Aggregator,
@@ -21,11 +20,15 @@ import {
   createAggregationData,
 } from '../../components/aggregation_adapter';
 import type {AreaSelection} from '../../public/selection';
-import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlValue} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {RadioGroup} from '../../widgets/radio_group';
+import {
+  type WattsonTaskSummary,
+  type WattsonTrackSelection,
+  getWattsonTrackSelection,
+} from './task_summary';
 import {formatPercentValue} from '../../components/aggregation_panel';
 
 // Base class to share logic between CPU and GPU package aggregators
@@ -41,13 +44,10 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
       getGridConfig: () => this.getGridConfig(),
       prepareData: async (engine: Engine) => {
         const duration = area.end - area.start;
-        const preamble = this.getPreamble(area, duration, probeResult);
-        if (preamble !== undefined) {
-          await engine.query(preamble);
-        }
+        await this.prepare(engine, area, duration, probeResult);
         const table = await createPerfettoTable({
           engine,
-          as: this.getDataQuery(area, duration, probeResult),
+          as: this.getDataQuery(duration),
         });
         return createAggregationData(table);
       },
@@ -57,20 +57,16 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
   // Derived classes implement this to check if they should trigger
   protected abstract doProbe(area: AreaSelection): unknown;
 
-  protected getPreamble(
+  // Runs whatever setup getDataQuery() depends on.
+  protected async prepare(
+    _engine: Engine,
     _area: AreaSelection,
     _duration: bigint,
     _probeResult: unknown,
-  ): string | undefined {
-    return undefined;
-  }
+  ): Promise<void> {}
 
   // Derived classes implement this to provide the final SQL query.
-  protected abstract getDataQuery(
-    area: AreaSelection,
-    duration: bigint,
-    probeResult: unknown,
-  ): string;
+  protected abstract getDataQuery(duration: bigint): string;
 
   abstract getTabName(): string;
 
@@ -162,23 +158,25 @@ abstract class WattsonBasePackageSelectionAggregator implements Aggregator {
 export class WattsonCpuPackageSelectionAggregator extends WattsonBasePackageSelectionAggregator {
   readonly id = 'wattson_plugin_package_aggregation';
 
-  protected doProbe(area: AreaSelection) {
-    const selectedCpus: number[] = [];
-    for (const trackInfo of area.tracks) {
-      if (trackInfo?.tags?.kinds?.includes(CPU_SLICE_TRACK_KIND)) {
-        exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
-      }
-    }
-    return selectedCpus.length > 0 ? {selectedCpus} : undefined;
+  constructor(private readonly taskSummary: WattsonTaskSummary) {
+    super();
   }
 
-  protected getDataQuery(
-    _area: AreaSelection,
+  protected doProbe(area: AreaSelection) {
+    const selection = getWattsonTrackSelection(area);
+    return selection.cpus.length > 0 ? selection : undefined;
+  }
+
+  protected override async prepare(
+    _engine: Engine,
+    area: AreaSelection,
     _duration: bigint,
-    _probeResult: unknown,
-  ): string {
-    // Prerequisite tables might need to be generated if thread_aggregator didn't run,
-    // but assuming it runs for now as per original code.
+    selection: WattsonTrackSelection,
+  ): Promise<void> {
+    await this.taskSummary.build(area, selection);
+  }
+
+  protected getDataQuery(): string {
     return `
       -- Grouped by UID and made CPU agnostic
       WITH base AS (
@@ -214,12 +212,12 @@ export class WattsonGpuPackageSelectionAggregator extends WattsonBasePackageSele
     return hasGpuWorkPeriodTrack ? true : undefined;
   }
 
-  protected getPreamble(
+  protected override async prepare(
+    engine: Engine,
     area: AreaSelection,
     duration: bigint,
-    _probeResult: unknown,
-  ): string {
-    return `
+  ): Promise<void> {
+    await engine.query(`
       INCLUDE PERFETTO MODULE wattson.estimates;
       INCLUDE PERFETTO MODULE wattson.tasks.attribution;
 
@@ -235,14 +233,10 @@ export class WattsonGpuPackageSelectionAggregator extends WattsonBasePackageSele
         wattson_plugin_gpu_ui_selection_window,
         _gpu_estimates_w_tasks_attribution
       );
-    `;
+    `);
   }
 
-  protected getDataQuery(
-    _area: AreaSelection,
-    duration: bigint,
-    _probeResult: unknown,
-  ): string {
+  protected getDataQuery(duration: bigint): string {
     return `
       -- Grouped by UID specifically for GPU data
       WITH base AS (

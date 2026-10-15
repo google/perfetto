@@ -22,76 +22,59 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/core/common/storage_types.h"
-#include "src/trace_processor/core/exec/column_chunk.h"
-#include "src/trace_processor/core/exec/column_view.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
-// Owns a copy of rows taken from one or more RowBatches.
+// The batches an operator holds on to, to hand their rows back later: in
+// runs, as they were held, or in any order, gathered.
 //
-// A RowBatch only borrows its values: they stay valid until the next pull from
-// the source, which is free to overwrite them. An operator which needs rows
-// for longer than that must copy them into a RowStore. Views of the store
-// borrow in the same way: they are good until the store's next mutation, and
-// never longer than the store.
-//
-// Rows are held in fixed-size chunks rather than one growing array, so nothing
-// already appended is ever copied again. kChunkRows is a power of two, so a
-// row's chunk and its offset within it are a shift and a mask.
+// Holding a batch copies only which of its rows it keeps: its columns stay
+// onto the same buffers, shared. Rows are numbered from 0, in the order they
+// were appended.
 class RowStore {
  public:
-  static constexpr uint32_t kChunkRows = kMaxBatchRows;
-
   RowStore();
   ~RowStore();
 
-  // Appends every column of `batch`. The first call fixes the column count and
-  // the type of each column; later calls must match it.
-  base::Status Append(const RowBatch& batch);
+  // Holds the rows `in` keeps. Every batch must have the same columns.
+  base::Status Append(const RowBatch& in);
 
+  // How many rows are held.
   uint32_t size() const { return size_; }
-  uint32_t column_count() const {
-    return static_cast<uint32_t>(columns_.size());
-  }
-  StorageType type(uint32_t column) const { return columns_[column].type; }
-  bool is_variant(uint32_t column) const { return columns_[column].variant; }
 
-  // Points `batch` at up to `count` rows from `offset` and returns how many it
-  // could serve. A run never spans two chunks, so a caller asking for more than
-  // the rest of a chunk gets the rest of the chunk.
-  uint32_t View(RowBatch* batch, uint32_t offset, uint32_t count) const;
+  // Points `out` at up to `count` rows from `offset` on, as they are held. A
+  // run stops at the end of a batch appended, so it can be shorter: returns
+  // how many rows it has.
+  uint32_t View(RowBatch* out, uint32_t offset, uint32_t count) const;
 
-  // Points `batch` at the rows `rows` picks out, in that order. They can come
-  // from any chunk, which no single view can span, so the values are gathered
-  // into reused storage. The result stays valid until the next indexed View()
-  // on this store.
-  void View(RowBatch* batch, Span<const uint32_t> rows);
+  // Copies up to kMaxBatchRows of `rows`, in that order and repeats included,
+  // into buffers taken from `context`. Returns how many.
+  uint32_t View(RowBatch* out, Span<const uint32_t> rows, Context& context);
 
-  // Drops all the rows but keeps the allocated chunks.
+  // Lets go of every row held.
   void Clear();
 
  private:
-  struct Column {
-    StorageType type{Uint32{}};
-    bool variant = false;
-    bool nullable = false;
-    std::vector<std::unique_ptr<ColumnChunk>> chunks;
-    // Where a gathered view puts the values it picks out.
-    std::unique_ptr<ColumnChunk> gathered;
-  };
+  // The batch held which row `row` is in.
+  uint32_t Find(uint32_t row) const;
 
-  base::Status ValidateColumn(const Column&, const ColumnView&) const;
-  void AppendColumn(Column&, const ColumnView&, uint32_t count);
-  ColumnView ViewOf(const Column&, const ColumnChunk&) const;
-  ColumnChunk& ChunkAt(Column&, uint32_t index) const;
-
-  std::vector<Column> columns_;
-  bool initialized_ = false;
+  // The first `held_` are the batches held, the rest kept for reuse.
+  std::vector<std::unique_ptr<RowBatch>> batches_;
+  uint32_t held_ = 0;
+  // By batch held, the row after its last.
+  std::vector<uint32_t> ends_;
+  // By row held, the batch it is in: found at once, as rows taken out of
+  // order would otherwise each search the batches.
+  std::vector<uint32_t> batch_of_row_;
+  // By column, whether any batch held has nulls in it.
+  std::vector<bool> nullable_;
   uint32_t size_ = 0;
+  // Scratch for gathering: by batch held, its view of the column copied.
+  std::vector<const ColumnView*> views_;
+  std::vector<const void*> bases_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

@@ -18,8 +18,6 @@ INCLUDE PERFETTO MODULE slices.flat_slices;
 
 INCLUDE PERFETTO MODULE sched.thread_executing_span;
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 -- Critical path rooted at every entry of `_wakeup_graph`, with the
 -- on-CPU blocker thread (`utid`) and the root's thread (`root_utid`)
 -- joined in. Materialised so the slice-aware tables below can join in
@@ -28,7 +26,10 @@ CREATE PERFETTO TABLE _critical_path_all AS
 WITH
   _per_root AS (
     SELECT *
-    FROM _critical_path_by_roots!((SELECT id AS root_node_id FROM _wakeup_graph), _wakeup_graph)
+    FROM _critical_path_by_roots!(
+      (SELECT id AS root_node_id FROM _wakeup_graph),
+      _wakeup_graph
+    )
   )
 SELECT
   row_number() OVER (ORDER BY cr.ts) AS id,
@@ -97,8 +98,11 @@ ORDER BY
   ts;
 
 CREATE PERFETTO TABLE _critical_path_thread_state_slice_raw AS
-SELECT id_0 AS cr_id, id_1 AS th_id, ts, dur
-FROM _interval_intersect!((_critical_path_all, _span_thread_state_slice), (utid));
+INTERVAL INTERSECTION OF (
+  _critical_path_all AS cr,
+  _span_thread_state_slice AS th
+) PER utid
+|> SELECT cr.id AS cr_id, th.id AS th_id, ts, dur;
 
 -- Critical-path × slice cross product, restricted to id-space columns.
 -- Slice names are not stored here; `_critical_path_stack` joins `slice`

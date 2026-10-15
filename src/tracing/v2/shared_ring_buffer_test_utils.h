@@ -26,7 +26,6 @@
 #include <string>
 #include <utility>
 
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -67,6 +66,16 @@ class SharedRingBufferInternalsForTest {
   // Exercise the writer's sleep fallback even on platforms with futex support.
   static void DisableWriterFutex(SharedRingBufferWriter* writer) {
     writer->use_futex_ = false;
+  }
+
+  // The next sleep of the writer's backoff without futex.
+  static uint32_t GetFallbackSleepUs(const SharedRingBufferWriter* writer) {
+    return writer->fallback_sleep_us_;
+  }
+
+  static void SetAfterReplacementClaimCallback(SharedRingBufferWriter* writer,
+                                               std::function<void()> callback) {
+    writer->after_replacement_claim_for_testing_ = std::move(callback);
   }
 
   // Injects a state word for corruption and unknown-ABI tests.
@@ -141,23 +150,10 @@ class SharedRingBufferInternalsForTest {
   }
 };
 
-class NoopWriterDelegate : public SharedRingBufferWriter::Delegate {
- public:
-  void NotifyReader() override {}
-};
-
-inline SharedRingBufferWriter::Delegate* GetNoopWriterDelegate() {
-  static base::NoDestructor<NoopWriterDelegate> delegate;
-  return &delegate.ref();
-}
-
-inline SharedRingBufferWriter MakeWriter(
-    SharedRingBuffer* ring,
-    WriterID id,
-    BufferID buffer,
-    BufferExhaustedPolicy policy = BufferExhaustedPolicy::kDrop) {
-  return SharedRingBufferWriter(ring, id, buffer, policy,
-                                GetNoopWriterDelegate());
+inline SharedRingBufferWriter MakeWriter(SharedRingBuffer* ring,
+                                         WriterID id,
+                                         BufferID buffer) {
+  return SharedRingBufferWriter(ring, id, buffer);
 }
 
 // Decodes the wrap count of a Free word, which lives in the WriterID field.
@@ -166,8 +162,11 @@ constexpr uint16_t WrapCountOf(uint32_t state_word) {
   return static_cast<uint16_t>(WriterIDOf(state_word));
 }
 
-// Writes one fragment holding |bytes| and publishes it. Returns false if the
-// fragment could not be begun or if publishing it dropped a relocated fragment.
+// Writes one fragment holding |bytes| and publishes it. Returns false if no
+// chunk was available. If the publication needed a relocation and its claim
+// round got no chunk, this drops the relocation, so the writer never stays in
+// the Pending relocation state. Tests of pending relocations use the writer's
+// API directly.
 inline bool WriteFragment(SharedRingBufferWriter* writer,
                           const std::string& bytes,
                           bool continues_from_prev = false,
@@ -177,8 +176,32 @@ inline bool WriteFragment(SharedRingBufferWriter* writer,
   if (range.result != SharedRingBufferWriter::BeginFragmentResult::kSuccess)
     return false;
   memcpy(range.begin, bytes.data(), bytes.size());
-  const auto end_result = writer->EndFragment(size, continues_on_next);
-  return end_result == SharedRingBufferWriter::EndFragmentResult::kSuccess;
+  if (writer->EndFragment(size, continues_on_next) ==
+      SharedRingBufferWriter::EndFragmentResult::kSuccess) {
+    return true;
+  }
+  writer->DropRelocation();
+  return false;
+}
+
+// Pins every chunk in RewriteRequested for |owner|. Only the owner can leave
+// that state, so every claim on these chunks fails. The chunks are claimed
+// directly, without reservations, so write_pos stays unchanged. Returns false
+// if a chunk was not Free for its first position.
+inline bool PinAllChunks(SharedRingBuffer* ring, WriterID owner) {
+  const uint32_t being_written = MakeDataStateWord(
+      ChunkState::kBeingWritten, ChunkFormat::kTargetBuffer, 0, 0, owner);
+  for (uint32_t chunk_pos = 0; chunk_pos < ring->num_chunks(); ++chunk_pos) {
+    if (!ring->TryAcquireChunkForWriting(chunk_pos, being_written))
+      return false;
+    uint32_t observed = being_written;
+    if (!ring->TryRequestRewrite(
+            ChunkIndex::FromPosition(chunk_pos, ring->num_chunks()),
+            &observed)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace perfetto::tracing_v2::test

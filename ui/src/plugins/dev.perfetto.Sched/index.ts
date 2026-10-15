@@ -274,9 +274,10 @@ export default class SchedPlugin implements PerfettoPlugin {
 
   private async getCpus(engine: Engine): Promise<number[]> {
     const result = await engine.query(`
-      SELECT DISTINCT
-        ucpu
-      FROM sched
+      SELECT ucpu
+      FROM (SELECT DISTINCT ucpu FROM sched)
+      JOIN cpu USING (ucpu)
+      ORDER BY cpu.machine_id, cpu.cpu
     `);
     const it = result.iter({ucpu: NUM});
     const cpus: number[] = [];

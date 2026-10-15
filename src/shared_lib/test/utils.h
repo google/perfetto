@@ -24,6 +24,7 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -86,6 +87,10 @@ class TracingSession {
       clear_period_ms_ = clear_period_ms;
       return *this;
     }
+    Builder& set_v2_probability(uint32_t probability) {
+      v2_probability_ = probability;
+      return *this;
+    }
     Builder& enable_protovm_config() {
       enable_protovm_config_ = true;
       return *this;
@@ -100,6 +105,7 @@ class TracingSession {
     std::vector<std::string> disabled_categories_;
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
+    std::optional<uint32_t> v2_probability_;
   };
 
   static TracingSession Adopt(struct PerfettoTracingSessionImpl*);
@@ -149,7 +155,10 @@ class FieldViewBase {
       struct PerfettoPbDecoder decoder;
       decoder.read_ptr = read_ptr_;
       decoder.end_ptr = end_ptr_;
-      PerfettoPbDecoderSkipField(&decoder);
+      if (PerfettoPbDecoderSkipField(&decoder) != PERFETTO_PB_DECODER_OK) {
+        read_ptr_ = end_ptr_;
+        return *this;
+      }
       read_ptr_ = decoder.read_ptr;
       AdvanceToFirstInterestingField();
       return *this;
@@ -208,7 +217,8 @@ class FieldViewBase {
   explicit FieldViewBase(const struct PerfettoPbDecoderField& field,
                          Args... args)
       : s_(args...) {
-    if (field.wire_type != PERFETTO_PB_WIRE_TYPE_DELIMITED) {
+    if (field.status != PERFETTO_PB_DECODER_OK ||
+        field.wire_type != PERFETTO_PB_WIRE_TYPE_DELIMITED) {
       abort();
     }
     begin_ = field.value.delimited.start;
@@ -292,6 +302,15 @@ using FieldView = FieldViewBase<NoFieldSkipper>;
 // IdFieldView fields(msg_begin, msg_end, id)
 using IdFieldView = FieldViewBase<IdFieldSkipper>;
 
+// Unlike testing::AllOf, guarantees left-to-right short-circuit evaluation even
+// when MatchResultListener::IsInterested() is true, preventing inner matchers
+// from decoding fields with mismatched wire_type or field id.
+MATCHER_P3(ShortCircuitAllOf, m1, m2, m3, "") {
+  return testing::ExplainMatchResult(m1, arg, result_listener) &&
+         testing::ExplainMatchResult(m2, arg, result_listener) &&
+         testing::ExplainMatchResult(m3, arg, result_listener);
+}
+
 // Matches a PerfettoPbDecoderField with the specified id. Accepts another
 // matcher to match the contents of the field.
 //
@@ -300,7 +319,7 @@ using IdFieldView = FieldViewBase<IdFieldSkipper>;
 // EXPECT_THAT(field, PbField(900, VarIntField(5)));
 template <typename M>
 auto PbField(int32_t id, M m) {
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::id, id), m);
 }
@@ -314,7 +333,7 @@ auto PbField(int32_t id, M m) {
 template <typename M>
 auto MsgField(M m) {
   auto f = [](const PerfettoPbDecoderField& field) { return FieldView(field); };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_DELIMITED),
@@ -334,7 +353,7 @@ auto StringField(M m) {
         reinterpret_cast<const char*>(field.value.delimited.start),
         field.value.delimited.len);
   };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_DELIMITED),
@@ -351,7 +370,7 @@ auto VarIntField(M m) {
   auto f = [](const PerfettoPbDecoderField& field) {
     return field.value.integer64;
   };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_VARINT),
@@ -368,7 +387,7 @@ auto Fixed64Field(M m) {
   auto f = [](const PerfettoPbDecoderField& field) {
     return field.value.integer64;
   };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_FIXED64),
@@ -385,7 +404,7 @@ auto Fixed32Field(M m) {
   auto f = [](const PerfettoPbDecoderField& field) {
     return field.value.integer32;
   };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_FIXED32),
@@ -402,7 +421,7 @@ auto DoubleField(M m) {
   auto f = [](const PerfettoPbDecoderField& field) {
     return field.value.double_val;
   };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_FIXED64),
@@ -419,7 +438,7 @@ auto FloatField(M m) {
   auto f = [](const PerfettoPbDecoderField& field) {
     return field.value.float_val;
   };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_FIXED32),
@@ -437,7 +456,7 @@ auto AllFieldsWithId(int32_t id, M m) {
   auto f = [id](const PerfettoPbDecoderField& field) {
     return IdFieldView(field, id);
   };
-  return testing::AllOf(
+  return ShortCircuitAllOf(
       testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
       testing::Field(&PerfettoPbDecoderField::wire_type,
                      PERFETTO_PB_WIRE_TYPE_DELIMITED),

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/tree_order.h"
 
 #include <benchmark/benchmark.h>
@@ -82,7 +83,9 @@ dataframe::Dataframe BuildTree(uint32_t rows,
 }
 
 void Run(benchmark::State& state, const Source& source, uint32_t rows) {
-  std::unique_ptr<OperatorState> run = source.MakeState();
+  // Before every batch and state, which hold its buffers.
+  Context context;
+  std::unique_ptr<OperatorState> run = source.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     source.Rewind(*run);
@@ -103,10 +106,11 @@ void BM_TreeOrderNumberOnly(benchmark::State& state) {
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan(df, {0, 1});
-  std::vector<std::unique_ptr<Operator>> ops;
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
+                     df.row_count());
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  Pipeline pipeline(scan, std::move(ops));
+  Pipeline pipeline(scan, std::move(ops), {});
   Run(state, pipeline, rows);
 }
 
@@ -115,11 +119,12 @@ void BM_TreeParentFirst(benchmark::State& state) {
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan(df, {0, 1});
-  std::vector<std::unique_ptr<Operator>> ops;
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
+                     df.row_count());
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
-  Pipeline pipeline(scan, std::move(ops));
+  Pipeline pipeline(scan, std::move(ops), {});
   Run(state, pipeline, rows);
 }
 
@@ -128,11 +133,12 @@ void BM_TreeChildFirst(benchmark::State& state) {
   auto rows = static_cast<uint32_t>(state.range(0));
   dataframe::Dataframe df =
       BuildTree(rows, static_cast<Arrival>(state.range(1)), &pool);
-  DataframeScan scan(df, {0, 1});
-  std::vector<std::unique_ptr<Operator>> ops;
+  DataframeScan scan({df.shared_column(0), df.shared_column(1)},
+                     df.row_count());
+  std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  Pipeline numbered(scan, std::move(ops));
-  TreeChildFirst order(numbered, 2, 3);
+  ops.push_back(std::make_unique<TreeChildFirst>(2, 3));
+  Pipeline order(scan, std::move(ops), {});
   Run(state, order, rows);
 }
 

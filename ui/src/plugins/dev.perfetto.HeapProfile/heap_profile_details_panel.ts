@@ -52,11 +52,26 @@ import {Icon} from '../../widgets/icon';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {type ProfileDescriptor, ProfileType} from './common';
 import {
+  mergedClassNodeIcon,
+  mergedClassNodeTooltipRenderer,
+} from '../../components/merged_class_flamegraph_hooks';
+import {
+  MERGED_CLASS_FLAMEGRAPH_PROPERTY,
+  MERGED_CLASS_PROPERTY,
+  mergedClassColumnSql,
+} from './merged_class_sql';
+import {
   buildOomeCallstackMetrics,
   loadOomeDetails,
   renderOomeDetails,
   type OomeDetails,
 } from './oome_callstack_common';
+
+// Flag potentially merged classes in heap graph flamegraphs.
+const MERGED_CLASS_NODE_ICON = mergedClassNodeIcon(MERGED_CLASS_PROPERTY);
+const MERGED_CLASS_NODE_TOOLTIP = mergedClassNodeTooltipRenderer(
+  MERGED_CLASS_PROPERTY,
+);
 
 const DOCS_NATIVE_HEAP_PROFILER =
   'https://perfetto.dev/docs/data-sources/native-heap-profiler';
@@ -296,6 +311,13 @@ export class HeapProfileFlamegraphDetailsPanel
             this.onStateChange(state);
           },
           extraDownloadItems: this.pprofDownloadItems(type, ts),
+          // Only heap graph metrics have the potentially_merged column.
+          ...(type === ProfileType.JAVA_HEAP_GRAPH
+            ? {
+                nodeIcon: MERGED_CLASS_NODE_ICON,
+                renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
+              }
+            : {}),
         }),
       ),
     );
@@ -444,13 +466,15 @@ function flamegraphMetrics(
               heap_type,
               self_size as value,
               self_count,
-              path_hash_stable
-            from _heap_graph_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -486,13 +510,15 @@ function flamegraphMetrics(
               heap_type,
               self_size,
               self_count as value,
-              path_hash_stable
-            from _heap_graph_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -523,13 +549,15 @@ function flamegraphMetrics(
               heap_type,
               self_size as value,
               self_count,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -565,13 +593,15 @@ function flamegraphMetrics(
               heap_type,
               self_size,
               self_count as value,
-              path_hash_stable
-            from _heap_graph_dominator_class_tree
+              path_hash_stable,
+              ${mergedClassColumnSql('t.name', upid, ts)}
+            from _heap_graph_dominator_class_tree t
             where graph_sample_ts = ${ts} and upid = ${upid}
           `,
           unaggregatableProperties: [
             {name: 'root_type', displayName: 'Root Type'},
             {name: 'heap_type', displayName: 'Heap Type'},
+            MERGED_CLASS_FLAMEGRAPH_PROPERTY,
           ],
           aggregatableProperties: [
             {
@@ -642,8 +672,8 @@ function flamegraphMetricsForHeapProfile(
         from _android_heap_profile_callstacks_for_allocations!((
           select
             callsite_id,
-            max(iif(positive_alloc, size, 0), 0) as size,
-            max(iif(positive_alloc, count, 0), 0) as count,
+            iif(positive_alloc, size, 0) as size,
+            iif(positive_alloc, count, 0) as count,
             max(size, 0) as alloc_size,
             max(count, 0) as alloc_count
           from heap_profile_allocation a

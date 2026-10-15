@@ -28,6 +28,12 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+
+  // Fill the space left by the filter toolbar instead of 100% of the parent.
+  &__tabs {
+    flex: 1;
+    min-height: 0;
+  }
 }
 
 .pf-sql-table__toolbar {
@@ -36,18 +42,4 @@
   gap: 4px;
   padding: 2px;
   border-bottom: solid 1px var(--pf-color-border);
-
-  .pf-tabs {
-    .pf-button {
-      padding: 0px;
-    }
-    .pf-tabs__tab-icon--right {
-      margin-left: 0px;
-    }
-  }
-}
-
-.pf-sql-table__table {
-  flex: 1;
-  overflow-y: auto;
 }

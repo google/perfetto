@@ -1137,6 +1137,12 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
         stats::traced_buf_chunks_committed_out_of_order, buf_num,
         static_cast<int64_t>(buf.chunks_committed_out_of_order()));
     context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_compactions, buf_num,
+        static_cast<int64_t>(buf.compactions()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_compactions_skipped, buf_num,
+        static_cast<int64_t>(buf.compactions_skipped()));
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_write_wrap_count, buf_num,
         static_cast<int64_t>(buf.write_wrap_count()));
     context_->stats_tracker->SetIndexedStats(
@@ -1157,6 +1163,9 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_oversized_packets_dropped, buf_num,
+        static_cast<int64_t>(buf.oversized_packets_dropped()));
   }
 
   struct BufStats {

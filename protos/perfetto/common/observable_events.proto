@@ -19,6 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 message ObservableEvents {
+  // Note: internally these are used as OR flags. Next values: 4, 8, 16, ...
   enum Type {
     TYPE_UNSPECIFIED = 0;
 
@@ -39,8 +40,6 @@ message ObservableEvents {
     // and a matching trigger is hit, the service will send this notification to
     // the consumer after |stop_delay_ms|.
     TYPE_CLONE_TRIGGER_HIT = 4;
-
-    // Note: internally these are used as OR flags. Next values: 4, 8, 16, ...
 
     // TODO(eseckler): Extend this for producer & data source registrations.
   }

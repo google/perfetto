@@ -32,6 +32,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include <zlib.h>
+#include <cstdint>
 #endif
 
 namespace perfetto {

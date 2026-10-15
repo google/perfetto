@@ -32,7 +32,7 @@ import {Callout} from '../../../components/callout';
 import {Intent} from '../../../../../widgets/common';
 import {deltaText, formatBytes, formatDelta, statCard} from '../mem_format';
 import {Ratio} from '../../../components/ratio';
-import {ShareBar} from '../../../components/share_bar';
+import {ProgressBar} from '../../../components/progress_bar';
 import {findProcessTrack, showAreaInTimelineLink} from '../process_links';
 import {emptyPanel, loadingPanel, topTable} from '../section_widgets';
 import {SMAPS_CATEGORY_CASE_SQL} from '../smaps_categories';
@@ -371,7 +371,9 @@ export class NativeSection implements m.ClassComponent<NativeSectionAttrs> {
       ),
       formatBytes(s.unreleased),
       s.allocs.toLocaleString(),
-      m(ShareBar, {frac: profileTotal > 0 ? s.unreleased / profileTotal : 0}),
+      m(ProgressBar, {
+        pct: profileTotal > 0 ? (s.unreleased / profileTotal) * 100 : 0,
+      }),
     ]);
 
     return m(

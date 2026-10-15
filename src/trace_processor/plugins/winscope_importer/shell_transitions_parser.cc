@@ -85,14 +85,11 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
 
   if (transition.has_send_time_ns()) {
     transition_tracker.SetSendTime(transition_id, transition.send_time_ns());
-    transition_tracker.SetTimestamp(transition_id, transition.send_time_ns());
   }
 
   if (transition.has_dispatch_time_ns()) {
     transition_tracker.SetDispatchTime(transition_id,
                                        transition.dispatch_time_ns());
-    transition_tracker.SetTimestampIfEmpty(transition_id,
-                                           transition.dispatch_time_ns());
   }
 
   if (transition.has_shell_abort_time_ns()) {

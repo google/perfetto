@@ -13,28 +13,14 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE intervals.intersect;
-
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.tpu.freq_idle;
 
-INCLUDE PERFETTO MODULE wattson.utils;
-
 -- TPU frequency and parallel requests combined states
 CREATE PERFETTO TABLE _tpu_combined_state AS
-SELECT ii.ts, ii.dur, tf.freq, tf.cluster, tr.requests
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_tpu_freq),
-    _ii_subquery!(_tpu_requests_count)
-  ),
-  ()
-) AS ii
-JOIN _tpu_freq AS tf
-  ON tf._auto_id = id_0
-JOIN _tpu_requests_count AS tr
-  ON tr._auto_id = id_1;
+INTERVAL INTERSECTION OF (_tpu_freq AS freq, _tpu_requests_count AS requests)
+|> SELECT ts, dur, freq.freq, freq.cluster, requests.requests;
 
 -- TPU power estimates in mW
 CREATE PERFETTO TABLE _tpu_estimates_mw AS

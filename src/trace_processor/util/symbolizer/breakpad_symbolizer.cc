@@ -83,18 +83,18 @@ SymbolizeResult BreakpadSymbolizer::Symbolize(
 
   // Check if file exists first to distinguish file-not-found from parse errors.
   if (!base::FileExists(file_path)) {
-    result.attempts.push_back({file_path, SymbolPathError::kFileNotFound});
+    result.attempts.push_back({file_path, SymbolPathError::kFileNotFound, {}});
     return result;
   }
 
   BreakpadParser parser(file_path);
   if (!parser.ParseFile()) {
-    result.attempts.push_back({file_path, SymbolPathError::kParseError});
+    result.attempts.push_back({file_path, SymbolPathError::kParseError, {}});
     return result;
   }
 
   // Record the successful lookup.
-  result.attempts.push_back({file_path, SymbolPathError::kOk});
+  result.attempts.push_back({file_path, SymbolPathError::kOk, {}});
 
   // Add each address's function name to the |result| vector in the same order.
   for (uint64_t addr : address) {

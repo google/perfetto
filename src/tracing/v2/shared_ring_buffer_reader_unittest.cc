@@ -23,7 +23,6 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
@@ -36,9 +35,7 @@ namespace {
 using Internals = test::SharedRingBufferInternalsForTest;
 using BeginFragmentResult = SharedRingBufferWriter::BeginFragmentResult;
 using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
-using EndFragmentResult = SharedRingBufferWriter::EndFragmentResult;
 using ConsumeResult = SharedRingBufferReader::ConsumeResult;
-using test::GetNoopWriterDelegate;
 using test::MakeWriter;
 using test::WriteFragment;
 
@@ -340,8 +337,7 @@ TEST(SharedRingBufferReaderTest, DrainPublishesOnce) {
   std::vector<std::unique_ptr<SharedRingBufferWriter>> writers;
   for (uint32_t i = 0; i < 4; ++i) {
     writers.push_back(std::make_unique<SharedRingBufferWriter>(
-        ring.get(), static_cast<WriterID>(10 + i), kBuffer,
-        BufferExhaustedPolicy::kDrop, GetNoopWriterDelegate()));
+        ring.get(), static_cast<WriterID>(10 + i), kBuffer));
     ASSERT_TRUE(WriteFragment(writers.back().get(), "x"));
   }
   // The shared read_pos has not moved yet: ConsumeNextPosition() does not
@@ -365,8 +361,7 @@ TEST(SharedRingBufferReaderTest, DrainBudget) {
   std::vector<std::unique_ptr<SharedRingBufferWriter>> writers;
   for (uint32_t i = 0; i < 4; ++i) {
     writers.push_back(std::make_unique<SharedRingBufferWriter>(
-        ring.get(), static_cast<WriterID>(10 + i), kBuffer,
-        BufferExhaustedPolicy::kDrop, GetNoopWriterDelegate()));
+        ring.get(), static_cast<WriterID>(10 + i), kBuffer));
     ASSERT_TRUE(WriteFragment(writers.back().get(), "x"));
   }
 

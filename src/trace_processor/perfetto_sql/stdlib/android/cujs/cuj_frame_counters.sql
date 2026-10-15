@@ -22,14 +22,16 @@ INCLUDE PERFETTO MODULE android.cujs.base;
 -- for an operation. For eg. a SFMissedCallback indicates that events related to surfaceflinger
 -- operations, such as vsync synchronization, transaction/presentation callbacks were not captured.
 -- This view captures all such missed callback slices.
-CREATE PERFETTO VIEW _marker_missed_callback AS
+CREATE PERFETTO TABLE _marker_missed_callback AS
 SELECT
   marker_track.name AS cuj_slice_name,
   marker.ts,
   marker.name AS marker_name
-FROM slice AS marker
+FROM (SELECT DISTINCT cuj_slice_name FROM _jank_cujs_slices) AS cuj
 JOIN track AS marker_track
-  ON marker_track.id = marker.track_id
+  ON marker_track.name = cuj.cuj_slice_name
+JOIN slice AS marker
+  ON marker.track_id = marker_track.id
 WHERE
   marker.name GLOB '*FT#Missed*';
 
@@ -57,7 +59,7 @@ ORDER BY
 LIMIT 1;
 
 -- Extract all counters for Jank CUJ tracks.
-CREATE PERFETTO VIEW _android_jank_cuj_counter AS
+CREATE PERFETTO TABLE _android_jank_cuj_counter AS
 WITH
   cuj_counter_track AS (
     SELECT DISTINCT

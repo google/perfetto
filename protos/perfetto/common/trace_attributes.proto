@@ -37,7 +37,6 @@ package perfetto.protos;
 // Pefetto SQL by using the following query:
 ///
 //`SELECT * FROM metadata WHERE name GLOB 'trace_attribute.*';`
-
 message TraceAttributes {
   message Attribute {
     // The key

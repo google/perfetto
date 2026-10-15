@@ -132,3 +132,54 @@ AS (
     $p7 != -1 AND $p7 = $target
   )
 );
+
+-- 3-bit idle_id encoding (bits 0..2 of state_id):
+--   0..2: inactive states (_deepest_idle_id, _offline_idle_id, _null_idle_id) -> bit 2 is 0
+--   4..7: active idle states (_encode_idle!(idle) = idle + 5 for idle in -1..2) -> bit 2 is 1
+CREATE PERFETTO MACRO _deepest_idle_id()
+RETURNS Expr
+AS 0;
+
+CREATE PERFETTO MACRO _offline_idle_id()
+RETURNS Expr
+AS 1;
+
+CREATE PERFETTO MACRO _null_idle_id()
+RETURNS Expr
+AS 2;
+
+CREATE PERFETTO MACRO _idle_id_mask()
+RETURNS Expr
+AS 7;
+
+CREATE PERFETTO MACRO _cpu_active_bit()
+RETURNS Expr
+AS 4;
+
+CREATE PERFETTO MACRO _encode_idle(idle Expr)
+RETURNS Expr
+AS (($idle + 5) & _idle_id_mask!());
+
+CREATE PERFETTO MACRO _is_cpu_active(state_id Expr)
+RETURNS Expr
+AS (($state_id) & _cpu_active_bit!());
+
+CREATE PERFETTO MACRO _cpu_state_cpu_shift()
+RETURNS Expr
+AS 26;
+
+CREATE PERFETTO MACRO _cpu_state_freq_shift()
+RETURNS Expr
+AS 3;
+
+-- Encodes (cpu, freq_khz, idle_id) into a 29-bit state_id:
+--   bits 26..28: cpu (0..7)
+--   bits 3..25:  freq_khz (0..8388607 kHz)
+--   bits 0..2:   idle_id (0=deepest, 1=offline, 2=null, 4..7=active idle)
+CREATE PERFETTO MACRO _pack_cpu_state(cpu Expr, freq Expr, idle_id Expr)
+RETURNS Expr
+AS (
+  (($cpu) << _cpu_state_cpu_shift!())
+  | (($freq) << _cpu_state_freq_shift!())
+  | (($idle_id) & _idle_id_mask!())
+);

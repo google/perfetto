@@ -31,6 +31,7 @@
 #include <windows.h>
 #elif !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
 #include <sys/ioctl.h>
+#include <termios.h>
 #include <unistd.h>
 #endif
 

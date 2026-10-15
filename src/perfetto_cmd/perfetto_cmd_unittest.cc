@@ -24,7 +24,10 @@
 #include "src/perfetto_cmd/packet_writer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/file.h>
 #include <sys/system_properties.h>
+#include <sys/wait.h>
+#include "perfetto/ext/base/android_utils.h"
 #include "protos/perfetto/trace/android/recovered_trace_info.pbzero.h"
 #endif
 
@@ -59,6 +62,31 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
     return cmd.trace_config_.get();
   }
 
+  static void MakeOutputReadOnly(PerfettoCmd* cmd) {
+    cmd->packet_writer_.reset();
+    cmd->trace_out_stream_ = base::OpenFstream(cmd->trace_out_path_, "rb");
+    ASSERT_TRUE(cmd->trace_out_stream_);
+    cmd->packet_writer_.emplace(cmd->trace_out_stream_.get());
+  }
+
+  static void ExpectTraceFinished(const PerfettoCmd& cmd) {
+    EXPECT_FALSE(cmd.packet_writer_.has_value());
+    EXPECT_FALSE(cmd.trace_out_stream_);
+    // Preserve the legacy success status, including after errors.
+    EXPECT_TRUE(cmd.tracing_succeeded_);
+  }
+
+  static void ExpectTraceInProgress(const PerfettoCmd& cmd) {
+    EXPECT_TRUE(cmd.packet_writer_.has_value());
+    EXPECT_TRUE(cmd.trace_out_stream_);
+    EXPECT_FALSE(cmd.tracing_succeeded_);
+  }
+
+  static void FinalizeTrace(PerfettoCmd* cmd) { cmd->FinalizeTraceAndExit(); }
+  static void CheckTraceDataTimeout(PerfettoCmd* cmd) {
+    cmd->CheckTraceDataTimeout();
+  }
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       const base::ScopedMmap& mmapped_trace) {
@@ -72,19 +100,97 @@ class PerfettoCmdlineUnitTest : public ::testing::Test {
     return PerfettoCmd::TruncateAndAnnotatePersistentTrace(fd, mmap, file_name);
   }
 
-  static void WaitForPreviousRebootTraceUpload(
+  static base::Status WaitForRebootTraceUploadOrCleanup(
       const std::string& session_name,
       const std::string& target_file_path) {
-    PerfettoCmd::WaitForPreviousRebootTraceUpload(session_name,
-                                                  target_file_path);
+    return PerfettoCmd::WaitForRebootTraceUploadOrCleanup(session_name,
+                                                          target_file_path);
   }
 #endif
 };
 
 namespace {
 
+TEST_F(PerfettoCmdlineUnitTest, WriteFailureIgnoresLaterTraceData) {
+  for (bool has_more : {true, false}) {
+    SCOPED_TRACE(has_more);
+    base::TempFile out_file = base::TempFile::Create().ValueOrDie();
+    PerfettoCmd cmd;
+    ASSERT_FALSE(ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(),
+                                     "--time", "1s"})
+                     .has_value());
+    cmd.OnTraceData(std::vector<TracePacket>(1), true);
+    ExpectTraceInProgress(cmd);
+    ASSERT_NO_FATAL_FAILURE(MakeOutputReadOnly(&cmd));
+
+    // A read-only stream makes fwrite fail without a disk-space dependency.
+    cmd.OnTraceData(std::vector<TracePacket>(1), has_more);
+    ExpectTraceFinished(cmd);
+
+    // The IPC handler can deliver more replies before the task runner exits.
+    cmd.OnTraceData(std::vector<TracePacket>(1), true);
+    cmd.OnTraceData({}, false);
+    FinalizeTrace(&cmd);
+    ExpectTraceFinished(cmd);
+
+    std::string trace;
+    ASSERT_TRUE(base::ReadFile(out_file.path(), &trace));
+    // An empty TracePacket still writes its tag and zero-length preamble.
+    EXPECT_EQ(trace, std::string("\x0a\x00", 2));
+  }
+}
+
+TEST_F(PerfettoCmdlineUnitTest, TraceDataTimeoutIgnoresLaterReplies) {
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
+  PerfettoCmd cmd;
+  ASSERT_FALSE(
+      ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s"})
+          .has_value());
+
+  // Receiving data gives the readback another timeout interval to finish.
+  CheckTraceDataTimeout(&cmd);
+  cmd.OnTraceData(std::vector<TracePacket>(1), true);
+  CheckTraceDataTimeout(&cmd);
+  ExpectTraceInProgress(cmd);
+
+  // No more data arrives before the next timeout check.
+  CheckTraceDataTimeout(&cmd);
+  ExpectTraceFinished(cmd);
+
+  cmd.OnTraceData(std::vector<TracePacket>(1), false);
+  CheckTraceDataTimeout(&cmd);
+  FinalizeTrace(&cmd);
+  ExpectTraceFinished(cmd);
+
+  std::string trace;
+  ASSERT_TRUE(base::ReadFile(out_file.path(), &trace));
+  EXPECT_EQ(trace, std::string("\x0a\x00", 2));
+}
+
+TEST_F(PerfettoCmdlineUnitTest, FinalTraceDataIgnoresLaterReplies) {
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
+  PerfettoCmd cmd;
+  ASSERT_FALSE(
+      ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s"})
+          .has_value());
+
+  cmd.OnTraceData(std::vector<TracePacket>(1), true);
+  ExpectTraceInProgress(cmd);
+  cmd.OnTraceData(std::vector<TracePacket>(1), false);
+  ExpectTraceFinished(cmd);
+
+  cmd.OnTraceData(std::vector<TracePacket>(1), false);
+  FinalizeTrace(&cmd);
+  ExpectTraceFinished(cmd);
+
+  std::string trace;
+  ASSERT_TRUE(base::ReadFile(out_file.path(), &trace));
+  // Only the two packets before finalization reach the output file.
+  EXPECT_EQ(trace, std::string("\x0a\x00\x0a\x00", 4));
+}
+
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeParsesAndStoresAttributes) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   PerfettoCmd cmd;
 
   std::optional<int> res = ParseCmdline(
@@ -111,7 +217,7 @@ TEST_F(PerfettoCmdlineUnitTest, AddAttributeParsesAndStoresAttributes) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeAllowsMissingEquals) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
@@ -127,7 +233,7 @@ TEST_F(PerfettoCmdlineUnitTest, AddAttributeAllowsMissingEquals) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyKey) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
@@ -137,7 +243,7 @@ TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyKey) {
 }
 
 TEST_F(PerfettoCmdlineUnitTest, AddAttributeRejectsEmptyArgument) {
-  base::TempFile out_file = base::TempFile::Create();
+  base::TempFile out_file = base::TempFile::Create().ValueOrDie();
   PerfettoCmd cmd;
   std::optional<int> res =
       ParseCmdline(&cmd, {"perfetto", "--out", out_file.path(), "--time", "1s",
@@ -174,13 +280,13 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromInvalidTrace) {
     // an empty file returns an error. We should always check if the file is
     // empty before mmap-ing it, to see the difference between empty file and an
     // actual mmaping error.
-    base::TempFile empty_file = base::TempFile::Create();
+    base::TempFile empty_file = base::TempFile::Create().ValueOrDie();
     base::ScopedMmap mmaped =
         base::ReadMmapWholeFile(empty_file.path().c_str());
     ASSERT_FALSE(mmaped.IsValid());
   }
   {
-    base::TempFile text_file = base::TempFile::Create();
+    base::TempFile text_file = base::TempFile::Create().ValueOrDie();
     std::string data = "This is a text file!";
     base::WriteAll(text_file.fd(), data.data(), data.size());
     base::ScopedMmap mmaped = base::ReadMmapWholeFile(text_file.path());
@@ -192,7 +298,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromInvalidTrace) {
 TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
   // Trace with a reporter config and correct trusted_uid.
   {
-    base::TempFile trace_file = base::TempFile::Create();
+    base::TempFile trace_file = base::TempFile::Create().ValueOrDie();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -222,7 +328,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
 
   // Trace without an config.
   {
-    base::TempFile trace_file = base::TempFile::Create();
+    base::TempFile trace_file = base::TempFile::Create().ValueOrDie();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -244,7 +350,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
   // Trace with a potentially harmful android reporter config without
   // trusted_uid.
   {
-    base::TempFile trace_file = base::TempFile::Create();
+    base::TempFile trace_file = base::TempFile::Create().ValueOrDie();
     {
       std::vector<perfetto::TracePacket> packets;
       packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -280,7 +386,7 @@ TEST_F(PerfettoCmdlineUnitTest, ParseTraceConfigFromTrace) {
 
 TEST_F(PerfettoCmdlineUnitTest,
        TruncatesIncompleteTrailingPacketAndAppendsAfterRebootEvent) {
-  base::TempFile trace_file = base::TempFile::Create();
+  base::TempFile trace_file = base::TempFile::Create().ValueOrDie();
   {
     std::vector<perfetto::TracePacket> packets;
     // Packet A: Config
@@ -381,7 +487,7 @@ TEST_F(PerfettoCmdlineUnitTest,
 
 TEST_F(PerfettoCmdlineUnitTest,
        TruncateAndAnnotatePersistentTraceCleanFileHasZeroTruncatedBytes) {
-  base::TempFile trace_file = base::TempFile::Create();
+  base::TempFile trace_file = base::TempFile::Create().ValueOrDie();
   {
     std::vector<perfetto::TracePacket> packets;
     packets.push_back(CreateTracePacket([](protos::gen::TracePacket* msg) {
@@ -431,15 +537,17 @@ TEST_F(PerfettoCmdlineUnitTest,
 }
 
 TEST_F(PerfettoCmdlineUnitTest,
-       WaitForPreviousRebootTraceUploadNonExistentFileReturnsImmediately) {
-  // Should return immediately when the .tmp trace file does not exist on disk
+       WaitForRebootTraceUploadOrCleanupNonExistentFileReturnsImmediately) {
+  // Should return immediately (true) when the .tmp trace file does not exist on
+  // disk
   std::string non_existent_path =
       "/data/misc/perfetto-traces/persistent/non_existent_session_9999.tmp";
   EXPECT_FALSE(base::FileExists(non_existent_path));
 
   auto start = base::GetBootTimeNs();
-  WaitForPreviousRebootTraceUpload("non_existent_session_9999",
-                                   non_existent_path);
+  EXPECT_TRUE(WaitForRebootTraceUploadOrCleanup("non_existent_session_9999",
+                                                non_existent_path)
+                  .ok());
   auto elapsed_ns = (base::GetBootTimeNs() - start).count();
 
   // Assert execution returns immediately (under 100 milliseconds)
@@ -447,17 +555,105 @@ TEST_F(PerfettoCmdlineUnitTest,
 }
 
 TEST_F(PerfettoCmdlineUnitTest,
-       WaitForPreviousRebootTraceUploadFileExistsWithPropertySetCleansUpFile) {
-  base::TempFile temp_file = base::TempFile::Create();
+       WaitForRebootTraceUploadOrCleanupActiveSessionPreservesFile) {
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
   std::string path = temp_file.path();
-  temp_file.Unlink();
+  ASSERT_TRUE(temp_file.Unlink());
+  base::ScopedFile fd = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
+  ASSERT_TRUE(fd);
+  ASSERT_EQ(flock(fd.get(), LOCK_EX | LOCK_NB), 0);
+
+  // Set property indicating reboot upload has already started or finished.
+  ASSERT_EQ(__system_property_set("traced.reboot_trace.status", "1:100000000"),
+            0)
+      << "Failed to set traced.reboot_trace.status. Ensure test runs as root.";
+  ASSERT_FALSE(base::GetAndroidProp("traced.reboot_trace.status").empty());
+
+  // Active session is holding the lock: Step 2 must return error status and NOT
+  // delete the file.
+  EXPECT_FALSE(
+      WaitForRebootTraceUploadOrCleanup("active_session_test", path).ok());
+  EXPECT_TRUE(base::FileExists(path));
+}
+
+TEST_F(PerfettoCmdlineUnitTest,
+       WaitForRebootTraceUploadOrCleanupStaleFileCleansUpLeftover) {
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
+  std::string path = temp_file.path();
+  ASSERT_TRUE(temp_file.Unlink());
   base::ScopedFile fd = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
   EXPECT_TRUE(base::FileExists(path));
+  fd.reset();  // File is closed/unlocked (previous session dead/crashed)
 
-  // Set property indicating previous upload has started or finished
-  __system_property_set("traced.reboot_trace.status", "1:100000000");
+  // Set property indicating reboot upload has already started or finished.
+  ASSERT_EQ(__system_property_set("traced.reboot_trace.status", "1:100000000"),
+            0)
+      << "Failed to set traced.reboot_trace.status. Ensure test runs as root.";
+  ASSERT_FALSE(base::GetAndroidProp("traced.reboot_trace.status").empty());
 
-  WaitForPreviousRebootTraceUpload("finished_session_test", path);
+  EXPECT_TRUE(
+      WaitForRebootTraceUploadOrCleanup("crashed_session_test", path).ok());
+  // Stale file is cleaned up in Step 4 so new session can proceed.
+  EXPECT_FALSE(base::FileExists(path));
+}
+
+TEST_F(PerfettoCmdlineUnitTest, FlockDetectsActiveSessionOnExistingFile) {
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
+  std::string path = temp_file.path();
+  ASSERT_TRUE(temp_file.Unlink());
+  base::ScopedFile fd1 = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
+  ASSERT_TRUE(fd1);
+  ASSERT_EQ(flock(fd1.get(), LOCK_EX | LOCK_NB), 0);
+
+  // A second open should fail to acquire an exclusive non-blocking lock.
+  base::ScopedFile fd2 = base::OpenFile(path, O_RDWR);
+  ASSERT_TRUE(fd2);
+  EXPECT_EQ(flock(fd2.get(), LOCK_EX | LOCK_NB), -1);
+  EXPECT_TRUE(errno == EWOULDBLOCK || errno == EAGAIN);
+
+  // Releasing fd1 releases the lock, allowing fd2 to acquire it.
+  fd1.reset();
+  EXPECT_EQ(flock(fd2.get(), LOCK_EX | LOCK_NB), 0);
+}
+
+TEST_F(
+    PerfettoCmdlineUnitTest,
+    WaitForRebootTraceUploadOrCleanupProcessCrashReleasesLockAndCleansUpFile) {
+  base::TempFile temp_file = base::TempFile::Create().ValueOrDie();
+  std::string path = temp_file.path();
+  ASSERT_TRUE(temp_file.Unlink());
+
+  // Fork a child process that creates the persistent file, acquires the
+  // exclusive flock, and then simulates an abnormal crash via abort().
+  pid_t pid = fork();
+  ASSERT_GE(pid, 0);
+  if (pid == 0) {
+    base::ScopedFile fd = base::OpenFile(path, O_CREAT | O_RDWR, 0600);
+    if (!fd || flock(fd.get(), LOCK_EX | LOCK_NB) != 0) {
+      _exit(1);
+    }
+    // Simulate process crash while holding the lock.
+    abort();
+  }
+
+  int status = 0;
+  ASSERT_EQ(waitpid(pid, &status, 0), pid);
+  EXPECT_TRUE(WIFSIGNALED(status));
+
+  // The child process crashed. The file still exists on disk, but the kernel
+  // automatically released its flock lock upon process termination.
+  EXPECT_TRUE(base::FileExists(path));
+
+  // Set property indicating reboot upload task has finished.
+  ASSERT_EQ(__system_property_set("traced.reboot_trace.status", "1:100000000"),
+            0)
+      << "Failed to set traced.reboot_trace.status. Ensure test runs as root.";
+  ASSERT_FALSE(base::GetAndroidProp("traced.reboot_trace.status").empty());
+
+  // A subsequent session should detect that no active process holds the lock,
+  // clean up the leftover file from the crashed session, and succeed.
+  EXPECT_TRUE(
+      WaitForRebootTraceUploadOrCleanup("after_crash_session", path).ok());
   EXPECT_FALSE(base::FileExists(path));
 }
 #endif

@@ -3,18 +3,38 @@
   // feed link, whether the search box appears, and which index it queries.
   const inDocs = fileName.startsWith('/docs/');
   const inBlog = fileName.startsWith('/blog/');
+  const canonicalUrl = siteUrl + fileName.replace('/index.html', '/');
+  // Link previews (Twitter/X, LinkedIn, Slack, ...) take the post title bare,
+  // without the " - Perfetto Blog" suffix, which og:site_name already says.
+  const isPost = typeof post !== 'undefined' && post && !post.isIndex;
+  const ogTitle = isPost ? post.title : title;
+  const desc = typeof description !== 'undefined' ? description : undefined;
+  // Blog pages only (see ogImageUrl in render.mjs).
+  const img = typeof ogImage !== 'undefined' ? ogImage : undefined;
 -%>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title><%= title %></title>
-  <meta property="og:title" content="<%= title %>">
+  <meta property="og:title" content="<%= ogTitle %>">
   <meta property="og:site_name" content="Perfetto">
-  <meta property="og:type" content="website">
+  <meta property="og:type" content="<%= typeof ogType !== 'undefined' && ogType ? ogType : 'website' %>">
   <meta property="og:locale" content="en">
+  <meta property="og:url" content="<%= canonicalUrl %>">
+<% if (desc) { %>
+  <meta name="description" content="<%= desc %>">
+  <meta property="og:description" content="<%= desc %>">
+<% } %>
+<% if (img) { %>
+  <meta property="og:image" content="<%= img %>">
+<% } %>
+<% if (isPost) { %>
+  <meta property="article:published_time" content="<%= post.isoDate %>">
+<% } %>
+  <meta name="twitter:card" content="<%= img ? 'summary_large_image' : 'summary' %>">
   <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-  <link rel="canonical" href="https://perfetto.dev<%= fileName.replace('/index.html', '/') %>">
+  <link rel="canonical" href="<%= canonicalUrl %>">
   <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,500,600,800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Roboto+Mono" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">

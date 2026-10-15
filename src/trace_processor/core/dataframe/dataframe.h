@@ -264,6 +264,11 @@ class Dataframe {
   // If the dataframe is already finalized, this function does nothing.
   void Finalize();
 
+  // As Finalize, but without estimating how many distinct values each column
+  // holds, which only query planning uses. Cheaper, for a dataframe which is
+  // only ever scanned.
+  void FinalizeWithoutStatistics();
+
   // Makes a copy of the dataframe which has been finalized. Unfinalized
   // dataframes *cannot* be copied, so this function will assert if not
   // finalized.
@@ -284,6 +289,14 @@ class Dataframe {
   // Returns `column`'s values and which rows hold one, for reading them
   // without going through a cursor.
   const Column& column(uint32_t column) const { return *column_ptrs_[column]; }
+
+  // Returns `column` with shared ownership, for readers that must outlive
+  // the dataframe. Only valid on a finalized dataframe as columns are
+  // immutable after that.
+  std::shared_ptr<const Column> shared_column(uint32_t column) const {
+    PERFETTO_DCHECK(finalized_);
+    return columns_[column];
+  }
   // Returns the type of the values in `column`.
   StorageType column_type(uint32_t column) const {
     return column_ptrs_[column]->storage.type();
@@ -442,6 +455,9 @@ class Dataframe {
             std::vector<std::shared_ptr<Column>> columns,
             uint32_t row_count,
             StringPool* string_pool);
+
+  // Finalize, estimating distinct counts only if `estimate_distinct`.
+  void FinalizeColumns(bool estimate_distinct);
 
   template <typename D, typename... Args, size_t... Is>
   PERFETTO_ALWAYS_INLINE void InsertUncheckedInternal(

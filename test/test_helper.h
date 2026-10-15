@@ -51,6 +51,11 @@
 
 namespace perfetto {
 
+// Debug builds print PERFETTO_DLOG lines ("[123.456] file.cc:12 msg") from
+// library code regardless of --quiet; drop them so assertions on a tool's own
+// stderr hold in both build modes.
+std::string WithoutDebugLogs(const std::string& text);
+
 // This value has been bumped to 10s in Oct 2020 because the GCE-based emulator
 // can be sensibly slower than real hw (more than 10x) and caused flakes.
 // See bugs duped against b/171771440.

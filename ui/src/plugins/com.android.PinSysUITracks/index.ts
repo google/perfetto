@@ -15,11 +15,12 @@
 import {NUM} from '../../trace_processor/query_result';
 import type {Trace} from '../../public/trace';
 import type {PerfettoPlugin} from '../../public/plugin';
+import FramesPlugin, {
+  getProcessFrameTimelineUris,
+} from '../dev.perfetto.Frames';
 
-// List of tracks to pin
+// List of tracks to pin, in addition to the frame timelines
 const TRACKS_TO_PIN: string[] = [
-  'Actual Timeline',
-  'Expected Timeline',
   'ndroid.systemui',
   'IKeyguardService',
   'Transition:',
@@ -31,6 +32,7 @@ const SYSTEM_UI_PROCESS: string = 'com.android.systemui';
 // Plugin that pins the tracks relevant to System UI
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.PinSysUITracks';
+  static readonly dependencies = [FramesPlugin];
   async onTraceLoad(ctx: Trace): Promise<void> {
     // Find the upid for the sysui process
     const result = await ctx.engine.query(`
@@ -48,6 +50,10 @@ export default class implements PerfettoPlugin {
       upid: NUM,
     }).upid;
 
+    // Matched by URI rather than by name: the per-layer frame timelines share
+    // the names of the process-level ones.
+    const frameTimelineUris = new Set(getProcessFrameTimelineUris(sysuiUpid));
+
     ctx.commands.registerCommand({
       id: 'com.android.PinSysUITracks',
       name: 'Pin: System UI Related Tracks',
@@ -57,6 +63,7 @@ export default class implements PerfettoPlugin {
           // Ensure we only grab tracks that are in the SysUI process group
           if (!track.uri.startsWith(`/process_${sysuiUpid}`)) return;
           if (
+            !frameTimelineUris.has(track.uri) &&
             !TRACKS_TO_PIN.some((trackName) => track.name.startsWith(trackName))
           ) {
             return;

@@ -18,6 +18,7 @@ import type {
 } from './metricUtils';
 import type {Trace} from '../../../public/trace';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
+import {sqliteString} from '../../../base/string_utils';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -29,8 +30,10 @@ class BlockingCallMetricHandler implements MetricHandler {
   public match(
     metricKey: string,
   ): NotificationsBlockingCallMetricData | undefined {
+    // The aggregation is anchored to the AndroidBlockingCall field names, so
+    // that hyphens in the blocking call name stay in the name.
     const matcher =
-      /perfetto_android_notifications_blocking_call-blocking_calls-name-(?<blockingCallName>([^\-]*))-(?<aggregation>.*)/;
+      /perfetto_android_notifications_blocking_call-blocking_calls-name-(?<blockingCallName>.*)-(?<aggregation>(?:cnt|(?:total|max|min|avg)_dur_(?:ms|ns))(?:-[^-]+)?)$/;
     const match = matcher.exec(metricKey);
     if (!match?.groups) {
       return undefined;
@@ -61,6 +64,9 @@ class BlockingCallMetricHandler implements MetricHandler {
     metricData: NotificationsBlockingCallMetricData,
   ) {
     const notificationName = metricData.notificationName;
+    // As in pinBlockingCall.ts: some lab pipelines replace spaces with
+    // underscores in metric names, whereas slice names retain spaces.
+    const normalizedName = notificationName.replaceAll('_', ' ');
 
     // Avoid use of android_sysui_notifications_blocking_calls_metric.sql, in favour of stdlib migration
     // The query below is derived from android_sysui_notifications_blocking_calls_metric.sql
@@ -75,6 +81,7 @@ FROM slice s
     JOIN thread USING (utid)
 WHERE
     thread.is_main_thread AND
+    s.name IN (${sqliteString(notificationName)}, ${sqliteString(normalizedName)}) AND
     _is_relevant_notifications_blocking_call(s.name, s.dur)
   `;
 

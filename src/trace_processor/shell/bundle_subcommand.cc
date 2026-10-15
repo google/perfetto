@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/traceconv/trace_to_bundle.h"
 
@@ -183,6 +184,8 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
 #endif
 
   trace_to_text::BundleContext context;
+  if (ctx.global)
+    context.debuginfod = ctx.global->debuginfod;
   if (!symbol_paths_.empty())
     context.symbol_paths = base::SplitString(symbol_paths_, ",");
   for (const std::string& map : proguard_maps_) {
@@ -199,6 +202,7 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
   context.no_auto_symbol_paths = no_auto_symbol_paths_;
   context.no_auto_proguard_maps = no_auto_proguard_maps_;
   context.verbose = verbose_;
+  context.quiet = ctx.global && ctx.global->quiet;
   if (const char* val = getenv("ANDROID_PRODUCT_OUT"))
     context.android_product_out = val;
   if (const char* val = getenv("HOME"))
@@ -207,7 +211,7 @@ base::Status BundleSubcommand::Run(const SubcommandContext& ctx) {
 
   base::Status status =
       trace_to_text::TraceToBundle(input_file, output_file, context);
-  if (status.ok()) {
+  if (status.ok() && !context.quiet) {
     fprintf(stdout, "Wrote %s.\n", output_file.c_str());
     fflush(stdout);
   }

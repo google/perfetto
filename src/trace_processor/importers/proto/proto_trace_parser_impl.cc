@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <optional>
@@ -55,6 +54,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/cold_sort.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
@@ -290,10 +290,8 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
     // We stable sort instead of sorting here to avoid changing the order of the
     // args in arrays.
-    std::stable_sort(interned.begin(), interned.end(),
-                     [](const Arg& a, const Arg& b) {
-                       return a.first.raw_id() < b.first.raw_id();
-                     });
+    ColdStableSortByKey(interned.begin(), interned.end(),
+                        [](const Arg& arg) { return arg.first.raw_id(); });
 
     // Compute the correct key for each arg, possibly adding an index to
     // the end of the key if needed.

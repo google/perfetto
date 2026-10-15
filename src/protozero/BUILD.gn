@@ -96,6 +96,7 @@ perfetto_unittest_source_set("unittests") {
     "proto_decoder_unittest.cc",
     "proto_ring_buffer_unittest.cc",
     "proto_utils_unittest.cc",
+    "scattered_heap_buffer_unittest.cc",
     "scattered_stream_writer_unittest.cc",
     "test/cppgen_conformance_unittest.cc",
     "test/fake_scattered_buffer.cc",

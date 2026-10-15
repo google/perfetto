@@ -13,10 +13,14 @@
 // limitations under the License.
 
 import {describe, expect, test} from 'vitest';
-import {ALL_KINDS, filterHistory} from './history_store';
+import {ALL_KINDS, filterHistory, groupHistoryByDay} from './history_store';
 import type {QueryExecution} from './query_store';
 
-function entry(uuid: string, materialized?: boolean): QueryExecution {
+function entry(
+  uuid: string,
+  materialized?: boolean,
+  startTime?: number,
+): QueryExecution {
   return {
     uuid,
     status: 'SUCCESS',
@@ -24,6 +28,7 @@ function entry(uuid: string, materialized?: boolean): QueryExecution {
     processedTraces: 0,
     totalTraces: 0,
     materialized,
+    startTime,
   } as QueryExecution;
 }
 
@@ -57,5 +62,28 @@ describe('filterHistory', () => {
 
   test('returns a copy, never the input array', () => {
     expect(filterHistory(HISTORY, ALL_KINDS)).not.toBe(HISTORY);
+  });
+});
+
+describe('groupHistoryByDay', () => {
+  test('buckets entries by local calendar day with relative + full date labels', () => {
+    const now = new Date(2026, 8, 22, 14, 30);
+    const entries = [
+      entry('q1', true, new Date(2026, 8, 22, 11, 15).getTime()),
+      entry('q2', false, new Date(2026, 8, 22, 9, 5).getTime()),
+      entry('q3', true, new Date(2026, 8, 21, 18, 1).getTime()),
+      entry('q4', true, new Date(2026, 8, 18, 10, 0).getTime()),
+    ];
+
+    expect(
+      groupHistoryByDay(entries, now).map((g) => ({
+        label: g.label,
+        ids: g.entries.map((e) => e.uuid),
+      })),
+    ).toEqual([
+      {label: 'Today', ids: ['q1', 'q2']},
+      {label: 'Yesterday', ids: ['q3']},
+      {label: 'Sep 18, 2026', ids: ['q4']},
+    ]);
   });
 });

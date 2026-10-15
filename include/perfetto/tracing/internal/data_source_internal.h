@@ -123,6 +123,14 @@ struct DataSourceState {
   // this data source.
   std::atomic<uint32_t> incremental_state_generation{0};
 
+  // True if the writers of this instance use tracing v2.
+  // The muxer sets it once during setup, before writer threads see the
+  // instance.
+  // It stays true if v2 initialization fails, so the writers discard their
+  // data and do not fall back to v1.
+  // A startup instance keeps v1, also after adoption.
+  bool use_tracing_v2 = false;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder

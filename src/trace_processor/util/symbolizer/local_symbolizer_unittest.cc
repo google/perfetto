@@ -481,9 +481,11 @@ std::string SymbolizedAddress(const std::string& binary,
   tmp.AddFile("root/binary", binary);
 
   LocalSymbolizer local_symbolizer(
-      symbolizer, std::make_unique<LocalBinaryIndexer>(
-                      std::vector<std::string>{tmp.AbsolutePath("root")},
-                      std::vector<std::string>{}));
+      symbolizer,
+      std::make_unique<LocalBinaryIndexer>(
+          std::vector<std::string>{tmp.AbsolutePath("root")},
+          std::vector<std::string>{}),
+      /*use_kernel_paths=*/true);
   UnsymbolizedMapping mapping{build_id, "/binary", 0, 0, 0};
   SymbolizeResult result = local_symbolizer.Symbolize({}, mapping, {rel_pc});
   if (result.frames.size() != 1 || result.frames[0].size() != 1) {

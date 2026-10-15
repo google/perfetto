@@ -112,9 +112,9 @@ bool LayerContains(const LayerDecoder& layer,
   }
 
   auto transform_type_other = 0;
-  if (layer.has_transform()) {
+  if (other.has_transform()) {
     com::android::internal::pbzero::TransformProto::Decoder transform(
-        layer.transform());
+        other.transform());
     transform_type_other = transform.type();
   }
   if (transform::IsInvalidRotation(transform_type_layer) ||
