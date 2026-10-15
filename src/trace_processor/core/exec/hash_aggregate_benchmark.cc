@@ -45,6 +45,7 @@ namespace perfetto::trace_processor::core::exec {
 namespace {
 
 void Run(benchmark::State& state,
+         bool keyed,
          uint32_t distinct,
          uint32_t batch_count,
          uint32_t aggregates) {
@@ -77,7 +78,8 @@ void Run(benchmark::State& state,
   std::vector<AggregateCall> calls = {
       {F::kCountStar, 0}, {F::kSum, 1}, {F::kSum, 2}, {F::kSum, 3}};
   calls.resize(aggregates);
-  HashAggregate op(HashAggregateSpec{{0}, calls});
+  HashAggregate op(HashAggregateSpec{
+      keyed ? std::vector<uint32_t>{0} : std::vector<uint32_t>{}, calls});
   Context context;
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);
   RowBatch out;
@@ -96,14 +98,21 @@ void Run(benchmark::State& state,
 // Arguments: number of distinct keys across 16 batches, and number of
 // aggregates.
 void BM_HashAggregate(benchmark::State& state) {
-  Run(state, static_cast<uint32_t>(state.range(0)), 16,
+  Run(state, true, static_cast<uint32_t>(state.range(0)), 16,
       static_cast<uint32_t>(state.range(1)));
 }
 BENCHMARK(BM_HashAggregate)->ArgsProduct({{8, 512, 8192, 32768}, {1, 3}});
 
+// Like BM_HashAggregate with no keys, so every row is in one group. Argument:
+// number of aggregates.
+void BM_HashAggregateNoKeys(benchmark::State& state) {
+  Run(state, false, 1, 16, static_cast<uint32_t>(state.range(0)));
+}
+BENCHMARK(BM_HashAggregateNoKeys)->DenseRange(1, 4);
+
 // Like BM_HashAggregate but over 10M rows, to compare with other engines.
 void BM_HashAggregateLarge(benchmark::State& state) {
-  Run(state, static_cast<uint32_t>(state.range(0)), 4883,
+  Run(state, true, static_cast<uint32_t>(state.range(0)), 4883,
       static_cast<uint32_t>(state.range(1)));
 }
 BENCHMARK(BM_HashAggregateLarge)
