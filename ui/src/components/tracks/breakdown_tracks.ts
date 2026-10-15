@@ -23,7 +23,6 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {
   type SqlValue,
   LONG,
-  NUM_NULL,
   STR,
   type QueryResult,
   NUM,
@@ -191,6 +190,8 @@ export class BreakdownTracks {
   private readonly intervalsTableName: string;
   private readonly segmentsTableName: string;
   private readonly projectedTableName: string;
+  // Counter node peaks for sortTracks, see loadPeaks.
+  private readonly peaks = new Map<string, number>();
 
   // The breakdown / slice / pivot columns the caller supplies are arbitrary SQL
   // *expressions* (e.g. `IFNULL(interface, 'unknown')`). We evaluate each once
@@ -399,6 +400,9 @@ export class BreakdownTracks {
 
   async createTracks(): Promise<TrackNode> {
     await this.buildTables();
+    if (this.props.sortTracks) {
+      await this.loadPeaks();
+    }
 
     const rootTrackNode = await this.createCounterTrackNode(
       this.props.trackTitle,
@@ -575,16 +579,22 @@ export class BreakdownTracks {
     });
   }
 
-  private async getCounterTrackSortOrder(
-    filtersClause: string,
-  ): Promise<number> {
-    const result = await this.props.trace.engine.query(`
-      SELECT MAX(value) as max_value
+  // Peak value of every counter node in one query, keyed like the node's
+  // filters (level, then its breakdown keys). One per-node MAX query instead
+  // was round-trip bound with tens of thousands of nodes.
+  private async loadPeaks(): Promise<void> {
+    const cols = ['level', ...this.aggColNames].join(', ');
+    const res = await this.props.trace.engine.query(`
       FROM ${this.segmentsTableName}
-      ${filtersClause}
+      |> AGGREGATE MAX(value) AS peak GROUP BY ${cols}
     `);
-    const maxValue = result.firstRow({max_value: NUM_NULL}).max_value;
-    return maxValue === null ? 0 : maxValue;
+    for (const it = res.iter({level: NUM, peak: NUM}); it.valid(); it.next()) {
+      const keys = this.aggColNames.slice(0, it.level).map((k) => {
+        const v = it.get(k);
+        return v === null ? 'NULL' : v.toString();
+      });
+      this.peaks.set([`${it.level}`, ...keys].join('\0'), it.peak);
+    }
   }
 
   private async createCounterTrackNode(
@@ -598,6 +608,9 @@ export class BreakdownTracks {
       {columnName: 'level', value: `${newFilters.length}`},
       ...newFilters,
     ];
+    const sortOrder = this.props.sortTracks
+      ? (this.peaks.get(filters.map((f) => f.value).join('\0')) ?? 0)
+      : undefined;
     return this.createTrackNode(
       name,
       filters,
@@ -613,7 +626,7 @@ export class BreakdownTracks {
             FROM (${this.getAggregationQuery(filtersClause)})
           `,
         }),
-      (filtersClause) => this.getCounterTrackSortOrder(filtersClause),
+      sortOrder,
       newFilters.length === 0 ? this.props.description : undefined,
     );
   }
@@ -622,7 +635,7 @@ export class BreakdownTracks {
     name: string,
     filters: Filter[],
     createTrack: (uri: string, filtersClause: string) => TrackRenderer,
-    getSortOrder?: (filterClause: string) => Promise<number>,
+    sortOrder?: number,
     description?: string,
   ): Promise<TrackNode> {
     const filtersClause =
@@ -636,11 +649,6 @@ export class BreakdownTracks {
       renderer,
       ...(description && {description}),
     });
-
-    let sortOrder: number | undefined;
-    if (this.props.sortTracks) {
-      sortOrder = await getSortOrder?.(filtersClause);
-    }
 
     return new TrackNode({
       name,
