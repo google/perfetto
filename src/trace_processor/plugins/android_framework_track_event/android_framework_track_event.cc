@@ -340,11 +340,20 @@ class StartDumpModule : public ProtoImporterModule {
   void ParseField(const ParseFieldArgs& args) override {
     AndroidProcessStateSnapshot::Decoder dump(
         args.field.Cast<FBTP::kAndroidProcessState>());
-    if (dump.dump_reason() != AndroidProcessStateSnapshot::DUMP_REASON_START) {
+    if (dump.has_dump_reason() &&
+        dump.dump_reason() != AndroidProcessStateSnapshot::DUMP_REASON_START) {
       return;
     }
     for (auto it = dump.record(); it; ++it) {
       AndroidProcessStateSnapshot::Record::Decoder rec(*it);
+      // When dump_reason is stripped by a trace filter, distinguish the
+      // trace-start dump from the trace-stop dump: trace-start records carry
+      // only process identity (no proc_state / oom_score).
+      if (!dump.has_dump_reason() &&
+          (rec.has_proc_state() || rec.has_oom_score() ||
+           rec.has_capability_flags() || rec.has_process_group())) {
+        continue;
+      }
       if (!rec.has_pid() || rec.pid() <= 0) {
         continue;
       }

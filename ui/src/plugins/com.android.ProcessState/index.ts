@@ -35,11 +35,13 @@ import {
 } from '../../trace_processor/query_result';
 import {
   ProcessExitsAggregator,
+  processGroupTrackUri,
   ProcessStartsAggregator,
   ProcessStateResidencyAggregator,
   ProcessStateTransitionsAggregator,
   processTrackUri,
   TAG_COUNT_TRACK,
+  TAG_PROCESS_GROUP_TRACK,
   TAG_PROCESS_TRACK,
 } from './aggregators';
 import {ProcessStateCountTrack} from './state_count_track';
@@ -58,6 +60,23 @@ const BASE_SCHEMA = {
   debuggable: NUM_NULL,
   state: STR,
   state_change_reason: STR_NULL,
+} as const;
+
+const PROCESS_GROUP_SCHEMA = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  upid: NUM,
+  pid: NUM,
+  uid: NUM_NULL,
+  user_id: NUM_NULL,
+  process_name: STR_NULL,
+  package_name: STR_NULL,
+  version_code: NUM_NULL,
+  debuggable: NUM_NULL,
+  process_group: STR,
+  prev_process_group: STR_NULL,
+  prev_process_group_duration: LONG_NULL,
 } as const;
 
 const NONEXISTENT_SCHEMA = {
@@ -178,7 +197,10 @@ export default class ProcessState implements PerfettoPlugin {
       SELECT
         upid,
         pid,
-        process_name AS name
+        process_name AS name,
+        upid IN (
+          SELECT DISTINCT upid FROM _android_process_group_intervals
+        ) AS has_group
       FROM _android_process_state_intervals
       GROUP BY upid
       ORDER BY
@@ -188,11 +210,16 @@ export default class ProcessState implements PerfettoPlugin {
     `);
 
     for (
-      const it = processes.iter({upid: NUM, pid: NUM, name: STR_NULL});
+      const it = processes.iter({
+        upid: NUM,
+        pid: NUM,
+        name: STR_NULL,
+        has_group: NUM,
+      });
       it.valid();
       it.next()
     ) {
-      const {upid, pid} = it;
+      const {upid, pid, has_group} = it;
       const name = it.name ?? `${pid}`;
       const uri = processTrackUri(upid);
       ctx.tracks.registerTrack({
@@ -235,7 +262,45 @@ export default class ProcessState implements PerfettoPlugin {
         tags: {type: TAG_PROCESS_TRACK, upid},
         description: `Framework process state of ${name} (${pid}) over time.`,
       });
-      byProcess.addChildLast(new TrackNode({uri, name: `${name} ${pid}`}));
+      const processNode = new TrackNode({uri, name: `${name} ${pid}`});
+      if (has_group !== 0) {
+        const groupUri = processGroupTrackUri(upid);
+        ctx.tracks.registerTrack({
+          uri: groupUri,
+          renderer: SliceTrack.create({
+            trace: ctx,
+            uri: groupUri,
+            dataset: new SourceDataset({
+              schema: PROCESS_GROUP_SCHEMA,
+              src: '_android_process_group_intervals',
+              filter: {col: 'upid', eq: upid},
+            }),
+            sliceLayout: {sliceHeight: 12, titleSizePx: 10},
+            sliceName: (row) => row.process_group,
+            colorizer: (row) => {
+              if (row.process_group === 'EXITED') return GRAY;
+              return getColorForSlice(row.process_group);
+            },
+            detailsPanel: (row) =>
+              new SliceTrackDetailsPanel(
+                ctx,
+                new SourceDataset({
+                  schema: PROCESS_GROUP_SCHEMA,
+                  src: '_android_process_group_intervals',
+                  filter: {col: 'upid', eq: upid},
+                }),
+                row,
+              ),
+            rootTableName: '_android_process_group_intervals',
+          }),
+          tags: {type: TAG_PROCESS_GROUP_TRACK, upid},
+          description: `Kernel process group of ${name} (${pid}) over time.`,
+        });
+        processNode.addChildLast(
+          new TrackNode({uri: groupUri, name: 'Process group'}),
+        );
+      }
+      byProcess.addChildLast(processNode);
     }
 
     return byProcess;

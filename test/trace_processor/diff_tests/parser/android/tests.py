@@ -452,6 +452,33 @@ class AndroidParser(TestSuite):
           "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
         """))
 
+  def test_android_process_group(self):
+    return DiffTestBlueprint(
+        trace=Path('android_process_state.textproto'),
+        query="""
+        SELECT
+          t.ts,
+          p.pid,
+          t.process_group,
+          t.is_initial
+        FROM __intrinsic_android_process_group t
+        JOIN process p USING (upid)
+        ORDER BY p.pid, t.ts, t.process_group;
+        """,
+        out=Csv("""
+          "ts","pid","process_group","is_initial"
+          "[NULL]",100,"PROCESS_GROUP_TOP_APP",1
+          "[NULL]",200,"PROCESS_GROUP_TOP_APP",1
+          2000,200,"PROCESS_GROUP_FOREGROUND",0
+          3500,200,"PROCESS_GROUP_RESTRICTED",0
+          4000,200,"PROCESS_GROUP_BACKGROUND",0
+          "[NULL]",300,"PROCESS_GROUP_SYSTEM",1
+          "[NULL]",400,"PROCESS_GROUP_UNKNOWN",1
+          "[NULL]",500,"PROCESS_GROUP_TOP_APP",1
+          2000,500,"PROCESS_GROUP_BACKGROUND",0
+          2000,500,"PROCESS_GROUP_FOREGROUND",0
+        """))
+
   def test_android_process_state_metadata(self):
     return DiffTestBlueprint(
         trace=Path('android_process_state_metadata.textproto'),

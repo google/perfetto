@@ -190,3 +190,85 @@ FROM intervals_overlap_count_by_group!(
 ) AS c
 LEFT JOIN _android_process_state_rank AS r
   ON r.state = c.group_name;
+
+-- Intervals of Android kernel process groups (sched groups / cgroups).
+-- One interval per process group a process was in.
+CREATE PERFETTO TABLE _android_process_group_intervals AS
+WITH
+  process_lifetimes AS (
+    SELECT
+      p.upid,
+      coalesce(fw.fw_start_ts, p.start_ts, trace_start()) AS start_ts,
+      p.end_ts AS death_ts
+    FROM (SELECT DISTINCT upid FROM __intrinsic_android_process_group)
+    JOIN process AS p USING (upid)
+    LEFT JOIN __intrinsic_android_track_event_process AS fw USING (upid)
+  ),
+  all_events AS (
+    SELECT
+      coalesce(g.ts, p.start_ts) AS ts,
+      g.is_initial,
+      g.upid,
+      replace(g.process_group, 'PROCESS_GROUP_', '') AS cur_group
+    FROM __intrinsic_android_process_group AS g
+    JOIN process_lifetimes AS p USING (upid)
+    WHERE
+      g.process_group IS NOT NULL
+    UNION ALL
+    SELECT p.death_ts AS ts, 0 AS is_initial, p.upid, 'EXITED' AS cur_group
+    FROM process_lifetimes AS p
+    WHERE
+      p.death_ts IS NOT NULL
+  ),
+  raw_changes AS (
+    SELECT
+      e.ts,
+      e.is_initial,
+      e.upid,
+      e.cur_group,
+      lag(e.cur_group) OVER (
+        PARTITION BY
+          e.upid
+        ORDER BY e.ts, e.is_initial DESC
+      ) AS prev_group
+    FROM all_events AS e
+  ),
+  group_changes AS (
+    SELECT
+      c.ts,
+      coalesce(
+        max(
+          lead(c.ts) OVER (PARTITION BY c.upid ORDER BY c.ts, c.is_initial DESC)
+          - c.ts,
+          0
+        ),
+        -1
+      ) AS dur,
+      c.upid,
+      c.cur_group AS process_group,
+      c.prev_group AS prev_process_group,
+      c.ts
+      - lag(c.ts) OVER (PARTITION BY c.upid ORDER BY c.ts, c.is_initial DESC) AS prev_process_group_duration
+    FROM raw_changes AS c
+    WHERE
+      c.prev_group IS NULL
+      OR c.prev_group != c.cur_group
+  )
+SELECT
+  row_number() OVER (ORDER BY c.ts, c.upid) AS id,
+  c.ts,
+  c.dur,
+  c.upid,
+  p.pid,
+  m.uid,
+  m.user_id,
+  m.process_name,
+  m.package_name,
+  m.version_code,
+  m.debuggable,
+  c.process_group,
+  c.prev_process_group,
+  c.prev_process_group_duration
+FROM group_changes AS c
+JOIN process AS p USING (upid)
+LEFT JOIN android_process_metadata AS m USING (upid);

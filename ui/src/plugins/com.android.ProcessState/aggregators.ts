@@ -39,12 +39,20 @@ import {Anchor} from '../../widgets/anchor';
 /** Track tag `type` of the per-process proc-state timelines. */
 export const TAG_PROCESS_TRACK = 'android_process_state';
 
+/** Track tag `type` of the per-process process-group timelines. */
+export const TAG_PROCESS_GROUP_TRACK = 'android_process_group';
+
 /** Track tag `type` of the per-state concurrency counters. */
 export const TAG_COUNT_TRACK = 'android_process_state_count';
 
 /** Track URI for a single process's proc-state timeline. */
 export function processTrackUri(upid: number): string {
   return `com.android.ProcessState#process.${upid}`;
+}
+
+/** Track URI for a single process's process-group timeline. */
+export function processGroupTrackUri(upid: number): string {
+  return `com.android.ProcessState#process_group.${upid}`;
 }
 
 // Which slice of the interval table the selection refers to. Selecting
@@ -61,7 +69,11 @@ function probeScope(area: AreaSelection): Scope | undefined {
   const states = new Set<string>();
   for (const track of area.tracks) {
     const tags = track.tags;
-    if (tags?.type === TAG_PROCESS_TRACK && tags.upid !== undefined) {
+    if (
+      (tags?.type === TAG_PROCESS_TRACK ||
+        tags?.type === TAG_PROCESS_GROUP_TRACK) &&
+      tags.upid !== undefined
+    ) {
       upids.add(tags.upid);
     } else if (tags?.type === TAG_COUNT_TRACK) {
       if (typeof tags.state === 'string') {

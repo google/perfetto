@@ -66,6 +66,21 @@ packet {
     }
   }
 }
+# Track event for process 200: standalone process_group_changed_event.
+packet {
+  timestamp: 3500
+  trusted_packet_sequence_id: 1
+  track_event {
+    type: TYPE_INSTANT
+    track_uuid: 2
+    name: "set_process_group"
+    [com.android.internal.FrameworksBaseTrackEvent.process_group_changed_event] {
+      pid: 200
+      uid: 10002
+      cur_process_group: PROCESS_GROUP_RESTRICTED
+    }
+  }
+}
 # Track event for process 200: second state change.
 packet {
   timestamp: 4000

@@ -107,7 +107,37 @@ ANDROID_FREEZER_STATE_TABLE = Table(
     ),
 )
 
+ANDROID_PROCESS_GROUP_TABLE = Table(
+    python_module=__file__,
+    class_name='AndroidProcessGroupTable',
+    sql_name='__intrinsic_android_process_group',
+    columns=[
+        C('ts',
+          CppOptional(CppInt64()),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
+        C('process_group', CppOptional(CppString())),
+        C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
+    ],
+    tabledoc=TableDoc(
+        doc='Per-process group events from snapshots and track events.',
+        group='Android',
+        columns={
+            'ts':
+                'Timestamp of event; NULL for initial backfill row.',
+            'upid':
+                'Unique process ID.',
+            'process_group':
+                'Process group enum name or value.',
+            'is_initial':
+                '1 for synthesized initial state row, 0 for change event.',
+        },
+    ),
+)
+
 ALL_TABLES = [
     ANDROID_PROCESS_STATE_TABLE,
     ANDROID_FREEZER_STATE_TABLE,
+    ANDROID_PROCESS_GROUP_TABLE,
 ]

@@ -46,10 +46,12 @@ StringId InternEnum(TraceProcessorContext* context,
 AndroidProcessStateTracker::AndroidProcessStateTracker(
     TraceProcessorContext* context,
     tables::AndroidProcessStateTable* process_state_table,
-    tables::AndroidFreezerStateTable* freezer_state_table)
+    tables::AndroidFreezerStateTable* freezer_state_table,
+    tables::AndroidProcessGroupTable* process_group_table)
     : context_(context),
       process_state_table_(process_state_table),
-      freezer_state_table_(freezer_state_table) {}
+      freezer_state_table_(freezer_state_table),
+      process_group_table_(process_group_table) {}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -113,9 +115,17 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
     row.capability_flags = p.cur_capability_flags();
   }
   if (p.has_cur_process_group()) {
-    row.process_group = InternEnum(context_, process_group_cache_,
+    StringId group_id = InternEnum(context_, process_group_cache_,
                                    ".com.android.internal.ProcessGroup",
                                    static_cast<int32_t>(p.cur_process_group()));
+    row.process_group = group_id;
+
+    tables::AndroidProcessGroupTable::Row group_row;
+    group_row.upid = upid;
+    group_row.ts = ts;
+    group_row.is_initial = 0;
+    group_row.process_group = group_id;
+    process_group_table_->Insert(group_row);
   }
   if (p.has_reason()) {
     row.reason = InternEnum(context_, reason_cache_,
@@ -128,6 +138,33 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   process_state_table_->Insert(row);
 }
 
+void AndroidProcessStateTracker::ParseProcessGroupChange(
+    int64_t ts,
+    protozero::ConstBytes bytes) {
+  fb::AndroidProcessGroupChangedEvent::Decoder p(bytes);
+  if (!p.has_pid()) {
+    return;
+  }
+  int32_t pid = p.pid();
+  std::optional<UniquePid> opt_upid =
+      context_->process_tracker->GetProcessOrNull(static_cast<uint32_t>(pid));
+  if (!opt_upid) {
+    return;
+  }
+  UniquePid upid = *opt_upid;
+
+  tables::AndroidProcessGroupTable::Row row;
+  row.upid = upid;
+  row.ts = ts;
+  row.is_initial = 0;
+  if (p.has_cur_process_group()) {
+    row.process_group = InternEnum(context_, process_group_cache_,
+                                   ".com.android.internal.ProcessGroup",
+                                   static_cast<int32_t>(p.cur_process_group()));
+  }
+  process_group_table_->Insert(row);
+}
+
 void AndroidProcessStateTracker::ParseProcessStateDump(
     protozero::ConstBytes blob) {
   fb::AndroidProcessStateSnapshot::Decoder dump(blob);
@@ -136,6 +173,20 @@ void AndroidProcessStateTracker::ParseProcessStateDump(
   if (dump.dump_reason() ==
       fb::AndroidProcessStateSnapshot::DUMP_REASON_START) {
     return;
+  }
+  if (!dump.has_dump_reason()) {
+    bool any_state = false;
+    for (auto it = dump.record(); it; ++it) {
+      fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
+      if (rec.has_proc_state() || rec.has_oom_score() ||
+          rec.has_capability_flags() || rec.has_process_group()) {
+        any_state = true;
+        break;
+      }
+    }
+    if (!any_state) {
+      return;
+    }
   }
   for (auto it = dump.record(); it; ++it) {
     fb::AndroidProcessStateSnapshot::Record::Decoder rec(*it);
@@ -259,10 +310,25 @@ AndroidProcessStateTracker::ComputeInitialProcessStates() const {
 void AndroidProcessStateTracker::Finalize() {
   for (const auto& [upid, v] : ComputeInitialProcessStates()) {
     EmitInitialProcessStateRow(v);
+    EmitInitialProcessGroupRow(v);
   }
   for (const auto& [upid, v] : freezer_dump_) {
     EmitInitialFreezerRow(v);
   }
+}
+
+void AndroidProcessStateTracker::EmitInitialProcessGroupRow(
+    const ProcessStateValues& v) {
+  tables::AndroidProcessGroupTable::Row row;
+  row.upid = v.upid;
+  row.ts = std::nullopt;
+  row.is_initial = 1;
+  if (v.process_group.has_value()) {
+    row.process_group =
+        InternEnum(context_, process_group_cache_,
+                   ".com.android.internal.ProcessGroup", *v.process_group);
+  }
+  process_group_table_->Insert(row);
 }
 
 void AndroidProcessStateTracker::EmitInitialProcessStateRow(
