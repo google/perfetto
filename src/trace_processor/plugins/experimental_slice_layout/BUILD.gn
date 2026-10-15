@@ -40,7 +40,7 @@ source_set("experimental_slice_layout") {
     "../../storage",
     "../../tables",
     "../../types",
-    "../../util:cold_sort",
+    "../../util:sort",
   ]
 }
 

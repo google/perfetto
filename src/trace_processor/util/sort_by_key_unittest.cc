@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -30,7 +30,7 @@
 namespace perfetto::trace_processor {
 namespace {
 
-TEST(ColdSortTest, MatchesStdStableSort) {
+TEST(SortByKeyTest, MatchesStdStableSort) {
   std::minstd_rand0 rnd(0);
   for (uint32_t size : {0u, 1u, 2u, 3u, 16u, 17u, 64u, 65u, 1000u, 100000u}) {
     std::vector<std::pair<int32_t, std::string>> data;
@@ -42,30 +42,67 @@ TEST(ColdSortTest, MatchesStdStableSort) {
     std::stable_sort(
         expected.begin(), expected.end(),
         [](const auto& a, const auto& b) { return a.first < b.first; });
-    ColdStableSortByKey(data.begin(), data.end(),
-                        [](const auto& x) { return x.first; });
+    StableSortByKey(data.begin(), data.end(),
+                    [](const auto& x) { return x.first; });
     ASSERT_EQ(data, expected);
   }
 }
 
-TEST(ColdSortTest, KeyExtremes) {
+// Wide and narrow keys, shuffled, sorted or nearly sorted, on either side of
+// where radix sorting becomes cheaper.
+TEST(SortByKeyTest, LargeInputsMatchStdStableSort) {
+  std::mt19937_64 rnd(0);
+  for (uint32_t size : {3000u, 5000u, 100000u}) {
+    for (uint64_t range : {uint64_t{0}, uint64_t{1} << 20, uint64_t{1000}}) {
+      std::vector<std::pair<int64_t, uint32_t>> data;
+      for (uint32_t i = 0; i < size; ++i) {
+        // Narrow ranges sit at timestamp-like values; the full range does not,
+        // so it cannot overflow.
+        int64_t key =
+            range ? 350000000000000 + static_cast<int64_t>(rnd() % range)
+                  : static_cast<int64_t>(rnd());
+        data.emplace_back(key, i);
+      }
+      for (int order = 0; order < 3; ++order) {
+        auto input = data;
+        if (order > 0) {
+          std::stable_sort(input.begin(), input.end());
+        }
+        if (order == 2) {
+          for (uint32_t i = 0; i + 1 < size; i += 64) {
+            std::swap(input[i].first, input[i + 1].first);
+          }
+        }
+        auto expected = input;
+        std::stable_sort(
+            expected.begin(), expected.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+        StableSortByKey(input.begin(), input.end(),
+                        [](const auto& x) { return x.first; });
+        ASSERT_EQ(input, expected) << size << " " << range << " " << order;
+      }
+    }
+  }
+}
+
+TEST(SortByKeyTest, KeyExtremes) {
   std::vector<int64_t> data = {0, -1, std::numeric_limits<int64_t>::max(),
                                std::numeric_limits<int64_t>::min(), 1};
-  ColdSortByKey(data.begin(), data.end(), [](int64_t x) { return x; });
+  SortByKey(data.begin(), data.end(), [](int64_t x) { return x; });
   ASSERT_EQ(data,
             (std::vector<int64_t>{std::numeric_limits<int64_t>::min(), -1, 0, 1,
                                   std::numeric_limits<int64_t>::max()}));
 }
 
-TEST(ColdSortTest, Descending) {
+TEST(SortByKeyTest, Descending) {
   std::vector<std::pair<int64_t, int>> data = {
       {2, 0},
       {-5, 1},
       {2, 2},
       {std::numeric_limits<int64_t>::min(), 3},
       {7, 4}};
-  ColdStableSortByKeyDescending(data.begin(), data.end(),
-                                [](const auto& x) { return x.first; });
+  StableSortByKeyDescending(data.begin(), data.end(),
+                            [](const auto& x) { return x.first; });
   ASSERT_EQ(data, (std::vector<std::pair<int64_t, int>>{
                       {7, 4},
                       {2, 0},
@@ -74,13 +111,13 @@ TEST(ColdSortTest, Descending) {
                       {std::numeric_limits<int64_t>::min(), 3}}));
 }
 
-TEST(ColdSortTest, MoveOnly) {
+TEST(SortByKeyTest, MoveOnly) {
   std::vector<std::unique_ptr<int>> data;
   for (int v : {3, 1, 2}) {
     data.push_back(std::make_unique<int>(v));
   }
-  ColdSortByKey(data.begin(), data.end(),
-                [](const std::unique_ptr<int>& p) { return *p; });
+  SortByKey(data.begin(), data.end(),
+            [](const std::unique_ptr<int>& p) { return *p; });
   ASSERT_EQ(*data[0], 1);
   ASSERT_EQ(*data[1], 2);
   ASSERT_EQ(*data[2], 3);

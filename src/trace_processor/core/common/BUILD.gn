@@ -39,6 +39,7 @@ source_set("common") {
     "../../../base/regex",
     "../../containers",
     "../../util:glob",
+    "../../util:sort",
     "../../util:sorted_search",
     "../util",
   ]

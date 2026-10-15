@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
-#include "src/trace_processor/util/cold_sort.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -57,6 +56,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
+#include "src/trace_processor/util/sort.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -176,7 +176,7 @@ bool ParseTrackDimensions(
   // by name, so that the declaration order doesn't matter, and without
   // repeated names. A name declared more than once keeps its first value.
   auto& dims = reservation->dimensions;
-  ColdStableSortByKey(
+  StableSortByKey(
       dims.begin(), dims.end(),
       [](const Reservation::Dimension& d) { return d.name.raw_id(); });
   size_t kept = 0;

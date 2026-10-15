@@ -41,8 +41,7 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
-#include "src/trace_processor/core/util/sort.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::flamegraph {
 namespace {
@@ -422,8 +421,8 @@ class OneOrSummaryAggregateOperator final : public AggregateOperator {
     summary_.clear();
     AppendValue(representative_, pool_, &summary_);
     if (has_multiple_values_) {
-      ColdSortByKey(distinct_keys_.begin(), distinct_keys_.end(),
-                    [](uint64_t key) { return key; });
+      SortByKey(distinct_keys_.begin(), distinct_keys_.end(),
+                [](uint64_t key) { return key; });
       const size_t distinct_count = static_cast<size_t>(std::distance(
           distinct_keys_.begin(),
           std::unique(distinct_keys_.begin(), distinct_keys_.end())));
@@ -1536,16 +1535,14 @@ Layout ComputeLayout(const core::Tree& tree,
   // Order all nodes by descending width, ties in input order. The key is the
   // complemented IEEE representation, whose unsigned order matches
   // descending width for the non-negative widths used here.
-  core::Slab<core::KeyedIndex> by_width =
-      core::Slab<core::KeyedIndex>::Alloc(row_count);
+  core::Slab<KeyedIndex> by_width = core::Slab<KeyedIndex>::Alloc(row_count);
   for (uint32_t node = 0; node < row_count; ++node) {
     uint64_t bits;
     memcpy(&bits, &width[node], sizeof(bits));
     by_width[node] = {~bits, node, 0};
   }
-  core::Slab<core::KeyedIndex> scratch =
-      core::Slab<core::KeyedIndex>::Alloc(row_count);
-  const core::KeyedIndex* by_width_sorted = core::StableSortKeyedIndices(
+  core::Slab<KeyedIndex> scratch = core::Slab<KeyedIndex>::Alloc(row_count);
+  const KeyedIndex* by_width_sorted = StableSortKeyedIndices(
       by_width.begin(), by_width.end(), scratch.begin(), 64);
 
   // Distribute the width order into per-parent buckets. Roots go to one

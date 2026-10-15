@@ -45,7 +45,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor {
 
@@ -239,11 +239,10 @@ ExperimentalSliceLayout::Cursor::ComputeLayoutTable(
     order[i] = i;
   }
   // Two stable sorts, the second keeping the first's order among its ties.
-  ColdStableSortByKey(order.begin(), order.end(),
-                      [&](uint32_t g) { return groups[g].start; });
-  ColdStableSortByKeyDescending(order.begin(), order.end(), [&](uint32_t g) {
-    return groups[g].max_depth;
-  });
+  StableSortByKey(order.begin(), order.end(),
+                  [&](uint32_t g) { return groups[g].start; });
+  StableSortByKeyDescending(order.begin(), order.end(),
+                            [&](uint32_t g) { return groups[g].max_depth; });
 
   // Step 3: place each group at the lowest run of (max depth + 1) rows that is
   // free over its whole time range, then mark those rows occupied.

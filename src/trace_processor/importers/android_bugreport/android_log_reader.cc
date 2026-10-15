@@ -43,7 +43,7 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/cold_sort.h"
+#include "src/trace_processor/util/sort.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -351,9 +351,8 @@ DedupingAndroidLogReader::DedupingAndroidLogReader(
     std::vector<TimestampedAndroidLogEvent> events)
     : AndroidLogReader(context, year, std::move(stream), wait_for_tz),
       events_(std::move(events)) {
-  ColdSortByKey(
-      events_.begin(), events_.end(),
-      [](const TimestampedAndroidLogEvent& e) { return e.ts.count(); });
+  SortByKey(events_.begin(), events_.end(),
+            [](const TimestampedAndroidLogEvent& e) { return e.ts.count(); });
 }
 
 DedupingAndroidLogReader::~DedupingAndroidLogReader() {}
