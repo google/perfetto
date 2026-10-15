@@ -53,19 +53,14 @@ struct Rows {
   uint32_t count;
 };
 
-// A row's first 8 varying bytes packed into an integer in significance order,
-// its position and its index. Ties break on position, so even an unstable
-// sort is stable.
-struct Token {
-  uint64_t key;
-  uint32_t position;
-  uint32_t index;
-};
+// Each row is sorted as its first 8 varying bytes packed into a key, in
+// significance order, with its position as the index and its row index as the
+// value. Ties break on position, so the sort is stable.
 
 // Buffers one sort works in.
 struct Scratch {
-  FlexVector<Token> tokens;
-  FlexVector<Token> spare;
+  FlexVector<KeyedIndex> tokens;
+  FlexVector<KeyedIndex> spare;
   std::vector<uint64_t> first_words;
   std::vector<uint64_t> differing_bits;
   std::vector<uint8_t> differs;
@@ -184,11 +179,11 @@ void FindVaryingBytes(const Rows& rows, Scratch& scratch) {
   }
 }
 
-Token* PackKeys(const Rows& rows,
-                uint32_t key_bytes,
-                const uint32_t* indices,
-                Scratch& scratch) {
-  Token* tokens = Resize(scratch.tokens, rows.count);
+KeyedIndex* PackKeys(const Rows& rows,
+                     uint32_t key_bytes,
+                     const uint32_t* indices,
+                     Scratch& scratch) {
+  KeyedIndex* tokens = Resize(scratch.tokens, rows.count);
   const uint32_t* varying = scratch.varying.data();
   for (uint32_t r = 0; r < rows.count; ++r) {
     const uint8_t* row = rows[r];
@@ -206,12 +201,14 @@ Token* PackKeys(const Rows& rows,
 
 // Merges pairs of runs, earlier run first so ties keep their order, until one
 // is left. Returns whichever of `tokens` and `scratch` holds the result.
-Token* MergeRuns(Token* tokens,
-                 Token* scratch,
-                 base::SmallVector<uint32_t, kMaxMergedRuns + 2> runs) {
-  auto by_key = [](const Token& a, const Token& b) { return a.key < b.key; };
-  Token* source = tokens;
-  Token* dest = scratch;
+KeyedIndex* MergeRuns(KeyedIndex* tokens,
+                      KeyedIndex* scratch,
+                      base::SmallVector<uint32_t, kMaxMergedRuns + 2> runs) {
+  auto by_key = [](const KeyedIndex& a, const KeyedIndex& b) {
+    return a.key < b.key;
+  };
+  KeyedIndex* source = tokens;
+  KeyedIndex* dest = scratch;
   while (runs.size() > 2) {
     size_t kept = 0;
     size_t r = 0;
@@ -223,7 +220,7 @@ Token* MergeRuns(Token* tokens,
     if (r + 1 < runs.size()) {
       // An odd final run has no partner; carry it into the next merge pass.
       memcpy(dest + runs[r], source + runs[r],
-             static_cast<size_t>(runs[r + 1] - runs[r]) * sizeof(Token));
+             static_cast<size_t>(runs[r + 1] - runs[r]) * sizeof(KeyedIndex));
       runs[kept++] = runs[r];
     }
     runs[kept++] = runs.back();
@@ -236,10 +233,10 @@ Token* MergeRuns(Token* tokens,
 }
 
 // Sorts each run of tokens with equal keys on their whole rows.
-void SortTiesOnWholeRows(Token* tokens, const Rows& rows) {
-  auto by_row = [&rows](const Token& a, const Token& b) {
-    int cmp = CompareRows(rows[a.position], rows[b.position], rows.stride);
-    return cmp != 0 ? cmp < 0 : a.position < b.position;
+void SortTiesOnWholeRows(KeyedIndex* tokens, const Rows& rows) {
+  auto by_row = [&rows](const KeyedIndex& a, const KeyedIndex& b) {
+    int cmp = CompareRows(rows[a.index], rows[b.index], rows.stride);
+    return cmp != 0 ? cmp < 0 : a.index < b.index;
   };
   for (uint32_t i = 0; i < rows.count;) {
     uint32_t j = i + 1;
@@ -284,16 +281,14 @@ void SortRowLayout(Span<const uint8_t> row_layout,
   FindVaryingBytes(rows, scratch);
   auto key_bytes = static_cast<uint32_t>(
       std::min<size_t>(scratch.varying.size(), kMaxKeyBytes));
-  Token* tokens = PackKeys(rows, key_bytes, indices->b, scratch);
-  Token* sorted = tokens;
+  KeyedIndex* tokens = PackKeys(rows, key_bytes, indices->b, scratch);
+  KeyedIndex* sorted = tokens;
   // 3. Merge existing runs or sort the tokens, preserving input order for ties.
   if (!order.runs.empty()) {
     sorted = MergeRuns(tokens, Resize(scratch.spare, count), order.runs);
   } else {
-    sorted = StableSortByKey(
-        tokens, tokens + count, Resize(scratch.spare, count), key_bytes * 8,
-        [](const Token& t) { return t.key; },
-        [](const Token& t) { return t.position; });
+    sorted = StableSortKeyedIndices(
+        tokens, tokens + count, Resize(scratch.spare, count), key_bytes * 8);
   }
   // 4. If the key omitted varying bytes, equal keys may still represent
   // different rows. Compare full rows within each tied group to finish sorting.
@@ -301,7 +296,7 @@ void SortRowLayout(Span<const uint8_t> row_layout,
     SortTiesOnWholeRows(sorted, rows);
   }
   for (uint32_t r = 0; r < count; ++r) {
-    indices->b[r] = sorted[r].index;
+    indices->b[r] = sorted[r].value;
   }
 }
 
