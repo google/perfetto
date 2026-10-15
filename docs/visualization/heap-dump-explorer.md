@@ -485,7 +485,8 @@ of which classes own the most memory. Clicking a class name opens
 Objects filtered to that class.
 
 A warning icon after a class name means the class may include other
-classes merged by R8; see [Merged classes](#merged-classes).
+classes merged into it during app optimization; see
+[Merged classes](#merged-classes).
 
 ## Objects
 
@@ -682,13 +683,13 @@ tab — useful for comparing two call stacks side by side.
 
 ## Merged classes
 
-During optimization, R8 can merge several source classes into one (for
-example, merging a class into its only subclass, or combining similar
-sibling classes). In a heap dump, all instances of those classes appear
-under the target class's name, so its count, shallow size, and retained
-size represent the combined total.
+When an app is optimized and obfuscated, several source classes can be
+merged into one (for example, a class merged into its only subclass, or
+similar sibling classes combined). In a heap dump, all instances of
+those classes appear under the target class's name, so its count,
+shallow size, and retained size represent the combined total.
 
-When the trace includes the app's R8 `mapping.txt` (see
+When the trace includes a deobfuscation mapping for the app (see
 [Symbolization and deobfuscation](/docs/learning-more/symbolization.md#merged-classes)),
 the explorer and heap graph flamegraphs mark classes that may include
 merged classes with a warning icon. Hover over the icon (or the
@@ -698,10 +699,9 @@ flamegraph node) for details.
 
 Treat a flagged class's numbers as an upper bound for the class shown:
 part of the memory may belong to classes that were merged into it. To
-see which classes were merged, look up the class in `mapping.txt` under
-its `com.android.tools.r8.mergedClasses` comment (available in R8
-mapping format 2.3 and later; with older mapping files, every renamed
-class is flagged).
+see which classes were merged, look up the class in the deobfuscation
+mapping. If the mapping doesn't record merged classes, every renamed
+class is flagged.
 
 ## Case studies
 
