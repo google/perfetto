@@ -1,0 +1,493 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import m from 'mithril';
+import type {App} from '../../public/app';
+import type {Command} from '../../public/commands';
+import type {HeaderItem} from '../../public/header';
+import {LiveController, type LiveSessionModel} from './controller';
+import {PLUGIN_ID} from './opener';
+import type {LiveStatus} from './status';
+import {TARGET, type Target} from './wire';
+
+const WORKER = {id: 'job-1/worker', short_name: 'worker'};
+const EVAL = {id: 'job-1/eval', short_name: 'eval', task_count: 4};
+const TARGET_ARG = `${PLUGIN_ID}:target`;
+const FOLLOW_COMMAND = 'com.google.LiveStream#ToggleFollowLive';
+
+// Answers target requests with WORKER and EVAL, and seed requests with a
+// seed, 503 for `unavailable` targets, or 502 with the error of `failing`
+// ones. Fails all requests while `unreachable`.
+class FakeServer {
+  // Targets of the requests.
+  readonly targetRequests: string[] = [];
+  readonly seedRequests: URLSearchParams[] = [];
+  readonly unavailable = new Set<string>();
+  readonly failing = new Map<string, string>();
+  unreachable = false;
+
+  readonly fetch = async (input: RequestInfo | URL): Promise<Response> => {
+    if (this.unreachable) throw new TypeError('Failed to fetch');
+    const [route, query] = String(input).split('?');
+    const params = new URLSearchParams(query);
+    const target = params.get('target') ?? '';
+    if (route === 'api/targets') {
+      this.targetRequests.push(target);
+      return new Response(
+        JSON.stringify({
+          targets: [WORKER, EVAL],
+          selected: findTarget(target),
+          page_title: 'Live',
+        }),
+      );
+    }
+    this.seedRequests.push(params);
+    if (this.unavailable.has(target)) {
+      return new Response('No data yet', {status: 503});
+    }
+    const error = this.failing.get(target);
+    if (error !== undefined) {
+      return new Response(JSON.stringify({error}), {status: 502});
+    }
+    return new Response(new ArrayBuffer(8));
+  };
+
+  seedTargets(): string[] {
+    return this.seedRequests.map((r) => r.get('target') ?? '');
+  }
+}
+
+// The target of `spec`, e.g. "job-1/eval/2" for task 2 of EVAL.
+function findTarget(spec: string) {
+  if (spec === WORKER.id) return WORKER;
+  const match = spec.match(/^job-1\/eval\/(\d)$/);
+  if (match === null) return undefined;
+  return {...EVAL, id: spec, task_index: Number(match[1])};
+}
+
+// A session of the trace of `target`.
+function fakeModel(target: Target, status: LiveStatus = 'live') {
+  return {
+    state: () => ({status, target, paused: false}),
+    toggleFollow: vi.fn(),
+    togglePause: vi.fn(),
+    download: vi.fn(),
+    refreshTargets: vi.fn(),
+    dismissError: vi.fn(),
+  } satisfies LiveSessionModel;
+}
+
+// An app with what LiveController uses. Like AppImpl, opening a trace closes
+// the current one, then may fail.
+function fakeApp() {
+  const headerItems: HeaderItem[] = [];
+  const commands = new Map<string, Command>();
+  // The page URL when each trace was opened.
+  const openedUrls: string[] = [];
+  const state = {
+    closeTrace: () => {},
+    openError: undefined as Error | undefined,
+  };
+  const disposable = {[Symbol.dispose]: () => {}};
+  const scheduleFullRedraw = vi.fn();
+  const openTraceFromBuffer = vi.fn(
+    async (_args: {
+      readonly title: string;
+      readonly pluginArgs: Record<string, unknown>;
+    }) => {
+      openedUrls.push(window.location.href);
+      state.closeTrace();
+      if (state.openError !== undefined) throw state.openError;
+    },
+  );
+  const app = {
+    settings: {
+      register: (setting: {defaultValue: unknown}) => ({
+        get: () => setting.defaultValue,
+        set: () => {},
+      }),
+    },
+    header: {
+      registerItem: (item: HeaderItem) => {
+        headerItems.push(item);
+        return disposable;
+      },
+    },
+    commands: {
+      // Like the core's registry, ids are unique.
+      registerCommand: (command: Command) => {
+        if (commands.has(command.id)) throw new Error(`Twice ${command.id}`);
+        commands.set(command.id, command);
+        return {[Symbol.dispose]: () => commands.delete(command.id)};
+      },
+    },
+    raf: {scheduleFullRedraw},
+    openTraceFromBuffer,
+  } as unknown as App;
+  return {
+    app,
+    state,
+    headerItems,
+    commands,
+    openedUrls,
+    openTraceFromBuffer,
+    scheduleFullRedraw,
+  };
+}
+
+let server: FakeServer;
+let root: HTMLElement;
+
+beforeEach(() => {
+  vi.useFakeTimers({
+    toFake: [
+      'setTimeout',
+      'clearTimeout',
+      'setInterval',
+      'clearInterval',
+      'performance',
+    ],
+  });
+  server = new FakeServer();
+  vi.stubGlobal('fetch', vi.fn(server.fetch));
+  const url = new URL(window.location.href);
+  url.searchParams.delete(TARGET_ARG);
+  window.history.replaceState(null, '', url);
+  root = document.createElement('div');
+  document.body.append(root);
+});
+
+afterEach(() => {
+  m.render(root, null);
+  root.remove();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+function urlTarget(): string | null {
+  return new URL(window.location.href).searchParams.get(TARGET_ARG);
+}
+
+function setup() {
+  const fake = fakeApp();
+  const controller = new LiveController(fake.app);
+
+  // Renders the HUD and returns what it shows.
+  const hud = () => {
+    m.render(root, fake.headerItems[0].render());
+    const text = (selector: string) =>
+      root.querySelector(selector)?.textContent ?? undefined;
+    return {
+      badge: text('.pf-live-stream-hud__badge'),
+      popout: text('.pf-live-stream-hud__popout-msg'),
+      target: text('.pf-live-stream-hud__target-trigger-label'),
+    };
+  };
+
+  // Clicks the element of `selector` in the HUD.
+  const click = (selector: string) => {
+    hud();
+    const element = root.querySelector(selector);
+    if (!(element instanceof HTMLElement)) throw new Error(`No ${selector}`);
+    element.click();
+  };
+
+  return {
+    controller,
+    hud,
+    click,
+    runCommand: (id: string) => fake.commands.get(id)?.callback(),
+    // The plugin args of the latest trace.
+    openedArgs: () =>
+      fake.openTraceFromBuffer.mock.lastCall?.[0].pluginArgs[PLUGIN_ID],
+    ...fake,
+  };
+}
+
+// Sets up a page that shows the trace of WORKER.
+async function openWorker() {
+  const page = setup();
+  page.controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(0);
+  const model = fakeModel(TARGET.parse(WORKER));
+  const attachment = page.controller.attach(model);
+  page.state.closeTrace = () => attachment[Symbol.dispose]();
+  return {...page, model};
+}
+
+test('shows buffering while the first trace opens, then its session', async () => {
+  const {controller, hud, openTraceFromBuffer, openedArgs} = setup();
+
+  controller.open(WORKER.id);
+  expect(hud()).toMatchObject({
+    badge: 'BUFFERING',
+    popout: 'Buffering live stream...',
+  });
+
+  await vi.advanceTimersByTimeAsync(0);
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(1);
+  expect(openTraceFromBuffer.mock.lastCall?.[0].title).toBe('Live: worker');
+  expect(openedArgs()).toMatchObject({target: WORKER});
+  expect(urlTarget()).toBe(WORKER.id);
+  // With the history of the History setting.
+  expect(server.seedRequests[0].get('history_sec')).toBe('3600');
+
+  controller.attach(fakeModel(TARGET.parse(WORKER)));
+  expect(hud()).toEqual({
+    badge: 'LIVE STREAM',
+    popout: undefined,
+    target: 'worker',
+  });
+});
+
+test('shows an error while the server is unreachable', async () => {
+  server.unreachable = true;
+  const {controller, hud, openTraceFromBuffer} = setup();
+
+  controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(0);
+  // Once it lasts 1 s.
+  expect(hud().badge).toBe('BUFFERING');
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(hud().badge).toBe('STREAM ERROR');
+  expect(hud().popout).toBe('Cannot reach the live server: Failed to fetch');
+
+  // Retries 1 s, then 2 s later.
+  server.unreachable = false;
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(hud().badge).toBe('BUFFERING');
+});
+
+test('waits for the first data of a target as buffering', async () => {
+  server.unavailable.add(WORKER.id);
+  const {controller, hud, openTraceFromBuffer} = setup();
+
+  controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(5_000);
+
+  expect(server.seedRequests.length).toBeGreaterThan(1);
+  expect(hud().badge).toBe('BUFFERING');
+  expect(openTraceFromBuffer).not.toHaveBeenCalled();
+});
+
+test('shows why the server fails to reach a target, and retries', async () => {
+  const failing = 'Waiting for the first snapshot: Unreachable';
+  server.failing.set(WORKER.id, failing);
+  const {controller, hud, openTraceFromBuffer} = setup();
+
+  controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(0);
+  // Once it lasts 1 s.
+  expect(hud().badge).toBe('BUFFERING');
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(hud()).toMatchObject({badge: 'STREAM ERROR', popout: failing});
+
+  // Retries 1 s, then 2 s later.
+  server.failing.delete(WORKER.id);
+  await vi.advanceTimersByTimeAsync(2_000);
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(1);
+});
+
+test('redraws when only the error changes, e.g. the reason to fail', () => {
+  const {controller, scheduleFullRedraw} = setup();
+  const model = fakeModel(TARGET.parse(WORKER), 'error');
+  const shown = {error: 'Unreachable'};
+  controller.attach({...model, state: () => ({...model.state(), ...shown})});
+  controller.refreshStatus();
+  scheduleFullRedraw.mockClear();
+
+  controller.refreshStatus();
+  expect(scheduleFullRedraw).not.toHaveBeenCalled();
+
+  shown.error = 'Connection refused';
+  controller.refreshStatus();
+  expect(scheduleFullRedraw).toHaveBeenCalledTimes(1);
+});
+
+test('shows a failed first open until the next open', async () => {
+  const {controller, hud, click} = setup();
+
+  controller.open('job-2/unknown');
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(hud()).toMatchObject({
+    badge: 'STREAM ERROR',
+    popout:
+      'Cannot open job-2/unknown: The live server has no target "job-2/unknown"',
+  });
+
+  // Dismissing hides the popout only.
+  click('.pf-live-stream-hud__popout-close');
+  expect(hud()).toMatchObject({badge: 'STREAM ERROR', popout: undefined});
+
+  click('.pf-live-stream-hud__more-trigger');
+  click('.pf-live-stream-hud__more-item');
+  expect(server.targetRequests).toEqual(['job-2/unknown', 'job-2/unknown']);
+});
+
+test('shows a failed switch over the open trace until dismissed', async () => {
+  const {controller, hud, click, model} = await openWorker();
+
+  controller.open('job-2/unknown');
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(hud()).toMatchObject({badge: 'STREAM ERROR', target: 'worker'});
+  expect(hud().popout).toContain('Cannot open job-2/unknown');
+  expect(urlTarget()).toBe(WORKER.id);
+
+  click('.pf-live-stream-hud__popout-close');
+  expect(hud()).toMatchObject({badge: 'LIVE STREAM', popout: undefined});
+  expect(model.dismissError).not.toHaveBeenCalled();
+});
+
+test('shows a trace that fails to load as an error', async () => {
+  const {controller, hud, state} = await openWorker();
+  state.openError = new Error('Bad seed');
+
+  controller.open('job-1/eval/2');
+  await vi.advanceTimersByTimeAsync(1_000);
+
+  expect(hud()).toMatchObject({
+    badge: 'STREAM ERROR',
+    popout: 'Cannot open job-1/eval/2: Bad seed',
+    target: 'eval/2',
+  });
+});
+
+test('opens another target in place, with its URL', async () => {
+  const {controller, openTraceFromBuffer, openedArgs, openedUrls} =
+    await openWorker();
+
+  controller.open('job-1/eval/2');
+  await vi.advanceTimersByTimeAsync(0);
+
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(2);
+  expect(openedArgs()).toMatchObject({target: {id: 'job-1/eval/2'}});
+  expect(urlTarget()).toBe('job-1/eval/2');
+  // Before the trace changed.
+  expect(new URL(openedUrls[1]).searchParams.get(TARGET_ARG)).toBe(
+    'job-1/eval/2',
+  );
+});
+
+test('a new open replaces a pending one', async () => {
+  server.unavailable.add('job-1/eval/2');
+  const {controller, openTraceFromBuffer, openedArgs} = await openWorker();
+
+  controller.open('job-1/eval/2');
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(urlTarget()).toBe(WORKER.id);
+
+  controller.open('job-1/eval/3');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(2);
+  expect(openedArgs()).toMatchObject({target: {id: 'job-1/eval/3'}});
+
+  // The first one stopped retrying.
+  const seedRequests = server.seedRequests.length;
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(server.seedRequests.length).toBe(seedRequests);
+});
+
+test('reconnects to the pending target, else the open one', async () => {
+  server.unavailable.add('job-1/eval/2');
+  const {controller, click, openTraceFromBuffer, openedArgs} =
+    await openWorker();
+  const reconnect = () => {
+    click('.pf-live-stream-hud__more-trigger');
+    click('.pf-live-stream-hud__more-item');
+  };
+
+  controller.open('job-1/eval/2');
+  await vi.advanceTimersByTimeAsync(5_000);
+  reconnect();
+  expect(server.targetRequests.at(-1)).toBe('job-1/eval/2');
+
+  // Picking the open target cancels the switch.
+  click('.pf-live-stream-hud__target-trigger');
+  click('.pf-live-stream-hud__target-item');
+  await vi.advanceTimersByTimeAsync(0);
+  reconnect();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(2);
+  expect(openedArgs()).toMatchObject({target: WORKER});
+});
+
+test('picking the open target cancels a pending switch', async () => {
+  server.unavailable.add('job-1/eval/2');
+  const {controller, hud, click, openTraceFromBuffer} = await openWorker();
+  controller.open('job-1/eval/2');
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(hud().target).toBe('eval/2');
+
+  // The row of WORKER, the open target.
+  click('.pf-live-stream-hud__target-trigger');
+  click('.pf-live-stream-hud__target-item');
+  const seedRequests = server.seedRequests.length;
+  await vi.advanceTimersByTimeAsync(60_000);
+
+  expect(server.seedRequests.length).toBe(seedRequests);
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(1);
+  expect(hud().badge).toBe('LIVE STREAM');
+  expect(urlTarget()).toBe(WORKER.id);
+});
+
+test('reopens unless another open is pending', async () => {
+  server.unavailable.add('job-1/eval/2');
+  const {controller, openTraceFromBuffer, openedArgs} = await openWorker();
+
+  controller.open('job-1/eval/2');
+  await vi.advanceTimersByTimeAsync(0);
+  controller.reopen(WORKER.id, true);
+  await vi.advanceTimersByTimeAsync(5_000);
+  expect(server.targetRequests).toEqual([WORKER.id, 'job-1/eval/2']);
+
+  // A failed open is no longer pending.
+  controller.open('job-2/unknown');
+  await vi.advanceTimersByTimeAsync(0);
+  controller.reopen(WORKER.id, true);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(openTraceFromBuffer).toHaveBeenCalledTimes(2);
+  expect(openedArgs()).toMatchObject({target: WORKER, epochRetry: true});
+});
+
+test('toggles following with Space, also between sessions', () => {
+  const {controller, runCommand} = setup();
+
+  runCommand(FOLLOW_COMMAND);
+  expect(controller.following).toBe(false);
+
+  const model = fakeModel(TARGET.parse(WORKER));
+  controller.attach(model);
+  runCommand(FOLLOW_COMMAND);
+  expect(model.toggleFollow).toHaveBeenCalledTimes(1);
+});
+
+test('hides the HUD and frees Space while another trace is open', async () => {
+  const {controller, hud, commands, state} = await openWorker();
+
+  // E.g. a trace opened from a file.
+  state.closeTrace();
+  controller.showOtherTrace();
+  expect(hud().badge).toBeUndefined();
+  expect(commands.has(FOLLOW_COMMAND)).toBe(false);
+
+  // Until a live trace opens.
+  controller.open(WORKER.id);
+  await vi.advanceTimersByTimeAsync(1_000);
+  expect(hud().badge).toBe('BUFFERING');
+  controller.attach(fakeModel(TARGET.parse(WORKER)));
+  expect(hud().badge).toBe('LIVE STREAM');
+  expect(commands.has(FOLLOW_COMMAND)).toBe(true);
+});
