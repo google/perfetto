@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_PUBLIC_ABI_STREAM_WRITER_ABI_H_
-#define INCLUDE_PERFETTO_PUBLIC_ABI_STREAM_WRITER_ABI_H_
+#ifndef INCLUDE_PERFETTO_PUBLIC_ABI_PB_MSG_WRITER_ABI_H_
+#define INCLUDE_PERFETTO_PUBLIC_ABI_PB_MSG_WRITER_ABI_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -26,14 +26,15 @@
 extern "C" {
 #endif
 
-// An opaque structure used to represent the internal implementation of a
-// protozero stream writer.
-struct PerfettoStreamWriterImpl;
+// An opaque structure used to represent the protozero stream writer behind a
+// PerfettoPbMsgWriter.
+struct PerfettoPbMsgWriterImpl;
 
-// A `PerfettoStreamWriter` owns a chunk of memory that the user can write
-// to. The section from `begin` (inclusive) to `write_ptr` (non inclusive)
-// already contains valid data. The section from `write_ptr` (inclusive) to
-// `end` (non inclusive) is empty and can be used for new data.
+// A `PerfettoPbMsgWriter` owns a chunk of memory that the user can write
+// to, and says which encoding the root message uses.
+// The section from `begin` (inclusive) to `write_ptr` (non inclusive) already
+// contains valid data. The section from `write_ptr` (inclusive) to `end` (non
+// inclusive) is empty and can be used for new data.
 //
 // --------------------------------------------------------------------------
 // |wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww                                    |
@@ -41,8 +42,8 @@ struct PerfettoStreamWriterImpl;
 //  ^                                   ^                                   ^
 //   \                                  |                                  /
 //    `begin`                       `write_ptr`                       `end`
-struct PerfettoStreamWriter {
-  struct PerfettoStreamWriterImpl* impl;
+struct PerfettoPbMsgWriter {
+  struct PerfettoPbMsgWriterImpl* impl;
 
   // Points to the first byte of the current chunk.
   uint8_t* begin;
@@ -57,41 +58,46 @@ struct PerfettoStreamWriter {
   // Keeps track of all the bytes written in previous chunks (bytes written in
   // the current chunk are not included here).
   size_t written_previously;
+
+  // Encoding of the root message, a value of `enum PerfettoPbMsgEncoding` from
+  // pb_msg.h. PerfettoPbMsgInit() reads it, and whoever fills the writer sets
+  // it (PerfettoDsTracerImplPacketBegin() or PerfettoHeapBufferCreate()).
+  uint32_t encoding;
 };
 
 // Tells the writer that the current chunk has been written until `write_ptr`
 // (non inclusive).
 //
 // Returns the new state of the writer.
-PERFETTO_SDK_EXPORT void PerfettoStreamWriterUpdateWritePtr(
-    struct PerfettoStreamWriter*);
+PERFETTO_SDK_EXPORT void PerfettoPbMsgWriterUpdateWritePtr(
+    struct PerfettoPbMsgWriter*);
 
 // Commits the current chunk and gets a new chunk.
-PERFETTO_SDK_EXPORT void PerfettoStreamWriterNewChunk(
-    struct PerfettoStreamWriter*);
+PERFETTO_SDK_EXPORT void PerfettoPbMsgWriterNewChunk(
+    struct PerfettoPbMsgWriter*);
 
 // Appends `size` from `src` to the writer.
-PERFETTO_SDK_EXPORT void PerfettoStreamWriterAppendBytesSlowpath(
-    struct PerfettoStreamWriter*,
+PERFETTO_SDK_EXPORT void PerfettoPbMsgWriterAppendBytesSlowpath(
+    struct PerfettoPbMsgWriter*,
     const uint8_t* src,
     size_t size);
 
-#define PERFETTO_STREAM_WRITER_PATCH_SIZE 4
+#define PERFETTO_PB_MSG_WRITER_PATCH_SIZE 4
 
-// Tells the stream writer that the part of the current chunk pointed by
-// `patch_addr` (until `patch_addr`+`PERFETTO_STREAM_WRITER_PATCH_SIZE`) needs
+// Tells the writer that the part of the current chunk pointed by
+// `patch_addr` (until `patch_addr`+`PERFETTO_PB_MSG_WRITER_PATCH_SIZE`) needs
 // to be changed after the current chunk goes away.
 //
 // The caller can write to the returned location (which may have been redirected
-// by the stream writer) after the current chunk has gone away. The caller
+// by the writer) after the current chunk has gone away. The caller
 // **must write a non-zero value as the first byte** eventually.
 //
-// The stream writer can also return NULL, in which case the caller should not
-// write anything.
+// The writer can also return NULL, in which case the caller should not write
+// anything.
 //
 // This can be used to backfill the size of a protozero message.
-PERFETTO_SDK_EXPORT uint8_t* PerfettoStreamWriterAnnotatePatch(
-    struct PerfettoStreamWriter*,
+PERFETTO_SDK_EXPORT uint8_t* PerfettoPbMsgWriterAnnotatePatch(
+    struct PerfettoPbMsgWriter*,
     uint8_t* patch_addr);
 
 // Returns a pointer to an area of the chunk long `size` for writing. The
@@ -101,11 +107,11 @@ PERFETTO_SDK_EXPORT uint8_t* PerfettoStreamWriterAnnotatePatch(
 // WARNING: `size` should be smaller than the chunk size returned by the
 // `delegate`.
 PERFETTO_SDK_EXPORT
-void PerfettoStreamWriterReserveBytesSlowpath(struct PerfettoStreamWriter*,
-                                              size_t size);
+void PerfettoPbMsgWriterReserveBytesSlowpath(struct PerfettoPbMsgWriter*,
+                                             size_t size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // INCLUDE_PERFETTO_PUBLIC_ABI_STREAM_WRITER_ABI_H_
+#endif  // INCLUDE_PERFETTO_PUBLIC_ABI_PB_MSG_WRITER_ABI_H_
