@@ -323,6 +323,25 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
             "keys: #2, groups: #3)");
 }
 
+// The input is grouped by its PER columns and sorted by ts within each group.
+// The background is read from a side pipeline and sorted by ts within each of
+// its lanes.
+TEST_F(PhysicalPlanTest, FillGapsOrdersBothSides) {
+  Exec("CREATE TABLE spans(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO spans VALUES (5, 1, 1), (0, 1, 0)");
+  Exec("CREATE TABLE windows(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO windows VALUES (9, 10, 1), (0, 10, 0)");
+  auto plan = Plan("FROM spans |> INTERVAL FILL GAPS WITH windows PER cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0)\n"
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "IntervalFillGaps(#0, #1, keys: #2, groups: #3; "
+            "background: #0, #1, keys: #2, groups: #3)");
+}
+
 // An intersection needs its operands' bounds and PER columns, but only passes
 // on the columns something after it reads: it neither buffers nor gathers
 // the rest.
