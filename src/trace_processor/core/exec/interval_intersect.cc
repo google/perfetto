@@ -135,6 +135,11 @@ struct Groups {
     if (!std::is_sorted(by_number.begin(), by_number.end())) {
       std::sort(by_number.begin(), by_number.end());
     }
+    // Find() returns one range per number, so each group must arrive whole.
+    PERFETTO_DCHECK(std::adjacent_find(by_number.begin(), by_number.end(),
+                                       [](const auto& a, const auto& b) {
+                                         return a.first == b.first;
+                                       }) == by_number.end());
   }
   std::optional<Group> Find(uint32_t number) const {
     auto it = std::lower_bound(by_number.begin(), by_number.end(), number,
