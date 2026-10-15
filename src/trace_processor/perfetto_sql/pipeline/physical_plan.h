@@ -278,12 +278,14 @@ class Lowering {
   // Adds a breaker, which reads all its input before it outputs a row.
   void AddBreaker(core::exec::Pipeline::Step breaker);
 
-  // Adds a Sort. If the rows are sorted again before any step reads this
-  // order, the Sort is removed.
-  void AddSort(core::exec::Pipeline::Step sort);
+  // Adds a Sort, after which the rows are in `arrangements`. If the rows are
+  // sorted again before any step reads this order, the Sort is removed.
+  void AddSort(core::exec::Pipeline::Step sort,
+               std::vector<Arrangement> arrangements);
 
-  // Removes the open Sort, if there is one.
-  void DropOpenSort();
+  // Removes the open Sort, if there is one. Returns whether a Sort was
+  // removed.
+  bool DropOpenSort();
 
   // Adds a GroupedSort that groups by `keys` and sorts each group by
   // `sorted_by`. The GroupedSort also adds a group number column.

@@ -170,8 +170,7 @@ void Lowering::RequireSorted(const std::vector<SortKey>& keys) {
   if (IsArranged({}, keys)) {
     return;
   }
-  DropOpenSort();
-  if (IsArranged({}, keys)) {
+  if (DropOpenSort() && IsArranged({}, keys)) {
     return;
   }
   ex::SortSpec sort;
@@ -181,19 +180,17 @@ void Lowering::RequireSorted(const std::vector<SortKey>& keys) {
     }
     sort.keys.push_back({QueryPosition(key.column), key.descending});
   }
-  AddSort(std::make_unique<ex::Sort>(std::move(sort)));
-  arrangements_ = {{{}, keys}};
-  tree_walk_.reset();
+  AddSort(std::make_unique<ex::Sort>(std::move(sort)), {{{}, keys}});
 }
 
 void Lowering::RequireGrouped(const std::vector<ColumnId>& keys) {
   if (IsArranged(keys, {})) {
     return;
   }
-  DropOpenSort();
-  if (!IsArranged(keys, {})) {
-    GroupRows(keys, {});
+  if (DropOpenSort() && IsArranged(keys, {})) {
+    return;
   }
+  GroupRows(keys, {});
 }
 
 void Lowering::RequireSortedWithinGroups(
@@ -207,8 +204,7 @@ void Lowering::RequireSortedWithinGroups(
   if (IsArranged(keys, sorted_by)) {
     return;
   }
-  DropOpenSort();
-  if (IsArranged(keys, sorted_by)) {
+  if (DropOpenSort() && IsArranged(keys, sorted_by)) {
     return;
   }
   // Grouping is stable, so if the rows are already sorted by `sorted_by`,
@@ -242,8 +238,7 @@ Lowering::TreeColumns Lowering::RequireTreeWalk(ColumnId node,
   if (tree_walk_ == direction) {
     return *tree_columns_;
   }
-  DropOpenSort();
-  if (tree_walk_ == direction) {
+  if (DropOpenSort() && tree_walk_ == direction) {
     return *tree_columns_;
   }
   if (direction == TreeDirection::kUp) {
@@ -368,8 +363,12 @@ void Lowering::AddOrderIndependent(core::exec::Pipeline::Step step) {
   operators_.push_back(std::move(step));
 }
 
-void Lowering::AddSort(core::exec::Pipeline::Step sort) {
-  open_sort_ = OpenSort{operators_.size(), arrangements_, tree_walk_};
+void Lowering::AddSort(core::exec::Pipeline::Step sort,
+                       std::vector<Arrangement> arrangements) {
+  open_sort_ =
+      OpenSort{operators_.size(), std::move(arrangements_), tree_walk_};
+  arrangements_ = std::move(arrangements);
+  tree_walk_.reset();
   operators_.push_back(std::move(sort));
 }
 
@@ -383,15 +382,16 @@ void Lowering::AddBreaker(core::exec::Pipeline::Step breaker) {
   operators_.push_back(std::move(breaker));
 }
 
-void Lowering::DropOpenSort() {
+bool Lowering::DropOpenSort() {
   if (!open_sort_) {
-    return;
+    return false;
   }
   operators_.erase(operators_.begin() +
                    static_cast<ptrdiff_t>(open_sort_->index));
   arrangements_ = std::move(open_sort_->arrangements);
   tree_walk_ = open_sort_->tree_walk;
   open_sort_.reset();
+  return true;
 }
 
 void Lowering::GroupRows(const std::vector<ColumnId>& keys,
