@@ -22445,6 +22445,7 @@ filegroup {
         "src/trace_redaction/timeline_validation.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
         "src/trace_redaction/trace_redactor.cc",
+        "src/trace_redaction/trace_redactor_options.cc",
         "src/trace_redaction/verify_integrity.cc",
     ],
 }
@@ -22468,6 +22469,7 @@ filegroup {
         "src/trace_redaction/redact_process_events_unittest.cc",
         "src/trace_redaction/redact_sched_events_unittest.cc",
         "src/trace_redaction/timeline_validation_unittest.cc",
+        "src/trace_redaction/trace_redactor_options_unittest.cc",
         "src/trace_redaction/trace_redactor_unittest.cc",
         "src/trace_redaction/verify_integrity_unittest.cc",
     ],
