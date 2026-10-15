@@ -141,6 +141,35 @@ TEST(StableSortByKey, MatchesStableSort) {
   }
 }
 
+// Sizes either side of where radix sorting becomes cheaper, with few and many
+// distinct keys, against std::stable_sort.
+TEST(StableSortKeyedIndices, MatchesStableSort) {
+  std::minstd_rand0 rnd(0);
+  for (uint32_t size : {0u, 1u, 2u, 100u, 5000u, 100000u}) {
+    for (uint32_t key_bits : {3u, 40u}) {
+      std::vector<KeyedIndex> data(size);
+      for (uint32_t i = 0; i < size; ++i) {
+        uint64_t r = (static_cast<uint64_t>(rnd()) << 32) ^ rnd();
+        data[i] = {r & ((static_cast<uint64_t>(1) << key_bits) - 1), i, 0};
+      }
+      std::vector<KeyedIndex> scratch(size);
+      KeyedIndex* result = StableSortKeyedIndices(
+          data.data(), data.data() + size, scratch.data(), key_bits);
+
+      std::vector<KeyedIndex> expected = data;
+      std::stable_sort(expected.begin(), expected.end(),
+                       [](const KeyedIndex& a, const KeyedIndex& b) {
+                         return a.key < b.key;
+                       });
+      for (uint32_t i = 0; i < size; ++i) {
+        ASSERT_EQ(result[i].key, expected[i].key) << size << " " << key_bits;
+        ASSERT_EQ(result[i].index, expected[i].index)
+            << size << " " << key_bits;
+      }
+    }
+  }
+}
+
 TEST(MsdRadixSort, SmokeTest) {
   std::vector<TestEntryString> data;
   data.push_back(TestEntryString{"", 0});

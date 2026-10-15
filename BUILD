@@ -2763,6 +2763,7 @@ perfetto_filegroup(
         "src/trace_processor/core/util/range.h",
         "src/trace_processor/core/util/row_layout_sort.cc",
         "src/trace_processor/core/util/slab.h",
+        "src/trace_processor/core/util/sort.cc",
         "src/trace_processor/core/util/sort.h",
     ],
 )
