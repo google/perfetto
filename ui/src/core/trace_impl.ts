@@ -242,8 +242,8 @@ export class TraceImpl implements Trace, Disposable {
   }
 
   // Reloads the minimap for the grown bounds, at most every
-  // MINIMAP_RELOAD_INTERVAL_MS. Scheduled reloads don't overlap each other but
-  // may overlap the initial load. A failure doesn't stop later reloads. Only
+  // MINIMAP_RELOAD_INTERVAL_MS. Minimap loads run one at a time, so a reload
+  // waits for the initial load. A failure doesn't stop later reloads. Only
   // the first failure reaches the global error handler; later ones are logged.
   private scheduleMinimapReload() {
     if (this.minimapReloadTimer !== undefined || this.trash.disposed) return;
@@ -260,11 +260,11 @@ export class TraceImpl implements Trace, Disposable {
         throw e;
       } finally {
         this.minimapReloadTimer = undefined;
+
+        // The bounds grew during the load, which may have failed.
+        if (this.traceInfo.end > end) this.scheduleMinimapReload();
       }
       this.raf.scheduleCanvasRedraw();
-
-      // The bounds grew during the load.
-      if (this.traceInfo.end > end) this.scheduleMinimapReload();
     }, MINIMAP_RELOAD_INTERVAL_MS);
   }
 
