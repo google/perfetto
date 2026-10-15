@@ -29,6 +29,21 @@
   background: var(--pf-color-background);
   color: var(--pf-color-text);
 
+  &__header {
+    // An implicit row above all others: it ends at the first explicit line.
+    grid-row-end: 1;
+    grid-column: 1 / -1;
+
+    // Above the topbar (3), the sidebar and the loading bar (up to 10), so that
+    // popouts of the header overlay them; below modal dialogs (99).
+    position: relative;
+    z-index: 11;
+
+    // One row per item.
+    display: flex;
+    flex-direction: column;
+  }
+
   &__loading {
     grid-area: loading;
   }

@@ -62,6 +62,7 @@ export class UiMain implements m.ClassComponent {
       taskTracker.hasPendingTasks();
 
     return m('main.pf-ui-main', [
+      this.renderHeader(app),
       m(Sidebar, {app}),
       m(Topbar, {trace}),
       m(LinearProgress, {
@@ -80,6 +81,18 @@ export class UiMain implements m.ClassComponent {
       showStatusBarFlag.get() && renderStatusBar(app),
       app.perfDebugging.renderPerfStats(),
     ]);
+  }
+
+  // Renders nothing without header items, so that the layout stays the same.
+  private renderHeader(app: AppImpl): m.Children {
+    const items = app.header.items;
+    if (items.size === 0) return undefined;
+
+    // Keyed, so that removing an item keeps the state of the others.
+    return m(
+      '.pf-ui-main__header',
+      Array.from(items, ([key, item]) => m.fragment({key}, [item.render()])),
+    );
   }
 
   oncreate({dom}: m.VnodeDOM) {
