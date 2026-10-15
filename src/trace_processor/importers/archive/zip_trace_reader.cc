@@ -74,6 +74,7 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
   // send them to the tokenizer.
   std::vector<uint8_t> buffer;
   std::map<ArchiveEntry, File> ordered_files;
+  const auto& importers = *context_->trace_importer_registry;
   for (size_t i = 0; i < files.size(); ++i) {
     util::ZipFile& zip_file = files[i];
     // Ignore hidden files/directories (e.g. macOS "__MACOSX/._" resource forks
@@ -86,13 +87,20 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
     context_->trace_file_tracker->SetSize(id, zip_file.compressed_size());
     RETURN_IF_ERROR(files[i].Decompress(&buffer));
     TraceBlobView data(TraceBlob::CopyFrom(buffer.data(), buffer.size()));
-    const auto& importers = *context_->trace_importer_registry;
     TraceImporterId type = importers.Guess(data.data(), data.size());
     ArchiveEntry entry{zip_file.name(), i, type,
                        ArchiveEntry::ComputePriority(type, importers)};
     ordered_files.emplace(entry, File{id, std::move(data)});
   }
 
+  // OnPushDataToSorter() is end-of-input for a reader: the proto reader
+  // retries its clock-deferred packets there and drops the ones it still
+  // cannot resolve. Parse every member first and only then signal it to each,
+  // as TraceProcessorImpl does for a single file, so that a member can resolve
+  // against ClockSnapshots carried by a member read after it. The manifest is
+  // the exception: it is applied in OnPushDataToSorter() and configures how
+  // the other members are parsed, so it is signalled right away (it sorts
+  // first, see ArchiveEntry).
   for (auto& file : ordered_files) {
     auto chunk_reader =
         std::make_unique<ForwardingTraceParser>(context_, file.second.id);
@@ -100,10 +108,17 @@ base::Status ZipTraceReader::OnPushDataToSorter() {
     parsers_.push_back(std::move(chunk_reader));
 
     RETURN_IF_ERROR(parser.Parse(std::move(file.second.data)));
-    RETURN_IF_ERROR(parser.OnPushDataToSorter());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
+    if (importers.Find(file.first.trace_type)->is_manifest) {
+      RETURN_IF_ERROR(parser.OnPushDataToSorter());
+    }
+  }
+  for (auto& parser : parsers_) {
+    if (!importers.Find(parser->trace_type())->is_manifest) {
+      RETURN_IF_ERROR(parser->OnPushDataToSorter());
+    }
   }
 
   return base::OkStatus();
