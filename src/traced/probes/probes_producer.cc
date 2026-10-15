@@ -45,6 +45,7 @@
 #include "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
 #include "src/traced/probes/android_system_property/android_system_property_data_source.h"
+#include "src/traced/probes/cgroup/cgroup_data_source.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/frozen_ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -356,6 +357,15 @@ ProbesProducer::CreateDSInstance<JournaldDataSource>(
                                               CreateTraceWriter(config));
 }
 
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<CgroupDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  return std::make_unique<CgroupDataSource>(config, task_runner_, session_id,
+                                            CreateTraceWriter(config));
+}
+
 // Another anonymous namespace. This cannot be moved into the anonymous
 // namespace on top (it would fail to compile), because the CreateDSInstance
 // methods need to be fully declared before.
@@ -382,6 +392,10 @@ constexpr const DataSourceTraits kAllDataSources[] = {
     Ds<AndroidLogDataSource>(),
     Ds<AndroidPowerDataSource>(),
     Ds<AndroidSystemPropertyDataSource>(),
+// Only android's cgroup hierarchy is supported for now.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    Ds<CgroupDataSource>(),
+#endif
     Ds<FrozenFtraceDataSource>(),
     Ds<FtraceDataSource>(),
     Ds<InitialDisplayStateDataSource>(),

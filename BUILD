@@ -1279,6 +1279,8 @@ perfetto_cc_library(
             ":src_kallsyms_kallsyms",
             ":src_kernel_utils_kernel_wakelock_errors",
             ":src_kernel_utils_syscall_table",
+            ":src_profiling_common_proc_cmdline",
+            ":src_profiling_common_proc_utils",
             ":src_protozero_proto_ring_buffer",
             ":src_traced_probes_android_aflags_android_aflags",
             ":src_traced_probes_android_cpu_per_uid_android_cpu_per_uid",
@@ -1286,6 +1288,10 @@ perfetto_cc_library(
             ":src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
             ":src_traced_probes_android_log_android_log",
             ":src_traced_probes_android_system_property_android_system_property",
+            ":src_traced_probes_cgroup_android_cgroups",
+            ":src_traced_probes_cgroup_cgroup",
+            ":src_traced_probes_cgroup_memcg_fields",
+            ":src_traced_probes_cgroup_memcg_reader",
             ":src_traced_probes_common_common",
             ":src_traced_probes_data_source",
             ":src_traced_probes_filesystem_filesystem",
@@ -2247,6 +2253,24 @@ perfetto_filegroup(
     srcs = [
         "src/perfetto_sql/intrinsic_macro_expansion.cc",
         "src/perfetto_sql/intrinsic_macro_expansion.h",
+    ],
+)
+
+# GN target: //src/profiling/common:proc_cmdline
+perfetto_filegroup(
+    name = "src_profiling_common_proc_cmdline",
+    srcs = [
+        "src/profiling/common/proc_cmdline.cc",
+        "src/profiling/common/proc_cmdline.h",
+    ],
+)
+
+# GN target: //src/profiling/common:proc_utils
+perfetto_filegroup(
+    name = "src_profiling_common_proc_utils",
+    srcs = [
+        "src/profiling/common/proc_utils.cc",
+        "src/profiling/common/proc_utils.h",
     ],
 )
 
@@ -6803,6 +6827,42 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/android_system_property/android_system_property_data_source.cc",
         "src/traced/probes/android_system_property/android_system_property_data_source.h",
+    ],
+)
+
+# GN target: //src/traced/probes/cgroup:android_cgroups
+perfetto_filegroup(
+    name = "src_traced_probes_cgroup_android_cgroups",
+    srcs = [
+        "src/traced/probes/cgroup/android_cgroups.cc",
+        "src/traced/probes/cgroup/android_cgroups.h",
+    ],
+)
+
+# GN target: //src/traced/probes/cgroup:cgroup
+perfetto_filegroup(
+    name = "src_traced_probes_cgroup_cgroup",
+    srcs = [
+        "src/traced/probes/cgroup/cgroup_data_source.cc",
+        "src/traced/probes/cgroup/cgroup_data_source.h",
+    ],
+)
+
+# GN target: //src/traced/probes/cgroup:memcg_fields
+perfetto_filegroup(
+    name = "src_traced_probes_cgroup_memcg_fields",
+    srcs = [
+        "src/traced/probes/cgroup/memcg_fields.cc",
+        "src/traced/probes/cgroup/memcg_fields.h",
+    ],
+)
+
+# GN target: //src/traced/probes/cgroup:memcg_reader
+perfetto_filegroup(
+    name = "src_traced_probes_cgroup_memcg_reader",
+    srcs = [
+        "src/traced/probes/cgroup/memcg_reader.cc",
+        "src/traced/probes/cgroup/memcg_reader.h",
     ],
 )
 
