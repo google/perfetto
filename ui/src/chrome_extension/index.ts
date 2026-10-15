@@ -15,35 +15,38 @@
 import {binaryDecode} from '../base/string_utils';
 import {ChromeTracingController} from './chrome_tracing_controller';
 
-let chromeTraceController: ChromeTracingController | undefined = undefined;
-
 enableOnlyOnPerfettoHost();
 
 // Listen for messages from the perfetto ui.
 // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
 if (globalThis.chrome) {
   chrome.runtime.onConnectExternal.addListener((port) => {
-    chromeTraceController = new ChromeTracingController(port);
-    port.onMessage.addListener(onUIMessage);
+    // Bind one controller to this connection only: every externally
+    // connectable page gets its own controller and its own dispatcher, so a
+    // page can never take over or observe another page's tracing session.
+    const controller = new ChromeTracingController(port);
+    port.onMessage.addListener((message) =>
+      onUIMessage(message, port, controller),
+    );
+    port.onDisconnect.addListener(() => controller.dispose());
   });
 }
 
 function onUIMessage(
   message: {method: string; requestData: string},
   port: chrome.runtime.Port,
+  controller: ChromeTracingController,
 ) {
   if (message.method === 'ExtensionVersion') {
     port.postMessage({version: chrome.runtime.getManifest().version});
     return;
   }
-  console.assert(chromeTraceController !== undefined);
-  if (!chromeTraceController) return;
   // ChromeExtensionConsumerPort sends the request data as string because
   // chrome.runtime.port doesn't support ArrayBuffers.
   const requestDataArray: Uint8Array = message.requestData
     ? binaryDecode(message.requestData)
     : new Uint8Array();
-  chromeTraceController.handleCommand(message.method, requestDataArray);
+  controller.handleCommand(message.method, requestDataArray);
 }
 
 function enableOnlyOnPerfettoHost() {

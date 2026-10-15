@@ -22,15 +22,37 @@ export class DevToolsSocket implements LikeSocket {
   private closeCallback: Function = () => {};
   private target: chrome.debugger.Debuggee | undefined;
 
+  // chrome.debugger.onEvent / onDetach are extension-wide events: every
+  // listener receives every debugger event for the lifetime of the service
+  // worker. Keeping the bound handlers in fields lets dispose() unregister
+  // them; an anonymous inline listener could never be removed.
+  private readonly onEvent = (
+    _source: chrome.debugger.Debuggee,
+    method: string,
+    params?: object,
+  ): void => {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    if (this.messageCallback) {
+      const msg: JsonRpc2.Notification = {method, params};
+      this.messageCallback(JSON.stringify(msg));
+    }
+  };
+
+  private readonly boundOnDetach = this.onDetach.bind(this);
+
   constructor() {
-    chrome.debugger.onDetach.addListener(this.onDetach.bind(this));
-    chrome.debugger.onEvent.addListener((_source, method, params) => {
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (this.messageCallback) {
-        const msg: JsonRpc2.Notification = {method, params};
-        this.messageCallback(JSON.stringify(msg));
-      }
-    });
+    chrome.debugger.onDetach.addListener(this.boundOnDetach);
+    chrome.debugger.onEvent.addListener(this.onEvent);
+  }
+
+  // Called when the owning port disconnects: release the debugger attach and
+  // the extension-wide event listeners, otherwise every external connection
+  // leaks two listeners plus the controller closure for the rest of the
+  // service worker's lifetime.
+  dispose(): void {
+    chrome.debugger.onEvent.removeListener(this.onEvent);
+    chrome.debugger.onDetach.removeListener(this.boundOnDetach);
+    this.detach();
   }
 
   send(message: string): void {
@@ -96,8 +118,11 @@ export class DevToolsSocket implements LikeSocket {
     });
   }
 
-  onDetach(_source: chrome.debugger.Debuggee, _reason: string) {
-    if (_source === this.target) {
+  onDetach(source: chrome.debugger.Debuggee, _reason: string) {
+    // onDetach delivers a freshly deserialized Debuggee object, so reference
+    // equality against the object passed to attach() never matches and the
+    // close callback (state reset) would silently never run. Compare ids.
+    if (this.target !== undefined && source.targetId === this.target.targetId) {
       this.target = undefined;
       this.closeCallback();
     }
