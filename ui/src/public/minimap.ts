@@ -25,6 +25,8 @@ export type MinimapRow = MinimapCell[];
 
 export interface MinimapContentProvider {
   readonly priority: number;
+
+  // May be called again, e.g. when the trace grows, but never concurrently.
   getData(
     timeSpan: HighPrecisionTimeSpan,
     resolution: duration,

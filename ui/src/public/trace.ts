@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type {Migrate, Store} from '../base/store';
+import type {time} from '../base/time';
 import type {TraceInfo} from './trace_info';
 import type {Engine} from '../trace_processor/engine';
 import type {App} from './app';
@@ -66,6 +67,12 @@ export interface Trace extends App {
   // Scrolls to the given track and/or time. Does NOT change the current
   // selection.
   scrollTo(args: ScrollToArgs): void;
+
+  // Moves the end of the trace bounds (traceInfo.end) forward, e.g. for live
+  // traces whose content keeps growing after the trace has been loaded. The
+  // bounds never shrink. Does not affect trace_end() in SQL. The minimap
+  // reloads for the new bounds, at most every few seconds.
+  extendTraceEnd(end: time): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(id: string, migrate: Migrate<T>): Store<T>;
