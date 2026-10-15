@@ -58,7 +58,7 @@ void sort_internal::SortKeyedIndices(KeyedIndex* begin, KeyedIndex* end) {
   // Comparison sorts nearly sorted input faster than radix passes do. Pairs
   // at scattered positions estimate how sorted it is without reading it all;
   // evenly spaced ones could line up with a pattern in the input.
-  constexpr size_t kSamples = 1024;
+  constexpr size_t kSamples = 256;
   size_t descents = 0;
   for (uint64_t s = 1; s <= kSamples; ++s) {
     size_t i =
