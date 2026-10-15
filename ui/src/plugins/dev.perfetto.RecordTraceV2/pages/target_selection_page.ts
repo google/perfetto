@@ -154,14 +154,6 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
           key: `${this.objToId.getKey(recMgr.currentProvider)}-${recMgr.currentPlatform}`,
         }),
       ],
-
-      recMgr.currentTarget && [
-        m(TargetDetails, {
-          recMgr,
-          target: recMgr.currentTarget,
-          key: `${this.objToId.getKey(recMgr.currentTarget)}-${recMgr.currentPlatform}`,
-        }),
-      ],
     ];
   }
 }
@@ -623,6 +615,13 @@ class TargetSelector implements m.ClassComponent<TargetSelectorAttrs> {
             },
           }),
       ),
+      recMgr.currentTarget && [
+        m(TargetDetails, {
+          recMgr,
+          target: recMgr.currentTarget,
+          key: this.targetIdMap.getKey(recMgr.currentTarget),
+        }),
+      ],
     ];
   }
 
