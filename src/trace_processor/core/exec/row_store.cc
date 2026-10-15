@@ -101,9 +101,9 @@ uint32_t RowStore::View(RowBatch* out, uint32_t offset, uint32_t count) const {
   return count;
 }
 
-uint32_t RowStore::View(RowBatch* out,
-                        Span<const uint32_t> rows,
-                        Context& context) {
+uint32_t RowStore::Gather(RowBatch* out,
+                          Span<const uint32_t> rows,
+                          Context& context) {
   out->Reset();
   auto count =
       static_cast<uint32_t>(std::min<size_t>(rows.size(), kMaxBatchRows));
