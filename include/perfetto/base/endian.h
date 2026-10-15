@@ -273,6 +273,19 @@ inline double LEToHost(double x) {
   return LEDoubleToHost(x);
 }
 
+template <typename T>
+inline T LoadLE(const void* p) {
+  T v;
+  memcpy(&v, p, sizeof(v));
+  return LEToHost(v);
+}
+
+template <typename T>
+inline void StoreLE(void* p, T v) {
+  v = HostToLE(v);
+  memcpy(p, &v, sizeof(v));
+}
+
 }  // namespace base
 }  // namespace perfetto
 
