@@ -303,11 +303,11 @@ TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
   // ts and dur are converted to Int64. So is cpu, because it has a different
   // integer type in each dataframe.
   EXPECT_EQ(PhysicalPlanToString(**plan),
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "GroupedSort(#2; #0)\n"
-            "side: DataframeScan | AssertType(#0 to Int64) | "
-            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "side: DataframeScan | AssertType(#2 to Int64) | "
+            "AssertType(#0 to Int64) | AssertType(#1 to Int64) | "
             "GroupedSort(#2; #0)\n"
             "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
             "keys: #2, groups: #3)");

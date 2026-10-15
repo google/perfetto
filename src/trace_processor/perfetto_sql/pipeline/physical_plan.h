@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
@@ -178,6 +179,14 @@ class Lowering {
   // Groups rows by `keys` and returns the position of a column holding each
   // row's group number.
   uint32_t RequireGroupNumbers(const std::vector<ColumnId>& keys);
+
+  // Prepares the rows as an interval input: Int64 `ts` and `dur`, grouped by
+  // `keys` with group numbers, and sorted by `ts` within each group. Returns
+  // where the operator finds them.
+  core::exec::IntervalLaneSpec RequireIntervalLanes(
+      ColumnId ts,
+      ColumnId dur,
+      const std::vector<ColumnId>& keys);
 
   // Use before an operator that works best on full batches. Adds a
   // CombineBatches only if an earlier step may have made small batches.
