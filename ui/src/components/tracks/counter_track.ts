@@ -796,6 +796,18 @@ export class CounterTrack implements TrackRenderer {
       [yMin, yMax],
     );
 
+    // A constant series has an empty range, which would divide by zero when
+    // scaling values to pixels. Fall back to a range including zero instead.
+    if (yMin === yMax) {
+      if (yMax > 0) {
+        yMin = 0;
+      } else if (yMin < 0) {
+        yMax = 0;
+      } else {
+        yMax = 1;
+      }
+    }
+
     return {
       yMin,
       yMax,
