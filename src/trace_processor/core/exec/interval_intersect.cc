@@ -301,7 +301,8 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
   bounds.AddTo(&out);
   for (uint32_t i = 0; i < count; ++i) {
     const uint32_t* rows = s.scratch.gather_rows[i].data();
-    s.lanes[i]->rows().View(&s.gathered[i], {rows, rows + serving}, *s.context);
+    s.lanes[i]->rows().Gather(&s.gathered[i], {rows, rows + serving},
+                              *s.context);
     for (uint32_t c = 0; c < s.gathered[i].column_count(); ++c) {
       out.AddColumn(s.gathered[i].column(c), s.gathered[i].buffer(c));
     }

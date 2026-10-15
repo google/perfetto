@@ -472,7 +472,7 @@ OpResult IntervalFlatten::Yield(RowBatch& out,
   s.bounds.AddTo(&out);
   if (keyed_) {
     const uint32_t* rows = s.segment_key_rows.data();
-    s.keys.View(&s.served_keys, {rows, rows + count}, *s.context);
+    s.keys.Gather(&s.served_keys, {rows, rows + count}, *s.context);
     for (uint32_t k = 0; k < s.served_keys.column_count(); ++k) {
       out.AddColumn(s.served_keys.column(k), s.served_keys.buffer(k));
     }

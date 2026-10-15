@@ -58,7 +58,7 @@ class SortedRows {
 
   // Copies up to kMaxBatchRows rows into `out`, starting at position `at` in
   // the order. Returns the number of rows copied.
-  uint32_t View(RowBatch* out, uint32_t at, Context& context);
+  uint32_t Gather(RowBatch* out, uint32_t at, Context& context);
   void Clear();
 
  private:

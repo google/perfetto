@@ -307,12 +307,12 @@ OpResult IntervalFillGaps::ServeFillers(RowBatch& out, State& s) const {
     s.rows[i] = fillers[i].id;
   }
   const uint32_t* rows = s.rows.data();
-  s.background.rows().View(&s.gathered, {rows, rows + count}, *s.context);
+  s.background.rows().Gather(&s.gathered, {rows, rows + count}, *s.context);
   if (broadcast_) {
     for (uint32_t i = 0; i < count; ++i) {
       s.rows[i] = fillers[i].lane;
     }
-    s.keys.View(&s.gathered_keys, {rows, rows + count}, *s.context);
+    s.keys.Gather(&s.gathered_keys, {rows, rows + count}, *s.context);
   }
 
   for (size_t i = 0; i < spec_.outputs.size(); ++i) {
