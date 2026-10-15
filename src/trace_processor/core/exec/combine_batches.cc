@@ -30,7 +30,6 @@ CombineBatches::State::~State() = default;
 
 void CombineBatches::State::Reset() {
   buffered.Clear();
-  flushed = false;
 }
 
 std::unique_ptr<OperatorState> CombineBatches::MakeState(
@@ -45,12 +44,10 @@ OpResult CombineBatches::Execute(const RowBatch& in,
   bool large = in.size() > kSmallBatchRows;
   if (large || s.buffered.size() + in.size() > kTargetBatchRows) {
     // Output the buffered rows first to keep the row order.
-    if (s.buffered.size() && !s.flushed) {
+    if (s.buffered.size()) {
       s.buffered.Take(out);
-      s.flushed = true;
       return OpResult::kHaveMoreOutput;
     }
-    s.flushed = false;
     if (large) {
       out.CopyFrom(in);
       return OpResult::kNeedMoreInput;

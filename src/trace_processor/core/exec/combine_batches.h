@@ -59,10 +59,6 @@ class CombineBatches final : public Operator {
     // The buffered rows.
     BatchBuffer buffered;
 
-    // Whether the buffered rows were already output for the current input
-    // batch.
-    bool flushed = false;
-
     // Provides the buffers combined rows are copied into.
     Context* context;
   };
