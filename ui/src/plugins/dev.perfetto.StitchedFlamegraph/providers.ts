@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {CPU_SAMPLES_PROVIDER} from './cpu_samples';
 import {FLOWS_PROVIDER} from './flows';
 import type {StitchedMetricProvider} from './metrics';
 
@@ -19,4 +20,5 @@ import type {StitchedMetricProvider} from './metrics';
 // are listed in the measure picker.
 export const STITCHED_PROVIDERS: ReadonlyArray<StitchedMetricProvider> = [
   FLOWS_PROVIDER,
+  CPU_SAMPLES_PROVIDER,
 ];
