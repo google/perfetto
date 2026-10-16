@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {HSLColor} from '../../base/color';
+import {sqliteString} from '../../base/string_utils';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
   getColorForSlice,
@@ -138,7 +139,8 @@ export default class ProcessState implements PerfettoPlugin {
   }
 
   // One counter per proc state, showing how many processes were in that state
-  // at any point in time. Ordered by declaration order in the proto.
+  // at any point in time, ordered by declaration order in the proto, then one
+  // per freezer state.
   private async createConcurrencyTracks(ctx: Trace): Promise<TrackNode> {
     const summary = new TrackNode({
       name: 'By state',
@@ -162,9 +164,49 @@ export default class ProcessState implements PerfettoPlugin {
       const uri = `${ProcessState.id}#count.${state}`;
       ctx.tracks.registerTrack({
         uri,
-        renderer: new ProcessStateCountTrack(ctx, uri, state),
+        renderer: new ProcessStateCountTrack(ctx, uri, {
+          label: `in ${state}`,
+          concurrency: `
+            SELECT * FROM _android_process_state_concurrency
+            WHERE state = ${sqliteString(state)}
+          `,
+          members: () => `state = ${sqliteString(state)}`,
+        }),
         tags: {type: TAG_COUNT_TRACK, state},
         description: `Number of processes concurrently in ${state}.`,
+      });
+      summary.addChildLast(new TrackNode({uri, name: state}));
+    }
+
+    // Only long memory traces carry freezer events.
+    const freezerStates = await ctx.engine.query(`
+      SELECT state
+      FROM _android_process_freezer_concurrency
+      GROUP BY state
+      HAVING max(concurrency) > 0
+      ORDER BY state
+    `);
+
+    for (const it = freezerStates.iter({state: STR}); it.valid(); it.next()) {
+      const {state} = it;
+      const uri = `${ProcessState.id}#count.${state}`;
+      ctx.tracks.registerTrack({
+        uri,
+        renderer: new ProcessStateCountTrack(ctx, uri, {
+          label: state.toLowerCase(),
+          concurrency: `
+            SELECT * FROM _android_process_freezer_concurrency
+            WHERE state = ${sqliteString(state)}
+          `,
+          members: (ts) => `
+            upid IN (
+              SELECT upid FROM _android_process_freezer_intervals
+              WHERE state = ${sqliteString(state)}
+                AND ts <= ${ts} AND ts + dur > ${ts}
+            )
+          `,
+        }),
+        description: `Number of processes concurrently ${state.toLowerCase()}.`,
       });
       summary.addChildLast(new TrackNode({uri, name: state}));
     }
