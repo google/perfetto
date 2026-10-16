@@ -216,12 +216,12 @@ void AndroidProcessStateTracker::ParseFreezerDump(protozero::ConstBytes blob) {
     }
     FreezerStateValues v;
     v.upid = *opt_upid;
-    // If the process is frozen in the dump, has_frozen_dur_ms() is true and
-    // unfreeze_reason is left as std::nullopt so the initial row has NULL.
-    // Otherwise the process is unfrozen; android.util.proto.ProtoOutputStream
-    // omits 0 values during serialization, so an unset unfreeze_reason
-    // represents UFR_NONE (0).
-    if (!rec.has_frozen_dur_ms()) {
+    // If the process is unfrozen in the dump, has_unfrozen_dur_ms() is true.
+    // Note: android.util.proto.ProtoOutputStream omits 0 values during
+    // serialization, so an unset unfreeze_reason on an unfrozen process
+    // represents UFR_NONE (0). When the process is frozen, unfreeze_reason is
+    // left as std::nullopt so the initial row has NULL.
+    if (rec.has_unfrozen_dur_ms()) {
       v.unfreeze_reason =
           rec.has_unfreeze_reason()
               ? static_cast<int32_t>(rec.unfreeze_reason())

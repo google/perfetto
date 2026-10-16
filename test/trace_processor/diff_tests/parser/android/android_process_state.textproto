@@ -244,7 +244,7 @@ packet {
       uid: 10007
       unfrozen_dur_ms: 50
     }
-    # PID 800: Frozen dump-only freezer record (has_frozen_dur_ms is true, so unfreeze_reason is NULL).
+    # PID 800: Frozen dump-only freezer record (has_unfrozen_dur_ms is false, so unfreeze_reason is NULL).
     record {
       pid: 800
       uid: 10008
