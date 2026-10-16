@@ -826,6 +826,23 @@ class TestApiUnixSession(unittest.TestCase):
       # usable for the next query.
       self.assertEqual(next(tp.query('select 1 as x')).x, 1)
 
+  def test_metric(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      startups = tp.metric(['android_startup']).android_startup.startup
+      self.assertEqual(
+          [s.package_name for s in startups],
+          ['com.android.chrome', 'com.google.android.GoogleCamera'])
+      self.assertEqual(startups[0].startup_type, 'cold')
+      self.assertEqual(startups[0].to_first_frame.dur_ns, 373584672)
+
+  def test_metric_error_then_recovers(self):
+    with TraceProcessor(remote=self.SESSION_NAME) as tp:
+      with self.assertRaisesRegex(TraceProcessorException, 'Unknown metric'):
+        tp.metric(['no_such_metric'])
+      # The error comes back inside the single reply message, leaving the
+      # connection usable for the next request.
+      self.assertEqual(next(tp.query('select 1 as x')).x, 1)
+
   def test_missing_session(self):
     with self.assertRaisesRegex(TraceProcessorException,
                                 'No live trace processor session') as ctx:
