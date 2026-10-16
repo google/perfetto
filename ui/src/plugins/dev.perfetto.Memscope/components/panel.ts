@@ -14,6 +14,7 @@
 
 import './panel.scss';
 import m from 'mithril';
+import {HelpTooltip} from './help_tooltip';
 
 // Panel — the workhorse "card" of the Memscope UI: a bordered, raised surface
 // that groups a titled header with a body of content (a chart, a table, a strip
@@ -39,6 +40,9 @@ export namespace Panel {
   export interface HeaderAttrs {
     readonly title: m.Children;
     readonly subtitle?: m.Children;
+    // Help text revealed in a tooltip on a question-mark icon next to the
+    // title. Include where the data comes from (probe / proc file / event).
+    readonly help?: m.Children;
     readonly controls?: m.Children;
   }
 
@@ -51,6 +55,7 @@ export namespace Panel {
         m(
           '.pf-memscope-panel__title-row',
           m('h2.pf-memscope-panel__title', attrs.title),
+          attrs.help !== undefined && m(HelpTooltip, {content: attrs.help}),
           attrs.controls !== undefined &&
             m('.pf-memscope-panel__controls', attrs.controls),
         ),

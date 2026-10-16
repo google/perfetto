@@ -14,6 +14,7 @@
 
 import './billboard.scss';
 import m from 'mithril';
+import {HelpTooltip} from './help_tooltip';
 
 // Billboard — a single "stat card" that surfaces one headline number (value +
 // unit) with a label, an optional description, and an optional delta badge that
@@ -70,8 +71,10 @@ export class Billboard implements m.ClassComponent<BillboardAttrs> {
         m('.pf-memscope-billboard__unit', unit),
         deltaEl,
       ]),
-      m('.pf-memscope-billboard__label', label),
-      desc !== undefined && m('.pf-memscope-billboard__desc', desc),
+      m('.pf-memscope-billboard__label-row', [
+        m('.pf-memscope-billboard__label', label),
+        desc !== undefined && m(HelpTooltip, {content: desc}),
+      ]),
     ]);
   }
 }
