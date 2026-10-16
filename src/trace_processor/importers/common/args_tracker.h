@@ -307,13 +307,15 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_log_table(), id);
   }
 
- private:
+  // Generic overload for tables which are not owned by TraceStorage (e.g.
+  // tables owned by plugins). |T| must have an arg_set_id column.
   template <typename T>
   BoundInserter AddArgsTo(T* table, typename T::Id id) {
     uint32_t row = (*table)[id].ToRowNumber().row_number();
     return Bind(&table->dataframe(), T::ColumnIndex::arg_set_id, row, id.value);
   }
 
+ private:
   ArgsInserter Bind(dataframe::Dataframe* df,
                     uint32_t col,
                     uint32_t row,

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt32
@@ -37,10 +38,14 @@ ANDROID_PROCESS_STATE_TABLE = Table(
         C('upid', CppTableId(PROCESS_TABLE), cpp_access=CppAccess.READ),
         C('proc_state', CppOptional(CppString())),
         C('oom_score', CppOptional(CppInt32())),
-        C('capability_flags', CppOptional(CppInt32())),
         C('process_group', CppOptional(CppString())),
         C('reason', CppOptional(CppString())),
         C('seq_id', CppOptional(CppInt64())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C('is_initial', CppUint32(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
@@ -55,14 +60,17 @@ ANDROID_PROCESS_STATE_TABLE = Table(
                 'Process state enum name or value.',
             'oom_score':
                 'OOM score.',
-            'capability_flags':
-                'Capability flags.',
             'process_group':
                 'Process group enum name or value.',
             'reason':
                 'Reason for state change (if from track event).',
             'seq_id':
                 'OOM adjuster sequence ID (if from track event).',
+            'arg_set_id':
+                ColumnDoc(
+                    'Args of this row: capability_flags[i] holds the name of '
+                    'each set capability flag.',
+                    joinable='args.arg_set_id'),
             'is_initial':
                 '1 for synthesized initial state row, 0 for change event.',
         },

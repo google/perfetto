@@ -16,11 +16,20 @@
 
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
 
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
@@ -49,7 +58,9 @@ AndroidProcessStateTracker::AndroidProcessStateTracker(
     tables::AndroidFreezerStateTable* freezer_state_table)
     : context_(context),
       process_state_table_(process_state_table),
-      freezer_state_table_(freezer_state_table) {}
+      freezer_state_table_(freezer_state_table),
+      capability_flags_key_id_(
+          context->storage->InternString("capability_flags")) {}
 
 // The track-event stream only emits delta transitions (prev -> cur). To
 // reconstruct each process's state at the start of the trace, we record the
@@ -109,9 +120,6 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_cur_oom_score()) {
     row.oom_score = p.cur_oom_score();
   }
-  if (p.has_cur_capability_flags()) {
-    row.capability_flags = p.cur_capability_flags();
-  }
   if (p.has_cur_process_group()) {
     row.process_group = InternEnum(context_, process_group_cache_,
                                    ".com.android.internal.ProcessGroup",
@@ -125,7 +133,10 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_seq_id()) {
     row.seq_id = p.seq_id();
   }
-  process_state_table_->Insert(row);
+  auto id = process_state_table_->Insert(row).id;
+  if (p.has_cur_capability_flags()) {
+    AddCapabilityFlagsArgs(id, p.cur_capability_flags());
+  }
 }
 
 void AndroidProcessStateTracker::ParseProcessStateDump(
@@ -279,15 +290,47 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
   if (v.oom_score.has_value()) {
     row.oom_score = *v.oom_score;
   }
-  if (v.capability_flags.has_value()) {
-    row.capability_flags = *v.capability_flags;
-  }
   if (v.process_group.has_value()) {
     row.process_group =
         InternEnum(context_, process_group_cache_,
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
-  process_state_table_->Insert(row);
+  auto id = process_state_table_->Insert(row).id;
+  if (v.capability_flags.has_value()) {
+    AddCapabilityFlagsArgs(id, *v.capability_flags);
+  }
+}
+
+// Mirrors ProtoToArgsParser::AddFlags so that the args match the ones a
+// (flags_enum)-annotated field gets when reflected into args: one string arg
+// per set flag under "capability_flags[i]", with the bits matching no flag
+// emitted last as a hex string.
+void AndroidProcessStateTracker::AddCapabilityFlagsArgs(
+    tables::AndroidProcessStateTable::Id id,
+    int32_t mask) {
+  flag_views_.clear();
+  // Zero-extend so bit 31 stays 0x80000000 rather than sign-extending.
+  int64_t unmatched = context_->descriptor_pool_->FlagSetToViews(
+      capability_flags_cache_, ".com.android.internal.ProcessCapabilityEnum",
+      static_cast<int64_t>(static_cast<uint32_t>(mask)), &flag_views_);
+  if (flag_views_.empty() && unmatched == 0) {
+    return;
+  }
+  auto inserter = ArgsTracker(context_).AddArgsTo(process_state_table_, id);
+  size_t i = 0;
+  auto add = [&](base::StringView value) {
+    base::StackString<32> key("capability_flags[%zu]", i++);
+    inserter.AddArg(capability_flags_key_id_,
+                    context_->storage->InternString(key.string_view()),
+                    Variadic::String(context_->storage->InternString(value)));
+  };
+  for (std::string_view flag : flag_views_) {
+    add(base::StringView(flag.data(), flag.size()));
+  }
+  if (unmatched != 0) {
+    base::StackString<20> hex("0x%" PRIx64, static_cast<uint64_t>(unmatched));
+    add(hex.string_view());
+  }
 }
 
 void AndroidProcessStateTracker::EmitInitialFreezerRow(
