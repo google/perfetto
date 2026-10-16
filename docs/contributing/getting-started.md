@@ -108,8 +108,8 @@ Please note our project follows the [Google C++ style](https://google.github.io/
 
 #### External contributors
 
-Before submitting a pull request, newcomers **must** first discuss the issue and potential fixes with maintainers on the corresponding [GitHub issue](https://github.com/google/perfetto/issues).
-Do not open unsolicited PRs without prior discussion on the issue.
+Before submitting a pull request, newcomers **must** first discuss the proposed changes and potential fixes with maintainers by opening or commenting on a [GitHub issue](https://github.com/google/perfetto/issues).
+Do not open unsolicited PRs without prior discussion.
 Contributors must be human (no automated or bot-driven PRs), able to engage in discussion, and willing to test their changes on real hardware.
 
 Please contribute the same way as you would to any other GitHub repository.
