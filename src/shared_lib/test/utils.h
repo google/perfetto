@@ -24,6 +24,7 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -86,6 +87,10 @@ class TracingSession {
       clear_period_ms_ = clear_period_ms;
       return *this;
     }
+    Builder& set_v2_probability(uint32_t probability) {
+      v2_probability_ = probability;
+      return *this;
+    }
     Builder& enable_protovm_config() {
       enable_protovm_config_ = true;
       return *this;
@@ -100,6 +105,7 @@ class TracingSession {
     std::vector<std::string> disabled_categories_;
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
+    std::optional<uint32_t> v2_probability_;
   };
 
   static TracingSession Adopt(struct PerfettoTracingSessionImpl*);

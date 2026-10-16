@@ -32,9 +32,6 @@ class InteractiveSubcommand : public Subcommand {
   const char* detailed_help() const override;
   std::vector<FlagSpec> GetFlags() override;
   base::Status Run(const SubcommandContext& ctx) override;
-
- private:
-  bool wide_ = false;
 };
 
 }  // namespace perfetto::trace_processor::shell

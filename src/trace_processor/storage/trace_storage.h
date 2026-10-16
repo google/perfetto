@@ -720,6 +720,14 @@ class TraceStorage {
     return mutable_table<tables::AggregateSampleTable>();
   }
 
+  const tables::VulkanDebugNamesTable& vulkan_debug_names_table() const {
+    return table<tables::VulkanDebugNamesTable>();
+  }
+
+  tables::VulkanDebugNamesTable* mutable_vulkan_debug_names_table() {
+    return mutable_table<tables::VulkanDebugNamesTable>();
+  }
+
   const tables::VulkanMemoryAllocationsTable& vulkan_memory_allocations_table()
       const {
     return table<tables::VulkanMemoryAllocationsTable>();

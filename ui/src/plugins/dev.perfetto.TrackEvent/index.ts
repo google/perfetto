@@ -33,7 +33,6 @@ import {getMachineCount, getTrackName} from '../../public/utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {TREE_EXPLORER_STATE_SCHEMA} from '../../widgets/tree_explorer';
 import {CallstackDetailsSection} from '../dev.perfetto.TraceProcessorTrack/callstack_details_section';
-import type {Store} from '../../base/store';
 import {z} from 'zod';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import ThreadPlugin from '../dev.perfetto.Thread';
@@ -52,11 +51,9 @@ function createTrackEventDetailsPanel(trace: Trace) {
     });
 }
 
-const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
+export const TRACK_EVENT_PLUGIN_STATE_SCHEMA = z.object({
   areaSelectionFlamegraphState: TREE_EXPLORER_STATE_SCHEMA.optional(),
 });
-
-type TrackEventPluginState = z.infer<typeof TRACK_EVENT_PLUGIN_STATE_SCHEMA>;
 
 export default class TrackEventPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackEvent';
@@ -68,18 +65,14 @@ export default class TrackEventPlugin implements PerfettoPlugin {
   ];
 
   private parentTrackNodes = new Map<string, TrackNode>();
-  private store?: Store<TrackEventPluginState>;
-
-  private migrateTrackEventPluginState(init: unknown): TrackEventPluginState {
-    const result = TRACK_EVENT_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
-  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const numMachines = await getMachineCount(ctx.engine);
-    this.store = ctx.mountStore(TrackEventPlugin.id, (init) =>
-      this.migrateTrackEventPluginState(init),
-    );
+    const storage = ctx.registerStorage({
+      id: TrackEventPlugin.id,
+      schema: TRACK_EVENT_PLUGIN_STATE_SCHEMA,
+      defaultValue: {},
+    });
 
     await ctx.engine.query(`include perfetto module viz.summary.track_event;`);
 
@@ -346,14 +339,15 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       trackIdToTrackNode.set(trackIds[0], node);
     }
 
-    const store = ensureExists(this.store);
     ctx.selection.registerAreaSelectionTab(
       new TrackEventCallstackFlamegraphTab(
         ctx,
-        () => store.state.areaSelectionFlamegraphState,
+        () => storage.get().areaSelectionFlamegraphState,
         (state) => {
-          store.edit((draft) => {
-            draft.areaSelectionFlamegraphState = state;
+          const current = storage.get();
+          storage.set({
+            ...current,
+            areaSelectionFlamegraphState: state,
           });
         },
       ),

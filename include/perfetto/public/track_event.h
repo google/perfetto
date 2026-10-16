@@ -193,13 +193,12 @@ static inline void PerfettoTeRegisteredTrackFillImpl(
     struct PerfettoHeapBuffer* hb,
     struct PerfettoPbMsgWriter* writer,
     uint64_t uuid) {
-  track->impl.descriptor_size =
-      PerfettoStreamWriterGetWrittenSize(&writer->writer);
+  track->impl.descriptor_size = PerfettoPbMsgWriterGetWrittenSize(writer);
   track->impl.descriptor = malloc(track->impl.descriptor_size);
   track->impl.uuid = uuid;
-  PerfettoHeapBufferCopyInto(hb, &writer->writer, track->impl.descriptor,
+  PerfettoHeapBufferCopyInto(hb, writer, track->impl.descriptor,
                              track->impl.descriptor_size);
-  PerfettoHeapBufferDestroy(hb, &writer->writer);
+  PerfettoHeapBufferDestroy(hb, writer);
 }
 
 // Registers a track named `name` with unique `id` and `parent_uuid` into
@@ -216,7 +215,7 @@ static inline void PerfettoTeNamedTrackRegister(
   uint64_t uuid;
   // Build the TrackDescriptor protobuf message.
   struct PerfettoPbMsgWriter writer;
-  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer);
   struct perfetto_protos_TrackDescriptor desc;
   PerfettoPbMsgInit(&desc.msg, &writer);
 
@@ -238,7 +237,7 @@ static inline void PerfettoTeCounterTrackRegister(
     bool is_name_static) {
   uint64_t uuid;
   struct PerfettoPbMsgWriter writer;
-  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer);
   struct perfetto_protos_TrackDescriptor desc;
   PerfettoPbMsgInit(&desc.msg, &writer);
   uuid = PerfettoTeCounterTrackUuid(name, parent_track_uuid);
@@ -290,7 +289,7 @@ static inline void PerfettoTeStateTrackRegister(
     bool is_name_static) {
   uint64_t uuid;
   struct PerfettoPbMsgWriter writer;
-  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer);
   struct perfetto_protos_TrackDescriptor desc;
   PerfettoPbMsgInit(&desc.msg, &writer);
   uuid = PerfettoTeStateTrackUuid(name, parent_track_uuid);
@@ -380,8 +379,7 @@ static inline bool PerfettoTeLlDynCatEnabled(
 static inline void PerfettoTeLlPacketBegin(
     struct PerfettoTeLlIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
-  root->writer.writer =
-      PerfettoDsTracerImplPacketBegin(iterator->impl.ds.tracer);
+  PerfettoDsTracerImplPacketBegin(iterator->impl.ds.tracer, &root->writer);
   PerfettoPbMsgInit(&root->msg.msg, &root->writer);
 }
 
@@ -391,7 +389,7 @@ static inline void PerfettoTeLlPacketEnd(
     struct PerfettoTeLlIterator* iterator,
     struct PerfettoDsRootTracePacket* root) {
   PerfettoPbMsgFinalize(&root->msg.msg);
-  PerfettoDsTracerImplPacketEnd(iterator->impl.ds.tracer, &root->writer.writer);
+  PerfettoDsTracerImplPacketEnd(iterator->impl.ds.tracer, &root->writer);
 }
 
 static inline void PerfettoTeLlFlushPacket(

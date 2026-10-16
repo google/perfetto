@@ -40,21 +40,6 @@ namespace {
 constexpr uint32_t kMinFragmentPayloadSize =
     static_cast<uint32_t>(protozero::proto_utils::kMaxSimpleFieldEncodedSize);
 
-// Ring buffer occupancy at which a publication asks for a drain: the
-// percentage of ring buffer positions that are outstanding.
-//
-// TODO(sashwinbalaji): Expose this in TraceConfig. A later change in this
-// stack adds drain_occupancy_percent. Then use the configured value here.
-constexpr uint32_t kDrainOccupancyPercent = 25;
-
-uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks) {
-  const uint64_t threshold =
-      uint64_t{num_chunks} * kDrainOccupancyPercent / 100;
-  // For small ring buffers, integer division can round the threshold down to
-  // zero.
-  return std::max(1u, static_cast<uint32_t>(threshold));
-}
-
 // Each wait for space requests at most this time. A wait can end early, for
 // example when the reader moves read_pos.
 // SharedRingBufferWriter::WaitForReadPosChange() states the exact guarantees.
@@ -98,8 +83,6 @@ TraceWriterV2Impl::TraceWriterV2Impl(
                           id,
                           target_buffer),
       buffer_exhausted_policy_(policy),
-      drain_occupancy_threshold_(ComputeDrainOccupancyThreshold(
-          ring_buffer_arbiter->ring_buffer()->num_chunks())),
       process_id_(base::GetProcessId()),
       stream_writer_(this),
       cur_packet_(std::make_unique<
@@ -273,7 +256,8 @@ void TraceWriterV2Impl::EndPacketFragment(bool continues_on_next) {
   //   frees that chunk, and the next fragment then needs a new one.
   const uint32_t outstanding_positions =
       ring_buffer_arbiter_->ring_buffer()->LoadNumOutstandingPositionsRelaxed();
-  if (outstanding_positions >= drain_occupancy_threshold_) {
+  if (outstanding_positions >=
+      ring_buffer_arbiter_->drain_occupancy_threshold()) {
     ring_buffer_arbiter_->RequestDrain(
         ProducerRingBufferArbiter::DrainUrgency::kRoutine);
   }

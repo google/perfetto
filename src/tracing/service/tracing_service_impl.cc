@@ -111,11 +111,13 @@
 #include "src/tracing/service/packet_stream_validator.h"
 #include "src/tracing/service/random.h"
 #include "src/tracing/service/trace_buffer.h"
+#include "src/tracing/service/trace_buffer_protovms.h"
 #include "src/tracing/service/trace_buffer_v1.h"
 #include "src/tracing/service/trace_buffer_v2.h"
 #include "src/tracing/service/tracing_service_endpoints_impl.h"
 #include "src/tracing/service/tracing_service_session.h"
 #include "src/tracing/service/tracing_service_structs.h"
+#include "src/tracing/v2/shared_ring_buffer_abi.h"
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include "src/tracing/service/zlib_compressor.h"
 #endif
@@ -346,6 +348,21 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
     src_ptr += slice_size;
     size_left -= slice_size;
   }
+}
+
+// Creates an empty trace buffer of the given implementation.
+// Returns nullptr if the memory allocation fails.
+std::unique_ptr<TraceBuffer> CreateTraceBuffer(
+    TraceBuffer::BufType type,
+    size_t size_in_bytes,
+    TraceBuffer::OverwritePolicy policy) {
+  switch (type) {
+    case TraceBuffer::kV1:
+      return TraceBufferV1::Create(size_in_bytes, policy);
+    case TraceBuffer::kV2:
+      return TraceBufferV2::Create(size_in_bytes, policy);
+  }
+  return nullptr;
 }
 
 // Shmem emulation is only for relay (remote-host) producers whose SMB is copied
@@ -815,11 +832,35 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  // For each buffer: the name of a data source with a ProtoVM, and of one
+  // that can use tracing v2.
+  // Tracing v2 does not support ProtoVM on the same buffer yet.
+  std::vector<const std::string*> protovm_source(num_buffers);
+  std::vector<const std::string*> tracing_v2_source(num_buffers);
+
   // Check that the config specifies all buffers for its data sources. This
   // is also checked in SetupDataSource, but it is simpler to return a proper
   // error to the consumer from here (and there will be less state to undo).
   for (const TraceConfig::DataSource& cfg_data_source : cfg.data_sources()) {
     const auto& ds_config = cfg_data_source.config();
+    const auto& tracing_v2_config = ds_config.experimental_tracing_v2();
+    if (tracing_v2_config.use_v2_probability_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.use_v2_probability_percent must be at most "
+          "100");
+    }
+    if (tracing_v2_config.drain_occupancy_percent() < -1 ||
+        tracing_v2_config.drain_occupancy_percent() > 100) {
+      return PERFETTO_SVC_ERR(
+          "experimental_tracing_v2.drain_occupancy_percent must be -1 to 100");
+    }
+    for (const auto& option : tracing_v2_config.chunk_size_options()) {
+      if (!tracing_v2::IsValidChunkSize(option.size_bytes())) {
+        return PERFETTO_SVC_ERR(
+            "experimental_tracing_v2.chunk_size_options: invalid size %u",
+            option.size_bytes());
+      }
+    }
 
     // Resolve target buffer: if target_buffer_name is set, look it up.
     size_t target_buffer = ds_config.target_buffer();
@@ -861,6 +902,19 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           "Data source \"%s\" specified an out of bounds target_buffer (%zu >= "
           "%zu)",
           ds_config.name().c_str(), target_buffer, num_buffers);
+    }
+
+    if (ds_config.has_protovm_config())
+      protovm_source[target_buffer] = &ds_config.name();
+    if (tracing_v2_config.use_v2_probability_percent() > 0)
+      tracing_v2_source[target_buffer] = &ds_config.name();
+    if (protovm_source[target_buffer] && tracing_v2_source[target_buffer]) {
+      return PERFETTO_SVC_ERR(
+          "Data source \"%s\" has a ProtoVM and data source \"%s\" has "
+          "experimental_tracing_v2 on the same buffer %zu. Tracing v2 does not "
+          "support ProtoVM",
+          protovm_source[target_buffer]->c_str(),
+          tracing_v2_source[target_buffer]->c_str(), target_buffer);
     }
   }
 
@@ -1239,10 +1293,10 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     std::unique_ptr<TraceBuffer> new_buffer;
     switch (buffer_cfg.experimental_mode()) {
       case TraceConfig::BufferConfig::TRACE_BUFFER_V2:
-        new_buffer = TraceBufferV2::Create(buf_size, policy);
+        new_buffer = CreateTraceBuffer(TraceBuffer::kV2, buf_size, policy);
         break;
       case TraceConfig::BufferConfig::MODE_UNSPECIFIED:
-        new_buffer = TraceBufferV1::Create(buf_size, policy);
+        new_buffer = CreateTraceBuffer(TraceBuffer::kV1, buf_size, policy);
         break;
     }
     auto it_and_inserted = buffers_.emplace(global_id, std::move(new_buffer));
@@ -2564,6 +2618,26 @@ bool TracingServiceImpl::ReadBuffersIntoConsumer(
             return;
           ReadBuffersIntoConsumer(tsid, weak_consumer.get());
         });
+  } else {
+    // Compact only once ReadBuffers() has nothing more to read
+    // (has_more == false).
+    // By then the read has consumed as much data as it can, so compaction has
+    // the fewest chunks to memmove.
+    // If we compacted after every batch, we would move the unread chunks again
+    // each time and end up with the same layout.
+    //
+    // The packets passed to OnTraceData() point into the buffer, so compaction
+    // has to wait until it returns.
+    // But we can't compact inline after it, because the consumer's
+    // OnTraceData() can call FreeBuffers() or destroy the service.
+    // So we post a task.
+    // The task looks up the session again in case FreeBuffers() removed it,
+    // and weak_runner_ drops the task if the service is destroyed.
+    weak_runner_.PostTask([this, tsid] {
+      TracingSession* tracing_session = GetTracingSession(tsid);
+      if (tracing_session)
+        MaybeCompactBuffers(tracing_session);
+    });
   }
 
   // Keep this as tail call, just in case the consumer re-enters.
@@ -2622,6 +2696,8 @@ bool TracingServiceImpl::ReadBuffersIntoFile(
             DisableTracing(tsid);
           return;
         }
+
+        MaybeCompactBuffers(tracing_session);
 
         if (tracing_session->fflush_post_write) {
           // Ensure all data was written to the file.
@@ -3084,6 +3160,18 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
   return stop_writing_into_file;
 }
 
+void TracingServiceImpl::MaybeCompactBuffers(TracingSession* tracing_session) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!tracing_session->config.experimental_trace_buffer_v2_compaction())
+    return;
+
+  for (BufferID buf_id : tracing_session->buffers_index) {
+    auto tbuf_iter = buffers_.find(buf_id);
+    if (tbuf_iter != buffers_.end())
+      tbuf_iter->second->MaybeCompact();
+  }
+}
+
 void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
                                      const std::string& error) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -3186,15 +3274,15 @@ void TracingServiceImpl::MaybeSetUpProtoVm(
   }
   auto it = buffers_.find(buffer_id);
   PERFETTO_CHECK(it != buffers_.cend());
-  if (it->second->buf_type() != TraceBuffer::BufType::kV2) {
+  TraceBufferProtoVms* protovms = it->second->protovms();
+  if (!protovms) {
     PERFETTO_ELOG(
         "Data source %s is configured to run a ProtoVM, but the corresponding "
-        "buffer is not of type V2",
+        "buffer is of type V1, which cannot run one.",
         ds_config.name().c_str());
     return;
   }
-  auto* buffer = static_cast<TraceBufferV2*>(it->second.get());
-  buffer->MaybeSetUpProtoVm(
+  protovms->MaybeSetUp(
       ds_config.name(), ds_instance.descriptor.protovm_program_raw(),
       ds_config.protovm_config().memory_limit_kb(), ds_instance.producer_id);
 }
@@ -3481,9 +3569,10 @@ DataSourceInstance* TracingServiceImpl::SetupDataSource(
   const BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
   PERFETTO_DCHECK(global_id);
 
+  const TraceBuffer* target_buffer = GetBufferByID(global_id);
   const bool supports_tracing_v2 =
-      (producer->protocol_abi_versions_ & kProtocolAbiV2) &&
-      GetBufferByID(global_id, TraceBuffer::BufType::kV2);
+      (producer->protocol_abi_versions_ & kProtocolAbiV2) && target_buffer &&
+      target_buffer->supports_tracing_v2();
   if (!(producer->protocol_abi_versions_ & kProtocolAbiV1) &&
       !supports_tracing_v2) {
     PERFETTO_ELOG(
@@ -3804,13 +3893,9 @@ void TracingServiceImpl::OnRingBufferChunksDiscarded(uint64_t count) {
   chunks_discarded_ += count;
 }
 
-TraceBuffer* TracingServiceImpl::GetBufferByID(
-    BufferID buffer_id,
-    std::optional<TraceBuffer::BufType> type) {
+TraceBuffer* TracingServiceImpl::GetBufferByID(BufferID buffer_id) {
   auto buf_iter = buffers_.find(buffer_id);
   if (buf_iter == buffers_.end())
-    return nullptr;
-  if (type && buf_iter->second->buf_type() != *type)
     return nullptr;
   return buf_iter->second.get();
 }
@@ -4538,11 +4623,10 @@ void TracingServiceImpl::MaybeEmitProtoVmInstances(
   for (auto buffer_id : tracing_session->buffers_index) {
     auto it = buffers_.find(buffer_id);
     PERFETTO_CHECK(it != buffers_.cend());
-    if (it->second->buf_type() != TraceBuffer::BufType::kV2) {
+    const TraceBufferProtoVms* protovms = it->second->protovms();
+    if (!protovms)
       continue;
-    }
-    auto* buffer = static_cast<TraceBufferV2*>(it->second.get());
-    for (const TraceBufferV2::Vm& vm : buffer->GetProtoVmInstances()) {
+    for (const TraceBufferProtoVms::Vm& vm : protovms->instances()) {
       auto* vm_instance = get_packet_protovms()->add_instance();
       vm_instance->AppendString(
           protos::pbzero::TracePacket::ProtoVms::Instance::kProgramFieldNumber,
@@ -4766,18 +4850,9 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
       continue;
 
     // Some leftover data was left in the buffer. Recreate it to empty it.
-    const auto buf_policy = buf->overwrite_policy();
-    const auto buf_size = buf->size();
-    const auto buf_type = buf->buf_type();
     std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
-    switch (buf_type) {
-      case TraceBuffer::kV1:
-        buf = TraceBufferV1::Create(buf_size, buf_policy);
-        break;
-      case TraceBuffer::kV2:
-        buf = TraceBufferV2::Create(buf_size, buf_policy);
-        break;
-    }
+    buf = CreateTraceBuffer(old_buf->buf_type(), old_buf->size(),
+                            old_buf->overwrite_policy());
     if (!buf) {
       // This is extremely rare but could happen on 32-bit. If the new buffer
       // allocation failed, put back the buffer where it was and fail the clone.
@@ -4946,18 +5021,9 @@ bool TracingServiceImpl::DoCloneBuffers(const TracingSession& src,
     std::unique_ptr<TraceBuffer>& src_buf = buf_iter->second;
     std::unique_ptr<TraceBuffer> new_buf;
     if (src.config.buffers()[buf_idx].transfer_on_clone()) {
-      const auto buf_policy = src_buf->overwrite_policy();
-      const auto buf_size = src_buf->size();
-      const auto buf_type = src_buf->buf_type();
       new_buf = std::move(src_buf);
-      switch (buf_type) {
-        case TraceBuffer::kV1:
-          src_buf = TraceBufferV1::Create(buf_size, buf_policy);
-          break;
-        case TraceBuffer::kV2:
-          src_buf = TraceBufferV2::Create(buf_size, buf_policy);
-          break;
-      }
+      src_buf = CreateTraceBuffer(new_buf->buf_type(), new_buf->size(),
+                                  new_buf->overwrite_policy());
       if (!src_buf) {
         // If the allocation fails put the buffer back and let the code below
         // handle the failure gracefully.

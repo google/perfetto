@@ -113,6 +113,16 @@ struct BitVector {
     return count;
   }
 
+  // Returns whether any bit in the vector is set.
+  PERFETTO_ALWAYS_INLINE bool AnyBitSet() const {
+    for (uint64_t i = 0; i < (size_ + 63ull) / 64ull; ++i) {
+      if (words_[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Adds a bit to the end of the vector.
   //
   // bit: The boolean value to add to the end of the BitVector.
@@ -385,7 +395,6 @@ struct BitVector {
   // Returns the number of bits in the vector.
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
 
- private:
   // Reads `n` (1..=64) bits starting at `bit`, packed at the bottom of the
   // returned word.
   uint64_t ReadBits(uint64_t bit, uint64_t n) const {
@@ -397,6 +406,7 @@ struct BitVector {
     return n == 64 ? value : value & ((uint64_t{1} << n) - 1);
   }
 
+ private:
   // Software emulation of the x64 PEXT instruction. Extracts bits from |word|
   // at positions where |mask| has set bits, packing them into the low bits.
   // See https://www.felixcloutier.com/x86/pext for details.

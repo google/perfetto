@@ -27,10 +27,12 @@ import {
   countRenderer,
   shortClassName,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -121,7 +123,6 @@ export function ArraysView({
     tableOrSubquery: query,
   });
   const counter = new RowCounter();
-  counter.init(engine, query);
 
   let filters: Filter[] = [];
 
@@ -131,7 +132,6 @@ export function ArraysView({
   ) {
     if (!ah) return;
     filters = [{field: 'array_hash', op: '=' as const, value: ah}];
-    counter.onFiltersChanged(filters);
     clearNavParam('arrayHash');
   }
 
@@ -139,11 +139,12 @@ export function ArraysView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialArrayHash, vnode.attrs.clearNavParam);
     },
     onremove() {
       datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -162,7 +163,10 @@ export function ArraysView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Arrays'),
+          title: rowCountHeading(
+            'Arrays',
+            counter.use({engine, query, filters}),
+          ),
           fillHeight: true,
         },
         m(DataGrid, {
@@ -181,7 +185,6 @@ export function ArraysView({
           showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

@@ -82,7 +82,7 @@ std::string ShellQuoteIfNeeded(const std::string& value) {
     else
       out += c;
   }
-  out += "'";
+  out += '\'';
   return out;
 }
 

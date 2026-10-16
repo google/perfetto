@@ -25,6 +25,8 @@
 
 namespace perfetto::trace_processor::core::exec {
 
+class Context;
+
 // The mutable state of one execution of a plan.
 //
 // Operators and Sources are plan nodes: they stay const while running and hold
@@ -70,13 +72,14 @@ class Source {
   Source& operator=(const Source&) = delete;
 
   // A source wrapping another source creates that source's state too, so one
-  // call builds the whole chain.
-  virtual std::unique_ptr<OperatorState> MakeState() const = 0;
+  // call builds the whole chain. Any column a run fills for a batch comes from
+  // `context`, which outlives the state.
+  virtual std::unique_ptr<OperatorState> MakeState(Context& context) const = 0;
 
   // Fills `out` and returns true, or returns false when no batches are left.
-  // Owned columns remain valid while retained by a RowBatch. Unowned columns
-  // are borrowed until the next call; retaining consumers must materialize
-  // them. A successful empty batch is not exhaustion.
+  // A column it computes is in a buffer from the run's Context; one it
+  // borrows is onto storage which outlives the run (see RowBatch). A
+  // successful empty batch is not exhaustion.
   virtual bool GetData(RowBatch& out, OperatorState& state) const = 0;
 
   // The next batch, or null when none are left: `scratch` filled by
@@ -94,6 +97,16 @@ class Source {
     return base::OkStatus();
   }
 
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
+  }
+
  protected:
   Source() = default;
 };
@@ -106,7 +119,7 @@ class Transform {
   Transform(const Transform&) = delete;
   Transform& operator=(const Transform&) = delete;
 
-  virtual std::unique_ptr<OperatorState> MakeState() const {
+  virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
   }
 
@@ -118,11 +131,19 @@ class Transform {
     return base::OkStatus();
   }
 
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
+  }
+
  protected:
   Transform() = default;
 };
-
-enum class BatchPreference : uint8_t { kLatency, kThroughput };
 
 enum class OpResult : uint8_t {
   // `out` holds all the output for this input. An empty `out` means the input
@@ -144,21 +165,11 @@ enum class OpResult : uint8_t {
 // Finish().
 class Operator {
  public:
-  // Fixed when the operator is built.
-  struct Traits {
-    // A preference, never permission to change row order. Downstream finite
-    // demand overrides throughput batching. Blocking remains intrinsic to an
-    // op.
-    BatchPreference preference = BatchPreference::kLatency;
-  };
-
   virtual ~Operator();
   Operator(const Operator&) = delete;
   Operator& operator=(const Operator&) = delete;
 
-  const Traits& traits() const { return traits_; }
-
-  virtual std::unique_ptr<OperatorState> MakeState() const {
+  virtual std::unique_ptr<OperatorState> MakeState(Context&) const {
     return std::make_unique<OperatorState>();
   }
 
@@ -180,12 +191,18 @@ class Operator {
     return base::OkStatus();
   }
 
+  // Identifies the concrete class. Each class has a `static constexpr char
+  // kType` and returns its address.
+  virtual const void* type() const = 0;
+
+  // Whether this is a T. If so, it can be static_cast to T.
+  template <typename T>
+  bool Is() const {
+    return type() == &T::kType;
+  }
+
  protected:
   Operator() = default;
-  explicit Operator(Traits traits) : traits_(traits) {}
-
- private:
-  Traits traits_;
 };
 
 }  // namespace perfetto::trace_processor::core::exec

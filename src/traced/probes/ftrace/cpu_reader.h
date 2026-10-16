@@ -77,7 +77,7 @@ class CpuReader {
 
     void Release() {
       if (ftrace_data_.IsValid()) {
-        ftrace_data_.AdviseDontNeed(ftrace_data_.Get(), ftrace_data_.size());
+        ftrace_data_.AdviseDontNeedAfter(0);
       }
       compact_sched_.reset();
     }

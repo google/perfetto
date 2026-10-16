@@ -16,74 +16,144 @@
 
 #include "src/tracing/v2/producer_ring_buffer_arbiter.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/trace_writer_v2_impl.h"
 
 namespace perfetto::tracing_v2 {
+namespace {
+
+// Chooses a chunk size by weight, defaulting to kMinChunkSize.
+uint32_t ChooseChunkSize(const DataSourceConfig& config) {
+  using ChunkSizeOption =
+      DataSourceConfig::ExperimentalTracingV2Config::ChunkSizeOption;
+
+  const auto& options = config.experimental_tracing_v2().chunk_size_options();
+  auto weight_of = [](const ChunkSizeOption& option) -> uint64_t {
+    if (!IsValidChunkSize(option.size_bytes()))
+      return 0;
+    return option.has_weight() ? option.weight() : 1;
+  };
+
+  uint64_t total_weight = 0;
+  for (const ChunkSizeOption& option : options)
+    total_weight += weight_of(option);
+
+  if (total_weight == 0)
+    return kMinChunkSize;
+
+  // Walk the options until their cumulative weight passes |target|.
+  const uint64_t target =
+      static_cast<uint64_t>(base::Uuidv4().lsb()) % total_weight;
+  uint64_t cumulative_weight = 0;
+  for (const ChunkSizeOption& option : options) {
+    cumulative_weight += weight_of(option);
+    if (target < cumulative_weight)
+      return option.size_bytes();
+  }
+
+  // Not reached: the last cumulative weight is the total, which is above
+  // |target|, so the loop returns.
+  PERFETTO_DFATAL("ChooseChunkSize: no option for the target");
+  return kMinChunkSize;
+}
+
+// Returns the drain threshold, in positions, for a ring buffer of
+// |num_chunks| chunks.
+// |drain_occupancy_percent| must be -1 to 100, as validated by the service:
+// - -1: 1, so a writer asks for a drain after every publication.
+// - 0: |kDefaultDrainOccupancyPercent|% of |num_chunks|.
+// - 1 to 100: that percent of |num_chunks|.
+// The result is at least 1.
+uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks,
+                                        int32_t drain_occupancy_percent) {
+  constexpr uint32_t kDefaultDrainOccupancyPercent = 25;
+
+  PERFETTO_DCHECK(drain_occupancy_percent >= -1 &&
+                  drain_occupancy_percent <= 100);
+  if (drain_occupancy_percent == -1)
+    return 1;
+  const uint32_t percent = drain_occupancy_percent == 0
+                               ? kDefaultDrainOccupancyPercent
+                               : static_cast<uint32_t>(drain_occupancy_percent);
+  const uint64_t threshold = uint64_t{num_chunks} * percent / 100;
+  return std::max(1u, static_cast<uint32_t>(threshold));
+}
+
+}  // namespace
 
 // static
-std::unique_ptr<ProducerRingBufferArbiter> ProducerRingBufferArbiter::Create(
+base::StatusOr<std::unique_ptr<ProducerRingBufferArbiter>>
+ProducerRingBufferArbiter::Create(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
-    SharedMemoryArbiter* shared_memory_arbiter,
-    std::shared_ptr<SharedMemory> ring_buffer_memory,
-    uint32_t chunk_size) {
-  if (!ring_buffer_memory) {
-    PERFETTO_ELOG("tracing v2: no ring buffer memory");
-    return nullptr;
-  }
+    const DataSourceConfig& config,
+    size_t shmem_size_hint_bytes,
+    AllocateSharedMemoryFn allocate_shared_memory) {
+  const uint32_t chunk_size_bytes = ChooseChunkSize(config);
 
-  if (ring_buffer_memory->size() > TracingService::kMaxShmSize) {
-    PERFETTO_ELOG("tracing v2: ring buffer size %zu is above the limit %zu",
-                  ring_buffer_memory->size(), TracingService::kMaxShmSize);
-    return nullptr;
-  }
+  ASSIGN_OR_RETURN(const size_t shmem_size_bytes,
+                   RingBufferSizeForShmSizeHint(shmem_size_hint_bytes,
+                                                TracingService::kMaxShmSize,
+                                                chunk_size_bytes));
 
-  base::StatusOr<uint32_t> num_chunks = NumChunksForRingBufferLayout(
-      ring_buffer_memory->start(), ring_buffer_memory->size(), chunk_size);
-  if (!num_chunks.ok()) {
-    PERFETTO_ELOG("tracing v2: %s", num_chunks.status().c_message());
-    return nullptr;
-  }
+  ASSIGN_OR_RETURN(std::shared_ptr<SharedMemory> memory,
+                   allocate_shared_memory(shmem_size_bytes));
+
+  const uint32_t num_chunks = static_cast<uint32_t>(
+      (shmem_size_bytes - sizeof(RingBufferHeader)) / chunk_size_bytes);
+  const uint32_t drain_occupancy_threshold = ComputeDrainOccupancyThreshold(
+      num_chunks, config.experimental_tracing_v2().drain_occupancy_percent());
 
   return std::unique_ptr<ProducerRingBufferArbiter>(
-      new ProducerRingBufferArbiter(task_runner, endpoint,
-                                    shared_memory_arbiter,
-                                    std::move(ring_buffer_memory), chunk_size));
+      new ProducerRingBufferArbiter(task_runner, endpoint, std::move(memory),
+                                    chunk_size_bytes,
+                                    drain_occupancy_threshold));
 }
 
 ProducerRingBufferArbiter::ProducerRingBufferArbiter(
     base::TaskRunner* task_runner,
     ProducerEndpoint* endpoint,
-    SharedMemoryArbiter* shared_memory_arbiter,
-    std::shared_ptr<SharedMemory> ring_buffer_memory,
-    uint32_t chunk_size)
+    std::shared_ptr<SharedMemory> memory,
+    uint32_t chunk_size,
+    uint32_t drain_occupancy_threshold)
     : task_runner_(task_runner),
       endpoint_(endpoint),
-      shared_memory_arbiter_(shared_memory_arbiter),
-      memory_(std::move(ring_buffer_memory)),
+      shared_memory_arbiter_(endpoint->MaybeSharedMemoryArbiter()),
+      memory_(std::move(memory)),
       ring_buffer_(static_cast<uint8_t*>(memory_->start()),
                    memory_->size(),
-                   chunk_size) {}
+                   chunk_size),
+      drain_occupancy_threshold_(drain_occupancy_threshold) {
+  PERFETTO_CHECK(shared_memory_arbiter_);
+}
 
 ProducerRingBufferArbiter::~ProducerRingBufferArbiter() {
   Disconnect();
 }
 
-void ProducerRingBufferArbiter::OnReaderAttached() {
+void ProducerRingBufferArbiter::OnReaderAttachReply(bool reader_attached) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // The accept reply can arrive after Disconnect().
+  // The attach reply can arrive after Disconnect().
   if (reader_state_.load() == ReaderState::kDetached)
     return;
+  if (!reader_attached) {
+    PERFETTO_ELOG("tracing v2: ring buffer attachment failed");
+    Disconnect();
+    return;
+  }
   SetReaderState(ReaderState::kAttached);
 }
 

@@ -146,6 +146,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   buffers,
                   1);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  bool,
+                  experimental_trace_buffer_v2_compaction,
+                  50);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
                   perfetto_protos_TraceConfig_DataSource,
                   data_sources,

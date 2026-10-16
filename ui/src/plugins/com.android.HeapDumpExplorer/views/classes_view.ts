@@ -23,14 +23,17 @@ import {
   sizeRenderer,
   countRenderer,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
 import * as queries from '../queries';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
 import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
+import {ClassNameWithWarning} from '../../../components/merged_class_warning';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
@@ -38,6 +41,7 @@ interface ClassesViewAttrs {
   readonly navigate: NavFn;
   readonly clearNavParam: (key: string) => void;
   readonly initialRootClass?: string;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 const PREAMBLE =
@@ -58,19 +62,25 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     cls: {
       title: 'Class',
       columnType: 'text',
       cellRenderer: (value: SqlValue) =>
-        m(
-          Anchor,
-          {
-            onclick: () => navigate('objects', {cls: String(value)}),
-          },
-          String(value),
-        ),
+        m(ClassNameWithWarning, {
+          name: m(
+            Anchor,
+            {
+              onclick: () => navigate('objects', {cls: String(value)}),
+            },
+            String(value),
+          ),
+          potentiallyMerged: potentiallyMergedClasses.has(String(value)),
+        }),
     },
     cnt: {
       title: 'Count',
@@ -121,7 +131,6 @@ export function ClassesView({
   });
   let alive = true;
   const counter = new RowCounter();
-  counter.init(engine, query, PREAMBLE);
   let filters: Filter[] = [];
 
   async function applyNavFilter(
@@ -135,8 +144,6 @@ export function ClassesView({
     const names = await queries.getSubclassNames(engine, activeDump, root);
     if (!alive || names.length === 0) return;
     filters = [{field: 'cls', op: 'in' as const, value: names}];
-    counter.onFiltersChanged(filters);
-    m.redraw();
   }
 
   return {
@@ -159,18 +166,22 @@ export function ClassesView({
     onremove() {
       alive = false;
       datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, potentiallyMergedClasses} = vnode.attrs;
 
       return m(
         DetailsShell,
         {
-          title: counter.heading('Classes'),
+          title: rowCountHeading(
+            'Classes',
+            counter.use({engine, query, preamble: PREAMBLE, filters}),
+          ),
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(navigate, potentiallyMergedClasses),
           data: datasource,
           fillHeight: true,
           initialColumns: [
@@ -186,7 +197,6 @@ export function ClassesView({
           showExportButton: true,
           onFiltersChanged: (f) => {
             filters = [...f];
-            counter.onFiltersChanged(f);
           },
         }),
       );

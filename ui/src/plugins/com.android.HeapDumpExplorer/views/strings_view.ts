@@ -29,11 +29,13 @@ import {
   countRenderer,
   SQL_PREAMBLE,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
 } from '../components';
 import * as queries from '../queries';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {AsyncMemo} from '../../../base/async_memo';
@@ -89,10 +91,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
               }),
           },
           m(
-            'span',
-            {
-              class: 'pf-hde-mono pf-hde-break-all',
-            },
+            'span.pf-hde-mono.pf-hde-break-all',
             str
               ? '"' +
                   (str.length > 300 ? str.slice(0, 300) + '\u2026' : str) +
@@ -174,7 +173,6 @@ export function StringsView({
     preamble: SQL_PREAMBLE,
   });
   const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
   const allRowsMemo = new AsyncMemo<readonly StringListRow[]>();
   let filters: Filter[] = [];
 
@@ -184,7 +182,6 @@ export function StringsView({
   ) {
     if (!q) return;
     filters = [{field: 'value', op: '=' as const, value: q}];
-    counter.onFiltersChanged(filters);
     clearNavParam('q');
   }
 
@@ -192,11 +189,12 @@ export function StringsView({
     oninit(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
-    onupdate(vnode) {
+    onbeforeupdate(vnode) {
       applyNavFilter(vnode.attrs.initialQuery, vnode.attrs.clearNavParam);
     },
     onremove() {
       datasource.dispose();
+      counter.dispose();
       allRowsMemo.dispose();
     },
     view(vnode) {
@@ -211,7 +209,7 @@ export function StringsView({
         return m(
           DetailsShell,
           {title: 'Strings', fillHeight: true, className: 'pf-hde-tab--padded'},
-          m('div', {class: 'pf-hde-loading'}, m(Spinner, {easing: true})),
+          m('.pf-hde-loading', m(Spinner, {easing: true})),
         );
       }
 
@@ -246,12 +244,15 @@ export function StringsView({
       return m(
         DetailsShell,
         {
-          title: counter.heading('Strings'),
+          title: rowCountHeading(
+            'Strings',
+            counter.use({engine, query, preamble: SQL_PREAMBLE, filters}),
+          ),
           fillHeight: true,
           className: 'pf-hde-tab--padded',
         },
         [
-          m('div', {class: 'pf-hde-card pf-hde-mb-4 pf-hde-flex-none'}, [
+          m('.pf-hde-card.pf-hde-mb-4.pf-hde-flex-none', [
             m(DataGrid, {
               schema: SUMMARY_SCHEMA,
               data: summaryRows,
@@ -280,7 +281,6 @@ export function StringsView({
             showExportButton: true,
             onFiltersChanged: (f) => {
               filters = [...f];
-              counter.onFiltersChanged(f);
             },
           }),
         ],

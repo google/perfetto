@@ -69,21 +69,18 @@ void MergeAllowlistedOptions(
     const std::vector<ProtoFile::Option>& upstream,
     std::vector<ProtoFile::Option>& out,
     const std::unordered_set<std::string>& allowlisted_options) {
-  if (allowlisted_options.empty() || upstream.empty())
+  if (allowlisted_options.empty())
     return;
 
-  for (const auto& upstream_opt : upstream) {
-    if (IsAllowlistedOption(upstream_opt.key, allowlisted_options)) {
-      auto it = std::find_if(out.begin(), out.end(),
-                             [&](const ProtoFile::Option& opt) {
-                               return opt.key == upstream_opt.key;
-                             });
-      if (it != out.end()) {
-        it->value = upstream_opt.value;
-      } else {
-        out.push_back(upstream_opt);
-      }
-    }
+  auto is_allowlisted = [&](const ProtoFile::Option& opt) {
+    return IsAllowlistedOption(opt.key, allowlisted_options);
+  };
+
+  out.erase(std::remove_if(out.begin(), out.end(), is_allowlisted), out.end());
+
+  for (const auto& opt : upstream) {
+    if (is_allowlisted(opt))
+      out.push_back(opt);
   }
 }
 

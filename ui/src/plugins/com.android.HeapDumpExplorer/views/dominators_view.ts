@@ -26,10 +26,14 @@ import {
   shortClassName,
   SQL_PREAMBLE,
   RowCounter,
+  rowCountHeading,
   COL_INFO,
   colHeader,
+  classNameCellRenderer,
 } from '../components';
-import {dumpFilterSql, type HeapDump} from '../queries';
+import {dumpFilterSql} from '../queries';
+import type {HeapDump} from '../types';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 
@@ -37,6 +41,7 @@ interface DominatorsViewAttrs {
   readonly engine: Engine;
   readonly activeDump: HeapDump;
   readonly navigate: NavFn;
+  readonly potentiallyMergedClasses: ReadonlySet<string>;
 }
 
 function buildQuery(activeDump: HeapDump): string {
@@ -63,7 +68,10 @@ function buildQuery(activeDump: HeapDump): string {
   `;
 }
 
-function makeUiSchema(navigate: NavFn): ColumnSchema {
+function makeUiSchema(
+  navigate: NavFn,
+  potentiallyMergedClasses: ReadonlySet<string>,
+): ColumnSchema {
   return {
     id: {
       title: 'Object',
@@ -136,6 +144,7 @@ function makeUiSchema(navigate: NavFn): ColumnSchema {
     cls: {
       title: 'Class',
       columnType: 'text',
+      cellRenderer: classNameCellRenderer(potentiallyMergedClasses),
     },
     root_type: {
       title: 'Root Type',
@@ -154,23 +163,28 @@ export function DominatorsView({
     preamble: SQL_PREAMBLE,
   });
   const counter = new RowCounter();
-  counter.init(engine, query, SQL_PREAMBLE);
+  // The grid owns its filters; this mirrors them for the row count.
+  let filters: readonly Filter[] = [];
 
   return {
     onremove() {
       datasource.dispose();
+      counter.dispose();
     },
     view(vnode) {
-      const {navigate} = vnode.attrs;
+      const {navigate, potentiallyMergedClasses} = vnode.attrs;
 
       return m(
         DetailsShell,
         {
-          title: counter.heading('Dominators'),
+          title: rowCountHeading(
+            'Dominators',
+            counter.use({engine, query, preamble: SQL_PREAMBLE, filters}),
+          ),
           fillHeight: true,
         },
         m(DataGrid, {
-          schema: makeUiSchema(navigate),
+          schema: makeUiSchema(navigate, potentiallyMergedClasses),
           data: datasource,
           fillHeight: true,
           initialColumns: [
@@ -187,7 +201,9 @@ export function DominatorsView({
             {id: 'root_type', field: 'root_type'},
           ],
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            filters = f;
+          },
         }),
       );
     },

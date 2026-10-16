@@ -34,5 +34,6 @@ source_set("interval_intersect") {
     "../../sqlite",
     "../../storage",
     "../../types",
+    "../../util:cold_sort",
   ]
 }

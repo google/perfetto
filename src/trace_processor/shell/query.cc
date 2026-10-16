@@ -36,66 +36,10 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/shell/result_formatter.h"
+#include "src/trace_processor/shell/shell_utils.h"
 
 namespace perfetto::trace_processor {
-
-base::StatusOr<QueryResult> ExtractQueryResult(Iterator* it, bool has_more) {
-  QueryResult result;
-
-  for (uint32_t c = 0; c < it->ColumnCount(); c++) {
-    result.column_names.push_back(it->GetColumnName(c));
-  }
-
-  for (; has_more; has_more = it->Next()) {
-    std::vector<std::string> row;
-    for (uint32_t c = 0; c < it->ColumnCount(); c++) {
-      SqlValue value = it->Get(c);
-      std::string str_value;
-      switch (value.type) {
-        case SqlValue::Type::kNull:
-          str_value = "\"[NULL]\"";
-          break;
-        case SqlValue::Type::kDouble:
-          str_value =
-              base::StackString<256>("%f", value.double_value).ToStdString();
-          break;
-        case SqlValue::Type::kLong:
-          str_value = base::StackString<256>("%" PRIi64, value.long_value)
-                          .ToStdString();
-          break;
-        case SqlValue::Type::kString:
-          str_value = '"' + std::string(value.string_value) + '"';
-          break;
-        case SqlValue::Type::kBytes:
-          str_value = "\"<raw bytes>\"";
-          break;
-      }
-
-      row.push_back(std::move(str_value));
-    }
-    result.rows.push_back(std::move(row));
-  }
-  RETURN_IF_ERROR(it->Status());
-  return result;
-}
-
-void PrintQueryResultAsCsv(const QueryResult& result, FILE* output) {
-  for (uint32_t c = 0; c < result.column_names.size(); c++) {
-    if (c > 0)
-      fprintf(output, ",");
-    fprintf(output, "\"%s\"", result.column_names[c].c_str());
-  }
-  fprintf(output, "\n");
-
-  for (const auto& row : result.rows) {
-    for (uint32_t c = 0; c < result.column_names.size(); c++) {
-      if (c > 0)
-        fprintf(output, ",");
-      fprintf(output, "%s", row[c].c_str());
-    }
-    fprintf(output, "\n");
-  }
-}
 
 base::Status RunQueriesWithoutOutput(TraceProcessor* trace_processor,
                                      const std::string& sql_query) {
@@ -110,19 +54,26 @@ base::Status RunQueriesWithoutOutput(TraceProcessor* trace_processor,
 
 base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
                                       const std::string& sql_query,
+                                      const ResultFormatOptions& format,
                                       FILE* output,
-                                      bool quiet) {
+                                      bool quiet,
+                                      uint32_t* statements_started) {
   PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
 
   // Statements are executed one at a time and every statement's result set
-  // is printed as CSV, with consecutive result sets separated by a single
-  // blank line. Since our CSV writer quotes all strings, a blank line is
+  // is printed, with consecutive result sets separated by a single blank
+  // line. Since our CSV writer quotes all strings, a blank line is
   // unambiguously a boundary between result sets. Statements with no output
   // print nothing, matching the sqlite3/duckdb shells.
   std::chrono::nanoseconds exec_dur{0};
   uint32_t offset = 0;
   bool executed_any_statement = false;
   bool printed_any_result = false;
+  uint32_t started = 0;
+  if (!statements_started) {
+    statements_started = &started;
+  }
+  *statements_started = 0;
   for (;;) {
     auto query_start = std::chrono::steady_clock::now();
     std::optional<Iterator> it =
@@ -130,6 +81,7 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
     if (!it.has_value()) {
       break;
     }
+    ++*statements_started;
     RETURN_IF_ERROR(it->Status());
     executed_any_statement = true;
 
@@ -165,32 +117,64 @@ base::Status RunQueriesAndPrintResult(TraceProcessor* trace_processor,
       continue;
     }
 
-    auto query_result = ExtractQueryResult(&*it, has_more);
-    RETURN_IF_ERROR(query_result.status());
+    std::vector<std::string> column_names;
+    for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+      column_names.push_back(it->GetColumnName(c));
+    }
+    auto separate = [&]() {
+      if (printed_any_result) {
+        fprintf(output, "\n");
+      }
+      printed_any_result = true;
+    };
+    // Paged formatters print while rows are added; others only in Finish(),
+    // so that a failing statement prints nothing.
+    const bool paged = format.page_rows != 0;
+    if (paged) {
+      separate();
+    }
+    auto formatter =
+        CreateResultFormatter(format, std::move(column_names), output);
+    std::vector<SqlValue> cells(it->ColumnCount());
+    for (; has_more; has_more = it->Next()) {
+      for (uint32_t c = 0; c < it->ColumnCount(); c++) {
+        cells[c] = it->Get(c);
+      }
+      // The formatter may have seen enough rows: abandon the rest.
+      // TODO(lalitm): over --remote, abandoning the iterator does not stop
+      // the statement: the server still computes every row and the client
+      // drains them (an unbounded query never finishes). Let the caller tell
+      // the RPC server to stop a stream (e.g. from RemoteIteratorImpl's
+      // destructor or InterruptQuery()). This needs the server to yield
+      // between batches rather than sending them all in one go, so that it
+      // can see the request.
+      if (!formatter->AddRow(cells.data())) {
+        break;
+      }
+    }
+    RETURN_IF_ERROR(it->Status());
 
     // We want to include the query iteration time (as it's a part of
     // executing SQL and can be non-trivial), and we want to exclude the time
     // spent printing the result (which can be significant for large results),
-    // so we materialise the results first, then take the measurement, then
-    // print them.
-    exec_dur += std::chrono::steady_clock::now() - query_start;
-
-    if (printed_any_result) {
-      fprintf(output, "\n");
+    // so formatters buffer rows until Finish().
+    exec_dur += formatter->FirstPromptTime().value_or(
+                    std::chrono::steady_clock::now()) -
+                query_start;
+    if (!paged) {
+      separate();
     }
-    printed_any_result = true;
-    PrintQueryResultAsCsv(query_result.value(), output);
+    formatter->Finish();
   }
   if (!executed_any_statement) {
     return base::ErrStatus("No valid SQL to run");
   }
 
   if (!quiet) {
-    PERFETTO_ILOG(
-        "Query execution time: %" PRIi64 " ms",
-        static_cast<int64_t>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(exec_dur)
-                .count()));
+    int64_t ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(exec_dur).count();
+    PrintStatusLine(StatusLabelStyle::kMuted,
+                    "Query executed in " + std::to_string(ms) + " ms", "");
   }
   return base::OkStatus();
 }
@@ -219,7 +203,9 @@ base::Status RunQueries(TraceProcessor* trace_processor,
                         bool expect_output,
                         bool quiet) {
   if (expect_output) {
-    return RunQueriesAndPrintResult(trace_processor, queries, stdout, quiet);
+    return RunQueriesAndPrintResult(trace_processor, queries,
+                                    ResultFormatOptions(), stdout, quiet,
+                                    nullptr);
   }
   return RunQueriesWithoutOutput(trace_processor, queries);
 }

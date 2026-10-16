@@ -20,7 +20,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "src/tracing/service/trace_buffer_v2.h"
+#include "src/tracing/service/trace_buffer.h"
 
 namespace perfetto::tracing_v2 {
 
@@ -79,8 +79,8 @@ void ServiceRingBufferDrainer::Drain() {
   if (PERFETTO_UNLIKELY(reader_.has_protocol_error())) {
     // Record the error in every authorized destination. Later drains return
     // above, so each destination counts this violation only once.
-    delegate_->ForEachRingBufferDestination(
-        [](TraceBufferV2& buffer) { buffer.RecordAbiViolation(); });
+    delegate_->ForEachV2RingBufferDestination(
+        [](TraceBuffer& buffer) { buffer.RecordAbiViolation(); });
     return;
   }
 
@@ -103,8 +103,8 @@ void ServiceRingBufferDrainer::OnChunkRead(
     return;
   }
 
-  TraceBufferV2* buffer =
-      delegate_->GetRingBufferDestination(chunk.target_buffer);
+  TraceBuffer* buffer =
+      delegate_->GetV2RingBufferDestination(chunk.target_buffer);
   if (PERFETTO_UNLIKELY(!buffer)) {
     delegate_->OnRingBufferChunksDiscarded(1);
     RecordWriterLoss(chunk.writer_id);
@@ -114,7 +114,7 @@ void ServiceRingBufferDrainer::OnChunkRead(
   // The reader reports a chunk with kFlagDataLoss through OnDataLoss(). Only
   // the continuation flags can reach this point.
   PERFETTO_DCHECK(!(chunk.payload_flags & kFlagDataLoss));
-  const TraceBufferV2::PacketSequenceProperties sequence{
+  const TraceBuffer::PacketSequenceProperties sequence{
       producer_id_, client_identity_, chunk.writer_id};
   // On rejection, the trace buffer counts the chunk in its own statistics and
   // records the loss on the sequence.
@@ -145,8 +145,8 @@ void ServiceRingBufferDrainer::RecordWriterLoss(WriterID writer_id) {
   // only a buffer that holds this writer's sequence.
   // - A writer has one destination, so at most one buffer matches.
   // - Before the writer's first stored chunk, no buffer matches.
-  delegate_->ForEachRingBufferDestination(
-      [this, writer_id](TraceBufferV2& buffer) {
+  delegate_->ForEachV2RingBufferDestination(
+      [this, writer_id](TraceBuffer& buffer) {
         buffer.RecordChunkV2DataLoss(producer_id_, writer_id);
       });
 }

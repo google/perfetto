@@ -70,6 +70,7 @@ source_set("export_json") {
     "tables",
     "types",
     "util:args_utils",
+    "util:cold_sort",
     "util:json_value",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
