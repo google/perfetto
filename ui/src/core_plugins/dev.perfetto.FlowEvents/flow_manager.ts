@@ -638,5 +638,5 @@ function findAnotherFlowExcept(boundFlows: Flow[], flowId: number): number {
       selectedFlowFound = true;
     }
   }
-  return boundFlows[0].id;
+  return boundFlows[0]!.id;
 }

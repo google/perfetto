@@ -385,7 +385,7 @@ export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
       if (line === '') continue;
       const match = line.match(/^([^\s]+)\s+.*model:([^ ]+)/);
       if (!match) continue;
-      devices.push({serial: match[1], model: match[2]});
+      devices.push({serial: match[1]!, model: match[2]!});
     }
 
     this.wsDevices = devices;

@@ -226,7 +226,7 @@ describe('presetFromTab', () => {
       presetFromTab(fakeTab(), {name: 'New name', id: saved.id}),
     );
     expect(localPresetStore.list()).toHaveLength(1);
-    expect(localPresetStore.list()[0].name).toBe('New name');
+    expect(localPresetStore.list()[0]!.name).toBe('New name');
   });
 });
 

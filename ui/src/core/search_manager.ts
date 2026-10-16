@@ -165,7 +165,7 @@ export class SearchManagerImpl implements SearchManager {
     };
 
     for (let i = 0; i < numRows; i++) {
-      const {id, ts, track} = allResults[i];
+      const {id, ts, track} = allResults[i]!;
       searchResults.eventIds[i] = id;
       searchResults.tses[i] = ts;
       searchResults.trackUris.push(track.uri);
@@ -209,10 +209,10 @@ export class SearchManagerImpl implements SearchManager {
       }
     }
     this._onResultStep?.({
-      eventId: this._results.eventIds[this._resultIndex],
-      ts: Time.fromRaw(this._results.tses[this._resultIndex]),
-      trackUri: this._results.trackUris[this._resultIndex],
-      source: this._results.sources[this._resultIndex],
+      eventId: this._results.eventIds[this._resultIndex]!,
+      ts: Time.fromRaw(this._results.tses[this._resultIndex]!),
+      trackUri: this._results.trackUris[this._resultIndex]!,
+      source: this._results.sources[this._resultIndex]!,
     });
   }
 

@@ -123,7 +123,7 @@ class LocalPresetStore {
     const presets = this.list();
     const idx = presets.findIndex((p) => p.id === id);
     if (idx < 0) return;
-    presets[idx] = {...presets[idx], ...details};
+    presets[idx] = {...presets[idx]!, ...details};
     this.write(presets);
   }
 

@@ -116,13 +116,13 @@ function validateStatementStructure(sql: string): string | undefined {
 
   // Check that all statements except the last are INCLUDE PERFETTO MODULE
   for (let i = 0; i < statements.length - 1; i++) {
-    if (!/^INCLUDE\s+PERFETTO\s+MODULE\b/i.test(statements[i])) {
+    if (!/^INCLUDE\s+PERFETTO\s+MODULE\b/i.test(statements[i]!)) {
       return 'Only INCLUDE PERFETTO MODULE statements are allowed before the SELECT query.';
     }
   }
 
   // Check that the last statement starts with SELECT (or WITH for CTEs)
-  const lastStatement = statements[statements.length - 1];
+  const lastStatement = statements[statements.length - 1]!;
   if (!/^(?:SELECT|WITH)\b/i.test(lastStatement)) {
     return 'The query must end with a SELECT statement.';
   }
@@ -285,7 +285,7 @@ export class SqlSourceNode implements QueryNode {
     const dependencies: string[] = [];
     if (this.attrs.sql) {
       while ((match = regex.exec(this.attrs.sql)) !== null) {
-        dependencies.push(match[1]);
+        dependencies.push(match[1]!);
       }
     }
     return dependencies;

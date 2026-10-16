@@ -104,10 +104,10 @@ export class RecentGraphsStorage {
       });
     } else {
       // Update the working slot in place
-      this._data[0].json = json;
-      this._data[0].timestamp = timestamp;
-      this._data[0].nodeCount = nodeCount;
-      this._data[0].labelCount = labelCount;
+      this._data[0]!.json = json;
+      this._data[0]!.timestamp = timestamp;
+      this._data[0]!.nodeCount = nodeCount;
+      this._data[0]!.labelCount = labelCount;
     }
     this.save();
   }
@@ -119,19 +119,19 @@ export class RecentGraphsStorage {
    */
   finalizeCurrentGraph(): void {
     const hasWorkingGraph =
-      this._data.length > 0 && (this._data[0].nodeCount ?? 0) > 0;
+      this._data.length > 0 && (this._data[0]!.nodeCount ?? 0) > 0;
     if (!hasWorkingGraph) {
       return;
     }
 
     // Give the current graph a proper name based on when it was finalized
-    this._data[0].name = this.generateName();
+    this._data[0]!.name = this.generateName();
 
     // Count unstarred items (excluding working slot which will become historical)
     let lastUnstarredIndex = -1;
     let unstarredCount = 0;
     for (let i = 0; i < this._data.length; i++) {
-      if (!this._data[i].starred) {
+      if (!this._data[i]!.starred) {
         unstarredCount++;
         lastUnstarredIndex = i;
       }
@@ -174,7 +174,7 @@ export class RecentGraphsStorage {
    */
   setStarred(index: number, starred: boolean): void {
     assertTrue(index >= 0 && index < this._data.length);
-    this._data[index].starred = starred;
+    this._data[index]!.starred = starred;
     this.save();
   }
 
@@ -183,7 +183,7 @@ export class RecentGraphsStorage {
    */
   rename(index: number, newName: string): void {
     assertTrue(index >= 0 && index < this._data.length);
-    this._data[index].name = newName.trim() || this._data[index].name;
+    this._data[index]!.name = newName.trim() || this._data[index]!.name;
     this.save();
   }
 
@@ -209,7 +209,7 @@ export class RecentGraphsStorage {
    */
   getJson(index: number): string | undefined {
     if (index >= 0 && index < this._data.length) {
-      return this._data[index].json;
+      return this._data[index]!.json;
     }
     return undefined;
   }
@@ -417,7 +417,7 @@ export class RecentGraphsSection implements m.ClassComponent<RecentGraphsSection
     const unstarred: Array<{entry: RecentGraphEntry; index: number}> = [];
 
     for (let i = 1; i < recentGraphs.length; i++) {
-      const entry = recentGraphs[i];
+      const entry = recentGraphs[i]!;
       // Skip empty placeholders (working slots with no content)
       if ((entry.nodeCount ?? 0) === 0) continue;
 

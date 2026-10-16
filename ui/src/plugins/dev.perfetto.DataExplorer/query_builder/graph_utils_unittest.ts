@@ -507,8 +507,8 @@ describe('graph_utils', () => {
 
       const group = result.value;
       expect(group.externalConnections).toHaveLength(1);
-      expect(group.externalConnections[0].sourceNode).toBe(ext);
-      expect(group.externalConnections[0].innerTargetNode).toBe(a);
+      expect(group.externalConnections[0]!.sourceNode).toBe(ext);
+      expect(group.externalConnections[0]!.innerTargetNode).toBe(a);
     });
 
     it('should set outer nodes as nextNodes on the group', () => {
@@ -790,8 +790,8 @@ describe('graph_utils', () => {
       expect(group.endNode).toBe(c);
       // A feeds into B from outside
       expect(group.externalConnections).toHaveLength(1);
-      expect(group.externalConnections[0].sourceNode).toBe(a);
-      expect(group.externalConnections[0].innerTargetNode).toBe(b);
+      expect(group.externalConnections[0]!.sourceNode).toBe(a);
+      expect(group.externalConnections[0]!.innerTargetNode).toBe(b);
       // outer is the successor
       expect(group.nextNodes).toHaveLength(1);
       expect(group.nextNodes[0]).toBe(outer);

@@ -58,7 +58,7 @@ describe('value loading retries', () => {
     expect(result).toBe('ok');
     expect(calls).toBe(RETRY_ATTEMPTS + 1);
     expect(waits.length).toBe(RETRY_ATTEMPTS);
-    expect(waits[1]).toBeGreaterThan(waits[0]);
+    expect(waits[1]).toBeGreaterThan(waits[0]!);
   });
 
   test('withRetry gives up after the last attempt', async () => {

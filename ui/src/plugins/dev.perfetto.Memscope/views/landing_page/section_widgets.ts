@@ -115,7 +115,7 @@ export function topTable(opts: {
           m(
             'tr',
             cells.map((cell, i) =>
-              m(opts.cols[i].num ? 'td.pf-memscope-table__num' : 'td', cell),
+              m(opts.cols[i]!.num ? 'td.pf-memscope-table__num' : 'td', cell),
             ),
           ),
         ),

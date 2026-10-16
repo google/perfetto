@@ -38,7 +38,7 @@ export class QueryHistoryComponent implements m.ClassComponent<QueryHistoryCompo
     // Items are stored with most recent first (index 0)
     // Iterate forward and separate starred from unstarred
     for (let i = 0; i < queryHistoryStorage.data.length; i++) {
-      const entry = queryHistoryStorage.data[i];
+      const entry = queryHistoryStorage.data[i]!;
       const arr = entry.starred ? starred : unstarred;
       arr.push({trace, index: i, entry, runQuery, setQuery});
     }
@@ -130,19 +130,19 @@ class HistoryStorage {
     let existingIndex = -1;
 
     for (let i = 0; i < items.length; i++) {
-      if (!items[i].starred) {
+      if (!items[i]!.starred) {
         countUnstarred++;
         lastUnstarred = i;
       }
 
-      if (items[i].query === query) {
+      if (items[i]!.query === query) {
         existingIndex = i;
       }
     }
 
     // If query already exists, move it to the front (index 0)
     if (existingIndex !== -1) {
-      const isStarred = items[existingIndex].starred;
+      const isStarred = items[existingIndex]!.starred;
       items.splice(existingIndex, 1);
       // Re-add at the front with same starred status
       items.unshift({query, starred: isStarred});
@@ -163,7 +163,7 @@ class HistoryStorage {
 
   setStarred(index: number, starred: boolean) {
     assertTrue(index >= 0 && index < this.data.length);
-    this.data[index].starred = starred;
+    this.data[index]!.starred = starred;
     this.save();
   }
 

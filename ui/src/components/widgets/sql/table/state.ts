@@ -315,10 +315,10 @@ export class SqlTableState {
 
   isSortedBy(column: TableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
-    if (tableColumnId(this.orderBy[0].column) !== tableColumnId(column)) {
+    if (tableColumnId(this.orderBy[0]!.column) !== tableColumnId(column)) {
       return undefined;
     }
-    return this.orderBy[0].direction;
+    return this.orderBy[0]!.direction;
   }
 
   getOrderedBy(): ColumnOrderClause[] {
@@ -338,7 +338,7 @@ export class SqlTableState {
   }
 
   hideColumnAtIndex(index: number) {
-    const column = this.columns[index];
+    const column = this.columns[index]!;
     this.columns.splice(index, 1);
     this.willRemoveColumn(column);
     // TODO(altimin): we can avoid the fetch here if the orderBy hasn't changed.
@@ -346,7 +346,7 @@ export class SqlTableState {
   }
 
   replaceColumnAtIndex(index: number, column: TableColumn) {
-    this.willRemoveColumn(this.columns[index]);
+    this.willRemoveColumn(this.columns[index]!);
     this.columns[index] = column;
     this.reload({offset: 'keep'});
   }

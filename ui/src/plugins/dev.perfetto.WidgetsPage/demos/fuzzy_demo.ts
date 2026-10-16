@@ -92,7 +92,7 @@ function generateSampleItems(): SampleItem[] {
 
   function toCamelCase(words: string[]): string {
     return (
-      words[0].toLowerCase() +
+      words[0]!.toLowerCase() +
       words
         .slice(1)
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -186,8 +186,8 @@ export function renderFuzzyDemo(): m.Children {
       );
       results = searchResults.map((res) => ({
         item: res.item,
-        nameSegments: res.segments[0],
-        categorySegments: res.segments[1],
+        nameSegments: res.segments[0]!,
+        categorySegments: res.segments[1]!,
         score: res.score,
       }));
     } else {
