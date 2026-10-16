@@ -745,6 +745,20 @@ int64_t DescriptorPool::FlagSetToViews(
   return static_cast<int64_t>(unmatched);
 }
 
+int64_t DescriptorPool::FlagSetToViews(
+    CachedDescriptor& cache,
+    std::string_view enum_name,
+    int64_t mask,
+    std::vector<std::string_view>* out) const {
+  if (!cache.descriptor_idx_) {
+    cache.descriptor_idx_ = FindDescriptorIdx(std::string(enum_name));
+  }
+  if (!cache.descriptor_idx_) {
+    return mask;
+  }
+  return FlagSetToViews(*cache.descriptor_idx_, mask, out);
+}
+
 std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() const {
   protozero::HeapBuffered<protos::pbzero::DescriptorSet> descs;
   for (const auto& desc : descriptors()) {

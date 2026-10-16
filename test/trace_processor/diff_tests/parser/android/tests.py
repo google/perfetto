@@ -407,7 +407,11 @@ class AndroidParser(TestSuite):
           p.pid,
           t.proc_state,
           t.oom_score,
-          t.capability_flags,
+          (
+            SELECT GROUP_CONCAT(a.key || '=' || a.int_value, ';')
+            FROM args a
+            WHERE a.arg_set_id = t.arg_set_id
+          ) AS capability_flags,
           t.process_group,
           t.reason,
           t.seq_id,
@@ -418,15 +422,15 @@ class AndroidParser(TestSuite):
         """,
         out=Csv("""
           "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
-          "[NULL]",100,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          "[NULL]",200,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",10,0
-          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",11,0
-          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,1,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
-          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
-          "[NULL]",500,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,0,"PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",21,0
-          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,0
+          "[NULL]",100,"PROCESS_STATE_TOP",0,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION=1","PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_TOP",0,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION=1","PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,200,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,"[NULL]","PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",10,0
+          4000,200,"PROCESS_STATE_CACHED_ACTIVITY",900,"[NULL]","PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",11,0
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION=1","PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_FOREGROUND_SERVICE",0,"[NULL]","PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
+          "[NULL]",500,"PROCESS_STATE_TOP",0,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION=1","PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000,500,"PROCESS_STATE_IMPORTANT_FOREGROUND",300,"[NULL]","PROCESS_GROUP_BACKGROUND","OOM_ADJ_REASON_BIND_SERVICE",21,0
+          2000,500,"PROCESS_STATE_BOUND_FOREGROUND_SERVICE",250,"[NULL]","PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",20,0
         """))
 
   def test_android_freezer_state(self):
@@ -505,7 +509,11 @@ class AndroidParser(TestSuite):
           p.pid,
           t.proc_state,
           t.oom_score,
-          t.capability_flags,
+          (
+            SELECT GROUP_CONCAT(a.key || '=' || a.int_value, ';')
+            FROM args a
+            WHERE a.arg_set_id = t.arg_set_id
+          ) AS capability_flags,
           t.process_group,
           t.reason,
           t.seq_id,
@@ -516,10 +524,65 @@ class AndroidParser(TestSuite):
         """,
         out=Csv("""
           "ts","pid","proc_state","oom_score","capability_flags","process_group","reason","seq_id","is_initial"
-          "[NULL]",100,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,0,"PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
-          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,0,"PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
-          "[NULL]",400,"PROCESS_STATE_TOP",0,1,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
-          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,0,"PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",7,0
-          "[NULL]",500,"PROCESS_STATE_TOP",100,0,"PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          "[NULL]",100,"PROCESS_STATE_TOP",100,"[NULL]","PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          "[NULL]",200,"PROCESS_STATE_PERSISTENT",-1000,"[NULL]","PROCESS_GROUP_SYSTEM","[NULL]","[NULL]",1
+          "[NULL]",300,"PROCESS_STATE_PERSISTENT",-1000,"[NULL]","PROCESS_GROUP_UNKNOWN","[NULL]","[NULL]",1
+          "[NULL]",400,"PROCESS_STATE_TOP",0,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION=1","PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+          2000000000,400,"PROCESS_STATE_IMPORTANT_FOREGROUND",200,"[NULL]","PROCESS_GROUP_FOREGROUND","OOM_ADJ_REASON_START_RECEIVER",7,0
+          "[NULL]",500,"PROCESS_STATE_TOP",100,"[NULL]","PROCESS_GROUP_TOP_APP","[NULL]","[NULL]",1
+        """))
+
+  def test_android_process_state_capability_flags(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 100 ppid: 1 cmdline: "proc100" }
+          }
+        }
+        packet {
+          timestamp: 1000
+          track_descriptor {
+            uuid: 1
+            thread { pid: 100 tid: 100 thread_name: "main" }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 100
+              uid: 10001
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_FOREGROUND_SERVICE
+              prev_capability_flags: 3
+              cur_capability_flags: 517
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          t.ts,
+          t.is_initial,
+          a.flat_key,
+          a.key,
+          a.int_value,
+          a.value_type
+        FROM __intrinsic_android_process_state t
+        JOIN args a USING (arg_set_id)
+        ORDER BY t.is_initial DESC, a.key;
+        """,
+        out=Csv("""
+          "ts","is_initial","flat_key","key","int_value","value_type"
+          "[NULL]",1,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_CAMERA","capability_flags.PROCESS_CAPABILITY_FOREGROUND_CAMERA",1,"bool"
+          "[NULL]",1,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION","capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION",1,"bool"
+          2000,0,"capability_flags.0x200","capability_flags.0x200",1,"bool"
+          2000,0,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION","capability_flags.PROCESS_CAPABILITY_FOREGROUND_LOCATION",1,"bool"
+          2000,0,"capability_flags.PROCESS_CAPABILITY_FOREGROUND_MICROPHONE","capability_flags.PROCESS_CAPABILITY_FOREGROUND_MICROPHONE",1,"bool"
         """))

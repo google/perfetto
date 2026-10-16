@@ -16,11 +16,21 @@
 
 #include "src/trace_processor/plugins/android_process_state/android_process_state_tracker.h"
 
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
 
+#include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_common.pbzero.h"
 #include "protos/third_party/android/frameworks/base/proto/tracing/frameworks_base_trace_packet.pbzero.h"
@@ -41,6 +51,41 @@ StringId InternEnum(TraceProcessorContext* context,
     return context->storage->InternString(*name);
   }
   return context->storage->InternString(std::to_string(value));
+}
+
+std::optional<ArgSetId> InternFlagsArgs(TraceProcessorContext* context,
+                                        DescriptorPool::CachedDescriptor& cache,
+                                        const char* enum_name,
+                                        std::string_view key_prefix,
+                                        int64_t mask) {
+  if (mask == 0) {
+    return std::nullopt;
+  }
+  std::vector<std::string_view> flag_views;
+  int64_t unmatched = context->descriptor_pool_->FlagSetToViews(
+      cache, enum_name, mask, &flag_views);
+
+  base::SmallVector<GlobalArgsTracker::CompactArg, 16> args;
+  auto emit = [&](base::StringView flag) {
+    base::StackString<128> key("%.*s.%.*s", static_cast<int>(key_prefix.size()),
+                               key_prefix.data(), static_cast<int>(flag.size()),
+                               flag.data());
+    StringId key_id = context->storage->InternString(key.string_view());
+    GlobalArgsTracker::CompactArg arg;
+    arg.flat_key = key_id;
+    arg.key = key_id;
+    arg.value = Variadic::Boolean(true);
+    args.emplace_back(arg);
+  };
+  for (std::string_view flag_view : flag_views) {
+    emit(base::StringView(flag_view.data(), flag_view.size()));
+  }
+  if (unmatched != 0) {
+    base::StackString<20> hex("0x%" PRIx64, static_cast<uint64_t>(unmatched));
+    emit(hex.string_view());
+  }
+  return context->global_args_tracker->AddArgSet(
+      args.data(), 0, static_cast<uint32_t>(args.size()));
 }
 
 AndroidProcessStateTracker::AndroidProcessStateTracker(
@@ -109,9 +154,6 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   if (p.has_cur_oom_score()) {
     row.oom_score = p.cur_oom_score();
   }
-  if (p.has_cur_capability_flags()) {
-    row.capability_flags = p.cur_capability_flags();
-  }
   if (p.has_cur_process_group()) {
     row.process_group = InternEnum(context_, process_group_cache_,
                                    ".com.android.internal.ProcessGroup",
@@ -124,6 +166,9 @@ void AndroidProcessStateTracker::ParseProcessStateChange(
   }
   if (p.has_seq_id()) {
     row.seq_id = p.seq_id();
+  }
+  if (p.has_cur_capability_flags()) {
+    row.arg_set_id = InternCapabilityFlagsArgs(p.cur_capability_flags());
   }
   process_state_table_->Insert(row);
 }
@@ -284,15 +329,23 @@ void AndroidProcessStateTracker::EmitInitialProcessStateRow(
   if (v.oom_score.has_value()) {
     row.oom_score = *v.oom_score;
   }
-  if (v.capability_flags.has_value()) {
-    row.capability_flags = *v.capability_flags;
-  }
   if (v.process_group.has_value()) {
     row.process_group =
         InternEnum(context_, process_group_cache_,
                    ".com.android.internal.ProcessGroup", *v.process_group);
   }
+  if (v.capability_flags.has_value()) {
+    row.arg_set_id = InternCapabilityFlagsArgs(*v.capability_flags);
+  }
   process_state_table_->Insert(row);
+}
+
+std::optional<ArgSetId> AndroidProcessStateTracker::InternCapabilityFlagsArgs(
+    int32_t mask) {
+  return InternFlagsArgs(context_, capability_flags_cache_,
+                         ".com.android.internal.ProcessCapabilityEnum",
+                         "capability_flags",
+                         static_cast<int64_t>(static_cast<uint32_t>(mask)));
 }
 
 void AndroidProcessStateTracker::EmitInitialFreezerRow(
