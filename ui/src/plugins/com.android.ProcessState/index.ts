@@ -23,6 +23,7 @@ import {
 import {SliceTrack} from '../../components/tracks/slice_track';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
+import type {TrackRenderer} from '../../public/track';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {
@@ -79,7 +80,20 @@ const EXITED_SCHEMA = {
 
 const PROCESS_STATE_SCHEMA = {...NONEXISTENT_SCHEMA, ...EXITED_SCHEMA} as const;
 
+const FREEZER_SCHEMA = {
+  id: NUM,
+  ts: LONG,
+  dur: LONG,
+  upid: NUM,
+  pid: NUM,
+  process_name: STR_NULL,
+  state: STR,
+} as const;
+
 const SLATE = makeColorScheme(new HSLColor([210, 18, 48]));
+
+// The per-process tracks come in their hundreds, so keep them compact.
+const COMPACT_SLICES = {sliceHeight: 12, titleSizePx: 10};
 
 // Below every other process-scoped track (-50..30) so it appears first.
 const PROCESS_GROUP_SORT_ORDER = -100;
@@ -95,8 +109,8 @@ const PROCESS_GROUP_SORT_ORDER = -100;
 export default class ProcessState implements PerfettoPlugin {
   static readonly id = 'com.android.ProcessState';
   static readonly description =
-    'Visualizes Android framework process states: per-state concurrency ' +
-    'counters and a per-process state timeline.';
+    'Visualizes Android framework process states: per-state and freezer ' +
+    'concurrency counters, and per-process state and freezer timelines.';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -214,10 +228,11 @@ export default class ProcessState implements PerfettoPlugin {
     return summary;
   }
 
-  // One timeline per process. Ordered by uid so that the successive processes
-  // of a respawning app sit next to each other - that adjacency is the only
-  // thing tying an app's lifetimes together, since each restart gets its own
-  // upid.
+  // One timeline per process, with its freezer timeline as a child when the
+  // trace has freezer data for it. Ordered by uid so that the successive
+  // processes of a respawning app sit next to each other - that adjacency is
+  // the only thing tying an app's lifetimes together, since each restart gets
+  // its own upid.
   private async createProcessTracks(ctx: Trace): Promise<TrackNode> {
     const byProcess = new TrackNode({name: 'By process', isSummary: true});
     const groups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);
@@ -226,7 +241,9 @@ export default class ProcessState implements PerfettoPlugin {
       SELECT
         upid,
         pid,
-        process_name AS name
+        process_name AS name,
+        upid IN (SELECT upid FROM _android_process_freezer_intervals)
+          AS hasFreezer
       FROM _android_process_state_intervals
       GROUP BY upid
       ORDER BY
@@ -236,22 +253,25 @@ export default class ProcessState implements PerfettoPlugin {
     `);
 
     for (
-      const it = processes.iter({upid: NUM, pid: NUM, name: STR_NULL});
+      const it = processes.iter({
+        upid: NUM,
+        pid: NUM,
+        name: STR_NULL,
+        hasFreezer: NUM,
+      });
       it.valid();
       it.next()
     ) {
-      const {upid, pid} = it;
+      const {upid, pid, hasFreezer} = it;
       const name = it.name ?? `${pid}`;
       const uri = processTrackUri(upid);
       const processGroup = groups.getGroupForProcess(upid);
-      // The process group owns the slices when it exists; the overview row
-      // then mirrors it and links to it.
-      const overviewUri = processGroup !== undefined ? `${uri}.overview` : uri;
-      for (const trackUri of processGroup ? [uri, overviewUri] : [uri]) {
-        const isOwner = trackUri === uri;
-        ctx.tracks.registerTrack({
-          uri: trackUri,
-          renderer: SliceTrack.create({
+      const overviewUri = this.registerProcessTrack(ctx, processGroup, {
+        uri,
+        upid,
+        description: `Framework process state of ${name} (${pid}) over time.`,
+        create: (trackUri, ownerUri) =>
+          SliceTrack.create({
             trace: ctx,
             uri: trackUri,
             dataset: new SourceDataset({
@@ -259,8 +279,7 @@ export default class ProcessState implements PerfettoPlugin {
               src: '_android_process_state_intervals',
               filter: {col: 'upid', eq: upid},
             }),
-            // These tracks come in their hundreds, so keep them compact.
-            sliceLayout: {sliceHeight: 12, titleSizePx: 10},
+            sliceLayout: COMPACT_SLICES,
             sliceName: (row) => row.state,
             colorizer: (row) => {
               if (row.state === 'NONEXISTENT') return SLATE;
@@ -274,33 +293,99 @@ export default class ProcessState implements PerfettoPlugin {
                   : row.state === 'EXITED'
                     ? EXITED_SCHEMA
                     : BASE_SCHEMA;
-              return new ProcessStateDetailsPanel(
-                ctx,
-                schema,
-                row,
-                isOwner ? undefined : uri,
-              );
+              return new ProcessStateDetailsPanel(ctx, schema, row, ownerUri);
             },
-            rootTableName: isOwner
-              ? '_android_process_state_intervals'
-              : undefined,
+            rootTableName:
+              ownerUri === undefined
+                ? '_android_process_state_intervals'
+                : undefined,
           }),
-          tags: {type: TAG_PROCESS_TRACK, upid},
-          description: `Framework process state of ${name} (${pid}) over time.`,
-        });
+      });
+      const overviewNode = new TrackNode({
+        uri: overviewUri,
+        name: `${name} ${pid}`,
+      });
+      const groupNode = new TrackNode({
+        uri,
+        name: 'Process state',
+        sortOrder: PROCESS_GROUP_SORT_ORDER,
+      });
+
+      if (hasFreezer) {
+        const freezerUri = `${uri}.freezer`;
+        const overviewFreezerUri = this.registerProcessTrack(
+          ctx,
+          processGroup,
+          {
+            uri: freezerUri,
+            upid,
+            description: `Freezer state of ${name} (${pid}) over time.`,
+            create: (trackUri, ownerUri) =>
+              SliceTrack.create({
+                trace: ctx,
+                uri: trackUri,
+                dataset: new SourceDataset({
+                  schema: FREEZER_SCHEMA,
+                  src: '_android_process_freezer_intervals',
+                  filter: {col: 'upid', eq: upid},
+                }),
+                sliceLayout: COMPACT_SLICES,
+                sliceName: (row) => row.state,
+                colorizer: (row) => getColorForSlice(row.state),
+                detailsPanel: (row) =>
+                  new ProcessStateDetailsPanel(
+                    ctx,
+                    FREEZER_SCHEMA,
+                    row,
+                    ownerUri,
+                  ),
+                rootTableName:
+                  ownerUri === undefined
+                    ? '_android_process_freezer_intervals'
+                    : undefined,
+              }),
+          },
+        );
+        overviewNode.addChildLast(
+          new TrackNode({uri: overviewFreezerUri, name: 'Freezer'}),
+        );
+        groupNode.addChildLast(
+          new TrackNode({uri: freezerUri, name: 'Freezer'}),
+        );
       }
-      byProcess.addChildLast(
-        new TrackNode({uri: overviewUri, name: `${name} ${pid}`}),
-      );
-      processGroup?.addChildInOrder(
-        new TrackNode({
-          uri,
-          name: 'Process state',
-          sortOrder: PROCESS_GROUP_SORT_ORDER,
-        }),
-      );
+
+      byProcess.addChildLast(overviewNode);
+      processGroup?.addChildInOrder(groupNode);
     }
 
     return byProcess;
+  }
+
+  // Registers a process-scoped track. The process group owns it when there is
+  // one; the 'By process' overview then gets a mirror under `${uri}.overview`
+  // that links back to the owner, which alone keeps rootTableName so that
+  // selecting a slice by id lands on it. Returns the uri for the overview node.
+  private registerProcessTrack(
+    ctx: Trace,
+    processGroup: TrackNode | undefined,
+    track: {
+      uri: string;
+      upid: number;
+      description: string;
+      create: (trackUri: string, ownerUri?: string) => TrackRenderer;
+    },
+  ): string {
+    const {uri, upid, description, create} = track;
+    const overviewUri = processGroup !== undefined ? `${uri}.overview` : uri;
+    for (const trackUri of processGroup ? [uri, overviewUri] : [uri]) {
+      const isOwner = trackUri === uri;
+      ctx.tracks.registerTrack({
+        uri: trackUri,
+        renderer: create(trackUri, isOwner ? undefined : uri),
+        tags: {type: TAG_PROCESS_TRACK, upid},
+        description,
+      });
+    }
+    return overviewUri;
   }
 }
