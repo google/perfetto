@@ -68,14 +68,14 @@ workload-specific dimension; **rank** is used only as a concrete example of one.
 
 Adopt `Dimension` / `TrackDescriptor.dimensions` as a producer surface and
 normalize custom and well-known dimensions into one typed, track-keyed
-trace_processor relation. Dimensions declared on process/thread tracks resolve
-through existing `upid`/`utid` association; dimensions on ordinary tracks resolve
-through `parent_uuid`. Conflicting child overrides are invalid. The standard UI
-presentation is a multi-label track subtitle, details tabs show the same resolved
-values, and specialized consumers such as GPU hierarchy use the same TP data and
-label helpers. The initial well-known set is `machine`, `gpu`, `cpu`, `process`,
-and `thread`; custom string data is interned; numbering is per source trace and
-machine.
+trace_processor relation. A dimension applies to the track which declares it and
+its `parent_uuid` descendants, whatever the kind of track: process and thread
+tracks get no special inheritance. Conflicting child overrides are invalid. The
+standard UI presentation is a multi-label track subtitle, details tabs show the
+same resolved values, and specialized consumers such as GPU hierarchy use the
+same TP data and label helpers. The initial well-known set is `machine`, `gpu`,
+`cpu`, `process`, and `thread`; custom string data is interned; numbering is per
+source trace and machine.
 
 ## Design
 
@@ -104,11 +104,11 @@ A dimension declaration carries:
 - **typed value** — initially an integer or an interned string.
 - **display name** — an optional interned per-value label such as `worker-east`.
 
-A dimension has no independent `scope` enum. It is declared on a track. Existing
-process/thread association and explicit `parent_uuid` relationships determine
-which other tracks resolve that declaration as part of their effective dimension
-set. “Process-scoped rank” is shorthand for “rank declared on the process track,”
-not a separate storage or importer concept.
+A dimension has no independent `scope` enum. It is declared on a track, and
+explicit `parent_uuid` relationships alone determine which other tracks resolve
+that declaration as part of their effective dimension set. “Process-scoped rank”
+is shorthand for “rank declared on the process track,” not a separate storage or
+importer concept.
 
 Presentation metadata adds a label template (`machine %d`, `GPU %d`, `rank %d`)
 and stable numbering. Numbering is deterministic and gap-free within a
@@ -180,34 +180,41 @@ GPU
     └── <gpu tracks>
 ```
 
-### Resolution through `parent_uuid` and process/thread association
+### Resolution through `parent_uuid`
 
 Labeling never reparents anything, but effective dimension resolution is explicit
 and shared by SQL, subtitles, details, and specialized UI:
 
-1. A dimension declared on a process descriptor applies to tracks associated with
-   the same `upid`, including its threads, process tracks, and per-process GPU
-   tracks.
-2. A dimension declared on a thread descriptor applies to tracks associated with
-   the same `utid`.
-3. A dimension declared on any other track applies to that track and its explicit
-   `parent_uuid` descendants.
-4. A global track with no process/thread association receives only dimensions
-   declared on itself or its explicit ancestors, plus synthesized well-known
-   dimensions such as machine.
-5. A descendant can add a dimension name not provided by its effective ancestors.
+1. A dimension declared on a track applies to that track and its explicit
+   `parent_uuid` descendants, whether it is a process, thread, or any other
+   track.
+2. Sharing a `upid` or `utid` with the declaring track is not an inheritance
+   edge. Threads and other process-associated tracks do not receive a process
+   dimension merely through that association.
+3. A descendant can add a dimension name not provided by its effective ancestors.
    Repeating the same name and typed value is redundant and deduplicated. A
    different value for an inherited name is invalid producer input: trace_processor
    records an import error and does not apply the override.
+
+Every track also receives the synthesized well-known dimensions, such as machine.
 
 For example:
 
 ```text
 Process track: process=trainer, rank=3
-├── Thread track                         effective: rank=3
-├── CPU annotation track                effective: rank=3
-└── Per-process GPU track, gpu=1         effective: rank=3, gpu=1
+├── CPU annotation track (parent_uuid)   effective: rank=3
+└── GPU track (parent_uuid), gpu=1       effective: rank=3, gpu=1
+
+Thread track: rank=3 declared directly   effective: rank=3
+Thread track with no dimensions          effective: (no custom dimensions)
+mem.rss of trainer (process stats)       effective: (no custom dimensions)
 ```
+
+Process association is deliberately not an inheritance edge. Producers which want
+process dimensions on their thread tracks should re-emit those dimensions in the
+thread descriptors. Queries which want "everything in rank 3, including its
+threads" join through `thread.upid` to the process track explicitly (see Querying
+by a dimension).
 
 But:
 
@@ -263,10 +270,13 @@ breaking the identity model.
 2. **trace_processor import and resolution.** All dimensions use one generic
    track-dimension path. Typed process/thread descriptors, GPU descriptors, and
    machine import context synthesize the same canonical rows as custom
-   declarations. A post-import resolver applies process/thread association and
-   `parent_id` inheritance, deduplicates repeated identical values, and reports a
-   producer error for a conflicting inherited value. There are no separate
-   custom process-, thread-, or GPU-dimension storage paths.
+   declarations. The custom dimensions of a track are written when the track is
+   created: the ones declared on its descriptor plus the ones inherited from its
+   `parent_uuid` ancestors, deduplicating repeated identical values and
+   reporting a producer error for a conflicting inherited value. A parent track
+   is always created before its children, so this needs no post-import pass and
+   no backfill. There are no separate custom process-, thread-, or GPU-dimension
+   storage paths.
 
 3. **trace_processor query surface.** Expose effective dimensions through one
    typed long-form relation (public name to be finalized):
@@ -309,13 +319,17 @@ GPU is a well-known dimension with the same trace_processor shape as machine,
 CPU, process, thread, or a custom dimension. Its special behavior is limited to
 identity merging and UI presentation.
 
-A per-process GPU track is associated with a `upid`, so a custom dimension
-attached to that process track — for example `rank` — resolves onto the GPU track
-through the ordinary process-association rule. No GPU-specific custom-dimension
-code or `_process_dimension` join is needed. A cross-process GPU group does not
-receive a process dimension when its children disagree: `rank` remains on the
-per-process child tracks while the group carries only dimensions that have one
-unambiguous value, such as `gpu` and `machine`.
+Like any other track, a GPU track receives a custom dimension declared on a
+process track — for example `rank` — only if it is a `parent_uuid` descendant of
+that process track, e.g. a GPU track the producer emits under its own process
+track. GPU tracks from other data sources, such as a hardware queue shared by
+several processes, don't receive the custom dimensions of any process: their
+work is attributed to a rank by joining the `upid` of the work to the process
+track (see below). No GPU-specific custom-dimension code or per-domain dimension
+table is needed. A cross-process GPU group does not receive a process dimension
+when its children disagree: `rank` remains on the per-process child tracks while
+the group carries only dimensions that have one unambiguous value, such as `gpu`
+and `machine`.
 
 ### Querying by a dimension in trace_processor
 
@@ -330,26 +344,35 @@ FROM slice AS s
 JOIN track_dimension AS d USING (track_id)
 WHERE d.name = 'rank' AND d.int_value = 3;
 
--- GPU busy time per rank. GPU work uses the same track_id relation.
-SELECT d.int_value AS rank, sum(s.dur) AS gpu_busy
+-- GPU busy time per rank. The rank is declared on the process track, so GPU
+-- work outside its parent_uuid subtree is attributed to a rank through the
+-- upid of the work.
+SELECT r.rank, sum(s.dur) AS gpu_busy
 FROM gpu_slice AS s
-JOIN track_dimension AS d USING (track_id)
-WHERE d.name = 'rank'
-GROUP BY rank;
+JOIN (
+  SELECT DISTINCT pt.upid, d.int_value AS rank
+  FROM process_track AS pt
+  JOIN track_dimension AS d ON d.track_id = pt.id
+  WHERE d.name = 'rank'
+) AS r USING (upid)
+GROUP BY r.rank;
 ```
 
-Process and thread remain typed top-level Perfetto concepts. Their canonical
-tracks declare or synthesize dimensions, and the resolver propagates those
-values to tracks with matching `upid`/`utid`; they do not require parallel
-per-scope dimension tables. Machine continues to reach global tracks because TP
-synthesizes it from each track's import context. A global track receives a custom
-dimension only from its own descriptor or an explicit `parent_uuid` ancestor.
+Process and thread remain typed top-level Perfetto concepts. Their tracks may
+declare dimensions like any other track, and a process's custom dimensions are
+the `track_dimension` rows of its process track; they do not require parallel
+per-scope dimension tables. Reaching the tracks of a process's threads, or other
+tracks only associated with the process, is an explicit join through `upid`
+(`thread.upid` for threads) to the process track, as above. Machine continues to
+reach every track because TP synthesizes it from each track's import context. A
+track receives a custom dimension only from its own descriptor or an explicit
+`parent_uuid` ancestor.
 
 ### Details and non-track surfaces
 
 When a selected slice, counter, or other row has a backing `track_id`, the details
 panel resolves and displays that track's effective dimensions. Process/thread
-details use their canonical tracks. Each entry shows the canonical name, raw
+details use their process/thread tracks. Each entry shows the canonical name, raw
 typed value, and optional display name; well-known dimensions such as machine no
 longer need a separate raw-ID-only presentation. This avoids copying custom
 columns into every event table while making dimensions consistently visible in
@@ -363,12 +386,13 @@ both SQL and details UI.
 - **GPU** → a well-known dimension in the generic TP relation. Existing GPU
   hierarchy and the hardcoded multi-GPU presentation gate remain, but both GPU
   plugins consume the shared dimension metadata and label helper.
-- **Process/thread** → remain typed top-level concepts and provide association
-  edges for effective-dimension resolution. This RFC does not replace `upid` or
-  `utid` storage.
-- **Custom** → a producer declares a dimension on the appropriate process,
-  thread, or ordinary track. Adding another custom dimension is then data rather
-  than new TP/UI code.
+- **Process/thread** → remain typed top-level concepts. Their tracks declare
+  dimensions like any other track; process/thread association is not an
+  inheritance edge. This RFC does not replace `upid` or `utid` storage.
+- **Custom** → a producer declares a dimension on the track at the root of the
+  producer-defined `parent_uuid` subtree it applies to. To apply process
+  dimensions to thread tracks, re-emit them in the thread descriptors. Adding
+  another custom dimension is then data rather than new TP/UI code.
 
 Labels still collapse when only one distinct value is present. The deliberate
 presentation change is that machine labels move from name suffixes to subtitles.
@@ -385,7 +409,7 @@ merging-based grouping as specialized presentation.
 
 Pro:
 
-- One query model for custom, process/thread-associated, machine, CPU, and GPU
+- One query model for custom, machine, CPU, GPU, process, and thread
   dimensions; no per-domain custom-dimension tables.
 - One implementation of collapse-and-label; the custom case is data.
 - No generic LEVEL semantics, so no risky interaction with producer
