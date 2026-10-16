@@ -49,11 +49,82 @@ def extract_permalink_hash(arg):
       "link like 'https://ui.perfetto.dev/#!/?s=<hash>' or a bare hash.")
 
 
+class _HttpsOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+  """Refuse redirects to anything other than https.
+
+  urlopen follows redirects by default, so without this a permalink pointing at
+  a malicious https server could redirect to http://127.0.0.1/ or the cloud
+  metadata endpoint and side-step the https check on the initial trace URL.
+  Keeping redirects on https also means an internal target with a self-signed
+  or private certificate fails TLS verification rather than being reached.
+  """
+
+  def redirect_request(self, req, fp, code, msg, headers, newurl):
+    if urllib.parse.urlparse(newurl).scheme != 'https':
+      raise ValueError(
+          'Refusing to follow redirect to non-https URL: %s' % newurl)
+    return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _fetch(url):
-  # The UI uses unauthenticated GCS reads; skip cert verification to avoid
-  # local trust-store issues (mirrors tools/update_permalink.py).
-  context = ssl._create_unverified_context()
-  return urllib.request.urlopen(url, context=context)
+  # Verify TLS certificates. Permalinks and traces are served over HTTPS from
+  # GCS, which presents a valid publicly-trusted certificate, so there is no
+  # reason to disable verification for these unauthenticated reads. Redirects
+  # are pinned to https so a redirect cannot downgrade the fetch to http:// or
+  # file:// and reach an internal address.
+  context = ssl.create_default_context()
+  opener = urllib.request.build_opener(
+      _HttpsOnlyRedirectHandler,
+      urllib.request.HTTPSHandler(context=context))
+  return opener.open(url)
+
+
+def _check_trace_url(trace_url):
+  """Reject a permalink trace URL that is not a plain HTTPS fetch.
+
+  The traceUrl comes from the permalink JSON, which is attacker-controlled: a
+  crafted permalink can point it anywhere. urllib.request.urlopen honours
+  file:// (reading a local file into the output) and other schemes, so without
+  this check a hostile share link could exfiltrate an arbitrary local file or
+  drive an SSRF to an internal http:// endpoint. Restrict to https, which still
+  allows traces hosted on any public HTTPS server.
+  """
+  parsed = urllib.parse.urlparse(trace_url)
+  if parsed.scheme != 'https' or not parsed.netloc:
+    raise ValueError(
+        'Refusing to fetch trace URL with unsupported scheme %r (only https is '
+        'allowed): %s' % (parsed.scheme, trace_url))
+  if '@' in parsed.netloc:
+    # userinfo in the authority (https://trusted.com@evil.com/...) sends the
+    # request to evil.com while reading as trusted.com; reject it.
+    raise ValueError(
+        'Refusing to fetch trace URL that embeds userinfo in the authority: %s'
+        % trace_url)
+
+
+_SAFE_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+# Reserved on Windows regardless of extension; writing to one of these can hang
+# or write to a device instead of a file.
+_WINDOWS_RESERVED = frozenset(['CON', 'PRN', 'AUX', 'NUL'] +
+                              ['COM%d' % i for i in range(1, 10)] +
+                              ['LPT%d' % i for i in range(1, 10)])
+
+
+def _safe_output_name(trace_url):
+  """Derive a safe local filename from the trace URL's path.
+
+  When no -o is given the default output name is taken from the
+  attacker-controlled traceUrl, so a hostile permalink could otherwise choose
+  the name of a file to clobber in the current directory (e.g. a dotfile).
+  basename already blocks directory traversal; additionally require a
+  conservative charset with no leading dot, falling back to a fixed default.
+  """
+  name = os.path.basename(urllib.parse.urlparse(trace_url).path)
+  if not _SAFE_NAME_RE.match(name):
+    return 'trace.pftrace'
+  if name.split('.')[0].upper() in _WINDOWS_RESERVED:
+    return 'trace.pftrace'
+  return name
 
 
 def resolve_trace_url(share_link):
@@ -79,6 +150,7 @@ def resolve_trace_url(share_link):
         'Permalink does not contain a trace URL. The share link may have been '
         'created from a trace that was never uploaded (e.g. an HTTP/RPC '
         'source).')
+  _check_trace_url(trace_url)
   return trace_url
 
 
@@ -86,8 +158,7 @@ def download_trace(share_link, out_path=None):
   """Download the trace behind a share link. Returns the output path."""
   trace_url = resolve_trace_url(share_link)
   if out_path is None:
-    name = os.path.basename(urllib.parse.urlparse(trace_url).path)
-    out_path = name if name else 'trace.pftrace'
+    out_path = _safe_output_name(trace_url)
   print('Downloading trace: %s' % trace_url, file=sys.stderr)
   resp = _fetch(trace_url)
   total = resp.length or 0
