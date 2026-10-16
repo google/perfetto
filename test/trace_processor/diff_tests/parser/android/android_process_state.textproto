@@ -12,6 +12,7 @@ packet {
     processes { pid: 500 ppid: 1 cmdline: "proc500" }
     processes { pid: 600 ppid: 1 cmdline: "proc600" }
     processes { pid: 700 ppid: 1 cmdline: "proc700" }
+    processes { pid: 800 ppid: 1 cmdline: "proc800" }
   }
 }
 packet {
@@ -220,7 +221,7 @@ packet {
     }
   }
 }
-# Trace-stop dump for freezer state (contains pid 100, pid 600, pid 700, and unknown pid 999).
+# Trace-stop dump for freezer state (contains pid 100, pid 600, pid 700, pid 800, and unknown pid 999).
 # PID 600 tests dump-only freezer records.
 packet {
   timestamp: 10000
@@ -229,20 +230,25 @@ packet {
       pid: 100
       uid: 10001
       unfrozen_dur_ms: 500
-      frozen_dur_ms: 1200
       unfreeze_reason: UFR_ACTIVITY
     }
     record {
       pid: 600
       uid: 10006
       unfrozen_dur_ms: 50
-      frozen_dur_ms: 600
       unfreeze_reason: UFR_PING
     }
-    # PID 700: Dump-only freezer record with omitted unfreeze_reason (frozen in dump).
+    # PID 700: Unfrozen dump-only freezer record with omitted unfreeze_reason (testing 0/UFR_NONE fallback).
     record {
       pid: 700
       uid: 10007
+      unfrozen_dur_ms: 50
+    }
+    # PID 800: Frozen dump-only freezer record (has_frozen_dur_ms is true, so unfreeze_reason is NULL).
+    record {
+      pid: 800
+      uid: 10008
+      frozen_dur_ms: 600
     }
     # PID 999: Unknown process (not in process_tree), should be skipped.
     record {
