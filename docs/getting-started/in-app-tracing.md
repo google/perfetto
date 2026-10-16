@@ -88,9 +88,9 @@ endif (MSVC)
 </tabs?>
 
 NOTE: For MSVC with C++17, enable `/Zc:lambda` to avoid compilation hangs in
-lambdas containing trace macros. Some compiler options already enable it,
-depending on your Visual Studio version. See
-[MSVC lambda support](/docs/instrumentation/tracing-sdk.md#msvc-lambdas).
+lambdas containing trace macros. Some compiler options (e.g. `/permissive-`)
+already enable it, depending on your Visual Studio version. See
+[MSVC hangs when compiling trace macros inside a lambda](/docs/instrumentation/tracing-sdk.md#msvc-lambdas).
 
 Initialize perfetto in your program and define your tracing categories:
 
