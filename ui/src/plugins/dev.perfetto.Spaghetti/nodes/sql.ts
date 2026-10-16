@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {Select} from '../../../widgets/select';
@@ -24,20 +25,24 @@ import type {ColumnDef} from '../graph_utils';
 import type {SimpleTypeKind} from '../../../trace_processor/perfetto_sql_type';
 import type {Port} from '../graph_model';
 
-export interface SqlOutputColumn {
-  readonly name: string;
-  readonly type: string; // SimpleTypeKind or '' for unknown
-}
+const SqlOutputColumnSchema = z.object({
+  name: z.string(),
+  type: z.string(), // SimpleTypeKind or '' for unknown
+});
 
-export interface SqlConfig {
-  readonly sql: string;
-  readonly columns?: SqlOutputColumn[];
+export type SqlOutputColumn = z.infer<typeof SqlOutputColumnSchema>;
+
+const SqlConfigSchema = z.object({
+  sql: z.string(),
+  columns: z.array(SqlOutputColumnSchema).optional(),
   /** User-defined alias for each input port, parallel to the inputs array. */
-  readonly inputPorts?: string[];
+  inputPorts: z.array(z.string()).optional(),
   /** Persisted textarea dimensions. Undefined = use defaults. */
-  readonly textareaWidth?: number;
-  readonly textareaHeight?: number;
-}
+  textareaWidth: z.number().optional(),
+  textareaHeight: z.number().optional(),
+});
+
+export type SqlConfig = z.infer<typeof SqlConfigSchema>;
 
 const DEFAULT_TEXTAREA_WIDTH = 220;
 const DEFAULT_TEXTAREA_HEIGHT = 120;
@@ -62,6 +67,7 @@ export const manifest: NodeManifest<SqlConfig> = {
   title: 'SQL',
   icon: 'code',
   hue: 280,
+  schema: SqlConfigSchema,
   getInputs(config: SqlConfig): Port[] {
     const {inputPorts = []} = config;
     return inputPorts.map((name, i) => ({

@@ -46,7 +46,11 @@ export namespace Card {
       const variantClass = attrs.variant
         ? `pf-spag-card-badge--${attrs.variant}`
         : '';
-      return m('span.pf-spag-card-badge', {className: variantClass}, attrs.label);
+      return m(
+        'span.pf-spag-card-badge',
+        {className: variantClass},
+        attrs.label,
+      );
     },
   };
 

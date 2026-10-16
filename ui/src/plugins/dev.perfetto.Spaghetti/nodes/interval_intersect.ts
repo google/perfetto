@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {Checkbox} from '../../../widgets/checkbox';
 import type {NodeManifest, RenderContext} from '../node_types';
 import {Row} from '../components/row';
@@ -22,11 +23,15 @@ import type {ColumnDef} from '../graph_utils';
 import type {Port} from '../graph_model';
 import {Button, ButtonVariant} from '../../../widgets/button';
 
-export interface IntervalIntersectConfig {
-  readonly numInputs: number;
-  readonly partitionColumns: string[];
-  readonly filterNegativeDur: boolean;
-}
+const IntervalIntersectConfigSchema = z.object({
+  numInputs: z.number(),
+  partitionColumns: z.array(z.string()),
+  filterNegativeDur: z.boolean(),
+});
+
+export type IntervalIntersectConfig = z.infer<
+  typeof IntervalIntersectConfigSchema
+>;
 
 function IntervalIntersectContent(): m.Component<{
   config: IntervalIntersectConfig;
@@ -160,6 +165,7 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
   title: 'Interval Intersect',
   icon: 'compare_arrows',
   hue: 340,
+  schema: IntervalIntersectConfigSchema,
   getInputs(config: IntervalIntersectConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
       name: `input_${i}`,
