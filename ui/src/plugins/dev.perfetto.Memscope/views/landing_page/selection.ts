@@ -34,7 +34,7 @@ export function nearestByTs<T extends {ts: time}>(
 ): T | undefined {
   if (rows.length === 0) return undefined;
   if (ts === undefined) return rows[rows.length - 1];
-  let best = rows[0];
+  let best = rows[0]!;
   let bestDist = ts > best.ts ? ts - best.ts : best.ts - ts;
   for (const r of rows) {
     const dist = ts > r.ts ? ts - r.ts : r.ts - ts;

@@ -235,7 +235,7 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
       if (!vnode.attrs.row.hasPixelData) return;
       obs = new IntersectionObserver(
         ([entry]) => {
-          if (entry.isIntersecting) {
+          if (entry!.isIntersecting) {
             load(
               vnode.attrs.engine,
               vnode.attrs.activeDump,

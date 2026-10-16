@@ -183,7 +183,7 @@ function messagesToTranscript(messages: ReadonlyArray<Message>): string {
 function stripFences(text: string): string {
   const t = text.trim();
   const fence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i.exec(t);
-  return fence ? fence[1].trim() : t;
+  return fence ? fence[1]!.trim() : t;
 }
 
 // Return the first brace-balanced `{...}` substring, ignoring braces inside

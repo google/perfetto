@@ -102,7 +102,7 @@ function dumpDom(): string {
 function getMenuItems(rerender: () => void, triggerLabel: string): string[] {
   const menuButton = queryAllByRole(container, 'button', {
     name: triggerLabel,
-  })[0];
+  })[0]!;
   expect(menuButton, dumpDom()).toBeTruthy();
   menuButton.dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
   rerender();

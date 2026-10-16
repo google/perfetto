@@ -631,7 +631,7 @@ export class BigtraceQueryClient {
       if (response.status === 404) {
         // Extract UUID from /query_executions/{uuid}[:action]; else use path.
         const m = path.match(/\/query_executions\/([^/:?#]+)/);
-        throw new QueryNotFoundError(m ? m[1] : path);
+        throw new QueryNotFoundError(m ? m[1]! : path);
       }
       if (response.status === 403) {
         // Most 403s here are an unauthenticated session; fold the hint into
@@ -685,7 +685,7 @@ export function parseQueryResponse(
   const rows = (result.rows ?? []).map((row) => {
     const out: DataGridRow = {};
     for (let i = 0; i < schema.length; i++) {
-      const {name, type} = schema[i];
+      const {name, type} = schema[i]!;
       out[name] = parseCellValue(row.values[i], type);
     }
     return out;

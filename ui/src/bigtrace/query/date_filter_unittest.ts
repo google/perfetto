@@ -62,16 +62,18 @@ describe('date filter', () => {
       rest: [own],
       intact: true,
     });
-    expect(splitDateFilters([pair[0], own], pair)).toEqual({
+    expect(splitDateFilters([pair[0]!, own], pair)).toEqual({
       rest: [own],
       intact: false,
     });
     // A grid filter that duplicates one half is swept out with the pair but
     // is not a removal: the range stays.
-    expect(splitDateFilters([pair[0], pair[0], pair[1], own], pair)).toEqual({
-      rest: [own],
-      intact: true,
-    });
+    expect(splitDateFilters([pair[0]!, pair[0]!, pair[1]!, own], pair)).toEqual(
+      {
+        rest: [own],
+        intact: true,
+      },
+    );
   });
 
   test("a history run's date pair becomes a fixed range", () => {

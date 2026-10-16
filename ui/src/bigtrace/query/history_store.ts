@@ -61,7 +61,7 @@ function formatDayLabel(d: Date, dayKey: string, now: Date): string {
     now.getDate() - 1,
   ).toDateString();
   if (dayKey === yesterdayKey) return 'Yesterday';
-  return `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
+  return `${MONTH_NAMES[d.getMonth()]!.slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 // Buckets sorted entries by local calendar day.
