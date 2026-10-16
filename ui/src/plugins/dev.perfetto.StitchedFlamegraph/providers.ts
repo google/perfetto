@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {CPU_SAMPLES_PROVIDER} from './cpu_samples';
+import {CRITICAL_PATH_PROVIDER} from './critical_path';
 import {FLOWS_PROVIDER} from './flows';
 import type {StitchedMetricProvider} from './metrics';
 
@@ -21,4 +22,5 @@ import type {StitchedMetricProvider} from './metrics';
 export const STITCHED_PROVIDERS: ReadonlyArray<StitchedMetricProvider> = [
   FLOWS_PROVIDER,
   CPU_SAMPLES_PROVIDER,
+  CRITICAL_PATH_PROVIDER,
 ];

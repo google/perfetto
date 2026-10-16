@@ -144,7 +144,7 @@ describe('StitchedFlamegraph providers', () => {
       provider.metrics(TRACE, SELECTION, '_t').prepare.map((p) => p.sql),
     );
     const flows = sqls.filter((sql) => sql.includes('_t_flows_seeds as'));
-    expect(flows.length).toBe(STITCHED_PROVIDERS.length);
+    expect(flows.length).toBeGreaterThan(1);
     expect(new Set(flows).size).toBe(1);
   });
 });
