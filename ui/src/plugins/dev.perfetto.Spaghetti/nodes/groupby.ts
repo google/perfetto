@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {
   ColumnContext,
   NodeManifest,
@@ -27,16 +28,20 @@ import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
 import {AliasTag} from '../components/alias_tag';
 
-export interface Aggregation {
-  readonly func: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
-  readonly column: string;
-  readonly alias: string;
-}
+const AggregationSchema = z.object({
+  func: z.enum(['COUNT', 'SUM', 'AVG', 'MIN', 'MAX']),
+  column: z.string(),
+  alias: z.string(),
+});
 
-export interface GroupByConfig {
-  readonly groupColumns: string[];
-  readonly aggregations: Aggregation[];
-}
+export type Aggregation = z.infer<typeof AggregationSchema>;
+
+const GroupByConfigSchema = z.object({
+  groupColumns: z.array(z.string()),
+  aggregations: z.array(AggregationSchema),
+});
+
+export type GroupByConfig = z.infer<typeof GroupByConfigSchema>;
 
 function aggAlias(a: Aggregation): string {
   if (a.alias) return a.alias;
@@ -329,6 +334,7 @@ export const manifest: NodeManifest<GroupByConfig> = {
   icon: 'workspaces',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 275,
+  schema: GroupByConfigSchema,
   defaultConfig: () => ({groupColumns: [], aggregations: []}),
   render,
   getOutputColumns,

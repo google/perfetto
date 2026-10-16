@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {
   ColumnContext,
   NodeManifest,
@@ -27,20 +28,26 @@ import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
 import {AliasTag} from '../components/alias_tag';
 
-export interface SelectEntry {
-  readonly column: string;
-  readonly alias: string;
-}
+const SelectEntrySchema = z.object({
+  column: z.string(),
+  alias: z.string(),
+});
 
-export interface SelectExpression {
-  readonly expression: string;
-  readonly alias: string;
-}
+export type SelectEntry = z.infer<typeof SelectEntrySchema>;
 
-export interface SelectConfig {
-  readonly entries?: SelectEntry[];
-  readonly expressions?: SelectExpression[];
-}
+const SelectExpressionSchema = z.object({
+  expression: z.string(),
+  alias: z.string(),
+});
+
+export type SelectExpression = z.infer<typeof SelectExpressionSchema>;
+
+const SelectConfigSchema = z.object({
+  entries: z.array(SelectEntrySchema).optional(),
+  expressions: z.array(SelectExpressionSchema).optional(),
+});
+
+export type SelectConfig = z.infer<typeof SelectConfigSchema>;
 
 function exprAlias(e: SelectExpression): string {
   if (e.alias) return e.alias;
@@ -334,6 +341,7 @@ export const manifest: NodeManifest<SelectConfig> = {
   icon: 'view_column',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 145,
+  schema: SelectConfigSchema,
   defaultConfig: () => ({entries: [], expressions: []}),
   render(config, updateConfig, ctx) {
     return m(SelectNodeContent, {config, updateConfig, ctx});

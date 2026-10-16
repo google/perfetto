@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type m from 'mithril';
+import type {z} from 'zod';
 import type {Trace} from '../../public/trace';
 import type {ColumnDef} from './graph_utils';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
@@ -99,13 +100,16 @@ export interface ColumnContext {
 // Node manifest: single source of truth for each node type.
 // ---------------------------------------------------------------------------
 
-export interface NodeManifest<C extends object = {}> {
+export interface NodeManifest<C extends object = any> {
   // Visual / graph metadatas
   readonly title: string;
   readonly icon: string;
   /** Optional config-dependent icon override. Method (bivariant) intentionally. */
   resolveIcon?(config: C): string;
   readonly hue: number;
+
+  /** Zod schema used to validate and parse serialized node configs. */
+  readonly schema: z.ZodType<C>;
 
   getInputs?(config: C): Port[];
 

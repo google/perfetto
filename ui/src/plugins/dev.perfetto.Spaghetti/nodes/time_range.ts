@@ -13,19 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {NodeManifest} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Stack} from '../components/stack';
 
-export interface TimeRangeConfig {
-  readonly ts: string; // bigint as string for serialization
-  readonly dur: string;
-}
+const TimeRangeConfigSchema = z.object({
+  ts: z.string(), // bigint as string for serialization
+  dur: z.string(),
+});
+
+export type TimeRangeConfig = z.infer<typeof TimeRangeConfigSchema>;
 
 export const manifest: NodeManifest<TimeRangeConfig> = {
   title: 'Time Range',
   icon: 'highlight_alt',
   hue: 15,
+  schema: TimeRangeConfigSchema,
   defaultConfig: () => ({ts: '0', dur: '0'}),
   isValid: (config) => config.ts !== '0' || config.dur !== '0',
   getOutputColumns() {

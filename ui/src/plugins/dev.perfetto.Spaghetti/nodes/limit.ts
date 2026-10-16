@@ -13,19 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {NodeManifest, SqlStatement} from '../node_types';
 import {TextInput} from '../../../widgets/text_input';
 import {Stack} from '../components/stack';
 
-export interface LimitConfig {
-  readonly limitCount: string;
-}
+const LimitConfigSchema = z.object({
+  limitCount: z.string(),
+});
+
+export type LimitConfig = z.infer<typeof LimitConfigSchema>;
 
 export const manifest: NodeManifest<LimitConfig> = {
   title: 'Limit',
   icon: 'horizontal_rule',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 60,
+  schema: LimitConfigSchema,
   defaultConfig: () => ({limitCount: '100'}),
   isValid: (config) =>
     config.limitCount !== '' && /^\d+$/.test(config.limitCount),
