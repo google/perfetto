@@ -213,6 +213,9 @@ base::Status TarTraceReader::OnPushDataToSorter() {
     return base::ErrStatus("Premature end of TAR file (ERR:tp-corrupt)");
   }
 
+  // Parse every member before signalling end-of-input to any of them; see
+  // ZipTraceReader::OnPushDataToSorter for why, and for the manifest exception.
+  const auto& importers = *context_->trace_importer_registry;
   for (auto& file : ordered_files_) {
     auto chunk_reader =
         std::make_unique<ForwardingTraceParser>(context_, file.second.id);
@@ -222,10 +225,17 @@ base::Status TarTraceReader::OnPushDataToSorter() {
     for (auto& data : file.second.data) {
       RETURN_IF_ERROR(parser.Parse(std::move(data)));
     }
-    RETURN_IF_ERROR(parser.OnPushDataToSorter());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
+    if (importers.Find(file.first.trace_type)->is_manifest) {
+      RETURN_IF_ERROR(parser.OnPushDataToSorter());
+    }
+  }
+  for (auto& parser : parsers_) {
+    if (!importers.Find(parser->trace_type())->is_manifest) {
+      RETURN_IF_ERROR(parser->OnPushDataToSorter());
+    }
   }
 
   return base::OkStatus();

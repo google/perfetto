@@ -35,6 +35,7 @@
 
 namespace perfetto::trace_processor {
 
+class ForwardingTraceParser;
 class TraceProcessorContext;
 
 class TarTraceReader : public ChunkedTraceReader {
@@ -80,7 +81,7 @@ class TarTraceReader : public ChunkedTraceReader {
   std::optional<Metadata> metadata_;
   std::optional<std::string> long_name_;
   std::map<ArchiveEntry, File> ordered_files_;
-  std::vector<std::unique_ptr<ChunkedTraceReader>> parsers_;
+  std::vector<std::unique_ptr<ForwardingTraceParser>> parsers_;
 };
 
 }  // namespace perfetto::trace_processor

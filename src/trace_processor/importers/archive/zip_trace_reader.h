@@ -53,7 +53,7 @@ class ZipTraceReader : public ChunkedTraceReader {
   TraceProcessorContext* const context_;
   util::ZipReader zip_reader_;
   std::unique_ptr<AndroidBugreportReader> android_bugreport_reader_;
-  std::vector<std::unique_ptr<ChunkedTraceReader>> parsers_;
+  std::vector<std::unique_ptr<ForwardingTraceParser>> parsers_;
 };
 
 }  // namespace perfetto::trace_processor
