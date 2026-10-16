@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../../../../base/classnames';
 import {Gate} from '../../../../base/mithril_utils';
 import {AsyncMemo} from '../../../../base/async_memo';
 import {Time, type time} from '../../../../base/time';
@@ -25,7 +24,7 @@ import {
   NUM,
   STR,
 } from '../../../../trace_processor/query_result';
-import {Icon} from '../../../../widgets/icon';
+import {TabStrip} from '../../../../widgets/tab_strip';
 import {Inset} from '../../components/inset';
 import {Panel} from '../../components/panel';
 import {SubPage} from '../../components/page';
@@ -59,7 +58,7 @@ interface CaptureInfo {
 }
 
 // One smaps snapshot's resident+swap memory for one process, split by the full
-// smaps category taxonomy. Powers the "where the growth went" bar, which spans
+// smaps category taxonomy. Powers the "memory delta" bar, which spans
 // the whole trace. Uses the same rss+swap metric and category split as the
 // composition-over-time chart so the two read consistently.
 interface GrowthSnapshot {
@@ -274,22 +273,22 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       },
     ];
     return m(
-      '.pf-memscope-tabs',
+      TabStrip,
+      {variant: 'underline'},
       tabs.map((t) =>
         m(
-          'button.pf-memscope-tab',
+          TabStrip.Tab,
           {
-            className: classNames(
-              activeTab === t.key && 'pf-memscope-tab--active',
-              t.disabled && 'pf-memscope-tab--disabled',
-            ),
+            key: t.key,
+            active: t.key === activeTab,
             disabled: t.disabled,
+            icon: t.icon,
             title: t.disabled
               ? 'No smaps data available for this process'
               : undefined,
             onclick: () => onTabChange(t.key),
           },
-          [m(Icon, {icon: t.icon}), t.label],
+          t.label,
         ),
       ),
     );
@@ -340,10 +339,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       spanSeconds > 0 ? (total / spanSeconds) * 3600 : undefined;
 
     return m(Inset, {className: 'pf-memscope-growth'}, [
-      m(
-        '.pf-memscope-growth__label',
-        shrinking ? 'Where the shrinkage went' : 'Where the growth went',
-      ),
+      m('.pf-memscope-growth__label', 'Memory delta'),
       m('.pf-memscope-growth__headline', [
         m(
           'span.pf-memscope-growth__delta',
@@ -362,7 +358,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
         ratePerHour !== undefined &&
           m(
             'span.pf-memscope-growth__context',
-            `· ${formatDelta(ratePerHour)}/hour`,
+            `- ${formatDelta(ratePerHour)}/hour`,
           ),
       ]),
       m(ProportionBar, {
@@ -413,7 +409,7 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
     return m(Panel, {className: 'pf-memscope-capture'}, [
       m('.pf-memscope-capture__identity', [
         m('span.pf-memscope-capture__process', info?.processName ?? '…'),
-        m('span', `${trace.traceInfo.traceTitle} · ${durationS.toFixed(1)}s`),
+        m('span', `${trace.traceInfo.traceTitle} - ${durationS.toFixed(1)}s`),
       ]),
       m(
         '.pf-memscope-capture__sources',
