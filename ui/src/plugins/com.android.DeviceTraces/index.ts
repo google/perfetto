@@ -60,7 +60,30 @@ const EXCLUDED_BREAKDOWN_ARGS = new Set([
   'armed_start_ts',
   'armed_dur_ns',
   'trace_uuid',
+  'trace_size_bytes',
+  'original_trace_size_bytes',
+  'trace_dur_ns',
+  'sched_dur_ns',
 ]);
+
+function formatBytes(bytes: bigint): string {
+  if (bytes <= 0n) {
+    return '-';
+  }
+  const n = Number(bytes);
+  const raw = `${bytes.toLocaleString()} B`;
+  if (n < 1024) {
+    return raw;
+  }
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let val = n / 1024;
+  let unitIdx = 0;
+  while (val >= 1024 && unitIdx < units.length - 1) {
+    val /= 1024;
+    unitIdx++;
+  }
+  return `${val.toFixed(2)} ${units[unitIdx]} (${raw})`;
+}
 
 const KNOWN_BREAKDOWN_COLUMNS: ReadonlyMap<string, BreakdownColumn> = new Map([
   ['session_name', {label: 'session_name', sqlCol: 'session_name'}],
@@ -88,6 +111,10 @@ const DEVICE_TRACE_DATASET_SPEC = {
   build_id: STR,
   android_id: STR,
   trace_uuid: STR,
+  trace_size_bytes: LONG,
+  original_trace_size_bytes: LONG,
+  trace_dur: LONG,
+  sched_dur: LONG,
 };
 
 interface DeviceTraceRow {
@@ -104,6 +131,10 @@ interface DeviceTraceRow {
   readonly buildId: string;
   readonly androidId: string;
   readonly traceUuid: string;
+  readonly traceSizeBytes: bigint;
+  readonly originalTraceSizeBytes: bigint;
+  readonly traceDur: duration;
+  readonly schedDur: duration;
 }
 
 class DeviceTraceDetailsPanel implements TrackEventDetailsPanel {
@@ -128,7 +159,11 @@ class DeviceTraceDetailsPanel implements TrackEventDetailsPanel {
         device_name,
         raw_build_id AS build_id,
         raw_android_id AS android_id,
-        trace_uuid
+        trace_uuid,
+        trace_size_bytes,
+        original_trace_size_bytes,
+        trace_dur,
+        sched_dur
       FROM ${TABLE_NAME}
       WHERE id = ${selection.eventId}
       LIMIT 1
@@ -149,6 +184,10 @@ class DeviceTraceDetailsPanel implements TrackEventDetailsPanel {
         buildId: it.build_id,
         androidId: it.android_id,
         traceUuid: it.trace_uuid,
+        traceSizeBytes: it.trace_size_bytes,
+        originalTraceSizeBytes: it.original_trace_size_bytes,
+        traceDur: Duration.fromRaw(it.trace_dur),
+        schedDur: Duration.fromRaw(it.sched_dur),
       };
     }
     this.isLoading = false;
@@ -210,6 +249,28 @@ class DeviceTraceDetailsPanel implements TrackEventDetailsPanel {
               left: 'Armed Duration',
               right: m(DurationWidget, {trace: this.trace, dur: r.armedDur}),
             }),
+          m(TreeNode, {
+            left: 'Trace Duration',
+            right:
+              r.traceDur > 0n
+                ? m(DurationWidget, {trace: this.trace, dur: r.traceDur})
+                : '-',
+          }),
+          m(TreeNode, {
+            left: 'Sched Duration',
+            right:
+              r.schedDur > 0n
+                ? m(DurationWidget, {trace: this.trace, dur: r.schedDur})
+                : '-',
+          }),
+          m(TreeNode, {
+            left: 'Uncompressed Size',
+            right: formatBytes(r.traceSizeBytes),
+          }),
+          m(TreeNode, {
+            left: 'Compressed Size',
+            right: formatBytes(r.originalTraceSizeBytes),
+          }),
         ),
       ),
     );
@@ -310,7 +371,11 @@ class DeviceTracesSelectionTab implements AreaSelectionTab {
               device_name,
               raw_build_id AS build_id,
               raw_android_id AS android_id,
-              trace_uuid
+              trace_uuid,
+              trace_size_bytes,
+              original_trace_size_bytes,
+              trace_dur,
+              sched_dur
             FROM ${TABLE_NAME}
             ${counterWhere}
           )`;
@@ -328,7 +393,11 @@ class DeviceTracesSelectionTab implements AreaSelectionTab {
         device_name,
         build_id,
         android_id,
-        trace_uuid
+        trace_uuid,
+        trace_size_bytes,
+        original_trace_size_bytes,
+        trace_dur,
+        sched_dur
       FROM ${src}
       WHERE ts < ${selection.end} AND ts + dur > ${selection.start}
       ORDER BY ts
@@ -351,6 +420,10 @@ class DeviceTracesSelectionTab implements AreaSelectionTab {
         buildId: it.build_id,
         androidId: it.android_id,
         traceUuid: it.trace_uuid,
+        traceSizeBytes: it.trace_size_bytes,
+        originalTraceSizeBytes: it.original_trace_size_bytes,
+        traceDur: Duration.fromRaw(it.trace_dur),
+        schedDur: Duration.fromRaw(it.sched_dur),
       });
     }
     return rows;
@@ -390,6 +463,16 @@ class DeviceTracesSelectionTab implements AreaSelectionTab {
         {key: 'android_id', header: m(GridHeaderCell, 'Android ID')},
         {key: 'ts', header: m(GridHeaderCell, 'Start')},
         {key: 'dur', header: m(GridHeaderCell, 'Duration')},
+        {key: 'trace_dur', header: m(GridHeaderCell, 'Trace Duration')},
+        {key: 'sched_dur', header: m(GridHeaderCell, 'Sched Duration')},
+        {
+          key: 'trace_size_bytes',
+          header: m(GridHeaderCell, 'Uncompressed Size'),
+        },
+        {
+          key: 'original_trace_size_bytes',
+          header: m(GridHeaderCell, 'Compressed Size'),
+        },
       ],
       rowData: rows.map((r) => [
         m(
@@ -421,6 +504,20 @@ class DeviceTracesSelectionTab implements AreaSelectionTab {
         m(GridCell, r.androidId),
         m(GridCell, m(Timestamp, {trace: this.trace, ts: r.ts})),
         m(GridCell, m(DurationWidget, {trace: this.trace, dur: r.dur})),
+        m(
+          GridCell,
+          r.traceDur > 0n
+            ? m(DurationWidget, {trace: this.trace, dur: r.traceDur})
+            : '-',
+        ),
+        m(
+          GridCell,
+          r.schedDur > 0n
+            ? m(DurationWidget, {trace: this.trace, dur: r.schedDur})
+            : '-',
+        ),
+        m(GridCell, formatBytes(r.traceSizeBytes)),
+        m(GridCell, formatBytes(r.originalTraceSizeBytes)),
       ]),
     });
   }
@@ -535,7 +632,11 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
           NULLIF(EXTRACT_ARG(arg_set_id, 'debug.subscription_name'), ''),
           name
         ) AS slice_label,
-        COALESCE(EXTRACT_ARG(arg_set_id, 'debug.trace_uuid'), '') AS trace_uuid${extraArgSelects.join('')}
+        COALESCE(EXTRACT_ARG(arg_set_id, 'debug.trace_uuid'), '') AS trace_uuid,
+        COALESCE(CAST(EXTRACT_ARG(arg_set_id, 'debug.trace_size_bytes') AS INT), 0) AS trace_size_bytes,
+        COALESCE(CAST(EXTRACT_ARG(arg_set_id, 'debug.original_trace_size_bytes') AS INT), 0) AS original_trace_size_bytes,
+        COALESCE(CAST(EXTRACT_ARG(arg_set_id, 'debug.trace_dur_ns') AS INT), 0) AS trace_dur,
+        COALESCE(CAST(EXTRACT_ARG(arg_set_id, 'debug.sched_dur_ns') AS INT), 0) AS sched_dur${extraArgSelects.join('')}
       FROM slice
       WHERE category = 'device_trace';
 
@@ -1122,7 +1223,11 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
               device_name,
               raw_build_id AS build_id,
               raw_android_id AS android_id,
-              trace_uuid
+              trace_uuid,
+              trace_size_bytes,
+              original_trace_size_bytes,
+              trace_dur,
+              sched_dur
             FROM ${TABLE_NAME}
             WHERE ${whereClause}
           `,
