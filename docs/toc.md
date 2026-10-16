@@ -108,6 +108,7 @@
       - [UI Automation](visualization/ui-automation.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
       - [Commands Reference](visualization/commands-automation-reference.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
       - [Extension Servers](visualization/extension-servers.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
+      - [Googler Features](visualization/googler-features.md) {.tag-android .tag-linux .tag-cpp-rust .tag-perf}
 
   - [Trace Analysis](#)
 
