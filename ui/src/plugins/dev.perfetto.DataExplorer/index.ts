@@ -15,8 +15,7 @@
 import './styles.scss';
 import m from 'mithril';
 import type {PerfettoPlugin} from '../../public/plugin';
-import type {Trace} from '../../public/trace';
-import type {Store} from '../../base/store';
+import type {Storage, Trace} from '../../public/trace';
 import {shortUuid} from '../../base/uuid';
 import {getErrorMessage} from '../../base/errors';
 import {debounce} from '../../base/rate_limiters';
@@ -48,7 +47,7 @@ import {
   createEmptyState,
   serializeAllDashboards,
   deserializeDashboardsForTab,
-  parseDataExplorerPersistedState,
+  DATA_EXPLORER_PERSISTED_STATE_SCHEMA,
   STORE_VERSION,
 } from './data_explorer_tabs_storage';
 import {dashboardRegistry} from './dashboard/dashboard_registry';
@@ -73,8 +72,8 @@ export default class implements PerfettoPlugin {
   // Track whether we've successfully loaded state from local storage
   private hasAttemptedStateLoad = false;
 
-  // Store for persisting state in permalinks
-  private permalinkStore?: Store<DataExplorerPersistedState>;
+  // Storage for persisting state in permalinks
+  private permalinkStorage?: Storage<DataExplorerPersistedState>;
 
   // Debounced saves to avoid expensive serialization on every state change
   private debouncedSave = debounce(() => {
@@ -261,16 +260,17 @@ export default class implements PerfettoPlugin {
   // --- Permalink store ---
 
   private mountPermalinkStore(trace: Trace): void {
-    if (this.permalinkStore) return;
+    if (this.permalinkStorage) return;
 
-    this.permalinkStore = trace.mountStore<DataExplorerPersistedState>(
-      'dev.perfetto.DataExplorer',
-      parseDataExplorerPersistedState,
-    );
+    this.permalinkStorage = trace.registerStorage({
+      id: 'dev.perfetto.DataExplorer',
+      schema: DATA_EXPLORER_PERSISTED_STATE_SCHEMA,
+      defaultValue: {version: STORE_VERSION},
+    });
   }
 
   private saveToPermalinkStore(): void {
-    if (!this.permalinkStore) return;
+    if (!this.permalinkStorage) return;
 
     const hasDashboardContent = (tab: DataExplorerTab): boolean =>
       tab.dashboards.some((db) => db.items.length > 0);
@@ -288,13 +288,11 @@ export default class implements PerfettoPlugin {
             : undefined,
       }));
 
-    this.permalinkStore.edit((draft) => {
-      draft.version = STORE_VERSION;
-      draft.tabs = tabsData.length > 0 ? tabsData : undefined;
-      draft.activeTabId = this.activeTabId;
-      draft.dashboards = serializeAllDashboards(this.tabs);
-      // Clear deprecated single-graph field
-      draft.graphJson = undefined;
+    this.permalinkStorage.set({
+      version: STORE_VERSION,
+      tabs: tabsData.length > 0 ? tabsData : undefined,
+      activeTabId: this.activeTabId,
+      dashboards: serializeAllDashboards(this.tabs),
     });
   }
 
@@ -363,7 +361,7 @@ export default class implements PerfettoPlugin {
 
   private loadStateFromSources(trace: Trace, sqlModules: SqlModules): void {
     // Priority 1: Check permalink store
-    const permalinkState = this.permalinkStore?.state;
+    const permalinkState = this.permalinkStorage?.get();
     if (permalinkState) {
       // Try multi-tab format first (version 2+)
       if (permalinkState.tabs !== undefined && permalinkState.tabs.length > 0) {

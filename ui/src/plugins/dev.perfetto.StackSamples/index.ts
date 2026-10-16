@@ -14,9 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {ensureExists} from '../../base/assert';
 import {Memo} from '../../base/memo';
-import type {Store} from '../../base/store';
 import {
   metricsFromTableOrSubquery,
   TreeExplorerFetcher,
@@ -29,7 +27,7 @@ import {
   type AreaSelection,
   type AreaSelectionTab,
 } from '../../public/selection';
-import type {Trace} from '../../public/trace';
+import type {Storage, Trace} from '../../public/trace';
 import type {Track} from '../../public/track';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
@@ -65,7 +63,7 @@ export {STACK_SAMPLE_TRACK_KIND} from './track_kinds';
 const LINUX_PERF_SOURCE = 'linux.perf';
 const MAX_AUTO_REVEALED_FLAMECHARTS = 16;
 
-const STACK_SAMPLES_PLUGIN_STATE_SCHEMA = z
+export const STACK_SAMPLES_PLUGIN_STATE_SCHEMA = z
   .object({
     areaSelectionFlamegraphStates: z
       .record(z.string(), TREE_EXPLORER_STATE_SCHEMA)
@@ -409,14 +407,14 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.StackSamples';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
-  private store?: Store<StackSamplesPluginState>;
   private readonly counterNamesBySession = new Map<number, string[]>();
   private readonly counterNamesBySource = new Map<string, string[]>();
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    this.store = trace.mountStore(StackSamplesPlugin.id, (init) => {
-      const result = STACK_SAMPLES_PLUGIN_STATE_SCHEMA.safeParse(init);
-      return result.data ?? {};
+    const storage = trace.registerStorage({
+      id: StackSamplesPlugin.id,
+      schema: STACK_SAMPLES_PLUGIN_STATE_SCHEMA,
+      defaultValue: {},
     });
     await this.cacheCounterNames(trace);
 
@@ -440,8 +438,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     }
     const multiSource = configs.length > 1;
     for (const config of configs) {
-      await this.addTracksForSource(trace, config, multiSource);
-      const store = ensureExists(this.store);
+      await this.addTracksForSource(trace, config, multiSource, storage);
       trace.selection.registerAreaSelectionTab(
         createStackSampleAreaSelectionTab(trace, {
           source: config.source,
@@ -449,11 +446,15 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
           counterNames: this.counterNamesBySource.get(config.source) ?? [],
           counterNamesBySession: this.counterNamesBySession,
           getState: () =>
-            store.state.areaSelectionFlamegraphStates?.[config.source],
+            storage.get().areaSelectionFlamegraphStates?.[config.source],
           setState: (state) => {
-            store.edit((draft) => {
-              draft.areaSelectionFlamegraphStates ??= {};
-              draft.areaSelectionFlamegraphStates[config.source] = state;
+            const current = storage.get();
+            storage.set({
+              ...current,
+              areaSelectionFlamegraphStates: {
+                ...current.areaSelectionFlamegraphStates,
+                [config.source]: state,
+              },
             });
           },
         }),
@@ -489,6 +490,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
     trace: Trace,
     config: StackSampleSourceSchema,
     multiSource: boolean,
+    storage: Storage<StackSamplesPluginState>,
   ): Promise<void> {
     // With a single stack-sample source there is nothing to disambiguate;
     // only prefix track names with the source when several sources emit.
@@ -587,7 +589,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       ) {
         continue;
       }
-      const node = this.addScopeTracks(trace, config, {
+      const node = this.addScopeTracks(trace, config, storage, {
         upid,
         utid: undefined,
         sessionIds,
@@ -601,13 +603,16 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       groups.getGroupForProcess(upid)?.addChildInOrder(node);
     }
 
-    const store = ensureExists(this.store);
     const detailsPanelState = () =>
-      store.state.detailsPanelFlamegraphStates?.[config.source];
+      storage.get().detailsPanelFlamegraphStates?.[config.source];
     const onDetailsPanelStateChange = (state: TreeExplorerState) => {
-      store.edit((draft) => {
-        draft.detailsPanelFlamegraphStates ??= {};
-        draft.detailsPanelFlamegraphStates[config.source] = state;
+      const current = storage.get();
+      storage.set({
+        ...current,
+        detailsPanelFlamegraphStates: {
+          ...current.detailsPanelFlamegraphStates,
+          [config.source]: state,
+        },
       });
     };
 
@@ -763,6 +768,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
   private addScopeTracks(
     trace: Trace,
     config: StackSampleSourceSchema,
+    storage: Storage<StackSamplesPluginState>,
     args: {
       readonly upid: number | undefined;
       readonly utid: number | undefined;
@@ -774,7 +780,6 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
       readonly sortOrder: number;
     },
   ): TrackNode {
-    const store = ensureExists(this.store);
     const registerTrack = (
       uri: string,
       sessionId: SessionId | undefined,
@@ -791,11 +796,15 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
             sessionId,
             summary,
           },
-          store.state.detailsPanelFlamegraphStates?.[config.source],
+          storage.get().detailsPanelFlamegraphStates?.[config.source],
           (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphStates ??= {};
-              draft.detailsPanelFlamegraphStates[config.source] = state;
+            const current = storage.get();
+            storage.set({
+              ...current,
+              detailsPanelFlamegraphStates: {
+                ...current.detailsPanelFlamegraphStates,
+                [config.source]: state,
+              },
             });
           },
         ),

@@ -36,7 +36,7 @@ import dataclasses
 
 from dataclasses import dataclass
 
-EXPECTED_ANY_COUNT = 28
+EXPECTED_ANY_COUNT = 26
 EXPECTED_RUN_METRIC_COUNT = 2
 
 ROOT_DIR = os.path.dirname(
