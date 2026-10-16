@@ -68,8 +68,7 @@ struct Harness {
     sync = std::make_unique<ClockSynchronizer>(
         context.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context));
-    tracker = std::make_unique<ClockTracker>(&context, sync.get(),
-                                             /*is_primary=*/true);
+    tracker = std::make_unique<ClockTracker>(&context, sync.get());
   }
 
   TraceProcessorContext context;

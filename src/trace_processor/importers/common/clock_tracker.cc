@@ -45,8 +45,7 @@ namespace perfetto::trace_processor {
 // --- ClockTracker: public slow-path methods ---
 
 ClockTracker::ClockTracker(TraceProcessorContext* context,
-                           ClockSynchronizer* sync,
-                           bool is_primary)
+                           ClockSynchronizer* sync)
     : context_(context),
       source_clock_id_key_(context->storage->InternString("source_clock_id")),
       target_clock_id_key_(context->storage->InternString("target_clock_id")),
@@ -57,8 +56,7 @@ ClockTracker::ClockTracker(TraceProcessorContext* context,
           context->storage->InternString("target_sequence_id")),
       sync_(sync),
       machine_id_(context->machine_id().value),
-      own_file_id_(context->trace_id().value),
-      is_primary_(is_primary) {
+      own_file_id_(context->trace_id().value) {
   PERFETTO_CHECK(sync_);
 }
 
@@ -77,10 +75,15 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
         R"("clock": "BOOTTIME"). See )"
         "https://perfetto.dev/docs/reference/perfetto-manifest#clocks");
   }
-  // A non-primary trace that brings its own snapshot isolates its builtins onto
-  // its own file tag so they cannot corrupt other files' conversions (e.g. an
-  // in-app trace + a system trace on the same machine).
-  if (PERFETTO_UNLIKELY(!is_primary_ && current_file_tag_ == 0)) {
+  // The first file to add a snapshot for this machine owns its canonical
+  // clocks (file tag 0), which files without snapshots of their own resolve
+  // through, whichever order the files are read in. Any other file that brings
+  // snapshots isolates its builtins onto its own file tag so they cannot
+  // corrupt other files' conversions (e.g. an in-app trace + a system trace on
+  // the same machine).
+  if (PERFETTO_UNLIKELY(current_file_tag_ == 0 &&
+                        !context_->trace_time_state->TryClaimCanonicalClocks(
+                            machine_id_, own_file_id_))) {
     if (PERFETTO_UNLIKELY(num_conversions_ > 0)) {
       context_->import_logs_tracker->RecordAnalysisLog(
           stats::clock_sync_mixed_clock_sources,
@@ -94,13 +97,13 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
   }
   // REALTIME is a single universal wall clock and the cross-machine rendezvous
   // domain used to place files that share no other clock (see
-  // docs/concepts/merging-traces.md). A non-primary file on a *remote*
+  // docs/concepts/merging-traces.md). An isolated file on a *remote*
   // (non-trace-time) machine reaches trace time only through that rendezvous,
   // so relate each REALTIME clock it actually carries to the machine-canonical
   // REALTIME at zero offset (a twin added to this snapshot). The trace-time
   // machine is excluded: its events reach trace time directly through BOOTTIME.
   const bool bridge_realtime =
-      !is_primary_ &&
+      current_file_tag_ != 0 &&
       machine_id_ != context_->trace_time_state->clock_id.machine_id;
   std::vector<ClockTimestamp> canonical_realtime;
   for (auto& ct : clock_timestamps) {

@@ -232,10 +232,9 @@ struct ClockSyncError {
   int64_t source_timestamp;
 };
 
-// Shared state for the trace time clock. Owned externally (e.g. by
-// TraceProcessorContext) and passed by pointer to ClockSynchronizer so
-// that AddSnapshot can validate against the current trace-time clock
-// without a virtual call.
+// Shared clock state. Owned externally (e.g. by TraceProcessorContext) and
+// passed by pointer to ClockSynchronizer so that AddSnapshot can validate
+// against the current trace-time clock without a virtual call.
 struct TraceTimeState {
   TraceTimeState() = default;
   explicit TraceTimeState(ClockId _clock_id) : clock_id(_clock_id) {}
@@ -257,6 +256,20 @@ struct TraceTimeState {
     trace_time_clock_owner = owner;
     clock_id = new_clock_id;
     return true;
+  }
+
+  // Per machine, which trace file owns its canonical clocks: the builtin
+  // clocks on file tag 0, which files without ClockSnapshots of their own
+  // resolve through. The owner is the first file to add a snapshot for that
+  // machine; files which bring snapshots after that are isolated onto their
+  // own file tag instead (see ClockTracker::AddSnapshot).
+  std::map<uint32_t, uint32_t> canonical_clock_owner;
+
+  // Claims `machine`'s canonical clocks for `owner`: the first claimant wins
+  // and may claim again. Returns whether `owner` holds them.
+  bool TryClaimCanonicalClocks(uint32_t machine, uint32_t owner) {
+    auto [it, inserted] = canonical_clock_owner.emplace(machine, owner);
+    return inserted || it->second == owner;
   }
 
   std::optional<int64_t> timezone_offset;

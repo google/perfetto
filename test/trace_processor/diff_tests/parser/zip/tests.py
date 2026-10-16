@@ -20,6 +20,59 @@ from python.generators.diff_tests.testing import TextProto
 from python.generators.diff_tests.testing import Tar
 from python.generators.diff_tests.testing import Zip as ZipTrace
 
+# An SDK in-process trace (MONOTONIC timestamps, no ClockSnapshot of its own)
+# archived together with the system trace carrying the snapshots, with member
+# names that sort the SDK trace first. Its packets can only be resolved once
+# the system trace has been read: MONOTONIC 1000 lands at BOOTTIME 5000 + 500
+# via the snapshot. Regression test for b/421473521, where the outcome
+# depended on which member sorted first.
+SDK_BEFORE_SYSTEM_MEMBERS = {
+    'a_sdk.pb':
+        TextProto(r'''
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 900
+            timestamp_clock_id: 3
+            track_descriptor { uuid: 1 name: "sdk_track" }
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 1000
+            timestamp_clock_id: 3
+            track_event { track_uuid: 1 type: TYPE_INSTANT name: "sdk" }
+          }
+        '''),
+    'b_system.pb':
+        TextProto(r'''
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 5000
+            clock_snapshot {
+              clocks { clock_id: 6 timestamp: 5000 }
+              clocks { clock_id: 3 timestamp: 500 }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 5900
+            track_descriptor { uuid: 2 name: "sys_track" }
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 6000
+            track_event { track_uuid: 2 type: TYPE_INSTANT name: "sys" }
+          }
+        '''),
+}
+SDK_BEFORE_SYSTEM_QUERY = '''
+  SELECT name, ts FROM slice ORDER BY ts;
+'''
+SDK_BEFORE_SYSTEM_OUT = Csv('''
+  "name","ts"
+  "sdk",5500
+  "sys",6000
+''')
+
 
 class Zip(TestSuite):
 
@@ -250,3 +303,15 @@ class Zip(TestSuite):
         1276407306585477
         1276408471040116
         '''))
+
+  def test_zip_clock_snapshot_in_later_member(self):
+    return DiffTestBlueprint(
+        trace=ZipTrace(SDK_BEFORE_SYSTEM_MEMBERS),
+        query=SDK_BEFORE_SYSTEM_QUERY,
+        out=SDK_BEFORE_SYSTEM_OUT)
+
+  def test_tar_clock_snapshot_in_later_member(self):
+    return DiffTestBlueprint(
+        trace=Tar(SDK_BEFORE_SYSTEM_MEMBERS),
+        query=SDK_BEFORE_SYSTEM_QUERY,
+        out=SDK_BEFORE_SYSTEM_OUT)

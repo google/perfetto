@@ -49,13 +49,11 @@ class ClockTracker {
 
   // |sync| is the single global clock graph shared by all traces/machines.
   // This tracker stamps every clock it touches with its (machine, file) tag so
-  // its clocks are isolated from other files'. |is_primary| (first trace of its
-  // machine) keeps its builtins on the machine-canonical tag (f=0) so later
-  // snapshot-less files can resolve through them; non-primary files that bring
-  // their own snapshots isolate onto their own file tag.
-  ClockTracker(TraceProcessorContext* context,
-               ClockSynchronizer* sync,
-               bool is_primary);
+  // its clocks are isolated from other files'. The first file to add a
+  // snapshot for its machine keeps its builtins on the machine-canonical tag
+  // (f=0) so snapshot-less files can resolve through them; files that bring
+  // their own snapshots after that isolate onto their own file tag.
+  ClockTracker(TraceProcessorContext* context, ClockSynchronizer* sync);
 
   // --- Hot-path APIs (inlined) ---
 
@@ -225,13 +223,10 @@ class ClockTracker {
   uint32_t own_file_id_ = 0;
 
   // The file tag stamped onto this tracker's builtins: 0 (machine-canonical)
-  // for primary traces and for non-primary traces until they bring their own
-  // snapshot, then |own_file_id_| (isolated). See AddSnapshot.
+  // until this file adds a snapshot while another file already owns the
+  // machine's canonical clocks, then |own_file_id_| (isolated). See
+  // AddSnapshot.
   uint32_t current_file_tag_ = 0;
-
-  // Whether this is the primary (first) trace of its machine. Non-primary
-  // traces isolate onto their own file tag once they add a snapshot.
-  bool is_primary_ = true;
 
   // Total number of conversions performed.
   uint32_t num_conversions_ = 0;

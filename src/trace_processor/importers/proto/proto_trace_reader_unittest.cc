@@ -82,7 +82,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
             host_context_.trace_time_state.get(),
             std::make_unique<ClockSynchronizerListenerImpl>(&host_context_));
     host_context_.clock_tracker = std::make_unique<ClockTracker>(
-        &host_context_, host_context_.clock_sync.get(), /*is_primary=*/true);
+        &host_context_, host_context_.clock_sync.get());
     host_context_.global_metadata_tracker =
         std::make_unique<GlobalMetadataTracker>(host_context_.storage.get());
     host_context_.metadata_tracker =
