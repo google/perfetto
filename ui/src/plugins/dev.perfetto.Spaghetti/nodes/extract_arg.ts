@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {
   ColumnContext,
   NodeManifest,
@@ -27,15 +28,19 @@ import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
 import {AliasTag} from '../components/alias_tag';
 
-export interface ExtractArgEntry {
-  readonly argName: string;
-  readonly alias: string;
-}
+const ExtractArgEntrySchema = z.object({
+  argName: z.string(),
+  alias: z.string(),
+});
 
-export interface ExtractArgConfig {
-  readonly argSetIdCol: string;
-  readonly extractions: ExtractArgEntry[];
-}
+export type ExtractArgEntry = z.infer<typeof ExtractArgEntrySchema>;
+
+const ExtractArgConfigSchema = z.object({
+  argSetIdCol: z.string(),
+  extractions: z.array(ExtractArgEntrySchema),
+});
+
+export type ExtractArgConfig = z.infer<typeof ExtractArgConfigSchema>;
 
 function extractArgAlias(e: ExtractArgEntry): string {
   if (e.alias) return e.alias;
@@ -207,6 +212,7 @@ export const manifest: NodeManifest<ExtractArgConfig> = {
   icon: 'data_object',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 95,
+  schema: ExtractArgConfigSchema,
   defaultConfig: () => ({argSetIdCol: '', extractions: []}),
   render,
   getOutputColumns,

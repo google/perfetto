@@ -14,9 +14,8 @@
 
 import m from 'mithril';
 import {AsyncLimiter} from '../../base/async_limiter';
-import {SerialTaskQueue} from '../../base/query_slot';
+import {AtomicTaskQueue} from '../../base/async_memo';
 import {SQLDataSource} from '../../components/widgets/datagrid/sql_data_source';
-import {createSimpleSchema} from '../../components/widgets/datagrid/sql_schema';
 import type {Engine} from '../../trace_processor/engine';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {buildDisplaySql, buildIR, type IrEntry} from './ir';
@@ -59,7 +58,7 @@ export interface CacheEntry {
 export class MaterializationService {
   private readonly limiter = new AsyncLimiter();
   private readonly engine: Engine;
-  private readonly taskQueue = new SerialTaskQueue();
+  private readonly taskQueue = new AtomicTaskQueue();
 
   // Cache: hash -> metadata (hash IS the table name).
   private cache = new Map<string, CacheEntry>();
@@ -292,8 +291,7 @@ export class MaterializationService {
     this._dataSource?.dispose();
     this._dataSource = new SQLDataSource({
       engine: this.engine,
-      sqlSchema: createSimpleSchema(finalSql),
-      rootSchemaName: 'query',
+      tableOrSubquery: finalSql,
       queue: this.taskQueue,
     });
   }

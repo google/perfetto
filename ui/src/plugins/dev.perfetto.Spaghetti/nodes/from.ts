@@ -13,18 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {NodeManifest, RenderContext} from '../node_types';
 import {Combobox} from '../../../widgets/combobox';
 import './from.scss';
 
-export interface FromConfig {
-  readonly table: string;
-}
+const FromConfigSchema = z.object({
+  table: z.string(),
+});
+
+export type FromConfig = z.infer<typeof FromConfigSchema>;
 
 export const manifest: NodeManifest<FromConfig> = {
   title: 'From',
   icon: 'table_chart',
   hue: 210,
+  schema: FromConfigSchema,
   defaultConfig: () => ({table: 'slice'}),
   isValid: (config) => config.table !== '',
   emitIr: (config) => ({sql: `SELECT *\nFROM ${config.table}`}),

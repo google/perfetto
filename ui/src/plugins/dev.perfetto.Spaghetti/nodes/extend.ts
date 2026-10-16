@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {
   ColumnContext,
   NodeManifest,
@@ -26,14 +27,18 @@ import {Row} from '../components/row';
 import {Stack} from '../components/stack';
 import {AliasTag} from '../components/alias_tag';
 
-export interface ExtendEntry {
-  readonly expression: string;
-  readonly alias: string;
-}
+const ExtendEntrySchema = z.object({
+  expression: z.string(),
+  alias: z.string(),
+});
 
-export interface ExtendConfig {
-  readonly entries: ExtendEntry[];
-}
+export type ExtendEntry = z.infer<typeof ExtendEntrySchema>;
+
+const ExtendConfigSchema = z.object({
+  entries: z.array(ExtendEntrySchema),
+});
+
+export type ExtendConfig = z.infer<typeof ExtendConfigSchema>;
 
 function entryAlias(e: ExtendEntry): string {
   if (e.alias) return e.alias;
@@ -192,6 +197,7 @@ export const manifest: NodeManifest<ExtendConfig> = {
   icon: 'add_column_right',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 125,
+  schema: ExtendConfigSchema,
   defaultConfig: () => ({entries: []}),
   render,
   getOutputColumns,

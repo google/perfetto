@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {RadioGroup} from '../../../widgets/radio_group';
 import {Select} from '../../../widgets/select';
@@ -22,20 +23,7 @@ import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {NodeManifest, RenderContext, SqlStatement} from '../node_types';
 
-export type FilterOp =
-  | '='
-  | '!='
-  | '>'
-  | '>='
-  | '<'
-  | '<='
-  | 'LIKE'
-  | 'NOT LIKE'
-  | 'GLOB'
-  | 'IS NULL'
-  | 'IS NOT NULL';
-
-export const FILTER_OPS: FilterOp[] = [
+export const FILTER_OPS = [
   '=',
   '!=',
   '>',
@@ -47,22 +35,32 @@ export const FILTER_OPS: FilterOp[] = [
   'GLOB',
   'IS NULL',
   'IS NOT NULL',
-];
+] as const;
+
+const FilterOpSchema = z.enum(FILTER_OPS);
+
+export type FilterOp = z.infer<typeof FilterOpSchema>;
 
 const UNARY_OPS: Set<FilterOp> = new Set(['IS NULL', 'IS NOT NULL']);
 
-export interface FilterCondition {
-  readonly column: string;
-  readonly op: FilterOp;
-  readonly value: string;
-}
+const FilterConditionSchema = z.object({
+  column: z.string(),
+  op: FilterOpSchema,
+  value: z.string(),
+});
 
-export type FilterConjunction = 'AND' | 'OR';
+export type FilterCondition = z.infer<typeof FilterConditionSchema>;
 
-export interface FilterConfig {
-  readonly conditions: FilterCondition[];
-  readonly conjunction?: FilterConjunction;
-}
+const FilterConjunctionSchema = z.enum(['AND', 'OR']);
+
+export type FilterConjunction = z.infer<typeof FilterConjunctionSchema>;
+
+const FilterConfigSchema = z.object({
+  conditions: z.array(FilterConditionSchema),
+  conjunction: FilterConjunctionSchema.optional(),
+});
+
+export type FilterConfig = z.infer<typeof FilterConfigSchema>;
 
 // Returns true if the value should be emitted as-is (numeric literal, SQL
 // NULL keyword, or already quoted/parenthesised by the user).
@@ -281,6 +279,7 @@ export const manifest: NodeManifest<FilterConfig> = {
   icon: 'filter_alt',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 35,
+  schema: FilterConfigSchema,
   defaultConfig: () => ({
     conditions: [],
     conjunction: 'AND',
