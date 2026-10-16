@@ -921,6 +921,23 @@ namespace perfetto::trace_processor::stats {
       "A TrackEventRangeOfInterest packet was received without the required "  \
       "start_us field. The packet is ignored. This is a bug in the trace "     \
       "producer."),                                                            \
+  F(track_descriptor_invalid_dimension,         kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension without a name or without a "    \
+      "value, which is ignored, or with an iid which is not in the interned "  \
+      "data of the sequence. A descriptor with an unknown name or value iid "  \
+      "is ignored entirely, so that a later re-emission with the interned "    \
+      "data can still be reserved; an unknown display_name_iid only drops "    \
+      "the display name."),                                                    \
+  F(track_descriptor_reserved_dimension_name,   kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a custom dimension using a name reserved "   \
+      "for well known dimensions (machine, gpu, cpu, process, thread). These " \
+      "are synthesized by trace processor and cannot be redefined: the "       \
+      "dimension is ignored. This is a bug in the trace producer."),           \
+  F(track_dimension_conflicting_value,          kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
+      "A TrackDescriptor declared a dimension which it already inherits "      \
+      "from a parent_uuid ancestor, or declares twice, with a *different* "    \
+      "value. The inherited (or first declared) value is kept and the other "  \
+      "one is ignored. This is a bug in the trace producer."),                 \
   F(track_descriptor_invalid_child_ordering,    kSingle,  kError,  kAnalysis, Scope::kMachineAndTrace,  \
       "A TrackDescriptor specified an invalid or unrecognized value for "      \
       "child_tracks_ordering. The descriptor is ignored. This is a bug in "    \

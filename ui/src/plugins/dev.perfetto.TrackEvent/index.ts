@@ -44,6 +44,7 @@ import {
   GroupSummaryTrack,
 } from '../dev.perfetto.ProcessSummary/group_summary_track';
 import {TrackEventCallstackFlamegraphTab} from './track_event_callstack_flamegraph';
+import {addDimensionLabels} from './dimensions';
 
 function createTrackEventDetailsPanel(trace: Trace) {
   return () =>
@@ -173,6 +174,8 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       ProcessThreadGroupsPlugin,
     );
     const trackIdToTrackNode = new Map<number, TrackNode>();
+    // Every trace processor track shown by a node, for dimension labels.
+    const nodesByTrackId = new Map<number, TrackNode>();
 
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
 
@@ -344,7 +347,12 @@ export default class TrackEventPlugin implements PerfettoPlugin {
       });
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
+      for (const trackId of trackIds) {
+        nodesByTrackId.set(trackId, node);
+      }
     }
+
+    await addDimensionLabels(ctx, nodesByTrackId, processGroupsPlugin);
 
     const store = ensureExists(this.store);
     ctx.selection.registerAreaSelectionTab(
