@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {NodeManifest, RenderContext, IrContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
@@ -20,19 +21,23 @@ import {Stack} from '../components/stack';
 import './join.scss';
 import {ColumnPicker} from '../widgets/column_picker';
 import {RadioGroup} from '../../../widgets/radio_group';
-import { AliasTag } from '../components/alias_tag';
+import {AliasTag} from '../components/alias_tag';
 
-export interface JoinColumn {
-  readonly column: string;
-  readonly alias: string;
-}
+const JoinColumnSchema = z.object({
+  column: z.string(),
+  alias: z.string(),
+});
 
-export interface JoinConfig {
-  readonly leftColumn: string;
-  readonly rightColumn: string;
-  readonly columns?: JoinColumn[];
-  readonly joinType: 'LEFT' | 'INNER';
-}
+export type JoinColumn = z.infer<typeof JoinColumnSchema>;
+
+const JoinConfigSchema = z.object({
+  leftColumn: z.string(),
+  rightColumn: z.string(),
+  columns: z.array(JoinColumnSchema).optional(),
+  joinType: z.enum(['LEFT', 'INNER']),
+});
+
+export type JoinConfig = z.infer<typeof JoinConfigSchema>;
 
 // Compute the resolved aliases for all extend columns.
 export function getExtendColumnAliases(
@@ -224,6 +229,7 @@ export const manifest: NodeManifest<JoinConfig> = {
     {name: 'right', content: 'Right'},
   ],
   hue: 308,
+  schema: JoinConfigSchema,
   getOutputColumns(config, ctx) {
     // Output columns are all left columns, plus select right columns.
     const leftCols = ctx.getInputColumns('left') ?? [];

@@ -13,21 +13,25 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {Checkbox} from '../../../widgets/checkbox';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Stack} from '../components/stack';
 import type {NodeManifest} from '../node_types';
 import type {Port} from '../graph_model';
 
-export interface UnionConfig {
-  readonly distinct: boolean;
-  readonly numInputs: number;
-}
+const UnionConfigSchema = z.object({
+  distinct: z.boolean(),
+  numInputs: z.number(),
+});
+
+export type UnionConfig = z.infer<typeof UnionConfigSchema>;
 
 export const manifest: NodeManifest<UnionConfig> = {
   title: 'Union',
   icon: 'merge',
   hue: 242,
+  schema: UnionConfigSchema,
   getInputs(config: UnionConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
       name: `input_${i}`,

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {
   ColumnContext,
   IrContext,
@@ -25,10 +26,12 @@ import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import type {ColumnDef} from '../graph_utils';
 
-export interface DropConfig {
+const DropConfigSchema = z.object({
   // Names of the input columns to drop.
-  readonly columns: string[];
-}
+  columns: z.array(z.string()),
+});
+
+export type DropConfig = z.infer<typeof DropConfigSchema>;
 
 function DropContent(): m.Component<{
   config: DropConfig;
@@ -133,6 +136,7 @@ export const manifest: NodeManifest<DropConfig> = {
   icon: 'remove',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 5,
+  schema: DropConfigSchema,
   defaultConfig: () => ({columns: []}),
   render,
   getOutputColumns,

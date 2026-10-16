@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {z} from 'zod';
 import type {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {manifest as filterNode} from './nodes/filter';
@@ -30,7 +31,12 @@ import {manifest as unionNode} from './nodes/union';
 import {manifest as chartNode} from './nodes/chart';
 import {manifest as sqlNode} from './nodes/sql';
 import type {NodeManifest, ColumnContext} from './node_types';
-import type {NodeData, RootNodeData, Port} from './graph_model';
+import type {
+  NodeData,
+  NodeQueryBuilderStore,
+  RootNodeData,
+  Port,
+} from './graph_model';
 
 // Central registry mapping node type strings to their manifests.
 const NODE_REGISTRY: Record<string, NodeManifest> = {
@@ -52,7 +58,110 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
 };
 
 export function getManifest(type: string): NodeManifest {
-  return NODE_REGISTRY[type];
+  return Object.prototype.hasOwnProperty.call(NODE_REGISTRY, type)
+    ? NODE_REGISTRY[type]
+    : undefined!;
+}
+
+function parseNodeConfig(
+  type: string,
+  config: unknown,
+  ctx: z.RefinementCtx,
+): object | typeof z.NEVER {
+  const manifest = getManifest(type);
+  if (!manifest) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Unknown node type: ${type}`,
+      path: ['type'],
+    });
+    return z.NEVER;
+  }
+  const result = manifest.schema.safeParse(config);
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      ctx.addIssue({
+        ...issue,
+        path: ['config', ...issue.path],
+      });
+    }
+    return z.NEVER;
+  }
+  return result.data;
+}
+
+export const NodeDataSchema: z.ZodType<NodeData> = z
+  .object({
+    id: z.string(),
+    type: z.string(),
+    config: z.unknown(),
+    next: z.lazy(() => NodeDataSchema).optional(),
+    collapsed: z.boolean().optional(),
+    inputs: z.array(z.string().nullable()).optional(),
+  })
+  .transform((node, ctx): NodeData => {
+    const config = parseNodeConfig(node.type, node.config, ctx);
+    if (config === z.NEVER) return z.NEVER;
+    return {
+      id: node.id,
+      type: node.type,
+      config,
+      ...(node.next !== undefined ? {next: node.next} : {}),
+      ...(node.collapsed !== undefined ? {collapsed: node.collapsed} : {}),
+      ...(node.inputs !== undefined ? {inputs: node.inputs} : {}),
+    };
+  });
+
+export const RootNodeDataSchema: z.ZodType<RootNodeData> = z
+  .object({
+    id: z.string(),
+    type: z.string(),
+    x: z.number(),
+    y: z.number(),
+    config: z.unknown(),
+    next: NodeDataSchema.optional(),
+    collapsed: z.boolean().optional(),
+    inputs: z.array(z.string().nullable()).optional(),
+  })
+  .transform((node, ctx): RootNodeData => {
+    const config = parseNodeConfig(node.type, node.config, ctx);
+    if (config === z.NEVER) return z.NEVER;
+    return {
+      id: node.id,
+      type: node.type,
+      x: node.x,
+      y: node.y,
+      config,
+      ...(node.next !== undefined ? {next: node.next} : {}),
+      ...(node.collapsed !== undefined ? {collapsed: node.collapsed} : {}),
+      ...(node.inputs !== undefined ? {inputs: node.inputs} : {}),
+    };
+  });
+
+export const LabelSchema = z.object({
+  id: z.string(),
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  content: z.string().optional(),
+  selectable: z.boolean().optional(),
+});
+
+export const NodeQueryBuilderStoreSchema: z.ZodType<NodeQueryBuilderStore> =
+  z.object({
+    nodes: z.array(RootNodeDataSchema).default([]),
+    labels: z.array(LabelSchema).default([]),
+  });
+
+export function serializeStore(store: NodeQueryBuilderStore): string {
+  return JSON.stringify({
+    nodes: store.nodes,
+    labels: store.labels,
+  });
+}
+
+export function deserializeStore(json: string): NodeQueryBuilderStore {
+  return NodeQueryBuilderStoreSchema.parse(JSON.parse(json));
 }
 
 // Returns the effective input ports for a node instance.

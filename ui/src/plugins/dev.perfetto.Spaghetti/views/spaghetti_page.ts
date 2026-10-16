@@ -21,7 +21,7 @@ import {
   DataGrid,
   renderCell,
 } from '../../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {ColumnSchema} from '../../../components/widgets/datagrid/datagrid_schema';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Timestamp} from '../../../components/widgets/timestamp';
 import type {Trace} from '../../../public/trace';
@@ -54,6 +54,7 @@ import type {
 } from '../graph_model';
 import {
   chainTail,
+  deserializeStore,
   findConnectedInputs,
   findDockedParent,
   flattenNodes,
@@ -61,6 +62,7 @@ import {
   getManifest,
   getManifestInputs,
   getOutputColumnsForNode,
+  serializeStore,
   type GraphIndex,
 } from '../graph_utils';
 import {buildIR} from '../ir';
@@ -147,21 +149,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
   let matService: MaterializationService | undefined;
 
   const STORAGE_KEY = 'perfettoSpaghetti';
-
-  function serializeStore(s: NodeQueryBuilderStore): string {
-    return JSON.stringify({
-      nodes: s.nodes,
-      labels: s.labels,
-    });
-  }
-
-  function deserializeStore(json: string): NodeQueryBuilderStore {
-    const obj = JSON.parse(json);
-    return {
-      nodes: Array.isArray(obj.nodes) ? obj.nodes : [],
-      labels: obj.labels ?? [],
-    };
-  }
 
   function saveGraph() {
     try {
@@ -331,7 +318,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       if (newId) (node as {id: string}).id = newId;
       if (node.inputs) {
         node.inputs = node.inputs.map((id) =>
-          id !== null ? oldToNew.get(id) ?? id : null,
+          id !== null ? (oldToNew.get(id) ?? id) : null,
         );
       }
       if (node.next) remapNode(node.next);
@@ -615,7 +602,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
       if (pinnedNodeId !== undefined) {
         const pinnedNode = flatNodes.nodes[pinnedNodeId];
         const pinnedLabel = pinnedNode
-          ? getManifest(pinnedNode.type)?.title ?? pinnedNode.type
+          ? (getManifest(pinnedNode.type)?.title ?? pinnedNode.type)
           : pinnedNodeId;
         toolbarItems.push(
           m(Button, {
@@ -911,12 +898,12 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         : undefined;
 
       const sqlText = activeNodeId
-        ? displaySql ?? 'Incomplete query — fill in all required fields'
+        ? (displaySql ?? 'Incomplete query — fill in all required fields')
         : 'Select a node to preview its SQL';
 
       // Build IR entries for the IR tab (pure function of graph, always fresh).
       const irEntries = activeNodeId
-        ? buildIR(flatNodes, activeNodeId, sqlModules) ?? []
+        ? (buildIR(flatNodes, activeNodeId, sqlModules) ?? [])
         : [];
 
       // Index report entries by hash for O(1) lookup per IR block.
@@ -972,6 +959,7 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
                 liveJson,
                 onApply: (json: string) => {
                   store = deserializeStore(json);
+                  rebuildIndex();
                   history.splice(0, history.length, store);
                   historyIndex = 0;
                   selectedNodeIds.clear();
@@ -984,76 +972,70 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
         }),
       );
 
-      const datagridSchema: SchemaRegistry = {
-        query: Object.fromEntries(
-          (outputColumns ?? []).map((col) => {
-            if (col.type && isIdType(col.type)) {
-              const tableName = col.type.source.table;
-              return [
-                col.name,
-                {
-                  cellRenderer: (value: Row[string]) => {
-                    const cell = renderCell(value, col.name);
-                    if (
-                      typeof value !== 'bigint' &&
-                      typeof value !== 'number'
-                    ) {
-                      return cell;
-                    }
-                    const id =
-                      typeof value === 'bigint' ? Number(value) : value;
-                    return m(
-                      Anchor,
-                      {
-                        title: `Go to ${tableName} on the timeline`,
-                        icon: Icons.UpdateSelection,
-                        onclick: () => {
-                          trace.navigate('#!/viewer');
-                          trace.selection.selectSqlEvent(tableName, id, {
-                            switchToCurrentSelectionTab: false,
-                            scrollToSelection: true,
-                          });
-                        },
+      const datagridSchema: ColumnSchema = Object.fromEntries(
+        (outputColumns ?? []).map((col) => {
+          if (col.type && isIdType(col.type)) {
+            const tableName = col.type.source.table;
+            return [
+              col.name,
+              {
+                cellRenderer: (value: Row[string]) => {
+                  const cell = renderCell(value, col.name);
+                  if (typeof value !== 'bigint' && typeof value !== 'number') {
+                    return cell;
+                  }
+                  const id = typeof value === 'bigint' ? Number(value) : value;
+                  return m(
+                    Anchor,
+                    {
+                      title: `Go to ${tableName} on the timeline`,
+                      icon: Icons.UpdateSelection,
+                      onclick: () => {
+                        trace.navigate('#!/viewer');
+                        trace.selection.selectSqlEvent(tableName, id, {
+                          switchToCurrentSelectionTab: false,
+                          scrollToSelection: true,
+                        });
                       },
-                      cell,
-                    );
-                  },
+                    },
+                    cell,
+                  );
                 },
-              ];
-            }
-            if (col.type?.kind === 'timestamp') {
-              return [
-                col.name,
-                {
-                  cellRenderer: (value: Row[string]) => {
-                    if (typeof value === 'bigint') {
-                      return m(Timestamp, {trace, ts: Time.fromRaw(value)});
-                    }
-                    return renderCell(value, col.name);
-                  },
+              },
+            ];
+          }
+          if (col.type?.kind === 'timestamp') {
+            return [
+              col.name,
+              {
+                cellRenderer: (value: Row[string]) => {
+                  if (typeof value === 'bigint') {
+                    return m(Timestamp, {trace, ts: Time.fromRaw(value)});
+                  }
+                  return renderCell(value, col.name);
                 },
-              ];
-            }
-            if (col.type?.kind === 'duration') {
-              return [
-                col.name,
-                {
-                  cellRenderer: (value: Row[string]) => {
-                    if (typeof value === 'bigint') {
-                      return m(DurationWidget, {
-                        trace,
-                        dur: Duration.fromRaw(value),
-                      });
-                    }
-                    return renderCell(value, col.name);
-                  },
+              },
+            ];
+          }
+          if (col.type?.kind === 'duration') {
+            return [
+              col.name,
+              {
+                cellRenderer: (value: Row[string]) => {
+                  if (typeof value === 'bigint') {
+                    return m(DurationWidget, {
+                      trace,
+                      dur: Duration.fromRaw(value),
+                    });
+                  }
+                  return renderCell(value, col.name);
                 },
-              ];
-            }
-            return [col.name, {}];
-          }),
-        ),
-      };
+              },
+            ];
+          }
+          return [col.name, {}];
+        }),
+      );
 
       function renderEmptyState(): m.Children {
         if (matError) {
@@ -1109,7 +1091,6 @@ export function SpaghettiPage(): m.Component<SpaghettiPage> {
               key: displaySql,
               data: dataSource,
               schema: datagridSchema,
-              rootSchema: 'query',
               fillHeight: true,
             })
           : renderEmptyState();

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {NodeManifest, RenderContext, SqlStatement} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Row} from '../components/row';
@@ -20,16 +21,22 @@ import {Stack} from '../components/stack';
 import {ColumnPicker} from '../widgets/column_picker';
 import {RadioGroup} from '../../../widgets/radio_group';
 
-export interface SortCondition {
-  readonly column: string;
-  readonly order: 'ASC' | 'DESC';
-}
+const SortOrderSchema = z.enum(['ASC', 'DESC']);
 
-export interface SortConfig {
-  readonly sortColumn: string;
-  readonly sortOrder: 'ASC' | 'DESC';
-  readonly conditions?: SortCondition[];
-}
+const SortConditionSchema = z.object({
+  column: z.string(),
+  order: SortOrderSchema,
+});
+
+export type SortCondition = z.infer<typeof SortConditionSchema>;
+
+const SortConfigSchema = z.object({
+  sortColumn: z.string(),
+  sortOrder: SortOrderSchema,
+  conditions: z.array(SortConditionSchema).optional(),
+});
+
+export type SortConfig = z.infer<typeof SortConfigSchema>;
 
 // Get the effective sort conditions, migrating legacy single-column data.
 export function getSortConditions(config: SortConfig): SortCondition[] {
@@ -201,6 +208,7 @@ export const manifest: NodeManifest<SortConfig> = {
   icon: 'sort',
   getInputs: () => [{name: 'input', content: 'Input'}],
   hue: 178,
+  schema: SortConfigSchema,
   defaultConfig: () => ({sortColumn: '', sortOrder: 'ASC', conditions: []}),
   render: renderSortNode,
   isValid,

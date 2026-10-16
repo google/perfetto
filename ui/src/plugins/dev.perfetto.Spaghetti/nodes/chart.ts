@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import type {NodeManifest, DetailsContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
@@ -22,15 +23,19 @@ import {Stack} from '../components/stack';
 import './chart.scss';
 import type {Port} from '../graph_model';
 
-export interface ChartSpec {
-  readonly xCol: string;
-  readonly yCol: string; // empty string = COUNT(*)
-}
+const ChartSpecSchema = z.object({
+  xCol: z.string(),
+  yCol: z.string(), // empty string = COUNT(*)
+});
 
-export interface ChartConfig {
-  readonly charts: ChartSpec[];
-  readonly numInputs: number;
-}
+export type ChartSpec = z.infer<typeof ChartSpecSchema>;
+
+const ChartConfigSchema = z.object({
+  charts: z.array(ChartSpecSchema),
+  numInputs: z.number(),
+});
+
+export type ChartConfig = z.infer<typeof ChartConfigSchema>;
 
 // ---------------------------------------------------------------------------
 // Bar chart component — renders one SVG bar chart for a single spec.
@@ -281,6 +286,7 @@ export const manifest: NodeManifest<ChartConfig> = {
   title: 'Chart',
   icon: 'bar_chart',
   hue: 160,
+  schema: ChartConfigSchema,
   getInputs(config: ChartConfig): Port[] {
     return Array.from({length: config.numInputs}, (_, i) => ({
       name: `input_${i}`,
