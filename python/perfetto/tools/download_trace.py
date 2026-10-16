@@ -56,6 +56,36 @@ def _fetch(url):
   return urllib.request.urlopen(url, context=context)
 
 
+# Traces uploaded by the UI live in BUCKET_NAME. The UI's example traces live in
+# perfetto-misc, and sharing one of those keeps its original URL.
+_TRACE_URL_RE = re.compile(r'^/(%s|perfetto-misc)/[A-Za-z0-9_-][A-Za-z0-9._-]*$'
+                           % BUCKET_NAME)
+
+
+def _check_trace_url(trace_url):
+  # The traceUrl comes from the permalink JSON, which anyone can create, so
+  # only accept the GCS buckets the UI actually uses.
+  parsed = urllib.parse.urlparse(trace_url)
+  if (parsed.scheme != 'https' or parsed.netloc != 'storage.googleapis.com' or
+      not _TRACE_URL_RE.match(parsed.path)):
+    raise ValueError('Unexpected trace URL in permalink: %s' % trace_url)
+
+
+_SAFE_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]*$')
+_WINDOWS_RESERVED = frozenset(['CON', 'PRN', 'AUX', 'NUL'] +
+                              ['COM%d' % i for i in range(1, 10)] +
+                              ['LPT%d' % i for i in range(1, 10)])
+
+
+def _default_output_name(trace_url):
+  name = os.path.basename(urllib.parse.urlparse(trace_url).path)
+  if not _SAFE_NAME_RE.match(name):
+    return 'trace.pftrace'
+  if name.split('.')[0].upper() in _WINDOWS_RESERVED:
+    return 'trace.pftrace'
+  return name
+
+
 def resolve_trace_url(share_link):
   """Resolve a share link (or bare hash) to the underlying trace file URL."""
   permalink_hash = extract_permalink_hash(share_link)
@@ -79,6 +109,7 @@ def resolve_trace_url(share_link):
         'Permalink does not contain a trace URL. The share link may have been '
         'created from a trace that was never uploaded (e.g. an HTTP/RPC '
         'source).')
+  _check_trace_url(trace_url)
   return trace_url
 
 
@@ -86,8 +117,7 @@ def download_trace(share_link, out_path=None):
   """Download the trace behind a share link. Returns the output path."""
   trace_url = resolve_trace_url(share_link)
   if out_path is None:
-    name = os.path.basename(urllib.parse.urlparse(trace_url).path)
-    out_path = name if name else 'trace.pftrace'
+    out_path = _default_output_name(trace_url)
   print('Downloading trace: %s' % trace_url, file=sys.stderr)
   resp = _fetch(trace_url)
   total = resp.length or 0
