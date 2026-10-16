@@ -14,50 +14,50 @@
  * limitations under the License.
  */
 
-#include "src/shared_lib/stream_writer.h"
+#include "src/shared_lib/pb_msg_writer.h"
 
 #include <algorithm>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/abi/pb_msg_writer_abi.h"
 
-void PerfettoStreamWriterUpdateWritePtr(struct PerfettoStreamWriter* w) {
+void PerfettoPbMsgWriterUpdateWritePtr(struct PerfettoPbMsgWriter* w) {
   auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
   sw->set_write_ptr(w->write_ptr);
 }
 
-void PerfettoStreamWriterNewChunk(struct PerfettoStreamWriter* w) {
+void PerfettoPbMsgWriterNewChunk(struct PerfettoPbMsgWriter* w) {
   auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
   sw->set_write_ptr(w->write_ptr);
   sw->Extend();
-  perfetto::UpdateStreamWriter(*sw, w);
+  perfetto::UpdatePbMsgWriter(*sw, w);
 }
 
-uint8_t* PerfettoStreamWriterAnnotatePatch(struct PerfettoStreamWriter* w,
-                                           uint8_t* patch_addr) {
+uint8_t* PerfettoPbMsgWriterAnnotatePatch(struct PerfettoPbMsgWriter* w,
+                                          uint8_t* patch_addr) {
   auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
-  static_assert(PERFETTO_STREAM_WRITER_PATCH_SIZE ==
+  static_assert(PERFETTO_PB_MSG_WRITER_PATCH_SIZE ==
                     protozero::ScatteredStreamWriter::Delegate::kPatchSize,
                 "Size mismatch");
-  memset(patch_addr, 0, PERFETTO_STREAM_WRITER_PATCH_SIZE);
+  memset(patch_addr, 0, PERFETTO_PB_MSG_WRITER_PATCH_SIZE);
   return sw->AnnotatePatch(patch_addr);
 }
 
-void PerfettoStreamWriterAppendBytesSlowpath(struct PerfettoStreamWriter* w,
-                                             const uint8_t* src,
-                                             size_t size) {
+void PerfettoPbMsgWriterAppendBytesSlowpath(struct PerfettoPbMsgWriter* w,
+                                            const uint8_t* src,
+                                            size_t size) {
   auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
   sw->set_write_ptr(w->write_ptr);
   sw->WriteBytesSlowPath(src, size);
-  perfetto::UpdateStreamWriter(*sw, w);
+  perfetto::UpdatePbMsgWriter(*sw, w);
 }
 
-void PerfettoStreamWriterReserveBytesSlowpath(struct PerfettoStreamWriter* w,
-                                              size_t size) {
+void PerfettoPbMsgWriterReserveBytesSlowpath(struct PerfettoPbMsgWriter* w,
+                                             size_t size) {
   auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
   sw->set_write_ptr(w->write_ptr);
   sw->ReserveBytes(size);
-  perfetto::UpdateStreamWriter(*sw, w);
+  perfetto::UpdatePbMsgWriter(*sw, w);
 }

@@ -28,6 +28,8 @@ source_set("exec") {
     "column_chunk.cc",
     "column_chunk.h",
     "column_view.h",
+    "combine_batches.cc",
+    "combine_batches.h",
     "context.cc",
     "context.h",
     "dataframe_scan.cc",

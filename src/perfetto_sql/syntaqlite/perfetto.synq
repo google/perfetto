@@ -482,8 +482,14 @@ node PerfettoPipeWhere {
   fmt { group { "WHERE" nest { line child(condition) } } }
 }
 
+// `DISTINCT`: keeps one of each set of rows equal in every column.
+node PerfettoPipeDistinct {
+  fmt { "DISTINCT" }
+}
+
 abstract PerfettoPipeStage {
   PerfettoPipeWhere
+  PerfettoPipeDistinct
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps

@@ -129,6 +129,7 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   for (const Aggregate& agg : flatten.aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
+  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
 
   // Its rows are the segments, laid out afresh.
@@ -146,6 +147,8 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   if (!flatten.keys_.empty()) {
     c->DeclareGroupNumbers(flatten.keys_, groups);
   }
+  // Segments are output as each one ends, so batches can be small.
+  c->DeclareSmallBatches();
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

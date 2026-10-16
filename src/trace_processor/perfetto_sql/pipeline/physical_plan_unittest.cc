@@ -211,12 +211,15 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
       "|> TREE ACCUMULATE UP SUM(path2) AS total");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
   // The tree is numbered once. Both downward folds share one parent-first
-  // walk, and a new walk is added only when the direction changes.
+  // walk. A new walk is added only when the direction changes. The
+  // parent-first walk can output small batches, so they are combined before
+  // the child-first walk.
   EXPECT_EQ(PhysicalPlanToString(**plan),
             "main: DataframeScan | TreeNumberNodes(#0, #1) | "
             "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
             "TreeAccumulateDown(#3, #4; SUM(#2)) | "
-            "TreeAccumulateDown(#3, #4; SUM(#5)) | TreeChildFirst(#3, #4) | "
+            "TreeAccumulateDown(#3, #4; SUM(#5)) | CombineBatches | "
+            "TreeChildFirst(#3, #4) | "
             "TreeAccumulateUp(#3, #4; SUM(#6))");
   auto rows = Run(**plan, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
@@ -233,17 +236,25 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
     EXPECT_TRUE(lowered.ok()) << lowered.status().message();
     return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
   };
-  // Rows sorted by (cpu, ts) are also sorted by cpu, but not by ts.
+  // Rows sorted by (cpu, ts) are also sorted by cpu. A sort that nothing
+  // depends on yet is dropped when the rows are sorted again.
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY cpu"),
             "main: DataframeScan | Sort(#2, #0)");
   EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY ts"),
-            "main: DataframeScan | Sort(#2, #0) | Sort(#0)");
-
-  // Grouping is stable, so rows sorted by ts only need grouping by cpu to be
-  // sorted by ts within each cpu. No second sort is needed.
-  EXPECT_EQ(plan("FROM t |> ORDER BY ts |> INTERVAL FLATTEN PER cpu "
+            "main: DataframeScan | Sort(#0)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu |> INTERVAL FLATTEN PER cpu "
                  "AGGREGATE COUNT(*) AS n"),
-            "main: DataframeScan | Sort(#0) | AssertType(#0 to Int64) | "
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
+
+  // The scan outputs rows sorted by ts. Grouping is stable, so grouping by
+  // cpu is enough to sort by ts within each cpu. No sort is needed.
+  Exec("CREATE TABLE by_ts(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO by_ts VALUES (0, 1, 1), (2, 1, 0), (5, 1, 1)");
+  EXPECT_EQ(plan("FROM by_ts |> INTERVAL FLATTEN PER cpu "
+                 "AGGREGATE COUNT(*) AS n"),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
             "AssertType(#1 to Int64) | GroupedSort(#2) | "
             "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
 
@@ -258,6 +269,24 @@ TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
            "cpu |> ORDER BY cpu"),
       "main: DataframeScan | Sort(#0) | HashAggregate(keys: #1; COUNT(*)) | "
       "Sort(#0)");
+}
+
+// Small batches are combined only after a step that may output them, and only
+// before an operator that works best on full batches.
+TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
+  Exec("CREATE TABLE t(ts INTEGER, dur INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (5, 10, 2), (0, 10, 1)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n"), "main: DataframeScan | Sort(#2)");
+  EXPECT_EQ(plan("FROM t |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS c "
+                 "|> ORDER BY c"),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | Sort(#0) | "
+            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
 }
 
 // Each operand is grouped by its PER keys and sorted by ts within each group,

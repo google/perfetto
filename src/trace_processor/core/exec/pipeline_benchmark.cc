@@ -98,7 +98,7 @@ void Run(benchmark::State& state) {
   for (uint32_t i = 0; i < steps_count; ++i) {
     steps.push_back(std::make_unique<Step>());
   }
-  Pipeline pipeline(source, std::move(steps), {});
+  Pipeline pipeline(source, std::move(steps));
   RowCursor cursor(pipeline);
   for (auto _ : state) {
     uint64_t rows = 0;

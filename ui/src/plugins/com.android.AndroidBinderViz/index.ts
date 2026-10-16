@@ -87,7 +87,7 @@ export default class implements PerfettoPlugin {
         durCol: `${oppositePerspective}_dur`,
       },
       sliceIdColumn: sliceIdColumn,
-      sortTracks: false,
+      sortTracks: true,
       detailsPanel: (trace: Trace) => new BinderSliceDetailsPanel(trace),
     });
 

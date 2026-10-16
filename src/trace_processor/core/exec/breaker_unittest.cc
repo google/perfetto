@@ -114,7 +114,7 @@ TEST(BreakerTest, ServesOnlyOnceTheWholeInputIsIn) {
   ArraySource source(Sequence(kMaxBatchRows * 2 + 7));
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Reverse>());
-  Pipeline reverse(source, std::move(ops), {});
+  Pipeline reverse(source, std::move(ops));
 
   std::vector<int64_t> values = DrainValues(reverse);
   ASSERT_EQ(values.size(), kMaxBatchRows * 2u + 7u);
@@ -130,7 +130,7 @@ TEST(BreakerTest, ConsecutiveBreakersDrainAndRewindInOnePipeline) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<Reverse>());
   ops.push_back(std::make_unique<Reverse>(0));
-  Pipeline pipeline(source, std::move(ops), {});
+  Pipeline pipeline(source, std::move(ops));
   RowCursor cursor(pipeline);
   // Restart while a breaker still has buffered output to serve.
   ASSERT_TRUE(cursor.Open());

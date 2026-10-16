@@ -17,7 +17,6 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <utility>
 #include <variant>
@@ -40,23 +39,8 @@ constexpr size_t kOperatorStep =
 
 }  // namespace
 
-Pipeline::Pipeline(const Source& source,
-                   std::vector<Step> steps,
-                   ExecutionOptions options)
-    : source_(source), steps_(std::move(steps)), options_(std::move(options)) {
-  PERFETTO_CHECK(options_.target_batch_rows > 0 &&
-                 options_.target_batch_rows <= kMaxBatchRows);
-  PERFETTO_CHECK(options_.small_batch_rows <= options_.target_batch_rows);
-  if (options_.limit != std::numeric_limits<uint64_t>::max()) {
-    plan_flags_ |= State::kLimit;
-  }
-  if (options_.cancelled) {
-    plan_flags_ |= State::kCancellable;
-  }
-  if (options_.preference == BatchPreference::kThroughput &&
-      !(plan_flags_ & State::kLimit)) {
-    plan_flags_ |= State::kCombineOutput;
-  }
+Pipeline::Pipeline(const Source& source, std::vector<Step> steps)
+    : source_(source), steps_(std::move(steps)) {
   segments_.emplace_back();
   for (uint32_t i = 0; i < steps_.size(); ++i) {
     switch (steps_[i].index()) {
@@ -68,8 +52,7 @@ Pipeline::Pipeline(const Source& source,
       case kOperatorStep: {
         const Operator* op =
             base::unchecked_get<std::unique_ptr<Operator>>(steps_[i]).get();
-        segments_.push_back(
-            {static_cast<int32_t>(i), op, op->traits().preference, {}, {}});
+        segments_.push_back({static_cast<int32_t>(i), op, {}, {}});
         break;
       }
     }
@@ -126,17 +109,10 @@ std::unique_ptr<OperatorState> Pipeline::MakeState(Context& context) const {
 void Pipeline::Rewind(OperatorState& state) const {
   auto& s = state.Cast<State>();
   ++s.run;
-  if (s.flags & State::kCombineOutput) {
-    s.output.deferred = nullptr;
-    if (s.output.buffered.size()) {
-      s.output.buffered.Clear();
-    }
-  }
   if (s.flags & State::kFailed) {
     s.status = base::OkStatus();
   }
   s.flags = plan_flags_;
-  s.emitted = 0;
   source_.Rewind(*s.source_state);
   for (OperatorState* op_state : s.reset_each_run) {
     op_state->Reset();
@@ -159,7 +135,7 @@ RowBatch* Pipeline::Next(RowBatch&, OperatorState& state) const {
     if (PERFETTO_UNLIKELY(flags & State::kSourceDone)) {
       return nullptr;
     }
-    batch = s.source->Next(s.output.scratch, *s.source_state);
+    batch = s.source->Next(s.output, *s.source_state);
     if (PERFETTO_UNLIKELY(!batch)) {
       s.flags |= State::kSourceDone;
       return nullptr;
@@ -181,27 +157,11 @@ RowBatch* Pipeline::Next(RowBatch&, OperatorState& state) const {
 }
 
 PERFETTO_NO_INLINE RowBatch* Pipeline::NextSlow(State& s) const {
-  if ((s.flags & State::kLimit) && s.emitted >= options_.limit) {
-    Stop(s);
-    return nullptr;
-  }
   auto last = static_cast<uint32_t>(segments_.size() - 1);
-  RowBatch* batch = (s.flags & State::kCombineOutput)
-                        ? Read(last, options_.preference, s.output, s)
-                        : SegmentNext(last, s.output.scratch, s);
+  RowBatch* batch = SegmentNext(last, s.output, s);
   if (!batch) {
     Stop(s);
-    return nullptr;
   }
-  if (!(s.flags & State::kLimit)) {
-    return batch;
-  }
-  uint64_t remaining = options_.limit - s.emitted;
-  if (batch->size() > remaining)
-    batch->mutable_selection().KeepRange(0, static_cast<uint32_t>(remaining));
-  s.emitted += batch->size();
-  if (s.emitted == options_.limit)
-    Stop(s);
   return batch;
 }
 
@@ -264,10 +224,6 @@ PERFETTO_NO_INLINE RowBatch* Pipeline::PullSlow(uint32_t segment,
 RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
   auto& start = s.starts[segment];
   if (start.run != s.run) {
-    start.input.deferred = nullptr;
-    if (start.input.buffered.size()) {
-      start.input.buffered.Clear();
-    }
     start.current = nullptr;
     start.continuation = false;
     start.input_done = false;
@@ -283,8 +239,7 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
     }
     bool has_input = start.continuation;
     if (!has_input && !start.input_done) {
-      start.current =
-          Read(segment - 1, segments_[segment].preference, start.input, s);
+      start.current = SegmentNext(segment - 1, start.input, s);
       if (start.current) {
         has_input = true;
       } else if (s.flags & (State::kStopped | State::kFailed)) {
@@ -313,51 +268,6 @@ RowBatch* Pipeline::StartNext(uint32_t segment, State& s) const {
   }
 }
 
-PERFETTO_ALWAYS_INLINE RowBatch* Pipeline::Read(uint32_t segment,
-                                                BatchPreference preference,
-                                                Combiner& c,
-                                                State& s) const {
-  bool combine = preference == BatchPreference::kThroughput &&
-                 options_.limit == std::numeric_limits<uint64_t>::max();
-  if (!combine) {
-    return SegmentNext(segment, c.scratch, s);
-  }
-  for (;;) {
-    RowBatch* next;
-    if (c.deferred) {
-      next = c.deferred;
-      c.deferred = nullptr;
-    } else {
-      next = SegmentNext(segment, c.scratch, s);
-      if (!next) {
-        if (s.flags & (State::kStopped | State::kFailed)) {
-          c.buffered.Clear();
-          return nullptr;
-        }
-        if (c.buffered.size()) {
-          c.buffered.Take(c.combined);
-          return &c.combined;
-        }
-        return nullptr;
-      }
-    }
-    if (next->size() > options_.small_batch_rows ||
-        c.buffered.size() + next->size() > options_.target_batch_rows) {
-      if (c.buffered.size()) {
-        c.deferred = next;
-        c.buffered.Take(c.combined);
-        return &c.combined;
-      }
-      return next;
-    }
-    c.buffered.Append(*next, *s.context);
-    if (c.buffered.size() >= options_.target_batch_rows) {
-      c.buffered.Take(c.combined);
-      return &c.combined;
-    }
-  }
-}
-
 bool Pipeline::GetData(RowBatch& out, OperatorState& state) const {
   // Releases the caller's last batch first, so its storage can be reused.
   out.Reset();
@@ -382,27 +292,12 @@ base::Status Pipeline::status(const OperatorState& state) const {
 }
 
 PERFETTO_ALWAYS_INLINE bool Pipeline::CanContinue(State& state) const {
-  if (PERFETTO_UNLIKELY(state.flags & (State::kStopped | State::kFailed)))
-    return false;
-  if ((state.flags & State::kCancellable) && options_.cancelled()) {
-    Fail(state, base::ErrStatus("pipeline cancelled"));
-    Stop(state);
-    return false;
-  }
-  return true;
+  return PERFETTO_LIKELY(!(state.flags & (State::kStopped | State::kFailed)));
 }
 
 PERFETTO_NO_INLINE void Pipeline::Stop(State& state) const {
   for (auto& start : state.starts) {
-    start.input.deferred = nullptr;
-    if (start.input.buffered.size()) {
-      start.input.buffered.Clear();
-    }
     start.current = nullptr;
-  }
-  state.output.deferred = nullptr;
-  if (state.output.buffered.size()) {
-    state.output.buffered.Clear();
   }
   state.flags |= State::kStopped;
 }

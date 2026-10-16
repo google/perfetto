@@ -139,7 +139,8 @@ class Lowering {
   // Sets the pipeline's input. It must not already be set.
   void SetSource(std::unique_ptr<core::exec::Source> source);
 
-  // Adds an operator. Its output must be declared with the Declare methods.
+  // Adds an operator that may depend on the order of the rows. Its output
+  // must be declared with the Declare methods.
   void AddOperator(core::exec::Pipeline::Step);
 
   // Creates a new side pipeline.
@@ -178,6 +179,10 @@ class Lowering {
   // row's group number.
   uint32_t RequireGroupNumbers(const std::vector<ColumnId>& keys);
 
+  // Use before an operator that works best on full batches. Adds a
+  // CombineBatches only if an earlier step may have made small batches.
+  void RequireFullBatches();
+
   // Orders rows as a tree walk in `direction`, and returns the positions of
   // the node number columns. The numbering is reused until ResetLayout.
   TreeColumns RequireTreeWalk(ColumnId node, ColumnId parent, TreeDirection);
@@ -203,6 +208,10 @@ class Lowering {
   // `sorted_by`.
   void DeclareSortedWithinGroups(const std::vector<ColumnId>& keys,
                                  const std::vector<SortKey>& sorted_by);
+
+  // Records that an added operator may output small batches, for example
+  // because it drops rows. Batches are assumed to be full otherwise.
+  void DeclareSmallBatches();
 
   // Records that the column at `position` holds group numbers for `keys`.
   void DeclareGroupNumbers(const std::vector<ColumnId>& keys,
@@ -258,6 +267,37 @@ class Lowering {
   bool IsArranged(const std::vector<ColumnId>& keys,
                   const std::vector<SortKey>& sorted_by) const;
 
+  // A Sort that no later step depends on yet, so it can still be removed.
+  struct OpenSort {
+    // Where the Sort is in `operators_`.
+    size_t index;
+    // What was known about the row order before the Sort. Restored if the
+    // Sort is removed.
+    std::vector<Arrangement> arrangements;
+    std::optional<TreeDirection> tree_walk;
+  };
+
+  // Adds `step`, which does not depend on or change the order of rows or the
+  // size of batches.
+  void AddOrderIndependent(core::exec::Pipeline::Step step);
+
+  // Adds `step`, which depends on the order of rows but does not change the
+  // size of batches.
+  void AddOrderDependent(core::exec::Pipeline::Step step);
+
+  // Adds a breaker. Breakers work best on full batches and output full
+  // batches.
+  void AddBreaker(core::exec::Pipeline::Step breaker);
+
+  // Adds a Sort, after which the rows are in `arrangements`. If the rows are
+  // sorted again before any step reads this order, the Sort is removed.
+  void AddSort(core::exec::Pipeline::Step sort,
+               std::vector<Arrangement> arrangements);
+
+  // Removes the open Sort, if there is one. Returns whether a Sort was
+  // removed.
+  bool DropOpenSort();
+
   // Adds a GroupedSort that groups by `keys` and sorts each group by
   // `sorted_by`. The GroupedSort also adds a group number column.
   void GroupRows(const std::vector<ColumnId>& keys,
@@ -276,8 +316,7 @@ class Lowering {
   // Layout and order of this pipeline
   // ---------------------------------------------------------------------------
 
-  // The number of columns in the current batch, including temporary
-  // columns.
+  // Number of columns in the current batch, including temporary columns.
   uint32_t column_count_ = 0;
 
   // The batch position of each logical column. Only valid for declared
@@ -291,6 +330,13 @@ class Lowering {
   // The tree walk order of the rows, if they are in one. Replaced at the same
   // times as `arrangements_`.
   std::optional<TreeDirection> tree_walk_;
+
+  // The most recent Sort, if it can still be removed.
+  std::optional<OpenSort> open_sort_;
+
+  // Whether batches are known to be full, so no combining is needed. True
+  // until a step declares small batches.
+  bool full_batches_ = true;
 
   // The tree node number columns, if the tree is numbered. They stay valid
   // when rows are reordered, until ResetLayout.
