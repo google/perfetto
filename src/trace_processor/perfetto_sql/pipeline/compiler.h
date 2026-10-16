@@ -133,7 +133,7 @@ class Compiler {
   // ---------------------------------------------------------------------------
 
   // Allocates a logical value without making a name visible in the row.
-  ColumnId AddColumn(std::string name, std::optional<core::StorageType> type);
+  ColumnId AddColumn(std::string name, PlanType type);
 
   // Appends an operation and makes it the plan root; does not update scope.
   template <typename T>

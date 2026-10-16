@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef SRC_SHARED_LIB_STREAM_WRITER_H_
-#define SRC_SHARED_LIB_STREAM_WRITER_H_
+#ifndef SRC_SHARED_LIB_PB_MSG_WRITER_H_
+#define SRC_SHARED_LIB_PB_MSG_WRITER_H_
 
-#include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/abi/pb_msg_writer_abi.h"
 
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace perfetto {
 
 // Copies the visible state from `sw` to `*w`.
-inline void UpdateStreamWriter(const protozero::ScatteredStreamWriter& sw,
-                               struct PerfettoStreamWriter* w) {
+inline void UpdatePbMsgWriter(const protozero::ScatteredStreamWriter& sw,
+                              struct PerfettoPbMsgWriter* w) {
   w->begin = sw.cur_range().begin;
   w->end = sw.cur_range().end;
   w->write_ptr = sw.write_ptr();
@@ -34,4 +34,4 @@ inline void UpdateStreamWriter(const protozero::ScatteredStreamWriter& sw,
 
 }  // namespace perfetto
 
-#endif  // SRC_SHARED_LIB_STREAM_WRITER_H_
+#endif  // SRC_SHARED_LIB_PB_MSG_WRITER_H_

@@ -53,6 +53,9 @@ struct Row {
 // Emits the rows in batches, refilling a single batch each time.
 class RowSource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   RowSource(std::vector<Row> rows, uint32_t chunk_rows)
       : rows_(std::move(rows)), chunk_rows_(chunk_rows) {}
 
@@ -110,48 +113,6 @@ class RowSource final : public Source {
 };
 
 RowSource::State::~State() = default;
-
-class NumberedSource final : public Source {
- public:
-  NumberedSource(std::vector<uint32_t> nodes,
-                 std::vector<uint32_t> parents,
-                 std::vector<int64_t> payloads)
-      : nodes_(std::move(nodes)),
-        parents_(std::move(parents)),
-        payloads_(std::move(payloads)) {}
-
-  std::unique_ptr<OperatorState> MakeState(Context&) const override {
-    return std::make_unique<State>();
-  }
-  void Rewind(OperatorState& state) const override {
-    state.Cast<State>().emitted = false;
-  }
-  bool GetData(RowBatch& out, OperatorState& state) const override {
-    State& s = state.Cast<State>();
-    if (s.emitted) {
-      return false;
-    }
-    out.Reset();
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Uint32{}}, nodes_.data()));
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Uint32{}}, parents_.data()));
-    out.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Int64{}}, payloads_.data()));
-    out.SetRowCount(static_cast<uint32_t>(nodes_.size()));
-    s.emitted = true;
-    return true;
-  }
-
- private:
-  struct State : OperatorState {
-    bool emitted = false;
-  };
-
-  std::vector<uint32_t> nodes_;
-  std::vector<uint32_t> parents_;
-  std::vector<int64_t> payloads_;
-};
 
 // Drives a plan the way an executor does: it creates the state and owns the
 // batch, leaving the plan const.
@@ -277,7 +238,7 @@ TEST(TreeChildFirstTest, PassesThroughReversesOrSortsTheRows) {
   };
   for (const Case& c : cases) {
     RowSource source(c.rows, 2);
-    Pipeline order(source, NumberAndOrder(Direction::kChildFirst), {});
+    Pipeline order(source, NumberAndOrder(Direction::kChildFirst));
     Output out = Drain(order);
     ASSERT_TRUE(out.status.ok()) << out.status.message();
     ExpectOrdered(out, Direction::kChildFirst, c.rows.size());
@@ -295,7 +256,7 @@ TEST(TreeParentFirstTest, RowsLetGoSpanBatches) {
   }
   rows.push_back({0, std::nullopt, 0});
   RowSource source(rows, 1000);
-  Pipeline order(source, NumberAndOrder(Direction::kParentFirst), {});
+  Pipeline order(source, NumberAndOrder(Direction::kParentFirst));
 
   Output out = Drain(order);
   ASSERT_TRUE(out.status.ok()) << out.status.message();
@@ -315,7 +276,7 @@ TEST(TreeOrderTest, AShuffledTreeComesOutInOrder) {
 
   for (Direction direction : kDirections) {
     RowSource source(rows, 256);
-    Pipeline order(source, NumberAndOrder(direction), {});
+    Pipeline order(source, NumberAndOrder(direction));
     Output out = Drain(order);
     ASSERT_TRUE(out.status.ok()) << out.status.message();
     ExpectOrdered(out, direction, rows.size());
@@ -338,7 +299,7 @@ TEST(TreeOrderTest, ABadTreeIsReported) {
   for (Direction direction : kDirections) {
     for (const Case& c : cases) {
       RowSource source(c.rows, 2);
-      Pipeline order(source, NumberAndOrder(direction), {});
+      Pipeline order(source, NumberAndOrder(direction));
       Output out = Drain(order);
       EXPECT_FALSE(out.status.ok());
       EXPECT_THAT(out.status.message(),
@@ -346,16 +307,6 @@ TEST(TreeOrderTest, ABadTreeIsReported) {
                                          ? c.child_first
                                          : c.parent_first));
     }
-    // When numbered by another operator, two rows can have the same node.
-    NumberedSource source({0, 1, 0}, {1, kNoNode, 1}, {100, 101, 102});
-    std::vector<Pipeline::Step> ops;
-    ops.push_back(Order(direction, 0, 1));
-    Pipeline order(source, std::move(ops), {});
-    Execution run(order);
-    while (run.Next()) {
-    }
-    EXPECT_FALSE(run.status().ok());
-    EXPECT_THAT(run.status().message(), testing::HasSubstr("same node"));
   }
 }
 
@@ -388,7 +339,7 @@ TEST(TreeOrderTest, DownThenUpOverAnImplicitIdColumn) {
   auto ops = Number();
   ops.push_back(std::make_unique<TreeParentFirst>(3, 4));
   ops.push_back(std::make_unique<TreeChildFirst>(3, 4));
-  Pipeline pipeline(scan, std::move(ops), {});
+  Pipeline pipeline(scan, std::move(ops));
 
   Execution run(pipeline);
   std::vector<uint32_t> ids;

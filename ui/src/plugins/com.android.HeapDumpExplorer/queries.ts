@@ -43,6 +43,7 @@ import type {
 import {fmtHex} from './format';
 import {shortClassName, SQL_PREAMBLE} from './components';
 import {Time} from '../../base/time';
+import {mergedClassNamesSql} from '../dev.perfetto.HeapProfile/merged_class_sql';
 
 /**
  * Reinterpret a SQL int64 as an unsigned 64-bit native pointer.
@@ -248,6 +249,21 @@ async function batchBitmapBufferHashes(
 export async function hasFieldValues(engine: Engine): Promise<boolean> {
   const res = await engine.query(`SELECT 1 FROM heap_graph_primitive LIMIT 1`);
   return res.iter({}).valid();
+}
+
+// Names (deobfuscated where possible) of the classes in `dump` that may
+// include other classes merged in by app optimization (e.g. R8 class
+// merging). Empty unless the trace includes a deobfuscation mapping.
+export async function getPotentiallyMergedClasses(
+  engine: Engine,
+  dump: HeapDump,
+): Promise<ReadonlySet<string>> {
+  const res = await engine.query(mergedClassNamesSql(dump.upid, dump.ts));
+  const names = new Set<string>();
+  for (const it = res.iter({name: STR}); it.valid(); it.next()) {
+    names.add(it.name);
+  }
+  return names;
 }
 
 export async function getOverview(

@@ -110,7 +110,7 @@ void BM_TreeOrderNumberOnly(benchmark::State& state) {
                      df.row_count());
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
-  Pipeline pipeline(scan, std::move(ops), {});
+  Pipeline pipeline(scan, std::move(ops));
   Run(state, pipeline, rows);
 }
 
@@ -124,7 +124,7 @@ void BM_TreeParentFirst(benchmark::State& state) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeParentFirst>(2, 3));
-  Pipeline pipeline(scan, std::move(ops), {});
+  Pipeline pipeline(scan, std::move(ops));
   Run(state, pipeline, rows);
 }
 
@@ -138,7 +138,7 @@ void BM_TreeChildFirst(benchmark::State& state) {
   std::vector<Pipeline::Step> ops;
   ops.push_back(std::make_unique<TreeNumberNodes>(0, 1));
   ops.push_back(std::make_unique<TreeChildFirst>(2, 3));
-  Pipeline order(scan, std::move(ops), {});
+  Pipeline order(scan, std::move(ops));
   Run(state, order, rows);
 }
 

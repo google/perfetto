@@ -111,8 +111,8 @@ class Reader {
   bool ok_ = true;
 };
 
-void WriteType(Writer* w, const std::optional<core::StorageType>& type);
-std::optional<core::StorageType> ReadType(Reader* r);
+void WriteType(Writer* w, const PlanType& type);
+PlanType ReadType(Reader* r);
 
 // -----------------------------------------------------------------------------
 // Plan encoding
@@ -141,7 +141,7 @@ class PlanReader {
   explicit PlanReader(Reader& r);
 
   LogicalPlan Read();
-  ColumnId AddColumn(std::string name, std::optional<core::StorageType> type);
+  ColumnId AddColumn(std::string name, PlanType type);
 
   template <typename T>
   PlanNodeId AddNode(T operation, std::vector<PlanNodeId> children = {}) {

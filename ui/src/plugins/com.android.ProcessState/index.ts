@@ -20,7 +20,6 @@ import {
   makeColorScheme,
 } from '../../components/colorizer';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {SliceTrackDetailsPanel} from '../../components/tracks/slice_track_details_panel';
 import type {PerfettoPlugin} from '../../public/plugin';
 import type {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -33,6 +32,7 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {
   ProcessExitsAggregator,
   ProcessStartsAggregator,
@@ -42,6 +42,7 @@ import {
   TAG_COUNT_TRACK,
   TAG_PROCESS_TRACK,
 } from './aggregators';
+import {ProcessStateDetailsPanel} from './details_panel';
 import {ProcessStateCountTrack} from './state_count_track';
 
 const BASE_SCHEMA = {
@@ -57,7 +58,7 @@ const BASE_SCHEMA = {
   version_code: NUM_NULL,
   debuggable: NUM_NULL,
   state: STR,
-  reason: STR_NULL,
+  state_change_reason: STR_NULL,
 } as const;
 
 const NONEXISTENT_SCHEMA = {
@@ -79,19 +80,23 @@ const PROCESS_STATE_SCHEMA = {...NONEXISTENT_SCHEMA, ...EXITED_SCHEMA} as const;
 
 const SLATE = makeColorScheme(new HSLColor([210, 18, 48]));
 
+// Below every other process-scoped track (-50..30) so it appears first.
+const PROCESS_GROUP_SORT_ORDER = -100;
+
 /**
  * Visualizes Android framework process states over the lifetime of a trace.
  *
- * Everything lives under one dedicated top level group rather than under the
- * per-process groups, because in long memory or AOT traces the processes
- * carrying state data often have no other track data at all, and so get no
- * process group to attach to.
+ * A process's state timeline lives in its process group. It is also mirrored
+ * under one dedicated top level group, which in long memory traces is the only
+ * place most of them can appear: those processes carry no other track data,
+ * and so get no process group at all.
  */
 export default class ProcessState implements PerfettoPlugin {
   static readonly id = 'com.android.ProcessState';
   static readonly description =
     'Visualizes Android framework process states: per-state concurrency ' +
     'counters and a per-process state timeline.';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     if (!(await this.hasProcessStateData(ctx))) {
@@ -173,6 +178,7 @@ export default class ProcessState implements PerfettoPlugin {
   // upid.
   private async createProcessTracks(ctx: Trace): Promise<TrackNode> {
     const byProcess = new TrackNode({name: 'By process', isSummary: true});
+    const groups = ctx.plugins.getPlugin(ProcessThreadGroupsPlugin);
 
     const processes = await ctx.engine.query(`
       SELECT
@@ -195,47 +201,62 @@ export default class ProcessState implements PerfettoPlugin {
       const {upid, pid} = it;
       const name = it.name ?? `${pid}`;
       const uri = processTrackUri(upid);
-      ctx.tracks.registerTrack({
-        uri,
-        renderer: SliceTrack.create({
-          trace: ctx,
-          uri,
-          dataset: new SourceDataset({
-            schema: PROCESS_STATE_SCHEMA,
-            src: '_android_process_state_intervals',
-            filter: {col: 'upid', eq: upid},
-          }),
-          // These tracks come in their hundreds, so keep them compact.
-          sliceLayout: {sliceHeight: 12, titleSizePx: 10},
-          sliceName: (row) => row.state,
-          colorizer: (row) => {
-            if (row.state === 'NONEXISTENT') return SLATE;
-            if (row.state === 'EXITED') return GRAY;
-            return getColorForSlice(row.state);
-          },
-          detailsPanel: (row) => {
-            const schema =
-              row.state === 'NONEXISTENT'
-                ? NONEXISTENT_SCHEMA
-                : row.state === 'EXITED'
-                  ? EXITED_SCHEMA
-                  : BASE_SCHEMA;
-            return new SliceTrackDetailsPanel(
-              ctx,
-              new SourceDataset({
+      const processGroup = groups.getGroupForProcess(upid);
+      // The process group owns the slices when it exists; the overview row
+      // then mirrors it and links to it.
+      const overviewUri = processGroup !== undefined ? `${uri}.overview` : uri;
+      for (const trackUri of processGroup ? [uri, overviewUri] : [uri]) {
+        const isOwner = trackUri === uri;
+        ctx.tracks.registerTrack({
+          uri: trackUri,
+          renderer: SliceTrack.create({
+            trace: ctx,
+            uri: trackUri,
+            dataset: new SourceDataset({
+              schema: PROCESS_STATE_SCHEMA,
+              src: '_android_process_state_intervals',
+              filter: {col: 'upid', eq: upid},
+            }),
+            // These tracks come in their hundreds, so keep them compact.
+            sliceLayout: {sliceHeight: 12, titleSizePx: 10},
+            sliceName: (row) => row.state,
+            colorizer: (row) => {
+              if (row.state === 'NONEXISTENT') return SLATE;
+              if (row.state === 'EXITED') return GRAY;
+              return getColorForSlice(row.state);
+            },
+            detailsPanel: (row) => {
+              const schema =
+                row.state === 'NONEXISTENT'
+                  ? NONEXISTENT_SCHEMA
+                  : row.state === 'EXITED'
+                    ? EXITED_SCHEMA
+                    : BASE_SCHEMA;
+              return new ProcessStateDetailsPanel(
+                ctx,
                 schema,
-                src: '_android_process_state_intervals',
-                filter: {col: 'upid', eq: upid},
-              }),
-              row,
-            );
-          },
-          rootTableName: '_android_process_state_intervals',
+                row,
+                isOwner ? undefined : uri,
+              );
+            },
+            rootTableName: isOwner
+              ? '_android_process_state_intervals'
+              : undefined,
+          }),
+          tags: {type: TAG_PROCESS_TRACK, upid},
+          description: `Framework process state of ${name} (${pid}) over time.`,
+        });
+      }
+      byProcess.addChildLast(
+        new TrackNode({uri: overviewUri, name: `${name} ${pid}`}),
+      );
+      processGroup?.addChildInOrder(
+        new TrackNode({
+          uri,
+          name: 'Process state',
+          sortOrder: PROCESS_GROUP_SORT_ORDER,
         }),
-        tags: {type: TAG_PROCESS_TRACK, upid},
-        description: `Framework process state of ${name} (${pid}) over time.`,
-      });
-      byProcess.addChildLast(new TrackNode({uri, name: `${name} ${pid}`}));
+      );
     }
 
     return byProcess;

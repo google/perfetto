@@ -150,7 +150,7 @@ class PlanNode {
 // The root is the last stage of the pipeline and the leaves are its sources.
 class LogicalPlan {
  public:
-  ColumnId AddColumn(std::string name, std::optional<core::StorageType> type) {
+  ColumnId AddColumn(std::string name, PlanType type) {
     auto id = static_cast<ColumnId>(columns_.size());
     columns_.push_back({std::move(name), type});
     return id;
@@ -167,8 +167,8 @@ class LogicalPlan {
     return id;
   }
 
-  std::vector<ColumnSchema>& columns() { return columns_; }
-  const std::vector<ColumnSchema>& columns() const { return columns_; }
+  std::vector<PlanColumn>& columns() { return columns_; }
+  const std::vector<PlanColumn>& columns() const { return columns_; }
 
   std::vector<PlanNode>& nodes() { return nodes_; }
   const std::vector<PlanNode>& nodes() const { return nodes_; }
@@ -182,7 +182,7 @@ class LogicalPlan {
  private:
   // Defining SQL names are stable diagnostic labels, independent of aliases
   // in output bindings. Physical temporaries do not get SQL names or IDs.
-  std::vector<ColumnSchema> columns_;
+  std::vector<PlanColumn> columns_;
   std::vector<PlanNode> nodes_;
   // The node whose rows are the plan's rows. Pruning can leave unreachable
   // nodes in the vector so that node IDs remain stable.

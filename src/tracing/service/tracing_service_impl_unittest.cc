@@ -68,6 +68,7 @@
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
 #include "src/tracing/test/mock_producer.h"
+#include "src/tracing/test/protovm_test_program.h"
 #include "src/tracing/test/proxy_producer_endpoint.h"
 #include "src/tracing/test/test_shared_memory.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
@@ -5876,6 +5877,92 @@ TEST_F(TracingServiceImplTest, GetTraceStats) {
   consumer->WaitForTracingDisabled();
 }
 
+TEST_F(TracingServiceImplTest, TraceBufferV2Compaction) {
+  // MockProducer::Connect() names a checkpoint after the producer, so each
+  // connection needs a new producer name.
+  uint32_t num_producers = 0;
+  for (bool write_into_file : {false, true}) {
+    for (bool enable_compaction : {false, true}) {
+      SCOPED_TRACE(write_into_file);
+      SCOPED_TRACE(enable_compaction);
+      auto consumer = CreateMockConsumer();
+      consumer->Connect(svc.get());
+      auto producer = CreateMockProducer();
+      producer->Connect(svc.get(),
+                        "mock_producer_" + std::to_string(num_producers++));
+      producer->RegisterDataSource("data_source");
+
+      TraceConfig trace_config;
+      // One V1 buffer, two V2 ring buffers, and one V2 discard buffer.
+      for (uint32_t i = 0; i < 4; ++i) {
+        auto* buffer = trace_config.add_buffers();
+        buffer->set_size_kb(128);
+        if (i > 0) {
+          buffer->set_experimental_mode(
+              TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+        }
+        if (i == 3)
+          buffer->set_fill_policy(TraceConfig::BufferConfig::DISCARD);
+      }
+      auto* ds_config = trace_config.add_data_sources()->mutable_config();
+      ds_config->set_name("data_source");
+      ds_config->set_target_buffer(1);
+      // Leave the flag unset in the disabled case to check its default.
+      if (enable_compaction)
+        trace_config.set_experimental_trace_buffer_v2_compaction(true);
+
+      auto trace_file = base::TempFile::Create().ValueOrDie();
+      if (write_into_file) {
+        trace_config.set_write_into_file(true);
+        trace_config.set_file_write_period_ms(10000);
+        trace_config.set_write_flush_mode(TraceConfig::WRITE_FLUSH_DISABLED);
+        consumer->EnableTracing(trace_config,
+                                base::ScopedFile(dup(trace_file.fd())));
+      } else {
+        consumer->EnableTracing(trace_config);
+      }
+      producer->WaitForTracingSetup();
+      producer->WaitForDataSourceSetup("data_source");
+      producer->WaitForDataSourceStart("data_source");
+      auto writer = producer->CreateTraceWriter("data_source");
+
+      // The second cycle also checks writes after compaction.
+      for (uint64_t cycle = 1; cycle <= 2; ++cycle) {
+        const std::string payload = "packet " + std::to_string(cycle);
+        writer->NewTracePacket()->set_for_testing()->set_str(payload);
+        writer->Flush();
+        task_runner.RunUntilIdle();
+
+        if (write_into_file) {
+          AdvanceTimeAndRunUntilIdle(trace_config.file_write_period_ms());
+          protos::gen::Trace trace;
+          ASSERT_TRUE(ParseNotEmptyTraceFromFile(trace_file, trace));
+          EXPECT_THAT(GetForTestingStrings(trace.packet()), Contains(payload));
+        } else {
+          EXPECT_THAT(GetForTestingStrings(consumer->ReadBuffers()),
+                      ElementsAre(payload));
+          task_runner.RunUntilIdle();  // Complete the deferred MaybeCompact().
+        }
+
+        consumer->GetTraceStats();
+        const auto stats = consumer->WaitForTraceStats(true);
+        ASSERT_EQ(4u, stats.buffer_stats().size());
+        EXPECT_GT(stats.buffer_stats()[1].bytes_read(), 0u);
+        for (size_t i = 0; i < 4; ++i) {
+          const uint64_t expected =
+              enable_compaction && (i == 1 || i == 2) ? cycle : 0;
+          EXPECT_EQ(expected, stats.buffer_stats()[i].compactions());
+          EXPECT_EQ(0u, stats.buffer_stats()[i].compactions_skipped());
+        }
+      }
+
+      consumer->DisableTracing();
+      producer->WaitForDataSourceStop("data_source");
+      consumer->WaitForTracingDisabled();
+    }
+  }
+}
+
 TEST_F(TracingServiceImplTest, TraceWriterStats) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -9570,55 +9657,6 @@ void ExpectProtoVmPackets(
                      HasSubstr(p)))));
   }
   EXPECT_THAT(actual_packets, IsSupersetOf(patch_matchers));
-}
-
-perfetto::protos::gen::VmProgram CreateProtoVmProgram(
-    uint32_t program_version = 1) {
-  auto add_copy_field_instructions =
-      [](protos::gen::TestEvent::ProtoVmPatch::FieldNumbers src,
-         protos::gen::TestEvent::ProtoVmIncrementalState::FieldNumbers dst,
-         protos::gen::VmProgram* program) {
-        // select src element
-        auto* instr_src_select = program->add_instructions();
-        auto* src_select = instr_src_select->mutable_select();
-
-        src_select->add_relative_path()->set_field_id(
-            protos::gen::TracePacket::kForTestingFieldNumber);
-
-        src_select->add_relative_path()->set_field_id(
-            protos::gen::TestEvent::kProtovmPatchFieldNumber);
-
-        src_select->add_relative_path()->set_field_id(src);
-
-        // select dst element
-        auto* instr_dst_select = instr_src_select->add_nested_instructions();
-        auto* dst_select = instr_dst_select->mutable_select();
-        dst_select->set_cursor(protos::gen::VmCursorEnum::VM_CURSOR_DST);
-        dst_select->set_create_if_not_exist(true);
-
-        dst_select->add_relative_path()->set_field_id(
-            protos::gen::TracePacket::kForTestingFieldNumber);
-        dst_select->add_relative_path()->set_field_id(
-            protos::gen::TestEvent::kProtovmIncrementalStateFieldNumber);
-        dst_select->add_relative_path()->set_field_id(dst);
-
-        // set dst = src
-        auto* instr_set = instr_dst_select->add_nested_instructions();
-        instr_set->mutable_set();
-      };
-
-  perfetto::protos::gen::VmProgram program;
-  program.set_version(program_version);
-  add_copy_field_instructions(
-      protos::gen::TestEvent::ProtoVmPatch::kStringToMergeFieldNumber,
-      protos::gen::TestEvent::ProtoVmIncrementalState::kStringMergedFieldNumber,
-      &program);
-  add_copy_field_instructions(
-      protos::gen::TestEvent::ProtoVmPatch::kIntToMergeFieldNumber,
-      protos::gen::TestEvent::ProtoVmIncrementalState::kIntMergedFieldNumber,
-      &program);
-
-  return program;
 }
 
 TEST_F(TracingServiceImplTest, ProtoVmNoAppliedPatch) {

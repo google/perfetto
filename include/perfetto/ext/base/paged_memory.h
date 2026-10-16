@@ -61,11 +61,14 @@ class PagedMemory {
   // For |flags|, see the AllocationFlags enum above.
   static PagedMemory Allocate(size_t size, int flags = 0);
 
-  // Hint to the OS that the memory range is not needed and can be discarded.
-  // The memory remains accessible and its contents may be retained, or they
-  // may be zeroed. This function may be a NOP on some platforms. Returns true
-  // if implemented.
-  bool AdviseDontNeed(void* p, size_t size);
+  // Hint to the OS that the whole pages within [offset, size()) are not needed
+  // and can be discarded.
+  // Partial pages at both ends of the range are preserved.
+  // The memory remains accessible, and the discarded pages may keep their
+  // contents or be zeroed.
+  // This function may be a NOP on some platforms.
+  // Requires a valid allocation and |offset| <= size().
+  void AdviseDontNeedAfter(size_t offset);
 
   // Ensures that at least the first |committed_size| bytes of the allocated
   // memory region are committed. The implementation may commit memory in larger

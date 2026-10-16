@@ -38,10 +38,15 @@ struct SortSpec {
 // TODO(lalitm): support string keys, which needs the string pool for ranks.
 class Sort : public Breaker {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit Sort(SortSpec);
   ~Sort() override;
 
  private:
+  friend class PipelineFormatter;
+
   struct State : Breaker::State {
     ~State() override;
     void Reset() override;

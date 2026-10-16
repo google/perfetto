@@ -383,6 +383,9 @@ perfetto_pipe_group_by(A) ::= GROUP BY perfetto_pipe_group_list(L). { A = L; }
 perfetto_pipe_stage(A) ::= WHERE expr(E). {
     A = synq_parse_perfetto_pipe_where(pCtx, E);
 }
+perfetto_pipe_stage(A) ::= DISTINCT. {
+    A = synq_parse_perfetto_pipe_distinct(pCtx);
+}
 perfetto_pipe_stage(A) ::= SELECT perfetto_pipe_select_list(L). {
     A = synq_parse_perfetto_pipe_select(pCtx, L);
 }

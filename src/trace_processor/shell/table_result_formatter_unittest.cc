@@ -17,12 +17,14 @@
 #include "src/trace_processor/shell/table_result_formatter.h"
 
 #include <cstdint>
-#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/shell/result_formatter.h"
 #include "test/gtest_and_gmock.h"
@@ -42,12 +44,13 @@ Formatted Format(uint64_t page_rows,
                  size_t pages,
                  std::vector<std::string> columns,
                  const std::vector<Row>& rows) {
-  FILE* file = tmpfile();
-  PERFETTO_CHECK(file);
+  base::TempFile tmp = base::TempFile::Create().ValueOrDie();
   Formatted res;
   {
+    base::ScopedFstream file = base::OpenFstream(tmp.path(), "w");
+    PERFETTO_CHECK(file);
     TableResultFormatter formatter(
-        DefaultTableOptions(page_rows), std::move(columns), file,
+        DefaultTableOptions(page_rows), std::move(columns), *file,
         [&res, pages] { return ++res.prompts <= pages; });
     for (const Row& row : rows) {
       if (!formatter.AddRow(row.data())) {
@@ -56,12 +59,7 @@ Formatted Format(uint64_t page_rows,
     }
     formatter.Finish();
   }
-  fseek(file, 0, SEEK_SET);
-  char buf[4096];
-  for (size_t n; (n = fread(buf, 1, sizeof(buf), file)) > 0;) {
-    res.output.append(buf, n);
-  }
-  fclose(file);
+  PERFETTO_CHECK(base::ReadFile(tmp.path(), &res.output));
   return res;
 }
 

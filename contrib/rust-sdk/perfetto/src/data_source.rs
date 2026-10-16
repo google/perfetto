@@ -375,17 +375,23 @@ impl TraceContextBase {
     where
         F: FnMut(&mut TracePacket),
     {
+        // SAFETY: a zeroed `PerfettoPbMsgWriter` is valid because it only holds
+        // pointers and integers. PerfettoDsTracerImplPacketBegin() overwrites it.
+        let mut impl_writer: PerfettoPbMsgWriter = unsafe { std::mem::zeroed() };
+        // Fills a writer that must be freed using `PerfettoDsTracerImplPacketEnd`.
+        //
+        // SAFETY:
+        //
+        // - `self.iterator.tracer` must be a pointer provided by a call to
+        //   PerfettoDsImplTraceIterateBegin/Next.
+        unsafe { PerfettoDsTracerImplPacketBegin(self.iterator.tracer, &mut impl_writer) };
+        // This SDK never calls PerfettoDsSetSupportsTracingV2(), so Begin always
+        // gives a length-delimited writer. PbMsg can't write proto group, so we
+        // check that here.
+        debug_assert_eq!(impl_writer.encoding, 0);
         let writer = PbMsgWriter {
             writer: StreamWriter {
-                // Returns a writer that must be freed using `PerfettoDsTracerImplPacketEnd`.
-                //
-                // SAFETY:
-                //
-                // - `self.iterator.tracer` must be a pointer provided by a call to
-                //   PerfettoDsImplTraceIterateBegin/Next.
-                writer: RefCell::new(unsafe {
-                    PerfettoDsTracerImplPacketBegin(self.iterator.tracer)
-                }),
+                writer: RefCell::new(impl_writer),
             },
         };
         let mut msg = PbMsg::new(&writer).unwrap();

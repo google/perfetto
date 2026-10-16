@@ -98,6 +98,9 @@ std::vector<std::optional<T>> ReadNullableColumn(const RowBatch& batch,
 // its row indices, plus the values themselves.
 class ArraySource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit ArraySource(std::vector<int64_t> values)
       : values_(std::move(values)) {}
 
@@ -154,6 +157,9 @@ inline std::vector<int64_t> Sequence(uint32_t count) {
 // Emits one batch, then fails.
 class FailingSource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   std::unique_ptr<OperatorState> MakeState(Context&) const override {
     return std::make_unique<State>();
   }

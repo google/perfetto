@@ -139,7 +139,10 @@ TEST_F(PlanSerializationTest, MalformedPlansAreRefusedOrRun) {
           continue;
         }
         auto physical = Lower(*read);
-        core::exec::RowCursor cursor(physical->source());
+        if (!physical.ok()) {
+          continue;
+        }
+        core::exec::RowCursor cursor((*physical)->source());
         for (bool row = cursor.Open(); row; row = cursor.Next()) {
         }
       }

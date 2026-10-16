@@ -22,7 +22,7 @@
 
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/export.h"
-#include "perfetto/public/abi/stream_writer_abi.h"
+#include "perfetto/public/abi/pb_msg_writer_abi.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -276,6 +276,17 @@ PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
     struct PerfettoDsImpl*,
     bool configurable);
 
+// If `supports` is true (false by default), an instance of the data source
+// gets a tracing v2 writer when its config selects v2.
+// The data source must then start the root message of every packet with the
+// encoding that PerfettoDsTracerImplPacketBegin() returns.
+//
+// Should not be called after PerfettoDsImplRegister().
+//
+// Returns true if successful, false otherwise.
+PERFETTO_SDK_EXPORT bool PerfettoDsSetSupportsTracingV2(struct PerfettoDsImpl*,
+                                                        bool supports);
+
 // Registers the `*ds_impl` data source type.
 //
 // `ds_impl` must be obtained via a call to `PerfettoDsImplCreate()`.
@@ -373,20 +384,27 @@ PERFETTO_SDK_EXPORT void PerfettoDsImplTraceIterateBreak(
     struct PerfettoDsImpl* ds_impl,
     struct PerfettoDsImplTracerIterator* iterator);
 
-// Creates a new trace packet on `tracer`. Returns a stream writer that can be
-// used to write data to the packet. The caller must use
-// PerfettoDsTracerImplPacketEnd() when done.
-PERFETTO_SDK_EXPORT struct PerfettoStreamWriter PerfettoDsTracerImplPacketBegin(
-    struct PerfettoDsTracerImpl* tracer);
-
-// Signals that the trace packets created previously on `tracer` with
-// PerfettoDsTracerImplBeginPacket(), has been fully written.
+// Creates a new trace packet on `tracer`. Fills `writer` with the stream
+// writer for the packet and the encoding of its root message.
 //
-// `writer` should point to the writer returned by
-// PerfettoDsTracerImplBeginPacket() and cannot be used anymore after this call.
+// The trace writer picks the encoding. A tracing v2 writer uses the
+// append-only format and a v1 writer uses standard protobuf.
+// PerfettoPbMsgInit() reads it from `writer` for the root message, and nested
+// messages take it from the root.
+//
+// The caller must use PerfettoDsTracerImplPacketEnd() when done.
+PERFETTO_SDK_EXPORT void PerfettoDsTracerImplPacketBegin(
+    struct PerfettoDsTracerImpl* tracer,
+    struct PerfettoPbMsgWriter* writer);
+
+// Signals that the packet created on `tracer` with
+// PerfettoDsTracerImplPacketBegin() has been fully written.
+//
+// `writer` should point to the writer that PerfettoDsTracerImplPacketBegin()
+// filled. It cannot be used anymore after this call.
 PERFETTO_SDK_EXPORT void PerfettoDsTracerImplPacketEnd(
     struct PerfettoDsTracerImpl* tracer,
-    struct PerfettoStreamWriter* writer);
+    struct PerfettoPbMsgWriter* writer);
 
 // Called when a flush request is complete.
 typedef void (*PerfettoDsTracerOnFlushCb)(void* user_arg);

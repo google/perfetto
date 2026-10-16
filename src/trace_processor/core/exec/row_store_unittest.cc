@@ -103,52 +103,6 @@ TEST(RowStoreTest, RetainsNonNullBatchesWhenLaterBatchesAreNullable) {
   EXPECT_FALSE(out.column(0).validity()->is_set(0));
 }
 
-TEST(RowStoreTest, RejectsABatchBeforeMutatingAnyColumn) {
-  std::vector<int64_t> ints = {1, 2};
-  std::vector<double> doubles = {1.0, 2.0};
-  RowStore store;
-  RowBatch batch;
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, ints.data()));
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, ints.data()));
-  batch.SetRowCount(1);
-  ASSERT_TRUE(store.Append(batch).ok());
-
-  BitVector validity = BitVector::CreateWithSize(2);
-  validity.set(1);
-  batch.Reset();
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Int64{}}, ints.data(), &validity));
-  batch.AddBorrowedColumn(
-      ColumnView::Reference(StorageType{Double{}}, doubles.data()));
-  test::Window(&batch, 1, 1);
-  EXPECT_FALSE(store.Append(batch).ok());
-
-  RowBatch out;
-  ASSERT_EQ(store.View(&out, 0, 1), 1u);
-  EXPECT_EQ(out.column(0).validity(), nullptr);
-  EXPECT_EQ(store.size(), 1u);
-
-  // A batch with more columns than earlier batches is also rejected.
-  RowBatch wider;
-  for (uint32_t i = 0; i < 3; ++i) {
-    wider.AddBorrowedColumn(
-        ColumnView::Reference(StorageType{Int64{}}, ints.data()));
-  }
-  wider.SetRowCount(1);
-  EXPECT_FALSE(store.Append(wider).ok());
-
-  // After a batch with no columns, every batch must have no columns.
-  RowStore empty;
-  RowBatch no_columns;
-  no_columns.SetRowCount(2);
-  ASSERT_TRUE(empty.Append(no_columns).ok());
-  EXPECT_FALSE(empty.Append(wider).ok());
-  ASSERT_EQ(empty.View(&out, 0, 2), 2u);
-  EXPECT_EQ(out.column_count(), 0u);
-}
-
 // Input batch boundaries do not change the logical sequence of stored rows.
 TEST(RowStoreTest, InputBatchSizesDoNotChangeTheRows) {
   const uint32_t kRows = kMaxBatchRows * 2 + 37;

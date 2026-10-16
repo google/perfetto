@@ -27,14 +27,12 @@
 
 namespace perfetto::trace_processor::core::exec {
 
-bool AggregateInputLoader::Load(const ColumnView& column,
+void AggregateInputLoader::Load(const ColumnView& column,
                                 const Selection& selection,
                                 const uint32_t* rows,
                                 uint32_t count,
                                 AggregateInput* out) {
-  if (column.kind() != ColumnView::Kind::kFlat || !column.type().Is<Int64>()) {
-    return false;
-  }
+  PERFETTO_DCHECK(IsFlat<Int64>(column));
   const auto* data = static_cast<const int64_t*>(column.data());
   // Where the `i`th row loaded is stored.
   auto index = [&](uint32_t i) {
@@ -69,7 +67,6 @@ bool AggregateInputLoader::Load(const ColumnView& column,
     }
     out->valid = valid_.data();
   }
-  return true;
 }
 
 uint8_t* SeenBytes::For(uint32_t groups, bool nulls) {

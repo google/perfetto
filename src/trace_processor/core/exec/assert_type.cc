@@ -303,4 +303,19 @@ bool AssertType::Process(RowBatch& batch, OperatorState& state) const {
   return true;
 }
 
+NullColumn::NullColumn(uint32_t column, StorageType type)
+    : column_(column), type_(type) {}
+
+NullColumn::~NullColumn() = default;
+NullColumn::State::~State() = default;
+
+std::unique_ptr<OperatorState> NullColumn::MakeState(Context& context) const {
+  return std::make_unique<State>(context);
+}
+
+bool NullColumn::Process(RowBatch& batch, OperatorState& state) const {
+  batch.SetNullColumn(column_, type_, *state.Cast<State>().context);
+  return true;
+}
+
 }  // namespace perfetto::trace_processor::core::exec

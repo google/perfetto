@@ -543,19 +543,15 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
   inserter.AddArg(description_id_, Variadic::String(description));
 }
 
-std::optional<std::string> GpuEventParser::FindDebugName(
-    int32_t vk_object_type,
-    uint64_t vk_handle) const {
+StringId GpuEventParser::FindDebugName(int32_t vk_object_type,
+                                       uint64_t vk_handle) const {
   auto map = debug_marker_names_.find(vk_object_type);
   if (map == debug_marker_names_.end()) {
-    return std::nullopt;
+    return kNullStringId;
   }
 
   auto name = map->second.find(vk_handle);
-  if (name == map->second.end()) {
-    return std::nullopt;
-  }
-  return name->second;
+  return name == map->second.end() ? kNullStringId : name->second;
 }
 
 StringId GpuEventParser::ParseRenderSubpasses(
@@ -801,25 +797,6 @@ void GpuEventParser::ParseGpuRenderStageEvent(
       }
     }
 
-    auto render_target_name =
-        FindDebugName(VK_OBJECT_TYPE_FRAMEBUFFER, event.render_target_handle());
-    auto render_target_name_id = render_target_name.has_value()
-                                     ? context_->storage->InternString(
-                                           render_target_name.value().c_str())
-                                     : kNullStringId;
-    auto render_pass_name =
-        FindDebugName(VK_OBJECT_TYPE_RENDER_PASS, event.render_pass_handle());
-    auto render_pass_name_id =
-        render_pass_name.has_value()
-            ? context_->storage->InternString(render_pass_name.value().c_str())
-            : kNullStringId;
-
-    auto command_buffer_name = FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER,
-                                             event.command_buffer_handle());
-    auto command_buffer_name_id = command_buffer_name.has_value()
-                                      ? context_->storage->InternString(
-                                            command_buffer_name.value().c_str())
-                                      : kNullStringId;
     auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
     TrackId track_id = context_->track_compressor->InternScoped(
         kRenderStageBlueprint,
@@ -913,19 +890,25 @@ void GpuEventParser::ParseGpuRenderStageEvent(
           inserter->AddArg(
               render_target_id_,
               Variadic::UnsignedInteger(event.render_target_handle()));
-          inserter->AddArg(render_target_name_id_,
-                           Variadic::String(render_target_name_id));
+          inserter->AddArg(
+              render_target_name_id_,
+              Variadic::String(FindDebugName(VK_OBJECT_TYPE_FRAMEBUFFER,
+                                             event.render_target_handle())));
           inserter->AddArg(render_pass_id_, Variadic::UnsignedInteger(
                                                 event.render_pass_handle()));
-          inserter->AddArg(render_pass_name_id_,
-                           Variadic::String(render_pass_name_id));
+          inserter->AddArg(
+              render_pass_name_id_,
+              Variadic::String(FindDebugName(VK_OBJECT_TYPE_RENDER_PASS,
+                                             event.render_pass_handle())));
           inserter->AddArg(render_subpasses_id_,
                            Variadic::String(ParseRenderSubpasses(event)));
           inserter->AddArg(
               command_buffer_id_,
               Variadic::UnsignedInteger(event.command_buffer_handle()));
-          inserter->AddArg(command_buffer_name_id_,
-                           Variadic::String(command_buffer_name_id));
+          inserter->AddArg(
+              command_buffer_name_id_,
+              Variadic::String(FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER,
+                                             event.command_buffer_handle())));
           inserter->AddArg(submission_id_id_,
                            Variadic::Integer(event.submission_id()));
           inserter->AddArg(hw_queue_id_id_,
@@ -1194,10 +1177,7 @@ void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
 void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::VulkanApiEvent::Decoder vk_event(blob);
   if (vk_event.has_vk_debug_utils_object_name()) {
-    protos::pbzero::VulkanApiEvent_VkDebugUtilsObjectName::Decoder event(
-        vk_event.vk_debug_utils_object_name());
-    debug_marker_names_[event.object_type()][event.object()] =
-        event.object_name().ToStdString();
+    ParseVkDebugUtilsObjectName(ts, vk_event.vk_debug_utils_object_name());
   }
   if (!vk_event.has_vk_queue_submit()) {
     return;
@@ -1239,6 +1219,41 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
         inserter->AddArg(submission_id_id_,
                          Variadic::Integer(event.submission_id()));
       });
+}
+
+void GpuEventParser::ParseVkDebugUtilsObjectName(int64_t ts, ConstBytes blob) {
+  protos::pbzero::VulkanApiEvent_VkDebugUtilsObjectName::Decoder event(blob);
+  if (!event.has_object() || event.object() == 0) {
+    return;
+  }
+  // An empty or omitted object_name means the producer cleared the name
+  // (pObjectName == NULL in vkSetDebugUtilsObjectNameEXT; producers typically
+  // send this when the object is destroyed). It is stored as a NULL tombstone
+  // so that point-in-time lookups and later render stages stop resolving the
+  // previous name.
+  const bool has_name = event.has_object_name() && event.object_name().size > 0;
+
+  tables::VulkanDebugNamesTable::Row row;
+  row.ts = ts;
+  if (event.has_pid() && event.pid() != 0) {
+    row.upid = context_->process_tracker->GetOrCreateProcess(event.pid());
+  }
+  if (event.has_vk_device() && event.vk_device() != 0) {
+    row.vk_device = static_cast<int64_t>(event.vk_device());
+  }
+  row.object_type = event.object_type();
+  row.object = static_cast<int64_t>(event.object());
+  if (has_name) {
+    StringId name_id = context_->storage->InternString(event.object_name());
+    row.name = name_id;
+    debug_marker_names_[event.object_type()][event.object()] = name_id;
+  } else {
+    auto it = debug_marker_names_.find(event.object_type());
+    if (it != debug_marker_names_.end()) {
+      it->second.erase(event.object());
+    }
+  }
+  context_->storage->mutable_vulkan_debug_names_table()->Insert(row);
 }
 
 void GpuEventParser::ParseGpuMemTotalEvent(int64_t ts, ConstBytes blob) {

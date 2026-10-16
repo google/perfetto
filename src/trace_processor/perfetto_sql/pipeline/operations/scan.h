@@ -154,7 +154,10 @@ class Scan : public PlanOperation {
       Compiler*,
       uint32_t from,
       const perfetto_sql::analysis::RelationLineage& lineage);
-  static void AddScanColumn(Compiler*, Scan* scan, ColumnSchema column);
+  static void AddScanColumn(Compiler*,
+                            Scan* scan,
+                            std::string name,
+                            PlanType type);
 
   const OperationRegistration& registration() const override;
 

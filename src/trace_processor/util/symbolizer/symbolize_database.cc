@@ -544,7 +544,7 @@ void FormatFixAdvice(bool colorize,
             " sudo dnf debuginfo-install <package>";
     if (kernel)
       *out += ", kernel: sudo dnf debuginfo-install kernel";
-    *out += "\n";
+    *out += '\n';
     if (!debuginfod_enabled) {
       *out += "      " + Colorize(colorize, kBold, "Any distro:") +
               " pass --debuginfod to fetch them from its debuginfod server "
@@ -1011,7 +1011,7 @@ std::string FormatSymbolizationSummary(const SymbolizerResult& result,
     FormatUnresolvedMappings(colorize, result.llvm_symbolizer_unavailable,
                              groups, &summary);
     if (unresolved) {
-      summary += "\n";
+      summary += '\n';
       FormatFixAdvice(colorize, result.llvm_symbolizer_unavailable,
                       result.debuginfod.enabled, groups, &summary);
     }

@@ -44,6 +44,9 @@ struct TreeAccumulateSpec {
 // aggregate.
 class TreeAccumulateUp final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit TreeAccumulateUp(TreeAccumulateSpec);
   ~TreeAccumulateUp() override;
 
@@ -52,6 +55,8 @@ class TreeAccumulateUp final : public Transform {
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   TreeAccumulateSpec spec_;
   std::vector<std::unique_ptr<AggregateFunction>> functions_;
 };
@@ -63,6 +68,9 @@ class TreeAccumulateUp final : public Transform {
 // each aggregate.
 class TreeAccumulateDown final : public Transform {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   explicit TreeAccumulateDown(TreeAccumulateSpec);
   ~TreeAccumulateDown() override;
 
@@ -71,6 +79,8 @@ class TreeAccumulateDown final : public Transform {
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   TreeAccumulateSpec spec_;
   std::vector<std::unique_ptr<AggregateFunction>> functions_;
 };

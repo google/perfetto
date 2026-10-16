@@ -167,46 +167,75 @@ void IntervalIntersect::Lower(Lowering* c, const PlanNode& node) const {
   PERFETTO_DCHECK(isect.operands_.size() == children.size());
   // The region's bounds come first, then each operand's carried columns in
   // turn.
-  c->Define(isect.ts_);
-  c->Define(isect.dur_);
+  c->DeclareColumn(isect.ts_);
+  c->DeclareColumn(isect.dur_);
+
+  // Each operand is read from its own side pipeline, which converts ts and
+  // dur to Int64 if needed.
+  std::vector<Lowering*> sides;
+  for (uint32_t i = 0; i < isect.operands_.size(); i++) {
+    const IntervalIntersect::Operand& operand = isect.operands_[i];
+    Lowering& side = c->AddSidePipeline();
+    side.LowerNode(children[i]);
+    side.RequireType(operand.ts, core::Int64{});
+    side.RequireType(operand.dur, core::Int64{});
+    sides.push_back(&side);
+  }
+
+  // Keys are compared across operands, so each key must have the same type
+  // in all of them.
+  size_t key_count =
+      isect.operands_.empty() ? 0 : isect.operands_[0].keys.size();
+  for (size_t k = 0; k < key_count; ++k) {
+    std::vector<Lowering::Side> same;
+    for (uint32_t i = 0; i < isect.operands_.size(); i++) {
+      same.push_back({sides[i], isect.operands_[i].keys[k]});
+    }
+    c->RequireCommonType(same);
+  }
 
   std::vector<ex::IntervalIntersectOperand> inputs;
   for (uint32_t i = 0; i < isect.operands_.size(); i++) {
     const IntervalIntersect::Operand& operand = isect.operands_[i];
-    // A node may read any child, but an operand is read as a scan of its own,
-    // which is what lets it become a pipeline separate from this one.
-    const PlanNode& child = c->plan().nodes()[children[i]];
-    PERFETTO_DCHECK(child.Is<Scan>());
-    const auto& scan = child.Cast<Scan>();
-    // Roles are named by plan-wide ID, while the operator reads batch
-    // positions, so each is resolved against the operand's own column order.
-    auto position = [&](ColumnId column_id) {
-      uint32_t at = 0;
-      while (scan.columns()[at].id != column_id) {
-        ++at;
-      }
-      return at;
-    };
-    // An operand is read through a pipeline of its own, which widens its
-    // bounds to Int64 where they are not already.
-    std::vector<ex::Pipeline::Step> widen;
+    Lowering& side = *sides[i];
     ex::IntervalIntersectOperand lowered;
-    lowered.ts_column = position(operand.ts);
-    lowered.dur_column = position(operand.dur);
+    // The operator reads each key's intervals sorted by start.
+    std::vector<SortKey> by_start = {{operand.ts, false}};
+    side.RequireSortedWithinGroups(operand.keys, by_start);
+    if (!operand.keys.empty()) {
+      lowered.group_column = side.RequireGroupNumbers(operand.keys);
+    }
+    lowered.ts_column = side.QueryPosition(operand.ts);
+    lowered.dur_column = side.QueryPosition(operand.dur);
     for (ColumnId key : operand.keys) {
-      lowered.key_columns.push_back(position(key));
+      lowered.key_columns.push_back(side.QueryPosition(key));
     }
     for (ColumnId id : operand.carried) {
-      lowered.retained_columns.push_back(position(id));
+      lowered.retained_columns.push_back(side.QueryPosition(id));
     }
-    c->RequireInt64(operand.ts, lowered.ts_column, &widen);
-    c->RequireInt64(operand.dur, lowered.dur_column, &widen);
-    lowered.source = c->AddOperand(scan.MakeSource(), std::move(widen));
+    lowered.source = side.FinishSide();
     inputs.push_back(std::move(lowered));
 
     for (ColumnId id : operand.carried) {
-      c->Define(id);
+      c->DeclareColumn(id);
     }
+  }
+
+  // The output is grouped by the keys. This can only be declared if every
+  // key is carried to the output by some operand.
+  std::vector<ColumnId> carried_keys;
+  for (size_t k = 0; k < key_count; ++k) {
+    for (const IntervalIntersect::Operand& operand : isect.operands_) {
+      const auto& carried = operand.carried;
+      if (std::find(carried.begin(), carried.end(), operand.keys[k]) !=
+          carried.end()) {
+        carried_keys.push_back(operand.keys[k]);
+        break;
+      }
+    }
+  }
+  if (key_count > 0 && carried_keys.size() == key_count) {
+    c->DeclareGrouped(carried_keys);
   }
   c->SetSource(std::make_unique<ex::IntervalIntersect>(std::move(inputs)));
 }

@@ -110,22 +110,28 @@ void AggregateStage::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
   ex::HashAggregateSpec spec;
   for (ColumnId key : keys_) {
-    spec.key_columns.push_back(c->Position(key));
+    spec.key_columns.push_back(c->QueryPosition(key));
   }
   for (const Aggregate& agg : aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
+  // Groups are output in the order first seen, so if the input is sorted by
+  // the keys, the output is too.
+  std::vector<SortKey> sorted = c->QuerySortedBy(keys_);
+  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::HashAggregate>(std::move(spec)));
 
-  // The output has one row per group, in no particular order.
+  // The output has one row per group, with a new layout.
   c->ResetLayout();
   for (ColumnId key : keys_) {
-    c->Define(key);
+    c->DeclareColumn(key);
   }
   for (const Aggregate& agg : aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
-  c->SetOrder({});
+  if (!sorted.empty()) {
+    c->DeclareSorted(sorted);
+  }
 }
 
 const OperationRegistration& AggregateStage::registration() const {

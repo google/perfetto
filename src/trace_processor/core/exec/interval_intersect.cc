@@ -96,6 +96,11 @@ struct Groups {
   std::vector<Group> by_number;
   // The groups that have at least one interval, in the order first seen.
   std::vector<uint32_t> seen;
+  // The operand's group number of the last row read.
+  std::optional<uint32_t> last_group;
+
+  // The shared group number of that row's key.
+  uint32_t last_number = 0;
 
   Group& Get(uint32_t number) {
     if (number >= by_number.size()) {
@@ -118,24 +123,9 @@ struct Groups {
       by_number[number].intervals.clear();
     }
     seen.clear();
+    last_group.reset();
   }
 };
-
-base::Status ValidateOperand(const RowBatch& batch,
-                             const IntervalIntersectOperand& operand,
-                             uint32_t which) {
-  auto is_int64 = [&](uint32_t index) {
-    const ColumnView& column = batch.column(index);
-    return column.kind() == ColumnView::Kind::kFlat &&
-           column.type().Is<Int64>();
-  };
-  bool ok = is_int64(operand.ts_column) && is_int64(operand.dur_column);
-  return ok ? base::OkStatus()
-            : base::ErrStatus(
-                  "INTERVAL INTERSECTION: operand %u's ts and dur columns "
-                  "must be Int64",
-                  which + 1);
-}
 
 class IntersectState : public OperatorState {
  public:
@@ -173,13 +163,23 @@ class IntersectState : public OperatorState {
     std::vector<Interval> overlaps;
     // Per operand, the row indices a gather reads.
     std::vector<std::vector<uint32_t>> gather_rows;
-    // An operand's batches as they are read, and the part of them kept.
+    // The current batch of an operand.
     RowBatch batch;
+
+    // The part of the current batch that is kept.
     RowBatch retained;
+
+    // The first row of each group in the current batch.
+    RowBatch firsts;
+    std::vector<uint32_t> first_rows;
+
     // Per operand, its group of the key being narrowed.
     std::vector<const Group*> key_groups;
-    // The group of each row in the current batch.
+    // The shared group number of each row of the current batch.
     std::vector<uint32_t> row_groups;
+
+    // The shared group number of each first row.
+    std::vector<uint32_t> first_numbers;
   } scratch;
 };
 
@@ -196,16 +196,45 @@ base::Status Collect(const IntervalIntersectOperand& operand,
   RowBatch& batch = scratch.batch;
   RowBatch& retained = scratch.retained;
   while (operand.source->GetData(batch, state)) {
-    RETURN_IF_ERROR(ValidateOperand(batch, operand, which));
+    PERFETTO_DCHECK(IsFlat<Int64>(batch.column(operand.ts_column)));
+    PERFETTO_DCHECK(IsFlat<Int64>(batch.column(operand.dur_column)));
     FlatColumnReader<int64_t> ts(batch, operand.ts_column);
     FlatColumnReader<int64_t> dur(batch, operand.dur_column);
-    scratch.row_groups.resize(batch.size());
-    if (std::optional<uint32_t> bad = group_table.FindOrCreate(
-            batch, operand.key_columns, scratch.row_groups.data())) {
-      return base::ErrStatus(
-          "INTERVAL INTERSECTION: operand %u's PER column %u must hold one "
-          "type, the same in every operand",
-          which + 1, *bad + 1);
+    // A group's rows arrive together, so only the first row of each group is
+    // looked up in the shared group table.
+    scratch.row_groups.assign(batch.size(), 0);
+    if (!operand.key_columns.empty()) {
+      scratch.first_rows.clear();
+      std::optional<uint32_t> last = groups.last_group;
+      for (uint32_t row = 0; row < batch.size(); ++row) {
+        uint32_t group = batch.Value<uint32_t>(operand.group_column, row);
+        if (group != last) {
+          scratch.first_rows.push_back(row);
+          last = group;
+        }
+      }
+      scratch.firsts.CopyFrom(batch);
+      const uint32_t* firsts = scratch.first_rows.data();
+      scratch.firsts.mutable_selection().Keep(
+          {firsts, firsts + scratch.first_rows.size()});
+      std::vector<uint32_t>& numbers = scratch.first_numbers;
+      numbers.resize(scratch.first_rows.size());
+      if (std::optional<uint32_t> bad = group_table.FindOrCreate(
+              scratch.firsts, operand.key_columns, numbers.data())) {
+        return base::ErrStatus(
+            "INTERVAL INTERSECTION: operand %u's PER column %u must hold one "
+            "type, the same in every operand",
+            which + 1, *bad + 1);
+      }
+      size_t next = 0;
+      for (uint32_t row = 0; row < batch.size(); ++row) {
+        if (next < scratch.first_rows.size() &&
+            scratch.first_rows[next] == row) {
+          groups.last_number = numbers[next++];
+        }
+        scratch.row_groups[row] = groups.last_number;
+      }
+      groups.last_group = last;
     }
     for (uint32_t row = 0; row < batch.size(); ++row) {
       int64_t start;
@@ -224,31 +253,22 @@ base::Status Collect(const IntervalIntersectOperand& operand,
         return base::ErrStatus("INTERVAL INTERSECTION: integer overflow");
       }
       Group& group = groups.Get(scratch.row_groups[row]);
-      group.intervals.push_back(
-          {static_cast<Ts>(start), static_cast<Ts>(end), store.size() + row});
+      Interval interval{static_cast<Ts>(start), static_cast<Ts>(end),
+                        store.size() + row};
+      // Groups with no overlapping intervals use a faster path. Intervals
+      // arrive sorted by start, so comparing with the previous one is enough
+      // to detect overlap.
+      if (!group.intervals.empty() &&
+          IsOverlapping(group.intervals.back(), interval)) {
+        group.nonoverlapping = false;
+      }
+      group.intervals.push_back(interval);
     }
     retained.Project(batch, operand.retained_columns);
     RETURN_IF_ERROR(store.Append(retained));
   }
   RETURN_IF_ERROR(operand.source->status(state));
 
-  // The intersector reads intervals in order of their start, and takes a set
-  // which never overlaps itself down a cheaper path.
-  for (uint32_t number : groups.seen) {
-    Group& group = groups.by_number[number];
-    std::sort(group.intervals.begin(), group.intervals.end(),
-              [](const Interval& a, const Interval& b) {
-                if (a.start != b.start) {
-                  return a.start < b.start;
-                }
-                return a.end != b.end ? a.end < b.end : a.id < b.id;
-              });
-    for (size_t i = 1; i < group.intervals.size() && group.nonoverlapping;
-         ++i) {
-      group.nonoverlapping =
-          !IsOverlapping(group.intervals[i - 1], group.intervals[i]);
-    }
-  }
   return base::OkStatus();
 }
 

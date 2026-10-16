@@ -114,32 +114,41 @@ void IntervalFlatten::Lower(Lowering* c, const PlanNode& node) const {
   const auto& flatten = *this;
   c->LowerNode(node.children()[0]);
 
-  c->RequireInt64(flatten.ts_);
-  c->RequireInt64(flatten.dur_);
-  c->PrepareGroups(flatten.keys_, flatten.ts_);
+  c->RequireType(flatten.ts_, core::Int64{});
+  c->RequireType(flatten.dur_, core::Int64{});
+  c->RequireSortedWithinGroups(flatten.keys_, {{flatten.ts_, false}});
   ex::IntervalFlattenSpec spec;
-  spec.ts_column = c->Position(flatten.ts_);
-  spec.dur_column = c->Position(flatten.dur_);
+  spec.ts_column = c->QueryPosition(flatten.ts_);
+  spec.dur_column = c->QueryPosition(flatten.dur_);
   for (ColumnId key : flatten.keys_) {
-    spec.key_columns.push_back(c->Position(key));
+    spec.key_columns.push_back(c->QueryPosition(key));
   }
-  spec.group_column = c->order().group_column;
+  if (!flatten.keys_.empty()) {
+    spec.group_column = c->RequireGroupNumbers(flatten.keys_);
+  }
   for (const Aggregate& agg : flatten.aggregates_) {
     spec.aggregates.push_back(LowerAggregate(c, agg));
   }
+  c->RequireFullBatches();
   c->AddOperator(std::make_unique<ex::IntervalFlatten>(std::move(spec)));
 
   // Its rows are the segments, laid out afresh.
   c->ResetLayout();
-  c->Define(flatten.out_ts_);
-  c->Define(flatten.out_dur_);
+  c->DeclareColumn(flatten.out_ts_);
+  c->DeclareColumn(flatten.out_dur_);
   for (ColumnId key : flatten.keys_) {
-    c->Define(key);
+    c->DeclareColumn(key);
   }
   for (const Aggregate& agg : flatten.aggregates_) {
-    c->Define(agg.output);
+    c->DeclareColumn(agg.output);
   }
-  c->SetOrder({flatten.keys_, c->AllocateTemporaryColumn(), {flatten.out_ts_}});
+  uint32_t groups = c->DeclareTemporaryColumn();
+  c->DeclareSortedWithinGroups(flatten.keys_, {{flatten.out_ts_, false}});
+  if (!flatten.keys_.empty()) {
+    c->DeclareGroupNumbers(flatten.keys_, groups);
+  }
+  // Segments are output as each one ends, so batches can be small.
+  c->DeclareSmallBatches();
 }
 
 const OperationRegistration& IntervalFlatten::registration() const {

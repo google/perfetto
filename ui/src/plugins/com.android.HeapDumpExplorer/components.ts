@@ -26,6 +26,7 @@ import {Tooltip} from '../../widgets/tooltip';
 import {Icon} from '../../widgets/icon';
 import {Anchor} from '../../widgets/anchor';
 import {AsyncMemo} from '../../base/async_memo';
+import {ClassNameWithWarning} from '../../components/merged_class_warning';
 
 export type NavFn = (
   view: NavState['view'],
@@ -152,6 +153,22 @@ export function sizeRenderer(value: SqlValue): CellRenderResult {
   return {
     content: m('span.pf-hde-mono', fmtSize(Number(value ?? 0))),
     align: 'right',
+  };
+}
+
+/**
+ * Returns a cell renderer for plain-text class name columns that adds the
+ * merged class warning icon to classes in `potentiallyMergedClasses`.
+ */
+export function classNameCellRenderer(
+  potentiallyMergedClasses: ReadonlySet<string>,
+): (value: SqlValue) => m.Children {
+  return (value) => {
+    const cls = String(value ?? '');
+    return m(ClassNameWithWarning, {
+      name: cls,
+      potentiallyMerged: potentiallyMergedClasses.has(cls),
+    });
   };
 }
 

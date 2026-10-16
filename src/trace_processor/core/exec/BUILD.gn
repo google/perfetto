@@ -28,6 +28,8 @@ source_set("exec") {
     "column_chunk.cc",
     "column_chunk.h",
     "column_view.h",
+    "combine_batches.cc",
+    "combine_batches.h",
     "context.cc",
     "context.h",
     "dataframe_scan.cc",
@@ -79,9 +81,14 @@ source_set("exec") {
 
 source_set("test_utils") {
   testonly = true
-  sources = [ "test_utils.h" ]
+  sources = [
+    "pipeline_formatter.cc",
+    "pipeline_formatter.h",
+    "test_utils.h",
+  ]
   deps = [
     ":exec",
+    "../../../../gn:default_deps",
     "../../../base",
     "../common",
     "../util",

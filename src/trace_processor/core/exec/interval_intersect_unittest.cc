@@ -42,6 +42,9 @@ using Table = std::vector<Row>;
 // Emits a table of Int64 columns, a fixed number of rows at a time.
 class TableSource final : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   TableSource(Table rows, uint32_t chunk_rows)
       : rows_(std::move(rows)),
         columns_(rows_.empty() ? 0
@@ -98,13 +101,11 @@ TableSource::State::~State() = default;
 
 // An operand whose ts and dur are its first two columns, the rest being
 // whatever the table carries along. Every column is retained.
-IntervalIntersectOperand Operand(const TableSource& source,
-                                 std::vector<uint32_t> keys = {}) {
+IntervalIntersectOperand Operand(const TableSource& source) {
   IntervalIntersectOperand operand;
   operand.source = &source;
   operand.ts_column = 0;
   operand.dur_column = 1;
-  operand.key_columns = std::move(keys);
   for (uint32_t c = 0; c < source.columns(); ++c) {
     operand.retained_columns.push_back(c);
   }

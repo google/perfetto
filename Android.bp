@@ -17703,8 +17703,8 @@ filegroup {
         "src/shared_lib/data_source.cc",
         "src/shared_lib/heap_buffer.cc",
         "src/shared_lib/pb_decoder.cc",
+        "src/shared_lib/pb_msg_writer.cc",
         "src/shared_lib/producer.cc",
-        "src/shared_lib/stream_writer.cc",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
     ],
@@ -17853,6 +17853,7 @@ filegroup {
         "src/trace_processor/core/exec/batch_buffer.cc",
         "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/column_chunk.cc",
+        "src/trace_processor/core/exec/combine_batches.cc",
         "src/trace_processor/core/exec/context.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
         "src/trace_processor/core/exec/group_table.cc",
@@ -17875,6 +17876,9 @@ filegroup {
 // GN: //src/trace_processor/core/exec:test_utils
 filegroup {
     name: "perfetto_src_trace_processor_core_exec_test_utils",
+    srcs: [
+        "src/trace_processor/core/exec/pipeline_formatter.cc",
+    ],
 }
 
 // GN: //src/trace_processor/core/exec:unittests
@@ -19159,6 +19163,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_test_utils",
     srcs: [
         "src/trace_processor/perfetto_sql/pipeline/logical_plan_test_utils.cc",
+        "src/trace_processor/perfetto_sql/pipeline/physical_plan_test_utils.cc",
     ],
 }
 
@@ -19525,6 +19530,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
     srcs: [
         "src/trace_processor/perfetto_sql/stdlib/std/gpu/context.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/gpu/vulkan_debug_names.sql",
     ],
 }
 
@@ -22439,6 +22445,7 @@ filegroup {
         "src/trace_redaction/timeline_validation.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
         "src/trace_redaction/trace_redactor.cc",
+        "src/trace_redaction/trace_redactor_options.cc",
         "src/trace_redaction/verify_integrity.cc",
     ],
 }
@@ -22462,6 +22469,7 @@ filegroup {
         "src/trace_redaction/redact_process_events_unittest.cc",
         "src/trace_redaction/redact_sched_events_unittest.cc",
         "src/trace_redaction/timeline_validation_unittest.cc",
+        "src/trace_redaction/trace_redactor_options_unittest.cc",
         "src/trace_redaction/trace_redactor_unittest.cc",
         "src/trace_redaction/verify_integrity_unittest.cc",
     ],
@@ -23304,6 +23312,7 @@ filegroup {
         "src/tracing/service/packet_stream_validator.cc",
         "src/tracing/service/random.cc",
         "src/tracing/service/service_ring_buffer_drainer.cc",
+        "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v2.cc",
         "src/tracing/service/tracing_service_endpoints_impl.cc",
@@ -23378,6 +23387,7 @@ filegroup {
         "src/tracing/test/fake_packet.cc",
         "src/tracing/test/mock_consumer.cc",
         "src/tracing/test/mock_producer.cc",
+        "src/tracing/test/protovm_test_program.cc",
         "src/tracing/test/proxy_producer_endpoint.cc",
         "src/tracing/test/test_shared_memory.cc",
         "src/tracing/test/traced_value_test_support.cc",

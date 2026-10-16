@@ -113,6 +113,16 @@ struct BitVector {
     return count;
   }
 
+  // Returns whether any bit in the vector is set.
+  PERFETTO_ALWAYS_INLINE bool AnyBitSet() const {
+    for (uint64_t i = 0; i < (size_ + 63ull) / 64ull; ++i) {
+      if (words_[i]) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Adds a bit to the end of the vector.
   //
   // bit: The boolean value to add to the end of the BitVector.

@@ -20,6 +20,7 @@
  * automatically by reading CSS variables from the DOM element.
  */
 
+import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {assertUnreachable} from '../../../base/assert';
 import type {LegendPosition} from './common';
@@ -142,6 +143,39 @@ export function buildTooltipOption(
     transitionDuration: 0,
     ...extra,
   };
+}
+
+/**
+ * Renders tooltip content to a DOM element, to be returned from an ECharts
+ * tooltip `formatter`.
+ *
+ * ECharts injects string return values from `formatter` as raw HTML, so
+ * interpolating chart data (e.g. slice names from a trace) into a string
+ * allows script injection. Tooltip formatters must return this instead: Mithril
+ * renders strings as text, never as HTML. Never use `m.trust()` here.
+ *
+ * This is a one-shot render: ECharts calls the formatter again whenever the
+ * content changes and discards old elements, so components needing redraws or
+ * lifecycle hooks won't work as expected.
+ */
+export function renderTooltip(content: m.Children): HTMLElement {
+  const el = document.createElement('div');
+  m.render(el, content);
+  return el;
+}
+
+/** A colored dot shown before a series name, like ECharts' series marker. */
+export function tooltipMarker(color: string | undefined): m.Children {
+  return m('span', {
+    style: {
+      display: 'inline-block',
+      marginRight: '4px',
+      borderRadius: '10px',
+      width: '10px',
+      height: '10px',
+      backgroundColor: color,
+    },
+  });
 }
 
 /**

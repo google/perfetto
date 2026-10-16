@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/perfetto_sql/pipeline/physical_plan.h"
+#include "src/trace_processor/perfetto_sql/pipeline/physical_plan_test_utils.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -194,7 +195,9 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   copy.output().resize(1);
   PruneColumns(copy);
 
-  auto rows = Run(*Lower(*original), "total");
+  auto physical = Lower(*original);
+  ASSERT_TRUE(physical.ok()) << physical.status().message();
+  auto rows = Run(**physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
@@ -207,13 +210,107 @@ TEST_F(PhysicalPlanTest, ConsecutiveFoldsReuseTreeColumns) {
       "|> TREE ACCUMULATE DOWN SUM(path) AS path2 "
       "|> TREE ACCUMULATE UP SUM(path2) AS total");
   ASSERT_TRUE(plan.ok()) << plan.status().message();
-  // Three source columns, two physical tree columns, then three results.
-  // Numbering is reused even when the fold direction changes.
-  EXPECT_EQ((*plan)->columns().back().index, 7u);
+  // The tree is numbered once. Both downward folds share one parent-first
+  // walk. A new walk is added only when the direction changes. The
+  // parent-first walk can output small batches, so they are combined before
+  // the child-first walk.
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | TreeNumberNodes(#0, #1) | "
+            "TreeParentFirst(#3, #4) | AssertType(#2 to Int64) | "
+            "TreeAccumulateDown(#3, #4; SUM(#2)) | "
+            "TreeAccumulateDown(#3, #4; SUM(#5)) | CombineBatches | "
+            "TreeChildFirst(#3, #4) | "
+            "TreeAccumulateUp(#3, #4; SUM(#6))");
   auto rows = Run(**plan, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows, ElementsAre(Pair(0, 210), Pair(1, 150), Pair(2, 50),
                                  Pair(3, 110)));
+}
+
+// A requirement adds an operator only if the rows do not already meet it.
+TEST_F(PhysicalPlanTest, RowsAlreadyInOrderAreNotSortedAgain) {
+  Exec("CREATE TABLE t(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO t VALUES (5, 10, 1), (0, 10, 0), (7, 1, 1), (2, 1, 0)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  // Rows sorted by (cpu, ts) are also sorted by cpu. A sort that nothing
+  // depends on yet is dropped when the rows are sorted again.
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY cpu"),
+            "main: DataframeScan | Sort(#2, #0)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu, ts |> ORDER BY ts"),
+            "main: DataframeScan | Sort(#0)");
+  EXPECT_EQ(plan("FROM t |> ORDER BY cpu |> INTERVAL FLATTEN PER cpu "
+                 "AGGREGATE COUNT(*) AS n"),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2; #0) | "
+            "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
+
+  // The scan outputs rows sorted by ts. Grouping is stable, so grouping by
+  // cpu is enough to sort by ts within each cpu. No sort is needed.
+  Exec("CREATE TABLE by_ts(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO by_ts VALUES (0, 1, 1), (2, 1, 0), (5, 1, 1)");
+  EXPECT_EQ(plan("FROM by_ts |> INTERVAL FLATTEN PER cpu "
+                 "AGGREGATE COUNT(*) AS n"),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | GroupedSort(#2) | "
+            "IntervalFlatten(#0, #1, keys: #2, groups: #3; COUNT(*))");
+
+  // Groups are output in the order first seen, so if the input is sorted by
+  // the key, the groups are too.
+  EXPECT_EQ(
+      plan("FROM t |> ORDER BY cpu |> AGGREGATE COUNT(*) AS n GROUP BY "
+           "cpu |> ORDER BY cpu"),
+      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #0; COUNT(*))");
+  EXPECT_EQ(
+      plan("FROM t |> ORDER BY ts |> AGGREGATE COUNT(*) AS n GROUP BY "
+           "cpu |> ORDER BY cpu"),
+      "main: DataframeScan | Sort(#0) | HashAggregate(keys: #1; COUNT(*)) | "
+      "Sort(#0)");
+}
+
+// Small batches are combined only after a step that may output them, and only
+// before an operator that works best on full batches.
+TEST_F(PhysicalPlanTest, OnlySmallBatchesAreCombined) {
+  Exec("CREATE TABLE t(ts INTEGER, dur INTEGER, n INTEGER)");
+  Exec("INSERT INTO t VALUES (5, 10, 2), (0, 10, 1)");
+  auto plan = [&](const std::string& sql) -> std::string {
+    auto lowered = Plan(sql);
+    EXPECT_TRUE(lowered.ok()) << lowered.status().message();
+    return lowered.ok() ? PhysicalPlanToString(**lowered) : "";
+  };
+  EXPECT_EQ(plan("FROM t |> ORDER BY n"), "main: DataframeScan | Sort(#2)");
+  EXPECT_EQ(plan("FROM t |> INTERVAL FLATTEN AGGREGATE COUNT(*) AS c "
+                 "|> ORDER BY c"),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | Sort(#0) | "
+            "IntervalFlatten(#0, #1; COUNT(*)) | CombineBatches | Sort(#2)");
+}
+
+// Each operand is grouped by its PER keys and sorted by ts within each group,
+// unless it already is.
+TEST_F(PhysicalPlanTest, IntersectionOrdersItsOperands) {
+  Exec("CREATE TABLE a(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO a VALUES (5, 10, 1), (0, 10, 0)");
+  Exec("CREATE TABLE b(ts INTEGER, dur INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO b VALUES (7, 10, 0), (2, 10, 1)");
+  auto plan = Plan(
+      "INTERVAL INTERSECTION OF (a AS p, b AS q) PER cpu "
+      "|> SELECT ts, dur, p.cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  // ts and dur are converted to Int64. So is cpu, because it has a different
+  // integer type in each dataframe.
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "GroupedSort(#2; #0)\n"
+            "side: DataframeScan | AssertType(#0 to Int64) | "
+            "AssertType(#1 to Int64) | AssertType(#2 to Int64) | "
+            "GroupedSort(#2; #0)\n"
+            "main: IntervalIntersect(#0, #1, keys: #2, groups: #3; #0, #1, "
+            "keys: #2, groups: #3)");
 }
 
 // An intersection needs its operands' bounds and PER columns, but only passes
@@ -296,12 +393,11 @@ TEST_F(PhysicalPlanTest, APlanOutlivesTheTableItReads) {
               ElementsAre(Pair(0, 100), Pair(1, 60), Pair(2, 30), Pair(3, 40)));
 }
 
-TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailTheRun) {
+TEST_F(PhysicalPlanTest, ValuesWhichAreNotIntegersFailLowering) {
   CreateTree();
   Exec("UPDATE tree SET self = 'many'");
   auto plan = Plan("FROM tree |> TREE ACCUMULATE UP SUM(self) AS total");
-  ASSERT_TRUE(plan.ok()) << plan.status().message();
-  EXPECT_THAT(Run(**plan, "total").status().message(), HasSubstr("'self'"));
+  EXPECT_THAT(plan.status().message(), HasSubstr("'self'"));
 }
 
 TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
@@ -316,8 +412,7 @@ TEST_F(PhysicalPlanTest, DiagnosticsUseDefiningNamesAfterProjection) {
   // Neither the original input name nor its value is exposed in the result.
   logical.output() = {{"id", logical.output().front().id},
                       {"renamed_total", logical.output().back().id}};
-  auto physical = std::move(*LowerReadingSql(std::move(logical)));
-  EXPECT_THAT(Run(*physical, "renamed_total").status().message(),
+  EXPECT_THAT(LowerReadingSql(std::move(logical)).status().message(),
               HasSubstr("'self'"));
 }
 
@@ -343,9 +438,10 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
   auto lowered = Lower(*read);
-  EXPECT_THAT(Names(*lowered),
+  ASSERT_TRUE(lowered.ok()) << lowered.status().message();
+  EXPECT_THAT(Names(**lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));
-  auto rows = Run(*lowered, "copy");
+  auto rows = Run(**lowered, "copy");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
   EXPECT_THAT(*rows,
               ElementsAre(Pair(0, 10), Pair(1, 20), Pair(2, 30), Pair(3, 40)));
