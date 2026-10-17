@@ -2022,6 +2022,37 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategory) {
   EXPECT_TRUE(found);
 }
 
+TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategoryTags) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_tag("tag1")
+                                       .add_disabled_category("*")
+                                       .Build();
+
+  // The two categories have the same name, but only the one with the tag is
+  // enabled. Each event must get its own answer, not a cached one.
+  const char* tags[] = {"tag1"};
+  struct PerfettoTeCategoryDescriptor with_tag = {"dyn", nullptr, tags, 1};
+  struct PerfettoTeHlExtraDynamicCategory with_tag_extra = {
+      {PERFETTO_TE_HL_EXTRA_TYPE_DYNAMIC_CATEGORY}, &with_tag};
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT("tagged"),
+              &with_tag_extra.header);
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT("untagged"),
+              PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn"));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  size_t num_events = 0;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    num_events += track_event.size();
+  }
+  EXPECT_EQ(num_events, 1u);
+}
+
 TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategoryMultipleSessions) {
   TracingSession tracing_session1 = TracingSession::Builder()
                                         .set_data_source_name("track_event")
