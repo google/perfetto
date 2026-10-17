@@ -34,10 +34,15 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/trace_config.h"
+#include "protos/perfetto/config/test_config.gen.h"
+#include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace_processor/trace_processor.gen.h"
+#include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
@@ -1598,6 +1603,82 @@ TEST(TraceProcessorShellIntegrationTest, StdioExportSqlite) {
   ASSERT_GE(sqlite_bytes.size(), 16u);
   EXPECT_EQ(sqlite_bytes.substr(0, 16), std::string("SQLite format 3\0", 16));
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// End to end: the tracing service records a producer into a TraceBufferV3 and
+// writes the trace file. Trace Processor loads the file and finds every
+// packet, with no loss, and the stats of a buffer that bundled them.
+TEST(TraceProcessorShellIntegrationTest, TraceFromTraceBufferV3) {
+  base::TestTaskRunner task_runner;
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  auto* fake_producer = helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  // 3 MiB of packets through a 1 MiB buffer. They only fit compressed.
+  static constexpr uint32_t kNumPackets = 3000;
+  TraceConfig trace_config;
+  auto* buffer = trace_config.add_buffers();
+  buffer->set_size_kb(1024);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  trace_config.set_duration_ms(kDefaultTestTimeoutMs);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(kDefaultTestTimeoutMs);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_seed(42);
+  ds_config->mutable_for_testing()->set_message_count(kNumPackets);
+  ds_config->mutable_for_testing()->set_message_size(1024);
+
+  base::TempFile trace_file = base::TempFile::Create().ValueOrDie();
+  helper.StartTracing(trace_config, base::ScopedFile(dup(trace_file.fd())));
+  helper.WaitForProducerEnabled();
+  auto on_data_written = task_runner.CreateCheckpoint("data_written");
+  fake_producer->ProduceEventBatch(helper.WrapTask(on_data_written));
+  task_runner.RunUntilCheckpoint("data_written");
+  helper.DisableTracing();
+  helper.WaitForTracingDisabled();
+
+  const char* kQuery = R"(
+    SELECT 'for_testing_fields=' || SUM(content.count)
+    FROM experimental_proto_content AS content
+    JOIN experimental_proto_path AS path ON content.path_id = path.id
+    WHERE path.field_name = '#for_testing' AND path.field_type = 'TestEvent'
+    UNION ALL
+    SELECT 'bundled=' || (value > 1)
+    FROM stats WHERE name = 'traced_buf_bundles_written' AND idx = 0
+    UNION ALL
+    SELECT 'all_bundled_bytes_read=' || (
+      (SELECT value FROM stats WHERE name = 'traced_buf_bytes_read' AND idx = 0)
+      = (SELECT value FROM stats
+         WHERE name = 'traced_buf_bundle_bytes_uncompressed' AND idx = 0))
+    UNION ALL
+    SELECT 'fits_only_compressed=' || (
+      (SELECT value FROM stats
+       WHERE name = 'traced_buf_bundle_bytes_uncompressed' AND idx = 0)
+      > (SELECT value FROM stats WHERE name = 'traced_buf_buffer_size'
+         AND idx = 0))
+    UNION ALL
+    SELECT 'lost=' || SUM(value) FROM stats
+    WHERE idx = 0 AND name IN (
+      'traced_buf_bundles_overwritten', 'traced_buf_bundles_too_large',
+      'traced_buf_bundles_corrupted', 'traced_buf_chunks_overwritten',
+      'traced_buf_chunks_discarded', 'traced_buf_sequence_packet_loss',
+      'traced_buf_abi_violations'))";
+  auto result = RunShell(
+      {"--analyze-trace-proto-content", "-Q", kQuery, trace_file.path()});
+  EXPECT_EQ(result.exit_code, 0) << result.out;
+  // FakeProducer sets for_testing twice in each packet: once for seq_value
+  // and once for str.
+  EXPECT_THAT(result.out, HasSubstr("for_testing_fields=" +
+                                    std::to_string(2 * kNumPackets)));
+  EXPECT_THAT(result.out, HasSubstr("bundled=1"));
+  EXPECT_THAT(result.out, HasSubstr("all_bundled_bytes_read=1"));
+  EXPECT_THAT(result.out, HasSubstr("fits_only_compressed=1"));
+  EXPECT_THAT(result.out, HasSubstr("lost=0"));
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 }  // namespace
 }  // namespace perfetto::trace_processor

@@ -120,6 +120,78 @@ between two `file_write_period_ms` periods (default: 5s).
 For instance, if `file_write_period_ms = 5000` and the write data rate is 2 MB/s
 the central buffer needs to be at least 5 * 2 = 10 MB to avoid data losses.
 
+#### Compressed central buffers (experimental)
+
+A central buffer can keep its packets compressed with zstd. It then holds a
+longer trace in the same `size_kb`, and the tracing service spends CPU time on
+compression while it records. How much longer depends on the data: repetitive
+events, such as scheduler ftrace events and track events, compress well.
+Select it for each buffer with `experimental_mode`:
+
+```protobuf
+buffers {
+  size_kb: 32768
+  fill_policy: RING_BUFFER
+  experimental_mode: TRACE_BUFFER_V3
+}
+data_sources {
+  config {
+    name: "linux.ftrace"
+    target_buffer: 0
+    ftrace_config {
+      ftrace_events: "sched/sched_switch"
+    }
+  }
+}
+```
+
+The buffer has two stages. Chunks from the producers first go into a staging
+buffer, as they do in an uncompressed buffer. When enough chunks arrived, the
+service moves the complete packets out of staging, compresses them together
+into a *bundle*, and stores the bundle in the buffer of `size_kb`. A read
+returns the bundles first and then the packets that are still in staging. The
+consumer and the trace file get the same packets as with any other buffer.
+
+* **Sizes**: `size_kb` is the size of the compressed data. A bundle holds 1/8
+  of `size_kb` in packets before compression, at most 512 KiB. The service
+  bundles each time that much data arrived.
+* **Memory**: the buffer uses more than `size_kb`.
+  * The staging buffer has the size of the buffer, but at least 128 KiB and at
+    most 8 MiB. It only takes memory for the chunks that wait to be bundled.
+  * The zstd contexts and the memory to decode bundles on a read take
+    5.5 MiB for a buffer of 4 MiB or more, and less for a smaller buffer.
+  * The memory guardrail of the service counts all of this. A buffer with
+    `size_kb: 16384` counts as 29.5 MiB.
+* **When it does not help**:
+  * Data that does not compress, for example video frames or data that the
+    producer compressed already. The buffer then holds the same amount as an
+    uncompressed buffer and uses more memory.
+  * A session that reads the buffer often, for example `write_into_file` with
+    a short `file_write_period_ms`. The packets leave the buffer soon after
+    they are compressed. Use `TraceConfig.compression` for a smaller trace
+    file.
+* **fill_policy**:
+  * `RING_BUFFER`: a new bundle overwrites the oldest bundles. The staging
+    buffer overwrites chunks before they are bundled if a producer commits
+    more data at once than staging holds. The same happens if very many
+    writers each wait for the rest of a packet: each of them keeps one chunk
+    in staging.
+  * `DISCARD`: the buffer stops when a bundle does not fit in the free space,
+    or when staging is full. Everything accepted until then stays readable.
+* **Data loss**: `previous_packet_dropped` works as for other buffers. See
+  [Central buffer losses](#central-buffer-losses) for the stats.
+* **Large packets**: a bundle that is larger than `size_kb` after compression
+  is dropped. This can happen if one packet that does not compress is almost
+  as large as the buffer.
+* **Cloning**: a cloned session gets a copy of the compressed data.
+  `transfer_on_clone` and `clear_before_clone` work as for other buffers.
+* **Builds**: the tracing service needs zstd, which standalone and Android
+  builds have. A service without zstd rejects the config: `EnableTracing`
+  fails and names `experimental_mode`. It does not use another buffer type.
+
+The design is described in
+[RFC 0050](https://github.com/google/perfetto/discussions/7838).
+
 #### Shared memory buffer sizing
 
 The sizing of the shared memory buffer depends on:
@@ -260,6 +332,16 @@ name                 idx                  severity             source  value
 traced_buf_chunks_di                    0 info                 trace       0
 traced_buf_chunks_ov                    0 info                 trace       0
 ```
+
+A [compressed buffer](#compressed-central-buffers-experimental) loses data in
+its bundles too, and records it in these `BufferStats` fields:
+
+* `bundles_overwritten` (`traced_buf_bundles_overwritten`): bundles that a
+  `RING_BUFFER` overwrote before they were read.
+* `bundles_too_large` (`traced_buf_bundles_too_large`): bundles dropped
+  because they were larger than the buffer.
+* `chunks_overwritten` and `chunks_discarded` count the chunks lost in its
+  staging buffer.
 
 When using [streaming mode] an overwrite is also a data loss: the overwritten
 data is never written into the file, so the trace has a gap. This data is

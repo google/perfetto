@@ -488,14 +488,16 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
 
   TraceStats GetTraceStats() {
     TraceStats result;
-    auto on_stats = task_runner_->CreateCheckpoint("ring_buffer_stats");
+    std::string name =
+        "ring_buffer_stats_" + std::to_string(next_checkpoint_++);
+    auto on_stats = task_runner_->CreateCheckpoint(name);
     EXPECT_CALL(consumer_, OnTraceStats(true, _))
         .WillOnce([&](bool, const TraceStats& stats) {
           result = stats;
           on_stats();
         });
     consumer_endpoint_->GetTraceStats();
-    task_runner_->RunUntilCheckpoint("ring_buffer_stats");
+    task_runner_->RunUntilCheckpoint(name);
     return result;
   }
 
@@ -1011,6 +1013,108 @@ TEST_F(RingBufferTransportIntegrationTest, CorruptRingBufferKeepsConnection) {
   ASSERT_EQ(stats.buffer_stats_size(), 1);
   EXPECT_EQ(stats.buffer_stats()[0].abi_violations(), 1u);
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+// Both transports into one TraceBufferV3, over the real IPC channels:
+// - An SMB v1 TraceWriter, whose chunks arrive with CommitData.
+// - An SMB v2 ring buffer writer, whose chunks the service drains.
+// The consumer gets ordinary packets and the stats show the bundles.
+TEST_F(RingBufferTransportIntegrationTest, TraceBufferV3) {
+  TraceConfig config;
+  auto* buffer = config.add_buffers();
+  buffer->set_size_kb(256);
+  buffer->set_experimental_mode(TraceConfig::BufferConfig::TRACE_BUFFER_V3);
+  config.add_data_sources()->mutable_config()->set_name("perfetto.test");
+  auto setups = Start(config, 1);
+  ASSERT_EQ(setups.size(), 1u);
+  // The service offers tracing v2 for a TraceBufferV3 target.
+  EXPECT_TRUE(setups[0].supports_tracing_v2());
+  const auto target = static_cast<BufferID>(setups[0].target_buffer());
+  Attach();
+
+  // SMB v1: enough packets for many chunks and several CommitData requests,
+  // and one packet that is larger than one IPC slice when the service sends
+  // it to the consumer.
+  std::vector<std::string> v1_expected;
+  {
+    std::unique_ptr<TraceWriter> writer = producer_endpoint_->CreateTraceWriter(
+        target, BufferExhaustedPolicy::kStall);
+    ASSERT_TRUE(writer);
+    for (int i = 0; i < 500; i++) {
+      v1_expected.push_back("v1_" + std::to_string(i) + "_" +
+                            std::string(i == 250 ? 150 * 1024 : 100, 'x'));
+      writer->NewTracePacket()->set_for_testing()->set_str(v1_expected.back());
+      // The SMB has 256 KiB. Let the service take the chunks before it fills.
+      if (i % 50 == 49) {
+        const std::string name = "v1_committed_" + std::to_string(i);
+        writer->Flush(task_runner_->CreateCheckpoint(name));
+        task_runner_->RunUntilCheckpoint(name);
+      }
+    }
+  }
+
+  // SMB v2: whole packets and one packet in two fragments.
+  std::vector<std::string> v2_expected;
+  auto v2_writer = tracing_v2::test::MakeWriter(ring_buffer_.get(), 77, target);
+  for (int i = 0; i < 20; i++) {
+    v2_expected.push_back("v2_" + std::to_string(i));
+    ASSERT_TRUE(tracing_v2::test::WriteFragment(&v2_writer,
+                                                Packet(v2_expected.back())));
+    if (i % 5 == 4) {
+      v2_writer.FinishCurrentChunk();
+      Drain();
+    }
+  }
+  v2_expected.push_back("v2_split");
+  const std::string split = Packet(v2_expected.back());
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&v2_writer, split.substr(0, 5),
+                                              false, true));
+  v2_writer.FinishCurrentChunk();
+  Drain();
+  ASSERT_TRUE(tracing_v2::test::WriteFragment(&v2_writer, split.substr(5), true,
+                                              false));
+  v2_writer.FinishCurrentChunk();
+  Drain();
+
+  // The writes went through bundles before any read.
+  TraceStats stats = GetTraceStats();
+  ASSERT_EQ(stats.buffer_stats_size(), 1);
+  EXPECT_GT(stats.buffer_stats()[0].bundles_written(), 1u);
+  EXPECT_EQ(stats.buffer_stats()[0].bytes_read(), 0u);
+
+  std::vector<std::string> v1_actual;
+  std::vector<std::string> v2_actual;
+  for (const auto& packet : Read()) {
+    const std::string& str = packet.for_testing().str();
+    (str.substr(0, 2) == "v1" ? v1_actual : v2_actual).push_back(str);
+    EXPECT_NE(packet.trusted_packet_sequence_id(), 0u);
+    EXPECT_TRUE(packet.has_trusted_uid());
+    EXPECT_FALSE(packet.previous_packet_dropped());
+  }
+  EXPECT_EQ(v1_actual, v1_expected);
+  EXPECT_EQ(v2_actual, v2_expected);
+
+  stats = GetTraceStats();
+  const auto& buf_stats = stats.buffer_stats()[0];
+  EXPECT_EQ(buf_stats.bytes_read(), buf_stats.bundle_bytes_uncompressed());
+  EXPECT_GT(buf_stats.bundle_bytes_uncompressed(),
+            buf_stats.bundle_bytes_compressed());
+  EXPECT_EQ(buf_stats.bundles_overwritten(), 0u);
+  EXPECT_EQ(buf_stats.bundles_too_large(), 0u);
+  EXPECT_EQ(buf_stats.chunks_overwritten(), 0u);
+  EXPECT_EQ(buf_stats.abi_violations(), 0u);
+  EXPECT_EQ(stats.invalid_packets(), 0u);
+  EXPECT_EQ(stats.chunks_discarded(), 0u);
+
+  EXPECT_CALL(producer_, StopDataSource(_));
+  auto disabled = task_runner_->CreateCheckpoint("v3_tracing_disabled");
+  EXPECT_CALL(consumer_, OnTracingDisabled(_)).WillOnce([disabled] {
+    disabled();
+  });
+  consumer_endpoint_->DisableTracing();
+  task_runner_->RunUntilCheckpoint("v3_tracing_disabled");
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
 
 // Each advertised version is independent. Keep all common versions, and do
 // not add v1 to a v2-only offer. An old producer sends 0 and gets v1.

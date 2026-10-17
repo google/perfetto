@@ -78,8 +78,8 @@ message TraceConfig {
     // configure which buffer a data source writes to.
     optional string name = 7;
 
-    // When true, uses the experimental TraceBufferV2 implementation for this
-    // buffer. This is for testing purposes only and may be removed in future
+    // Selects an experimental TraceBuffer implementation for this buffer.
+    // This is for testing purposes only and may be removed in future
     // versions.
     enum ExperimentalMode {
       // Use the default V1 implementation.
@@ -91,12 +91,26 @@ message TraceConfig {
       // Was TRACE_BUFFER_V2_SHADOW_MODE, a testing-only mode used to validate
       // V2 against V1.
       reserved 2;
+
+      // Use TraceBufferV3. It keeps the packets compressed with zstd.
+      // |size_kb| is the size of the compressed data. The buffer uses more
+      // memory than that for a TraceBufferV2 where incoming chunks wait for
+      // compression, and for compression and read scratch.
+      // See /docs/concepts/buffers.md.
+      //
+      // The service needs zstd support for this mode. If a build has no zstd,
+      // EnableTracing fails. The service does not select another
+      // implementation.
+      //
+      // Introduced in v59 / Android 26Q4+.
+      TRACE_BUFFER_V3 = 3;
     }
     optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
 
-  // Enables compaction after reads for this session's TraceBufferV2.
+  // Enables compaction after reads for this session's TraceBufferV2 and
+  // TraceBufferV3 buffers.
   // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
   optional bool experimental_trace_buffer_v2_compaction = 50;
 
