@@ -127,6 +127,7 @@
 #include "src/trace_processor/plugins/perf_text/perf_text.h"
 #include "src/trace_processor/plugins/perfetto_manifest/perfetto_manifest.h"
 #include "src/trace_processor/plugins/pprof_functions/pprof_functions.h"
+#include "src/trace_processor/plugins/scatter_mipmap_operator/scatter_mipmap_operator.h"
 #include "src/trace_processor/plugins/slice_mipmap_operator/slice_mipmap_operator.h"
 #include "src/trace_processor/plugins/span_join_operator/span_join_operator.h"
 #include "src/trace_processor/plugins/sql_stats_table/sql_stats_table.h"
@@ -380,6 +381,7 @@ TraceProcessorImpl::TraceProcessorImpl(
   perf_text_importer::RegisterPlugin();
   perfetto_manifest::RegisterPlugin();
   pprof_functions::RegisterPlugin();
+  scatter_mipmap_operator::RegisterPlugin();
   slice_mipmap_operator::RegisterPlugin();
   span_join_operator::RegisterPlugin();
   sql_stats_table::RegisterPlugin();
