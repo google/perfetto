@@ -49,7 +49,7 @@ namespace perfetto::tracing_v2 {
 // - Each chunk starts with an atomic state word. It records ownership and the
 //   number of published fragments while the chunk belongs to a writer.
 //
-// The ABI assumes little-endian producer and service processes.
+// The ABI assumes producer and service processes with the same byte order.
 
 // Sharing over IPC
 // ----------------
@@ -455,7 +455,7 @@ enum class ChunkState : uint32_t {
 };
 
 enum class ChunkFormat : uint32_t {
-  // Bytes 4..5 contain a little-endian target BufferID. Payload starts at 6.
+  // Bytes 4..5 contain the target BufferID. Payload starts at 6.
   kTargetBuffer = 0,
 
   // Reserved for a format carrying per-packet routing information.

@@ -182,6 +182,13 @@ class ProtoProvider {
 using BundleProvider = ProtoProvider<protos::pbzero::FtraceEventBundle,
                                      protos::gen::FtraceEventBundle>;
 
+// Recorded pages are little-endian, while CpuReader expects host byte order.
+#define SKIP_IF_BIG_ENDIAN()                            \
+  do {                                                  \
+    if (!PERFETTO_IS_LITTLE_ENDIAN())                   \
+      GTEST_SKIP() << "Recorded page is little-endian"; \
+  } while (0)
+
 class BinaryWriter {
  public:
   BinaryWriter()
@@ -255,15 +262,12 @@ TEST(CpuReaderTest, BinaryWriter) {
   writer.Write<uint16_t>(3);
   writer.Write<uint8_t>(4);
   auto buffer = writer.GetCopy();
-  EXPECT_EQ(buffer.get()[0], 1);
-  EXPECT_EQ(buffer.get()[1], 0);
-  EXPECT_EQ(buffer.get()[2], 0);
-  EXPECT_EQ(buffer.get()[3], 0);
-  EXPECT_EQ(buffer.get()[4], 0);
-  EXPECT_EQ(buffer.get()[5], 0);
-  EXPECT_EQ(buffer.get()[6], 0);
-  EXPECT_EQ(buffer.get()[7], 0);
-  EXPECT_EQ(buffer.get()[8], 2);
+  uint64_t u64;
+  memcpy(&u64, buffer.get(), sizeof(u64));
+  EXPECT_EQ(u64, 1u);
+  uint32_t u32;
+  memcpy(&u32, buffer.get() + 8, sizeof(u32));
+  EXPECT_EQ(u32, 2u);
 }
 
 TEST(ReadAndAdvanceTest, Number) {
@@ -304,12 +308,17 @@ TEST(ReadAndAdvanceTest, ComplexStruct) {
     uint32_t overwrite : 8;
   };
 
-  uint64_t expected[2] = {42, 0xcdffffffabababab};
+  uint64_t timestamp = 42;
+  uint32_t length = 0xabababab;
   ComplexStruct actual = {};
   uint8_t buffer[16] = {};
   const uint8_t* start = buffer;
   const uint8_t* ptr = buffer;
-  memcpy(&buffer, &expected, 16);
+  memcpy(buffer, &timestamp, sizeof(timestamp));
+  memcpy(buffer + 8, &length, sizeof(length));
+  buffer[12] = buffer[13] = buffer[14] = 0xff;  // :24 padding
+  buffer[15] = 0xcd;                            // overwrite
+
   EXPECT_TRUE(
       CpuReader::ReadAndAdvance<ComplexStruct>(&ptr, ptr + 16, &actual));
   EXPECT_EQ(ptr, start + 16);
@@ -350,7 +359,28 @@ TEST(ReadAndAdvanceTest, Underruns) {
   EXPECT_EQ(actual, expected);
 }
 
+TEST(ParsePageHeaderTest, HostOrderCommit) {
+  for (uint16_t commit_len : {uint16_t{4}, uint16_t{8}}) {
+    BinaryWriter writer;
+    writer.Write<uint64_t>(0x0001A26777DBF33Eull);
+    if (commit_len == 4) {
+      writer.Write<uint32_t>(0x80000ff0u);
+    } else {
+      writer.Write<uint64_t>(0x80000ff0u);
+    }
+    auto page = writer.GetCopy();
+    const uint8_t* ptr = page.get();
+    auto ret = CpuReader::ParsePageHeader(&ptr, commit_len);
+    ASSERT_TRUE(ret.has_value());
+    EXPECT_EQ(ret->timestamp, 0x0001A26777DBF33Eull);
+    EXPECT_EQ(ret->size, 0x0ff0u);
+    EXPECT_TRUE(ret->lost_events);
+    EXPECT_EQ(ptr, page.get() + 8 + commit_len);
+  }
+}
+
 TEST(ParsePageHeaderTest, WithOverrun) {
+  SKIP_IF_BIG_ENDIAN();
   std::string text = R"(
     00000000: 3ef3 db77 67a2 0100 f00f 0080 ffff ffff
     )";
@@ -455,6 +485,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseSinglePrint) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_single_print;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -578,6 +609,7 @@ static ExamplePage g_really_long_event{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ReallyLongEvent) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_really_long_event;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -622,6 +654,7 @@ static ExamplePage g_single_print_non_null_terminated{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseSinglePrintNonNullTerminated) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_single_print_non_null_terminated;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -666,6 +699,7 @@ static ExamplePage g_single_print_zero_size{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseSinglePrintZeroSize) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_single_print_zero_size;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -700,6 +734,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSinglePrintZeroSize) {
 }
 
 TEST_F(CpuReaderParsePagePayloadTest, FilterByEvent) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_single_print;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -758,6 +793,7 @@ static ExamplePage g_three_prints{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseThreePrint) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_three_prints;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -808,6 +844,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseThreePrint) {
 }
 
 TEST_F(CpuReaderParsePagePayloadTest, ParsePrintWithAndWithoutFilter) {
+  SKIP_IF_BIG_ENDIAN();
   using FtraceEvent = protos::gen::FtraceEvent;
   using PFE = protos::gen::PrintFtraceEvent;
 
@@ -876,6 +913,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParsePrintWithAndWithoutFilter) {
 }
 
 TEST(CpuReaderTest, ProcessPagesForDataSourceNoEmptyPackets) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_three_prints;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -1004,6 +1042,7 @@ static ExamplePage g_six_sched_switch{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitch) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_six_sched_switch;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -1046,6 +1085,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitch) {
 }
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitchCompactFormat) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_six_sched_switch;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -1154,6 +1194,7 @@ static ExamplePage g_sched_page{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_sched_page;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -1218,6 +1259,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
 }
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseKprobeAndKretprobe) {
+  SKIP_IF_BIG_ENDIAN();
   char kprobe_fuse_file_write_iter_page[] =
       R"(
     00000000: b31b bfe2 a513 0000 1400 0000 0000 0000  ................
@@ -1703,6 +1745,7 @@ static char g_invalid_page[] =
     )";
 
 TEST(CpuReaderTest, NewPacketOnLostEvents) {
+  SKIP_IF_BIG_ENDIAN();
   auto page_ok = PageFromXxd(g_switch_page);
   auto page_loss = PageFromXxd(g_switch_page_lost_events);
 
@@ -1757,6 +1800,7 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
 }
 
 TEST(CpuReaderTest, ProcessPagesForDataSourceError) {
+  SKIP_IF_BIG_ENDIAN();
   auto page_ok = PageFromXxd(g_switch_page);
   auto page_err = PageFromXxd(g_invalid_page);
 
@@ -1939,6 +1983,7 @@ static char g_abs_timestamp[] =
   )";
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseAbsoluteTimestamp) {
+  SKIP_IF_BIG_ENDIAN();
   auto page = PageFromXxd(g_abs_timestamp);
 
   // Hand-build a translation table that handles sched_switch for this test
@@ -2332,6 +2377,7 @@ static ExamplePage g_full_page_sched_switch{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseFullPageSchedSwitch) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_full_page_sched_switch;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -2418,6 +2464,7 @@ static ExamplePage g_suspend_resume{
 )"};
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseSuspendResume) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_suspend_resume;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -2858,6 +2905,7 @@ static ExamplePage g_full_page_ext4{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, ParseExt4WithOverwrite) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_full_page_ext4;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -2915,6 +2963,7 @@ static char g_zero_data_loc[] =
   )";
 
 TEST_F(CpuReaderParsePagePayloadTest, ZeroLengthDataLoc) {
+  SKIP_IF_BIG_ENDIAN();
   auto page = PageFromXxd(g_zero_data_loc);
 
   // Hand-build a translation table that handles dpu/tracing_mark_write for this
@@ -3267,6 +3316,7 @@ static ExamplePage g_zero_padded{
 // (which doesn't decode to valid events per the ring buffer ABI). Confirm that
 // the error is reported in the ftrace event bundle.
 TEST_F(CpuReaderParsePagePayloadTest, InvalidZeroPaddedPage) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_zero_padded;
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
@@ -3303,6 +3353,7 @@ static ExamplePage g_four_byte_commit{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, InvalidHeaderLength) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_four_byte_commit;
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
@@ -3345,6 +3396,7 @@ static ExamplePage g_f2fs_truncate_partial_nodes_new{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, F2fsTruncatePartialNodesNew) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_f2fs_truncate_partial_nodes_new;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -3397,6 +3449,7 @@ static ExamplePage g_f2fs_truncate_partial_nodes_old{
 };
 
 TEST_F(CpuReaderParsePagePayloadTest, F2fsTruncatePartialNodesOld) {
+  SKIP_IF_BIG_ENDIAN();
   const ExamplePage* test_case = &g_f2fs_truncate_partial_nodes_old;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -3497,6 +3550,7 @@ char g_last_ts_test_page_2[] = R"(
 // where a single ProcessPagesForDataSource call produces multiple ftrace bundle
 // packets (due to splitting on data loss markers).
 TEST(CpuReaderTest, LastReadEventTimestampWithSplitBundles) {
+  SKIP_IF_BIG_ENDIAN();
   // build test buffer with 3 pages
   ProtoTranslationTable* table = GetTable("synthetic");
   std::vector<std::unique_ptr<uint8_t[]>> test_pages;
@@ -3587,6 +3641,7 @@ static ExamplePage g_generic_sched_page{
 };
 
 TEST(CpuReaderTest, GenericEventLegacyFormat) {
+  SKIP_IF_BIG_ENDIAN();
   // Test has 2x switch, 1x waking events, and the "synthetic_alt" test tracefs
   // directory maps these events onto "sched_switch_generic" &
   // "sched_waking_generic", which will need to be encoded as generic events
@@ -3678,6 +3733,7 @@ TEST(CpuReaderTest, GenericEventLegacyFormat) {
 
 // Like |GenericEventLegacyFormat|, but using self-describing protos.
 TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
+  SKIP_IF_BIG_ENDIAN();
   // Test has 2x switch, 1x waking events, and the "synthetic_alt" test tracefs
   // directory maps these events onto "sched_switch_generic" &
   // "sched_waking_generic", which will need to be encoded as generic events
@@ -3853,6 +3909,7 @@ TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
 
 // Tests that |ReadFrozen()| reads the specified file and parse it correctly.
 TEST(CpuReaderTest, FrozenPageRead) {
+  SKIP_IF_BIG_ENDIAN();
   auto page_ok = PageFromXxd(g_switch_page);
   auto page_loss = PageFromXxd(g_switch_page_lost_events);
 
@@ -3925,6 +3982,7 @@ TEST(CpuReaderTest, FrozenPageRead) {
 }
 
 TEST(CpuReaderTest, FtraceClockSnapshot) {
+  SKIP_IF_BIG_ENDIAN();
   auto page = PageFromXxd(g_switch_page);
   ProtoTranslationTable* table = GetTable("synthetic");
 
