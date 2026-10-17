@@ -169,3 +169,283 @@ class HeapGraph(TestSuite):
           "upid","graph_sample_ts","process_uptime","total_heap_size","total_native_alloc_registry_size","total_obj_count","reachable_heap_size","reachable_native_alloc_registry_size","reachable_obj_count","oom_score_adj","anon_rss_and_swap_size","dmabuf_rss_size","art_bytes_allocated","is_out_of_memory_error","oome_failing_allocation_size","oome_remaining_art_free_bytes"
           2,10,"[NULL]",11866,0,5,11866,0,5,-900,4096000,8192000,1234,1,1000,5000
         """))
+
+  def test_heap_graph_collections(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collections;
+
+          SELECT
+            class_name,
+            kind,
+            layout,
+            element_count,
+            capacity,
+            overhead_size,
+            retained_size,
+            field_name,
+            element_class,
+            distinct_element_class_count
+          FROM _heap_graph_collection
+          ORDER BY field_name;
+        """,
+        out=Csv("""
+          "class_name","kind","layout","element_count","capacity","overhead_size","retained_size","field_name","element_class","distinct_element_class_count"
+          "java.lang.Object[]","array","array",0,0,12,12,"[NULL]","[NULL]",0
+          "java.util.ArrayList","list","slots",1,1,24,24,"[NULL]","java.util.ArrayList",1
+          "java.util.ArrayList","list","slots",1,1,24,24,"[NULL]","java.util.ArrayList",1
+          "java.util.ArrayList","list","slots",1,1,40,56,"[NULL]","Elem",1
+          "java.util.ArrayList","list","slots",2,2,44,76,"Holder.items","Elem",1
+          "android.util.ArrayMap","map","slot_pairs",2,2,80,128,"Root.arrayMap","Elem",1
+          "java.util.LinkedHashMap","map","nodes",1,1,112,112,"Root.linkedMap","Elem",1
+          "java.util.ArrayList","list","slots",1,3,48,64,"Root.list","Elem",1
+          "java.util.ImmutableCollections$List12","list","fields",2,"[NULL]",24,56,"Root.list12","Elem",1
+          "android.util.LruCache","map","delegate",1,1,144,144,"Root.lruCache","Elem",1
+          "java.util.HashMap","map","nodes",2,2,132,164,"Root.map","Elem",1
+          "java.util.HashMap","map","nodes",1,1,96,168,"Root.mapOfLists","java.util.ArrayList",2
+          "java.util.ArrayList","list","slots",1,1,40,56,"Root.mapOfLists[value]","Elem",1
+          "java.util.ArrayList","list","slots",2,2,44,192,"Root.nested","java.util.ArrayList",2
+          "java.util.ArrayList","list","slots",1,1,40,56,"Root.nested[]","Elem",1
+          "java.util.ArrayList","list","slots",1,1,40,56,"Root.otherList","Elem",1
+          "java.util.concurrent.ConcurrentLinkedQueue","queue","nodes",1,"[NULL]",72,88,"Root.queue","Elem",1
+          "Foo[]","array","array",1,1,16,32,"Root.rawArray","Elem",1
+          "java.util.HashSet","set","delegate",1,1,112,136,"Root.set","Elem",1
+          "java.util.Collections$UnmodifiableCollection","collection","delegate",1,1,16,16,"Root.sharedDelegate","Elem",1
+          "android.util.SparseArray","map","slots",2,3,72,104,"Root.sparseArray","Elem",1
+          "CustomHashMapSubclass","map","nodes",1,1,96,96,"Root.subMap","Elem",1
+          "java.util.ArrayList","list","slots",1,1,40,168,"Root.tree","TreeNode",1
+          "UnsupportedCollection","collection","unsupported","[NULL]","[NULL]","[NULL]",32,"Root.unsupported","[NULL]","[NULL]"
+          "java.util.ArrayList","list","slots",1,1,40,112,"TreeNode.children","TreeNode",1
+          "java.util.ArrayList","list","slots",1,1,40,56,"TreeNode.children","Elem",1
+        """))
+
+  def test_heap_graph_collection_tree(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collection_tree;
+
+          SELECT
+            t.name,
+            p.name AS parent_name,
+            t.self_count,
+            t.self_size,
+            t.self_element_count
+          FROM _heap_graph_collection_tree AS t
+          LEFT JOIN _heap_graph_collection_tree AS p
+            ON p.id = t.parent_id
+          ORDER BY t.name;
+        """,
+        out=Csv("""
+          "name","parent_name","self_count","self_size","self_element_count"
+          "Root","[NULL]",0,0,0
+          "arrayMap: android.util.ArrayMap<Elem>","Root",1,128,2
+          "java.lang.Object[]","[NULL]",1,12,0
+          "java.lang.Object[]","[NULL]",0,0,0
+          "java.util.ArrayList<ArrayList>","[NULL]",2,48,2
+          "java.util.ArrayList<Elem>","java.lang.Object[]",1,56,1
+          "linkedMap: java.util.LinkedHashMap<Elem>","Root",1,112,1
+          "list12: java.util.ImmutableCollections$List12<Elem>","Root",1,56,2
+          "list: java.util.ArrayList<Elem>","Root",1,64,1
+          "lruCache: android.util.LruCache<Elem>","Root",1,144,1
+          "map: java.util.HashMap<Elem>","Root",1,164,2
+          "mapOfLists: java.util.HashMap<ArrayList>","Root",1,168,1
+          "nested: java.util.ArrayList<ArrayList>","Root",1,192,2
+          "otherList: java.util.ArrayList<Elem>","Root",1,56,1
+          "queue: java.util.concurrent.ConcurrentLinkedQueue<Elem>","Root",1,88,1
+          "rawArray: Foo[]","Root",1,32,1
+          "set: java.util.HashSet<Elem>","Root",1,136,1
+          "sharedDelegate: java.util.Collections$UnmodifiableCollection<Elem>","Root",1,16,1
+          "sparseArray: android.util.SparseArray<Elem>","Root",1,104,2
+          "subMap: CustomHashMapSubclass<Elem>","Root",1,96,1
+          "tree: java.util.ArrayList<TreeNode>","Root",1,168,1
+          "unsupported: UnsupportedCollection","Root",1,32,0
+        """))
+
+  def test_heap_graph_collection_summary(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collections;
+
+          SELECT
+            class_name,
+            count() AS field_count,
+            sum(instance_count) AS instance_count,
+            sum(element_count_sum) AS element_count,
+            sum(retained_size_sum) AS retained_size
+          FROM _heap_graph_collection_summary!(
+            (SELECT * FROM _heap_graph_collection WHERE class_name GLOB 'java.util.*')
+          )
+          GROUP BY class_name
+          ORDER BY class_name;
+        """,
+        out=Csv("""
+          "class_name","field_count","instance_count","element_count","retained_size"
+          "java.util.ArrayList",9,12,14,884
+          "java.util.Collections$UnmodifiableCollection",1,1,1,16
+          "java.util.HashMap",2,2,3,332
+          "java.util.HashSet",1,1,1,136
+          "java.util.ImmutableCollections$List12",1,1,2,56
+          "java.util.LinkedHashMap",1,1,1,112
+          "java.util.concurrent.ConcurrentLinkedQueue",1,1,1,88
+        """))
+
+  def test_heap_graph_collections_under_frames(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collection_tree;
+
+          SELECT c.field_name, u.is_leaf
+          FROM _heap_graph_collections_under_frames!((
+            SELECT path_hash_stable AS path_hash
+            FROM _heap_graph_collection_tree
+            WHERE name GLOB 'nested: *' OR name GLOB 'set: *'
+          )) AS u
+          JOIN _heap_graph_collection AS c USING (id)
+          ORDER BY c.field_name;
+        """,
+        out=Csv("""
+          "field_name","is_leaf"
+          "Holder.items",0
+          "Root.nested",1
+          "Root.nested[]",0
+          "Root.set",1
+        """))
+
+  def test_heap_graph_collection_summary_nested_in_group(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collections;
+
+          SELECT
+            field_name,
+            instance_count,
+            element_count_sum,
+            retained_size_sum
+          FROM _heap_graph_collection_summary!(_heap_graph_collection)
+          WHERE field_name GLOB 'TreeNode.*' OR field_name GLOB 'Root.tree'
+          ORDER BY field_name;
+        """,
+        out=Csv("""
+          "field_name","instance_count","element_count_sum","retained_size_sum"
+          "Root.tree",1,1,168
+          "TreeNode.children",2,2,112
+        """))
+
+  def test_heap_graph_collection_tree_frames_of_same_name(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collection_tree;
+
+          SELECT
+            t.collection_class,
+            t.self_count,
+            (
+              SELECT group_concat(c.name)
+              FROM _heap_graph_collection_tree AS c
+              WHERE c.parent_id = t.id
+            ) AS children
+          FROM _heap_graph_collection_tree AS t
+          WHERE t.name = 'java.lang.Object[]' AND t.parent_id IS NULL
+          ORDER BY t.collection_class;
+        """,
+        out=Csv("""
+          "collection_class","self_count","children"
+          "[NULL]",0,"java.util.ArrayList<Elem>"
+          "java.lang.Object[]",1,"[NULL]"
+        """))
+
+  def test_heap_graph_collection_tree_sizes_add_up(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collection_tree;
+
+          SELECT
+            (SELECT sum(self_size) FROM _heap_graph_collection_tree) AS tree,
+            (
+              SELECT sum(retained_size)
+              FROM _heap_graph_collection
+              WHERE id NOT IN (SELECT id FROM _heap_graph_collection_outer)
+            ) AS outermost_collections;
+        """,
+        out=Csv("""
+          "tree","outermost_collections"
+          1872,1872
+        """))
+
+  def test_heap_graph_collections_multi_dump(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections_multi_dump.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collections;
+
+          SELECT
+            p.pid,
+            s.graph_sample_ts,
+            s.field_name,
+            s.instance_count,
+            s.element_count_sum,
+            s.retained_size_sum
+          FROM _heap_graph_collection_summary!(_heap_graph_collection) AS s
+          JOIN process AS p USING (upid)
+          ORDER BY p.pid, s.graph_sample_ts;
+        """,
+        out=Csv("""
+          "pid","graph_sample_ts","field_name","instance_count","element_count_sum","retained_size_sum"
+          2,10,"Root.list",1,1,56
+          2,20,"Root.list",1,2,76
+          3,10,"Root.list",1,3,96
+        """))
+
+  def test_heap_graph_collection_tree_multi_dump(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections_multi_dump.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collection_tree;
+
+          SELECT
+            p.pid,
+            t.graph_sample_ts,
+            t.name,
+            t.self_count,
+            t.self_element_count
+          FROM _heap_graph_collection_tree AS t
+          JOIN process AS p USING (upid)
+          ORDER BY p.pid, t.graph_sample_ts, t.name;
+        """,
+        out=Csv("""
+          "pid","graph_sample_ts","name","self_count","self_element_count"
+          2,10,"Root",0,0
+          2,10,"list: java.util.ArrayList<Elem>",1,1
+          2,20,"Root",0,0
+          2,20,"list: java.util.ArrayList<Elem>",1,2
+          3,10,"Root",0,0
+          3,10,"list: java.util.ArrayList<Elem>",1,3
+        """))
+
+  def test_heap_graph_collections_under_frames_multi_dump(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_collections_multi_dump.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.collection_tree;
+
+          SELECT p.pid, c.graph_sample_ts, c.element_count, u.is_leaf
+          FROM _heap_graph_collections_under_frames!((
+            SELECT t.path_hash_stable AS path_hash
+            FROM _heap_graph_collection_tree AS t
+            JOIN process AS p USING (upid)
+            WHERE p.pid = 2 AND t.graph_sample_ts = 20 AND t.parent_id IS NULL
+          )) AS u
+          JOIN _heap_graph_collection AS c USING (id)
+          JOIN process AS p USING (upid);
+        """,
+        out=Csv("""
+          "pid","graph_sample_ts","element_count","is_leaf"
+          2,20,2,1
+        """))

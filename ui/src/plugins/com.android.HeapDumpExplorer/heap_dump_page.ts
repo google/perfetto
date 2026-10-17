@@ -33,6 +33,8 @@ import {StringsView} from './views/strings_view';
 import {ArraysView} from './views/arrays_view';
 import {FlamegraphObjectsView} from './views/flamegraph_objects_view';
 import {FlamegraphView} from './views/flamegraph_view';
+import {CollectionsFlamegraphView} from './views/collections_flamegraph_view';
+import {CollectionsView} from './views/collections_view';
 import {CallstackView} from './views/callstack_view';
 import type {HeapDumpExplorerSession} from './session';
 import * as queries from './queries';
@@ -44,9 +46,14 @@ interface HeapDumpPageAttrs {
 
 const FG_KEY_PREFIX = 'fg-';
 const INSTANCE_KEY_PREFIX = 'inst-';
+const COLLECTIONS_KEY_PREFIX = 'coll-';
 
 function fgTabKey(pathHashes: string, isDominator: boolean): string {
   return `${FG_KEY_PREFIX}${isDominator ? 'd' : 'n'}:${pathHashes}`;
+}
+
+function collectionsTabKey(pathHashes: string): string {
+  return `${COLLECTIONS_KEY_PREFIX}${pathHashes}`;
 }
 
 function instanceTabKey(objId: number): string {
@@ -66,6 +73,10 @@ function activeTabKey(session: HeapDumpExplorerSession): string {
         )) ||
       tabs[tabs.length - 1];
     return fgTabKey(tab.pathHashes, tab.isDominator);
+  }
+  const collections = session.activeCollectionsTab;
+  if (collections !== undefined) {
+    return collectionsTabKey(collections);
   }
   const objId = session.activeInstanceObjId;
   if (objId !== null) {
@@ -116,6 +127,8 @@ function buildTabs(
         ts: activeDump.ts,
         state: session.flamegraphPanelState,
         onStateChange: session.setFlamegraphPanelState.bind(session),
+        incompleteWarningDismissed: session.incompleteWarningDismissed,
+        onDismissIncompleteWarning: () => session.dismissIncompleteWarning(),
         onShowObjects: (pathHashes, isDominator) =>
           session.openFlamegraph({
             pathHashes,
@@ -123,6 +136,20 @@ function buildTabs(
             upid: activeDump.upid,
             ts: activeDump.ts,
           }),
+      }),
+    },
+    {
+      key: 'collections',
+      title: 'Collections',
+      content: m(CollectionsFlamegraphView, {
+        trace,
+        upid: activeDump.upid,
+        ts: activeDump.ts,
+        state: session.collectionsFlamegraphPanelState,
+        onStateChange: session.setCollectionsFlamegraphPanelState.bind(session),
+        incompleteWarningDismissed: session.incompleteWarningDismissed,
+        onDismissIncompleteWarning: () => session.dismissIncompleteWarning(),
+        onShowCollections: session.openCollectionsTab.bind(session),
       }),
     },
     {
@@ -244,6 +271,50 @@ function buildTabs(
     });
   }
 
+  for (const tab of session.collectionsTabs) {
+    const {pathHashes, label, collectionCls} = tab;
+    const key = collectionsTabKey(pathHashes);
+    const params =
+      state.view === 'flamegraph-collections' &&
+      state.params.pathHashes === pathHashes
+        ? state.params
+        : {};
+    tabs.push({
+      key,
+      title: `Collections: ${label}`,
+      closeButton: true,
+      content: m(CollectionsView, {
+        trace,
+        activeDump,
+        navigate: navigateWithTabs,
+        potentiallyMergedClasses,
+        params: {
+          field: params.field,
+          noField: params.noField,
+          cls: params.cls,
+          collection: params.collection,
+        },
+        onParamsChange: (p) =>
+          session.navigate('flamegraph-collections', {
+            pathHashes,
+            label,
+            collectionCls,
+            ...p,
+          }),
+        scope: {pathHashes, label, collectionCls},
+      }),
+    });
+    actions.set(key, {
+      select: () =>
+        session.navigate('flamegraph-collections', {
+          pathHashes,
+          label,
+          collectionCls,
+        }),
+      close: () => session.closeCollectionsTab(pathHashes),
+    });
+  }
+
   for (const obj of session.instanceTabs) {
     const key = instanceTabKey(obj.objId);
     tabs.push({
@@ -322,6 +393,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     session.syncFromSubpage(subpage);
     session.syncInstanceTabFromNav();
     session.syncFlamegraphTabFromNav();
+    session.syncCollectionsTabFromNav();
 
     const active = session.activeDump;
     if (active === null) {

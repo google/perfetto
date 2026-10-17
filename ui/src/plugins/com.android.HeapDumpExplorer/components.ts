@@ -198,6 +198,21 @@ export function shortClassName(full: string): string {
   return short + suffix;
 }
 
+// Shown for collections not held by a field.
+export const NO_FIELD_LABEL = '(no field)';
+
+// 'PackageManagerService.mPackages' for
+// 'com.android.server.pm.PackageManagerService.mPackages'.
+export function shortFieldName(fullName: string): string {
+  const lastDot = fullName.lastIndexOf('.');
+  if (lastDot === -1) {
+    return fullName;
+  }
+  const className = fullName.slice(0, lastDot);
+  const fieldName = fullName.slice(lastDot + 1);
+  return `${shortClassName(className)}.${fieldName}`;
+}
+
 // Hover-help text for size/count columns, shared across HDE views.
 export const COL_INFO = {
   shallow:

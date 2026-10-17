@@ -1,0 +1,152 @@
+packet {
+  process_tree {
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+    processes {
+      pid: 3
+      ppid: 1
+      cmdline: "com.android.systemui"
+      uid: 10001
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10
+  # Three dumps with the same paths: pid 2 at ts 10 and 20, and pid 3 at
+  # ts 10. Root (0x1) -> Root.list: ArrayList (0x2) -> elementData (0x3) -> Elems.
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x1
+    }
+    types { id: 1 class_name: "Root" }
+    types { id: 2 class_name: "java.util.ArrayList" }
+    types { id: 100 class_name: "java.lang.Object[]" kind: KIND_ARRAY }
+    types { id: 101 class_name: "Elem" }
+    field_names { iid: 1 str: "java.util.ArrayList Root.list" }
+    field_names { iid: 2 str: "java.lang.Object[] java.util.ArrayList.elementData" }
+    objects {
+      id: 0x1
+      type_id: 1
+      self_size: 16
+      reference_field_id: 1
+      reference_object_id: 0x2
+    }
+    objects {
+      id: 0x2
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x3
+    }
+    objects {
+      id: 0x3
+      type_id: 100
+      self_size: 16
+      reference_field_id: 2
+      reference_object_id: 0x4
+    }
+    objects { id: 0x4 type_id: 101 self_size: 16 }
+    continued: false
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 20
+  # pid 2 at ts 20: the list has two elements.
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x1
+    }
+    types { id: 1 class_name: "Root" }
+    types { id: 2 class_name: "java.util.ArrayList" }
+    types { id: 100 class_name: "java.lang.Object[]" kind: KIND_ARRAY }
+    types { id: 101 class_name: "Elem" }
+    field_names { iid: 1 str: "java.util.ArrayList Root.list" }
+    field_names { iid: 2 str: "java.lang.Object[] java.util.ArrayList.elementData" }
+    objects {
+      id: 0x1
+      type_id: 1
+      self_size: 16
+      reference_field_id: 1
+      reference_object_id: 0x2
+    }
+    objects {
+      id: 0x2
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x3
+    }
+    objects {
+      id: 0x3
+      type_id: 100
+      self_size: 20
+      reference_field_id: 2
+      reference_object_id: 0x4
+      reference_field_id: 2
+      reference_object_id: 0x5
+    }
+    objects { id: 0x4 type_id: 101 self_size: 16 }
+    objects { id: 0x5 type_id: 101 self_size: 16 }
+    continued: false
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 3
+  timestamp: 10
+  # pid 3 at ts 10: the list has three elements.
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 3
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x1
+    }
+    types { id: 1 class_name: "Root" }
+    types { id: 2 class_name: "java.util.ArrayList" }
+    types { id: 100 class_name: "java.lang.Object[]" kind: KIND_ARRAY }
+    types { id: 101 class_name: "Elem" }
+    field_names { iid: 1 str: "java.util.ArrayList Root.list" }
+    field_names { iid: 2 str: "java.lang.Object[] java.util.ArrayList.elementData" }
+    objects {
+      id: 0x1
+      type_id: 1
+      self_size: 16
+      reference_field_id: 1
+      reference_object_id: 0x2
+    }
+    objects {
+      id: 0x2
+      type_id: 2
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x3
+    }
+    objects {
+      id: 0x3
+      type_id: 100
+      self_size: 24
+      reference_field_id: 2
+      reference_object_id: 0x4
+      reference_field_id: 2
+      reference_object_id: 0x5
+      reference_field_id: 2
+      reference_object_id: 0x6
+    }
+    objects { id: 0x4 type_id: 101 self_size: 16 }
+    objects { id: 0x5 type_id: 101 self_size: 16 }
+    objects { id: 0x6 type_id: 101 self_size: 16 }
+    continued: false
+    index: 0
+  }
+}

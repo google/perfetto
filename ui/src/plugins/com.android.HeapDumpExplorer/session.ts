@@ -30,7 +30,7 @@ import {
   subpageToState,
 } from './nav_state';
 import type {TreeExplorerState} from '../../widgets/tree_explorer';
-import type {HdeState} from './persisted_state';
+import type {CollectionsTab, HdeState} from './persisted_state';
 import {
   METRIC_DOMINATED_OBJECT_SIZE,
   METRIC_OBJECT_SIZE,
@@ -52,11 +52,11 @@ export interface FlamegraphTabView {
   readonly count: number | null;
 }
 
-const INSTANCE_LABEL_MAX = 30;
+const TAB_LABEL_MAX = 30;
 
-function truncateInstanceLabel(label: string): string {
-  return label.length > INSTANCE_LABEL_MAX
-    ? label.slice(0, INSTANCE_LABEL_MAX) + '…'
+function truncateTabLabel(label: string): string {
+  return label.length > TAB_LABEL_MAX
+    ? label.slice(0, TAB_LABEL_MAX) + '…'
     : label;
 }
 
@@ -73,6 +73,9 @@ function countKey(pathHashes: string, isDominator: boolean): string {
 export class HeapDumpExplorerSession {
   private _dumps: ReadonlyArray<HeapDump> = [];
   private readonly _counts = new Map<string, number>();
+  // Whether the incomplete heap graph warning was dismissed for the active
+  // dump. Not persisted: it shows again after a reload.
+  private _incompleteWarningDismissed = false;
 
   // Whether the trace has HPROF field values (heap_graph_primitive). Loaded
   // with the dumps.
@@ -139,9 +142,11 @@ export class HeapDumpExplorerSession {
             : {upid: first.upid, ts: first.ts.toString()};
         s.nav = undefined;
         s.flamegraphTabs = undefined;
+        s.collectionsTabs = undefined;
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
         s.callstackPanelState = undefined;
+        s.collectionsFlamegraphPanelState = undefined;
       });
     }
     return restored;
@@ -151,19 +156,26 @@ export class HeapDumpExplorerSession {
     if (this.activeDump === d) return;
     this.switchToDump(d);
     const view = this.nav.view;
-    if (view === 'object' || view === 'flamegraph-objects') {
+    if (
+      view === 'object' ||
+      view === 'flamegraph-objects' ||
+      view === 'flamegraph-collections'
+    ) {
       this.navigate(this.defaultView);
     }
   }
 
   private switchToDump(d: HeapDump): void {
     this._counts.clear();
+    this._incompleteWarningDismissed = false;
     this.edit((s) => {
       s.activeDump = {upid: d.upid, ts: d.ts.toString()};
       s.flamegraphTabs = undefined;
+      s.collectionsTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
       s.callstackPanelState = undefined;
+      s.collectionsFlamegraphPanelState = undefined;
     });
   }
 
@@ -316,6 +328,79 @@ export class HeapDumpExplorerSession {
     }
   }
 
+  get collectionsTabs(): ReadonlyArray<CollectionsTab> {
+    return this.storage.get().collectionsTabs ?? [];
+  }
+
+  // The pathHashes of the active collections tab, derived from the nav.
+  get activeCollectionsTab(): string | undefined {
+    const nav = this.nav;
+    if (nav.view !== 'flamegraph-collections') return undefined;
+    return nav.params.pathHashes;
+  }
+
+  // Opens the collections of the flamegraph frames `pathHashes`. `label` is
+  // truncated here, like instance tab labels, which also keeps it short in the
+  // URL.
+  openCollectionsTab(
+    pathHashes: string,
+    label: string,
+    collectionCls?: string,
+  ): void {
+    const shortLabel = truncateTabLabel(label);
+    this.addCollectionsTab(pathHashes, shortLabel, collectionCls);
+    this.navigate('flamegraph-collections', {
+      pathHashes,
+      label: shortLabel,
+      collectionCls,
+    });
+  }
+
+  private addCollectionsTab(
+    pathHashes: string,
+    label: string,
+    collectionCls?: string,
+  ): void {
+    if (this.activeDump === null) return;
+    const tabs = this.storage.get().collectionsTabs ?? [];
+    if (tabs.some((t) => t.pathHashes === pathHashes)) return;
+    this.edit((s) => {
+      s.collectionsTabs = [
+        ...(s.collectionsTabs ?? []),
+        {
+          pathHashes,
+          label: truncateTabLabel(label),
+          collectionCls,
+        },
+      ];
+    });
+  }
+
+  closeCollectionsTab(pathHashes: string): void {
+    const wasActive = this.activeCollectionsTab === pathHashes;
+    this.edit((s) => {
+      s.collectionsTabs = (s.collectionsTabs ?? []).filter(
+        (t) => t.pathHashes !== pathHashes,
+      );
+    });
+    if (wasActive) this.navigate('collections');
+  }
+
+  syncCollectionsTabFromNav(): void {
+    const nav = this.nav;
+    if (
+      nav.view !== 'flamegraph-collections' ||
+      nav.params.pathHashes === undefined
+    ) {
+      return;
+    }
+    this.addCollectionsTab(
+      nav.params.pathHashes,
+      nav.params.label ?? '',
+      nav.params.collectionCls,
+    );
+  }
+
   // Fetches the title's object count for one flamegraph tab. No-op if cached.
   private loadCount(pathHashes: string, isDominator: boolean): void {
     const key = countKey(pathHashes, isDominator);
@@ -345,7 +430,7 @@ export class HeapDumpExplorerSession {
     this.edit((s) => {
       s.instanceTabs = [
         ...(s.instanceTabs ?? []),
-        {objId, label: truncateInstanceLabel(label ?? 'Instance')},
+        {objId, label: truncateTabLabel(label ?? 'Instance')},
       ];
     });
   }
@@ -383,6 +468,24 @@ export class HeapDumpExplorerSession {
   setCallstackPanelState(state: TreeExplorerState): void {
     this.edit((s) => {
       s.callstackPanelState = state;
+    });
+  }
+
+  get incompleteWarningDismissed(): boolean {
+    return this._incompleteWarningDismissed;
+  }
+
+  dismissIncompleteWarning(): void {
+    this._incompleteWarningDismissed = true;
+  }
+
+  get collectionsFlamegraphPanelState(): TreeExplorerState | undefined {
+    return this.storage.get().collectionsFlamegraphPanelState;
+  }
+
+  setCollectionsFlamegraphPanelState(state: TreeExplorerState): void {
+    this.edit((s) => {
+      s.collectionsFlamegraphPanelState = state;
     });
   }
 

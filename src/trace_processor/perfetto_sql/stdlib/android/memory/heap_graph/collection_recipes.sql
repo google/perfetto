@@ -1,0 +1,572 @@
+--
+-- Copyright 2026 The Android Open Source Project
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     https://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- How each collection implementation stores its elements: one row per
+-- implementation, applying to its subclasses too. Field names are declaring
+-- class qualified. Layouts:
+--   slots:      the elements are the non-null slots of the `storage` array.
+--   slot_pairs: as slots, with keys and values in alternate slots.
+--   nodes:      the nodes are reached from `storage` (an array whose slots
+--               hold nodes, or a head node) through the `link` fields; the
+--               elements are the `element` fields of the nodes (for maps, the
+--               key then the value). Entries are nodes holding an element.
+--   delegate:   the collection wraps the one in `storage`.
+--   fields:     the elements are the `element` fields of the collection.
+-- `internal` fields hold implementation objects such as cached views, and
+-- `sentinel` is a static field holding a placeholder which is never an
+-- element. Only add a recipe where non-null elements are exactly what the
+-- implementation holds: e.g. ProtobufArrayList.remove() leaves a stale
+-- reference behind, so it has none.
+CREATE PERFETTO TABLE _heap_graph_collection_recipe(
+  -- Class using the recipe, with its subclasses.
+  class_name STRING,
+  -- 'list', 'set', 'queue', 'map' or 'collection'.
+  kind STRING,
+  -- 'slots', 'slot_pairs', 'nodes', 'delegate' or 'fields'.
+  layout STRING,
+  -- Field holding the storage, or the wrapped collection.
+  storage_field STRING,
+  -- Comma separated node fields linking the nodes.
+  link_fields STRING,
+  -- Comma separated fields holding elements.
+  element_fields STRING,
+  -- Comma separated fields holding implementation objects.
+  internal_fields STRING,
+  -- Static field holding a sentinel.
+  sentinel_field STRING
+)
+AS
+SELECT
+  column1 AS class_name,
+  column2 AS kind,
+  column3 AS layout,
+  column4 AS storage_field,
+  column5 AS link_fields,
+  column6 AS element_fields,
+  column7 AS internal_fields,
+  column8 AS sentinel_field
+FROM (
+  VALUES
+    (
+      'java.util.ArrayList',
+      'list',
+      'slots',
+      'java.util.ArrayList.elementData',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Vector',
+      'list',
+      'slots',
+      'java.util.Vector.elementData',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.ArrayDeque',
+      'queue',
+      'slots',
+      'java.util.ArrayDeque.elements',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.PriorityQueue',
+      'queue',
+      'slots',
+      'java.util.PriorityQueue.queue',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Arrays$ArrayList',
+      'list',
+      'slots',
+      'java.util.Arrays$ArrayList.a',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.EnumMap',
+      'map',
+      'slots',
+      'java.util.EnumMap.vals',
+      NULL,
+      NULL,
+      'java.util.EnumMap.entrySet,java.util.AbstractMap.keySet,java.util.AbstractMap.values',
+      'java.util.EnumMap.NULL'
+    ),
+    (
+      'java.util.ImmutableCollections$ListN',
+      'list',
+      'slots',
+      'java.util.ImmutableCollections$ListN.elements',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.ImmutableCollections$SetN',
+      'set',
+      'slots',
+      'java.util.ImmutableCollections$SetN.elements',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.ImmutableCollections$MapN',
+      'map',
+      'slot_pairs',
+      'java.util.ImmutableCollections$MapN.table',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.ImmutableCollections$List12',
+      'list',
+      'fields',
+      NULL,
+      NULL,
+      'java.util.ImmutableCollections$List12.e0,java.util.ImmutableCollections$List12.e1',
+      NULL,
+      'java.util.ImmutableCollections.EMPTY'
+    ),
+    (
+      'java.util.ImmutableCollections$Set12',
+      'set',
+      'fields',
+      NULL,
+      NULL,
+      'java.util.ImmutableCollections$Set12.e0,java.util.ImmutableCollections$Set12.e1',
+      NULL,
+      'java.util.ImmutableCollections.EMPTY'
+    ),
+    (
+      'java.util.ImmutableCollections$Map1',
+      'map',
+      'fields',
+      NULL,
+      NULL,
+      'java.util.ImmutableCollections$Map1.k0,java.util.ImmutableCollections$Map1.v0',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$SingletonList',
+      'list',
+      'fields',
+      NULL,
+      NULL,
+      'java.util.Collections$SingletonList.element',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$SingletonSet',
+      'set',
+      'fields',
+      NULL,
+      NULL,
+      'java.util.Collections$SingletonSet.element',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$SingletonMap',
+      'map',
+      'fields',
+      NULL,
+      NULL,
+      'java.util.Collections$SingletonMap.k,java.util.Collections$SingletonMap.v',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$EmptyList',
+      'list',
+      'fields',
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$EmptySet',
+      'set',
+      'fields',
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$EmptyMap',
+      'map',
+      'fields',
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$UnmodifiableCollection',
+      'collection',
+      'delegate',
+      'java.util.Collections$UnmodifiableCollection.c',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$UnmodifiableMap',
+      'map',
+      'delegate',
+      'java.util.Collections$UnmodifiableMap.m',
+      NULL,
+      NULL,
+      'java.util.Collections$UnmodifiableMap.entrySet,java.util.Collections$UnmodifiableMap.keySet,java.util.Collections$UnmodifiableMap.values',
+      NULL
+    ),
+    (
+      'java.util.Collections$SynchronizedCollection',
+      'collection',
+      'delegate',
+      'java.util.Collections$SynchronizedCollection.c',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.Collections$SynchronizedMap',
+      'map',
+      'delegate',
+      'java.util.Collections$SynchronizedMap.m',
+      NULL,
+      NULL,
+      'java.util.Collections$SynchronizedMap.entrySet,java.util.Collections$SynchronizedMap.keySet,java.util.Collections$SynchronizedMap.values',
+      NULL
+    ),
+    (
+      'java.util.Collections$SetFromMap',
+      'set',
+      'delegate',
+      'java.util.Collections$SetFromMap.m',
+      NULL,
+      NULL,
+      'java.util.Collections$SetFromMap.s',
+      NULL
+    ),
+    (
+      'java.util.HashSet',
+      'set',
+      'delegate',
+      'java.util.HashSet.map',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.TreeSet',
+      'set',
+      'delegate',
+      'java.util.TreeSet.m',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.HashMap',
+      'map',
+      'nodes',
+      'java.util.HashMap.table',
+      'java.util.HashMap$Node.next',
+      'java.util.HashMap$Node.key,java.util.HashMap$Node.value',
+      'java.util.HashMap.entrySet,java.util.AbstractMap.keySet,java.util.AbstractMap.values',
+      NULL
+    ),
+    (
+      'java.util.Hashtable',
+      'map',
+      'nodes',
+      'java.util.Hashtable.table',
+      'java.util.Hashtable$HashtableEntry.next',
+      'java.util.Hashtable$HashtableEntry.key,java.util.Hashtable$HashtableEntry.value',
+      'java.util.Hashtable.entrySet,java.util.Hashtable.keySet,java.util.Hashtable.values',
+      NULL
+    ),
+    (
+      'java.util.WeakHashMap',
+      'map',
+      'nodes',
+      'java.util.WeakHashMap.table',
+      'java.util.WeakHashMap$Entry.next',
+      'java.lang.ref.Reference.referent,java.util.WeakHashMap$Entry.value',
+      'java.util.WeakHashMap.entrySet,java.util.AbstractMap.keySet,java.util.AbstractMap.values',
+      NULL
+    ),
+    (
+      'java.util.IdentityHashMap',
+      'map',
+      'slot_pairs',
+      'java.util.IdentityHashMap.table',
+      NULL,
+      NULL,
+      'java.util.IdentityHashMap.entrySet,java.util.AbstractMap.keySet,java.util.AbstractMap.values',
+      NULL
+    ),
+    (
+      'java.util.TreeMap',
+      'map',
+      'nodes',
+      'java.util.TreeMap.root',
+      'java.util.TreeMap$TreeMapEntry.left,java.util.TreeMap$TreeMapEntry.right',
+      'java.util.TreeMap$TreeMapEntry.key,java.util.TreeMap$TreeMapEntry.value',
+      'java.util.TreeMap.entrySet,java.util.TreeMap.navigableKeySet,java.util.TreeMap.descendingMap,java.util.AbstractMap.keySet,java.util.AbstractMap.values',
+      NULL
+    ),
+    (
+      'java.util.LinkedList',
+      'list',
+      'nodes',
+      'java.util.LinkedList.first',
+      'java.util.LinkedList$Node.next',
+      'java.util.LinkedList$Node.item',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.ConcurrentHashMap',
+      'map',
+      'nodes',
+      'java.util.concurrent.ConcurrentHashMap.table',
+      'java.util.concurrent.ConcurrentHashMap$Node.next,java.util.concurrent.ConcurrentHashMap$TreeBin.first',
+      'java.util.concurrent.ConcurrentHashMap$Node.key,java.util.concurrent.ConcurrentHashMap$Node.val',
+      'java.util.concurrent.ConcurrentHashMap.entrySet,java.util.concurrent.ConcurrentHashMap.keySet,java.util.concurrent.ConcurrentHashMap.values',
+      NULL
+    ),
+    (
+      'java.util.concurrent.ConcurrentHashMap$KeySetView',
+      'set',
+      'delegate',
+      'java.util.concurrent.ConcurrentHashMap$CollectionView.map',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.ConcurrentLinkedQueue',
+      'queue',
+      'nodes',
+      'java.util.concurrent.ConcurrentLinkedQueue.head',
+      'java.util.concurrent.ConcurrentLinkedQueue$Node.next',
+      'java.util.concurrent.ConcurrentLinkedQueue$Node.item',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.LinkedBlockingQueue',
+      'queue',
+      'nodes',
+      'java.util.concurrent.LinkedBlockingQueue.head',
+      'java.util.concurrent.LinkedBlockingQueue$Node.next',
+      'java.util.concurrent.LinkedBlockingQueue$Node.item',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.LinkedBlockingDeque',
+      'queue',
+      'nodes',
+      'java.util.concurrent.LinkedBlockingDeque.first',
+      'java.util.concurrent.LinkedBlockingDeque$Node.next',
+      'java.util.concurrent.LinkedBlockingDeque$Node.item',
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.ArrayBlockingQueue',
+      'queue',
+      'slots',
+      'java.util.concurrent.ArrayBlockingQueue.items',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.CopyOnWriteArrayList',
+      'list',
+      'slots',
+      'java.util.concurrent.CopyOnWriteArrayList.array',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.CopyOnWriteArraySet',
+      'set',
+      'delegate',
+      'java.util.concurrent.CopyOnWriteArraySet.al',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue',
+      'queue',
+      'slots',
+      'java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.queue',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'android.util.ArrayMap',
+      'map',
+      'slot_pairs',
+      'android.util.ArrayMap.mArray',
+      NULL,
+      NULL,
+      'android.util.ArrayMap.mHashes,android.util.ArrayMap.mCollections,android.util.MapCollections.mEntrySet,android.util.MapCollections.mKeySet,android.util.MapCollections.mValues',
+      NULL
+    ),
+    (
+      'android.util.ArraySet',
+      'set',
+      'slots',
+      'android.util.ArraySet.mArray',
+      NULL,
+      NULL,
+      'android.util.ArraySet.mHashes,android.util.ArraySet.mCollections,android.util.MapCollections.mEntrySet,android.util.MapCollections.mKeySet,android.util.MapCollections.mValues',
+      NULL
+    ),
+    (
+      'android.util.SparseArray',
+      'map',
+      'slots',
+      'android.util.SparseArray.mValues',
+      NULL,
+      NULL,
+      'android.util.SparseArray.mKeys',
+      'android.util.SparseArray.DELETED'
+    ),
+    (
+      'android.util.LongSparseArray',
+      'map',
+      'slots',
+      'android.util.LongSparseArray.mValues',
+      NULL,
+      NULL,
+      'android.util.LongSparseArray.mKeys',
+      'android.util.LongSparseArray.DELETED'
+    ),
+    (
+      'android.util.LruCache',
+      'map',
+      'delegate',
+      'android.util.LruCache.map',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'android.os.RemoteCallbackList',
+      'map',
+      'delegate',
+      'android.os.RemoteCallbackList.mInterfaces',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'com.android.server.utils.WatchedArrayList',
+      'list',
+      'delegate',
+      'com.android.server.utils.WatchedArrayList.mStorage',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'com.android.server.utils.WatchedArrayMap',
+      'map',
+      'delegate',
+      'com.android.server.utils.WatchedArrayMap.mStorage',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'com.android.server.utils.WatchedArraySet',
+      'set',
+      'delegate',
+      'com.android.server.utils.WatchedArraySet.mStorage',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'com.android.server.utils.WatchedLongSparseArray',
+      'map',
+      'delegate',
+      'com.android.server.utils.WatchedLongSparseArray.mStorage',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    ),
+    (
+      'com.android.server.utils.WatchedSparseArray',
+      'map',
+      'delegate',
+      'com.android.server.utils.WatchedSparseArray.mStorage',
+      NULL,
+      NULL,
+      NULL,
+      NULL
+    )
+);
