@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {assertTrue} from '../../base/assert';
+import {assertDefined, assertTrue} from '../../base/assert';
 import {Card, CardStack} from '../../widgets/card';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
@@ -92,7 +92,8 @@ export class RecentGraphsStorage {
     const nodeCount = getAllNodes(state.rootNodes).length;
     const labelCount = state.labels.length;
 
-    if (this._data.length === 0) {
+    const first = this._data[0];
+    if (first === undefined) {
       // No entries yet - create the working slot
       this._data.unshift({
         name: this.generateName(),
@@ -104,10 +105,10 @@ export class RecentGraphsStorage {
       });
     } else {
       // Update the working slot in place
-      this._data[0]!.json = json;
-      this._data[0]!.timestamp = timestamp;
-      this._data[0]!.nodeCount = nodeCount;
-      this._data[0]!.labelCount = labelCount;
+      first.json = json;
+      first.timestamp = timestamp;
+      first.nodeCount = nodeCount;
+      first.labelCount = labelCount;
     }
     this.save();
   }
@@ -118,20 +119,19 @@ export class RecentGraphsStorage {
    * The working slot (index 0) becomes a historical entry (moved to index 1+).
    */
   finalizeCurrentGraph(): void {
-    const hasWorkingGraph =
-      this._data.length > 0 && (this._data[0]!.nodeCount ?? 0) > 0;
-    if (!hasWorkingGraph) {
+    const workingGraph = this._data[0];
+    if (workingGraph === undefined || (workingGraph.nodeCount ?? 0) === 0) {
       return;
     }
 
     // Give the current graph a proper name based on when it was finalized
-    this._data[0]!.name = this.generateName();
+    workingGraph.name = this.generateName();
 
     // Count unstarred items (excluding working slot which will become historical)
     let lastUnstarredIndex = -1;
     let unstarredCount = 0;
-    for (let i = 0; i < this._data.length; i++) {
-      if (!this._data[i]!.starred) {
+    for (const [i, entry] of this._data.entries()) {
+      if (!entry.starred) {
         unstarredCount++;
         lastUnstarredIndex = i;
       }
@@ -173,8 +173,9 @@ export class RecentGraphsStorage {
    * Sets the starred status of a graph.
    */
   setStarred(index: number, starred: boolean): void {
-    assertTrue(index >= 0 && index < this._data.length);
-    this._data[index]!.starred = starred;
+    const entry = this._data[index];
+    assertDefined(entry);
+    entry.starred = starred;
     this.save();
   }
 
@@ -182,8 +183,9 @@ export class RecentGraphsStorage {
    * Renames a graph.
    */
   rename(index: number, newName: string): void {
-    assertTrue(index >= 0 && index < this._data.length);
-    this._data[index]!.name = newName.trim() || this._data[index]!.name;
+    const entry = this._data[index];
+    assertDefined(entry);
+    entry.name = newName.trim() || entry.name;
     this.save();
   }
 
@@ -208,10 +210,7 @@ export class RecentGraphsStorage {
    * Gets a graph's JSON by index.
    */
   getJson(index: number): string | undefined {
-    if (index >= 0 && index < this._data.length) {
-      return this._data[index]!.json;
-    }
-    return undefined;
+    return this._data[index]?.json;
   }
 
   /**
@@ -416,8 +415,8 @@ export class RecentGraphsSection implements m.ClassComponent<RecentGraphsSection
     const starred: Array<{entry: RecentGraphEntry; index: number}> = [];
     const unstarred: Array<{entry: RecentGraphEntry; index: number}> = [];
 
-    for (let i = 1; i < recentGraphs.length; i++) {
-      const entry = recentGraphs[i]!;
+    for (const [i, entry] of recentGraphs.entries()) {
+      if (i === 0) continue;
       // Skip empty placeholders (working slots with no content)
       if ((entry.nodeCount ?? 0) === 0) continue;
 

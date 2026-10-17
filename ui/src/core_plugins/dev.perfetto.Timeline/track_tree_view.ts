@@ -120,8 +120,10 @@ function cssColorToRgba(cssColor: string): number {
   ctx.fillStyle = cssColor;
   ctx.fillRect(0, 0, 1, 1);
   const imageData = ctx.getImageData(0, 0, 1, 1);
-  const [r, g, b, a] = imageData.data;
-  const packed = ((r! << 24) | (g! << 16) | (b! << 8) | a!) >>> 0;
+  // A 1x1 image always has exactly 4 channels (RGBA), so the defaults are
+  // never used.
+  const [r = 0, g = 0, b = 0, a = 0] = imageData.data;
+  const packed = ((r << 24) | (g << 16) | (b << 8) | a) >>> 0;
 
   cssColorCache.set(cssColor, packed);
   return packed;
@@ -528,9 +530,9 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const depths = new Uint16Array(count);
     const gridColor = cssColorToRgba(COLOR_BORDER_SECONDARY);
 
-    for (let i = 0; i < count; i++) {
-      starts[i] = tickPositions[i]!;
-      ends[i] = tickPositions[i]! + 1;
+    for (const [i, pos] of tickPositions.entries()) {
+      starts[i] = pos;
+      ends[i] = pos + 1;
       colors[i] = gridColor;
       patterns[i] = 0;
       depths[i] = 0;

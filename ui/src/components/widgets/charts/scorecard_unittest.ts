@@ -35,9 +35,9 @@ test('decimal value is formatted with max 2 fraction digits', () => {
   expect(result).toBeTruthy();
   // Should not have more than 2 fraction digits.
   // Use regex to handle both '.' and ',' as decimal separators.
-  const match = result.match(/[.,](\d+)$/);
-  if (match) {
-    expect(match[1]!.length).toBeLessThanOrEqual(2);
+  const fraction = result.match(/[.,](\d+)$/)?.[1];
+  if (fraction !== undefined) {
+    expect(fraction.length).toBeLessThanOrEqual(2);
   }
 });
 

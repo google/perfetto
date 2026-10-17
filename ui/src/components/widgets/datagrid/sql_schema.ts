@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {maybeUndefined} from '../../../base/utils';
 import {splitPath} from './datagrid_schema';
 import {quoteIdentifier} from './sql_utils';
 
@@ -274,12 +273,11 @@ export class SQLSchemaResolver {
     schema: SQLTableSchema,
     currentAlias: string,
   ): string | undefined {
-    if (parts.length === 0) {
+    const [first, ...rest] = parts;
+    if (first === undefined) {
       return undefined;
     }
-
-    const [first, ...rest] = parts;
-    const colDef = maybeUndefined(schema.columns?.[first!]);
+    const colDef = schema.columns?.[first];
 
     if (!colDef) {
       // Column not found in schema - treat as raw column name.
@@ -287,7 +285,7 @@ export class SQLSchemaResolver {
       // name (which may come from user/trace data rather than a trusted
       // schema definition) must be quoted as an identifier.
       if (rest.length === 0) {
-        return `${currentAlias}.${quoteIdentifier(first!)}`;
+        return `${currentAlias}.${quoteIdentifier(first)}`;
       }
       return undefined;
     }
@@ -397,12 +395,11 @@ export class SQLSchemaResolver {
     schema: SQLTableSchema,
     currentAlias: string,
   ): {colDef: SQLExpressionDef; targetAlias: string} | undefined {
-    if (parts.length === 0) {
+    const [first, ...rest] = parts;
+    if (first === undefined) {
       return undefined;
     }
-
-    const [first, ...rest] = parts;
-    const colDef = maybeUndefined(schema.columns?.[first!]);
+    const colDef = schema.columns?.[first];
     if (!colDef) {
       return undefined;
     }

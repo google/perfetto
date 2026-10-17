@@ -596,8 +596,9 @@ export function renderMetricResultTable(
   const rows = table.data;
   type Row = (typeof rows)[number];
   const pairs: Array<[Row, Row?]> = [];
-  for (let i = 0; i < Math.ceil(rows.length / 2); i += 1) {
-    pairs.push([rows[i]!, rows[Math.ceil(rows.length / 2) + i]]);
+  const half = Math.ceil(rows.length / 2);
+  for (const [i, row] of rows.slice(0, half).entries()) {
+    pairs.push([row, rows[half + i]]);
   }
 
   return m('table.pf-gpu-compute__metric-table', [
@@ -905,16 +906,14 @@ export const KernelMetricsSection: m.Component<
       );
     };
 
-    if (state.kernelTableData.length === 0) {
+    const firstKernel = state.kernelTableData[0];
+    if (firstKernel === undefined) {
       return m(
         '.pf-gpu-compute__pad',
         m('p', 'No kernel compute metrics for this trace.'),
       );
     }
 
-    return m(
-      '.pf-gpu-compute__pad',
-      renderSingleTable(state.kernelTableData[0]!),
-    );
+    return m('.pf-gpu-compute__pad', renderSingleTable(firstKernel));
   },
 };

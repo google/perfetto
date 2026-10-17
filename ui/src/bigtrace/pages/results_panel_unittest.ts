@@ -14,6 +14,7 @@
 
 import {describe, expect, test, vi} from 'vitest';
 import type {Vnode} from 'mithril';
+import {ensureDefined} from '../../base/assert';
 import {BigtraceAsyncDataSource} from '../query/bigtrace_async_data_source';
 import type {BigtraceQueryClient} from '../query/bigtrace_query_client';
 import {PollingController} from '../query/polling_controller';
@@ -80,7 +81,7 @@ function runningTab(
   uuid: string,
   client: BigtraceQueryClient,
 ): BigTraceEditorTab {
-  const tab = tabsState.tabs[0]!;
+  const tab = ensureDefined(tabsState.tabs[0]);
   tab.materialize = true;
   tab.configured = true;
   tab.editorText = SQL;

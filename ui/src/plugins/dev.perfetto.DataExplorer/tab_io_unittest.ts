@@ -132,7 +132,7 @@ describe('deserializeDashboardsFromExport', () => {
       {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.id).toBe('db1');
+    expect(result?.[0]?.id).toBe('db1');
   });
 
   test('skips entries that are primitives', () => {
@@ -142,7 +142,7 @@ describe('deserializeDashboardsFromExport', () => {
       {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.id).toBe('db1');
+    expect(result?.[0]?.id).toBe('db1');
   });
 
   test('skips entries with missing id', () => {
@@ -151,7 +151,7 @@ describe('deserializeDashboardsFromExport', () => {
       {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.id).toBe('db1');
+    expect(result?.[0]?.id).toBe('db1');
   });
 
   test('accepts entries with only id', () => {
@@ -160,8 +160,8 @@ describe('deserializeDashboardsFromExport', () => {
       {id: 'db2'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(2);
-    expect(result?.[0]!.id).toBe('db1');
-    expect(result?.[1]!.id).toBe('db2');
+    expect(result?.[0]?.id).toBe('db1');
+    expect(result?.[1]?.id).toBe('db2');
   });
 
   test('skips entries with non-string id', () => {
@@ -170,7 +170,7 @@ describe('deserializeDashboardsFromExport', () => {
       {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.id).toBe('db1');
+    expect(result?.[0]?.id).toBe('db1');
   });
 
   test('returns undefined when ALL entries are invalid', () => {
@@ -192,9 +192,9 @@ describe('deserializeDashboardsFromExport', () => {
     ];
     const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.id).toBe('db1');
-    expect(result?.[0]!.items.length).toBe(1);
-    expect(result?.[0]!.brushFilters).toEqual(new Map());
+    expect(result?.[0]?.id).toBe('db1');
+    expect(result?.[0]?.items.length).toBe(1);
+    expect(result?.[0]?.brushFilters).toEqual(new Map());
   });
 
   test('filters out invalid items during hydration', () => {
@@ -212,8 +212,10 @@ describe('deserializeDashboardsFromExport', () => {
     ];
     const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.items.length).toBe(1);
-    expect((result?.[0]!.items[0] as {id: string}).id).toBe('lbl1');
+    expect(result?.[0]?.items.length).toBe(1);
+    expect((result?.[0]?.items[0] as {id: string} | undefined)?.id).toBe(
+      'lbl1',
+    );
   });
 
   test('returns empty items when all items are invalid', () => {
@@ -228,7 +230,7 @@ describe('deserializeDashboardsFromExport', () => {
     ];
     const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.items).toEqual([]);
+    expect(result?.[0]?.items).toEqual([]);
   });
 
   test('hydrates dashboards with brush filters', () => {
@@ -241,8 +243,8 @@ describe('deserializeDashboardsFromExport', () => {
       },
     ];
     const result = deserializeDashboardsFromExport(serialized);
-    expect(result?.[0]!.brushFilters.size).toBe(1);
-    expect(result?.[0]!.brushFilters.get('node1')).toEqual([
+    expect(result?.[0]?.brushFilters.size).toBe(1);
+    expect(result?.[0]?.brushFilters.get('node1')).toEqual([
       {column: 'ts', op: '>=', value: 100},
     ]);
   });
@@ -260,8 +262,8 @@ describe('deserializeDashboardsFromExport', () => {
       },
     ];
     const result = deserializeDashboardsFromExport(serialized);
-    expect(result?.[0]!.brushFilters.get('node1')?.length).toBe(1);
-    expect(result?.[0]!.brushFilters.get('node1')?.[0]!.op).toBe('>=');
+    expect(result?.[0]?.brushFilters.get('node1')?.length).toBe(1);
+    expect(result?.[0]?.brushFilters.get('node1')?.[0]?.op).toBe('>=');
   });
 
   test('drops brush filters with missing column', () => {
@@ -275,7 +277,7 @@ describe('deserializeDashboardsFromExport', () => {
     ];
     const result = deserializeDashboardsFromExport(serialized);
     // All filters for node1 are invalid, so the entry is dropped entirely
-    expect(result?.[0]!.brushFilters.size).toBe(0);
+    expect(result?.[0]?.brushFilters.size).toBe(0);
   });
 
   test('ignores non-object brushFilters (array)', () => {
@@ -287,7 +289,7 @@ describe('deserializeDashboardsFromExport', () => {
     ] as unknown as SerializedDashboard[];
     const result = deserializeDashboardsFromExport(serialized);
     // brushFilters is an array, not a record — should fall back to empty map
-    expect(result?.[0]!.brushFilters).toEqual(new Map());
+    expect(result?.[0]?.brushFilters).toEqual(new Map());
   });
 
   test('ignores non-object brushFilters (string)', () => {
@@ -298,21 +300,21 @@ describe('deserializeDashboardsFromExport', () => {
       },
     ] as unknown as SerializedDashboard[];
     const result = deserializeDashboardsFromExport(serialized);
-    expect(result?.[0]!.brushFilters).toEqual(new Map());
+    expect(result?.[0]?.brushFilters).toEqual(new Map());
   });
 
   test('handles dashboards with no items field', () => {
     const serialized: SerializedDashboard[] = [{id: 'db1'}];
     const result = deserializeDashboardsFromExport(serialized);
-    expect(result?.[0]!.items).toEqual([]);
+    expect(result?.[0]?.items).toEqual([]);
   });
 
   test('hydrates multiple dashboards', () => {
     const serialized: SerializedDashboard[] = [{id: 'db1'}, {id: 'db2'}];
     const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(2);
-    expect(result?.[0]!.id).toBe('db1');
-    expect(result?.[1]!.id).toBe('db2');
+    expect(result?.[0]?.id).toBe('db1');
+    expect(result?.[1]?.id).toBe('db2');
   });
 
   test('supports is null brush filter (no value field)', () => {
@@ -325,7 +327,7 @@ describe('deserializeDashboardsFromExport', () => {
       },
     ];
     const result = deserializeDashboardsFromExport(serialized);
-    expect(result?.[0]!.brushFilters.get('node1')).toEqual([
+    expect(result?.[0]?.brushFilters.get('node1')).toEqual([
       {column: 'name', op: 'is null'},
     ]);
   });
@@ -356,8 +358,8 @@ describe('serializeDashboardsForTab', () => {
     const result = serializeDashboardsForTab(tab);
     expect(result).toBeDefined();
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.items).toBeUndefined();
-    expect(result?.[0]!.brushFilters).toBeUndefined();
+    expect(result?.[0]?.items).toBeUndefined();
+    expect(result?.[0]?.brushFilters).toBeUndefined();
   });
 
   test('serializes dashboard with label items', () => {
@@ -370,9 +372,9 @@ describe('serializeDashboardsForTab', () => {
     ]);
     const result = serializeDashboardsForTab(tab);
     expect(result?.length).toBe(1);
-    expect(result?.[0]!.id).toBe('db1');
-    expect(result?.[0]!.items?.length).toBe(1);
-    expect(result?.[0]!.brushFilters).toBeUndefined();
+    expect(result?.[0]?.id).toBe('db1');
+    expect(result?.[0]?.items?.length).toBe(1);
+    expect(result?.[0]?.brushFilters).toBeUndefined();
   });
 
   test('serializes brush filters with BigInt conversion', () => {
@@ -387,8 +389,8 @@ describe('serializeDashboardsForTab', () => {
       },
     ]);
     const result = serializeDashboardsForTab(tab);
-    expect(result?.[0]!.brushFilters).toBeDefined();
-    expect(result?.[0]!.brushFilters?.['node1']?.[0]).toEqual({
+    expect(result?.[0]?.brushFilters).toBeDefined();
+    expect(result?.[0]?.brushFilters?.['node1']?.[0]).toEqual({
       column: 'ts',
       op: '>=',
       value: 100,
@@ -410,8 +412,8 @@ describe('serializeDashboardsForTab', () => {
     ]);
     const result = serializeDashboardsForTab(tab);
     expect(result?.length).toBe(2);
-    expect(result?.[0]!.id).toBe('db1');
-    expect(result?.[1]!.id).toBe('db2');
+    expect(result?.[0]?.id).toBe('db1');
+    expect(result?.[1]?.id).toBe('db2');
   });
 
   test('does not include graphTabId in output', () => {
@@ -438,7 +440,7 @@ describe('serializeDashboardsForTab', () => {
       },
     ]);
     const result = serializeDashboardsForTab(tab);
-    expect(result?.[0]!.brushFilters?.['node1']?.[0]).toEqual({
+    expect(result?.[0]?.brushFilters?.['node1']?.[0]).toEqual({
       column: 'name',
       op: 'is null',
     });
@@ -488,17 +490,17 @@ describe('tab export/import round-trip', () => {
     expect(hydrated?.length).toBe(2);
 
     // First dashboard: has items and brush filters
-    expect(hydrated?.[0]!.id).toBe('db1');
-    expect(hydrated?.[0]!.items.length).toBe(1);
-    expect(hydrated?.[0]!.brushFilters.size).toBe(1);
-    expect(hydrated?.[0]!.brushFilters.get('node1')).toEqual([
+    expect(hydrated?.[0]?.id).toBe('db1');
+    expect(hydrated?.[0]?.items.length).toBe(1);
+    expect(hydrated?.[0]?.brushFilters.size).toBe(1);
+    expect(hydrated?.[0]?.brushFilters.get('node1')).toEqual([
       {column: 'dur', op: '>=', value: 500},
     ]);
 
     // Second dashboard: empty items, no filters
-    expect(hydrated?.[1]!.id).toBe('db2');
-    expect(hydrated?.[1]!.items).toEqual([]);
-    expect(hydrated?.[1]!.brushFilters).toEqual(new Map());
+    expect(hydrated?.[1]?.id).toBe('db2');
+    expect(hydrated?.[1]?.items).toEqual([]);
+    expect(hydrated?.[1]?.brushFilters).toEqual(new Map());
   });
 
   test('round-trip through JSON.stringify/parse preserves data', () => {
@@ -529,9 +531,9 @@ describe('tab export/import round-trip', () => {
 
     const hydrated = deserializeDashboardsFromExport(parsed);
     expect(hydrated?.length).toBe(1);
-    expect(hydrated?.[0]!.id).toBe('db1');
-    expect(hydrated?.[0]!.items.length).toBe(1);
-    expect(hydrated?.[0]!.brushFilters.get('n1')).toEqual([
+    expect(hydrated?.[0]?.id).toBe('db1');
+    expect(hydrated?.[0]?.items.length).toBe(1);
+    expect(hydrated?.[0]?.brushFilters.get('n1')).toEqual([
       {column: 'ts', op: '>=', value: 1000},
     ]);
   });

@@ -65,13 +65,14 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
           : rawFmtX;
       const fmtY = attrs.formatYValue ?? formatNumber;
       const idx = this.hover.index;
-      const isNull = idx >= data.buckets.length;
+      const bucket = data.buckets[idx];
+      const isNull = bucket === undefined;
       const nCount = data.nullCount ?? 0;
       const totalWithNull = data.totalCount + nCount;
-      const count = isNull ? nCount : data.buckets[idx]!.count;
+      const count = isNull ? nCount : bucket.count;
       const header = isNull
         ? 'NULL'
-        : `${fmtX(data.buckets[idx]!.start)} – ${fmtX(data.buckets[idx]!.end)}`;
+        : `${fmtX(bucket.start)} – ${fmtX(bucket.end)}`;
       const pct =
         totalWithNull > 0 ? ((count / totalWithNull) * 100).toFixed(1) : '0';
       return m(ChartTooltip, [
@@ -232,8 +233,9 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
     // Selection overlay: highlight buckets overlapping the selection range.
     const sel = attrs.selection;
     const isSelected = (i: number): boolean => {
-      if (sel === undefined || i >= buckets.length) return false;
-      const b = buckets[i]!;
+      if (sel === undefined) return false;
+      const b = buckets[i];
+      if (b === undefined) return false;
       // Point selection (start == end): highlight the bucket containing it.
       // Buckets are half-open [start, end) so a value on a boundary belongs
       // to the next bucket — except the last bucket, which must be inclusive
@@ -397,33 +399,33 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
         ]);
       }),
       // Final right-edge tick at the last bucket end.
-      buckets.length > 0 &&
-        (() => {
-          const last = buckets[buckets.length - 1]!;
-          const x = slotX(dataSlots - 1) + adjBarWidth;
-          return m('g', [
-            m('line', {
-              className: 'pf-chart-svg__line',
-              x1: x,
-              y1: padTop + plotH,
-              x2: x,
-              y2: padTop + plotH + TICK_LENGTH,
-              stroke: 'currentColor',
-            }),
-            m(
-              'text',
-              {
-                'className': 'pf-chart-svg__tick-label',
-                'x': x,
-                'y': padTop + plotH + TICK_LENGTH + TICK_LABEL_GAP,
-                'fill': 'currentColor',
-                'text-anchor': 'middle',
-                'dominant-baseline': 'hanging',
-              },
-              fmtX(last.end),
-            ),
-          ]);
-        })(),
+      (() => {
+        const last = buckets[buckets.length - 1];
+        if (last === undefined) return null;
+        const x = slotX(dataSlots - 1) + adjBarWidth;
+        return m('g', [
+          m('line', {
+            className: 'pf-chart-svg__line',
+            x1: x,
+            y1: padTop + plotH,
+            x2: x,
+            y2: padTop + plotH + TICK_LENGTH,
+            stroke: 'currentColor',
+          }),
+          m(
+            'text',
+            {
+              'className': 'pf-chart-svg__tick-label',
+              'x': x,
+              'y': padTop + plotH + TICK_LENGTH + TICK_LABEL_GAP,
+              'fill': 'currentColor',
+              'text-anchor': 'middle',
+              'dominant-baseline': 'hanging',
+            },
+            fmtX(last.end),
+          ),
+        ]);
+      })(),
       // NULL label under the NULL bar.
       hasNull &&
         m(
@@ -485,10 +487,12 @@ export class HistogramSvg implements m.ClassComponent<HistogramAttrs> {
     if (!this.brushing || this.brushing.pointerId !== e.pointerId) return;
     const {start, current} = this.brushing;
     this.brushing = undefined;
-    if (buckets.length === 0) return;
     const lo = clamp(Math.min(start, current), 0, dataSlots - 1);
     const hi = clamp(Math.max(start, current), 0, dataSlots - 1);
-    onBrush({start: buckets[lo]!.start, end: buckets[hi]!.end});
+    const loBucket = buckets[lo];
+    const hiBucket = buckets[hi];
+    if (loBucket === undefined || hiBucket === undefined) return;
+    onBrush({start: loBucket.start, end: hiBucket.end});
   }
 
   private handlePointerMove(

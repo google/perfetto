@@ -234,7 +234,8 @@ function buildOption(
         }
 
         // Regular bucket
-        const bucket = data.buckets[idx]!;
+        const bucket = data.buckets[idx];
+        if (bucket === undefined) return '';
         const pct =
           totalWithNull > 0
             ? ((bucket.count / totalWithNull) * 100).toFixed(1)
@@ -314,10 +315,12 @@ function buildEventHandlers(
           const [startIdx, endIdx] = range;
           const minIdx = Math.max(0, startIdx);
           const maxIdx = Math.min(buckets.length - 1, endIdx);
-          if (minIdx <= maxIdx && minIdx < buckets.length) {
+          const first = buckets[minIdx];
+          const last = buckets[maxIdx];
+          if (minIdx <= maxIdx && first !== undefined && last !== undefined) {
             onBrush({
-              start: buckets[minIdx]!.start,
-              end: buckets[maxIdx]!.end,
+              start: first.start,
+              end: last.end,
             });
           }
         }

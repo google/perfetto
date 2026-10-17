@@ -102,16 +102,17 @@ export class TabManagerImpl implements TabManager, Disposable {
       this._openTabs = this._openTabs.filter((x) => x !== uri);
 
       if (currentTabIdx !== -1) {
-        if (this._openTabs.length === 0) {
+        const rightTab = this._openTabs[currentTabIdx];
+        const lastTab = this._openTabs[this._openTabs.length - 1];
+        if (rightTab !== undefined) {
+          // Pick the tab to the right
+          this._currentTab = rightTab;
+        } else if (lastTab !== undefined) {
+          // Pick the last tab
+          this._currentTab = lastTab;
+        } else {
           // No more tabs, use current selection
           this._currentTab = 'current_selection';
-        } else if (currentTabIdx < this._openTabs.length - 1) {
-          // Pick the tab to the right
-          this._currentTab = this._openTabs[currentTabIdx]!;
-        } else {
-          // Pick the last tab
-          const lastTab = this._openTabs[this._openTabs.length - 1]!;
-          this._currentTab = lastTab;
         }
       }
     } else {

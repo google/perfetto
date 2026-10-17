@@ -244,9 +244,12 @@ export function hexToRgb(hex: string): ColorTuple {
   let b: number = 0;
 
   if (hex.length === 4) {
-    r = parseInt(hex[1]! + hex[1]!, 16);
-    g = parseInt(hex[2]! + hex[2]!, 16);
-    b = parseInt(hex[3]! + hex[3]!, 16);
+    const h1 = hex.charAt(1);
+    const h2 = hex.charAt(2);
+    const h3 = hex.charAt(3);
+    r = parseInt(h1 + h1, 16);
+    g = parseInt(h2 + h2, 16);
+    b = parseInt(h3 + h3, 16);
   } else if (hex.length === 7) {
     r = parseInt(hex.substring(1, 3), 16);
     g = parseInt(hex.substring(3, 5), 16);

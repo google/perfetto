@@ -224,6 +224,7 @@ class ProcessWorkspaceFactory {
       if (!match?.groups) return;
 
       const {groupName, trackName} = match.groups;
+      if (groupName === undefined || trackName === undefined) return;
 
       const newTrack = track.clone();
       newTrack.name = trackName!;

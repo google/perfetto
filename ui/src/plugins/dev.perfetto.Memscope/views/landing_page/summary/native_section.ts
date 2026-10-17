@@ -306,9 +306,9 @@ function isAppMapping(mapping?: string): boolean {
 
 // Shrinks an (already app-only) frame chain (leaf → root) to a short snippet.
 function stackSnippet(frames: string[]): string[] {
-  if (frames.length === 0) return ['(no app frames)'];
+  const leaf = frames[0];
+  if (leaf === undefined) return ['(no app frames)'];
   if (frames.length <= 7) return frames;
-  const leaf = frames[0]!;
   const middle = frames.slice(1, -2).slice(0, 4);
   const root = frames.slice(-2);
   return [leaf, ...middle, '…', ...root];

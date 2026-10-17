@@ -700,8 +700,9 @@ export class PrintArgsColumn implements TableColumn {
         !Array.isArray(value)
       ) {
         const entries = Object.entries(value);
-        if (entries.length === 1) {
-          const [nestedKey, nestedValue] = entries[0]!;
+        const entry = entries[0];
+        if (entry !== undefined && entries.length === 1) {
+          const [nestedKey, nestedValue] = entry;
           return condense(`${key}.${nestedKey}`, nestedValue);
         }
       }

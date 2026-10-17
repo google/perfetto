@@ -103,9 +103,8 @@ export async function importGraph(
   input.type = 'file';
   input.accept = '.json,.pbtxt';
   input.onchange = async (event) => {
-    const files = (event.target as HTMLInputElement).files;
-    if (files && files.length > 0) {
-      const file = files[0]!;
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file !== undefined) {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const text = e.target?.result as string;
@@ -224,8 +223,9 @@ export async function createDataExplorerGraph(
   createTableNodes('high', rightNodes);
 
   const allNodes = [...coreNodes, ...rightNodes];
+  const firstNode = allNodes[0];
 
-  if (allNodes.length > 0) {
+  if (firstNode !== undefined) {
     const newNodeLayouts = new Map<string, {x: number; y: number}>();
     const NODE_WIDTH = 300;
     const CORE_COL_WIDTH = 200;
@@ -299,7 +299,7 @@ export async function createDataExplorerGraph(
       ...currentState,
       rootNodes: allNodes,
       nodeLayouts: newNodeLayouts,
-      selectedNodes: new Set([allNodes[0]!.nodeId]),
+      selectedNodes: new Set([firstNode.nodeId]),
       labels,
       loadGeneration: (currentState.loadGeneration ?? 0) + 1,
     }));
@@ -389,9 +389,8 @@ export function importTab(
   input.type = 'file';
   input.accept = '.json,.pbtxt';
   input.onchange = (event) => {
-    const files = (event.target as HTMLInputElement).files;
-    if (files === null || files.length === 0) return;
-    const file = files[0]!;
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (file === undefined) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
       const text = e.target?.result;

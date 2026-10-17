@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {afterEach, beforeEach, describe, expect, test} from 'vitest';
 import {prettyDOM, queryAllByRole} from '@testing-library/dom';
+import {assertDefined} from '../../../base/assert';
 import {DataGrid, type DataGridAttrs} from './datagrid';
 import {InMemoryDataSource} from './in_memory_data_source';
 import type {ColumnSchema} from './datagrid_schema';
@@ -100,10 +101,11 @@ function dumpDom(): string {
 // there rather than `container`. `rerender` is called after the click to flush
 // the manual render so the popup mounts before we query it.
 function getMenuItems(rerender: () => void, triggerLabel: string): string[] {
-  const menuButton = queryAllByRole(container, 'button', {
+  const [menuButton] = queryAllByRole(container, 'button', {
     name: triggerLabel,
-  })[0]!;
+  });
   expect(menuButton, dumpDom()).toBeTruthy();
+  assertDefined(menuButton);
   menuButton.dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
   rerender();
   // Read the label element specifically: a menu item's textContent also

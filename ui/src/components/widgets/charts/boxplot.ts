@@ -181,7 +181,10 @@ function buildBoxplotOption(
     yAxis: horizontal ? categoryAxis : valueAxis,
     tooltip: buildTooltipOption({
       trigger: 'item' as const,
-      formatter: (params: {name?: string; value?: number[]}) => {
+      formatter: (params: {
+        name?: string;
+        value?: [number, number, number, number, number, number?];
+      }) => {
         const v = params.value;
         if (v === undefined) return '';
         return renderTooltip([

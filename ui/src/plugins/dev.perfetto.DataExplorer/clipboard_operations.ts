@@ -150,6 +150,7 @@ export function pasteClipboardNodes(
   // Update layouts for new nodes - only add layouts for undocked nodes
   // Docked nodes will remain docked (attached to their parent)
   const updatedLayouts = new Map(state.nodeLayouts);
+  // newNodes was mapped from clipboardNodes, so the lengths match.
   clipboard.clipboardNodes.forEach((entry, index) => {
     if (!entry.isDocked) {
       updatedLayouts.set(newNodes[index]!.nodeId, {

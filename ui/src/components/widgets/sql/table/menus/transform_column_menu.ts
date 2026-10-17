@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../../../../base/assert';
 import {MenuItem} from '../../../../../widgets/menu';
 import {Form, FormLabel} from '../../../../../widgets/form';
 import {TextInput} from '../../../../../widgets/text_input';
@@ -56,7 +57,7 @@ function fromExpression(
 ): (trace: Trace, column: SqlColumn, ...params: string[]) => TableColumn {
   return (trace: Trace, column: SqlColumn, ...params: string[]) => {
     const sqlExpr = new SqlExpression(
-      (cols: string[]) => exprFn(cols[0]!, ...params),
+      (cols: string[]) => exprFn(ensureDefined(cols[0]), ...params),
       [column],
     );
     return createTableColumn({
@@ -252,22 +253,22 @@ class ConfigureTransformMenu implements m.ClassComponent<TransformMenuItemAttrs>
     const params = transform.parameters ?? [];
     const initialValues = attrs.initialValues ?? [];
     if (this.paramState.length !== params.length) {
-      this.paramState = range(params.length).map((index) => {
-        if (index < initialValues.length) {
-          return {value: initialValues[index]!, error: false};
-        }
-        return {value: '', error: false};
-      });
+      this.paramState = range(params.length).map((index) => ({
+        value: initialValues[index] ?? '',
+        error: false,
+      }));
     }
 
+    // Note: this.paramState and params have the same length (ensured above),
+    // so indexing this.paramState by a params index is always in range.
     return m(
       Form,
       {
         submitLabel: attrs.formSubmitLabel,
         onSubmit: (e: Event) => {
           params.forEach((param, index) => {
-            const value = this.paramState[index]!.value;
-            this.paramState[index]!.error = !(param.validate?.(value) ?? true);
+            const state = this.paramState[index]!;
+            state.error = !(param.validate?.(state.value) ?? true);
           });
 
           const hasError = this.paramState.some((state) => state.error);
@@ -291,27 +292,28 @@ class ConfigureTransformMenu implements m.ClassComponent<TransformMenuItemAttrs>
           }
         },
       },
-      params.map((param, index) => [
-        params.length > 1 &&
-          m(FormLabel, {for: `${this.uuid}_param_${index}`}, param.name),
-        m(TextInput, {
-          id: `${this.uuid}_param_${index}`,
-          placeholder: param.placeholder,
-          value: this.paramState[index]!.value,
-          oninput: (e: InputEvent) => {
-            this.paramState[index]!.value = (
-              e.target as HTMLInputElement
-            ).value;
-            this.paramState[index]!.error = false;
-          },
-          style: this.paramState[index]!.error
-            ? {
-                border: '1px solid red',
-                outline: 'none',
-              }
-            : {},
-        }),
-      ]),
+      params.map((param, index) => {
+        const state = this.paramState[index]!;
+        return [
+          params.length > 1 &&
+            m(FormLabel, {for: `${this.uuid}_param_${index}`}, param.name),
+          m(TextInput, {
+            id: `${this.uuid}_param_${index}`,
+            placeholder: param.placeholder,
+            value: state.value,
+            oninput: (e: InputEvent) => {
+              state.value = (e.target as HTMLInputElement).value;
+              state.error = false;
+            },
+            style: state.error
+              ? {
+                  border: '1px solid red',
+                  outline: 'none',
+                }
+              : {},
+          }),
+        ];
+      }),
     );
   }
 }

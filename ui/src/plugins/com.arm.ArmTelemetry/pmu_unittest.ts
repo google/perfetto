@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {describe, expect, test, vi} from 'vitest';
+import {ensureDefined} from '../../base/assert';
 import type {App} from '../../public/app';
 import type {
   ProbeSetting,
@@ -230,11 +231,11 @@ function createPmuProbeForTest(
   if (subpage.kind !== 'PROBES_PAGE') {
     throw new Error('Expected PMU record section to be a probes page');
   }
-  return subpage.probes[0]!;
+  return ensureDefined(subpage.probes[0]);
 }
 
 function getPmuSettingForTest(probe = createPmuProbeForTest()): ProbeSetting {
-  return probe.settings!.testSetting!;
+  return ensureDefined(probe.settings?.testSetting);
 }
 
 function validSerializedPmuConfig(
@@ -282,7 +283,7 @@ function mutableStateForTest(setting: ProbeSetting): PerfConfigurationState {
   const vnode = setting.render() as unknown as {
     children: Array<{attrs: {state: PerfConfigurationState}}>;
   };
-  return vnode.children[0]!.attrs.state;
+  return ensureDefined(vnode.children[0]).attrs.state;
 }
 
 function initializePmuTabForTest(setting: ProbeSetting) {
@@ -297,7 +298,7 @@ function initializePmuTabForTest(setting: ProbeSetting) {
       };
     }>;
   };
-  const perfConfigurationVnode = containerVnode.children[0]!;
+  const perfConfigurationVnode = ensureDefined(containerVnode.children[0]);
   const perfConfiguration = new perfConfigurationVnode.tag();
   perfConfiguration.oninit({attrs: perfConfigurationVnode.attrs});
   const rendered = perfConfiguration.view({
@@ -576,7 +577,7 @@ describe('PMU config persistence', () => {
     setting.deserialize({
       currentTabKey: 'tab-1',
       tabs: [
-        validSerializedPmuConfig().tabs[0],
+        ensureDefined(validSerializedPmuConfig().tabs[0]),
         {
           key: 'tab-2',
           configuration: {
@@ -659,13 +660,13 @@ describe('PMU config persistence', () => {
     setting.deserialize(validSerializedPmuConfig());
 
     const {state, perfCpuConfigurations} = initializePmuTabForTest(setting);
-    expect(perfCpuConfigurations[0]!.controller.cpus).toEqual(
+    expect(ensureDefined(perfCpuConfigurations[0]).controller.cpus).toEqual(
       new Map([['0x4114d', 'Test CPU']]),
     );
 
     specManager.add(CPU_SPEC_2);
 
-    expect(state.tabs[0]!.configuration).toEqual({
+    expect(ensureDefined(state.tabs[0]).configuration).toEqual({
       cpuSelected: '0x4114d',
       pmusSelected: ['CPU_CYCLES', 'INST_RETIRED'],
       onCpuSelected: expect.any(Function),
@@ -678,14 +679,14 @@ describe('PMU config persistence', () => {
       frequency: 1000,
       captureCallstack: true,
     });
-    expect(perfCpuConfigurations[0]!.controller.cpus).toEqual(
+    expect(ensureDefined(perfCpuConfigurations[0]).controller.cpus).toEqual(
       new Map([
         ['0x4114d', 'Test CPU'],
         [getCpuId(CPU_SPEC_2), 'Added Test CPU'],
       ]),
     );
     expect(
-      perfCpuConfigurations[0]!.controller.pmuOptions.map(
+      ensureDefined(perfCpuConfigurations[0]).controller.pmuOptions.map(
         (option) => option.id,
       ),
     ).toEqual(['CPU_CYCLES', 'INST_RETIRED']);
@@ -700,7 +701,7 @@ describe('PMU config persistence', () => {
     setting.deserialize({
       currentTabKey: 'tab-1',
       tabs: [
-        validSerializedPmuConfig().tabs[0],
+        ensureDefined(validSerializedPmuConfig().tabs[0]),
         {
           key: 'tab-2',
           configuration: {
@@ -719,7 +720,7 @@ describe('PMU config persistence', () => {
     });
 
     const {state, perfCpuConfigurations} = initializePmuTabForTest(setting);
-    expect(perfCpuConfigurations[0]!.controller.cpus).toEqual(
+    expect(ensureDefined(perfCpuConfigurations[0]).controller.cpus).toEqual(
       new Map([['0x4114d', 'Test CPU']]),
     );
 
@@ -794,8 +795,8 @@ describe('PMU config persistence', () => {
     });
 
     expect(state.currentTabKey).toEqual('tab-1');
-    expect(state.tabs[0]!.key).toEqual('tab-1');
-    expect(state.tabs[1]!.key).not.toEqual('tab-1');
+    expect(ensureDefined(state.tabs[0]).key).toEqual('tab-1');
+    expect(ensureDefined(state.tabs[1]).key).not.toEqual('tab-1');
     expect(new Set(state.tabs.map((tab) => tab.key)).size).toEqual(2);
   });
 
@@ -978,29 +979,29 @@ describe('PMU config generation', () => {
     [
       'invalid perf CPU event type',
       (state: PerfConfigurationState) => {
-        state.tabs[0]!.configuration.cpuPerfType = '0';
+        ensureDefined(state.tabs[0]).configuration.cpuPerfType = '0';
       },
       'PMU Configuration Error: Invalid perf CPU event type',
     ],
     [
       'invalid sampling frequency',
       (state: PerfConfigurationState) => {
-        state.tabs[0]!.configuration.frequency = 0;
+        ensureDefined(state.tabs[0]).configuration.frequency = 0;
       },
       'PMU Configuration Error: Invalid sampling frequency',
     ],
     [
       'invalid sampling period',
       (state: PerfConfigurationState) => {
-        state.tabs[0]!.configuration.sampleByFrequency = false;
-        state.tabs[0]!.configuration.period = 0;
+        ensureDefined(state.tabs[0]).configuration.sampleByFrequency = false;
+        ensureDefined(state.tabs[0]).configuration.period = 0;
       },
       'PMU Configuration Error: Invalid sampling period',
     ],
     [
       'invalid target CPUs',
       (state: PerfConfigurationState) => {
-        state.tabs[0]!.configuration.targetCpus = '1,,3';
+        ensureDefined(state.tabs[0]).configuration.targetCpus = '1,,3';
       },
       'PMU Configuration Error: Invalid target CPU value',
     ],

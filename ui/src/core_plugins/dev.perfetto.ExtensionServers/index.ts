@@ -164,7 +164,8 @@ export function renderExtensionServersSettings(
 ): m.Children {
   const servers = setting.get();
   const shareServer = (index: number) => {
-    const server = servers[index]!;
+    const server = servers[index];
+    if (server === undefined) return;
     const stripped = stripSecrets(server);
     const json = JSON.stringify(stripped);
     const b64 = base64Encode(utf8Encode(json));
@@ -177,10 +178,12 @@ export function renderExtensionServersSettings(
     setting.set(newServers);
   };
   const toggleEnabled = (index: number) => {
+    const server = servers[index];
+    if (server === undefined) return;
     const newServers = [...servers];
     newServers[index] = {
-      ...newServers[index]!,
-      enabled: !newServers[index]!.enabled,
+      ...server,
+      enabled: !server.enabled,
     };
     setting.set(newServers);
   };
@@ -214,16 +217,14 @@ export function renderExtensionServersSettings(
           m(
             '.pf-extension-servers-settings__list',
             // Sort embedder-managed servers to the top, preserving relative order.
-            [...servers.keys()]
+            servers
+              .map((server, idx) => ({server, idx}))
               .sort((a, b) => {
-                const aManaged =
-                  servers[a]!.origin === 'embedder_managed' ? 0 : 1;
-                const bManaged =
-                  servers[b]!.origin === 'embedder_managed' ? 0 : 1;
-                return aManaged - bManaged || a - b;
+                const aManaged = a.server.origin === 'embedder_managed' ? 0 : 1;
+                const bManaged = b.server.origin === 'embedder_managed' ? 0 : 1;
+                return aManaged - bManaged || a.idx - b.idx;
               })
-              .map((idx) => {
-                const server = servers[idx]!;
+              .map(({server, idx}) => {
                 return m(
                   '.pf-extension-servers-settings__item',
                   {key: idx},
@@ -365,11 +366,12 @@ async function maybeAddExtServerFromUrl(
 
   const servers = setting.get();
   const dupIdx = servers.findIndex((s) => sameServerLocation(s, prefill));
-  if (dupIdx !== -1) {
+  const dupServer = servers[dupIdx];
+  if (dupServer !== undefined) {
     // Server already configured — replace its enabled modules with those from
     // the shared link and open the edit modal so the user can review.
     await editServer(setting, dupIdx, {
-      ...servers[dupIdx]!,
+      ...dupServer,
       enabledModules: prefill.enabledModules,
     });
   } else {

@@ -33,6 +33,7 @@
 
 import m from 'mithril';
 
+import {ensureDefined} from '../../../../base/assert';
 import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
@@ -251,12 +252,12 @@ function buildAddMenuItems(
   }
 
   const menuItems: m.Children[] = [];
-  for (let i = 0; i < sections.length; i++) {
+  for (const [i, section] of sections.entries()) {
     if (i > 0) {
       menuItems.push(m(MenuDivider));
     }
-    menuItems.push(m(MenuTitle, {label: sections[i]!.title}));
-    menuItems.push(...sections[i]!.items);
+    menuItems.push(m(MenuTitle, {label: section.title}));
+    menuItems.push(...section.items);
   }
   return menuItems;
 }
@@ -740,12 +741,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     ].filter((s) => s.items.length > 0);
 
     const addNodeMenuItems: m.Children[] = [];
-    for (let i = 0; i < sections.length; i++) {
+    for (const [i, section] of sections.entries()) {
       if (i > 0) {
         addNodeMenuItems.push(m(MenuDivider));
       }
-      addNodeMenuItems.push(m(MenuTitle, {label: sections[i]!.title}));
-      addNodeMenuItems.push(...sections[i]!.items);
+      addNodeMenuItems.push(m(MenuTitle, {label: section.title}));
+      addNodeMenuItems.push(...section.items);
     }
     addNodeMenuItems.push(m(MenuDivider));
     addNodeMenuItems.push(
@@ -978,7 +979,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           },
           onConnectionRemove: (index: number) => {
             handleConnectionRemove(
-              connections[index]!,
+              ensureDefined(connections[index]),
               rootNodes,
               attrs.onConnectionRemove,
             );

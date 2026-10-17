@@ -156,7 +156,7 @@ function procThreadAssociation(): RecordProbe {
     genConfig: function (tc: TraceConfigBuilder) {
       tc.addFtraceEvents(...ftraceEvents);
       // Set to 1/16th of the main buffer size, with reasonable limits.
-      const minMax = [256, 8 * 1024];
+      const minMax: [number, number] = [256, 8 * 1024];
       const bufSizeKb = Math.min(
         Math.max(tc.defaultBuffer.sizeKb / 16, minMax[0]!),
         minMax[1]!,

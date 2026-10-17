@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import type {Mock} from 'vitest';
-import {ensureExists} from '../../base/assert';
+import {ensureDefined, ensureExists} from '../../base/assert';
 import {MultiTraceController} from './multi_trace_controller';
 import type {
   FileAnalysis,
@@ -138,8 +138,10 @@ describe('MultiTraceController', () => {
 
       expect(controller.traces).toHaveLength(2);
       // Analysis starts immediately, so status should be 'analyzing'
-      expect(controller.traces[0]!.status).toBe('analyzing');
-      expect(controller.traces[1]!.status).toBe('analyzing');
+      expect(controller.traces.map((t) => t.status)).toEqual([
+        'analyzing',
+        'analyzing',
+      ]);
       expect(onStateChanged).toHaveBeenCalled();
 
       // Wait for analysis to complete
@@ -152,8 +154,10 @@ describe('MultiTraceController', () => {
       });
 
       // Now traces should be analyzed
-      expect(controller.traces[0]!.status).toBe('analyzed');
-      expect(controller.traces[1]!.status).toBe('analyzed');
+      expect(controller.traces.map((t) => t.status)).toEqual([
+        'analyzed',
+        'analyzed',
+      ]);
     });
 
     it('should handle format error messages', async () => {
@@ -170,7 +174,7 @@ describe('MultiTraceController', () => {
         onAnalysisCompleted.mockImplementation(() => resolve());
       });
 
-      const trace = controller.traces[0]!;
+      const trace = ensureDefined(controller.traces[0]);
       expect(trace.status).toBe('error');
       if (trace.status === 'error') {
         expect(trace.error).toContain("doesn't look like a Perfetto trace");
@@ -187,7 +191,7 @@ describe('MultiTraceController', () => {
       controller.removeTrace('uuid1');
 
       expect(controller.traces).toHaveLength(1);
-      expect(controller.traces[0]!.uuid).toBe('uuid2');
+      expect(controller.traces.map((t) => t.uuid)).toEqual(['uuid2']);
       expect(onStateChanged).toHaveBeenCalled();
     });
 
@@ -261,16 +265,17 @@ describe('MultiTraceController', () => {
 
       controller.addFiles([file]);
       // Analysis starts immediately, so status should be 'analyzing'
-      expect(controller.traces[0]!.status).toBe('analyzing');
+      expect(ensureDefined(controller.traces[0]).status).toBe('analyzing');
 
       // Wait for async analysis to complete
       await new Promise<void>((resolve) => {
         onAnalysisCompleted.mockImplementation(() => resolve());
       });
 
-      expect(controller.traces[0]!.status).toBe('analyzed');
-      if (controller.traces[0]!.status === 'analyzed') {
-        expect(controller.traces[0]!.analysis.format).toBe('Perfetto');
+      const trace = ensureDefined(controller.traces[0]);
+      expect(trace.status).toBe('analyzed');
+      if (trace.status === 'analyzed') {
+        expect(trace.analysis.format).toBe('Perfetto');
       }
     });
 
@@ -280,16 +285,17 @@ describe('MultiTraceController', () => {
 
       controller.addFiles([file]);
       // Analysis starts immediately, so status should be 'analyzing'
-      expect(controller.traces[0]!.status).toBe('analyzing');
+      expect(ensureDefined(controller.traces[0]).status).toBe('analyzing');
 
       // Wait for async analysis to complete
       await new Promise<void>((resolve) => {
         onAnalysisCompleted.mockImplementation(() => resolve());
       });
 
-      expect(controller.traces[0]!.status).toBe('error');
-      if (controller.traces[0]!.status === 'error') {
-        expect(controller.traces[0]!.error).toBe('Test analysis error');
+      const trace = ensureDefined(controller.traces[0]);
+      expect(trace.status).toBe('error');
+      if (trace.status === 'error') {
+        expect(trace.error).toBe('Test analysis error');
       }
     });
   });

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {z} from 'zod';
+import {ensureDefined} from '../base/assert';
 import type {Storage} from './storage';
 import {SettingsManagerImpl} from './settings_manager';
 
@@ -129,9 +130,9 @@ describe('SettingsManagerImpl', () => {
 
     const allSettings = settingsManager.getAllSettings();
     expect(allSettings.length).toBe(3);
-    expect(allSettings[0]!.id).toBe(boolSettingDesc.id); // test.bool
-    expect(allSettings[1]!.id).toBe(numberSettingDesc.id); // test.number
-    expect(allSettings[2]!.id).toBe(stringSettingDesc.id); // test.string
+    expect(ensureDefined(allSettings[0]).id).toBe(boolSettingDesc.id); // test.bool
+    expect(ensureDefined(allSettings[1]).id).toBe(numberSettingDesc.id); // test.number
+    expect(ensureDefined(allSettings[2]).id).toBe(stringSettingDesc.id); // test.string
   });
 
   test('isReloadRequired should be false initially', () => {

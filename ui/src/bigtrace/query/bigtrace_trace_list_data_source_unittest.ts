@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {beforeEach, describe, expect, test, vi} from 'vitest';
+import {ensureDefined} from '../../base/assert';
 import m from 'mithril';
 import {BigtraceTraceListDataSource} from './bigtrace_trace_list_data_source';
 import {FETCH_DEBOUNCE_MS} from './fetch_scheduler';
@@ -124,7 +125,7 @@ describe('BigtraceTraceListDataSource', () => {
     ds.useRows(flatModel({limit: 0}));
     await flush();
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.limit).toBe(100);
+    expect(ensureDefined(calls[0]).limit).toBe(100);
   });
 
   test('initial fetch ships settings + paging and exposes the rows', async () => {
@@ -134,10 +135,10 @@ describe('BigtraceTraceListDataSource', () => {
     await flush();
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.settings).toBe(SETTINGS);
-    expect(calls[0]!.limit).toBe(100);
-    expect(calls[0]!.offset).toBe(0);
-    expect(calls[0]!.orderBy).toBe('');
+    expect(ensureDefined(calls[0]).settings).toBe(SETTINGS);
+    expect(ensureDefined(calls[0]).limit).toBe(100);
+    expect(ensureDefined(calls[0]).offset).toBe(0);
+    expect(ensureDefined(calls[0]).orderBy).toBe('');
 
     const rows = ds.useRows(flatModel({limit: 100}));
     expect(rows.rows).toEqual(PAGE.rows);
@@ -156,7 +157,7 @@ describe('BigtraceTraceListDataSource', () => {
     await flush();
 
     expect(calls).toHaveLength(2);
-    expect(calls[1]!.orderBy).toBe('size_bytes desc');
+    expect(ensureDefined(calls[1]).orderBy).toBe('size_bytes desc');
   });
 
   test('ships the visible-column projection and the filter array', async () => {
@@ -169,10 +170,13 @@ describe('BigtraceTraceListDataSource', () => {
     await flush();
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.columns).toEqual(['file_name', 'size_bytes']);
+    expect(ensureDefined(calls[0]).columns).toEqual([
+      'file_name',
+      'size_bytes',
+    ]);
     // The data source passes the Filter[] straight through; the HTTP client is
     // what coerces values to the always-strings wire form.
-    expect(calls[0]!.filter).toEqual(filters);
+    expect(ensureDefined(calls[0]).filter).toEqual(filters);
   });
 
   test('omits the projection when no columns are visible', async () => {
@@ -180,7 +184,7 @@ describe('BigtraceTraceListDataSource', () => {
     const ds = new BigtraceTraceListDataSource(client, () => SETTINGS);
     ds.useRows(flatModel({limit: 100}));
     await flush();
-    expect(calls[0]!.columns).toBeUndefined();
+    expect(ensureDefined(calls[0]).columns).toBeUndefined();
   });
 
   test('refetches when the settings thunk changes', async () => {
@@ -201,7 +205,7 @@ describe('BigtraceTraceListDataSource', () => {
     ds.useRows(flatModel({limit: 100}));
     await flush();
     expect(calls).toHaveLength(2);
-    expect(calls[1]!.settings).toBe(settings);
+    expect(ensureDefined(calls[1]).settings).toBe(settings);
   });
 
   test('refetches only on TRACE_ADDRESS changes, not query-option / metadata edits', async () => {
@@ -406,7 +410,7 @@ describe('BigtraceTraceListDataSource', () => {
     await flush();
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.experimentFilter).toEqual({
+    expect(ensureDefined(calls[0]).experimentFilter).toEqual({
       experimentId: 1,
       controlId: 2,
       isTreatment: true,
@@ -431,19 +435,19 @@ describe('BigtraceTraceListDataSource', () => {
     ds.useRows(flatModel({limit: 100}));
     await flush();
     expect(calls).toHaveLength(2);
-    expect(calls[1]!.experimentFilter).toEqual(filter);
+    expect(ensureDefined(calls[1]).experimentFilter).toEqual(filter);
 
     filter = {experimentId: 1, controlId: 2, isTreatment: false};
     ds.useRows(flatModel({limit: 100}));
     await flush();
     expect(calls).toHaveLength(3);
-    expect(calls[2]!.experimentFilter?.isTreatment).toBe(false);
+    expect(ensureDefined(calls[2]).experimentFilter?.isTreatment).toBe(false);
 
     filter = undefined;
     ds.useRows(flatModel({limit: 100}));
     await flush();
     expect(calls).toHaveLength(4);
-    expect(calls[3]!.experimentFilter).toBeUndefined();
+    expect(ensureDefined(calls[3]).experimentFilter).toBeUndefined();
 
     // Nothing changed since: the grid stays put.
     ds.useRows(flatModel({limit: 100}));

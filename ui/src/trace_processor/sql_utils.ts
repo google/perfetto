@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import type {ReadonlyNonEmpty} from '../base/array_utils';
 import type {SortDirection} from '../base/comparison_utils';
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
@@ -161,7 +162,7 @@ async function createDisposableSqlEntity(
 
 type CreateTableArgs = {
   readonly engine: Engine;
-  readonly as: string | readonly Record<string, SqlValue>[];
+  readonly as: string | ReadonlyNonEmpty<Record<string, SqlValue>>;
   readonly name?: string;
 };
 
@@ -181,7 +182,7 @@ type CreateTableArgs = {
  * @returns The combined SELECT ... UNION ALL ... query string.
  */
 export function rowsToSelectStatement(
-  rows: readonly Record<string, SqlValue>[],
+  rows: ReadonlyNonEmpty<Record<string, SqlValue>>,
 ) {
   const firstRow = rows[0]!;
   const columnNames = Object.keys(firstRow);

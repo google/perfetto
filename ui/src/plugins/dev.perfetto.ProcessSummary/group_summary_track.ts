@@ -113,10 +113,19 @@ function computeHover(
   const t = timescale.pxToHpTime(x).toTime('floor');
 
   const [i, j] = searchRange(data.starts, t, searchEq(data.lanes, lane));
-  if (i === j || i >= data.starts.length || t > data.ends[i]!) return undefined;
+  const end = data.ends[i];
+  const utid = data.utids[i];
+  const count = data.counts[i];
+  if (
+    i === j ||
+    end === undefined ||
+    utid === undefined ||
+    count === undefined ||
+    t > end
+  ) {
+    return undefined;
+  }
 
-  const utid = data.utids[i]!;
-  const count = data.counts[i]!;
   const pid = threads.get(utid)?.pid;
   return {utid, lane, count, pid};
 }
@@ -284,7 +293,8 @@ export class GroupSummaryTrack implements TrackRenderer {
       } else {
         // Not valid - traverse children
         for (let i = node.children.length - 1; i >= 0; i--) {
-          stack.push(node.children[i]!);
+          const child = node.children[i];
+          if (child !== undefined) stack.push(child);
         }
       }
     }
@@ -506,11 +516,12 @@ export class GroupSummaryTrack implements TrackRenderer {
     } else {
       // Show track name/info for slice mode
       const laneIndex = this.hover.lane;
-      if (laneIndex < 0 || laneIndex >= this.sliceTracks.length) {
+      const sliceTrack = this.sliceTracks[laneIndex];
+      if (sliceTrack === undefined) {
         return undefined;
       }
 
-      const trackUri = this.sliceTracks[laneIndex]!.uri;
+      const trackUri = sliceTrack.uri;
       const track = this.trace.tracks.getTrack(trackUri);
       const trackTitle = (track as {title?: string})?.title ?? trackUri;
 

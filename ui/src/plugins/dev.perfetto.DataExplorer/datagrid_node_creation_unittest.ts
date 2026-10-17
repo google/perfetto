@@ -31,6 +31,7 @@ import type {ColumnInfo} from './query_builder/column_info';
 import type {Trace} from '../../public/trace';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {UIFilter} from './query_builder/operations/filter';
+import {ensureDefined} from '../../base/assert';
 
 describe('datagrid_node_creation', () => {
   // Helper to create a joinid column for testing
@@ -302,7 +303,7 @@ describe('datagrid_node_creation', () => {
 
       // A new node should have been inserted
       expect(source.nextNodes).toHaveLength(1);
-      expect(source.nextNodes[0]!.type).toBe(NodeType.kFilter);
+      expect(source.nextNodes[0]?.type).toBe(NodeType.kFilter);
       expect(deps.initializedNodes.size).toBe(1);
       expect(stateUpdates).toHaveLength(1);
     });
@@ -313,7 +314,7 @@ describe('datagrid_node_creation', () => {
 
       await addFilter(deps, source, newFilter, 'OR');
 
-      const createdFilter = source.nextNodes[0] as FilterNode;
+      const createdFilter = ensureDefined(source.nextNodes[0]) as FilterNode;
       expect(createdFilter.attrs.filterOperator).toBe('OR');
     });
 
@@ -330,9 +331,9 @@ describe('datagrid_node_creation', () => {
 
       // New filter node should be inserted between source and sort
       expect(source.nextNodes).toHaveLength(1);
-      expect(source.nextNodes[0]!.type).toBe(NodeType.kFilter);
+      expect(source.nextNodes[0]?.type).toBe(NodeType.kFilter);
       // Sort should now be downstream of the new filter
-      expect(source.nextNodes[0]!.nextNodes).toContain(sortChild);
+      expect(source.nextNodes[0]?.nextNodes).toContain(sortChild);
     });
   });
 });

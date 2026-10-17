@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../base/assert';
 import {
   NodeRegistry,
   type NodeDescriptor,
@@ -247,8 +248,8 @@ describe('NodeRegistry', () => {
       const result = registry.list();
 
       expect(result.length).toBe(1);
-      expect(result[0]![0]).toBe('test-node');
-      expect(result[0]![1]).toBe(descriptor);
+      expect(ensureDefined(result[0])[0]).toBe('test-node');
+      expect(ensureDefined(result[0])[1]).toBe(descriptor);
     });
 
     it('should reflect updates when node is re-registered', () => {
@@ -273,12 +274,12 @@ describe('NodeRegistry', () => {
       registry.register('node1', descriptor1);
       let result = registry.list();
       expect(result.length).toBe(1);
-      expect(result[0]![1].name).toBe('Node 1');
+      expect(ensureDefined(result[0])[1].name).toBe('Node 1');
 
       registry.register('node1', descriptor2);
       result = registry.list();
       expect(result.length).toBe(1);
-      expect(result[0]![1].name).toBe('Node 1 Updated');
+      expect(ensureDefined(result[0])[1].name).toBe('Node 1 Updated');
     });
   });
 

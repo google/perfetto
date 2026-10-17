@@ -63,8 +63,8 @@ export class GenericSliceDetailsTab implements TrackEventDetailsPanel {
 
     const detailNodes =
       columns !== undefined
-        ? Object.keys(columns).map((key) => {
-            const argKey = columns[key]!.displayName ?? key;
+        ? Object.entries(columns).map(([key, column]) => {
+            const argKey = column.displayName ?? key;
             return m(TreeNode, {
               left: argKey,
               right: sqlValueToReadableString(data[key]),

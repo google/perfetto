@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {produce} from 'immer';
 import {uuidv4} from '../../../base/uuid';
+import {ensureDefined} from '../../../base/assert';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -541,18 +542,20 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   };
 
   const undo = () => {
-    if (historyIndex > 0) {
+    const prev = history[historyIndex - 1];
+    if (prev !== undefined) {
       historyIndex--;
-      store = history[historyIndex]!;
+      store = prev;
       m.redraw();
       console.log(`Undo to state ${historyIndex}`);
     }
   };
 
   const redo = () => {
-    if (historyIndex < history.length - 1) {
+    const next = history[historyIndex + 1];
+    if (next !== undefined) {
       historyIndex++;
-      store = history[historyIndex]!;
+      store = next;
       m.redraw();
       console.log(`Redo to state ${historyIndex}`);
     }
@@ -640,8 +643,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       const nodeIds: string[] = [];
       for (let i = 0; i < 100; i++) {
         const id = uuidv4();
-        const factory =
-          nodeFactories[Math.floor(Math.random() * nodeFactories.length)]!;
+        const factory = ensureDefined(
+          nodeFactories[Math.floor(Math.random() * nodeFactories.length)],
+        );
         const x = Math.random() * 2000;
         const y = Math.random() * 2000;
         const newNode = factory(id, x, y);
@@ -662,12 +666,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           return config.canDockBottom && !node.nextId && !usedInStacks.has(id);
         });
 
-        if (availableParents.length === 0) break;
-
         const parentId =
-          availableParents[
-            Math.floor(Math.random() * availableParents.length)
-          ]!;
+          availableParents[Math.floor(Math.random() * availableParents.length)];
+        if (parentId === undefined) break;
         const parent = draft.nodes.get(parentId)!;
 
         // Find a child node that can dock (has canDockTop)
@@ -677,12 +678,11 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           return config.canDockTop && id !== parentId && !usedInStacks.has(id);
         });
 
-        if (availableChildren.length === 0) continue;
-
         const childId =
           availableChildren[
             Math.floor(Math.random() * availableChildren.length)
-          ]!;
+          ];
+        if (childId === undefined) continue;
 
         // Stack the child under the parent
         parent.nextId = childId;
@@ -696,10 +696,16 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
       const numConnections = 150;
       for (let i = 0; i < numConnections; i++) {
         // Pick random nodes
-        const fromNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)]!;
-        const toNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)]!;
+        const fromNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+        const toNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
 
-        if (fromNodeId === toNodeId) continue;
+        if (
+          fromNodeId === undefined ||
+          toNodeId === undefined ||
+          fromNodeId === toNodeId
+        ) {
+          continue;
+        }
 
         const fromNode = draft.nodes.get(fromNodeId)!;
         const toNode = draft.nodes.get(toNodeId)!;
@@ -873,8 +879,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
         }
 
         const validInputs = inputs.filter((sql) => sql);
-        if (validInputs.length === 0) return '';
-        if (validInputs.length === 1) return validInputs[0]!;
+        const firstInput = validInputs[0];
+        if (firstInput === undefined) return '';
+        if (validInputs.length === 1) return firstInput;
         return validInputs.map((sql) => `(${sql})`).join(` ${unionType} `);
       }
 
@@ -1058,9 +1065,10 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             const bottomConnectionIdx = draft.connections.findIndex(
               (c) => c.fromNode === toNodeId && c.fromPort === 0,
             );
-            if (bottomConnectionIdx > -1) {
+            const bottomConnection = draft.connections[bottomConnectionIdx];
+            if (bottomConnection !== undefined) {
               draft.connections[bottomConnectionIdx] = {
-                ...draft.connections[bottomConnectionIdx]!,
+                ...bottomConnection,
                 fromNode: id,
                 fromPort: 0,
               };

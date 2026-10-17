@@ -181,11 +181,11 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
       this.args = await getArgs(this.trace.engine, asArgSetId(row.arg_set_id));
     }
 
-    for (const key of Object.keys(row)) {
+    for (const [key, value] of Object.entries(
+      row as {[key: string]: SqlValue},
+    )) {
       if (key.startsWith(RAW_PREFIX)) {
-        this.data.rawCols[key.substr(RAW_PREFIX.length)] = (
-          row as {[key: string]: SqlValue}
-        )[key]!;
+        this.data.rawCols[key.substr(RAW_PREFIX.length)] = value;
       }
     }
 

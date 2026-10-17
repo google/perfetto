@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {HistoryManager} from './history_manager';
+import {ensureDefined} from '../../base/assert';
 import type {DataExplorerState} from './data_explorer';
 import type {Trace} from '../../public/trace';
 import type {
@@ -125,7 +126,7 @@ describe('HistoryManager', () => {
     // Undo: remove aggregation node
     const undoneState = historyManager.undo();
     expect(undoneState).not.toBeNull();
-    expect(undoneState!.rootNodes[0]!.nextNodes.length).toBe(0);
+    expect(ensureDefined(undoneState!.rootNodes[0]).nextNodes.length).toBe(0);
   });
 
   test('should ignore layout-only changes', () => {
@@ -346,13 +347,15 @@ describe('HistoryManager', () => {
     // Undo: connection should be restored
     const undoneState = historyManager.undo();
     expect(undoneState).not.toBeNull();
-    expect(undoneState!.rootNodes[0]!.nextNodes.length).toBe(1);
-    expect(undoneState!.rootNodes[0]!.nextNodes[0]!.type).toBe(aggNode.type);
+    expect(ensureDefined(undoneState!.rootNodes[0]).nextNodes.length).toBe(1);
+    expect(
+      ensureDefined(ensureDefined(undoneState!.rootNodes[0]).nextNodes[0]).type,
+    ).toBe(aggNode.type);
 
     // Redo: connection should be removed again
     const redoneState = historyManager.redo();
     expect(redoneState).not.toBeNull();
-    expect(redoneState!.rootNodes[0]!.nextNodes.length).toBe(0);
+    expect(ensureDefined(redoneState!.rootNodes[0]).nextNodes.length).toBe(0);
   });
 
   test('should track multiple connection changes', () => {
@@ -412,12 +415,12 @@ describe('HistoryManager', () => {
     // Undo once: should have 1 connection
     const undoneState1 = historyManager.undo();
     expect(undoneState1).not.toBeNull();
-    expect(undoneState1!.rootNodes[0]!.nextNodes.length).toBe(1);
+    expect(ensureDefined(undoneState1!.rootNodes[0]).nextNodes.length).toBe(1);
 
     // Undo again: should have 0 connections
     const undoneState2 = historyManager.undo();
     expect(undoneState2).not.toBeNull();
-    expect(undoneState2!.rootNodes[0]!.nextNodes.length).toBe(0);
+    expect(ensureDefined(undoneState2!.rootNodes[0]).nextNodes.length).toBe(0);
   });
 
   // ========================================
@@ -467,15 +470,17 @@ describe('HistoryManager', () => {
     // Undo: filters should be empty
     const undoneState = historyManager.undo();
     expect(undoneState).not.toBeNull();
-    const restoredFilterNode = undoneState!.rootNodes[0]!
-      .nextNodes[0] as FilterNode;
+    const restoredFilterNode = ensureDefined(
+      ensureDefined(undoneState!.rootNodes[0]).nextNodes[0],
+    ) as FilterNode;
     expect(restoredFilterNode.attrs.filters?.length ?? 0).toBe(0);
 
     // Redo: filter should be back
     const redoneState = historyManager.redo();
     expect(redoneState).not.toBeNull();
-    const redoneFilterNode = redoneState!.rootNodes[0]!
-      .nextNodes[0] as FilterNode;
+    const redoneFilterNode = ensureDefined(
+      ensureDefined(redoneState!.rootNodes[0]).nextNodes[0],
+    ) as FilterNode;
     expect(redoneFilterNode.attrs.filters?.length ?? 0).toBe(1);
     const redoneFilter = redoneFilterNode.attrs.filters?.[0];
     if (redoneFilter && 'value' in redoneFilter) {
@@ -543,7 +548,9 @@ describe('HistoryManager', () => {
     // Undo once: should have 1 filter
     const undoneState1 = historyManager.undo();
     expect(undoneState1).not.toBeNull();
-    const filterNode1 = undoneState1!.rootNodes[0]!.nextNodes[0] as FilterNode;
+    const filterNode1 = ensureDefined(
+      ensureDefined(undoneState1!.rootNodes[0]).nextNodes[0],
+    ) as FilterNode;
     expect(filterNode1.attrs.filters?.length ?? 0).toBe(1);
     const undoneFilter1 = filterNode1.attrs.filters?.[0];
     if (undoneFilter1 && 'value' in undoneFilter1) {
@@ -554,14 +561,18 @@ describe('HistoryManager', () => {
     // Undo again: should have 0 filters
     const undoneState2 = historyManager.undo();
     expect(undoneState2).not.toBeNull();
-    const filterNode2 = undoneState2!.rootNodes[0]!.nextNodes[0] as FilterNode;
+    const filterNode2 = ensureDefined(
+      ensureDefined(undoneState2!.rootNodes[0]).nextNodes[0],
+    ) as FilterNode;
     expect(filterNode2.attrs.filters?.length ?? 0).toBe(0);
 
     // Redo twice: should have 2 filters back
     historyManager.redo();
     const redoneState = historyManager.redo();
     expect(redoneState).not.toBeNull();
-    const filterNode3 = redoneState!.rootNodes[0]!.nextNodes[0] as FilterNode;
+    const filterNode3 = ensureDefined(
+      ensureDefined(redoneState!.rootNodes[0]).nextNodes[0],
+    ) as FilterNode;
     expect(filterNode3.attrs.filters?.length ?? 0).toBe(2);
   });
 
@@ -608,8 +619,9 @@ describe('HistoryManager', () => {
     // Undo: no columns should be checked
     const undoneState = historyManager.undo();
     expect(undoneState).not.toBeNull();
-    const restoredAggNode = undoneState!.rootNodes[0]!
-      .nextNodes[0] as AggregationNode;
+    const restoredAggNode = ensureDefined(
+      ensureDefined(undoneState!.rootNodes[0]).nextNodes[0],
+    ) as AggregationNode;
     const uncheckedCols = restoredAggNode.attrs.groupByColumns?.filter(
       (c) => c.checked,
     );
@@ -618,13 +630,14 @@ describe('HistoryManager', () => {
     // Redo: 'id' column should be checked
     const redoneState = historyManager.redo();
     expect(redoneState).not.toBeNull();
-    const redoneAggNode = redoneState!.rootNodes[0]!
-      .nextNodes[0] as AggregationNode;
+    const redoneAggNode = ensureDefined(
+      ensureDefined(redoneState!.rootNodes[0]).nextNodes[0],
+    ) as AggregationNode;
     const checkedCols = redoneAggNode.attrs.groupByColumns?.filter(
       (c) => c.checked,
     );
     expect(checkedCols?.length ?? 0).toBe(1);
-    expect(checkedCols?.[0]!.name).toBe('id');
+    expect(ensureDefined(checkedCols?.[0]).name).toBe('id');
   });
 
   // ========================================
@@ -712,10 +725,12 @@ describe('HistoryManager', () => {
     // Undo: aggregation should be restored
     const undoneState = historyManager.undo();
     expect(undoneState).not.toBeNull();
-    expect(undoneState!.rootNodes[0]!.nextNodes.length).toBe(1);
+    expect(ensureDefined(undoneState!.rootNodes[0]).nextNodes.length).toBe(1);
 
     // Verify the restored node is an aggregation
-    const restoredNode = undoneState!.rootNodes[0]!.nextNodes[0]!;
+    const restoredNode = ensureDefined(
+      ensureDefined(undoneState!.rootNodes[0]).nextNodes[0],
+    );
     expect(restoredNode.type).toBe(aggNode.type);
   });
 
@@ -801,31 +816,36 @@ describe('HistoryManager', () => {
     // Undo to state 3: aggregation should be gone
     const state3Restored = historyManager.undo();
     expect(state3Restored).not.toBeNull();
-    const filterNode3 = state3Restored!.rootNodes[0]!
-      .nextNodes[0] as FilterNode;
+    const filterNode3 = ensureDefined(
+      ensureDefined(state3Restored!.rootNodes[0]).nextNodes[0],
+    ) as FilterNode;
     expect(filterNode3.nextNodes.length).toBe(0);
     expect(filterNode3.attrs.filters?.length).toBe(1);
 
     // Undo to state 2: filter should be empty
     const state2Restored = historyManager.undo();
     expect(state2Restored).not.toBeNull();
-    const filterNode2 = state2Restored!.rootNodes[0]!
-      .nextNodes[0] as FilterNode;
+    const filterNode2 = ensureDefined(
+      ensureDefined(state2Restored!.rootNodes[0]).nextNodes[0],
+    ) as FilterNode;
     expect(filterNode2.attrs.filters?.length ?? 0).toBe(0);
 
     // Undo to state 1: no filter node
     const state1Restored = historyManager.undo();
     expect(state1Restored).not.toBeNull();
-    expect(state1Restored!.rootNodes[0]!.nextNodes.length).toBe(0);
+    expect(ensureDefined(state1Restored!.rootNodes[0]).nextNodes.length).toBe(
+      0,
+    );
 
     // Redo all the way forward
     historyManager.redo(); // State 2
     historyManager.redo(); // State 3
     const state4Restored = historyManager.redo(); // State 4
     expect(state4Restored).not.toBeNull();
-    expect(state4Restored!.rootNodes[0]!.nextNodes[0]!.nextNodes.length).toBe(
-      1,
-    );
+    expect(
+      ensureDefined(ensureDefined(state4Restored!.rootNodes[0]).nextNodes[0])
+        .nextNodes.length,
+    ).toBe(1);
   });
 
   // ========================================
@@ -880,7 +900,7 @@ describe('HistoryManager', () => {
     // Single undo returns to state1
     const undoneState = historyManager.undo();
     expect(undoneState).not.toBeNull();
-    expect(undoneState!.rootNodes[0]!.nextNodes.length).toBe(0); // Back to just table
+    expect(ensureDefined(undoneState!.rootNodes[0]).nextNodes.length).toBe(0); // Back to just table
 
     // No more undo points
     expect(historyManager.canUndo()).toBe(false);

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../base/assert';
 import {CreateSlicesNode} from './create_slices_node';
 import protos from '../../../../protos';
 import type {ColumnInfo} from '../column_info';
@@ -118,12 +119,12 @@ describe('CreateSlicesNode', () => {
       const finalCols = createSlicesNode.finalCols;
 
       expect(finalCols.length).toBe(2);
-      expect(finalCols[0]!.name).toBe('ts');
-      expect(finalCols[0]!.type).toEqual({kind: 'timestamp'});
-      expect(finalCols[0]!.checked).toBe(true);
-      expect(finalCols[1]!.name).toBe('dur');
-      expect(finalCols[1]!.type).toEqual({kind: 'duration'});
-      expect(finalCols[1]!.checked).toBe(true);
+      expect(ensureDefined(finalCols[0]).name).toBe('ts');
+      expect(ensureDefined(finalCols[0]).type).toEqual({kind: 'timestamp'});
+      expect(ensureDefined(finalCols[0]).checked).toBe(true);
+      expect(ensureDefined(finalCols[1]).name).toBe('dur');
+      expect(ensureDefined(finalCols[1]).type).toEqual({kind: 'duration'});
+      expect(ensureDefined(finalCols[1]).checked).toBe(true);
     });
 
     it('should always return the same ts and dur columns regardless of input columns', () => {

@@ -14,6 +14,8 @@
 
 // Engine startup benchmark page driver — see bench.html.
 
+import {ensureDefined} from '../base/assert';
+
 const WORKER_URL = 'engine_bench_worker_bundle.js';
 const WASM_URL = 'trace_processor_memory64.wasm';
 const PHASE_ORDER = [
@@ -108,19 +110,21 @@ function percentile(sorted: number[], p: number): number {
     sorted.length - 1,
     Math.max(0, Math.floor((p / 100) * sorted.length)),
   );
-  return sorted[idx]!;
+  return ensureDefined(sorted[idx]);
 }
 
 function summarise(samples: Sample[]): Partial<Record<Phase, Stats>> {
   const out: Partial<Record<Phase, Stats>> = {};
-  if (samples.length === 0) return out;
-  for (const k of Object.keys(samples[0]!) as Phase[]) {
+  const firstSample = samples[0];
+  if (firstSample === undefined) return out;
+  for (const k of Object.keys(firstSample) as Phase[]) {
+    // vals has one entry per sample, so it is non-empty here.
     const vals = samples.map((s) => s[k]).sort((a, b) => a - b);
     out[k] = {
-      min: vals[0]!,
+      min: ensureDefined(vals[0]),
       p50: percentile(vals, 50),
       p95: percentile(vals, 95),
-      max: vals[vals.length - 1]!,
+      max: ensureDefined(vals[vals.length - 1]),
       mean: vals.reduce((a, b) => a + b, 0) / vals.length,
     };
   }

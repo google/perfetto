@@ -301,7 +301,7 @@ export class JoinColumnSelector implements m.ClassComponent<JoinColumnSelectorAt
           const inputValue = (e.target as HTMLInputElement).value;
           const newColumns = [...columns];
           newColumns[index] = {
-            ...newColumns[index]!,
+            ...col,
             alias: inputValue.trim() === '' ? undefined : inputValue,
           };
           onColumnsChange(newColumns);

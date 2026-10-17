@@ -243,14 +243,15 @@ export class ScrollDetailsPanel implements TrackEventDetailsPanel {
         jankIntervals,
       );
 
-      if (presentedDeltas.length > 0) {
-        this.metrics.startOffset = presentedDeltas[0]!.scrollOffset;
-        this.metrics.endOffset =
-          presentedDeltas[presentedDeltas.length - 1]!.scrollOffset;
+      const firstDelta = presentedDeltas[0];
+      const lastDelta = presentedDeltas[presentedDeltas.length - 1];
+      if (firstDelta !== undefined && lastDelta !== undefined) {
+        this.metrics.startOffset = firstDelta.scrollOffset;
+        this.metrics.endOffset = lastDelta.scrollOffset;
 
         let pixelsScrolled = 0;
-        for (let i = 0; i < presentedDeltas.length; i++) {
-          pixelsScrolled += Math.abs(presentedDeltas[i]!.scrollDelta);
+        for (const delta of presentedDeltas) {
+          pixelsScrolled += Math.abs(delta.scrollDelta);
         }
 
         if (pixelsScrolled != 0) {

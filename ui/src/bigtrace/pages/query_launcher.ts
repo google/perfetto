@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../base/assert';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
@@ -260,7 +261,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         ? this.activeCuj
         : anchorCuj !== undefined && byCuj.has(anchorCuj)
           ? anchorCuj
-          : groups[0]![0];
+          : ensureDefined(groups[0])[0];
     const options = byCuj.get(active) ?? [];
     const appliedInActive = options.some((p) => p.id === appliedId);
     const shown = appliedInActive ? applied : undefined;

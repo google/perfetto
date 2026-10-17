@@ -112,17 +112,19 @@ export class ScrollJankCauseMap {
 
     for (; iter.valid(); iter.next()) {
       const eventLatencyStage = iter.name;
-      if (!(eventLatencyStage in this.causes)) {
-        this.causes[eventLatencyStage] = {
+      let stage = this.causes[eventLatencyStage];
+      if (stage === undefined) {
+        stage = {
           description: iter.description,
           jankCauses: [] as ScrollJankCause[],
         };
+        this.causes[eventLatencyStage] = stage;
       }
 
       const causeProcess = getScrollJankProcess(iter.causeProcess);
       const causeThread = getScrollJankThread(iter.causeThread);
 
-      this.causes[eventLatencyStage]!.jankCauses.push({
+      stage.jankCauses.push({
         description: iter.causeDescription,
         process: causeProcess,
         thread: causeThread,

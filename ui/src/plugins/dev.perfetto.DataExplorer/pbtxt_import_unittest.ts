@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import protos from '../../protos';
+import {ensureDefined} from '../../base/assert';
 import {NodeType, type QueryNode} from './query_node';
 import {
   detectAndWrapPbtxt,
@@ -80,12 +81,13 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect((result.nodes[0]!.state as Record<string, unknown>).sqlTable).toBe(
-      'my_table',
-    );
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(
+      (ensureDefined(result.nodes[0]).state as Record<string, unknown>)
+        .sqlTable,
+    ).toBe('my_table');
     expect(result.rootNodeIds).toHaveLength(1);
-    expect(result.finalNodeId).toBe(result.nodes[0]!.nodeId);
+    expect(result.finalNodeId).toBe(ensureDefined(result.nodes[0]).nodeId);
   });
 
   it('decomposes a simple_slices source without globs', () => {
@@ -96,7 +98,7 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSimpleSlices);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSimpleSlices);
   });
 
   it('decomposes simple_slices with globs into SlicesSource + Filter', () => {
@@ -111,10 +113,13 @@ describe('decomposeStructuredQuery', () => {
 
     // Should produce SlicesSourceNode + FilterNode with GLOB filters.
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSimpleSlices);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSimpleSlices);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(2);
     expect(filters[0]).toEqual({
@@ -131,8 +136,12 @@ describe('decomposeStructuredQuery', () => {
     });
 
     // Check wiring.
-    expect(result.nodes[0]!.nextNodes).toContain(result.nodes[1]!.nodeId);
-    expect(filterState.primaryInputId).toBe(result.nodes[0]!.nodeId);
+    expect(ensureDefined(result.nodes[0]).nextNodes).toContain(
+      ensureDefined(result.nodes[1]).nodeId,
+    );
+    expect(filterState.primaryInputId).toBe(
+      ensureDefined(result.nodes[0]).nodeId,
+    );
   });
 
   it('decomposes a SQL source', () => {
@@ -143,10 +152,10 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSqlSource);
-    expect((result.nodes[0]!.state as Record<string, unknown>).sql).toBe(
-      'SELECT * FROM slice',
-    );
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSqlSource);
+    expect(
+      (ensureDefined(result.nodes[0]).state as Record<string, unknown>).sql,
+    ).toBe('SELECT * FROM slice');
   });
 
   it('decomposes table with filters', () => {
@@ -164,20 +173,27 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
 
     // Check filter state
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(1);
-    expect(filters[0]!.column).toBe('name');
-    expect(filters[0]!.op).toBe('=');
-    expect(filters[0]!.value).toBe('foo');
+    expect(ensureDefined(filters[0]).column).toBe('name');
+    expect(ensureDefined(filters[0]).op).toBe('=');
+    expect(ensureDefined(filters[0]).value).toBe('foo');
 
     // Check wiring
-    expect(result.nodes[0]!.nextNodes).toContain(result.nodes[1]!.nodeId);
-    expect(filterState.primaryInputId).toBe(result.nodes[0]!.nodeId);
+    expect(ensureDefined(result.nodes[0]).nextNodes).toContain(
+      ensureDefined(result.nodes[1]).nodeId,
+    );
+    expect(filterState.primaryInputId).toBe(
+      ensureDefined(result.nodes[0]).nodeId,
+    );
   });
 
   it('decomposes table with group_by', () => {
@@ -198,23 +214,27 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kAggregation);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kAggregation);
 
-    const aggState = result.nodes[1]!.state as Record<string, unknown>;
+    const aggState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const groupByCols = aggState.groupByColumns as Array<
       Record<string, unknown>
     >;
     expect(groupByCols).toHaveLength(1);
-    expect(groupByCols[0]!.name).toBe('process_name');
+    expect(ensureDefined(groupByCols[0]).name).toBe('process_name');
 
     const aggs = aggState.aggregations as Array<Record<string, unknown>>;
     expect(aggs).toHaveLength(1);
-    expect((aggs[0]!.column as Record<string, unknown> | undefined)?.name).toBe(
-      'dur',
-    );
-    expect(aggs[0]!.aggregationOp).toBe('SUM');
-    expect(aggs[0]!.newColumnName).toBe('total_dur');
+    expect(
+      (ensureDefined(aggs[0]).column as Record<string, unknown> | undefined)
+        ?.name,
+    ).toBe('dur');
+    expect(ensureDefined(aggs[0]).aggregationOp).toBe('SUM');
+    expect(ensureDefined(aggs[0]).newColumnName).toBe('total_dur');
   });
 
   it('decomposes table with limit and offset', () => {
@@ -227,8 +247,11 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[1]!.type).toBe(NodeType.kLimitAndOffset);
-    const state = result.nodes[1]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kLimitAndOffset);
+    const state = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.limit).toBe(10);
     expect(state.offset).toBe(5);
   });
@@ -249,12 +272,15 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[1]!.type).toBe(NodeType.kSort);
-    const state = result.nodes[1]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kSort);
+    const state = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const criteria = state.sortCriteria as Array<Record<string, unknown>>;
     expect(criteria).toHaveLength(1);
-    expect(criteria[0]!.colName).toBe('dur');
-    expect(criteria[0]!.direction).toBe('DESC');
+    expect(ensureDefined(criteria[0]).colName).toBe('dur');
+    expect(ensureDefined(criteria[0]).direction).toBe('DESC');
   });
 
   it('decomposes nested inner_query', () => {
@@ -274,13 +300,16 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
-    expect(filters[0]!.op).toBe('>');
-    expect(filters[0]!.value).toBe('1000');
+    expect(ensureDefined(filters[0]).op).toBe('>');
+    expect(ensureDefined(filters[0]).value).toBe('1000');
   });
 
   it('decomposes deeply nested query chain', () => {
@@ -315,15 +344,21 @@ describe('decomposeStructuredQuery', () => {
 
     // Should produce: Table → Filter → Aggregation → Limit
     expect(result.nodes).toHaveLength(4);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
-    expect(result.nodes[2]!.type).toBe(NodeType.kAggregation);
-    expect(result.nodes[3]!.type).toBe(NodeType.kLimitAndOffset);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[2]).type).toBe(NodeType.kAggregation);
+    expect(ensureDefined(result.nodes[3]).type).toBe(NodeType.kLimitAndOffset);
 
     // Check chain wiring
-    expect(result.nodes[0]!.nextNodes).toContain(result.nodes[1]!.nodeId);
-    expect(result.nodes[1]!.nextNodes).toContain(result.nodes[2]!.nodeId);
-    expect(result.nodes[2]!.nextNodes).toContain(result.nodes[3]!.nodeId);
+    expect(ensureDefined(result.nodes[0]).nextNodes).toContain(
+      ensureDefined(result.nodes[1]).nodeId,
+    );
+    expect(ensureDefined(result.nodes[1]).nextNodes).toContain(
+      ensureDefined(result.nodes[2]).nodeId,
+    );
+    expect(ensureDefined(result.nodes[2]).nextNodes).toContain(
+      ensureDefined(result.nodes[3]).nodeId,
+    );
   });
 
   it('decomposes interval_intersect', () => {
@@ -356,7 +391,7 @@ describe('decomposeStructuredQuery', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSqlSource);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSqlSource);
   });
 
   it('assigns layout positions', () => {
@@ -375,14 +410,14 @@ describe('decomposeStructuredQuery', () => {
 
     // Source nodes should have layouts; dockable nodes (filter) should not
     // (the graph renderer docks them to their parent when no layout is set).
-    const tableNode = result.nodes[0]!;
+    const tableNode = ensureDefined(result.nodes[0]);
     expect(result.layouts.has(tableNode.nodeId)).toBe(true);
     const firstLayout = result.layouts.get(tableNode.nodeId);
     expect(firstLayout?.x).toBe(100);
     expect(firstLayout?.y).toBe(200);
 
     // Filter is a dockable node — no layout position
-    const filterNode = result.nodes[1]!;
+    const filterNode = ensureDefined(result.nodes[1]);
     expect(result.layouts.has(filterNode.nodeId)).toBe(false);
   });
 });
@@ -399,9 +434,9 @@ describe('templateSpecToMetricsState', () => {
     expect(state.metricIdPrefix).toBe('memory_per_process');
     const cols = state.valueColumns as Array<Record<string, unknown>>;
     expect(cols).toHaveLength(2);
-    expect(cols[0]!.column).toBe('avg_rss');
-    expect(cols[0]!.unit).toBe('COUNT');
-    expect(cols[1]!.column).toBe('total_swap');
+    expect(ensureDefined(cols[0]).column).toBe('avg_rss');
+    expect(ensureDefined(cols[0]).unit).toBe('COUNT');
+    expect(ensureDefined(cols[1]).column).toBe('total_swap');
   });
 
   it('maps valueColumnSpecs with unit and polarity', () => {
@@ -422,11 +457,11 @@ describe('templateSpecToMetricsState', () => {
 
     const cols = state.valueColumns as Array<Record<string, unknown>>;
     expect(cols).toHaveLength(1);
-    expect(cols[0]!.column).toBe('duration');
-    expect(cols[0]!.unit).toBe('TIME_NANOS');
-    expect(cols[0]!.polarity).toBe('LOWER_IS_BETTER');
-    expect(cols[0]!.displayName).toBe('Duration');
-    expect(cols[0]!.displayHelp).toBe('Total duration in ns');
+    expect(ensureDefined(cols[0]).column).toBe('duration');
+    expect(ensureDefined(cols[0]).unit).toBe('TIME_NANOS');
+    expect(ensureDefined(cols[0]).polarity).toBe('LOWER_IS_BETTER');
+    expect(ensureDefined(cols[0]).displayName).toBe('Duration');
+    expect(ensureDefined(cols[0]).displayHelp).toBe('Total duration in ns');
   });
 
   it('maps custom unit', () => {
@@ -443,8 +478,8 @@ describe('templateSpecToMetricsState', () => {
     const state = templateSpecToMetricsState(spec);
 
     const cols = state.valueColumns as Array<Record<string, unknown>>;
-    expect(cols[0]!.unit).toBe('CUSTOM');
-    expect(cols[0]!.customUnit).toBe('jank_score');
+    expect(ensureDefined(cols[0]).unit).toBe('CUSTOM');
+    expect(ensureDefined(cols[0]).customUnit).toBe('jank_score');
   });
 
   it('maps dimension configs from dimensionsSpecs', () => {
@@ -678,7 +713,7 @@ describe('decomposeStructuredQuery - multi-input source types', () => {
 
     // inner_query_id without a sharedQueries map falls back to SqlSourceNode.
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSqlSource);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSqlSource);
   });
 });
 
@@ -707,10 +742,13 @@ describe('decomposeStructuredQuery - experimental_filter_group', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(2);
     expect(filters[0]).toEqual({
@@ -753,16 +791,19 @@ describe('decomposeStructuredQuery - experimental_filter_group', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     expect(filterState.filterOperator).toBe('OR');
     const filters = filterState.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(2);
-    expect(filters[0]!.column).toBe('name');
-    expect(filters[0]!.value).toBe('foo');
-    expect(filters[1]!.column).toBe('name');
-    expect(filters[1]!.value).toBe('bar');
+    expect(ensureDefined(filters[0]).column).toBe('name');
+    expect(ensureDefined(filters[0]).value).toBe('foo');
+    expect(ensureDefined(filters[1]).column).toBe('name');
+    expect(ensureDefined(filters[1]).value).toBe('bar');
   });
 
   it('converts AND of sub-groups to multiple chained FilterNodes', () => {
@@ -808,21 +849,27 @@ describe('decomposeStructuredQuery - experimental_filter_group', () => {
 
     // Table + 2 filter nodes (one per sub-group).
     expect(result.nodes).toHaveLength(3);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
-    expect(result.nodes[2]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[2]).type).toBe(NodeType.kFilter);
 
     // First sub-group: OR of name='foo' and name='bar'.
-    const state1 = result.nodes[1]!.state as Record<string, unknown>;
+    const state1 = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     expect(state1.filterOperator).toBe('OR');
     const filters1 = state1.filters as Array<Record<string, unknown>>;
     expect(filters1).toHaveLength(2);
 
     // Second sub-group: AND of dur > 1000.
-    const state2 = result.nodes[2]!.state as Record<string, unknown>;
+    const state2 = ensureDefined(result.nodes[2]).state as Record<
+      string,
+      unknown
+    >;
     const filters2 = state2.filters as Array<Record<string, unknown>>;
     expect(filters2).toHaveLength(1);
-    expect(filters2[0]!.column).toBe('dur');
+    expect(ensureDefined(filters2[0]).column).toBe('dur');
   });
 
   it('falls back to freeform for mixed filters + sql_expressions', () => {
@@ -845,9 +892,12 @@ describe('decomposeStructuredQuery - experimental_filter_group', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     expect(filterState.filterMode).toBe('freeform');
     expect(filterState.sqlExpression).toBe('dur > 1000 AND LENGTH(name) > 10');
   });
@@ -883,9 +933,12 @@ describe('decomposeStructuredQuery - experimental_filter_group', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     expect(filterState.filterMode).toBe('freeform');
     expect(filterState.sqlExpression).toBe(
       "LENGTH(name) > 10 AND (name = 'foo' OR name = 'bar')",
@@ -919,19 +972,25 @@ describe('decomposeStructuredQuery - experimental_filter_group', () => {
 
     // Table + filter from `filters` + filter from `experimentalFilterGroup`.
     expect(result.nodes).toHaveLength(3);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
-    expect(result.nodes[2]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[2]).type).toBe(NodeType.kFilter);
 
     // First filter node is from `filters` field.
-    const state1 = result.nodes[1]!.state as Record<string, unknown>;
+    const state1 = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters1 = state1.filters as Array<Record<string, unknown>>;
-    expect(filters1[0]!.column).toBe('category');
+    expect(ensureDefined(filters1[0]).column).toBe('category');
 
     // Second filter node is from `experimentalFilterGroup`.
-    const state2 = result.nodes[2]!.state as Record<string, unknown>;
+    const state2 = ensureDefined(result.nodes[2]).state as Record<
+      string,
+      unknown
+    >;
     const filters2 = state2.filters as Array<Record<string, unknown>>;
-    expect(filters2[0]!.column).toBe('dur');
+    expect(ensureDefined(filters2[0]).column).toBe('dur');
   });
 });
 
@@ -951,15 +1010,18 @@ describe('decomposeStructuredQuery - filter edge cases', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     expect(filterState.filterOperator).toBe('OR');
     const filters = filterState.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(3);
-    expect(filters[0]!.value).toBe('foo');
-    expect(filters[1]!.value).toBe('bar');
-    expect(filters[2]!.value).toBe('baz');
-    expect(filters[0]!.column).toBe('name');
-    expect(filters[0]!.op).toBe('=');
+    expect(ensureDefined(filters[0]).value).toBe('foo');
+    expect(ensureDefined(filters[1]).value).toBe('bar');
+    expect(ensureDefined(filters[2]).value).toBe('baz');
+    expect(ensureDefined(filters[0]).column).toBe('name');
+    expect(ensureDefined(filters[0]).op).toBe('=');
   });
 
   it('separates multi-value and single-value filters into chained nodes', () => {
@@ -983,25 +1045,31 @@ describe('decomposeStructuredQuery - filter edge cases', () => {
 
     // Table + AND FilterNode (category=gfx) + OR FilterNode (name IN ...)
     expect(result.nodes).toHaveLength(3);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
-    expect(result.nodes[2]!.type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[2]).type).toBe(NodeType.kFilter);
 
     // First filter: single-value, AND mode (default).
-    const state1 = result.nodes[1]!.state as Record<string, unknown>;
+    const state1 = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters1 = state1.filters as Array<Record<string, unknown>>;
     expect(filters1).toHaveLength(1);
-    expect(filters1[0]!.column).toBe('category');
-    expect(filters1[0]!.value).toBe('gfx');
+    expect(ensureDefined(filters1[0]).column).toBe('category');
+    expect(ensureDefined(filters1[0]).value).toBe('gfx');
 
     // Second filter: multi-value, OR mode.
-    const state2 = result.nodes[2]!.state as Record<string, unknown>;
+    const state2 = ensureDefined(result.nodes[2]).state as Record<
+      string,
+      unknown
+    >;
     expect(state2.filterOperator).toBe('OR');
     const filters2 = state2.filters as Array<Record<string, unknown>>;
     expect(filters2).toHaveLength(3);
-    expect(filters2[0]!.value).toBe('DrawFrame');
-    expect(filters2[1]!.value).toBe('doFrame');
-    expect(filters2[2]!.value).toBe('queueBuffer');
+    expect(ensureDefined(filters2[0]).value).toBe('DrawFrame');
+    expect(ensureDefined(filters2[1]).value).toBe('doFrame');
+    expect(ensureDefined(filters2[2]).value).toBe('queueBuffer');
   });
 
   it('handles double_rhs filter values', () => {
@@ -1018,10 +1086,13 @@ describe('decomposeStructuredQuery - filter edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
-    expect(filters[0]!.value).toBe('3.14');
-    expect(filters[0]!.op).toBe('>');
+    expect(ensureDefined(filters[0]).value).toBe('3.14');
+    expect(ensureDefined(filters[0]).op).toBe('>');
   });
 
   it('handles IS_NULL filter with no RHS values', () => {
@@ -1037,11 +1108,14 @@ describe('decomposeStructuredQuery - filter edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
-    expect(filters[0]!.column).toBe('parent_id');
-    expect(filters[0]!.op).toBe('IS NULL');
-    expect(filters[0]!.value).toBe('');
+    expect(ensureDefined(filters[0]).column).toBe('parent_id');
+    expect(ensureDefined(filters[0]).op).toBe('IS NULL');
+    expect(ensureDefined(filters[0]).value).toBe('');
   });
 
   it('handles IS_NOT_NULL filter with no RHS values', () => {
@@ -1057,10 +1131,13 @@ describe('decomposeStructuredQuery - filter edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
-    expect(filters[0]!.op).toBe('IS NOT NULL');
-    expect(filters[0]!.value).toBe('');
+    expect(ensureDefined(filters[0]).op).toBe('IS NOT NULL');
+    expect(ensureDefined(filters[0]).value).toBe('');
   });
 
   it('handles UNKNOWN operator by defaulting to =', () => {
@@ -1077,10 +1154,13 @@ describe('decomposeStructuredQuery - filter edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
     // UNKNOWN (0) is not in FILTER_OP_MAP, so falls back to '='.
-    expect(filters[0]!.op).toBe('=');
+    expect(ensureDefined(filters[0]).op).toBe('=');
   });
 
   it('handles multiple filters with different RHS types', () => {
@@ -1111,7 +1191,10 @@ describe('decomposeStructuredQuery - filter edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const filterState = result.nodes[1]!.state as Record<string, unknown>;
+    const filterState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const filters = filterState.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(4);
     expect(filters[0]).toEqual({
@@ -1154,13 +1237,16 @@ describe('decomposeStructuredQuery - select_columns edge cases', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[1]!.type).toBe(NodeType.kModifyColumns);
-    const modState = result.nodes[1]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kModifyColumns);
+    const modState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const cols = modState.selectedColumns as Array<Record<string, unknown>>;
     expect(cols).toHaveLength(2);
-    expect(cols[0]!.name).toBe('ts + dur');
-    expect(cols[0]!.alias).toBe('end_ts');
-    expect(cols[1]!.name).toBe('name');
+    expect(ensureDefined(cols[0]).name).toBe('ts + dur');
+    expect(ensureDefined(cols[0]).alias).toBe('end_ts');
+    expect(ensureDefined(cols[1]).name).toBe('name');
   });
 
   it('handles select_columns with deprecated column_name field', () => {
@@ -1171,10 +1257,13 @@ describe('decomposeStructuredQuery - select_columns edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const modState = result.nodes[1]!.state as Record<string, unknown>;
+    const modState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const cols = modState.selectedColumns as Array<Record<string, unknown>>;
-    expect(cols[0]!.name).toBe('ts');
-    expect(cols[0]!.alias).toBe('timestamp');
+    expect(ensureDefined(cols[0]).name).toBe('ts');
+    expect(ensureDefined(cols[0]).alias).toBe('timestamp');
   });
 
   it('prefers column_name_or_expression over deprecated column_name', () => {
@@ -1191,11 +1280,14 @@ describe('decomposeStructuredQuery - select_columns edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const modState = result.nodes[1]!.state as Record<string, unknown>;
+    const modState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const cols = modState.selectedColumns as Array<Record<string, unknown>>;
     // Should prefer columnNameOrExpression over deprecated columnName.
-    expect(cols[0]!.name).toBe('CAST(ts AS TEXT)');
-    expect(cols[0]!.alias).toBe('ts_text');
+    expect(ensureDefined(cols[0]).name).toBe('CAST(ts AS TEXT)');
+    expect(ensureDefined(cols[0]).alias).toBe('ts_text');
   });
 });
 
@@ -1210,7 +1302,7 @@ describe('decomposeStructuredQuery - referenced_modules', () => {
 
     // referenced_modules is silently ignored; only the table node is produced.
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
   });
 });
 
@@ -1226,8 +1318,11 @@ describe('decomposeStructuredQuery - table column_names', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     // column_names are not persisted in the node state.
     expect(state.sqlTable).toBe('slice');
     expect(state.columnNames).toBeUndefined();
@@ -1245,7 +1340,7 @@ describe('decomposeStructuredQuery - limit/offset with zero values', () => {
 
     // protobufjs --force-number sets unset to 0, and limit=0 means "unset".
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
   });
 
   it('creates LimitAndOffset node when only limit is set', () => {
@@ -1257,8 +1352,11 @@ describe('decomposeStructuredQuery - limit/offset with zero values', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(2);
-    expect(result.nodes[1]!.type).toBe(NodeType.kLimitAndOffset);
-    const state = result.nodes[1]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kLimitAndOffset);
+    const state = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.limit).toBe(100);
     // offset=0 is treated as unset so it's not in the state.
     expect(state.offset).toBeUndefined();
@@ -1314,11 +1412,14 @@ describe('decomposeStructuredQuery - aggregation edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const aggState = result.nodes[1]!.state as Record<string, unknown>;
+    const aggState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const aggs = aggState.aggregations as Array<Record<string, unknown>>;
-    expect(aggs[0]!.aggregationOp).toBe('COUNT');
-    expect(aggs[0]!.column).toBeUndefined();
-    expect(aggs[0]!.newColumnName).toBe('cnt');
+    expect(ensureDefined(aggs[0]).aggregationOp).toBe('COUNT');
+    expect(ensureDefined(aggs[0]).column).toBeUndefined();
+    expect(ensureDefined(aggs[0]).newColumnName).toBe('cnt');
   });
 
   it('handles PERCENTILE aggregate with percentile field', () => {
@@ -1340,10 +1441,13 @@ describe('decomposeStructuredQuery - aggregation edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const aggState = result.nodes[1]!.state as Record<string, unknown>;
+    const aggState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const aggs = aggState.aggregations as Array<Record<string, unknown>>;
-    expect(aggs[0]!.aggregationOp).toBe('PERCENTILE');
-    expect(aggs[0]!.percentile).toBe(95);
+    expect(ensureDefined(aggs[0]).aggregationOp).toBe('PERCENTILE');
+    expect(ensureDefined(aggs[0]).percentile).toBe(95);
   });
 
   it('handles CUSTOM aggregate with custom_sql_expression', () => {
@@ -1363,9 +1467,12 @@ describe('decomposeStructuredQuery - aggregation edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const aggState = result.nodes[1]!.state as Record<string, unknown>;
+    const aggState = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const aggs = aggState.aggregations as Array<Record<string, unknown>>;
-    expect(aggs[0]!.aggregationOp).toBe('CUSTOM');
+    expect(ensureDefined(aggs[0]).aggregationOp).toBe('CUSTOM');
   });
 
   it('handles all aggregate ops', () => {
@@ -1407,9 +1514,12 @@ describe('decomposeStructuredQuery - aggregation edge cases', () => {
         },
       });
       const result = decomposeStructuredQuery(sq, 0, 0);
-      const aggState = result.nodes[1]!.state as Record<string, unknown>;
+      const aggState = ensureDefined(result.nodes[1]).state as Record<
+        string,
+        unknown
+      >;
       const aggs = aggState.aggregations as Array<Record<string, unknown>>;
-      expect(aggs[0]!.aggregationOp).toBe(expected);
+      expect(ensureDefined(aggs[0]).aggregationOp).toBe(expected);
     }
   });
 });
@@ -1425,9 +1535,12 @@ describe('decomposeStructuredQuery - order_by edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const state = result.nodes[1]!.state as Record<string, unknown>;
+    const state = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const criteria = state.sortCriteria as Array<Record<string, unknown>>;
-    expect(criteria[0]!.direction).toBe('ASC');
+    expect(ensureDefined(criteria[0]).direction).toBe('ASC');
   });
 
   it('handles multiple ordering specs', () => {
@@ -1449,13 +1562,16 @@ describe('decomposeStructuredQuery - order_by edge cases', () => {
 
     const result = decomposeStructuredQuery(sq, 0, 0);
 
-    const state = result.nodes[1]!.state as Record<string, unknown>;
+    const state = ensureDefined(result.nodes[1]).state as Record<
+      string,
+      unknown
+    >;
     const criteria = state.sortCriteria as Array<Record<string, unknown>>;
     expect(criteria).toHaveLength(2);
-    expect(criteria[0]!.colName).toBe('dur');
-    expect(criteria[0]!.direction).toBe('DESC');
-    expect(criteria[1]!.colName).toBe('ts');
-    expect(criteria[1]!.direction).toBe('ASC');
+    expect(ensureDefined(criteria[0]).colName).toBe('dur');
+    expect(ensureDefined(criteria[0]).direction).toBe('DESC');
+    expect(ensureDefined(criteria[1]).colName).toBe('ts');
+    expect(ensureDefined(criteria[1]).direction).toBe('ASC');
   });
 });
 
@@ -1500,17 +1616,17 @@ describe('decomposeStructuredQuery - full operation chain ordering', () => {
     // Table, Filter, Aggregation, Sort, LimitAndOffset
     // (select_columns is redundant after group_by and is skipped)
     expect(result.nodes).toHaveLength(5);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    expect(result.nodes[1]!.type).toBe(NodeType.kFilter);
-    expect(result.nodes[2]!.type).toBe(NodeType.kAggregation);
-    expect(result.nodes[3]!.type).toBe(NodeType.kSort);
-    expect(result.nodes[4]!.type).toBe(NodeType.kLimitAndOffset);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    expect(ensureDefined(result.nodes[1]).type).toBe(NodeType.kFilter);
+    expect(ensureDefined(result.nodes[2]).type).toBe(NodeType.kAggregation);
+    expect(ensureDefined(result.nodes[3]).type).toBe(NodeType.kSort);
+    expect(ensureDefined(result.nodes[4]).type).toBe(NodeType.kLimitAndOffset);
 
     // Verify chain wiring.
-    for (let i = 0; i < result.nodes.length - 1; i++) {
-      expect(result.nodes[i]!.nextNodes).toContain(result.nodes[i + 1]!.nodeId);
+    for (const [i, next] of result.nodes.slice(1).entries()) {
+      expect(ensureDefined(result.nodes[i]).nextNodes).toContain(next.nodeId);
     }
-    expect(result.finalNodeId).toBe(result.nodes[4]!.nodeId);
+    expect(result.finalNodeId).toBe(ensureDefined(result.nodes[4]).nodeId);
   });
 });
 
@@ -1528,8 +1644,11 @@ describe('decomposeStructuredQuery - time range source', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTimeRangeSource);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTimeRangeSource);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.start).toBe('1000000');
   });
 });
@@ -1548,9 +1667,9 @@ describe('metricSpecToMetricsState', () => {
     expect(state.metricIdPrefix).toBe('my_metric');
     const cols = state.valueColumns as Array<Record<string, unknown>>;
     expect(cols).toHaveLength(1);
-    expect(cols[0]!.column).toBe('total_dur');
-    expect(cols[0]!.unit).toBe('TIME_NANOS');
-    expect(cols[0]!.polarity).toBe('LOWER_IS_BETTER');
+    expect(ensureDefined(cols[0]).column).toBe('total_dur');
+    expect(ensureDefined(cols[0]).unit).toBe('TIME_NANOS');
+    expect(ensureDefined(cols[0]).polarity).toBe('LOWER_IS_BETTER');
   });
 
   it('handles missing value field', () => {
@@ -1585,8 +1704,8 @@ describe('metricSpecToMetricsState', () => {
     const state = metricSpecToMetricsState(spec);
 
     const cols = state.valueColumns as Array<Record<string, unknown>>;
-    expect(cols[0]!.unit).toBe('CUSTOM');
-    expect(cols[0]!.customUnit).toBe('fps');
+    expect(ensureDefined(cols[0]).unit).toBe('CUSTOM');
+    expect(ensureDefined(cols[0]).customUnit).toBe('fps');
   });
 
   it('maps polarity HIGHER_IS_BETTER on metric spec', () => {
@@ -1599,7 +1718,7 @@ describe('metricSpecToMetricsState', () => {
     const state = metricSpecToMetricsState(spec);
 
     const cols = state.valueColumns as Array<Record<string, unknown>>;
-    expect(cols[0]!.polarity).toBe('HIGHER_IS_BETTER');
+    expect(ensureDefined(cols[0]).polarity).toBe('HIGHER_IS_BETTER');
   });
 
   it('maps polarity NOT_APPLICABLE on metric spec', () => {
@@ -1612,7 +1731,7 @@ describe('metricSpecToMetricsState', () => {
     const state = metricSpecToMetricsState(spec);
 
     const cols = state.valueColumns as Array<Record<string, unknown>>;
-    expect(cols[0]!.polarity).toBe('NOT_APPLICABLE');
+    expect(ensureDefined(cols[0]).polarity).toBe('NOT_APPLICABLE');
   });
 
   it('defaults polarity to NOT_APPLICABLE when unset', () => {
@@ -1624,7 +1743,7 @@ describe('metricSpecToMetricsState', () => {
     const state = metricSpecToMetricsState(spec);
 
     const cols = state.valueColumns as Array<Record<string, unknown>>;
-    expect(cols[0]!.polarity).toBe('NOT_APPLICABLE');
+    expect(ensureDefined(cols[0]).polarity).toBe('NOT_APPLICABLE');
   });
 
   it('does not include bundle_id in state', () => {
@@ -1769,7 +1888,7 @@ describe('templateSpecToMetricsState - additional coverage', () => {
     const state = templateSpecToMetricsState(spec);
 
     const cols = state.valueColumns as Array<Record<string, unknown>>;
-    expect(cols[0]!.polarity).toBe('HIGHER_IS_BETTER');
+    expect(ensureDefined(cols[0]).polarity).toBe('HIGHER_IS_BETTER');
   });
 });
 
@@ -1808,8 +1927,11 @@ describe('decomposeStructuredQuery - inner_query_id with shared queries', () => 
     const result = decomposeStructuredQuery(sq, 0, 0, sharedQueries);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.sqlTable).toBe('slice');
     expect(state.moduleName).toBe('linux.cpu');
   });
@@ -1856,8 +1978,8 @@ describe('decomposeStructuredQuery - inner_query_id with shared queries', () => 
     const filterState = filterNode?.state as Record<string, unknown>;
     const filters = filterState.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(1);
-    expect(filters[0]!.column).toBe('dur');
-    expect(filters[0]!.op).toBe('>');
+    expect(ensureDefined(filters[0]).column).toBe('dur');
+    expect(ensureDefined(filters[0]).op).toBe('>');
   });
 
   it('falls back to SqlSourceNode when inner_query_id is not found', () => {
@@ -1877,7 +1999,7 @@ describe('decomposeStructuredQuery - inner_query_id with shared queries', () => 
 
     // Not found in map — falls back to SqlSourceNode.
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSqlSource);
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSqlSource);
   });
 
   it('resolves nested inner_query_id references', () => {
@@ -1922,9 +2044,9 @@ describe('decomposeStructuredQuery - inner_query_id with shared queries', () => 
     const filterNode = result.nodes.find((n) => n.type === NodeType.kFilter);
     const filterState = filterNode?.state as Record<string, unknown>;
     const filters = filterState.filters as Array<Record<string, unknown>>;
-    expect(filters[0]!.column).toBe('name');
-    expect(filters[0]!.op).toBe('GLOB');
-    expect(filters[0]!.value).toBe('Render*');
+    expect(ensureDefined(filters[0]).column).toBe('name');
+    expect(ensureDefined(filters[0]).op).toBe('GLOB');
+    expect(ensureDefined(filters[0]).value).toBe('Render*');
   });
 
   it('applies operations from the referencing query on top of resolved shared query', () => {
@@ -1957,8 +2079,8 @@ describe('decomposeStructuredQuery - inner_query_id with shared queries', () => 
     const filterNode = result.nodes.find((n) => n.type === NodeType.kFilter);
     const filterState = filterNode?.state as Record<string, unknown>;
     const filters = filterState.filters as Array<Record<string, unknown>>;
-    expect(filters[0]!.column).toBe('dur');
-    expect(filters[0]!.value).toBe('5000');
+    expect(ensureDefined(filters[0]).column).toBe('dur');
+    expect(ensureDefined(filters[0]).value).toBe('5000');
   });
 });
 
@@ -2000,8 +2122,11 @@ describe('decomposeStructuredQuery - table source with sqlModules', () => {
     const result = decomposeStructuredQuery(sq, 0, 0, undefined, mockModules);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.sqlTable).toBe('slice');
     expect(state.moduleName).toBe('slices');
   });
@@ -2015,8 +2140,11 @@ describe('decomposeStructuredQuery - table source with sqlModules', () => {
     const result = decomposeStructuredQuery(sq, 0, 0, undefined, mockModules);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSqlSource);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSqlSource);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.sql).toBe('SELECT * FROM custom_table');
   });
 
@@ -2029,8 +2157,11 @@ describe('decomposeStructuredQuery - table source with sqlModules', () => {
     const result = decomposeStructuredQuery(sq, 0, 0, undefined, mockModules);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSqlSource);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSqlSource);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.sql).toBe(
       'INCLUDE PERFETTO MODULE my.module;\nSELECT * FROM my_table',
     );
@@ -2045,8 +2176,11 @@ describe('decomposeStructuredQuery - table source with sqlModules', () => {
     const result = decomposeStructuredQuery(sq, 0, 0, undefined, mockModules);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kSqlSource);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kSqlSource);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.sql).toBe('SELECT * FROM orphan_table');
   });
 
@@ -2058,8 +2192,11 @@ describe('decomposeStructuredQuery - table source with sqlModules', () => {
     const result = decomposeStructuredQuery(sq, 0, 0);
 
     expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0]!.type).toBe(NodeType.kTable);
-    const state = result.nodes[0]!.state as Record<string, unknown>;
+    expect(ensureDefined(result.nodes[0]).type).toBe(NodeType.kTable);
+    const state = ensureDefined(result.nodes[0]).state as Record<
+      string,
+      unknown
+    >;
     expect(state.sqlTable).toBe('any_table');
     expect(state.moduleName).toBe('any.module');
   });
@@ -2262,9 +2399,9 @@ describe('buildNodesFromTemplateSpec - smoke test (trace_summary_spec.pbtxt)', (
     const state = filter!.state as Record<string, unknown>;
     const filters = state.filters as Array<Record<string, unknown>>;
     expect(filters).toHaveLength(1);
-    expect(filters[0]!.column).toBe('state');
-    expect(filters[0]!.op).toBe('=');
-    expect(filters[0]!.value).toBe('Running');
+    expect(ensureDefined(filters[0]).column).toBe('state');
+    expect(ensureDefined(filters[0]).op).toBe('=');
+    expect(ensureDefined(filters[0]).value).toBe('Running');
   });
 
   it('aggregation groups by utid with SUM(dur) AS sum_dur', () => {
@@ -2273,11 +2410,11 @@ describe('buildNodesFromTemplateSpec - smoke test (trace_summary_spec.pbtxt)', (
     const state = agg!.state as Record<string, unknown>;
     const groupByCols = state.groupByColumns as Array<Record<string, unknown>>;
     expect(groupByCols).toHaveLength(1);
-    expect(groupByCols[0]!.name).toBe('utid');
+    expect(ensureDefined(groupByCols[0]).name).toBe('utid');
     const aggs = state.aggregations as Array<Record<string, unknown>>;
     expect(aggs).toHaveLength(1);
-    expect(aggs[0]!.aggregationOp).toBe('SUM');
-    expect(aggs[0]!.newColumnName).toBe('sum_dur');
+    expect(ensureDefined(aggs[0]).aggregationOp).toBe('SUM');
+    expect(ensureDefined(aggs[0]).newColumnName).toBe('sum_dur');
   });
 
   it('sort by sum_dur DESC', () => {
@@ -2286,8 +2423,8 @@ describe('buildNodesFromTemplateSpec - smoke test (trace_summary_spec.pbtxt)', (
     const state = sort!.state as Record<string, unknown>;
     const criteria = state.sortCriteria as Array<Record<string, unknown>>;
     expect(criteria).toHaveLength(1);
-    expect(criteria[0]!.colName).toBe('sum_dur');
-    expect(criteria[0]!.direction).toBe('DESC');
+    expect(ensureDefined(criteria[0]).colName).toBe('sum_dur');
+    expect(ensureDefined(criteria[0]).direction).toBe('DESC');
   });
 
   it('limit is 10', () => {
@@ -2328,11 +2465,11 @@ describe('buildNodesFromTemplateSpec - smoke test (trace_summary_spec.pbtxt)', (
     const state = mc!.state as Record<string, unknown>;
     const cols = state.selectedColumns as Array<Record<string, unknown>>;
     expect(cols).toHaveLength(4);
-    expect(cols[0]!.name).toBe('id');
-    expect(cols[1]!.name).toBe('name');
-    expect(cols[2]!.name).toBe('utid');
-    expect(cols[3]!.name).toBe('sum_dur');
-    expect(cols[3]!.alias).toBe('total_running_time');
+    expect(ensureDefined(cols[0]).name).toBe('id');
+    expect(ensureDefined(cols[1]).name).toBe('name');
+    expect(ensureDefined(cols[2]).name).toBe('utid');
+    expect(ensureDefined(cols[3]).name).toBe('sum_dur');
+    expect(ensureDefined(cols[3]).alias).toBe('total_running_time');
   });
 
   it('ModifyColumns is chained after Join', () => {
@@ -2356,9 +2493,9 @@ describe('buildNodesFromTemplateSpec - smoke test (trace_summary_spec.pbtxt)', (
 
     const valueCols = state.valueColumns as Array<Record<string, unknown>>;
     expect(valueCols).toHaveLength(1);
-    expect(valueCols[0]!.column).toBe('utid');
-    expect(valueCols[0]!.unit).toBe('COUNT');
-    expect(valueCols[0]!.polarity).toBe('NOT_APPLICABLE');
+    expect(ensureDefined(valueCols[0]).column).toBe('utid');
+    expect(ensureDefined(valueCols[0]).unit).toBe('COUNT');
+    expect(ensureDefined(valueCols[0]).polarity).toBe('NOT_APPLICABLE');
   });
 
   it('dockable modification nodes have no layout entries', () => {
@@ -2629,7 +2766,7 @@ describe('pbtxt import - end-to-end validation', () => {
     ).attrs;
     expect(metricsAttrs?.metricIdPrefix).toBe('x');
     expect(metricsAttrs?.valueColumns.length).toBe(1);
-    expect(metricsAttrs?.valueColumns[0]!.column).toBe('utid');
+    expect(ensureDefined(metricsAttrs?.valueColumns[0]).column).toBe('utid');
   });
 
   it('Metrics node has correct dimensions from cached availableColumns', () => {

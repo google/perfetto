@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
-import {assertTrue} from '../../base/assert';
+import {assertDefined} from '../../base/assert';
 import {clamp} from '../../base/math_utils';
 import {exists} from '../../base/utils';
 import {getColorForSlice} from '../../components/colorizer';
@@ -107,7 +107,8 @@ async function getDataset(
   trackIds: ReadonlyArray<number>,
   depthTableName?: string,
 ) {
-  assertTrue(trackIds.length > 0);
+  const firstTrackId = trackIds[0];
+  assertDefined(firstTrackId);
 
   if (trackIds.length === 1) {
     // Single track case - use depth directly from slice table
@@ -129,13 +130,13 @@ async function getDataset(
       src: 'slice',
       filter: {
         col: 'track_id',
-        eq: trackIds[0]!,
+        eq: firstTrackId,
       },
     });
   } else {
     // Multiple tracks case - need to compute layout depths.
     // If no depth table name provided, create one with a constant name.
-    const tableName = depthTableName ?? `__async_slice_depth_${trackIds[0]}`;
+    const tableName = depthTableName ?? `__async_slice_depth_${firstTrackId}`;
 
     if (depthTableName === undefined) {
       // Create the depth table if not provided by caller

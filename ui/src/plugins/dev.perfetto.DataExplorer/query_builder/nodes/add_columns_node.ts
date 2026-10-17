@@ -27,6 +27,7 @@ import {
 } from '../../../../trace_processor/perfetto_sql_type';
 import type protos from '../../../../protos';
 import m from 'mithril';
+import {ensureDefined} from '../../../../base/assert';
 import {Select} from '../../../../widgets/select';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {TextInput} from '../../../../widgets/text_input';
@@ -234,9 +235,8 @@ export class AddColumnsNode implements QueryNode {
     }
 
     // Check against other computed columns
-    for (let i = 0; i < (this.attrs.computedColumns?.length ?? 0); i++) {
+    for (const [i, col] of (this.attrs.computedColumns ?? []).entries()) {
       if (i === excludeIndex) continue; // Skip the column being edited
-      const col = this.attrs.computedColumns![i]!;
       if (col.name.trim() === trimmedName) {
         return `Column "${trimmedName}" already exists in computed columns`;
       }
@@ -1212,7 +1212,7 @@ export class AddColumnsNode implements QueryNode {
       if (!this.attrs.computedColumns) return;
       const newComputedColumns = [...this.attrs.computedColumns];
       newComputedColumns[index] = {
-        ...newComputedColumns[index]!,
+        ...ensureDefined(newComputedColumns[index]),
         sqlType: newType,
       };
       this.attrs.computedColumns = newComputedColumns;

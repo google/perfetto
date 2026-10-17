@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../base/assert';
 import {HistoryManager} from './history_manager';
 import type {DataExplorerState} from './data_explorer';
 import type {Trace} from '../../public/trace';
@@ -163,13 +164,15 @@ describe('Multi-node operations', () => {
       // First paste
       const newNodes1 = clipboardNodes.map((entry) => entry.node.clone());
       expect(newNodes1).toHaveLength(1);
-      expect(newNodes1[0]!.nodeId).not.toBe(node1.nodeId);
+      const newNode1 = ensureDefined(newNodes1[0]);
+      expect(newNode1.nodeId).not.toBe(node1.nodeId);
 
       // Second paste - should create different nodes
       const newNodes2 = clipboardNodes.map((entry) => entry.node.clone());
       expect(newNodes2).toHaveLength(1);
-      expect(newNodes2[0]!.nodeId).not.toBe(node1.nodeId);
-      expect(newNodes2[0]!.nodeId).not.toBe(newNodes1[0]!.nodeId);
+      const newNode2 = ensureDefined(newNodes2[0]);
+      expect(newNode2.nodeId).not.toBe(node1.nodeId);
+      expect(newNode2.nodeId).not.toBe(newNode1.nodeId);
     });
 
     test('should restore connections between pasted nodes', () => {
@@ -287,13 +290,13 @@ describe('Multi-node operations', () => {
       // Verify connections are restored
       // Find the restored table node (should be root)
       expect(restoredState!.rootNodes.length).toBe(1);
-      const restoredTable = restoredState!.rootNodes[0]!;
+      const restoredTable = ensureDefined(restoredState!.rootNodes[0]);
       expect(restoredTable.nextNodes.length).toBe(1);
 
-      const restoredFilter1 = restoredTable.nextNodes[0]!;
+      const restoredFilter1 = ensureDefined(restoredTable.nextNodes[0]);
       expect(restoredFilter1.nextNodes.length).toBe(1);
 
-      const restoredFilter2 = restoredFilter1.nextNodes[0]!;
+      const restoredFilter2 = ensureDefined(restoredFilter1.nextNodes[0]);
       expect(restoredFilter2.nextNodes.length).toBe(0);
     });
   });

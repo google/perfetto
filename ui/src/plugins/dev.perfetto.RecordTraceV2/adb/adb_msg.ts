@@ -88,7 +88,7 @@ export function encodeAdbData(
 
 function generateChecksum(data: Uint8Array): number {
   let res = 0;
-  for (let i = 0; i < data.byteLength; i++) res += data[i]!;
+  for (const b of data) res += b;
   return res & 0xffffffff;
 }
 

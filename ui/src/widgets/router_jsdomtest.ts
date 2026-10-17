@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {afterEach, beforeEach, describe, expect, test, vi} from 'vitest';
 import {prettyDOM} from '@testing-library/dom';
+import {ensureDefined} from '../base/assert';
 import {
   type RouteHandler,
   Router,
@@ -252,7 +253,7 @@ describe('Router', () => {
       const objects = container.querySelectorAll('.object');
       expect(objects.length, dumpDom()).toBe(1);
       expect(objects[0], dumpDom()).toBe(objectEl);
-      expect(objects[0]!.textContent, dumpDom()).toBe('2');
+      expect(ensureDefined(objects[0]).textContent, dumpDom()).toBe('2');
     });
 
     test('renders cached routes in declaration order', () => {
