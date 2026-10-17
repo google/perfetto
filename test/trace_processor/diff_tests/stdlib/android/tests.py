@@ -3412,6 +3412,216 @@ class AndroidStdlib(TestSuite):
         5000,-1,200,"EXITED","RECEIVER",2000,21,"[NULL]"
         """))
 
+  # pid 200 is frozen, unfrozen, frozen again and then killed while frozen.
+  # pids 300 and 400 never change: the trace-stop snapshot says 300 (born
+  # mid-trace, so FROZEN has gaps) is frozen and 400 is not.
+  def test_android_process_freezer(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 500
+          process_tree {
+            processes { pid: 300 ppid: 1 cmdline: "proc300" }
+            processes { pid: 400 ppid: 1 cmdline: "proc400" }
+          }
+        }
+        packet {
+          timestamp: 500
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 200
+              tid: 200
+              thread_name: "main"
+            }
+          }
+        }
+        packet {
+          timestamp: 500
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "trace_begin"
+          }
+        }
+        packet {
+          timestamp: 1000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "process_start"
+            [com.android.internal.FrameworksBaseTrackEvent.process_start_event] {
+              pid: 200
+              package_uid: 10002
+            }
+          }
+        }
+        packet {
+          timestamp: 2000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 200
+              uid: 10002
+              prev_proc_state: PROCESS_STATE_NONEXISTENT
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              reason: 3
+              seq_id: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 7000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 300
+              uid: 10003
+              prev_proc_state: PROCESS_STATE_NONEXISTENT
+              cur_proc_state: PROCESS_STATE_CACHED_EMPTY
+              reason: 3
+              seq_id: 2
+            }
+          }
+        }
+        packet {
+          timestamp: 3000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "freeze"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 200
+              uid: 10002
+              unfrozen_dur_ms: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 4000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "proc_state_change"
+            [com.android.internal.FrameworksBaseTrackEvent.process_state_changed_event] {
+              pid: 400
+              uid: 10004
+              prev_proc_state: PROCESS_STATE_TOP
+              cur_proc_state: PROCESS_STATE_SERVICE
+              reason: 4
+              seq_id: 3
+            }
+          }
+        }
+        packet {
+          timestamp: 5000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "unfreeze"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 200
+              uid: 10002
+              frozen_dur_ms: 2
+              unfreeze_reason: UFR_BIND_SERVICE
+            }
+          }
+        }
+        packet {
+          timestamp: 6000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "freeze"
+            [com.android.internal.FrameworksBaseTrackEvent.freezer_event] {
+              pid: 200
+              uid: 10002
+              unfrozen_dur_ms: 1
+            }
+          }
+        }
+        packet {
+          timestamp: 8000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "binder_died"
+            [com.android.internal.FrameworksBaseTrackEvent.binder_died_event] {
+              uid: 10002
+              pid: 200
+              process_name: "com.example.app"
+            }
+          }
+        }
+        packet {
+          timestamp: 10000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 2
+            name: "end"
+          }
+        }
+        packet {
+          timestamp: 10000
+          [com.android.internal.FrameworksBaseTracePacket.android_freezer_state] {
+            record {
+              pid: 300
+              uid: 10003
+              frozen_dur_ms: 600
+            }
+            record {
+              pid: 400
+              uid: 10004
+              unfrozen_dur_ms: 50
+              unfreeze_reason: UFR_PING
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.process_state;
+        SELECT 'interval' AS kind, ts, dur, pid, state, NULL AS concurrency
+        FROM _android_process_freezer_intervals
+        UNION ALL
+        SELECT 'freezer', ts, dur, NULL, state, concurrency
+        FROM _android_process_freezer_concurrency
+        ORDER BY kind, state, ts, pid;
+        """,
+        out=Csv("""
+        "kind","ts","dur","pid","state","concurrency"
+        "freezer",500,2500,"[NULL]","FROZEN",0
+        "freezer",3000,2000,"[NULL]","FROZEN",1
+        "freezer",5000,1000,"[NULL]","FROZEN",0
+        "freezer",6000,1000,"[NULL]","FROZEN",1
+        "freezer",7000,1000,"[NULL]","FROZEN",2
+        "freezer",8000,2000,"[NULL]","FROZEN",1
+        "freezer",500,1500,"[NULL]","UNFROZEN",1
+        "freezer",2000,1000,"[NULL]","UNFROZEN",2
+        "freezer",3000,2000,"[NULL]","UNFROZEN",1
+        "freezer",5000,1000,"[NULL]","UNFROZEN",2
+        "freezer",6000,4000,"[NULL]","UNFROZEN",1
+        "interval",3000,2000,200,"FROZEN","[NULL]"
+        "interval",6000,2000,200,"FROZEN","[NULL]"
+        "interval",7000,3000,300,"FROZEN","[NULL]"
+        "interval",500,9500,400,"UNFROZEN","[NULL]"
+        "interval",2000,1000,200,"UNFROZEN","[NULL]"
+        "interval",5000,1000,200,"UNFROZEN","[NULL]"
+        """))
+
   def test_is_relevant_notifications_blocking_call(self):
     # Must keep the same slices as android_sysui_notifications_blocking_calls
     # (see test_android_sysui_notifications_blocking_calls).
