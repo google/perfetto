@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncMemo, AtomicTaskQueue, TASK_CANCELLED} from './async_memo';
+import {
+  AsyncMemo,
+  type AsyncMemoResult,
+  AtomicTaskQueue,
+  TASK_CANCELLED,
+} from './async_memo';
 
 // Helper to wait for pending promises to resolve
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -216,6 +221,160 @@ test('enabled prevents query from running', async () => {
 
   expect(result.data).toBe(42);
   expect(queryFn).toHaveBeenCalledTimes(1);
+});
+
+test('task queue rejects when a task fails', async () => {
+  const queue = new AtomicTaskQueue();
+  const failure = new Error('boom');
+
+  await expect(
+    queue.schedule({}, async () => {
+      throw failure;
+    }),
+  ).rejects.toBe(failure);
+});
+
+// Wraps queue.schedule() to capture the promise returned by each call, so
+// tests can observe (and handle) task rejections that would otherwise surface
+// as unhandled rejections to the app's global error handler.
+function captureScheduledPromises(queue: AtomicTaskQueue): Promise<void>[] {
+  const promises: Promise<void>[] = [];
+  const originalSchedule = queue.schedule.bind(queue);
+  queue.schedule = ((key: object, task: () => Promise<void>) => {
+    const promise = originalSchedule(key, task);
+    promises.push(promise);
+    return promise;
+  }) as typeof queue.schedule;
+  return promises;
+}
+
+// `error` only exists on the pending variant of the result.
+function errorOf(result: AsyncMemoResult<unknown>): unknown {
+  return result.isPending ? result.error : undefined;
+}
+
+test('failed compute returns the error from use()', async () => {
+  const queue = new AtomicTaskQueue();
+  const slot = new AsyncMemo<number>(queue);
+  const scheduled = captureScheduledPromises(queue);
+  const failure = new Error('bogus query');
+  const queryFn = vi.fn().mockRejectedValue(failure);
+
+  slot.use({key: {id: 1}, compute: queryFn});
+
+  // The error is also re-thrown out of the queue.
+  await expect(scheduled[0]).rejects.toBe(failure);
+
+  // use() does not throw; it returns the error, pending with no data.
+  const result = slot.use({key: {id: 1}, compute: queryFn});
+  expect(result.isPending).toBe(true);
+  expect(result.data).toBeUndefined();
+  expect(errorOf(result)).toBe(failure);
+
+  // The error is cached like data, so compute is not re-run for the same key.
+  await flushPromises();
+  expect(queryFn).toHaveBeenCalledTimes(1);
+});
+
+test('non-Error thrown values are returned as-is', async () => {
+  const queue = new AtomicTaskQueue();
+  const slot = new AsyncMemo<number>(queue);
+  const scheduled = captureScheduledPromises(queue);
+
+  // Deliberately reject with a non-Error value.
+  // eslint-disable-next-line prefer-promise-reject-errors
+  slot.use({key: {id: 1}, compute: () => Promise.reject('just a string')});
+  await expect(scheduled[0]).rejects.toBe('just a string');
+
+  const result = slot.use({key: {id: 1}, compute: async () => 42});
+  expect(errorOf(result)).toBe('just a string');
+});
+
+test('cached error is not returned for a different key', async () => {
+  const queue = new AtomicTaskQueue();
+  const slot = new AsyncMemo<number>(queue);
+  const scheduled = captureScheduledPromises(queue);
+  const failure = new Error('bogus query');
+
+  slot.use({key: {id: 1}, compute: () => Promise.reject(failure)});
+  await expect(scheduled[0]).rejects.toBe(failure);
+
+  // Even with retainOn covering the changed field, a cached error is neither
+  // returned nor treated as stale data for the new key.
+  const result1 = slot.use({
+    key: {id: 2},
+    compute: async () => 42,
+    retainOn: ['id'],
+  });
+  expect(result1.isPending).toBe(true);
+  expect(result1.data).toBeUndefined();
+  expect(errorOf(result1)).toBeUndefined();
+
+  await flushPromises();
+
+  const result2 = slot.use({key: {id: 2}, compute: async () => 42});
+  expect(result2.isPending).toBe(false);
+  expect(result2.data).toBe(42);
+});
+
+test('invalidate clears a cached error and recomputes', async () => {
+  const queue = new AtomicTaskQueue();
+  const slot = new AsyncMemo<number>(queue);
+  const scheduled = captureScheduledPromises(queue);
+  const failure = new Error('bogus query');
+
+  slot.use({key: {id: 1}, compute: () => Promise.reject(failure)});
+  await expect(scheduled[0]).rejects.toBe(failure);
+
+  slot.invalidate();
+  await flushPromises();
+
+  const queryFn = vi.fn().mockResolvedValue(42);
+  const result1 = slot.use({key: {id: 1}, compute: queryFn});
+  expect(errorOf(result1)).toBeUndefined();
+  expect(result1.isPending).toBe(true);
+
+  await flushPromises();
+
+  const result2 = slot.use({key: {id: 1}, compute: queryFn});
+  expect(result2.isPending).toBe(false);
+  expect(result2.data).toBe(42);
+  expect(queryFn).toHaveBeenCalledTimes(1);
+});
+
+test('failing superseded task drops its error', async () => {
+  const queue = new AtomicTaskQueue();
+  const slot = new AsyncMemo<number>(queue);
+  const scheduled = captureScheduledPromises(queue);
+
+  let rejectFirst!: (e: Error) => void;
+  slot.use({
+    key: {id: 1},
+    compute: async () => {
+      return new Promise<number>((_, reject) => {
+        rejectFirst = reject;
+      });
+    },
+  });
+
+  // Supersede the in-flight task with a new key.
+  slot.use({key: {id: 2}, compute: async () => 42});
+
+  // Let the first task reach its compute() so rejectFirst is assigned.
+  await flushPromises();
+
+  // The superseded task now fails with a real error. Since it was cancelled,
+  // the error must be dropped: not re-thrown out of the queue, nor cached.
+  rejectFirst(new Error('stale failure'));
+  await expect(scheduled[0]).resolves.toBeUndefined();
+
+  // Let the replacement task run to completion.
+  await flushPromises();
+
+  // The replacement task ran and cached its result.
+  const result = slot.use({key: {id: 2}, compute: async () => 42});
+  expect(result.isPending).toBe(false);
+  expect(result.data).toBe(42);
 });
 
 test('use after dispose throws', async () => {
