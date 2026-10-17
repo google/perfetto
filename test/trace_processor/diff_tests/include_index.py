@@ -93,6 +93,7 @@ from diff_tests.parser.instruments.tests import Instruments
 from diff_tests.parser.json.tests import JsonParser
 from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
+from diff_tests.parser.merged_machine_data.tests import MergedMachineData
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
 from diff_tests.parser.parsing.tests_concurrent_sessions import ParsingConcurrentSessions
@@ -299,6 +300,7 @@ def fetch_all_diff_tests(
       ThermalExynos,
       ParsingTracedStats,
       TraceManifest,
+      MergedMachineData,
       Zip,
       AndroidInputEvent,
       Instruments,

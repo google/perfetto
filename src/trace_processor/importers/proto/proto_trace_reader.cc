@@ -45,11 +45,13 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/machine_data_claim_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stats_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/metadata_minimal_module.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
@@ -205,6 +207,7 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx,
     return context_->sorter->CreateStream(
         std::make_unique<InlineSchedWakingSink>(parser_.get(), cpu));
   };
+  module_context_.context = context_;
   RegisterDefaultModules(&module_context_, context_);
   if (context_->register_additional_proto_modules) {
     context_->register_additional_proto_modules(&module_context_, context_);
@@ -545,15 +548,41 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       return res.ToStatus();
   }
   auto& modules = module_context_.modules_by_field;
+  // The first registered field decides how the packet is parsed (see
+  // ProtoTraceParserImpl::ParseTracePacket).
+  std::optional<uint32_t> parsed_field;
   for (const protozero::Field& f : decoder.unknown_fields()) {
     if (f.id() >= modules.size() || modules[f.id()].empty())
       continue;
+    if (!parsed_field) {
+      parsed_field = f.id();
+    }
+    // Some modules intern tracks at tokenization time (e.g. for power rail
+    // descriptors): see TrackTracker::ScopedMachineData.
+    std::optional<TrackTracker::ScopedMachineData> machine_data;
+    if (auto kind = MachineDataClaimTracker::KindForTracePacketField(f.id())) {
+      machine_data.emplace(context_, *kind);
+    }
     for (ProtoImporterModule* module : modules[f.id()]) {
       ModuleResult res = module->TokenizePacket({decoder, &packet, timestamp,
                                                  state->current_generation(),
                                                  TracePacketField(f)});
       if (!res.ignored())
         return res.ToStatus();
+    }
+  }
+
+  // Drop machine-wide data (e.g. sys_stats) if another trace provides it for
+  // this machine at this time. This is done after tokenization so that
+  // metadata handled by modules at tokenization time (e.g. power rail
+  // descriptors) is always kept. Packets without a timestamp have no position
+  // in time to arbitrate on. ftrace and ETW events are arbitrated per event
+  // instead (see ProtoImporterModuleContext).
+  if (parsed_field && decoder.has_timestamp()) {
+    auto kind = MachineDataClaimTracker::KindForTracePacketField(*parsed_field);
+    if (kind && !context_->machine_data_claim_tracker->ShouldImport(
+                    context_, *kind, timestamp)) {
+      return base::OkStatus();
     }
   }
 
