@@ -20,7 +20,7 @@ package perfetto.protos;
 
 // Statistics for the internals of the tracing service.
 //
-// Next id: 20.
+// Next id: 19.
 message TraceStats {
   // From TraceBuffer::Stats.
   //
@@ -276,99 +276,4 @@ message TraceStats {
     FINAL_FLUSH_FAILED = 2;
   }
   optional FinalFlushOutcome final_flush_outcome = 15;
-
-  // Stats for the tracing v2 ring buffer of one producer since connection.
-  //
-  // Next id: 22.
-  message TracingV2ProducerStats {
-    // The producer that owns the ring buffer.
-    optional uint32 producer_id = 1;
-    optional int32 pid = 2;
-    optional string producer_name = 3;
-
-    // Layout of the attached ring buffer.
-    optional uint32 chunk_size_bytes = 4;
-    optional uint32 num_chunks = 5;
-
-    // The service counts the fields below while it reads the ring buffer.
-
-    // Num. chunks that the service copied out of the ring buffer.
-    optional uint64 chunks_read = 6;
-
-    // Total size of the packet fragments in |chunks_read|. It excludes the
-    // chunk headers and the fragment sizes.
-    optional uint64 bytes_read = 7;
-
-    // Num. chunks discarded because their writer marked them as lossy.
-    // A writer marks the next chunk it gets after it dropped data, e.g. when
-    // the ring buffer was full.
-    optional uint64 data_loss_chunks = 8;
-
-    // Num. chunks discarded because the sizes of their fragments are invalid.
-    // Either a size cannot be decoded, or the fragments do not fit in the
-    // chunk. A nonzero value points to a writer bug or to corrupt memory.
-    optional uint64 malformed_chunks = 9;
-
-    // Num. chunks discarded because the service does not know their format.
-    optional uint64 unsupported_format_chunks = 10;
-
-    // The next three count chunks in |chunks_read| that no trace buffer
-    // stored.
-
-    // The chunk's writer ID was zero or out of range.
-    optional uint64 invalid_writer_chunks = 11;
-
-    // The chunk's target buffer is not a TraceBuffer that the producer can
-    // write to.
-    optional uint64 invalid_destination_chunks = 12;
-
-    // The trace buffer refused the chunk. Its BufferStats say why, in
-    // |abi_violations| or |chunks_discarded|.
-    optional uint64 trace_buffer_rejected_chunks = 13;
-
-    // Num. chunks that the service read while their writer was still filling
-    // them. The writer then moves its open fragment to another chunk.
-    optional uint64 rewrite_requests = 14;
-
-    // Num. ring buffer positions that gave no chunk to the service. They are
-    // positions that no writer claimed, chunks with no published fragment and
-    // the discarded chunks above.
-    optional uint64 positions_skipped = 15;
-
-    // Num. times the service read the ring buffer. It reads it when the
-    // producer sends a DrainV2RingBuffer request, on its own (e.g. on a
-    // flush), and to retry a pass that stopped early.
-    optional uint64 drain_passes = 16;
-
-    // Time that the service spent in |drain_passes|, measured with
-    // CLOCK_MONOTONIC. It does not count time when the device was suspended.
-    optional uint64 drain_time_ns = 17;
-
-    // Time of the longest of |drain_passes|, on the same clock. The service
-    // has one main thread, so a long pass delays every other producer and
-    // request.
-    optional uint64 drain_max_time_ns = 18;
-
-    // The producer's writers count the fields below in the ring buffer header.
-    // The service reports the values as it finds them, so a buggy or hostile
-    // producer can set anything here.
-
-    // Num. packets that the writers dropped before the packets reached a
-    // chunk. This includes packets dropped before the service attached the
-    // ring buffer. A writer adds its drops when it flushes or stops dropping,
-    // so the value can lag.
-    optional uint64 writer_dropped_packets = 19;
-
-    // Num. times a writer waited for a free chunk, and the total time of those
-    // waits. This is time that the app's threads were blocked. A writer checks
-    // again after about 100 ms, so a longer stall counts several times.
-    optional uint64 writer_stalls = 20;
-    optional uint64 writer_stall_time_ms = 21;
-  }
-
-  // One entry for each connected producer that has a data source in this
-  // session and an attached tracing v2 ring buffer. A producer that only uses
-  // the SMB has no entry. A cloned session has the entries from the time of
-  // the clone.
-  repeated TracingV2ProducerStats tracing_v2_producer_stats = 19;
 }

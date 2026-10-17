@@ -60,6 +60,7 @@ import "protos/perfetto/trace/perfetto/concurrent_session_event.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "protos/perfetto/trace/perfetto/trace_provenance.proto";
 import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
+import "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.proto";
 import "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto";
 import "protos/perfetto/trace/power/android_entity_state_residency.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
@@ -112,7 +113,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 139.
+// Next id: 140.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -185,6 +186,8 @@ message TracePacket {
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
     TraceStats trace_stats = 35;
+    ExperimentalTracingV2ProducerStats experimental_tracing_v2_producer_stats =
+        139;
     ProfilePacket profile_packet = 37;
     StreamingAllocation streaming_allocation = 74;
     StreamingFree streaming_free = 75;

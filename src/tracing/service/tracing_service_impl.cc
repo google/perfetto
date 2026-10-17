@@ -137,6 +137,8 @@
 #include "protos/perfetto/trace/perfetto/concurrent_session_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.pbzero.h"
 #include "protos/perfetto/trace/remote_clock_sync.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
@@ -2945,6 +2947,11 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
     EmitLifecycleEvents(tracing_session, &packets);
   }
 
+  // Emit producer stats before MaybeFilterPackets to respect the session's
+  // trace filtering rules.
+  if (!*has_more && tracing_session->should_emit_stats)
+    EmitTracingV2ProducerStats(tracing_session, &packets);
+
   MaybeFilterPackets(tracing_session, &packets);
 
   // Only emit the stats when there is no more trace data is available to read.
@@ -4179,6 +4186,34 @@ void TracingServiceImpl::EmitSyncMarker(std::vector<TracePacket>* packets) {
   packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
 }
 
+void TracingServiceImpl::EmitTracingV2ProducerStats(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  for (const auto& stats : GetTracingV2ProducerStats(*tracing_session)) {
+    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+    SetServiceTracePacketHeader(packet.get());
+    stats.Serialize(packet->set_experimental_tracing_v2_producer_stats());
+    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  }
+}
+
+std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+TracingServiceImpl::GetTracingV2ProducerStats(const TracingSession& session) {
+  // A cloned session has no data source instances.
+  // It keeps the copy that FinishCloneSession() took from its source session.
+  if (session.state == TracingSession::CLONED_READ_ONLY)
+    return session.tracing_v2_producer_stats_at_clone;
+
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats> producer_stats;
+  for (const auto& [producer_id, producer] : producers_) {
+    if (session.data_source_instances.count(producer_id) == 0)
+      continue;
+    if (auto stats = producer->GetTracingV2Stats())
+      producer_stats.emplace_back(std::move(*stats));
+  }
+  return producer_stats;
+}
+
 void TracingServiceImpl::EmitStats(TracingSession* tracing_session,
                                    std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
@@ -4225,9 +4260,6 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
     *trace_stats.add_buffer_stats() = buf->stats();
   }  // for (buf in session).
 
-  *trace_stats.mutable_tracing_v2_producer_stats() =
-      GetTracingV2ProducerStats(*tracing_session);
-
   if (!tracing_session->config.builtin_data_sources()
            .disable_chunk_usage_histograms()) {
     // Emit chunk usage stats broken down by sequence ID (i.e. by trace-writer).
@@ -4271,23 +4303,6 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   }  // if (!disable_chunk_usage_histograms)
 
   return trace_stats;
-}
-
-std::vector<TraceStats::TracingV2ProducerStats>
-TracingServiceImpl::GetTracingV2ProducerStats(const TracingSession& session) {
-  // A cloned session has no data source instances.
-  // It keeps the copy that FinishCloneSession() took from its source session.
-  if (session.state == TracingSession::CLONED_READ_ONLY)
-    return session.tracing_v2_producer_stats_at_clone;
-
-  std::vector<TraceStats::TracingV2ProducerStats> producer_stats;
-  for (const auto& [producer_id, producer] : producers_) {
-    if (session.data_source_instances.count(producer_id) == 0)
-      continue;
-    if (auto stats = producer->GetTracingV2Stats())
-      producer_stats.emplace_back(std::move(*stats));
-  }
-  return producer_stats;
 }
 
 void TracingServiceImpl::EmitUuid(TracingSession* tracing_session,

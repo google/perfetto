@@ -34,7 +34,6 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
-#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/tracing/service/service_ring_buffer_drainer.h"
@@ -49,6 +48,10 @@
 namespace perfetto {
 
 class SharedMemoryArbiterImpl;
+
+namespace protos::gen {
+class ExperimentalTracingV2ProducerStats;
+}
 
 namespace tracing_service {
 
@@ -155,9 +158,10 @@ class ProducerEndpointImpl
   ProducerEndpointImpl(const ProducerEndpointImpl&) = delete;
   ProducerEndpointImpl& operator=(const ProducerEndpointImpl&) = delete;
 
-  // Returns the stats of this producer's ring buffer for TraceStats.
-  // Returns nullopt if the producer has none attached.
-  std::optional<TraceStats::TracingV2ProducerStats> GetTracingV2Stats() const;
+  // Returns this producer's ring buffer stats, or nullopt if no ring buffer
+  // is attached.
+  std::optional<protos::gen::ExperimentalTracingV2ProducerStats>
+  GetTracingV2Stats() const;
 
   ProducerID const id_;
   ClientIdentity const client_identity_;

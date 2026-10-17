@@ -24,6 +24,8 @@
 #include "perfetto/base/time.h"
 #include "src/tracing/service/trace_buffer.h"
 
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
+
 namespace perfetto::tracing_v2 {
 
 namespace {
@@ -105,7 +107,7 @@ void ServiceRingBufferDrainer::Drain() {
 }
 
 void ServiceRingBufferDrainer::FillStats(
-    TraceStats::TracingV2ProducerStats* stats) const {
+    protos::gen::ExperimentalTracingV2ProducerStats* stats) const {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   stats->set_chunk_size_bytes(ring_buffer_.chunk_size());

@@ -28,12 +28,14 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
-#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
 
 namespace perfetto {
 class TraceBuffer;
+namespace protos::gen {
+class ExperimentalTracingV2ProducerStats;
+}
 namespace tracing_v2 {
 
 namespace test {
@@ -116,7 +118,7 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   // These are the layout and the counters of the reader, of this class and of
   // the producer's writers.
   // The caller sets the producer's identity.
-  void FillStats(TraceStats::TracingV2ProducerStats* stats) const;
+  void FillStats(protos::gen::ExperimentalTracingV2ProducerStats* stats) const;
 
  private:
   friend class test::ServiceRingBufferDrainerTestPeer;
@@ -146,7 +148,7 @@ class ServiceRingBufferDrainer : public SharedRingBufferReader::Delegate {
   bool retry_scheduled_ = false;
 
   // Chunks that the reader delivered but no trace buffer stored.
-  // See TraceStats.TracingV2ProducerStats for each case.
+  // See ExperimentalTracingV2ProducerStats for each case.
   uint64_t invalid_writer_chunks_ = 0;
   uint64_t invalid_destination_chunks_ = 0;
   uint64_t trace_buffer_rejected_chunks_ = 0;

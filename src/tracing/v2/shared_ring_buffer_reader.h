@@ -146,7 +146,7 @@ class SharedRingBufferReader {
   uint32_t read_pos() const { return read_pos_; }
 
   // For diagnostics only. No writer or reader decision depends on them.
-  // The service reports them in TraceStats.TracingV2ProducerStats.
+  // The service reports them in ExperimentalTracingV2ProducerStats.
   struct Stats {
     uint64_t positions_skipped = 0;
     // Successful BeingWritten -> RewriteRequested transitions.

@@ -53,8 +53,9 @@ namespace perfetto {
 
 namespace protos {
 namespace gen {
+class ExperimentalTracingV2ProducerStats;
 enum TraceStats_FinalFlushOutcome : int;
-}
+}  // namespace gen
 namespace pbzero {
 class TracePacket;
 }
@@ -266,13 +267,14 @@ class TracingServiceImpl : public TracingService {
                          TracingSession::ClockSnapshotData,
                          std::vector<TracePacket>*);
   void EmitSyncMarker(std::vector<TracePacket>*);
-  void EmitStats(TracingSession*, std::vector<TracePacket>*);
-  TraceStats GetTraceStats(TracingSession*);
+  void EmitTracingV2ProducerStats(TracingSession*, std::vector<TracePacket>*);
   // Returns the tracing v2 stats of the connected producers that have a data
   // source instance in the session.
   // For a cloned session, returns the copy taken when it was cloned.
-  std::vector<TraceStats::TracingV2ProducerStats> GetTracingV2ProducerStats(
-      const TracingSession&);
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+  GetTracingV2ProducerStats(const TracingSession&);
+  void EmitStats(TracingSession*, std::vector<TracePacket>*);
+  TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
   // The only way to change a session's state. Broadcasts the change into the
   // other opted-in sessions' concurrent_session_events.

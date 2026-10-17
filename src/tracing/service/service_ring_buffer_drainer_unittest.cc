@@ -36,6 +36,7 @@
 #include "src/tracing/v2/shared_ring_buffer_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
@@ -138,8 +139,8 @@ class ServiceRingBufferDrainerTest : public testing::Test {
 
   uint32_t ReadPos() { return Internals::GetReadPos(ring_buffer_.get()); }
 
-  TraceStats::TracingV2ProducerStats Stats() {
-    TraceStats::TracingV2ProducerStats stats;
+  protos::gen::ExperimentalTracingV2ProducerStats Stats() {
+    protos::gen::ExperimentalTracingV2ProducerStats stats;
     drainer_->FillStats(&stats);
     return stats;
   }

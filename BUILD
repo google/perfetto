@@ -267,6 +267,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_linux_zero",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
+               ":protos_perfetto_trace_perfetto_cpp",
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
                ":protos_perfetto_trace_profiling_inline_callstack_zero",
@@ -1373,6 +1374,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_linux_zero",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
+               ":protos_perfetto_trace_perfetto_cpp",
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
                ":protos_perfetto_trace_profiling_inline_callstack_zero",
@@ -9947,6 +9949,14 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/perfetto:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_trace_perfetto_cpp",
+    deps = [
+        ":protos_perfetto_trace_perfetto_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/perfetto:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_perfetto_protos",
@@ -9955,6 +9965,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/trace_provenance.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
+        "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -11797,6 +11808,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_linux_zero",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
+               ":protos_perfetto_trace_perfetto_cpp",
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
                ":protos_perfetto_trace_profiling_inline_callstack_zero",

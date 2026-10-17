@@ -39,6 +39,8 @@
 
 #include "src/tracing/service/tracing_service_structs.h"
 
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
+
 namespace protozero {
 class MessageFilter;
 }
@@ -175,7 +177,7 @@ struct TracingSession {
 
   // The tracing v2 stats of the source session's producers, copied when the
   // session was cloned.
-  std::vector<TraceStats::TracingV2ProducerStats>
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
       tracing_v2_producer_stats_at_clone;
 
   // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().

@@ -37,6 +37,7 @@ const uint32_t kReservedFieldIds[] = {
     protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
     protos::pbzero::TracePacket::kTraceConfigFieldNumber,
     protos::pbzero::TracePacket::kTraceStatsFieldNumber,
+    protos::pbzero::TracePacket::kExperimentalTracingV2ProducerStatsFieldNumber,
     protos::pbzero::TracePacket::kCompressedPacketsFieldNumber,
     protos::pbzero::TracePacket::kZstdCompressedPacketsFieldNumber,
     protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
