@@ -16,6 +16,7 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/sort_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/util/column_vector.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -62,11 +63,11 @@ class Storage {
 
     static const IdDataTag* data() { return nullptr; }
   };
-  using Uint32 = FlexVector<uint32_t>;
-  using Int32 = FlexVector<int32_t>;
-  using Int64 = FlexVector<int64_t>;
-  using Double = FlexVector<double>;
-  using String = FlexVector<StringPool::Id>;
+  using Uint32 = ColumnVector<uint32_t>;
+  using Int32 = ColumnVector<int32_t>;
+  using Int64 = ColumnVector<int64_t>;
+  using Double = ColumnVector<double>;
+  using String = ColumnVector<StringPool::Id>;
 
   using DataPointer = std::variant<const IdDataTag*,
                                    const uint32_t*,
