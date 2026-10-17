@@ -99,12 +99,15 @@ class PerfProducer : public Producer,
   }
 
   // public for testing:
+  // |read_ppid| returns a process's parent pid, or nullopt if it cannot be
+  // read (the process is gone).
   static bool ShouldRejectDueToFilter(
       pid_t pid,
       const TargetFilter& filter,
       bool skip_cmdline,
       base::FlatSet<std::string>* additional_cmdlines,
-      std::function<bool(std::string*)> read_proc_pid_cmdline);
+      std::function<bool(std::string*)> read_proc_pid_cmdline,
+      std::function<std::optional<pid_t>(pid_t)> read_ppid);
 
  private:
   // State of the producer's connection to tracing service (traced).

@@ -53,6 +53,8 @@ struct TargetFilter {
   base::FlatSet<pid_t> exclude_pids;
   std::optional<ProcessSharding> process_sharding;
   uint32_t additional_cmdline_count = 0;
+  // Also keep the descendants of |pids|.
+  bool pid_descendants = false;
 };
 
 // Describes a perf event for two purposes:
