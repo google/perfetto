@@ -22,25 +22,9 @@
 #include <condition_variable>
 #include <mutex>
 
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineRiscv64.h>
-#include <unwindstack/MachineX86.h>
-#include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Maps.h>
 #include <unwindstack/Memory.h>
-#include <unwindstack/Regs.h>
-#include <unwindstack/RegsArm.h>
-#include <unwindstack/RegsArm64.h>
-#include <unwindstack/RegsRiscv64.h>
-#include <unwindstack/RegsX86.h>
-#include <unwindstack/RegsX86_64.h>
 #include <unwindstack/Unwinder.h>
-#include <unwindstack/UserArm.h>
-#include <unwindstack/UserArm64.h>
-#include <unwindstack/UserRiscv64.h>
-#include <unwindstack/UserX86.h>
-#include <unwindstack/UserX86_64.h>
 
 #include <procinfo/process_map.h>
 
@@ -53,6 +37,7 @@
 
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
@@ -78,52 +63,44 @@ static std::vector<std::string> kSkipMaps{"heapprofd_client.so",
                                           "heapprofd_client_api.so"};
 #pragma GCC diagnostic pop
 
-size_t GetRegsSize(unwindstack::Regs* regs) {
-  if (regs->Is32Bit())
-    return sizeof(uint32_t) * regs->total_regs();
-  return sizeof(uint64_t) * regs->total_regs();
-}
-
-void ReadFromRawData(unwindstack::Regs* regs, void* raw_data) {
-  memcpy(regs->RawData(), raw_data, GetRegsSize(regs));
-}
-
 }  // namespace
 
-std::unique_ptr<unwindstack::Regs> CreateRegsFromRawData(
-    unwindstack::ArchEnum arch,
-    void* raw_data) {
-  std::unique_ptr<unwindstack::Regs> ret;
+std::optional<CpuRegisters> CreateRegsFromRawData(CpuArch arch,
+                                                  const void* raw_data) {
+  CpuRegisters ret(arch);
   switch (arch) {
-    case unwindstack::ARCH_X86:
-      ret.reset(new unwindstack::RegsX86());
-      break;
-    case unwindstack::ARCH_X86_64:
-      ret.reset(new unwindstack::RegsX86_64());
-      break;
-    case unwindstack::ARCH_ARM:
-      ret.reset(new unwindstack::RegsArm());
-      break;
-    case unwindstack::ARCH_ARM64:
-      ret.reset(new unwindstack::RegsArm64());
-      break;
-    case unwindstack::ARCH_RISCV64:
-      ret.reset(new unwindstack::RegsRiscv64());
-      break;
-    case unwindstack::ARCH_UNKNOWN:
+    case CpuArch::ARM: {
+      const auto* src = static_cast<const uint32_t*>(raw_data);
+      for (size_t i = 0; i < ARM_REG_MAX; ++i)
+        ret.regs[i] = src[i];
+      return ret;
+    }
+    case CpuArch::X86: {
+      const auto* src = static_cast<const uint32_t*>(raw_data);
+      for (size_t i = 0; i < X86_REG_MAX; ++i)
+        ret.regs[i] = src[i];
+      return ret;
+    }
+    case CpuArch::ARM64:
+      memcpy(ret.regs, raw_data, ARM64_REG_MAX * sizeof(uint64_t));
+      return ret;
+    case CpuArch::X86_64:
+      memcpy(ret.regs, raw_data, X86_64_REG_MAX * sizeof(uint64_t));
+      return ret;
+    case CpuArch::RISCV64:
+      memcpy(ret.regs, raw_data, RISCV64_REG_MAX * sizeof(uint64_t));
+      return ret;
+    case CpuArch::UNKNOWN:
       break;
   }
-  if (ret)
-    ReadFromRawData(ret.get(), raw_data);
-  return ret;
+  return std::nullopt;
 }
 
 bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   AllocMetadata* alloc_metadata = msg->alloc_header;
-  std::unique_ptr<unwindstack::Regs> regs(CreateRegsFromRawData(
-      alloc_metadata->arch, alloc_metadata->register_data));
-  if (regs == nullptr) {
-    PERFETTO_DLOG("Unable to construct unwindstack::Regs");
+  std::optional<CpuRegisters> cpu_regs = CreateRegsFromRawData(
+      alloc_metadata->arch, alloc_metadata->register_data);
+  if (!cpu_regs) {
     unwindstack::FrameData frame_data{};
     frame_data.function_name = "ERROR READING REGISTERS";
 
@@ -134,6 +111,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     out->error = true;
     return false;
   }
+  std::unique_ptr<unwindstack::Regs> regs = ToLibUnwindstackRegs(*cpu_regs);
   uint8_t* stack = reinterpret_cast<uint8_t*>(msg->payload);
   std::shared_ptr<unwindstack::Memory> mems =
       std::make_shared<StackOverlayMemory>(metadata->fd_mem,
@@ -161,7 +139,8 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
       metadata->last_maps_reparse_time = base::GetWallTimeMs();
       // Regs got invalidated by libuwindstack's speculative jump.
       // Reset.
-      ReadFromRawData(regs.get(), alloc_metadata->register_data);
+      regs = ToLibUnwindstackRegs(*cpu_regs);
+      unwinder.SetRegs(regs.get());
       out->reparsed_map = true;
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
       unwinder.SetJitDebug(metadata->GetJitDebug(regs->Arch()));
