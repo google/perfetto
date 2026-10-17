@@ -50,6 +50,10 @@ struct TrackEventIncrementalState {
   protozero::HeapBuffered<protos::pbzero::InternedData>
       serialized_interned_data;
   uint64_t last_timestamp_ns = 0;
+  // The uuid of the track of this thread, which is also the default track of
+  // the sequence. ResetIncrementalState() sets it, so events don't need a
+  // gettid() syscall to compute it.
+  uint64_t thread_track_uuid = 0;
   bool was_cleared = true;
   base::FlatSet<uint64_t> seen_track_uuids;
   // Map from serialized representation of a dynamic category to its enabled
