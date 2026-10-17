@@ -60,6 +60,22 @@ void AppendProtoType(std::string& target, const std::string& value) {
   target += value;
 }
 
+// Appends "[index]" in place: this runs for every element of every array.
+void AppendArrayIndex(std::string& target, size_t index) {
+  base::StackString<24> part("[%zu]", index);
+  target.append(part.c_str(), part.len());
+}
+
+// True if ParseSimpleField emits |field| from the interned key ids alone,
+// without reading the key strings.
+bool IsPlainScalar(const FieldDescriptor& field) {
+  using FD = protos::pbzero::FieldDescriptorProto;
+  return !field.is_pid() && !field.is_tid() &&
+         !field.flags_enum_descriptor_idx() &&
+         field.type() != FD::TYPE_MESSAGE && field.type() != FD::TYPE_GROUP &&
+         field.type() >= FD::TYPE_DOUBLE && field.type() <= FD::TYPE_SINT64;
+}
+
 bool IsFieldAllowed(const FieldDescriptor& field,
                     const std::vector<uint32_t>* allowed_fields) {
   // If allowlist is not provided, reflect all fields. Otherwise, check if the
@@ -219,7 +235,55 @@ uint32_t ProtoToArgsParser::CreatePathChild(uint64_t key,
   StringPool::Id flat_key_id =
       string_pool_.InternString(base::StringView(key_prefix_.flat_key));
   uint32_t idx = AppendPathNode(key, flat_key_id, has_array);
+  if (!has_array) {
+    path_nodes_[idx].key_id =
+        string_pool_.InternString(base::StringView(key_prefix_.key));
+  }
   path_nodes_[idx].override = FindOverrideForKey();
+  return idx;
+}
+
+uint32_t ProtoToArgsParser::GetOrCreateElementNode(uint32_t parent,
+                                                   uint32_t field_node,
+                                                   uint32_t index) {
+  // Below a shared array the element's key still differs between visits.
+  if (index >= kMaxElementIndex || path_nodes_[parent].has_array) {
+    return field_node;
+  }
+  uint64_t key = PathEdgeKey(field_node, kElementEdge | index);
+  uint32_t* idx = path_index_.Find(key);
+  return idx ? *idx : CreateElementNode(key, field_node);
+}
+
+uint32_t ProtoToArgsParser::FindKeyedNode(uint32_t parent,
+                                          const FieldDescriptor& field,
+                                          uint32_t index) {
+  uint32_t* node = path_index_.Find(PathEdgeKey(parent, field.number()));
+  if (node && field.is_repeated()) {
+    node = index < kMaxElementIndex
+               ? path_index_.Find(PathEdgeKey(*node, kElementEdge | index))
+               : nullptr;
+  }
+  if (!node) {
+    return kNoPath;
+  }
+  const PathNode& n = path_nodes_[*node];
+  return n.has_array || n.override ? kNoPath : *node;
+}
+
+uint32_t ProtoToArgsParser::CreateElementNode(uint64_t key,
+                                              uint32_t field_node) {
+  if (path_nodes_.size() >= kMaxElementPathNodes) {
+    return field_node;
+  }
+  // Read the field's node before AppendPathNode, which may reallocate the
+  // arena.
+  ParsingOverrideForField* override = path_nodes_[field_node].override;
+  uint32_t idx = AppendPathNode(key, path_nodes_[field_node].flat_key_id,
+                                /*has_array=*/false);
+  path_nodes_[idx].key_id =
+      string_pool_.InternString(base::StringView(key_prefix_.key));
+  path_nodes_[idx].override = override;
   return idx;
 }
 
@@ -386,25 +450,25 @@ base::Status ProtoToArgsParser::RunWorkLoop(Delegate& delegate) {
 
 void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
                                            uint32_t descriptor_idx) {
-  using FD = protos::pbzero::FieldDescriptorProto;
   path_nodes_[node].flat_fields.Clear();
   path_nodes_[node].flat_generation = pool_.generation();
   path_nodes_[node].flat_eligible = false;
   const auto& descriptor = pool_.descriptors()[descriptor_idx];
   for (const auto& [id, field] : descriptor.fields()) {
-    if (field.is_repeated() || field.is_pid() || field.is_tid() ||
-        field.flags_enum_descriptor_idx() || field.type() == FD::TYPE_MESSAGE ||
-        field.type() == FD::TYPE_GROUP || field.type() < FD::TYPE_DOUBLE ||
-        field.type() > FD::TYPE_SINT64) {
+    if (field.is_repeated() || !IsPlainScalar(field)) {
       return;
     }
   }
   ScopedNestedKeyContext message_context(key_prefix_);
-  auto key = path_nodes_[node].flat_key_id;
+  auto flat_key = path_nodes_[node].flat_key_id;
+  if (flat_key != StringPool::Id::Null()) {
+    auto prefix = string_pool_.Get(flat_key);
+    key_prefix_.flat_key.assign(prefix.c_str(), prefix.size());
+  }
+  auto key = path_nodes_[node].key_id;
   if (key != StringPool::Id::Null()) {
     auto prefix = string_pool_.Get(key);
-    key_prefix_.flat_key.assign(prefix.c_str(), prefix.size());
-    key_prefix_.key = key_prefix_.flat_key;
+    key_prefix_.key.assign(prefix.c_str(), prefix.size());
   }
   for (const auto& [id, field] : descriptor.fields()) {
     ScopedNestedKeyContext field_context(key_prefix_);
@@ -416,7 +480,8 @@ void ProtoToArgsParser::PrepareFlatMessage(uint32_t node,
     }
     path_nodes_[child].resolved_done = false;
     path_nodes_[node].flat_fields.Insert(
-        id, {&field, child, path_nodes_[child].flat_key_id});
+        id, {&field, child, path_nodes_[child].flat_key_id,
+             path_nodes_[child].key_id});
   }
   path_nodes_[node].flat_eligible = true;
 }
@@ -447,19 +512,19 @@ bool ProtoToArgsParser::TryRunFlatMessage(uint32_t node,
       }
       continue;
     }
-    key_prefix_.flat_key_id = cached->key;
+    key_prefix_.flat_key_id = cached->flat_key;
     key_prefix_.key_id = cached->key;
     auto status =
         ParseSimpleField(*cached->descriptor, field, cached->node, delegate);
     PERFETTO_DCHECK(status.ok());
   }
   if (empty) {
-    auto key = path_nodes_[node].flat_key_id;
-    if (key == StringPool::Id::Null()) {
+    const PathNode& path = path_nodes_[node];
+    if (path.key_id == StringPool::Id::Null()) {
       InternCurrentKey();
       delegate.AddNull(key_prefix_.flat_key_id, key_prefix_.key_id);
     } else {
-      delegate.AddNull(key, key);
+      delegate.AddNull(path.flat_key_id, path.key_id);
     }
   }
   return true;
@@ -524,28 +589,47 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
                             item.path, delegate);
   }
 
+  uint32_t index = 0;
+  if (field_descriptor->is_repeated()) {
+    int& next = RepeatedFieldIndexFor(item.repeated_field_index, field.id());
+    index = static_cast<uint32_t>(next++);
+  }
+
+  // A scalar or flat message whose node already holds its key is emitted from
+  // the node, without building the key strings.
+  if (item.path != kNoPath) {
+    uint32_t keyed = FindKeyedNode(item.path, *field_descriptor, index);
+    if (keyed != kNoPath) {
+      const PathNode& n = path_nodes_[keyed];
+      if (IsPlainScalar(*field_descriptor)) {
+        key_prefix_.flat_key_id = n.flat_key_id;
+        key_prefix_.key_id = n.key_id;
+        return ParseSimpleField(*field_descriptor, field, keyed, delegate);
+      }
+      if (n.flat_eligible && n.resolved_idx && is_length_delimited &&
+          TryRunFlatMessage(keyed, *n.resolved_idx, field.as_bytes(),
+                            delegate)) {
+        return base::OkStatus();
+      }
+    }
+  }
+
   ScopedNestedKeyContext field_key_context(key_prefix_);
   AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
+  AppendProtoType(key_prefix_.key, field_descriptor->name());
   if (field_descriptor->is_repeated()) {
-    std::string prefix_part = field_descriptor->name();
-    int& index = RepeatedFieldIndexFor(item.repeated_field_index, field.id());
-    std::string number = std::to_string(index);
-    prefix_part.reserve(prefix_part.length() + number.length() + 2);
-    prefix_part.append("[");
-    prefix_part.append(number);
-    prefix_part.append("]");
-    index++;
-    AppendProtoType(key_prefix_.key, prefix_part);
-  } else {
-    AppendProtoType(key_prefix_.key, field_descriptor->name());
+    AppendArrayIndex(key_prefix_.key, index);
   }
 
   // kNoPath for dynamic DebugAnnotation subtrees, which intern keys directly.
-  uint32_t node =
-      item.path != kNoPath
-          ? GetOrCreatePathChild(item.path, field_descriptor->number(),
-                                 field_descriptor->is_repeated())
-          : kNoPath;
+  uint32_t node = kNoPath;
+  if (item.path != kNoPath) {
+    node = GetOrCreatePathChild(item.path, field_descriptor->number(),
+                                field_descriptor->is_repeated());
+    if (field_descriptor->is_repeated()) {
+      node = GetOrCreateElementNode(item.path, node, index);
+    }
+  }
 
   // kNoPath subtrees intern keys directly and look the override up by key.
   ParsingOverrideForField* override =
@@ -593,7 +677,7 @@ base::Status ProtoToArgsParser::HandleField(WorkItem& item,
     key_prefix_.key_id =
         n.has_array
             ? string_pool_.InternString(base::StringView(key_prefix_.key))
-            : n.flat_key_id;
+            : n.key_id;
   } else {
     InternCurrentKey();
   }
@@ -642,33 +726,45 @@ base::Status ProtoToArgsParser::ParsePackedField(
         field_descriptor.name().c_str());
   }
 
-  // All elements share the same flat_key, so the node is resolved at most once.
+  // All elements share the same flat_key and field name, so the node is
+  // resolved at most once and only the index is rewritten per element.
+  ScopedNestedKeyContext key_context(key_prefix_);
+  AppendProtoType(key_prefix_.flat_key, field_descriptor.name());
+  AppendProtoType(key_prefix_.key, field_descriptor.name());
+  const size_t key_size = key_prefix_.key.size();
+  const bool plain_scalar = IsPlainScalar(field_descriptor);
   uint32_t node = kNoPath;
   auto parse = [&](uint64_t new_value, PWT wire_type) {
     protozero::Field f;
     f.initialize(field.id(), static_cast<uint8_t>(wire_type), new_value, 0);
 
-    std::string prefix_part = field_descriptor.name();
-    int& index = RepeatedFieldIndexFor(repeated_field_index, field.id());
-    std::string number = std::to_string(index);
-    prefix_part.reserve(prefix_part.length() + number.length() + 2);
-    prefix_part.append("[");
-    prefix_part.append(number);
-    prefix_part.append("]");
-    index++;
+    int& next = RepeatedFieldIndexFor(repeated_field_index, field.id());
+    auto index = static_cast<uint32_t>(next++);
 
-    ScopedNestedKeyContext key_context(key_prefix_);
-    AppendProtoType(key_prefix_.flat_key, field_descriptor.name());
-    AppendProtoType(key_prefix_.key, prefix_part);
+    // An element whose node already holds its key needs no key string.
+    if (plain_scalar && parent_path != kNoPath) {
+      uint32_t keyed = FindKeyedNode(parent_path, field_descriptor, index);
+      if (keyed != kNoPath) {
+        key_prefix_.flat_key_id = path_nodes_[keyed].flat_key_id;
+        key_prefix_.key_id = path_nodes_[keyed].key_id;
+        return ParseSimpleField(field_descriptor, f, keyed, delegate);
+      }
+    }
+    key_prefix_.key.resize(key_size);
+    AppendArrayIndex(key_prefix_.key, index);
 
     if (parent_path != kNoPath) {
       if (node == kNoPath) {
         node = GetOrCreatePathChild(parent_path, field_descriptor.number(),
                                     /*is_repeated=*/true);
       }
-      key_prefix_.flat_key_id = path_nodes_[node].flat_key_id;
+      const PathNode& n =
+          path_nodes_[GetOrCreateElementNode(parent_path, node, index)];
+      key_prefix_.flat_key_id = n.flat_key_id;
       key_prefix_.key_id =
-          string_pool_.InternString(base::StringView(key_prefix_.key));
+          n.has_array
+              ? string_pool_.InternString(base::StringView(key_prefix_.key))
+              : n.key_id;
     } else {
       InternCurrentKey();
     }
@@ -819,7 +915,7 @@ base::Status ProtoToArgsParser::ParseSimpleField(
 ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterArray(
     size_t index) {
   ScopedNestedKeyContext context(key_prefix_);
-  key_prefix_.key += "[" + std::to_string(index) + "]";
+  AppendArrayIndex(key_prefix_.key, index);
   return context;
 }
 
