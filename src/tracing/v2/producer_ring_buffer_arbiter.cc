@@ -95,6 +95,18 @@ uint32_t ComputeDrainOccupancyThreshold(uint32_t num_chunks,
 }  // namespace
 
 // static
+bool ProducerRingBufferArbiter::ShouldUseTracingV2(
+    const DataSourceConfig& config) {
+  if (!config.supports_tracing_v2())
+    return false;
+  const uint32_t probability =
+      config.experimental_tracing_v2().use_v2_probability_percent();
+  if (probability >= 100)
+    return true;
+  return static_cast<uint64_t>(base::Uuidv4().lsb()) % 100 < probability;
+}
+
+// static
 base::StatusOr<std::unique_ptr<ProducerRingBufferArbiter>>
 ProducerRingBufferArbiter::Create(
     base::TaskRunner* task_runner,
