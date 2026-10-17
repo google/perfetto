@@ -185,6 +185,8 @@ class ZipReader {
     // Used to track the number of bytes fed into the decompressor when we don't
     // know the compressed size upfront.
     size_t decompressor_bytes_fed = 0;
+    // Uncompressed size of the streamed entry, to detect zip64 descriptors.
+    uint64_t decompressor_bytes_extracted = 0;
     // Held by unique_ptr, not value, as Decompressor isn't movable but
     // FileParseState needs to be in order to reset to a fresh instance for the
     // next file.
