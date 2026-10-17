@@ -724,8 +724,8 @@ perfetto_cc_library(
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
-               ":src_trace_processor_util_cold_sort",
                ":src_trace_processor_util_simple_json_parser",
+               ":src_trace_processor_util_sort",
            ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
@@ -1069,9 +1069,9 @@ perfetto_cc_library(
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
-               ":src_trace_processor_util_cold_sort",
                ":src_trace_processor_util_deobfuscation_deobfuscator",
                ":src_trace_processor_util_simple_json_parser",
+               ":src_trace_processor_util_sort",
                ":src_trace_processor_util_symbolizer_symbolize_database",
                ":src_trace_processor_util_symbolizer_symbolizer",
                ":src_traceconv_gen_cc_android_extension_descriptor",
@@ -2700,8 +2700,6 @@ perfetto_filegroup(
         "src/trace_processor/core/util/range.h",
         "src/trace_processor/core/util/row_layout_sort.cc",
         "src/trace_processor/core/util/slab.h",
-        "src/trace_processor/core/util/sort.cc",
-        "src/trace_processor/core/util/sort.h",
         "src/trace_processor/core/util/span.h",
     ],
 )
@@ -6155,7 +6153,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_track_event_zero",
         ":protos_perfetto_trace_translation_zero",
         ":src_trace_processor_util_build_id",
-        ":src_trace_processor_util_cold_sort",
+        ":src_trace_processor_util_sort",
         ":src_trace_processor_util_symbolizer_symbolizer",
     ],
     linkstatic = True,
@@ -6250,25 +6248,6 @@ perfetto_filegroup(
         "src/trace_processor/util/clock_synchronizer.cc",
         "src/trace_processor/util/clock_synchronizer.h",
     ],
-)
-
-# GN target: //src/trace_processor/util:cold_sort
-perfetto_cc_library(
-    name = "src_trace_processor_util_cold_sort",
-    srcs = [
-        "src/trace_processor/util/cold_sort.cc",
-    ],
-    hdrs = [
-        ":include_perfetto_base_base",
-        ":include_perfetto_ext_base_base",
-        ":include_perfetto_public_abi_base",
-        ":include_perfetto_public_base",
-        "src/trace_processor/util/cold_sort.h",
-    ],
-    deps = [
-        ":src_base_base",
-    ],
-    linkstatic = True,
 )
 
 # GN target: //src/trace_processor/util:compressor
@@ -6467,6 +6446,22 @@ perfetto_filegroup(
         "src/trace_processor/util/simple_json_serializer.cc",
         "src/trace_processor/util/simple_json_serializer.h",
     ],
+)
+
+# GN target: //src/trace_processor/util:sort
+perfetto_cc_library(
+    name = "src_trace_processor_util_sort",
+    srcs = [
+        "src/trace_processor/util/sort.cc",
+    ],
+    hdrs = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
+        "src/trace_processor/util/sort.h",
+    ],
+    linkstatic = True,
 )
 
 # GN target: //src/trace_processor/util:sql_argument
@@ -12246,8 +12241,8 @@ perfetto_cc_library(
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
-               ":src_trace_processor_util_cold_sort",
                ":src_trace_processor_util_simple_json_parser",
+               ":src_trace_processor_util_sort",
            ] + PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
@@ -12593,9 +12588,9 @@ perfetto_cc_binary(
                ":src_trace_processor_plugins_wattson_gen_tpu_curves",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_trace_processor_util_build_id",
-               ":src_trace_processor_util_cold_sort",
                ":src_trace_processor_util_deobfuscation_deobfuscator",
                ":src_trace_processor_util_simple_json_parser",
+               ":src_trace_processor_util_sort",
                ":src_trace_processor_util_symbolizer_symbolize_database",
                ":src_trace_processor_util_symbolizer_symbolizer",
                ":src_traceconv_gen_cc_android_extension_descriptor",

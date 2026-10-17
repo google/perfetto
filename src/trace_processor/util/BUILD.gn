@@ -249,16 +249,16 @@ source_set("zip_reader") {
   }
 }
 
-perfetto_component("cold_sort") {
+# The sorts trace processor shares, so each caller adds no sorting code.
+perfetto_component("sort") {
   sources = [
-    "cold_sort.cc",
-    "cold_sort.h",
+    "sort.cc",
+    "sort.h",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base",
-    "../../base",
   ]
 }
 
@@ -460,8 +460,8 @@ source_set("trace_type") {
     "trace_type.h",
   ]
   deps = [
-    ":cold_sort",
     ":decompressor",
+    ":sort",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../../../protos/perfetto/trace:non_minimal_zero",
@@ -506,7 +506,6 @@ source_set("flatbuffer_reader") {
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
-    "cold_sort_unittest.cc",
     "concurrency_stress_test_util_unittest.cc",
     "descriptors_unittest.cc",
     "flatbuffer_reader_unittest.cc",
@@ -521,6 +520,8 @@ source_set("unittests") {
     "protozero_to_text_unittests.cc",
     "simple_json_parser_unittest.cc",
     "simple_json_serializer_unittest.cc",
+    "sort_by_key_unittest.cc",
+    "sort_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "tar_writer_unittest.cc",
@@ -531,7 +532,6 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":bump_allocator",
-    ":cold_sort",
     ":concurrency_stress_test_util",
     ":decompressor",
     ":descriptors",
@@ -548,6 +548,7 @@ source_set("unittests") {
     ":protozero_to_text",
     ":simple_json_parser",
     ":simple_json_serializer",
+    ":sort",
     ":sql_argument",
     ":tar_writer",
     ":trace_blob_view_reader",
@@ -597,6 +598,7 @@ if (enable_perfetto_benchmarks) {
       ":descriptors",
       ":glob",
       ":proto_to_args_parser",
+      ":sort",
       "..:gen_cc_test_messages_descriptor",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
@@ -609,6 +611,8 @@ if (enable_perfetto_benchmarks) {
     sources = [
       "glob_benchmark.cc",
       "proto_to_args_parser_benchmark.cc",
+      "sort_benchmark.cc",
+      "sort_by_key_benchmark.cc",
     ]
   }
 }
