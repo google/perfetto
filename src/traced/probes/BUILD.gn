@@ -116,6 +116,7 @@ perfetto_unittest_source_set("unittests") {
     "android_game_intervention_list:unittests",
     "android_log:unittests",
     "android_system_property:unittests",
+    "cgroup:unittests",
     "common:unittests",
     "filesystem:unittests",
     "ftrace:unittests",
