@@ -22,7 +22,7 @@ package perfetto.protos;
 //
 // NOTE: Input traces can only be taken on debuggable (userdebug/eng) builds!
 //
-// Next ID: 6
+// Next ID: 8
 message AndroidInputEventConfig {
   // Trace modes are tracing presets that are included in the system.
   enum TraceMode {
@@ -135,4 +135,12 @@ message AndroidInputEventConfig {
   // Trace evdev events received from the kernel, including device additions and
   // removals.
   optional bool trace_evdev_events = 5;
+
+  // Trace hardware states sent to the Gestures library.
+  optional bool trace_libgestures_hardware_states = 6;
+
+  // Trace all Gestures library events other than input hardware states (i.e.
+  // device additions, detected gestures, property value changes, and timer
+  // deadlines).
+  optional bool trace_libgestures_events = 7;
 }
