@@ -22,8 +22,12 @@ import type {
   DataSourceRows,
   FlatModel,
 } from './data_source';
-import type {Filter} from './model';
+import type {Filter, QuickFilter} from './model';
 import {splitPath} from './datagrid_schema';
+import {
+  isQuickFilterActive,
+  valueMatchesQuickFilter,
+} from './quick_filter_utils';
 
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];
@@ -38,6 +42,7 @@ export class InMemoryDataSource implements DataSource {
   // Cached state for diffing
   private oldColumns?: readonly FlatColumn[];
   private oldFilters: ReadonlyArray<Filter> = [];
+  private oldQuickFilter?: QuickFilter;
   private oldSort?: FlatModel['sort'];
 
   constructor(data: ReadonlyArray<Row>) {
@@ -65,21 +70,27 @@ export class InMemoryDataSource implements DataSource {
       };
     });
     const filters = model.filters ?? [];
+    const quickFilter = isQuickFilterActive(model.quickFilter)
+      ? model.quickFilter
+      : undefined;
     const sort = model.sort;
 
     if (
       !this.areColumnsEqual(columns, this.oldColumns) ||
       !this.areFiltersEqual(filters, this.oldFilters) ||
+      !this.isQuickFilterEqual(quickFilter, this.oldQuickFilter) ||
       !this.isSortEqual(sort, this.oldSort)
     ) {
       this.oldColumns = columns;
       this.oldFilters = filters;
+      this.oldQuickFilter = quickFilter;
       this.oldSort = sort;
 
       // Clear aggregate summaries cache
       this.aggregateSummariesCache = {};
 
       let result = this.applyFilters(this.data, filters);
+      result = this.applyQuickFilter(result, quickFilter);
 
       // Project columns to use aliases as keys (for consistency with SQL data source)
       result = this.projectColumns(result, columns);
@@ -228,6 +239,19 @@ export class InMemoryDataSource implements DataSource {
   }
 
   /**
+   * Compare quick filters for equality.
+   */
+  private isQuickFilterEqual(a?: QuickFilter, b?: QuickFilter): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return (
+      a.text === b.text &&
+      a.fields.length === b.fields.length &&
+      a.fields.every((field, i) => field === b.fields[i])
+    );
+  }
+
+  /**
    * Compare sort configurations for equality.
    */
   private isSortEqual(a: FlatModel['sort'], b: FlatModel['sort']): boolean {
@@ -331,6 +355,26 @@ export class InMemoryDataSource implements DataSource {
         }
       });
     });
+  }
+
+  // Keep only rows where at least one of the quick filter fields matches.
+  private applyQuickFilter(
+    data: ReadonlyArray<Row>,
+    quickFilter: QuickFilter | undefined,
+  ): ReadonlyArray<Row> {
+    if (quickFilter === undefined) {
+      return data;
+    }
+    // Index rows the same way as columns (see useRows). Missing fields are
+    // treated as null so they never match.
+    const fields = quickFilter.fields.map((field) =>
+      splitPath(field).join('.'),
+    );
+    return data.filter((row) =>
+      fields.some((field) =>
+        valueMatchesQuickFilter(row[field] ?? null, quickFilter.text),
+      ),
+    );
   }
 
   private applySorting(
