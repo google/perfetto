@@ -24,8 +24,8 @@
 //
 // Surface:
 //   ATTACH 'x.pftrace' AS t (TYPE perfetto);       read-only catalog over TP
-//   FROM t.slice                                   projection pushdown into
-//                                                  TP
+//   FROM t.slice WHERE ...                         projection + filter
+//                                                  pushdown into TP
 //   FROM perfetto_query(source, sql)               PerfettoSQL executed
 //                                                  entirely inside TP; also
 //                                                  the bulk entry point
@@ -37,6 +37,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -53,6 +54,11 @@
 #include "duckdb/parser/parsed_data/attach_info.hpp"
 #include "duckdb/parser/parsed_data/create_schema_info.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
+#include "duckdb/planner/expression/bound_columnref_expression.hpp"
+#include "duckdb/planner/expression/bound_comparison_expression.hpp"
+#include "duckdb/planner/expression/bound_constant_expression.hpp"
+#include "duckdb/planner/expression/bound_operator_expression.hpp"
+#include "duckdb/planner/operator/logical_get.hpp"
 #include "duckdb/storage/database_size.hpp"
 #include "duckdb/storage/storage_extension.hpp"
 #include "duckdb/storage/table_storage_info.hpp"
@@ -95,6 +101,17 @@ LogicalType ToLogicalType(ColumnType t) {
 
 std::string QuoteIdent(const std::string& s) {
   return "\"" + StringUtil::Replace(s, "\"", "\"\"") + "\"";
+}
+
+std::string QuoteLiteral(const std::string& s) {
+  return "'" + StringUtil::Replace(s, "'", "''") + "'";
+}
+
+std::string JoinAnd(const std::vector<std::string>& preds) {
+  std::string res;
+  for (const std::string& p : preds)
+    res += (res.empty() ? "" : " AND ") + p;
+  return res;
 }
 
 // Writes TP cells into a DuckDB output chunk.
@@ -199,17 +216,20 @@ struct ScanBindData : public TableFunctionData {
   std::shared_ptr<Trace> trace;
   std::string table;
   std::vector<ColumnInfo> columns;
+  // PerfettoSQL predicates pushed down from DuckDB, ANDed together.
+  std::vector<std::string> where;
 
   unique_ptr<FunctionData> Copy() const override {
     auto res = make_uniq<ScanBindData>();
     res->trace = trace;
     res->table = table;
     res->columns = columns;
+    res->where = where;
     return std::move(res);
   }
   bool Equals(const FunctionData& other) const override {
     auto& o = other.Cast<ScanBindData>();
-    return trace == o.trace && table == o.table;
+    return trace == o.trace && table == o.table && where == o.where;
   }
 };
 
@@ -542,6 +562,141 @@ struct ScanGlobalState : public GlobalTableFunctionState {
   std::vector<ColumnType> types;
 };
 
+// Translates a DuckDB filter on a perfetto table into a PerfettoSQL predicate.
+// Only simple column-vs-constant forms are translated; everything else stays
+// in DuckDB, so this never changes query semantics.
+std::optional<std::string> TranslateFilter(const LogicalGet& get,
+                                           const ScanBindData& bind,
+                                           const Expression& expr) {
+  auto column = [&](const Expression& e)
+      -> std::optional<std::pair<std::string, ColumnType>> {
+    if (e.GetExpressionClass() != ExpressionClass::BOUND_COLUMN_REF)
+      return std::nullopt;
+    auto& ref = e.Cast<BoundColumnRefExpression>();
+    if (ref.binding.table_index != get.table_index)
+      return std::nullopt;
+    const auto& ids = get.GetColumnIds();
+    if (ref.binding.column_index >= ids.size())
+      return std::nullopt;
+    column_t col = ids[ref.binding.column_index].GetPrimaryIndex();
+    if (col >= bind.columns.size())
+      return std::nullopt;
+    return std::make_pair(QuoteIdent(bind.columns[col].name),
+                          bind.columns[col].type);
+  };
+  auto literal = [](const Expression& e,
+                    ColumnType type) -> std::optional<std::string> {
+    if (e.GetExpressionClass() != ExpressionClass::BOUND_CONSTANT)
+      return std::nullopt;
+    const Value& v = e.Cast<BoundConstantExpression>().value;
+    if (v.IsNull())
+      return std::nullopt;
+    switch (type) {
+      case ColumnType::kInt64:
+        if (!v.type().IsIntegral())
+          return std::nullopt;
+        return v.ToString();
+      case ColumnType::kDouble:
+        if (v.type().id() != LogicalTypeId::DOUBLE)
+          return std::nullopt;
+        return StringUtil::Format("%.17g", v.GetValue<double>());
+      case ColumnType::kString:
+        if (v.type().id() != LogicalTypeId::VARCHAR)
+          return std::nullopt;
+        return QuoteLiteral(StringValue::Get(v));
+      case ColumnType::kBytes:
+        return std::nullopt;
+    }
+    return std::nullopt;
+  };
+
+  switch (expr.GetExpressionClass()) {
+    case ExpressionClass::BOUND_COMPARISON: {
+      auto& cmp = expr.Cast<BoundComparisonExpression>();
+      ExpressionType op = cmp.GetExpressionType();
+      const Expression* col_side = cmp.left.get();
+      const Expression* const_side = cmp.right.get();
+      if (!column(*col_side)) {
+        std::swap(col_side, const_side);
+        op = FlipComparisonExpression(op);
+      }
+      auto col = column(*col_side);
+      if (!col)
+        return std::nullopt;
+      auto lit = literal(*const_side, col->second);
+      if (!lit)
+        return std::nullopt;
+      const char* sql_op = nullptr;
+      switch (op) {
+        case ExpressionType::COMPARE_EQUAL:
+          sql_op = "=";
+          break;
+        case ExpressionType::COMPARE_NOTEQUAL:
+          sql_op = "!=";
+          break;
+        case ExpressionType::COMPARE_LESSTHAN:
+          sql_op = "<";
+          break;
+        case ExpressionType::COMPARE_GREATERTHAN:
+          sql_op = ">";
+          break;
+        case ExpressionType::COMPARE_LESSTHANOREQUALTO:
+          sql_op = "<=";
+          break;
+        case ExpressionType::COMPARE_GREATERTHANOREQUALTO:
+          sql_op = ">=";
+          break;
+        default:
+          return std::nullopt;
+      }
+      return col->first + " " + sql_op + " " + *lit;
+    }
+    case ExpressionClass::BOUND_OPERATOR: {
+      auto& op = expr.Cast<BoundOperatorExpression>();
+      if (op.children.empty())
+        return std::nullopt;
+      auto col = column(*op.children[0]);
+      if (!col)
+        return std::nullopt;
+      switch (op.GetExpressionType()) {
+        case ExpressionType::OPERATOR_IS_NULL:
+          return col->first + " IS NULL";
+        case ExpressionType::OPERATOR_IS_NOT_NULL:
+          return col->first + " IS NOT NULL";
+        case ExpressionType::COMPARE_IN: {
+          std::string list;
+          for (size_t i = 1; i < op.children.size(); ++i) {
+            auto lit = literal(*op.children[i], col->second);
+            if (!lit)
+              return std::nullopt;
+            list += (i > 1 ? ", " : "") + *lit;
+          }
+          return col->first + " IN (" + list + ")";
+        }
+        default:
+          return std::nullopt;
+      }
+    }
+    default:
+      return std::nullopt;
+  }
+}
+
+void ScanPushdownComplexFilter(ClientContext&,
+                               LogicalGet& get,
+                               FunctionData* bind_data,
+                               vector<unique_ptr<Expression>>& filters) {
+  auto& bind = bind_data->Cast<ScanBindData>();
+  for (idx_t i = 0; i < filters.size();) {
+    if (auto sql = TranslateFilter(get, bind, *filters[i])) {
+      bind.where.push_back(*sql);
+      filters.erase_at(i);
+    } else {
+      ++i;
+    }
+  }
+}
+
 unique_ptr<GlobalTableFunctionState> ScanInitGlobal(
     ClientContext&,
     TableFunctionInitInput& input) {
@@ -564,6 +719,8 @@ unique_ptr<GlobalTableFunctionState> ScanInitGlobal(
   }
   std::string sql = "SELECT " + (select.empty() ? std::string("1") : select) +
                     " FROM " + QuoteIdent(bind.table);
+  if (!bind.where.empty())
+    sql += " WHERE " + JoinAnd(bind.where);
   state->cursor = OpenCursorOrThrow(bind.trace, sql);
   return std::move(state);
 }
@@ -586,12 +743,15 @@ InsertionOrderPreservingMap<string> ScanToString(
   InsertionOrderPreservingMap<string> result;
   auto& bind = input.bind_data->Cast<ScanBindData>();
   result["Table"] = bind.table;
+  if (!bind.where.empty())
+    result["PerfettoSQL Filters"] = JoinAnd(bind.where);
   return result;
 }
 
 TableFunction PerfettoScanFunction() {
   TableFunction f("perfetto_scan", {}, ScanFunction, nullptr, ScanInitGlobal);
   f.projection_pushdown = true;
+  f.pushdown_complex_filter = ScanPushdownComplexFilter;
   f.to_string = ScanToString;
   return f;
 }
