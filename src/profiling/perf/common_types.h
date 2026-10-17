@@ -20,13 +20,11 @@
 #include <optional>
 #include <vector>
 
+#include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/unwind_types.h"
+
 #include <linux/perf_event.h>
 #include <stdint.h>
-
-#include <unwindstack/Error.h>
-#include <unwindstack/Unwinder.h>  // for FrameData
-
-#include "src/profiling/unwind/cpu_registers.h"
 
 namespace perfetto {
 namespace profiling {
@@ -86,9 +84,9 @@ struct CompletedSample {
   CompletedSample& operator=(CompletedSample&&) noexcept = default;
 
   CommonSampleData common;
-  std::vector<unwindstack::FrameData> frames;
+  std::vector<FrameData> frames;
   std::vector<std::string> build_ids;
-  unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
+  UnwindErrorCode unwind_error = UnwindErrorCode::kNone;
 };
 
 }  // namespace profiling

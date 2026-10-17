@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_COMMON_UNWIND_SUPPORT_H_
-#define SRC_PROFILING_COMMON_UNWIND_SUPPORT_H_
+#ifndef SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_CONTEXT_H_
+#define SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_CONTEXT_H_
 
-// defines PERFETTO_BUILDFLAG
-#include "perfetto/base/build_config.h"
-
-#include <memory>
-#include <string>
-
-#include <unwindstack/Maps.h>
-#include <unwindstack/Unwinder.h>
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <unwindstack/DexFiles.h>
 #include <unwindstack/JitDebug.h>
-#endif
+#include <unwindstack/Maps.h>
+#include <unwindstack/Memory.h>
+#include <unwindstack/Unwinder.h>
+#include <cstdint>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/unwind/cpu_registers.h"
+#include "src/profiling/unwind/unwind_context.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -82,7 +76,7 @@ class FDMemory : public unwindstack::Memory {
 
 // Overlays size bytes pointed to by stack for addresses in [sp, sp + size).
 // Addresses outside of that range are read from mem_fd, which should be an fd
-// that opened /proc/[pid]/mem.
+// that opened /proc/$pid/mem.
 class StackOverlayMemory : public unwindstack::Memory {
  public:
   StackOverlayMemory(std::shared_ptr<unwindstack::Memory> mem,
@@ -115,22 +109,34 @@ struct UnwindingMetadata {
   unwindstack::DexFiles* GetDexFiles(unwindstack::ArchEnum arch);
 #endif
 
-  std::string GetBuildId(const unwindstack::FrameData& frame);
-
   FDMaps fd_maps;
   // The API of libunwindstack expects shared_ptr for Memory.
   std::shared_ptr<unwindstack::Memory> fd_mem;
-  uint64_t reparses = 0;
-  base::TimeMillis last_maps_reparse_time{0};
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   std::unique_ptr<unwindstack::JitDebug> jit_debug;
   std::unique_ptr<unwindstack::DexFiles> dex_files;
 #endif
 };
 
-std::string StringifyLibUnwindstackError(unwindstack::ErrorCode);
+class LibunwindstackContext : public UnwindContext {
+ public:
+  LibunwindstackContext(base::ScopedFile maps_fd, base::ScopedFile mem_fd);
+  ~LibunwindstackContext() override;
+
+  void ReparseMaps() override;
+  void ResetMaps() override;
+
+  FrameData BuildFrameFromPc(uint64_t pc, bool resolve_names = true) override;
+
+  UnwindResult Unwind(const UnwindInputSample& /* sample */,
+                      const UnwindOptions& /*options*/ = {}) override;
+  // UnwindingMetadata
+
+ private:
+  UnwindingMetadata metadata_;
+};
 
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_COMMON_UNWIND_SUPPORT_H_
+#endif  // SRC_PROFILING_UNWIND_LIBUNWINDSTACK_LIBUNWINDSTACK_CONTEXT_H_

@@ -20,5 +20,8 @@ source_set("unwind_core") {
   sources = [
     "cpu_registers.h",
     "get_asm_regs.h",
+    "unwind_context.cc",
+    "unwind_context.h",
+    "unwind_types.h",
   ]
 }

@@ -20,7 +20,7 @@
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "src/profiling/common/interner.h"
-#include "src/profiling/common/unwind_support.h"
+#include "src/profiling/unwind/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -45,17 +45,17 @@ std::vector<Interned<Frame>> GlobalCallstackTrie::BuildInverseCallstack(
 }
 
 GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
-    const std::vector<unwindstack::FrameData>& callstack,
+    const std::vector<FrameData>& callstack,
     const std::vector<std::string>& build_ids) {
   PERFETTO_CHECK(callstack.size() == build_ids.size());
   Node* node = &root_;
-  // libunwindstack gives the frames top-first, but we want to bookkeep and
+  // unwinders give the frames top-first, but we want to bookkeep and
   // emit as bottom first.
   auto callstack_it = callstack.crbegin();
   auto build_id_it = build_ids.crbegin();
   for (; callstack_it != callstack.crend() && build_id_it != build_ids.crend();
        ++callstack_it, ++build_id_it) {
-    const unwindstack::FrameData& loc = *callstack_it;
+    const FrameData& loc = *callstack_it;
     const std::string& build_id = *build_id_it;
     node = GetOrCreateChild(node, InternCodeLocation(loc, build_id));
   }
@@ -65,7 +65,7 @@ GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
 GlobalCallstackTrie::Node* GlobalCallstackTrie::CreateCallsite(
     const std::vector<Interned<Frame>>& callstack) {
   Node* node = &root_;
-  // libunwindstack gives the frames top-first, but we want to bookkeep and
+  // Unwinders give the frames top-first, but we want to bookkeep and
   // emit as bottom first.
   for (auto it = callstack.crbegin(); it != callstack.crend(); ++it) {
     const Interned<Frame>& loc = *it;
@@ -97,16 +97,16 @@ void GlobalCallstackTrie::DecrementNode(Node* node) {
 }
 
 Interned<Frame> GlobalCallstackTrie::InternCodeLocation(
-    const unwindstack::FrameData& loc,
+    const FrameData& loc,
     const std::string& build_id) {
   Mapping map(string_interner_.Intern(build_id));
-  if (loc.map_info != nullptr) {
-    map.exact_offset = loc.map_info->offset();
-    map.start_offset = loc.map_info->elf_start_offset();
-    map.start = loc.map_info->start();
-    map.end = loc.map_info->end();
-    map.load_bias = loc.map_info->GetLoadBias();
-    base::StringSplitter sp(loc.map_info->GetFullName(), '/');
+  if (loc.map_info.has_value()) {
+    map.exact_offset = loc.map_info->map_offset;
+    map.start_offset = loc.map_info->map_start_offset;
+    map.start = loc.map_info->map_start;
+    map.end = loc.map_info->map_end;
+    map.load_bias = loc.map_info->map_load_bias;
+    base::StringSplitter sp(loc.map_info->map_name, '/');
     while (sp.Next())
       map.path_components.emplace_back(string_interner_.Intern(sp.cur_token()));
   }
