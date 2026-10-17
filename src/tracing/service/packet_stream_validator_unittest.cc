@@ -296,5 +296,47 @@ TEST(PacketStreamValidatorTest, TrailingGarbage) {
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
 }
 
+// The validator reports the last value of previous_packet_dropped, as a
+// protobuf parser does, even if the field is split over two slices.
+TEST(PacketStreamValidatorTest, ReportsPreviousPacketDropped) {
+  protos::gen::TracePacket proto;
+  proto.mutable_for_testing()->set_str("string field");
+  std::string no_loss = proto.SerializeAsString();
+  proto.set_previous_packet_dropped(257);
+  std::string with_loss = proto.SerializeAsString();
+  // The service appends its own field to a packet that already has one.
+  protos::gen::TracePacket appended;
+  appended.set_previous_packet_dropped(3);
+  std::string with_two_values = with_loss + appended.SerializeAsString();
+
+  uint32_t loss = 123;
+  Slices seq;
+  seq.emplace_back(&no_loss[0], no_loss.size());
+  EXPECT_TRUE(PacketStreamValidator::Validate(seq, &loss));
+  EXPECT_EQ(loss, 0u);
+
+  for (size_t i = 0; i <= with_loss.size(); i++) {
+    seq.clear();
+    seq.emplace_back(&with_loss[0], i);
+    seq.emplace_back(&with_loss[i], with_loss.size() - i);
+    loss = 0;
+    EXPECT_TRUE(PacketStreamValidator::Validate(seq, &loss));
+    EXPECT_EQ(loss, 257u);
+  }
+
+  seq.clear();
+  seq.emplace_back(&with_two_values[0], with_two_values.size());
+  EXPECT_TRUE(PacketStreamValidator::Validate(seq, &loss));
+  EXPECT_EQ(loss, 3u);
+
+  // An invalid packet leaves the output unchanged.
+  with_loss.pop_back();
+  seq.clear();
+  seq.emplace_back(&with_loss[0], with_loss.size());
+  loss = 123;
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq, &loss));
+  EXPECT_EQ(loss, 123u);
+}
+
 }  // namespace
 }  // namespace perfetto

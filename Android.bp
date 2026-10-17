@@ -712,6 +712,7 @@ cc_library_shared {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_v2_abi",
         ":perfetto_src_tracing_v2_v2",
     ],
@@ -992,6 +993,7 @@ cc_library {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_v2_abi",
         ":perfetto_src_tracing_v2_v2",
@@ -1230,6 +1232,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_v2_abi",
         ":perfetto_src_tracing_v2_v2",
@@ -2093,6 +2096,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_v2_abi",
         ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_test_helper",
@@ -2484,6 +2488,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_v2_abi",
         ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_test_helper",
@@ -3344,6 +3349,7 @@ cc_test {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_api_test_support",
         ":perfetto_src_tracing_test_client_api_integrationtests",
@@ -23315,6 +23321,7 @@ filegroup {
         "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v2.cc",
+        "src/tracing/service/trace_buffer_v3.cc",
         "src/tracing/service/tracing_service_endpoints_impl.cc",
         "src/tracing/service/tracing_service_impl.cc",
         "src/tracing/service/tracing_service_session.cc",
@@ -23332,7 +23339,9 @@ filegroup {
         "src/tracing/service/service_ring_buffer_drainer_unittest.cc",
         "src/tracing/service/trace_buffer_v1_unittest.cc",
         "src/tracing/service/trace_buffer_v2_unittest.cc",
+        "src/tracing/service/trace_buffer_v3_unittest.cc",
         "src/tracing/service/tracing_service_impl_unittest.cc",
+        "src/tracing/service/zstd_frame_codec_unittest.cc",
     ],
 }
 
@@ -23349,6 +23358,14 @@ filegroup {
     name: "perfetto_src_tracing_service_zstd_compressor",
     srcs: [
         "src/tracing/service/zstd_compressor.cc",
+    ],
+}
+
+// GN: //src/tracing/service:zstd_frame_codec
+filegroup {
+    name: "perfetto_src_tracing_service_zstd_frame_codec",
+    srcs: [
+        "src/tracing/service/zstd_frame_codec.cc",
     ],
 }
 
@@ -24890,6 +24907,7 @@ cc_test {
         ":perfetto_src_tracing_service_unittests",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_unittests",
@@ -25354,6 +25372,7 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_v2_abi",
         ":perfetto_src_tracing_v2_v2",
         ":perfetto_test_test_helper",
@@ -26969,6 +26988,7 @@ cc_binary {
         ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_service_zstd_compressor",
+        ":perfetto_src_tracing_service_zstd_frame_codec",
         ":perfetto_src_tracing_v2_abi",
         ":perfetto_src_tracing_v2_v2",
         "src/profiling/perf/main.cc",

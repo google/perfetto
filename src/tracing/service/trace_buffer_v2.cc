@@ -271,7 +271,7 @@ void ChunkSeqIterator::EraseCurrentChunk() {
   // to keep in sync the SequenceState.chunks with our list_idx_.
   PERFETTO_CHECK(list_idx_ == 0 && *chunk_list.begin() == chunk_off);
   chunk_list.pop_front();
-  if (chunk_list.empty()) {
+  if (chunk_list.empty() && !seq_->protected_from_pruning) {
     seq_->age_for_gc = ++buf_->seq_age_;
     ++buf_->empty_sequences_;
   }
@@ -737,10 +737,25 @@ bool TraceBufferV2::ReadNextTracePacket(
   }  // for(;;)
 }
 
+bool TraceBufferV2::returns_validated_packets() const {
+  return false;
+}
+
+uint64_t TraceBufferV2::packets_dropped_by_validation() const {
+  return 0;
+}
+
 void TraceBufferV2::MaybeCompact() {
-  TRACE_BUFFER_V2_DLOG("MaybeCompact(), wr_=%zu", wr_);
+  if (overwrite_policy_ == kOverwrite)
+    CompactIfWritable();
+  else
+    chunk_seq_reader_.reset();
+}
+
+void TraceBufferV2::CompactIfWritable() {
+  TRACE_BUFFER_V2_DLOG("CompactIfWritable(), wr_=%zu", wr_);
   chunk_seq_reader_.reset();
-  if (overwrite_policy_ != kOverwrite || read_only_) {
+  if (read_only_ || discard_writes_) {
     return;
   }
 
@@ -1161,7 +1176,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   }
   chunk_list.InsertAfter(insert_pos, wr_);
   has_data_ = true;
-  if (chunk_list.size() == 1 && !seq_is_new) {
+  if (chunk_list.size() == 1 && !seq_is_new && !seq.protected_from_pruning) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
   }
@@ -1309,7 +1324,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   bool was_empty = chunk_list.empty();
   chunk_list.emplace_back(wr_);
   has_data_ = true;
-  if (was_empty) {
+  if (was_empty && !seq.protected_from_pruning) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
   }
@@ -1341,6 +1356,8 @@ void TraceBufferV2::RecordAbiViolation() {
   PERFETTO_CHECK(!read_only_);
   stats_.set_abi_violations(stats_.abi_violations() + 1);
 }
+
+void TraceBufferV2::EndWriteBatch() {}
 
 TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off, size_t size) {
   DcheckIsAlignedAndWithinBounds(off);
@@ -1562,7 +1579,7 @@ void TraceBufferV2::DeleteStaleEmptySequences() {
   std::vector<SeqIterator> empty_seqs;
   empty_seqs.reserve(sequences_.size());
   for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
-    if (it->second.chunks.empty())
+    if (it->second.chunks.empty() && !it->second.protected_from_pruning)
       empty_seqs.emplace_back(it);
   }
   static_assert(kEmptySequencesGcTreshold >= kKeepLastEmptySeq);
@@ -1604,6 +1621,37 @@ TraceBufferProtoVms* TraceBufferV2::protovms() {
   return &protovms_;
 }
 
+void TraceBufferV2::ProtectSequencePruning(ProducerAndWriterID seq_key) {
+  auto seq_it = sequences_.find(seq_key);
+  PERFETTO_CHECK(seq_it != sequences_.end());
+  SequenceState& seq = seq_it->second;
+  PERFETTO_DCHECK(!seq.protected_from_pruning);
+  if (seq.chunks.empty()) {
+    PERFETTO_DCHECK(empty_sequences_ > 0);
+    --empty_sequences_;
+  }
+  seq.protected_from_pruning = true;
+}
+
+void TraceBufferV2::AllowSequencePruning(ProducerAndWriterID seq_key) {
+  auto seq_it = sequences_.find(seq_key);
+  PERFETTO_CHECK(seq_it != sequences_.end());
+  SequenceState& seq = seq_it->second;
+  PERFETTO_DCHECK(seq.protected_from_pruning);
+  seq.protected_from_pruning = false;
+  if (seq.chunks.empty()) {
+    seq.age_for_gc = ++seq_age_;
+    ++empty_sequences_;
+  }
+}
+
+void TraceBufferV2::AddSequenceDataLoss(ProducerAndWriterID seq_key,
+                                        uint32_t reasons) {
+  auto seq_it = sequences_.find(seq_key);
+  if (seq_it != sequences_.end())
+    internal::AddSeqDataLoss(&seq_it->second, reasons);
+}
+
 size_t TraceBufferV2::GetMemoryUsageBytes() const {
   return size() + protovms_.GetMemoryUsageBytes();
 }
@@ -1635,6 +1683,8 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   // mapping from it, until b/568173038 is addressed.
   sequences_ = src.sequences_;
   writer_stats_ = src.writer_stats_;
+  empty_sequences_ = src.empty_sequences_;
+  seq_age_ = src.seq_age_;
 
   protovms_.CloneReadOnlyFrom(src.protovms_);
 }

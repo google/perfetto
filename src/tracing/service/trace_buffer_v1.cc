@@ -479,6 +479,8 @@ void TraceBufferV1::RecordAbiViolation() {
   stats_.set_abi_violations(stats_.abi_violations() + 1);
 }
 
+void TraceBufferV1::EndWriteBatch() {}
+
 void TraceBufferV1::BeginRead() {
   read_iter_ = GetReadIterForSequence(index_.begin());
 #if PERFETTO_DCHECK_IS_ON()
@@ -740,6 +742,14 @@ bool TraceBufferV1::ReadNextTracePacket(
       previous_packet_dropped = true;
     }  // while(...)  [iterate over packet fragments for the current chunk].
   }  // for(;;MoveNext()) [iterate over chunks].
+}
+
+bool TraceBufferV1::returns_validated_packets() const {
+  return false;
+}
+
+uint64_t TraceBufferV1::packets_dropped_by_validation() const {
+  return 0;
 }
 
 void TraceBufferV1::MaybeCompact() {}

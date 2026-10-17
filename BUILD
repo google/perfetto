@@ -187,6 +187,7 @@ perfetto_cc_library(
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
+        ":src_tracing_service_zstd_frame_codec",
         ":src_tracing_system_backend",
         ":src_tracing_v2_abi",
         ":src_tracing_v2_v2",
@@ -1262,6 +1263,7 @@ perfetto_cc_library(
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
+        ":src_tracing_service_zstd_frame_codec",
         ":src_tracing_v2_abi",
         ":src_tracing_v2_v2",
     ] + select({
@@ -7128,6 +7130,8 @@ perfetto_filegroup(
         "src/tracing/service/trace_buffer_v1.h",
         "src/tracing/service/trace_buffer_v2.cc",
         "src/tracing/service/trace_buffer_v2.h",
+        "src/tracing/service/trace_buffer_v3.cc",
+        "src/tracing/service/trace_buffer_v3.h",
         "src/tracing/service/tracing_service_endpoints_impl.cc",
         "src/tracing/service/tracing_service_endpoints_impl.h",
         "src/tracing/service/tracing_service_impl.cc",
@@ -7153,6 +7157,15 @@ perfetto_filegroup(
     srcs = [
         "src/tracing/service/zstd_compressor.cc",
         "src/tracing/service/zstd_compressor.h",
+    ],
+)
+
+# GN target: //src/tracing/service:zstd_frame_codec
+perfetto_filegroup(
+    name = "src_tracing_service_zstd_frame_codec",
+    srcs = [
+        "src/tracing/service/zstd_frame_codec.cc",
+        "src/tracing/service/zstd_frame_codec.h",
     ],
 )
 
@@ -11718,6 +11731,7 @@ perfetto_cc_library(
         ":src_tracing_service_service",
         ":src_tracing_service_zlib_compressor",
         ":src_tracing_service_zstd_compressor",
+        ":src_tracing_service_zstd_frame_codec",
         ":src_tracing_system_backend",
         ":src_tracing_v2_abi",
         ":src_tracing_v2_v2",

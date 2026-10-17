@@ -26,7 +26,7 @@
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/tracing/service/packet_compressor_common.h"
-#include "src/tracing/service/tracing_service_impl.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "test/gtest_and_gmock.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -49,11 +49,10 @@ using ::testing::Le;
 using ::testing::Not;
 using ::testing::Property;
 using ::testing::SizeIs;
-using tracing_service::TracingServiceImpl;
 
 // The compressors cap their output slices at the service's max slice size.
 static_assert(packet_compressor::kCompressSliceSize ==
-              TracingServiceImpl::kMaxTracePacketSliceSize);
+              TraceBuffer::kMaxTracePacketSliceSize);
 
 // One backend per compile-time-selected compressor. Each provides the compress
 // entrypoint and a matching decompressor for the test to verify the output.
@@ -224,7 +223,7 @@ TYPED_TEST(CompressorTest, End2EndCompressAndDecompress) {
 
 TYPED_TEST(CompressorTest, MaxSliceSize) {
   constexpr size_t kStopOutputSize =
-      TracingServiceImpl::kMaxTracePacketSliceSize + 2000;
+      TraceBuffer::kMaxTracePacketSliceSize + 2000;
 
   std::vector<TracePacket> packets;
   TracePacket compressed_packet;
@@ -239,11 +238,10 @@ TYPED_TEST(CompressorTest, MaxSliceSize) {
   }
 
   EXPECT_GE(compressed_packet.slices().size(), 2u);
-  ASSERT_GT(compressed_packet.size(),
-            TracingServiceImpl::kMaxTracePacketSliceSize);
-  EXPECT_THAT(compressed_packet.slices(),
-              Each(Field(&Slice::size,
-                         Le(TracingServiceImpl::kMaxTracePacketSliceSize))));
+  ASSERT_GT(compressed_packet.size(), TraceBuffer::kMaxTracePacketSliceSize);
+  EXPECT_THAT(
+      compressed_packet.slices(),
+      Each(Field(&Slice::size, Le(TraceBuffer::kMaxTracePacketSliceSize))));
 }
 
 // Round-trips many distinct packets and checks they come back in order. This
