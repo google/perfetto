@@ -27,6 +27,10 @@ source_set("trace_processor") {
   ]
 }
 
+source_set("c_api") {
+  sources = [ "trace_processor_c.h" ]
+}
+
 source_set("io") {
   sources = [ "io.h" ]
   public_deps = [ "../base" ]
