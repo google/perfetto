@@ -22,11 +22,13 @@
 #include <variant>
 #include <vector>
 
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/aggregate_function.h"
 #include "src/trace_processor/core/exec/assert_type.h"
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
@@ -41,6 +43,29 @@
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
+
+std::string OpName(const Op& op) {
+  switch (op.index()) {
+    case Op::GetTypeIndex<Eq>():
+      return "=";
+    case Op::GetTypeIndex<Ne>():
+      return "!=";
+    case Op::GetTypeIndex<Lt>():
+      return "<";
+    case Op::GetTypeIndex<Le>():
+      return "<=";
+    case Op::GetTypeIndex<Gt>():
+      return ">";
+    case Op::GetTypeIndex<Ge>():
+      return ">=";
+    case Op::GetTypeIndex<IsNull>():
+      return "IS NULL";
+    case Op::GetTypeIndex<IsNotNull>():
+      return "IS NOT NULL";
+    default:
+      return "?";
+  }
+}
 
 std::string Column(uint32_t position) {
   return "#" + std::to_string(position);
@@ -156,6 +181,17 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
                          : assert.target_.Is<Double>() ? "Double"
                                                        : "String";
     return "AssertType(" + Column(assert.column_) + " to " + target + ")";
+  }
+  if (transform.Is<Filter>()) {
+    const auto& filter = static_cast<const Filter&>(transform);
+    std::string out;
+    for (const Filter::Condition& c : filter.conditions_) {
+      out += (out.empty() ? "" : ", ") + Column(c.column) + " " + OpName(c.op);
+      if (!c.op.IsAnyOf<NullOp>()) {
+        out += " ?" + std::to_string(c.value);
+      }
+    }
+    return "Filter(" + out + ")";
   }
   if (transform.Is<NullColumn>()) {
     const auto& null = static_cast<const NullColumn&>(transform);

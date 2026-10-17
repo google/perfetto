@@ -24,6 +24,8 @@
 
 #include "perfetto/base/compiler.h"
 #include "src/trace_processor/core/exec/column_chunk.h"
+#include "src/trace_processor/core/exec/filter_value.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -109,6 +111,14 @@ class Context {
   // value is zero.
   const ColumnBuffer& NullBuffer();
 
+  // The values the next run's filters compare with, by parameter, already
+  // cast (see FilterValue). Nothing is copied: the caller keeps them alive and
+  // unchanged until the run ends.
+  void SetFilterValues(Span<const FilterValue> values) {
+    filter_values_ = values;
+  }
+  Span<const FilterValue> filter_values() const { return filter_values_; }
+
  private:
   friend class ColumnBuffer;
 
@@ -121,6 +131,7 @@ class Context {
   std::vector<std::unique_ptr<ColumnBuffer::Block>> blocks_;
   ColumnBuffer::Block* free_ = nullptr;
   ColumnBuffer nulls_;
+  Span<const FilterValue> filter_values_;
 };
 
 inline void ColumnBuffer::Release() {
