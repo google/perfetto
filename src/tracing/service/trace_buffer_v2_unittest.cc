@@ -998,6 +998,142 @@ TEST_F(TraceBufferV2Test, DataLoss_ReadGap) {
             previous_packet_dropped);
 }
 
+// A gap before a packet must not make reassembly fail inside that packet.
+// After crossing 0 -> 2, the fragments in chunks 2 and 3 still form one
+// complete packet, which must be returned with a read-gap loss marker.
+TEST_F(TraceBufferV2Test, DataLoss_ReadGapBeforeFragmentedPacket) {
+  ResetBuffer(4096);
+  // Copy chunk 2 before chunk 0 so one ChunkSeqReader crosses the gap
+  // before attempting to reassemble the packet starting in chunk 2.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(32, 'b', kContOnNextChunk)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(32, 'c', kContFromPrevChunk)
+      .AddPacket(32, 'd')
+      .CopyIntoTraceBuffer();
+
+  uint32_t previous_packet_dropped = 0;
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'a')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+
+  // NextChunkInSequence() flags 0 -> 2. ReassembleFragmentedPacket() copies
+  // that iterator, then advances 2 -> 3. That step has no gap, so 'b' and
+  // 'c' must be returned together, with only the earlier read loss.
+  ASSERT_THAT(
+      ReadPacket(nullptr, &previous_packet_dropped),
+      ElementsAre(FakePacketFragment(32, 'b'), FakePacketFragment(32, 'c')));
+  EXPECT_EQ(static_cast<uint32_t>(DataLossReason::DATA_LOSS_PRESENT |
+                                  DataLossReason::DATA_LOSS_READ_GAP),
+            previous_packet_dropped);
+  EXPECT_EQ(1u, trace_buffer()->stats().readaheads_succeeded());
+  EXPECT_EQ(0u, trace_buffer()->stats().readaheads_failed());
+
+  // Reassembly consumed 'c' from chunk 3 but left the whole packet 'd'.
+  // A new read must return 'd' without repeating the gap before chunk 2.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'd')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// A ChunkSeqReader can advance across a gap without being reconstructed.
+// Check each chunk it enters, so a whole packet after the gap reports loss.
+TEST_F(TraceBufferV2Test, DataLoss_ReadGapWithinSequence) {
+  for (bool restart_read : {false, true}) {
+    SCOPED_TRACE(restart_read);
+    ResetBuffer(4096);
+    // Copy chunk 2 first so buffer order differs from sequence order.
+    // Buffer order:   [2: 'b', 'c'] [0: 'a']
+    // Sequence order: [0: 'a'] -> [1 missing] -> [2: 'b', 'c']
+    CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+        .AddPacket(32, 'b')
+        .AddPacket(32, 'c')
+        .CopyIntoTraceBuffer();
+    CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+        .AddPacket(32, 'a')
+        .CopyIntoTraceBuffer();
+
+    // ReadNextTracePacket() constructs a reader with end_->chunk_id == 2,
+    // but seq_iter_ starts at chunk 0. Packet 'a' is before the gap.
+    uint32_t previous_packet_dropped = 0;
+    trace_buffer()->BeginRead();
+    ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+                ElementsAre(FakePacketFragment(32, 'a')));
+    EXPECT_EQ(0u, previous_packet_dropped);
+
+    // Chunk 0 is still present after returning 'a'. Even after BeginRead(),
+    // a new reader's constructor sees chunk 0. The gap must be
+    // detected when ReadNextPacketInSeqOrder() advances to chunk 2.
+    if (restart_read)
+      trace_buffer()->BeginRead();
+    ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+                ElementsAre(FakePacketFragment(32, 'b')));
+    EXPECT_EQ(static_cast<uint32_t>(DataLossReason::DATA_LOSS_PRESENT |
+                                    DataLossReason::DATA_LOSS_READ_GAP),
+              previous_packet_dropped);
+    // Only 'b' carries the gap. The next packet in chunk 2 has no new loss.
+    ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+                ElementsAre(FakePacketFragment(32, 'c')));
+    EXPECT_EQ(0u, previous_packet_dropped);
+    ASSERT_THAT(ReadPacket(), IsEmpty());
+  }
+}
+
+// BeginRead() can resume between whole packets in the same chunk. Report a
+// gap on its first packet only, even if a new ChunkSeqReader is created for
+// the remaining packets.
+TEST_F(TraceBufferV2Test, DataLoss_ReadGapNotRepeatedAcrossReads) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .CopyIntoTraceBuffer();
+  // Read through the end so chunk 0 is erased and last_chunk_consumed is 0.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Skip chunk 1. Chunk 2 contains two whole packets, and only 'b' should
+  // carry the loss from the missing chunk.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(32, 'b')
+      .AddPacket(32, 'c')
+      .CopyIntoTraceBuffer();
+  uint32_t previous_packet_dropped = 0;
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'b')));
+  EXPECT_EQ(static_cast<uint32_t>(DataLossReason::DATA_LOSS_PRESENT |
+                                  DataLossReason::DATA_LOSS_READ_GAP),
+            previous_packet_dropped);
+
+  // Stop after 'b'. BeginRead() resets the reader, so the next ReadPacket()
+  // starts at chunk 2 again with last_chunk_consumed still 0. The nonzero
+  // unread_payload_off() prevents reporting the same gap on 'c'.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'c')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+
+  // Both packets in chunk 2 are now consumed, but the chunk is not erased
+  // yet. A new reader starts there again before advancing to chunk 3.
+  // Packet 'd' must not inherit the old gap either.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(32, 'd')
+      .CopyIntoTraceBuffer();
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(32, 'd')));
+  EXPECT_EQ(0u, previous_packet_dropped);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 // Overwriting several unread chunks of one sequence before reading collapses
 // into a single loss: the per-sequence bitmask is set once and surfaces on the
 // first survivor with the overwrite cause.
