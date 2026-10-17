@@ -218,6 +218,12 @@ class TraceProcessorContext {
       std::function<void(perf_importer::PerfTracker*)>;
   std::vector<PerfAuxTokenizerRegistration> perf_aux_tokenizer_registrations;
 
+  // Invoked on each SliceTracker as it is created, whatever the trace format
+  // (e.g. to install a SliceSink). Copied into forked contexts, so it must be
+  // set before parsing starts.
+  using SliceTrackerCreatedFn = std::function<void(SliceTracker*)>;
+  SliceTrackerCreatedFn on_slice_tracker_created;
+
   // Per-Trace State (Miscategorized)
   // ==========================
   //

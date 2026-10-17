@@ -162,8 +162,9 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       auto slice_id = slice_tracker->Begin(timestamp, track_id, event.cat,
                                            slice_name_id, args_inserter);
       if (slice_id && event.tts != std::numeric_limits<int64_t>::max()) {
-        auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
-        rr.set_thread_ts(event.tts);
+        SliceTracker::ThreadTiming timing;
+        timing.ts = event.tts;
+        slice_tracker->SetThreadTiming(*slice_id, timing);
       }
       MaybeAddFlow(timestamp, storage->mutable_string_pool(), track_id, event);
       break;
@@ -174,9 +175,10 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                                          event.name, args_inserter);
       // Now try to update thread_dur if we have a tts field.
       if (slice_id && event.tts != std::numeric_limits<int64_t>::max()) {
-        auto rr = (*storage->mutable_slice_table())[*slice_id];
-        if (auto start_tts = rr.thread_ts(); start_tts) {
-          rr.set_thread_dur(event.tts - *start_tts);
+        auto start = slice_tracker->ThreadTimingOfRecentlyEnded(*slice_id);
+        if (start && start->ts) {
+          slice_tracker->SetThreadDeltas(*slice_id, event.tts - *start->ts,
+                                         std::nullopt);
         }
       }
       break;
@@ -256,13 +258,14 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                                   event.dur, args_inserter);
       }
       if (slice_id) {
-        auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
+        SliceTracker::ThreadTiming timing;
         if (event.tts != std::numeric_limits<int64_t>::max()) {
-          rr.set_thread_ts(event.tts);
+          timing.ts = event.tts;
         }
         if (event.tdur != std::numeric_limits<int64_t>::max()) {
-          rr.set_thread_dur(event.tdur);
+          timing.dur = event.tdur;
         }
+        slice_tracker->SetThreadTiming(*slice_id, timing);
       }
       MaybeAddFlow(timestamp, storage->mutable_string_pool(), track_id, event);
       break;
@@ -367,8 +370,9 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                                               slice_name_id, 0, args_inserter);
         if (slice_id) {
           if (event.tts != std::numeric_limits<int64_t>::max()) {
-            auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
-            rr.set_thread_ts(event.tts);
+            SliceTracker::ThreadTiming timing;
+            timing.ts = event.tts;
+            slice_tracker->SetThreadTiming(*slice_id, timing);
           }
         }
         break;

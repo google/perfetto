@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <atomic>
 #include <limits>
 #include <optional>
 
@@ -38,6 +39,29 @@ FlowTracker::FlowTracker(TraceProcessorContext* context) : context_(context) {
 
 FlowTracker::~FlowTracker() = default;
 
+namespace {
+std::atomic<uint64_t> g_slice_table_ts_reads{0};
+}  // namespace
+
+uint64_t FlowTracker::slice_table_ts_reads() {
+  return g_slice_table_ts_reads.load(std::memory_order_relaxed);
+}
+
+FlowTracker::FlowSource FlowTracker::Source(SliceId id) const {
+  return {id, context_->slice_tracker->StartOfRecentSlice(id)};
+}
+
+std::optional<int64_t> FlowTracker::SourceTs(const FlowSource& source) {
+  if (source.ts)
+    return source.ts;
+  if (auto ts = context_->slice_tracker->StartOfRecentSlice(source.id))
+    return ts;
+  g_slice_table_ts_reads.fetch_add(1, std::memory_order_relaxed);
+  if (!context_->slice_tracker->WritesTable())
+    return std::nullopt;
+  return context_->slice_tracker->StartTsOf(source.id);
+}
+
 /* TODO: if we report a flow event earlier that a corresponding slice then
   flow event would not be added, and it will increase "flow_no_enclosing_slice"
   In catapult, it was possible to report a flow after an enclosing slice if
@@ -45,17 +69,20 @@ FlowTracker::~FlowTracker() = default;
   it is a bit tricky to make it here.
   We suspect that this case is too rare or impossible */
 void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
-  std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
-  if (!open_slice_id) {
+  auto open = context_->slice_tracker->GetTopmostOpenSlice(track_id);
+  if (!open) {
     context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
-  Begin(open_slice_id.value(), flow_id);
+  BeginAt({open->id, open->ts}, flow_id);
 }
 
 void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
-  auto it_and_ins = flow_to_slice_map_.Insert(flow_id, slice_id);
+  BeginAt(Source(slice_id), flow_id);
+}
+
+void FlowTracker::BeginAt(FlowSource slice, FlowId flow_id) {
+  auto it_and_ins = flow_to_slice_map_.Insert(flow_id, slice);
   if (!it_and_ins.second) {
     context_->stats_tracker->IncrementStats(stats::flow_duplicate_id);
     return;
@@ -63,28 +90,37 @@ void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
 }
 
 void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
-  std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
-  if (!open_slice_id) {
+  auto open = context_->slice_tracker->GetTopmostOpenSlice(track_id);
+  if (!open) {
     context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
-  Step(open_slice_id.value(), flow_id);
+  StepAt({open->id, open->ts}, flow_id);
 }
 
 void FlowTracker::Step(SliceId new_id, FlowId flow_id) {
+  StepAt(Source(new_id), flow_id);
+}
+
+void FlowTracker::StepAt(FlowSource slice, FlowId flow_id) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
     context_->stats_tracker->IncrementStats(stats::flow_step_without_start);
     return;
   }
-  SliceId existing_id = *it;
-  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
-  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
-  SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
-  SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
+  SliceId existing_id = it->id;
+  std::optional<int64_t> existing_ts = SourceTs(*it);
+  std::optional<int64_t> new_ts = SourceTs(slice);
+  SliceId outgoing = existing_id;
+  SliceId incoming = slice.id;
+  if (existing_ts && new_ts) {
+    outgoing = *existing_ts > *new_ts ? slice.id : existing_id;
+    incoming = *existing_ts <= *new_ts ? slice.id : existing_id;
+  } else {
+    context_->stats_tracker->IncrementStats(stats::flow_without_direction);
+  }
   InsertFlow(flow_id, outgoing, incoming);
-  *it = new_id;
+  *it = FlowSource{slice.id, new_ts};
 }
 
 void FlowTracker::End(TrackId track_id,
@@ -95,26 +131,35 @@ void FlowTracker::End(TrackId track_id,
     pending_flow_ids_map_[track_id].push_back(flow_id);
     return;
   }
-  std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
-  if (!open_slice_id) {
+  auto open = context_->slice_tracker->GetTopmostOpenSlice(track_id);
+  if (!open) {
     context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
-  End(open_slice_id.value(), flow_id, close_flow);
+  EndAt({open->id, open->ts}, flow_id, close_flow);
 }
 
 void FlowTracker::End(SliceId new_id, FlowId flow_id, bool close_flow) {
+  EndAt(Source(new_id), flow_id, close_flow);
+}
+
+void FlowTracker::EndAt(FlowSource slice, FlowId flow_id, bool close_flow) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
     context_->stats_tracker->IncrementStats(stats::flow_end_without_start);
     return;
   }
-  SliceId existing_id = *it;
-  int64_t existing_ts = context_->storage->slice_table()[existing_id].ts();
-  int64_t new_ts = context_->storage->slice_table()[new_id].ts();
-  SliceId outgoing = existing_ts > new_ts ? new_id : existing_id;
-  SliceId incoming = existing_ts <= new_ts ? new_id : existing_id;
+  SliceId existing_id = it->id;
+  std::optional<int64_t> existing_ts = SourceTs(*it);
+  std::optional<int64_t> new_ts = SourceTs(slice);
+  SliceId outgoing = existing_id;
+  SliceId incoming = slice.id;
+  if (existing_ts && new_ts) {
+    outgoing = *existing_ts > *new_ts ? slice.id : existing_id;
+    incoming = *existing_ts <= *new_ts ? slice.id : existing_id;
+  } else {
+    context_->stats_tracker->IncrementStats(stats::flow_without_direction);
+  }
   if (close_flow)
     flow_to_slice_map_.Erase(flow_id);
   InsertFlow(flow_id, outgoing, incoming);
@@ -144,7 +189,7 @@ void FlowTracker::ClosePendingEventsOnTrack(TrackId track_id,
     return;
 
   for (FlowId flow_id : *iter) {
-    SliceId slice_out_id = flow_to_slice_map_[flow_id];
+    SliceId slice_out_id = flow_to_slice_map_[flow_id].id;
     InsertFlow(flow_id, slice_out_id, slice_id);
   }
 

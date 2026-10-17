@@ -99,6 +99,8 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
       [context](TrackId track_id, SliceId slice_id) {
         context->flow_tracker->ClosePendingEventsOnTrack(track_id, slice_id);
       });
+  if (context->on_slice_tracker_created)
+    context->on_slice_tracker_created(context->slice_tracker.get());
 }
 
 void InitPerMachineState(TraceProcessorContext* context, int64_t machine_id) {
@@ -235,6 +237,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
       source->register_additional_proto_modules;
   dest->perf_aux_tokenizer_registrations =
       source->perf_aux_tokenizer_registrations;
+  dest->on_slice_tracker_created = source->on_slice_tracker_created;
 
   // Per-Trace State (Miscategorized).
   dest->registered_file_tracker = source->registered_file_tracker.Fork();

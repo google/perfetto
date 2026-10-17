@@ -824,13 +824,10 @@ class TrackEventEventImporter {
         ts_, track_id, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (opt_slice_id.has_value()) {
-      auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
-      if (thread_timestamp_) {
-        rr.set_thread_ts(*thread_timestamp_);
-      }
-      if (thread_instruction_count_) {
-        rr.set_thread_instruction_count(*thread_instruction_count_);
-      }
+      SliceTracker::ThreadTiming timing;
+      timing.ts = thread_timestamp_;
+      timing.instruction_count = thread_instruction_count_;
+      context_->slice_tracker->SetThreadTiming(*opt_slice_id, timing);
       MaybeParseFlowEvents(opt_slice_id.value());
       MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     }
@@ -851,21 +848,23 @@ class TrackEventEventImporter {
 
     MaybeParseFlowEvents(*opt_slice_id);
     MaybeInsertTrackEventCallstack(*opt_slice_id, track_id);
-    auto* thread_slices = storage_->mutable_slice_table();
-    tables::SliceTable::RowReference slice_ref =
-        (*thread_slices)[*opt_slice_id];
-    std::optional<int64_t> tts = slice_ref.thread_ts();
-    if (tts && thread_timestamp_) {
-      int64_t delta = *thread_timestamp_ - *tts;
+    auto start =
+        context_->slice_tracker->ThreadTimingOfRecentlyEnded(*opt_slice_id);
+    PERFETTO_DCHECK(start);
+    std::optional<int64_t> thread_dur;
+    if (start && start->ts && thread_timestamp_) {
+      int64_t delta = *thread_timestamp_ - *start->ts;
       if (delta != 0) {
-        slice_ref.set_thread_dur(delta);
+        thread_dur = delta;
       }
     }
-    std::optional<int64_t> tic = slice_ref.thread_instruction_count();
-    if (tic && thread_instruction_count_) {
-      slice_ref.set_thread_instruction_delta(
-          *event_data_->thread_instruction_count - *tic);
+    std::optional<int64_t> instruction_delta;
+    if (start && start->instruction_count && thread_instruction_count_) {
+      instruction_delta =
+          *event_data_->thread_instruction_count - *start->instruction_count;
     }
+    context_->slice_tracker->SetThreadDeltas(*opt_slice_id, thread_dur,
+                                             instruction_delta);
     return base::OkStatus();
   }
 
@@ -884,16 +883,16 @@ class TrackEventEventImporter {
         ts_, track_id, category_id_, name_id_, duration_ns,
         [this](BoundInserter* inserter) { ParseSliceArgs(inserter); });
     if (opt_slice_id.has_value()) {
-      auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
+      SliceTracker::ThreadTiming timing;
       if (thread_timestamp_) {
-        rr.set_thread_ts(*thread_timestamp_);
-        rr.set_thread_dur(legacy_event_.thread_duration_us() * 1000);
+        timing.ts = thread_timestamp_;
+        timing.dur = legacy_event_.thread_duration_us() * 1000;
       }
       if (thread_instruction_count_) {
-        rr.set_thread_instruction_count(*thread_instruction_count_);
-        rr.set_thread_instruction_delta(
-            legacy_event_.thread_instruction_delta());
+        timing.instruction_count = thread_instruction_count_;
+        timing.instruction_delta = legacy_event_.thread_instruction_delta();
       }
+      context_->slice_tracker->SetThreadTiming(*opt_slice_id, timing);
       MaybeParseFlowEvents(opt_slice_id.value());
       MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);
     }
@@ -1032,15 +1031,16 @@ class TrackEventEventImporter {
       return base::OkStatus();
     }
     if (utid_) {
-      auto rr = (*context_->storage->mutable_slice_table())[*opt_slice_id];
+      SliceTracker::ThreadTiming timing;
       if (thread_timestamp_) {
-        rr.set_thread_ts(*thread_timestamp_);
-        rr.set_thread_dur(duration_ns);
+        timing.ts = thread_timestamp_;
+        timing.dur = duration_ns;
       }
       if (thread_instruction_count_) {
-        rr.set_thread_instruction_count(*thread_instruction_count_);
-        rr.set_thread_instruction_delta(tidelta);
+        timing.instruction_count = thread_instruction_count_;
+        timing.instruction_delta = tidelta;
       }
+      context_->slice_tracker->SetThreadTiming(*opt_slice_id, timing);
     }
     MaybeParseFlowEvents(opt_slice_id.value());
     MaybeInsertTrackEventCallstack(opt_slice_id.value(), track_id);

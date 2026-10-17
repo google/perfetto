@@ -307,6 +307,11 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_log_table(), id);
   }
 
+  // An inserter bound to no table cell. The owner must take its args with
+  // ToCompactArgSet() before destroying it; committing a non-empty detached
+  // inserter is a fatal error.
+  BoundInserter AddArgsDetached(uint32_t id) { return Bind(nullptr, 0, 0, id); }
+
  private:
   template <typename T>
   BoundInserter AddArgsTo(T* table, typename T::Id id) {
