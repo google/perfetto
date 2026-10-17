@@ -61,6 +61,9 @@ interface FlamegraphViewAttrs {
   readonly onStateChange: (state: TreeExplorerState) => void;
   // Open the flamegraph-objects tab for `pathHashes` (CSV).
   readonly onShowObjects: (pathHashes: string, isDominator: boolean) => void;
+  // Show the field trees (android.memory.heap_graph.*field_tree), which put
+  // the field holding each object between its parent and its class.
+  readonly fields?: boolean;
 }
 
 // path_hash_stable is exposed unaggregatable (and CAST to TEXT in SQL,
@@ -89,6 +92,27 @@ const SELF_COUNT_AGG_PROP = {
   name: 'self_count',
   displayName: 'Self Count',
   mergeAggregation: 'SUM' as const,
+};
+
+// field_name and field_type_name are only set on field frames. node_kind keeps
+// a field frame from merging with a class frame.
+const FIELD_UNAGG_PROPS = [
+  {name: 'field_name', displayName: 'Field'},
+  {name: 'field_type_name', displayName: 'Field Type'},
+  {name: 'root_type', displayName: 'Root Type'},
+  {name: 'heap_type', displayName: 'Heap Type'},
+  {name: 'node_kind', displayName: 'Frame Kind', isVisible: () => false},
+  MERGED_CLASS_FLAMEGRAPH_PROPERTY,
+];
+
+// Unlike the class trees, path hashes are aggregatable: frames of a class
+// held by the same field merge bottom up, and their objects are listed
+// together.
+const PATH_HASH_AGG_PROP = {
+  name: 'path_hash_stable',
+  displayName: 'Path Hash',
+  mergeAggregation: 'CONCAT_WITH_COMMA' as const,
+  isVisible: () => false,
 };
 
 // Build a JAVA_HEAP_GRAPH metric for the BFS or dominator class tree,
@@ -134,6 +158,48 @@ function buildMetric(
   };
 }
 
+// Build a JAVA_HEAP_GRAPH metric for the BFS or dominator field tree.
+function buildFieldMetric(
+  upid: number,
+  ts: time,
+  name: string,
+  unit: string,
+  valueColumn: 'self_size' | 'self_count',
+  isDominator: boolean,
+  showObjectsAction: TreeExplorerOptionalAction,
+): TreeExplorerQueryMetric {
+  const tree = isDominator ? 'dominator_field_tree' : 'field_tree';
+  const otherCol = valueColumn === 'self_size' ? 'self_count' : 'self_size';
+  return {
+    name,
+    unit,
+    dependencySql: `include perfetto module android.memory.heap_graph.${tree};`,
+    statement: `
+      select
+        id,
+        parent_id as parentId,
+        ifnull(name, 'unknown') as name,
+        field_name,
+        field_type_name,
+        root_type,
+        heap_type,
+        node_kind,
+        ${valueColumn} as value,
+        ${otherCol},
+        CAST(path_hash_stable AS TEXT) AS path_hash_stable,
+        ${mergedClassColumnSql('t.name', upid, ts)}
+      from _heap_graph_${tree} t
+      where graph_sample_ts = ${ts} and upid = ${upid}
+    `,
+    unaggregatableProperties: FIELD_UNAGG_PROPS,
+    aggregatableProperties:
+      valueColumn === 'self_size'
+        ? [SELF_COUNT_AGG_PROP, PATH_HASH_AGG_PROP]
+        : [PATH_HASH_AGG_PROP],
+    optionalNodeActions: [showObjectsAction],
+  };
+}
+
 interface MetricSpec {
   readonly name: string;
   readonly unit: string;
@@ -172,22 +238,26 @@ function buildHeapGraphMetrics(
   upid: number,
   ts: time,
   onShowObjects: (pathHashes: string, isDominator: boolean) => void,
+  fields: boolean,
 ): ReadonlyArray<TreeExplorerQueryMetric> {
   const showObjectsAction = (
     isDominator: boolean,
   ): TreeExplorerOptionalAction => ({
-    name: 'Show objects from this class',
+    name: fields ? 'Show objects' : 'Show objects from this class',
     icon: 'data_object',
     category: 'DRILL',
-    description: 'List the individual objects of this class.',
+    description: fields
+      ? 'List the objects of this frame: for a field, the objects it holds.'
+      : 'List the individual objects of this class.',
     execute: async ({properties}) => {
       const pathHashes = properties.get('path_hash_stable');
       if (pathHashes === undefined) return;
       onShowObjects(pathHashes, isDominator);
     },
   });
+  const build = fields ? buildFieldMetric : buildMetric;
   return METRIC_SPECS.map((s) =>
-    buildMetric(
+    build(
       upid,
       ts,
       s.name,
@@ -215,12 +285,18 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
 
   return {
     view({attrs}) {
+      const fields = attrs.fields ?? false;
       const fetcher = fetcherMemo.use({
-        key: {upid: attrs.upid, ts: attrs.ts},
+        key: {upid: attrs.upid, ts: attrs.ts, fields},
         compute: () =>
           new TreeExplorerFetcher(
             attrs.trace,
-            buildHeapGraphMetrics(attrs.upid, attrs.ts, attrs.onShowObjects),
+            buildHeapGraphMetrics(
+              attrs.upid,
+              attrs.ts,
+              attrs.onShowObjects,
+              fields,
+            ),
           ),
       });
       const metrics = fetcher.metrics;
@@ -255,19 +331,22 @@ export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
           onStateChange: attrs.onStateChange,
           nodeIcon: MERGED_CLASS_NODE_ICON,
           renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
-          extraDownloadItems: [
-            {
-              label: 'Pprof profile (.pb)',
-              icon: 'file_download',
-              description:
-                'Whole snapshot, converted from the trace: filters, the ' +
-                'selected measure and the view direction are not applied.',
-              title:
-                'Download the full profile as pprof, for use with pprof tools',
-              onDownload: () =>
-                downloadPprof(attrs.trace, attrs.upid, attrs.ts),
-            },
-          ],
+          // The pprof is converted from the trace and has no fields.
+          extraDownloadItems: fields
+            ? []
+            : [
+                {
+                  label: 'Pprof profile (.pb)',
+                  icon: 'file_download',
+                  description:
+                    'Whole snapshot, converted from the trace: filters, the ' +
+                    'selected measure and the view direction are not applied.',
+                  title:
+                    'Download the full profile as pprof, for use with pprof tools',
+                  onDownload: () =>
+                    downloadPprof(attrs.trace, attrs.upid, attrs.ts),
+                },
+              ],
         }),
       ];
     },

@@ -17,8 +17,10 @@ import type {Storage, Trace} from '../../public/trace';
 import type {Setting} from '../../public/settings';
 import {NUM} from '../../trace_processor/query_result';
 
-import {SQL_PREAMBLE} from './components';
-import {flamegraphQuery} from './views/flamegraph_objects_view';
+import {
+  flamegraphPreamble,
+  flamegraphQuery,
+} from './views/flamegraph_objects_view';
 import * as queries from './queries';
 import type {HeapDump} from './types';
 import {
@@ -37,19 +39,35 @@ import {
 } from './views/flamegraph_view';
 import type {time} from '../../base/time';
 
-interface FlamegraphSelection {
+// Identifies a flamegraph drill-down tab: the selected frames' path hashes and
+// the tree they come from.
+export interface FlamegraphTabId {
   readonly pathHashes: string;
   readonly isDominator: boolean;
+  // Whether the frames come from the Field Flamegraph.
+  readonly isField?: boolean;
+}
+
+interface FlamegraphSelection extends FlamegraphTabId {
   readonly upid: number;
   readonly ts: time;
 }
 
 // A flamegraph drill-down tab: identity plus the title's object count (null
 // until fetched).
-export interface FlamegraphTabView {
-  readonly pathHashes: string;
-  readonly isDominator: boolean;
+export interface FlamegraphTabView extends FlamegraphTabId {
   readonly count: number | null;
+}
+
+export function sameFlamegraphTab(
+  a: FlamegraphTabId,
+  b: FlamegraphTabId,
+): boolean {
+  return (
+    a.pathHashes === b.pathHashes &&
+    a.isDominator === b.isDominator &&
+    (a.isField ?? false) === (b.isField ?? false)
+  );
 }
 
 const INSTANCE_LABEL_MAX = 30;
@@ -61,8 +79,8 @@ function truncateInstanceLabel(label: string): string {
 }
 
 // Count-cache key for a flamegraph tab.
-function countKey(pathHashes: string, isDominator: boolean): string {
-  return `${isDominator ? 'd' : 'n'}:${pathHashes}`;
+function countKey(tab: FlamegraphTabId): string {
+  return `${tab.isDominator ? 'd' : 'n'}${tab.isField ? 'f' : ''}:${tab.pathHashes}`;
 }
 
 // The persistent state lives in the registered storage `storage`, which the core
@@ -128,7 +146,7 @@ export class HeapDumpExplorerSession {
       this._dumps.some((d) => d.upid === ref.upid && d.ts === BigInt(ref.ts));
     if (restored) {
       for (const t of this.storage.get().flamegraphTabs ?? []) {
-        this.loadCount(t.pathHashes, t.isDominator);
+        this.loadCount(t);
       }
     } else {
       const first = this._dumps.length > 0 ? this._dumps[0] : undefined;
@@ -141,6 +159,7 @@ export class HeapDumpExplorerSession {
         s.flamegraphTabs = undefined;
         s.instanceTabs = undefined;
         s.flamegraphPanelState = undefined;
+        s.fieldFlamegraphPanelState = undefined;
         s.callstackPanelState = undefined;
       });
     }
@@ -163,6 +182,7 @@ export class HeapDumpExplorerSession {
       s.flamegraphTabs = undefined;
       s.instanceTabs = undefined;
       s.flamegraphPanelState = undefined;
+      s.fieldFlamegraphPanelState = undefined;
       s.callstackPanelState = undefined;
     });
   }
@@ -232,12 +252,13 @@ export class HeapDumpExplorerSession {
     return (this.storage.get().flamegraphTabs ?? []).map((t) => ({
       pathHashes: t.pathHashes,
       isDominator: t.isDominator,
-      count: this._counts.get(countKey(t.pathHashes, t.isDominator)) ?? null,
+      isField: t.isField,
+      count: this._counts.get(countKey(t)) ?? null,
     }));
   }
 
   // The active flamegraph tab, derived from the nav (not stored), or null.
-  get activeFlamegraph(): {pathHashes: string; isDominator: boolean} | null {
+  get activeFlamegraph(): FlamegraphTabId | null {
     const nav = this.nav;
     if (
       nav.view !== 'flamegraph-objects' ||
@@ -248,6 +269,7 @@ export class HeapDumpExplorerSession {
     return {
       pathHashes: nav.params.pathHashes,
       isDominator: nav.params.isDominator ?? false,
+      isField: nav.params.isField,
     };
   }
 
@@ -258,45 +280,32 @@ export class HeapDumpExplorerSession {
     if (target && target !== this.activeDump) {
       this.switchToDump(target);
     }
-    this.openFlamegraphTab(sel.pathHashes, sel.isDominator);
-    this.navigate('flamegraph-objects', {
-      pathHashes: sel.pathHashes,
-      isDominator: sel.isDominator,
-    });
+    const tab = flamegraphTabId(sel);
+    this.openFlamegraphTab(tab);
+    this.navigate('flamegraph-objects', {...tab});
   }
 
   // Adds the flamegraph tab for a selection in the active dump if not open.
-  private openFlamegraphTab(pathHashes: string, isDominator: boolean): void {
+  private openFlamegraphTab(tab: FlamegraphTabId): void {
     if (this.activeDump === null) return;
     const tabs = this.storage.get().flamegraphTabs ?? [];
-    if (
-      tabs.some(
-        (t) => t.pathHashes === pathHashes && t.isDominator === isDominator,
-      )
-    ) {
+    if (tabs.some((t) => sameFlamegraphTab(t, tab))) {
       return;
     }
     this.edit((s) => {
-      s.flamegraphTabs = [
-        ...(s.flamegraphTabs ?? []),
-        {pathHashes, isDominator},
-      ];
+      s.flamegraphTabs = [...(s.flamegraphTabs ?? []), flamegraphTabId(tab)];
     });
-    this.loadCount(pathHashes, isDominator);
+    this.loadCount(tab);
   }
 
-  closeFlamegraph(pathHashes: string, isDominator: boolean): void {
+  closeFlamegraph(tab: FlamegraphTabId): void {
     const active = this.activeFlamegraph;
     this.edit((s) => {
       s.flamegraphTabs = (s.flamegraphTabs ?? []).filter(
-        (t) => !(t.pathHashes === pathHashes && t.isDominator === isDominator),
+        (t) => !sameFlamegraphTab(t, tab),
       );
     });
-    if (
-      active !== null &&
-      active.pathHashes === pathHashes &&
-      active.isDominator === isDominator
-    ) {
+    if (active !== null && sameFlamegraphTab(active, tab)) {
       this.navigate(this.defaultView);
     }
   }
@@ -305,24 +314,20 @@ export class HeapDumpExplorerSession {
     const active = this.activeFlamegraph;
     if (active === null) return;
     const tabs = this.storage.get().flamegraphTabs ?? [];
-    if (
-      !tabs.some(
-        (t) =>
-          t.pathHashes === active.pathHashes &&
-          t.isDominator === active.isDominator,
-      )
-    ) {
-      this.openFlamegraphTab(active.pathHashes, active.isDominator);
+    if (!tabs.some((t) => sameFlamegraphTab(t, active))) {
+      this.openFlamegraphTab(active);
     }
   }
 
   // Fetches the title's object count for one flamegraph tab. No-op if cached.
-  private loadCount(pathHashes: string, isDominator: boolean): void {
-    const key = countKey(pathHashes, isDominator);
+  private loadCount(tab: FlamegraphTabId): void {
+    const key = countKey(tab);
     if (this._counts.has(key)) return;
-    const q = flamegraphQuery(pathHashes, isDominator);
+    const q = flamegraphQuery(tab.pathHashes, tab.isDominator, tab.isField);
     this.engine
-      .query(`${SQL_PREAMBLE}; SELECT COUNT(*) AS c FROM (${q})`)
+      .query(
+        `${flamegraphPreamble(tab.isDominator, tab.isField)}; SELECT COUNT(*) AS c FROM (${q})`,
+      )
       .then((r) => {
         this._counts.set(key, r.firstRow({c: NUM}).c);
       })
@@ -376,6 +381,16 @@ export class HeapDumpExplorerSession {
     });
   }
 
+  get fieldFlamegraphPanelState(): TreeExplorerState | undefined {
+    return this.storage.get().fieldFlamegraphPanelState;
+  }
+
+  setFieldFlamegraphPanelState(state: TreeExplorerState): void {
+    this.edit((s) => {
+      s.fieldFlamegraphPanelState = state;
+    });
+  }
+
   get callstackPanelState(): TreeExplorerState | undefined {
     return this.storage.get().callstackPanelState;
   }
@@ -409,6 +424,15 @@ export class HeapDumpExplorerSession {
     });
     this.navigate('flamegraph');
   }
+}
+
+// The tab identity alone, without isField when unset so that state stays as
+// it was before field flamegraphs existed.
+function flamegraphTabId(tab: FlamegraphTabId): FlamegraphTabId {
+  const {pathHashes, isDominator, isField} = tab;
+  return isField
+    ? {pathHashes, isDominator, isField}
+    : {pathHashes, isDominator};
 }
 
 function makeHref(sub: string | undefined): string {

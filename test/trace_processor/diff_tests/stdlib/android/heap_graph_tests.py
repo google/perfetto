@@ -140,6 +140,109 @@ class HeapGraph(TestSuite):
           "[NULL]","Root",1,8
         """))
 
+  # The field tree puts the field holding every object between its parent and
+  # its class, collapses the linked list into one `.next` level and has no
+  # field frame for array elements.
+  def test_heap_graph_field_tree(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_field_tree.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.field_tree;
+
+          SELECT
+            p.name AS parent_name,
+            c.name,
+            c.node_kind,
+            c.field_name,
+            c.self_count,
+            c.self_size
+          FROM _heap_graph_field_tree c
+          LEFT JOIN _heap_graph_field_tree p ON c.parent_id = p.id
+          ORDER BY c.node_kind, c.name, parent_name;
+        """,
+        out=Csv("""
+          "parent_name","name","node_kind","field_name","self_count","self_size"
+          ".head","Node","class","[NULL]",1,2
+          ".next","Node","class","[NULL]",2,12
+          ".left","P","class","[NULL]",1,128
+          ".right","Q","class","[NULL]",1,256
+          "[NULL]","R","class","[NULL]",1,1
+          ".value","V","class","[NULL]",1,512
+          "java.lang.Object[]","X","class","[NULL]",2,96
+          ".items","java.lang.Object[]","class","[NULL]",1,16
+          "R",".head","field","R.head",0,0
+          "R",".items","field","R.items",0,0
+          "R",".left","field","R.left",0,0
+          "Node",".next","field","Node.next",0,0
+          "R",".right","field","R.right",0,0
+          "P",".value","field","P.value",0,0
+        """))
+
+  # In the dominator field tree, V is dominated by R across the P/Q diamond:
+  # R does not reference it, so its frame names the field which does.
+  def test_heap_graph_dominator_field_tree(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_field_tree.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_field_tree;
+
+          SELECT
+            p.name AS parent_name,
+            c.name,
+            c.node_kind,
+            c.field_name,
+            c.self_count,
+            c.self_size
+          FROM _heap_graph_dominator_field_tree c
+          LEFT JOIN _heap_graph_dominator_field_tree p ON c.parent_id = p.id
+          ORDER BY c.node_kind, c.name, parent_name;
+        """,
+        out=Csv("""
+          "parent_name","name","node_kind","field_name","self_count","self_size"
+          ".head","Node","class","[NULL]",1,2
+          ".next","Node","class","[NULL]",2,12
+          ".left","P","class","[NULL]",1,128
+          ".right","Q","class","[NULL]",1,256
+          "[NULL]","R","class","[NULL]",1,1
+          "[via P.value]","V","class","[NULL]",1,512
+          "java.lang.Object[]","X","class","[NULL]",2,96
+          ".items","java.lang.Object[]","class","[NULL]",1,16
+          "R",".head","field","R.head",0,0
+          "R",".items","field","R.items",0,0
+          "R",".left","field","R.left",0,0
+          "Node",".next","field","Node.next",0,0
+          "R",".right","field","R.right",0,0
+          "R","[via P.value]","field","P.value",0,0
+        """))
+
+  # Every object maps to its class frame and, if it has one, its field frame,
+  # so "Show objects" on a field frame lists the objects the field holds.
+  def test_heap_graph_field_path_hashes(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_field_tree.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.field_tree;
+
+          SELECT t.name, t.node_kind, group_concat(c.name, ',') AS objects
+          FROM _heap_graph_field_tree t
+          JOIN _heap_graph_field_path_hashes h
+            ON h.path_hash = t.path_hash_stable
+          JOIN heap_graph_object o ON o.id = h.id
+          JOIN heap_graph_class c ON o.type_id = c.id
+          WHERE t.node_kind = 'field'
+          GROUP BY t.id
+          ORDER BY t.name;
+        """,
+        out=Csv("""
+          "name","node_kind","objects"
+          ".head","field","Node"
+          ".items","field","java.lang.Object[]"
+          ".left","field","P"
+          ".next","field","Node,Node"
+          ".right","field","Q"
+          ".value","field","V"
+        """))
+
   def test_heap_graph_stats(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_for_aggregation.textproto'),
