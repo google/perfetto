@@ -39,6 +39,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/profiler_util.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor {
 
@@ -1042,10 +1043,8 @@ void HeapGraphTracker::GetChildren(ObjectTable::RowReference object,
         children.push_back(*opt_owned);
         return true;
       });
-  std::sort(children.begin(), children.end(),
-            [](const ObjectTable::Id& a, const ObjectTable::Id& b) {
-              return a.value < b.value;
-            });
+  SortByKey(children.begin(), children.end(),
+            [](const ObjectTable::Id& id) { return id.value; });
   children.erase(std::unique(children.begin(), children.end()), children.end());
 }
 

@@ -54,10 +54,16 @@
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/util/sort.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
 namespace ops {
+
+// Sorts row indices ascending. Outlined, so every instantiation shares it.
+PERFETTO_NO_INLINE inline void SortRowIndices(uint32_t* begin, uint32_t* end) {
+  SortByKey(begin, end, [](uint32_t row) { return row; });
+}
 
 // Outlined implementation of glob filtering for strings.
 // Returns pointer past last written output index.
@@ -711,7 +717,7 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
     dest.e = write;
 
     // Binary search produces output in key order. Sort by raw index.
-    std::sort(dest.b, dest.e);
+    SortRowIndices(dest.b, dest.e);
     return true;
   }
 }
