@@ -218,6 +218,40 @@ test('enabled prevents query from running', async () => {
   expect(queryFn).toHaveBeenCalledTimes(1);
 });
 
+test('disabled memo returns retained data without computing', async () => {
+  const slot = new AsyncMemo<number>();
+  const retainOn: Array<'table'> = ['table'];
+
+  slot.use({key: {table: 'a'}, compute: async () => 1, retainOn});
+  await flushPromises();
+
+  // While a dependency is rebuilt the memo is disabled: nothing is scheduled,
+  // so it's not pending, but the data retained from the old key is returned.
+  const compute = vi.fn().mockResolvedValue(2);
+  const disabled = slot.use({
+    key: {table: ''},
+    compute,
+    enabled: false,
+    retainOn,
+  });
+  await flushPromises();
+  expect(disabled).toEqual({data: 1, isPending: false});
+  expect(compute).not.toHaveBeenCalled();
+
+  // Once enabled, it computes for the new key, showing stale data meanwhile.
+  const pending = slot.use({
+    key: {table: 'b'},
+    compute,
+    enabled: true,
+    retainOn,
+  });
+  expect(pending).toEqual({data: 1, isPending: true});
+  await flushPromises();
+  const done = slot.use({key: {table: 'b'}, compute, enabled: true, retainOn});
+  expect(done).toEqual({data: 2, isPending: false});
+  expect(compute).toHaveBeenCalledTimes(1);
+});
+
 test('use after dispose throws', async () => {
   const slot = new AsyncMemo<number>();
 
