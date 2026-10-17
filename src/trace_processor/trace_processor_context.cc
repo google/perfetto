@@ -167,12 +167,14 @@ Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
 
 void InitGlobalState(TraceProcessorContext* context,
                      const Config& config,
-                     TraceProcessor_PlatformInterface* platform) {
+                     TraceProcessor_PlatformInterface* platform,
+                     const TraceParserOptions& parser_config) {
   // Global state.
   context->config = config;
+  context->parser_config = parser_config;
   context->platform = platform;
   context->file_system = platform ? platform->GetFileSystem() : nullptr;
-  context->storage = Ptr<TraceStorage>::MakeRoot(config);
+  context->storage = Ptr<TraceStorage>::MakeRoot(parser_config);
   context->global_stats_tracker =
       Ptr<GlobalStatsTracker>::MakeRoot(context->storage.get());
   context->sorter = CreateSorter(context, config);
@@ -214,6 +216,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
                      TraceProcessorContext* dest) {
   // Global state.
   dest->config = source->config;
+  dest->parser_config = source->parser_config;
   dest->platform = source->platform;
   dest->file_system = source->file_system;
   dest->storage = source->storage.Fork();
@@ -251,8 +254,9 @@ void CopyGlobalState(const TraceProcessorContext* source,
 TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::TraceProcessorContext(
     const Config& _config,
-    TraceProcessor_PlatformInterface* _platform) {
-  InitGlobalState(this, _config, _platform);
+    TraceProcessor_PlatformInterface* _platform,
+    const TraceParserOptions& _parser_config) {
+  InitGlobalState(this, _config, _platform, _parser_config);
 }
 TraceProcessorContext::~TraceProcessorContext() = default;
 
@@ -313,6 +317,7 @@ void TraceProcessorContext::DestroyParsingState() {
   // Config and platform capabilities are also needed by query-time features,
   // so preserve them while reconstructing the parsing context.
   Config _config = std::move(config);
+  TraceParserOptions _parser_config = std::move(parser_config);
   TraceProcessor_PlatformInterface* _platform = platform;
   io::FileSystem* _file_system = file_system;
   auto _storage = std::move(storage);
@@ -334,6 +339,7 @@ void TraceProcessorContext::DestroyParsingState() {
   new (this) TraceProcessorContext();
 
   config = std::move(_config);
+  parser_config = std::move(_parser_config);
   platform = _platform;
   file_system = _file_system;
   storage = std::move(_storage);

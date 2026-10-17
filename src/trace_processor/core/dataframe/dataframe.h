@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_H_
 #define SRC_TRACE_PROCESSOR_CORE_DATAFRAME_DATAFRAME_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -63,6 +64,64 @@ struct LogicalPlan;
 // SetCell*, Clear, Finalize) are not thread-safe and must not race with reads.
 class Dataframe {
  public:
+  // Values are borrowed for the duration of a sink callback. String values
+  // are interned IDs in this dataframe's StringPool, not owning strings.
+  using SinkValue = std::variant<std::monostate,
+                                 uint32_t,
+                                 int32_t,
+                                 int64_t,
+                                 double,
+                                 StringPool::Id>;
+  class Sink {
+   public:
+    virtual ~Sink() = default;
+    virtual void OnInsert(uint32_t row,
+                          const SinkValue* values,
+                          uint32_t count) = 0;
+    virtual void OnUpdate(uint32_t row,
+                          uint32_t column,
+                          const SinkValue& value) = 0;
+    // Local values below this ID were evicted; later patches may still arrive.
+    virtual void OnStorageFrontierAdvance(uint32_t) {}
+    // All rows below this absolute ID are complete: no future cell updates.
+    // Consumers may flush their own provisional-row buffers at this point.
+    virtual void OnFrontierAdvance(uint32_t) {}
+    virtual void OnClear() {}
+  };
+
+  // Install before insertion. The sink is borrowed and must outlive mutations.
+  // An empty retention mask keeps every column. False entries leave the
+  // corresponding value/null storage empty while row IDs still advance.
+  void ConfigureStreaming(Sink* sink, std::vector<bool> retained_columns);
+  // Generated tables supply this schema mask. Runtime schemas conservatively
+  // retain all columns because they have no C++ access annotations.
+  void SetParserRetentionMask(const bool* columns) {
+    PERFETTO_CHECK(row_count_ == 0);
+    parser_retention_mask_ = columns;
+  }
+  std::vector<bool> ParserRetentionMask() const {
+    return parser_retention_mask_
+               ? std::vector<bool>(parser_retention_mask_,
+                                   parser_retention_mask_ + column_count())
+               : std::vector<bool>(column_count(), true);
+  }
+  bool streaming_configured() const { return streaming_ != nullptr; }
+  bool retains_column(uint32_t column) const {
+    return !streaming_ || streaming_->retained_columns[column];
+  }
+
+  // Experimental, explicit retention frontier. The caller guarantees that
+  // no future read needs an earlier row. Later writes are sink-only patches.
+  // IDs/row_count remain absolute.
+  // After eviction, query/cursor execution is unsupported; use typed access.
+  void DropRowsBefore(uint32_t row);
+  uint32_t first_retained_row() const { return first_retained_row_; }
+  // Independent from storage eviction: promises no further updates below row.
+  void AdvanceCompletionFrontier(uint32_t row);
+  uint32_t completion_frontier() const {
+    return streaming_ ? streaming_->completion_frontier : 0;
+  }
+
   // QueryPlan encapsulates an executable, serializable representation of a
   // dataframe query operation. It contains the bytecode instructions and
   // metadata needed to execute a query.
@@ -140,8 +199,12 @@ class Dataframe {
         std::is_convertible_v<std::tuple<Args...>, typename D::mutate_types>,
         "Insert types do not match the column types");
     PERFETTO_DCHECK(!finalized_);
-    InsertUncheckedInternal<D>(std::make_index_sequence<sizeof...(Args)>(),
-                               ts...);
+    if (PERFETTO_UNLIKELY(streaming_ != nullptr)) {
+      InsertStreaming<D>(std::make_index_sequence<sizeof...(Args)>(), ts...);
+    } else {
+      InsertUncheckedInternal<D>(std::make_index_sequence<sizeof...(Args)>(),
+                                 ts...);
+    }
   }
 
   // Creates an execution plan for querying the dataframe with specified filters
@@ -337,6 +400,8 @@ class Dataframe {
     PERFETTO_DCHECK(row < row_count_);
     PERFETTO_DCHECK(col < column_ptrs_.size());
 
+    PERFETTO_CHECK(row >= first_retained_row_ && retains_column(col));
+    row -= first_retained_row_;
     const Column& column = *column_ptrs_[col];
     const Storage::DataPointer data_ptr = column.storage.data();
     const Nullability nullability = column.null_storage.nullability();
@@ -378,7 +443,7 @@ class Dataframe {
     // Dispatch based on storage type.
     switch (data_ptr.index()) {
       case StorageType::GetTypeIndex<Id>():
-        callback.OnCell(storage_idx);
+        callback.OnCell(storage_idx + first_retained_row_);
         break;
       case StorageType::GetTypeIndex<Uint32>():
         callback.OnCell(Storage::CastDataPtr<Uint32>(data_ptr)[storage_idx]);
@@ -418,7 +483,18 @@ class Dataframe {
   // be used in new code. Use `SetCellUnchecked` instead.
   template <typename T, typename N, typename M>
   void SetCellUncheckedLegacy(uint32_t col, uint32_t row, M value) {
+    if (PERFETTO_UNLIKELY(streaming_ != nullptr)) {
+      PERFETTO_CHECK(!streaming_->in_callback);
+      if (!retains_column(col) || row < first_retained_row_) {
+        ++column_ptrs_[col]->mutations;
+        NotifyUpdate(row, col, ToSinkValue(value));
+        return;
+      }
+    }
     SetCellUncheckedInternal<T, N, M>(row, *column_ptrs_[col], value);
+    if (PERFETTO_UNLIKELY(streaming_ != nullptr)) {
+      NotifyUpdate(row, col, ToSinkValue(value));
+    }
   }
 
   // Give a column name, returns the index of the column in the
@@ -458,6 +534,56 @@ class Dataframe {
 
   // Finalize, estimating distinct counts only if `estimate_distinct`.
   void FinalizeColumns(bool estimate_distinct);
+
+  struct StreamingState {
+    Sink* sink;
+    std::vector<bool> retained_columns;
+    bool in_callback = false;
+    uint32_t completion_frontier = 0;
+  };
+
+  template <typename T>
+  static SinkValue ToSinkValue(const T& value) {
+    return SinkValue(value);
+  }
+  static SinkValue ToSinkValue(std::nullopt_t) { return std::monostate{}; }
+  static SinkValue ToSinkValue(StringPool::Id value) {
+    return value.is_null() ? SinkValue(std::monostate{}) : SinkValue(value);
+  }
+  template <typename T>
+  static SinkValue ToSinkValue(const std::optional<T>& value) {
+    return value ? ToSinkValue(*value) : SinkValue(std::monostate{});
+  }
+  void NotifyUpdate(uint32_t row, uint32_t column, const SinkValue& value);
+
+  template <typename D, size_t I, typename T>
+  void InsertRetainedColumn(const T& value) {
+    if (retains_column(I)) {
+      InsertUncheckedColumn<
+          typename std::tuple_element_t<I, typename D::columns>, I>(value);
+    }
+  }
+  template <typename D, typename... Args, size_t... Is>
+  void InsertStreaming(std::index_sequence<Is...>, Args... values) {
+    PERFETTO_CHECK(!streaming_->in_callback);
+    (InsertRetainedColumn<D, Is>(values), ...);
+    uint32_t row = row_count_++;
+    ++non_column_mutations_;
+    if (streaming_->sink) {
+      std::array<SinkValue, sizeof...(Args)> cells{ToSinkValue(
+          typename std::tuple_element_t<Is, typename D::columns>::mutate_type(
+              values))...};
+      // Implicit IDs are supplied as monostate to the ordinary insert path.
+      ((std::is_same_v<
+            typename std::tuple_element_t<Is, typename D::columns>::type, Id>
+            ? void(cells[Is] = row)
+            : void()),
+       ...);
+      streaming_->in_callback = true;
+      streaming_->sink->OnInsert(row, cells.data(), sizeof...(Args));
+      streaming_->in_callback = false;
+    }
+  }
 
   template <typename D, typename... Args, size_t... Is>
   PERFETTO_ALWAYS_INLINE void InsertUncheckedInternal(
@@ -564,6 +690,7 @@ class Dataframe {
     using ColumnSpec = std::tuple_element_t<column, typename D::columns>;
     using type = typename ColumnSpec::type;
     using null_storage_type = typename ColumnSpec::null_storage_type;
+    PERFETTO_CHECK(retains_column(column));
     return GetCellUncheckedInternal<type, null_storage_type>(
         row, *column_ptrs_[column]);
   }
@@ -579,8 +706,19 @@ class Dataframe {
 
     // Changing the value of an Id column is not supported.
     static_assert(!std::is_same_v<type, Id>, "Cannot call set on Id column");
+    if (PERFETTO_UNLIKELY(streaming_ != nullptr)) {
+      PERFETTO_CHECK(!streaming_->in_callback);
+      if (!retains_column(column) || row < first_retained_row_) {
+        ++column_ptrs_[column]->mutations;
+        NotifyUpdate(row, column, ToSinkValue(value));
+        return;
+      }
+    }
     SetCellUncheckedInternal<type, null_storage_type, mutate_type>(
         row, *column_ptrs_[column], value);
+    if (PERFETTO_UNLIKELY(streaming_ != nullptr)) {
+      NotifyUpdate(row, column, ToSinkValue(value));
+    }
   }
 
   template <typename T, typename N>
@@ -591,6 +729,8 @@ class Dataframe {
         std::is_same_v<N, SparseNullWithPopcountAlways>;
     static constexpr bool is_sparse_null_supporting_get_until_finalization =
         std::is_same_v<N, SparseNullWithPopcountUntilFinalization>;
+    PERFETTO_CHECK(row >= first_retained_row_);
+    row -= first_retained_row_;
     const auto& storage = col.storage.unchecked_get<T>();
     const auto& nulls = col.null_storage.unchecked_get<N>();
     // See kStringNullLegacy above.
@@ -642,6 +782,8 @@ class Dataframe {
                                                        Column& col,
                                                        const M& value) {
     PERFETTO_DCHECK(!finalized_);
+    PERFETTO_CHECK(row >= first_retained_row_);
+    row -= first_retained_row_;
 
     // Make sure to increment the mutation count. This is important to let
     // others know that the column has been modified.
@@ -716,7 +858,7 @@ class Dataframe {
   PERFETTO_ALWAYS_INLINE auto GetCellUncheckedFromStorage(const C& column,
                                                           uint32_t row) const {
     if constexpr (std::is_same_v<C, Storage::Id>) {
-      return row;
+      return row + first_retained_row_;
     } else {
       return column[row];
     }
@@ -746,6 +888,7 @@ class Dataframe {
 
   // Number of rows in the dataframe.
   uint32_t row_count_ = 0;
+  uint32_t first_retained_row_ = 0;
 
   // String pool for efficient string storage and interning.
   StringPool* string_pool_;
@@ -761,6 +904,8 @@ class Dataframe {
 
   // Whether the dataframe is "finalized". See `Finalize()`.
   bool finalized_ = false;
+  std::shared_ptr<StreamingState> streaming_;
+  const bool* parser_retention_mask_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

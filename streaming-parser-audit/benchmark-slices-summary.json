@@ -1,0 +1,95 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "baseline": "Full storage, same release binary; not an unmodified-checkout overhead comparison",
+  "methodology": "5 fresh processes per mode/workload, alternating mode order; ru_utime+ru_stime, macOS ru_maxrss bytes; no SQL engine; globally ordered synthetic input; raw ftrace table disabled; 1MiB forced-sorter flushes; checksum sinks do not store output",
+  "results": [
+    {
+      "workload": "repeated",
+      "mode": "full",
+      "cpu_s": 0.812148,
+      "wall_s": 0.8144220419999995,
+      "peak_rss_mib": 100.140625,
+      "slice_rows": 1000001,
+      "slice_frontier": 0,
+      "arg_rows": 200,
+      "arg_frontier": 0
+    },
+    {
+      "workload": "repeated",
+      "mode": "sink",
+      "cpu_s": 0.891498,
+      "wall_s": 0.8936377919999998,
+      "peak_rss_mib": 100.15625,
+      "slice_rows": 1000001,
+      "slice_frontier": 0,
+      "arg_rows": 200,
+      "arg_frontier": 0
+    },
+    {
+      "workload": "repeated",
+      "mode": "drop",
+      "cpu_s": 0.899691,
+      "wall_s": 0.9019194580000001,
+      "peak_rss_mib": 100.140625,
+      "slice_rows": 1000001,
+      "slice_frontier": 0,
+      "arg_rows": 200,
+      "arg_frontier": 0
+    },
+    {
+      "workload": "repeated",
+      "mode": "slice",
+      "cpu_s": 0.855975,
+      "wall_s": 0.8574611249999968,
+      "peak_rss_mib": 13.359375,
+      "slice_rows": 1000001,
+      "slice_frontier": 999424,
+      "arg_rows": 200,
+      "arg_frontier": 0
+    },
+    {
+      "workload": "unique",
+      "mode": "full",
+      "cpu_s": 0.908963,
+      "wall_s": 0.913128167,
+      "peak_rss_mib": 287.5625,
+      "slice_rows": 1000001,
+      "slice_frontier": 0,
+      "arg_rows": 3000008,
+      "arg_frontier": 0
+    },
+    {
+      "workload": "unique",
+      "mode": "sink",
+      "cpu_s": 1.100034,
+      "wall_s": 1.1037642499999976,
+      "peak_rss_mib": 287.609375,
+      "slice_rows": 1000001,
+      "slice_frontier": 0,
+      "arg_rows": 3000008,
+      "arg_frontier": 0
+    },
+    {
+      "workload": "unique",
+      "mode": "drop",
+      "cpu_s": 1.096427,
+      "wall_s": 1.1006420840000004,
+      "peak_rss_mib": 287.59375,
+      "slice_rows": 1000001,
+      "slice_frontier": 0,
+      "arg_rows": 3000008,
+      "arg_frontier": 0
+    },
+    {
+      "workload": "unique",
+      "mode": "slice",
+      "cpu_s": 1.013504,
+      "wall_s": 1.0156252089999995,
+      "peak_rss_mib": 57.09375,
+      "slice_rows": 1000001,
+      "slice_frontier": 999424,
+      "arg_rows": 3000008,
+      "arg_frontier": 2998996
+    }
+  ]
+}

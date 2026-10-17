@@ -67,8 +67,22 @@ class ColumnSerializer:
       return f'row.{self.name}.value'
     return f'row.{self.name}'
 
+  def sink_value_expr(self) -> str:
+    value = f'values[{self.col_index}]'
+    typ = self.cpp_type_non_optional
+    storage_type = 'uint32_t' if self.is_id_type else typ
+    result = f'std::get<{storage_type}>({value})'
+    if self.is_id_type and not self.is_no_transform_id:
+      result = f'{typ}{{{result}}}'
+    if self.is_optional:
+      return f'std::holds_alternative<std::monostate>({value}) ? std::nullopt : std::make_optional({result})'
+    if self.is_string:
+      return f'std::holds_alternative<std::monostate>({value}) ? StringPool::Id::Null() : {result}'
+    return result
+
   def cursor_getter(self) -> Optional[str]:
-    if self.col.cpp_access == CppAccess.NONE:
+    if self.col.cpp_access in (CppAccess.NONE, CppAccess.LOW_PERF_WRITE,
+                               CppAccess.HIGH_PERF_WRITE):
       return ''
 
     if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
@@ -147,7 +161,8 @@ class ColumnSerializer:
     }}'''
 
   def row_reference_getter(self) -> str:
-    if self.col.cpp_access == CppAccess.NONE:
+    if self.col.cpp_access in (CppAccess.NONE, CppAccess.LOW_PERF_WRITE,
+                               CppAccess.HIGH_PERF_WRITE):
       return ''
     if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
       dcheck = 'PERFETTO_DCHECK(!table_->dataframe_.finalized());'
@@ -257,18 +272,21 @@ class ColumnSerializer:
         return 'dataframe::DenseNull'
       if self.col.cpp_access == CppAccess.NONE:
         return 'dataframe::SparseNull'
-      if self.col.cpp_access == CppAccess.READ_AND_HIGH_PERF_WRITE:
+      if self.col.cpp_access in (CppAccess.READ_AND_HIGH_PERF_WRITE,
+                                 CppAccess.HIGH_PERF_WRITE):
         return 'dataframe::DenseNull'
       assert self.col.cpp_access in (
           CppAccess.READ,
           CppAccess.READ_AND_LOW_PERF_WRITE,
+          CppAccess.LOW_PERF_WRITE,
       )
       # TODO(lalitm): we force this to dense for strings because in the
       # pre-dataframe days, string nullability was just represented by
       # StringPool::Id::Null(). There are hidden dependencies everywhere in the
       # codebase that expect O(1) writes to string columns. Fixing this is
       # non-trivial, so we just keep it dense for now.
-      if self.is_string and self.col.cpp_access == CppAccess.READ_AND_LOW_PERF_WRITE:
+      if self.is_string and self.col.cpp_access in (
+          CppAccess.READ_AND_LOW_PERF_WRITE, CppAccess.LOW_PERF_WRITE):
         return 'dataframe::DenseNull'
       if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
         return 'dataframe::SparseNullWithPopcountUntilFinalization'
@@ -408,12 +426,22 @@ inline constexpr uint32_t k{self.table_name}ColumnCount = {col_count};
         ColumnSerializer.cursor_setter, delimiter='\n')
     insert_argvalue = self.foreach_col(
         ColumnSerializer.row_insert_arg_value, delimiter=', ')
+    retained = ', '.join('true' if c.is_implicit_id or c.col.cpp_access in (
+        CppAccess.READ, CppAccess.READ_AND_LOW_PERF_WRITE,
+        CppAccess.READ_AND_HIGH_PERF_WRITE) else 'false'
+                         for c in self.column_serializers)
+    sink_fields = ', '.join(c.sink_value_expr()
+                            for c in self.column_serializers
+                            if not c.is_implicit_id)
     return f'''
 class {self.table_name} {{
  public:
   static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
     {{{col_names}}},
     {col_specs});
+
+  // Includes implicit IDs; query-only parser columns must be annotated READ.
+  static constexpr bool kRetainedColumns[] = {{{retained}}};
 
   using Id = {self.table_name}_Id;
   struct RowReference;
@@ -543,7 +571,8 @@ class {self.table_name} {{
   }};
   class Iterator {{
     public:
-      explicit Iterator({self.table_name}* table) : table_(table) {{
+      explicit Iterator({self.table_name}* table)
+          : table_(table), row_(table->dataframe_.first_retained_row()) {{
         base::ignore_result(table_);
       }}
       explicit operator bool() const {{ return row_ < table_->row_count(); }}
@@ -566,7 +595,8 @@ class {self.table_name} {{
   }};
   class ConstIterator {{
     public:
-      explicit ConstIterator(const {self.table_name}* table) : table_(table) {{
+      explicit ConstIterator(const {self.table_name}* table)
+          : table_(table), row_(table->dataframe_.first_retained_row()) {{
         base::ignore_result(table_);
       }}
       explicit operator bool() const {{ return row_ < table_->row_count(); }}
@@ -594,9 +624,36 @@ class {self.table_name} {{
   }};
   {self.row_struct()}
 
+  // Inserts contain every column, including columns omitted from local storage.
+  // Updates use ColumnIndex and Dataframe::SinkValue (IDs are uint32_t).
+  class Sink : public dataframe::Dataframe::Sink {{
+   public:
+    virtual void OnRowInsert(Id id, const Row& row) = 0;
+    virtual void OnCellUpdate(Id id, uint32_t column,
+                             const dataframe::Dataframe::SinkValue& value) = 0;
+   private:
+    void OnInsert(uint32_t row, const dataframe::Dataframe::SinkValue* values,
+                  uint32_t count) final {{
+      PERFETTO_CHECK(count == decltype(kSpec)::kColumnCount);
+      OnRowInsert(Id{{row}}, Row{{{sink_fields}}});
+    }}
+    void OnUpdate(uint32_t row, uint32_t column,
+                  const dataframe::Dataframe::SinkValue& value) final {{
+      OnCellUpdate(Id{{row}}, column, value);
+    }}
+  }};
+
+  void SetSink(Sink* sink, bool drop_unread_columns = false) {{
+    dataframe_.ConfigureStreaming(sink, drop_unread_columns
+        ? std::vector<bool>(std::begin(kRetainedColumns), std::end(kRetainedColumns))
+        : std::vector<bool>{{}});
+  }}
+
   explicit {self.table_name}(StringPool* pool)
       : dataframe_(
-        dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
+        dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{
+    dataframe_.SetParserRetentionMask(kRetainedColumns);
+  }}
 
   template <typename = void>
   IdAndRow Insert(const Row& row) {{
@@ -651,11 +708,14 @@ class {self.table_name} {{
   Iterator IterateRows() {{ return Iterator(this); }}
   ConstIterator IterateRows() const {{ return ConstIterator(this); }}
 
+  // Explicit opt-in: caller has proven earlier rows are no longer accessed.
+  void DropRowsBefore(uint32_t row) {{ dataframe_.DropRowsBefore(row); }}
+
   void Finalize() {{ dataframe_.Finalize(); }}
 
   void Clear() {{ dataframe_.Clear(); }}
 
-  static const char* Name() {{
+  static constexpr const char* Name() {{
     return "{self.table.sql_name}";
   }}
 

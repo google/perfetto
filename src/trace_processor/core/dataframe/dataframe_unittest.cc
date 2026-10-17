@@ -2078,4 +2078,242 @@ TEST_F(LogicalPlanTest, IndexServesEqualityFilters) {
                      /*cols_used=*/0b11);
 }
 
+namespace {
+class RecordingSink : public Dataframe::Sink {
+ public:
+  struct Update {
+    uint32_t row;
+    uint32_t column;
+    Dataframe::SinkValue value;
+  };
+  void OnInsert(uint32_t row,
+                const Dataframe::SinkValue* values,
+                uint32_t count) override {
+    ids.push_back(row);
+    rows.emplace_back(values, values + count);
+  }
+  void OnUpdate(uint32_t row,
+                uint32_t column,
+                const Dataframe::SinkValue& value) override {
+    updates.push_back({row, column, value});
+  }
+  void OnClear() override { ++clears; }
+  std::vector<uint32_t> ids;
+  std::vector<std::vector<Dataframe::SinkValue>> rows;
+  std::vector<Update> updates;
+  uint32_t clears = 0;
+};
+}  // namespace
+
+TEST(DataframeStreamingTest, EmptyColumnsStillReachSinkAndIdsAdvance) {
+  StringPool pool;
+  constexpr auto spec = CreateTypedDataframeSpec(
+      {"id", "kept", "dropped", "name"},
+      CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}),
+      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
+      CreateTypedColumnSpec(Uint32{}, DenseNull{}, Unsorted{}),
+      CreateTypedColumnSpec(String{}, SparseNull{}, Unsorted{}));
+  auto df = Dataframe::CreateFromTypedSpec(spec, &pool);
+  RecordingSink sink;
+  df.ConfigureStreaming(&sink, {true, true, false, false});
+  auto name = pool.InternString("hello");
+  df.InsertUnchecked(spec, std::monostate{}, int64_t{10},
+                     std::optional<uint32_t>{20}, std::make_optional(name));
+  df.InsertUnchecked(spec, std::monostate{}, int64_t{11},
+                     std::optional<uint32_t>{},
+                     std::optional<StringPool::Id>{});
+  EXPECT_EQ(df.row_count(), 2u);
+  EXPECT_EQ(df.GetCellUnchecked<0>(spec, 1), 1u);
+  EXPECT_EQ(df.GetCellUnchecked<1>(spec, 1), 11);
+  ASSERT_EQ(sink.rows.size(), 2u);
+  EXPECT_EQ(std::get<uint32_t>(sink.rows[1][0]), 1u);
+  EXPECT_EQ(std::get<uint32_t>(sink.rows[0][2]), 20u);
+  EXPECT_EQ(std::get<StringPool::Id>(sink.rows[0][3]), name);
+  EXPECT_TRUE(std::holds_alternative<std::monostate>(sink.rows[1][2]));
+  df.Finalize();
+  EXPECT_EQ(df.shared_column(2)->storage.unchecked_get<Uint32>().size(), 0u);
+  EXPECT_EQ(df.shared_column(2)
+                ->null_storage.unchecked_get<DenseNull>()
+                .bit_vector.size(),
+            0u);
+  EXPECT_EQ(df.shared_column(3)->storage.unchecked_get<String>().size(), 0u);
+}
+
+TEST(DataframeStreamingTest, TypedCursorAndGenericUpdatesReachSink) {
+  StringPool pool;
+  constexpr auto spec = CreateTypedDataframeSpec(
+      {"id", "kept", "dropped"},
+      CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}),
+      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
+      CreateTypedColumnSpec(Uint32{}, DenseNull{}, Unsorted{}));
+  auto df = Dataframe::CreateFromTypedSpec(spec, &pool);
+  RecordingSink sink;
+  df.ConfigureStreaming(&sink, {true, true, false});
+  df.InsertUnchecked(spec, std::monostate{}, int64_t{10},
+                     std::optional<uint32_t>{});
+  df.SetCellUnchecked<1>(spec, 0, int64_t{12});
+  // ArgsInserter uses this generic mutation path.
+  df.SetCellUncheckedLegacy<Uint32, DenseNull>(
+      2, 0, std::make_optional(uint32_t{42}));
+  TypedCursor cursor(&df, {}, {});
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  cursor.SetCellUnchecked<1>(spec, int64_t{13});
+  ASSERT_EQ(sink.updates.size(), 3u);
+  EXPECT_EQ(std::get<uint32_t>(sink.updates[1].value), 42u);
+  EXPECT_EQ(df.GetCellUnchecked<1>(spec, 0), 13);
+  df.Clear();
+  EXPECT_EQ(sink.clears, 1u);
+  df.InsertUnchecked(spec, std::monostate{}, int64_t{14},
+                     std::optional<uint32_t>{});
+  EXPECT_EQ(sink.ids.back(), 0u);
+}
+
+TEST(DataframeStreamingTest, QueriesRejectOmittedColumns) {
+  StringPool pool;
+  constexpr auto spec = CreateTypedDataframeSpec(
+      {"kept", "dropped"},
+      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
+      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}));
+  auto df = Dataframe::CreateFromTypedSpec(spec, &pool);
+  df.ConfigureStreaming(nullptr, {true, false});
+  df.InsertUnchecked(spec, int64_t{1}, int64_t{2});
+  std::vector<FilterSpec> filters;
+  EXPECT_TRUE(df.PlanQuery(filters, {}, {}, {}, 1).ok());
+  EXPECT_FALSE(df.PlanQuery(filters, {}, {}, {}, 2).ok());
+  filters.push_back({1, 0, Eq{}, {}});
+  EXPECT_FALSE(df.PlanQuery(filters, {}, {}, {}, 0).ok());
+}
+
+TEST(DataframeStreamingTest,
+     PrefixEvictionPreservesAbsoluteIdsAndNullableData) {
+  StringPool pool;
+  constexpr auto spec = CreateTypedDataframeSpec(
+      {"id", "dense", "sparse"},
+      CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}),
+      CreateTypedColumnSpec(Int64{}, DenseNull{}, Unsorted{}),
+      CreateTypedColumnSpec(Uint32{}, SparseNullWithPopcountAlways{},
+                            Unsorted{}));
+  auto df = Dataframe::CreateFromTypedSpec(spec, &pool);
+  RecordingSink sink;
+  df.ConfigureStreaming(&sink, {});
+  for (uint32_t i = 0; i < 130; ++i) {
+    df.InsertUnchecked(spec, std::monostate{},
+                       i % 2 ? std::make_optional(int64_t{i}) : std::nullopt,
+                       i % 3 ? std::make_optional(i) : std::nullopt);
+  }
+  df.DropRowsBefore(65);
+  EXPECT_EQ(df.first_retained_row(), 65u);
+  EXPECT_EQ(df.row_count(), 130u);
+  EXPECT_EQ(df.GetCellUnchecked<0>(spec, 65), 65u);
+  EXPECT_EQ(df.GetCellUnchecked<1>(spec, 65), 65);
+  EXPECT_EQ(df.GetCellUnchecked<2>(spec, 65), 65u);
+  EXPECT_EQ(df.GetCellUnchecked<2>(spec, 66), std::nullopt);
+  // Exercise null -> value and value -> null after rebuilding popcounts.
+  df.SetCellUnchecked<2>(spec, 66, std::make_optional(uint32_t{999}));
+  df.SetCellUnchecked<2>(spec, 65, std::nullopt);
+  EXPECT_EQ(df.GetCellUnchecked<2>(spec, 66), 999u);
+  EXPECT_EQ(sink.updates.back().row, 65u);
+  df.DropRowsBefore(129);
+  EXPECT_EQ(df.GetCellUnchecked<0>(spec, 129), 129u);
+  df.DropRowsBefore(130);
+  df.InsertUnchecked(spec, std::monostate{}, std::make_optional(int64_t{130}),
+                     std::make_optional(uint32_t{130}));
+  EXPECT_EQ(sink.ids.back(), 130u);
+  EXPECT_EQ(df.GetCellUnchecked<0>(spec, 130), 130u);
+  EXPECT_EQ(df.GetCellUnchecked<2>(spec, 130), 130u);
+  std::vector<FilterSpec> filters;
+  EXPECT_FALSE(df.PlanQuery(filters, {}, {}, {}, 0).ok());
+  df.Finalize();
+  EXPECT_EQ(df.shared_column(1)->storage.unchecked_get<Int64>().size(), 1u);
+}
+
+TEST(DataframeStreamingTest, PrefixWindowReclaimsAllocation) {
+  StringPool pool;
+  constexpr auto spec = CreateTypedDataframeSpec(
+      {"id", "value"}, CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}),
+      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}));
+  auto df = Dataframe::CreateFromTypedSpec(spec, &pool);
+  df.ConfigureStreaming(nullptr, {});
+  constexpr uint32_t kWindow = 1024;
+  constexpr uint32_t kRows = 131072;
+  for (uint32_t i = 0; i < kRows; ++i) {
+    df.InsertUnchecked(spec, std::monostate{}, int64_t{i});
+    if (df.row_count() % kWindow == 0 && df.row_count() > kWindow) {
+      df.DropRowsBefore(df.row_count() - kWindow);
+    }
+  }
+  EXPECT_EQ(df.row_count(), kRows);
+  EXPECT_EQ(df.first_retained_row(), kRows - kWindow);
+  EXPECT_EQ(df.GetCellUnchecked<0>(spec, kRows - 1), kRows - 1);
+  EXPECT_EQ(df.GetCellUnchecked<1>(spec, kRows - 1), kRows - 1);
+  df.Finalize();
+  const auto& values = df.shared_column(1)->storage.unchecked_get<Int64>();
+  EXPECT_EQ(values.size(), kWindow);
+  EXPECT_EQ(values.capacity() * sizeof(int64_t), 8192u);
+}
+
+TEST(DataframeStreamingTest, EvictedRowsAcceptTypedAndGenericBackPatches) {
+  StringPool pool;
+  constexpr auto spec = CreateTypedDataframeSpec(
+      {"id", "value", "nullable"},
+      CreateTypedColumnSpec(Id{}, NonNull{}, IdSorted{}),
+      CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}),
+      CreateTypedColumnSpec(Uint32{}, DenseNull{}, Unsorted{}));
+  auto df = Dataframe::CreateFromTypedSpec(spec, &pool);
+  RecordingSink sink;
+  df.ConfigureStreaming(&sink, {true, true, false});
+  df.InsertUnchecked(spec, std::monostate{}, int64_t{1}, std::nullopt);
+  df.InsertUnchecked(spec, std::monostate{}, int64_t{2}, std::nullopt);
+  df.DropRowsBefore(2);
+  EXPECT_EQ(df.completion_frontier(), 0u);
+  df.SetCellUnchecked<1>(spec, 0, int64_t{999});
+  df.SetCellUnchecked<2>(spec, 0, std::make_optional(uint32_t{42}));
+  df.SetCellUncheckedLegacy<Uint32, DenseNull>(2, 1, std::optional<uint32_t>{});
+  EXPECT_EQ(sink.updates.size(), 3u);
+  EXPECT_EQ(sink.updates[0].row, 0u);
+  EXPECT_EQ(std::get<int64_t>(sink.updates[0].value), 999);
+  EXPECT_EQ(std::get<uint32_t>(sink.updates[1].value), 42u);
+  EXPECT_TRUE(std::holds_alternative<std::monostate>(sink.updates[2].value));
+  EXPECT_EQ(df.column(1).storage.unchecked_get<Int64>().size(), 0u);
+  df.AdvanceCompletionFrontier(1);
+  EXPECT_DEATH(df.SetCellUnchecked<1>(spec, 0, int64_t{3}), "");
+  EXPECT_DEATH((df.SetCellUncheckedLegacy<Uint32, DenseNull>(
+                   2, 0, std::make_optional(uint32_t{3}))),
+               "");
+  // Completion and storage are independent; outstanding row 1 still patches.
+  df.SetCellUnchecked<1>(spec, 1, int64_t{4});
+  df.AdvanceCompletionFrontier(2);
+  EXPECT_DEATH(df.AdvanceCompletionFrontier(1), "");
+  df.Clear();
+  EXPECT_EQ(df.completion_frontier(), 0u);
+  df.InsertUnchecked(spec, std::monostate{}, int64_t{5}, std::nullopt);
+  df.SetCellUnchecked<1>(spec, 0, int64_t{6});
+}
+
+TEST(DataframeStreamingTest, InvalidRetentionAccessAndReentrantMutationFail) {
+  StringPool pool;
+  constexpr auto spec = CreateTypedDataframeSpec(
+      {"value"}, CreateTypedColumnSpec(Int64{}, NonNull{}, Unsorted{}));
+  auto df = Dataframe::CreateFromTypedSpec(spec, &pool);
+  df.ConfigureStreaming(nullptr, {});
+  df.InsertUnchecked(spec, int64_t{1});
+  df.DropRowsBefore(1);
+  EXPECT_DEATH(static_cast<void>(df.GetCellUnchecked<0>(spec, 0)), "");
+  df.AdvanceCompletionFrontier(1);
+  EXPECT_DEATH(df.SetCellUnchecked<0>(spec, 0, int64_t{2}), "");
+  EXPECT_DEATH(df.ConfigureStreaming(nullptr, {}), "");
+  df.Clear();
+  class ReentrantSink : public RecordingSink {
+   public:
+    explicit ReentrantSink(Dataframe* dataframe) : df(dataframe) {}
+    void OnInsert(uint32_t, const Dataframe::SinkValue*, uint32_t) override {
+      df->Clear();
+    }
+    Dataframe* df;
+  } sink(&df);
+  df.ConfigureStreaming(&sink, {});
+  EXPECT_DEATH(df.InsertUnchecked(spec, int64_t{3}), "");
+}
+
 }  // namespace perfetto::trace_processor::core::dataframe

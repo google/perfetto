@@ -1,0 +1,236 @@
+[==========] Running 116 tests.
+[ RUN      ] JsonParser:json_id2
+[       OK ] JsonParser:json_id2 (ingest: 47.25 ms query: 2.50 ms)
+[ RUN      ] JsonParser:json_async
+[       OK ] JsonParser:json_async (ingest: 63.44 ms query: 2.42 ms)
+[ RUN      ] JsonParser:json_counter_args
+[       OK ] JsonParser:json_counter_args (ingest: 80.04 ms query: 0.21 ms)
+[ RUN      ] JsonParser:json_extreme_vals
+[       OK ] JsonParser:json_extreme_vals (ingest: 40.35 ms query: 5.40 ms)
+[ RUN      ] JsonParser:invalid_string_ts_and_dur
+[       OK ] JsonParser:invalid_string_ts_and_dur (ingest: 77.44 ms query: 0.14 ms)
+[ RUN      ] JsonParser:json_flow
+[       OK ] JsonParser:json_flow (ingest: 71.31 ms query: 5.62 ms)
+[ RUN      ] JsonParser:json_all_slice_types
+[       OK ] JsonParser:json_all_slice_types (ingest: 60.05 ms query: 8.35 ms)
+[ RUN      ] JsonParser:args_ordered
+[       OK ] JsonParser:args_ordered (ingest: 120.91 ms query: 0.30 ms)
+[ RUN      ] JsonParser:json_metadata_missing_or_invalid_ts
+[       OK ] JsonParser:json_metadata_missing_or_invalid_ts (ingest: 40.72 ms query: 0.20 ms)
+[ RUN      ] JsonParser:json_pid_tid_zero
+[       OK ] JsonParser:json_pid_tid_zero (ingest: 39.12 ms query: 0.08 ms)
+[ RUN      ] JsonParser:json_id2_local_int_id
+[       OK ] JsonParser:json_id2_local_int_id (ingest: 66.71 ms query: 0.43 ms)
+[ RUN      ] JsonParser:json_metadata
+[       OK ] JsonParser:json_metadata (ingest: 85.96 ms query: 2.79 ms)
+[ RUN      ] JsonParser:json_id2_global_int_id
+[       OK ] JsonParser:json_id2_global_int_id (ingest: 85.73 ms query: 0.14 ms)
+[ RUN      ] JsonParser:json_id2_global_string_id
+[       OK ] JsonParser:json_id2_global_string_id (ingest: 69.12 ms query: 0.13 ms)
+[ RUN      ] JsonParser:json_id2_local_string_id
+[       OK ] JsonParser:json_id2_local_string_id (ingest: 88.86 ms query: 0.13 ms)
+[ RUN      ] JsonParser:json_incomplete
+[       OK ] JsonParser:json_incomplete (ingest: 138.02 ms query: 0.16 ms)
+[ RUN      ] JsonParser:overlapping_complete_event_import_log
+[       OK ] JsonParser:overlapping_complete_event_import_log (ingest: 38.71 ms query: 0.26 ms)
+[ RUN      ] JsonParser:json_sort_index_ordering
+[       OK ] JsonParser:json_sort_index_ordering (ingest: 52.27 ms query: 0.32 ms)
+[ RUN      ] JsonParser:json_trace_metadata
+[       OK ] JsonParser:json_trace_metadata (ingest: 58.56 ms query: 0.13 ms)
+[ RUN      ] JsonParser:json_trailing_comma
+[       OK ] JsonParser:json_trailing_comma (ingest: 63.35 ms query: 0.07 ms)
+[ RUN      ] JsonParser:json_thread_state_sched
+[       OK ] JsonParser:json_thread_state_sched (ingest: 55.70 ms query: 0.64 ms)
+[ RUN      ] JsonParser:json_sort_index_hints
+[       OK ] JsonParser:json_sort_index_hints (ingest: 124.86 ms query: 0.53 ms)
+[ RUN      ] JsonParser:json_thread_state
+[       OK ] JsonParser:json_thread_state (ingest: 106.91 ms query: 0.49 ms)
+[ RUN      ] JsonParser:overlapping_complete_event_recovered
+[       OK ] JsonParser:overlapping_complete_event_recovered (ingest: 142.38 ms query: 0.35 ms)
+[ RUN      ] JsonParser:string_ts_trailing_chars
+[       OK ] JsonParser:string_ts_trailing_chars (ingest: 88.04 ms query: 0.26 ms)
+[ RUN      ] JsonParser:x_event_order
+[       OK ] JsonParser:x_event_order (ingest: 45.30 ms query: 0.07 ms)
+[ RUN      ] JsonParser:string_ts_and_dur
+[       OK ] JsonParser:string_ts_and_dur (ingest: 61.69 ms query: 0.23 ms)
+[ RUN      ] JsonParser:string_tts_and_tdur
+[       OK ] JsonParser:string_tts_and_tdur (ingest: 84.58 ms query: 0.09 ms)
+[ RUN      ] JsonParser:string_pid_tid
+[       OK ] JsonParser:string_pid_tid (ingest: 114.18 ms query: 0.17 ms)
+[ RUN      ] JsonParser:trailing_empty_event
+[       OK ] JsonParser:trailing_empty_event (ingest: 116.49 ms query: 0.32 ms)
+[ RUN      ] ProcessTracking:cmdline_is_comm_for_kthreads
+[       OK ] ProcessTracking:cmdline_is_comm_for_kthreads (ingest: 242.14 ms query: 0.19 ms)
+[ RUN      ] ProcessTracking:main_thread_comm_from_process_tree
+[       OK ] ProcessTracking:main_thread_comm_from_process_tree (ingest: 187.84 ms query: 0.14 ms)
+[ RUN      ] ProcessTracking:process_age_optionality
+[       OK ] ProcessTracking:process_age_optionality (ingest: 167.12 ms query: 0.28 ms)
+[ RUN      ] ProcessTracking:kworker_main_thread_name_redacted
+[       OK ] ProcessTracking:kworker_main_thread_name_redacted (ingest: 193.94 ms query: 0.73 ms)
+[ RUN      ] ProcessTracking:idle_thread_single_machine
+[       OK ] ProcessTracking:idle_thread_single_machine (ingest: 250.94 ms query: 0.92 ms)
+[ RUN      ] ProcessTracking:process_is_kthread_from_procfs
+[       OK ] ProcessTracking:process_is_kthread_from_procfs (ingest: 181.93 ms query: 0.15 ms)
+[ RUN      ] ProcessTracking:process_parent_pid_process_parent_pid_tracking_1
+[       OK ] ProcessTracking:process_parent_pid_process_parent_pid_tracking_1 (ingest: 144.46 ms query: 0.37 ms)
+[ RUN      ] ProcessTracking:process_parent_pid_process_parent_pid_tracking_2
+[       OK ] ProcessTracking:process_parent_pid_process_parent_pid_tracking_2 (ingest: 213.37 ms query: 0.13 ms)
+[ RUN      ] ProcessTracking:process_stats_process_runtime
+[       OK ] ProcessTracking:process_stats_process_runtime (ingest: 180.68 ms query: 0.22 ms)
+[ RUN      ] ProcessTracking:process_reparent_and_reuse
+[       OK ] ProcessTracking:process_reparent_and_reuse (ingest: 151.25 ms query: 0.16 ms)
+[ RUN      ] ProcessTracking:process_tracking_process_tracking_exec
+[       OK ] ProcessTracking:process_tracking_process_tracking_exec (ingest: 149.11 ms query: 0.14 ms)
+[ RUN      ] ProcessTracking:process_tracking
+[       OK ] ProcessTracking:process_tracking (ingest: 150.79 ms query: 0.19 ms)
+[ RUN      ] ProcessTracking:process_tracking_machine_id
+[       OK ] ProcessTracking:process_tracking_machine_id (ingest: 177.47 ms query: 0.20 ms)
+[ RUN      ] ProcessTracking:process_tracking_process_tracking_short_lived_1
+[       OK ] ProcessTracking:process_tracking_process_tracking_short_lived_1 (ingest: 166.89 ms query: 0.14 ms)
+[ RUN      ] ProcessTracking:unknown_thread_name_tracking
+[       OK ] ProcessTracking:unknown_thread_name_tracking (ingest: 69.68 ms query: 0.30 ms)
+[ RUN      ] ProcessTracking:slice_with_pid_sde_tracing_mark_write
+[       OK ] ProcessTracking:slice_with_pid_sde_tracing_mark_write (ingest: 158.38 ms query: 0.50 ms)
+[ RUN      ] ProcessTracking:process_tracking_process_tracking_short_lived_2
+[       OK ] ProcessTracking:process_tracking_process_tracking_short_lived_2 (ingest: 167.84 ms query: 0.14 ms)
+[ RUN      ] ProcessTracking:process_tracking_uid
+[       OK ] ProcessTracking:process_tracking_uid (ingest: 129.82 ms query: 0.09 ms)
+[ RUN      ] ProcessTracking:track_event_process_rename
+[       OK ] ProcessTracking:track_event_process_rename (ingest: 162.74 ms query: 0.08 ms)
+[ RUN      ] ProcessTracking:process_tracking_reused_thread_print
+[       OK ] ProcessTracking:process_tracking_reused_thread_print (ingest: 182.36 ms query: 0.15 ms)
+[ RUN      ] TrackEvent:experimental_slice_layout_depth
+[       OK ] TrackEvent:experimental_slice_layout_depth (ingest: 163.58 ms query: 0.21 ms)
+[ RUN      ] TrackEvent:flow_events_proto_v1
+[       OK ] TrackEvent:flow_events_proto_v1 (ingest: 204.28 ms query: 0.50 ms)
+[ RUN      ] TrackEvent:incremental_counter_sequences
+[       OK ] TrackEvent:incremental_counter_sequences (ingest: 158.25 ms query: 0.13 ms)
+[ RUN      ] TrackEvent:flow_events_track_event
+[       OK ] TrackEvent:flow_events_track_event (ingest: 178.37 ms query: 0.40 ms)
+[ RUN      ] TrackEvent:legacy_async_event
+[       OK ] TrackEvent:legacy_async_event (ingest: 162.93 ms query: 0.47 ms)
+[ RUN      ] TrackEvent:flow_events_proto_v2
+[       OK ] TrackEvent:flow_events_proto_v2 (ingest: 185.50 ms query: 0.19 ms)
+[ RUN      ] TrackEvent:range_of_interest
+[       OK ] TrackEvent:range_of_interest (ingest: 164.67 ms query: 0.14 ms)
+[ RUN      ] TrackEvent:state_track_legacy_fallback_error
+[       OK ] TrackEvent:state_track_legacy_fallback_error (ingest: 162.53 ms query: 0.09 ms)
+[ RUN      ] TrackEvent:track_descriptor_process_thread_sort_index
+[       OK ] TrackEvent:track_descriptor_process_thread_sort_index (ingest: 154.74 ms query: 0.18 ms)
+[ RUN      ] TrackEvent:streaming_profile_timestamp_delta_overflow
+[       OK ] TrackEvent:streaming_profile_timestamp_delta_overflow (ingest: 144.25 ms query: 0.22 ms)
+[ RUN      ] TrackEvent:track_event_absolute_timestamp_us_overflow
+[       OK ] TrackEvent:track_event_absolute_timestamp_us_overflow (ingest: 178.47 ms query: 0.34 ms)
+[ RUN      ] TrackEvent:track_descriptor_process_thread_sort_index_default_ignored
+[       OK ] TrackEvent:track_descriptor_process_thread_sort_index_default_ignored (ingest: 177.46 ms query: 0.15 ms)
+[ RUN      ] ProcessTracking:idle_thread_multi_machine
+[       OK ] ProcessTracking:idle_thread_multi_machine (ingest: 1743.30 ms query: 1.26 ms)
+[ RUN      ] TrackEvent:track_event_callstack_weights
+[       OK ] TrackEvent:track_event_callstack_weights (ingest: 201.90 ms query: 0.19 ms)
+[ RUN      ] TrackEvent:track_event_callstacks
+[       OK ] TrackEvent:track_event_callstacks (ingest: 209.02 ms query: 0.54 ms)
+[ RUN      ] TrackEvent:track_event_chrome_histogram_sample_args
+[       OK ] TrackEvent:track_event_chrome_histogram_sample_args (ingest: 186.75 ms query: 0.29 ms)
+[ RUN      ] TrackEvent:track_event_counters_slices
+[       OK ] TrackEvent:track_event_counters_slices (ingest: 187.15 ms query: 0.53 ms)
+[ RUN      ] TrackEvent:track_event_counters_counters_machine_id
+[       OK ] TrackEvent:track_event_counters_counters_machine_id (ingest: 217.26 ms query: 0.10 ms)
+[ RUN      ] TrackEvent:track_event_counters_counters
+[       OK ] TrackEvent:track_event_counters_counters (ingest: 247.26 ms query: 0.67 ms)
+[ RUN      ] TrackEvent:track_event_descriptions
+[       OK ] TrackEvent:track_event_descriptions (ingest: 225.10 ms query: 0.58 ms)
+[ RUN      ] TrackEvent:track_event_delta_timestamp_addition_overflow
+[       OK ] TrackEvent:track_event_delta_timestamp_addition_overflow (ingest: 242.86 ms query: 0.39 ms)
+[ RUN      ] TrackEvent:track_event_instant_slices
+[       OK ] TrackEvent:track_event_instant_slices (ingest: 231.54 ms query: 0.68 ms)
+[ RUN      ] TrackEvent:track_event_merged_debug_annotations_args
+[       OK ] TrackEvent:track_event_merged_debug_annotations_args (ingest: 226.57 ms query: 0.33 ms)
+[ RUN      ] TrackEvent:track_event_monotonic_trace_clock_slices
+[       OK ] TrackEvent:track_event_monotonic_trace_clock_slices (ingest: 214.22 ms query: 0.78 ms)
+[ RUN      ] TrackEvent:track_event_name_resolution
+[       OK ] TrackEvent:track_event_name_resolution (ingest: 228.19 ms query: 0.22 ms)
+[ RUN      ] TrackEvent:track_event_name_resolution_extended
+[       OK ] TrackEvent:track_event_name_resolution_extended (ingest: 225.17 ms query: 0.25 ms)
+[ RUN      ] TrackEvent:track_event_name_resolution_null_override
+[       OK ] TrackEvent:track_event_name_resolution_null_override (ingest: 220.72 ms query: 0.13 ms)
+[ RUN      ] TrackEvent:track_event_out_of_order_state_descriptors
+[       OK ] TrackEvent:track_event_out_of_order_state_descriptors (ingest: 243.71 ms query: 0.21 ms)
+[ RUN      ] TrackEvent:track_event_same_tids_threads
+[       OK ] TrackEvent:track_event_same_tids_threads (ingest: 261.10 ms query: 0.36 ms)
+[ RUN      ] TrackEvent:track_event_same_tids_slices
+[       OK ] TrackEvent:track_event_same_tids_slices (ingest: 266.61 ms query: 0.51 ms)
+[ RUN      ] TrackEvent:track_event_simple_state
+[       OK ] TrackEvent:track_event_simple_state (ingest: 275.35 ms query: 0.29 ms)
+[ RUN      ] TrackEvent:track_event_state_on_non_state_track
+[       OK ] TrackEvent:track_event_state_on_non_state_track (ingest: 269.09 ms query: 0.19 ms)
+[ RUN      ] TrackEvent:track_event_state_state
+[       OK ] TrackEvent:track_event_state_state (ingest: 269.60 ms query: 0.73 ms)
+[ RUN      ] TrackEvent:track_event_tracks
+[       OK ] TrackEvent:track_event_tracks (ingest: 288.02 ms query: 0.79 ms)
+[ RUN      ] TrackEvent:track_event_tracks_machine_id
+[       OK ] TrackEvent:track_event_tracks_machine_id (ingest: 294.30 ms query: 0.89 ms)
+[ RUN      ] TrackEvent:track_event_tracks_ordering
+[       OK ] TrackEvent:track_event_tracks_ordering (ingest: 281.61 ms query: 0.44 ms)
+[ RUN      ] TrackEvent:track_event_tracks_processes
+[       OK ] TrackEvent:track_event_tracks_processes (ingest: 289.42 ms query: 1.00 ms)
+[ RUN      ] TrackEvent:track_event_tracks_slices
+[       OK ] TrackEvent:track_event_tracks_slices (ingest: 282.30 ms query: 0.96 ms)
+[ RUN      ] TrackEvent:track_event_typed_args_slices
+[       OK ] TrackEvent:track_event_typed_args_slices (ingest: 329.32 ms query: 0.69 ms)
+[ RUN      ] TrackEvent:track_event_typed_args_args
+[       OK ] TrackEvent:track_event_typed_args_args (ingest: 381.73 ms query: 0.51 ms)
+[ RUN      ] TrackEvent:track_event_with_atrace
+[       OK ] TrackEvent:track_event_with_atrace (ingest: 290.55 ms query: 0.75 ms)
+[ RUN      ] TrackEvent:track_event_with_atrace_separate_tracks
+[       OK ] TrackEvent:track_event_with_atrace_separate_tracks (ingest: 282.24 ms query: 2.02 ms)
+[ RUN      ] TablesSched:sched_cpu_id
+[       OK ] TablesSched:sched_cpu_id (ingest: 285.92 ms query: 0.24 ms)
+[ RUN      ] TablesSched:sched_cpu_id_machine_id
+[       OK ] TablesSched:sched_cpu_id_machine_id (ingest: 487.68 ms query: 0.52 ms)
+[ RUN      ] TablesSched:ftrace_event_common_flags
+[       OK ] TablesSched:ftrace_event_common_flags (ingest: 6514.42 ms query: 1.33 ms)
+[ RUN      ] TablesSched:sched_waker_id
+[       OK ] TablesSched:sched_waker_id (ingest: 6408.03 ms query: 0.37 ms)
+[ RUN      ] TablesSched:sched_wakeup
+[       OK ] TablesSched:sched_wakeup (ingest: 6413.42 ms query: 0.16 ms)
+[ RUN      ] TablesSched:synth_1_filter_sched
+[       OK ] TablesSched:synth_1_filter_sched (ingest: 195.45 ms query: 0.15 ms)
+[ RUN      ] TablesSched:thread_executing_span_critical_path_by_intervals
+[       OK ] TablesSched:thread_executing_span_critical_path_by_intervals (ingest: 258.80 ms query: 57.89 ms)
+[ RUN      ] TablesSched:thread_executing_span_critical_path_by_roots
+[       OK ] TablesSched:thread_executing_span_critical_path_by_roots (ingest: 223.41 ms query: 52.66 ms)
+[ RUN      ] TablesSched:sched_with_thread_process
+[       OK ] TablesSched:sched_with_thread_process (ingest: 6349.36 ms query: 114.05 ms)
+[ RUN      ] TrackEvent:merging_regression
+[       OK ] TrackEvent:merging_regression (ingest: 16858.79 ms query: 0.28 ms)
+[ RUN      ] TablesSched:android_sched_and_ps_b119496959
+[       OK ] TablesSched:android_sched_and_ps_b119496959 (ingest: 18078.34 ms query: 0.39 ms)
+[ RUN      ] TablesSched:android_sched_and_ps_b119301023
+[       OK ] TablesSched:android_sched_and_ps_b119301023 (ingest: 18181.81 ms query: 0.81 ms)
+[ RUN      ] TablesSched:thread_executing_span_graph_accepts_null_irq_context
+[       OK ] TablesSched:thread_executing_span_graph_accepts_null_irq_context (ingest: 225.47 ms query: 37.93 ms)
+[ RUN      ] TablesSched:android_sched_and_ps_machine_id
+[       OK ] TablesSched:android_sched_and_ps_machine_id (ingest: 18003.88 ms query: 0.85 ms)
+[ RUN      ] TablesSched:ftrace_event_machine_id
+[       OK ] TablesSched:ftrace_event_machine_id (ingest: 18033.34 ms query: 575.16 ms)
+[ RUN      ] TablesSched:thread_executing_span_critical_path_utid
+[       OK ] TablesSched:thread_executing_span_critical_path_utid (ingest: 6326.41 ms query: 674.47 ms)
+[ RUN      ] TablesSched:thread_executing_span_graph
+[       OK ] TablesSched:thread_executing_span_graph (ingest: 6327.94 ms query: 476.43 ms)
+[ RUN      ] TablesSched:thread_executing_span_graph_contains_forked_states
+[       OK ] TablesSched:thread_executing_span_graph_contains_forked_states (ingest: 5970.13 ms query: 401.46 ms)
+[ RUN      ] TablesSched:thread_executing_span_graph_has_no_null_dur
+[       OK ] TablesSched:thread_executing_span_graph_has_no_null_dur (ingest: 5974.94 ms query: 354.70 ms)
+[ RUN      ] TablesSched:thread_executing_span_intervals_to_roots
+[       OK ] TablesSched:thread_executing_span_intervals_to_roots (ingest: 6027.84 ms query: 338.73 ms)
+[ RUN      ] TablesSched:thread_executing_span_intervals_to_roots_edge_case
+[       OK ] TablesSched:thread_executing_span_intervals_to_roots_edge_case (ingest: 5719.49 ms query: 278.61 ms)
+[ RUN      ] TablesSched:thread_executing_span_runnable_state_has_no_running
+[       OK ] TablesSched:thread_executing_span_runnable_state_has_no_running (ingest: 5280.08 ms query: 230.26 ms)
+[ RUN      ] TablesSched:thread_executing_span_critical_path_graph
+[       OK ] TablesSched:thread_executing_span_critical_path_graph (ingest: 6347.13 ms query: 14339.23 ms)
+[ RUN      ] TablesSched:thread_executing_span_critical_path_stack
+[       OK ] TablesSched:thread_executing_span_critical_path_stack (ingest: 6447.96 ms query: 14963.00 ms)
+[==========] Name filter selected 116 tests out of 1663.
+[==========] 116 tests ran out of 116 total. (34214 ms total)
+[  PASSED  ] 116 tests.

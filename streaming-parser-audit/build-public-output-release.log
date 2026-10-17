@@ -1,0 +1,102 @@
+ninja: Entering directory `out/mac_release'
+[0/1] Regenerating ninja files
+[1/108] compile ../../src/trace_processor/trace_parser.cc
+[2/108] compile ../../src/trace_processor/importers/i2c/i2c_tracker.cc
+[3/108] compile ../../src/trace_processor/importers/json/json_trace_tokenizer.cc
+[4/108] compile ../../src/trace_processor/trace_parser_impl.cc
+[5/108] compile ../../src/trace_processor/importers/json/json_trace_parser.cc
+../../src/trace_processor/importers/json/json_trace_parser.cc:370:18: warning: unused variable 'rr' [-Wunused-variable]
+  370 |             auto rr = (*context_->storage->mutable_slice_table())[*slice_id];
+      |                  ^~
+1 warning generated.
+[6/108] compile ../../src/trace_processor/importers/proto/chrome_string_lookup.cc
+[7/108] compile ../../src/trace_processor/importers/proto/track_event_tokenizer.cc
+[8/108] compile ../../src/trace_processor/importers/proto/track_event_parser.cc
+[9/108] compile ../../src/trace_processor/importers/proto/chrome_system_probes_module.cc
+[10/108] compile ../../src/trace_processor/importers/proto/concurrent_sessions_module.cc
+[11/108] compile ../../src/trace_processor/importers/proto/args_parser.cc
+[12/108] compile ../../src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc
+[13/108] compile ../../src/trace_processor/importers/proto/profile_packet_sequence_state.cc
+[14/108] compile ../../src/trace_processor/importers/proto/packet_analyzer.cc
+[15/108] compile ../../src/trace_processor/importers/proto/network_trace_module.cc
+[16/108] compile ../../src/trace_processor/importers/proto/perf_sample_tracker.cc
+[17/108] compile ../../src/trace_processor/importers/proto/track_event_module.cc
+[18/108] compile ../../src/trace_processor/importers/proto/incremental_state.cc
+[19/108] compile ../../src/trace_processor/importers/proto/metadata_minimal_module.cc
+[20/108] compile ../../src/trace_processor/importers/proto/tracing_service_module.cc
+[21/108] compile ../../src/trace_processor/importers/proto/track_event_extension_parser.cc
+[22/108] compile ../../src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc
+[23/108] compile ../../src/trace_processor/importers/proto/track_event_arg_fields.cc
+[24/108] compile ../../src/trace_processor/importers/proto/profile_packet_utils.cc
+[25/108] compile ../../src/trace_processor/importers/proto/default_modules.cc
+[26/108] compile ../../src/trace_processor/importers/proto/packet_sequence_state_generation.cc
+[27/108] compile ../../src/trace_processor/importers/proto/proto_trace_parser_impl.cc
+[28/108] compile ../../src/trace_processor/importers/proto/protovm_incremental_tracing.cc
+[29/108] compile ../../src/trace_processor/importers/proto/stack_profile_sequence_state.cc
+[30/108] compile ../../src/trace_processor/importers/proto/proto_trace_reader.cc
+[31/108] compile ../../src/trace_processor/importers/proto/proto_importer_module.cc
+[32/108] compile ../../src/trace_processor/importers/proto/active_chrome_processes_tracker.cc
+[33/108] compile ../../src/trace_processor/importers/syscalls/syscall_tracker.cc
+[34/108] compile ../../src/trace_processor/importers/proto/user_tracker.cc
+[35/108] compile ../../src/trace_processor/importers/proto/track_event_tracker.cc
+[36/108] compile ../../src/trace_processor/importers/common/global_stats_tracker.cc
+[37/108] compile ../../src/trace_processor/importers/proto/app_wakelock_module.cc
+[38/108] compile ../../src/trace_processor/importers/proto/chrome_system_probes_parser.cc
+[39/108] compile ../../src/trace_processor/importers/common/track_tracker.cc
+[40/108] compile ../../src/trace_processor/importers/common/virtual_memory_mapping.cc
+[41/108] compile ../../src/trace_processor/trace_processor_storage.cc
+[42/108] compile ../../src/trace_processor/sorter/trace_sorter.cc
+[43/108] compile ../../src/trace_processor/storage/trace_storage.cc
+[44/108] compile ../../src/trace_processor/forwarding_trace_parser.cc
+[45/108] compile ../../streaming-parser-audit/benchmark.cc
+FAILED: obj/streaming-parser-audit/streaming_parser_benchmark.benchmark.o 
+ccache clang++ -MMD -MF obj/streaming-parser-audit/streaming_parser_benchmark.benchmark.o.d -DNDEBUG -DPERFETTO_IMPLEMENTATION -I../.. -I../../src/profiling/memory/include -I../../include -Igen/build_config -Igen -fstrict-aliasing -Wformat -g -fPIC -fstack-protector-strong -fcolor-diagnostics -fdiagnostics-show-template-tree -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Wextra-semi -Wsign-conversion -Wno-c++98-compat-pedantic -Wno-c++98-compat -Wno-c2y-extensions -Wno-disabled-macro-expansion -Wno-documentation-unknown-command -Wno-gnu-include-next -Wno-gnu-statement-expression -Wno-gnu-zero-variadic-macro-arguments -Wno-padded -Wno-poison-system-directories -Wno-pre-c11-compat -Wno-c2y-extensions -Wno-reserved-id-macro -Wno-reserved-identifier -Wno-shadow-uncaptured-local -Wno-unknown-sanitizers -Wno-unknown-warning-option -Wno-unsafe-buffer-usage -Wno-lifetime-safety-intra-tu-suggestions -Wno-lifetime-safety-cross-tu-suggestions -Wno-lifetime-safety-invalidation -Wno-lifetime-safety-lifetimebound-violation -Wno-lifetime-safety-intra-tu-misplaced-lifetimebound -Wno-lifetime-safety-return-stack-addr -Wno-lifetime-safety-return-stack-addr-moved -Wno-lifetime-safety-dangling-field-moved -Wno-lifetime-safety-use-after-scope-moved -Wno-lifetime-safety-dangling-global -Wno-unique-object-duplication -Wno-nrvo -Wno-switch-default -fvisibility=hidden -O3 -fdata-sections -ffunction-sections -fno-exceptions -fno-rtti -std=c++17      -c ../../streaming-parser-audit/benchmark.cc -o obj/streaming-parser-audit/streaming_parser_benchmark.benchmark.o
+../../streaming-parser-audit/benchmark.cc:65:3: error: use of undeclared identifier 'base'; did you mean 'perfetto::base'?
+   65 |   base::Status OnTable(std::string_view name,
+      |   ^~~~
+      |   perfetto::base
+../../include/perfetto/ext/base/variant.h:26:21: note: 'perfetto::base' declared here
+   26 | namespace perfetto::base {
+      |                     ^
+../../streaming-parser-audit/benchmark.cc:86:3: error: use of undeclared identifier 'base'; did you mean 'perfetto::base'?
+   86 |   base::Status OnRowInsert(std::string_view name,
+      |   ^~~~
+      |   perfetto::base
+../../include/perfetto/ext/base/variant.h:26:21: note: 'perfetto::base' declared here
+   26 | namespace perfetto::base {
+      |                     ^
+../../streaming-parser-audit/benchmark.cc:98:3: error: use of undeclared identifier 'base'; did you mean 'perfetto::base'?
+   98 |   base::Status OnCellUpdate(std::string_view name,
+      |   ^~~~
+      |   perfetto::base
+../../include/perfetto/ext/base/variant.h:26:21: note: 'perfetto::base' declared here
+   26 | namespace perfetto::base {
+      |                     ^
+../../streaming-parser-audit/benchmark.cc:69:12: error: use of undeclared identifier 'base'; did you mean 'perfetto::base'?
+   69 |     return base::OkStatus();
+      |            ^~~~
+      |            perfetto::base
+../../include/perfetto/ext/base/variant.h:26:21: note: 'perfetto::base' declared here
+   26 | namespace perfetto::base {
+      |                     ^
+../../streaming-parser-audit/benchmark.cc:96:12: error: use of undeclared identifier 'base'; did you mean 'perfetto::base'?
+   96 |     return base::OkStatus();
+      |            ^~~~
+      |            perfetto::base
+../../include/perfetto/ext/base/variant.h:26:21: note: 'perfetto::base' declared here
+   26 | namespace perfetto::base {
+      |                     ^
+../../streaming-parser-audit/benchmark.cc:107:12: error: use of undeclared identifier 'base'; did you mean 'perfetto::base'?
+  107 |     return base::OkStatus();
+      |            ^~~~
+      |            perfetto::base
+../../include/perfetto/ext/base/variant.h:26:21: note: 'perfetto::base' declared here
+   26 | namespace perfetto::base {
+      |                     ^
+6 errors generated.
+[46/108] compile ../../src/trace_processor/trace_processor_storage_impl.cc
+[47/108] compile ../../src/trace_processor/importers/common/jit_cache.cc
+[48/108] compile ../../src/trace_processor/importers/common/global_args_tracker.cc
+[49/108] compile ../../src/trace_processor/importers/common/import_logs_tracker.cc
+[50/108] compile ../../src/trace_processor/trace_processor_context.cc
+ninja: build stopped: subcommand failed.

@@ -39,7 +39,6 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
                                                int64_t timestamp,
                                                double value,
                                                UniqueTid utid) {
-  const auto& counter = context_->storage->counter_table();
   auto opt_id = PushCounter(timestamp, value, kInvalidTrackId,
                             [this, utid](ArgsTracker::BoundInserter* inserter) {
                               inserter->AddArg(thread_arg_key_,
@@ -47,7 +46,7 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
                             });
   if (opt_id) {
     PendingUpidResolutionCounter pending;
-    pending.row = counter[*opt_id].ToRowNumber().row_number();
+    pending.row = opt_id->value;
     pending.utid = utid;
     pending.counter = pcounter;
     pending_upid_resolution_counter_.emplace_back(pending);
@@ -58,7 +57,9 @@ std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
                                                    double value,
                                                    TrackId track_id) {
   auto* counters = context_->storage->mutable_counter_table();
-  return counters->Insert({timestamp, track_id, value, {}}).id;
+  auto id = counters->Insert({timestamp, track_id, value, {}}).id;
+  context_->storage->AdvanceCounterStorageFrontier();
+  return id;
 }
 
 std::optional<CounterId> EventTracker::PushCounter(

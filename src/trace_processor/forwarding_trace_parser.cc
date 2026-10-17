@@ -103,6 +103,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   const TraceTypeDescriptor* desc =
       input_context_->trace_importer_registry->Find(trace_type_);
   PERFETTO_CHECK(desc);
+  if (input_context_->parser_config.on_trace_type_detected) {
+    input_context_->parser_config.on_trace_type_detected(desc->name.c_str());
+  }
 
   if (file_id_.value != 0 && !desc->supports_nesting) {
     return base::ErrStatus(

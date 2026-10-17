@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
+#include "src/trace_processor/types/trace_parser_options.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 
 namespace perfetto::trace_processor {
@@ -147,7 +148,16 @@ class TraceProcessorContext {
   static TraceProcessorContext CreateRootContext(
       const Config& config,
       TraceProcessor_PlatformInterface* platform = nullptr) {
-    return TraceProcessorContext(config, platform);
+    TraceParserOptions parser_config;
+    parser_config.drop_unread_table_columns = false;
+    return TraceProcessorContext(config, platform, parser_config);
+  }
+
+  static TraceProcessorContext CreateRootContext(
+      const Config& config,
+      TraceProcessor_PlatformInterface* platform,
+      const TraceParserOptions& parser_config) {
+    return TraceProcessorContext(config, platform, parser_config);
   }
 
   // Destroys all state related to parsing the trace, keeping only state
@@ -174,6 +184,7 @@ class TraceProcessorContext {
   // then shared between all machines.
 
   Config config;
+  TraceParserOptions parser_config;
   TraceProcessor_PlatformInterface* platform = nullptr;
   // The filesystem obtained from `platform` at construction. Cached so that
   // each Trace Processor instance uses a stable snapshot of its platform's
@@ -311,7 +322,8 @@ class TraceProcessorContext {
 
  private:
   TraceProcessorContext(const Config& config,
-                        TraceProcessor_PlatformInterface* platform);
+                        TraceProcessor_PlatformInterface* platform,
+                        const TraceParserOptions& parser_config);
 
   TraceProcessorContext(TraceProcessorContext&&) = default;
   TraceProcessorContext& operator=(TraceProcessorContext&&) = default;

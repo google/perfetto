@@ -1,0 +1,5 @@
+ninja: Entering directory `out/mac_release'
+[1/4] compile ../../src/trace_processor/trace_parser.cc
+[2/4] compile ../../streaming-parser-audit/benchmark.cc
+[3/4] compile ../../src/trace_processor/trace_parser_impl.cc
+[4/4] link ./streaming_parser_benchmark
