@@ -148,7 +148,7 @@ on property:sys.boot_completed=1 && property:persist.traced.enable=1
 service perfetto_upload_after_reboot /system/bin/perfetto --upload-after-reboot
     disabled
     oneshot
-    user shell
+    user nobody
     group shell log system
 
 # Forcefully enable select userspace (atrace) tracing categories early into the
