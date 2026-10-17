@@ -106,7 +106,7 @@ struct TraceManifestState {
     // (embedded uint32 id -> synthetic raw id), which the proto dispatcher uses
     // to place remote machines.
     std::vector<std::pair<uint32_t, std::string>> machine_mappings;
-    base::FlatHashMap<uint32_t, int64_t> machine_remap;
+    base::FlatHashMapV2<uint32_t, int64_t> machine_remap;
     // Set when the entry has an internal `__exported_table_schema` block
     // (mutually exclusive with the trace-configuration blocks above).
     std::optional<PerfettoExportTable> exported_table_schema;
@@ -132,7 +132,7 @@ struct TraceManifestState {
   // clock-referenced) machine and records it here, so references resolve to
   // real rows at parse time and ForkContextForTrace (via MachineTracker) reuses
   // the same row when the file is later forked.
-  base::FlatHashMap<int64_t, uint32_t> raw_id_to_table_id;
+  base::FlatHashMapV2<int64_t, uint32_t> raw_id_to_table_id;
 
   FileEntry* FindEntry(const std::string& path) {
     for (FileEntry& entry : files) {

@@ -92,7 +92,7 @@ class ArgsTranslationTable {
       const DeobfuscationMappingTable::PackageId& package,
       StringId obfuscated_class,
       StringId deobfuscated_class,
-      base::FlatHashMap<StringId, StringId> members) {
+      base::FlatHashMapV2<StringId, StringId> members) {
     deobfuscation_mapping_table_.AddClassTranslation(
         package, obfuscated_class, deobfuscated_class, std::move(members));
   }
@@ -190,14 +190,15 @@ class ArgsTranslationTable {
   // deobfuscated. A Java class name must be contained in this argument.
   StringId interned_obfuscated_view_dump_class_name_flat_key_;
 
-  base::FlatHashMap<uint64_t, std::string> chrome_histogram_hash_to_name_;
-  base::FlatHashMap<uint64_t, std::string> chrome_user_event_hash_to_action_;
-  base::FlatHashMap<uint64_t, std::string>
+  base::FlatHashMapV2<uint64_t, std::string> chrome_histogram_hash_to_name_;
+  base::FlatHashMapV2<uint64_t, std::string> chrome_user_event_hash_to_action_;
+  base::FlatHashMapV2<uint64_t, std::string>
       chrome_performance_mark_site_hash_to_name_;
-  base::FlatHashMap<uint64_t, std::string>
+  base::FlatHashMapV2<uint64_t, std::string>
       chrome_performance_mark_mark_hash_to_name_;
-  base::FlatHashMap<uint64_t, std::string> chrome_study_hash_to_name_;
-  base::FlatHashMap<NativeSymbolKey, SourceLocation> native_symbol_to_location_;
+  base::FlatHashMapV2<uint64_t, std::string> chrome_study_hash_to_name_;
+  base::FlatHashMapV2<NativeSymbolKey, SourceLocation>
+      native_symbol_to_location_;
   // A translation mapping for obfuscated Java class names and its members.
   DeobfuscationMappingTable deobfuscation_mapping_table_;
 

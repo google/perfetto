@@ -78,13 +78,13 @@ class LegacyV8CpuProfileTracker
  private:
   struct State {
     int64_t ts;
-    base::FlatHashMap<uint32_t, CallsiteId> callsites;
-    base::FlatHashMap<uint32_t, uint32_t> callsite_inferred_parents;
+    base::FlatHashMapV2<uint32_t, CallsiteId> callsites;
+    base::FlatHashMapV2<uint32_t, uint32_t> callsite_inferred_parents;
     DummyMemoryMapping* mapping;
   };
-  base::FlatHashMap<std::pair<uint64_t, uint32_t>,
-                    State,
-                    base::MurmurHash<std::pair<uint64_t, uint32_t>>>
+  base::FlatHashMapV2<std::pair<uint64_t, uint32_t>,
+                      State,
+                      base::MurmurHash<std::pair<uint64_t, uint32_t>>>
       state_by_session_and_pid_;
 
   TraceProcessorContext* const context_;

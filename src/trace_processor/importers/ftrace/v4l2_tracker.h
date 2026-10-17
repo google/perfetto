@@ -162,7 +162,7 @@ class V4l2Tracker : public Destructible {
   StringId InternTcFlags(uint32_t flags);
 
   TraceProcessorContext* const context_;
-  base::FlatHashMap<uint64_t, QueuedBuffer> queued_buffers_;
+  base::FlatHashMapV2<uint64_t, QueuedBuffer> queued_buffers_;
 
   BufferEventStringIds buf_event_ids_;
   BufferTypeStringIds buf_type_ids_;

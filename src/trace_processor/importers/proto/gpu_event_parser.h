@@ -73,9 +73,9 @@ class GpuEventParser {
     StringId name;
     StringId description;
   };
-  using GroupMetadataMap = base::FlatHashMap<int32_t, GroupMetadata>;
+  using GroupMetadataMap = base::FlatHashMapV2<int32_t, GroupMetadata>;
   using CounterTrackMap =
-      base::FlatHashMap<uint32_t, GpuCounterSequenceState::CounterTrackInfo>;
+      base::FlatHashMapV2<uint32_t, GpuCounterSequenceState::CounterTrackInfo>;
   TrackId InternGpuCounterTrack(
       int32_t gpu_id,
       const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder&
@@ -88,7 +88,7 @@ class GpuEventParser {
       const GroupMetadataMap& group_metadata);
   void InsertCustomCounterGroups(
       const protos::pbzero::GpuCounterDescriptor::Decoder& desc,
-      const base::FlatHashMap<uint32_t, TrackId>& counter_id_to_track);
+      const base::FlatHashMapV2<uint32_t, TrackId>& counter_id_to_track);
 
   // Pushes the sample values of a GpuCounterEvent at parse time, using an
   // already-resolved counter_id -> track mapping (built at tokenization time).
@@ -162,7 +162,7 @@ class GpuEventParser {
 
   // Track-level last_id for GPU counters. Used by both the interned and the
   // legacy inline descriptor paths when pushing samples. Key: TrackId.
-  base::FlatHashMap<TrackId, std::optional<tables::CounterTable::Id>>
+  base::FlatHashMapV2<TrackId, std::optional<tables::CounterTable::Id>>
       gpu_counter_last_id_;
 
   // For GpuRenderStageEvent
@@ -184,7 +184,7 @@ class GpuEventParser {
   const StringId description_id_;
   const StringId correlation_id_;
   std::vector<std::optional<HwQueueInfo>> gpu_hw_queue_ids_;
-  base::FlatHashMap<uint64_t, bool> gpu_hw_queue_ids_name_to_set_;
+  base::FlatHashMapV2<uint64_t, bool> gpu_hw_queue_ids_name_to_set_;
 
   void ParseExtraComputeArg(PacketSequenceStateGeneration* sequence_state,
                             protozero::ConstBytes bytes,
@@ -204,7 +204,7 @@ class GpuEventParser {
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;
 
   // Graphics contexts already inserted into gpu_context table.
-  base::FlatHashMap<uint64_t, bool> gpu_contexts_inserted_;
+  base::FlatHashMapV2<uint64_t, bool> gpu_contexts_inserted_;
 
   // For VulkanMemoryEvent
   std::unordered_map<protos::pbzero::VulkanMemoryEvent::AllocationScope,

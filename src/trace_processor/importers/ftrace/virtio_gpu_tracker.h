@@ -58,7 +58,7 @@ class VirtioGpuTracker {
     // can be matched up via their seqno field.  To calculate the slice
     // duration we need to lookup the timestamp of the matching CmdQueue
     // event when we get the CmdResponse event.
-    base::FlatHashMap<uint32_t, int64_t> start_timestamps_;
+    base::FlatHashMapV2<uint32_t, int64_t> start_timestamps_;
   };
 
   VirtioGpuQueue virtgpu_control_queue_;

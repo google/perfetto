@@ -332,7 +332,7 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
   // "referent" field during BFS.
   {
     // Find base reference type class IDs
-    base::FlatHashMap<uint64_t, const char*> base_ref_kinds;
+    base::FlatHashMapV2<uint64_t, const char*> base_ref_kinds;
     for (auto it = graph.GetClasses().GetIterator(); it; ++it) {
       const auto& name = it.value().GetName();
       if (name == "java.lang.ref.WeakReference") {

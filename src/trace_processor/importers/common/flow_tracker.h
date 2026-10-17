@@ -85,11 +85,11 @@ class FlowTracker {
     }
   };
 
-  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, SliceId>;
-  using PendingFlowsMap = base::FlatHashMap<TrackId, std::vector<FlowId>>;
+  using FlowToSourceSliceMap = base::FlatHashMapV2<FlowId, SliceId>;
+  using PendingFlowsMap = base::FlatHashMapV2<TrackId, std::vector<FlowId>>;
   using V1FlowIdToFlowIdMap =
-      base::FlatHashMap<V1FlowId, FlowId, V1FlowIdHasher>;
-  using FlowIdToV1FlowId = base::FlatHashMap<FlowId, V1FlowId>;
+      base::FlatHashMapV2<V1FlowId, FlowId, V1FlowIdHasher>;
+  using FlowIdToV1FlowId = base::FlatHashMapV2<FlowId, V1FlowId>;
 
   void InsertFlow(FlowId flow_id,
                   SliceId outgoing_slice_id,

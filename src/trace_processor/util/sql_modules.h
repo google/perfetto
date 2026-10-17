@@ -30,8 +30,8 @@
 namespace perfetto::trace_processor::sql_modules {
 
 using NameToPackage =
-    base::FlatHashMap<std::string,
-                      std::vector<std::pair<std::string, std::string>>>;
+    base::FlatHashMapV2<std::string,
+                        std::vector<std::pair<std::string, std::string>>>;
 
 // A package registered with |PerfettoSqlDatabase|. Each entry in |modules|
 // maps the include key (the string used in INCLUDE PERFETTO MODULE) to the
@@ -42,7 +42,7 @@ using NameToPackage =
 //
 // The string_view bodies must outlive every connection holding this package.
 struct RegisteredPackage {
-  base::FlatHashMap<std::string, std::string_view> modules;
+  base::FlatHashMapV2<std::string, std::string_view> modules;
   // Whether the package is the standard library built into the binary, as
   // opposed to one a caller registered.
   bool builtin = false;

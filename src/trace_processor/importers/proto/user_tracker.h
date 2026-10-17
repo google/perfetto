@@ -35,7 +35,7 @@ class UserTracker {
 
  private:
   TraceProcessorContext* const context_;
-  base::FlatHashMap<int64_t, tables::AndroidUserListTable::Id> user_rows_;
+  base::FlatHashMapV2<int64_t, tables::AndroidUserListTable::Id> user_rows_;
 };
 
 }  // namespace perfetto::trace_processor

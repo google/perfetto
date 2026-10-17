@@ -64,9 +64,9 @@ class ProtoVmIncrementalTracing {
       const SelectiveTracePacketDecoder& patch) const;
 
   TraceProcessorContext* context_;
-  base::FlatHashMap<int32_t, std::vector<uint32_t>>
+  base::FlatHashMapV2<int32_t, std::vector<uint32_t>>
       producer_id_to_sequence_ids_;
-  base::FlatHashMap<uint32_t, std::vector<protovm::Vm*>> sequence_id_to_vms_;
+  base::FlatHashMapV2<uint32_t, std::vector<protovm::Vm*>> sequence_id_to_vms_;
   std::vector<std::unique_ptr<protovm::Vm>> vms_;
 };
 

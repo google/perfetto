@@ -92,8 +92,8 @@ class SystemProbesParser {
     int64_t prev_discard_time = -1;
     int64_t prev_flush_time = -1;
   };
-  base::FlatHashMap<StringId, DiskStatState> disk_state_map_;
-  base::FlatHashMap<uint32_t, bool> irq_ids_;
+  base::FlatHashMapV2<StringId, DiskStatState> disk_state_map_;
+  base::FlatHashMapV2<uint32_t, bool> irq_ids_;
 };
 
 }  // namespace perfetto::trace_processor

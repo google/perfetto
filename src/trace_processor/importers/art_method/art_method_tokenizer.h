@@ -120,8 +120,8 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   uint32_t version_ = std::numeric_limits<uint32_t>::max();
   int64_t ts_ = std::numeric_limits<int64_t>::max();
   uint32_t record_size_ = std::numeric_limits<uint32_t>::max();
-  base::FlatHashMap<uint32_t, Method> method_map_;
-  base::FlatHashMap<uint32_t, Thread> thread_map_;
+  base::FlatHashMapV2<uint32_t, Method> method_map_;
+  base::FlatHashMapV2<uint32_t, Thread> thread_map_;
   std::unique_ptr<TraceSorter::Stream<ArtMethodEvent>> stream_;
 };
 

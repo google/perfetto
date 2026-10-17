@@ -44,7 +44,7 @@ namespace {
 // Estimates the distinct-value count of a finalized column, or 0 if unknown.
 // Only computed for HasDuplicates columns: unique columns select at most one
 // row regardless, and the planner already handles them exactly.
-uint32_t EstimateDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
+uint32_t EstimateDistinct(base::FlatHashMapV2<int64_t, uint32_t>& counts,
                           const Column& c) {
   if (!c.duplicate_state.Is<HasDuplicates>()) {
     return 0;
@@ -232,7 +232,7 @@ void Dataframe::FinalizeColumns(bool estimate_distinct) {
   finalized_ = true;
   // Reused across columns; Clear() keeps its capacity so it allocates at most
   // once for the whole dataframe.
-  base::FlatHashMap<int64_t, uint32_t> distinct_counts;
+  base::FlatHashMapV2<int64_t, uint32_t> distinct_counts;
   for (const auto& c : columns_) {
     switch (c->storage.type().index()) {
       case StorageType::GetTypeIndex<Uint32>():

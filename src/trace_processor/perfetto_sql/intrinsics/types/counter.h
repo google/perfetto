@@ -37,9 +37,10 @@ struct CounterTrackPartition {
 
 struct PartitionedCounter {
   static constexpr char kName[] = "COUNTER_TRACK_PARTITIONS";
-  base::
-      FlatHashMap<int64_t, CounterTrackPartition, base::AlreadyHashed<int64_t>>
-          partitions_map;
+  base::FlatHashMapV2<int64_t,
+                      CounterTrackPartition,
+                      base::AlreadyHashed<int64_t>>
+      partitions_map;
 };
 
 }  // namespace perfetto::trace_processor::perfetto_sql

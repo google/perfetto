@@ -57,12 +57,12 @@ static constexpr uint32_t ReadUint32(const uint8_t* bytes) {
 namespace perfetto::trace_processor::pigweed {
 
 PigweedDetokenizer CreateNullDetokenizer() {
-  return PigweedDetokenizer{base::FlatHashMap<uint32_t, FormatString>()};
+  return PigweedDetokenizer{base::FlatHashMapV2<uint32_t, FormatString>()};
 }
 
 base::StatusOr<PigweedDetokenizer> CreateDetokenizer(
     const protozero::ConstBytes& bytes) {
-  base::FlatHashMap<uint32_t, FormatString> tokens;
+  base::FlatHashMapV2<uint32_t, FormatString> tokens;
   // See Pigweed's token_database.h for a description of the format,
   // but tl;dr we have:
   //
@@ -117,7 +117,7 @@ base::StatusOr<PigweedDetokenizer> CreateDetokenizer(
 }
 
 PigweedDetokenizer::PigweedDetokenizer(
-    base::FlatHashMap<uint32_t, FormatString> tokens)
+    base::FlatHashMapV2<uint32_t, FormatString> tokens)
     : tokens_(std::move(tokens)) {}
 
 #if defined(__GNUC__) || defined(__clang__)

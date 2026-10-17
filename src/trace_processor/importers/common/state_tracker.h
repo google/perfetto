@@ -59,7 +59,7 @@ class StateTracker {
   };
 
   TraceProcessorContext* const context_;
-  base::FlatHashMap<TrackId, ActiveState> active_states_;
+  base::FlatHashMapV2<TrackId, ActiveState> active_states_;
 };
 
 }  // namespace perfetto::trace_processor

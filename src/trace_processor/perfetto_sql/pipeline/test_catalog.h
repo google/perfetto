@@ -126,7 +126,7 @@ class TestCatalog : public Catalog {
  private:
   StringPool* pool_;
   SqliteConnection* connection_;
-  base::FlatHashMap<std::string, std::unique_ptr<dataframe::Dataframe>>
+  base::FlatHashMapV2<std::string, std::unique_ptr<dataframe::Dataframe>>
       dataframes_;
 };
 

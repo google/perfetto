@@ -96,13 +96,13 @@ class GraphicsFrameEventParser {
   std::array<StringId, 14> event_type_name_ids_;
 
   // Map of (buffer ID + layer name) -> BufferEvent
-  base::FlatHashMap<StringId, BufferEvent> buffer_event_map_;
+  base::FlatHashMapV2<StringId, BufferEvent> buffer_event_map_;
 
   // Maps of (buffer id + layer name) -> track id
-  base::FlatHashMap<StringId, PhaseEvent> phase_event_map_;
+  base::FlatHashMapV2<StringId, PhaseEvent> phase_event_map_;
 
   // Map of layer name -> track id
-  base::FlatHashMap<StringId, TrackId> display_map_;
+  base::FlatHashMapV2<StringId, TrackId> display_map_;
 };
 }  // namespace perfetto::trace_processor
 

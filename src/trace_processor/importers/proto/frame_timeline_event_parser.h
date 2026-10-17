@@ -73,7 +73,7 @@ class FrameTimelineEventParser {
   // Cookie -> TrackType map. Since cookies are globally unique per slice, this
   // helps in allowing the producer to send only the cookie as the End marker
   // without the need for any other fields.
-  base::FlatHashMap<int64_t, std::pair<UniquePid, TrackType>> cookie_map_;
+  base::FlatHashMapV2<int64_t, std::pair<UniquePid, TrackType>> cookie_map_;
 
   std::array<StringId, 6> present_type_ids_;
   std::array<StringId, 6> present_type_experimental_ids_;

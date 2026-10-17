@@ -87,7 +87,7 @@ class PlanSerializationTest : public ::testing::Test {
   std::unique_ptr<SqliteConnection> connection_;
   TestCatalog catalog_;
   std::vector<std::unique_ptr<dataframe::Dataframe>> dataframes_;
-  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
+  base::FlatHashMapV2<std::string, PerfettoSqlParser::Macro> macros_;
 };
 
 const char* const kPipelines[] = {

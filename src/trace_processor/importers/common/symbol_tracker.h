@@ -43,7 +43,7 @@ class SymbolTracker {
   void OnEventsFullyExtracted();
 
   AddressRangeMap<std::string>& kernel_symbols() { return kernel_symbols_; }
-  base::FlatHashMap<StringId, Dso>& dsos() { return dsos_; }
+  base::FlatHashMapV2<StringId, Dso>& dsos() { return dsos_; }
 
  private:
   void SymbolizeKernelFrame(tables::StackProfileFrameTable::RowReference frame);
@@ -55,7 +55,7 @@ class SymbolTracker {
 
   const tables::StackProfileMappingTable& mapping_table_;
   AddressRangeMap<std::string> kernel_symbols_;
-  base::FlatHashMap<StringId, Dso> dsos_;
+  base::FlatHashMapV2<StringId, Dso> dsos_;
 };
 
 }  // namespace perfetto::trace_processor

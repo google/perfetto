@@ -46,8 +46,9 @@ class StackProfileTracker {
     }
   };
   TraceProcessorContext* const context_;
-  base::FlatHashMap<tables::StackProfileCallsiteTable::Row, CallsiteId, Hasher>
-      callsite_unique_row_index_;
+  base::
+      FlatHashMapV2<tables::StackProfileCallsiteTable::Row, CallsiteId, Hasher>
+          callsite_unique_row_index_;
 };
 
 }  // namespace perfetto::trace_processor

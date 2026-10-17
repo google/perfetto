@@ -128,9 +128,9 @@ void GraphicsEventModule::TokenizeGpuCounterEvent(
     auto gpu_id = interned->gpu_id();
     auto group_metadata = parser_.BuildGroupMetadata(desc);
 
-    base::FlatHashMap<uint32_t, GpuCounterSequenceState::CounterTrackInfo>
+    base::FlatHashMapV2<uint32_t, GpuCounterSequenceState::CounterTrackInfo>
         counter_map;
-    base::FlatHashMap<uint32_t, TrackId> counter_id_to_track;
+    base::FlatHashMapV2<uint32_t, TrackId> counter_id_to_track;
     for (auto spec_it = desc.specs(); spec_it; ++spec_it) {
       GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*spec_it);
       if (!spec.has_counter_id() || !spec.has_name()) {
@@ -157,7 +157,7 @@ void GraphicsEventModule::TokenizeGpuCounterEvent(
   if (event.has_counter_descriptor()) {
     GpuCounterDescriptor::Decoder descriptor(event.counter_descriptor());
     auto group_metadata = parser_.BuildGroupMetadata(descriptor);
-    base::FlatHashMap<uint32_t, TrackId> counter_id_to_track;
+    base::FlatHashMapV2<uint32_t, TrackId> counter_id_to_track;
     for (auto it = descriptor.specs(); it; ++it) {
       GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
       if (!spec.has_counter_id()) {

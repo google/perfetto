@@ -47,8 +47,8 @@ class RowParser
 
   // Cache binary mappings by instruments binary pointers. These are already
   // de-duplicated in the instruments XML parsing.
-  base::FlatHashMap<BinaryId, VirtualMemoryMapping*> binary_to_mapping_;
-  base::FlatHashMap<UniquePid, DummyMemoryMapping*> dummy_mappings_;
+  base::FlatHashMapV2<BinaryId, VirtualMemoryMapping*> binary_to_mapping_;
+  base::FlatHashMapV2<UniquePid, DummyMemoryMapping*> dummy_mappings_;
 };
 
 }  // namespace perfetto::trace_processor::instruments_importer
