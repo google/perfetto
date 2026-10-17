@@ -100,6 +100,7 @@ export async function cacheTrace(
   let downloadable = true;
   switch (traceSource.type) {
     case 'ARRAY_BUFFER':
+      if (traceSource.cacheable === false) return false;
       trace = traceSource.buffer;
       title = traceSource.title;
       fileName = traceSource.fileName ?? '';
