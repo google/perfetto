@@ -23,9 +23,10 @@ export type NavState =
   | {view: 'arrays'; params: {arrayHash?: string}}
   | {
       view: 'flamegraph-objects';
-      params: {pathHashes?: string; isDominator?: boolean};
+      params: {pathHashes?: string; isDominator?: boolean; isField?: boolean};
     }
   | {view: 'flamegraph'; params: Record<string, never>}
+  | {view: 'field-flamegraph'; params: Record<string, never>}
   | {view: 'callstack'; params: Record<string, never>};
 
 export type NavView = NavState['view'];
@@ -88,11 +89,12 @@ function stateToParts(state: NavState): {path: string; query: string} {
     case 'flamegraph-objects': {
       // The router strips query params from the live route; the tab identity
       // goes in the path.
-      const {pathHashes, isDominator} = state.params;
+      const {pathHashes, isDominator, isField} = state.params;
       if (pathHashes === undefined) {
         return {path: 'flamegraph_objects', query: ''};
       }
-      const flag = isDominator ? '1' : '0';
+      // Bit 0: dominator tree, bit 1: field tree.
+      const flag = String((isDominator ? 1 : 0) + (isField ? 2 : 0));
       return {
         path: `flamegraph_objects_${flag}_${encodeURIComponent(pathHashes)}`,
         query: '',
@@ -100,6 +102,8 @@ function stateToParts(state: NavState): {path: string; query: string} {
     }
     case 'flamegraph':
       return {path: 'flamegraph', query: ''};
+    case 'field-flamegraph':
+      return {path: 'field_flamegraph', query: ''};
     case 'callstack':
       return {path: 'callstack', query: ''};
   }
@@ -124,12 +128,15 @@ export function subpageToState(
   const sp = new URLSearchParams(queryStr ?? '');
 
   // Parse view_param format (e.g. "object_0x123", "flamegraph_objects_1_a,b").
-  // Views with underscores: "flamegraph_objects" is the only multi-word view.
+  // Views with underscores: "flamegraph_objects" and "field_flamegraph".
   let view: string;
   let param: string;
   if (path.startsWith('flamegraph_objects')) {
     view = 'flamegraph-objects';
     param = path.slice('flamegraph_objects'.length + 1) || '';
+  } else if (path === 'field_flamegraph' || path === 'field-flamegraph') {
+    view = 'field-flamegraph';
+    param = '';
   } else {
     const idx = path.indexOf('_');
     view = idx === -1 ? path : path.slice(0, idx);
@@ -183,15 +190,23 @@ export function subpageToState(
       // no tab is selected.
       if (param === '') return {view: 'flamegraph-objects', params: {}};
       const us = param.indexOf('_');
-      const isDominator = us > 0 && param.slice(0, us) === '1';
+      const flag = us > 0 ? Number(param.slice(0, us)) || 0 : 0;
       const rest = us === -1 ? param : param.slice(us + 1);
-      return {
-        view: 'flamegraph-objects',
-        params: {pathHashes: decodeURIComponent(rest), isDominator},
+      const params: {
+        pathHashes: string;
+        isDominator: boolean;
+        isField?: boolean;
+      } = {
+        pathHashes: decodeURIComponent(rest),
+        isDominator: (flag & 1) !== 0,
       };
+      if ((flag & 2) !== 0) params.isField = true;
+      return {view: 'flamegraph-objects', params};
     }
     case 'flamegraph':
       return {view: 'flamegraph', params: {}};
+    case 'field-flamegraph':
+      return {view: 'field-flamegraph', params: {}};
     case 'callstack':
       return {view: 'callstack', params: {}};
     default:

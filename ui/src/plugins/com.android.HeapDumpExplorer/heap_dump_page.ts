@@ -33,8 +33,13 @@ import {StringsView} from './views/strings_view';
 import {ArraysView} from './views/arrays_view';
 import {FlamegraphObjectsView} from './views/flamegraph_objects_view';
 import {FlamegraphView} from './views/flamegraph_view';
+import {FieldFlamegraphView} from './views/field_flamegraph_view';
 import {CallstackView} from './views/callstack_view';
-import type {HeapDumpExplorerSession} from './session';
+import {
+  type FlamegraphTabId,
+  type HeapDumpExplorerSession,
+  sameFlamegraphTab,
+} from './session';
 import * as queries from './queries';
 
 interface HeapDumpPageAttrs {
@@ -45,8 +50,9 @@ interface HeapDumpPageAttrs {
 const FG_KEY_PREFIX = 'fg-';
 const INSTANCE_KEY_PREFIX = 'inst-';
 
-function fgTabKey(pathHashes: string, isDominator: boolean): string {
-  return `${FG_KEY_PREFIX}${isDominator ? 'd' : 'n'}:${pathHashes}`;
+function fgTabKey(tab: FlamegraphTabId): string {
+  const tree = `${tab.isDominator ? 'd' : 'n'}${tab.isField ? 'f' : ''}`;
+  return `${FG_KEY_PREFIX}${tree}:${tab.pathHashes}`;
 }
 
 function instanceTabKey(objId: number): string {
@@ -58,14 +64,9 @@ function activeTabKey(session: HeapDumpExplorerSession): string {
   if (session.nav.view === 'flamegraph-objects' && tabs.length > 0) {
     const active = session.activeFlamegraph;
     const tab =
-      (active &&
-        tabs.find(
-          (t) =>
-            t.pathHashes === active.pathHashes &&
-            t.isDominator === active.isDominator,
-        )) ||
+      (active && tabs.find((t) => sameFlamegraphTab(t, active))) ||
       tabs[tabs.length - 1];
-    return fgTabKey(tab.pathHashes, tab.isDominator);
+    return fgTabKey(tab);
   }
   const objId = session.activeInstanceObjId;
   if (objId !== null) {
@@ -120,6 +121,25 @@ function buildTabs(
           session.openFlamegraph({
             pathHashes,
             isDominator,
+            upid: activeDump.upid,
+            ts: activeDump.ts,
+          }),
+      }),
+    },
+    {
+      key: 'field-flamegraph',
+      title: 'Field Flamegraph',
+      content: m(FieldFlamegraphView, {
+        trace,
+        upid: activeDump.upid,
+        ts: activeDump.ts,
+        state: session.fieldFlamegraphPanelState,
+        onStateChange: session.setFieldFlamegraphPanelState.bind(session),
+        onShowObjects: (pathHashes, isDominator) =>
+          session.openFlamegraph({
+            pathHashes,
+            isDominator,
+            isField: true,
             upid: activeDump.upid,
             ts: activeDump.ts,
           }),
@@ -216,11 +236,12 @@ function buildTabs(
   }
 
   for (const fg of session.flamegraphTabs) {
-    const key = fgTabKey(fg.pathHashes, fg.isDominator);
+    const key = fgTabKey(fg);
+    const label = fg.isField
+      ? 'Field flamegraph objects'
+      : 'Flamegraph objects';
     const title =
-      fg.count !== null
-        ? `Flamegraph objects (${fg.count.toLocaleString()})`
-        : 'Flamegraph objects';
+      fg.count !== null ? `${label} (${fg.count.toLocaleString()})` : label;
     tabs.push({
       key,
       title,
@@ -231,6 +252,7 @@ function buildTabs(
         potentiallyMergedClasses,
         pathHashes: fg.pathHashes,
         isDominator: fg.isDominator,
+        isField: fg.isField,
         onBackToTimeline: () => trace.navigate('#!/viewer'),
       }),
     });
@@ -239,8 +261,9 @@ function buildTabs(
         session.navigate('flamegraph-objects', {
           pathHashes: fg.pathHashes,
           isDominator: fg.isDominator,
+          ...(fg.isField ? {isField: true} : {}),
         }),
-      close: () => session.closeFlamegraph(fg.pathHashes, fg.isDominator),
+      close: () => session.closeFlamegraph(fg),
     });
   }
 

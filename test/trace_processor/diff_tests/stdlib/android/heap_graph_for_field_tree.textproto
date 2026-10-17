@@ -1,0 +1,177 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  # A heap exercising the field trees. Sizes are powers of two so that every
+  # aggregate is unambiguous.
+  #
+  #   R[1] --.head--> Node[2] --.next--> Node[4] --.next--> Node[8]
+  #     |--.items---> Object[][16] --> X[32]
+  #     |                          \-> X[64]
+  #     |--.left----> P[128] --.value--\
+  #     \--.right---> Q[256] --.value---> V[512]
+  #
+  # - The linked list collapses into one `.next -> Node` level.
+  # - Array elements have no field frame.
+  # - V is reachable from both P and Q, so R is its immediate dominator but
+  #   does not reference it: in the dominator field tree its frame is
+  #   '[via P.value]', the field which holds it on the shortest path.
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x1
+    }
+    objects {
+      id: 0x1
+      type_id: 1
+      self_size: 1
+      reference_field_id: 1
+      reference_object_id: 0x2
+      reference_field_id: 3
+      reference_object_id: 0x5
+      reference_field_id: 4
+      reference_object_id: 0x8
+      reference_field_id: 5
+      reference_object_id: 0x9
+    }
+    objects {
+      id: 0x2
+      type_id: 2
+      self_size: 2
+      reference_field_id: 2
+      reference_object_id: 0x3
+    }
+    objects {
+      id: 0x3
+      type_id: 2
+      self_size: 4
+      reference_field_id: 2
+      reference_object_id: 0x4
+    }
+    objects {
+      id: 0x4
+      type_id: 2
+      self_size: 8
+    }
+    objects {
+      id: 0x5
+      type_id: 3
+      self_size: 16
+      reference_object_id: 0x6
+      reference_object_id: 0x7
+    }
+    objects {
+      id: 0x6
+      type_id: 4
+      self_size: 32
+    }
+    objects {
+      id: 0x7
+      type_id: 4
+      self_size: 64
+    }
+    objects {
+      id: 0x8
+      type_id: 5
+      self_size: 128
+      reference_field_id: 6
+      reference_object_id: 0xa
+    }
+    objects {
+      id: 0x9
+      type_id: 6
+      self_size: 256
+      reference_field_id: 7
+      reference_object_id: 0xa
+    }
+    objects {
+      id: 0xa
+      type_id: 7
+      self_size: 512
+    }
+    continued: true
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  [com.android.art.tracing.ArtHeapGraphTracePacket.heap_graph] {
+    pid: 2
+    types {
+      id: 1
+      class_name: "R"
+    }
+    types {
+      id: 2
+      class_name: "Node"
+    }
+    types {
+      id: 3
+      class_name: "java.lang.Object[]"
+      kind: KIND_ARRAY
+    }
+    types {
+      id: 4
+      class_name: "X"
+    }
+    types {
+      id: 5
+      class_name: "P"
+    }
+    types {
+      id: 6
+      class_name: "Q"
+    }
+    types {
+      id: 7
+      class_name: "V"
+    }
+    field_names {
+      iid: 1
+      str: "Node R.head"
+    }
+    field_names {
+      iid: 2
+      str: "Node Node.next"
+    }
+    field_names {
+      iid: 3
+      str: "java.lang.Object[] R.items"
+    }
+    field_names {
+      iid: 4
+      str: "P R.left"
+    }
+    field_names {
+      iid: 5
+      str: "Q R.right"
+    }
+    field_names {
+      iid: 6
+      str: "V P.value"
+    }
+    field_names {
+      iid: 7
+      str: "V Q.value"
+    }
+    continued: false
+    index: 1
+  }
+}
