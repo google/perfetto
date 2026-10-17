@@ -43,6 +43,7 @@
 #include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -629,19 +630,17 @@ TEST(PerfettoTracedIntegrationTest, ProbesDataSourceUsesTracingV2) {
       helper.trace(),
       Contains(Property(&protos::gen::TracePacket::has_process_tree, true)));
 
-  // The stats list only producers with an attached ring buffer.
+  // Producer stats cover only producers with an attached ring buffer.
   // The process tree writer is the only v2 writer, so chunks_read > 0 means
   // its data came through the ring buffer.
-  const protos::gen::TraceStats* stats = nullptr;
+  const protos::gen::ExperimentalTracingV2ProducerStats* stats = nullptr;
   for (const auto& packet : helper.full_trace()) {
-    if (packet.has_trace_stats())
-      stats = &packet.trace_stats();
+    if (packet.has_experimental_tracing_v2_producer_stats())
+      stats = &packet.experimental_tracing_v2_producer_stats();
   }
   ASSERT_NE(stats, nullptr);
-  ASSERT_EQ(stats->tracing_v2_producer_stats().size(), 1u);
-  const auto& producer_stats = stats->tracing_v2_producer_stats()[0];
-  EXPECT_EQ(producer_stats.producer_name(), "perfetto.traced_probes");
-  EXPECT_GT(producer_stats.chunks_read(), 0u);
+  EXPECT_EQ(stats->producer_name(), "perfetto.traced_probes");
+  EXPECT_GT(stats->chunks_read(), 0u);
 }
 #endif
 

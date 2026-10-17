@@ -203,10 +203,11 @@ class ProducerRingBufferArbiter {
   using AllocateSharedMemoryFn =
       base::StatusOr<std::shared_ptr<SharedMemory>> (*)(size_t size);
 
-  // Picks v1 or v2 for one data source instance, from its |config|.
+  // Picks v1 or v2 from |config|.
   // - Returns false if the service did not set supports_tracing_v2.
   // - Otherwise returns true with probability use_v2_probability_percent.
-  // The result is random, so call it once per instance and keep it.
+  // Eligible data sources with the same probability get the same result
+  // within a process and tracing session.
   // All writers of an instance must use the same version.
   // On true, call the endpoint's InitializeV2RingBuffer() before
   // CreateTraceWriterV2().
