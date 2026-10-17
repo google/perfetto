@@ -51,6 +51,22 @@ const validMetricsTest: {
       isWeighted: true,
     },
   },
+  {
+    inputMetric: 'perfetto_ft_systemui_stl-missed_sf_frames-mean',
+    expectedOutput: {
+      process: 'com.android.compose.animation.scene.demo.app',
+      jankType: 'sf_frames',
+      isWeighted: false,
+    },
+  },
+  {
+    inputMetric: 'perfetto_ft_uibench-missed_app_frames-mean',
+    expectedOutput: {
+      process: 'com.android.test.uibench',
+      jankType: 'app_frames',
+      isWeighted: false,
+    },
+  },
 ];
 
 const invalidMetricsTest: string[] = [
