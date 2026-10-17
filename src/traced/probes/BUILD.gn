@@ -73,6 +73,7 @@ source_set("probes_src") {
     "android_kernel_wakelocks",
     "android_log",
     "android_system_property",
+    "cgroup",
     "common",
     "filesystem",
     "initial_display_state",

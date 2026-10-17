@@ -44,11 +44,52 @@ source_set("android_cgroups") {
   ]
 }
 
+source_set("memcg_reader") {
+  public_deps = [
+    ":android_cgroups",
+    ":memcg_fields",
+    "../../../protozero",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/config/linux:zero",
+    "../../../../protos/perfetto/trace/linux:zero",
+    "../../../base",
+    "../../../profiling/common:proc_cmdline",
+    "../packages_list:packages_list_parser",
+  ]
+  sources = [
+    "memcg_reader.cc",
+    "memcg_reader.h",
+  ]
+}
+
+source_set("cgroup") {
+  public_deps = [
+    ":memcg_reader",
+    "../../../tracing/core",
+  ]
+  deps = [
+    "..:data_source",
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/config/linux:zero",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/linux:zero",
+    "../../../base",
+  ]
+  sources = [
+    "cgroup_data_source.cc",
+    "cgroup_data_source.h",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":android_cgroups",
     ":memcg_fields",
+    ":memcg_reader",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/config/linux:cpp",
@@ -61,5 +102,6 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "android_cgroups_unittest.cc",
     "memcg_fields_unittest.cc",
+    "memcg_reader_unittest.cc",
   ]
 }
