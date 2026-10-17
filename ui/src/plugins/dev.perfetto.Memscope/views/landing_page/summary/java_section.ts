@@ -404,7 +404,7 @@ async function loadRetainers(
     // Drop trailing owners that are tiny next to the class's biggest one; the
     // SQL already ordered each list largest-first.
     for (const [cls, list] of retainerOf) {
-      const cutoff = list[0].bytes * RETAINER_MIN_SHARE;
+      const cutoff = list[0]!.bytes * RETAINER_MIN_SHARE;
       retainerOf.set(
         cls,
         list.filter((r) => r.bytes >= cutoff),

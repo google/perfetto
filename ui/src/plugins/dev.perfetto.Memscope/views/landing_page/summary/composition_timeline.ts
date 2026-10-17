@@ -100,14 +100,14 @@ export class CompositionTimeline implements m.ClassComponent<CompositionTimeline
     let baseIdx =
       selection?.base !== undefined ? idxOfTs(selection.base) : undefined;
     if (baseIdx === selIdx) baseIdx = undefined;
-    const snap = snaps[selIdx];
+    const snap = snaps[selIdx]!;
     const base = baseIdx !== undefined ? snaps[baseIdx] : undefined;
 
     // Index of the snapshot whose x is closest to a clicked/brushed time.
     const nearestSnap = (x: number) => {
       let bestIdx = 0;
       for (let i = 1; i < snaps.length; i++) {
-        if (Math.abs(snaps[i].x - x) < Math.abs(snaps[bestIdx].x - x)) {
+        if (Math.abs(snaps[i]!.x - x) < Math.abs(snaps[bestIdx]!.x - x)) {
           bestIdx = i;
         }
       }
@@ -174,15 +174,15 @@ export class CompositionTimeline implements m.ClassComponent<CompositionTimeline
             selection:
               base !== undefined ? {start: base.x, end: snap.x} : undefined,
             onPointClick: (x: number) => {
-              onSelect({sel: snaps[nearestSnap(x)].ts});
+              onSelect({sel: snaps[nearestSnap(x)]!.ts});
             },
             onBrush: ({start, end}: {start: number; end: number}) => {
               const a = nearestSnap(start);
               const b = nearestSnap(end);
               onSelect(
                 a === b
-                  ? {sel: snaps[a].ts}
-                  : {sel: snaps[b].ts, base: snaps[a].ts},
+                  ? {sel: snaps[a]!.ts}
+                  : {sel: snaps[b]!.ts, base: snaps[a]!.ts},
               );
             },
           }),

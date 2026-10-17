@@ -147,10 +147,10 @@ export function renderCastColumnMenu(
                 underlyingSqlType(params.type)
             ) {
               // If the underlying types are the same, there is no need for a SQL cast, we only need to reinterpret the data.
-              return (cols: string[]) => cols[0];
+              return (cols: string[]) => cols[0]!;
             }
             return (cols: string[]) =>
-              `CAST(${cols[0]} AS ${underlyingSqlType(params.type)})`;
+              `CAST(${cols[0]!} AS ${underlyingSqlType(params.type)})`;
           })();
 
           // Create a CastColumn wrapping the source column

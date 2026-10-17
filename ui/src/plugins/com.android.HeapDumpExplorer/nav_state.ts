@@ -127,13 +127,13 @@ export function subpageToState(
   // Views with underscores: "flamegraph_objects" is the only multi-word view.
   let view: string;
   let param: string;
-  if (path.startsWith('flamegraph_objects')) {
+  if (path!.startsWith('flamegraph_objects')) {
     view = 'flamegraph-objects';
-    param = path.slice('flamegraph_objects'.length + 1) || '';
+    param = path!.slice('flamegraph_objects'.length + 1) || '';
   } else {
-    const idx = path.indexOf('_');
-    view = idx === -1 ? path : path.slice(0, idx);
-    param = idx === -1 ? '' : path.slice(idx + 1);
+    const idx = path!.indexOf('_');
+    view = idx === -1 ? path! : path!.slice(0, idx);
+    param = idx === -1 ? '' : path!.slice(idx + 1);
   }
 
   switch (view) {

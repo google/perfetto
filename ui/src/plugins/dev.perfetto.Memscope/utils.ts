@@ -80,7 +80,7 @@ export function parseAndroidBuildVariant(
   const lastColon = fingerprint.lastIndexOf(':');
   if (lastColon === -1) {
     const match = fingerprint.match(/\b(userdebug|eng|user)\b/i);
-    return match ? (match[1].toLowerCase() as AndroidBuildVariant) : 'unknown';
+    return match ? (match[1]!.toLowerCase() as AndroidBuildVariant) : 'unknown';
   }
 
   const rest = fingerprint.substring(lastColon + 1);

@@ -50,7 +50,7 @@ function humanizeSource(source: string): string {
   const name = source
     .split(/[._-]+/)
     .filter((part) => part.length > 0)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .map((part) => part[0]!.toUpperCase() + part.slice(1))
     .join(' ');
   return name || 'Unknown';
 }

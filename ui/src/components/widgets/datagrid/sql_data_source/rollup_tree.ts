@@ -350,12 +350,12 @@ export class SQLDataSourceRollupTree {
     const columnAliases: Record<string, string> = {};
     const aliasToColumn: Record<string, string> = {};
     for (let i = 0; i < groupBy.length; i++) {
-      columnAliases[`__group_${i}`] = quoteIdentifier(groupBy[i].alias);
-      aliasToColumn[groupBy[i].alias] = `__group_${i}`;
+      columnAliases[`__group_${i}`] = quoteIdentifier(groupBy[i]!.alias);
+      aliasToColumn[groupBy[i]!.alias] = `__group_${i}`;
     }
     for (let i = 0; i < aggregates.length; i++) {
-      columnAliases[`__agg_${i}`] = quoteIdentifier(aggregates[i].alias);
-      aliasToColumn[aggregates[i].alias] = `__agg_${i}`;
+      columnAliases[`__agg_${i}`] = quoteIdentifier(aggregates[i]!.alias);
+      aliasToColumn[aggregates[i]!.alias] = `__agg_${i}`;
     }
     return {columnAliases, aliasToColumn};
   }
@@ -820,7 +820,7 @@ function buildSelectClause(aliases?: Record<string, string>): string {
   const groupColIndices = Object.keys(aliases)
     .map((key) => {
       const match = key.match(groupColPattern);
-      return match ? parseInt(match[1], 10) : -1;
+      return match ? parseInt(match[1]!, 10) : -1;
     })
     .filter((idx) => idx >= 0);
 

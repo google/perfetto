@@ -145,7 +145,7 @@ export default class implements PerfettoPlugin {
     // If we closed the active tab, switch to an adjacent one
     if (this.activeTabId === tabId) {
       const newIndex = Math.min(index, this.tabs.length - 1);
-      this.activeTabId = this.tabs[newIndex].id;
+      this.activeTabId = this.tabs[newIndex]!.id;
     }
 
     this.debouncedSave();
@@ -182,13 +182,13 @@ export default class implements PerfettoPlugin {
     const [draggedTab] = this.tabs.splice(draggedIndex, 1);
 
     if (beforeTabId === undefined) {
-      this.tabs.push(draggedTab);
+      this.tabs.push(draggedTab!);
     } else {
       const beforeIndex = this.tabs.findIndex((t) => t.id === beforeTabId);
       if (beforeIndex === -1) {
-        this.tabs.push(draggedTab);
+        this.tabs.push(draggedTab!);
       } else {
-        this.tabs.splice(beforeIndex, 0, draggedTab);
+        this.tabs.splice(beforeIndex, 0, draggedTab!);
       }
     }
 
@@ -376,7 +376,7 @@ export default class implements PerfettoPlugin {
             permalinkState.activeTabId !== undefined &&
             this.tabs.some((t) => t.id === permalinkState.activeTabId)
               ? permalinkState.activeTabId
-              : this.tabs[0].id;
+              : this.tabs[0]!.id;
           return;
         } catch (e) {
           const msg = getErrorMessage(e);
@@ -427,7 +427,7 @@ export default class implements PerfettoPlugin {
           (t) => t.id === persistedTabs.activeTabId,
         )
           ? persistedTabs.activeTabId
-          : this.tabs[0].id;
+          : this.tabs[0]!.id;
         return;
       } catch (e) {
         console.debug(

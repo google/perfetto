@@ -55,7 +55,7 @@ function getNestedKey(key: string): Key[] {
   let match;
   const re = /([^\.\[\]]+)|\[(\d+)\]/g;
   while ((match = re.exec(key)) !== null) {
-    result.push(match[2] ? parseInt(match[2]) : match[1]);
+    result.push(match[2] ? parseInt(match[2]) : match[1]!);
   }
   return result;
 }

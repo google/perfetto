@@ -477,7 +477,7 @@ export default class StackSamplesPlugin implements PerfettoPlugin {
 
     if (configs.length > 0) {
       trace.onTraceReady.addListener(async () => {
-        const preferredOrder = configs[0].order;
+        const preferredOrder = configs[0]!.order;
         await this.autoSelectSource(
           trace,
           configs.filter((config) => config.order === preferredOrder),
