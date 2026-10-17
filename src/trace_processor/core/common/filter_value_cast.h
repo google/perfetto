@@ -412,6 +412,50 @@ CastFilterValueToString(uint32_t index,
   PERFETTO_FATAL("Invalid filter spec value");
 }
 
+// Casts the filter value at `index` to the type of a column of storage type
+// T, for comparing with `op`: a value which cannot be cast exactly says
+// whether every row or none matches instead.
+template <typename T, typename FilterValueFetcherImpl>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE CastFilterValueResult
+CastFilterValue(uint32_t index, FilterValueFetcherImpl& fetcher, NonNullOp op) {
+  typename FilterValueFetcherImpl::Type filter_value_type =
+      fetcher.GetValueType(index);
+  using ValueType =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  CastFilterValueResult result;
+  if constexpr (std::is_same_v<T, Id>) {
+    uint32_t result_value;
+    result.validity =
+        CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
+            index, filter_value_type, fetcher, *op.TryDowncast<NonStringOp>(),
+            result_value);
+    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+      result.value = CastFilterValueResult::Id{result_value};
+    }
+  } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
+    ValueType result_value;
+    result.validity =
+        CastFilterValueToIntegerOrDouble<ValueType, FilterValueFetcherImpl>(
+            index, filter_value_type, fetcher, *op.TryDowncast<NonStringOp>(),
+            result_value);
+    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+      result.value = result_value;
+    }
+  } else if constexpr (std::is_same_v<T, String>) {
+    static_assert(std::is_same_v<ValueType, const char*>);
+    const char* result_value;
+    result.validity = CastFilterValueToString<FilterValueFetcherImpl>(
+        index, filter_value_type, fetcher, *op.TryDowncast<StringOp>(),
+        result_value);
+    if (PERFETTO_LIKELY(result.validity == CastFilterValueResult::kValid)) {
+      result.value = result_value;
+    }
+  } else {
+    static_assert(std::is_same_v<T, Id>, "Unsupported type");
+  }
+  return result;
+}
+
 // Below this threshold, the non-indexed FilterIn path does a linear scan
 // over the value list instead of a HashMap lookup (avoids hashing overhead).
 inline constexpr uint32_t kFilterInKeyScanThreshold = 16;
