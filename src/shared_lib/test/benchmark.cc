@@ -40,6 +40,7 @@
 #include "src/shared_lib/test/utils.h"
 
 static struct PerfettoDs custom = PERFETTO_DS_INIT();
+static struct PerfettoTeRegisteredTrack counter_track;
 
 #define BENCHMARK_CATEGORIES(C) C(benchmark_cat, "benchmark", "")
 
@@ -60,6 +61,9 @@ bool Initialize() {
   PerfettoDsRegister(&custom, kDataSourceName, PerfettoDsParamsDefault());
   PerfettoTeInit();
   PERFETTO_TE_REGISTER_CATEGORIES(BENCHMARK_CATEGORIES);
+  PerfettoTeCounterTrackRegister(&counter_track, "counter",
+                                 PerfettoTeProcessTrackUuid(),
+                                 /*is_name_static=*/true);
   return true;
 }
 
@@ -243,6 +247,43 @@ void BM_Shlib_TeDynamicCategory(benchmark::State& state) {
   while (state.KeepRunning()) {
     PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT("Event"),
                 PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dynamic"));
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeCounter(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = StartTrackEventSession();
+
+  int64_t value = 0;
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_COUNTER(),
+                PERFETTO_TE_REGISTERED_TRACK(&counter_track),
+                PERFETTO_TE_INT_COUNTER(value++));
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeNamedTrack(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session = StartTrackEventSession();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(
+        benchmark_cat, PERFETTO_TE_INSTANT("Event"),
+        PERFETTO_TE_NAMED_TRACK("track", 1, PerfettoTeProcessTrackUuid()));
+    benchmark::ClobberMemory();
+  }
+}
+
+// Each event is written once per session.
+void BM_Shlib_TeTwoSessions(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session1 = StartTrackEventSession();
+  TracingSession tracing_session2 = StartTrackEventSession();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"));
     benchmark::ClobberMemory();
   }
 }
@@ -479,6 +520,9 @@ BENCHMARK(BM_Shlib_TeCustomProto);
 BENCHMARK(BM_Shlib_TeNestedThreadTrack);
 BENCHMARK(BM_Shlib_TeRotatingNames)->Arg(64);
 BENCHMARK(BM_Shlib_TeDynamicCategory);
+BENCHMARK(BM_Shlib_TeCounter);
+BENCHMARK(BM_Shlib_TeNamedTrack);
+BENCHMARK(BM_Shlib_TeTwoSessions);
 BENCHMARK(BM_Shlib_TeLlBasic);
 BENCHMARK(BM_Shlib_TeLlBasicNoIntern);
 BENCHMARK(BM_Shlib_TeLlDebugAnnotations);

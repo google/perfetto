@@ -51,42 +51,11 @@ NewTracePacketInternal(perfetto::TraceWriterBase* trace_writer,
                        const perfetto::shlib::TrackEventTlsState& tls_state,
                        perfetto::TraceTimestamp timestamp,
                        uint32_t seq_flags) {
-  // PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL is the default timestamp returned
-  // by TrackEventInternal::GetTraceTime(). If the configuration in `tls_state`
-  // uses a different clock, we have to use that instead.
-  if (PERFETTO_UNLIKELY(tls_state.default_clock_id !=
-                            PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL &&
-                        timestamp.clock_id ==
-                            PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL)) {
-    timestamp.clock_id = tls_state.default_clock_id;
-  }
+  uint8_t buf[kMaxPacketPrologueSize];
+  uint8_t* end =
+      EncodePacketPrologue(buf, incr_state, tls_state, timestamp, seq_flags);
   auto packet = trace_writer->NewTracePacket();
-  auto ts_unit_multiplier = tls_state.timestamp_unit_multiplier;
-  if (PERFETTO_LIKELY(timestamp.clock_id ==
-                      PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL)) {
-    if (PERFETTO_LIKELY(incr_state->last_timestamp_ns <= timestamp.value)) {
-      // No need to set the clock id here, since
-      // PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL is the clock id assumed by
-      // default.
-      auto time_diff_ns = timestamp.value - incr_state->last_timestamp_ns;
-      auto time_diff_units = time_diff_ns / ts_unit_multiplier;
-      packet->set_timestamp(time_diff_units);
-      incr_state->last_timestamp_ns += time_diff_units * ts_unit_multiplier;
-    } else {
-      packet->set_timestamp(timestamp.value / ts_unit_multiplier);
-      packet->set_timestamp_clock_id(
-          ts_unit_multiplier == 1
-              ? PerfettoDsGetDefaultClockId()
-              : static_cast<uint32_t>(PERFETTO_TE_TIMESTAMP_TYPE_ABSOLUTE));
-    }
-  } else if (PERFETTO_LIKELY(timestamp.clock_id ==
-                             tls_state.default_clock_id)) {
-    packet->set_timestamp(timestamp.value / ts_unit_multiplier);
-  } else {
-    packet->set_timestamp(timestamp.value);
-    packet->set_timestamp_clock_id(timestamp.clock_id);
-  }
-  packet->set_sequence_flags(seq_flags);
+  packet->AppendRawProtoBytes(buf, static_cast<size_t>(end - buf));
   return packet;
 }
 
