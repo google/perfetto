@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"
@@ -121,6 +122,8 @@ ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kPerfSampleFieldNumber);
   RegisterForField(TracePacket::kProfilePacketFieldNumber);
   RegisterForField(TracePacket::kModuleSymbolsFieldNumber);
+  RegisterForField(TracePacket::kSourceFileFieldNumber);
+  RegisterForField(TracePacket::kModuleDisassemblyFieldNumber);
   RegisterForField(TracePacket::kSmapsPacketFieldNumber);
 }
 
@@ -148,6 +151,13 @@ void ProfileModule::ParseField(const ParseFieldArgs& args) {
       return;
     case TracePacket::kModuleSymbolsFieldNumber:
       ParseModuleSymbols(args.field.Cast<TracePacket::kModuleSymbols>());
+      return;
+    case TracePacket::kSourceFileFieldNumber:
+      ParseSourceFile(args.field.Cast<TracePacket::kSourceFile>());
+      return;
+    case TracePacket::kModuleDisassemblyFieldNumber:
+      ParseModuleDisassembly(
+          args.field.Cast<TracePacket::kModuleDisassembly>());
       return;
     case TracePacket::kSmapsPacketFieldNumber:
       ParseSmapsPacket(args.ts, args.field.Cast<TracePacket::kSmapsPacket>());
@@ -635,6 +645,86 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
       context_->stats_tracker->IncrementStats(
           stats::stackprofile_invalid_frame_id);
       continue;
+    }
+  }
+}
+
+void ProfileModule::ParseSourceFile(ConstBytes blob) {
+  protos::pbzero::SourceFile::Decoder file(blob.data, blob.size);
+  ConstBytes contents = file.contents();
+  context_->storage->mutable_source_file_table()->Insert(
+      {context_->storage->InternString(file.path()),
+       context_->storage->InternString(base::StringView(
+           reinterpret_cast<const char*>(contents.data), contents.size))});
+}
+
+void ProfileModule::ParseModuleDisassembly(ConstBytes blob) {
+  protos::pbzero::ModuleDisassembly::Decoder disassembly(blob.data, blob.size);
+  std::optional<BuildId> build_id;
+  if (disassembly.build_id().size > 0) {
+    build_id = BuildId::FromRaw(disassembly.build_id());
+  }
+
+  // Only keep disassembly for modules which appear in the trace: without a
+  // mapping there is no rel_pc space to attribute samples in.
+  auto mappings =
+      context_->mapping_tracker->FindMappings(disassembly.path(), build_id);
+  if (mappings.empty()) {
+    context_->stats_tracker->IncrementStats(
+        stats::disassembly_invalid_mapping_id);
+    return;
+  }
+
+  StringId path_id = context_->storage->InternString(disassembly.path());
+  std::optional<StringId> build_id_id;
+  if (build_id) {
+    build_id_id =
+        context_->storage->InternString(base::StringView(build_id->ToHex()));
+  }
+
+  std::vector<StringId> source_files;
+  for (auto it = disassembly.source_files(); it; ++it) {
+    source_files.push_back(context_->storage->InternString(*it));
+  }
+
+  auto* functions = context_->storage->mutable_disassembly_function_table();
+  auto* instructions =
+      context_->storage->mutable_disassembly_instruction_table();
+  for (auto fn_it = disassembly.functions(); fn_it; ++fn_it) {
+    protos::pbzero::ModuleDisassembly::Function::Decoder function(*fn_it);
+    auto function_id =
+        functions
+            ->Insert({path_id, build_id_id,
+                      context_->storage->InternString(function.name()),
+                      static_cast<int64_t>(function.start_address()),
+                      static_cast<int64_t>(function.size())})
+            .id;
+    for (auto insn_it = function.instructions(); insn_it; ++insn_it) {
+      protos::pbzero::ModuleDisassembly::Instruction::Decoder insn(*insn_it);
+      ConstBytes bytes = insn.bytes();
+      std::optional<int64_t> target_rel_pc;
+      if (insn.has_target_address()) {
+        target_rel_pc = static_cast<int64_t>(insn.target_address());
+      }
+      std::optional<StringId> target_symbol;
+      if (insn.has_target_symbol()) {
+        target_symbol = context_->storage->InternString(insn.target_symbol());
+      }
+      std::optional<StringId> source_file;
+      if (insn.has_source_file_index() &&
+          insn.source_file_index() < source_files.size()) {
+        source_file = source_files[insn.source_file_index()];
+      }
+      std::optional<uint32_t> line_number;
+      if (source_file && insn.has_line_number()) {
+        line_number = insn.line_number();
+      }
+      instructions->Insert(
+          {function_id, static_cast<int64_t>(insn.address()),
+           context_->storage->InternString(base::StringView(base::ToHex(
+               reinterpret_cast<const char*>(bytes.data), bytes.size))),
+           context_->storage->InternString(insn.text()), target_rel_pc,
+           target_symbol, source_file, line_number});
     }
   }
 }

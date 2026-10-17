@@ -159,6 +159,9 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_v8_wasm_code_table());
     AddDataframe(out, s->mutable_v8_regexp_code_table());
     AddDataframe(out, s->mutable_symbol_table());
+    AddDataframe(out, s->mutable_source_file_table());
+    AddDataframe(out, s->mutable_disassembly_function_table());
+    AddDataframe(out, s->mutable_disassembly_instruction_table());
     AddDataframe(out, s->mutable_jit_code_table());
     AddDataframe(out, s->mutable_jit_frame_table());
     AddDataframe(out, s->mutable_android_key_events_table());
