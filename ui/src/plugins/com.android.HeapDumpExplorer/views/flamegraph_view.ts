@@ -16,22 +16,12 @@ import m from 'mithril';
 import {download} from '../../../base/download_utils';
 import type {Trace} from '../../../public/trace';
 import type {time} from '../../../base/time';
-import {
-  TreeExplorerFetcher,
-  type TreeExplorerQueryMetric,
-} from '../../../components/tree_explorer_fetcher';
-import {Memo} from '../../../base/memo';
-import {TreeExplorerPanel} from '../../../components/tree_explorer_panel';
-import {
-  createDefaultTreeExplorerState,
-  type TreeExplorerState,
-  type TreeExplorerOptionalAction,
+import type {TreeExplorerQueryMetric} from '../../../components/tree_explorer_fetcher';
+import type {
+  TreeExplorerState,
+  TreeExplorerOptionalAction,
 } from '../../../widgets/tree_explorer';
-import {AsyncMemo} from '../../../base/async_memo';
-import {
-  isHeapGraphIncomplete,
-  incompleteFlamegraphModal,
-} from '../../dev.perfetto.HeapProfile/incomplete_flamegraph';
+import {HeapGraphTreeView} from './heap_graph_tree_view';
 import {
   convertTrace,
   type PprofProfileType,
@@ -39,12 +29,7 @@ import {
 
 import {showModal} from '../../../widgets/modal';
 import {
-  mergedClassNodeIcon,
-  mergedClassNodeTooltipRenderer,
-} from '../../../components/merged_class_flamegraph_hooks';
-import {
   MERGED_CLASS_FLAMEGRAPH_PROPERTY,
-  MERGED_CLASS_PROPERTY,
   mergedClassColumnSql,
 } from '../../dev.perfetto.HeapProfile/merged_class_sql';
 import {NUM} from '../../../trace_processor/query_result';
@@ -78,12 +63,6 @@ const UNAGG_PROPS = [
     isVisible: () => false,
   },
 ];
-
-// Flag potentially merged classes (see merged_class_sql.ts).
-const MERGED_CLASS_NODE_ICON = mergedClassNodeIcon(MERGED_CLASS_PROPERTY);
-const MERGED_CLASS_NODE_TOOLTIP = mergedClassNodeTooltipRenderer(
-  MERGED_CLASS_PROPERTY,
-);
 
 const SELF_COUNT_AGG_PROP = {
   name: 'self_count',
@@ -200,79 +179,29 @@ function buildHeapGraphMetrics(
 }
 
 export function FlamegraphView(): m.Component<FlamegraphViewAttrs> {
-  // The fetcher is created for the dump it serves and disposed by the memo when
-  // the dump changes or when this view is removed.
-  const fetcherMemo = new Memo<TreeExplorerFetcher>();
-
-  // Mirrors dev.perfetto.HeapProfile: if the heap graph is incomplete we gate
-  // the flamegraph behind a dismissible warning modal. Keyed by dump so it
-  // re-arms when the dump changes; the check runs (and the modal is shown) only
-  // when this view is rendered, i.e. when the flamegraph tab is active.
-  const incompleteSlot = new AsyncMemo<{
-    isIncomplete: boolean;
-    dismissed: boolean;
-  }>();
-
   return {
     view({attrs}) {
-      const fetcher = fetcherMemo.use({
-        key: {upid: attrs.upid, ts: attrs.ts},
-        compute: () =>
-          new TreeExplorerFetcher(
-            attrs.trace,
-            buildHeapGraphMetrics(attrs.upid, attrs.ts, attrs.onShowObjects),
-          ),
+      return m(HeapGraphTreeView, {
+        trace: attrs.trace,
+        upid: attrs.upid,
+        ts: attrs.ts,
+        state: attrs.state,
+        onStateChange: attrs.onStateChange,
+        buildMetrics: (upid, ts) =>
+          buildHeapGraphMetrics(upid, ts, attrs.onShowObjects),
+        extraDownloadItems: [
+          {
+            label: 'Pprof profile (.pb)',
+            icon: 'file_download',
+            description:
+              'Whole snapshot, converted from the trace: filters, the ' +
+              'selected measure and the view direction are not applied.',
+            title:
+              'Download the full profile as pprof, for use with pprof tools',
+            onDownload: () => downloadPprof(attrs.trace, attrs.upid, attrs.ts),
+          },
+        ],
       });
-      const metrics = fetcher.metrics;
-
-      const incomplete = incompleteSlot.use({
-        key: {upid: attrs.upid, ts: attrs.ts},
-        compute: async () => ({
-          isIncomplete: await isHeapGraphIncomplete(attrs.trace),
-          dismissed: false,
-        }),
-      }).data;
-
-      // First render or after a dump-change reset: create a default
-      // state so the panel renders meaningfully on the same frame.
-
-      let state = attrs.state;
-      if (state === undefined) {
-        state = createDefaultTreeExplorerState(metrics);
-        attrs.onStateChange(state);
-      }
-
-      return [
-        incomplete !== undefined &&
-          incomplete.isIncomplete &&
-          !incomplete.dismissed &&
-          incompleteFlamegraphModal(attrs.trace, () => {
-            incomplete.dismissed = true;
-          }),
-        m(TreeExplorerPanel, {
-          fetcher,
-          state,
-          onStateChange: attrs.onStateChange,
-          nodeIcon: MERGED_CLASS_NODE_ICON,
-          renderNodeTooltip: MERGED_CLASS_NODE_TOOLTIP,
-          extraDownloadItems: [
-            {
-              label: 'Pprof profile (.pb)',
-              icon: 'file_download',
-              description:
-                'Whole snapshot, converted from the trace: filters, the ' +
-                'selected measure and the view direction are not applied.',
-              title:
-                'Download the full profile as pprof, for use with pprof tools',
-              onDownload: () =>
-                downloadPprof(attrs.trace, attrs.upid, attrs.ts),
-            },
-          ],
-        }),
-      ];
-    },
-    onremove() {
-      fetcherMemo.dispose();
     },
   };
 }

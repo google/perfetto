@@ -35,6 +35,16 @@ const FLAMEGRAPH_TAB_SCHEMA = z.object({
   isDominator: z.boolean(),
 });
 
+// A collections flamegraph drill-down tab: the frames' path hashes (CSV),
+// the clicked frame's name, and its collection class if it is a collection.
+const COLLECTIONS_TAB_SCHEMA = z.object({
+  pathHashes: z.string(),
+  label: z.string(),
+  collectionCls: z.string().optional(),
+});
+
+export type CollectionsTab = z.infer<typeof COLLECTIONS_TAB_SCHEMA>;
+
 const INSTANCE_TAB_SCHEMA = z.object({
   objId: z.number(),
   label: z.string(),
@@ -50,6 +60,8 @@ export const HDE_STATE_SCHEMA = z
     // Open "Flamegraph objects" drill-down tabs. The active one is not stored;
     // it is re-derived from nav (which encodes the tab's pathHashes) on restore.
     flamegraphTabs: z.array(FLAMEGRAPH_TAB_SCHEMA).optional(),
+    // Open collections flamegraph drill-down tabs, like flamegraphTabs.
+    collectionsTabs: z.array(COLLECTIONS_TAB_SCHEMA).optional(),
     // Open object/instance inspector tabs. The active one is not stored; it is
     // re-derived from nav (which encodes the object id) on restore.
     instanceTabs: z.array(INSTANCE_TAB_SCHEMA).optional(),
@@ -57,6 +69,8 @@ export const HDE_STATE_SCHEMA = z
     flamegraphPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
     // Filter / pivot / view state of the Callstack tab.
     callstackPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
+    // Filter / pivot / view state of the Collections flamegraph.
+    collectionsFlamegraphPanelState: TREE_EXPLORER_STATE_SCHEMA.optional(),
   })
   .readonly();
 

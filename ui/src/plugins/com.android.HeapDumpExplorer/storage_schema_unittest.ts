@@ -32,9 +32,11 @@ describe('HDE_STATE_SCHEMA', () => {
       activeDump: {upid: 3, ts: '123456789012345'},
       nav: 'flamegraph',
       flamegraphTabs: [{pathHashes: 'abc', isDominator: true}],
+      collectionsTabs: [{pathHashes: '123', label: 'PackageManagerService'}],
       instanceTabs: [{objId: 42, label: 'java.lang.String'}],
       flamegraphPanelState: TREE_STATE,
       callstackPanelState: TREE_STATE,
+      collectionsFlamegraphPanelState: TREE_STATE,
     };
     expect(HDE_STATE_SCHEMA.parse(state)).toEqual(state);
   });

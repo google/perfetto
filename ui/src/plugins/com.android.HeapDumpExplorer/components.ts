@@ -198,6 +198,29 @@ export function shortClassName(full: string): string {
   return short + suffix;
 }
 
+const TAB_LABEL_MAX = 30;
+
+export function truncateTabLabel(label: string): string {
+  return label.length > TAB_LABEL_MAX
+    ? label.slice(0, TAB_LABEL_MAX) + '…'
+    : label;
+}
+
+// Shown for collections not held by a field.
+export const NO_FIELD_LABEL = '(no field)';
+
+// 'PackageManagerService.mPackages' for
+// 'com.android.server.pm.PackageManagerService.mPackages'.
+export function shortFieldName(fullName: string): string {
+  const lastDot = fullName.lastIndexOf('.');
+  if (lastDot === -1) {
+    return fullName;
+  }
+  const className = fullName.slice(0, lastDot);
+  const fieldName = fullName.slice(lastDot + 1);
+  return `${shortClassName(className)}.${fieldName}`;
+}
+
 // Hover-help text for size/count columns, shared across HDE views.
 export const COL_INFO = {
   shallow:
