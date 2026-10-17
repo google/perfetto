@@ -646,6 +646,23 @@ TEST_P(InstanceProtocolIntegrationTest, ExplicitWriterUsesRequestedProtocol) {
   if (param.selected_version)
     EXPECT_EQ(packets[0].for_testing().str(), payload);
 
+  // TraceStats shows the writer's protocol. Only v2 has a producer entry.
+  const TraceStats stats = GetTraceStats();
+  if (param.selected_version) {
+    ASSERT_EQ(stats.writer_stats().size(), 1u);
+    EXPECT_EQ(stats.writer_stats()[0].protocol_abi_versions(),
+              *param.selected_version);
+  }
+  if (param.selected_version == kProtocolAbiV2) {
+    ASSERT_EQ(stats.tracing_v2_producer_stats().size(), 1u);
+    const auto& producer_stats = stats.tracing_v2_producer_stats()[0];
+    EXPECT_EQ(producer_stats.chunk_size_bytes(), 1024u);
+    EXPECT_GT(producer_stats.chunks_read(), 0u);
+    EXPECT_GT(producer_stats.bytes_read(), payload.size());
+  } else {
+    EXPECT_TRUE(stats.tracing_v2_producer_stats().empty());
+  }
+
   writer.reset();
   auto stopped = task_runner_->CreateCheckpoint("instance_stopped");
   EXPECT_CALL(producer_, StopDataSource(instance));
@@ -900,7 +917,9 @@ TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
   first.FinishCurrentChunk();
   second.FinishCurrentChunk();
   Drain();
+  // A dropping writer marks its next chunk and counts the packet in the header.
   first.RecordDataLoss();
+  ring_buffer_->AddDroppedPackets(1);
   ASSERT_TRUE(tracing_v2::test::WriteFragment(&first, Packet("discarded")));
   first.FinishCurrentChunk();
   Drain();
@@ -919,6 +938,12 @@ TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
     else
       EXPECT_EQ(packet.for_testing().str(), "other-before");
   }
+
+  // The service counts the marked chunk and reads the packet count.
+  const TraceStats stats = GetTraceStats();
+  ASSERT_EQ(stats.tracing_v2_producer_stats().size(), 1u);
+  EXPECT_EQ(stats.tracing_v2_producer_stats()[0].data_loss_chunks(), 1u);
+  EXPECT_EQ(stats.tracing_v2_producer_stats()[0].writer_dropped_packets(), 1u);
 }
 
 TEST_F(RingBufferTransportIntegrationTest,

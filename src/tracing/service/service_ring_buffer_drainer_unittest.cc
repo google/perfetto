@@ -29,6 +29,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/service/trace_buffer_v2.h"
+#include "src/tracing/test/fake_packet.h"
 #include "src/tracing/v2/shared_ring_buffer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 #include "src/tracing/v2/shared_ring_buffer_reader.h"
@@ -137,6 +138,12 @@ class ServiceRingBufferDrainerTest : public testing::Test {
 
   uint32_t ReadPos() { return Internals::GetReadPos(ring_buffer_.get()); }
 
+  TraceStats::TracingV2ProducerStats Stats() {
+    TraceStats::TracingV2ProducerStats stats;
+    drainer_->FillStats(&stats);
+    return stats;
+  }
+
   base::TestTaskRunner task_runner_;
   FakeDelegate delegate_;
   std::unique_ptr<SharedRingBuffer> ring_buffer_;
@@ -164,6 +171,15 @@ TEST_F(ServiceRingBufferDrainerTest, DrainsIntoDestination) {
     EXPECT_EQ(packet.writer_id, kWriter);
     EXPECT_FALSE(packet.previous_packet_dropped);
   }
+
+  const auto stats = Stats();
+  EXPECT_EQ(stats.chunk_size_bytes(), kChunkSize);
+  EXPECT_EQ(stats.num_chunks(), kNumChunks);
+  EXPECT_EQ(stats.chunks_read(), 1u);
+  EXPECT_EQ(stats.bytes_read(),
+            Packet("first").size() + Packet("second").size());
+  EXPECT_EQ(stats.drain_passes(), 1u);
+  EXPECT_EQ(stats.drain_max_time_ns(), stats.drain_time_ns());
 }
 
 TEST_F(ServiceRingBufferDrainerTest, DiscardsInvalidWriterIds) {
@@ -182,6 +198,7 @@ TEST_F(ServiceRingBufferDrainerTest, DiscardsInvalidWriterIds) {
 
   EXPECT_EQ(ReadPos(), 2u);
   EXPECT_EQ(delegate_.chunks_discarded, 2u);
+  EXPECT_EQ(Stats().invalid_writer_chunks(), 2u);
   EXPECT_TRUE(ReadPackets().empty());
 }
 
@@ -202,6 +219,7 @@ TEST_F(ServiceRingBufferDrainerTest, ForbiddenDestinationRecordsLoss) {
   // The service drops the chunk before any trace buffer sees it. The
   // writer's sequence in the allowed buffer shows the gap.
   EXPECT_EQ(delegate_.chunks_discarded, 1u);
+  EXPECT_EQ(Stats().invalid_destination_chunks(), 1u);
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 2u);
   EXPECT_EQ(packets[0].str, "before");
@@ -228,11 +246,31 @@ TEST_F(ServiceRingBufferDrainerTest, ProducerLossIsNotAServiceDiscard) {
   drainer_->Drain();
 
   EXPECT_EQ(delegate_.chunks_discarded, 0u);
+  EXPECT_EQ(Stats().data_loss_chunks(), 1u);
   const auto packets = ReadPackets();
   ASSERT_EQ(packets.size(), 2u);
   EXPECT_EQ(packets[0].str, "before");
   EXPECT_EQ(packets[1].str, "after");
   EXPECT_TRUE(packets[1].previous_packet_dropped);
+}
+
+// The trace buffer can refuse a chunk that the reader delivered. Here the
+// writer ID already has SMB chunks in the buffer.
+TEST_F(ServiceRingBufferDrainerTest, CountsChunksRejectedByTraceBuffer) {
+  FakeChunk(delegate_.buffer.get(), kProducer, kWriter, ChunkID(0))
+      .AddPacket(4, 'a')
+      .CopyIntoTraceBuffer();
+
+  SharedRingBufferWriter writer =
+      MakeWriter(ring_buffer_.get(), kWriter, kBuffer);
+  ASSERT_TRUE(WriteFragment(&writer, Packet("rejected")));
+  writer.FinishCurrentChunk();
+  drainer_->Drain();
+
+  const auto stats = Stats();
+  EXPECT_EQ(stats.chunks_read(), 1u);
+  EXPECT_EQ(stats.trace_buffer_rejected_chunks(), 1u);
+  EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 1u);
 }
 
 TEST_F(ServiceRingBufferDrainerTest, MalformedAndUnknownChunksAreDiscards) {
@@ -257,6 +295,10 @@ TEST_F(ServiceRingBufferDrainerTest, MalformedAndUnknownChunksAreDiscards) {
   EXPECT_EQ(ReadPos(), 2u);
   EXPECT_EQ(delegate_.chunks_discarded, 2u);
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 0u);
+  const auto stats = Stats();
+  EXPECT_EQ(stats.malformed_chunks(), 1u);
+  EXPECT_EQ(stats.unsupported_format_chunks(), 1u);
+  EXPECT_EQ(stats.positions_skipped(), 2u);
 }
 
 TEST_F(ServiceRingBufferDrainerTest, ProtocolErrorIsAnAbiViolation) {
@@ -278,6 +320,9 @@ TEST_F(ServiceRingBufferDrainerTest, ProtocolErrorIsAnAbiViolation) {
   EXPECT_EQ(ReadPos(), 0u);
   EXPECT_EQ(delegate_.buffer->stats().abi_violations(), 1u);
   EXPECT_TRUE(ReadPackets().empty());
+
+  // Only the first drain ran the reader.
+  EXPECT_EQ(Stats().drain_passes(), 1u);
 }
 
 TEST_F(ServiceRingBufferDrainerTest, LostRacesPostOneDelayedRetry) {
