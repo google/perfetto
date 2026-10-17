@@ -22,7 +22,9 @@ source_set("util") {
     "ops.cc",
     "ops.h",
     "range.h",
+    "row_layout_sort.cc",
     "slab.h",
+    "sort.cc",
     "sort.h",
     "span.h",
   ]
@@ -31,6 +33,7 @@ source_set("util") {
     "../../../../include/perfetto/ext/base",
     "../../../base",
     "../../containers",
+    "../../util:cold_sort",
   ]
 }
 
@@ -64,6 +67,9 @@ if (enable_perfetto_benchmarks) {
       "../../../../gn:default_deps",
       "../../../base",
     ]
-    sources = [ "sort_benchmark.cc" ]
+    sources = [
+      "sort_benchmark.cc",
+      "sort_row_layout_benchmark.cc",
+    ]
   }
 }
