@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdint>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -243,6 +244,18 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
                              uint32_t instance_index,
                              uint32_t actual_generation);
 
+  // Returns the number of trailing zero bits of `x`, which must not be 0.
+  static uint32_t CountTrailingZeros(uint32_t x) {
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
+    uint32_t n = 0;
+    for (; !(x & 1u); x >>= 1)
+      n++;
+    return n;
+#else
+    return static_cast<uint32_t>(__builtin_ctz(x));
+#endif
+  }
+
   // Advances `*iterator` to the first active instance whose index is greater or
   // equal than `iterator->i`.
   template <typename TracePointTraits>
@@ -252,10 +265,15 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
       typename TracePointTraits::TracePointData trace_point_data) {
     iterator->instance = nullptr;
     for (; iterator->i < kMaxDataSourceInstances; iterator->i++) {
-      DataSourceState* instance_state =
-          state_.TryGetCached(iterator->cached_instances, iterator->i);
-      if (!instance_state)
-        continue;
+      // Jump to the next active instance, instead of testing every index.
+      const uint32_t remaining = iterator->cached_instances >> iterator->i;
+      if (!remaining) {
+        iterator->i = kMaxDataSourceInstances;
+        break;
+      }
+      iterator->i += CountTrailingZeros(remaining);
+      PERFETTO_DCHECK(iterator->i < kMaxDataSourceInstances);
+      DataSourceState* instance_state = state_.GetUnsafe(iterator->i);
       // Even if we passed the check above, the DataSourceInstance might be
       // still destroyed concurrently while this code runs. The code below is
       // designed to deal with such race, as follows:
