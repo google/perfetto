@@ -94,15 +94,17 @@ CREATE PERFETTO MACRO _heap_graph_path_hash_aggregate(tab TableOrSubquery)
 RETURNS TableOrSubquery
 AS (
   WITH
-    x AS (
+    -- Pre-aggregate integer columns by path_hash first. CROSS JOIN keeps $tab
+    -- as the outer table so Dataframe consumes GROUP BY path_hash in C++ and
+    -- probes heap_graph_object.id via O(1) IdSorted lookup.
+    agg_by_hash AS (
       SELECT
-        o.graph_sample_ts,
-        o.upid,
+        -- All objects sharing a path_hash have the same (upid, graph_sample_ts,
+        -- root_type, heap_type) and class display name, so MIN(id) picks a
+        -- deterministic representative object to resolve those columns in x.
+        MIN(id) AS sample_id,
         path_hash,
         parent_path_hash,
-        coalesce(c.deobfuscated_name, c.name, '') AS name,
-        o.root_type,
-        o.heap_type,
         count() AS self_count,
         -- -1 is a placeholder sentinel (see HeapGraphTracker::GetOrInsertObject
         -- in heap_graph_tracker.cc) for forward-referenced objects in
@@ -111,12 +113,29 @@ AS (
         sum(o.native_size > 0) AS self_native_count,
         sum(o.native_size) AS self_native_size
       FROM $tab
-      JOIN heap_graph_object AS o
+      CROSS JOIN heap_graph_object AS o
         USING (id)
-      JOIN heap_graph_class AS c
-        ON o.type_id = c.id
       GROUP BY
         path_hash
+    ),
+    x AS (
+      SELECT
+        o.graph_sample_ts,
+        o.upid,
+        a.path_hash,
+        a.parent_path_hash,
+        coalesce(c.deobfuscated_name, c.name, '') AS name,
+        o.root_type,
+        o.heap_type,
+        a.self_count,
+        a.self_size,
+        a.self_native_count,
+        a.self_native_size
+      FROM agg_by_hash AS a
+      JOIN heap_graph_object AS o
+        ON a.sample_id = o.id
+      JOIN heap_graph_class AS c
+        ON o.type_id = c.id
     )
   SELECT
     graph_sample_ts,
@@ -126,13 +145,11 @@ AS (
     '[native] ' || x.name AS name,
     root_type,
     'HEAP_TYPE_NATIVE' AS heap_type,
-    sum(x.self_native_count) AS self_count,
-    sum(x.self_native_size) AS self_size
+    x.self_native_count AS self_count,
+    x.self_native_size AS self_size
   FROM x
   WHERE
     x.self_native_size > 0
-  GROUP BY
-    path_hash
   UNION ALL
   SELECT
     graph_sample_ts,
