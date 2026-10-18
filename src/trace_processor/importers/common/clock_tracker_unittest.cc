@@ -693,29 +693,18 @@ TEST_F(ClockTrackerTest, AddDeferredClockSync_WithExplicitSnapshot) {
   EXPECT_EQ(*ct_->ToTraceTime(BOOTTIME, 1100), 1100);
 }
 
-TEST_F(ClockTrackerTest, AddDeferredClockSync_WithOffset) {
-  // A non-zero offset pins from_ts on |from| to to_ts on trace time, so the
-  // file's events are shifted (a perfetto_manifest bare offset).
-  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(7);
-  ct_->AddDeferredClockSync(TRACE_FILE, /*from_ts=*/0, /*to=*/std::nullopt,
-                            /*to_ts=*/500);
+TEST_F(ClockTrackerTest, AddDeferredClockSync_BridgesDefaultClockSetLater) {
+  // The bridge follows the default clock set after registration (as a proto
+  // ClockSnapshot's primary_trace_clock does), not the fallback.
+  constexpr ClockTracker::ClockId FALLBACK = ClockId::TraceFile(7);
+  constexpr ClockTracker::ClockId DEFAULT = ClockId::TraceFile(8);
+  ct_->AddDeferredClockSync(FALLBACK);
+  ct_->SetTraceDefaultClock(DEFAULT);
 
-  // TRACE_FILE 0 == BOOTTIME 500, so a TRACE_FILE event is shifted by +500.
-  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 100), 600);
-}
-
-TEST_F(ClockTrackerTest, AddDeferredClockSync_NamedTargetComposesWithGraph) {
-  // A named target (not trace time) is bridged to trace time by a real
-  // snapshot already in the graph (a perfetto_manifest anchor to REALTIME with
-  // trace time BOOTTIME, as a proto spine would provide REALTIME<->BOOTTIME).
-  constexpr ClockTracker::ClockId TRACE_FILE = ClockId::TraceFile(7);
-  ct_->AddSnapshot({{REALTIME, 1000}, {BOOTTIME, 5000}});  // REALTIME = BT+4000
-  ct_->AddDeferredClockSync(TRACE_FILE, /*from_ts=*/0, /*to=*/REALTIME,
-                            /*to_ts=*/1000);
-
-  // TRACE_FILE 0 == REALTIME 1000 == BOOTTIME 5000, so a TRACE_FILE event
-  // routes TRACE_FILE -> REALTIME -> BOOTTIME.
-  EXPECT_EQ(*ct_->ToTraceTime(TRACE_FILE, 10), 5010);
+  EXPECT_EQ(*ct_->ToTraceTime(DEFAULT, 42), 42);
+  EXPECT_FALSE(ct_->ToTraceTime(FALLBACK, 42, std::nullopt,
+                                /*suppress_errors=*/true)
+                   .has_value());
 }
 
 TEST_F(ClockTrackerTest, AddDeferredClockSync_DoesNotChangeGlobalTraceClock) {
