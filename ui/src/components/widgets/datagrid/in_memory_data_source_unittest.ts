@@ -363,6 +363,126 @@ describe('InMemoryDataSource', () => {
     });
   });
 
+  describe('aggregate summaries', () => {
+    function summarize(model: FlatModel) {
+      dataSource.useRows(model);
+      const result = dataSource.useAggregateSummaries(model);
+      expect(result.isPending).toBe(false);
+      return result.data;
+    }
+
+    test('returns an empty row when no columns have aggregates', () => {
+      expect(summarize(makeModel())).toEqual({});
+    });
+
+    test('computes aggregates over numeric values, ignoring nulls', () => {
+      // Values: 100, 200, 150, null, 100, 300n, 250n
+      const summaries = summarize(
+        makeModel({
+          columns: [
+            {field: 'value', alias: 'sum', aggregate: 'SUM'},
+            {field: 'value', alias: 'avg', aggregate: 'AVG'},
+            {field: 'value', alias: 'min', aggregate: 'MIN'},
+            {field: 'value', alias: 'max', aggregate: 'MAX'},
+            {field: 'value', alias: 'distinct', aggregate: 'COUNT_DISTINCT'},
+            {field: 'value', alias: 'p25', aggregate: 'P25'},
+            {field: 'value', alias: 'p50', aggregate: 'P50'},
+          ],
+        }),
+      );
+      expect(summaries).toEqual({
+        sum: 1100,
+        avg: 1100 / 6,
+        min: 100,
+        max: 300n,
+        distinct: 5,
+        p25: 112.5,
+        p50: 175,
+      });
+    });
+
+    test('computes aggregates over string values', () => {
+      const summaries = summarize(
+        makeModel({
+          columns: [
+            {field: 'name', alias: 'any', aggregate: 'ANY'},
+            {field: 'name', alias: 'min', aggregate: 'MIN'},
+            {field: 'name', alias: 'max', aggregate: 'MAX'},
+            {field: 'tag', alias: 'distinct', aggregate: 'COUNT_DISTINCT'},
+          ],
+        }),
+      );
+      expect(summaries).toEqual({
+        any: 'Alice',
+        min: 'Alice',
+        max: 'Trent',
+        distinct: 3,
+      });
+    });
+
+    test('keeps bigint precision when summing only bigints', () => {
+      // Tag C: David (null), Mallory (300n)
+      const summaries = summarize(
+        makeModel({
+          columns: [{field: 'value', alias: 'sum', aggregate: 'SUM'}],
+          filters: [{field: 'tag', op: '=', value: 'C'}],
+        }),
+      );
+      expect(summaries).toEqual({sum: 300n});
+    });
+
+    test('returns null (or 0 for COUNT_DISTINCT) when all values are null', () => {
+      const summaries = summarize(
+        makeModel({
+          columns: [
+            {field: 'value', alias: 'sum', aggregate: 'SUM'},
+            {field: 'value', alias: 'avg', aggregate: 'AVG'},
+            {field: 'value', alias: 'max', aggregate: 'MAX'},
+            {field: 'value', alias: 'p50', aggregate: 'P50'},
+            {field: 'value', alias: 'distinct', aggregate: 'COUNT_DISTINCT'},
+          ],
+          filters: [{field: 'name', op: '=', value: 'David'}],
+        }),
+      );
+      expect(summaries).toEqual({
+        sum: null,
+        avg: null,
+        max: null,
+        p50: null,
+        distinct: 0,
+      });
+    });
+
+    test('aggregates only over filtered rows', () => {
+      const columns: FlatModel['columns'] = [
+        {field: 'value', alias: 'sum', aggregate: 'SUM'},
+      ];
+      expect(summarize(makeModel({columns}))).toEqual({sum: 1100});
+
+      // Active: Alice (100), Charlie (150), Eve (100), Trent (250n)
+      const filters: Filter[] = [{field: 'active', op: '=', value: 1}];
+      expect(summarize(makeModel({columns, filters}))).toEqual({sum: 600});
+    });
+
+    test('recomputes when the aggregate function changes', () => {
+      expect(
+        summarize(
+          makeModel({
+            columns: [{field: 'value', alias: 'value', aggregate: 'SUM'}],
+          }),
+        ),
+      ).toEqual({value: 1100});
+
+      expect(
+        summarize(
+          makeModel({
+            columns: [{field: 'value', alias: 'value', aggregate: 'MIN'}],
+          }),
+        ),
+      ).toEqual({value: 100});
+    });
+  });
+
   describe('caching behavior', () => {
     test('data is not reprocessed if columns and filters are identical', () => {
       const filters: Filter[] = [{field: 'tag', op: '=', value: 'A'}];

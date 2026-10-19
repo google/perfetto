@@ -22,7 +22,7 @@ import type {
   DataSourceRows,
   FlatModel,
 } from './data_source';
-import type {Filter, QuickFilter} from './model';
+import type {AggregateFunction, Filter, QuickFilter} from './model';
 import {splitPath} from './datagrid_schema';
 import {
   isQuickFilterActive,
@@ -37,7 +37,8 @@ export class InMemoryDataSource implements DataSource {
   private filteredSortedData: ReadonlyArray<Row> = [];
   private distinctValuesCache = new Map<string, ReadonlyArray<SqlValue>>();
   private parameterKeysCache = new Map<string, ReadonlyArray<string>>();
-  private aggregateSummariesCache: Row = {};
+  private aggregateSummariesCache?: Row;
+  private aggregateSummariesKey?: string;
 
   // Cached state for diffing
   private oldColumns?: readonly FlatColumn[];
@@ -87,7 +88,7 @@ export class InMemoryDataSource implements DataSource {
       this.oldSort = sort;
 
       // Clear aggregate summaries cache
-      this.aggregateSummariesCache = {};
+      this.aggregateSummariesCache = undefined;
 
       let result = this.applyFilters(this.data, filters);
       result = this.applyQuickFilter(result, quickFilter);
@@ -203,12 +204,34 @@ export class InMemoryDataSource implements DataSource {
   /**
    * Fetch aggregate summaries (aggregates across all filtered rows).
    */
-  useAggregateSummaries(_model: DataSourceModel): AsyncMemoResult<Row> {
-    // Aggregates are computed in useRows, just return the cache
-    const data = this.aggregateSummariesCache;
+  useAggregateSummaries(model: DataSourceModel): AsyncMemoResult<Row> {
+    // Only support flat mode
+    if (model.mode !== 'flat') {
+      return {data: {}, isPending: false};
+    }
+
+    // Columns are projected by alias in useRows, so aggregate over
+    // filteredSortedData using each column's alias. The cache is invalidated
+    // by useRows whenever columns/filters/sort change, and here whenever the
+    // set of aggregate functions changes.
+    const aggColumns = model.columns.filter((c) => c.aggregate !== undefined);
+    const key = aggColumns.map((c) => `${c.alias}:${c.aggregate}`).join(',');
+
+    if (
+      this.aggregateSummariesCache === undefined ||
+      this.aggregateSummariesKey !== key
+    ) {
+      const summaries: Row = {};
+      for (const col of aggColumns) {
+        const values = this.filteredSortedData.map((row) => row[col.alias]);
+        summaries[col.alias] = computeAggregate(col.aggregate!, values);
+      }
+      this.aggregateSummariesCache = summaries;
+      this.aggregateSummariesKey = key;
+    }
 
     return {
-      data,
+      data: this.aggregateSummariesCache,
       isPending: false,
     };
   }
@@ -476,4 +499,105 @@ function compareNumeric(a: SqlValue, b: SqlValue): number {
     // so just convert both to numbers.
     return Number(a) - Number(b);
   }
+}
+
+/**
+ * Compute an aggregate over a list of values, mirroring the semantics of the
+ * equivalent SQL used by SQLDataSource (see sql_utils.ts). NULLs are ignored,
+ * and aggregates over no (non-NULL) values return NULL (or 0 for
+ * COUNT_DISTINCT).
+ */
+function computeAggregate(
+  func: AggregateFunction,
+  values: ReadonlyArray<SqlValue>,
+): SqlValue {
+  const nonNull = values.filter((v) => v !== null);
+  switch (func) {
+    case 'ANY':
+    case 'MIN':
+      return extremum(nonNull, (cmp) => cmp < 0);
+    case 'MAX':
+      return extremum(nonNull, (cmp) => cmp > 0);
+    case 'SUM':
+      return sumNumeric(nonNull.filter(isNumeric));
+    case 'AVG': {
+      const numeric = nonNull.filter(isNumeric);
+      if (numeric.length === 0) return null;
+      return Number(sumNumeric(numeric)) / numeric.length;
+    }
+    case 'COUNT_DISTINCT':
+      return new Set(nonNull.map(distinctKey)).size;
+    case 'P25':
+    case 'P50':
+    case 'P75':
+    case 'P90':
+    case 'P95':
+    case 'P99':
+      return percentile(
+        nonNull.filter(isNumeric).map(Number),
+        Number(func.slice(1)),
+      );
+    default:
+      assertUnreachable(func);
+  }
+}
+
+function sumNumeric(values: ReadonlyArray<number | bigint>): SqlValue {
+  if (values.length === 0) return null;
+  // Keep bigint precision if every value is a bigint.
+  if (values.every((v) => typeof v === 'bigint')) {
+    return (values as bigint[]).reduce((a, b) => a + b, 0n);
+  }
+  return values.reduce<number>((a, b) => a + Number(b), 0);
+}
+
+function extremum(
+  values: ReadonlyArray<SqlValue>,
+  better: (cmp: number) => boolean,
+): SqlValue {
+  if (values.length === 0) return null;
+  let result = values[0];
+  for (let i = 1; i < values.length; i++) {
+    if (better(compareForAggregate(values[i], result))) {
+      result = values[i];
+    }
+  }
+  return result;
+}
+
+// Order non-NULL values like sqlite: numbers < strings < blobs.
+function compareForAggregate(a: SqlValue, b: SqlValue): number {
+  const rank = (v: SqlValue) =>
+    isNumeric(v) ? 0 : typeof v === 'string' ? 1 : 2;
+  const rankDiff = rank(a) - rank(b);
+  if (rankDiff !== 0) return rankDiff;
+  if (isNumeric(a)) return compareNumeric(a, b);
+  if (typeof a === 'string' && typeof b === 'string') {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  if (a instanceof Uint8Array && b instanceof Uint8Array) {
+    const len = Math.min(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+      if (a[i] !== b[i]) return a[i] - b[i];
+    }
+    return a.length - b.length;
+  }
+  return 0;
+}
+
+function distinctKey(value: SqlValue): string {
+  if (isNumeric(value)) return `n:${value}`;
+  if (typeof value === 'string') return `s:${value}`;
+  if (value instanceof Uint8Array) return `b:${value.join(',')}`;
+  return 'null';
+}
+
+// Linear interpolation between closest ranks, matching sqlite's percentile().
+function percentile(values: number[], p: number): SqlValue {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const ix = ((sorted.length - 1) * p) / 100;
+  const lo = Math.floor(ix);
+  const hi = Math.ceil(ix);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (ix - lo);
 }
