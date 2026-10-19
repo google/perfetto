@@ -80,6 +80,7 @@
 #include "protos/perfetto/trace/perfetto/concurrent_session_event.gen.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -520,6 +521,19 @@ std::vector<std::string> TestPayloads(
   return payloads;
 }
 
+std::vector<protos::gen::ExperimentalTracingV2ProducerStats>
+GetTracingV2ProducerStats(
+    const std::vector<protos::gen::TracePacket>& packets) {
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats> stats;
+  for (const auto& packet : packets) {
+    if (packet.has_experimental_tracing_v2_producer_stats()) {
+      EXPECT_FALSE(packet.has_trace_stats());
+      stats.push_back(packet.experimental_tracing_v2_producer_stats());
+    }
+  }
+  return stats;
+}
+
 // An in-process producer with v2 uses the same producer code as over IPC.
 // The service shares its mapping of the ring buffer.
 TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
@@ -585,9 +599,118 @@ TEST_F(TracingServiceImplTest, InProcessWriterUsesV2) {
         endpoint->NotifyFlushComplete(id);
       });
   ASSERT_TRUE(consumer->Flush().WaitForReply());
-  EXPECT_THAT(TestPayloads(consumer->ReadBuffers()), ElementsAre(payload));
+  const auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(TestPayloads(packets), ElementsAre(payload));
+
+  const auto producer_stats_entries = GetTracingV2ProducerStats(packets);
+  ASSERT_EQ(producer_stats_entries.size(), 1u);
+  const auto& producer_stats = producer_stats_entries[0];
+  EXPECT_EQ(producer_stats.pid(), 1025);
+  EXPECT_EQ(producer_stats.producer_name(), "ring_buffer");
+  EXPECT_EQ(producer_stats.chunk_size_bytes() * producer_stats.num_chunks() +
+                sizeof(tracing_v2::RingBufferHeader),
+            impl->ring_buffer_size_bytes());
+  EXPECT_GT(producer_stats.chunks_read(), 0u);
+  EXPECT_GT(producer_stats.bytes_read(), payload.size());
+  EXPECT_GT(producer_stats.drain_passes(), 0u);
+
+  // TraceStats reports the protocol of each writer.
+  consumer->GetTraceStats();
+  const TraceStats stats = consumer->WaitForTraceStats(/*success=*/true);
+  ASSERT_EQ(stats.writer_stats().size(), 1u);
+  EXPECT_EQ(stats.writer_stats()[0].protocol_abi_versions(), kProtocolAbiV2);
+
   writer.reset();
   EXPECT_CALL(producer, StopDataSource(instance));
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+}
+
+// Only a session with a data source of the producer lists its stats. A clone
+// keeps the stats from the time of the clone.
+TEST_F(TracingServiceImplTest, TracingV2ProducerStatsFollowSession) {
+  NiceMock<MockProducer> producer(&task_runner);
+  NiceMock<MockProducer> other_producer(&task_runner);
+  // Each producer has a data source named after it and a ring buffer of four
+  // chunks.
+  auto connect = [&](MockProducer* mock, const std::string& name) {
+    auto endpoint = svc->ConnectProducer(
+        mock, ClientIdentity(42, 1025), name,
+        /*shared_memory_size_hint_bytes=*/0, /*in_process=*/true,
+        TracingService::ProducerSMBScrapingMode::kDefault,
+        /*shared_memory_page_size_hint_bytes=*/0, /*shm=*/nullptr,
+        /*sdk_version=*/"1.2.3", /*machine_name=*/{},
+        kProtocolAbiV1 | kProtocolAbiV2);
+    DataSourceDescriptor descriptor;
+    descriptor.set_name(name);
+    endpoint->RegisterDataSource(descriptor);
+    endpoint->AttachV2RingBuffer(
+        std::make_shared<InProcessSharedMemory>(
+            sizeof(tracing_v2::RingBufferHeader) + 4 * 256),
+        /*chunk_size_bytes=*/256, [](bool accepted) { EXPECT_TRUE(accepted); });
+    return endpoint;
+  };
+  auto endpoint = connect(&producer, "in_session");
+  auto other_endpoint = connect(&other_producer, "not_in_session");
+
+  auto consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(RingBufferConfig("in_session"));
+  task_runner.RunUntilIdle();
+  const TracingSessionID source_session_id =
+      GetLastTracingSessionId(consumer.get());
+
+  const auto stats = GetTracingV2ProducerStats(consumer->ReadBuffers());
+  ASSERT_EQ(stats.size(), 1u);
+  EXPECT_EQ(stats[0].producer_name(), "in_session");
+  EXPECT_EQ(stats[0].num_chunks(), 4u);
+
+  // A filter that only permits TraceStats must exclude producer identity.
+  auto filtered_consumer = CreateMockConsumer();
+  filtered_consumer->Connect(svc.get());
+  TraceConfig filtered_config = RingBufferConfig("in_session");
+  protozero::FilterBytecodeGenerator filter;
+  filter.AddNestedField(1, 1);
+  filter.EndMessage();
+  filter.AddSimpleField(protos::pbzero::TracePacket::kTraceStatsFieldNumber);
+  filter.EndMessage();
+  filtered_config.mutable_trace_filter()->set_bytecode(
+      filter.Serialize().bytecode);
+  filtered_consumer->EnableTracing(filtered_config);
+  task_runner.RunUntilIdle();
+  const auto filtered_packets = filtered_consumer->ReadBuffers();
+  EXPECT_TRUE(GetTracingV2ProducerStats(filtered_packets).empty());
+  EXPECT_THAT(
+      filtered_packets,
+      Contains(Property(&protos::gen::TracePacket::has_trace_stats, true)));
+  filtered_consumer->DisableTracing();
+  filtered_consumer->WaitForTracingDisabled();
+
+  // The clone flushes the session's producers first.
+  auto clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+  EXPECT_CALL(producer, Flush(_, _, _, _))
+      .WillOnce([&](FlushRequestID id, const DataSourceInstanceID*, size_t,
+                    FlushFlags) { endpoint->NotifyFlushComplete(id); });
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce([&](const Consumer::OnSessionClonedArgs& args) {
+        EXPECT_TRUE(args.success);
+        clone_done();
+      });
+  clone_consumer->CloneSession(source_session_id);
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  // The clone keeps its stats after the producer disconnects.
+  endpoint.reset();
+  task_runner.RunUntilIdle();
+  const auto cloned_stats =
+      GetTracingV2ProducerStats(clone_consumer->ReadBuffers());
+  ASSERT_EQ(cloned_stats.size(), 1u);
+  EXPECT_EQ(cloned_stats[0].producer_name(), "in_session");
+  // The service drained on the attach and on the clone's flush.
+  EXPECT_GE(cloned_stats[0].drain_passes(), 2u);
+
   consumer->DisableTracing();
   consumer->WaitForTracingDisabled();
 }
@@ -6043,6 +6166,8 @@ TEST_F(TracingServiceImplTest, TraceWriterStats) {
                 packet.trace_stats().chunk_payload_histogram_def()[i]),
             wri.chunk_payload_histogram_counts()[i]);
       }
+      // Both writers use the SMB.
+      EXPECT_EQ(wri.protocol_abi_versions(), kProtocolAbiV1);
 
       switch (wri.sequence_id()) {
         case 1:  // Ignore service-generated packets.

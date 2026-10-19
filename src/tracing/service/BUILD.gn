@@ -32,6 +32,7 @@ source_set("service") {
     "../../../protos/perfetto/config/protovm:cpp",
     "../../../protos/perfetto/protovm:cpp",
     "../../../protos/perfetto/trace:zero",
+    "../../../protos/perfetto/trace/perfetto:cpp",
     "../../../protos/perfetto/trace/perfetto:zero",  # For MetatraceWriter.
     "../../android_stats",
     "../../base",

@@ -54,6 +54,7 @@
 #include "protos/perfetto/ipc/producer_port.gen.h"
 #include "protos/perfetto/ipc/producer_port.ipc.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_v2_producer_stats.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -466,7 +467,9 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
     task_runner_->RunUntilCheckpoint(name);
   }
 
-  std::vector<protos::gen::TracePacket> Read() {
+  std::vector<protos::gen::TracePacket> Read(
+      std::vector<protos::gen::ExperimentalTracingV2ProducerStats>*
+          producer_stats = nullptr) {
     std::vector<protos::gen::TracePacket> result;
     auto read = task_runner_->CreateCheckpoint("ring_buffer_read");
     EXPECT_CALL(consumer_, OnTracePackets(_, _))
@@ -475,6 +478,12 @@ class RingBufferTransportIntegrationTest : public TracingIntegrationTest {
             protos::gen::TracePacket packet;
             EXPECT_TRUE(
                 packet.ParseFromString(encoded.GetRawBytesForTesting()));
+            if (producer_stats &&
+                packet.has_experimental_tracing_v2_producer_stats()) {
+              EXPECT_FALSE(packet.has_trace_stats());
+              producer_stats->push_back(
+                  packet.experimental_tracing_v2_producer_stats());
+            }
             if (packet.has_for_testing())
               result.push_back(std::move(packet));
           }
@@ -641,10 +650,28 @@ TEST_P(InstanceProtocolIntegrationTest, ExplicitWriterUsesRequestedProtocol) {
     flushed();
   });
   task_runner_->RunUntilCheckpoint("instance_flushed");
-  auto packets = Read();
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats> producer_stats;
+  auto packets = Read(&producer_stats);
   ASSERT_EQ(packets.size(), param.selected_version ? 1u : 0u);
   if (param.selected_version)
     EXPECT_EQ(packets[0].for_testing().str(), payload);
+
+  // TraceStats shows the writer's protocol. Only v2 has a producer stats
+  // packet.
+  const TraceStats stats = GetTraceStats();
+  if (param.selected_version) {
+    ASSERT_EQ(stats.writer_stats().size(), 1u);
+    EXPECT_EQ(stats.writer_stats()[0].protocol_abi_versions(),
+              *param.selected_version);
+  }
+  if (param.selected_version == kProtocolAbiV2) {
+    ASSERT_EQ(producer_stats.size(), 1u);
+    EXPECT_EQ(producer_stats[0].chunk_size_bytes(), 1024u);
+    EXPECT_GT(producer_stats[0].chunks_read(), 0u);
+    EXPECT_GT(producer_stats[0].bytes_read(), payload.size());
+  } else {
+    EXPECT_TRUE(producer_stats.empty());
+  }
 
   writer.reset();
   auto stopped = task_runner_->CreateCheckpoint("instance_stopped");
@@ -900,7 +927,9 @@ TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
   first.FinishCurrentChunk();
   second.FinishCurrentChunk();
   Drain();
+  // A dropping writer marks its next chunk and counts the packet in the header.
   first.RecordDataLoss();
+  ring_buffer_->AddDroppedPackets(1);
   ASSERT_TRUE(tracing_v2::test::WriteFragment(&first, Packet("discarded")));
   first.FinishCurrentChunk();
   Drain();
@@ -909,7 +938,8 @@ TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
   first.FinishCurrentChunk();
   second.FinishCurrentChunk();
   Drain();
-  auto packets = Read();
+  std::vector<protos::gen::ExperimentalTracingV2ProducerStats> producer_stats;
+  auto packets = Read(&producer_stats);
   ASSERT_EQ(packets.size(), 3u);
   for (const auto& packet : packets) {
     if (packet.for_testing().str() == "recovered")
@@ -919,6 +949,11 @@ TEST_F(RingBufferTransportIntegrationTest, WriterLossStaysAtItsDestination) {
     else
       EXPECT_EQ(packet.for_testing().str(), "other-before");
   }
+
+  // The service counts the marked chunk and reads the packet count.
+  ASSERT_EQ(producer_stats.size(), 1u);
+  EXPECT_EQ(producer_stats[0].data_loss_chunks(), 1u);
+  EXPECT_EQ(producer_stats[0].writer_dropped_packets(), 1u);
 }
 
 TEST_F(RingBufferTransportIntegrationTest,
