@@ -21,6 +21,7 @@
 #include <memory>
 #include <numeric>
 #include <random>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/core/common/storage_types.h"
@@ -44,11 +45,21 @@
 namespace perfetto::trace_processor::core::exec {
 namespace {
 
+using F = AggregateCall::Function;
+
+// The first `count` of the aggregates listed at the top.
+std::vector<AggregateCall> FirstCalls(uint32_t count) {
+  std::vector<AggregateCall> calls = {
+      {F::kCountStar, 0}, {F::kSum, 1}, {F::kSum, 2}, {F::kSum, 3}};
+  calls.resize(count);
+  return calls;
+}
+
 void Run(benchmark::State& state,
          bool keyed,
          uint32_t distinct,
          uint32_t batch_count,
-         uint32_t aggregates) {
+         std::vector<AggregateCall> calls) {
   uint32_t rows = batch_count * kMaxBatchRows;
   std::vector<uint32_t> order(rows);
   std::iota(order.begin(), order.end(), 0);
@@ -74,12 +85,9 @@ void Run(benchmark::State& state,
     }
     batch.SetRowCount(kMaxBatchRows);
   }
-  using F = AggregateCall::Function;
-  std::vector<AggregateCall> calls = {
-      {F::kCountStar, 0}, {F::kSum, 1}, {F::kSum, 2}, {F::kSum, 3}};
-  calls.resize(aggregates);
   HashAggregate op(HashAggregateSpec{
-      keyed ? std::vector<uint32_t>{0} : std::vector<uint32_t>{}, calls});
+      keyed ? std::vector<uint32_t>{0} : std::vector<uint32_t>{},
+      std::move(calls)});
   Context context;
   std::unique_ptr<OperatorState> op_state = op.MakeState(context);
   RowBatch out;
@@ -99,21 +107,29 @@ void Run(benchmark::State& state,
 // aggregates.
 void BM_HashAggregate(benchmark::State& state) {
   Run(state, true, static_cast<uint32_t>(state.range(0)), 16,
-      static_cast<uint32_t>(state.range(1)));
+      FirstCalls(static_cast<uint32_t>(state.range(1))));
 }
 BENCHMARK(BM_HashAggregate)->ArgsProduct({{8, 512, 8192, 32768}, {1, 3}});
 
 // Like BM_HashAggregate with no keys, so every row is in one group. Argument:
 // number of aggregates.
 void BM_HashAggregateNoKeys(benchmark::State& state) {
-  Run(state, false, 1, 16, static_cast<uint32_t>(state.range(0)));
+  Run(state, false, 1, 16, FirstCalls(static_cast<uint32_t>(state.range(0))));
 }
 BENCHMARK(BM_HashAggregateNoKeys)->DenseRange(1, 4);
+
+// MIN and MAX with no keys. Argument: 0 for a column with no nulls, 1 for one
+// where a quarter of the rows are null.
+void BM_HashAggregateNoKeysMinMax(benchmark::State& state) {
+  uint32_t column = state.range(0) ? 2 : 1;
+  Run(state, false, 1, 16, {{F::kMin, column}, {F::kMax, column}});
+}
+BENCHMARK(BM_HashAggregateNoKeysMinMax)->DenseRange(0, 1);
 
 // Like BM_HashAggregate but over 10M rows, to compare with other engines.
 void BM_HashAggregateLarge(benchmark::State& state) {
   Run(state, true, static_cast<uint32_t>(state.range(0)), 4883,
-      static_cast<uint32_t>(state.range(1)));
+      FirstCalls(static_cast<uint32_t>(state.range(1))));
 }
 BENCHMARK(BM_HashAggregateLarge)
     ->ArgsProduct({{8, 512, 8192, 1 << 20}, {1, 2, 3, 4}})
