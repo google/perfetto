@@ -197,8 +197,8 @@ void LaneKeys::Carry(uint32_t handle) {
   rows_.View(&carried_, handle, 1);
 }
 
-void LaneKeys::View(RowBatch* out, Span<const uint32_t> handles, Context& c) {
-  rows_.View(out, handles, c);
+void LaneKeys::Gather(RowBatch* out, Span<const uint32_t> handles, Context& c) {
+  rows_.Gather(out, handles, c);
 }
 
 void LaneKeys::Clear() {

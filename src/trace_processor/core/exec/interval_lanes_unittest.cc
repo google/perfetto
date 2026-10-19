@@ -141,7 +141,7 @@ TEST(LaneKeysTest, CarriesTheOpenLane) {
   ASSERT_TRUE(keys.Hold(second).ok());
   std::vector<uint32_t> handles = {LaneKeys::kCarried, keys.Of(0)};
   RowBatch out;
-  keys.View(&out, handles, context);
+  keys.Gather(&out, handles, context);
   EXPECT_THAT(test::ReadColumn<int64_t>(out, 0), ElementsAre(3, 9));
 }
 

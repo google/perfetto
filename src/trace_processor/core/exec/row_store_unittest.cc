@@ -61,7 +61,7 @@ void FillBuffer(RowBatch* batch, const std::vector<int64_t>& values) {
 
 // Gathers `rows` of the store.
 uint32_t Gather(RowStore& store, RowBatch* out, std::vector<uint32_t> rows) {
-  return store.View(
+  return store.Gather(
       out, Span<const uint32_t>(rows.data(), rows.data() + rows.size()),
       test::TestContext());
 }

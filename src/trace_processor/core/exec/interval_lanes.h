@@ -270,8 +270,8 @@ class LaneKeys {
   // still open at the end of a batch continues into the next.
   void Carry(uint32_t handle);
 
-  // Gathers the keys of `handles`, in order, into `out`.
-  void View(RowBatch* out, Span<const uint32_t> handles, Context&);
+  // Copies the keys of `handles`, in order, into `out`.
+  void Gather(RowBatch* out, Span<const uint32_t> handles, Context&);
 
   void Clear();
 
