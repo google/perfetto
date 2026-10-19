@@ -18,37 +18,41 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 
 namespace perfetto::trace_processor {
 
 namespace {
-std::string SubstrTrim(const std::string& input) {
-  std::string s = input;
-  s.erase(s.begin(), std::find_if(s.begin(), s.end(),
-                                  [](char ch) { return !std::isspace(ch); }));
-  s.erase(std::find_if(s.rbegin(), s.rend(),
-                       [](char ch) { return !std::isspace(ch); })
-              .base(),
-          s.end());
-  return s;
+inline std::string_view TrimWhitespace(std::string_view sv) {
+  while (!sv.empty() && base::IsSpace(sv.front())) {
+    sv.remove_prefix(1);
+  }
+  while (!sv.empty() && base::IsSpace(sv.back())) {
+    sv.remove_suffix(1);
+  }
+  return sv;
 }
 }  // namespace
 
 SystraceLineTokenizer::SystraceLineTokenizer()
     : line_matcher_(base::Regex::CreateOrCheck(
           R"(-(\d+)\s+\(?\s*(\d+|-+)?\)?\s?\[(\d+)\]\s*([a-zA-Z.]{3}[0-9a-f.]{1,2}\s*)?(\d+\.\d+):\s+(\S+):)")) {
+  matches_.reserve(8);
 }
 
 // TODO(hjd): This should be more robust to being passed random input.
 // This can happen if we mess up detecting a gzip trace for example.
-base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
+base::Status SystraceLineTokenizer::Tokenize(std::string_view buffer,
                                              SystraceLine* line) {
   // An example line from buffer looks something like the following:
   // kworker/u16:1-77    (   77) [004] ....   316.196720: 0:
@@ -64,44 +68,58 @@ base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
   // it is much easier to use a regex (even though it is slower than parsing
   // manually)
 
-  std::vector<std::string_view> matches;
-  if (!line_matcher_.PartialMatchWithGroups(buffer.c_str(), matches)) {
-    return base::ErrStatus("Not a known systrace event format (line: %s)",
-                           buffer.c_str());
+  matches_.clear();
+  if (!line_matcher_.PartialMatchWithGroups(buffer, matches_)) {
+    return base::ErrStatus("Not a known systrace event format (line: %.*s)",
+                           static_cast<int>(buffer.size()), buffer.data());
   }
 
-  std::string pid_str(matches[1]);
-  std::string cpu_str(matches[3]);
-  std::string ts_str(matches[5]);
+  std::string_view pid_sv = matches_[1];
+  std::string_view cpu_sv = matches_[3];
+  std::string_view ts_sv = matches_[5];
 
   std::string_view prefix(
-      buffer.data(), static_cast<size_t>(matches[0].data() - buffer.data()));
+      buffer.data(), static_cast<size_t>(matches_[0].data() - buffer.data()));
 
-  const char* match_end = matches[0].data() + matches[0].size();
+  const char* match_end = matches_[0].data() + matches_[0].size();
   std::string_view suffix(
       match_end,
       static_cast<size_t>(buffer.data() + buffer.size() - match_end));
 
-  line->task = SubstrTrim(std::string(prefix));
-  line->tgid_str = std::string(matches[2]);
-  line->event_name = std::string(matches[6]);
-  line->args_str = SubstrTrim(std::string(suffix));
+  std::string_view trimmed_prefix = TrimWhitespace(prefix);
+  std::string_view trimmed_suffix = TrimWhitespace(suffix);
 
-  std::optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);
+  line->task.assign(trimmed_prefix.data(), trimmed_prefix.size());
+  line->tgid_str.assign(matches_[2].data(), matches_[2].size());
+  line->event_name.assign(matches_[6].data(), matches_[6].size());
+  line->args_str.assign(trimmed_suffix.data(), trimmed_suffix.size());
+
+  std::optional<uint32_t> maybe_pid =
+      base::StringViewToNumber<uint32_t>(base::StringView(pid_sv.data(), pid_sv.size()));
   if (!maybe_pid.has_value()) {
-    return base::Status("Could not convert pid " + pid_str);
+    return base::ErrStatus("Could not convert pid %.*s",
+                           static_cast<int>(pid_sv.size()), pid_sv.data());
   }
   line->pid = maybe_pid.value();
 
-  std::optional<uint32_t> maybe_cpu = base::StringToUInt32(cpu_str);
+  std::optional<uint32_t> maybe_cpu =
+      base::StringViewToNumber<uint32_t>(base::StringView(cpu_sv.data(), cpu_sv.size()));
   if (!maybe_cpu.has_value()) {
-    return base::Status("Could not convert cpu " + cpu_str);
+    return base::ErrStatus("Could not convert cpu %.*s",
+                           static_cast<int>(cpu_sv.size()), cpu_sv.data());
   }
   line->cpu = maybe_cpu.value();
 
-  std::optional<double> maybe_ts = base::StringToDouble(ts_str);
+  char ts_buf[32];
+  if (PERFETTO_UNLIKELY(ts_sv.size() >= sizeof(ts_buf))) {
+    return base::ErrStatus("Timestamp too long in systrace line");
+  }
+  memcpy(ts_buf, ts_sv.data(), ts_sv.size());
+  ts_buf[ts_sv.size()] = '\0';
+
+  std::optional<double> maybe_ts = base::CStringToDouble(ts_buf);
   if (!maybe_ts.has_value()) {
-    return base::ErrStatus("Could not convert ts %s", ts_str.c_str());
+    return base::ErrStatus("Could not convert ts %s", ts_buf);
   }
   line->ts = static_cast<int64_t>(maybe_ts.value() * 1e9);
 

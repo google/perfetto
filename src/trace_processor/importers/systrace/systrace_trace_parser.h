@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_SYSTRACE_SYSTRACE_TRACE_PARSER_H_
 
 #include <cstdint>
-#include <deque>
+#include <vector>
 #include <memory>
 
 #include "perfetto/base/status.h"
@@ -58,7 +58,7 @@ class SystraceTraceParser : public ChunkedTraceReader {
 
   // Used to glue together trace packets that span across two (or more)
   // Parse() boundaries.
-  std::deque<uint8_t> partial_buf_;
+  std::vector<char> partial_buf_;
 
   SystraceLineTokenizer line_tokenizer_;
   SystraceLineParser line_parser_;

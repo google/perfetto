@@ -18,6 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_SYSTRACE_SYSTRACE_LINE_TOKENIZER_H_
 
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/regex.h"
@@ -30,10 +32,11 @@ class SystraceLineTokenizer {
  public:
   SystraceLineTokenizer();
 
-  base::Status Tokenize(const std::string& line, SystraceLine*);
+  base::Status Tokenize(std::string_view line, SystraceLine*);
 
  private:
   base::Regex line_matcher_;
+  std::vector<std::string_view> matches_;
 };
 
 }  // namespace perfetto::trace_processor

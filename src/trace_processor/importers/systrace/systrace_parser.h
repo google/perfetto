@@ -165,7 +165,7 @@ inline SystraceParseResult ParseSystraceTracePoint(
   out->phase = f0_phase.at(0);
 
   auto f1_tgid = read_next_field();
-  auto opt_tgid = base::StringToUInt32(f1_tgid.ToStdString());
+  auto opt_tgid = base::StringViewToNumber<uint32_t>(f1_tgid);
   out->tgid = opt_tgid.value_or(0);
   const bool has_tgid = opt_tgid.has_value();
 
@@ -189,7 +189,7 @@ inline SystraceParseResult ParseSystraceTracePoint(
     case 'F': {  // End of async slice.
       auto f2_name = read_next_field();
       auto f3_cookie = read_next_field();
-      auto maybe_cookie = base::StringToInt64(f3_cookie.ToStdString());
+      auto maybe_cookie = base::StringViewToNumber<int64_t>(f3_cookie);
       if (PERFETTO_UNLIKELY(!has_tgid || f2_name.empty() || f3_cookie.empty() ||
                             !maybe_cookie)) {
         return SystraceParseResult::kFailure;
@@ -220,7 +220,7 @@ inline SystraceParseResult ParseSystraceTracePoint(
     case 'C': {  // Counter.
       auto f2_name = read_next_field();
       auto f3_value = read_next_field();
-      auto maybe_value = base::StringToInt64(f3_value.ToStdString());
+      auto maybe_value = base::StringViewToNumber<int64_t>(f3_value);
       if (PERFETTO_UNLIKELY(!has_tgid || f2_name.empty() || f3_value.empty() ||
                             !maybe_value)) {
         return SystraceParseResult::kFailure;
@@ -232,7 +232,7 @@ inline SystraceParseResult ParseSystraceTracePoint(
     case 'G': {  // Begin of async slice on track.
       auto f2_track_name = read_next_field();
       auto f3_name = read_next_field();
-      auto maybe_cookie = base::StringToInt64(read_next_field().ToStdString());
+      auto maybe_cookie = base::StringViewToNumber<int64_t>(read_next_field());
       if (PERFETTO_UNLIKELY(!has_tgid || f2_track_name.empty() ||
                             f3_name.empty() || !maybe_cookie)) {
         return SystraceParseResult::kFailure;
@@ -247,7 +247,7 @@ inline SystraceParseResult ParseSystraceTracePoint(
       auto f3 = read_next_field();
       auto f4 = read_next_field();
       auto maybe_cookie_str = f4.empty() ? f3 : f4;
-      auto maybe_cookie = base::StringToInt64(maybe_cookie_str.ToStdString());
+      auto maybe_cookie = base::StringViewToNumber<int64_t>(maybe_cookie_str);
       if (PERFETTO_UNLIKELY(!has_tgid || f2_track_name.empty() ||
                             !maybe_cookie)) {
         return SystraceParseResult::kFailure;
