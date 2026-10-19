@@ -232,6 +232,49 @@ Accumulates sums up or down a tree defined by `id` and `parent_id`:
 
 ---
 
+### `AGGREGATE`
+
+Collapses each group of rows into one row:
+
+```sql
+|> AGGREGATE <aggregate> AS <out_1> [, <aggregate> AS <out_2> ...]
+  [GROUP BY [<qualifier>.]<col_1> [AS <name_1>] [, ...]]
+```
+
+- **Grouping:** Rows agreeing on every `GROUP BY` column form a group. A key
+  can be a column of any type. `NULL` keys group together, as in SQL. Without
+  `GROUP BY`, all rows form one group, which produces a row even when there
+  are no rows.
+- **Aggregates:** At least one is required. Supported forms are `COUNT(*)`,
+  `SUM([<qualifier>.]<column>)`, `MIN([<qualifier>.]<column>)`, and
+  `MAX([<qualifier>.]<column>)`. Each needs an `AS` name. `SUM`, `MIN`, and
+  `MAX` accept integer columns (`ID`, `UINT32`, `INT32`, or `LONG`), ignore
+  `NULL` values, and return `NULL` if all contributing values are `NULL`.
+  Expressions, `DISTINCT`, `FILTER`, `OVER`, and other aggregate functions are
+  unsupported.
+- **Output:** Replaces the current row with the `GROUP BY` columns in their
+  listed order, then the named aggregates in their listed order. A key takes
+  its `AS` name if it has one, otherwise its unqualified column name.
+  Aggregates are `LONG` columns. Other input columns and all table aliases
+  are removed. Output names must be distinct.
+- **Order:** Groups come out in the order their first rows arrived. Use
+  `ORDER BY` afterwards for any other order.
+- **Overflow:** Sums use checked signed 64-bit integers; overflow causes an
+  error.
+
+For example, CPU time per slice from an intersection:
+
+```sql
+INTERVAL INTERSECTION OF (
+  (SELECT id, ts, dur, utid FROM thread_slice WHERE dur > 0) AS s,
+  (SELECT ts, dur, utid FROM sched WHERE dur > 0) AS running
+) PER utid
+|> AGGREGATE SUM(dur) AS cpu_time GROUP BY s.id
+|> ORDER BY id;
+```
+
+---
+
 ### `ORDER BY`
 
 Sorts the rows:
