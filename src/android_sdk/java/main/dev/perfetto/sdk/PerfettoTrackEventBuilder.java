@@ -148,7 +148,7 @@ public final class PerfettoTrackEventBuilder {
       int traceType, Category category, boolean isDebug) {
     if (category.isRegistered() && category.isEnabled()) {
       PerfettoTrackEventBuilder[] pool = sThreadLocalBuilder.get();
-      for (int i = 0; i < MAX_POOLED_BUILDERS; i++) {
+      for (int i = MAX_POOLED_BUILDERS - 1; i >= 0; i--) {
         PerfettoTrackEventBuilder builder = pool[i];
         if (builder != null) {
           pool[i] = null;

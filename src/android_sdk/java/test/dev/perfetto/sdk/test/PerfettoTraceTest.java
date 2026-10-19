@@ -1065,7 +1065,10 @@ public class PerfettoTraceTest {
   }
 
   private static long emitInnerEvent(long value) {
-    PerfettoTrace.instant(FOO_CATEGORY, "inner").addArg("inner_arg", value).emit();
+    PerfettoTrace.instant(FOO_CATEGORY, "inner")
+        .addArg("inner_arg", value)
+        .addArg("inner_str", "inner_string_that_clobbers_shared_buffer")
+        .emit();
     return value;
   }
 
@@ -1075,13 +1078,18 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     // Inner events are emitted from the outer event's argument list, both for a
-    // debug arg and inside a proto field.
+    // debug arg and inside a proto field. Strings (including one that spills
+    // into overflow_strings) are set before the inner emits to verify that the
+    // inner emit does not overwrite or free the outer event's strings.
     PerfettoTrace.instant(FOO_CATEGORY, "outer")
+        .setCorrelationId("outer_corr")
+        .addArg("outer_str", "hello")
+        .addArg("outer_long_str", TEXT_ABOVE_4K_SIZE)
         .addArg("outer_arg", emitInnerEvent(1))
         .beginProto()
         .beginNested(33L)
-        .addField(4L, emitInnerEvent(2))
         .addField(3, "outer_function")
+        .addField(4L, emitInnerEvent(2))
         .endNested()
         .endProto()
         .emit();
@@ -1102,13 +1110,17 @@ public class PerfettoTraceTest {
     assertThat(inner2.getDebugAnnotations(0).getIntValue()).isEqualTo(2);
     assertThat(inner2.hasSourceLocation()).isFalse();
 
-    assertThat(outer.getDebugAnnotationsCount()).isEqualTo(1);
-    assertThat(outer.getDebugAnnotations(0).getIntValue()).isEqualTo(1);
+    assertThat(outer.getCorrelationIdStr()).isEqualTo("outer_corr");
+    assertThat(outer.getDebugAnnotationsCount()).isEqualTo(3);
+    assertThat(outer.getDebugAnnotations(0).getStringValue()).isEqualTo("hello");
+    assertThat(outer.getDebugAnnotations(1).getStringValue()).isEqualTo(TEXT_ABOVE_4K_SIZE);
+    assertThat(outer.getDebugAnnotations(2).getIntValue()).isEqualTo(1);
     assertThat(outer.getSourceLocation().getFunctionName()).isEqualTo("outer_function");
     assertThat(outer.getSourceLocation().getLineNumber()).isEqualTo(2);
 
     assertThat(mEventNames).containsExactly("inner", "outer");
-    assertThat(mDebugAnnotationNames).containsExactly("inner_arg", "outer_arg");
+    assertThat(mDebugAnnotationNames)
+        .containsExactly("inner_arg", "inner_str", "outer_str", "outer_long_str", "outer_arg");
   }
 
   @Test
@@ -1133,7 +1145,7 @@ public class PerfettoTraceTest {
     assertThat(getTrackEvent(trace, 1).getDebugAnnotations(0).getIntValue()).isEqualTo(42);
     assertThat(getTrackEvent(trace, 2)).isNull();
     assertThat(mEventNames).containsExactly("inner", "outer");
-    assertThat(mDebugAnnotationNames).containsExactly("inner_arg", "outer_arg");
+    assertThat(mDebugAnnotationNames).containsExactly("inner_arg", "inner_str", "outer_arg");
   }
 
   private TrackEvent getTrackEvent(Trace trace, int idx) {
