@@ -234,6 +234,7 @@ perfetto_unittest_source_set("unittests") {
     "base64_unittest.cc",
     "bits_unittest.cc",
     "circular_queue_unittest.cc",
+    "ctrl_c_handler_unittest.cc",
     "dynamic_string_writer_unittest.cc",
     "file_utils_unittest.cc",
     "flags_unittest.cc",
