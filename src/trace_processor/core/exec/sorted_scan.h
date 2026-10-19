@@ -35,6 +35,11 @@ namespace perfetto::trace_processor::core::exec {
 
 // Reads the rows of a dataframe which searches of its sorted columns keep.
 //
+// The general case, for plans with more than one search or a binary search:
+// a plan with one equality search of a column whose search needs no type
+// (an Id, a SetId sorted or a small value column) uses one of the operators in
+// eq_scans.h instead, which dispatch on nothing per run.
+//
 // Rows a sorted column keeps for =, <, <=, > or >= are contiguous, so each
 // search narrows a range of rows rather than testing them, comparing with one
 // of the run's filter values (see Context::SetFilterValues). The range is

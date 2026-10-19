@@ -15,19 +15,21 @@
  */
 
 // Lookups of a few rows of a big table, run once per row of another: what
-// joins on an id do millions of times. Each executor case is timed against
-// the interpreter running the same query through TypedCursor, which is how
-// C++ callers run it today.
+// extract_arg and joins on an id do millions of times. Each executor case is
+// timed against the interpreter running the same query through TypedCursor,
+// which is how C++ callers run it today.
 
 #include <benchmark/benchmark.h>
 
 #include <cstdint>
 #include <memory>
 #include <random>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
@@ -35,6 +37,9 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/eq_scans.h"
+#include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -57,6 +62,78 @@ constexpr uint32_t kLookups = 1u << 16;
 // -----------------------------------------------------------------------------
 // Tables
 // -----------------------------------------------------------------------------
+
+// Shaped like the args table: arg sets of 1 to 20 rows, each a key and a
+// value, with the sets numbered by their first row.
+enum ArgCol : uint32_t { kArgSetId, kKey, kIntValue, kArgId };
+
+struct Args {
+  Args() {
+    std::minstd_rand rng(1);
+    std::vector<StringPool::Id> keys;
+    for (uint32_t i = 0; i < 200; ++i) {
+      keys.push_back(pool.InternString(
+          base::StackString<32>("debug.key_%u", i).string_view()));
+    }
+    dataframe::AdhocDataframeBuilder builder({"arg_set_id", "key", "int_value"},
+                                             &pool);
+    uint32_t row = 0;
+    while (row < kRows) {
+      uint32_t size =
+          std::min(1 + static_cast<uint32_t>(rng() % 20), kRows - row);
+      // The keys of a set are distinct.
+      uint32_t first_key = static_cast<uint32_t>(rng() % keys.size());
+      for (uint32_t i = 0; i < size; ++i) {
+        PERFETTO_CHECK(builder.PushNonNull(kArgSetId, int64_t{row}));
+        PERFETTO_CHECK(
+            builder.PushNonNull(kKey, keys[(first_key + i) % keys.size()]));
+        if (rng() % 3 == 0) {
+          builder.PushNull(kIntValue);
+        } else {
+          PERFETTO_CHECK(builder.PushNonNull(
+              kIntValue, (int64_t{1} << 40) + int64_t(rng() % 1000)));
+        }
+      }
+      row += size;
+    }
+    auto built = std::move(builder).Build();
+    PERFETTO_CHECK(built.ok());
+    df = std::make_unique<dataframe::Dataframe>(std::move(*built));
+    PERFETTO_CHECK(df->column(kArgSetId).sort_state.Is<SetIdSorted>());
+
+    // Each lookup is of a key its set has.
+    struct Key : dataframe::CellCallback {
+      void OnCell(int64_t) {}
+      void OnCell(double) {}
+      void OnCell(NullTermStringView v) { out = v.c_str(); }
+      void OnCell(std::nullptr_t) {}
+      void OnCell(uint32_t v) { set = v; }
+      void OnCell(int32_t) {}
+      uint32_t set = 0;
+      const char* out = nullptr;
+    };
+    for (uint32_t i = 0; i < kLookups; ++i) {
+      uint32_t r = static_cast<uint32_t>(rng() % kRows);
+      Key k;
+      df->GetCell(r, kArgSetId, k);
+      df->GetCell(r, kKey, k);
+      lookups.push_back({k.set, k.out});
+    }
+  }
+
+  struct Lookup {
+    uint32_t set;
+    const char* key;
+  };
+  StringPool pool;
+  std::unique_ptr<dataframe::Dataframe> df;
+  std::vector<Lookup> lookups;
+};
+
+const Args& GetArgs() {
+  static const Args* args = new Args();
+  return *args;
+}
 
 // Shaped like the slice table: an id, ts ascending and a dur.
 enum SliceCol : uint32_t { kTs, kDur, kSliceId };
@@ -161,6 +238,140 @@ std::vector<std::shared_ptr<const dataframe::Column>> Columns(
   return out;
 }
 
+std::unique_ptr<Filter> KeyFilter(uint32_t column,
+                                  uint32_t value,
+                                  const StringPool* pool) {
+  return std::make_unique<Filter>(
+      std::vector<Filter::Condition>{{column, Eq{}, value}}, pool);
+}
+
+// -----------------------------------------------------------------------------
+// extract_arg: arg_set_id = ? AND key = ?
+// -----------------------------------------------------------------------------
+
+void BM_ExtractArg_Interpreter(benchmark::State& state) {
+  const Args& a = GetArgs();
+  dataframe::TypedCursor cursor(
+      a.df.get(),
+      {{kArgSetId, 0, Eq{}, std::nullopt}, {kKey, 1, Eq{}, std::nullopt}}, {});
+  uint32_t i = 0;
+  auto n = static_cast<uint32_t>(state.range(0));
+  uint32_t found = 0;
+  for (auto _ : state) {
+    const Args::Lookup& l = a.lookups[i++ % n];
+    cursor.SetFilterValueUnchecked(0, l.set);
+    cursor.SetFilterValueUnchecked(1, l.key);
+    cursor.ExecuteUnchecked();
+    if (!cursor.Eof()) {
+      found += cursor.RowIndex() != 0;
+    }
+  }
+  benchmark::DoNotOptimize(found);
+}
+BENCHMARK(BM_ExtractArg_Interpreter)->Arg(64)->Arg(kLookups);
+
+// Runs `scan` reading the arg id and key, with the key filtered after.
+void RunExtractArg(benchmark::State& state, std::unique_ptr<Source> scan) {
+  const Args& a = GetArgs();
+  std::vector<Pipeline::Step> steps;
+  steps.emplace_back(KeyFilter(1, 1, &a.pool));
+  ExecLookup lookup(std::move(scan), std::move(steps),
+                    {{Uint32{}, Eq{}}, {String{}, Eq{}}}, &a.pool);
+  uint32_t i = 0;
+  auto n = static_cast<uint32_t>(state.range(0));
+  uint32_t found = 0;
+  for (auto _ : state) {
+    const Args::Lookup& l = a.lookups[i++ % n];
+    lookup.Set(0, int64_t{l.set});
+    lookup.Set(1, l.key);
+    if (lookup.Open()) {
+      found += lookup.cursor().Value<uint32_t>(0) != 0;
+    }
+  }
+  benchmark::DoNotOptimize(found);
+}
+
+void BM_ExtractArg_SetIdEqScan(benchmark::State& state) {
+  const Args& a = GetArgs();
+  RunExtractArg(state, std::make_unique<SetIdEqScan>(
+                           Columns(*a.df, {kArgId, kKey}), a.df->row_count(),
+                           a.df->shared_column(kArgSetId), 0));
+}
+BENCHMARK(BM_ExtractArg_SetIdEqScan)->Arg(64)->Arg(kLookups);
+
+void BM_ExtractArg_SortedScan(benchmark::State& state) {
+  const Args& a = GetArgs();
+  RunExtractArg(state, std::make_unique<SortedScan>(
+                           Columns(*a.df, {kArgId, kKey}), a.df->row_count(),
+                           std::vector<SortedScan::Search>{
+                               {a.df->shared_column(kArgSetId),
+                                SortedScan::Search::Kind::kSetIdEq, Eq{}, 0}},
+                           &a.pool));
+}
+BENCHMARK(BM_ExtractArg_SortedScan)->Arg(64)->Arg(kLookups);
+
+// What the executor does without searching: every row, every lookup.
+void BM_ExtractArg_ScanAndFilter(benchmark::State& state) {
+  const Args& a = GetArgs();
+  std::vector<Pipeline::Step> steps;
+  steps.emplace_back(std::make_unique<Filter>(
+      std::vector<Filter::Condition>{{2, Eq{}, 0}, {1, Eq{}, 1}}, &a.pool));
+  ExecLookup lookup(
+      std::make_unique<DataframeScan>(Columns(*a.df, {kArgId, kKey, kArgSetId}),
+                                      a.df->row_count()),
+      std::move(steps), {{Uint32{}, Eq{}}, {String{}, Eq{}}}, &a.pool);
+  uint32_t i = 0;
+  auto n = static_cast<uint32_t>(state.range(0));
+  uint32_t found = 0;
+  for (auto _ : state) {
+    const Args::Lookup& l = a.lookups[i++ % n];
+    lookup.Set(0, int64_t{l.set});
+    lookup.Set(1, l.key);
+    if (lookup.Open()) {
+      found += lookup.cursor().Value<uint32_t>(0) != 0;
+    }
+  }
+  benchmark::DoNotOptimize(found);
+}
+BENCHMARK(BM_ExtractArg_ScanAndFilter)->Arg(kLookups);
+
+// The set alone, with no key: arg_set_id = ?, reading each row of the set.
+void BM_ArgSet_Interpreter(benchmark::State& state) {
+  const Args& a = GetArgs();
+  dataframe::TypedCursor cursor(a.df.get(),
+                                {{kArgSetId, 0, Eq{}, std::nullopt}}, {});
+  uint32_t i = 0;
+  auto n = static_cast<uint32_t>(state.range(0));
+  uint32_t rows = 0;
+  for (auto _ : state) {
+    cursor.SetFilterValueUnchecked(0, a.lookups[i++ % n].set);
+    for (cursor.ExecuteUnchecked(); !cursor.Eof(); cursor.Next()) {
+      rows += cursor.RowIndex() != 0;
+    }
+  }
+  benchmark::DoNotOptimize(rows);
+}
+BENCHMARK(BM_ArgSet_Interpreter)->Arg(64)->Arg(kLookups);
+
+void BM_ArgSet_SetIdEqScan(benchmark::State& state) {
+  const Args& a = GetArgs();
+  ExecLookup lookup(
+      std::make_unique<SetIdEqScan>(Columns(*a.df, {kArgId}), a.df->row_count(),
+                                    a.df->shared_column(kArgSetId), 0),
+      {}, {{Uint32{}, Eq{}}}, &a.pool);
+  uint32_t i = 0;
+  auto n = static_cast<uint32_t>(state.range(0));
+  uint32_t rows = 0;
+  for (auto _ : state) {
+    lookup.Set(0, int64_t{a.lookups[i++ % n].set});
+    for (bool ok = lookup.Open(); ok; ok = lookup.cursor().Next()) {
+      rows += lookup.cursor().Value<uint32_t>(0) != 0;
+    }
+  }
+  benchmark::DoNotOptimize(rows);
+}
+BENCHMARK(BM_ArgSet_SetIdEqScan)->Arg(64)->Arg(kLookups);
+
 // -----------------------------------------------------------------------------
 // id = ?
 // -----------------------------------------------------------------------------
@@ -193,6 +404,13 @@ void RunIdEq(benchmark::State& state, std::unique_ptr<Source> scan) {
   }
   benchmark::DoNotOptimize(found);
 }
+
+void BM_IdEq_IdEqScan(benchmark::State& state) {
+  const Slices& s = GetSlices();
+  RunIdEq(state, std::make_unique<IdEqScan>(Columns(*s.df, {kSliceId}),
+                                            s.df->row_count(), 0));
+}
+BENCHMARK(BM_IdEq_IdEqScan)->Arg(64)->Arg(kLookups);
 
 void BM_IdEq_SortedScan(benchmark::State& state) {
   const Slices& s = GetSlices();

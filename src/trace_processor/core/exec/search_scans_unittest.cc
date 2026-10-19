@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/dataframe/logical_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
+#include "src/trace_processor/core/exec/eq_scans.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -190,8 +191,9 @@ class SearchScansDiffTest : public ::testing::Test {
     return rows;
   }
 
-  // An executor plan for a logical plan which only filters: a SortedScan for
-  // the searches, if any, then a Filter for the rest.
+  // An executor plan for a logical plan which only filters: a scan doing the
+  // searches, if any, then a Filter for the rest. One equality search which
+  // needs no dispatch gets its own scan; anything else gets a SortedScan.
   struct ExecPlan {
     std::unique_ptr<Source> scan;
     std::unique_ptr<Pipeline> pipeline;
@@ -251,11 +253,27 @@ class SearchScansDiffTest : public ::testing::Test {
       }
     }
     uint32_t rows = empty ? 0 : df_->row_count();
+    using K = SortedScan::Search::Kind;
+    const SortedScan::Search* one =
+        searches.size() == 1 && searches[0].op.Is<Eq>() ? &searches[0]
+                                                        : nullptr;
     if (empty) {
       // Provably empty, whatever else the plan does.
       out.scan = std::make_unique<DataframeScan>(std::move(columns), 0);
     } else if (searches.empty()) {
       out.scan = std::make_unique<DataframeScan>(std::move(columns), rows);
+    } else if (one && one->kind == K::kSetIdEq) {
+      out.scan = std::make_unique<SetIdEqScan>(std::move(columns), rows,
+                                               one->column, one->value);
+      ++set_id_eq_scans_;
+    } else if (one && one->kind == K::kSmallValueEq) {
+      out.scan = std::make_unique<SmallValueEqScan>(std::move(columns), rows,
+                                                    one->column, one->value);
+      ++small_value_eq_scans_;
+    } else if (one && one->column->storage.type().Is<Id>()) {
+      out.scan =
+          std::make_unique<IdEqScan>(std::move(columns), rows, one->value);
+      ++id_eq_scans_;
     } else {
       out.scan = std::make_unique<SortedScan>(std::move(columns), rows,
                                               std::move(searches), &pool_);
@@ -278,6 +296,9 @@ class SearchScansDiffTest : public ::testing::Test {
   uint32_t binary_searches_ = 0;
   uint32_t setid_searches_ = 0;
   uint32_t small_value_searches_ = 0;
+  uint32_t id_eq_scans_ = 0;
+  uint32_t set_id_eq_scans_ = 0;
+  uint32_t small_value_eq_scans_ = 0;
   uint32_t sorted_scans_ = 0;
 };
 
@@ -362,6 +383,9 @@ TEST_F(SearchScansDiffTest, FindsWhatTheInterpreterFinds) {
   EXPECT_GT(binary_searches_, 0u);
   EXPECT_GT(setid_searches_, 0u);
   EXPECT_GT(small_value_searches_, 0u);
+  EXPECT_GT(id_eq_scans_, 0u);
+  EXPECT_GT(set_id_eq_scans_, 0u);
+  EXPECT_GT(small_value_eq_scans_, 0u);
   EXPECT_GT(sorted_scans_, 0u);
 }
 

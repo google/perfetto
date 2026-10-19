@@ -2622,6 +2622,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/dataframe_windows.h",
         "src/trace_processor/core/exec/distinct.cc",
         "src/trace_processor/core/exec/distinct.h",
+        "src/trace_processor/core/exec/eq_scans.cc",
+        "src/trace_processor/core/exec/eq_scans.h",
         "src/trace_processor/core/exec/filter.cc",
         "src/trace_processor/core/exec/filter.h",
         "src/trace_processor/core/exec/filter_value.h",
