@@ -220,6 +220,7 @@ export class SearchOverviewTrack implements AsyncDisposable {
 
     if (!this.searchSummary) return;
 
+    // tsStarts and tsEnds are parallel arrays of the same length.
     for (let i = 0; i < this.searchSummary.tsStarts.length; i++) {
       const tStart = Time.fromRaw(this.searchSummary.tsStarts[i]!);
       const tEnd = Time.fromRaw(this.searchSummary.tsEnds[i]!);
@@ -240,23 +241,20 @@ export class SearchOverviewTrack implements AsyncDisposable {
     if (results === undefined) {
       return;
     }
-    const index = this.trace.search.resultIndex;
-    if (index !== -1 && index < results.tses.length) {
-      const start = results.tses[index];
-      if (start !== -1n) {
-        const triangleStart = Math.max(
-          timescale.timeToPx(Time.fromRaw(start)!),
-          0,
-        );
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.moveTo(triangleStart, size.height);
-        ctx.lineTo(triangleStart - 3, 0);
-        ctx.lineTo(triangleStart + 3, 0);
-        ctx.lineTo(triangleStart, size.height);
-        ctx.fill();
-        ctx.closePath();
-      }
+    const start = results.tses[this.trace.search.resultIndex];
+    if (start !== undefined && start !== -1n) {
+      const triangleStart = Math.max(
+        timescale.timeToPx(Time.fromRaw(start)),
+        0,
+      );
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(triangleStart, size.height);
+      ctx.lineTo(triangleStart - 3, 0);
+      ctx.lineTo(triangleStart + 3, 0);
+      ctx.lineTo(triangleStart, size.height);
+      ctx.fill();
+      ctx.closePath();
     }
   }
 

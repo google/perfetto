@@ -593,9 +593,8 @@ export class VisualisationNode implements QueryNode {
     const chartIndex = this.attrs.chartConfigs.findIndex(
       (c) => c.id === chartId,
     );
-    if (chartIndex === -1) return;
-
-    const config = this.attrs.chartConfigs[chartIndex]!;
+    const config = this.attrs.chartConfigs[chartIndex];
+    if (config === undefined) return;
     this.attrs.chartConfigs[chartIndex] = {
       ...config,
       ...updates,
@@ -621,9 +620,8 @@ export class VisualisationNode implements QueryNode {
     const chartIndex = this.attrs.chartConfigs.findIndex(
       (c) => c.id === chartId,
     );
-    if (chartIndex === -1) return;
-
-    const original = this.attrs.chartConfigs[chartIndex]!;
+    const original = this.attrs.chartConfigs[chartIndex];
+    if (original === undefined) return;
     const duplicate: ChartConfig = {
       ...original,
       id: generateChartId(),
@@ -650,13 +648,14 @@ export class VisualisationNode implements QueryNode {
 
     // Remove the dragged item
     const [draggedItem] = configs.splice(draggedIndex, 1);
+    if (draggedItem === undefined) return;
 
     // Calculate new target index (may have shifted after removal)
     const newTargetIndex =
       draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
 
     // Insert at new position
-    configs.splice(newTargetIndex, 0, draggedItem!);
+    configs.splice(newTargetIndex, 0, draggedItem);
 
     this.context.onchange?.();
   }
@@ -795,10 +794,9 @@ export class VisualisationNode implements QueryNode {
    * Calls onchange to rebuild query so child nodes see filtered data.
    */
   toggleChartFilter(index: number): void {
-    if (!this.attrs.chartFilters || index >= this.attrs.chartFilters.length) {
-      return;
-    }
-    const filter = this.attrs.chartFilters[index]!;
+    if (!this.attrs.chartFilters) return;
+    const filter = this.attrs.chartFilters[index];
+    if (filter === undefined) return;
     this.attrs.chartFilters[index] = {
       ...filter,
       enabled: !(filter.enabled ?? true),

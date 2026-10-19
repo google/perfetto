@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../base/assert';
 import type {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
 import {
   type DashboardDataSource,
@@ -178,14 +179,14 @@ describe('validateDashboardItems', () => {
     ];
     const result = validateDashboardItems(items);
     expect(result).toHaveLength(1);
-    expect(result?.[0]!.kind).toBe('chart');
+    expect(ensureDefined(result?.[0]).kind).toBe('chart');
   });
 
   test('validates label items', () => {
     const items = [{kind: 'label', id: 'l1', text: 'Hello'}];
     const result = validateDashboardItems(items);
     expect(result).toHaveLength(1);
-    expect(result?.[0]!.kind).toBe('label');
+    expect(ensureDefined(result?.[0]).kind).toBe('label');
   });
 
   test('rejects chart without sourceNodeId', () => {
@@ -481,7 +482,7 @@ describe('validateDashboardItems with dividers', () => {
     const items = [{kind: 'divider', id: 'd1', row: 3}];
     const result = validateDashboardItems(items);
     expect(result).toHaveLength(1);
-    expect(result?.[0]!.kind).toBe('divider');
+    expect(ensureDefined(result?.[0]).kind).toBe('divider');
   });
 
   test('rejects divider without id', () => {

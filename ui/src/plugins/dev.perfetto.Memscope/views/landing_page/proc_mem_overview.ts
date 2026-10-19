@@ -309,9 +309,12 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
       key: {traceId: trace.traceInfo.uuid, upid},
       compute: () => loadGrowthData(trace, upid),
     }).data;
-    if (snaps === undefined || snaps.length < 2) return undefined;
-    const firstSnap = snaps[0]!;
-    const lastSnap = snaps[snaps.length - 1]!;
+    if (snaps === undefined) return undefined;
+    const firstSnap = snaps[0];
+    const lastSnap = snaps[snaps.length - 1];
+    if (firstSnap === undefined || lastSnap === undefined || snaps.length < 2) {
+      return undefined;
+    }
     // Selected endpoint (nearest snapshot), or the latest when unselected.
     const sel = selTs !== undefined ? nearestByTs(snaps, selTs)! : lastSnap;
     // Baseline endpoint: an explicit baseline (when diffing), otherwise the

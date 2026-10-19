@@ -18,6 +18,8 @@ import type {Trace} from '../../public/trace';
 import m from 'mithril';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {exists, getOrCreate} from '../../base/utils';
+import {ensureDefined} from '../../base/assert';
+import type {NonEmpty} from '../../base/array_utils';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {TrackNode} from '../../public/workspace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -37,7 +39,7 @@ import {pmuRecordSection} from './pmu';
 
 type ApplicableMetricDesc = {
   name: string;
-  cpus: number[];
+  cpus: NonEmpty<number>;
   events: string[];
   formula: string;
 };
@@ -368,7 +370,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
         });
 
         if (exists(found)) {
-          const cpu = m.cpus[0]!;
+          const cpu = m.cpus[0];
           if (!found.cpus.includes(cpu)) {
             found.cpus.push(cpu);
           }
@@ -444,13 +446,13 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
       //   to 0 when the CPU is idle.
 
       // Optimize query if it is applicable to all the CPUS
+      const metric = metrics.length == 1 ? metrics[0] : undefined;
       if (
-        metrics.length == 1 &&
-        metrics[0]!.cpus.length == applicableCpus.length &&
-        metrics[0]!.cpus.every((c) => applicableCpus.includes(c))
+        metric !== undefined &&
+        metric.cpus.length == applicableCpus.length &&
+        metric.cpus.every((c) => applicableCpus.includes(c))
       ) {
-        const metric = metrics[0]!;
-        const firstTable = eventTableName(metric.events[0]!);
+        const firstTable = eventTableName(ensureDefined(metric.events[0]));
         const fromClause = metric.events.slice(1).reduce((acc, counter) => {
           const counterTable = eventTableName(counter);
           return (
@@ -478,7 +480,7 @@ export default class ArmTelemetryPlugin implements PerfettoPlugin {
           DROP TABLE IF EXISTS ${tableName};
           CREATE TABLE ${tableName} AS
           ${metrics.reduce<string>((acc, metric) => {
-            const firstTable = eventTableName(metric.events[0]!);
+            const firstTable = eventTableName(ensureDefined(metric.events[0]));
             const fromClause = metric.events.slice(1).reduce((acc, counter) => {
               const counterTable = eventTableName(counter);
               return (

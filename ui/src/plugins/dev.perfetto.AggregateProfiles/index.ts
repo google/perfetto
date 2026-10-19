@@ -24,6 +24,7 @@ import {
   type AggregateProfilesPageState,
   AGGREGATE_PROFILES_PAGE_STATE_SCHEMA,
 } from './types';
+import {ensureDefined} from '../../base/assert';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AggregateProfiles';
@@ -58,7 +59,8 @@ export default class implements PerfettoPlugin {
       icon: 'analytics',
     });
     trace.onTraceReady.addListener(async () => {
-      const hasAnyTracks = trace.workspaces.all[0]!.flatTracks.length > 0;
+      const hasAnyTracks =
+        ensureDefined(trace.workspaces.all[0]).flatTracks.length > 0;
       // TODO(lalitm): it's really bad that we're unconditionally navigating
       // to the profiles page: really we should check if the user has not already
       // set a page and then only navigate if no page is set. However:

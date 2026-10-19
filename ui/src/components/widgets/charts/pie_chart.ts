@@ -198,8 +198,9 @@ function buildPieEventHandlers(
       handler: (params) => {
         const p = params as EChartClickParams;
         const idx = p.dataIndex;
-        if (idx !== undefined && idx >= 0 && idx < slices.length) {
-          onSliceClick(slices[idx]!);
+        const slice = idx !== undefined ? slices[idx] : undefined;
+        if (slice !== undefined) {
+          onSliceClick(slice);
         }
       },
     },

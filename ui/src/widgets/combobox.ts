@@ -107,7 +107,10 @@ export class Combobox implements m.ClassComponent<ComboboxAttrs> {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (this.isOpen) {
-          onChange(allItems[this.highlightIdx]!.value);
+          const item = allItems[this.highlightIdx];
+          if (item !== undefined) {
+            onChange(item.value);
+          }
           this.isOpen = false;
           this.highlightIdx = 0;
         } else {

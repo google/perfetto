@@ -98,11 +98,14 @@ function computeHover(
 
   const time = timescale.pxToHpTime(pos.x);
   const [left, right] = searchSegment(data.timestamps, time.toTime());
-  if (left === -1) return undefined;
+  // left is -1 when not found, which yields undefined here.
+  const ts = data.timestamps[left];
+  if (ts === undefined) return undefined;
 
   return {
-    ts: Time.fromRaw(data.timestamps[left]!),
+    ts: Time.fromRaw(ts),
     tsEnd: right === -1 ? undefined : Time.fromRaw(data.timestamps[right]),
+    // lastFreqKHz and lastIdleValues have the same length as timestamps.
     value: data.lastFreqKHz[left]!,
     idle: data.lastIdleValues[left]!,
   };

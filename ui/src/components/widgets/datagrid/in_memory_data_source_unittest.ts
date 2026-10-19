@@ -125,7 +125,7 @@ describe('InMemoryDataSource', () => {
       const filters: Filter[] = [{field: 'name', op: '=', value: 'Alice'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0]!.name).toBe('Alice');
+      expect(result.rows?.[0]?.name).toBe('Alice');
     });
 
     test('inequality filter', () => {
@@ -169,7 +169,7 @@ describe('InMemoryDataSource', () => {
       const filters: Filter[] = [{field: 'value', op: 'is null'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0]!.id).toBe(4); // David
+      expect(result.rows?.[0]?.id).toBe(4); // David
     });
 
     test('is not null filter', () => {
@@ -183,14 +183,14 @@ describe('InMemoryDataSource', () => {
       const filters: Filter[] = [{field: 'name', op: 'glob', value: 'A*e'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0]!.name).toBe('Alice');
+      expect(result.rows?.[0]?.name).toBe('Alice');
     });
 
     test('glob filter with ?', () => {
       const filters: Filter[] = [{field: 'name', op: 'glob', value: 'B?b'}];
       const result = dataSource.useRows(makeModel({filters}));
       expect(result.totalRows).toBe(1);
-      expect(result.rows?.[0]!.name).toBe('Bob');
+      expect(result.rows?.[0]?.name).toBe('Bob');
     });
 
     test('multiple filters', () => {
@@ -367,11 +367,11 @@ describe('InMemoryDataSource', () => {
 
       const result1 = dataSource.useRows(makeModel({filters: filters1}));
       expect(result1.rows?.length).toBe(1);
-      expect(result1.rows?.[0]!.id).toBe(1);
+      expect(result1.rows?.[0]?.id).toBe(1);
 
       const result2 = dataSource.useRows(makeModel({filters: filters2}));
       expect(result2.rows?.length).toBe(1);
-      expect(result2.rows?.[0]!.id).toBe(2);
+      expect(result2.rows?.[0]?.id).toBe(2);
 
       expect(result1.rows).not.toBe(result2.rows);
     });

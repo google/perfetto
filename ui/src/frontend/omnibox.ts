@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
 import {fuzzySearch, type FuzzySegment} from '../base/fuzzy';
-import {ensureExists, assertUnreachable} from '../base/assert';
+import {ensureExists, ensureDefined, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 import {AppImpl} from '../core/app_impl';
@@ -131,8 +131,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       searchTerm,
     ).map((result) => {
       return {
-        segments: result.segments[0]!,
-        sourceSegments: result.item.source ? result.segments[1]! : undefined,
+        segments: ensureDefined(result.segments[0]),
+        sourceSegments: result.item.source ? result.segments[1] : undefined,
         ...result.item,
       };
     });

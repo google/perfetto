@@ -126,14 +126,14 @@ export async function parsePbtxtToState(
   };
 
   // Process metric_template_specs.
-  for (let i = 0; i < allTemplateSpecs.length; i++) {
+  for (const [i, templateSpec] of allTemplateSpecs.entries()) {
     const chainX = START_X + i * METRIC_CHAIN_GAP_X;
     mergeResult(
       acc,
       buildNodesFromMetricConfig(
         {
-          query: allTemplateSpecs[i]!.query,
-          metricsState: templateSpecToMetricsState(allTemplateSpecs[i]!),
+          query: templateSpec.query,
+          metricsState: templateSpecToMetricsState(templateSpec),
         },
         chainX,
         sharedQueries,
@@ -144,14 +144,14 @@ export async function parsePbtxtToState(
 
   // Process metric_specs (simpler, single-value metrics).
   const metricSpecOffset = allTemplateSpecs.length;
-  for (let i = 0; i < allMetricSpecs.length; i++) {
+  for (const [i, metricSpec] of allMetricSpecs.entries()) {
     const chainX = START_X + (metricSpecOffset + i) * METRIC_CHAIN_GAP_X;
     mergeResult(
       acc,
       buildNodesFromMetricConfig(
         {
-          query: allMetricSpecs[i]!.query,
-          metricsState: metricSpecToMetricsState(allMetricSpecs[i]!),
+          query: metricSpec.query,
+          metricsState: metricSpecToMetricsState(metricSpec),
         },
         chainX,
         sharedQueries,
@@ -955,16 +955,16 @@ function protoFilterToSql(
   }
 
   // Extract value.
-  const stringRhs = f.stringRhs ?? [];
-  const doubleRhs = f.doubleRhs ?? [];
-  const int64Rhs = f.int64Rhs ?? [];
-  if (stringRhs.length > 0) {
+  const stringFirst = f.stringRhs?.[0];
+  const doubleFirst = f.doubleRhs?.[0];
+  const int64First = f.int64Rhs?.[0];
+  if (stringFirst !== undefined) {
     // Quote string values.
-    return `${column} ${op} '${stringRhs[0]}'`;
-  } else if (doubleRhs.length > 0) {
-    return `${column} ${op} ${doubleRhs[0]}`;
-  } else if (int64Rhs.length > 0) {
-    return `${column} ${op} ${int64Rhs[0]}`;
+    return `${column} ${op} '${stringFirst}'`;
+  } else if (doubleFirst !== undefined) {
+    return `${column} ${op} ${doubleFirst}`;
+  } else if (int64First !== undefined) {
+    return `${column} ${op} ${int64First}`;
   }
   return `${column} ${op} ''`;
 }
@@ -1048,8 +1048,9 @@ function decomposeFilterGroup(
       const subNodes = decomposeFilterGroup(subGroup, currentInputId);
       result.push(...subNodes);
       // The last node from the sub-group becomes the input for the next.
-      if (subNodes.length > 0) {
-        currentInputId = subNodes[subNodes.length - 1]!.nodeId;
+      const lastNode = subNodes[subNodes.length - 1];
+      if (lastNode !== undefined) {
+        currentInputId = lastNode.nodeId;
       }
     }
     return result;
@@ -1108,12 +1109,12 @@ function protoFilterRhsCount(
 function protoFilterFirstRhsValue(
   f: protos.PerfettoSqlStructuredQuery.IFilter,
 ): string {
-  const stringRhs = f.stringRhs ?? [];
-  const doubleRhs = f.doubleRhs ?? [];
-  const int64Rhs = f.int64Rhs ?? [];
-  if (stringRhs.length > 0) return stringRhs[0]!;
-  if (doubleRhs.length > 0) return String(doubleRhs[0]);
-  if (int64Rhs.length > 0) return String(int64Rhs[0]);
+  const stringFirst = f.stringRhs?.[0];
+  if (stringFirst !== undefined) return stringFirst;
+  const doubleFirst = f.doubleRhs?.[0];
+  if (doubleFirst !== undefined) return String(doubleFirst);
+  const int64First = f.int64Rhs?.[0];
+  if (int64First !== undefined) return String(int64First);
   return '';
 }
 

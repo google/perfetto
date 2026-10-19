@@ -14,7 +14,12 @@
 
 import './flamegraph.scss';
 import m from 'mithril';
-import {ensureExists, assertTrue, assertUnreachable} from '../base/assert';
+import {
+  ensureExists,
+  ensureDefined,
+  assertTrue,
+  assertUnreachable,
+} from '../base/assert';
 import {Monitor} from '../base/monitor';
 import {Button, ButtonBar} from './button';
 import {copyToClipboard} from '../base/clipboard';
@@ -339,7 +344,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 this.tooltipPos = undefined;
                 return;
               }
-              const renderNode = this.renderNodes![newHoveredIdx]!;
+              const renderNode = ensureDefined(
+                this.renderNodes![newHoveredIdx],
+              );
               this.tooltipPos = {
                 x: offsetX,
                 y: renderNode.y,
@@ -481,8 +488,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       .getPropertyValue('--pf-color-accent')
       .trim();
 
-    for (let i = 0; i < this.renderNodes.length; i++) {
-      const node = this.renderNodes[i]!;
+    for (const node of this.renderNodes) {
       const {x, y, width: width, source, state} = node;
       if (y + NODE_HEIGHT <= yStart || y >= yEnd) {
         continue;
@@ -503,6 +509,8 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         name = '(merged)';
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
+        // queryIdx is always a valid index into nodes (see
+        // computeRenderNodes).
         name = nodes[source.queryIdx]!.name;
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
@@ -609,6 +617,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       );
     }
     const {queryIdx} = source;
+    const node = ensureDefined(nodes[queryIdx]);
     const {
       name,
       cumulativeValue,
@@ -616,7 +625,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
       marker,
-    } = nodes[queryIdx]!;
+    } = node;
 
     const percent = displayPercentage(
       cumulativeValue,
@@ -674,10 +683,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }
         return null;
       }),
-      this.renderNodeActionBar(source, name, nodes[queryIdx]!, nodeActions),
+      this.renderNodeActionBar(source, name, node, nodeActions),
     ];
     const {renderNodeTooltip} = this.attrs;
-    const node = nodes[queryIdx]!;
     return m(
       'div',
       renderNodeTooltip === undefined
@@ -1214,8 +1222,8 @@ function computeRenderNodes(
   });
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
-  for (let i = 0; i < nodes.length; i++) {
-    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i]!;
+  for (const [i, node] of nodes.entries()) {
+    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = node;
     assertTrue(depth !== 0);
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
@@ -1257,6 +1265,7 @@ function computeRenderNodes(
       const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
       const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
+        // keyToChildMergedIdx only stores indices of pushed renderNodes.
         const r = renderNodes[childMergedIdx]!;
         const mergedWidth = isDepthMatchingZoom(depth, zoomRegion)
           ? Math.min(qXEnd - r.source.queryXStart, zoomQueryWidth) / queryXPerPx

@@ -127,8 +127,8 @@ export class MultiselectInput implements m.ClassComponent<MultiselectInputAttrs>
                 (ev.target as HTMLInputElement).blur();
                 ev.preventDefault();
               } else if (ev.key === 'Enter') {
-                if (filteredOptions.length > 0) {
-                  const option = filteredOptions[this.selectedItemIndex]!;
+                const option = filteredOptions[this.selectedItemIndex];
+                if (option !== undefined) {
                   const alreadyAdded = selectedOptions.includes(option.key);
                   if (alreadyAdded) {
                     attrs.onOptionRemove(option.key);
@@ -155,14 +155,13 @@ export class MultiselectInput implements m.ClassComponent<MultiselectInputAttrs>
                 }
                 ev.preventDefault();
               } else if (ev.key === 'Backspace') {
-                if (
-                  this.currentTextValue === '' &&
-                  selectedOptions.length > 0
-                ) {
-                  attrs.onOptionRemove(
-                    selectedOptions[selectedOptions.length - 1]!,
-                  );
-                  ev.preventDefault();
+                if (this.currentTextValue === '') {
+                  const lastOption =
+                    selectedOptions[selectedOptions.length - 1];
+                  if (lastOption !== undefined) {
+                    attrs.onOptionRemove(lastOption);
+                    ev.preventDefault();
+                  }
                 }
               }
             },

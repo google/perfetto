@@ -79,7 +79,7 @@ export default class MemoryViz implements PerfettoPlugin {
         `);
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
 
-        const tracks = [
+        const tracks: Array<[string, string]> = [
           ['mem.rss.file', 'RSS File'],
           ['mem.rss.shmem', 'RSS Shmem'],
           ['mem.dmabuf_rss', 'DMA buffer RSS'],

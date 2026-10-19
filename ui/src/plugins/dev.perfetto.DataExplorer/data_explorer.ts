@@ -792,8 +792,9 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   ): void {
     if (tab.dashboards.length <= 1) return;
     const idx = tab.dashboards.findIndex((d) => d.id === dbId);
-    if (idx === -1) return;
-    const itemCount = tab.dashboards[idx]!.items.length;
+    const dashboard = tab.dashboards[idx];
+    if (dashboard === undefined) return;
+    const itemCount = dashboard.items.length;
 
     const doRemove = () => {
       const currentIdx = tab.dashboards.findIndex((d) => d.id === dbId);
@@ -801,12 +802,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       tab.dashboards.splice(currentIdx, 1);
       // If the removed dashboard was active, switch to the previous one or graph.
       if (tab.activeSubTab === dbId) {
-        if (tab.dashboards.length > 0) {
-          const newIdx = Math.min(currentIdx, tab.dashboards.length - 1);
-          tab.activeSubTab = tab.dashboards[newIdx]!.id;
-        } else {
-          tab.activeSubTab = 'graph';
-        }
+        const newIdx = Math.min(currentIdx, tab.dashboards.length - 1);
+        tab.activeSubTab = tab.dashboards[newIdx]?.id ?? 'graph';
       }
       this.triggerSave(attrs);
     };

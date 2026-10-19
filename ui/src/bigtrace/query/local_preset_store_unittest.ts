@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {beforeEach, describe, expect, test} from 'vitest';
+import {ensureDefined} from '../../base/assert';
 import {z} from 'zod';
 import {
   DEFAULT_LOCAL_CATEGORY,
@@ -226,7 +227,7 @@ describe('presetFromTab', () => {
       presetFromTab(fakeTab(), {name: 'New name', id: saved.id}),
     );
     expect(localPresetStore.list()).toHaveLength(1);
-    expect(localPresetStore.list()[0]!.name).toBe('New name');
+    expect(ensureDefined(localPresetStore.list()[0]).name).toBe('New name');
   });
 });
 

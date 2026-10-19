@@ -26,6 +26,7 @@ import {
   niceKbInterval,
 } from '../../utils';
 import {formatBytesIec} from '../../../../base/bytes_format';
+import {assertDefined} from '../../../../base/assert';
 import {Billboard, BillboardStrip} from '../../components/billboard';
 import {Panel} from '../../components/panel';
 
@@ -197,8 +198,10 @@ function getPageCacheBillboards(
   if (data === undefined || data.series.length < 4) return undefined;
   // Series order: Mapped+Dirty, Mapped+Clean, Unmapped+Dirty, Unmapped+Clean
   const last = (idx: number) => {
-    const pts = data.series[idx]!.points;
-    return pts.length > 0 ? pts[pts.length - 1]!.y : 0;
+    const series = data.series[idx];
+    assertDefined(series);
+    const pts = series.points;
+    return pts[pts.length - 1]?.y ?? 0;
   };
   const mappedDirty = last(0);
   const mappedClean = last(1);

@@ -14,6 +14,7 @@
 
 import './sql_table.scss';
 import m from 'mithril';
+import {ensureDefined} from '../../../../base/assert';
 import {MenuDivider, MenuItem} from '../../../../widgets/menu';
 import {buildSqlQuery} from './query_builder';
 import {Icons} from '../../../../base/semantic_icons';
@@ -64,7 +65,10 @@ function renderCell(
   addColumn: (column: TableColumn) => void,
 ): RenderedCell {
   const {columns} = state.getCurrentRequest();
-  const sqlValue = row[columns[sqlColumnId(column.display ?? column.column)]!]!;
+  const alias = ensureDefined(
+    columns[sqlColumnId(column.display ?? column.column)],
+  );
+  const sqlValue = ensureDefined(row[alias]);
 
   const result = column.renderCell(
     sqlValue,
@@ -165,7 +169,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     const additionalColumnMenuItems: AdditionalColumnMenuItems = {};
     this.state.getSelectedColumns().forEach((column) => {
       const columnAlias =
-        this.state.getCurrentRequest().columns[sqlColumnId(column.column)]!;
+        this.state.getCurrentRequest().columns[sqlColumnId(column.column)];
+      if (columnAlias === undefined) return;
 
       additionalColumnMenuItems[columnAlias] = addColumnMenuItems(
         column,
@@ -187,6 +192,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
     // Build VirtualGrid columns
     const virtualGridColumns = columns.map((column, i) => {
       const sorted = this.state.isSortedBy(column);
+      const columnAlias =
+        this.state.getCurrentRequest().columns[sqlColumnId(column.column)];
       const menuItems: m.Children = [
         renderSortMenuItems(sorted, (direction) =>
           this.state.sortBy({column, direction}),
@@ -215,9 +222,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
           renderColumnFilterOptions(column, this.state),
         ),
         additionalColumnMenuItems &&
-          additionalColumnMenuItems[
-            this.state.getCurrentRequest().columns[sqlColumnId(column.column)]!
-          ],
+          columnAlias !== undefined &&
+          additionalColumnMenuItems[columnAlias],
         // Menu items before divider apply to selected column
         m(MenuDivider),
         // Menu items after divider apply to entire table

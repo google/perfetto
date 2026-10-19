@@ -53,13 +53,15 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     // Collect docked node IDs (rendered via `next`, not as top-level).
     const dockedIds = new Set<string>();
     for (const n of groupNode.innerNodes) {
+      const firstNext = n.nextNodes[0];
       if (
         n.nextNodes.length === 1 &&
-        singleNodeOperation(n.nextNodes[0]!.type) &&
-        n.nextNodes[0]!.primaryInput === n &&
-        innerSet.has(n.nextNodes[0]!.nodeId)
+        firstNext !== undefined &&
+        singleNodeOperation(firstNext.type) &&
+        firstNext.primaryInput === n &&
+        innerSet.has(firstNext.nodeId)
       ) {
-        dockedIds.add(n.nextNodes[0]!.nodeId);
+        dockedIds.add(firstNext.nodeId);
       }
     }
 
@@ -67,8 +69,7 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     // Use groupPort as suffix (not loop index) so IDs stay stable if the
     // externalConnections array is ever reordered.
     const inputNodeIds = new Map<number, string>();
-    for (let i = 0; i < groupNode.externalConnections.length; i++) {
-      const conn = groupNode.externalConnections[i]!;
+    for (const conn of groupNode.externalConnections) {
       const inputId = `__input_${conn.groupPort}`;
       inputNodeIds.set(conn.groupPort, inputId);
 
@@ -135,10 +136,10 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
     const nodeSpacingX = 250;
     const nodes: GraphNode[] = [];
 
-    for (let i = 0; i < roots.length; i++) {
+    for (const [i, root] of roots.entries()) {
       nodes.push({
         ...buildReadOnlyNodeConfig(
-          roots[i]!,
+          root,
           innerSet,
           connectedInputs,
           connectedOutputs,
@@ -150,8 +151,7 @@ export class InnerGraphPreview implements m.ClassComponent<InnerGraphPreviewAttr
 
     // Add "Input N" nodes for external connections.
     // Grey out disconnected inputs.
-    for (let i = 0; i < groupNode.externalConnections.length; i++) {
-      const conn = groupNode.externalConnections[i]!;
+    for (const [i, conn] of groupNode.externalConnections.entries()) {
       const isConnected = groupNode.secondaryInputs.connections.has(
         conn.groupPort,
       );

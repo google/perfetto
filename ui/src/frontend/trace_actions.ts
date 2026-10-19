@@ -86,7 +86,7 @@ export async function downloadTrace(trace: TraceImpl) {
       },
     });
   } else if (src.type === 'URL') {
-    const fileName = src.url.split('/').slice(-1)[0]!;
+    const fileName = src.url.split('/').slice(-1)[0] ?? '';
     downloadUrl({url: src.url, fileName});
   } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});

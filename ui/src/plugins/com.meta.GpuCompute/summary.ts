@@ -110,12 +110,13 @@ export async function fetchKernelSummaryRows(
 
   // Build COALESCE expression that picks the first available metric per role.
   const coalesceExpr = (names: string[]): string => {
-    if (names.length === 0) return 'NULL';
     const parts = names.map(
       (n) =>
         `(SELECT cv.value FROM counter_vals cv WHERE cv.slice_id = cs.id AND cv.metric_name = '${n}' LIMIT 1)`,
     );
-    return names.length === 1 ? parts[0]! : `COALESCE(${parts.join(', ')})`;
+    const first = parts[0];
+    if (first === undefined) return 'NULL';
+    return parts.length === 1 ? first : `COALESCE(${parts.join(', ')})`;
   };
 
   const sql = `

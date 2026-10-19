@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, type Deferred} from '../base/deferred';
-import {ensureExists, assertTrue} from '../base/assert';
+import {ensureExists, ensureDefined, assertTrue} from '../base/assert';
 import {exists} from '../base/utils';
 import type {TraceChunk, TraceStream} from '../public/stream';
 
@@ -197,9 +197,10 @@ export class TraceHttpStream implements TraceStream {
       eof = res.done;
     }
 
-    let data;
-    if (chunks.length === 1) {
-      data = chunks[0]!;
+    let data: Uint8Array;
+    const firstChunk = chunks[0];
+    if (chunks.length === 1 && firstChunk !== undefined) {
+      data = firstChunk;
     } else {
       // Stitch all the chunks into one big array:
       data = new Uint8Array(bytesRead);
@@ -268,7 +269,7 @@ export class TraceMultipleFilesStream implements TraceStream {
   private stream: TraceFileStream;
 
   constructor(private traceFiles: ReadonlyArray<File>) {
-    this.stream = new TraceFileStream(traceFiles[this.index]!);
+    this.stream = new TraceFileStream(ensureDefined(traceFiles[this.index]));
     this.bytesRead = 0;
     // The total size of the TAR archive is the sum of:
     // - 512 bytes for each file's header.
@@ -285,11 +286,12 @@ export class TraceMultipleFilesStream implements TraceStream {
       case 'HEADER': {
         // Construct the 512-byte TAR header for the current file.
         const data = new Uint8Array(512);
-        const name = this.traceFiles[this.index]!.name;
+        const file = ensureDefined(this.traceFiles[this.index]);
+        const name = file.name;
         for (let i = 0; i < Math.min(name.length, 99); ++i) {
           data[i] = name.charCodeAt(i);
         }
-        const size = this.traceFiles[this.index]!.size.toString(8);
+        const size = file.size.toString(8);
         if (size.length >= 12) {
           throw new Error('Trace file size is too big to encode as tar file');
         }
@@ -341,13 +343,15 @@ export class TraceMultipleFilesStream implements TraceStream {
       case 'CONTENT_PADDING':
         // Add padding to align the end of the file to a 512-byte boundary.
         const lastBlockSize = this.state.lastBlockSize;
-        if (this.index == this.traceFiles.length - 1) {
+        const nextFile = this.traceFiles[this.index + 1];
+        if (nextFile === undefined) {
           // If this was the last file, move to the EOF state.
           this.state = {kind: 'EOF'};
         } else {
           // Otherwise, move to the HEADER state for the next file.
           this.state = {kind: 'HEADER'};
-          this.stream = new TraceFileStream(this.traceFiles[++this.index]!);
+          ++this.index;
+          this.stream = new TraceFileStream(nextFile);
         }
         if (lastBlockSize === 0) {
           // If the file size is a multiple of 512, no padding is needed.

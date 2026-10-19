@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {ensureDefined} from '../../../../base/assert';
 import type {ColumnInfo} from '../column_info';
 import {Switch} from '../../../../widgets/switch';
 import {OutlinedField, FormListItem, AddItemPlaceholder} from '../widgets';
@@ -54,14 +55,14 @@ export class SwitchComponent implements m.ClassComponent<SwitchComponentAttrs> {
 
     const setCaseWhen = (index: number, newWhen: string) => {
       if (!column.cases) return;
-      column.cases[index]!.when = newWhen;
+      ensureDefined(column.cases[index]).when = newWhen;
       this.updateExpression(column);
       onchange();
     };
 
     const setCaseThen = (index: number, newThen: string) => {
       if (!column.cases) return;
-      column.cases[index]!.then = newThen;
+      ensureDefined(column.cases[index]).then = newThen;
       this.updateExpression(column);
       onchange();
     };
@@ -215,14 +216,14 @@ export class IfComponent implements m.ClassComponent<IfComponentAttrs> {
 
     const setIfCondition = (index: number, newIf: string) => {
       if (!column.clauses) return;
-      column.clauses[index]!.if = newIf;
+      ensureDefined(column.clauses[index]).if = newIf;
       this.updateExpression(column);
       onchange();
     };
 
     const setThenValue = (index: number, newThen: string) => {
       if (!column.clauses) return;
-      column.clauses[index]!.then = newThen;
+      ensureDefined(column.clauses[index]).then = newThen;
       this.updateExpression(column);
       onchange();
     };

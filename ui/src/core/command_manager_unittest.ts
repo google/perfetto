@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {CommandError, type Command} from '../public/commands';
+import {ensureDefined} from '../base/assert';
 import {
   CommandManagerImpl,
   type HotkeyOverlay,
@@ -33,7 +34,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay]);
 
-    expect(remapped[0]!.defaultHotkey).toBe('X');
+    expect(ensureDefined(remapped[0]).defaultHotkey).toBe('X');
   });
 
   test('double layer', () => {
@@ -51,7 +52,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay1, overlay2]);
 
-    expect(remapped[0]!.defaultHotkey).toBe('Z');
+    expect(ensureDefined(remapped[0]).defaultHotkey).toBe('Z');
   });
 
   test('not defined in layer', () => {
@@ -66,7 +67,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay1]);
 
-    expect(remapped[0]!.defaultHotkey).toBe('P');
+    expect(ensureDefined(remapped[0]).defaultHotkey).toBe('P');
   });
 
   test('no overlays', () => {
@@ -78,7 +79,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], []);
 
-    expect(remapped[0]!.defaultHotkey).toBe('P');
+    expect(ensureDefined(remapped[0]).defaultHotkey).toBe('P');
   });
 
   test('cmd without default hotkey gets remapped', () => {
@@ -92,7 +93,7 @@ describe('remapHotkeys', () => {
     };
     const remapped = remapHotkeys([cmd], [overlay]);
 
-    expect(remapped[0]!.defaultHotkey).toBe('X');
+    expect(ensureDefined(remapped[0]).defaultHotkey).toBe('X');
   });
 });
 

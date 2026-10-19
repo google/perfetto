@@ -72,12 +72,12 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   }
 
   const menuItems: m.Children[] = [];
-  for (let i = 0; i < sections.length; i++) {
+  for (const [i, section] of sections.entries()) {
     if (i > 0) {
       menuItems.push(m(MenuDivider));
     }
-    menuItems.push(m(MenuTitle, {label: sections[i]!.title}));
-    menuItems.push(...sections[i]!.items);
+    menuItems.push(m(MenuTitle, {label: section.title}));
+    menuItems.push(...section.items);
   }
 
   return m(

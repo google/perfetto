@@ -22,7 +22,7 @@ import type {
   Transform1D,
   VerticalBounds,
 } from '../../base/geom';
-import {ensureExists} from '../../base/assert';
+import {ensureExists, ensureDefined} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
   type CancellationSignal,
@@ -929,7 +929,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const countCol = cols.__count;
     const depthCol = cols.__depth;
     const schemaKeys = Object.keys(dataset.schema);
-    const schemaCols = schemaKeys.map((k) => cols[k]!);
+    const schemaCols = schemaKeys.map((k) => ensureDefined(cols[k]));
     const xs = new Float32Array(tsCol);
     const depths = new Uint16Array(depthCol);
 
@@ -1038,7 +1038,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const depthCol = cols.__depth;
     const incompleteCol = cols.__incomplete;
     const schemaKeys = Object.keys(dataset.schema);
-    const schemaCols = schemaKeys.map((k) => cols[k]!);
+    const schemaCols = schemaKeys.map((k) => ensureDefined(cols[k]));
 
     const starts = new Float32Array(startCol);
     const ends = new Float32Array(count);
@@ -1093,8 +1093,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     i: number,
   ): InferRowType<T> {
     const row: Record<string, SqlValue> = {};
-    for (let k = 0; k < keys.length; k++) {
-      row[keys[k]!] = cols[k]![i]!;
+    for (const [k, key] of keys.entries()) {
+      // keys and cols have matching lengths, and i < the column length.
+      row[key] = cols[k]![i]!;
     }
     return row as InferRowType<T>;
   }

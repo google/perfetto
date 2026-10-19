@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../base/assert';
 import {NodeType} from './query_node';
 import {
   copySelectedNodes,
@@ -56,9 +57,10 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.clipboardNodes).toHaveLength(1);
-      expect(result?.clipboardNodes[0]!.relativeX).toBe(0);
-      expect(result?.clipboardNodes[0]!.relativeY).toBe(0);
-      expect(result?.clipboardNodes[0]!.isDocked).toBe(false);
+      const entry = ensureDefined(result?.clipboardNodes[0]);
+      expect(entry.relativeX).toBe(0);
+      expect(entry.relativeY).toBe(0);
+      expect(entry.isDocked).toBe(false);
     });
 
     it('should compute relative positions for multiple nodes', () => {
@@ -75,12 +77,14 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.clipboardNodes).toHaveLength(2);
+      const first = ensureDefined(result?.clipboardNodes[0]);
+      const second = ensureDefined(result?.clipboardNodes[1]);
       // First node is at origin (min x/y)
-      expect(result?.clipboardNodes[0]!.relativeX).toBe(0);
-      expect(result?.clipboardNodes[0]!.relativeY).toBe(0);
+      expect(first.relativeX).toBe(0);
+      expect(first.relativeY).toBe(0);
       // Second node is offset
-      expect(result?.clipboardNodes[1]!.relativeX).toBe(200);
-      expect(result?.clipboardNodes[1]!.relativeY).toBe(200);
+      expect(second.relativeX).toBe(200);
+      expect(second.relativeY).toBe(200);
     });
 
     it('should mark nodes without layout as docked', () => {
@@ -94,8 +98,8 @@ describe('clipboard_operations', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result?.clipboardNodes[0]!.isDocked).toBe(false);
-      expect(result?.clipboardNodes[1]!.isDocked).toBe(true);
+      expect(ensureDefined(result?.clipboardNodes[0]).isDocked).toBe(false);
+      expect(ensureDefined(result?.clipboardNodes[1]).isDocked).toBe(true);
     });
 
     it('should clone nodes for the clipboard', () => {
@@ -108,7 +112,7 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       // Cloned node should not be the same object reference
-      expect(result?.clipboardNodes[0]!.node).not.toBe(node);
+      expect(ensureDefined(result?.clipboardNodes[0]).node).not.toBe(node);
     });
 
     it('should capture primaryInput connections between selected nodes', () => {
@@ -127,9 +131,10 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.clipboardConnections).toHaveLength(1);
-      expect(result?.clipboardConnections[0]!.fromIndex).toBe(0);
-      expect(result?.clipboardConnections[0]!.toIndex).toBe(1);
-      expect(result?.clipboardConnections[0]!.portIndex).toBeUndefined();
+      const conn = ensureDefined(result?.clipboardConnections[0]);
+      expect(conn.fromIndex).toBe(0);
+      expect(conn.toIndex).toBe(1);
+      expect(conn.portIndex).toBeUndefined();
     });
 
     it('should not capture connections to nodes outside the selection', () => {
@@ -170,7 +175,7 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.clipboardConnections).toHaveLength(1);
-      expect(result?.clipboardConnections[0]!.portIndex).toBe(0);
+      expect(ensureDefined(result?.clipboardConnections[0]).portIndex).toBe(0);
     });
   });
 
@@ -231,8 +236,8 @@ describe('clipboard_operations', () => {
       expect(result).toBeDefined();
       expect(result?.selectedNodes.size).toBe(1);
       // The selected ID should be the NEW (cloned) node's ID, not the clipboard node
-      const pastedNodeId = result?.rootNodes[0]!.nodeId;
-      expect(result?.selectedNodes.has(pastedNodeId ?? '')).toBe(true);
+      const pastedNodeId = ensureDefined(result?.rootNodes[0]).nodeId;
+      expect(result?.selectedNodes.has(pastedNodeId)).toBe(true);
     });
 
     it('should add layout positions for undocked nodes with offset', () => {
@@ -250,7 +255,7 @@ describe('clipboard_operations', () => {
       );
 
       expect(result).toBeDefined();
-      const pastedNodeId = result?.rootNodes[0]!.nodeId ?? '';
+      const pastedNodeId = ensureDefined(result?.rootNodes[0]).nodeId;
       const layout = result?.nodeLayouts.get(pastedNodeId);
       expect(layout).toBeDefined();
       // relativeX + pasteOffsetX (50), relativeY + pasteOffsetY (50)
@@ -273,7 +278,7 @@ describe('clipboard_operations', () => {
       );
 
       expect(result).toBeDefined();
-      const pastedNodeId = result?.rootNodes[0]!.nodeId ?? '';
+      const pastedNodeId = ensureDefined(result?.rootNodes[0]).nodeId;
       expect(result?.nodeLayouts.has(pastedNodeId)).toBe(false);
     });
 
@@ -312,8 +317,8 @@ describe('clipboard_operations', () => {
       expect(result2).toBeDefined();
       expect(result2?.rootNodes).toHaveLength(2);
       // The two pasted nodes should have different IDs
-      expect(result2?.rootNodes[0]!.nodeId).not.toBe(
-        result2?.rootNodes[1]!.nodeId,
+      expect(ensureDefined(result2?.rootNodes[0]).nodeId).not.toBe(
+        ensureDefined(result2?.rootNodes[1]).nodeId,
       );
     });
 
@@ -335,10 +340,10 @@ describe('clipboard_operations', () => {
 
       expect(result).toBeDefined();
       expect(result?.rootNodes).toHaveLength(2);
-      const pastedParent = result?.rootNodes[0];
-      const pastedChild = result?.rootNodes[1];
+      const pastedParent = ensureDefined(result?.rootNodes[0]);
+      const pastedChild = ensureDefined(result?.rootNodes[1]);
       // addConnection should have connected them
-      expect(pastedParent?.nextNodes).toContain(pastedChild);
+      expect(pastedParent.nextNodes).toContain(pastedChild);
     });
 
     it('should preserve existing nodeLayouts on paste', () => {

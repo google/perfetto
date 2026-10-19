@@ -347,6 +347,7 @@ type BenchmarkFn = (
 function shuffle<T>(array: T[]): T[] {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
+    // Both i and j are within [0, array.length).
     [array[i], array[j]] = [array[j]!, array[i]!];
   }
   return array;
@@ -357,12 +358,13 @@ function shuffle<T>(array: T[]): T[] {
  */
 function averageResults(results: BenchmarkResult[]): BenchmarkResult {
   const n = results.length;
-  if (n === 0) throw new Error('No results to average');
+  const first = results[0];
+  if (first === undefined) throw new Error('No results to average');
 
   return {
-    approach: results[0]!.approach,
-    trackCount: results[0]!.trackCount,
-    rowCount: results[0]!.rowCount,
+    approach: first.approach,
+    trackCount: first.trackCount,
+    rowCount: first.rowCount,
     queryBuildTimeMs:
       results.reduce((sum, r) => sum + r.queryBuildTimeMs, 0) / n,
     queryExecuteTimeMs:

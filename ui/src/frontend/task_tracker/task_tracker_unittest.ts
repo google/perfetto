@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../base/assert';
 import {defer} from '../../base/deferred';
 import {TaskTrackerImpl} from './task_tracker';
 
@@ -75,15 +76,16 @@ describe('TaskTracker', () => {
 
     const tasks = tracker.tasks;
     expect(tasks).toHaveLength(1);
-    expect(tasks[0]!.label).toBe('my task');
-    expect(tasks[0]!.elapsed).toBeGreaterThanOrEqual(0);
+    const task = ensureDefined(tasks[0]);
+    expect(task.label).toBe('my task');
+    expect(task.elapsed).toBeGreaterThanOrEqual(0);
   });
 
   test('uses anonymous label by default', () => {
     const deferred = defer<void>();
     tracker.track(deferred);
 
-    expect(tracker.tasks[0]!.label).toBe('anonymous');
+    expect(ensureDefined(tracker.tasks[0]).label).toBe('anonymous');
   });
 
   test('can track multiple promises', () => {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../base/assert';
 import {
   MetricsNode,
   type MetricsNodeAttrs,
@@ -124,9 +125,11 @@ describe('MetricsNode', () => {
 
       expect(node.attrs.metricIdPrefix).toBe('my_metric');
       expect(node.attrs.valueColumns).toHaveLength(1);
-      expect(node.attrs.valueColumns[0]!.column).toBe('value1');
-      expect(node.attrs.valueColumns[0]!.unit).toBe('BYTES');
-      expect(node.attrs.valueColumns[0]!.polarity).toBe('HIGHER_IS_BETTER');
+      expect(ensureDefined(node.attrs.valueColumns[0]).column).toBe('value1');
+      expect(ensureDefined(node.attrs.valueColumns[0]).unit).toBe('BYTES');
+      expect(ensureDefined(node.attrs.valueColumns[0]).polarity).toBe(
+        'HIGHER_IS_BETTER',
+      );
       expect(node.attrs.dimensionUniqueness).toBe('UNIQUE');
     });
 
@@ -142,8 +145,10 @@ describe('MetricsNode', () => {
       );
 
       expect(node.attrs.valueColumns).toHaveLength(2);
-      expect(node.attrs.valueColumns[0]!.column).toBe('cpu_time');
-      expect(node.attrs.valueColumns[1]!.column).toBe('mem_bytes');
+      expect(ensureDefined(node.attrs.valueColumns[0]).column).toBe('cpu_time');
+      expect(ensureDefined(node.attrs.valueColumns[1]).column).toBe(
+        'mem_bytes',
+      );
     });
   });
 
@@ -450,7 +455,7 @@ describe('MetricsNode', () => {
       node.onPrevNodesUpdated();
 
       expect(node.attrs.valueColumns).toHaveLength(1);
-      expect(node.attrs.valueColumns[0]!.column).toBe('value');
+      expect(ensureDefined(node.attrs.valueColumns[0]).column).toBe('value');
     });
 
     it('should selectively remove only stale value columns from multi-value', () => {
@@ -474,7 +479,7 @@ describe('MetricsNode', () => {
       node.onPrevNodesUpdated();
 
       expect(node.attrs.valueColumns).toHaveLength(1);
-      expect(node.attrs.valueColumns[0]!.column).toBe('cpu');
+      expect(ensureDefined(node.attrs.valueColumns[0]).column).toBe('cpu');
     });
 
     it('should do nothing when no primary input', () => {
@@ -488,7 +493,7 @@ describe('MetricsNode', () => {
 
       // State should remain unchanged
       expect(node.attrs.valueColumns).toHaveLength(1);
-      expect(node.attrs.valueColumns[0]!.column).toBe('value');
+      expect(ensureDefined(node.attrs.valueColumns[0]).column).toBe('value');
     });
   });
 
@@ -568,10 +573,10 @@ describe('MetricsNode', () => {
       const dimNames = spec!.dimensionsSpecs?.map((d) => d.name);
       expect(dimNames).toEqual(['dim1', 'dim2']);
       // Verify types are inferred from column types.
-      expect(spec!.dimensionsSpecs?.[0]!.type).toBe(
+      expect(ensureDefined(spec?.dimensionsSpecs?.[0]).type).toBe(
         protos.TraceMetricV2Spec.DimensionType.STRING,
       );
-      expect(spec!.dimensionsSpecs?.[1]!.type).toBe(
+      expect(ensureDefined(spec?.dimensionsSpecs?.[1]).type).toBe(
         protos.TraceMetricV2Spec.DimensionType.INT64,
       );
     });
@@ -669,8 +674,10 @@ describe('MetricsNode', () => {
 
       const spec = node.getMetricTemplateSpec();
       expect(spec).toBeDefined();
-      expect(spec!.valueColumnSpecs?.[0]!.displayName).toBe('CPU Time');
-      expect(spec!.valueColumnSpecs?.[0]!.displayHelp).toBe(
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).displayName).toBe(
+        'CPU Time',
+      );
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).displayHelp).toBe(
         'Total CPU time in nanoseconds.',
       );
     });
@@ -691,8 +698,8 @@ describe('MetricsNode', () => {
       const spec = node.getMetricTemplateSpec();
 
       expect(spec?.valueColumnSpecs?.length).toBe(1);
-      expect(spec?.valueColumnSpecs?.[0]!.name).toBe('value');
-      expect(spec?.valueColumnSpecs?.[0]!.unit).toBe(
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).name).toBe('value');
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).unit).toBe(
         protos.TraceMetricV2Spec.MetricUnit.COUNT,
       );
     });
@@ -719,12 +726,12 @@ describe('MetricsNode', () => {
       const spec = node.getMetricTemplateSpec();
 
       expect(spec?.valueColumnSpecs?.length).toBe(2);
-      expect(spec?.valueColumnSpecs?.[0]!.name).toBe('cpu');
-      expect(spec?.valueColumnSpecs?.[0]!.unit).toBe(
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).name).toBe('cpu');
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).unit).toBe(
         protos.TraceMetricV2Spec.MetricUnit.TIME_NANOS,
       );
-      expect(spec?.valueColumnSpecs?.[1]!.name).toBe('mem');
-      expect(spec?.valueColumnSpecs?.[1]!.unit).toBe(
+      expect(ensureDefined(spec?.valueColumnSpecs?.[1]).name).toBe('mem');
+      expect(ensureDefined(spec?.valueColumnSpecs?.[1]).unit).toBe(
         protos.TraceMetricV2Spec.MetricUnit.BYTES,
       );
     });
@@ -758,7 +765,9 @@ describe('MetricsNode', () => {
 
       const spec = node.getMetricTemplateSpec();
 
-      expect(spec?.valueColumnSpecs?.[0]!.customUnit).toBe('my_custom_unit');
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).customUnit).toBe(
+        'my_custom_unit',
+      );
     });
 
     it('should set polarity in value spec', () => {
@@ -768,7 +777,7 @@ describe('MetricsNode', () => {
 
       const spec = node.getMetricTemplateSpec();
 
-      expect(spec?.valueColumnSpecs?.[0]!.polarity).toBe(
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).polarity).toBe(
         protos.TraceMetricV2Spec.MetricPolarity.LOWER_IS_BETTER,
       );
     });
@@ -799,9 +808,11 @@ describe('MetricsNode', () => {
 
       expect(node.attrs.metricIdPrefix).toBe('my_metric');
       expect(node.attrs.valueColumns).toHaveLength(1);
-      expect(node.attrs.valueColumns[0]!.column).toBe('value1');
-      expect(node.attrs.valueColumns[0]!.unit).toBe('BYTES');
-      expect(node.attrs.valueColumns[0]!.polarity).toBe('HIGHER_IS_BETTER');
+      expect(ensureDefined(node.attrs.valueColumns[0]).column).toBe('value1');
+      expect(ensureDefined(node.attrs.valueColumns[0]).unit).toBe('BYTES');
+      expect(ensureDefined(node.attrs.valueColumns[0]).polarity).toBe(
+        'HIGHER_IS_BETTER',
+      );
       expect(node.attrs.dimensionUniqueness).toBe('UNIQUE');
     });
 
@@ -817,8 +828,8 @@ describe('MetricsNode', () => {
       );
 
       expect(node.attrs.valueColumns).toHaveLength(2);
-      expect(node.attrs.valueColumns[0]!.column).toBe('cpu');
-      expect(node.attrs.valueColumns[1]!.column).toBe('mem');
+      expect(ensureDefined(node.attrs.valueColumns[0]).column).toBe('cpu');
+      expect(ensureDefined(node.attrs.valueColumns[1]).column).toBe('mem');
     });
   });
 
@@ -837,9 +848,11 @@ describe('MetricsNode', () => {
 
       expect(state.metricIdPrefix).toBe('restored_metric');
       expect(state.valueColumns).toHaveLength(1);
-      expect(state.valueColumns[0]!.column).toBe('value1');
-      expect(state.valueColumns[0]!.unit).toBe('MEGABYTES');
-      expect(state.valueColumns[0]!.polarity).toBe('LOWER_IS_BETTER');
+      expect(ensureDefined(state.valueColumns[0]).column).toBe('value1');
+      expect(ensureDefined(state.valueColumns[0]).unit).toBe('MEGABYTES');
+      expect(ensureDefined(state.valueColumns[0]).polarity).toBe(
+        'LOWER_IS_BETTER',
+      );
       expect(state.dimensionUniqueness).toBe('UNIQUE');
     });
 
@@ -857,8 +870,8 @@ describe('MetricsNode', () => {
       const state = MetricsNode.deserializeState(serialized);
 
       expect(state.valueColumns).toHaveLength(2);
-      expect(state.valueColumns[0]!.column).toBe('cpu');
-      expect(state.valueColumns[1]!.column).toBe('mem');
+      expect(ensureDefined(state.valueColumns[0]).column).toBe('cpu');
+      expect(ensureDefined(state.valueColumns[1]).column).toBe('mem');
     });
 
     it('should provide defaults for missing properties', () => {
@@ -885,9 +898,11 @@ describe('MetricsNode', () => {
 
       expect(state.metricIdPrefix).toBe('old_metric');
       expect(state.valueColumns).toHaveLength(1);
-      expect(state.valueColumns[0]!.column).toBe('value1');
-      expect(state.valueColumns[0]!.unit).toBe('BYTES');
-      expect(state.valueColumns[0]!.polarity).toBe('HIGHER_IS_BETTER');
+      expect(ensureDefined(state.valueColumns[0]).column).toBe('value1');
+      expect(ensureDefined(state.valueColumns[0]).unit).toBe('BYTES');
+      expect(ensureDefined(state.valueColumns[0]).polarity).toBe(
+        'HIGHER_IS_BETTER',
+      );
     });
 
     it('should migrate from old single-value format with custom unit', () => {
@@ -903,8 +918,8 @@ describe('MetricsNode', () => {
       const state = MetricsNode.deserializeState(oldFormat);
 
       expect(state.valueColumns).toHaveLength(1);
-      expect(state.valueColumns[0]!.unit).toBe('CUSTOM');
-      expect(state.valueColumns[0]!.customUnit).toBe('widgets');
+      expect(ensureDefined(state.valueColumns[0]).unit).toBe('CUSTOM');
+      expect(ensureDefined(state.valueColumns[0]).customUnit).toBe('widgets');
     });
 
     it('should migrate from old multi-value values[] array format', () => {
@@ -931,8 +946,8 @@ describe('MetricsNode', () => {
 
       expect(state.metricIdPrefix).toBe('old_metric');
       expect(state.valueColumns).toHaveLength(2);
-      expect(state.valueColumns[0]!.column).toBe('cpu');
-      expect(state.valueColumns[1]!.column).toBe('mem');
+      expect(ensureDefined(state.valueColumns[0]).column).toBe('cpu');
+      expect(ensureDefined(state.valueColumns[1]).column).toBe('mem');
     });
 
     it('should migrate from old metricId field', () => {
@@ -968,8 +983,8 @@ describe('MetricsNode', () => {
       expect(cloned.nodeId).not.toBe(node.nodeId);
       expect(cloned.attrs.metricIdPrefix).toBe('test');
       expect(cloned.attrs.valueColumns).toHaveLength(1);
-      expect(cloned.attrs.valueColumns[0]!.column).toBe('value1');
-      expect(cloned.attrs.valueColumns[0]!.unit).toBe('BYTES');
+      expect(ensureDefined(cloned.attrs.valueColumns[0]).column).toBe('value1');
+      expect(ensureDefined(cloned.attrs.valueColumns[0]).unit).toBe('BYTES');
       expect(cloned.attrs.dimensionUniqueness).toBe('UNIQUE');
     });
 
@@ -984,11 +999,11 @@ describe('MetricsNode', () => {
       const cloned = node.clone() as MetricsNode;
 
       // Mutate clone
-      cloned.attrs.valueColumns[0]!.unit = 'BYTES';
+      ensureDefined(cloned.attrs.valueColumns[0]).unit = 'BYTES';
       cloned.attrs.valueColumns.push(makeValueCol('extra'));
 
       // Original should be unaffected
-      expect(node.attrs.valueColumns[0]!.unit).toBe('COUNT');
+      expect(ensureDefined(node.attrs.valueColumns[0]).unit).toBe('COUNT');
       expect(node.attrs.valueColumns).toHaveLength(2);
     });
 
@@ -1135,8 +1150,8 @@ describe('MetricsNode', () => {
       expect(spec).toBeDefined();
       expect(spec?.idPrefix).toBe('process_metrics');
       expect(spec?.valueColumnSpecs?.length).toBe(1);
-      expect(spec?.valueColumnSpecs?.[0]!.name).toBe('cpu_time');
-      expect(spec?.valueColumnSpecs?.[0]!.unit).toBe(
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).name).toBe('cpu_time');
+      expect(ensureDefined(spec?.valueColumnSpecs?.[0]).unit).toBe(
         protos.TraceMetricV2Spec.MetricUnit.TIME_NANOS,
       );
       const dimNames = spec?.dimensionsSpecs?.map((d) => d.name);
@@ -1198,9 +1213,13 @@ describe('MetricsNode', () => {
 
       expect(restoredNode.attrs.metricIdPrefix).toBe('original_metric');
       expect(restoredNode.attrs.valueColumns).toHaveLength(1);
-      expect(restoredNode.attrs.valueColumns[0]!.column).toBe('value1');
-      expect(restoredNode.attrs.valueColumns[0]!.unit).toBe('PERCENTAGE');
-      expect(restoredNode.attrs.valueColumns[0]!.polarity).toBe(
+      expect(ensureDefined(restoredNode.attrs.valueColumns[0]).column).toBe(
+        'value1',
+      );
+      expect(ensureDefined(restoredNode.attrs.valueColumns[0]).unit).toBe(
+        'PERCENTAGE',
+      );
+      expect(ensureDefined(restoredNode.attrs.valueColumns[0]).polarity).toBe(
         'HIGHER_IS_BETTER',
       );
       expect(restoredNode.attrs.dimensionUniqueness).toBe('UNIQUE');
@@ -1223,7 +1242,9 @@ describe('MetricsNode', () => {
       const restoredNode = new MetricsNode(restored, {});
 
       expect(restoredNode.attrs.valueColumns).toHaveLength(3);
-      expect(restoredNode.attrs.valueColumns[2]!.customUnit).toBe('pts');
+      expect(ensureDefined(restoredNode.attrs.valueColumns[2]).customUnit).toBe(
+        'pts',
+      );
     });
 
     it('should preserve value columns after deserialization and reconnection', () => {
@@ -1252,7 +1273,9 @@ describe('MetricsNode', () => {
 
       expect(restoredNode.availableColumns.length).toBe(3);
       expect(restoredNode.attrs.valueColumns).toHaveLength(1);
-      expect(restoredNode.attrs.valueColumns[0]!.column).toBe('metric_value');
+      expect(ensureDefined(restoredNode.attrs.valueColumns[0]).column).toBe(
+        'metric_value',
+      );
       expect(restoredNode.getDimensions()).toEqual(['id', 'category']);
       expectValidationSuccess(restoredNode);
     });
@@ -1377,8 +1400,8 @@ describe('parseMetricBundleForValue', () => {
     expect(result).toBeDefined();
     expect(result?.metricId).toBe('my_metric_cpu');
     expect(result?.rows).toHaveLength(2);
-    expect(result?.rows[0]!['process']).toBe('chrome');
-    expect(result?.rows[0]!['cpu']).toBe(100);
+    expect(ensureDefined(result?.rows[0])['process']).toBe('chrome');
+    expect(ensureDefined(result?.rows[0])['cpu']).toBe(100);
     // Should NOT include 'mem' column
     expect('mem' in (result?.rows[0] ?? {})).toBe(false);
   });
@@ -1399,8 +1422,8 @@ describe('parseMetricBundleForValue', () => {
 
     expect(result).toBeDefined();
     expect(result?.metricId).toBe('my_metric_mem');
-    expect(result?.rows[0]!['mem']).toBe(200);
-    expect(result?.rows[1]!['mem']).toBe(250);
+    expect(ensureDefined(result?.rows[0])['mem']).toBe(200);
+    expect(ensureDefined(result?.rows[1])['mem']).toBe(250);
     expect('cpu' in (result?.rows[0] ?? {})).toBe(false);
   });
 
@@ -1418,9 +1441,9 @@ describe('parseMetricBundleForValue', () => {
     expect(result).toBeDefined();
     if (result !== undefined) {
       const schema = result.schema;
-      const processEntry = schema['process']!;
-      const threadEntry = schema['thread']!;
-      const cpuEntry = schema['cpu']!;
+      const processEntry = ensureDefined(schema['process']);
+      const threadEntry = ensureDefined(schema['thread']);
+      const cpuEntry = ensureDefined(schema['cpu']);
       // Schema values for leaf columns are ColumnDef objects with columnType.
       expect(
         'columnType' in processEntry ? processEntry.columnType : undefined,
@@ -1457,6 +1480,6 @@ describe('parseMetricBundleForValue', () => {
     );
 
     expect(result).toBeDefined();
-    expect(result?.rows[0]!['val']).toBeNull();
+    expect(ensureDefined(result?.rows[0])['val']).toBeNull();
   });
 });

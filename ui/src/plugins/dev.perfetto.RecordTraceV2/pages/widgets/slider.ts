@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {ProbeSetting} from '../../config/config_interfaces';
-import {assertTrue} from '../../../../base/assert';
+import {assertTrue, ensureDefined} from '../../../../base/assert';
 import {exists} from '../../../../base/utils';
 import {Icon} from '../../../../widgets/icon';
 
@@ -76,7 +76,7 @@ export class Slider implements ProbeSetting {
   }
 
   onSliderChange(newIdx: number) {
-    this.onValueChange(this.attrs.values[newIdx]!);
+    this.onValueChange(ensureDefined(this.attrs.values[newIdx]));
   }
 
   render() {
@@ -93,7 +93,10 @@ export class Slider implements ProbeSetting {
 
     // Find the index of the closest value in the slider.
     let idx = 0;
-    for (; idx < attrs.values.length && attrs.values[idx]! < val; idx++) {}
+    for (const v of attrs.values) {
+      if (v >= val) break;
+      idx++;
+    }
 
     let spinnerCfg = {};
     if (attrs.isTime) {

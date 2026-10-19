@@ -18,6 +18,7 @@ import type {PerfettoPlugin} from '../../public/plugin';
 import type {Storage, Trace} from '../../public/trace';
 import {shortUuid} from '../../base/uuid';
 import {getErrorMessage} from '../../base/errors';
+import {assertDefined, ensureDefined} from '../../base/assert';
 import {debounce} from '../../base/rate_limiters';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
@@ -145,7 +146,7 @@ export default class implements PerfettoPlugin {
     // If we closed the active tab, switch to an adjacent one
     if (this.activeTabId === tabId) {
       const newIndex = Math.min(index, this.tabs.length - 1);
-      this.activeTabId = this.tabs[newIndex]!.id;
+      this.activeTabId = ensureDefined(this.tabs[newIndex]).id;
     }
 
     this.debouncedSave();
@@ -180,15 +181,16 @@ export default class implements PerfettoPlugin {
     if (draggedIndex === -1) return;
 
     const [draggedTab] = this.tabs.splice(draggedIndex, 1);
+    assertDefined(draggedTab);
 
     if (beforeTabId === undefined) {
-      this.tabs.push(draggedTab!);
+      this.tabs.push(draggedTab);
     } else {
       const beforeIndex = this.tabs.findIndex((t) => t.id === beforeTabId);
       if (beforeIndex === -1) {
-        this.tabs.push(draggedTab!);
+        this.tabs.push(draggedTab);
       } else {
-        this.tabs.splice(beforeIndex, 0, draggedTab!);
+        this.tabs.splice(beforeIndex, 0, draggedTab);
       }
     }
 
@@ -376,7 +378,7 @@ export default class implements PerfettoPlugin {
             permalinkState.activeTabId !== undefined &&
             this.tabs.some((t) => t.id === permalinkState.activeTabId)
               ? permalinkState.activeTabId
-              : this.tabs[0]!.id;
+              : ensureDefined(this.tabs[0]).id;
           return;
         } catch (e) {
           const msg = getErrorMessage(e);
@@ -427,7 +429,7 @@ export default class implements PerfettoPlugin {
           (t) => t.id === persistedTabs.activeTabId,
         )
           ? persistedTabs.activeTabId
-          : this.tabs[0]!.id;
+          : ensureDefined(this.tabs[0]).id;
         return;
       } catch (e) {
         console.debug(

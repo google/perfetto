@@ -251,6 +251,7 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
         key: {traceId: trace.traceInfo.uuid, upid},
         compute: () => loadSmapsSnapshots(trace, upid),
       }).data ?? [];
+    const latestSnapshot = snapshots[snapshots.length - 1];
     const rows = this.slot.use({
       key: {
         traceId: trace.traceInfo.uuid,
@@ -463,13 +464,12 @@ export class SmapsDetail implements m.ClassComponent<SmapsDetailAttrs> {
           ]),
           m('.pf-memscope-smaps__controls', [
             snapshots.length > 1 &&
+              latestSnapshot !== undefined &&
               m(
                 Select,
                 {
                   // Default to the latest snapshot when nothing is picked.
-                  value: (
-                    this.selectedTs ?? snapshots[snapshots.length - 1]!.ts
-                  ).toString(),
+                  value: (this.selectedTs ?? latestSnapshot.ts).toString(),
                   onchange: (e: Event) => {
                     const v = (e.target as HTMLSelectElement).value;
                     this.selectedTs = BigInt(v);

@@ -128,12 +128,12 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
         }
       } else {
         // Regular pivot cells
-        pivots.forEach((_, index) => {
+        pivots.forEach((pivot, index) => {
           const status = node.getPivotDisplayStatus(index);
           const value = node.getPivotValue(index);
           const renderedCell = (function () {
             if (value === undefined) return undefined;
-            return state.getPivots()[index]!.renderCell(value);
+            return pivot.renderCell(value);
           })();
           const content = [
             (status === 'collapsed' || status === 'expanded') &&

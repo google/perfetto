@@ -151,23 +151,23 @@ async function getChromeCauseTracks(
     trackId: NUM,
   });
 
-  const threadsWithTrack: {[id: number]: EventLatencyCauseThreadTracks} = {};
-  const utids: number[] = [];
+  // Map preserves insertion order, i.e. the order utids were first seen.
+  const threadsWithTrack = new Map<number, EventLatencyCauseThreadTracks>();
   for (; it.valid(); it.next()) {
     const utid = it.utid;
-    if (!(utid in threadsWithTrack)) {
-      threadsWithTrack[utid] = {
+    const existing = threadsWithTrack.get(utid);
+    if (existing === undefined) {
+      threadsWithTrack.set(utid, {
         trackIds: [it.trackId],
         thread: threadName,
         causeDescription: '',
-      };
-      utids.push(utid);
+      });
     } else {
-      threadsWithTrack[utid]!.trackIds.push(it.trackId);
+      existing.trackIds.push(it.trackId);
     }
   }
 
-  return utids.map((each) => threadsWithTrack[each]!);
+  return Array.from(threadsWithTrack.values());
 }
 
 export function getCauseLink(
@@ -186,7 +186,8 @@ export function getCauseLink(
     trackUris.push(track);
   }
 
-  if (trackUris.length == 0) {
+  const firstTrackUri = trackUris[0];
+  if (firstTrackUri === undefined) {
     return `No valid tracks for thread ${threadTracks.thread}.`;
   }
 
@@ -200,7 +201,7 @@ export function getCauseLink(
         icon: Icons.UpdateSelection,
         onclick: () => {
           trace.scrollTo({
-            track: {uri: trackUris[0]!, expandGroup: true},
+            track: {uri: firstTrackUri, expandGroup: true},
           });
           if (exists(ts) && exists(dur)) {
             trace.scrollTo({

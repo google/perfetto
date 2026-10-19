@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
+import {assertDefined} from '../../base/assert';
 import type {Trace} from '../../public/trace';
 import {Time} from '../../base/time';
 import {
@@ -84,7 +85,12 @@ export function createJournaldLogTrack(trace: Trace, uri: string) {
       schema: LOGS_SCHEMA,
     }),
     initialMaxDepth: 7,
-    colorizer: (row) => DEPTH_TO_COLOR[row.depth]!,
+    colorizer: (row) => {
+      // LOGS_SQL clamps depth to [0, 7].
+      const color = DEPTH_TO_COLOR[row.depth];
+      assertDefined(color);
+      return color;
+    },
     tooltip: (slice) => [m('', m('b', slice.row.tag)), m('', slice.row.msg)],
     instantStyle: {
       width: EVT_PX,

@@ -27,6 +27,7 @@ import {CodeSnippet} from '../../../widgets/code_snippet';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
+import {ensureDefined} from '../../../base/assert';
 
 export function renderGrid(): m.Children {
   return [
@@ -528,7 +529,7 @@ function VirtualGridDemo(): m.ClassComponent<VirtualGridDemoAttrs> {
     loadedRows = [];
     for (let i = 0; i < limit && offset + i < totalRows; i++) {
       const idx = offset + i;
-      const langData = languages[idx % languages.length]!;
+      const langData = ensureDefined(languages[idx % languages.length]);
 
       const menuItems = contextMenus
         ? [

@@ -632,10 +632,16 @@ export class CounterTrack implements TrackRenderer {
     const [left, right] = searchSegment(data.timestampsRel, relNs);
     if (left === -1) return undefined;
 
+    const tsRel = data.timestampsRel[left];
+    const lastDisplayValue = data.lastDisplayValues[left];
+    if (tsRel === undefined || lastDisplayValue === undefined) {
+      return undefined;
+    }
+
     return {
-      tsRel: data.timestampsRel[left]!,
+      tsRel,
       tsEndRel: right === -1 ? undefined : data.timestampsRel[right],
-      lastDisplayValue: data.lastDisplayValues[left]!,
+      lastDisplayValue,
     };
   }
 

@@ -95,7 +95,9 @@ function buildSwapTimeSeries(
   }
   if (byTs.size < 2) return undefined;
   const timestamps = [...byTs.keys()].sort((a, b) => a - b);
-  if ((byTs.get(timestamps[0]!)?.get('SwapTotal') ?? 0) === 0) return undefined;
+  const firstTs = timestamps[0];
+  if (firstTs === undefined) return undefined;
+  if ((byTs.get(firstTs)?.get('SwapTotal') ?? 0) === 0) return undefined;
   const dirtyPts: {x: number; y: number}[] = [];
   const cachedPts: {x: number; y: number}[] = [];
   const freePts: {x: number; y: number}[] = [];

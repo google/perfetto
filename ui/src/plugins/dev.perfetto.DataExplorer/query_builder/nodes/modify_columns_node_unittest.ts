@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ensureDefined} from '../../../../base/assert';
 import {
   ModifyColumnsNode,
   type ModifyColumnsNodeAttrs,
@@ -135,8 +136,8 @@ describe('ModifyColumnsNode', () => {
 
       expect(node.attrs.selectedColumns).toBeDefined();
       expect(node.attrs.selectedColumns.length).toBe(2);
-      expect(node.attrs.selectedColumns[0]!.name).toBe('id');
-      expect(node.attrs.selectedColumns[1]!.name).toBe('status');
+      expect(ensureDefined(node.attrs.selectedColumns[0]).name).toBe('id');
+      expect(ensureDefined(node.attrs.selectedColumns[1]).name).toBe('status');
     });
 
     it('should serialize column aliases correctly', () => {
@@ -150,8 +151,12 @@ describe('ModifyColumnsNode', () => {
         createMockPrevNode(),
       );
 
-      expect(node.attrs.selectedColumns[0]!.alias).toBeUndefined();
-      expect(node.attrs.selectedColumns[1]!.alias).toBe('status_renamed');
+      expect(
+        ensureDefined(node.attrs.selectedColumns[0]).alias,
+      ).toBeUndefined();
+      expect(ensureDefined(node.attrs.selectedColumns[1]).alias).toBe(
+        'status_renamed',
+      );
     });
 
     it('should serialize checked status correctly', () => {
@@ -165,8 +170,8 @@ describe('ModifyColumnsNode', () => {
         createMockPrevNode(),
       );
 
-      expect(node.attrs.selectedColumns[0]!.checked).toBe(true);
-      expect(node.attrs.selectedColumns[1]!.checked).toBe(false);
+      expect(ensureDefined(node.attrs.selectedColumns[0]).checked).toBe(true);
+      expect(ensureDefined(node.attrs.selectedColumns[1]).checked).toBe(false);
     });
 
     it('should serialize column types as PerfettoSqlType objects', () => {
@@ -180,8 +185,12 @@ describe('ModifyColumnsNode', () => {
         createMockPrevNode(),
       );
 
-      expect(node.attrs.selectedColumns[0]!.type).toEqual({kind: 'int'});
-      expect(node.attrs.selectedColumns[1]!.type).toEqual({kind: 'timestamp'});
+      expect(ensureDefined(node.attrs.selectedColumns[0]).type).toEqual({
+        kind: 'int',
+      });
+      expect(ensureDefined(node.attrs.selectedColumns[1]).type).toEqual({
+        kind: 'timestamp',
+      });
     });
   });
 
@@ -200,8 +209,8 @@ describe('ModifyColumnsNode', () => {
       const finalCols = node.finalCols;
 
       expect(finalCols.length).toBe(2);
-      expect(finalCols[0]!.name).toBe('id');
-      expect(finalCols[1]!.name).toBe('value');
+      expect(ensureDefined(finalCols[0]).name).toBe('id');
+      expect(ensureDefined(finalCols[1]).name).toBe('value');
     });
 
     it('should use alias as column name in finalCols', () => {
@@ -216,7 +225,7 @@ describe('ModifyColumnsNode', () => {
       const finalCols = node.finalCols;
 
       expect(finalCols.length).toBe(1);
-      expect(finalCols[0]!.name).toBe('identifier');
+      expect(ensureDefined(finalCols[0]).name).toBe('identifier');
     });
   });
 
@@ -241,20 +250,22 @@ describe('ModifyColumnsNode', () => {
 
       // Verify initial state - all columns should be from source
       expect(modifyNode.attrs.selectedColumns.length).toBe(3);
-      expect(modifyNode.attrs.selectedColumns[2]!.name).toBe('value');
-      expect(modifyNode.attrs.selectedColumns[2]!.type).toEqual(
+      expect(ensureDefined(modifyNode.attrs.selectedColumns[2]).name).toBe(
+        'value',
+      );
+      expect(ensureDefined(modifyNode.attrs.selectedColumns[2]).type).toEqual(
         PerfettoSqlTypes.INT,
       );
 
       // User modifies the type of 'value' column to 'duration'
       modifyNode.attrs.selectedColumns[2] = {
-        ...modifyNode.attrs.selectedColumns[2]!,
+        ...ensureDefined(modifyNode.attrs.selectedColumns[2]),
         type: {kind: 'duration'},
         typeUserModified: true,
       };
 
       // Verify the type was modified
-      expect(modifyNode.attrs.selectedColumns[2]!.type).toEqual(
+      expect(ensureDefined(modifyNode.attrs.selectedColumns[2]).type).toEqual(
         PerfettoSqlTypes.DURATION,
       );
 
@@ -278,8 +289,10 @@ describe('ModifyColumnsNode', () => {
       modifyNode.onPrevNodesUpdated();
 
       // The modified type should be preserved!
-      expect(modifyNode.attrs.selectedColumns[2]!.name).toBe('value');
-      expect(modifyNode.attrs.selectedColumns[2]!.type).toEqual(
+      expect(ensureDefined(modifyNode.attrs.selectedColumns[2]).name).toBe(
+        'value',
+      );
+      expect(ensureDefined(modifyNode.attrs.selectedColumns[2]).type).toEqual(
         PerfettoSqlTypes.DURATION,
       );
     });
@@ -299,8 +312,8 @@ describe('ModifyColumnsNode', () => {
       modifyNode.onPrevNodesUpdated();
 
       // User customizes the node
-      modifyNode.attrs.selectedColumns[0]!.checked = false; // Uncheck 'id'
-      modifyNode.attrs.selectedColumns[1]!.alias = 'full_name'; // Rename 'name'
+      ensureDefined(modifyNode.attrs.selectedColumns[0]).checked = false; // Uncheck 'id'
+      ensureDefined(modifyNode.attrs.selectedColumns[1]).alias = 'full_name'; // Rename 'name'
 
       // Insert intermediate node
       const intermediateNode = createMockNode({
@@ -316,8 +329,12 @@ describe('ModifyColumnsNode', () => {
       modifyNode.onPrevNodesUpdated();
 
       // Customizations should be preserved
-      expect(modifyNode.attrs.selectedColumns[0]!.checked).toBe(false);
-      expect(modifyNode.attrs.selectedColumns[1]!.alias).toBe('full_name');
+      expect(ensureDefined(modifyNode.attrs.selectedColumns[0]).checked).toBe(
+        false,
+      );
+      expect(ensureDefined(modifyNode.attrs.selectedColumns[1]).alias).toBe(
+        'full_name',
+      );
     });
   });
 
@@ -336,9 +353,15 @@ describe('ModifyColumnsNode', () => {
       const clonedNode = node.clone() as ModifyColumnsNode;
 
       // Aliases should be preserved in the cloned node
-      expect(clonedNode.attrs.selectedColumns[0]!.alias).toBeUndefined();
-      expect(clonedNode.attrs.selectedColumns[1]!.alias).toBe('full_name');
-      expect(clonedNode.attrs.selectedColumns[2]!.alias).toBe('amount');
+      expect(
+        ensureDefined(clonedNode.attrs.selectedColumns[0]).alias,
+      ).toBeUndefined();
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[1]).alias).toBe(
+        'full_name',
+      );
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[2]).alias).toBe(
+        'amount',
+      );
     });
 
     it('should preserve checked status when cloning', () => {
@@ -354,9 +377,15 @@ describe('ModifyColumnsNode', () => {
 
       const clonedNode = node.clone() as ModifyColumnsNode;
 
-      expect(clonedNode.attrs.selectedColumns[0]!.checked).toBe(true);
-      expect(clonedNode.attrs.selectedColumns[1]!.checked).toBe(false);
-      expect(clonedNode.attrs.selectedColumns[2]!.checked).toBe(true);
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[0]).checked).toBe(
+        true,
+      );
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[1]).checked).toBe(
+        false,
+      );
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[2]).checked).toBe(
+        true,
+      );
     });
 
     it('should preserve original column names when cloning with aliases', () => {
@@ -372,8 +401,12 @@ describe('ModifyColumnsNode', () => {
       const clonedNode = node.clone() as ModifyColumnsNode;
 
       // The original column name should be preserved, NOT the alias
-      expect(clonedNode.attrs.selectedColumns[0]!.name).toBe('id');
-      expect(clonedNode.attrs.selectedColumns[0]!.alias).toBe('identifier');
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[0]).name).toBe(
+        'id',
+      );
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[0]).alias).toBe(
+        'identifier',
+      );
     });
 
     it('should preserve typeUserModified flag when cloning', () => {
@@ -393,10 +426,12 @@ describe('ModifyColumnsNode', () => {
 
       const clonedNode = node.clone() as ModifyColumnsNode;
 
-      expect(clonedNode.attrs.selectedColumns[0]!.type).toEqual(
+      expect(ensureDefined(clonedNode.attrs.selectedColumns[0]).type).toEqual(
         PerfettoSqlTypes.DURATION,
       );
-      expect(clonedNode.attrs.selectedColumns[0]!.typeUserModified).toBe(true);
+      expect(
+        ensureDefined(clonedNode.attrs.selectedColumns[0]).typeUserModified,
+      ).toBe(true);
     });
 
     it('should create independent copies (mutations do not affect original)', () => {
@@ -411,12 +446,15 @@ describe('ModifyColumnsNode', () => {
       const clonedNode = node.clone() as ModifyColumnsNode;
 
       // Modify the cloned node
-      clonedNode.attrs.selectedColumns[0]!.alias = 'modified_alias';
-      clonedNode.attrs.selectedColumns[0]!.checked = false;
+      ensureDefined(clonedNode.attrs.selectedColumns[0]).alias =
+        'modified_alias';
+      ensureDefined(clonedNode.attrs.selectedColumns[0]).checked = false;
 
       // Original should be unchanged
-      expect(node.attrs.selectedColumns[0]!.alias).toBe('original_alias');
-      expect(node.attrs.selectedColumns[0]!.checked).toBe(true);
+      expect(ensureDefined(node.attrs.selectedColumns[0]).alias).toBe(
+        'original_alias',
+      );
+      expect(ensureDefined(node.attrs.selectedColumns[0]).checked).toBe(true);
     });
   });
 });

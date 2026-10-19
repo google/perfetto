@@ -38,6 +38,7 @@
 //
 // It is gated behind RUN_BENCH=1 so it doesn't slow down the normal test suite.
 
+import {ensureDefined} from '../base/assert';
 import {
   createQueryResult,
   LONG,
@@ -78,7 +79,7 @@ function pushTag(arr: number[], field: number, wireType: number): void {
 function pushLenDelim(arr: number[], field: number, payload: number[]): void {
   pushTag(arr, field, 2);
   pushVarint(arr, payload.length);
-  for (let i = 0; i < payload.length; i++) arr.push(payload[i]!);
+  for (const b of payload) arr.push(b);
 }
 
 const textEncoder = new TextEncoder();
@@ -142,7 +143,7 @@ function buildInstantTrackResult(
       pushInt(depth);
       pushInt(upid);
       cellTypes.push(CELL_STRING);
-      stringCells.push(NAMES[r % NAMES.length]!);
+      stringCells.push(ensureDefined(NAMES[r % NAMES.length]));
     }
     const isLast = row + n >= numRows;
 
@@ -235,7 +236,6 @@ function instantChecksumIter(qr: QueryResult): number {
 }
 
 function instantChecksumColumns(qr: QueryResult): number {
-  const count = qr.numRows();
   const cols = qr.decodeColumns(SPEC);
   const ids = cols.id;
   const tss = cols.ts;
@@ -245,11 +245,12 @@ function instantChecksumColumns(qr: QueryResult): number {
   const upids = cols.upid;
   const names = cols.name;
   let checksum = 0;
-  for (let i = 0; i < count; i++) {
+  // All columns have the same length (one entry per row).
+  for (const [i, id] of ids.entries()) {
     checksum +=
-      (ids[i]! +
-        Number(tss[i]) +
-        Number(durs[i]) +
+      (id +
+        Number(tss[i]!) +
+        Number(durs[i]!) +
         counts[i]! +
         depths[i]! +
         upids[i]! +
@@ -401,15 +402,15 @@ function numVarintChecksumIter(qr: QueryResult): number {
 }
 
 function numVarintChecksumColumns(qr: QueryResult): number {
-  const count = qr.numRows();
   const cols = qr.decodeColumns(NUM_SPEC);
   const tss = cols.ts;
   const durs = cols.dur;
   const counts = cols.count;
   const depths = cols.depth;
   let checksum = 0;
-  for (let i = 0; i < count; i++) {
-    checksum += (tss[i]! + durs[i]! + counts[i]! + depths[i]!) % 65521;
+  // All columns have the same length (one entry per row).
+  for (const [i, ts] of tss.entries()) {
+    checksum += (ts + durs[i]! + counts[i]! + depths[i]!) % 65521;
   }
   return checksum;
 }
@@ -506,15 +507,15 @@ function float64ChecksumIter(qr: QueryResult): number {
 }
 
 function float64ChecksumColumns(qr: QueryResult): number {
-  const count = qr.numRows();
   const cols = qr.decodeColumns(F64_SPEC);
   const tss = cols.ts;
   const durs = cols.dur;
   const values = cols.__value;
   const scales = cols.__scale;
   let checksum = 0;
-  for (let i = 0; i < count; i++) {
-    checksum += tss[i]! + durs[i]! + values[i]! + scales[i]!;
+  // All columns have the same length (one entry per row).
+  for (const [i, ts] of tss.entries()) {
+    checksum += ts + durs[i]! + values[i]! + scales[i]!;
   }
   return checksum;
 }
@@ -531,15 +532,15 @@ function longChecksumIter(qr: QueryResult): bigint {
 }
 
 function longChecksumColumns(qr: QueryResult): bigint {
-  const count = qr.numRows();
   const cols = qr.decodeColumns(LONG_SPEC);
   const tss = cols.ts;
   const durs = cols.dur;
   const trackIds = cols.__track_id;
   const upids = cols.upid;
   let checksum = 0n;
-  for (let i = 0; i < count; i++) {
-    checksum += (tss[i]! + durs[i]! + trackIds[i]! + upids[i]!) % 65521n;
+  // All columns have the same length (one entry per row).
+  for (const [i, ts] of tss.entries()) {
+    checksum += (ts + durs[i]! + trackIds[i]! + upids[i]!) % 65521n;
   }
   return checksum;
 }
@@ -594,8 +595,8 @@ function bench<R>(
   samples.sort((a, b) => a - b);
   return {
     label,
-    min: samples[0]!,
-    median: samples[Math.floor(samples.length / 2)]!,
+    min: ensureDefined(samples[0]),
+    median: ensureDefined(samples[Math.floor(samples.length / 2)]),
     mean: samples.reduce((a, b) => a + b, 0) / samples.length,
     checksum,
   };

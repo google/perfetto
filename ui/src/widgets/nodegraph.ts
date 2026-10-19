@@ -458,8 +458,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       if (nodeElement && portId) {
         const nodeId = nodeElement.dataset.node!;
         const [type, portIndexStr] = portId.split('-');
-        if (type === 'input') {
-          const portIndex = parseInt(portIndexStr!, 10);
+        if (type === 'input' && portIndexStr !== undefined) {
+          const portIndex = parseInt(portIndexStr, 10);
           canvasState.hoveredPort = {nodeId, portIndex, type: 'input'};
         } else {
           canvasState.hoveredPort = null;
@@ -631,15 +631,18 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         // Check all chained nodes
         const chain = getChain(node);
         let currentY = node.y;
-        chain.slice(1).forEach((chainNode) => {
-          // For chained nodes, calculate their Y position
-          const previousNodeId = chain[chain.indexOf(chainNode) - 1]!.id;
-          currentY += getNodeDimensions(previousNodeId).height;
+        let previousNode: (typeof chain)[number] | undefined;
+        for (const chainNode of chain) {
+          if (previousNode !== undefined) {
+            // For chained nodes, calculate their Y position
+            currentY += getNodeDimensions(previousNode.id).height;
 
-          if (nodeOverlapsRect(node.x, currentY, chainNode.id)) {
-            selectedInRect.push(chainNode.id);
+            if (nodeOverlapsRect(node.x, currentY, chainNode.id)) {
+              selectedInRect.push(chainNode.id);
+            }
           }
-        });
+          previousNode = chainNode;
+        }
       });
 
       // Find all labels that intersect with the selection rectangle
@@ -816,11 +819,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
     // Get the port from the node
     const ports = portType === 'input' ? node.inputs : node.outputs;
-    if (!ports || portIndex >= ports.length) {
+    const port = ports?.[portIndex];
+    if (port === undefined) {
       return portType === 'input' ? 'left' : 'right';
     }
 
-    return ports[portIndex]!.direction;
+    return port.direction;
   }
 
   function renderConnections(
@@ -1611,8 +1615,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             const existingConnIdx = connections.findIndex(
               (conn) => conn.toNode === id && conn.toPort === portIndex,
             );
-            if (existingConnIdx !== -1) {
-              const existingConn = connections[existingConnIdx]!;
+            const existingConn = connections[existingConnIdx];
+            if (existingConn !== undefined) {
               const {onConnectionRemove} = vnode.attrs;
               if (onConnectionRemove !== undefined) {
                 onConnectionRemove(existingConnIdx);
