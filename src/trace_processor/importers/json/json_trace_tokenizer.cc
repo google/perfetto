@@ -844,7 +844,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   }
 
   // Make the tid equal to the pid if tid is not set.
-  if (event.tid == 0 && event.pid != 0 && !event.tid_is_string_id) {
+  if (!event.tid_exists && event.pid != 0) {
     event.tid = event.pid;
   }
 
