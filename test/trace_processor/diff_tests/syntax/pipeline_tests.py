@@ -1004,6 +1004,34 @@ class PerfettoPipeline(TestSuite):
         3,2,"[NULL]",0.000000
         """))
 
+  # PER columns are brought to one type even when they are not output.
+  def test_interval_fill_gaps_unifies_unused_per_types(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE spans AS
+        SELECT 2 AS ts, 3 AS dur, 0 AS cpu
+        UNION ALL SELECT 1, 2, 1;
+        CREATE PERFETTO TABLE lanes AS
+        SELECT 0 AS ts, 10 AS dur, 0.0 AS cpu
+        UNION ALL SELECT 0, 4, 1.0;
+
+        FROM spans
+        |> INTERVAL FILL GAPS WITH lanes PER cpu
+        |> SELECT ts, dur
+        |> ORDER BY ts, dur;
+        """,
+        out=Csv("""
+        "ts","dur"
+        0,1
+        0,2
+        1,2
+        2,3
+        3,1
+        5,5
+        """))
+
   def test_interval_fill_gaps_needs_background_bounds(self):
     return DiffTestBlueprint(
         trace=TextProto(r''),

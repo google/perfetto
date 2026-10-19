@@ -214,6 +214,13 @@ void IntervalFillGaps::Lower(Lowering* c, const PlanNode& node) const {
     }
   }
 
+  // PER columns are numbered in one table, so both sides need one type even
+  // if they are not output.
+  for (size_t k = 0; k < fill.background_keys_.size(); ++k) {
+    c->RequireCommonType(
+        {{c, fill.keys_[k]}, {&background, fill.background_keys_[k]}});
+  }
+
   ex::IntervalFillGapsSpec spec;
   spec.input = c->RequireIntervalLanes(fill.ts_, fill.dur_, fill.keys_);
   spec.input.forever = true;
