@@ -41,6 +41,14 @@ void Writer::U32(uint32_t value) {
   Append(&value, sizeof(value));
 }
 
+void Writer::U64(uint64_t value) {
+  Append(&value, sizeof(value));
+}
+
+void Writer::F64(double value) {
+  Append(&value, sizeof(value));
+}
+
 void Writer::Size(size_t value) {
   U32(static_cast<uint32_t>(value));
 }
@@ -75,6 +83,18 @@ uint8_t Reader::U8() {
 
 uint32_t Reader::U32() {
   uint32_t value = 0;
+  Read(&value, sizeof(value));
+  return value;
+}
+
+uint64_t Reader::U64() {
+  uint64_t value = 0;
+  Read(&value, sizeof(value));
+  return value;
+}
+
+double Reader::F64() {
+  double value = 0;
   Read(&value, sizeof(value));
   return value;
 }

@@ -36,6 +36,8 @@ source_set("operations") {
     "scan.h",
     "tree_accumulate.cc",
     "tree_accumulate.h",
+    "where.cc",
+    "where.h",
   ]
   deps = [
     "..:plan",

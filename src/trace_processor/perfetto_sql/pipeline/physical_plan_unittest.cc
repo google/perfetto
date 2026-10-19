@@ -139,7 +139,7 @@ class PhysicalPlanTest : public ::testing::Test {
     LogicalPlan moved = MoveSqlSourcesToDataframeArgs(std::move(plan)).plan;
     RETURN_IF_ERROR(
         BindDataframeArgs(moved, DataframeArgs(dataframes), &pool_));
-    return Lower(moved);
+    return Lower(moved, &pool_);
   }
 
   std::vector<std::string> Names(const PhysicalPlan& plan) {
@@ -195,7 +195,7 @@ TEST_F(PhysicalPlanTest, PruningACopyLeavesTheOriginalResultsIntact) {
   copy.output().resize(1);
   PruneColumns(copy);
 
-  auto physical = Lower(*original);
+  auto physical = Lower(*original, &pool_);
   ASSERT_TRUE(physical.ok()) << physical.status().message();
   auto rows = Run(**physical, "total");
   ASSERT_TRUE(rows.ok()) << rows.status().message();
@@ -306,6 +306,46 @@ TEST_F(PhysicalPlanTest, DistinctKeepsFirstRowOfEachDuplicateSet) {
   }
   ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
   EXPECT_THAT(values, ElementsAre(1, 2, 3));
+}
+
+// WHERE's conditions are the AND of column-literal comparisons, evaluated
+// against the run's filter values.
+TEST_F(PhysicalPlanTest, WhereKeepsRowsMatchingEveryPredicate) {
+  Exec("CREATE TABLE t(id INTEGER, cpu INTEGER)");
+  Exec("INSERT INTO t VALUES (0, 1), (1, 5), (2, 3), (3, 9), (4, 7)");
+  auto plan = Plan("FROM t |> WHERE cpu > 2 AND cpu < 9 |> SELECT cpu");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+  EXPECT_EQ(PhysicalPlanToString(**plan),
+            "main: DataframeScan | AssertType(#0 to Int64) | "
+            "Filter(#0 > ?0, #0 < ?1)");
+
+  uint32_t cpu_column = (*plan)->columns()[0].index;
+  std::vector<int64_t> values;
+  RowCursor cursor((*plan)->source());
+  for (bool row = cursor.Open((*plan)->filter_values()); row;
+       row = cursor.Next()) {
+    values.push_back(*IntAt(cursor, cpu_column));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(5, 3, 7));
+}
+
+// A fractional literal is matched against a Double column exactly.
+TEST_F(PhysicalPlanTest, WhereComparesDoubleColumns) {
+  Exec("CREATE TABLE t(id INTEGER, value REAL)");
+  Exec("INSERT INTO t VALUES (0, 1.5), (1, 2.5), (2, 3.5)");
+  auto plan = Plan("FROM t |> WHERE value >= 2.5 |> SELECT value");
+  ASSERT_TRUE(plan.ok()) << plan.status().message();
+
+  uint32_t value_column = (*plan)->columns()[0].index;
+  std::vector<double> values;
+  RowCursor cursor((*plan)->source());
+  for (bool row = cursor.Open((*plan)->filter_values()); row;
+       row = cursor.Next()) {
+    values.push_back(cursor.Value<double>(value_column));
+  }
+  ASSERT_TRUE(cursor.status().ok()) << cursor.status().message();
+  EXPECT_THAT(values, ElementsAre(2.5, 3.5));
 }
 
 // Each operand is grouped by its PER keys and sorted by ts within each group,
@@ -475,7 +515,7 @@ TEST_F(PhysicalPlanTest, ARenamingOfADataframeIsScannedDirectly) {
   EXPECT_TRUE(moved.args.empty());
   auto read = DeserializePlan(SerializePlan(moved.plan), catalog_);
   ASSERT_TRUE(read.ok()) << read.status().message();
-  auto lowered = Lower(*read);
+  auto lowered = Lower(*read, &pool_);
   ASSERT_TRUE(lowered.ok()) << lowered.status().message();
   EXPECT_THAT(Names(**lowered),
               ElementsAre("id", "parent_id", "own", "copy", "total"));

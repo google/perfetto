@@ -156,12 +156,7 @@ base::Status Compiler::BuildOperation(uint32_t stage) {
   uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
   const auto* registration = FindOperationBySyntax(tag);
   if (!registration) {
-    switch (tag) {
-      case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
-        return Unsupported(stage, "WHERE");
-      default:
-        PERFETTO_FATAL("Unknown pipeline stage");
-    }
+    PERFETTO_FATAL("Unknown pipeline stage");
   }
   return registration->BuildPlan(this, stage);
 }
