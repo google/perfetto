@@ -103,7 +103,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 58.
+// Next reserved id: 13 (up to 15). Next id: 60.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -169,6 +169,11 @@ message TrackEvent {
     TYPE_STATE = 5;
   }
   optional Type type = 9;
+
+  // For backward-looking TYPE_STATE events: the duration (in nanoseconds) for
+  // which |name| (the state value) was active ending at the packet's timestamp,
+  // i.e. start_ts = timestamp - state_duration_ns.
+  optional uint64 state_duration_ns = 58;
 
   // Identifies the track of the event. The default value may be overridden
   // using TrackEventDefaults, e.g., to specify the track of the TraceWriter's

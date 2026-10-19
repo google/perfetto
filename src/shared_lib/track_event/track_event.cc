@@ -76,6 +76,13 @@ void PerfettoTeCategoryImplSetCallback(struct PerfettoTeCategoryImpl* cat,
   perfetto::shlib::TrackEvent::CategorySetCallback(cat, cb, user_arg);
 }
 
+void PerfettoTeCategoryImplSetSnapshotCallback(
+    struct PerfettoTeCategoryImpl* cat,
+    PerfettoTeCategorySnapshotCallback cb,
+    void* user_arg) {
+  perfetto::shlib::TrackEvent::CategorySetSnapshotCallback(cat, cb, user_arg);
+}
+
 PERFETTO_ATOMIC(bool) *
     PerfettoTeCategoryImplGetEnabled(struct PerfettoTeCategoryImpl* cat) {
   return &cat->flag;

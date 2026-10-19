@@ -38,6 +38,7 @@ class GlobalState {
   void OnStart(const perfetto::protos::gen::TrackEventConfig& config,
                uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
   void OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
+  void OnFlush(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_);
   void RegisterCategory(PerfettoTeCategoryImpl* cat)
       PERFETTO_LOCKS_EXCLUDED(mu_);
   void UnregisterCategory(PerfettoTeCategoryImpl* cat)
@@ -45,8 +46,13 @@ class GlobalState {
   void CategorySetCallback(struct PerfettoTeCategoryImpl* cat,
                            PerfettoTeCategoryImplCallback cb,
                            void* user_arg) PERFETTO_LOCKS_EXCLUDED(mu_);
+  void CategorySetSnapshotCallback(struct PerfettoTeCategoryImpl* cat,
+                                   PerfettoTeCategorySnapshotCallback cb,
+                                   void* user_arg) PERFETTO_LOCKS_EXCLUDED(mu_);
   DataSourceDescriptor GenerateDescriptorFromCategories() const
       PERFETTO_LOCKS_EXCLUDED(mu_);
+
+  static uint32_t GetScopedInstanceMask();
 
  private:
   GlobalState();

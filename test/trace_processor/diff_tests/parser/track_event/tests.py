@@ -1388,6 +1388,85 @@ class TrackEvent(TestSuite):
         0,1000,"High","Priority"
         """))
 
+  def test_track_event_state_duration_ns(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 10
+            name: "MyStateTrack"
+            state {}
+          }
+        }
+        # Backward-looking transition emitted at t=2500 for state "BOOTING"
+        # that started at t=1000 (state_duration_ns = 1500).
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2500
+          track_event {
+            track_uuid: 10
+            type: 5
+            categories: "state_cat"
+            name: "BOOTING"
+            state_duration_ns: 1500
+            debug_annotations {
+              name: "reason"
+              uint_value: 42
+            }
+          }
+        }
+        # Intermediate flush snapshot at t=2800 for state "READY" that started
+        # at t=2500 (state_duration_ns = 300).
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2800
+          track_event {
+            track_uuid: 10
+            type: 5
+            categories: "state_cat"
+            name: "READY"
+            state_duration_ns: 300
+          }
+        }
+        # Final snapshot at t=3000 for state "READY" that still started at
+        # t=2500 (state_duration_ns = 500), deduplicated by StateTracker::UpdateState.
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            track_uuid: 10
+            type: 5
+            categories: "state_cat"
+            name: "READY"
+            state_duration_ns: 500
+            debug_annotations {
+              name: "snapshot_arg"
+              uint_value: 7
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          ts,
+          dur,
+          value,
+          track.name AS track_name,
+          extract_arg(state.arg_set_id, 'debug.reason') AS reason,
+          extract_arg(state.arg_set_id, 'debug.snapshot_arg') AS snapshot_arg
+        FROM state
+        JOIN track ON track.id = state.track_id
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","value","track_name","reason","snapshot_arg"
+        1000,1500,"BOOTING","MyStateTrack",42,"[NULL]"
+        2500,-1,"READY","MyStateTrack","[NULL]",7
+        """))
+
   # A sentinel/uninitialized microsecond timestamp near INT64_MIN must not
   # wrap to a large positive value when converted to nanoseconds (x1000).
   # SaturatingMultiply keeps it negative so the trace sorter's ts < 0 guard

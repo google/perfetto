@@ -2490,6 +2490,211 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredState) {
                           ElementsAre(VarIntField(kExpectedUuid))))))))));
 }
 
+TEST_F(SharedLibTrackEventTest,
+       TrackEventHlStateTransitionAndSnapshotRingBuffer) {
+  PerfettoTeRegisteredTrack my_state_track;
+  PerfettoTeStateTrackRegister(&my_state_track, "MyRingState",
+                               PerfettoTeProcessTrackUuid(), true);
+
+  struct StateCtx {
+    PerfettoTeRegisteredTrack* track;
+    const char* cur_val;
+    uint64_t cur_start_ns;
+    int callback_count;
+  } state_ctx{&my_state_track, "BOOTING", 1000, 0};
+
+  PerfettoTeCategorySetSnapshotCallback(
+      &cat1,
+      [](struct PerfettoTeCategoryImpl*, PerfettoDsInstanceIndex,
+         void* user_arg) {
+        auto* ctx = static_cast<StateCtx*>(user_arg);
+        ctx->callback_count++;
+        PerfettoTeTimestamp ts = {PerfettoDsGetDefaultClockId(), 3000};
+        PERFETTO_TE(
+            cat1, PERFETTO_TE_STATE_SNAPSHOT(ctx->cur_val, ctx->cur_start_ns),
+            PERFETTO_TE_REGISTERED_TRACK(ctx->track), PERFETTO_TE_TIMESTAMP(ts),
+            PERFETTO_TE_NO_INTERN(), PERFETTO_TE_ARG_UINT64("snapshot_arg", 7));
+      },
+      &state_ctx);
+
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name("track_event")
+          .add_enabled_category("cat1")
+          .set_enable_persistent_state_snapshot(true)
+          .set_persistent_state_for_ring_buffer(true)
+          .Build();
+
+  // Ring buffer sessions do not invoke state snapshot callbacks on OnStart.
+  EXPECT_EQ(state_ctx.callback_count, 0);
+
+  // Transition BOOTING (started at 1000) -> READY at t=2500.
+  PerfettoTeTimestamp transition_ts = {PerfettoDsGetDefaultClockId(), 2500};
+  PERFETTO_TE(
+      cat1, PERFETTO_TE_STATE_TRANSITION("BOOTING", 1000, "READY"),
+      PERFETTO_TE_REGISTERED_TRACK(&my_state_track),
+      PERFETTO_TE_TIMESTAMP(transition_ts), PERFETTO_TE_NO_INTERN(),
+      PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_NESTED(
+          perfetto_protos_TrackEvent_debug_annotations_field_number,
+          PERFETTO_TE_PROTO_FIELD_CSTR(
+              perfetto_protos_DebugAnnotation_name_field_number, "reason"),
+          PERFETTO_TE_PROTO_FIELD_VARINT(
+              perfetto_protos_DebugAnnotation_uint_value_field_number, 42))));
+  state_ctx.cur_val = "READY";
+  state_ctx.cur_start_ns = 2500;
+
+  tracing_session.StopBlocking();
+  // OnFlush invokes the state snapshot callback on ring buffers.
+  EXPECT_EQ(state_ctx.callback_count, 1);
+
+  PerfettoTeCategorySetSnapshotCallback(&cat1, nullptr, nullptr);
+  PerfettoTeRegisteredTrackUnregister(&my_state_track);
+
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      AllOf(
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_STATE))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_name_field_number,
+                          ElementsAre(StringField("BOOTING"))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_state_duration_ns_field_number,
+                          ElementsAre(VarIntField(1500))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_debug_annotations_field_number,
+                          ElementsAre(MsgField(UnorderedElementsAre(
+                              PbField(
+                                  perfetto_protos_DebugAnnotation_name_field_number,
+                                  StringField("reason")),
+                              PbField(
+                                  perfetto_protos_DebugAnnotation_uint_value_field_number,
+                                  VarIntField(42))))))))))),
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_STATE))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_name_field_number,
+                          ElementsAre(StringField("READY"))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_state_duration_ns_field_number,
+                          ElementsAre(VarIntField(500))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_debug_annotations_field_number,
+                          ElementsAre(MsgField(UnorderedElementsAre(
+                              PbField(
+                                  perfetto_protos_DebugAnnotation_name_iid_field_number,
+                                  VarIntField(_)),
+                              PbField(
+                                  perfetto_protos_DebugAnnotation_uint_value_field_number,
+                                  VarIntField(7)))))))))))));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlStateTransitionAndSnapshotForward) {
+  PerfettoTeRegisteredTrack my_state_track;
+  PerfettoTeStateTrackRegister(&my_state_track, "MyForwardState",
+                               PerfettoTeProcessTrackUuid(), true);
+
+  struct StateCtx {
+    PerfettoTeRegisteredTrack* track;
+    int callback_count;
+  } state_ctx{&my_state_track, 0};
+
+  PerfettoTeCategorySetSnapshotCallback(
+      &cat1,
+      [](struct PerfettoTeCategoryImpl*, PerfettoDsInstanceIndex,
+         void* user_arg) {
+        auto* ctx = static_cast<StateCtx*>(user_arg);
+        ctx->callback_count++;
+        PerfettoTeTimestamp snapshot_ts = {PerfettoDsGetDefaultClockId(), 1500};
+        PERFETTO_TE(cat1, PERFETTO_TE_STATE_SNAPSHOT("INITIAL", 1000),
+                    PERFETTO_TE_REGISTERED_TRACK(ctx->track),
+                    PERFETTO_TE_TIMESTAMP(snapshot_ts),
+                    PERFETTO_TE_NO_INTERN());
+      },
+      &state_ctx);
+
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name("track_event")
+          .add_enabled_category("cat1")
+          .set_enable_persistent_state_snapshot(true)
+          .Build();
+
+  // Forward-looking sessions invoke the snapshot callback on OnStart.
+  EXPECT_EQ(state_ctx.callback_count, 1);
+
+  PERFETTO_TE(cat1, PERFETTO_TE_STATE_TRANSITION("INITIAL", 1000, "RUNNING"),
+              PERFETTO_TE_REGISTERED_TRACK(&my_state_track),
+              PERFETTO_TE_NO_INTERN(), PERFETTO_TE_ARG_UINT64("arg_name", 99));
+
+  tracing_session.StopBlocking();
+  // OnFlush does not re-invoke the callback when
+  // persistent_state_for_ring_buffer is false.
+  EXPECT_EQ(state_ctx.callback_count, 1);
+
+  PerfettoTeCategorySetSnapshotCallback(&cat1, nullptr, nullptr);
+  PerfettoTeRegisteredTrackUnregister(&my_state_track);
+
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      AllOf(
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_STATE))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_name_field_number,
+                          ElementsAre(StringField("INITIAL"))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_state_duration_ns_field_number,
+                          ElementsAre())))))),
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_STATE))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_name_field_number,
+                          ElementsAre(StringField("RUNNING"))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_state_duration_ns_field_number,
+                          ElementsAre()),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_debug_annotations_field_number,
+                          ElementsAre(MsgField(UnorderedElementsAre(
+                              PbField(
+                                  perfetto_protos_DebugAnnotation_name_iid_field_number,
+                                  VarIntField(_)),
+                              PbField(
+                                  perfetto_protos_DebugAnnotation_uint_value_field_number,
+                                  VarIntField(99)))))))))))));
+}
+
 TEST_F(SharedLibTrackEventTest, Scoped) {
   TracingSession tracing_session = TracingSession::Builder()
                                        .set_data_source_name("track_event")

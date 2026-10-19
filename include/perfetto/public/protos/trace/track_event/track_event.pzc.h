@@ -126,6 +126,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   enum perfetto_protos_TrackEvent_Type,
                   type,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  VARINT,
+                  uint64_t,
+                  state_duration_ns,
+                  58);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent, VARINT, uint64_t, track_uuid, 11);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   VARINT,

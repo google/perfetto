@@ -26,6 +26,24 @@ namespace perfetto::shlib {
 
 namespace {
 
+thread_local uint32_t g_scoped_instance_mask = ~0u;
+
+struct PendingSnapshotCb {
+  PerfettoTeCategoryImpl* cat;
+  PerfettoTeCategorySnapshotCallback cb;
+  void* user_arg;
+};
+
+void InvokeScopedSnapshotCallback(PerfettoTeCategoryImpl* cat,
+                                  PerfettoTeCategorySnapshotCallback cb,
+                                  uint32_t instance_id,
+                                  void* user_arg) {
+  uint32_t prev_mask = g_scoped_instance_mask;
+  g_scoped_instance_mask = (1u << instance_id);
+  cb(cat, instance_id, user_arg);
+  g_scoped_instance_mask = prev_mask;
+}
+
 bool IsRegisteredCategoryEnabled(
     const PerfettoTeCategoryImpl& cat,
     const perfetto::protos::gen::TrackEventConfig& config) {
@@ -37,6 +55,10 @@ bool IsRegisteredCategoryEnabled(
 
 }  // namespace
 
+uint32_t GlobalState::GetScopedInstanceMask() {
+  return g_scoped_instance_mask;
+}
+
 GlobalState::GlobalState() : interned_categories_(0) {
   perfetto_te_any_categories = new PerfettoTeCategoryImpl;
   perfetto_te_any_categories_enabled = &perfetto_te_any_categories->flag;
@@ -44,14 +66,27 @@ GlobalState::GlobalState() : interned_categories_(0) {
 
 void GlobalState::OnStart(const perfetto::protos::gen::TrackEventConfig& config,
                           uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
-  std::lock_guard<std::mutex> lock(mu_);
-  perfetto_te_any_categories->EnableInstance(instance_id);
-  for (PerfettoTeCategoryImpl* cat : categories_) {
-    if (IsRegisteredCategoryEnabled(*cat, config)) {
-      cat->EnableInstance(instance_id);
+  const bool emit_on_start = config.enable_persistent_state_snapshot() &&
+                             !config.persistent_state_for_ring_buffer();
+  std::vector<PendingSnapshotCb> pending_snapshot_cbs;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    perfetto_te_any_categories->EnableInstance(instance_id);
+    for (PerfettoTeCategoryImpl* cat : categories_) {
+      if (IsRegisteredCategoryEnabled(*cat, config)) {
+        cat->EnableInstance(instance_id);
+        if (emit_on_start && cat->snapshot_cb) {
+          pending_snapshot_cbs.push_back(
+              {cat, cat->snapshot_cb, cat->snapshot_cb_user_arg});
+        }
+      }
     }
+    active_configs_[instance_id] = config;
   }
-  active_configs_[instance_id] = config;
+  for (const auto& pending : pending_snapshot_cbs) {
+    InvokeScopedSnapshotCallback(pending.cat, pending.cb, instance_id,
+                                 pending.user_arg);
+  }
 }
 
 void GlobalState::OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
@@ -61,6 +96,30 @@ void GlobalState::OnStop(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
   }
   perfetto_te_any_categories->DisableInstance(instance_id);
   active_configs_.erase(instance_id);
+}
+
+void GlobalState::OnFlush(uint32_t instance_id) PERFETTO_LOCKS_EXCLUDED(mu_) {
+  std::vector<PendingSnapshotCb> pending_snapshot_cbs;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    auto it = active_configs_.find(instance_id);
+    if (it == active_configs_.end() ||
+        !it->second.enable_persistent_state_snapshot() ||
+        !it->second.persistent_state_for_ring_buffer()) {
+      return;
+    }
+    for (PerfettoTeCategoryImpl* cat : categories_) {
+      uint8_t active_instances = cat->instances.load(std::memory_order_relaxed);
+      if ((active_instances & (1u << instance_id)) && cat->snapshot_cb) {
+        pending_snapshot_cbs.push_back(
+            {cat, cat->snapshot_cb, cat->snapshot_cb_user_arg});
+      }
+    }
+  }
+  for (const auto& pending : pending_snapshot_cbs) {
+    InvokeScopedSnapshotCallback(pending.cat, pending.cb, instance_id,
+                                 pending.user_arg);
+  }
 }
 
 void GlobalState::RegisterCategory(PerfettoTeCategoryImpl* cat)
@@ -104,6 +163,32 @@ void GlobalState::CategorySetCallback(struct PerfettoTeCategoryImpl* cat,
     }
     cb(cat, i, true, first, user_arg);
     first = false;
+  }
+}
+
+void GlobalState::CategorySetSnapshotCallback(
+    struct PerfettoTeCategoryImpl* cat,
+    PerfettoTeCategorySnapshotCallback cb,
+    void* user_arg) PERFETTO_LOCKS_EXCLUDED(mu_) {
+  std::vector<uint32_t> active_forward_instances;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    cat->snapshot_cb = cb;
+    cat->snapshot_cb_user_arg = user_arg;
+    if (!cb) {
+      return;
+    }
+    uint8_t active_instances = cat->instances.load(std::memory_order_relaxed);
+    for (const auto& [instance_id, config] : active_configs_) {
+      if ((active_instances & (1u << instance_id)) &&
+          config.enable_persistent_state_snapshot() &&
+          !config.persistent_state_for_ring_buffer()) {
+        active_forward_instances.push_back(instance_id);
+      }
+    }
+  }
+  for (uint32_t instance_id : active_forward_instances) {
+    InvokeScopedSnapshotCallback(cat, cb, instance_id, user_arg);
   }
 }
 

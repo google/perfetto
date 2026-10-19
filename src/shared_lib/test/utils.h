@@ -95,6 +95,14 @@ class TracingSession {
       enable_protovm_config_ = true;
       return *this;
     }
+    Builder& set_enable_persistent_state_snapshot(bool enable) {
+      enable_persistent_state_snapshot_ = enable;
+      return *this;
+    }
+    Builder& set_persistent_state_for_ring_buffer(bool ring_buffer) {
+      persistent_state_for_ring_buffer_ = ring_buffer;
+      return *this;
+    }
     std::vector<uint8_t> BuildProtoConfig();
 
     TracingSession Build();
@@ -106,6 +114,8 @@ class TracingSession {
     uint32_t clear_period_ms_ = 0;
     bool enable_protovm_config_ = false;
     std::optional<uint32_t> v2_probability_;
+    bool enable_persistent_state_snapshot_ = false;
+    bool persistent_state_for_ring_buffer_ = false;
   };
 
   static TracingSession Adopt(struct PerfettoTracingSessionImpl*);

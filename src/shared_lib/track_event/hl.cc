@@ -425,6 +425,8 @@ void InstanceOp(internal::DataSourceType* ds,
 
   const struct PerfettoTeHlExtraTimestamp* custom_timestamp = nullptr;
   const struct PerfettoTeCategoryDescriptor* dynamic_cat = nullptr;
+  const struct PerfettoTeHlExtraStateTransition* state_transition = nullptr;
+  const struct PerfettoTeHlExtraStateSnapshot* state_snapshot = nullptr;
   std::optional<int64_t> int_counter;
   std::optional<double> double_counter;
   bool use_interning = true;
@@ -467,6 +469,15 @@ void InstanceOp(internal::DataSourceType* ds,
       use_interning = false;
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_FLUSH) {
       flush = true;
+    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_STATE_TRANSITION) {
+      state_transition =
+          &reinterpret_cast<const struct PerfettoTeHlExtraStateTransition&>(
+              extra);
+    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_STATE_SNAPSHOT) {
+      state_snapshot =
+          &reinterpret_cast<const struct PerfettoTeHlExtraStateSnapshot&>(
+              extra);
+      flush = true;
     }
   }
 
@@ -489,6 +500,26 @@ void InstanceOp(internal::DataSourceType* ds,
 
   const auto& track_event_tls = *static_cast<TrackEventTlsState*>(
       ii->instance->data_source_custom_tls.get());
+
+  const char* effective_name = name;
+  std::optional<uint64_t> state_duration_ns;
+  if (state_transition) {
+    if (track_event_tls.persistent_state_for_ring_buffer) {
+      if (!state_transition->prev_val && state_transition->prev_start_ns == 0) {
+        return;
+      }
+      effective_name = state_transition->prev_val;
+      state_duration_ns = ts.value > state_transition->prev_start_ns
+                              ? ts.value - state_transition->prev_start_ns
+                              : 0;
+    }
+  } else if (state_snapshot) {
+    if (track_event_tls.persistent_state_for_ring_buffer) {
+      state_duration_ns = ts.value > state_snapshot->cur_start_ns
+                              ? ts.value - state_snapshot->cur_start_ns
+                              : 0;
+    }
+  }
 
   auto* incr_state = static_cast<TrackEventIncrementalState*>(
       ds->GetIncrementalState(ii->instance, ii->i));
@@ -561,8 +592,11 @@ void InstanceOp(internal::DataSourceType* ds,
         trace_writer, incr_state, track_event_tls, ts,
         protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
     auto* track_event = packet->set_track_event();
-    WriteTrackEvent(incr_state, track_event, cat, type, name, extra_data,
-                    track_uuid, dynamic_cat, use_interning);
+    WriteTrackEvent(incr_state, track_event, cat, type, effective_name,
+                    extra_data, track_uuid, dynamic_cat, use_interning);
+    if (state_duration_ns) {
+      track_event->set_state_duration_ns(*state_duration_ns);
+    }
     track_event->Finalize();
 
     if (!incr_state->serialized_interned_data.empty()) {
@@ -585,7 +619,8 @@ void TeHlEmit(struct PerfettoTeCategoryImpl* cat,
               struct PerfettoTeHlExtra* const* extra_data) {
   uint32_t cached_instances =
       perfetto::shlib::TracePointTraits::GetActiveInstances({cat})->load(
-          std::memory_order_relaxed);
+          std::memory_order_relaxed) &
+      perfetto::shlib::GlobalState::GetScopedInstanceMask();
   if (!cached_instances) {
     return;
   }

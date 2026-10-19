@@ -154,6 +154,8 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS = 19,
   PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID = 20,
   PERFETTO_TE_HL_EXTRA_TYPE_CORRELATION_ID_STR = 21,
+  PERFETTO_TE_HL_EXTRA_TYPE_STATE_TRANSITION = 22,
+  PERFETTO_TE_HL_EXTRA_TYPE_STATE_SNAPSHOT = 23,
 };
 
 // An extra event parameter. Each type of parameter should embed this as its
@@ -409,6 +411,19 @@ struct PerfettoTeHlExtraNestedTracks {
   // The first pointer is the outermost track (the parent track), the (second
   // to) last pointer is the innermost track (the child track).
   struct PerfettoTeHlNestedTrack* const* tracks;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_STATE_TRANSITION
+struct PerfettoTeHlExtraStateTransition {
+  struct PerfettoTeHlExtra header;
+  const char* prev_val;
+  uint64_t prev_start_ns;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_STATE_SNAPSHOT
+struct PerfettoTeHlExtraStateSnapshot {
+  struct PerfettoTeHlExtra header;
+  uint64_t cur_start_ns;
 };
 
 // Emits an event on all active instances of the track event data source.

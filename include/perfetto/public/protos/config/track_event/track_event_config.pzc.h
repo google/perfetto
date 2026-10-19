@@ -76,5 +76,15 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
                   bool,
                   filter_dynamic_event_names,
                   9);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
+                  VARINT,
+                  bool,
+                  enable_persistent_state_snapshot,
+                  11);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEventConfig,
+                  VARINT,
+                  bool,
+                  persistent_state_for_ring_buffer,
+                  12);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_CONFIG_TRACK_EVENT_TRACK_EVENT_CONFIG_PZC_H_

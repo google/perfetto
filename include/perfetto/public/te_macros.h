@@ -206,6 +206,28 @@ struct PerfettoTeHlMacroNameAndType {
 #define PERFETTO_TE_STATE(VALUE) \
   PERFETTO_I_TE_HL_MACRO_NAME_AND_TYPE(VALUE, PERFETTO_TE_TYPE_STATE)
 
+// Reports a state transition from `const char* PREV_VAL` (which started at
+// `uint64_t PREV_START_NS`) to `const char* NEW_VAL`. Emits forward-looking
+// `NEW_VAL` on non-destructive buffers and backward-looking `PREV_VAL` (with
+// duration) on ring-buffer sessions.
+#define PERFETTO_TE_STATE_TRANSITION(PREV_VAL, PREV_START_NS, NEW_VAL)   \
+  PERFETTO_I_TE_HL_MACRO_NAME_AND_TYPE(NEW_VAL, PERFETTO_TE_TYPE_STATE), \
+      PERFETTO_I_TE_EXTRA(PerfettoTeHlExtraStateTransition,              \
+                          {{PERFETTO_TE_HL_EXTRA_TYPE_STATE_TRANSITION}, \
+                           PREV_VAL,                                     \
+                           PERFETTO_STATIC_CAST(uint64_t, PREV_START_NS)})
+
+// Reports a snapshot of the current state `const char* CUR_VAL` (which started
+// at `uint64_t CUR_START_NS`), typically inside a
+// PerfettoTeCategoryStateCallback. Emits forward-looking `CUR_VAL` on
+// non-destructive buffers and open-ended backward-looking `CUR_VAL` (with
+// duration) on ring-buffer sessions.
+#define PERFETTO_TE_STATE_SNAPSHOT(CUR_VAL, CUR_START_NS)                \
+  PERFETTO_I_TE_HL_MACRO_NAME_AND_TYPE(CUR_VAL, PERFETTO_TE_TYPE_STATE), \
+      PERFETTO_I_TE_EXTRA(PerfettoTeHlExtraStateSnapshot,                \
+                          {{PERFETTO_TE_HL_EXTRA_TYPE_STATE_SNAPSHOT},   \
+                           PERFETTO_STATIC_CAST(uint64_t, CUR_START_NS)})
+
 // -----------------------------------------------------------
 // Possible types of extra arguments for the PERFETTO_TE macro
 // -----------------------------------------------------------

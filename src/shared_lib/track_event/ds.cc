@@ -36,7 +36,20 @@ void TrackEvent::OnStart(const DataSourceBase::StartArgs&) {
 }
 
 void TrackEvent::OnStop(const DataSourceBase::StopArgs&) {
+  if (!flushed_on_stop_) {
+    GlobalState::Instance().OnFlush(inst_id_);
+  }
   GlobalState::Instance().OnStop(inst_id_);
+}
+
+void TrackEvent::OnFlush(const DataSourceBase::FlushArgs& args) {
+  if (args.flush_flags.reason() == FlushFlags::Reason::kPeriodic) {
+    return;
+  }
+  if (args.flush_flags.reason() == FlushFlags::Reason::kTraceStop) {
+    flushed_on_stop_ = true;
+  }
+  GlobalState::Instance().OnFlush(inst_id_);
 }
 
 bool TrackEvent::IsDynamicCategoryEnabled(

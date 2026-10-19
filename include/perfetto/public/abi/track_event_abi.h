@@ -94,6 +94,22 @@ PERFETTO_SDK_EXPORT void PerfettoTeCategoryImplSetCallback(
     PerfettoTeCategoryImplCallback cb,
     void* user_arg);
 
+// Called when a category should emit a snapshot of its current state tracks
+// (e.g. on trace start for forward-looking traces, or on trace flush/stop when
+// persistent_state_for_ring_buffer is enabled). Emissions via
+// PERFETTO_TE_STATE_SNAPSHOT inside `cb` are automatically scoped to `inst_id`.
+typedef void (*PerfettoTeCategorySnapshotCallback)(
+    struct PerfettoTeCategoryImpl*,
+    PerfettoDsInstanceIndex inst_id,
+    void* user_arg);
+
+// Registers `cb` to be called when state tracks for `cat` should emit a state
+// snapshot. `cb` can be NULL to disable the callback.
+PERFETTO_SDK_EXPORT void PerfettoTeCategoryImplSetSnapshotCallback(
+    struct PerfettoTeCategoryImpl* cat,
+    PerfettoTeCategorySnapshotCallback cb,
+    void* user_arg);
+
 // Returns the interning id (iid) associated with the registered category `cat`.
 PERFETTO_SDK_EXPORT uint64_t
 PerfettoTeCategoryImplGetIid(struct PerfettoTeCategoryImpl* cat);

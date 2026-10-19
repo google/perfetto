@@ -76,6 +76,7 @@ struct TrackEventTlsState {
     auto locked_ds = trace_context.GetDataSourceLocked();
     bool disable_incremental_timestamps = false;
     timestamp_unit_multiplier = 1;
+    persistent_state_for_ring_buffer = false;
     if (locked_ds.valid()) {
       const auto& config = locked_ds->GetConfig();
       disable_incremental_timestamps = config.disable_incremental_timestamps();
@@ -83,6 +84,8 @@ struct TrackEventTlsState {
           config.timestamp_unit_multiplier() != 0) {
         timestamp_unit_multiplier = config.timestamp_unit_multiplier();
       }
+      persistent_state_for_ring_buffer =
+          config.persistent_state_for_ring_buffer();
     }
     if (disable_incremental_timestamps) {
       if (timestamp_unit_multiplier == 1) {
@@ -96,6 +99,7 @@ struct TrackEventTlsState {
   }
   uint32_t default_clock_id;
   uint64_t timestamp_unit_multiplier;
+  bool persistent_state_for_ring_buffer;
 };
 
 struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
@@ -117,6 +121,7 @@ class TrackEvent
   void OnSetup(const DataSourceBase::SetupArgs& args) override;
   void OnStart(const DataSourceBase::StartArgs&) override;
   void OnStop(const DataSourceBase::StopArgs&) override;
+  void OnFlush(const DataSourceBase::FlushArgs&) override;
 
   const perfetto::protos::gen::TrackEventConfig& GetConfig() const {
     return config_;
@@ -138,6 +143,12 @@ class TrackEvent
     GlobalState::Instance().CategorySetCallback(cat, cb, user_arg);
   }
 
+  static void CategorySetSnapshotCallback(struct PerfettoTeCategoryImpl* cat,
+                                          PerfettoTeCategorySnapshotCallback cb,
+                                          void* user_arg) {
+    GlobalState::Instance().CategorySetSnapshotCallback(cat, cb, user_arg);
+  }
+
   static internal::DataSourceType* GetType();
 
   static internal::DataSourceThreadLocalState** GetTlsState() {
@@ -151,6 +162,7 @@ class TrackEvent
 
  private:
   uint32_t inst_id_;
+  bool flushed_on_stop_ = false;
   perfetto::protos::gen::TrackEventConfig config_;
 };
 

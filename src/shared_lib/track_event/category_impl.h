@@ -28,6 +28,8 @@ struct PerfettoTeCategoryImpl {
   uint64_t cat_iid = 0;
   PerfettoTeCategoryImplCallback cb = nullptr;
   void* cb_user_arg = nullptr;
+  PerfettoTeCategorySnapshotCallback snapshot_cb = nullptr;
+  void* snapshot_cb_user_arg = nullptr;
 
   void EnableInstance(uint32_t instance_index);
   void DisableInstance(uint32_t instance_index);

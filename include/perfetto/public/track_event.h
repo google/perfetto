@@ -72,6 +72,16 @@ static inline void PerfettoTeCategorySetCallback(
   PerfettoTeCategoryImplSetCallback(reg_cat->impl, cb, user_arg);
 }
 
+// Registers `cb` to be called when state tracks for `reg_cat` should emit a
+// state snapshot (via PERFETTO_TE_STATE_SNAPSHOT).
+// `cb` can be NULL to disable the callback.
+static inline void PerfettoTeCategorySetSnapshotCallback(
+    struct PerfettoTeCategory* reg_cat,
+    PerfettoTeCategorySnapshotCallback cb,
+    void* user_arg) {
+  PerfettoTeCategoryImplSetSnapshotCallback(reg_cat->impl, cb, user_arg);
+}
+
 // Unregisters the category `cat`.
 //
 // WARNING: The category cannot be used for tracing anymore after this.

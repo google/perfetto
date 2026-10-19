@@ -103,4 +103,14 @@ message TrackEventConfig {
   // When true, event_names wrapped in perfetto::DynamicString will be filtered
   // out.
   optional bool filter_dynamic_event_names = 9;
+
+  // When true, invokes registered category snapshot callbacks to emit
+  // PERFETTO_TE_STATE_SNAPSHOT events (at trace start by default, or on
+  // flush/stop when persistent_state_for_ring_buffer is true).
+  optional bool enable_persistent_state_snapshot = 11;
+
+  // When true, persistent state transitions (PERFETTO_TE_STATE_TRANSITION) and
+  // snapshots (PERFETTO_TE_STATE_SNAPSHOT) emit backward-looking state events
+  // for ring-buffer traces instead of forward-looking state events.
+  optional bool persistent_state_for_ring_buffer = 12;
 }

@@ -745,6 +745,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
                             &data.trace_packet_data.packet);
       return ModuleResult::Handled();
     }
+    if (event.has_state_duration_ns()) {
+      int64_t dur = static_cast<int64_t>(event.state_duration_ns());
+      timestamp = timestamp > dur ? timestamp - dur : 0;
+    }
   }
 
   size_t index = 0;
