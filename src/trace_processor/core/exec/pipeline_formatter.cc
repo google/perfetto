@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
+#include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
@@ -146,6 +147,73 @@ std::string TypeName(const StorageType& type) {
   return "String";
 }
 
+// Prints step `i` of `program` as an expression.
+std::string StepString(const ExprProgram& program, uint32_t i) {
+  using ExprOp = ExprStep::Op;
+  const ExprStep& step = program.steps[i];
+  auto binary = [&](const char* op) {
+    return "(" + StepString(program, step.a) + " " + op + " " +
+           StepString(program, step.b) + ")";
+  };
+  switch (step.op) {
+    case ExprOp::kColumn:
+      return "#" + std::to_string(step.a);
+    case ExprOp::kConstant:
+      switch (step.type) {
+        case ExprType::kInt64:
+          return std::to_string(step.int_value);
+        case ExprType::kDouble:
+          return std::to_string(step.double_value);
+        case ExprType::kString:
+          return "'string " + std::to_string(step.string_value.raw_id()) + "'";
+      }
+      break;
+    case ExprOp::kNull:
+      return "NULL";
+    case ExprOp::kNeg:
+      return "-" + StepString(program, step.a);
+    case ExprOp::kNot:
+      return "NOT " + StepString(program, step.a);
+    case ExprOp::kToDouble:
+      return "double(" + StepString(program, step.a) + ")";
+    case ExprOp::kAdd:
+      return binary("+");
+    case ExprOp::kSub:
+      return binary("-");
+    case ExprOp::kMul:
+      return binary("*");
+    case ExprOp::kDiv:
+      return binary("/");
+    case ExprOp::kMod:
+      return binary("%");
+    case ExprOp::kEq:
+      return binary("=");
+    case ExprOp::kNe:
+      return binary("!=");
+    case ExprOp::kLt:
+      return binary("<");
+    case ExprOp::kLe:
+      return binary("<=");
+    case ExprOp::kGt:
+      return binary(">");
+    case ExprOp::kGe:
+      return binary(">=");
+    case ExprOp::kAnd:
+      return binary("AND");
+    case ExprOp::kOr:
+      return binary("OR");
+    case ExprOp::kIsNull:
+      return StepString(program, step.a) + " IS NULL";
+    case ExprOp::kIsNotNull:
+      return StepString(program, step.a) + " IS NOT NULL";
+  }
+  return "?";
+}
+
+std::string ProgramString(const ExprProgram& program) {
+  return StepString(program, static_cast<uint32_t>(program.steps.size() - 1));
+}
+
 }  // namespace
 
 std::string PipelineFormatter::Format(const Pipeline& pipeline) {
@@ -191,6 +259,18 @@ std::string PipelineFormatter::TransformString(const Transform& transform) {
   if (transform.Is<Distinct>()) {
     return "Distinct(" +
            Columns(static_cast<const Distinct&>(transform).columns_) + ")";
+  }
+  if (transform.Is<Compute>()) {
+    std::string out;
+    for (const ExprProgram& program :
+         static_cast<const Compute&>(transform).programs_) {
+      out += (out.empty() ? "" : ", ") + ProgramString(program);
+    }
+    return "Compute(" + out + ")";
+  }
+  if (transform.Is<Where>()) {
+    return "Where(" +
+           ProgramString(static_cast<const Where&>(transform).program_) + ")";
   }
   if (transform.Is<Filter>()) {
     const auto& filter = static_cast<const Filter&>(transform);

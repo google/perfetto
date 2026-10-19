@@ -1115,3 +1115,158 @@ class PerfettoPipeline(TestSuite):
              SELECT 0 AS ts, 10 AS dur UNION ALL SELECT 5, 10);
         """,
         out=ExpectedError('overlap within a lane'))
+
+  # Each computed column must match what SQLite computes for the same SQL,
+  # nulls and division by zero included.
+  def test_expressions_match_sqlite(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE t AS
+        SELECT 1 AS id, 10 AS a, 3 AS b, 'x' AS s
+        UNION ALL SELECT 2, 20, 0, 'y'
+        UNION ALL SELECT 3, NULL, 4, 'x'
+        UNION ALL SELECT 4, -7, 2, NULL;
+
+        CREATE PERFETTO TABLE piped AS
+        FROM t
+        |> EXTEND a + b AS total, a / b AS quot, a % b AS rem,
+                  a * 1.5 AS scaled, a > b AS bigger, s = 'x' AS is_x,
+                  a IS NULL OR b > 3 AS either
+        |> SET b = -b
+        |> SELECT id, total, quot, rem, scaled, bigger, is_x, either, b;
+
+        CREATE PERFETTO TABLE plain AS
+        SELECT id, a + b AS total, a / b AS quot, a % b AS rem,
+          a * 1.5 AS scaled, a > b AS bigger, s = 'x' AS is_x,
+          a IS NULL OR b > 3 AS either, -b AS b
+        FROM t;
+
+        SELECT
+          p.*,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM plain)) AS mismatches
+        FROM piped AS p
+        ORDER BY id;
+        """,
+        out=Csv("""
+        "id","total","quot","rem","scaled","bigger","is_x","either","b","mismatches"
+        1,13,3,1,15.000000,1,1,0,-3,0
+        2,20,"[NULL]","[NULL]",30.000000,1,0,0,0,0
+        3,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",1,1,-4,0
+        4,-5,-3,-1,-10.500000,0,"[NULL]",0,-2,0
+        """))
+
+  def test_where_and_extend_match_sqlite_on_a_trace(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE piped AS
+        FROM slice
+        |> WHERE dur > 10000
+             AND (depth = 0 OR name = 'ThreadControllerImpl::RunTask')
+        |> EXTEND ts + dur AS end_ts, dur * 2 / 3 AS frac,
+                  depth + 0.5 AS half, -dur AS neg, NOT (depth > 1) AS shallow
+        |> SELECT id, end_ts, frac, half, neg, shallow;
+
+        CREATE PERFETTO TABLE plain AS
+        SELECT id, ts + dur AS end_ts, dur * 2 / 3 AS frac,
+          depth + 0.5 AS half, -dur AS neg, NOT (depth > 1) AS shallow
+        FROM slice
+        WHERE dur > 10000
+          AND (depth = 0 OR name = 'ThreadControllerImpl::RunTask');
+
+        SELECT
+          (SELECT count(*) FROM piped) AS rows,
+          (SELECT count(*) FROM (
+            SELECT * FROM piped EXCEPT SELECT * FROM plain)) AS extra,
+          (SELECT count(*) FROM (
+            SELECT * FROM plain EXCEPT SELECT * FROM piped)) AS missing;
+        """,
+        out=Csv("""
+        "rows","extra","missing"
+        15270,0,0
+        """))
+
+  # A computed column's type is only known once the source is, so later
+  # stages must see it then.
+  def test_computed_columns_feed_later_stages(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE sorted AS
+        FROM (SELECT 1 AS a UNION ALL SELECT 3 UNION ALL SELECT 2)
+        |> EXTEND a * 1.5 AS d
+        |> ORDER BY d DESC;
+
+        CREATE PERFETTO TABLE summed AS
+        FROM (SELECT 1 AS a UNION ALL SELECT 3 UNION ALL SELECT 2)
+        |> EXTEND a % 2 AS odd, a * 10 AS big
+        |> AGGREGATE SUM(big) AS total GROUP BY odd;
+
+        SELECT 'sorted' AS t, a AS k, d AS v FROM sorted
+        UNION ALL
+        SELECT 'summed', odd, total FROM (SELECT * FROM summed ORDER BY odd);
+        """,
+        out=Csv("""
+        "t","k","v"
+        "sorted",3,4.500000
+        "sorted",2,3.000000
+        "sorted",1,1.500000
+        "summed",0,20
+        "summed",1,40
+        """))
+
+  def test_comparing_a_number_with_a_string_is_an_error(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS a, 'x' AS s)
+        |> WHERE a = s;
+        """,
+        out=ExpectedError('not a number and a string'))
+
+  def test_ordering_strings_is_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 'x' AS s)
+        |> EXTEND s < 'y' AS before;
+        """,
+        out=ExpectedError('ordering strings is not supported yet'))
+
+  # SQLite would answer with a double; a pipeline refuses rather than differ.
+  def test_integer_overflow_is_an_error(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 9223372036854775807 AS a)
+        |> EXTEND a + 1 AS b;
+        """,
+        out=ExpectedError('integer overflow'))
+
+  def test_functions_are_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT -1 AS a)
+        |> EXTEND abs(a) AS b;
+        """,
+        out=ExpectedError('calling functions is not supported yet'))
+
+  def test_a_computed_column_needs_a_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS a)
+        |> EXTEND a + 1;
+        """,
+        out=ExpectedError('a name for the computed column'))

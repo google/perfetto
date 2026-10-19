@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
+#include "src/trace_processor/core/exec/expression.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
@@ -152,12 +153,26 @@ base::Status Where::BuildPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("WHERE");
   const auto* n = Node<SyntaqlitePerfettoPipeWhere>(c->parser(), stage);
   Where where;
-  RETURN_IF_ERROR(ParseCondition(c, n->condition, &where.predicates_));
+  if (!ParseCondition(c, n->condition, &where.predicates_).ok()) {
+    where.predicates_.clear();
+    ASSIGN_OR_RETURN(Expr condition, CompileExpr(c, n->condition));
+    base::StatusOr<PlanType> type = CheckExprType(c, condition);
+    if (!type.ok()) {
+      return c->Expected(n->condition, type.status().message());
+    }
+    if (type->Is<core::String>() || type->Is<core::Double>()) {
+      return c->Expected(n->condition, "an integer truth value");
+    }
+    where.condition_ = std::move(condition);
+  }
   c->AddNode(std::move(where), {c->plan().root()});
   return base::OkStatus();
 }
 
 std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
+  if (condition_) {
+    MarkExprColumns(*condition_, needed);
+  }
   for (const WherePredicate& p : predicates_) {
     (*needed)[p.column] = true;
   }
@@ -166,6 +181,18 @@ std::optional<uint32_t> Where::Prune(std::vector<bool>* needed) {
 
 void Where::Lower(Lowering* c, const PlanNode& node) const {
   c->LowerNode(node.children()[0]);
+  if (condition_) {
+    core::StorageType type = core::Int64{};
+    ex::ExprProgram program =
+        LowerExpr(c, *condition_, c->context().pool, &type);
+    if (!type.Is<core::Int64>()) {
+      c->Fail(base::ErrStatus("WHERE: expected an integer truth value"));
+      return;
+    }
+    c->AddRowLocal(std::make_unique<ex::Where>(std::move(program)));
+    c->DeclareSmallBatches();
+    return;
+  }
   std::vector<ex::Filter::Condition> conditions;
   for (const WherePredicate& p : predicates_) {
     // Filter reads only columns of one type. A column of no known type
@@ -201,6 +228,11 @@ std::unique_ptr<PlanOperation> Where::Clone() const {
 }
 
 void Where::Write(PlanWriter* c, const PlanNode&, Available* available) const {
+  c->writer().U8(condition_ ? 1 : 0);
+  if (condition_) {
+    WriteExpr(c, *condition_, *available);
+    return;
+  }
   c->writer().Size(predicates_.size());
   for (const WherePredicate& p : predicates_) {
     c->writer().Position(*available, p.column);
@@ -216,6 +248,11 @@ void Where::Write(PlanWriter* c, const PlanNode&, Available* available) const {
 
 void Where::DecodePlan(PlanReader* c, Available* available) {
   Where where;
+  if (c->reader().U8() != 0) {
+    where.condition_ = ReadExpr(c, *available);
+    c->AddNode(std::move(where), {c->plan().root()});
+    return;
+  }
   where.predicates_.resize(c->reader().Count());
   if (where.predicates_.empty()) {
     c->reader().Fail();

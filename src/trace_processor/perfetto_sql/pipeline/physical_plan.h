@@ -90,8 +90,9 @@ class PhysicalPlan {
 // What lowering needs from whoever runs the plan. Everything here must outlive
 // every run of the plan.
 struct LoweringContext {
-  // Holds the strings of the columns a Filter reads.
-  const StringPool* pool = nullptr;
+  // Holds the strings of the columns. Expressions intern their string
+  // literals into it.
+  StringPool* pool = nullptr;
 };
 
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
@@ -168,6 +169,10 @@ class Lowering {
   // must be declared with the Declare methods.
   void AddOperator(core::exec::Pipeline::Step);
 
+  // Adds a step which reads and writes each row on its own: it does not
+  // depend on or change the order of the rows.
+  void AddRowLocal(core::exec::Pipeline::Step);
+
   // Creates a new side pipeline.
   Lowering& AddSidePipeline();
 
@@ -237,6 +242,10 @@ class Lowering {
   // Reserves the next batch column for a value with no logical column, and
   // returns its position.
   uint32_t DeclareTemporaryColumn();
+
+  // Records that an added operator gave `id` values of `type`, for a column
+  // whose type was not known when the plan was built.
+  void DeclareType(ColumnId id, core::StorageType type);
 
   // Records that rows are sorted by `keys`.
   void DeclareSorted(const std::vector<SortKey>& keys);
