@@ -44,6 +44,15 @@ ResolveItems(Compiler*, uint32_t list_id, bool allow_unqualified_star);
 base::StatusOr<std::vector<Compiler::RowColumn>>
 ExpandStar(Compiler*, uint32_t star_id, bool allow_unqualified_star);
 
+// Resolves an item's expression, which must be a column reference.
+base::StatusOr<ColumnId> ResolveColumnItem(Compiler* c, uint32_t expr) {
+  if (Node<SyntaqliteNode>(c->parser(), expr)->tag !=
+      SYNTAQLITE_NODE_COLUMN_REF) {
+    return c->Unsupported(expr, "a computed column");
+  }
+  return c->ResolveColumnExpr(expr);
+}
+
 // Replaces the row. What it leaves is a new table: no alias reaches into it.
 base::Status BuildSelectPlan(Compiler* c, uint32_t stage) {
   c->SetOperation("SELECT");
@@ -146,14 +155,7 @@ base::Status BuildSetPlan(Compiler* c, uint32_t stage) {
     std::string name = SpanText(c->parser(), item->name);
     RETURN_IF_ERROR(c->CheckListedOnce(seen, name, item_id));
     ASSIGN_OR_RETURN(size_t at, c->FindInRow(name, item_id));
-    const auto* value =
-        Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item->value);
-    std::string qualifier = IsSpanPresent(value->qualifier)
-                                ? SpanText(c->parser(), value->qualifier)
-                                : "";
-    ASSIGN_OR_RETURN(
-        ColumnId id,
-        c->Resolve(qualifier, SpanText(c->parser(), value->name), item->value));
+    ASSIGN_OR_RETURN(ColumnId id, ResolveColumnItem(c, item->value));
     assignments.push_back({at, id, item_id});
   }
   for (const Assignment& assignment : assignments) {
@@ -185,15 +187,14 @@ ResolveItems(Compiler* c, uint32_t list_id, bool allow_unqualified_star) {
       columns.insert(columns.end(), expanded.begin(), expanded.end());
       continue;
     }
-    const auto* item = Node<SyntaqlitePerfettoPipeColumn>(c->parser(), item_id);
-    std::string qualifier = IsSpanPresent(item->qualifier)
-                                ? SpanText(c->parser(), item->qualifier)
-                                : "";
-    std::string name = SpanText(c->parser(), item->name);
-    ASSIGN_OR_RETURN(ColumnId id, c->Resolve(qualifier, name, item_id));
-    if (IsSpanPresent(item->alias)) {
-      name = SpanText(c->parser(), item->alias);
-    }
+    const auto* item =
+        Node<SyntaqlitePerfettoPipeExprItem>(c->parser(), item_id);
+    ASSIGN_OR_RETURN(ColumnId id, ResolveColumnItem(c, item->expr));
+    std::string name = IsSpanPresent(item->alias)
+                           ? SpanText(c->parser(), item->alias)
+                           : SpanText(c->parser(), Node<SyntaqliteNode>(
+                                                       c->parser(), item->expr)
+                                                       ->column_ref.column);
     columns.push_back({{std::move(name), id}, c->operation(), item_id});
   }
   return columns;
