@@ -2682,6 +2682,8 @@ perfetto_filegroup(
         "src/trace_processor/core/exec/sort.h",
         "src/trace_processor/core/exec/sorted_rows.cc",
         "src/trace_processor/core/exec/sorted_rows.h",
+        "src/trace_processor/core/exec/sorted_scan.cc",
+        "src/trace_processor/core/exec/sorted_scan.h",
         "src/trace_processor/core/exec/tree_accumulate.cc",
         "src/trace_processor/core/exec/tree_accumulate.h",
         "src/trace_processor/core/exec/tree_number_nodes.cc",

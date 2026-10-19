@@ -37,8 +37,8 @@ namespace perfetto::trace_processor::core::exec {
 //
 // A column storing one value per row is lent where it lies, so moving the
 // window costs nothing. A column which does not is expanded a window at a
-// time into a buffer from the run's Context. Windows go forward only: each
-// starts where the one before ended, until Rewind().
+// time into a buffer from the run's Context. Windows go forward only until
+// Rewind(), but may skip rows.
 class DataframeWindows {
  public:
   DataframeWindows();

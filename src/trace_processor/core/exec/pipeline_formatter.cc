@@ -40,6 +40,7 @@
 #include "src/trace_processor/core/exec/pipeline.h"
 #include "src/trace_processor/core/exec/sort.h"
 #include "src/trace_processor/core/exec/sorted_rows.h"
+#include "src/trace_processor/core/exec/sorted_scan.h"
 #include "src/trace_processor/core/exec/tree_accumulate.h"
 #include "src/trace_processor/core/exec/tree_number_nodes.h"
 #include "src/trace_processor/core/exec/tree_order.h"
@@ -176,6 +177,9 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   }
   if (source.Is<Pipeline>()) {
     return "Pipeline";
+  }
+  if (source.Is<SortedScan>()) {
+    return "SortedScan";
   }
   return "Source";
 }
