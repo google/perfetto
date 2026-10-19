@@ -135,17 +135,12 @@ export class ProcessMemDetails implements m.ClassComponent<ProcessMemDetailsAttr
 
   view({attrs}: m.Vnode<ProcessMemDetailsAttrs>) {
     const {trace, upid, tab, onTabChange} = attrs;
-    let capture: CaptureInfo | undefined;
-    let error: string | undefined;
-    try {
-      capture = this.captureSlot.use({
-        key: {traceId: trace.traceInfo.uuid, upid},
-        compute: () => loadCaptureInfo(trace, upid),
-      }).data;
-    } catch (e) {
-      error = String(e);
-    }
-
+    const result = this.captureSlot.use({
+      key: {traceId: trace.traceInfo.uuid, upid},
+      compute: () => loadCaptureInfo(trace, upid),
+    });
+    const capture = result.data;
+    const error = result.isPending ? result.error : undefined;
     const smapsMissing = capture !== undefined && capture.smaps.samples === 0;
     const activeTab = smapsMissing ? 'summary' : tab;
 
