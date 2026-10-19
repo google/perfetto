@@ -101,7 +101,7 @@ AS (
       SELECT
         -- All objects sharing a path_hash have the same (upid, graph_sample_ts,
         -- root_type, heap_type) and class display name, so MIN(id) picks a
-        -- deterministic representative object to resolve those columns in x.
+        -- deterministic representative object to resolve those columns below.
         MIN(id) AS sample_id,
         path_hash,
         parent_path_hash,
@@ -117,51 +117,40 @@ AS (
         USING (id)
       GROUP BY
         path_hash
-    ),
-    x AS (
-      SELECT
-        o.graph_sample_ts,
-        o.upid,
-        a.path_hash,
-        a.parent_path_hash,
-        coalesce(c.deobfuscated_name, c.name, '') AS name,
-        o.root_type,
-        o.heap_type,
-        a.self_count,
-        a.self_size,
-        a.self_native_count,
-        a.self_native_size
-      FROM agg_by_hash AS a
-      JOIN heap_graph_object AS o
-        ON a.sample_id = o.id
-      JOIN heap_graph_class AS c
-        ON o.type_id = c.id
     )
   SELECT
-    graph_sample_ts,
-    upid,
-    hash(path_hash, 'native', '') AS path_hash,
-    path_hash AS parent_path_hash,
-    '[native] ' || x.name AS name,
-    root_type,
+    o.graph_sample_ts,
+    o.upid,
+    hash(a.path_hash, 'native', '') AS path_hash,
+    a.path_hash AS parent_path_hash,
+    '[native] ' || coalesce(c.deobfuscated_name, c.name, '') AS name,
+    o.root_type,
     'HEAP_TYPE_NATIVE' AS heap_type,
-    x.self_native_count AS self_count,
-    x.self_native_size AS self_size
-  FROM x
+    a.self_native_count AS self_count,
+    a.self_native_size AS self_size
+  FROM agg_by_hash AS a
+  JOIN heap_graph_object AS o
+    ON a.sample_id = o.id
+  JOIN heap_graph_class AS c
+    ON o.type_id = c.id
   WHERE
-    x.self_native_size > 0
+    a.self_native_size > 0
   UNION ALL
   SELECT
-    graph_sample_ts,
-    upid,
-    path_hash,
-    parent_path_hash,
-    name,
-    root_type,
-    heap_type,
-    self_count,
-    self_size
-  FROM x
+    o.graph_sample_ts,
+    o.upid,
+    a.path_hash,
+    a.parent_path_hash,
+    coalesce(c.deobfuscated_name, c.name, '') AS name,
+    o.root_type,
+    o.heap_type,
+    a.self_count,
+    a.self_size
+  FROM agg_by_hash AS a
+  JOIN heap_graph_object AS o
+    ON a.sample_id = o.id
+  JOIN heap_graph_class AS c
+    ON o.type_id = c.id
   ORDER BY
     path_hash
 );
