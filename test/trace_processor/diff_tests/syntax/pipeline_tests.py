@@ -490,6 +490,99 @@ class PerfettoPipeline(TestSuite):
         10,20,0,30,10
         """))
 
+  # A star gives the region's ts and dur, not each operand's.
+  def test_interval_intersection_star_is_the_region(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT *;
+        """,
+        out=Csv("""
+        "ts","dur","freq","state"
+        10,20,7,1
+        """))
+
+  def test_interval_intersection_without_a_stage_is_the_region(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y);
+        """,
+        out=Csv("""
+        "ts","dur","freq","state"
+        10,20,7,1
+        """))
+
+  def test_interval_intersection_operand_columns_by_bare_name(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> SELECT ts, dur, freq, state, x.freq AS x_freq;
+        """,
+        out=Csv("""
+        "ts","dur","freq","state","x_freq"
+        10,20,7,1,7
+        """))
+
+  def test_interval_intersection_new_alias_is_the_region(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS freq;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS state;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y)
+        |> AS u
+        |> SELECT u.ts, u.dur, u.freq;
+        """,
+        out=Csv("""
+        "ts","dur","freq"
+        10,20,7
+        """))
+
+  # A later operand's copy of a PER column is reached through its alias.
+  def test_interval_intersection_per_column_of_a_later_operand(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 2 AS cpu;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 2 AS cpu;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) PER cpu
+        |> SELECT *, y.cpu AS y_cpu;
+        """,
+        out=Csv("""
+        "ts","dur","cpu","y_cpu"
+        10,20,2,2
+        """))
+
+  def test_interval_intersection_shared_column_is_ambiguous(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        CREATE PERFETTO TABLE a AS SELECT 0 AS ts, 30 AS dur, 7 AS n;
+        CREATE PERFETTO TABLE b AS SELECT 10 AS ts, 100 AS dur, 1 AS n;
+
+        INTERVAL INTERSECTION OF (a AS x, b AS y) |> SELECT n;
+        """,
+        out=ExpectedError("column 'n' is ambiguous"))
+
   # PER confines regions to rows which agree on the columns named, and those
   # columns come out under their bare names.
   def test_interval_intersection_per_a_key(self):

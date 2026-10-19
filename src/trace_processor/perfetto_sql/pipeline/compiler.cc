@@ -379,9 +379,13 @@ base::Status Compiler::CompilePipeline(uint32_t pipeline) {
 }
 
 LogicalPlan Compiler::Finish() {
+  // The result is the row as a bare name sees it. Columns only an alias
+  // finds, as an intersection's operand columns are, stay behind.
   plan_.output().clear();
   for (const RowColumn& column : scope_.row) {
-    plan_.output().push_back(column.column);
+    if (!column.qualified_only) {
+      plan_.output().push_back(column.column);
+    }
   }
   return std::move(plan_);
 }

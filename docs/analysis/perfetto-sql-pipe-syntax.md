@@ -112,15 +112,20 @@ For each overlapping region `[ts, ts + dur)` shared by all operands within a
 matching `PER` key group, one row is produced with the following columns:
 
 1. `ts` and `dur`: 64-bit integer columns holding the intersected region's start
-   and duration. These are the only `ts` and `dur` columns visible to
-   unqualified column lookups.
-2. Each operand's columns in operand order:
-   - The first operand's `PER` key columns are visible both unqualified, such as
-     `cpu`, and qualified, such as `<alias_1>.cpu`.
-   - All other operand columns are qualified-only. This includes each operand's
-     original `ts` and `dur`, as well as subsequent operands' copies of `PER`
-     columns. They can only be referenced via `<alias_i>.<col>` or expanded via
-     `*` or `<alias_i>.*`.
+   and duration. A bare `ts` or `dur` always means these.
+2. Each operand's columns in operand order. Every one can be referenced as
+   `<alias_i>.<col>` and expanded via `<alias_i>.*`. By its bare name:
+   - A `PER` column is found once, as the first operand's. It holds the same
+     value in every operand.
+   - Any other column is found like a column of any row. If two operands have a
+     column of the same name, that bare name is ambiguous, and an error, when
+     something refers to it.
+   - An operand's own `ts` and `dur`, and later operands' copies of the `PER`
+     columns, are not found: use the alias, as in `<alias_i>.ts`.
+
+A bare `*`, a `|> AS <alias>` stage, and the result of a pipeline with no stage
+after the intersection all hold the columns a bare name finds: the region's `ts`
+and `dur`, the `PER` columns, then each operand's other columns.
 
 #### Interval semantics
 
@@ -325,9 +330,10 @@ Each `<select_item>` is one of:
 
 Star expansion rules:
 
-1. `*` starts with all columns in the current row, including qualified-only
-   operand columns after `INTERVAL INTERSECTION OF`. `<qualifier>.*` starts with
-   the columns captured when `<qualifier>` was bound.
+1. `*` starts with the columns of the current row which a bare name finds.
+   After `INTERVAL INTERSECTION OF` that leaves out each operand's own `ts` and
+   `dur`. `<qualifier>.*` starts with the columns captured when `<qualifier>`
+   was bound.
 2. `EXCEPT (<col>, ...)` removes every column matching any listed bare name
    case-insensitively. Every listed name must match at least one column, no name
    may be listed twice, and at least one column must remain after `EXCEPT`.
@@ -422,7 +428,9 @@ of the current row:
 ```
 
 After `|> AS u`, earlier table aliases are no longer in scope, and `u.<col>` and
-`u.*` reflect the row as of the `AS` stage.
+`u.*` reflect the row as of the `AS` stage: the columns a bare name finds.
+After `INTERVAL INTERSECTION OF`, that means `u.ts` is the region's `ts`, and
+the operands' own `ts` and `dur` are no longer reachable.
 
 ---
 
