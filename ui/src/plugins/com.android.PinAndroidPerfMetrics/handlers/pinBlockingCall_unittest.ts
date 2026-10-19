@@ -113,11 +113,41 @@ const validMetricsTest: {
       aggregation: 'max_dur_per_frame_ns-mean',
     },
   },
+  // test cases for keys without a process segment.
+  {
+    inputMetric:
+      'perfetto_android_blocking_call-cuj-name-ACTION_SWITCH_DISPLAY_UNFOLD-blocking_calls-name-measure-total_dur_ms-mean',
+    expectedOutput: {
+      cujName: 'ACTION_SWITCH_DISPLAY_UNFOLD',
+      blockingCallName: 'measure',
+      aggregation: 'total_dur_ms-mean',
+    },
+  },
+  {
+    inputMetric:
+      'perfetto_android_blocking_call-cuj-name-ACTION_SWITCH_DISPLAY_UNFOLD-blocking_calls-name-Lock contention on thread list lock <...>-total_dur_ms-mean',
+    expectedOutput: {
+      cujName: 'ACTION_SWITCH_DISPLAY_UNFOLD',
+      blockingCallName: 'Lock contention on thread list lock <...>',
+      aggregation: 'total_dur_ms-mean',
+    },
+  },
+  {
+    inputMetric:
+      'perfetto_android_blocking_call-cuj-name-ACTION_SWITCH_DISPLAY_UNFOLD-blocking_calls-name-draw-VRI[NotificationShade]-cnt',
+    expectedOutput: {
+      cujName: 'ACTION_SWITCH_DISPLAY_UNFOLD',
+      blockingCallName: 'draw-VRI[NotificationShade]',
+      aggregation: 'cnt',
+    },
+  },
 ];
 
 const invalidMetricsTest: string[] = [
   'perfetto_ft_launcher-missed_sf_frames-mean',
   'perfetto_cuj_launcher-RECENTS_SCROLLING-counter_metrics-missed_sf_frames-mean',
+  'perfetto_android_blocking_call-cuj-name-ACTION_SWITCH_DISPLAY_UNFOLD-blocking_calls-name-measure',
+  'latency_ACTION_SWITCH_DISPLAY_UNFOLD-mean',
 ];
 
 const tester = pinBlockingCallHandlerInstance;
