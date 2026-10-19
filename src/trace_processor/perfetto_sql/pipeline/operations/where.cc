@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -134,47 +133,6 @@ base::StatusOr<WherePredicate> ParsePredicate(Compiler* c, uint32_t expr) {
   return predicate;
 }
 
-// Op has no public way to round-trip through its raw index, so the wire
-// format uses this fixed tag instead.
-uint8_t TagForOp(const core::Op& op) {
-  if (op.Is<core::Eq>()) {
-    return 0;
-  }
-  if (op.Is<core::Ne>()) {
-    return 1;
-  }
-  if (op.Is<core::Lt>()) {
-    return 2;
-  }
-  if (op.Is<core::Le>()) {
-    return 3;
-  }
-  if (op.Is<core::Gt>()) {
-    return 4;
-  }
-  PERFETTO_CHECK(op.Is<core::Ge>());
-  return 5;
-}
-
-std::optional<core::Op> OpForTag(uint8_t tag) {
-  switch (tag) {
-    case 0:
-      return core::Op{core::Eq{}};
-    case 1:
-      return core::Op{core::Ne{}};
-    case 2:
-      return core::Op{core::Lt{}};
-    case 3:
-      return core::Op{core::Le{}};
-    case 4:
-      return core::Op{core::Gt{}};
-    case 5:
-      return core::Op{core::Ge{}};
-    default:
-      return std::nullopt;
-  }
-}
-
 base::Status ParseCondition(Compiler* c,
                             uint32_t expr,
                             std::vector<WherePredicate>* out) {
@@ -248,7 +206,7 @@ void Where::Write(PlanWriter* c, const PlanNode&, Available* available) const {
   c->writer().Size(predicates_.size());
   for (const WherePredicate& p : predicates_) {
     c->writer().Position(*available, p.column);
-    c->writer().U8(TagForOp(p.op));
+    c->writer().U8(static_cast<uint8_t>(p.op.index()));
     c->writer().U8(p.is_double ? 1 : 0);
     if (p.is_double) {
       c->writer().F64(p.double_value);
@@ -266,8 +224,9 @@ void Where::DecodePlan(PlanReader* c, Available* available) {
   }
   for (WherePredicate& p : where.predicates_) {
     p.column = c->reader().Position(*available);
-    std::optional<core::Op> op = OpForTag(c->reader().U8());
-    if (!op) {
+    // Only comparisons are written; anything else is corrupt.
+    std::optional<core::Op> op = core::Op::FromIndex(c->reader().U8());
+    if (!op || !op->IsAnyOf<core::NonStringOp>()) {
       c->reader().Fail();
       continue;
     }
