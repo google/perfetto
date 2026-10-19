@@ -4923,7 +4923,7 @@ message TrackEventConfig {
 // cpp classes and polluting tracing/core with data-source-specific classes.
 // Instead they are treated as opaque strings containing raw proto bytes.
 //
-// Next id: 148
+// Next id: 149
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -5042,6 +5042,53 @@ message DataSourceConfig {
   // Not supported: a ProtoVM data source on the same buffer.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional bool supports_tracing_v2 = 147;
+
+  // Experimental.
+  // Lets the producer write this data source through the tracing v2 ring
+  // buffer.
+  // - Selecting v2 requires a TRACE_BUFFER_V2 target buffer and support from
+  //   the producer and data source.
+  // - Instances that do not select v2 use v1 only if the connection permits it.
+  //   If neither transport is available, writers discard their data.
+  // - If the producer cannot create or attach the ring buffer, selected
+  //   instances discard their data and do not fall back to v1.
+  message ExperimentalTracingV2Config {
+    // Percent of instances that use v2, from 0 (the default) to 100.
+    // The service rejects a nonzero use_v2_probability_percent and a
+    // ProtoVM data source on the same buffer.
+    optional uint32 use_v2_probability_percent = 1;
+
+    // One chunk size that the producer can choose for the ring buffer.
+    message ChunkSizeOption {
+      // Bytes per chunk, from 256 to 65536, and a multiple of 4.
+      // The service rejects other values.
+      optional uint32 size_bytes = 1;
+      // The chance of this option, relative to the other options.
+      // Absent means 1, and 0 means never.
+      optional uint32 weight = 2;
+    }
+    // The producer chooses one option at random, by weight, when it creates
+    // the ring buffer.
+    // With no option, or with all weights 0, it uses 256 bytes.
+    //
+    // The first instance that selects v2 chooses the size for the connection,
+    // and the options of later instances have no effect.
+    repeated ChunkSizeOption chunk_size_options = 2;
+
+    // When the writers ask the service to drain the ring buffer.
+    // After each publication, a writer counts the ring buffer positions that
+    // wait for the reader, and asks for a drain when the count reaches:
+    // - 0 or absent: 25% of the positions.
+    // - 1 to 100: this percent of the positions, and at least one.
+    // - -1: one position, so it asks after every publication.
+    // Flushes and full ring buffers still ask for a drain at once.
+    // The service rejects other values.
+    //
+    // As for chunk_size_options, the first instance that selects v2 sets it
+    // for the connection, and the values of later instances have no effect.
+    optional int32 drain_occupancy_percent = 3;
+  }
+  optional ExperimentalTracingV2Config experimental_tracing_v2 = 148;
 
   // Data source name: linux.ftrace
   optional FtraceConfig ftrace_config = 100 [lazy = true];
@@ -5218,7 +5265,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 50.
+// Next id: 51.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -5284,6 +5331,10 @@ message TraceConfig {
     optional ExperimentalMode experimental_mode = 8;
   }
   repeated BufferConfig buffers = 1;
+
+  // Enables compaction after reads for this session's TraceBufferV2.
+  // Defaults to false and does not affect V1, DISCARD, or read-only buffers.
+  optional bool experimental_trace_buffer_v2_compaction = 50;
 
   message DataSource {
     // Filters and data-source specific config. It contains also the unique name
@@ -6287,7 +6338,7 @@ message SystemInfo {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 23.
+  // Next id: 25.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -6360,6 +6411,27 @@ message TraceStats {
 
     // Num. times the ring buffer wrapped around.
     optional uint64 write_wrap_count = 4;
+
+    // Number of completed TraceBufferV2 compactions.
+    // Includes compactions that move no chunks and excludes calls that skip
+    // compaction, such as calls on DISCARD or read-only buffers.
+    //
+    // Compaction moves remaining chunks to the front and clears the unused
+    // tail.
+    // It keeps the pages that a similar write cycle can reuse, and releases
+    // the other whole pages where supported.
+    // The next writes start after the remaining chunks, which can reduce how
+    // often |write_wrap_count| and |chunks_overwritten| increase.
+    // Incomplete chunks can remain until later writes overwrite them.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions = 23;
+
+    // Number of TraceBufferV2 compactions skipped because live chunks were
+    // on both sides of the write cursor.
+    //
+    // Introduced in v59 / Android 26Q4+.
+    optional uint64 compactions_skipped = 24;
 
     // Num. out-of-band (OOB) patches that succeeded.
     optional uint64 patches_succeeded = 5;
@@ -16555,6 +16627,10 @@ message ObfuscatedClass {
   message MergedClasses {
     optional string class_id_field_name = 1;
     repeated MergedClass merged_classes = 2;
+    // Set to true if other unknown classes may have been merged into this
+    // class by optimization (e.g. when using older R8 mapping versions that
+    // do not emit mergedClasses metadata).
+    optional bool unknown_merged_classes = 3;
   }
 
   optional MergedClasses merged_classes = 5;

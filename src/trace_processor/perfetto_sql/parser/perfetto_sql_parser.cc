@@ -40,6 +40,7 @@
 #include "src/trace_processor/perfetto_sql/pipeline/compiler.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/cold_sort.h"
 #include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor {
@@ -247,10 +248,8 @@ class RewriteTree {
     // This is the only ApplyRewrites caller whose items aren't already in
     // `start` order: we concatenated literal body calls and $param segments,
     // each internally sorted but interleaved relative to each other.
-    std::sort(items.begin(), items.end(),
-              [](const RewriteItem& a, const RewriteItem& b) {
-                return a.start < b.start;
-              });
+    ColdSortByKey(items.begin(), items.end(),
+                  [](const RewriteItem& item) { return item.start; });
     return ApplyRewrites(m.sql, std::move(items));
   }
 
@@ -355,9 +354,9 @@ base::StatusOr<pipeline::LogicalPlan> CompilePipeline(
     const pipeline::Catalog* catalog,
     uint32_t pipeline_id) {
   if (!catalog) {
-    return base::ErrStatus(
-        "%sPipelines are not enabled; set `PERFETTO PRAGMA pipelines = 1`",
-        NodeSource(rb, pipeline_id).AsTraceback(0).c_str());
+    return NodeSource(rb, pipeline_id)
+        .AddTraceback(0, base::ErrStatus("Pipelines are not enabled; set "
+                                         "`PERFETTO PRAGMA pipelines = 1`"));
   }
   return pipeline::Compile(
       p, pipeline_id, [&rb](uint32_t node) { return NodeSource(rb, node); },
@@ -711,8 +710,8 @@ bool PerfettoSqlParser::Impl::Next(
                      CurrentStatementDocOffset(synq);
       auto clamped =
           static_cast<uint32_t>(std::min<uint64_t>(off, stmt.sql().size()));
-      status = base::ErrStatus("%s%s", stmt.AsTraceback(clamped).c_str(),
-                               syntaqlite_result_error_msg(synq));
+      status = stmt.AddTraceback(
+          clamped, base::ErrStatus("%s", syntaqlite_result_error_msg(synq)));
       return false;
     }
     root = syntaqlite_result_root(synq);

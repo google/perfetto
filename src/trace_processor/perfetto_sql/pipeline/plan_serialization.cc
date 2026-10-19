@@ -129,17 +129,31 @@ PlanWriter::PlanWriter(const LogicalPlan& plan) : plan_(plan) {}
 
 PlanReader::PlanReader(Reader& r) : r_(r) {}
 
-void WriteType(Writer* w, const std::optional<core::StorageType>& type) {
-  // Zero is a type known only per row; otherwise the type's index plus one.
-  w->U8(type ? static_cast<uint8_t>(type->index() + 1) : 0);
+// Tags for types that are not storage types. A storage type's tag is its
+// index plus kFirstStorageTag.
+constexpr uint8_t kUnknownTag = 0;
+constexpr uint8_t kNullTag = 1;
+constexpr uint8_t kFirstStorageTag = 2;
+
+void WriteType(Writer* w, const PlanType& type) {
+  if (type.is_unknown()) {
+    w->U8(kUnknownTag);
+  } else if (type.is_null()) {
+    w->U8(kNullTag);
+  } else {
+    w->U8(static_cast<uint8_t>(type.storage()->index() + kFirstStorageTag));
+  }
 }
 
-std::optional<core::StorageType> ReadType(Reader* r) {
+PlanType ReadType(Reader* r) {
   uint8_t tag = r->U8();
-  if (tag == 0) {
-    return std::nullopt;
+  if (tag == kUnknownTag) {
+    return PlanType::Unknown();
   }
-  switch (tag - 1) {
+  if (tag == kNullTag) {
+    return PlanType::Null();
+  }
+  switch (tag - kFirstStorageTag) {
     case core::StorageType::GetTypeIndex<core::Id>():
       return core::Id{};
     case core::StorageType::GetTypeIndex<core::Uint32>():
@@ -154,7 +168,7 @@ std::optional<core::StorageType> ReadType(Reader* r) {
       return core::String{};
     default:
       r->Fail();
-      return std::nullopt;
+      return PlanType::Unknown();
   }
 }
 
@@ -189,8 +203,7 @@ std::string PlanWriter::Write() {
   return w_.Take();
 }
 
-ColumnId PlanReader::AddColumn(std::string name,
-                               std::optional<core::StorageType> type) {
+ColumnId PlanReader::AddColumn(std::string name, PlanType type) {
   return plan_.AddColumn(std::move(name), type);
 }
 

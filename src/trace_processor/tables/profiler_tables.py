@@ -14,6 +14,7 @@
 """Contains tables for relevant for TODO."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
@@ -1056,6 +1057,12 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'potentially_merged',
+            CppBool(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -1074,7 +1081,10 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             'classloader_id':
                 '''''',
             'kind':
-                ''''''
+                '''''',
+            'potentially_merged':
+                '''True if other classes may have been merged into this class
+                by optimization (e.g. R8 class merging).''',
         }))
 
 HEAP_GRAPH_OBJECT_TABLE = Table(
@@ -1441,6 +1451,54 @@ AGGREGATE_SAMPLE_TABLE = Table(
             'value': '''Sample value.'''
         }))
 
+VULKAN_DEBUG_NAMES_TABLE = Table(
+    python_module=__file__,
+    class_name='VulkanDebugNamesTable',
+    sql_name='__intrinsic_vulkan_debug_names',
+    wrapping_sql_view=WrappingSqlView('gpu_vulkan_debug_names'),
+    columns=[
+        C('ts', CppInt64()),
+        C('upid', CppOptional(CppUint32())),
+        C('vk_device', CppOptional(CppInt64())),
+        C('object_type', CppInt32()),
+        C('object', CppInt64()),
+        C('name', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Debug names given to Vulkan objects through
+          vkSetDebugUtilsObjectNameEXT / vkDebugMarkerSetObjectNameEXT
+          (VulkanApiEvent.VkDebugUtilsObjectName).
+
+          One row is appended per naming event, so the same (vk_device,
+          object_type, object) handle can appear several times: a later row
+          renames the object and a row with a NULL name records that the
+          previous name was cleared or the object was destroyed, after which
+          the handle may be reused. The name in effect at a timestamp is the
+          newest row with ts <= that timestamp.
+        ''',
+        group='Misc',
+        columns={
+            'ts':
+                '''Timestamp of the naming event.''',
+            'upid':
+                ColumnDoc(
+                    '''Process which named the object, or NULL when the event
+                carries no pid.''',
+                    joinable='process.upid'),
+            'vk_device':
+                '''VkDevice handle owning the object, or NULL when the event
+                carries no device.''',
+            'object_type':
+                '''VkObjectType enum value of the named object, e.g. 24 for
+                VK_OBJECT_TYPE_FRAMEBUFFER.''',
+            'object':
+                '''Vulkan object handle, interpreted per object_type.''',
+            'name':
+                '''Debug name, or NULL when the name was cleared (empty or
+                omitted object_name).'''
+        }))
+
 VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
     python_module=__file__,
     class_name='VulkanMemoryAllocationsTable',
@@ -1688,5 +1746,6 @@ ALL_TABLES = [
     STACK_PROFILE_FRAME_TABLE,
     STACK_PROFILE_MAPPING_TABLE,
     SYMBOL_TABLE,
+    VULKAN_DEBUG_NAMES_TABLE,
     VULKAN_MEMORY_ALLOCATIONS_TABLE,
 ]

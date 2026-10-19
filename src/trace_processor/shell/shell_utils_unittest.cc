@@ -85,8 +85,8 @@ class FileSystemPlatform final : public TraceProcessor::PlatformInterface {
 // Verifies the export produces an on-disk SQLite database that can be read back
 // by a standalone SQLite connection and re-attached and queried by a trace
 // processor.
-TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
-  base::TempFile output = base::TempFile::Create();
+TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToSqliteWritesToDisk)) {
+  base::TempFile output = base::TempFile::Create().ValueOrDie();
 
   FileSystemPlatform platform;
   auto tp = TraceProcessor::CreateInstance(Config(), &platform);
@@ -97,7 +97,8 @@ TEST(ShellUtilsTest, DisableFuchsia(ExportTraceToDatabaseWritesToDisk)) {
   int64_t expected_views = ScalarCount(
       tp.get(), "SELECT COUNT(*) FROM sqlite_master WHERE type='view'");
 
-  base::Status export_status = ExportTraceToDatabase(tp.get(), output.path());
+  base::Status export_status = ExportTrace(
+      tp.get(), TraceProcessor::ExportFormat::kSqlite, output.path());
   ASSERT_TRUE(export_status.ok()) << export_status.c_message();
 
   std::string contents;

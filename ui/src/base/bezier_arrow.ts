@@ -188,9 +188,9 @@ function drawTriangle(
   });
 
   ctx.beginPath();
-  ctx.moveTo(transformedPoints[0].x, transformedPoints[0].y);
-  ctx.lineTo(transformedPoints[1].x, transformedPoints[1].y);
-  ctx.lineTo(transformedPoints[2].x, transformedPoints[2].y);
+  ctx.moveTo(transformedPoints[0]!.x, transformedPoints[0]!.y);
+  ctx.lineTo(transformedPoints[1]!.x, transformedPoints[1]!.y);
+  ctx.lineTo(transformedPoints[2]!.x, transformedPoints[2]!.y);
   ctx.closePath();
   ctx.fill();
 }

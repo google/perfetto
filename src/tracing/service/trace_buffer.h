@@ -28,9 +28,14 @@
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/service/histogram.h"
 
+namespace protozero {
+struct ConstBytes;
+}  // namespace protozero
+
 namespace perfetto {
 
 class TracePacket;
+class TraceBufferProtoVms;
 class TraceBuffer_WriterStats;
 
 // Virtual interface for trace buffers to enable multiple implementations.
@@ -92,6 +97,54 @@ class TraceBuffer {
                                      size_t patches_size,
                                      bool other_patches_pending) = 0;
 
+  // Returns true if the buffer accepts tracing v2 data through
+  // CopyChunkV2Untrusted(). The service offers tracing v2 only to data sources
+  // that write into such a buffer.
+  virtual bool supports_tracing_v2() const = 0;
+
+  // Copies a batch of SMB v2 fragments into the buffer. The caller must pass
+  // fragments and batches in write order for each {ProducerID, WriterID}.
+  // The caller owns the fragment array and payloads. Both must remain valid
+  // and unchanged until this call returns.
+  //
+  // Each fragment is a whole packet unless a continuation flag is set.
+  // - |first_continues_from_prev| means the first fragment continues a packet
+  //   that started in this writer's previous batch.
+  // - |last_continues_on_next| means the last fragment continues in this
+  //   writer's next batch.
+  // The caller decodes these flags from its transport. If the transport marks
+  // a batch as lossy, call RecordChunkV2DataLoss() instead of copying it.
+  //
+  // Returns true if the whole batch was stored. Returns false if the batch
+  // was rejected:
+  // - The rejection of a nonempty batch records loss as RecordChunkV2DataLoss()
+  //   does. An empty batch changes nothing.
+  // - Invalid input increments abi_violations. Other rejections increment
+  //   chunks_discarded.
+  //
+  // If supports_tracing_v2() is false, returns false and changes nothing.
+  virtual bool CopyChunkV2Untrusted(const PacketSequenceProperties&,
+                                    const protozero::ConstBytes* fragments,
+                                    size_t num_fragments,
+                                    bool first_continues_from_prev,
+                                    bool last_continues_on_next) = 0;
+
+  // Records a gap after the last SMB v2 batch that the writer appended.
+  // Packets already in the buffer remain readable. The gap stays pending
+  // until the next stored batch carries it or the writer's state is discarded.
+  // Reads report the gap on the first readable packet after it. This does not
+  // increment any statistics.
+  //
+  // Does nothing if the buffer holds no SMB v2 state for the writer. A caller
+  // that cannot identify the destination can call this on every candidate
+  // buffer without creating state for writers that never used it.
+  virtual void RecordChunkV2DataLoss(ProducerID, WriterID) = 0;
+
+  // Increments abi_violations for a violation that the caller found outside
+  // this buffer, e.g. a protocol error in a producer's ring buffer. This only
+  // updates the statistic and does not record a gap on any packet sequence.
+  virtual void RecordAbiViolation() = 0;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -112,9 +165,22 @@ class TraceBuffer {
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) = 0;
 
+  // Attempts to reclaim unused buffer space.
+  // The caller must release all packets from previous reads before this call,
+  // because their slices can point into the buffer.
+  // Call BeginRead() before reading again.
+  virtual void MaybeCompact() = 0;
+
   // Creates a read-only clone of the trace buffer. The read iterators of the
   // new buffer will be reset, as if no Read() had been called.
   virtual std::unique_ptr<TraceBuffer> CloneReadOnly() const = 0;
+
+  // Returns the ProtoVM state owned by this buffer, or nullptr if the
+  // implementation cannot run a ProtoVM. The pointer remains valid until the
+  // buffer is destroyed.
+  // The service uses it to set up VMs and emit their state. The buffer feeds
+  // packets to the VMs before overwriting them.
+  virtual TraceBufferProtoVms* protovms() = 0;
 
   virtual void set_read_only() = 0;
   virtual const TraceStats::BufferStats& stats() const = 0;

@@ -489,7 +489,7 @@ base::Status SummarizerImpl::MaterializeQuery(
     complete_sql += preamble + "\n";
   }
   if (!complete_sql.empty()) {
-    complete_sql += "\n";  // Extra newline before main query.
+    complete_sql += '\n';  // Extra newline before main query.
   }
   complete_sql += query_sql;
   state.sql = complete_sql;
@@ -651,7 +651,7 @@ void SummarizerImpl::GenerateStandaloneSql(QueryState& state) {
     standalone_complete += preamble + "\n";
   }
   if (!standalone_complete.empty()) {
-    standalone_complete += "\n";
+    standalone_complete += '\n';
   }
   standalone_complete += *standalone_sql_result;
   state.standalone_sql = standalone_complete;

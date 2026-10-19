@@ -226,6 +226,7 @@ using ::testing::NiceMock;
 using ::testing::Not;
 using ::testing::Property;
 using ::testing::StrEq;
+using ::testing::UnorderedElementsAre;
 
 // ------------------------------
 // Declarations of helper classes
@@ -4340,10 +4341,9 @@ TEST_P(PerfettoApiTest, ProtoInsideDebugAnnotation) {
   // TODO(altimin): Use DebugAnnotationParser here to parse the debug
   // annotations.
   EXPECT_TRUE(found_args);
-  EXPECT_THAT(interned_debug_annotation_names,
-              testing::UnorderedElementsAre("key"));
+  EXPECT_THAT(interned_debug_annotation_names, UnorderedElementsAre("key"));
   EXPECT_THAT(interned_debug_annotation_proto_type_names,
-              testing::UnorderedElementsAre(".perfetto.protos.LogMessage"));
+              UnorderedElementsAre(".perfetto.protos.LogMessage"));
 }
 
 TEST_P(PerfettoApiTest, TrackEventComputedName) {
@@ -6367,6 +6367,48 @@ TEST_P(PerfettoApiTest, TracePacketInterception) {
   EXPECT_THAT(TestInterceptor::instance->events, ElementsAre(long_title));
 
   tracing_session->get()->StopBlocking();
+}
+
+// A C++ data source that selects v2 writes append-only packets on every
+// thread, and the service turns its nested messages back into standard
+// protobuf.
+TEST_P(PerfettoApiTest, DataSourceUsesTracingV2OnAllThreads) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (GetParam() == perfetto::kSystemBackend)
+    GTEST_SKIP() << "Tracing v2 over IPC requires memfd support";
+#endif
+
+  perfetto::TraceConfig cfg;
+  auto* buffer = cfg.add_buffers();
+  buffer->set_size_kb(1024);
+  buffer->set_experimental_mode(
+      perfetto::TraceConfig::BufferConfig::TRACE_BUFFER_V2);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("CustomDataSource");
+  ds_cfg->mutable_experimental_tracing_v2()->set_use_v2_probability_percent(
+      100);
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  auto write = [](const char* str) {
+    CustomDataSource::Trace([str](CustomDataSource::TraceContext ctx) {
+      auto packet = ctx.NewTracePacket();
+      EXPECT_EQ(packet->encoding(), protozero::Message::Encoding::kProtoGroup);
+      packet->set_for_testing()->set_payload()->add_str(str);
+    });
+  };
+  write("main thread");
+  std::thread thread([&write] { write("other thread"); });
+  thread.join();
+
+  std::vector<std::string> strs;
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  for (const auto& packet : trace.packet()) {
+    for (const auto& str : packet.for_testing().payload().str())
+      strs.push_back(str);
+  }
+  EXPECT_THAT(strs, UnorderedElementsAre("main thread", "other thread"));
 }
 
 void EmitConsoleEvents() {

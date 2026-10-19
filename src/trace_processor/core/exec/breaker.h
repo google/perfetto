@@ -37,11 +37,13 @@ class Breaker : public Operator {
 
     base::Status status = base::OkStatus();
     bool filled = false;
+    // What the columns served are filled in.
+    Context* context = nullptr;
   };
 
   ~Breaker() override;
 
-  std::unique_ptr<OperatorState> MakeState() const final;
+  std::unique_ptr<OperatorState> MakeState(Context&) const final;
   OpResult Execute(const RowBatch& in,
                    RowBatch& out,
                    OperatorState& state) const final;
@@ -49,7 +51,7 @@ class Breaker : public Operator {
   base::Status status(const OperatorState& state) const final;
 
  protected:
-  Breaker() : Operator(Traits{BatchPreference::kThroughput}) {}
+  Breaker() = default;
 
   // Creates the state for the buffered data.
   virtual std::unique_ptr<State> CreateState() const = 0;

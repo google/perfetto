@@ -61,7 +61,7 @@ export function removeFalsyValues<T>(
 //       in the position before current element at `to` index.
 export function moveArrayItem<T>(array: T[], from: number, to: number) {
   if (from === to) return;
-  const value = array[from];
+  const value = array[from]!;
   array.splice(from, 1);
   if (from < to) {
     // We have deleted an item, therefore we need to adjust the target index.

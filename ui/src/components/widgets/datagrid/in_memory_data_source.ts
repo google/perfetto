@@ -22,8 +22,12 @@ import type {
   DataSourceRows,
   FlatModel,
 } from './data_source';
-import type {Filter} from './model';
+import type {Filter, QuickFilter} from './model';
 import {splitPath} from './datagrid_schema';
+import {
+  isQuickFilterActive,
+  valueMatchesQuickFilter,
+} from './quick_filter_utils';
 
 // Column shape from FlatModel
 type FlatColumn = FlatModel['columns'][number];
@@ -38,6 +42,7 @@ export class InMemoryDataSource implements DataSource {
   // Cached state for diffing
   private oldColumns?: readonly FlatColumn[];
   private oldFilters: ReadonlyArray<Filter> = [];
+  private oldQuickFilter?: QuickFilter;
   private oldSort?: FlatModel['sort'];
 
   constructor(data: ReadonlyArray<Row>) {
@@ -65,21 +70,27 @@ export class InMemoryDataSource implements DataSource {
       };
     });
     const filters = model.filters ?? [];
+    const quickFilter = isQuickFilterActive(model.quickFilter)
+      ? model.quickFilter
+      : undefined;
     const sort = model.sort;
 
     if (
       !this.areColumnsEqual(columns, this.oldColumns) ||
       !this.areFiltersEqual(filters, this.oldFilters) ||
+      !this.isQuickFilterEqual(quickFilter, this.oldQuickFilter) ||
       !this.isSortEqual(sort, this.oldSort)
     ) {
       this.oldColumns = columns;
       this.oldFilters = filters;
+      this.oldQuickFilter = quickFilter;
       this.oldSort = sort;
 
       // Clear aggregate summaries cache
       this.aggregateSummariesCache = {};
 
       let result = this.applyFilters(this.data, filters);
+      result = this.applyQuickFilter(result, quickFilter);
 
       // Project columns to use aliases as keys (for consistency with SQL data source)
       result = this.projectColumns(result, columns);
@@ -115,7 +126,7 @@ export class InMemoryDataSource implements DataSource {
       // Compute distinct values from base data (not filtered)
       const uniqueValues = new Set<SqlValue>();
       for (const row of this.data) {
-        uniqueValues.add(row[column]);
+        uniqueValues.add(row[column]!);
       }
 
       // Sort with null-aware comparison
@@ -222,9 +233,22 @@ export class InMemoryDataSource implements DataSource {
     if (a.length !== b.length) return false;
 
     return a.every((colA, i) => {
-      const colB = b[i];
+      const colB = b[i]!;
       return colA.alias === colB.alias && colA.field === colB.field;
     });
+  }
+
+  /**
+   * Compare quick filters for equality.
+   */
+  private isQuickFilterEqual(a?: QuickFilter, b?: QuickFilter): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return (
+      a.text === b.text &&
+      a.fields.length === b.fields.length &&
+      a.fields.every((field, i) => field === b.fields[i])
+    );
   }
 
   /**
@@ -248,7 +272,7 @@ export class InMemoryDataSource implements DataSource {
       const projectedRow: Row = {};
       for (const col of columns) {
         // Map field value to alias key
-        projectedRow[col.alias] = row[col.field];
+        projectedRow[col.alias] = row[col.field]!;
       }
       return projectedRow;
     });
@@ -281,7 +305,7 @@ export class InMemoryDataSource implements DataSource {
     return data.filter((row) => {
       // Check if row passes all filters
       return filters.every((filter) => {
-        const value = row[filter.field];
+        const value = row[filter.field]!;
 
         switch (filter.op) {
           case '=':
@@ -331,6 +355,26 @@ export class InMemoryDataSource implements DataSource {
         }
       });
     });
+  }
+
+  // Keep only rows where at least one of the quick filter fields matches.
+  private applyQuickFilter(
+    data: ReadonlyArray<Row>,
+    quickFilter: QuickFilter | undefined,
+  ): ReadonlyArray<Row> {
+    if (quickFilter === undefined) {
+      return data;
+    }
+    // Index rows the same way as columns (see useRows). Missing fields are
+    // treated as null so they never match.
+    const fields = quickFilter.fields.map((field) =>
+      splitPath(field).join('.'),
+    );
+    return data.filter((row) =>
+      fields.some((field) =>
+        valueMatchesQuickFilter(row[field] ?? null, quickFilter.text),
+      ),
+    );
   }
 
   private applySorting(

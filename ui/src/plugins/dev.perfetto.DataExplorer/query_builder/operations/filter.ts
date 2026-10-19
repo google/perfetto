@@ -226,7 +226,7 @@ export function parseFilterFromText(
   const [, colName, opName, valueText] = match;
 
   const col = sourceCols.find(
-    (c) => c.name.toLowerCase() === colName.toLowerCase(),
+    (c) => c.name.toLowerCase() === colName!.toLowerCase(),
   );
   if (col === undefined) {
     return {};
@@ -234,7 +234,7 @@ export function parseFilterFromText(
 
   // Find the exact operator object. We need to do a case-insensitive search.
   const op = ALL_FILTER_OPS.find(
-    (o) => o.displayName.toLowerCase() === opName.toLowerCase(),
+    (o) => o.displayName.toLowerCase() === opName!.toLowerCase(),
   );
 
   if (op === undefined) {
@@ -591,7 +591,7 @@ export function createAutoGroupedFiltersProto(
 
   // If only one column, create a simple flat group
   if (filtersByColumn.size === 1) {
-    const columnFilters = [...filtersByColumn.values()][0];
+    const columnFilters = [...filtersByColumn.values()][0]!;
     const protoFilters = createFiltersProto(columnFilters, sourceCols);
     if (!protoFilters) {
       return undefined;

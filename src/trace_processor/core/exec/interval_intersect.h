@@ -37,6 +37,9 @@ struct IntervalIntersectOperand {
   uint32_t dur_column = 0;
   // Compared pairwise across the operands, in this order.
   std::vector<uint32_t> key_columns;
+  // The column holding each row's group number. Only used if there are keys.
+  // A group's rows arrive together, sorted by ts.
+  uint32_t group_column = 0;
   // The columns kept for output, in this order. Any others are read only to
   // find the regions and are never buffered.
   std::vector<uint32_t> retained_columns;
@@ -59,17 +62,22 @@ struct IntervalIntersectOperand {
 // duration has no bounds to meet anything over, so it covers nothing.
 class IntervalIntersect : public Source {
  public:
+  static constexpr char kType = 0;
+  const void* type() const override { return &kType; }
+
   // Every operand's source must outlive this. Two are the fewest which can
   // have a region in common.
   explicit IntervalIntersect(std::vector<IntervalIntersectOperand>);
   ~IntervalIntersect() override;
 
-  std::unique_ptr<OperatorState> MakeState() const override;
+  std::unique_ptr<OperatorState> MakeState(Context&) const override;
   bool GetData(RowBatch&, OperatorState&) const override;
   void Rewind(OperatorState&) const override;
   base::Status status(const OperatorState&) const override;
 
  private:
+  friend class PipelineFormatter;
+
   std::vector<IntervalIntersectOperand> operands_;
 };
 

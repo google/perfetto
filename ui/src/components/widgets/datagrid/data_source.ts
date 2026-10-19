@@ -14,7 +14,13 @@
 
 import type {AsyncMemoResult} from '../../../base/async_memo';
 import type {Row, SqlValue} from '../../../trace_processor/query_result';
-import type {AggregateFunction, Filter, GroupPath, IdBasedTree} from './model';
+import type {
+  AggregateFunction,
+  Filter,
+  GroupPath,
+  IdBasedTree,
+  QuickFilter,
+} from './model';
 
 /**
  * Data source interface for DataGrid.
@@ -41,10 +47,11 @@ export interface DataSource {
 
   /**
    * Fetch distinct values for a column (for filter dropdowns).
-   * Pass undefined to skip fetching.
+   * Pass undefined to skip fetching. `search` is the picker's search text.
    */
   useDistinctValues(
     column: string | undefined,
+    search?: string,
   ): AsyncMemoResult<readonly SqlValue[]>;
 
   /**
@@ -83,6 +90,11 @@ interface DataSourceModelBase {
 // Flat mode: simple column selection
 export interface FlatModel extends DataSourceModelBase {
   readonly mode: 'flat';
+  // Whole-table text filter, applied in addition to (AND-ed with) the column
+  // filters. Ignored when the text is empty. Only in flat mode: in pivot mode
+  // most cells show a sample or a total rather than a row's value, so "rows
+  // containing the text" has no clear meaning there.
+  readonly quickFilter?: QuickFilter;
   readonly columns: readonly {
     readonly field: string;
     readonly alias: string;

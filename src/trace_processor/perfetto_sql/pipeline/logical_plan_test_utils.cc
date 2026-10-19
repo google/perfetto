@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/pipeline/operations/order_by.h"
@@ -32,6 +33,23 @@
 
 namespace perfetto::trace_processor::pipeline {
 namespace {
+
+// An aggregate as the plan shows it, e.g. `SUM(#3)`.
+std::string AggregateString(const Aggregate& agg) {
+  switch (agg.function) {
+    case Aggregate::Function::kCountStar:
+      return "COUNT(*)";
+    case Aggregate::Function::kSum:
+      return "SUM(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kCount:
+      return "COUNT(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kMin:
+      return "MIN(#" + std::to_string(agg.column) + ")";
+    case Aggregate::Function::kMax:
+      return "MAX(#" + std::to_string(agg.column) + ")";
+  }
+  return "";
+}
 
 const char* TypeName(core::StorageType type) {
   switch (type.index()) {
@@ -54,9 +72,12 @@ const char* TypeName(core::StorageType type) {
 
 std::string ColumnString(const LogicalPlan& plan, ColumnId id) {
   std::string out = "#" + std::to_string(id);
-  if (plan.columns()[id].type) {
+  const PlanType& type = plan.columns()[id].type;
+  if (type.is_null()) {
+    out += ":null";
+  } else if (type.storage()) {
     out += ":";
-    out += TypeName(*plan.columns()[id].type);
+    out += TypeName(*type.storage());
   }
   return out;
 }
@@ -77,6 +98,8 @@ class LogicalPlanFormatter {
   static std::string IntervalIntersectString(const LogicalPlan&,
                                              const PlanNode&);
   static std::string OrderByString(const OrderBy&);
+  static std::string AggregateStageString(const LogicalPlan&,
+                                          const AggregateStage&);
   static std::string SubtreeString(const LogicalPlan&, PlanNodeId);
 };
 
@@ -117,9 +140,8 @@ std::string LogicalPlanFormatter::TreeAccumulateString(
   out += ", node=#" + std::to_string(acc.node_column_);
   out += ", parent=#" + std::to_string(acc.parent_column_);
   for (const auto& agg : acc.aggregates_) {
-    PERFETTO_DCHECK(agg.function == TreeAccumulate::Function::kSum);
-    out += ", SUM(#" + std::to_string(agg.column) + ") -> " +
-           ColumnString(plan, agg.output);
+    out +=
+        ", " + AggregateString(agg) + " -> " + ColumnString(plan, agg.output);
   }
   return out + ")";
 }
@@ -133,15 +155,8 @@ std::string LogicalPlanFormatter::IntervalFlattenString(
     out += ", key=#" + std::to_string(key);
   }
   for (const auto& agg : flatten.aggregates_) {
-    switch (agg.function) {
-      case IntervalFlatten::Function::kCount:
-        out += ", COUNT(*)";
-        break;
-      case IntervalFlatten::Function::kSum:
-        out += ", SUM(#" + std::to_string(agg.column) + ")";
-        break;
-    }
-    out += " -> " + ColumnString(plan, agg.output);
+    out +=
+        ", " + AggregateString(agg) + " -> " + ColumnString(plan, agg.output);
   }
   return out + ") -> " + ColumnString(plan, flatten.out_ts_) + ", " +
          ColumnString(plan, flatten.out_dur_);
@@ -180,6 +195,23 @@ std::string LogicalPlanFormatter::OrderByString(const OrderBy& order) {
   return out + ")";
 }
 
+std::string LogicalPlanFormatter::AggregateStageString(
+    const LogicalPlan& plan,
+    const AggregateStage& aggregate) {
+  std::string out = "Aggregate(";
+  std::string separator;
+  for (ColumnId key : aggregate.keys_) {
+    out += separator + "key=#" + std::to_string(key);
+    separator = ", ";
+  }
+  for (const auto& agg : aggregate.aggregates_) {
+    out += separator + AggregateString(agg) + " -> " +
+           ColumnString(plan, agg.output);
+    separator = ", ";
+  }
+  return out + ")";
+}
+
 // Prints sources first so a pipeline reads in the order it runs.
 // Intersection operands are printed inline.
 std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
@@ -198,6 +230,10 @@ std::string LogicalPlanFormatter::SubtreeString(const LogicalPlan& plan,
   if (node.Is<IntervalFlatten>()) {
     return SubtreeString(plan, node.children()[0]) +
            IntervalFlattenString(plan, node.Cast<IntervalFlatten>()) + "\n";
+  }
+  if (node.Is<AggregateStage>()) {
+    return SubtreeString(plan, node.children()[0]) +
+           AggregateStageString(plan, node.Cast<AggregateStage>()) + "\n";
   }
   if (node.Is<OrderBy>()) {
     return SubtreeString(plan, node.children()[0]) +

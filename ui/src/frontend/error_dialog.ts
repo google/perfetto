@@ -297,7 +297,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   }
 
   private fileBug(err: ErrorDetails) {
-    const errTitle = err.message.split('\n', 1)[0].substring(0, 80);
+    const errTitle = err.message.split('\n', 1)[0]!.substring(0, 80);
     let url = 'https://goto.google.com/perfetto-ui-bug';
     url += '?title=' + encodeURIComponent(`UI Error: ${errTitle}`);
     url += '&description=';
@@ -420,7 +420,7 @@ function extractTraceParseDetails(message: string): string {
   let inner = message.replace(/^Trace parse failure: /, '');
   const legacy = /^Trace parse failure \((.*)\) \(ERR:tp-parse\)/s.exec(inner);
   if (legacy) {
-    inner = legacy[1];
+    inner = legacy[1]!;
   }
   return inner.replace(/\s*\(ERR:tp-(?:corrupt|parse)\)/g, '').trim();
 }

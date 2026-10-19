@@ -22,6 +22,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -119,6 +120,15 @@ int Key::instances = 0;
 int Key::constructions = 0;
 int Value::instances = 0;
 
+// Whether Map::Find() can be called with a K.
+template <typename Map, typename K, typename = void>
+struct CanFind : std::false_type {};
+template <typename Map, typename K>
+struct CanFind<Map,
+               K,
+               std::void_t<decltype(std::declval<const Map&>().Find(
+                   std::declval<const K&>()))>> : std::true_type {};
+
 TEST(FlatHashMapV2Test, HeterogeneousInsert) {
   struct Hasher {
     using is_transparent = void;
@@ -191,7 +201,7 @@ TEST(FlatHashMapV2Test, InsertConvertibleKey) {
   EXPECT_EQ(*int_map.Find(int64_t{42}), 100);
 }
 
-TEST(FlatHashMapV2Test, InsertConvertsForNonHeterogeneousEquality) {
+TEST(FlatHashMapV2Test, NonHeterogeneousEqualityNeedsOwningKey) {
   struct Hasher {
     using is_transparent = void;
     size_t operator()(const Key& key) const {
@@ -199,11 +209,13 @@ TEST(FlatHashMapV2Test, InsertConvertsForNonHeterogeneousEquality) {
     }
     size_t operator()(int key) const { return static_cast<size_t>(key); }
   };
-  // Key is explicitly constructible from int, but its equality only accepts
-  // Key. Insertion must convert to Key before probing the map.
-  FlatHashMapV2<Key, int, Hasher> map;
-  ASSERT_TRUE(map.Insert(42, 100).second);
-  auto duplicate = map.Insert(42, 200);
+  // The Hasher takes int, but Key's equality only accepts Key, so an int isn't
+  // a heterogeneous key: the caller has to construct a Key.
+  using Map = FlatHashMapV2<Key, int, Hasher>;
+  static_assert(!CanFind<Map, int>::value);
+  Map map;
+  ASSERT_TRUE(map.Insert(Key(42), 100).second);
+  auto duplicate = map.Insert(Key(42), 200);
   EXPECT_FALSE(duplicate.second);
   EXPECT_EQ(*duplicate.first, 100);
   ASSERT_NE(map.Find(Key(42)), nullptr);

@@ -178,4 +178,128 @@ TEST_F(CollectTimelineEventsTest, ProcFreeEndsThread) {
   ASSERT_FALSE(after);
 }
 
+TEST_F(CollectTimelineEventsTest, StoresFullUidWithoutReduction) {
+  constexpr uint64_t kWorkProfileUid = 1010234;
+  constexpr int32_t kWorkProfilePid = 2000;
+
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(kTimeA);
+
+  auto* process_tree = packet.mutable_process_tree();
+  auto* process = process_tree->add_processes();
+  process->set_pid(kWorkProfilePid);
+  process->set_ppid(1);
+  process->set_uid(kWorkProfileUid);
+
+  auto buffer = packet.SerializeAsString();
+  protos::pbzero::TracePacket::Decoder decoder(buffer);
+
+  ASSERT_OK(collector_.Collect(decoder, &context_));
+  ASSERT_OK(collector_.End(&context_));
+
+  const auto* event =
+      context_.timeline->GetOpeningEvent(kTimeA, kWorkProfilePid);
+  ASSERT_TRUE(event);
+  ASSERT_TRUE(event->valid());
+  ASSERT_EQ(event->uid, kWorkProfileUid);
+}
+
+TEST_F(CollectTimelineEventsTest, NormalizesUidWhenNormalizeUidIsTrue) {
+  constexpr uint64_t kWorkProfileUid = 1010234;
+  constexpr int32_t kWorkProfilePid = 2000;
+
+  context_.normalize_uid = true;
+
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(kTimeA);
+
+  auto* process_tree = packet.mutable_process_tree();
+  auto* process = process_tree->add_processes();
+  process->set_pid(kWorkProfilePid);
+  process->set_ppid(1);
+  process->set_uid(kWorkProfileUid);
+
+  auto buffer = packet.SerializeAsString();
+  protos::pbzero::TracePacket::Decoder decoder(buffer);
+
+  ASSERT_OK(collector_.Collect(decoder, &context_));
+  ASSERT_OK(collector_.End(&context_));
+
+  const auto* event =
+      context_.timeline->GetOpeningEvent(kTimeA, kWorkProfilePid);
+  ASSERT_TRUE(event);
+  ASSERT_TRUE(event->valid());
+  ASSERT_EQ(event->uid, NormalizeUid(kWorkProfileUid));
+}
+
+TEST_F(CollectTimelineEventsTest, ProcessWithoutUidDefaultsToUnknownUid) {
+  constexpr int32_t kUnlabelledPid = 3000;
+
+  protos::gen::TracePacket packet;
+  packet.set_timestamp(kTimeA);
+
+  auto* process_tree = packet.mutable_process_tree();
+  auto* process = process_tree->add_processes();
+  process->set_pid(kUnlabelledPid);
+  process->set_ppid(1);
+  // Do not set process->uid
+
+  auto buffer = packet.SerializeAsString();
+  protos::pbzero::TracePacket::Decoder decoder(buffer);
+
+  ASSERT_OK(collector_.Collect(decoder, &context_));
+  ASSERT_OK(collector_.End(&context_));
+
+  const auto* event =
+      context_.timeline->GetOpeningEvent(kTimeA, kUnlabelledPid);
+  ASSERT_TRUE(event);
+  ASSERT_TRUE(event->valid());
+  ASSERT_EQ(event->uid, ProcessThreadTimeline::Event::kUnknownUid);
+}
+
+TEST_F(CollectTimelineEventsTest, ProcessWithNegativeUidDefaultsToUnknownUid) {
+  for (bool normalize_uid : {true, false}) {
+    Context context;
+    context.normalize_uid = normalize_uid;
+    CollectTimelineEvents collector;
+    ASSERT_OK(collector.Begin(&context));
+
+    constexpr int32_t kPid1 = 4001;
+    constexpr int32_t kPid2 = 4002;
+
+    protos::gen::TracePacket packet;
+    packet.set_timestamp(kTimeA);
+
+    auto* process_tree = packet.mutable_process_tree();
+
+    auto* p1 = process_tree->add_processes();
+    p1->set_pid(kPid1);
+    p1->set_ppid(1);
+    p1->set_uid(-1);
+
+    auto* p2 = process_tree->add_processes();
+    p2->set_pid(kPid2);
+    p2->set_ppid(1);
+    p2->set_uid(-100);
+
+    auto buffer = packet.SerializeAsString();
+    protos::pbzero::TracePacket::Decoder decoder(buffer);
+
+    ASSERT_OK(collector.Collect(decoder, &context));
+    ASSERT_OK(collector.End(&context));
+
+    const auto* event1 = context.timeline->GetOpeningEvent(kTimeA, kPid1);
+    ASSERT_TRUE(event1);
+    ASSERT_TRUE(event1->valid());
+    ASSERT_EQ(event1->uid, ProcessThreadTimeline::Event::kUnknownUid);
+    ASSERT_NE(event1->uid, 15u);
+
+    const auto* event2 = context.timeline->GetOpeningEvent(kTimeA, kPid2);
+    ASSERT_TRUE(event2);
+    ASSERT_TRUE(event2->valid());
+    ASSERT_EQ(event2->uid, ProcessThreadTimeline::Event::kUnknownUid);
+    ASSERT_NE(event2->uid, 15u);
+  }
+}
+
 }  // namespace perfetto::trace_redaction

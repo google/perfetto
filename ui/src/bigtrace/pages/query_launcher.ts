@@ -20,6 +20,7 @@ import {Spinner} from '../../widgets/spinner';
 import {Intent} from '../../widgets/common';
 import {
   toExperimentFilterSpec,
+  type TraceColumnDescriptor,
   type TracePreset,
 } from '../query/bigtrace_query_client';
 import {presetStore} from '../query/preset_store';
@@ -49,6 +50,8 @@ import {
   type BigTraceEditorTab,
   type QueryTabsState,
 } from './query_tabs_state';
+import {CorpusFilterBar} from './corpus_filters';
+import {DEFAULT_DATE_FILTER, UPLOAD_DATE_COLUMN} from '../query/date_filter';
 import {groupPresetsByCuj, renderCujSelector} from './preset_groups';
 import {openManagePresetsModal, promptForPreset} from './preset_dialogs';
 import {QuerySettingsForm} from './query_settings_form';
@@ -94,6 +97,9 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   // The preset last applied per category while this page is up, so clicking
   // back to a category restores the one that was chosen there.
   private readonly lastByCategory = new Map<string, string>();
+  // Trace-metadata columns reported by the form's schema fetch; drives which
+  // corpus filter chips exist.
+  private schemaColumns: ReadonlyArray<TraceColumnDescriptor> | undefined;
 
   oninit() {
     void presetStore.load();
@@ -102,12 +108,13 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
   view({attrs}: m.Vnode<QueryLauncherAttrs>): m.Children {
     const {tab, tabsState, bindings} = attrs;
     const editing = tab.settingsSession !== undefined;
+    const uuidMode = traceUuidsActive(tab);
     return m(
       '.pf-bt-launcher',
       {
         // In UUID mode the paste box is the page: stretch the chain so it
         // fills the height the grid otherwise would.
-        className: traceUuidsActive(tab) ? 'pf-bt-launcher--uuid' : undefined,
+        className: uuidMode ? 'pf-bt-launcher--uuid' : undefined,
       },
       [
         m(
@@ -115,7 +122,24 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
           m(QuerySettingsForm, {
             bindings,
             scope: 'trace-selection',
-            header: this.renderPresetsSection(tab, tabsState, editing),
+            header: this.renderPresetsSection(
+              tab,
+              tabsState,
+              editing,
+              bindings,
+            ),
+            onTraceSchema: (columns) => {
+              this.schemaColumns = columns;
+              // First sight of the date column on this tab: start from the
+              // default range. A tab the user already set (or cleared) keeps
+              // its own.
+              if (
+                bindings.getDateFilter() === undefined &&
+                columns?.some((c) => c.name === UPLOAD_DATE_COLUMN) === true
+              ) {
+                bindings.setDateFilter(DEFAULT_DATE_FILTER);
+              }
+            },
           }),
         ),
         this.renderFooter(tab, tabsState, editing),
@@ -130,6 +154,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
     tab: BigTraceEditorTab,
     tabsState: QueryTabsState,
     editing: boolean,
+    bindings: SettingsBindings,
   ): m.Children {
     const presets = launcherPresets(
       presetStore.presets,
@@ -145,13 +170,9 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
       // all one activity.
       m('.pf-bt-corpus-head', [
         m('.pf-bt-corpus-head__title', 'Select a trace corpus'),
+        // Pasted UUIDs bypass trace filters, so the bar has nothing to do.
         !uuidMode &&
-          m(
-            '.pf-bt-corpus-head__subtitle',
-            'Start from a preset for your vertical, then filter the table ' +
-              'down to the traces of interest.' +
-              (traceUuidsDeclared() ? ' Or simply paste trace uuids.' : ''),
-          ),
+          m(CorpusFilterBar, {bindings, columns: this.schemaColumns}),
       ]),
       !uuidMode &&
         (presets.length > 0 || traceUuidsDeclared()
@@ -239,7 +260,7 @@ export class QueryLauncher implements m.ClassComponent<QueryLauncherAttrs> {
         ? this.activeCuj
         : anchorCuj !== undefined && byCuj.has(anchorCuj)
           ? anchorCuj
-          : groups[0][0];
+          : groups[0]![0];
     const options = byCuj.get(active) ?? [];
     const appliedInActive = options.some((p) => p.id === appliedId);
     const shown = appliedInActive ? applied : undefined;

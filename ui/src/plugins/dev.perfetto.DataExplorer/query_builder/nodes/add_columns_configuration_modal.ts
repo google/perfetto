@@ -136,11 +136,11 @@ export class AddColumnsConfigurationModal implements m.ClassComponent<AddColumns
           onRightColumnChange(columnName);
         },
         onColumnToggle: (index: number, checked: boolean) => {
-          const colName = rightCols[index].name;
+          const colName = rightCols[index]!.name;
           onColumnToggle(colName, checked);
         },
         onColumnAlias: (index: number, alias: string) => {
-          const colName = rightCols[index].name;
+          const colName = rightCols[index]!.name;
           onColumnAlias(colName, alias);
         },
       }),

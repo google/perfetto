@@ -37,7 +37,7 @@ export class Dropdown<T extends string | number> implements ProbeSetting {
   }
 
   private defaultValue(): T {
-    return this.attrs.defaultValue ?? this.attrs.options[0].value;
+    return this.attrs.defaultValue ?? this.attrs.options[0]!.value;
   }
 
   serialize() {

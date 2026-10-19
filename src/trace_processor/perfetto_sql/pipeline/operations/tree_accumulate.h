@@ -21,6 +21,7 @@
 #include <optional>
 #include <vector>
 
+#include "src/trace_processor/perfetto_sql/pipeline/aggregate.h"
 #include "src/trace_processor/perfetto_sql/pipeline/logical_plan.h"
 #include "src/trace_processor/perfetto_sql/pipeline/plan_types.h"
 
@@ -36,13 +37,6 @@ class TreeAccumulate : public PlanOperation {
   static const OperationRegistration kRegistration;
 
  private:
-  enum class Function : uint8_t { kSum };
-  struct Aggregate {
-    Function function = Function::kSum;
-    ColumnId column = 0;
-    ColumnId output = 0;
-  };
-
   // Test-only formatting; keep payload details out of the public interface.
   friend class LogicalPlanFormatter;
 

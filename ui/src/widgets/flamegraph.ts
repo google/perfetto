@@ -46,6 +46,8 @@ import {
   type TreeExplorerFilter,
   type TreeExplorerMetric,
   type TreeExplorerNode,
+  type TreeExplorerNodeIconFn,
+  type TreeExplorerNodeTooltipRenderer,
   type TreeExplorerOptionalAction,
   type TreeExplorerPropertyDefinition,
   type TreeExplorerState,
@@ -61,6 +63,13 @@ const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 3;
 const LABEL_PADDING_PX = 5;
 const LABEL_MIN_WIDTH_FOR_TEXT_PX = 5;
+// Node decorations (marker square, icon) are laid out left to right.
+const NODE_DECORATION_LEFT_MARGIN_PX = 2;
+const NODE_DECORATION_GAP_PX = 2; // Between decorations, and before the label.
+const MARKER_SQUARE_SIZE_PX = 3;
+const MARKER_SQUARE_MIN_NODE_WIDTH_PX = 15;
+const NODE_ICON_SIZE_PX = 14;
+const NODE_ICON_FONT_STYLE = `${NODE_ICON_SIZE_PX}px Material Symbols Sharp`;
 const PADDING_NODE_COUNT = 8;
 
 interface BaseSource {
@@ -135,6 +144,14 @@ export interface FlamegraphAttrs {
   // Nodes whose name matches are drawn with a highlighted border. Owned by
   // the caller so the (separate) filter bar can drive it.
   readonly highlightRegex?: RegExp;
+
+  // Optional icon drawn before a node's name. Evaluated for every drawn node
+  // on every render, so it can depend on the caller's current state.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+
+  // Optional custom renderer for a node's tooltip. Receives the default
+  // tooltip content and returns what to show, e.g. to add content above it.
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 
   readonly onStateChange: (state: TreeExplorerState) => void;
 }
@@ -322,7 +339,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
                 this.tooltipPos = undefined;
                 return;
               }
-              const renderNode = this.renderNodes![newHoveredIdx];
+              const renderNode = this.renderNodes![newHoveredIdx]!;
               this.tooltipPos = {
                 x: offsetX,
                 y: renderNode.y,
@@ -465,7 +482,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       .trim();
 
     for (let i = 0; i < this.renderNodes.length; i++) {
-      const node = this.renderNodes[i];
+      const node = this.renderNodes[i]!;
       const {x, y, width: width, source, state} = node;
       if (y + NODE_HEIGHT <= yStart || y >= yEnd) {
         continue;
@@ -486,7 +503,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         name = '(merged)';
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       } else {
-        name = nodes[source.queryIdx].name;
+        name = nodes[source.queryIdx]!.name;
         colorScheme = getFlamegraphColorScheme(name, state === 'PARTIAL');
       }
       const highlighted =
@@ -497,30 +514,28 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       ctx.fillStyle = bgColor.cssString;
       ctx.fillRect(x, y, width - 1, NODE_HEIGHT - 1);
 
-      // Render marker
-      const MARKER_SIZE = 3;
-      const MARKER_LEFT_MARGIN = 2;
-      const MIN_WIDTH_FOR_MARKER = 15; // Don't show marker on very small nodes
-      const hasMarker =
-        source.kind === 'NODE' &&
-        nodes[source.queryIdx].marker !== undefined &&
-        width >= MIN_WIDTH_FOR_MARKER;
-      if (hasMarker) {
-        ctx.fillStyle = textColor.cssString;
-        const markerX = x + MARKER_LEFT_MARGIN;
-        const markerY = y + 2; // Position at top of node with small margin
-        ctx.fillRect(markerX, markerY, MARKER_SIZE, MARKER_SIZE);
-      }
-
-      // Text positioning - no need to reserve space since marker is in top corner
-      const widthNoPadding = width - LABEL_PADDING_PX * 2;
-      if (widthNoPadding >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
+      const treeNode =
+        source.kind === 'NODE' ? nodes[source.queryIdx] : undefined;
+      const labelStart =
+        treeNode !== undefined
+          ? drawNodeDecorations(
+              ctx,
+              treeNode.marker,
+              this.attrs.nodeIcon?.(treeNode.propertyValues),
+              x,
+              y,
+              width,
+              textColor.cssString,
+            )
+          : LABEL_PADDING_PX;
+      const labelWidth = width - labelStart - LABEL_PADDING_PX;
+      if (labelWidth >= LABEL_MIN_WIDTH_FOR_TEXT_PX) {
         ctx.fillStyle = textColor.cssString;
         ctx.fillText(
-          name.substring(0, widthNoPadding / this.labelCharWidth),
-          x + LABEL_PADDING_PX,
+          name.substring(0, labelWidth / this.labelCharWidth),
+          x + labelStart,
           y + (NODE_HEIGHT - 1) / 2,
-          widthNoPadding,
+          labelWidth,
         );
       }
       if (highlighted) {
@@ -601,7 +616,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       parentCumulativeValue,
       properties,
       marker,
-    } = nodes[queryIdx];
+    } = nodes[queryIdx]!;
 
     const percent = displayPercentage(
       cumulativeValue,
@@ -624,8 +639,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       selfPercentText += `, parent: ${parentSelfPercent}`;
     }
     const nameLabel = nameColumnLabel ?? 'Name';
-    return m(
-      'div',
+    const defaultContent = [
       // Show marker at the top of the tooltip
       marker &&
         m('.tooltip-text-line', m('.tooltip-marker-text', `■ ${marker}`)),
@@ -660,7 +674,18 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         }
         return null;
       }),
-      this.renderNodeActionBar(source, name, nodes[queryIdx], nodeActions),
+      this.renderNodeActionBar(source, name, nodes[queryIdx]!, nodeActions),
+    ];
+    const {renderNodeTooltip} = this.attrs;
+    const node = nodes[queryIdx]!;
+    return m(
+      'div',
+      renderNodeTooltip === undefined
+        ? defaultContent
+        : renderNodeTooltip(
+            {properties: node.propertyValues, node},
+            defaultContent,
+          ),
     );
   }
 
@@ -1122,6 +1147,46 @@ export function buildFlamegraphExportString(
   }
 }
 
+// Draws a node's decorations (marker square, then `icon`) left to right from
+// its left edge and returns the x offset, relative to the node's left edge,
+// at which the label should start. Each drawn decoration moves `cursor` past
+// itself so decorations never overlap. A square on its own sits in the
+// top-left corner without moving the label; the icon sits inline before the
+// label and pushes it right. Decorations that do not fit are not drawn.
+function drawNodeDecorations(
+  ctx: CanvasRenderingContext2D,
+  marker: string | undefined,
+  icon: string | undefined,
+  x: number,
+  y: number,
+  width: number,
+  color: string,
+): number {
+  ctx.fillStyle = color;
+  let cursor = NODE_DECORATION_LEFT_MARGIN_PX;
+  if (marker !== undefined && width >= MARKER_SQUARE_MIN_NODE_WIDTH_PX) {
+    ctx.fillRect(
+      x + cursor,
+      y + 2,
+      MARKER_SQUARE_SIZE_PX,
+      MARKER_SQUARE_SIZE_PX,
+    );
+    // Only reserve horizontal space if an icon follows on the same row.
+    if (icon !== undefined) {
+      cursor += MARKER_SQUARE_SIZE_PX + NODE_DECORATION_GAP_PX;
+    }
+  }
+  const labelStart = cursor + NODE_ICON_SIZE_PX + NODE_DECORATION_GAP_PX;
+  if (icon === undefined || width < labelStart) {
+    return LABEL_PADDING_PX;
+  }
+  ctx.font = NODE_ICON_FONT_STYLE;
+  ctx.fillText(icon, x + cursor, y + (NODE_HEIGHT - 1) / 2);
+  // Restore the label font, which the caller relies on.
+  ctx.font = LABEL_FONT_STYLE;
+  return labelStart;
+}
+
 function computeRenderNodes(
   {nodes, allRootsCumulativeValue, minDepth}: TreeExplorerData,
   zoomRegion: ZoomRegion,
@@ -1150,7 +1215,7 @@ function computeRenderNodes(
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
   for (let i = 0; i < nodes.length; i++) {
-    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
+    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i]!;
     assertTrue(depth !== 0);
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
@@ -1192,7 +1257,7 @@ function computeRenderNodes(
       const mergedXKey = `${id}_${depth > 0 ? depth + 1 : depth - 1}`;
       const childMergedIdx = keyToChildMergedIdx.get(parentChildMergeKey);
       if (childMergedIdx !== undefined) {
-        const r = renderNodes[childMergedIdx];
+        const r = renderNodes[childMergedIdx]!;
         const mergedWidth = isDepthMatchingZoom(depth, zoomRegion)
           ? Math.min(qXEnd - r.source.queryXStart, zoomQueryWidth) / queryXPerPx
           : (qXEnd - r.source.queryXStart) / queryXPerPx;

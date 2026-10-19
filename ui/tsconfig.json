@@ -21,5 +21,6 @@
     },
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "noUncheckedIndexedAccess": true,
   }
 }

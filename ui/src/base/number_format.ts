@@ -164,8 +164,8 @@ function siPrefix(
   value: number,
   prefixes: [number, string][],
 ): {mantissa: number; prefix: string} {
-  let multiplier = prefixes[0][0];
-  let prefix = prefixes[0][1];
+  let multiplier = prefixes[0]![0];
+  let prefix = prefixes[0]![1];
   const absV = Math.abs(value);
   for (const [m, p] of prefixes) {
     if (m > absV) break;

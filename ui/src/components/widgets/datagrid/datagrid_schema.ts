@@ -236,7 +236,7 @@ export function getColumnInfo(
   let currentSchema = schema;
 
   for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
+    const part = parts[i]!;
     const entry = maybeUndefined(currentSchema[part]);
 
     if (!entry) {

@@ -475,7 +475,21 @@ node PerfettoPipeAggregate {
   }
 }
 
+// `WHERE condition`: keeps the rows the condition holds for.
+node PerfettoPipeWhere {
+  condition: index Expr
+
+  fmt { group { "WHERE" nest { line child(condition) } } }
+}
+
+// `DISTINCT`: keeps one of each set of rows equal in every column.
+node PerfettoPipeDistinct {
+  fmt { "DISTINCT" }
+}
+
 abstract PerfettoPipeStage {
+  PerfettoPipeWhere
+  PerfettoPipeDistinct
   PerfettoTreeAccumulate
   PerfettoIntervalFlatten
   PerfettoIntervalFillGaps

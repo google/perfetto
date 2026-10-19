@@ -18,6 +18,143 @@ from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
+# vkSetDebugUtilsObjectNameEXT history of framebuffer handle 4096 on two
+# devices: named, renamed twice at the same timestamp, cleared with an empty
+# name without affecting a render pass with the same handle value (4096), and
+# then named again when the handle is reused on device 100, plus a render pass
+# with zero pid/vk_device whose omitted name is a tombstone and VK_NULL_HANDLE /
+# omitted-object events that are dropped.
+_VULKAN_DEBUG_NAMES_TRACE = r"""
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 24
+      object: 4096
+      object_name: "swapchain_framebuffer"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 20
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 24
+      object: 4096
+      object_name: "shadow_framebuffer"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 20
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 24
+      object: 4096
+      object_name: "shadow_framebuffer_v2"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 25
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 18
+      object: 4096
+      object_name: "main_render_pass"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 30
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 200
+      object_type: 24
+      object: 4096
+      object_name: "offscreen_framebuffer"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 40
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 24
+      object: 4096
+      object_name: ""
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 50
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 0
+      vk_device: 0
+      object_type: 18
+      object: 8192
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 60
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 18
+      object: 0
+      object_name: "null_handle_is_dropped"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 65
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 24
+      object_name: "omitted_handle_is_dropped"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 70
+  vulkan_api_event {
+    vk_debug_utils_object_name {
+      pid: 42
+      vk_device: 100
+      object_type: 24
+      object: 4096
+      object_name: "swapchain_framebuffer_reused"
+    }
+  }
+}
+"""
+
 
 class GraphicsGpuTrace(TestSuite):
 
@@ -333,6 +470,296 @@ class GraphicsGpuTrace(TestSuite):
           "track_name","track_desc","ts","dur","slice_name","depth","context_id","command_buffer","cb0","cb1","cb2","submission_id","tid","pid"
           "Vulkan Events","[NULL]",10,2,"vkQueueSubmit",0,"[NULL]",100,100,"[NULL]","[NULL]",1,43,42
           "Vulkan Events","[NULL]",20,2,"vkQueueSubmit",0,"[NULL]",200,200,300,400,2,45,44
+        '''))
+
+  def test_vulkan_debug_names(self):
+    return DiffTestBlueprint(
+        trace=TextProto(_VULKAN_DEBUG_NAMES_TRACE),
+        query="""
+        INCLUDE PERFETTO MODULE std.gpu.vulkan_debug_names;
+        SELECT
+          d.ts,
+          p.pid,
+          d.vk_device,
+          d.object_type,
+          d.object,
+          d.name
+        FROM gpu_vulkan_debug_names d
+        LEFT JOIN process p USING (upid)
+        ORDER BY d.ts, d.id;
+        """,
+        out=Csv('''
+          "ts","pid","vk_device","object_type","object","name"
+          10,42,100,24,4096,"swapchain_framebuffer"
+          20,42,100,24,4096,"shadow_framebuffer"
+          20,42,100,24,4096,"shadow_framebuffer_v2"
+          25,42,100,18,4096,"main_render_pass"
+          30,42,200,24,4096,"offscreen_framebuffer"
+          40,42,100,24,4096,"[NULL]"
+          50,"[NULL]","[NULL]",18,8192,"[NULL]"
+          70,42,100,24,4096,"swapchain_framebuffer_reused"
+        '''))
+
+  def test_vulkan_debug_names_point_in_time_lookup(self):
+    # The name in effect at a timestamp is the newest row at or before it,
+    # breaking ties on id. The NULL tombstone hides the cleared name without
+    # affecting the same handle value on another device or another object_type,
+    # and a name set after the tombstone resolves again.
+    return DiffTestBlueprint(
+        trace=TextProto(_VULKAN_DEBUG_NAMES_TRACE),
+        query="""
+        INCLUDE PERFETTO MODULE std.gpu.vulkan_debug_names;
+        WITH snapshot(ts, vk_device, object_type) AS (
+          VALUES
+            (5, 100, 24), (15, 100, 24), (25, 100, 24), (35, 100, 24),
+            (45, 100, 18), (45, 100, 24), (45, 200, 24), (75, 100, 24)
+        )
+        SELECT
+          snapshot.ts AS snapshot_ts,
+          snapshot.vk_device,
+          snapshot.object_type,
+          (
+            SELECT name
+            FROM gpu_vulkan_debug_names
+            WHERE vk_device = snapshot.vk_device
+              AND object_type = snapshot.object_type
+              AND object = 4096
+              AND ts <= snapshot.ts
+            ORDER BY ts DESC, id DESC
+            LIMIT 1
+          ) AS name
+        FROM snapshot
+        ORDER BY snapshot.ts, snapshot.vk_device, snapshot.object_type;
+        """,
+        out=Csv('''
+          "snapshot_ts","vk_device","object_type","name"
+          5,100,24,"[NULL]"
+          15,100,24,"swapchain_framebuffer"
+          25,100,24,"shadow_framebuffer_v2"
+          35,100,24,"shadow_framebuffer_v2"
+          45,100,18,"main_render_pass"
+          45,100,24,"[NULL]"
+          45,200,24,"offscreen_framebuffer"
+          75,100,24,"swapchain_framebuffer_reused"
+        '''))
+
+  def test_vulkan_debug_names_render_stage_tombstones(self):
+    # Clearing a high-bit uint64 framebuffer name with "" and destroying the
+    # render pass (object_name omitted) remove their names from later render
+    # stage slices instead of leaving an empty or stale name; the renamed
+    # command buffer resolves to its new name, and so does the framebuffer
+    # handle once it is named again after the tombstone.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          interned_data {
+            graphics_contexts {
+              iid: 1
+              pid: 42
+              api: VULKAN
+            }
+            gpu_specifications {
+              iid: 1
+              name: "queue 0"
+              description: "queue desc 0"
+            }
+            gpu_specifications {
+              iid: 2
+              name: "stage 0"
+              description: "stage desc 0"
+            }
+          }
+          sequence_flags: 1
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1
+          vulkan_api_event {
+            vk_debug_utils_object_name {
+              pid: 42
+              vk_device: 9223372036854775809
+              object_type: 24
+              object: 18446744073709551614
+              object_name: "framebuffer"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2
+          vulkan_api_event {
+            vk_debug_utils_object_name {
+              pid: 42
+              vk_device: 9223372036854775809
+              object_type: 18
+              object: 32
+              object_name: "render_pass"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3
+          vulkan_api_event {
+            vk_debug_utils_object_name {
+              pid: 42
+              vk_device: 9223372036854775809
+              object_type: 6
+              object: 48
+              object_name: "command_buffer"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 10
+          gpu_render_stage_event {
+            event_id: 1
+            duration: 5
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+            render_target_handle: 18446744073709551614
+            render_pass_handle: 32
+            command_buffer_handle: 48
+          }
+          sequence_flags: 2
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 20
+          vulkan_api_event {
+            vk_debug_utils_object_name {
+              pid: 42
+              vk_device: 9223372036854775809
+              object_type: 24
+              object: 18446744073709551614
+              object_name: ""
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 21
+          vulkan_api_event {
+            vk_debug_utils_object_name {
+              pid: 42
+              vk_device: 9223372036854775809
+              object_type: 18
+              object: 32
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 22
+          vulkan_api_event {
+            vk_debug_utils_object_name {
+              pid: 42
+              vk_device: 9223372036854775809
+              object_type: 6
+              object: 48
+              object_name: "command_buffer_renamed"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 30
+          gpu_render_stage_event {
+            event_id: 2
+            duration: 5
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+            render_target_handle: 18446744073709551614
+            render_pass_handle: 32
+            command_buffer_handle: 48
+          }
+          sequence_flags: 2
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 40
+          vulkan_api_event {
+            vk_debug_utils_object_name {
+              pid: 42
+              vk_device: 9223372036854775809
+              object_type: 24
+              object: 18446744073709551614
+              object_name: "framebuffer_reused"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 50
+          gpu_render_stage_event {
+            event_id: 3
+            duration: 5
+            hw_queue_iid: 1
+            stage_iid: 2
+            context: 1
+            render_target_handle: 18446744073709551614
+            render_pass_handle: 32
+            command_buffer_handle: 48
+          }
+          sequence_flags: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE std.gpu.vulkan_debug_names;
+        SELECT
+          s.ts,
+          s.render_target,
+          s.render_target_name,
+          (
+            SELECT v.vk_device
+            FROM gpu_vulkan_debug_names v
+            WHERE v.object = s.render_target
+            LIMIT 1
+          ) AS vk_device,
+          s.render_pass,
+          s.render_pass_name,
+          s.command_buffer,
+          s.command_buffer_name
+        FROM gpu_slice s
+        ORDER BY s.ts;
+        """,
+        out=Csv('''
+          "ts","render_target","render_target_name","vk_device","render_pass","render_pass_name","command_buffer","command_buffer_name"
+          10,-2,"framebuffer",-9223372036854775807,32,"render_pass",48,"command_buffer"
+          30,-2,"[NULL]",-9223372036854775807,32,"[NULL]",48,"command_buffer_renamed"
+          50,-2,"framebuffer_reused",-9223372036854775807,32,"[NULL]",48,"command_buffer_renamed"
+        '''))
+
+  def test_gpu_render_stages_vulkan_debug_names(self):
+    # Every add_vk_debug_marker call of the synthetic gpu_render_stages trace
+    # is recorded as one row with its pid resolved to a process, so the table
+    # also covers traces that were written for render stage naming only.
+    return DiffTestBlueprint(
+        trace=Path('gpu_render_stages.py'),
+        query="""
+        INCLUDE PERFETTO MODULE std.gpu.vulkan_debug_names;
+        SELECT
+          d.ts,
+          p.pid,
+          d.vk_device,
+          d.object_type,
+          d.object,
+          d.name
+        FROM gpu_vulkan_debug_names d
+        LEFT JOIN process p USING (upid)
+        ORDER BY d.ts, d.id;
+        """,
+        out=Csv('''
+          "ts","pid","vk_device","object_type","object","name"
+          91,100,1,6,16,"command_buffer"
+          101,100,1,18,16,"render_pass"
+          111,100,1,24,16,"framebuffer"
+          121,100,1,24,16,"renamed_buffer"
         '''))
 
   def test_gpu_log(self):

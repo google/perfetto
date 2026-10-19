@@ -15,6 +15,7 @@
 import m from 'mithril';
 import type {Filter} from '../../components/widgets/datagrid/model';
 import type {ExperimentFilterState} from '../pages/query_tabs_state';
+import type {DateFilterState} from '../query/date_filter';
 import type {
   EnumOption,
   Setting as BigTraceSetting,
@@ -70,6 +71,11 @@ export interface SettingsBindings {
   readonly setExperimentFilter: (
     filter: ExperimentFilterState | undefined,
   ) => void;
+  // The upload-date range, kept apart from the grid filters so a preset's
+  // setup does not wipe it. undefined until the schema has shown the column,
+  // null once the user picked "any date".
+  readonly getDateFilter: () => DateFilterState | null | undefined;
+  readonly setDateFilter: (filter: DateFilterState | null) => void;
 }
 
 // Wraps a globally-registered Setting<T> so reads/writes route through per-tab
@@ -156,7 +162,7 @@ export function convertFromWireValues<T>(
   switch (setting.type) {
     case 'number': {
       if (raw.length === 0) return undefined;
-      const n = parseFloat(raw[0]);
+      const n = parseFloat(raw[0]!);
       return Number.isFinite(n) ? (n as unknown as T) : undefined;
     }
     case 'boolean':

@@ -23,14 +23,15 @@
 
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/exec/column_view.h"
-#include "src/trace_processor/core/exec/group_by.h"
+#include "src/trace_processor/core/exec/context.h"
+#include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/row_batch.h"
-#include "src/trace_processor/core/exec/row_selection.h"
+#include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/exec/sort.h"
 
-// Sort and GroupBy run over 16 full batches, as over a large input, and over
-// one row, as when a small input is run over and over.
+// Runs Sort and GroupedSort on 16 full batches and on a single row. These
+// stand for a large input and for a small input that is run many times.
 
 namespace perfetto::trace_processor::core::exec {
 namespace {
@@ -44,6 +45,8 @@ void Run(benchmark::State& state,
          uint32_t rows,
          uint32_t distinct,
          uint32_t key_columns = 1) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
   std::vector<int64_t> keys;
   for (uint32_t i = 0; i < rows; ++i) {
     keys.push_back(int64_t{(i * 2654435761u) % distinct});
@@ -53,12 +56,12 @@ void Run(benchmark::State& state,
     uint32_t count = std::min(kMaxBatchRows, rows - at);
     RowBatch& batch = batches.emplace_back();
     for (uint32_t k = 0; k < key_columns; ++k) {
-      batch.AddColumn(ColumnView::Reference(StorageType{Int64{}}, keys.data()));
+      batch.AddBorrowedColumn(ColumnView::Reference(StorageType{Int64{}},
+                                                    keys.data(), nullptr, at));
     }
-    batch.Compose(RowSelection::Range(at), count);
-    batch.SetCardinality(count);
+    batch.SetRowCount(count);
   }
-  std::unique_ptr<OperatorState> op_state = op.MakeState();
+  std::unique_ptr<OperatorState> op_state = op.MakeState(context);
   RowBatch out;
   for (auto _ : state) {
     for (const RowBatch& batch : batches) {
@@ -85,20 +88,20 @@ void BM_SortInt64OneRow(benchmark::State& state) {
 BENCHMARK(BM_SortInt64OneRow);
 
 void BM_GroupByInt64(benchmark::State& state) {
-  GroupBy group_by({0});
+  GroupedSort group_by(GroupedSortSpec{{0}, {}});
   Run(state, group_by, kRows, static_cast<uint32_t>(state.range(0)));
 }
 BENCHMARK(BM_GroupByInt64)->Arg(16)->Arg(kRows);
 
 // Keys too long for std::string to hold inline.
 void BM_GroupByThreeKeys(benchmark::State& state) {
-  GroupBy group_by({0, 1, 2});
+  GroupedSort group_by(GroupedSortSpec{{0, 1, 2}, {}});
   Run(state, group_by, kRows, kRows, 3);
 }
 BENCHMARK(BM_GroupByThreeKeys);
 
 void BM_GroupByInt64OneRow(benchmark::State& state) {
-  GroupBy group_by({0});
+  GroupedSort group_by(GroupedSortSpec{{0}, {}});
   Run(state, group_by, 1, 1);
 }
 BENCHMARK(BM_GroupByInt64OneRow);

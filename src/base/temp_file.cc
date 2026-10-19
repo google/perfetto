@@ -18,9 +18,11 @@
 
 #include "perfetto/base/build_config.h"
 
-#include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <utility>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <windows.h>
@@ -34,21 +36,39 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace base {
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 namespace {
-std::string GetTempFilePathWin() {
-  std::string tmplt = GetSysTempDir() + "\\perfetto-XXXXXX";
-  StackString<255> name("%s\\perfetto-XXXXXX", GetSysTempDir().c_str());
-  PERFETTO_CHECK(_mktemp_s(name.mutable_data(), name.len() + 1) == 0);
-  return name.ToStdString();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+StatusOr<std::string> GetTempFilePathWin() {
+  std::string path = GetSysTempDir() + "\\perfetto-XXXXXX";
+  int error = _mktemp_s(path.data(), path.size() + 1);
+  if (error != 0)
+    return ErrStatus("_mktemp_s() failed: %s", strerror(error));
+  return path;
 }
-}  // namespace
 #endif
+
+Status UnlinkTempFile(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // If the file is still open, deletion completes when its last handle closes.
+  if (!DeleteFileA(path.c_str())) {
+    return ErrStatus("DeleteFileA(%s) failed: %lu", path.c_str(),
+                     GetLastError());
+  }
+#else
+  if (unlink(path.c_str()) != 0)
+    return ErrStatus("unlink(%s) failed: %s", path.c_str(), strerror(errno));
+#endif
+  return OkStatus();
+}
+
+}  // namespace
 
 std::string GetSysTempDir() {
   const char* tmpdir = nullptr;
@@ -70,62 +90,68 @@ std::string GetSysTempDir() {
 }
 
 // static
-TempFile TempFile::Create() {
-  TempFile temp_file;
+StatusOr<TempFile> TempFile::Create(LinkMode mode) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  temp_file.path_ = GetTempFilePathWin();
+  ASSIGN_OR_RETURN(std::string path, GetTempFilePathWin());
+
   // TempFile exposes both a descriptor and a path. Match POSIX by allowing the
   // path to be reopened while the descriptor remains open. These sharing flags
   // are not settable through _open(), hence the CreateFileA +
   // _open_osfhandle dance.
-  HANDLE h =
-      ::CreateFileA(temp_file.path_.c_str(), GENERIC_READ | GENERIC_WRITE,
+  ScopedPlatformHandle h(
+      ::CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE,
                     FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
-                    nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, nullptr);
-  PERFETTO_CHECK(PlatformHandleChecker::IsValid(h));
+                    nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, nullptr));
+  if (!h) {
+    return ErrStatus("CreateFileA(%s) failed: %lu", path.c_str(),
+                     GetLastError());
+  }
+
   // According to MSDN, when using _open_osfhandle the caller must not call
   // CloseHandle(). Ownership is moved to the file descriptor, which then needs
   // to be closed with just with _close().
-  temp_file.fd_.reset(_open_osfhandle(reinterpret_cast<intptr_t>(h), 0));
-#else
-  temp_file.path_ = GetSysTempDir() + "/perfetto-XXXXXXXX";
-  temp_file.fd_.reset(mkstemp(&temp_file.path_[0]));
-#endif
-  if (PERFETTO_UNLIKELY(!temp_file.fd_)) {
-    PERFETTO_FATAL("Could not create temp file %s", temp_file.path_.c_str());
+  ScopedFile fd(_open_osfhandle(reinterpret_cast<intptr_t>(h.get()), 0));
+  if (!fd) {
+    auto status = ErrStatus("_open_osfhandle() failed: %s", strerror(errno));
+    UnlinkTempFile(path);  // Best effort.
+    return status;
   }
-  return temp_file;
+  h.release();
+#else
+  std::string path = GetSysTempDir() + "/perfetto-XXXXXXXX";
+  ScopedFile fd(mkstemp(path.data()));
+  if (!fd)
+    return ErrStatus("mkstemp(%s) failed: %s", path.c_str(), strerror(errno));
+#endif
+
+  // Transfer ownership to TempFile only once all fallible operations succeed,
+  // because ~TempFile() aborts if unlinking fails.
+  if (mode == LinkMode::kUnlinked) {
+    RETURN_IF_ERROR(UnlinkTempFile(path));
+    return TempFile(std::move(fd), std::string());
+  }
+  return TempFile(std::move(fd), std::move(path));
 }
 
-// static
-TempFile TempFile::CreateUnlinked() {
-  TempFile temp_file = TempFile::Create();
-  temp_file.Unlink();
-  return temp_file;
-}
-
-TempFile::TempFile() = default;
+TempFile::TempFile(ScopedFile fd, std::string path)
+    : fd_(std::move(fd)), path_(std::move(path)) {}
 
 TempFile::~TempFile() {
-  Unlink();
+  PERFETTO_CHECK(Unlink());
 }
 
 ScopedFile TempFile::ReleaseFD() {
-  Unlink();
+  PERFETTO_CHECK(Unlink());
   return std::move(fd_);
 }
 
-void TempFile::Unlink() {
+bool TempFile::Unlink() {
   if (path_.empty())
-    return;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // If the FD is still open DeleteFile will mark the file as pending deletion
-  // and delete it only when the process exists.
-  PERFETTO_CHECK(DeleteFileA(path_.c_str()));
-#else
-  PERFETTO_CHECK(unlink(path_.c_str()) == 0);
-#endif
+    return true;
+  if (!UnlinkTempFile(path_).ok())
+    return false;
   path_.clear();
+  return true;
 }
 
 TempFile::TempFile(TempFile&&) noexcept = default;
@@ -135,7 +161,7 @@ TempFile& TempFile::operator=(TempFile&&) = default;
 TempDir TempDir::Create() {
   TempDir temp_dir;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  temp_dir.path_ = GetTempFilePathWin();
+  temp_dir.path_ = GetTempFilePathWin().ValueOrDie();
   PERFETTO_CHECK(_mkdir(temp_dir.path_.c_str()) == 0);
 #else
   temp_dir.path_ = GetSysTempDir() + "/perfetto-XXXXXXXX";

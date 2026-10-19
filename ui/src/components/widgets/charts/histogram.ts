@@ -17,7 +17,11 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import type {HistogramBucket, HistogramData} from './histogram_loader';
 import {EChartView, type EChartEventHandler} from './echart_view';
-import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
+import {
+  buildChartOption,
+  renderTooltip,
+  SELECTION_COLOR,
+} from './chart_option_builder';
 import type {ChartThemeColors} from './chart_theme';
 
 const PALETTE_INDEX_KEY = '__pfPaletteIdx';
@@ -222,20 +226,27 @@ function buildOption(
             totalWithNull > 0
               ? ((nullCount / totalWithNull) * 100).toFixed(1)
               : '0';
-          return [`NULL`, `Count: ${fmtY(nullCount)}`, `${pct}%`].join('<br>');
+          return renderTooltip([
+            m('div', 'NULL'),
+            m('div', `Count: ${fmtY(nullCount)}`),
+            m('div', `${pct}%`),
+          ]);
         }
 
         // Regular bucket
-        const bucket = data.buckets[idx];
+        const bucket = data.buckets[idx]!;
         const pct =
           totalWithNull > 0
             ? ((bucket.count / totalWithNull) * 100).toFixed(1)
             : '0';
-        return [
-          `Range: ${formatXValue(bucket.start)} - ${formatXValue(bucket.end)}`,
-          `Count: ${fmtY(bucket.count)}`,
-          `${pct}%`,
-        ].join('<br>');
+        return renderTooltip([
+          m(
+            'div',
+            `Range: ${formatXValue(bucket.start)} - ${formatXValue(bucket.end)}`,
+          ),
+          m('div', `Count: ${fmtY(bucket.count)}`),
+          m('div', `${pct}%`),
+        ]);
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
@@ -305,8 +316,8 @@ function buildEventHandlers(
           const maxIdx = Math.min(buckets.length - 1, endIdx);
           if (minIdx <= maxIdx && minIdx < buckets.length) {
             onBrush({
-              start: buckets[minIdx].start,
-              end: buckets[maxIdx].end,
+              start: buckets[minIdx]!.start,
+              end: buckets[maxIdx]!.end,
             });
           }
         }

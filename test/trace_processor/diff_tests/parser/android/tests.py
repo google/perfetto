@@ -450,6 +450,7 @@ class AndroidParser(TestSuite):
           3000,200,100,300,"UFR_BIND_SERVICE",0
           "[NULL]",600,"[NULL]","[NULL]","UFR_PING",1
           "[NULL]",700,"[NULL]","[NULL]","UFR_NONE",1
+          "[NULL]",800,"[NULL]","[NULL]","[NULL]",1
         """))
 
   def test_android_process_state_metadata(self):

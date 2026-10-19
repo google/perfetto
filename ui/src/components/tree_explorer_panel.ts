@@ -26,6 +26,8 @@ import {
   metricId,
   type TreeExplorerAddableMetric,
   type TreeExplorerDisplayMode,
+  type TreeExplorerNodeIconFn,
+  type TreeExplorerNodeTooltipRenderer,
   type TreeExplorerState,
   type TreeExplorerView,
 } from '../widgets/tree_explorer';
@@ -57,6 +59,18 @@ export interface TreeExplorerPanelAttrs {
   // Host-provided downloads shown alongside the built-in exports of the
   // displayed tree, for representations the panel cannot build itself.
   readonly extraDownloadItems?: ReadonlyArray<ExportDownloadItem>;
+
+  // Optional icon drawn before a node's name in every display mode. Called
+  // with the node's property values on every render (not cached with the
+  // fetched tree), so it can depend on the caller's current state.
+  readonly nodeIcon?: TreeExplorerNodeIconFn;
+
+  // Optional custom renderer for a node's tooltip. Receives the default
+  // tooltip content and returns what to show, e.g. to add content above it.
+  // The Call Tree and Functions tables have no node tooltip; they call this
+  // with null default content and show the result when hovering the node's
+  // icon.
+  readonly renderNodeTooltip?: TreeExplorerNodeTooltipRenderer;
 }
 
 // The batteries-included tree explorer: a tab bar switching between the
@@ -175,6 +189,8 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
                 state,
                 data,
                 highlightRegex,
+                nodeIcon: attrs.nodeIcon,
+                renderNodeTooltip: attrs.renderNodeTooltip,
                 onStateChange: attrs.onStateChange,
               }),
             ),
@@ -186,7 +202,12 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
             content: renderWithFilterBar(
               data === undefined
                 ? renderLoading()
-                : m(TreeExplorerTreeView, {data, unit}),
+                : m(TreeExplorerTreeView, {
+                    data,
+                    unit,
+                    nodeIcon: attrs.nodeIcon,
+                    renderNodeTooltip: attrs.renderNodeTooltip,
+                  }),
             ),
           },
           {
@@ -196,7 +217,12 @@ export class TreeExplorerPanel implements m.ClassComponent<TreeExplorerPanelAttr
             content: renderWithFilterBar(
               data === undefined
                 ? renderLoading()
-                : m(TreeExplorerFlatView, {data, unit}),
+                : m(TreeExplorerFlatView, {
+                    data,
+                    unit,
+                    nodeIcon: attrs.nodeIcon,
+                    renderNodeTooltip: attrs.renderNodeTooltip,
+                  }),
             ),
           },
         ],

@@ -18,16 +18,15 @@
 
 #include <algorithm>
 #include <memory>
+#include <type_traits>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/protovm/vm.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -93,6 +92,10 @@ constexpr size_t kKeepLastEmptySeq = 1024;
 
 // The threshold when we start scanning and deleting the oldest sequences.
 constexpr size_t kEmptySequencesGcTreshold = kKeepLastEmptySeq + 128;
+
+// Controls how much spare capacity compaction retains so later writes can
+// reuse pages and avoid page faults.
+constexpr size_t kSpareCapacityDivisor = 4;
 
 }  // namespace.
 
@@ -610,6 +613,8 @@ std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
   // efficiency.
   static_assert(sizeof(TBChunk) == 16);
   static_assert(alignof(TBChunk) == 4);
+  // CloneReadOnly() and MaybeCompact() copy chunks as raw bytes.
+  static_assert(std::is_trivially_copyable_v<TBChunk>);
   std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
   if (!trace_buffer->Initialize(size_in_bytes))
     return nullptr;
@@ -722,6 +727,122 @@ bool TraceBufferV2::ReadNextTracePacket(
     }
     rd_ = wrap ? 0 : next_rd;
   }  // for(;;)
+}
+
+void TraceBufferV2::MaybeCompact() {
+  TRACE_BUFFER_V2_DLOG("MaybeCompact(), wr_=%zu", wr_);
+  chunk_seq_reader_.reset();
+  if (overwrite_policy_ != kOverwrite || read_only_) {
+    return;
+  }
+
+  // The read cycle is complete, so usually only a few chunks remain.
+  size_t num_chunks = 0;
+  for (const auto& seq_entry : sequences_)
+    num_chunks += seq_entry.second.chunks.size();
+
+  // Store pointers to the chunk offsets in each SequenceState::chunks queue
+  // so we can update those offsets without another lookup.
+  // TODO(sashwinbalaji): Using these queues avoids scanning the buffer but
+  // leaves removed padding unaccounted for in padding_bytes_cleared.
+  std::vector<size_t*> chunk_offset_ptrs;
+  chunk_offset_ptrs.reserve(num_chunks);
+  for (auto& seq_entry : sequences_) {
+    for (size_t& chunk_offset : seq_entry.second.chunks)
+      chunk_offset_ptrs.emplace_back(&chunk_offset);
+  }
+
+  // Sort the pointer vector by chunk offset, from lowest to highest.
+  // This reorders only the vector, so the queue entries stay in sequence order.
+  // The loop below updates each chunk's offset in its original queue entry.
+  std::sort(chunk_offset_ptrs.begin(), chunk_offset_ptrs.end(),
+            [](const size_t* lhs, const size_t* rhs) { return *lhs < *rhs; });
+
+  // If live chunks are on both sides of wr_, skip compaction.
+  // The chunks at or after wr_ are older, so address order is not ring order.
+  //
+  // In this diagram and the ones below:
+  // - [C0], [D0], [C1], ... are live chunks of two sequences, C and D.
+  //   The number is the order of the chunk within its sequence.
+  // - "." is padding (read chunks).
+  // - "~" is unused space, past the new used_size_.
+  //
+  //   0                        wr_                      used_size_
+  //   |..[C1]..[D1]..[C2]......|..[C0]....[D0]..........|
+  const bool chunks_on_both_sides = !chunk_offset_ptrs.empty() &&
+                                    *chunk_offset_ptrs.front() < wr_ &&
+                                    *chunk_offset_ptrs.back() >= wr_;
+  if (PERFETTO_UNLIKELY(chunks_on_both_sides)) {
+    stats_.set_compactions_skipped(stats_.compactions_skipped() + 1);
+    return;
+  }
+
+  // All live chunks are on one side of wr_, so address order is ring order.
+  // Move each chunk to the lowest available offset, in address order.
+  // Each destination starts at or before its source, so a move cannot
+  // overwrite a chunk that comes later in address order.
+  //
+  // All live chunks are before wr_:
+  //
+  //   0                        wr_                      used_size_
+  //   |.[C0].[D0]..[C1]..[C2]..|........................|
+  //
+  // All live chunks are at or after wr_ because reads consumed every chunk
+  // before wr_ after the write cursor wrapped.
+  //
+  //   0                        wr_                      used_size_
+  //   |........................|.[C0].[D0]..[C1]..[C2]..|
+  //
+  // After compaction:
+  //
+  //   0                dst                              used_size_
+  //   |[C0][D0][C1][C2]|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
+  size_t dst = 0;
+  size_t prev_chunk_end = 0;
+  for (size_t* offset_ptr : chunk_offset_ptrs) {
+    const size_t src = *offset_ptr;
+    TBChunk* chunk = GetTBChunkAt(src);
+    PERFETTO_DCHECK(!chunk->is_padding());
+    const size_t outer_size = chunk->outer_size();
+    PERFETTO_CHECK(src >= prev_chunk_end);
+    prev_chunk_end = src + outer_size;
+    if (dst != src) {
+      memmove(begin() + dst, chunk, outer_size);
+      *offset_ptr = dst;
+      TBChunk* moved_chunk = GetTBChunkAtUnchecked(dst);
+      moved_chunk->checksum = TBChunk::Checksum(dst, moved_chunk->size);
+    }
+    dst += outer_size;
+  }
+
+  TRACE_BUFFER_V2_DLOG("Compacted %zu -> %zu bytes", used_size_, dst);
+  const size_t old_used_size = used_size_;
+  PERFETTO_CHECK(dst <= old_used_size && old_used_size <= size_);
+  wr_ = dst;
+  used_size_ = dst;
+
+  // Bytes beyond |old_used_size| are zero from allocation or earlier
+  // compactions.
+  // Clear [dst, old_used_size) on each compaction so the unused tail stays zero
+  // even when used_size_ shrinks.
+  // ReadNextTracePacket() visits offset 0 even when the buffer is empty and so
+  // if dst == 0, this also leaves the empty padding chunk that it needs.
+  memset(begin() + dst, 0, old_used_size - dst);
+
+  const size_t spare_size =
+      std::min(old_used_size / kSpareCapacityDivisor, size_ - old_used_size);
+  const size_t cur_madvise_begin = old_used_size + spare_size;
+
+  // Writes since the last compaction touched pages up to |old_used_size|.
+  prev_madvise_begin_ = std::max(prev_madvise_begin_, old_used_size);
+
+  // Skip the madvise if it starts at or past |prev_madvise_begin_|, because
+  // the pages from there on are already released.
+  if (cur_madvise_begin < prev_madvise_begin_) {
+    data_.AdviseDontNeedAfter(cur_madvise_begin);
+    prev_madvise_begin_ = cur_madvise_begin;
+  }
+  stats_.set_compactions(stats_.compactions() + 1);
 }
 
 bool TraceBufferV2::RewriteProtoGroupPacket(TracePacket* packet) {
@@ -1031,6 +1152,7 @@ void TraceBufferV2::CopyChunkUntrusted(
         stats_.chunks_committed_out_of_order() + 1);
   }
   chunk_list.InsertAfter(insert_pos, wr_);
+  has_data_ = true;
   if (chunk_list.size() == 1 && !seq_is_new) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1050,6 +1172,10 @@ void TraceBufferV2::CopyChunkUntrusted(
   // pointers via seq_iter_ acros invocations.
   if (empty_sequences_ > kEmptySequencesGcTreshold)
     DeleteStaleEmptySequences();
+}
+
+bool TraceBufferV2::supports_tracing_v2() const {
+  return true;
 }
 
 bool TraceBufferV2::CopyChunkV2Untrusted(
@@ -1082,11 +1208,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
     return reject_abi_violation();
 
   // ProtoVM expects length-delimited protobuf on the overwrite path.
-  const bool producer_has_protovm =
-      std::any_of(protovms_.begin(), protovms_.end(), [&](const Vm& vm) {
-        return vm.producers.count(sequence.producer_id_trusted) != 0;
-      });
-  if (producer_has_protovm) {
+  if (protovms_.HasProducer(sequence.producer_id_trusted)) {
     stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
     return reject();
   }
@@ -1178,6 +1300,7 @@ bool TraceBufferV2::CopyChunkV2Untrusted(
   auto& chunk_list = seq.chunks;
   bool was_empty = chunk_list.empty();
   chunk_list.emplace_back(wr_);
+  has_data_ = true;
   if (was_empty) {
     PERFETTO_DCHECK(empty_sequences_ > 0);
     --empty_sequences_;
@@ -1270,8 +1393,9 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   // This loop erases all the existing chunks in the clear range.
   for (size_t off = wr_, next_off = 0; off < clear_end; off = next_off) {
     if (PERFETTO_UNLIKELY(off >= used_size_)) {
-      // This happens only on the first round of writing, when there are no
-      // chunks in the buffer yet. There is nothing to delete here, easy.
+      // This happens on the first round of writing, or after MaybeCompact()
+      // shrinks |used_size_|, when there are no chunks in this range.
+      // There is nothing to delete here, easy.
       break;
     }
     TBChunk* chunk = GetTBChunkAt(off);
@@ -1301,8 +1425,8 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
         break;
       }
       if (maybe_packet) {
-        MaybeProcessOverwrittenPacketWithProtoVm(*maybe_packet,
-                                                 csr.seq()->producer_id);
+        protovms_.MaybeProcessOverwrittenPacket(*maybe_packet,
+                                                csr.seq()->producer_id);
       }
       has_cleared_unconsumed_fragments = true;
     }
@@ -1468,12 +1592,12 @@ std::unique_ptr<TraceBuffer> TraceBufferV2::CloneReadOnly() const {
   return buf;
 }
 
+TraceBufferProtoVms* TraceBufferV2::protovms() {
+  return &protovms_;
+}
+
 size_t TraceBufferV2::GetMemoryUsageBytes() const {
-  size_t total_bytes = size();
-  for (const Vm& vm : protovms_) {
-    total_bytes += vm.instance->GetMemoryUsageBytes();
-  }
-  return total_bytes;
+  return size() + protovms_.GetMemoryUsageBytes();
 }
 
 TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
@@ -1489,6 +1613,7 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   data_.EnsureCommitted(src.used_size_);
   memcpy(data_.Get(), src.data_.Get(), src.used_size_);
   used_size_ = src.used_size_;
+  has_data_ = src.has_data_;
   wr_ = src.wr_;
 
   stats_ = src.stats_;
@@ -1503,25 +1628,7 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
   sequences_ = src.sequences_;
   writer_stats_ = src.writer_stats_;
 
-  for (const auto& vm : src.protovms_) {
-    auto vm_cloned = vm.CloneReadOnly();
-    if (!vm_cloned.instance) {
-      PERFETTO_ELOG("Failed to clone ProtoVMs");
-      protovms_.clear();
-      break;
-    }
-    protovms_.push_back(std::move(vm_cloned));
-  }
-}
-
-TraceBufferV2::Vm TraceBufferV2::Vm::CloneReadOnly() const {
-  Vm cloned_vm;
-  cloned_vm.data_source_name = data_source_name;
-  cloned_vm.program_hash = program_hash;
-  cloned_vm.memory_limit_kb = memory_limit_kb;
-  cloned_vm.producers = producers;
-  cloned_vm.instance = instance->CloneReadOnly();
-  return cloned_vm;
+  protovms_.CloneReadOnlyFrom(src.protovms_);
 }
 
 void TraceBufferV2::DumpForTesting() {
@@ -1554,79 +1661,6 @@ void TraceBufferV2::DumpForTesting() {
     break;
   }
   PERFETTO_DLOG("------------------------------------------------------------");
-}
-
-TraceBufferV2::Vm::Vm() = default;
-TraceBufferV2::Vm::~Vm() = default;
-TraceBufferV2::Vm::Vm(Vm&&) noexcept = default;
-
-void TraceBufferV2::MaybeSetUpProtoVm(const std::string& data_source_name,
-                                      const std::string& program_bytes,
-                                      uint32_t memory_limit_kb,
-                                      ProducerID producer_id) {
-  Vm* vm = nullptr;
-  // Re-use existing ProtoVM instance, if any.
-  uint64_t program_hash = base::MurmurHashValue(program_bytes);
-  auto vm_it =
-      std::find_if(protovms_.begin(), protovms_.end(), [&](const Vm& vm) {
-        return vm.data_source_name == data_source_name &&
-               vm.program_hash == program_hash;
-      });
-  if (vm_it != protovms_.end()) {
-    vm = &(*vm_it);
-  } else {
-    // Otherwise instantiate new ProtoVM
-    Vm new_vm;
-    new_vm.data_source_name = data_source_name;
-    new_vm.program_hash = program_hash;
-    new_vm.memory_limit_kb = memory_limit_kb;
-
-    protozero::ConstBytes program_bytes_view{
-        reinterpret_cast<const uint8_t*>(program_bytes.data()),
-        program_bytes.size()};
-
-    new_vm.instance = std::make_unique<protovm::Vm>(
-        program_bytes_view, new_vm.memory_limit_kb * 1024);
-    if (!new_vm.instance) {
-      PERFETTO_ELOG("Failed to allocate ProtoVM");
-      return;
-    }
-
-    protovms_.push_back(std::move(new_vm));
-    vm = &protovms_.back();
-  }
-  // Update ProtoVM's producer IDs
-  vm->producers.insert(producer_id);
-}
-
-void TraceBufferV2::MaybeProcessOverwrittenPacketWithProtoVm(
-    const TracePacket& packet,
-    ProducerID producer) {
-  protovm_patch_.clear();
-
-  for (auto& vm : protovms_) {
-    if (vm.producers.find(producer) == vm.producers.end()) {
-      continue;
-    }
-    // TODO(keanmariotti): add an optimized path for the case
-    // "packet.slices().size() == 1" (zero copy)
-    if (protovm_patch_.empty()) {
-      packet.GetRawBytes(&protovm_patch_);
-    }
-    protozero::ConstBytes bytes{
-        reinterpret_cast<const uint8_t*>(protovm_patch_.data()),
-        protovm_patch_.size()};
-    auto status = vm.instance->ApplyPatch(bytes);
-    if (status.IsOk()) {
-      break;
-    }
-    if (status.IsAbort()) {
-      // TODO(keanmariotti): consider doing something more here. Ideally
-      // triggering a field upload containing the stacktrace.
-      PERFETTO_ELOG("ProtoVM abort while applying patch. Stacktrace:\n%s",
-                    base::Join(status.stacktrace(), "\n").c_str());
-    }
-  }
 }
 
 }  // namespace perfetto

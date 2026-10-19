@@ -124,6 +124,7 @@ cc_binary {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/profiling/memory/main.cc",
     ],
     shared_libs: [
@@ -433,6 +434,7 @@ cc_library_shared {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
     ],
     shared_libs: [
         "liblog",
@@ -1647,6 +1649,7 @@ cc_binary {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/perfetto_cmd/main.cc",
     ],
     shared_libs: [
@@ -3265,6 +3268,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -15975,6 +15979,7 @@ filegroup {
         "src/base/dynamic_string_writer.cc",
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
+        "src/base/flat_hash_map.cc",
         "src/base/futex.cc",
         "src/base/getopt_compat.cc",
         "src/base/intrusive_list.cc",
@@ -17698,8 +17703,8 @@ filegroup {
         "src/shared_lib/data_source.cc",
         "src/shared_lib/heap_buffer.cc",
         "src/shared_lib/pb_decoder.cc",
+        "src/shared_lib/pb_msg_writer.cc",
         "src/shared_lib/producer.cc",
-        "src/shared_lib/stream_writer.cc",
         "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
     ],
@@ -17843,22 +17848,26 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_core_exec_exec",
     srcs: [
+        "src/trace_processor/core/exec/aggregate_function.cc",
         "src/trace_processor/core/exec/assert_type.cc",
         "src/trace_processor/core/exec/batch_buffer.cc",
         "src/trace_processor/core/exec/breaker.cc",
         "src/trace_processor/core/exec/column_chunk.cc",
-        "src/trace_processor/core/exec/column_view.cc",
+        "src/trace_processor/core/exec/combine_batches.cc",
+        "src/trace_processor/core/exec/context.cc",
         "src/trace_processor/core/exec/dataframe_scan.cc",
-        "src/trace_processor/core/exec/group_by.cc",
+        "src/trace_processor/core/exec/distinct.cc",
+        "src/trace_processor/core/exec/group_table.cc",
+        "src/trace_processor/core/exec/grouped_sort.cc",
+        "src/trace_processor/core/exec/hash_aggregate.cc",
         "src/trace_processor/core/exec/interval_flatten.cc",
         "src/trace_processor/core/exec/interval_intersect.cc",
-        "src/trace_processor/core/exec/key_encoder.cc",
         "src/trace_processor/core/exec/operator.cc",
         "src/trace_processor/core/exec/pipeline.cc",
-        "src/trace_processor/core/exec/row_batch.cc",
         "src/trace_processor/core/exec/row_cursor.cc",
         "src/trace_processor/core/exec/row_store.cc",
         "src/trace_processor/core/exec/sort.cc",
+        "src/trace_processor/core/exec/sorted_rows.cc",
         "src/trace_processor/core/exec/tree_accumulate.cc",
         "src/trace_processor/core/exec/tree_number_nodes.cc",
         "src/trace_processor/core/exec/tree_order.cc",
@@ -17868,6 +17877,9 @@ filegroup {
 // GN: //src/trace_processor/core/exec:test_utils
 filegroup {
     name: "perfetto_src_trace_processor_core_exec_test_utils",
+    srcs: [
+        "src/trace_processor/core/exec/pipeline_formatter.cc",
+    ],
 }
 
 // GN: //src/trace_processor/core/exec:unittests
@@ -17877,11 +17889,13 @@ filegroup {
         "src/trace_processor/core/exec/assert_type_unittest.cc",
         "src/trace_processor/core/exec/breaker_unittest.cc",
         "src/trace_processor/core/exec/dataframe_scan_unittest.cc",
+        "src/trace_processor/core/exec/distinct_unittest.cc",
         "src/trace_processor/core/exec/executor_contract_unittest.cc",
-        "src/trace_processor/core/exec/group_by_unittest.cc",
+        "src/trace_processor/core/exec/group_table_unittest.cc",
+        "src/trace_processor/core/exec/grouped_sort_unittest.cc",
+        "src/trace_processor/core/exec/hash_aggregate_unittest.cc",
         "src/trace_processor/core/exec/interval_flatten_unittest.cc",
         "src/trace_processor/core/exec/interval_intersect_unittest.cc",
-        "src/trace_processor/core/exec/key_encoder_unittest.cc",
         "src/trace_processor/core/exec/operator_unittest.cc",
         "src/trace_processor/core/exec/row_batch_unittest.cc",
         "src/trace_processor/core/exec/row_store_unittest.cc",
@@ -17889,7 +17903,6 @@ filegroup {
         "src/trace_processor/core/exec/tree_accumulate_unittest.cc",
         "src/trace_processor/core/exec/tree_number_nodes_unittest.cc",
         "src/trace_processor/core/exec/tree_order_unittest.cc",
-        "src/trace_processor/core/exec/variant_unittest.cc",
     ],
 }
 
@@ -19109,6 +19122,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_operations_operations",
     srcs: [
+        "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/order_by.cc",
@@ -19130,6 +19144,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_plan",
     srcs: [
+        "src/trace_processor/perfetto_sql/pipeline/aggregate.cc",
         "src/trace_processor/perfetto_sql/pipeline/catalog.cc",
         "src/trace_processor/perfetto_sql/pipeline/column_pruning.cc",
         "src/trace_processor/perfetto_sql/pipeline/compiler.cc",
@@ -19150,6 +19165,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_test_utils",
     srcs: [
         "src/trace_processor/perfetto_sql/pipeline/logical_plan_test_utils.cc",
+        "src/trace_processor/perfetto_sql/pipeline/physical_plan_test_utils.cc",
     ],
 }
 
@@ -19516,6 +19532,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_stdlib_std_gpu_gpu",
     srcs: [
         "src/trace_processor/perfetto_sql/stdlib/std/gpu/context.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/gpu/vulkan_debug_names.sql",
     ],
 }
 
@@ -21181,22 +21198,27 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_shell_shell",
     srcs: [
+        "src/trace_processor/shell/agent_mode.cc",
         "src/trace_processor/shell/bundle_subcommand.cc",
         "src/trace_processor/shell/common_flags.cc",
         "src/trace_processor/shell/convert_helpers.cc",
         "src/trace_processor/shell/convert_subcommand.cc",
+        "src/trace_processor/shell/csv_result_formatter.cc",
         "src/trace_processor/shell/export_subcommand.cc",
         "src/trace_processor/shell/interactive.cc",
         "src/trace_processor/shell/interactive_subcommand.cc",
+        "src/trace_processor/shell/markdown_result_formatter.cc",
         "src/trace_processor/shell/metatrace.cc",
         "src/trace_processor/shell/metrics.cc",
         "src/trace_processor/shell/metrics_subcommand.cc",
         "src/trace_processor/shell/query.cc",
         "src/trace_processor/shell/query_subcommand.cc",
+        "src/trace_processor/shell/result_formatter.cc",
         "src/trace_processor/shell/server_subcommand.cc",
         "src/trace_processor/shell/shell_utils.cc",
         "src/trace_processor/shell/sql_packages.cc",
         "src/trace_processor/shell/summarize_subcommand.cc",
+        "src/trace_processor/shell/table_result_formatter.cc",
         "src/trace_processor/shell/util_subcommand.cc",
     ],
 }
@@ -21214,10 +21236,14 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_shell_unittests",
     srcs: [
+        "src/trace_processor/shell/agent_mode_unittest.cc",
         "src/trace_processor/shell/convert_helpers_unittest.cc",
+        "src/trace_processor/shell/csv_result_formatter_unittest.cc",
         "src/trace_processor/shell/find_subcommand_unittest.cc",
+        "src/trace_processor/shell/markdown_result_formatter_unittest.cc",
         "src/trace_processor/shell/shell_utils_unittest.cc",
         "src/trace_processor/shell/subcommand_flags_unittest.cc",
+        "src/trace_processor/shell/table_result_formatter_unittest.cc",
     ],
 }
 
@@ -21664,6 +21690,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
@@ -22063,6 +22090,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:cold_sort
+filegroup {
+    name: "perfetto_src_trace_processor_util_cold_sort",
+    srcs: [
+        "src/trace_processor/util/cold_sort.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:compressor
 filegroup {
     name: "perfetto_src_trace_processor_util_compressor",
@@ -22346,6 +22381,7 @@ filegroup {
     name: "perfetto_src_trace_processor_util_unittests",
     srcs: [
         "src/trace_processor/util/bump_allocator_unittest.cc",
+        "src/trace_processor/util/cold_sort_unittest.cc",
         "src/trace_processor/util/concurrency_stress_test_util_unittest.cc",
         "src/trace_processor/util/descriptors_unittest.cc",
         "src/trace_processor/util/flatbuffer_reader_unittest.cc",
@@ -22411,6 +22447,7 @@ filegroup {
         "src/trace_redaction/timeline_validation.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
         "src/trace_redaction/trace_redactor.cc",
+        "src/trace_redaction/trace_redactor_options.cc",
         "src/trace_redaction/verify_integrity.cc",
     ],
 }
@@ -22434,6 +22471,7 @@ filegroup {
         "src/trace_redaction/redact_process_events_unittest.cc",
         "src/trace_redaction/redact_sched_events_unittest.cc",
         "src/trace_redaction/timeline_validation_unittest.cc",
+        "src/trace_redaction/trace_redactor_options_unittest.cc",
         "src/trace_redaction/trace_redactor_unittest.cc",
         "src/trace_redaction/verify_integrity_unittest.cc",
     ],
@@ -23276,6 +23314,7 @@ filegroup {
         "src/tracing/service/packet_stream_validator.cc",
         "src/tracing/service/random.cc",
         "src/tracing/service/service_ring_buffer_drainer.cc",
+        "src/tracing/service/trace_buffer_protovms.cc",
         "src/tracing/service/trace_buffer_v1.cc",
         "src/tracing/service/trace_buffer_v2.cc",
         "src/tracing/service/tracing_service_endpoints_impl.cc",
@@ -23350,6 +23389,7 @@ filegroup {
         "src/tracing/test/fake_packet.cc",
         "src/tracing/test/mock_consumer.cc",
         "src/tracing/test/mock_producer.cc",
+        "src/tracing/test/protovm_test_program.cc",
         "src/tracing/test/proxy_producer_endpoint.cc",
         "src/tracing/test/test_shared_memory.cc",
         "src/tracing/test/traced_value_test_support.cc",
@@ -24738,6 +24778,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_concurrency_stress_test_util",
         ":perfetto_src_trace_processor_util_decompressor",
@@ -25867,6 +25908,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_descriptors",
@@ -26586,6 +26628,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_build_id",
         ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_clock",
+        ":perfetto_src_trace_processor_util_cold_sort",
         ":perfetto_src_trace_processor_util_compressor",
         ":perfetto_src_trace_processor_util_decompressor",
         ":perfetto_src_trace_processor_util_deobfuscation_deobfuscator",
@@ -27382,6 +27425,7 @@ cc_binary {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_v2_abi",
+        ":perfetto_src_tracing_v2_v2",
         "src/perfetto_cmd/trigger_perfetto_main.cc",
     ],
     shared_libs: [

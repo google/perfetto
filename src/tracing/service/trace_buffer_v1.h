@@ -207,6 +207,21 @@ class TraceBufferV1 : public TraceBuffer {
                              size_t patches_size,
                              bool other_patches_pending) override;
 
+  // Returns false as TraceBufferV1 only accepts SMB v1 chunks.
+  bool supports_tracing_v2() const override;
+
+  // Returns false without changing the buffer or its statistics.
+  bool CopyChunkV2Untrusted(const PacketSequenceProperties&,
+                            const protozero::ConstBytes* fragments,
+                            size_t num_fragments,
+                            bool first_continues_from_prev,
+                            bool last_continues_on_next) override;
+
+  // No-op because TraceBufferV1 holds no SMB v2 state.
+  void RecordChunkV2DataLoss(ProducerID, WriterID) override;
+
+  void RecordAbiViolation() override;
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -248,10 +263,16 @@ class TraceBufferV1 : public TraceBuffer {
       PacketSequenceProperties* sequence_properties,
       uint32_t* previous_packet_on_sequence_dropped) override;
 
+  // No-op. TraceBufferV1 does not compact its buffer.
+  void MaybeCompact() override;
+
   // Creates a read-only clone of the trace buffer. Calls to
   // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned
   // TraceBuffer will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const override;
+
+  // Returns nullptr because TraceBufferV1 cannot run a ProtoVM.
+  TraceBufferProtoVms* protovms() override;
 
   void set_read_only() override { read_only_ = true; }
   const TraceStats::BufferStats& stats() const override { return stats_; }

@@ -72,6 +72,9 @@ namespace {
 void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
   char buf[256];
   for (const auto& f : flags) {
+    if (!f.help) {
+      continue;
+    }
     if (f.short_name) {
       snprintf(buf, sizeof(buf), "  -%c, --%-24s %s\n", f.short_name,
                f.long_name, f.help);
@@ -551,8 +554,11 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
   base::TimeNanos t_load = base::GetWallTimeNs() - t_load_start;
   double t_load_s = static_cast<double>(t_load.count()) / 1E9;
   if (!quiet) {
-    PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb,
-                  t_load_s, size_mb / t_load_s);
+    PrintStatusLine(
+        StatusLabelStyle::kSuccess, "Trace loaded",
+        base::StackString<128>("%.2f MB in %.2fs (%.1f MB/s)", size_mb,
+                               t_load_s, size_mb / t_load_s)
+            .ToStdString());
   }
 
   auto stats_status = PrintStats(tp);

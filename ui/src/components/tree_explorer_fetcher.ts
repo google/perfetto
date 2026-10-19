@@ -119,7 +119,8 @@ export interface TreeExplorerQueryMetric {
 
   // Optional marker to be displayed on nodes. Marker appears as a visual
   // indicator (small dot) on the left side of flamegraph nodes and is shown
-  // in the tooltip.
+  // in the tooltip. For an icon before the node's name, see the
+  // TreeExplorerPanel `nodeIcon` attr.
   //
   // Examples include marking inlined functions, optimized code, etc.
   readonly optionalMarker?: TreeExplorerOptionalMarker;
@@ -412,13 +413,11 @@ async function computeTree(
     }
 
     // Evaluate marker
+    const propertyValues = new Map(
+      [...properties].map(([k, v]) => [k, v.value]),
+    );
     let marker: string | undefined;
-    if (
-      optionalMarker &&
-      optionalMarker.isVisible(
-        new Map([...properties].map(([k, v]) => [k, v.value])),
-      )
-    ) {
+    if (optionalMarker && optionalMarker.isVisible(propertyValues)) {
       marker = optionalMarker.name;
     }
 
@@ -434,6 +433,7 @@ async function computeTree(
       xEnd: it.xEnd,
       properties,
       marker,
+      propertyValues,
     });
     if (it.depth === 1) {
       postiveRootsValue += it.cumulativeValue;

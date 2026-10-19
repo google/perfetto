@@ -26,6 +26,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/exec/assert_type.h"
+#include "src/trace_processor/core/exec/context.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -83,14 +84,16 @@ dataframe::Dataframe BuildTree(uint32_t rows,
 // Runs the steps `make` builds over a scan of the tree, every run.
 template <typename MakeSteps>
 void Run(benchmark::State& state, bool child_first, MakeSteps make) {
+  // Before every batch and state, which hold its buffers.
+  Context context;
   auto rows = static_cast<uint32_t>(state.range(0));
   StringPool pool;
   dataframe::Dataframe df = BuildTree(rows, child_first, &pool);
   DataframeScan scan({df.shared_column(kId), df.shared_column(kParent),
                       df.shared_column(kValue), df.shared_column(kSmall)},
                      df.row_count());
-  Pipeline pipeline(scan, make(), {});
-  std::unique_ptr<OperatorState> run = pipeline.MakeState();
+  Pipeline pipeline(scan, make());
+  std::unique_ptr<OperatorState> run = pipeline.MakeState(context);
   RowBatch scratch;
   for (auto _ : state) {
     pipeline.Rewind(*run);
@@ -126,8 +129,8 @@ void BM_StepsTreeAccumulateDown(benchmark::State& state) {
   Run(state, false, [] {
     std::vector<Pipeline::Step> steps;
     steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-    steps.push_back(std::make_unique<TreeAccumulateDown>(
-        TreeAccumulateSpec{kNode, kParentNode, kValue}));
+    steps.push_back(std::make_unique<TreeAccumulateDown>(TreeAccumulateSpec{
+        kNode, kParentNode, {{AggregateCall::Function::kSum, kValue}}}));
     return steps;
   });
 }
@@ -137,8 +140,8 @@ void BM_StepsTreeAccumulateUp(benchmark::State& state) {
   Run(state, true, [] {
     std::vector<Pipeline::Step> steps;
     steps.push_back(std::make_unique<TreeNumberNodes>(kId, kParent));
-    steps.push_back(std::make_unique<TreeAccumulateUp>(
-        TreeAccumulateSpec{kNode, kParentNode, kValue}));
+    steps.push_back(std::make_unique<TreeAccumulateUp>(TreeAccumulateSpec{
+        kNode, kParentNode, {{AggregateCall::Function::kSum, kValue}}}));
     return steps;
   });
 }

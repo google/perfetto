@@ -44,10 +44,10 @@ class BlockingCallMetricHandler implements MetricHandler {
       return undefined;
     }
     const metricData: BlockingCallMetricData = {
-      process: expandProcessName(match.groups.process),
-      cujName: match.groups.cujName,
-      blockingCallName: match.groups.blockingCallName,
-      aggregation: match.groups.aggregation,
+      process: expandProcessName(match.groups.process!),
+      cujName: match.groups.cujName!,
+      blockingCallName: match.groups.blockingCallName!,
+      aggregation: match.groups.aggregation!,
     };
     return metricData;
   }

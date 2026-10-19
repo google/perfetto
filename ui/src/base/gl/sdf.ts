@@ -38,8 +38,8 @@ function isInsidePolygon(p: Point2D, vertices: readonly Point2D[]): boolean {
   const n = vertices.length;
 
   for (let i = 0, j = n - 1; i < n; j = i++) {
-    const vi = vertices[i];
-    const vj = vertices[j];
+    const vi = vertices[i]!;
+    const vj = vertices[j]!;
 
     // Ray casting: count edge crossings to the right of the point
     if (
@@ -62,8 +62,8 @@ function sdPolygon(p: Point2D, vertices: readonly Point2D[]): number {
   // Find minimum distance to any edge
   let minDist = Infinity;
   for (let i = 0; i < n; i++) {
-    const a = vertices[i];
-    const b = vertices[(i + 1) % n];
+    const a = vertices[i]!;
+    const b = vertices[(i + 1) % n]!;
     minDist = Math.min(minDist, sdSegment(p, a, b));
   }
 

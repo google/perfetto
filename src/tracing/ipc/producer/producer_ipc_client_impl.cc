@@ -23,6 +23,8 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/ipc/client.h"
@@ -36,6 +38,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/tracing/core/in_process_shared_memory.h"
+#include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/v2/shared_ring_buffer_abi.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -250,8 +253,12 @@ void ProducerIPCClientImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
-  protocol_abi_versions_ = 0;
   data_sources_setup_.clear();
+  auto* arbiter = v2_ring_buffer_arbiter_.has_value()
+                      ? v2_ring_buffer_arbiter_->get()
+                      : nullptr;
+  if (arbiter)
+    arbiter->Disconnect();
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
 
@@ -564,6 +571,44 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
   producer_port_->CommitData(req, std::move(async_response));
 }
 
+void ProducerIPCClientImpl::InitializeV2RingBuffer(
+    const DataSourceConfig& config) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // V2 IPC requires a sealed memfd.
+  // TODO(sashwinbalaji): Decide how tracing v2 shares the ring buffer over IPC
+  // on Windows and macOS, which have no memfd.
+#if PERFETTO_MEMFD_ENABLED()
+  if (v2_ring_buffer_arbiter_.has_value() || !connected_ ||
+      !HasNegotiatedV2Abi()) {
+    return;
+  }
+
+  auto arbiter_or = tracing_v2::ProducerRingBufferArbiter::Create(
+      task_runner_, this, config, shared_memory_size_hint_bytes_,
+      [](size_t size) -> base::StatusOr<std::shared_ptr<SharedMemory>> {
+        ASSIGN_OR_RETURN(auto memory, PosixSharedMemory::Create(size));
+        return std::shared_ptr<SharedMemory>(std::move(memory));
+      });
+  if (!arbiter_or.ok()) {
+    PERFETTO_ELOG("tracing v2: cannot create ring buffer: %s",
+                  arbiter_or.status().c_message());
+    v2_ring_buffer_arbiter_ = nullptr;
+    return;
+  }
+  v2_ring_buffer_arbiter_ = std::move(*arbiter_or);
+
+  auto* arbiter = v2_ring_buffer_arbiter_->get();
+  AttachV2RingBuffer(
+      arbiter->memory(), arbiter->ring_buffer()->chunk_size(),
+      [weak_arbiter = arbiter->GetWeakPtr()](bool reader_attached) {
+        if (weak_arbiter)
+          weak_arbiter->OnReaderAttachReply(reader_attached);
+      });
+#else
+  base::ignore_result(config);
+#endif  // PERFETTO_MEMFD_ENABLED()
+}
+
 void ProducerIPCClientImpl::AttachV2RingBuffer(
     const std::shared_ptr<SharedMemory>& memory,
     uint32_t chunk_size_bytes,
@@ -671,8 +716,27 @@ std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(
     BufferExhaustedPolicy buffer_exhausted_policy) {
   // This method can be called by different threads. |shared_memory_arbiter_| is
   // thread-safe but be aware of accessing any other state in this function.
+  // |protocol_abi_versions_| does not change after setup.
+  if (!(protocol_abi_versions_ & kProtocolAbiV1)) {
+    PERFETTO_ELOG(
+        "Cannot create a v1 trace writer: v1 is not in the common protocol "
+        "mask (%x)",
+        protocol_abi_versions_);
+    return std::make_unique<NullTraceWriter>();
+  }
   return shared_memory_arbiter_->CreateTraceWriter(target_buffer,
                                                    buffer_exhausted_policy);
+}
+
+std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriterV2(
+    BufferID target_buffer,
+    BufferExhaustedPolicy policy) {
+  auto* arbiter = v2_ring_buffer_arbiter_.has_value()
+                      ? v2_ring_buffer_arbiter_->get()
+                      : nullptr;
+  if (!arbiter)
+    return std::make_unique<NullTraceWriter>();
+  return arbiter->CreateTraceWriter(target_buffer, policy);
 }
 
 SharedMemoryArbiter* ProducerIPCClientImpl::MaybeSharedMemoryArbiter() {
