@@ -14,7 +14,7 @@
 
 use crate::{
     heap_buffer::HeapBuffer,
-    pb_msg::{PbMsg, PbMsgWriter},
+    pb_msg::{PbMsg, PbMsgEncoding, PbMsgWriter},
     protos::{
         common::data_source_descriptor::DataSourceDescriptor, trace::trace_packet::TracePacket,
     },
@@ -35,6 +35,11 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
+
+/// `PERFETTO_PB_MSG_ENCODING_PROTO_GROUP` of the C SDK's `enum
+/// PerfettoPbMsgEncoding`: the encoding a packet begun on a tracing v2 writer
+/// reports.
+const PB_MSG_ENCODING_PROTO_GROUP: u32 = 1;
 
 /// Data source errors.
 #[derive(Error, Debug, PartialEq)]
@@ -199,6 +204,7 @@ pub struct DataSourceArgs {
     callbacks: DsCallbacks,
     buffer_exhausted_policy: DataSourceBufferExhaustedPolicy,
     buffer_exhausted_policy_configurable: bool,
+    supports_tracing_v2: bool,
     will_notify_on_stop: bool,
     handles_incremental_state_clear: bool,
 }
@@ -233,6 +239,15 @@ impl DataSourceArgsBuilder {
         buffer_exhausted_policy_configurable: bool,
     ) -> Self {
         self.args.buffer_exhausted_policy_configurable = buffer_exhausted_policy_configurable;
+        self
+    }
+
+    /// Lets an instance of the data source take a tracing v2 writer when its
+    /// config selects v2. Its packets are then written in the append-only
+    /// format, which `add_packet` sees to.
+    #[must_use = "Builder methods return an updated builder; use the returned value or keep chaining."]
+    pub fn supports_tracing_v2(mut self, supports: bool) -> Self {
+        self.args.supports_tracing_v2 = supports;
         self
     }
 
@@ -385,16 +400,18 @@ impl TraceContextBase {
         // - `self.iterator.tracer` must be a pointer provided by a call to
         //   PerfettoDsImplTraceIterateBegin/Next.
         unsafe { PerfettoDsTracerImplPacketBegin(self.iterator.tracer, &mut impl_writer) };
-        // This SDK never calls PerfettoDsSetSupportsTracingV2(), so Begin always
-        // gives a length-delimited writer. PbMsg can't write proto group, so we
-        // check that here.
-        debug_assert_eq!(impl_writer.encoding, 0);
+        // A tracing v2 writer's packets take the append-only format.
+        let encoding = if impl_writer.encoding == PB_MSG_ENCODING_PROTO_GROUP {
+            PbMsgEncoding::ProtoGroup
+        } else {
+            PbMsgEncoding::LengthDelimited
+        };
         let writer = PbMsgWriter {
             writer: StreamWriter {
                 writer: RefCell::new(impl_writer),
             },
         };
-        let mut msg = PbMsg::new(&writer).unwrap();
+        let mut msg = PbMsg::new_with_encoding(&writer, encoding).unwrap();
         let mut packet = TracePacket { msg: &mut msg };
 
         cb(&mut packet);
@@ -813,6 +830,7 @@ impl<'a: 'static, IncrT: Default + Clear> DataSource<'a, IncrT> {
                 ds_impl,
                 args.buffer_exhausted_policy_configurable,
             );
+            PerfettoDsSetSupportsTracingV2(ds_impl, args.supports_tracing_v2);
             let success = PerfettoDsImplRegister(
                 ds_impl,
                 &raw mut self.enabled,
