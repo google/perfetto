@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/exec/combine_batches.h"
 #include "src/trace_processor/core/exec/dataframe_scan.h"
 #include "src/trace_processor/core/exec/distinct.h"
+#include "src/trace_processor/core/exec/eq_scans.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
@@ -180,6 +181,15 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   }
   if (source.Is<SortedScan>()) {
     return "SortedScan";
+  }
+  if (source.Is<IdEqScan>()) {
+    return "IdEqScan";
+  }
+  if (source.Is<SetIdEqScan>()) {
+    return "SetIdEqScan";
+  }
+  if (source.Is<SmallValueEqScan>()) {
+    return "SmallValueEqScan";
   }
   return "Source";
 }

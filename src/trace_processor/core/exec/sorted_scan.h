@@ -39,6 +39,9 @@ namespace perfetto::trace_processor::core::exec {
 // dataframe interpreter, so both find the same rows. The searches run once per
 // run, on the first GetData(); the range is then read like DataframeScan.
 // Searched columns must be non-null and finalized.
+//
+// A single equality on an Id, SetId or small value column should use the
+// scans in eq_scans.h instead, which skip the per-run dispatch.
 class SortedScan final : public Source {
  public:
   static constexpr char kType = 0;

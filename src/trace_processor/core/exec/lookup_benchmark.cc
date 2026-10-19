@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-// Searches of a big table, run once per row of another: what extract_arg and
-// time range queries do millions of times. Each executor case is timed
-// against the interpreter running the same query through TypedCursor, which
-// is how C++ callers run it today.
+// Searches of a big table, run once per row of another: what extract_arg,
+// joins on an id and time range queries do millions of times. Each executor
+// case is timed against the interpreter running the same query through
+// TypedCursor, which is how C++ callers run it today.
 
 #include <benchmark/benchmark.h>
 
@@ -36,6 +36,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/typed_cursor.h"
+#include "src/trace_processor/core/exec/eq_scans.h"
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/operator.h"
@@ -127,8 +128,8 @@ const Args& GetArgs() {
   return *args;
 }
 
-// Shaped like the slice table: ts ascending and a dur.
-enum SliceCol : uint32_t { kTs, kDur };
+// Shaped like the slice table: an id, ts ascending and a dur.
+enum SliceCol : uint32_t { kTs, kDur, kSliceId };
 
 struct Slices {
   Slices() {
@@ -146,6 +147,7 @@ struct Slices {
     PERFETTO_CHECK(built.ok());
     df = std::make_unique<dataframe::Dataframe>(std::move(*built));
     PERFETTO_CHECK(df->column(kTs).sort_state.Is<Sorted>());
+    PERFETTO_CHECK(df->column(kSliceId).storage.type().Is<Id>());
     for (uint32_t i = 0; i < kLookups; ++i) {
       rows.push_back(static_cast<uint32_t>(rng() % kRows));
     }
@@ -275,6 +277,38 @@ void BM_ExtractArg_SortedScan(benchmark::State& state) {
                            &a.pool));
 }
 BENCHMARK(BM_ExtractArg_SortedScan);
+
+// id = ?
+
+void RunIdEq(benchmark::State& state, std::unique_ptr<Source> scan) {
+  const Slices& s = GetSlices();
+  ExecLookup lookup(std::move(scan), {}, {{Id{}, Eq{}}}, &s.pool);
+  uint32_t i = 0;
+  uint32_t found = 0;
+  for (auto _ : state) {
+    lookup.Set(0, int64_t{s.rows[i++ % kLookups]});
+    found += lookup.Open() && lookup.cursor().Value<uint32_t>(0) != 0;
+  }
+  benchmark::DoNotOptimize(found);
+}
+
+void BM_IdEq_SortedScan(benchmark::State& state) {
+  const Slices& s = GetSlices();
+  RunIdEq(state, std::make_unique<SortedScan>(
+                     Columns(*s.df, {kSliceId}), s.df->row_count(),
+                     std::vector<SortedScan::Search>{
+                         {s.df->shared_column(kSliceId),
+                          SortedScan::Search::Kind::kBinarySearch, Eq{}, 0}},
+                     &s.pool));
+}
+BENCHMARK(BM_IdEq_SortedScan);
+
+void BM_IdEq_IdEqScan(benchmark::State& state) {
+  const Slices& s = GetSlices();
+  RunIdEq(state, std::make_unique<IdEqScan>(Columns(*s.df, {kSliceId}),
+                                            s.df->row_count(), 0));
+}
+BENCHMARK(BM_IdEq_IdEqScan);
 
 // ts >= ? AND ts < ?, reading dur for every row. The arg is roughly how many
 // rows each range holds.

@@ -38,6 +38,8 @@ source_set("exec") {
     "dataframe_windows.h",
     "distinct.cc",
     "distinct.h",
+    "eq_scans.cc",
+    "eq_scans.h",
     "filter.cc",
     "filter.h",
     "filter_value.h",
