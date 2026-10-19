@@ -129,6 +129,7 @@ struct Groups {
   // Called once every interval is added, before Find().
   void Index() {
     by_number.clear();
+    by_number.reserve(seen.size());
     for (uint32_t i = 0; i < seen.size(); ++i) {
       by_number.emplace_back(seen[i], i);
     }
@@ -148,7 +149,11 @@ struct Groups {
     if (it == by_number.end() || it->first != number) {
       return std::nullopt;
     }
-    const Range& range = ranges[it->second];
+    return At(it->second);
+  }
+  // The group whose range is the `index`-th, in arrival order.
+  Group At(uint32_t index) const {
+    const Range& range = ranges[index];
     const Interval* data = intervals.data();
     return Group{{data + range.begin, data + range.end}, range.nonoverlapping};
   }
@@ -433,9 +438,15 @@ bool IntervalIntersect::GetData(RowBatch& out, OperatorState& state) const {
     }
     std::vector<Group>& groups = s.scratch.key_groups;
     groups.resize(count);
-    for (uint32_t number : s.groups[fewest].seen) {
+    const std::vector<uint32_t>& candidates = s.groups[fewest].seen;
+    for (uint32_t j = 0; j < candidates.size(); ++j) {
+      uint32_t number = candidates[j];
       bool everywhere = true;
       for (uint32_t i = 0; i < count && everywhere; ++i) {
+        if (i == fewest) {
+          groups[i] = s.groups[i].At(j);
+          continue;
+        }
         std::optional<Group> group = s.groups[i].Find(number);
         everywhere = group.has_value();
         if (everywhere) {
