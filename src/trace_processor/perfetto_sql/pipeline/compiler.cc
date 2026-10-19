@@ -155,16 +155,7 @@ ColumnId Compiler::AddColumn(std::string name, PlanType type) {
 base::Status Compiler::BuildOperation(uint32_t stage) {
   uint32_t tag = Node<SyntaqliteNode>(p_, stage)->tag;
   const auto* registration = FindOperationBySyntax(tag);
-  if (!registration) {
-    switch (tag) {
-      case SYNTAQLITE_NODE_PERFETTO_PIPE_WHERE:
-        return Unsupported(stage, "WHERE");
-      case SYNTAQLITE_NODE_PERFETTO_PIPE_DISTINCT:
-        return Unsupported(stage, "DISTINCT");
-      default:
-        PERFETTO_FATAL("Unknown pipeline stage");
-    }
-  }
+  PERFETTO_CHECK(registration);
   return registration->BuildPlan(this, stage);
 }
 

@@ -32,7 +32,7 @@ namespace perfetto::trace_processor::core::exec {
 
 Distinct::Distinct(std::vector<uint32_t> columns)
     : columns_(std::move(columns)) {
-  PERFETTO_CHECK(!columns_.empty() && columns_.size() <= 64);
+  PERFETTO_CHECK(!columns_.empty() && columns_.size() <= kMaxColumns);
 }
 
 Distinct::~Distinct() = default;

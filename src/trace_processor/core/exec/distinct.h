@@ -36,12 +36,14 @@ class Context;
 //
 // Rows are dropped by narrowing the selection, so nothing is copied. Only
 // the keys of the rows kept are stored, so memory grows with the number of
-// distinct rows, not the number of input rows. There can be at most 64
-// columns.
+// distinct rows, not the number of input rows. There can be at most
+// kMaxColumns columns.
 class Distinct final : public Transform {
  public:
   static constexpr char kType = 0;
   const void* type() const override { return &kType; }
+
+  static constexpr uint32_t kMaxColumns = 64;
 
   explicit Distinct(std::vector<uint32_t> columns);
   ~Distinct() override;

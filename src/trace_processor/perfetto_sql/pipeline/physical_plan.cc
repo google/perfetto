@@ -129,6 +129,16 @@ const core::exec::Source* Lowering::FinishSide() {
   return out.side_pipelines_.back().get();
 }
 
+uint32_t Lowering::AddFilterValue(core::exec::FilterValue value) {
+  std::vector<core::exec::FilterValue>& values = plan_->out_->filter_values_;
+  values.push_back(std::move(value));
+  return static_cast<uint32_t>(values.size() - 1);
+}
+
+const LoweringContext& Lowering::context() const {
+  return plan_->context_;
+}
+
 void Lowering::RequireType(ColumnId column, core::StorageType type) {
   std::optional<PlanType> common =
       CommonType(plan_->TypeOf(column), PlanType(type));
@@ -323,6 +333,10 @@ uint32_t Lowering::QueryPosition(ColumnId id) const {
   return positions_[id];
 }
 
+PlanType Lowering::QueryType(ColumnId id) const {
+  return plan_->TypeOf(id);
+}
+
 std::vector<SortKey> Lowering::QuerySortedBy(
     const std::vector<ColumnId>& columns) const {
   std::vector<SortKey> longest;
@@ -486,8 +500,10 @@ std::unique_ptr<ex::Pipeline> Lowering::Build() {
   return std::make_unique<ex::Pipeline>(*input_, std::move(operators_));
 }
 
-PlanLowering::PlanLowering(const LogicalPlan& plan)
+PlanLowering::PlanLowering(const LogicalPlan& plan,
+                           const LoweringContext& context)
     : plan_(plan),
+      context_(context),
       converted_(plan.columns().size()),
       out_(std::make_unique<PhysicalPlan>()) {
   pipelines_.push_back(std::make_unique<Lowering>(this));
@@ -522,8 +538,10 @@ PlanType PlanLowering::TypeOf(ColumnId column) const {
 PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan& plan) {
-  PlanLowering lowering(plan);
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(
+    const LogicalPlan& plan,
+    const LoweringContext& context) {
+  PlanLowering lowering(plan, context);
   lowering.main().LowerNode(plan.root());
   return lowering.Finish();
 }

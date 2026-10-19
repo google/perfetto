@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/exec/filter_value.h"
 #include "src/trace_processor/core/exec/interval_lanes.h"
 #include "src/trace_processor/core/exec/operator.h"
 #include "src/trace_processor/core/exec/pipeline.h"
@@ -65,6 +66,13 @@ class PhysicalPlan {
     return side_pipelines_;
   }
 
+  // The values a Filter compares columns with, known when the plan was
+  // built, e.g. a WHERE literal. Passed to Context::SetFilterValues (see
+  // core::exec::RowCursor::Open) before each run.
+  const std::vector<core::exec::FilterValue>& filter_values() const {
+    return filter_values_;
+  }
+
  private:
   friend class Lowering;
   friend class PlanLowering;
@@ -76,12 +84,21 @@ class PhysicalPlan {
   std::unique_ptr<core::exec::Source> input_;
   std::unique_ptr<core::exec::Pipeline> pipeline_;
   std::vector<Column> columns_;
+  std::vector<core::exec::FilterValue> filter_values_;
+};
+
+// What lowering needs from whoever runs the plan. Everything here must outlive
+// every run of the plan.
+struct LoweringContext {
+  // Holds the strings of the columns a Filter reads.
+  const StringPool* pool = nullptr;
 };
 
 // Builds executor nodes from a logical plan. Establishes tree numbering, row
 // ordering, and column types as needed, reusing them across consecutive folds.
 // Every dataframe the plan reads must already be resolved.
-base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&);
+base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&,
+                                                    const LoweringContext&);
 
 // -----------------------------------------------------------------------------
 // Lowering
@@ -157,6 +174,13 @@ class Lowering {
   // Finishes this side pipeline and returns the source an operator reads it
   // from. Nothing can be added to the pipeline afterwards.
   const core::exec::Source* FinishSide();
+
+  // Adds a filter value known when the plan was built, e.g. a WHERE literal,
+  // and returns its index into the run's filter values (see
+  // PhysicalPlan::filter_values).
+  uint32_t AddFilterValue(core::exec::FilterValue value);
+
+  const LoweringContext& context() const;
 
   // ---------------------------------------------------------------------------
   // Requirements: add operators only if needed
@@ -243,6 +267,9 @@ class Lowering {
 
   // The batch position of a column declared with DeclareColumn.
   uint32_t QueryPosition(ColumnId id) const;
+
+  // The type of a column, after any conversion added so far.
+  PlanType QueryType(ColumnId id) const;
 
   // The longest prefix of the known sort order that uses only `columns`.
   std::vector<SortKey> QuerySortedBy(
@@ -376,7 +403,7 @@ class Lowering {
 // State shared by all pipelines while lowering a plan.
 class PlanLowering {
  public:
-  explicit PlanLowering(const LogicalPlan& plan);
+  PlanLowering(const LogicalPlan& plan, const LoweringContext& context);
   PlanLowering(const PlanLowering&) = delete;
   PlanLowering& operator=(const PlanLowering&) = delete;
   ~PlanLowering();
@@ -401,6 +428,7 @@ class PlanLowering {
 
   // Borrowed for the duration of lowering.
   const LogicalPlan& plan_;
+  LoweringContext context_;
 
   // For each logical column, the type it was converted to, if any. Kept here
   // because column ids are unique across pipelines.

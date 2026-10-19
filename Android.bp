@@ -19150,6 +19150,7 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_pipeline_operations_operations",
     srcs: [
         "src/trace_processor/perfetto_sql/pipeline/operations/aggregate_stage.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/distinct.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_fill_gaps.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_flatten.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/interval_intersect.cc",
@@ -19157,6 +19158,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/pipeline/operations/projection.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/scan.cc",
         "src/trace_processor/perfetto_sql/pipeline/operations/tree_accumulate.cc",
+        "src/trace_processor/perfetto_sql/pipeline/operations/where.cc",
     ],
 }
 
