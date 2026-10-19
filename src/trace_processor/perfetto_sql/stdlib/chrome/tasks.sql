@@ -588,6 +588,17 @@ WITH
   -- as full names for these slices.
   -- We restrict this to specific scheduler tasks which are expected to run mojo
   -- tasks due to sync mojo events, which also emit similar events.
+  filtered_scheduler_tasks_with_mojo AS MATERIALIZED (
+    SELECT id
+    FROM chrome_scheduler_tasks
+    WHERE
+      posted_from IN (
+        "mojo/public/cpp/system/simple_watcher.cc:Notify",
+        "mojo/public/cpp/system/simple_watcher.cc:ArmOrNotify",
+        "mojo/public/cpp/bindings/lib/connector.cc:PostDispatchNextMessageFromPipe",
+        "ipc/ipc_mojo_bootstrap.cc:Accept"
+      )
+  ),
   scheduler_tasks_with_mojo AS (
     SELECT
       -- We use the "RunTask" as the task, and pick up the name from its child
@@ -595,9 +606,7 @@ WITH
       task.id,
       receive_message.task_name,
       "mojo" AS task_type
-    FROM chrome_scheduler_tasks AS task, _descendant_mojo_slice(task.id) AS receive_message
-    WHERE
-      task.posted_from IN ("mojo/public/cpp/system/simple_watcher.cc:Notify", "mojo/public/cpp/system/simple_watcher.cc:ArmOrNotify", "mojo/public/cpp/bindings/lib/connector.cc:PostDispatchNextMessageFromPipe", "ipc/ipc_mojo_bootstrap.cc:Accept")
+    FROM filtered_scheduler_tasks_with_mojo AS task, _descendant_mojo_slice(task.id) AS receive_message
   ),
   navigation_tasks AS (
     WITH
