@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -31,6 +32,7 @@
 #include "src/trace_processor/core/exec/row_batch.h"
 #include "src/trace_processor/core/exec/selection.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::exec {
 
@@ -42,8 +44,8 @@ class DataframeWindows::Expander {
   virtual ~Expander();
 
   // Sets `view` to rows [from, from + count), laid out densely from zero, in
-  // a buffer taken from `context` into `buffer`. `from` is where the last
-  // call ended.
+  // a buffer taken from `context` into `buffer`. `from` is at or after where
+  // the last call ended.
   virtual void Expand(uint32_t from,
                       uint32_t count,
                       Context& context,
@@ -68,7 +70,10 @@ class ExpanderImpl final : public DataframeWindows::Expander {
               Context& context,
               ColumnView* view,
               ColumnBuffer* buffer) override {
-    PERFETTO_DCHECK(from == next_);
+    PERFETTO_DCHECK(from >= next_);
+    if (from != next_) {
+      Skip(from);
+    }
     *buffer = context.TakeBuffer();
     ColumnChunk& chunk = buffer->chunk();
     T* values = chunk.Values<T>();
@@ -100,12 +105,25 @@ class ExpanderImpl final : public DataframeWindows::Expander {
   }
 
  private:
+  // Moves to row `row`, past the values of the rows before it, in constant
+  // time once the bits set before each word are known.
+  void Skip(uint32_t row) {
+    if (PERFETTO_UNLIKELY(!popcount_.size())) {
+      popcount_ = bits_->PrefixPopcount();
+    }
+    consumed_ = popcount_[row / 64] +
+                static_cast<uint32_t>(bits_->count_set_bits_until_in_word(row));
+    next_ = row;
+  }
+
   StorageType type_;
   const T* packed_;
   const BitVector* bits_;
   // How many of the packed values are before `next_`.
   uint32_t consumed_ = 0;
   uint32_t next_ = 0;
+  // By word, the bits set before it, once a window has started further on.
+  Slab<uint32_t> popcount_;
 };
 
 // Builds either a view straight onto the dataframe's storage or, for a column
