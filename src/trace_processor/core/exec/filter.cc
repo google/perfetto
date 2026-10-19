@@ -144,14 +144,15 @@ void ApplyComparison(const Op& op,
                      const ColumnView& column,
                      const StringPool& pool,
                      Rows& r) {
-  KeepNulls(column, /*nulls=*/false, r);
   switch (cast.value.validity) {
     case CastFilterValueResult::kNoneMatch:
       r.count = 0;
       return;
     case CastFilterValueResult::kAllMatch:
+      KeepNulls(column, /*nulls=*/false, r);
       return;
     case CastFilterValueResult::kValid:
+      KeepNulls(column, /*nulls=*/false, r);
       break;
   }
   if (r.count == 0) {
