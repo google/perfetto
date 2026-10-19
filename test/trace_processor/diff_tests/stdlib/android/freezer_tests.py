@@ -68,10 +68,12 @@ class Freezer(TestSuite):
         5000,1000,"FROZEN",0
         6000,1000,"FROZEN",1
         7000,1000,"FROZEN",2
-        8000,2000,"FROZEN",1
-        500,500,"UNFROZEN",1
-        1000,2000,"UNFROZEN",2
-        3000,2000,"UNFROZEN",1
-        5000,1000,"UNFROZEN",2
-        6000,4000,"UNFROZEN",1
+        8000,1000,"FROZEN",1
+        9000,1000,"FROZEN",2
+        500,500,"UNFROZEN",2
+        1000,2000,"UNFROZEN",3
+        3000,2000,"UNFROZEN",2
+        5000,1000,"UNFROZEN",3
+        6000,3000,"UNFROZEN",2
+        9000,1000,"UNFROZEN",1
         """))
