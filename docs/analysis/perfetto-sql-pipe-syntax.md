@@ -44,11 +44,10 @@ a subquery.
 
 A `<pipeline>` is a source followed by any number of stages:
 
-```sql
-<source>
-[|> <stage_1>]
-[|> <stage_2>]
-...
+```railroad pipeline
+Diagram(
+  NonTerminal('source-clause'),
+  ZeroOrMore(Sequence(Terminal('|>'), NonTerminal('stage'))))
 ```
 
 - `|>` must be written with no space between `|` and `>`.
@@ -56,6 +55,50 @@ A `<pipeline>` is a source followed by any number of stages:
   `FILL`, `GAPS`, `AGGREGATE`, `PER` and `EXTEND` are not reserved, so they can
   still be used as names in SQL.
 - An alias always needs `AS`: `FROM slice AS s`, not `FROM slice s`.
+
+A `<source-clause>` is [`FROM`](#from) or
+[`INTERVAL INTERSECTION OF`](#interval-intersection-of). A `<stage>` is one of:
+
+```railroad stage
+Diagram(Choice(0,
+  Link(Terminal('WHERE'), '#where'),
+  Link(Terminal('DISTINCT'), '#distinct'),
+  Link(Terminal('ORDER BY'), '#order-by'),
+  Link(Terminal('INTERVAL FLATTEN'), '#interval-flatten'),
+  Link(Terminal('INTERVAL FILL GAPS'), '#interval-fill-gaps'),
+  Link(Terminal('TREE ACCUMULATE'), '#tree-accumulate'),
+  Link(Terminal('AGGREGATE'), '#aggregate'),
+  Link(Terminal('SELECT'), '#select'),
+  Link(Terminal('EXTEND'), '#extend'),
+  Link(Terminal('DROP'), '#drop'),
+  Link(Terminal('RENAME'), '#rename'),
+  Link(Terminal('SET'), '#set'),
+  Link(Terminal('AS'), '#as')))
+```
+
+### Shared rules
+
+A `<source>` is a table or a subquery, with an optional alias:
+
+```railroad source
+Diagram(
+  Choice(0,
+    NonTerminal('table-name'),
+    Sequence(Terminal('('), NonTerminal('select-stmt'), Terminal(')'))),
+  Optional(Sequence(Terminal('AS'), NonTerminal('alias'))))
+```
+
+A `<column>` can be qualified by an alias:
+
+```railroad column
+Diagram(Optional(Sequence(NonTerminal('alias'), Terminal('.'))), NonTerminal('name'))
+```
+
+A `<per-clause>` lists the columns that split rows into groups:
+
+```railroad per-clause
+Diagram(Terminal('PER'), OneOrMore(NonTerminal('column'), Terminal(',')))
+```
 
 ### Limits
 
@@ -76,14 +119,13 @@ A `<pipeline>` is a source followed by any number of stages:
 
 ### `FROM` {#from}
 
-```sql
-FROM <table_name> [AS <alias>]
-FROM (<select_stmt>) [AS <alias>]
+```railroad
+Diagram(Terminal('FROM'), NonTerminal('source'))
 ```
 
-- `<table_name>` is a table, a view, or a macro which expands to one. A
+- `<table-name>` is a table, a view, or a macro which expands to one. A
   schema-qualified name such as `main.t` is not supported.
-- `(<select_stmt>)` is any SQL `SELECT`.
+- `<select-stmt>` is any SQL `SELECT`.
 - **Qualifiers:** `FROM slice` lets columns be written `slice.<col>`.
   `FROM slice AS s` makes that `s.<col>` instead. An unaliased subquery has no
   qualifier until a later `|> AS <alias>`.
@@ -92,15 +134,12 @@ FROM (<select_stmt>) [AS <alias>]
 
 Finds where intervals from two or more sources overlap:
 
-```sql
-INTERVAL INTERSECTION OF (
-  <source_1> [AS <alias_1>],
-  <source_2> [AS <alias_2>]
-  [, <source_N> [AS <alias_N>] ...]
-) [PER <col_1> [, <col_2> ...]]
+```railroad
+Diagram(
+  Terminal('INTERVAL'), Terminal('INTERSECTION'), Terminal('OF'),
+  Terminal('('), OneOrMore(NonTerminal('source'), Terminal(',')), Terminal(')'),
+  Optional(NonTerminal('per-clause')))
 ```
-
-Each `<source_i>` is a table name or a parenthesized `SELECT`.
 
 #### Requirements
 
@@ -117,7 +156,7 @@ source overlaps, among rows that agree on the `PER` columns.
 | Column | Found by bare name | Found through alias |
 | :--- | :--- | :--- |
 | Region `ts`, `dur` | Yes | No |
-| Each source's own `ts`, `dur` | No | `<alias_i>.ts` |
+| Each source's own `ts`, `dur` | No | `<alias>.ts` |
 | `PER` columns of the first source | Yes | Yes |
 | `PER` columns of later sources | No | Yes |
 | Every other source column | Yes, if only one source has it | Yes |
@@ -149,15 +188,24 @@ a `|> SELECT` naming them through their aliases.
 
 ## Aggregates
 
-`INTERVAL FLATTEN`, `TREE ACCUMULATE` and `AGGREGATE` take a list of aggregates
-and treat them the same way:
+`INTERVAL FLATTEN`, `TREE ACCUMULATE` and `AGGREGATE` take an
+`<aggregate-list>`, and treat every aggregate the same way:
 
-```sql
-<aggregate> AS <name> [, <aggregate> AS <name> ...]
+```railroad aggregate-list
+Diagram(OneOrMore(
+  Sequence(NonTerminal('aggregate'), Terminal('AS'), NonTerminal('name')),
+  Terminal(',')))
 ```
 
-- **Forms:** `COUNT(*)`, `SUM(<col>)`, `MIN(<col>)` and `MAX(<col>)`. A column
-  can be qualified. Each aggregate needs an `AS` name. Expressions, `DISTINCT`,
+```railroad aggregate
+Diagram(Choice(0,
+  Sequence(Terminal('COUNT'), Terminal('('), Terminal('*'), Terminal(')')),
+  Sequence(
+    Choice(0, Terminal('SUM'), Terminal('MIN'), Terminal('MAX')),
+    Terminal('('), NonTerminal('column'), Terminal(')'))))
+```
+
+- **Forms:** Each aggregate needs an `AS` name. Expressions, `DISTINCT`,
   `FILTER`, `OVER` and other functions are rejected.
 - **`COUNT(*)`** counts rows.
 - **`SUM`, `MIN` and `MAX`** take an integer column. They skip `NULL`s and
@@ -177,12 +225,17 @@ and treat them the same way:
 
 Keeps the rows that match a condition:
 
-```sql
-|> WHERE <col> <op> <number> [AND <col> <op> <number> ...]
+```railroad
+Diagram(
+  Terminal('WHERE'),
+  OneOrMore(
+    Sequence(
+      NonTerminal('column'), NonTerminal('op'), NonTerminal('number')),
+    Terminal('AND')))
 ```
 
-- `<op>` is one of `=`, `!=`, `<`, `<=`, `>` and `>=`. `<col>` can be
-  qualified. `<number>` is an integer or floating-point literal.
+- `<op>` is one of `=`, `!=`, `<`, `<=`, `>` and `>=`.
+- `<number>` is an integer or floating-point literal.
 - `NULL` never matches. Integers compare with fractions as in SQL.
 - Keeps all columns and aliases.
 - Not supported yet: `OR`, `NOT`, `IS NULL`, parentheses, strings, functions,
@@ -192,8 +245,8 @@ Keeps the rows that match a condition:
 
 Removes repeated rows:
 
-```sql
-|> DISTINCT
+```railroad
+Diagram(Terminal('DISTINCT'))
 ```
 
 - Rows are equal when they agree on every column. `NULL`s are equal.
@@ -205,8 +258,13 @@ Removes repeated rows:
 
 Sorts the rows:
 
-```sql
-|> ORDER BY <col_1> [ASC | DESC] [, <col_2> [ASC | DESC] ...]
+```railroad
+Diagram(
+  Terminal('ORDER'), Terminal('BY'),
+  OneOrMore(
+    Sequence(NonTerminal('column'),
+      Optional(Choice(0, Terminal('ASC'), Terminal('DESC')))),
+    Terminal(',')))
 ```
 
 - The first key decides the order and each later key breaks ties. Each defaults
@@ -224,9 +282,10 @@ Sorts the rows:
 Splits overlapping intervals into segments and aggregates the rows active in
 each:
 
-```sql
-|> INTERVAL FLATTEN [PER <col_1> [, <col_2> ...]]
-  AGGREGATE <aggregate> AS <out_1> [, <aggregate> AS <out_2> ...]
+```railroad
+Diagram(
+  Terminal('INTERVAL'), Terminal('FLATTEN'), Optional(NonTerminal('per-clause')),
+  Terminal('AGGREGATE'), NonTerminal('aggregate-list'))
 ```
 
 - **Intervals:** Bare `ts` and `dur`, which must be integer columns. Input does
@@ -260,12 +319,13 @@ For an example, see
 Keeps every row and adds a row for each stretch of a background interval which
 no row covers:
 
-```sql
-|> INTERVAL FILL GAPS WITH <source> [AS <alias>] [PER <col_1> [, <col_2> ...]]
+```railroad
+Diagram(
+  Terminal('INTERVAL'), Terminal('FILL'), Terminal('GAPS'), Terminal('WITH'),
+  NonTerminal('source'), Optional(NonTerminal('per-clause')))
 ```
 
-`<source>` is a table name or a parenthesized `SELECT`, holding the background
-intervals.
+`<source>` holds the background intervals.
 
 - **Intervals:** Bare `ts` and `dur`, in the input and the background.
 - **Lanes:** Each combination of `PER` values is filled on its own. The
@@ -297,9 +357,11 @@ For an example, see
 
 Aggregates up or down a tree:
 
-```sql
-|> TREE ACCUMULATE UP|DOWN
-  <aggregate> AS <out_1> [, <aggregate> AS <out_2> ...]
+```railroad
+Diagram(
+  Terminal('TREE'), Terminal('ACCUMULATE'),
+  Choice(0, Terminal('UP'), Terminal('DOWN')),
+  NonTerminal('aggregate-list'))
 ```
 
 - **Tree:** Bare `id` and `parent_id`. Roots have `parent_id IS NULL`.
@@ -320,9 +382,19 @@ Aggregates up or down a tree:
 
 Collapses each group of rows into one:
 
-```sql
-|> AGGREGATE <aggregate> AS <out_1> [, <aggregate> AS <out_2> ...]
-  [GROUP BY <col_1> [AS <name_1>] [, ...]]
+```railroad
+Diagram(
+  Terminal('AGGREGATE'), NonTerminal('aggregate-list'),
+  Optional(NonTerminal('group-by')))
+```
+
+```railroad group-by
+Diagram(
+  Terminal('GROUP'), Terminal('BY'),
+  OneOrMore(
+    Sequence(NonTerminal('column'),
+      Optional(Sequence(Terminal('AS'), NonTerminal('name')))),
+    Terminal(',')))
 ```
 
 - **Groups:** Rows that agree on every `GROUP BY` column. A key can have any
@@ -351,40 +423,66 @@ INTERVAL INTERSECTION OF (
 
 Replaces the row with the listed items, and clears all aliases:
 
-```sql
-|> SELECT <item> [, <item> ...]
+```railroad
+Diagram(Terminal('SELECT'), OneOrMore(NonTerminal('item'), Terminal(',')))
 ```
 
 Each `<item>` is one of:
 
-- **A column:** `<col> [AS <name>]`, where `<col>` can be qualified. Without
-  `AS`, the column keeps its name. Other expressions parse, but fail with `a
-  computed column is not supported yet`.
-- **A star:**
-  `[<qualifier>.]* [EXCEPT (<col_1> [, ...])] [REPLACE (<col> AS <target> [, ...])]`
+```railroad item
+Diagram(Choice(0,
+  Sequence(NonTerminal('column'),
+    Optional(Sequence(Terminal('AS'), NonTerminal('name')))),
+  NonTerminal('star')))
+```
+
+- **A column.** Without `AS`, it keeps its name. Other expressions parse, but
+  fail with `a computed column is not supported yet`.
+- **A `<star>`:**
+
+```railroad star
+Diagram(
+  Optional(Sequence(NonTerminal('alias'), Terminal('.'))), Terminal('*'),
+  Optional(NonTerminal('except')), Optional(NonTerminal('replace')))
+```
+
+```railroad except
+Diagram(
+  Terminal('EXCEPT'), Terminal('('),
+  OneOrMore(NonTerminal('name'), Terminal(',')), Terminal(')'))
+```
+
+```railroad replace
+Diagram(
+  Terminal('REPLACE'), Terminal('('),
+  OneOrMore(
+    Sequence(NonTerminal('column'), Terminal('AS'), NonTerminal('target')),
+    Terminal(',')),
+  Terminal(')'))
+```
 
 A star works as follows:
 
 1. `*` is the columns found by bare name. After `INTERVAL INTERSECTION OF`,
-   that leaves out each source's own `ts` and `dur`. `<qualifier>.*` is the
+   that leaves out each source's own `ts` and `dur`. `<alias>.*` is the
    columns the alias had when it was set.
 2. `EXCEPT` removes every column with a listed name. Each name must match at
    least one column and be listed once, and at least one column must remain.
-3. `REPLACE (<col> AS <target>)` puts `<col>`'s values in `<target>`, keeping
-   `<target>`'s name and position. `<col>` is looked up in the row before the
-   stage; `<target>` must be one column left after `EXCEPT`.
+3. `REPLACE (<column> AS <target>)` puts `<column>`'s values in `<target>`,
+   keeping `<target>`'s name and position. `<column>` is looked up in the row
+   before the stage; `<target>` must be one column left after `EXCEPT`.
 4. Every column a star adds can be referred to by bare name in later stages.
 
 ### `EXTEND` {#extend}
 
 Adds columns at the end of the row, keeping every column and alias:
 
-```sql
-|> EXTEND <item> [, <item> ...]
+```railroad
+Diagram(Terminal('EXTEND'), OneOrMore(NonTerminal('item'), Terminal(',')))
 ```
 
 - Items are as in `SELECT`, except that a bare `*` is not allowed. Use
-  `<qualifier>.*` to add an alias's columns.
+  `<alias>.*` to add an alias's columns.
 - Items read the row before the stage, so one cannot refer to another.
 - Aliases do not include the new columns.
 
@@ -392,8 +490,8 @@ Adds columns at the end of the row, keeping every column and alias:
 
 Removes columns by name:
 
-```sql
-|> DROP <col_1> [, <col_2> ...]
+```railroad
+Diagram(Terminal('DROP'), OneOrMore(NonTerminal('name'), Terminal(',')))
 ```
 
 - Each name must match a column found by bare name, and removes every column
@@ -406,8 +504,12 @@ Removes columns by name:
 
 Renames columns in place:
 
-```sql
-|> RENAME <old_1> AS <new_1> [, <old_2> AS <new_2> ...]
+```railroad
+Diagram(
+  Terminal('RENAME'),
+  OneOrMore(
+    Sequence(NonTerminal('old'), Terminal('AS'), NonTerminal('new')),
+    Terminal(',')))
 ```
 
 - Each `<old>` must be one column found by bare name, listed once.
@@ -420,13 +522,16 @@ Renames columns in place:
 
 Replaces the values of columns in place:
 
-```sql
-|> SET <target_1> = <col_1> [, <target_2> = <col_2> ...]
+```railroad
+Diagram(
+  Terminal('SET'),
+  OneOrMore(
+    Sequence(NonTerminal('target'), Terminal('='), NonTerminal('column')),
+    Terminal(',')))
 ```
 
 - Each `<target>` must be one column found by bare name, listed once.
-- Each `<col>` is a column, which can be qualified, looked up in the row before
-  the stage. So `|> SET x = y, y = x` swaps the values of `x` and `y`. Other
+- Each `<column>` is looked up in the row before the stage. So `|> SET x = y, y = x` swaps the values of `x` and `y`. Other
   expressions fail with `a computed column is not supported yet`.
 - Aliases keep the old values. An alias with the same name as a target is
   removed.
@@ -435,8 +540,8 @@ Replaces the values of columns in place:
 
 Replaces all aliases with one alias for the current row:
 
-```sql
-|> AS <alias>
+```railroad
+Diagram(Terminal('AS'), NonTerminal('alias'))
 ```
 
 After `|> AS u`, earlier aliases are gone, and `u.<col>` and `u.*` are the
