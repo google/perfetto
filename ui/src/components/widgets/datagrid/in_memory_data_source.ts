@@ -14,7 +14,7 @@
 
 import type {AsyncMemoResult} from '../../../base/async_memo';
 import {stringifyJsonWithBigints} from '../../../base/json_utils';
-import {assertUnreachable} from '../../../base/assert';
+import {assertUnreachable, ensureDefined} from '../../../base/assert';
 import type {Row, SqlValue} from '../../../trace_processor/query_result';
 import type {
   DataSource,
@@ -223,7 +223,9 @@ export class InMemoryDataSource implements DataSource {
     ) {
       const summaries: Row = {};
       for (const col of aggColumns) {
-        const values = this.filteredSortedData.map((row) => row[col.alias]);
+        const values = this.filteredSortedData
+          .map((row) => row[col.alias])
+          .filter((v) => v !== undefined);
         summaries[col.alias] = computeAggregate(col.aggregate!, values);
       }
       this.aggregateSummariesCache = summaries;
@@ -533,10 +535,8 @@ function computeAggregate(
     case 'P90':
     case 'P95':
     case 'P99':
-      return percentile(
-        nonNull.filter(isNumeric).map(Number),
-        Number(func.slice(1)),
-      );
+      const p = Number(func.slice(1)); // Strip the 'P'
+      return percentile(nonNull.filter(isNumeric).map(Number), p);
     default:
       assertUnreachable(func);
   }
@@ -556,13 +556,9 @@ function extremum(
   better: (cmp: number) => boolean,
 ): SqlValue {
   if (values.length === 0) return null;
-  let result = values[0];
-  for (let i = 1; i < values.length; i++) {
-    if (better(compareForAggregate(values[i], result))) {
-      result = values[i];
-    }
-  }
-  return result;
+  return values.reduce((result, value) =>
+    better(compareForAggregate(value, result)) ? value : result,
+  );
 }
 
 // Order non-NULL values like sqlite: numbers < strings < blobs.
@@ -578,7 +574,11 @@ function compareForAggregate(a: SqlValue, b: SqlValue): number {
   if (a instanceof Uint8Array && b instanceof Uint8Array) {
     const len = Math.min(a.length, b.length);
     for (let i = 0; i < len; i++) {
-      if (a[i] !== b[i]) return a[i] - b[i];
+      // len is min(a.length, b.length) so accessing a[i] and b[i] is safe - use
+      // non-null assertion instead of ensureDefined for performance.
+      const ax = a[i]!;
+      const bx = b[i]!;
+      if (ax !== bx) return ax - bx;
     }
     return a.length - b.length;
   }
@@ -597,7 +597,9 @@ function percentile(values: number[], p: number): SqlValue {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const ix = ((sorted.length - 1) * p) / 100;
-  const lo = Math.floor(ix);
-  const hi = Math.ceil(ix);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (ix - lo);
+  // sorted is non-empty and 0 <= p <= 100, so 0 <= ix <= length - 1 and both
+  // floor(ix) and ceil(ix) are in bounds.
+  const lo = ensureDefined(sorted[Math.floor(ix)]);
+  const hi = ensureDefined(sorted[Math.ceil(ix)]);
+  return lo + (hi - lo) * (ix - Math.floor(ix));
 }
