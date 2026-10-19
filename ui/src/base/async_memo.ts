@@ -66,8 +66,9 @@
  * - Only the latest pending task per memo is kept (intermediates dropped)
  * - Each memo has a single-entry cache (most recent result)
  * - If compute() returns an AsyncDisposable, it is automatically disposed
- *   before running the next task and when the memo is disposed. Disposal runs
- *   through the queue to stay synchronized with in-flight tasks.
+ *   once the next task's result replaces it and when the memo is disposed.
+ *   Disposal runs through the queue to stay synchronized with in-flight tasks.
+ *   Until replaced, the previous result remains usable via retainOn.
  */
 
 import m from 'mithril';
@@ -179,7 +180,7 @@ interface Cache<T> {
  * memos should share a SerialTaskQueue for atomic compute task execution.
  *
  * If T is an AsyncDisposable, the memo will automatically dispose of previous
- * results before running a new compute and when the memo is disposed.
+ * results once a new compute replaces them and when the memo is disposed.
  */
 export class AsyncMemo<T> {
   private cache?: Cache<T>;
@@ -238,15 +239,26 @@ export class AsyncMemo<T> {
       this.pendingKey = key;
       this.queue.schedule(this, async () => {
         try {
-          // Dispose of previous result before running new task
-          await this.disposeCache();
           const result = await compute({
             get isCancelled() {
               return signal.cancelled;
             },
           });
 
+          const previous = this.cache;
           this.finaliseTask(key, result);
+
+          // Dispose of the previous result now that it has been replaced.
+          // Doing this after (rather than before) compute keeps the previous
+          // result usable via retainOn while the new one is computed.
+          if (
+            previous !== undefined &&
+            this.cache !== previous &&
+            this.cache?.data !== previous.data &&
+            isAsyncDisposable(previous.data)
+          ) {
+            await previous.data[Symbol.asyncDispose]();
+          }
         } catch (e) {
           // Support both throwing and returning TASK_CANCELLED
           if (e === TASK_CANCELLED) {

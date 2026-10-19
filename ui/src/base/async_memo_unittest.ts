@@ -260,7 +260,7 @@ test('queued work is cancelled when slot is disposed', async () => {
   expect(queryFn2).not.toHaveBeenCalled();
 });
 
-test('AsyncDisposable is disposed before running next queryFn', async () => {
+test('AsyncDisposable is disposed after next queryFn replaces it', async () => {
   const slot = new AsyncMemo<AsyncDisposable>();
 
   const events: string[] = [];
@@ -293,12 +293,88 @@ test('AsyncDisposable is disposed before running next queryFn', async () => {
 
   expect(events).toEqual(['query1']);
 
-  // Second query with different key - should dispose first before running second
+  // Second query with different key - should dispose first after running second
   slot.use({key: {id: 2}, compute: queryFn2});
   await flushPromises();
 
-  expect(events).toEqual(['query1', 'dispose1', 'query2']);
+  expect(events).toEqual(['query1', 'query2', 'dispose1']);
   expect(disposable1[Symbol.asyncDispose]).toHaveBeenCalledTimes(1);
+});
+
+test('retainOn keeps AsyncDisposable alive until replaced', async () => {
+  const slot = new AsyncMemo<AsyncDisposable>();
+
+  const events: string[] = [];
+  let resolveQuery2: () => void;
+  const query2Promise = new Promise<void>((resolve) => {
+    resolveQuery2 = resolve;
+  });
+
+  const disposable1: AsyncDisposable = {
+    [Symbol.asyncDispose]: vi.fn().mockImplementation(async () => {
+      events.push('dispose1');
+    }),
+  };
+
+  const disposable2: AsyncDisposable = {
+    [Symbol.asyncDispose]: vi.fn().mockImplementation(async () => {
+      events.push('dispose2');
+    }),
+  };
+
+  const queryFn1 = vi.fn().mockImplementation(async () => {
+    events.push('query1');
+    return disposable1;
+  });
+
+  const queryFn2 = vi.fn().mockImplementation(async () => {
+    events.push('query2-start');
+    await query2Promise;
+    events.push('query2-end');
+    return disposable2;
+  });
+
+  // First query
+  slot.use({
+    key: {filter: 'a', page: 1},
+    compute: queryFn1,
+    retainOn: ['page'],
+  });
+  await flushPromises();
+
+  // Change only page (in retainOn) while query2 is in-flight
+  slot.use({
+    key: {filter: 'a', page: 2},
+    compute: queryFn2,
+    retainOn: ['page'],
+  });
+  await flushPromises();
+
+  // The previous disposable should still be returned and not yet disposed
+  const pending = slot.use({
+    key: {filter: 'a', page: 2},
+    compute: queryFn2,
+    retainOn: ['page'],
+  });
+  expect(pending.data).toBe(disposable1);
+  expect(pending.isPending).toBe(true);
+  expect(events).toEqual(['query1', 'query2-start']);
+
+  // Complete query2
+  resolveQuery2!();
+  await flushPromises();
+
+  // The previous disposable should only be disposed once replaced
+  const done = slot.use({
+    key: {filter: 'a', page: 2},
+    compute: queryFn2,
+    retainOn: ['page'],
+  });
+  expect(done.data).toBe(disposable2);
+  expect(done.isPending).toBe(false);
+  expect(events).toEqual(['query1', 'query2-start', 'query2-end', 'dispose1']);
+  expect(disposable1[Symbol.asyncDispose]).toHaveBeenCalledTimes(1);
+  expect(disposable2[Symbol.asyncDispose]).not.toHaveBeenCalled();
 });
 
 test('slot dispose calls AsyncDisposable dispose after in-flight task completes', async () => {
