@@ -1115,3 +1115,15 @@ class PerfettoPipeline(TestSuite):
              SELECT 0 AS ts, 10 AS dur UNION ALL SELECT 5, 10);
         """,
         out=ExpectedError('overlap within a lane'))
+
+  # SELECT, EXTEND and SET parse any expression, but only a column can be
+  # computed yet.
+  def test_computed_columns_are_not_supported_yet(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r''),
+        query="""
+        PERFETTO PRAGMA pipelines = 1;
+        FROM (SELECT 1 AS a)
+        |> EXTEND a + 1 AS b;
+        """,
+        out=ExpectedError('a computed column is not supported yet'))
