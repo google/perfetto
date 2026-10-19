@@ -64,7 +64,48 @@ import {Tree, TreeNode} from '../../widgets/tree';
 
 const TRACE_UUID_URL = 'http://go/trace-uuid/';
 const TRACE_UUIDS_URL = 'http://go/trace-uuids/';
+const QUERY_TRACES_URL = 'http://go/query-traces/';
+const QUERY_TRACES_PING_INTERVAL_MS = 200;
+const QUERY_TRACES_TIMEOUT_MS = 2 * 60 * 1000;
 const TABLE_NAME = '_device_traces';
+
+const DEFAULT_QUERY_TRACES_SQL = `SELECT
+  (SELECT (end_ts - start_ts) / 1000000 FROM trace_bounds) trace_dur_ms,
+  (SELECT (MAX(ts) - MIN(ts)) / 1000000 FROM sched) sched_dur_ms,
+  (SELECT int_value / 1000000 FROM metadata WHERE name='tracing_started_ns') time_since_boot_ms`;
+
+function openQueryTraces(traceUuids: ReadonlyArray<string>): void {
+  if (traceUuids.length === 0) return;
+  const popup = window.open(QUERY_TRACES_URL, '_blank');
+  if (popup === null) return;
+
+  const payload = {
+    traceUuids: [...traceUuids],
+    perfettoSql: DEFAULT_QUERY_TRACES_SQL,
+  };
+
+  const stop = () => {
+    window.clearInterval(pingInterval);
+    window.clearTimeout(timeoutId);
+    window.removeEventListener('message', onMessage);
+  };
+
+  const onMessage = (e: MessageEvent) => {
+    if (e.source !== popup || e.data !== 'PONG') return;
+    stop();
+    popup.postMessage(payload, e.origin);
+  };
+
+  window.addEventListener('message', onMessage);
+  const pingInterval = window.setInterval(() => {
+    if (popup.closed) {
+      stop();
+      return;
+    }
+    popup.postMessage('PING', '*');
+  }, QUERY_TRACES_PING_INTERVAL_MS);
+  const timeoutId = window.setTimeout(stop, QUERY_TRACES_TIMEOUT_MS);
+}
 
 const DEFAULT_BREAKDOWN_PATHS: ReadonlyArray<ReadonlyArray<string>> = [
   ['session_name', 'subscription_name', 'android_id'],
@@ -553,9 +594,9 @@ class DeviceTracesSelectionAggregator implements Aggregator {
   }
 }
 
-class DeviceTracesMergeTab implements AreaSelectionTab {
-  readonly id = 'device_traces_merge';
-  readonly name = 'Merge traces';
+class DeviceTracesSelectTab implements AreaSelectionTab {
+  readonly id = 'device_traces_select';
+  readonly name = 'Select traces';
   readonly priority = 100;
 
   private readonly memo = new AsyncMemo<{
@@ -601,21 +642,36 @@ class DeviceTracesMergeTab implements AreaSelectionTab {
       },
     });
 
+    const selectedCount = data?.selected.size ?? 0;
+    const hasSelected = data !== undefined && selectedCount > 0;
+
     return {
       isLoading: isPending,
-      buttons: m(Button, {
-        label: `Merge selected traces (${data?.selected.size ?? 0})`,
-        icon: Icons.ExternalLink,
-        disabled: data === undefined || data.selected.size === 0,
-        onclick: () => {
-          if (data !== undefined && data.selected.size > 0) {
-            window.open(
-              TRACE_UUIDS_URL + [...data.selected].join(','),
-              '_blank',
-            );
-          }
-        },
-      }),
+      buttons: [
+        m(Button, {
+          label: `Merge selected traces (${selectedCount})`,
+          icon: Icons.ExternalLink,
+          disabled: !hasSelected,
+          onclick: () => {
+            if (data !== undefined && data.selected.size > 0) {
+              window.open(
+                TRACE_UUIDS_URL + [...data.selected].join(','),
+                '_blank',
+              );
+            }
+          },
+        }),
+        m(Button, {
+          label: `Query selected traces (${selectedCount})`,
+          icon: Icons.ExternalLink,
+          disabled: !hasSelected,
+          onclick: () => {
+            if (data !== undefined && data.selected.size > 0) {
+              openQueryTraces([...data.selected]);
+            }
+          },
+        }),
+      ],
       content:
         data === undefined
           ? undefined
@@ -856,7 +912,7 @@ export default class DeviceTracesPlugin implements PerfettoPlugin {
       ),
     );
     ctx.selection.registerAreaSelectionTab(
-      new DeviceTracesMergeTab(
+      new DeviceTracesSelectTab(
         ctx,
         this.counterTrackFilters,
         this.breakdownColumns,
