@@ -32,6 +32,7 @@
 #include "src/trace_processor/core/exec/filter.h"
 #include "src/trace_processor/core/exec/grouped_sort.h"
 #include "src/trace_processor/core/exec/hash_aggregate.h"
+#include "src/trace_processor/core/exec/index_scan.h"
 #include "src/trace_processor/core/exec/interval_fill_gaps.h"
 #include "src/trace_processor/core/exec/interval_flatten.h"
 #include "src/trace_processor/core/exec/interval_intersect.h"
@@ -180,6 +181,9 @@ std::string PipelineFormatter::SourceString(const Source& source) {
   }
   if (source.Is<SortedScan>()) {
     return "SortedScan";
+  }
+  if (source.Is<IndexScan>()) {
+    return "IndexScan";
   }
   return "Source";
 }
