@@ -262,8 +262,8 @@ std::string LogicalPlanFormatter::WhereString(const Where& where) {
   std::string out = "Where(";
   for (size_t i = 0; i < where.predicates_.size(); ++i) {
     const WherePredicate& p = where.predicates_[i];
-    out += (i ? ", #" : "#") + std::to_string(p.column) + " " +
-           OpString(p.op) + " " +
+    out += (i ? ", #" : "#") + std::to_string(p.column) + " " + OpString(p.op) +
+           " " +
            (p.is_double ? std::to_string(p.double_value)
                         : std::to_string(p.int_value));
   }

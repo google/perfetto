@@ -99,8 +99,7 @@ base::StatusOr<WherePredicate> ParsePredicate(Compiler* c, uint32_t expr) {
   } else if (binary_op == SYNTAQLITE_BINARY_OP_GE) {
     op = core::Ge{};
   } else {
-    return c->Unsupported(expr,
-                          "an operator other than =, !=, <, <=, >, >=");
+    return c->Unsupported(expr, "an operator other than =, !=, <, <=, >, >=");
   }
   ASSIGN_OR_RETURN(ColumnId column,
                    c->ResolveColumnExpr(node->binary_expr.left));
@@ -223,9 +222,8 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     }
     ex::FilterValue filter_value;
     filter_value.value =
-        p.is_double
-            ? core::filter::CastFilterValueResult::Valid(p.double_value)
-            : core::filter::CastFilterValueResult::Valid(p.int_value);
+        p.is_double ? core::filter::CastFilterValueResult::Valid(p.double_value)
+                    : core::filter::CastFilterValueResult::Valid(p.int_value);
     uint32_t value = c->AddFilterValue(std::move(filter_value));
     ex::Filter::Condition condition;
     condition.column = c->QueryPosition(p.column);
@@ -233,7 +231,8 @@ void Where::Lower(Lowering* c, const PlanNode& node) const {
     condition.value = value;
     conditions.push_back(condition);
   }
-  c->AddOperator(std::make_unique<ex::Filter>(std::move(conditions), c->pool()));
+  c->AddOperator(
+      std::make_unique<ex::Filter>(std::move(conditions), c->pool()));
   c->DeclareSmallBatches();
 }
 

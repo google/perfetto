@@ -534,7 +534,7 @@ PhysicalPlan::PhysicalPlan() = default;
 PhysicalPlan::~PhysicalPlan() = default;
 
 base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan& plan,
-                                                     const StringPool* pool) {
+                                                    const StringPool* pool) {
   PlanLowering lowering(plan, pool);
   lowering.main().LowerNode(plan.root());
   return lowering.Finish();

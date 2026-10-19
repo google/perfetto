@@ -94,7 +94,7 @@ class PhysicalPlan {
 // `pool` holds the strings of the columns a Filter reads, and must outlive
 // every run of the plan.
 base::StatusOr<std::unique_ptr<PhysicalPlan>> Lower(const LogicalPlan&,
-                                                     const StringPool* pool);
+                                                    const StringPool* pool);
 
 // -----------------------------------------------------------------------------
 // Lowering
